@@ -1,7 +1,5 @@
 import { LoadingIcon } from '@renderer/components/Icons'
 import type { NormalToolResponse } from '@renderer/types'
-import type { CollapseProps } from 'antd'
-import { Collapse } from 'antd'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -9,6 +7,7 @@ import { type StatusColor, StatusIndicatorContainer, StreamingContext } from './
 import { isValidAgentToolsType, renderTool } from './agent/index'
 import { UnknownToolRenderer } from './agent/UnknownToolRenderer'
 import { useToolApproval } from './hooks/useToolApproval'
+import { ToolDisclosure, type ToolDisclosureItem } from './shared/ToolDisclosure'
 import ToolApprovalActionsComponent from './ToolApprovalActions'
 
 interface Props {
@@ -46,7 +45,7 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
       </StatusIndicatorContainer>
     )
 
-    const toolContentItem: NonNullable<CollapseProps['items']>[number] = {
+    const toolContentItem: ToolDisclosureItem = {
       ...renderedItem,
       label: (
         <div className="flex w-full items-start justify-between gap-2">
@@ -55,16 +54,14 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
         </div>
       ),
       classNames: {
-        body: 'bg-foreground-50 p-2 text-foreground-900 dark:bg-foreground-100 max-h-60 overflow-auto'
+        body: 'max-h-60 overflow-auto bg-foreground-50 p-2 text-foreground-900 dark:bg-foreground-100'
       }
     }
 
     return (
       <StreamingContext value={false}>
-        <Collapse
+        <ToolDisclosure
           className="w-full"
-          expandIconPosition="end"
-          size="small"
           defaultActiveKey={[String(renderedItem.key ?? toolName)]}
           items={[toolContentItem]}
         />
@@ -73,7 +70,7 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
   }, [toolResponse.tool?.name, approval.input, toolResponse.arguments, statusInfo])
 
   return (
-    <div className="w-full max-w-xl overflow-hidden rounded-xl border border-(--color-border) bg-(--color-background-soft) [&_.ant-collapse-header]:px-3! [&_.ant-collapse-header]:py-2! [&_.ant-collapse-item]:border-none [&_.ant-collapse]:rounded-none [&_.ant-collapse]:border-none [&_.ant-collapse]:bg-transparent">
+    <div className="w-full max-w-xl overflow-hidden rounded-xl border border-(--color-border) bg-(--color-background-soft)">
       {/* Tool content area with status in header */}
       {renderToolContent()}
 

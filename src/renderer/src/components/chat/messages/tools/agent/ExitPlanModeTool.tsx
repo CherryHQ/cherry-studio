@@ -1,7 +1,7 @@
-import type { CollapseProps } from 'antd'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 
+import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
 import { ToolHeader, TruncatedIndicator } from './GenericTools'
 import type { ExitPlanModeToolInput, ExitPlanModeToolOutput } from './types'
@@ -13,7 +13,7 @@ export function ExitPlanModeTool({
 }: {
   input?: ExitPlanModeToolInput
   output?: ExitPlanModeToolOutput
-}): NonNullable<CollapseProps['items']>[number] {
+}): ToolDisclosureItem {
   const { t } = useTranslation()
   const plan = input?.plan ?? ''
   const combinedContent = plan + '\n\n' + (output ?? '')

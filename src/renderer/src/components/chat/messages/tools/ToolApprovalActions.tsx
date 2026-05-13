@@ -1,5 +1,5 @@
+import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { LoadingIcon } from '@renderer/components/Icons'
-import { Button, Dropdown } from 'antd'
 import { ChevronDown, CirclePlay, CircleX, ShieldCheck } from 'lucide-react'
 import type { ComponentPropsWithoutRef, FC, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -46,7 +46,7 @@ export const ToolApprovalActionsComponent: FC<ToolApprovalActionsProps> = ({
     if (showAbort && onAbort) {
       return (
         <ActionsContainer $compact={compact} onClick={(e) => e.stopPropagation()}>
-          <Button size="small" color="danger" variant="solid" onClick={(e) => handleClick(e, onAbort)}>
+          <Button size="sm" variant="destructive" onClick={(e) => handleClick(e, onAbort)}>
             {t('chat.input.pause')}
           </Button>
         </ActionsContainer>
@@ -66,37 +66,53 @@ export const ToolApprovalActionsComponent: FC<ToolApprovalActionsProps> = ({
   return (
     <ActionsContainer $compact={compact} onClick={(e) => e.stopPropagation()}>
       <Button
-        size="small"
-        color="danger"
-        variant={compact ? 'text' : 'outlined'}
+        size="sm"
+        variant={compact ? 'ghost' : 'outline'}
         disabled={isSubmitting}
+        className="text-destructive hover:text-destructive"
         onClick={(e) => handleClick(e, cancel)}>
         <CircleX size={compact ? 13 : 14} className="lucide-custom" />
         {!compact && t('common.cancel')}
       </Button>
 
       {autoApprove ? (
-        <StyledDropdownButton
-          size="small"
-          type="primary"
-          disabled={isSubmitting}
-          icon={<ChevronDown size={compact ? 12 : 14} />}
-          onClick={(e) => handleClick(e, confirm)}
-          menu={{
-            items: [
-              {
-                key: 'autoApprove',
-                label: t('settings.mcp.tools.autoApprove.label'),
-                icon: <ShieldCheck size={14} />,
-                onClick: () => autoApprove()
-              }
-            ]
-          }}>
-          <CirclePlay size={compact ? 13 : 15} className="lucide-custom" />
-          {t('settings.mcp.tools.run', 'Run')}
-        </StyledDropdownButton>
+        <div className="flex items-center">
+          <Button
+            size="sm"
+            variant="default"
+            disabled={isSubmitting}
+            className="rounded-r-none"
+            onClick={(e) => handleClick(e, confirm)}>
+            <CirclePlay size={compact ? 13 : 15} className="lucide-custom" />
+            {t('settings.mcp.tools.run', 'Run')}
+          </Button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                size="sm"
+                variant="default"
+                disabled={isSubmitting}
+                className="rounded-l-none border-primary-foreground/20 border-l px-1.5"
+                onClick={(e) => e.stopPropagation()}>
+                <ChevronDown size={compact ? 12 : 14} />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-52 p-1">
+              <MenuList>
+                <MenuItem
+                  label={t('settings.mcp.tools.autoApprove.label')}
+                  icon={<ShieldCheck size={14} />}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    void autoApprove()
+                  }}
+                />
+              </MenuList>
+            </PopoverContent>
+          </Popover>
+        </div>
       ) : (
-        <Button size="small" type="primary" disabled={isSubmitting} onClick={(e) => handleClick(e, confirm)}>
+        <Button size="sm" variant="default" disabled={isSubmitting} onClick={(e) => handleClick(e, confirm)}>
           <CirclePlay size={compact ? 13 : 15} className="lucide-custom" />
           {t('settings.mcp.tools.run', 'Run')}
         </Button>
@@ -116,8 +132,8 @@ const ActionsContainer = ({
     className={[
       'flex items-center',
       $compact
-        ? 'gap-1 [&_.ant-btn-sm]:h-6 [&_.ant-btn-sm]:px-1.5 [&_.ant-btn-sm]:py-0 [&_.ant-btn-sm]:text-xs'
-        : 'gap-2 [&_.ant-btn-sm]:h-7 [&_.ant-btn-sm]:px-2 [&_.ant-btn-sm]:py-0 [&_.ant-btn-sm]:text-[13px]',
+        ? 'gap-1 [&_[data-slot=button]]:h-6 [&_[data-slot=button]]:px-1.5 [&_[data-slot=button]]:py-0 [&_[data-slot=button]]:text-xs'
+        : 'gap-2 [&_[data-slot=button]]:h-7 [&_[data-slot=button]]:px-2 [&_[data-slot=button]]:py-0 [&_[data-slot=button]]:text-[13px]',
       className
     ]
       .filter(Boolean)
@@ -131,10 +147,6 @@ const LoadingIndicator = ({ className, ...props }: ComponentPropsWithoutRef<'div
     className={['flex items-center gap-1.5 text-(--color-primary) text-xs', className].filter(Boolean).join(' ')}
     {...props}
   />
-)
-
-const StyledDropdownButton = ({ className, ...props }: ComponentPropsWithoutRef<typeof Dropdown.Button>) => (
-  <Dropdown.Button className={['[&_.ant-btn-group]:rounded-md', className].filter(Boolean).join(' ')} {...props} />
 )
 
 export default ToolApprovalActionsComponent

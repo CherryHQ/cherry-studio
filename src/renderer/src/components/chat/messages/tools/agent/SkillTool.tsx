@@ -1,17 +1,11 @@
-import type { CollapseProps } from 'antd'
 import { useTranslation } from 'react-i18next'
 
+import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
 import { SkeletonValue, ToolHeader, TruncatedIndicator } from './GenericTools'
 import { AgentToolsType, type SkillToolInput, type SkillToolOutput } from './types'
 
-export function SkillTool({
-  input,
-  output
-}: {
-  input?: SkillToolInput
-  output?: SkillToolOutput
-}): NonNullable<CollapseProps['items']>[number] {
+export function SkillTool({ input, output }: { input?: SkillToolInput; output?: SkillToolOutput }): ToolDisclosureItem {
   const { t } = useTranslation()
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 

@@ -4,7 +4,7 @@ import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { isQwenMTModel } from '@renderer/config/models/qwen'
 import type { Model, ReasoningEffortOption } from '@renderer/types'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import { createUniqueModelId, isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, isUniqueModelId } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { t } from 'i18next'
 
@@ -84,7 +84,7 @@ export const translateText = async (
   const { model, content } = await resolveTranslatePayload(targetLanguage, text)
 
   const { text: result } = await window.api.ai.generateText({
-    uniqueModelId: createUniqueModelId(model.provider, model.id) as UniqueModelId,
+    uniqueModelId: createUniqueModelId(model.provider, model.id),
     // No persisted assistant for ad-hoc translate calls — main resolves the
     // model directly via `uniqueModelId`.
     prompt: content

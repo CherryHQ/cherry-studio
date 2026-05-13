@@ -1,6 +1,6 @@
-import type { CollapseProps } from 'antd'
 import { useTranslation } from 'react-i18next'
 
+import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { countLines, truncateOutput } from '../shared/truncateOutput'
 import { ClickableFilePath } from './ClickableFilePath'
 import { ToolHeader, TruncatedIndicator } from './GenericTools'
@@ -9,13 +9,7 @@ import { AgentToolsType, type GrepToolInput, type GrepToolOutput } from './types
 
 const FILE_PATH_RE = /^(\/[\w./@+-][^:]*[^:])(:.*)?$/
 
-export function GrepTool({
-  input,
-  output
-}: {
-  input?: GrepToolInput
-  output?: GrepToolOutput
-}): NonNullable<CollapseProps['items']>[number] {
+export function GrepTool({ input, output }: { input?: GrepToolInput; output?: GrepToolOutput }): ToolDisclosureItem {
   const { t } = useTranslation()
   // 如果有输出，计算结果行数
   const resultLines = countLines(output)

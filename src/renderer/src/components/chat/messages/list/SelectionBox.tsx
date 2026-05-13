@@ -39,7 +39,7 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
     }
 
     const handleMouseDown = (e: MouseEvent) => {
-      if ((e.target as HTMLElement).closest('.ant-checkbox-wrapper')) return
+      if ((e.target as HTMLElement).closest('[data-slot=checkbox]')) return
       if ((e.target as HTMLElement).closest('.MessageFooter')) return
 
       e.preventDefault()

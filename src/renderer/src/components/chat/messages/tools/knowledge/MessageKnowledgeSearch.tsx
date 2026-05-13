@@ -2,10 +2,7 @@ import Spinner from '@renderer/components/Spinner'
 import i18n from '@renderer/i18n'
 import type { NormalToolResponse } from '@renderer/types'
 import { kbSearchInputSchema, type KbSearchOutputItem, kbSearchOutputSchema } from '@shared/ai/builtinTools'
-import { Typography } from 'antd'
 import { FileSearch } from 'lucide-react'
-
-const { Text } = Typography
 
 export function MessageKnowledgeSearchToolTitle({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const inputParse = kbSearchInputSchema.safeParse(toolResponse.arguments)
@@ -23,10 +20,10 @@ export function MessageKnowledgeSearchToolTitle({ toolResponse }: { toolResponse
       }
     />
   ) : (
-    <Text className="flex items-center gap-1" type="secondary">
+    <span className="flex items-center gap-1 text-(--color-text-2)">
       <FileSearch size={16} style={{ color: 'unset' }} />
       {i18n.t('message.websearch.fetch_complete', { count: resultCount })}
-    </Text>
+    </span>
   )
 }
 

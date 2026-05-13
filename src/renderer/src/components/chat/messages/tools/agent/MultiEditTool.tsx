@@ -2,9 +2,9 @@ import type { FileDiffOptions } from '@pierre/diffs'
 import { parseDiffFromFile } from '@pierre/diffs'
 import { FileDiff } from '@pierre/diffs/react'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
-import type { CollapseProps } from 'antd'
 import { useMemo } from 'react'
 
+import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { ClickableFilePath } from './ClickableFilePath'
 import { DiffStyleToggle, useDiffStyle } from './DiffStyleToggle'
 import { ToolHeader } from './GenericTools'
@@ -68,7 +68,7 @@ export function MultiEditTool({
 }: {
   input?: MultiEditToolInput
   output?: MultiEditToolOutput
-}): NonNullable<CollapseProps['items']>[number] {
+}): ToolDisclosureItem {
   const filename = input?.file_path?.split('/').pop()
 
   return {

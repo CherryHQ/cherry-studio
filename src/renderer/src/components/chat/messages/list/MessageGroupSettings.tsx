@@ -1,10 +1,9 @@
-import { SettingOutlined } from '@ant-design/icons'
+import { Popover, PopoverContent, PopoverTrigger, Slider } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import { SettingDivider } from '@renderer/pages/settings'
 import { SettingRow } from '@renderer/pages/settings'
-import { Col, Row, Slider } from 'antd'
-import { Popover } from 'antd'
+import { Settings } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,13 +16,14 @@ const MessageGroupSettings: FC = () => {
   const [gridColumnsValue, setGridColumnsValue] = useState(gridColumns)
 
   return (
-    <Popover
-      arrow={false}
-      trigger={undefined}
-      content={
-        <div style={{ padding: 8 }}>
+    <Popover>
+      <PopoverTrigger asChild>
+        <Settings className="ml-[15px] cursor-pointer" size={16} />
+      </PopoverTrigger>
+      <PopoverContent className="w-80 p-2" align="end">
+        <div>
           <SettingRow>
-            <div style={{ marginRight: 10 }}>{t('settings.messages.grid_popover_trigger.label')}</div>
+            <div className="mr-2.5">{t('settings.messages.grid_popover_trigger.label')}</div>
             <Selector
               size={14}
               value={gridPopoverTrigger || 'hover'}
@@ -38,22 +38,20 @@ const MessageGroupSettings: FC = () => {
           <SettingRow>
             <div>{t('settings.messages.grid_columns')}</div>
           </SettingRow>
-          <Row align="middle" gutter={10}>
-            <Col span={24}>
-              <Slider
-                value={gridColumnsValue}
-                style={{ width: '100%' }}
-                onChange={(value) => setGridColumnsValue(value)}
-                onChangeComplete={(value) => setGridColumns(value)}
-                min={2}
-                max={6}
-                step={1}
-              />
-            </Col>
-          </Row>
+          <div className="flex items-center py-2">
+            <Slider
+              value={[gridColumnsValue]}
+              className="w-full"
+              onValueChange={(value) => setGridColumnsValue(value[0] ?? gridColumnsValue)}
+              onValueCommit={(value) => setGridColumns(value[0] ?? gridColumnsValue)}
+              min={2}
+              max={6}
+              step={1}
+              showValueLabel
+            />
+          </div>
         </div>
-      }>
-      <SettingOutlined style={{ marginLeft: 15, cursor: 'pointer' }} />
+      </PopoverContent>
     </Popover>
   )
 }

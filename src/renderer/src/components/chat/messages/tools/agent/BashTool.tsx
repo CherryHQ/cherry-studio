@@ -1,6 +1,6 @@
-import type { CollapseProps } from 'antd'
 import { useTranslation } from 'react-i18next'
 
+import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
 import { SkeletonValue, ToolHeader, TruncatedIndicator } from './GenericTools'
 import { TerminalOutput } from './TerminalOutput'
@@ -16,7 +16,7 @@ export function BashTool({
 }: {
   input?: BashToolInputType
   output?: BashToolOutputType
-}): NonNullable<CollapseProps['items']>[number] {
+}): ToolDisclosureItem {
   const { t } = useTranslation()
   const command = input?.command
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)

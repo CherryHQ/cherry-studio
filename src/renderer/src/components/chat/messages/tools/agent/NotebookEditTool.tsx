@@ -1,7 +1,7 @@
-import type { CollapseProps } from 'antd'
-import { Tag } from 'antd'
+import { Badge } from '@cherrystudio/ui'
 import ReactMarkdown from 'react-markdown'
 
+import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
 import { ClickableFilePath } from './ClickableFilePath'
 import { ToolHeader, TruncatedIndicator } from './GenericTools'
@@ -14,7 +14,7 @@ export function NotebookEditTool({
 }: {
   input?: NotebookEditToolInput
   output?: NotebookEditToolOutput
-}): NonNullable<CollapseProps['items']>[number] {
+}): ToolDisclosureItem {
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {
@@ -22,7 +22,9 @@ export function NotebookEditTool({
     label: (
       <div className="flex items-center gap-2">
         <ToolHeader toolName={AgentToolsType.NotebookEdit} variant="collapse-label" showStatus={false} />
-        <Tag color="blue">{input?.notebook_path ? <ClickableFilePath path={input.notebook_path} /> : undefined}</Tag>
+        <Badge variant="secondary">
+          {input?.notebook_path ? <ClickableFilePath path={input.notebook_path} /> : undefined}
+        </Badge>
       </div>
     ),
     children: (

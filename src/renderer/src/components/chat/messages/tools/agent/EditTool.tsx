@@ -1,9 +1,9 @@
 import { parseDiffFromFile } from '@pierre/diffs'
 import { FileDiff } from '@pierre/diffs/react'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
-import type { CollapseProps } from 'antd'
 import { useMemo } from 'react'
 
+import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { ClickableFilePath } from './ClickableFilePath'
 import { DiffStyleToggle, useDiffStyle } from './DiffStyleToggle'
 import { ToolHeader } from './GenericTools'
@@ -43,13 +43,7 @@ function EditToolChildren({ input, output }: { input?: EditToolInput; output?: E
   )
 }
 
-export function EditTool({
-  input,
-  output
-}: {
-  input?: EditToolInput
-  output?: EditToolOutput
-}): NonNullable<CollapseProps['items']>[number] {
+export function EditTool({ input, output }: { input?: EditToolInput; output?: EditToolOutput }): ToolDisclosureItem {
   const filename = input?.file_path?.split('/').pop()
 
   return {

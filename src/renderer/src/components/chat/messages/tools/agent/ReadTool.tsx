@@ -1,9 +1,9 @@
 import CodeViewer from '@renderer/components/CodeViewer'
 import { getLanguageByFilePath } from '@renderer/utils/code-language'
 import { formatFileSize } from '@renderer/utils/file'
-import type { CollapseProps } from 'antd'
 import { useTranslation } from 'react-i18next'
 
+import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
 import { ClickableFilePath } from './ClickableFilePath'
 import { SkeletonValue, ToolHeader, TruncatedIndicator } from './GenericTools'
@@ -55,7 +55,7 @@ export function ReadTool({
 }: {
   input?: ReadToolInputType
   output?: ReadToolOutputType
-}): NonNullable<CollapseProps['items']>[number] {
+}): ToolDisclosureItem {
   const { t } = useTranslation()
   const outputString = normalizeOutputString(output)
   const stats = getOutputStats(outputString)

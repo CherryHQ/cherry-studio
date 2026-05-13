@@ -1,3 +1,4 @@
+import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -12,8 +13,7 @@ import type { Message } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
-import { Popover } from 'antd'
-import type { ComponentProps, WheelEvent as ReactWheelEvent } from 'react'
+import type { ComponentProps, ReactNode, WheelEvent as ReactWheelEvent } from 'react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 
 import MessageItem from '../frame/MessageFrame'
@@ -288,9 +288,9 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
 
       if (isGridGroupMessage) {
         return (
-          <Popover
+          <GridMessagePopover
             key={message.id}
-            destroyOnHidden
+            trigger={gridPopoverTrigger}
             content={
               <MessageWrapper
                 className={classNames([
@@ -303,13 +303,8 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
                 <MessageItem onUpdateUseful={onUpdateUseful} {...messageProps} />
               </MessageWrapper>
             }
-            trigger={gridPopoverTrigger}
-            styles={{
-              root: { maxWidth: '60vw', overflowY: 'auto', zIndex: 1000 },
-              body: { padding: 2 }
-            }}>
-            {messageContent}
-          </Popover>
+            triggerContent={messageContent}
+          />
         )
       }
 
@@ -417,6 +412,39 @@ const MessageWrapper = ({ className, $isInPopover, ...props }: ComponentProps<'d
       {...props}
       style={isHorizontal ? { overflowY: 'visible', ...props.style } : props.style}
     />
+  )
+}
+
+const GridMessagePopover = ({
+  content,
+  triggerContent,
+  trigger
+}: {
+  content: ReactNode
+  triggerContent: ReactNode
+  trigger: 'hover' | 'click'
+}) => {
+  const [open, setOpen] = useState(false)
+  const isHover = trigger === 'hover'
+
+  return (
+    <Popover open={isHover ? open : undefined} onOpenChange={isHover ? setOpen : undefined}>
+      <PopoverTrigger asChild>
+        <div
+          onMouseEnter={isHover ? () => setOpen(true) : undefined}
+          onMouseLeave={isHover ? () => setOpen(false) : undefined}>
+          {triggerContent}
+        </div>
+      </PopoverTrigger>
+      <PopoverContent
+        onMouseEnter={isHover ? () => setOpen(true) : undefined}
+        onMouseLeave={isHover ? () => setOpen(false) : undefined}
+        className="z-[1000] max-h-[60vh] w-auto max-w-[60vw] overflow-y-auto p-0.5"
+        side="top"
+        align="center">
+        {content}
+      </PopoverContent>
+    </Popover>
   )
 }
 

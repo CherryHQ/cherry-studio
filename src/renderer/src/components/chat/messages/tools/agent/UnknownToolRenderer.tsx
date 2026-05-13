@@ -1,9 +1,9 @@
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
-import type { CollapseProps } from 'antd'
 import { Wrench } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { ToolArgsTable } from '../shared/ArgsTable'
+import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { ToolHeader } from './GenericTools'
 
 interface UnknownToolProps {
@@ -44,11 +44,7 @@ function extractMcpText(output: unknown): string | null {
  * Fallback renderer for unknown tool types
  * Uses shared ArgsTable for consistent styling with MCP tools
  */
-export function UnknownToolRenderer({
-  toolName = '',
-  input,
-  output
-}: UnknownToolProps): NonNullable<CollapseProps['items']>[number] {
+export function UnknownToolRenderer({ toolName = '', input, output }: UnknownToolProps): ToolDisclosureItem {
   const { t } = useTranslation()
 
   const getToolDescription = (name: string) => {

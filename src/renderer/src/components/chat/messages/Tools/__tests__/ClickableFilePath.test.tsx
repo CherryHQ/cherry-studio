@@ -20,7 +20,8 @@ vi.mock('react-i18next', () => ({
     t: (key: string) => {
       const map: Record<string, string> = {
         'chat.input.tools.open_file': 'Open File',
-        'chat.input.tools.reveal_in_finder': 'Reveal in Finder'
+        'chat.input.tools.reveal_in_finder': 'Reveal in Finder',
+        'common.more': 'More'
       }
       return map[key] ?? key
     }
@@ -49,49 +50,50 @@ describe('ClickableFilePath', () => {
 
   it('should render the path as text', () => {
     render(<ClickableFilePath path="/Users/foo/bar.tsx" />)
-    expect(screen.getByText('/Users/foo/bar.tsx')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '/Users/foo/bar.tsx' })).toBeInTheDocument()
   })
 
   it('should render displayName when provided', () => {
     render(<ClickableFilePath path="/Users/foo/bar.tsx" displayName="bar.tsx" />)
-    expect(screen.getByText('bar.tsx')).toBeInTheDocument()
-    expect(screen.queryByText('/Users/foo/bar.tsx')).not.toBeInTheDocument()
+    const link = screen.getByRole('link', { name: 'bar.tsx' })
+    expect(link).toBeInTheDocument()
+    expect(link).toHaveTextContent('bar.tsx')
   })
 
   it('should call openPath on click', () => {
     render(<ClickableFilePath path="/Users/foo/bar.tsx" />)
-    fireEvent.click(screen.getByText('/Users/foo/bar.tsx'))
+    fireEvent.click(screen.getByRole('link', { name: '/Users/foo/bar.tsx' }))
     expect(mockOpenPath).toHaveBeenCalledWith('/Users/foo/bar.tsx')
   })
 
   it('should have clickable styling', () => {
     render(<ClickableFilePath path="/tmp/test.ts" />)
-    const span = screen.getByText('/tmp/test.ts')
+    const span = screen.getByRole('link', { name: '/tmp/test.ts' })
     expect(span).toHaveClass('cursor-pointer')
     expect(span).toHaveStyle({ color: 'var(--color-link)' })
   })
 
   it('should render ellipsis dropdown trigger', () => {
     render(<ClickableFilePath path="/tmp/test.ts" />)
-    expect(document.querySelector('.anticon-more')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument()
   })
 
   it('should have role="link" and tabIndex for keyboard accessibility', () => {
     render(<ClickableFilePath path="/tmp/test.ts" />)
-    const span = screen.getByText('/tmp/test.ts')
+    const span = screen.getByRole('link', { name: '/tmp/test.ts' })
     expect(span).toHaveAttribute('role', 'link')
     expect(span).toHaveAttribute('tabindex', '0')
   })
 
   it('should call openPath on Enter key', () => {
     render(<ClickableFilePath path="/Users/foo/bar.tsx" />)
-    fireEvent.keyDown(screen.getByText('/Users/foo/bar.tsx'), { key: 'Enter' })
+    fireEvent.keyDown(screen.getByRole('link', { name: '/Users/foo/bar.tsx' }), { key: 'Enter' })
     expect(mockOpenPath).toHaveBeenCalledWith('/Users/foo/bar.tsx')
   })
 
   it('should call openPath on Space key', () => {
     render(<ClickableFilePath path="/Users/foo/bar.tsx" />)
-    fireEvent.keyDown(screen.getByText('/Users/foo/bar.tsx'), { key: ' ' })
+    fireEvent.keyDown(screen.getByRole('link', { name: '/Users/foo/bar.tsx' }), { key: ' ' })
     expect(mockOpenPath).toHaveBeenCalledWith('/Users/foo/bar.tsx')
   })
 })

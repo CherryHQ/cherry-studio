@@ -3,11 +3,17 @@
 exports[`Hyperlink > should match snapshot for normal url 1`] = `
 <div>
   <div
-    data-arrow="false"
-    data-styles="{"body":{"padding":0,"borderRadius":"8px","overflow":"hidden"}}"
     data-testid="popover"
   >
     <div
+      data-testid="popover-trigger"
+    >
+      <span>
+        Child
+      </span>
+    </div>
+    <div
+      class="overflow-hidden rounded-lg p-0"
       data-testid="popover-content"
     >
       <div
@@ -29,13 +35,6 @@ exports[`Hyperlink > should match snapshot for normal url 1`] = `
           https://example.com/path with space
         </div>
       </div>
-    </div>
-    <div
-      data-testid="popover-children"
-    >
-      <span>
-        Child
-      </span>
     </div>
   </div>
 </div>

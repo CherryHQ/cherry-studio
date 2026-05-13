@@ -1,6 +1,6 @@
-import type { CollapseProps } from 'antd'
 import { useTranslation } from 'react-i18next'
 
+import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { countLines, truncateOutput } from '../shared/truncateOutput'
 import { ClickableFilePath } from './ClickableFilePath'
 import { ToolHeader, TruncatedIndicator } from './GenericTools'
@@ -17,7 +17,7 @@ export function GlobTool({
 }: {
   input?: GlobToolInputType
   output?: GlobToolOutputType
-}): NonNullable<CollapseProps['items']>[number] {
+}): ToolDisclosureItem {
   const { t } = useTranslation()
   // 如果有输出，计算文件数量
   const lineCount = countLines(output)

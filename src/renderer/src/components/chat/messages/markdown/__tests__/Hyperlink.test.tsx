@@ -3,39 +3,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import Hyperlink from '../Hyperlink'
 
-// 3.1: 使用 vi.hoisted 集中管理模拟
 const mocks = vi.hoisted(() => ({
-  Popover: ({ children, content, arrow, placement, color, styles }: any) => (
-    <div
-      data-testid="popover"
-      data-arrow={String(arrow)}
-      data-placement={placement}
-      data-color={color}
-      data-styles={JSON.stringify(styles)}>
-      <div data-testid="popover-content">{content}</div>
-      <div data-testid="popover-children">{children}</div>
-    </div>
-  ),
   Favicon: ({ hostname, alt }: { hostname: string; alt: string }) => (
     <img data-testid="favicon" data-hostname={hostname} alt={alt} />
   ),
-  Typography: {
-    Title: ({ children }: { children: React.ReactNode }) => <div data-testid="title">{children}</div>,
-    Text: ({ children }: { children: React.ReactNode }) => <div data-testid="text">{children}</div>
-  },
-  Skeleton: () => <div data-testid="skeleton">Loading...</div>,
   useMetaDataParser: vi.fn(() => ({
     metadata: {},
     isLoading: false,
     isLoaded: true,
     parseMetadata: vi.fn()
   }))
-}))
-
-vi.mock('antd', () => ({
-  Popover: mocks.Popover,
-  Typography: mocks.Typography,
-  Skeleton: mocks.Skeleton
 }))
 
 vi.mock('@renderer/components/Icons/FallbackFavicon', () => ({
@@ -60,8 +37,8 @@ vi.mock('@renderer/components/OGCard', () => ({
     return (
       <div data-testid="og-card">
         {hostname && <mocks.Favicon hostname={hostname} alt={link} />}
-        <mocks.Typography.Title>{hostname}</mocks.Typography.Title>
-        <mocks.Typography.Text>{link}</mocks.Typography.Text>
+        <div data-testid="title">{hostname}</div>
+        <div data-testid="text">{link}</div>
       </div>
     )
   }
@@ -101,7 +78,7 @@ describe('Hyperlink', () => {
     // Popover wrapper exists
     const popover = screen.getByTestId('popover')
     expect(popover).toBeInTheDocument()
-    expect(popover).toHaveAttribute('data-arrow', 'false')
+    expect(screen.getByTestId('popover-content')).toHaveClass('overflow-hidden rounded-lg p-0')
 
     // Content includes decoded url text and favicon with hostname
     expect(screen.getByTestId('favicon')).toHaveAttribute('data-hostname', 'domain.com')

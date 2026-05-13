@@ -1,11 +1,10 @@
-import { MoreOutlined } from '@ant-design/icons'
+import { MenuDivider, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { Icon } from '@iconify/react'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import { buildEditorUrl, getEditorIcon } from '@renderer/utils/editorUtils'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
-import { Dropdown, type MenuProps, Tooltip } from 'antd'
-import { FolderOpen } from 'lucide-react'
+import { FolderOpen, MoreHorizontal } from 'lucide-react'
 import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -51,42 +50,9 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
     [handleOpen]
   )
 
-  const menuItems: MenuProps['items'] = useMemo(() => {
-    const items: MenuProps['items'] = [
-      {
-        key: 'reveal',
-        label: t('chat.input.tools.reveal_in_finder'),
-        icon: <FolderOpen size={16} />,
-        onClick: ({ domEvent }) => {
-          domEvent.stopPropagation()
-          window.api.file.showInFolder(path).catch(() => {
-            window.toast.error(t('chat.input.tools.file_not_found', { path }))
-          })
-        }
-      }
-    ]
-
-    if (availableEditors.length > 0) {
-      items.push({ type: 'divider' })
-      for (const app of availableEditors) {
-        items.push({
-          key: app.id,
-          label: app.name,
-          icon: getEditorIcon(app),
-          onClick: ({ domEvent }) => {
-            domEvent.stopPropagation()
-            openInEditor(app)
-          }
-        })
-      }
-    }
-
-    return items
-  }, [path, t, availableEditors, openInEditor])
-
   return (
     <span className="inline-flex items-center gap-0.5">
-      <Tooltip title={path} mouseEnterDelay={0.5}>
+      <Tooltip content={path} delay={500}>
         <span
           role="link"
           tabIndex={0}
@@ -98,15 +64,45 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
           {displayName ?? path}
         </span>
       </Tooltip>
-      <Dropdown menu={{ items: menuItems }} trigger={['click']}>
-        <Tooltip title={t('common.more')} mouseEnterDelay={0.5}>
-          <MoreOutlined
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
             onClick={(e) => e.stopPropagation()}
-            className="cursor-pointer rounded px-0.5 opacity-60 hover:bg-black/10 hover:opacity-100"
-            style={{ color: 'var(--color-link)', fontSize: '14px' }}
-          />
-        </Tooltip>
-      </Dropdown>
+            className="inline-flex cursor-pointer items-center rounded px-0.5 text-(--color-link) opacity-60 hover:bg-black/10 hover:opacity-100"
+            aria-label={t('common.more')}>
+            <Tooltip content={t('common.more')} delay={500}>
+              <MoreHorizontal size={14} />
+            </Tooltip>
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-56 p-1" align="start">
+          <MenuList>
+            <MenuItem
+              label={t('chat.input.tools.reveal_in_finder')}
+              icon={<FolderOpen size={16} />}
+              onClick={(e) => {
+                e.stopPropagation()
+                window.api.file.showInFolder(path).catch(() => {
+                  window.toast.error(t('chat.input.tools.file_not_found', { path }))
+                })
+              }}
+            />
+            {availableEditors.length > 0 && <MenuDivider />}
+            {availableEditors.map((app) => (
+              <MenuItem
+                key={app.id}
+                label={app.name}
+                icon={getEditorIcon(app)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  openInEditor(app)
+                }}
+              />
+            ))}
+          </MenuList>
+        </PopoverContent>
+      </Popover>
     </span>
   )
 })

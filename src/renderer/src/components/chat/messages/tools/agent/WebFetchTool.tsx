@@ -1,5 +1,4 @@
-import type { CollapseProps } from 'antd'
-
+import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
 import { ToolHeader, TruncatedIndicator } from './GenericTools'
 import { AgentToolsType, type WebFetchToolInput, type WebFetchToolOutput } from './types'
@@ -10,7 +9,7 @@ export function WebFetchTool({
 }: {
   input?: WebFetchToolInput
   output?: WebFetchToolOutput
-}): NonNullable<CollapseProps['items']>[number] {
+}): ToolDisclosureItem {
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {

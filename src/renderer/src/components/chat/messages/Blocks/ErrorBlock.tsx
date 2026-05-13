@@ -1,4 +1,3 @@
-import { SettingOutlined } from '@ant-design/icons'
 import { Button } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
@@ -13,7 +12,7 @@ import type { Message } from '@renderer/types/newMessage'
 import { classifyError } from '@renderer/utils/errorClassifier'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { AlertTriangle, ChevronRight, X } from 'lucide-react'
+import { AlertTriangle, ChevronRight, Settings, X } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
@@ -233,7 +232,7 @@ const MessageErrorInfo: React.FC<{
             type="button"
             className="inline-flex items-center gap-1 rounded-[5px] border-[color-mix(in_srgb,var(--color-error)_25%,transparent)] text-(--color-error) text-xs hover:border-(--color-error)"
             onClick={onNavigate}>
-            <SettingOutlined style={{ fontSize: 12 }} />
+            <Settings size={12} />
             {t('error.diagnosis.go_to_settings')}
           </Button>
         )}

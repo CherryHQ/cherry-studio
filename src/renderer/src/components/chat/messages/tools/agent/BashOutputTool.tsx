@@ -1,8 +1,8 @@
-import type { CollapseProps } from 'antd'
-import { Tag } from 'antd'
+import { Badge } from '@cherrystudio/ui'
 import { CheckCircle, Terminal, XCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
 import { ToolHeader, TruncatedIndicator } from './GenericTools'
 import { TerminalOutput } from './TerminalOutput'
@@ -53,7 +53,7 @@ export function BashOutputTool({
 }: {
   input?: BashOutputToolInput
   output?: BashOutputToolOutput
-}): NonNullable<CollapseProps['items']>[number] {
+}): ToolDisclosureItem {
   const { t } = useTranslation()
   const parsedOutput = parseBashOutput(output)
 
@@ -107,12 +107,14 @@ export function BashOutputTool({
       {/* Status Info */}
       <div className="flex flex-wrap items-center gap-2">
         {parsedOutput.exit_code !== undefined && (
-          <Tag color={parsedOutput.exit_code === 0 ? 'success' : 'danger'}>
+          <Badge variant={parsedOutput.exit_code === 0 ? 'secondary' : 'destructive'}>
             {t('message.tools.sections.exitCode')}: {parsedOutput.exit_code}
-          </Tag>
+          </Badge>
         )}
         {parsedOutput.timestamp && (
-          <Tag className="py-0 font-mono text-xs">{new Date(parsedOutput.timestamp).toLocaleString()}</Tag>
+          <Badge variant="outline" className="py-0 font-mono text-xs">
+            {new Date(parsedOutput.timestamp).toLocaleString()}
+          </Badge>
         )}
       </div>
 
@@ -162,19 +164,16 @@ export function BashOutputTool({
         toolName={AgentToolsType.BashOutput}
         params={
           <div className="flex items-center gap-2">
-            <Tag className="py-0 font-mono text-xs">{input?.bash_id}</Tag>
+            <Badge variant="outline" className="py-0 font-mono text-xs">
+              {input?.bash_id}
+            </Badge>
             {statusConfig && (
-              <Tag
-                color={statusConfig.color}
-                icon={statusConfig.icon}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: '2px'
-                }}>
+              <Badge
+                variant={statusConfig.color === 'danger' ? 'destructive' : 'secondary'}
+                className="flex flex-row items-center gap-0.5">
+                {statusConfig.icon}
                 {statusConfig.text}
-              </Tag>
+              </Badge>
             )}
           </div>
         }

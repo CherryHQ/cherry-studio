@@ -1,8 +1,8 @@
-import type { CollapseProps } from 'antd'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
 
+import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
 import { SkeletonValue, ToolHeader, TruncatedIndicator } from './GenericTools'
 import {
@@ -17,7 +17,7 @@ export function TaskTool({
 }: {
   input?: TaskToolInputType
   output?: TaskToolOutputType
-}): NonNullable<CollapseProps['items']>[number] {
+}): ToolDisclosureItem {
   const { t } = useTranslation()
   const hasOutput = Array.isArray(output) && output.length > 0
 

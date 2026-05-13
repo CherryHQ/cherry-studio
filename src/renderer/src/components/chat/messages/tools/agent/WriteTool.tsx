@@ -1,17 +1,12 @@
 import CodeViewer from '@renderer/components/CodeViewer'
 import { getLanguageByFilePath } from '@renderer/utils/code-language'
-import type { CollapseProps } from 'antd'
 
+import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { ClickableFilePath } from './ClickableFilePath'
 import { SkeletonValue, ToolHeader } from './GenericTools'
 import { AgentToolsType, type WriteToolInput, type WriteToolOutput } from './types'
 
-export function WriteTool({
-  input
-}: {
-  input?: WriteToolInput
-  output?: WriteToolOutput
-}): NonNullable<CollapseProps['items']>[number] {
+export function WriteTool({ input }: { input?: WriteToolInput; output?: WriteToolOutput }): ToolDisclosureItem {
   const filename = input?.file_path?.split('/').pop()
   const language = getLanguageByFilePath(input?.file_path ?? '')
 

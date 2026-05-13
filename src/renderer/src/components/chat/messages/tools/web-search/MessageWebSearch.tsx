@@ -1,11 +1,8 @@
 import Spinner from '@renderer/components/Spinner'
 import type { NormalToolResponse } from '@renderer/types'
 import { webSearchInputSchema, type WebSearchOutputItem, webSearchOutputSchema } from '@shared/ai/builtinTools'
-import { Typography } from 'antd'
 import { Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-
-const { Text } = Typography
 
 export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: NormalToolResponse }) => {
   const { t } = useTranslation()
@@ -24,10 +21,10 @@ export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: Norm
       }
     />
   ) : (
-    <Text className="flex items-center gap-1 p-[5px]" type="secondary">
+    <span className="flex items-center gap-1 p-[5px] text-(--color-text-2)">
       <Search size={16} style={{ color: 'unset' }} />
       {t('message.websearch.fetch_complete', { count: resultCount })}
-    </Text>
+    </span>
   )
 }
 

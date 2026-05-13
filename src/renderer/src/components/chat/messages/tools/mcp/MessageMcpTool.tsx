@@ -1,5 +1,4 @@
-import { Flex } from '@cherrystudio/ui'
-import { Tooltip } from '@cherrystudio/ui'
+import { CircularProgress, Flex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
@@ -10,8 +9,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import type { MCPToolResponse } from '@renderer/types'
 import type { MCPProgressEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Collapse, ConfigProvider, Progress } from 'antd'
-import { Check, ChevronRight, ShieldCheck } from 'lucide-react'
+import { Check, ShieldCheck } from 'lucide-react'
 import { parse as parsePartialJson } from 'partial-json'
 import type { ComponentPropsWithoutRef, FC } from 'react'
 import { memo, useEffect, useMemo, useState } from 'react'
@@ -28,6 +26,7 @@ import {
   formatArgValue,
   ResponseSection
 } from '../shared/ArgsTable'
+import { ToolDisclosure, type ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
 import ToolApprovalActionsComponent from '../ToolApprovalActions'
 
@@ -112,8 +111,8 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
   }
 
   // Format tool responses for collapse items
-  const getCollapseItems = (): { key: string; label: React.ReactNode; children: React.ReactNode }[] => {
-    const items: { key: string; label: React.ReactNode; children: React.ReactNode }[] = []
+  const getDisclosureItems = (): ToolDisclosureItem[] => {
+    const items: ToolDisclosureItem[] = []
     const hasError = response?.isError === true
     const result = {
       params: toolResponse.arguments,
@@ -135,7 +134,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
           </TitleContent>
           <ActionButtonsContainer>
             {progress > 0 ? (
-              <Progress type="circle" size={14} percent={Number((progress * 100)?.toFixed(0))} />
+              <CircularProgress value={Number((progress * 100)?.toFixed(0))} size={14} strokeWidth={2} />
             ) : (
               <ToolStatusIndicator status={getEffectiveStatus(status, willAwaitApproval)} hasError={hasError} />
             )}
@@ -176,48 +175,29 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
   }
 
   return (
-    <>
-      <ConfigProvider
-        theme={{
-          components: {
-            Button: {
-              borderRadiusSM: 6
-            }
-          }
-        }}>
-        <ToolContainer>
-          <ToolContentWrapper className={isPending || approval.isWaiting ? 'pending' : status}>
-            <CollapseContainer
-              ghost
-              activeKey={activeKeys}
-              size="small"
-              onChange={handleCollapseChange}
-              className="message-tools-container"
-              items={getCollapseItems()}
-              expandIconPosition="end"
-              expandIcon={({ isActive }) => (
-                <ExpandIcon $isActive={isActive} size={18} color="var(--color-text-3)" strokeWidth={1.5} />
-              )}
-            />
-            {(isPending || approval.isWaiting || approval.isExecuting) && (
-              <ActionsBar>
-                <ActionLabel>
-                  {willAwaitApproval
-                    ? t('settings.mcp.tools.autoApprove.tooltip.confirm')
-                    : t('message.tools.invoking')}
-                </ActionLabel>
+    <ToolContainer>
+      <ToolContentWrapper className={isPending || approval.isWaiting ? 'pending' : status}>
+        <CollapseContainer
+          activeKey={activeKeys}
+          onActiveKeyChange={handleCollapseChange}
+          className="message-tools-container"
+          items={getDisclosureItems()}
+        />
+        {(isPending || approval.isWaiting || approval.isExecuting) && (
+          <ActionsBar>
+            <ActionLabel>
+              {willAwaitApproval ? t('settings.mcp.tools.autoApprove.tooltip.confirm') : t('message.tools.invoking')}
+            </ActionLabel>
 
-                <ToolApprovalActionsComponent
-                  {...approval}
-                  showAbort={approval.isExecuting && !!toolResponse?.id}
-                  onAbort={handleAbortTool}
-                />
-              </ActionsBar>
-            )}
-          </ToolContentWrapper>
-        </ToolContainer>
-      </ConfigProvider>
-    </>
+            <ToolApprovalActionsComponent
+              {...approval}
+              showAbort={approval.isExecuting && !!toolResponse?.id}
+              onAbort={handleAbortTool}
+            />
+          </ActionsBar>
+        )}
+      </ToolContentWrapper>
+    </ToolContainer>
   )
 }
 
@@ -386,10 +366,7 @@ const ToolResponseContent: FC<{
 
 const ToolContentWrapper = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={[
-      'overflow-hidden rounded-lg p-px [&.pending]:bg-(--color-background-soft) [&.pending_.ant-collapse]:border-none [&_.ant-collapse]:border [&_.ant-collapse]:border-(--color-border)',
-      className
-    ]
+    className={['overflow-hidden rounded-lg p-px [&.pending]:bg-(--color-background-soft)', className]
       .filter(Boolean)
       .join(' ')}
     {...props}
@@ -409,22 +386,10 @@ const ActionLabel = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) =
   />
 )
 
-const ExpandIcon = ({
-  $isActive,
-  style,
-  ...props
-}: ComponentPropsWithoutRef<typeof ChevronRight> & { $isActive?: boolean }) => (
-  <ChevronRight
-    className="transition-transform duration-200"
-    style={{ transform: $isActive ? 'rotate(90deg)' : 'rotate(0deg)', ...style }}
-    {...props}
-  />
-)
-
-const CollapseContainer = ({ className, ...props }: ComponentPropsWithoutRef<typeof Collapse>) => (
-  <Collapse
+const CollapseContainer = ({ className, ...props }: ComponentPropsWithoutRef<typeof ToolDisclosure>) => (
+  <ToolDisclosure
     className={[
-      '[&_.ant-collapse-header]:items-center! overflow-hidden rounded-[7px] border-none bg-(--color-background) [--status-color-error:var(--color-status-error,#ff4d4f)] [--status-color-invoking:var(--color-primary)] [--status-color-success:var(--color-primary,green)] [--status-color-warning:var(--color-status-warning,#faad14)] [&_.ant-collapse-content-box]:p-0! [&_.ant-collapse-header]:px-2.5! [&_.ant-collapse-header]:py-2!',
+      'border-none [--status-color-error:var(--color-status-error,#ff4d4f)] [--status-color-invoking:var(--color-primary)] [--status-color-success:var(--color-primary,green)] [--status-color-warning:var(--color-status-warning,#faad14)]',
       className
     ]
       .filter(Boolean)

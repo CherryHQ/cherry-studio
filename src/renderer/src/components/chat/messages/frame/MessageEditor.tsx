@@ -1,4 +1,4 @@
-import { Tooltip } from '@cherrystudio/ui'
+import { Textarea, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
@@ -20,9 +20,6 @@ import { classNames } from '@renderer/utils'
 import { getFilesFromDropEvent, isSendMessageKeyPressed } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { Space } from 'antd'
-import type { TextAreaRef } from 'antd/es/input/TextArea'
-import TextArea from 'antd/es/input/TextArea'
 import { Save, Send, X } from 'lucide-react'
 import type { ComponentPropsWithoutRef, FC } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -54,7 +51,7 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const { t } = useTranslation()
-  const textareaRef = useRef<TextAreaRef>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const isUserMessage = message.role === 'user'
 
   const noopQuickPanel = useMemo<ToolQuickPanelApi>(
@@ -83,7 +80,9 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
   useEffect(() => {
     const timer = setTimeout(() => {
       if (textareaRef.current) {
-        textareaRef.current.focus({ cursor: 'end' })
+        const textLength = textareaRef.current.value.length
+        textareaRef.current.focus()
+        textareaRef.current.setSelectionRange(textLength, textLength)
       }
     }, 0)
 
@@ -92,11 +91,11 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
 
   useEffect(() => {
     if (textareaRef.current) {
-      const realTextarea = textareaRef.current.resizableTextArea?.textArea
-      if (realTextarea) {
-        realTextarea.scrollTo({ top: realTextarea.scrollHeight })
-      }
-      textareaRef.current.focus({ cursor: 'end' })
+      const realTextarea = textareaRef.current
+      realTextarea.scrollTo({ top: realTextarea.scrollHeight })
+      const textLength = realTextarea.value.length
+      realTextarea.focus()
+      realTextarea.setSelectionRange(textLength, textLength)
     }
   }, [])
 
@@ -233,22 +232,15 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
 
   return (
     <>
-      <EditorContainer
-        className="message-editor"
-        direction="vertical"
-        size="small"
-        style={{ display: 'flex' }}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={handleDrop}>
+      <EditorContainer className="message-editor" onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
         {editedParts
           .map((part, index) => ({ part, index }))
           .filter(({ part }) => part.type === 'text')
           .map(({ part, index }) => (
-            <TextArea
+            <Textarea.Input
               className={classNames('editing-message', isFileDragging && 'file-dragging')}
               key={`part-${index}`}
               ref={textareaRef}
-              variant="borderless"
               value={(part as { text: string }).text}
               onChange={(e) => handleTextChange(index, e.target.value)}
               onKeyDown={handleKeyDown}
@@ -257,11 +249,11 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
               onPaste={(e) => onPaste(e.nativeEvent)}
               onFocus={() => PasteService.setLastFocusedComponent('messageEditor')}
               onContextMenu={(e) => e.stopPropagation()}
-              autoSize={{ minRows: 1, maxRows: 15 }}
-              style={{ fontSize }}>
-              <TranslateButton onTranslated={onTranslated} />
-            </TextArea>
+              rows={1}
+              style={{ fontSize }}
+            />
           ))}
+        <TranslateButton onTranslated={onTranslated} />
         {(editedParts.some((part) => part.type === 'file') || files.length > 0) && (
           <FileBlocksContainer>
             {editedParts
@@ -326,10 +318,10 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
   )
 }
 
-const EditorContainer = ({ className, ...props }: ComponentPropsWithoutRef<typeof Space>) => (
-  <Space
+const EditorContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div
     className={[
-      "[&_.editing-message]:resize-none! my-[15px] mb-[5px] w-full transition-all duration-200 ease-in-out [&.file-dragging]:border-2 [&.file-dragging]:border-[#2ecc71] [&.file-dragging]:border-dashed [&.file-dragging]:before:pointer-events-none [&.file-dragging]:before:absolute [&.file-dragging]:before:inset-0 [&.file-dragging]:before:z-[5] [&.file-dragging]:before:rounded-[14px] [&.file-dragging]:before:bg-[rgba(46,204,113,0.03)] [&.file-dragging]:before:content-[''] [&_.editing-message.ant-input]:leading-[1.4] [&_.editing-message]:box-border [&_.editing-message]:w-full [&_.editing-message]:flex-1 [&_.editing-message]:overflow-auto [&_.editing-message]:rounded-[15px] [&_.editing-message]:border-(--color-border) [&_.editing-message]:border-[0.5px] [&_.editing-message]:bg-(--color-background-opacity) [&_.editing-message]:p-[1em] [&_.editing-message]:font-[Ubuntu]",
+      "[&_.editing-message]:resize-none! my-[15px] mb-[5px] flex w-full flex-col transition-all duration-200 ease-in-out [&.file-dragging]:border-2 [&.file-dragging]:border-[#2ecc71] [&.file-dragging]:border-dashed [&.file-dragging]:before:pointer-events-none [&.file-dragging]:before:absolute [&.file-dragging]:before:inset-0 [&.file-dragging]:before:z-[5] [&.file-dragging]:before:rounded-[14px] [&.file-dragging]:before:bg-[rgba(46,204,113,0.03)] [&.file-dragging]:before:content-[''] [&_.editing-message]:box-border [&_.editing-message]:max-h-[480px] [&_.editing-message]:min-h-[42px] [&_.editing-message]:w-full [&_.editing-message]:flex-1 [&_.editing-message]:overflow-auto [&_.editing-message]:rounded-[15px] [&_.editing-message]:border-(--color-border) [&_.editing-message]:border-[0.5px] [&_.editing-message]:bg-(--color-background-opacity) [&_.editing-message]:p-[1em] [&_.editing-message]:font-[Ubuntu] [&_.editing-message]:leading-[1.4]",
       className
     ]
       .filter(Boolean)

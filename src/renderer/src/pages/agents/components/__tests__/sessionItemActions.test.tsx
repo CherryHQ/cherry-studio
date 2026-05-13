@@ -49,10 +49,10 @@ describe('session item actions', () => {
     ])
     expect(actions.find((action) => action.id === 'session.toggle-pin')?.label).toBe('chat.topics.unpin')
 
-    await executeSessionMenuAction(actions[0]!, actionContext)
-    await executeSessionMenuAction(actions[1]!, actionContext)
-    await executeSessionMenuAction(actions[2]!.children[0]!, actionContext)
-    await executeSessionMenuAction(actions[3]!, actionContext)
+    await executeSessionMenuAction(actions[0], actionContext)
+    await executeSessionMenuAction(actions[1], actionContext)
+    await executeSessionMenuAction(actions[2].children[0], actionContext)
+    await executeSessionMenuAction(actions[3], actionContext)
 
     expect(startEdit).toHaveBeenCalledWith('Session title')
     expect(onTogglePin).toHaveBeenCalled()

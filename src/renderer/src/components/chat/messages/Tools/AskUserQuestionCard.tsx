@@ -1,9 +1,9 @@
+import { Badge, Button, Checkbox, Input, RadioGroup, RadioGroupItem } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { usePartsMap } from '@renderer/components/chat/messages/blocks'
 import { useToolApprovalRespond } from '@renderer/hooks/ToolApprovalContext'
 import type { NormalToolResponse } from '@renderer/types'
 import { cn } from '@renderer/utils'
-import { Button, Checkbox, Input, Radio, Tag } from 'antd'
 import { CheckCircle, CheckCircle2, ChevronLeft, ChevronRight, HelpCircle, Send } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useMemo, useState } from 'react'
@@ -59,7 +59,8 @@ function Navigation({ showPrevious = true, isFirst, onPrevious, rightButton }: N
         showPrevious ? 'justify-between' : 'justify-end'
       )}>
       {showPrevious && (
-        <Button icon={<ChevronLeft size={16} />} disabled={isFirst} onClick={onPrevious} className="flex items-center">
+        <Button variant="outline" disabled={isFirst} onClick={onPrevious} className="flex items-center">
+          <ChevronLeft size={16} />
           {t('agent.askUserQuestion.previous')}
         </Button>
       )}
@@ -118,9 +119,9 @@ function OptionsList({ options, selected, hasCustomInput, multiSelect, onSelect,
         isSelected={isSelected}
         control={
           multiSelect ? (
-            <Checkbox checked={isSelected} className="mt-0.5" />
+            <Checkbox checked={isSelected} className="mt-0.5" size="sm" />
           ) : (
-            <Radio value={value} className="mt-0.5" />
+            <RadioGroupItem value={value} className="mt-0.5" size="sm" />
           )
         }
         onClick={() => onSelect(value, multiSelect ? !isSelected : undefined)}
@@ -140,12 +141,12 @@ function OptionsList({ options, selected, hasCustomInput, multiSelect, onSelect,
       {multiSelect ? (
         optionItems
       ) : (
-        <Radio.Group
+        <RadioGroup
           value={hasCustomInput ? OTHER_OPTION_VALUE : selected[0]}
-          onChange={(e) => onSelect(e.target.value)}
+          onValueChange={(value) => onSelect(value)}
           className="w-full">
           <div className="space-y-2">{optionItems}</div>
-        </Radio.Group>
+        </RadioGroup>
       )}
     </div>
   )
@@ -162,9 +163,9 @@ function CompletedContent({ question, answer }: CompletedContentProps) {
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <Tag color={answer ? 'processing' : 'default'} className="m-0">
+        <Badge variant={answer ? 'secondary' : 'outline'} className="m-0">
           <SkeletonValue value={question?.header} width="60px" />
-        </Tag>
+        </Badge>
         {answer && <CheckCircle2 className="h-4 w-4 text-(--color-primary)" />}
       </div>
       <div className="text-default-700 text-sm">
@@ -212,13 +213,13 @@ function PendingContent({
     <div className="space-y-3">
       {/* Header Tag */}
       <div className="flex items-center gap-2">
-        <Tag color="processing" className="m-0">
+        <Badge variant="secondary" className="m-0">
           <SkeletonValue value={question?.header} width="60px" />
-        </Tag>
+        </Badge>
         {question?.multiSelect && (
-          <Tag color="processing" className="m-0">
+          <Badge variant="secondary" className="m-0">
             {t('agent.askUserQuestion.multiSelect')}
-          </Tag>
+          </Badge>
         )}
         {isAnswered && <CheckCircle className="h-4 w-4 text-(--color-primary)" />}
       </div>
@@ -404,12 +405,8 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
   const answeredCount = Object.keys(displayAnswers).length
 
   const submitButton = (
-    <Button
-      type="primary"
-      icon={<Send size={16} />}
-      loading={isSubmitting}
-      disabled={!allAnswered || isSubmitting}
-      onClick={handleSubmit}>
+    <Button variant="default" loading={isSubmitting} disabled={!allAnswered || isSubmitting} onClick={handleSubmit}>
+      <Send size={16} />
       {t('agent.askUserQuestion.submit')}
     </Button>
   )
@@ -420,24 +417,16 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
     }
     if (isPending) {
       return (
-        <Button
-          type="primary"
-          disabled={!isCurrentAnswered}
-          onClick={handleNext}
-          iconPosition="end"
-          icon={<ChevronRight size={16} />}>
+        <Button variant="default" disabled={!isCurrentAnswered} onClick={handleNext}>
           {t('agent.askUserQuestion.next')}
+          <ChevronRight size={16} />
         </Button>
       )
     }
     return (
-      <Button
-        disabled={isLastQuestion}
-        onClick={handleNext}
-        className="flex items-center"
-        iconPosition="end"
-        icon={<ChevronRight size={16} />}>
+      <Button variant="outline" disabled={isLastQuestion} onClick={handleNext} className="flex items-center">
         {t('agent.askUserQuestion.next')}
+        <ChevronRight size={16} />
       </Button>
     )
   }

@@ -2,8 +2,7 @@ import { CopyIcon } from '@renderer/components/Icons'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { NormalToolResponse } from '@renderer/types'
-import { Collapse } from 'antd'
-import { Check, ChevronRight, CornerDownRight } from 'lucide-react'
+import { Check, CornerDownRight } from 'lucide-react'
 import type { ComponentPropsWithoutRef, FC } from 'react'
 import { memo, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -11,6 +10,7 @@ import { useTranslation } from 'react-i18next'
 import { getEffectiveStatus, ToolStatusIndicator } from '../agent/GenericTools'
 import { chooseTool } from '../chooseTool'
 import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, formatArgValue } from '../shared/ArgsTable'
+import { ToolDisclosure } from '../shared/ToolDisclosure'
 
 export const META_TOOL_NAMES = ['tool_search', 'tool_inspect', 'tool_invoke', 'tool_exec'] as const
 export type MetaToolName = (typeof META_TOOL_NAMES)[number]
@@ -58,14 +58,8 @@ const MessageMetaTool: FC<Props> = ({ toolResponse }) => {
   return (
     <Container>
       <CollapseShell
-        ghost
-        size="small"
         activeKey={activeKeys}
-        onChange={(keys) => setActiveKeys(Array.isArray(keys) ? keys : [keys])}
-        expandIconPosition="end"
-        expandIcon={({ isActive }) => (
-          <ExpandIcon $isActive={isActive} size={18} color="var(--color-text-3)" strokeWidth={1.5} />
-        )}
+        onActiveKeyChange={setActiveKeys}
         items={[
           {
             key: id,
@@ -345,26 +339,11 @@ const Container = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => 
   <div className={['my-2.5', className].filter(Boolean).join(' ')} {...props} />
 )
 
-const CollapseShell = ({ className, ...props }: ComponentPropsWithoutRef<typeof Collapse>) => (
-  <Collapse
-    className={[
-      '[&_.ant-collapse-header]:items-center! overflow-hidden rounded-[7px] border border-(--color-border) bg-(--color-background) [&_.ant-collapse-content-box]:p-2.5! [&_.ant-collapse-header]:px-2.5! [&_.ant-collapse-header]:py-2!',
-      className
-    ]
+const CollapseShell = ({ className, ...props }: ComponentPropsWithoutRef<typeof ToolDisclosure>) => (
+  <ToolDisclosure
+    className={['overflow-hidden rounded-[7px] border border-(--color-border) bg-(--color-background)', className]
       .filter(Boolean)
       .join(' ')}
-    {...props}
-  />
-)
-
-const ExpandIcon = ({
-  $isActive,
-  style,
-  ...props
-}: ComponentPropsWithoutRef<typeof ChevronRight> & { $isActive?: boolean }) => (
-  <ChevronRight
-    className="transition-transform duration-200"
-    style={{ transform: $isActive ? 'rotate(90deg)' : 'rotate(0deg)', ...style }}
     {...props}
   />
 )

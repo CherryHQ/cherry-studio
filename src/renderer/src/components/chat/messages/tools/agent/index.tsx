@@ -1,7 +1,5 @@
 import { usePartsMap } from '@renderer/components/chat/messages/blocks'
 import type { NormalToolResponse } from '@renderer/types'
-import type { CollapseProps } from 'antd'
-import { Collapse } from 'antd'
 import { parse as parsePartialJson } from 'partial-json'
 import { useDeferredValue, useMemo } from 'react'
 
@@ -12,6 +10,7 @@ export * from './types'
 
 // 导入所有渲染器
 import { AskUserQuestionCard } from '../AskUserQuestionCard'
+import { ToolDisclosure, type ToolDisclosureItem } from '../shared/ToolDisclosure'
 import ToolPermissionRequestCard from '../ToolPermissionRequestCard'
 import { BashOutputTool } from './BashOutputTool'
 import { BashTool } from './BashTool'
@@ -69,11 +68,8 @@ export function renderTool(
   toolName: AgentToolsType,
   input: ToolInput | Record<string, unknown> | string | undefined,
   output?: ToolOutput | unknown
-): NonNullable<CollapseProps['items']>[number] {
-  const renderer = toolRenderers[toolName] as (props: {
-    input?: unknown
-    output?: unknown
-  }) => NonNullable<CollapseProps['items']>[number]
+): ToolDisclosureItem {
+  const renderer = toolRenderers[toolName] as (props: { input?: unknown; output?: unknown }) => ToolDisclosureItem
   return renderer({ input, output })
 }
 
@@ -101,7 +97,7 @@ function ToolContent({
     ? renderTool(toolName, (input ?? {}) as Record<string, unknown>, output)
     : UnknownToolRenderer({ toolName: toolName ?? 'Tool', input, output })
 
-  const toolContentItem: NonNullable<CollapseProps['items']>[number] = {
+  const toolContentItem: ToolDisclosureItem = {
     ...renderedItem,
     label: (
       <div className="flex w-full items-start justify-between gap-2">
@@ -114,16 +110,14 @@ function ToolContent({
       </div>
     ),
     classNames: {
-      body: 'bg-foreground-50 p-2 text-foreground-900 dark:bg-foreground-100 max-h-96 overflow-scroll'
+      body: 'max-h-96 overflow-scroll bg-foreground-50 p-2 text-foreground-900 dark:bg-foreground-100'
     }
   }
 
   return (
     <StreamingContext value={isStreaming}>
-      <Collapse
-        className="w-max max-w-full has-[.ant-collapse-item-active]:w-full"
-        expandIconPosition="end"
-        size="small"
+      <ToolDisclosure
+        className="w-max max-w-full data-[expanded=true]:w-full"
         defaultActiveKey={toolName === AgentToolsType.TodoWrite ? [AgentToolsType.TodoWrite] : []}
         items={[toolContentItem]}
       />

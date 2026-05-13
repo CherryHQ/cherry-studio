@@ -1,5 +1,4 @@
-import { ArrowsAltOutlined, ShrinkOutlined } from '@ant-design/icons'
-import { Avatar, AvatarFallback, AvatarGroup, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, AvatarGroup, RowFlex, SegmentedControl, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -8,8 +7,8 @@ import type { Model } from '@renderer/types'
 import { AssistantMessageStatus, type Message } from '@renderer/types/newMessage'
 import { lightbulbSoftVariants } from '@renderer/utils/motionVariants'
 import type { MultiModelFoldDisplayMode } from '@shared/data/preference/preferenceTypes'
-import { Segmented as AntdSegmented } from 'antd'
 import { first } from 'lodash'
+import { Maximize2, Minimize2 } from 'lucide-react'
 import { motion } from 'motion/react'
 import type { FC } from 'react'
 import { memo, useCallback } from 'react'
@@ -76,7 +75,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
         <DisplayModeToggle
           displayMode={foldDisplayMode}
           onClick={() => setFoldDisplayMode(isCompact ? 'expanded' : 'compact')}>
-          {isCompact ? <ArrowsAltOutlined /> : <ShrinkOutlined />}
+          {isCompact ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
         </DisplayModeToggle>
       </Tooltip>
       <ModelsContainer $displayMode={foldDisplayMode}>
@@ -109,9 +108,9 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
           </AvatarGroup>
         ) : (
           /* Expanded style display */
-          <Segmented
+          <SegmentedControl
             value={selectMessageId}
-            onChange={(value) => {
+            onValueChange={(value) => {
               const message = messages.find((message) => message.id === value) as Message
               setSelectedMessage(message)
             }}
@@ -119,7 +118,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
               label: renderLabel(message),
               value: message.id
             }))}
-            size="small"
+            size="sm"
           />
         )}
       </ModelsContainer>
@@ -157,7 +156,7 @@ const ModelsContainer = ({
 }: React.ComponentPropsWithoutRef<typeof Scrollbar> & { $displayMode: MultiModelFoldDisplayMode }) => (
   <Scrollbar
     className={[
-      '[&_.avatar-group.ant-avatar-group>*:has(+_*:hover)]:-translate-x-0.5 flex flex-1 items-center overflow-x-auto px-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&_.avatar-group.ant-avatar-group>*:first-child]:ml-0! [&_.avatar-group.ant-avatar-group>*:has(+_*:hover)]:mr-0.5! [&_.avatar-group.ant-avatar-group>*:hover+*+*]:ml-[-4px]! [&_.avatar-group.ant-avatar-group>*:hover+*]:ml-[5px]! [&_.avatar-group.ant-avatar-group>*]:relative [&_.avatar-group.ant-avatar-group>*]:ml-[-6px]! [&_.avatar-group.ant-avatar-group>*]:transition-[transform,margin] [&_.avatar-group.ant-avatar-group>*]:duration-[180ms] [&_.avatar-group.ant-avatar-group>*]:ease-out [&_.avatar-group.ant-avatar-group>*]:[will-change:transform] [&_.avatar-group.ant-avatar-group]:flex [&_.avatar-group.ant-avatar-group]:flex-nowrap [&_.avatar-group.ant-avatar-group]:items-center [&_.avatar-group.ant-avatar-group]:px-1 [&_.avatar-group.ant-avatar-group]:py-1.5',
+      '[&_[data-slot=avatar-group]>*:has(+_*:hover)]:-translate-x-0.5 flex flex-1 items-center overflow-x-auto px-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&_[data-slot=avatar-group]>*:first-child]:ml-0! [&_[data-slot=avatar-group]>*:has(+_*:hover)]:mr-0.5! [&_[data-slot=avatar-group]>*:hover+*+*]:ml-[-4px]! [&_[data-slot=avatar-group]>*:hover+*]:ml-[5px]! [&_[data-slot=avatar-group]>*]:relative [&_[data-slot=avatar-group]>*]:ml-[-6px]! [&_[data-slot=avatar-group]>*]:transition-[transform,margin] [&_[data-slot=avatar-group]>*]:duration-[180ms] [&_[data-slot=avatar-group]>*]:ease-out [&_[data-slot=avatar-group]>*]:[will-change:transform] [&_[data-slot=avatar-group]]:flex [&_[data-slot=avatar-group]]:flex-nowrap [&_[data-slot=avatar-group]]:items-center [&_[data-slot=avatar-group]]:px-1 [&_[data-slot=avatar-group]]:py-1.5',
       $displayMode === 'expanded' ? 'flex-col justify-between' : 'flex-row justify-start',
       className
     ]
@@ -181,18 +180,6 @@ const AvatarWrapper = ({
       .filter(Boolean)
       .join(' ')}
     style={{ zIndex: $isSelected ? 1 : 0, border: $isSelected ? '2px solid var(--color-primary)' : 'none', ...style }}
-    {...props}
-  />
-)
-
-const Segmented = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof AntdSegmented>) => (
-  <AntdSegmented
-    className={[
-      'w-full bg-transparent! [&_.ant-segmented-item-selected]:rounded-(--list-item-border-radius)! [&_.ant-segmented-item-selected]:border-(--color-border) [&_.ant-segmented-item-selected]:border-[0.5px] [&_.ant-segmented-item:hover]:bg-transparent! [&_.ant-segmented-item]:rounded-(--list-item-border-radius)! [&_.ant-segmented-thumb]:rounded-(--list-item-border-radius)! [&_.ant-segmented-thumb]:border-(--color-border) [&_.ant-segmented-thumb]:border-[0.5px]',
-      className
-    ]
-      .filter(Boolean)
-      .join(' ')}
     {...props}
   />
 )

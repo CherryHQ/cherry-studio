@@ -45,8 +45,8 @@ vi.mock('@cherrystudio/ui', () => ({
       </div>
     )
   },
-  Tooltip: ({ title, children, mouseEnterDelay }: any) => (
-    <div data-testid="tooltip" title={title} data-mouse-enter-delay={mouseEnterDelay}>
+  Tooltip: ({ title, content, children, mouseEnterDelay, delay }: any) => (
+    <div data-testid="tooltip" title={content ?? title} data-mouse-enter-delay={delay ?? mouseEnterDelay}>
       {children}
     </div>
   )
@@ -59,16 +59,12 @@ vi.mock('../ThinkingBlock', async () => {
   return actual
 })
 
-// Mock icons
-vi.mock('@ant-design/icons', () => ({
-  CheckOutlined: ({ style }: any) => (
-    <span data-testid="check-icon" style={style}>
-      ✓
-    </span>
-  )
-}))
-
 vi.mock('lucide-react', () => ({
+  Check: ({ style, ...props }: any) => (
+    <span data-testid="check-icon" style={style} {...props}>
+      check
+    </span>
+  ),
   Lightbulb: ({ size }: any) => (
     <span data-testid="lightbulb-icon" data-size={size}>
       💡

@@ -1,4 +1,13 @@
-import { Tooltip } from '@cherrystudio/ui'
+import {
+  ConfirmDialog,
+  MenuDivider,
+  MenuItem,
+  MenuList,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Tooltip
+} from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
@@ -54,8 +63,6 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 import { isNonChatModel, isVisionModel as isSharedVisionModel } from '@shared/utils/model'
-import type { MenuProps } from 'antd'
-import { Dropdown, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
 import {
@@ -108,7 +115,7 @@ type MessageMenuBarButtonContext = {
   copied: boolean
   /** Bound by `useMessage(message.id, topic)` — signature drops the leading id. */
   deleteMessage: (traceId?: string, modelName?: string) => Promise<void>
-  dropdownItems: MenuProps['items']
+  dropdownItems: MessageMenuItem[]
   enableDeveloperMode: boolean
   handleTraceUserMessage: () => void | Promise<void>
   handleTranslate: (language: TranslateLanguage) => Promise<void>
@@ -142,6 +149,23 @@ type MessageMenuBarButtonContext = {
 }
 
 type MessageMenuBarButtonRenderer = (ctx: MessageMenuBarButtonContext, disabled: boolean) => ReactNode | null
+
+type MessageMenuItem =
+  | {
+      key: string
+      label: string
+      icon?: ReactNode
+      disabled?: boolean
+      onClick?: () => void | Promise<void>
+      children?: MessageMenuItem[]
+    }
+  | {
+      key: string
+      type: 'divider'
+    }
+
+const isMessageMenuDivider = (item: MessageMenuItem): item is Extract<MessageMenuItem, { type: 'divider' }> =>
+  'type' in item && item.type === 'divider'
 
 const MessageMenuBar: FC<Props> = (props) => {
   const {
@@ -311,7 +335,7 @@ const MessageMenuBar: FC<Props> = (props) => {
     // resend on their own prompt. `user-edit` primary button already role-
     // gates; mirror that here for the overflow dropdown.
     const canEditHere = isEditable && supportsWrites && isUserMessage
-    const items: MenuProps['items'] = [
+    const items: MessageMenuItem[] = [
       ...(canEditHere
         ? [
             {
@@ -454,9 +478,9 @@ const MessageMenuBar: FC<Props> = (props) => {
               void exportMarkdownToSiyuan(title, markdown)
             }
           }
-        ].filter(Boolean)
+        ].filter(Boolean) as MessageMenuItem[]
       }
-    ].filter(Boolean)
+    ].filter(Boolean) as MessageMenuItem[]
 
     if (!dropdownRootAllowKeys || dropdownRootAllowKeys.length === 0) {
       return items
@@ -464,10 +488,7 @@ const MessageMenuBar: FC<Props> = (props) => {
 
     const allowSet = new Set(dropdownRootAllowKeys)
     return items.filter((item) => {
-      if (!item || typeof item !== 'object') {
-        return false
-      }
-      if ('type' in item && item.type === 'divider') {
+      if (isMessageMenuDivider(item)) {
         return false
       }
       if ('key' in item && item.key) {
@@ -604,6 +625,102 @@ const ActionButton = ({
   )
 }
 
+const ConfirmActionButton = ({
+  children,
+  title,
+  confirmText,
+  disabled,
+  onConfirm,
+  onOpenChange
+}: {
+  children: ReactNode
+  title: ReactNode
+  confirmText?: string
+  disabled?: boolean
+  onConfirm: () => void | Promise<void>
+  onOpenChange?: (open: boolean) => void
+}) => {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (disabled) return
+    setOpen(nextOpen)
+    onOpenChange?.(nextOpen)
+  }
+
+  return (
+    <>
+      <span onClickCapture={() => handleOpenChange(true)}>{children}</span>
+      <ConfirmDialog
+        open={open}
+        onOpenChange={handleOpenChange}
+        title={title}
+        confirmText={confirmText ?? t('common.confirm')}
+        cancelText={t('common.cancel')}
+        destructive
+        onConfirm={onConfirm}
+      />
+    </>
+  )
+}
+
+const MessageMenuPopover = ({
+  children,
+  items,
+  align = 'end',
+  contentClassName
+}: {
+  children: ReactNode
+  items: MessageMenuItem[]
+  align?: 'start' | 'center' | 'end'
+  contentClassName?: string
+}) => (
+  <Popover>
+    <PopoverTrigger asChild>{children}</PopoverTrigger>
+    <PopoverContent className={classNames('w-60 p-1', contentClassName)} align={align} side="top">
+      <MessageMenuItems items={items} />
+    </PopoverContent>
+  </Popover>
+)
+
+const MessageMenuItems = ({ items, depth = 0 }: { items: MessageMenuItem[]; depth?: number }) => (
+  <MenuList>
+    {items.map((item) => {
+      if (isMessageMenuDivider(item)) {
+        return <MenuDivider key={item.key} />
+      }
+
+      if (item.children?.length) {
+        return (
+          <div key={item.key}>
+            <div className="flex items-center gap-2 px-2.5 py-1 font-medium text-(--color-text-2) text-[11px]">
+              {item.icon}
+              <span>{item.label}</span>
+            </div>
+            <div className={classNames(depth === 0 && 'pl-3')}>
+              <MessageMenuItems items={item.children} depth={depth + 1} />
+            </div>
+          </div>
+        )
+      }
+
+      return (
+        <MenuItem
+          key={item.key}
+          label={item.label}
+          icon={item.icon}
+          disabled={item.disabled}
+          onClick={(event) => {
+            event.stopPropagation()
+            void item.onClick?.()
+          }}
+        />
+      )
+    })}
+  </MenuList>
+)
+
 const buttonRenderers: Record<MessageMenuBarButtonId, MessageMenuBarButtonRenderer> = {
   'user-edit': ({ message, onEdit, softHoverBg, supportsWrites, t }, disabled) => {
     if (message.role !== 'user' || !supportsWrites) {
@@ -637,9 +754,8 @@ const buttonRenderers: Record<MessageMenuBarButtonId, MessageMenuBarButtonRender
     if (confirmRegenerateMessage) {
       return (
         <Tooltip content={t('common.regenerate')} delay={800}>
-          <Popconfirm
+          <ConfirmActionButton
             title={t('message.regenerate.confirm')}
-            okButtonProps={{ danger: true }}
             onConfirm={() => onRegenerate()}
             onOpenChange={(open) => open && setShowDeleteTooltip(false)}
             disabled={disabled}>
@@ -650,7 +766,7 @@ const buttonRenderers: Record<MessageMenuBarButtonId, MessageMenuBarButtonRender
               $softHoverBg={softHoverBg}>
               <RefreshIcon size={15} />
             </ActionButton>
-          </Popconfirm>
+          </ConfirmActionButton>
         </Tooltip>
       )
     }
@@ -715,7 +831,7 @@ const buttonRenderers: Record<MessageMenuBarButtonId, MessageMenuBarButtonRender
 
     if (isTranslating) {
       return (
-        <Tooltip title={t('translate.stop')}>
+        <Tooltip content={t('translate.stop')}>
           <ActionButton
             className="message-action-button"
             onClick={(e) => {
@@ -729,15 +845,15 @@ const buttonRenderers: Record<MessageMenuBarButtonId, MessageMenuBarButtonRender
       )
     }
 
-    const items: MenuProps['items'] = [
+    const items: MessageMenuItem[] = [
       ...translateLanguages.map((item) => ({
-        label: getLanguageLabel(item),
+        label: getLanguageLabel(item) ?? item.langCode,
         key: item.langCode,
         onClick: () => handleTranslate(item)
       })),
       ...(hasTranslationBlocks
         ? [
-            { type: 'divider' as const },
+            { type: 'divider' as const, key: 'translate-divider' },
             {
               label: '📋 ' + t('common.copy'),
               key: 'translate-copy',
@@ -761,26 +877,14 @@ const buttonRenderers: Record<MessageMenuBarButtonId, MessageMenuBarButtonRender
 
     return (
       <Tooltip content={t('chat.translate')} delay={1200}>
-        <Dropdown
-          menu={{
-            style: {
-              maxHeight: 250,
-              overflowY: 'auto',
-              backgroundClip: 'border-box'
-            },
-            items,
-            onClick: (e) => e.domEvent.stopPropagation()
-          }}
-          trigger={['click']}
-          placement="top"
-          arrow>
+        <MessageMenuPopover items={items} align="center" contentClassName="max-h-[250px] overflow-y-auto">
           <ActionButton
             className="message-action-button"
             onClick={(e) => e.stopPropagation()}
             $softHoverBg={softHoverBg}>
             <Languages size={15} />
           </ActionButton>
-        </Dropdown>
+        </MessageMenuPopover>
       </Tooltip>
     )
   },
@@ -850,10 +954,10 @@ const buttonRenderers: Record<MessageMenuBarButtonId, MessageMenuBarButtonRender
 
     if (confirmDeleteMessage) {
       return (
-        <Popconfirm
+        <ConfirmActionButton
           title={t('message.message.delete.content')}
-          okButtonProps={{ danger: true }}
-          onConfirm={async () => await handleDeleteMessage()}
+          confirmText={t('common.delete')}
+          onConfirm={handleDeleteMessage}
           onOpenChange={(open) => open && setShowDeleteTooltip(false)}
           disabled={disabled}>
           <ActionButton
@@ -863,7 +967,7 @@ const buttonRenderers: Record<MessageMenuBarButtonId, MessageMenuBarButtonRender
             $softHoverBg={softHoverBg}>
             {deleteTooltip}
           </ActionButton>
-        </Popconfirm>
+        </ConfirmActionButton>
       )
     }
 
@@ -921,14 +1025,11 @@ const buttonRenderers: Record<MessageMenuBarButtonId, MessageMenuBarButtonRender
     }
 
     return (
-      <Dropdown
-        menu={{ items: dropdownItems, onClick: (e) => e.domEvent.stopPropagation() }}
-        trigger={['click']}
-        placement="topRight">
+      <MessageMenuPopover items={dropdownItems} align="end">
         <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()} $softHoverBg={softHoverBg}>
           <Menu size={19} />
         </ActionButton>
-      </Dropdown>
+      </MessageMenuPopover>
     )
   }
 }

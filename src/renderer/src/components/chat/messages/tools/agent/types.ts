@@ -1,5 +1,6 @@
-import type { CollapseProps } from 'antd'
 import * as z from 'zod'
+
+import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 
 export enum AgentToolsType {
   Skill = 'Skill',
@@ -504,7 +505,7 @@ export interface ToolOutputMap {
 export type ToolRendererFn = (props: {
   input?: ToolInput | Record<string, unknown> | string
   output?: ToolOutput | unknown
-}) => NonNullable<CollapseProps['items']>[number]
+}) => ToolDisclosureItem
 
 // 工具渲染器映射类型
 export type ToolRenderersMap = Record<AgentToolsType, ToolRendererFn>

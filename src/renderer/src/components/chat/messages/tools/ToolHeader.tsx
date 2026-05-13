@@ -1,6 +1,6 @@
+import { Flex, Tooltip } from '@cherrystudio/ui'
 import { useIsToolAutoApproved } from '@renderer/hooks/useMCPServers'
 import type { MCPTool, MCPToolResponse, NormalToolResponse } from '@renderer/types'
-import { Flex, Tooltip } from 'antd'
 import {
   Bot,
   DoorOpen,
@@ -205,13 +205,13 @@ const McpToolHeader: FC<McpToolHeaderProps> = ({
   const autoApproved = useIsToolAutoApproved(tool)
   return (
     <Container>
-      <ToolName align="center" gap={6}>
+      <ToolName className="items-center gap-1.5">
         <Wrench size={14} className="tool-icon" />
         <span className="name">
           {tool.serverName} : {tool.name}
         </span>
         {autoApproved && (
-          <Tooltip title={t('message.tools.autoApproveEnabled')} mouseLeaveDelay={0}>
+          <Tooltip content={t('message.tools.autoApproveEnabled')}>
             <ShieldCheck size={14} color="var(--color-primary)" />
           </Tooltip>
         )}
@@ -269,7 +269,7 @@ const ToolHeader: FC<ToolHeaderProps> = ({
 
   return (
     <Container>
-      <ToolName align="center" gap={6}>
+      <ToolName className="items-center gap-1.5">
         <span className="tool-icon">{propIcon || getAgentToolIcon(toolName)}</span>
         <span className="name">{getAgentToolLabel(toolName, t)}</span>
       </ToolName>

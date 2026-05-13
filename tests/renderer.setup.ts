@@ -198,7 +198,7 @@ vi.mock('@cherrystudio/ui', () => {
         children
       ),
     AccordionContent: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'accordion-content' }, children),
+      React.createElement('div', { 'data-testid': 'accordion-content', ...props }, children),
     ContextMenu: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'context-menu' }, children),
     ContextMenuTrigger: ({ children, ...props }) =>
@@ -329,6 +329,7 @@ vi.mock('@cherrystudio/ui', () => {
     },
     MenuList: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'menu-list' }, children),
+    MenuDivider: (props) => React.createElement('div', { ...props, 'data-testid': 'menu-divider' }),
     MenuItem: ({ children, icon, label, onClick, ...props }) =>
       React.createElement(
         'button',
@@ -336,6 +337,46 @@ vi.mock('@cherrystudio/ui', () => {
         icon,
         label,
         children
+      ),
+    Badge: ({ children, ...props }) => React.createElement('span', { ...props, 'data-testid': 'badge' }, children),
+    Checkbox: ({ checked, onCheckedChange, ...props }) =>
+      React.createElement('input', {
+        ...props,
+        checked,
+        type: 'checkbox',
+        'data-slot': 'checkbox',
+        onChange: (event: React.ChangeEvent<HTMLInputElement>) => onCheckedChange?.(event.target.checked)
+      }),
+    RadioGroup: ({ children, value, onValueChange, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'radio-group', 'data-value': value }, children),
+    RadioGroupItem: ({ value, ...props }) =>
+      React.createElement('input', { ...props, type: 'radio', value, 'data-testid': 'radio-group-item' }),
+    Slider: ({ value, defaultValue, onValueChange, onValueCommit, ...props }) =>
+      React.createElement('input', {
+        ...props,
+        type: 'range',
+        value: value?.[0] ?? defaultValue?.[0] ?? 0,
+        'data-testid': 'slider',
+        onChange: (event: React.ChangeEvent<HTMLInputElement>) => onValueChange?.([Number(event.target.value)]),
+        onMouseUp: (event: React.MouseEvent<HTMLInputElement>) =>
+          onValueCommit?.([Number((event.target as HTMLInputElement).value)])
+      }),
+    SegmentedControl: ({ options = [], value, onValueChange, ...props }) =>
+      React.createElement(
+        'div',
+        { ...props, 'data-testid': 'segmented-control', 'data-value': value },
+        options.map((option) =>
+          React.createElement(
+            'button',
+            {
+              key: option.value,
+              type: 'button',
+              disabled: option.disabled,
+              onClick: () => onValueChange?.(option.value)
+            },
+            option.label
+          )
+        )
       ),
     Select: ({ children, value, onValueChange, ...props }) => {
       return React.createElement(

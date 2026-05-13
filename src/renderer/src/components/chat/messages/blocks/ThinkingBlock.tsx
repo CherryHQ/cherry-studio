@@ -1,9 +1,9 @@
-import { CheckOutlined } from '@ant-design/icons'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { MessageBlockStatus } from '@renderer/types/newMessage'
+import { Check } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -106,7 +106,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs }
                   }}
                   aria-label={t('common.copy')}>
                   {!copied && <i className="iconfont icon-copy"></i>}
-                  {copied && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
+                  {copied && <Check size={14} color="var(--color-primary)" />}
                 </button>
               </Tooltip>
             )}

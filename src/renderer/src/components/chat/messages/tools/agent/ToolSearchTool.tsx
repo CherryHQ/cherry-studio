@@ -1,7 +1,7 @@
-import type { CollapseProps } from 'antd'
 import { useTranslation } from 'react-i18next'
 
 import { ToolArgsTable } from '../shared/ArgsTable'
+import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { ToolHeader } from './GenericTools'
 import { AgentToolsType, type ToolSearchToolInput, ToolSearchToolOutputSchema } from './types'
 
@@ -19,7 +19,7 @@ export function ToolSearchTool({
 }: {
   input?: ToolSearchToolInput
   output?: unknown
-}): NonNullable<CollapseProps['items']>[number] {
+}): ToolDisclosureItem {
   const { t } = useTranslation()
   const { matches, message } = parseOutput(output)
 

@@ -1,5 +1,5 @@
+import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { OGCard } from '@renderer/components/OGCard'
-import { Popover } from 'antd'
 import React, { memo, useMemo, useState } from 'react'
 
 interface HyperLinkProps {
@@ -21,19 +21,11 @@ const Hyperlink: React.FC<HyperLinkProps> = ({ children, href }) => {
   if (!href) return children
 
   return (
-    <Popover
-      arrow={false}
-      open={open}
-      onOpenChange={setOpen}
-      content={<OGCard link={link} show={open} />}
-      styles={{
-        body: {
-          padding: 0,
-          borderRadius: '8px',
-          overflow: 'hidden'
-        }
-      }}>
-      {children}
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>{children}</PopoverTrigger>
+      <PopoverContent className="overflow-hidden rounded-lg p-0">
+        <OGCard link={link} show={open} />
+      </PopoverContent>
     </Popover>
   )
 }
