@@ -1,9 +1,12 @@
 export type {
   ResourceListActionMap,
   ResourceListContextValue,
+  ResourceListDragCapabilities,
   ResourceListFilterOption,
   ResourceListGroup,
+  ResourceListGroupReorderPayload,
   ResourceListItemBase,
+  ResourceListItemReorderPayload,
   ResourceListMeta,
   ResourceListReorderPayload,
   ResourceListSortOption,

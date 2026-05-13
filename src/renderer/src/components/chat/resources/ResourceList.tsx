@@ -15,8 +15,14 @@ import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import { DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import {
+  GroupedSortableVirtualList,
+  type GroupedSortableVirtualListDragPayload,
+  type GroupedSortableVirtualListDragStartPayload,
+  GroupedVirtualList,
+  type GroupedVirtualListGroup
+} from '@renderer/components/VirtualList'
 import { cn } from '@renderer/utils/style'
-import { useVirtualizer } from '@tanstack/react-virtual'
 import { CalendarDays, ChevronsDown, ChevronsUp, SearchIcon } from 'lucide-react'
 import type { ComponentProps, CSSProperties, ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
@@ -24,6 +30,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import {
   ResourceListContext,
   type ResourceListContextValue,
+  type ResourceListDragCapabilities,
   type ResourceListFilterOption,
   type ResourceListGroup,
   type ResourceListItemBase,
@@ -70,6 +77,7 @@ const SCROLLBAR_COLOR_BY_STAGE: Record<ScrollbarStage, string> = {
 export type {
   ResourceListActionMap,
   ResourceListContextValue,
+  ResourceListDragCapabilities,
   ResourceListFilterOption,
   ResourceListGroup,
   ResourceListItemBase,
@@ -82,6 +90,7 @@ export type {
   ResourceListView,
   ResourceListViewGroup
 } from './ResourceListContext'
+export type { ResourceListGroupReorderPayload, ResourceListItemReorderPayload } from './ResourceListContext'
 
 type ResourceListProviderProps<T extends ResourceListItemBase> = {
   items: readonly T[]
@@ -98,6 +107,35 @@ type ResourceListProviderProps<T extends ResourceListItemBase> = {
   getGroupHeaderAction?: (group: ResourceListGroup) => ReactNode
   getGroupHeaderIcon?: (group: ResourceListGroup) => ReactNode
   collapsedGroupIds?: readonly string[]
+  dragCapabilities?: ResourceListDragCapabilities
+  canDragGroup?: (group: ResourceListGroup, groupIndex: number) => boolean
+  canDragItem?: (args: {
+    item: T
+    itemIndex: number
+    group: ResourceListGroup
+    groupIndex: number
+    itemIndexInGroup: number
+  }) => boolean
+  canDropGroup?: (args: {
+    activeGroupId: string
+    overGroupId: string
+    overType: 'group' | 'item'
+    sourceIndex: number
+    targetIndex: number
+  }) => boolean
+  canDropItem?: (args: {
+    activeId: string
+    activeItem: T
+    overId: string
+    overItem?: T
+    overType: 'group' | 'item'
+    sourceGroup: ResourceListGroup
+    sourceGroupId: string
+    sourceIndex: number
+    targetGroup: ResourceListGroup
+    targetGroupId: string
+    targetIndex: number
+  }) => boolean
   defaultGroupVisibleCount?: number
   groupLoadStep?: number
   groupShowMoreLabel?: string
@@ -189,6 +227,11 @@ function ResourceListProvider<T extends ResourceListItemBase>({
   getGroupHeaderAction,
   getGroupHeaderIcon,
   collapsedGroupIds,
+  dragCapabilities,
+  canDragGroup,
+  canDragItem,
+  canDropGroup,
+  canDropItem,
   defaultGroupVisibleCount = 5,
   groupLoadStep = 5,
   groupShowMoreLabel = DEFAULT_GROUP_SHOW_MORE_LABEL,
@@ -375,7 +418,18 @@ function ResourceListProvider<T extends ResourceListItemBase>({
         defaultGroupVisibleCount,
         groupLoadStep,
         groupShowMoreLabel,
-        groupCollapseLabel
+        groupCollapseLabel,
+        dragCapabilities: {
+          groups: false,
+          items: true,
+          itemSameGroup: true,
+          itemCrossGroup: false,
+          ...dragCapabilities
+        },
+        canDragGroup,
+        canDragItem,
+        canDropGroup,
+        canDropItem
       },
       sourceItems: items,
       view: {
@@ -387,6 +441,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
     [
       actions,
       defaultGroupVisibleCount,
+      dragCapabilities,
       effectiveCollapsedGroupIds,
       estimateItemSize,
       filterOptions,
@@ -394,6 +449,10 @@ function ResourceListProvider<T extends ResourceListItemBase>({
       getItemLabel,
       getGroupHeaderAction,
       getGroupHeaderIcon,
+      canDragGroup,
+      canDragItem,
+      canDropGroup,
+      canDropItem,
       groupLoadStep,
       groupCollapseLabel,
       groupShowMoreLabel,
@@ -546,6 +605,16 @@ function useAutoHideScrollbar(delay = SCROLLBAR_AUTO_HIDE_DELAY) {
   return { stage, handleScroll }
 }
 
+function getListViewportClassName(stage: ScrollbarStage, className?: string) {
+  return cn(
+    'min-h-0 flex-1 overflow-auto px-1.5 py-1.5 [scrollbar-gutter:stable]',
+    '[&::-webkit-scrollbar-thumb:hover]:bg-[var(--color-scrollbar-thumb-hover)]',
+    '[&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-150 [&::-webkit-scrollbar-thumb]:ease-out',
+    SCROLLBAR_THUMB_CLASS_BY_STAGE[stage],
+    className
+  )
+}
+
 function ListViewport({ className, onScroll, ref, role, style, ...props }: ListViewportProps) {
   const { stage, handleScroll } = useAutoHideScrollbar()
   const isScrolling = stage !== 'idle'
@@ -555,13 +624,7 @@ function ListViewport({ className, onScroll, ref, role, style, ...props }: ListV
       ref={ref}
       data-scrolling={isScrolling ? 'true' : 'false'}
       role={role}
-      className={cn(
-        'min-h-0 flex-1 overflow-auto px-1.5 py-1.5 [scrollbar-gutter:stable]',
-        '[&::-webkit-scrollbar-thumb:hover]:bg-[var(--color-scrollbar-thumb-hover)]',
-        '[&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-150 [&::-webkit-scrollbar-thumb]:ease-out',
-        SCROLLBAR_THUMB_CLASS_BY_STAGE[stage],
-        className
-      )}
+      className={getListViewportClassName(stage, className)}
       onScroll={(event) => {
         handleScroll()
         onScroll?.(event)
@@ -871,89 +934,86 @@ type VirtualItemsProps<T extends ResourceListItemBase> = {
   renderItem: (item: T, context: ResourceListContextValue<T>) => ReactNode
 }
 
-type ResourceListVirtualRow<T extends ResourceListItemBase> =
-  | { type: 'group'; group: ResourceListGroup }
-  | { type: 'group-more'; groupId: string }
-  | { type: 'item'; item: T; itemIndex: number }
+type ResourceListVirtualItem<T extends ResourceListItemBase> = {
+  item: T
+  itemIndex: number
+}
 
-function buildVirtualRows<T extends ResourceListItemBase>(context: ResourceListContextValue<T>) {
-  const rows: ResourceListVirtualRow<T>[] = []
+type ResourceListVirtualFooter = {
+  groupId: string
+}
+
+type ResourceListVirtualGroup<T extends ResourceListItemBase> = GroupedVirtualListGroup<
+  ResourceListGroup,
+  ResourceListVirtualItem<T>,
+  ResourceListGroup,
+  ResourceListVirtualFooter
+>
+
+const estimateResourceListGroupHeaderSize = () => 24
+const estimateResourceListGroupFooterSize = () => 32
+
+function buildVirtualGroups<T extends ResourceListItemBase>(
+  context: ResourceListContextValue<T>
+): ResourceListVirtualGroup<T>[] {
+  const groups: ResourceListVirtualGroup<T>[] = []
   let itemIndex = 0
 
   for (const group of context.view.groups) {
-    if (group.group.label) {
-      rows.push({ type: 'group', group: group.group })
-    }
+    const items: ResourceListVirtualItem<T>[] = []
 
     for (const item of group.items) {
-      rows.push({ type: 'item', item, itemIndex })
+      items.push({ item, itemIndex })
       itemIndex += 1
     }
 
-    if (group.hasMore || group.canCollapseToDefault) {
-      rows.push({ type: 'group-more', groupId: group.group.id })
-    }
+    groups.push({
+      group: group.group,
+      header: group.group.label ? group.group : undefined,
+      items,
+      footer: group.hasMore || group.canCollapseToDefault ? { groupId: group.group.id } : undefined
+    })
   }
 
-  return rows
+  return groups
 }
 
 function VirtualItems<T extends ResourceListItemBase>({ className, ref, renderItem }: VirtualItemsProps<T>) {
   const context = useResourceList<T>()
-  const parentRef = useRef<HTMLDivElement>(null)
-  const rows = useMemo(() => buildVirtualRows(context), [context])
-  const setScrollRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      parentRef.current = node
-      if (typeof ref === 'function') {
-        ref(node)
-      } else if (ref) {
-        ref.current = node
-      }
-    },
-    [ref]
+  const groups = useMemo(() => buildVirtualGroups(context), [context])
+  const { stage, handleScroll } = useAutoHideScrollbar()
+  const isScrolling = stage !== 'idle'
+  const estimateVirtualItemSize = useCallback(
+    (virtualItem: ResourceListVirtualItem<T>) => context.meta.estimateItemSize(virtualItem.itemIndex),
+    [context.meta]
   )
-  const virtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: (index) => {
-      const row = rows[index]
-      if (row?.type === 'group') return 24
-      if (row?.type === 'group-more') return 32
-      return context.meta.estimateItemSize(row?.itemIndex ?? index)
-    },
-    overscan: 6
-  })
-  const virtualItems = virtualizer.getVirtualItems()
+  const renderGroupHeader = useCallback((group: ResourceListGroup) => <GroupHeader group={group} />, [])
+  const renderVirtualItem = useCallback(
+    (virtualItem: ResourceListVirtualItem<T>) => renderItem(virtualItem.item, context),
+    [context, renderItem]
+  )
+  const renderGroupFooter = useCallback(
+    (footer: ResourceListVirtualFooter) => <GroupShowMore groupId={footer.groupId} />,
+    []
+  )
 
   return (
-    <ListViewport ref={setScrollRef} className={className} role="listbox">
-      <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
-        {virtualItems.map((virtualItem) => {
-          const row = rows[virtualItem.index]
-          if (!row) return null
-          return (
-            <div
-              key={virtualItem.key}
-              data-index={virtualItem.index}
-              ref={virtualizer.measureElement}
-              className="absolute top-0 left-0 w-full"
-              style={{
-                minHeight: virtualItem.size,
-                transform: `translateY(${virtualItem.start}px)`
-              }}>
-              {row.type === 'group' ? (
-                <GroupHeader group={row.group} />
-              ) : row.type === 'group-more' ? (
-                <GroupShowMore groupId={row.groupId} />
-              ) : (
-                renderItem(row.item, context)
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </ListViewport>
+    <GroupedVirtualList
+      scrollElementRef={ref}
+      role="listbox"
+      groups={groups}
+      className={getListViewportClassName(stage, className)}
+      scrollerProps={{ 'data-scrolling': isScrolling ? 'true' : 'false' }}
+      scrollerStyle={{ scrollbarColor: SCROLLBAR_COLOR_BY_STAGE[stage] }}
+      onScroll={handleScroll}
+      overscan={6}
+      estimateGroupHeaderSize={estimateResourceListGroupHeaderSize}
+      estimateItemSize={estimateVirtualItemSize}
+      estimateGroupFooterSize={estimateResourceListGroupFooterSize}
+      renderGroupHeader={renderGroupHeader}
+      renderItem={renderVirtualItem}
+      renderGroupFooter={renderGroupFooter}
+    />
   )
 }
 
@@ -1047,6 +1107,21 @@ type VirtualDraggableItemsProps<T extends ResourceListItemBase> = DraggableItems
   ref?: Ref<HTMLDivElement>
 }
 
+function findVisibleItemLocation<T extends ResourceListItemBase>(context: ResourceListContextValue<T>, itemId: string) {
+  for (const group of context.view.groups) {
+    const itemIndexInGroup = group.items.findIndex((item) => context.meta.getItemId(item) === itemId)
+    if (itemIndexInGroup >= 0) {
+      return {
+        group: group.group,
+        item: group.items[itemIndexInGroup],
+        itemIndexInGroup
+      }
+    }
+  }
+
+  return null
+}
+
 function useResourceListDnd<T extends ResourceListItemBase>(context: ResourceListContextValue<T>) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -1058,7 +1133,7 @@ function useResourceListDnd<T extends ResourceListItemBase>(context: ResourceLis
     (event: DragStartEvent) => {
       context.actions.hoverItem(String(event.active.id))
     },
-    [context.actions]
+    [context]
   )
 
   const handleDragEnd = useCallback(
@@ -1067,9 +1142,44 @@ function useResourceListDnd<T extends ResourceListItemBase>(context: ResourceLis
       const activeId = String(event.active.id)
       const overId = event.over?.id ? String(event.over.id) : null
       if (!overId || activeId === overId) return
-      context.actions.reorder({ activeId, overId, position: 'after' })
+      const activeLocation = findVisibleItemLocation(context, activeId)
+      const overLocation = findVisibleItemLocation(context, overId)
+      const isSameGroup = activeLocation?.group.id === overLocation?.group.id
+      if (context.meta.dragCapabilities.items === false) return
+      if (isSameGroup && context.meta.dragCapabilities.itemSameGroup === false) return
+      if (!isSameGroup && context.meta.dragCapabilities.itemCrossGroup === false) return
+      if (
+        activeLocation?.item &&
+        overLocation?.item &&
+        context.meta.canDropItem?.({
+          activeId,
+          activeItem: activeLocation.item,
+          overId,
+          overItem: overLocation.item,
+          overType: 'item',
+          sourceGroup: activeLocation.group,
+          sourceGroupId: activeLocation.group.id,
+          sourceIndex: activeLocation.itemIndexInGroup,
+          targetGroup: overLocation.group,
+          targetGroupId: overLocation.group.id,
+          targetIndex: overLocation.itemIndexInGroup
+        }) === false
+      ) {
+        return
+      }
+      context.actions.reorder({
+        type: 'item',
+        activeId,
+        overId,
+        position: 'after',
+        overType: 'item',
+        sourceGroupId: activeLocation?.group.id ?? 'all',
+        targetGroupId: overLocation?.group.id ?? 'all',
+        sourceIndex: activeLocation?.itemIndexInGroup ?? -1,
+        targetIndex: overLocation?.itemIndexInGroup ?? -1
+      })
     },
-    [context.actions]
+    [context]
   )
 
   return { sensors, itemIds, handleDragStart, handleDragEnd }
@@ -1106,65 +1216,159 @@ function VirtualDraggableItems<T extends ResourceListItemBase>({
   renderItem
 }: VirtualDraggableItemsProps<T>) {
   const context = useResourceList<T>()
-  const parentRef = useRef<HTMLDivElement>(null)
-  const { sensors, itemIds, handleDragStart, handleDragEnd } = useResourceListDnd(context)
-  const rows = useMemo(() => buildVirtualRows(context), [context])
-  const setScrollRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      parentRef.current = node
-      if (typeof ref === 'function') {
-        ref(node)
-      } else if (ref) {
-        ref.current = node
+  const groups = useMemo(() => buildVirtualGroups(context), [context])
+  const { stage, handleScroll } = useAutoHideScrollbar()
+  const isScrolling = stage !== 'idle'
+  const getGroupId = useCallback((group: ResourceListGroup) => group.id, [])
+  const getVirtualItemId = useCallback(
+    (virtualItem: ResourceListVirtualItem<T>) => context.meta.getItemId(virtualItem.item),
+    [context.meta]
+  )
+  const estimateVirtualItemSize = useCallback(
+    (virtualItem: ResourceListVirtualItem<T>) => context.meta.estimateItemSize(virtualItem.itemIndex),
+    [context.meta]
+  )
+  const handleGroupedDragStart = useCallback(
+    (payload: GroupedSortableVirtualListDragStartPayload<ResourceListGroup, ResourceListVirtualItem<T>>) => {
+      if (payload.type === 'item') {
+        context.actions.hoverItem(String(payload.activeId))
       }
     },
-    [ref]
+    [context.actions]
   )
-  const virtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: (index) => {
-      const row = rows[index]
-      if (row?.type === 'group') return 24
-      if (row?.type === 'group-more') return 32
-      return context.meta.estimateItemSize(row?.itemIndex ?? index)
+  const handleGroupedDragEnd = useCallback(
+    (payload: GroupedSortableVirtualListDragPayload<ResourceListGroup, ResourceListVirtualItem<T>>) => {
+      context.actions.hoverItem(null)
+      if (payload.type === 'group') {
+        context.actions.reorder({
+          type: 'group',
+          activeGroupId: String(payload.activeGroupId),
+          overGroupId: String(payload.overGroupId),
+          overType: payload.overType,
+          sourceIndex: payload.sourceIndex,
+          targetIndex: payload.targetIndex
+        })
+        return
+      }
+
+      if (payload.overType === 'item' && payload.activeId === payload.overId) return
+      context.actions.reorder({
+        type: 'item',
+        activeId: String(payload.activeId),
+        overId: String(payload.overId),
+        position: payload.overType === 'item' ? 'after' : 'before',
+        overType: payload.overType,
+        sourceGroupId: String(payload.sourceGroupId),
+        targetGroupId: String(payload.targetGroupId),
+        sourceIndex: payload.sourceIndex,
+        targetIndex: payload.targetIndex
+      })
     },
-    overscan: 6
-  })
-  const virtualItems = virtualizer.getVirtualItems()
+    [context.actions]
+  )
+  const canDragGroup = useCallback(
+    (group: ResourceListGroup, groupIndex: number) => context.meta.canDragGroup?.(group, groupIndex) ?? true,
+    [context.meta]
+  )
+  const canDragVirtualItem = useCallback(
+    (
+      virtualItem: ResourceListVirtualItem<T>,
+      _itemIndex: number,
+      group: ResourceListGroup,
+      groupIndex: number,
+      itemIndexInGroup: number
+    ) =>
+      context.meta.canDragItem?.({
+        item: virtualItem.item,
+        itemIndex: virtualItem.itemIndex,
+        group,
+        groupIndex,
+        itemIndexInGroup
+      }) ?? true,
+    [context.meta]
+  )
+  const canDropGroup = useCallback(
+    (payload: {
+      activeGroupId: string | number
+      overGroupId: string | number
+      overType: 'group' | 'item'
+      sourceIndex?: number
+      targetIndex?: number
+    }) =>
+      context.meta.canDropGroup?.({
+        activeGroupId: String(payload.activeGroupId),
+        overGroupId: String(payload.overGroupId),
+        overType: payload.overType,
+        sourceIndex: payload.sourceIndex ?? -1,
+        targetIndex: payload.targetIndex ?? -1
+      }) ?? true,
+    [context.meta]
+  )
+  const canDropVirtualItem = useCallback(
+    (payload: {
+      activeId: string | number
+      activeItem: ResourceListVirtualItem<T>
+      overGroup: ResourceListGroup
+      overGroupId: string | number
+      overId: string | number
+      overItem?: ResourceListVirtualItem<T>
+      overType: 'group' | 'item'
+      sourceGroup: ResourceListGroup
+      sourceGroupId: string | number
+      sourceIndex: number
+      targetIndex: number
+    }) =>
+      context.meta.canDropItem?.({
+        activeId: String(payload.activeId),
+        activeItem: payload.activeItem.item,
+        overId: String(payload.overId),
+        overItem: payload.overItem?.item,
+        overType: payload.overType,
+        sourceGroup: payload.sourceGroup,
+        sourceGroupId: String(payload.sourceGroupId),
+        sourceIndex: payload.sourceIndex,
+        targetGroup: payload.overGroup,
+        targetGroupId: String(payload.overGroupId),
+        targetIndex: payload.targetIndex
+      }) ?? true,
+    [context.meta]
+  )
+  const renderGroupHeader = useCallback((group: ResourceListGroup) => <GroupHeader group={group} />, [])
+  const renderVirtualItem = useCallback(
+    (virtualItem: ResourceListVirtualItem<T>) => renderItem(virtualItem.item, context),
+    [context, renderItem]
+  )
+  const renderGroupFooter = useCallback(
+    (footer: ResourceListVirtualFooter) => <GroupShowMore groupId={footer.groupId} />,
+    []
+  )
 
   return (
-    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
-        <ListViewport ref={setScrollRef} className={className} role="listbox">
-          <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
-            {virtualItems.map((virtualItem) => {
-              const row = rows[virtualItem.index]
-              if (!row) return null
-              return (
-                <div
-                  key={virtualItem.key}
-                  data-index={virtualItem.index}
-                  ref={virtualizer.measureElement}
-                  className="absolute top-0 left-0 w-full"
-                  style={{
-                    minHeight: virtualItem.size,
-                    transform: `translateY(${virtualItem.start}px)`
-                  }}>
-                  {row.type === 'group' ? (
-                    <GroupHeader group={row.group} />
-                  ) : row.type === 'group-more' ? (
-                    <GroupShowMore groupId={row.groupId} />
-                  ) : (
-                    <SortableResourceItem item={row.item}>{renderItem(row.item, context)}</SortableResourceItem>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </ListViewport>
-      </SortableContext>
-    </DndContext>
+    <GroupedSortableVirtualList
+      scrollElementRef={ref}
+      role="listbox"
+      groups={groups}
+      className={getListViewportClassName(stage, className)}
+      scrollerProps={{ 'data-scrolling': isScrolling ? 'true' : 'false' }}
+      scrollerStyle={{ scrollbarColor: SCROLLBAR_COLOR_BY_STAGE[stage] }}
+      onScroll={handleScroll}
+      overscan={6}
+      getGroupId={getGroupId}
+      getItemId={getVirtualItemId}
+      dragCapabilities={context.meta.dragCapabilities}
+      estimateGroupHeaderSize={estimateResourceListGroupHeaderSize}
+      estimateItemSize={estimateVirtualItemSize}
+      estimateGroupFooterSize={estimateResourceListGroupFooterSize}
+      canDragGroup={canDragGroup}
+      canDragItem={canDragVirtualItem}
+      canDropGroup={canDropGroup}
+      canDropItem={canDropVirtualItem}
+      onDragStart={handleGroupedDragStart}
+      onDragEnd={handleGroupedDragEnd}
+      renderGroupHeader={renderGroupHeader}
+      renderItem={renderVirtualItem}
+      renderGroupFooter={renderGroupFooter}
+    />
   )
 }
 

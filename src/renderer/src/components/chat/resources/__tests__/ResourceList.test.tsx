@@ -18,12 +18,17 @@ const virtualMocks = vi.hoisted(() => ({
 }))
 
 const dndMocks = vi.hoisted(() => ({
+  droppableData: new Map<string, unknown>(),
   onDragEnd: undefined as undefined | ((event: any) => void),
-  onDragStart: undefined as undefined | ((event: any) => void)
+  onDragStart: undefined as undefined | ((event: any) => void),
+  sortableData: new Map<string, unknown>()
 }))
 
 vi.mock('@tanstack/react-virtual', () => ({
-  useVirtualizer: virtualMocks.useVirtualizer
+  useVirtualizer: virtualMocks.useVirtualizer,
+  defaultRangeExtractor: vi.fn((range) =>
+    Array.from({ length: range.endIndex - range.startIndex + 1 }, (_, i) => range.startIndex + i)
+  )
 }))
 
 vi.mock('@dnd-kit/core', () => {
@@ -36,6 +41,10 @@ vi.mock('@dnd-kit/core', () => {
     },
     KeyboardSensor: vi.fn(),
     PointerSensor: vi.fn(),
+    useDroppable: ({ data, id }: { data: unknown; id: string }) => {
+      dndMocks.droppableData.set(id, data)
+      return { isOver: false, setNodeRef: vi.fn() }
+    },
     useSensor: vi.fn((sensor, options) => ({ sensor, options })),
     useSensors: vi.fn((...sensors) => sensors)
   }
@@ -47,14 +56,20 @@ vi.mock('@dnd-kit/sortable', () => {
     SortableContext: ({ children }: { children: ReactNode }) =>
       React.createElement('div', { 'data-testid': 'sortable-context' }, children),
     sortableKeyboardCoordinates: vi.fn(),
-    useSortable: ({ id }: { id: string }) => ({
-      attributes: { 'data-sortable-id': id },
-      listeners: {},
-      setNodeRef: vi.fn(),
-      transform: null,
-      transition: undefined,
-      isDragging: false
-    }),
+    useSortable: ({ data, id }: { data?: unknown; id: string }) => {
+      if (data) {
+        dndMocks.sortableData.set(id, data)
+      }
+
+      return {
+        attributes: { 'data-sortable-id': id },
+        listeners: {},
+        setNodeRef: vi.fn(),
+        transform: null,
+        transition: undefined,
+        isDragging: false
+      }
+    },
     verticalListSortingStrategy: {}
   }
 })
@@ -80,6 +95,8 @@ import {
 } from '../variants'
 
 afterEach(() => {
+  dndMocks.droppableData.clear()
+  dndMocks.sortableData.clear()
   vi.useRealTimers()
 })
 
@@ -108,6 +125,14 @@ function Inspector() {
       })}
     </output>
   )
+}
+
+function sortableData(id: string) {
+  const data = dndMocks.sortableData.get(id)
+  if (!data) {
+    throw new Error(`Expected sortable data for ${id}`)
+  }
+  return { current: data }
 }
 
 describe('ResourceList', () => {
@@ -242,7 +267,17 @@ describe('ResourceList', () => {
     expect(screen.getByLabelText('Rename Alpha')).toBeInTheDocument()
 
     dndMocks.onDragEnd?.({ active: { id: 'alpha' }, over: { id: 'gamma' } })
-    expect(onReorder).toHaveBeenCalledWith({ activeId: 'alpha', overId: 'gamma', position: 'after' })
+    expect(onReorder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeId: 'alpha',
+        overId: 'gamma',
+        overType: 'item',
+        position: 'after',
+        sourceGroupId: 'all',
+        targetGroupId: 'all',
+        type: 'item'
+      })
+    )
   })
 
   it('combines virtualization and drag reorder for large resource lists', () => {
@@ -271,8 +306,21 @@ describe('ResourceList', () => {
       })
     )
 
-    dndMocks.onDragEnd?.({ active: { id: 'beta' }, over: { id: 'alpha' } })
-    expect(onReorder).toHaveBeenCalledWith({ activeId: 'beta', overId: 'alpha', position: 'after' })
+    dndMocks.onDragEnd?.({
+      active: { data: sortableData('item:beta'), id: 'item:beta' },
+      over: { data: sortableData('item:alpha'), id: 'item:alpha' }
+    })
+    expect(onReorder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeId: 'beta',
+        overId: 'alpha',
+        overType: 'item',
+        position: 'after',
+        sourceGroupId: 'all',
+        targetGroupId: 'all',
+        type: 'item'
+      })
+    )
   })
 
   it('renders grouped virtual rows without visible group counts', () => {

@@ -26,11 +26,35 @@ export type ResourceListFilterOption<T extends ResourceListItemBase> = {
   predicate: (item: T) => boolean
 }
 
-export type ResourceListReorderPayload = {
+export type ResourceListDragCapabilities = {
+  groups?: boolean
+  items?: boolean
+  itemSameGroup?: boolean
+  itemCrossGroup?: boolean
+}
+
+export type ResourceListItemReorderPayload = {
+  type: 'item'
   activeId: string
   overId: string
   position: 'before' | 'after'
+  overType: 'group' | 'item'
+  sourceGroupId: string
+  targetGroupId: string
+  sourceIndex: number
+  targetIndex: number
 }
+
+export type ResourceListGroupReorderPayload = {
+  type: 'group'
+  activeGroupId: string
+  overGroupId: string
+  overType: 'group' | 'item'
+  sourceIndex: number
+  targetIndex: number
+}
+
+export type ResourceListReorderPayload = ResourceListItemReorderPayload | ResourceListGroupReorderPayload
 
 export type ResourceListVariantContext = {
   variant: 'session' | 'topic' | 'agent' | 'assistant' | 'history' | 'resource'
@@ -80,6 +104,35 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   groupLoadStep: number
   groupShowMoreLabel?: string
   groupCollapseLabel?: string
+  dragCapabilities: ResourceListDragCapabilities
+  canDragGroup?: (group: ResourceListGroup, groupIndex: number) => boolean
+  canDragItem?: (args: {
+    item: T
+    itemIndex: number
+    group: ResourceListGroup
+    groupIndex: number
+    itemIndexInGroup: number
+  }) => boolean
+  canDropGroup?: (args: {
+    activeGroupId: string
+    overGroupId: string
+    overType: 'group' | 'item'
+    sourceIndex: number
+    targetIndex: number
+  }) => boolean
+  canDropItem?: (args: {
+    activeId: string
+    activeItem: T
+    overId: string
+    overItem?: T
+    overType: 'group' | 'item'
+    sourceGroup: ResourceListGroup
+    sourceGroupId: string
+    sourceIndex: number
+    targetGroup: ResourceListGroup
+    targetGroupId: string
+    targetIndex: number
+  }) => boolean
 }
 
 export type ResourceListViewGroup<T extends ResourceListItemBase> = {
