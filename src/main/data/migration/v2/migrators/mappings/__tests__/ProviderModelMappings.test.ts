@@ -5,6 +5,26 @@ import { transformProvider } from '../ProviderModelMappings'
 
 describe('ProviderModelMappings', () => {
   describe('transformProvider', () => {
+    it('maps custom-id Azure providers to azure-openai preset via type fallback', () => {
+      const result = transformProvider(
+        {
+          id: '42e57799-1f4e-44f7-a6bb-a888ce4ecee0',
+          name: 'azure-gpt-4o',
+          type: 'azure-openai',
+          apiKey: 'k',
+          apiHost: 'https://xianyuomar1000.openai.azure.com',
+          models: [],
+          enabled: true,
+          isSystem: false,
+          apiVersion: 'preview'
+        } as never,
+        {}
+      )
+
+      expect(result.presetProviderId).toBe('azure-openai')
+      expect(result.authConfig).toEqual({ type: 'iam-azure', apiVersion: 'preview' })
+    })
+
     it('migrates VertexAI auth while keeping its generated host as an empty endpoint override', () => {
       const result = transformProvider(
         {
