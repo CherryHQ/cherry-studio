@@ -85,8 +85,10 @@ vi.mock('fs-extra', () => ({
     writeFile: vi.fn(),
     writeJson: vi.fn().mockResolvedValue(undefined),
     readJson: vi.fn(),
+    renameSync: vi.fn(),
     createWriteStream: vi.fn(),
     createReadStream: vi.fn(),
+    existsSync: vi.fn(),
     promises: {
       mkdir: vi.fn().mockResolvedValue(undefined),
       readFile: vi.fn()
@@ -104,8 +106,10 @@ vi.mock('fs-extra', () => ({
   writeFile: vi.fn(),
   writeJson: vi.fn().mockResolvedValue(undefined),
   readJson: vi.fn(),
+  renameSync: vi.fn(),
   createWriteStream: vi.fn(),
   createReadStream: vi.fn(),
+  existsSync: vi.fn(),
   promises: {
     mkdir: vi.fn().mockResolvedValue(undefined),
     readFile: vi.fn()
@@ -147,12 +151,18 @@ vi.mock('archiver', () => ({
 }))
 
 vi.mock('node-stream-zip', () => ({
-  default: vi.fn()
+  default: {
+    async: vi.fn(() => ({
+      extract: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn()
+    }))
+  }
 }))
 
 // Import after mocks
 import archiver from 'archiver'
 import * as fs from 'fs-extra'
+import StreamZip from 'node-stream-zip'
 import * as path from 'path'
 
 import BackupManager from '../BackupManager'
@@ -472,6 +482,92 @@ describe('BackupManager — B1: SQLite included in backup product', () => {
       '/mock/app.database.file',
       '/tmp/cherry-studio/backup/temp/sqlite/app.database.file'
     )
+  })
+})
+
+// -------------------------------------------------------------------------
+// Helper: make a StreamZip.async mock that simulates successful extraction
+// -------------------------------------------------------------------------
+function makeZipMock() {
+  return {
+    extract: vi.fn().mockResolvedValue(undefined),
+    close: vi.fn()
+  }
+}
+
+// Valid v2 backup metadata
+const V2_METADATA = {
+  version: 6,
+  dataFormatVersion: 2,
+  timestamp: 1700000000000,
+  appName: 'Cherry Studio',
+  appVersion: '1.0.0',
+  platform: process.platform,
+  arch: process.arch
+}
+
+// Valid v1 backup metadata (no dataFormatVersion, no sqlite/ dir)
+const V1_METADATA = {
+  version: 6,
+  timestamp: 1600000000000,
+  appName: 'Cherry Studio',
+  appVersion: '0.9.0',
+  platform: process.platform,
+  arch: process.arch
+}
+
+describe('BackupManager — B2/B3: SQLite atomic restore', () => {
+  let backupManager: BackupManager
+  // tempDir for BackupManager is /tmp/cherry-studio/backup/temp
+  const TEMP_DIR = '/tmp/cherry-studio/backup/temp'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    backupManager = new BackupManager()
+    vi.mocked(fs.ensureDir).mockResolvedValue(undefined as never)
+    vi.mocked(fs.remove).mockResolvedValue(undefined as never)
+    vi.mocked(fs.copy).mockResolvedValue(undefined as never)
+    // Default: no files/dirs exist
+    vi.mocked(fs.pathExists).mockResolvedValue(false as never)
+    vi.mocked(fs.readdir).mockResolvedValue([] as never)
+  })
+
+  it('B2: renames staged sqlite file to target db path on v2 restore', async () => {
+    const zipMock = makeZipMock()
+    vi.mocked(StreamZip.async).mockReturnValue(zipMock as any)
+
+    // metadata.json exists (direct backup)
+    vi.mocked(fs.pathExists).mockImplementation(async (p) => {
+      const ps = String(p)
+      if (ps === `${TEMP_DIR}/metadata.json`) return true as never
+      if (ps === `${TEMP_DIR}/sqlite`) return true as never
+      return false as never
+    })
+    vi.mocked(fs.readJson).mockResolvedValue(V2_METADATA as never)
+
+    await backupManager.restore({} as Electron.IpcMainInvokeEvent, '/path/to/backup.zip')
+
+    // application.getPath('app.database.file') returns '/mock/app.database.file'
+    // staged file: TEMP_DIR/sqlite/app.database.file
+    expect(fs.renameSync).toHaveBeenCalledWith(`${TEMP_DIR}/sqlite/app.database.file`, '/mock/app.database.file')
+  })
+
+  it('B3: skips sqlite rename on v1 restore (no sqlite/ dir)', async () => {
+    const zipMock = makeZipMock()
+    vi.mocked(StreamZip.async).mockReturnValue(zipMock as any)
+
+    // metadata.json exists but no sqlite/ dir
+    vi.mocked(fs.pathExists).mockImplementation(async (p) => {
+      const ps = String(p)
+      if (ps === `${TEMP_DIR}/metadata.json`) return true as never
+      return false as never
+    })
+    vi.mocked(fs.readJson).mockResolvedValue(V1_METADATA as never)
+
+    await backupManager.restore({} as Electron.IpcMainInvokeEvent, '/path/to/v1-backup.zip')
+
+    // Should NOT have renamed any sqlite file
+    expect(fs.renameSync).not.toHaveBeenCalled()
   })
 })
 
