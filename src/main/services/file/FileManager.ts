@@ -226,6 +226,8 @@ export const EnsureExternalEntryIpcSchema = z.strictObject({ externalPath: z.str
 
 export const GetPhysicalPathIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 
+export const PermanentDeleteEntryIpcSchema = z.strictObject({ id: FileEntryIdSchema })
+
 // ─── Version types ───
 
 /**
@@ -670,6 +672,9 @@ export class FileManager extends BaseService implements IFileManager {
     )
     this.ipcHandle(IpcChannel.File_GetPhysicalPath, (_e, params: unknown) =>
       this.getPhysicalPath(GetPhysicalPathIpcSchema.parse(params).id)
+    )
+    this.ipcHandle(IpcChannel.File_PermanentDeleteEntry, (_e, params: unknown) =>
+      this.permanentDelete(PermanentDeleteEntryIpcSchema.parse(params).id)
     )
   }
 

@@ -304,7 +304,9 @@ const api = {
     ensureExternalEntry: (params: import('@shared/file/types/ipc').EnsureExternalEntryIpcParams) =>
       ipcRenderer.invoke(IpcChannel.File_EnsureExternalEntry, params),
     getPhysicalPath: (params: { id: import('@shared/data/types/file').FileEntryId }) =>
-      ipcRenderer.invoke(IpcChannel.File_GetPhysicalPath, params)
+      ipcRenderer.invoke(IpcChannel.File_GetPhysicalPath, params),
+    permanentDeleteEntry: (params: { id: import('@shared/data/types/file').FileEntryId }) =>
+      ipcRenderer.invoke(IpcChannel.File_PermanentDeleteEntry, params)
   },
   fs: {
     read: (pathOrUrl: string, encoding?: BufferEncoding) => ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding),

@@ -261,6 +261,7 @@ export enum IpcChannel {
   File_CreateInternalEntry = 'file:createInternalEntry',
   File_EnsureExternalEntry = 'file:ensureExternalEntry',
   File_GetPhysicalPath = 'file:getPhysicalPath',
+  File_PermanentDeleteEntry = 'file:permanentDeleteEntry',
 
   // PDF
   Pdf_ExtractText = 'pdf:extractText',

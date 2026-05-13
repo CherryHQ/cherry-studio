@@ -4,6 +4,7 @@ import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import type { FileMetadata } from '@renderer/types'
 import { getFileDirectory } from '@renderer/utils'
+import { toFileMetadata } from '@shared/file/legacy/toFileMetadata'
 import dayjs from 'dayjs'
 
 const logger = loggerService.withContext('FileManager')
@@ -14,16 +15,9 @@ class FileManager {
   }
 
   static async addFile(file: FileMetadata): Promise<FileMetadata> {
-    const fileRecord = await db.files.get(file.id)
-
-    if (fileRecord) {
-      await db.files.update(fileRecord.id, { ...fileRecord, count: fileRecord.count + 1 })
-      return fileRecord
-    }
-
-    await db.files.add(file)
-
-    return file
+    const entry = await window.api.file.createInternalEntry({ source: 'path', path: file.path })
+    const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })
+    return toFileMetadata(entry, physicalPath)
   }
 
   static async addFiles(files: FileMetadata[]): Promise<FileMetadata[]> {
@@ -44,33 +38,21 @@ class FileManager {
     logger.info(`Adding base64 file: ${JSON.stringify(file)}`)
 
     const base64File = await window.api.file.base64File(file.id + file.ext)
+    // Read from Dexie is still functional; write path is deferred to Batch A-E migration.
     const fileRecord = await db.files.get(base64File.id)
 
     if (fileRecord) {
-      await db.files.update(fileRecord.id, { ...fileRecord, count: fileRecord.count + 1 })
       return fileRecord
     }
-
-    await db.files.add(base64File)
 
     return base64File
   }
 
   static async uploadFile(file: FileMetadata): Promise<FileMetadata> {
     logger.info(`Uploading file: ${JSON.stringify(file)}`)
-
-    const uploadFile = await window.api.file.upload(file)
-    logger.info('Uploaded file:', uploadFile)
-    const fileRecord = await db.files.get(uploadFile.id)
-
-    if (fileRecord) {
-      await db.files.update(fileRecord.id, { ...fileRecord, count: fileRecord.count + 1 })
-      return fileRecord
-    }
-
-    await db.files.add(uploadFile)
-
-    return uploadFile
+    const entry = await window.api.file.createInternalEntry({ source: 'path', path: file.path })
+    const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })
+    return toFileMetadata(entry, physicalPath)
   }
 
   static async uploadFiles(files: FileMetadata[]): Promise<FileMetadata[]> {
@@ -102,15 +84,14 @@ class FileManager {
       return
     }
 
-    if (!force) {
-      if (file.count > 1) {
-        await db.files.update(id, { ...file, count: file.count - 1 })
-        return
-      }
+    if (!force && file.count > 1) {
+      // Reference count is still > 1: skip physical delete.
+      // Dexie write is frozen — count decrement deferred to Batch A-E migration.
+      return
     }
 
-    await db.files.delete(id)
-
+    // Delete the physical file via legacy IPC.
+    // Dexie row removal is deferred to Batch A-E migration (Dexie writes frozen).
     try {
       await window.api.file.delete(id + file.ext)
     } catch (error) {
@@ -149,11 +130,9 @@ class FileManager {
   }
 
   static async updateFile(file: FileMetadata) {
-    if (!file.origin_name.includes(file.ext)) {
-      file.origin_name = file.origin_name + file.ext
-    }
-
-    await db.files.update(file.id, file)
+    // Dexie writes are frozen. updateFile is a no-op until Batch A-E migrates
+    // this call site to the v2 File IPC rename channel.
+    logger.warn('FileManager.updateFile: Dexie writes are frozen; skipping update for file id=' + file.id)
   }
 
   static formatFileName(file: FileMetadata) {

@@ -44,7 +44,7 @@ vi.stubGlobal('api', {
   }
 })
 
-const { FileManager } = await import('../FileManager')
+const FileManager = (await import('../FileManager')).default
 
 describe('FileManager.uploadFile — v2 cutover', () => {
   beforeEach(() => {
