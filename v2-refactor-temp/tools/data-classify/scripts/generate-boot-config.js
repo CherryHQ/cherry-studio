@@ -74,6 +74,27 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
       '',
       'Consumer: src/main/core/preboot/userDataLocation.ts'
     ]
+  },
+  {
+    source: 'file-manager',
+    sourceCategory: 'runtime',
+    originalKey: 'lastProcessedMigrationCompletedAt',
+    targetKey: 'file.lastProcessedMigrationCompletedAt',
+    type: 'number | null',
+    defaultValue: null,
+    jsdoc: [
+      'ms epoch — the migrationStatus.completedAt value last processed by',
+      'FileManager.runStartupSweeps. Mismatch with current',
+      'app_state.migrationStatus.completedAt triggers a one-time DB-sweep skip',
+      '(grace window after migration or v2 backup restore).',
+      '',
+      'Intentionally stored outside the backup product so it survives',
+      'backup-restore correctly: a restored app_state carries the OLD completedAt',
+      'from backup time; this BootConfig marker carries the pre-restore value,',
+      'producing a mismatch that suppresses the DB sweep once.',
+      '',
+      'Consumer: src/main/services/file/FileManager.ts'
+    ]
   }
 ]
 
