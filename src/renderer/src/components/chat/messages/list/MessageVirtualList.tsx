@@ -29,6 +29,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { type ReactNode, type Ref, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef } from 'react'
 
 const AT_BOTTOM_THRESHOLD_PX = 8
+const DEFAULT_BOTTOM_PADDING_PX = 18
 
 export interface MessageVirtualListHandle {
   /** Scroll to the bottom of the list. */
@@ -69,6 +70,8 @@ export interface MessageVirtualListProps<T> {
   className?: string
   /** style applied to the outer scroll container. */
   style?: React.CSSProperties
+  /** Extra empty space after the newest message. */
+  bottomPadding?: number
 }
 
 export function MessageVirtualList<T>({
@@ -81,7 +84,8 @@ export function MessageVirtualList<T>({
   hasMoreTop = false,
   handleRef,
   className,
-  style
+  style,
+  bottomPadding = DEFAULT_BOTTOM_PADDING_PX
 }: MessageVirtualListProps<T>): React.ReactElement {
   const scrollerRef = useRef<HTMLDivElement | null>(null)
 
@@ -98,6 +102,7 @@ export function MessageVirtualList<T>({
   })
 
   const totalSize = virtualizer.getTotalSize()
+  const scrollHeight = totalSize + bottomPadding
 
   // ── atBottom tracking ────────────────────────────────────────
   // Updated on every scroll event; read in the data-change effect to
@@ -239,7 +244,7 @@ export function MessageVirtualList<T>({
         return
       }
       const scrollerRect = node.getBoundingClientRect()
-      const target = lastBottom - scrollerRect.top + node.scrollTop - node.clientHeight
+      const target = lastBottom - scrollerRect.top + node.scrollTop - node.clientHeight + bottomPadding
       node.scrollTop = Math.max(0, target)
     })
     return () => {
@@ -247,7 +252,7 @@ export function MessageVirtualList<T>({
       stickyObserverRef.current = null
       observedItemsRef.current.clear()
     }
-  }, [])
+  }, [bottomPadding])
 
   const measureItem = useCallback(
     (node: HTMLDivElement | null) => {
@@ -309,7 +314,7 @@ export function MessageVirtualList<T>({
       ref={scrollerRef}
       className={className}
       style={{ overflowY: 'auto', overflowX: 'hidden', position: 'relative', ...style }}>
-      <div style={{ height: totalSize, position: 'relative', width: '100%' }}>
+      <div style={{ height: scrollHeight, position: 'relative', width: '100%' }}>
         {virtualItems.map((vi) => (
           <div
             key={vi.key}
