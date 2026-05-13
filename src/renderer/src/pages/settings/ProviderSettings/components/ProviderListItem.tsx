@@ -1,32 +1,22 @@
-import { Tooltip } from '@cherrystudio/ui'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils'
 import type { Provider } from '@shared/data/types/provider'
-import { Plus } from 'lucide-react'
+import { MoreVertical } from 'lucide-react'
 import type { MouseEvent } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface ProviderListItemProps {
   provider: Provider
   selected: boolean
   dragging: boolean
   onClick: () => void
-  onDuplicate?: () => void
+  onOpenMenu?: () => void
 }
 
-export default function ProviderListItem({
-  provider,
-  selected,
-  dragging,
-  onClick,
-  onDuplicate
-}: ProviderListItemProps) {
-  const { t } = useTranslation()
-
-  const handleDuplicate = (event: MouseEvent<HTMLButtonElement>) => {
+export default function ProviderListItem({ provider, selected, dragging, onClick, onOpenMenu }: ProviderListItemProps) {
+  const handleOpenMenu = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
-    onDuplicate?.()
+    onOpenMenu?.()
   }
 
   return (
@@ -56,17 +46,14 @@ export default function ProviderListItem({
           {provider.name}
         </span>
       </div>
-      {onDuplicate && (
-        <Tooltip content={t('settings.provider.duplicate.tooltip', { name: provider.name })} placement="top">
-          <button
-            type="button"
-            data-testid={`provider-list-duplicate-${provider.id}`}
-            aria-label={t('settings.provider.duplicate.aria_label', { name: provider.name })}
-            onClick={handleDuplicate}
-            className={providerListClasses.itemDuplicate}>
-            <Plus size={12} />
-          </button>
-        </Tooltip>
+      {onOpenMenu && (
+        <button
+          type="button"
+          data-testid={`provider-list-menu-${provider.id}`}
+          onClick={handleOpenMenu}
+          className={providerListClasses.itemMoreActions}>
+          <MoreVertical size={14} />
+        </button>
       )}
     </div>
   )

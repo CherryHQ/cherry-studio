@@ -121,8 +121,8 @@ export const providerListClasses = {
   groupChevronOpen: 'rotate-90',
   groupCount: 'shrink-0 text-[length:var(--font-size-body-xs)] leading-none text-muted-foreground/60 tabular-nums',
   groupBody: 'mt-1 flex flex-col gap-[var(--provider-list-row-gap)] pl-3.5',
-  itemDuplicate:
-    'absolute right-1.5 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-[color,opacity,background-color] hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground group-hover/row:opacity-100 focus-visible:opacity-100',
+  itemMoreActions:
+    'absolute right-1.5 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-[color,opacity,background-color] hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground group-hover/row:opacity-100 focus-visible:opacity-100 data-[active=true]:opacity-100',
   groupAddRow:
     'flex w-full items-center gap-2 rounded-xl border border-dashed border-[color:var(--section-border)] bg-transparent px-2 py-[6px] text-[length:var(--font-size-body-xs)] leading-[1.35] text-muted-foreground/70 shadow-none transition-colors hover:border-[color:var(--color-border)] hover:bg-accent/40 hover:text-foreground',
   disclosureToggle:

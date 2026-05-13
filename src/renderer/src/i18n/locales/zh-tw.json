@@ -6452,11 +6452,9 @@
       "docs_more_details": "檢視更多細節",
       "duplicate": {
         "add_another": "新增 {{name}} 實例",
-        "aria_label": "新增 {{name}} 實例",
         "drawer_title": "新增 {{name}} 實例",
         "fill_after_create": "建立後請在詳情頁填寫認證欄位",
-        "menu_label": "新增實例",
-        "tooltip": "新增 {{name}} 實例（如 Coding Plan、其他部署或帳號）"
+        "menu_label": "新增實例"
       },
       "filter": {
         "agent": "支援 Agent",

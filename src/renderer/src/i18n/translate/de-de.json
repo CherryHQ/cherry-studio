@@ -6452,11 +6452,9 @@
       "docs_more_details": "Weitere Details anzeigen",
       "duplicate": {
         "add_another": "[to be translated]:Add {{name}} instance",
-        "aria_label": "[to be translated]:Add {{name}} instance",
         "drawer_title": "[to be translated]:Add {{name}} instance",
         "fill_after_create": "[to be translated]:Authentication fields can be filled after create",
-        "menu_label": "[to be translated]:Add instance",
-        "tooltip": "[to be translated]:Add a {{name}} instance (e.g. a Coding Plan, a different deployment or account)"
+        "menu_label": "[to be translated]:Add instance"
       },
       "filter": {
         "agent": "Vom Agenten unterstützt",

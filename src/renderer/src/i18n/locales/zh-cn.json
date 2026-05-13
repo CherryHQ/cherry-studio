@@ -6452,11 +6452,9 @@
       "docs_more_details": "获取更多详情",
       "duplicate": {
         "add_another": "添加 {{name}} 实例",
-        "aria_label": "添加 {{name}} 实例",
         "drawer_title": "添加 {{name}} 实例",
         "fill_after_create": "创建后请在详情页填写认证字段",
-        "menu_label": "添加实例",
-        "tooltip": "添加 {{name}} 实例（如 Coding Plan、其它部署或账号）"
+        "menu_label": "添加实例"
       },
       "filter": {
         "agent": "支持 Agent",

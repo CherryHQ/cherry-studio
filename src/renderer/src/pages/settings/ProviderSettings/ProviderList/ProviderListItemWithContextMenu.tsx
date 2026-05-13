@@ -55,7 +55,7 @@ export default function ProviderListItemWithContextMenu({
             selected={selected}
             dragging={listState.dragging}
             onClick={onSelect}
-            onDuplicate={onDuplicate}
+            onOpenMenu={() => onContextOpenChange(true)}
           />
         </div>
       </PopoverAnchor>
