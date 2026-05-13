@@ -989,7 +989,7 @@ describe('TopicListV2', () => {
     expect(next.map((topic) => topic.orderKey)).toEqual(['c', 'a', 'd'])
   })
 
-  it('reorders topics within the same assistant group in assistant mode', async () => {
+  it('normalizes stale rect position when reordering topics within the same assistant group', async () => {
     const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
 
@@ -997,14 +997,18 @@ describe('TopicListV2', () => {
 
     expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
     dndMocks.onDragEnd?.({
-      active: { data: sortableData('item:topic-d'), id: 'item:topic-d' },
-      over: { data: sortableData('item:topic-c'), id: 'item:topic-c' }
+      active: {
+        data: sortableData('item:topic-d'),
+        id: 'item:topic-d',
+        rect: { current: { initial: null, translated: { top: 10, height: 20 } } }
+      },
+      over: { data: sortableData('item:topic-c'), id: 'item:topic-c', rect: { top: 80, height: 20 } }
     })
 
     await vi.waitFor(() => {
       const rowTexts = screen.getAllByTestId('topic-list-v2-row').map((row) => row.textContent ?? '')
-      expect(rowTexts.findIndex((text) => text.includes('Delta archive'))).toBeLessThan(
-        rowTexts.findIndex((text) => text.includes('Gamma topic'))
+      expect(rowTexts.findIndex((text) => text.includes('Gamma topic'))).toBeLessThan(
+        rowTexts.findIndex((text) => text.includes('Delta archive'))
       )
     })
     await vi.waitFor(() =>
@@ -1014,6 +1018,55 @@ describe('TopicListV2', () => {
     expect(patchSpy).not.toHaveBeenCalledWith('/topics/topic-d', expect.anything())
   })
 
+  it('keeps multi-topic same-group drops at the intended index when rect position is stale', async () => {
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({ id: 'topic-a', name: 'Alpha topic', assistantId: 'assistant-2', orderKey: 'a' }),
+            createApiTopic({ id: 'topic-c', name: 'Gamma topic', assistantId: 'assistant-2', orderKey: 'c' }),
+            createApiTopic({ id: 'topic-d', name: 'Delta archive', assistantId: 'assistant-2', orderKey: 'd' })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    renderTopicList()
+
+    dndMocks.onDragEnd?.({
+      active: {
+        data: sortableData('item:topic-c'),
+        id: 'item:topic-c',
+        rect: { current: { initial: null, translated: { top: 10, height: 20 } } }
+      },
+      over: { data: sortableData('item:topic-a'), id: 'item:topic-a', rect: { top: 80, height: 20 } }
+    })
+
+    await vi.waitFor(() => {
+      const rowTexts = screen.getAllByTestId('topic-list-v2-row').map((row) => row.textContent ?? '')
+      expect(rowTexts.findIndex((text) => text.includes('Alpha topic'))).toBeLessThan(
+        rowTexts.findIndex((text) => text.includes('Gamma topic'))
+      )
+      expect(rowTexts.findIndex((text) => text.includes('Gamma topic'))).toBeGreaterThan(
+        rowTexts.findIndex((text) => text.includes('Alpha topic'))
+      )
+    })
+    await vi.waitFor(() =>
+      expect(patchSpy).toHaveBeenCalledWith('/topics/topic-c/order', { body: { before: 'topic-a' } })
+    )
+    expect(patchSpy).toHaveBeenCalledTimes(1)
+  })
+
   it('moves topics across assistant groups before ordering them at the target position', async () => {
     const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
@@ -1021,23 +1074,27 @@ describe('TopicListV2', () => {
     renderTopicList()
 
     dndMocks.onDragEnd?.({
-      active: { data: sortableData('item:topic-a'), id: 'item:topic-a' },
-      over: { data: sortableData('item:topic-c'), id: 'item:topic-c' }
+      active: {
+        data: sortableData('item:topic-a'),
+        id: 'item:topic-a',
+        rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
+      },
+      over: { data: sortableData('item:topic-d'), id: 'item:topic-d', rect: { top: 10, height: 20 } }
     })
 
     await vi.waitFor(() => {
       const rowTexts = screen.getAllByTestId('topic-list-v2-row').map((row) => row.textContent ?? '')
       expect(rowTexts.findIndex((text) => text.includes('Alpha topic'))).toBeGreaterThan(
-        rowTexts.findIndex((text) => text.includes('Gamma topic'))
+        rowTexts.findIndex((text) => text.includes('Delta archive'))
       )
       expect(rowTexts.findIndex((text) => text.includes('Alpha topic'))).toBeLessThan(
-        rowTexts.findIndex((text) => text.includes('Delta archive'))
+        rowTexts.findIndex((text) => text.includes('Gamma topic'))
       )
     })
     await vi.waitFor(() =>
       expect(patchSpy).toHaveBeenNthCalledWith(1, '/topics/topic-a', { body: { assistantId: 'assistant-2' } })
     )
-    expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-a/order', { body: { after: 'topic-c' } })
+    expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-a/order', { body: { before: 'topic-d' } })
     expect(patchSpy).toHaveBeenCalledTimes(2)
   })
 
@@ -1114,7 +1171,7 @@ describe('TopicListV2', () => {
     await vi.waitFor(() =>
       expect(patchSpy).toHaveBeenNthCalledWith(1, '/topics/topic-a', { body: { assistantId: null } })
     )
-    expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-a/order', { body: { after: 'topic-c' } })
+    expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-a/order', { body: { before: 'topic-c' } })
   })
 
   it('allows unknown assistant topics to move into known assistant groups', async () => {
@@ -1154,7 +1211,7 @@ describe('TopicListV2', () => {
     await vi.waitFor(() =>
       expect(patchSpy).toHaveBeenNthCalledWith(1, '/topics/topic-e', { body: { assistantId: 'assistant-1' } })
     )
-    expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-e/order', { body: { after: 'topic-a' } })
+    expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-e/order', { body: { before: 'topic-a' } })
   })
 
   it('does not drop topics into pinned or unknown assistant groups', () => {

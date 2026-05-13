@@ -49,7 +49,6 @@ import {
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { getLeadingEmoji } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
-import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
 import {
@@ -81,10 +80,12 @@ import { useTranslation } from 'react-i18next'
 
 import {
   applyOptimisticTopicDisplayMove,
+  buildTopicDropAnchor,
   buildTopicOrderMoves,
   createTopicDisplayGroupResolver,
   filterTopicsForManageMode,
   getAssistantIdFromTopicGroupId,
+  normalizeTopicDropPayload,
   sortTopicsForDisplayGroups,
   TOPIC_DEFAULT_ASSISTANT_GROUP_ID,
   TOPIC_PINNED_GROUP_ID,
@@ -134,22 +135,6 @@ function resolveAssistantIdForTopicGroup(
   }
 
   return assistantId
-}
-
-function buildTopicDropAnchor(
-  payload: ResourceListItemReorderPayload,
-  topics: readonly Topic[],
-  groupBy: (topic: Topic) => { id: string } | null
-): OrderRequest {
-  if (payload.overType === 'item') {
-    return payload.position === 'before' ? { before: payload.overId } : { after: payload.overId }
-  }
-
-  const firstTargetTopic = topics.find(
-    (topic) => topic.id !== payload.activeId && groupBy(topic)?.id === payload.targetGroupId
-  )
-
-  return firstTargetTopic ? { before: firstTargetTopic.id } : { position: 'first' }
 }
 
 function TopicDisplayModeMenu({
@@ -615,10 +600,10 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
       const targetAssistantId = resolveAssistantIdForTopicGroup(payload.targetGroupId, assistantById)
       if (targetAssistantId === undefined) return
 
-      const visibleTopics = visibleTopicsRef.current.length > 0 ? visibleTopicsRef.current : filteredTopics
-      const anchor = buildTopicDropAnchor(payload, visibleTopics, topicGroupBy)
+      const normalizedPayload = normalizeTopicDropPayload(payload)
+      const anchor = buildTopicDropAnchor(normalizedPayload)
       const currentAssistantId = topic.assistantId ?? null
-      setOptimisticMove({ payload, targetAssistantId })
+      setOptimisticMove({ payload: normalizedPayload, targetAssistantId })
 
       try {
         if (targetAssistantId !== currentAssistantId) {
@@ -636,16 +621,7 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
         logger.error('Failed to reorder topic by assistant group', { err, topicId: payload.activeId })
       }
     },
-    [
-      assistantById,
-      filteredTopics,
-      isAssistantDisplayMode,
-      isManageMode,
-      refreshTopics,
-      topicGroupBy,
-      topics,
-      visibleTopicsRef
-    ]
+    [assistantById, isAssistantDisplayMode, isManageMode, refreshTopics, topics]
   )
 
   return (

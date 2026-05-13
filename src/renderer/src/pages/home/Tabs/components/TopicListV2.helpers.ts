@@ -142,6 +142,28 @@ export function applyOptimisticTopicDisplayMove<T extends TopicListItem>(
   return next
 }
 
+export function buildTopicDropAnchor(payload: ResourceListItemReorderPayload): OrderRequest {
+  if (payload.overType === 'item') {
+    return payload.position === 'before' ? { after: payload.overId } : { before: payload.overId }
+  }
+
+  return { position: 'last' }
+}
+
+export function normalizeTopicDropPayload(payload: ResourceListItemReorderPayload): ResourceListItemReorderPayload {
+  if (
+    payload.type !== 'item' ||
+    payload.overType !== 'item' ||
+    payload.sourceGroupId !== payload.targetGroupId ||
+    payload.sourceIndex === payload.targetIndex
+  ) {
+    return payload
+  }
+
+  const position = payload.sourceIndex < payload.targetIndex ? 'after' : 'before'
+  return payload.position === position ? payload : { ...payload, position }
+}
+
 export function filterTopicsForManageMode<T extends TopicListItem>(
   topics: readonly T[],
   searchText: string,
@@ -282,7 +304,7 @@ export function sortTopicsForDisplayGroups<T extends Pick<Topic, 'assistantId' |
 
         if (a.orderKey && b.orderKey) {
           const orderDelta = a.orderKey.localeCompare(b.orderKey)
-          if (orderDelta !== 0) return orderDelta
+          if (orderDelta !== 0) return -orderDelta
         }
 
         return a.index - b.index

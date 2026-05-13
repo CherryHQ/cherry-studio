@@ -3,12 +3,14 @@ import type { Topic } from '@renderer/types'
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildTopicDropAnchor,
   buildTopicOrderMoves,
   createTopicDisplayGroupResolver,
   filterTopicsForManageMode,
   getTopicTimeBucket,
   groupTopicByPinned,
   moveTopicAfterDrop,
+  normalizeTopicDropPayload,
   sortTopicsForDisplayGroups,
   TOPIC_DEFAULT_ASSISTANT_GROUP_ID,
   TOPIC_UNKNOWN_ASSISTANT_GROUP_ID
@@ -46,6 +48,62 @@ function createTopic(overrides: Partial<Topic> = {}): Topic {
 }
 
 describe('TopicListV2 helpers', () => {
+  it('translates descending assistant visual drops into persisted order anchors', () => {
+    const basePayload: ResourceListItemReorderPayload = {
+      type: 'item',
+      activeId: 'a',
+      overId: 'b',
+      position: 'before',
+      overType: 'item',
+      sourceGroupId: 'topic:assistant:assistant-1',
+      targetGroupId: 'topic:assistant:assistant-1',
+      sourceIndex: 1,
+      targetIndex: 0
+    }
+
+    expect(buildTopicDropAnchor(basePayload)).toEqual({ after: 'b' })
+    expect(buildTopicDropAnchor({ ...basePayload, position: 'after' })).toEqual({ before: 'b' })
+    expect(buildTopicDropAnchor({ ...basePayload, overId: 'topic:assistant:assistant-1', overType: 'group' })).toEqual({
+      position: 'last'
+    })
+  })
+
+  it('normalizes same-group item drops by source and target indexes', () => {
+    const basePayload: ResourceListItemReorderPayload = {
+      type: 'item',
+      activeId: 'a',
+      overId: 'b',
+      position: 'before',
+      overType: 'item',
+      sourceGroupId: 'topic:assistant:assistant-1',
+      targetGroupId: 'topic:assistant:assistant-1',
+      sourceIndex: 0,
+      targetIndex: 1
+    }
+
+    expect(normalizeTopicDropPayload(basePayload)).toEqual({ ...basePayload, position: 'after' })
+    expect(
+      normalizeTopicDropPayload({
+        ...basePayload,
+        position: 'after',
+        sourceIndex: 1,
+        targetIndex: 0
+      })
+    ).toEqual({
+      ...basePayload,
+      position: 'before',
+      sourceIndex: 1,
+      targetIndex: 0
+    })
+
+    const crossGroupPayload = {
+      ...basePayload,
+      sourceGroupId: 'topic:assistant:assistant-1',
+      targetGroupId: 'topic:assistant:assistant-2'
+    }
+    expect(normalizeTopicDropPayload(crossGroupPayload)).toBe(crossGroupPayload)
+  })
+
   it('builds minimal order moves using fractional anchors', () => {
     expect(buildTopicOrderMoves(['a', 'b', 'c'], ['b', 'a', 'c'])).toEqual([
       { id: 'b', anchor: { position: 'first' } },
@@ -199,7 +257,7 @@ describe('TopicListV2 helpers', () => {
     ).toEqual(['pinned-1', 'default-1', 'assistant-a-1', 'assistant-b-1', 'assistant-b-2', 'unknown-1'])
   })
 
-  it('sorts assistant group topics by persisted orderKey when available', () => {
+  it('sorts assistant group topics by persisted orderKey descending when available', () => {
     const topics = [
       createTopic({ id: 'assistant-a-3', assistantId: 'assistant-a', orderKey: 'c' }),
       createTopic({ id: 'assistant-a-1', assistantId: 'assistant-a', orderKey: 'a' }),
@@ -211,6 +269,6 @@ describe('TopicListV2 helpers', () => {
         assistantRankById: new Map([['assistant-a', 0]]),
         mode: 'assistant'
       }).map((topic) => topic.id)
-    ).toEqual(['assistant-a-1', 'assistant-a-2', 'assistant-a-3'])
+    ).toEqual(['assistant-a-3', 'assistant-a-2', 'assistant-a-1'])
   })
 })
