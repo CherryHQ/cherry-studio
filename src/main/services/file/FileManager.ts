@@ -749,15 +749,24 @@ export class FileManager extends BaseService implements IFileManager {
 
   /**
    * Read the `completedAt` ms-epoch from `app_state.migration_v2_status`.
-   * Returns null if the row is absent or if `completedAt` is not a number
-   * (e.g. fresh install, in-progress, or failed run).
+   * Returns null if the row is absent, if `completedAt` is not a number
+   * (fresh install, in-progress, failed run), or if the DB read throws.
+   *
+   * The error path treats failure as "no migration record" so callers fall
+   * through to running the orphan sweep normally — a sweep is always more
+   * useful than silently no-op'ing on a transient DB hiccup.
    */
   private async getMigrationCompletedAt(): Promise<number | null> {
-    const db = application.get('DbService').getDb()
-    const row = await db.select().from(appStateTable).where(eq(appStateTable.key, 'migration_v2_status')).get()
-    if (!row) return null
-    const value = row.value as { completedAt?: unknown }
-    return typeof value.completedAt === 'number' ? value.completedAt : null
+    try {
+      const db = application.get('DbService').getDb()
+      const row = await db.select().from(appStateTable).where(eq(appStateTable.key, 'migration_v2_status')).get()
+      if (!row) return null
+      const value = row.value as { completedAt?: unknown }
+      return typeof value.completedAt === 'number' ? value.completedAt : null
+    } catch (error) {
+      fileManagerLogger.error('Failed to read migration_v2_status; treating as no migration', error as Error)
+      return null
+    }
   }
 
   /**
