@@ -61,7 +61,7 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
           values={{ provider: getProviderLabel(providerId) }}
           components={{
             provider: (
-              <Link style={{ color: 'var(--color-link)' }} to="/settings/provider" search={{ id: providerId }} />
+              <Link style={{ color: 'var(--color-primary)' }} to="/settings/provider" search={{ id: providerId }} />
             )
           }}
         />
@@ -191,16 +191,16 @@ const MessageErrorInfo: React.FC<{
 
   return (
     <div
-      className="group relative my-2 cursor-pointer rounded-lg border px-3.5 py-3 text-[13px] transition-all duration-200 hover:border-[color-mix(in_srgb,var(--color-error)_35%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-error)_7%,transparent)]"
+      className="group relative my-2 cursor-pointer rounded-lg border px-3.5 py-3 text-[13px] transition-all duration-200 hover:border-[color-mix(in_srgb,var(--color-error-base)_35%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-error-base)_7%,transparent)]"
       style={{
-        borderColor: 'color-mix(in srgb, var(--color-error) 20%, transparent)',
-        background: 'color-mix(in srgb, var(--color-error) 4%, transparent)'
+        borderColor: 'color-mix(in srgb, var(--color-error-base) 20%, transparent)',
+        background: 'color-mix(in srgb, var(--color-error-base) 4%, transparent)'
       }}
       onClick={showErrorDetail}>
       {/* Close button */}
       <button
         type="button"
-        className="absolute top-2 right-2 flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded border-none bg-transparent opacity-0 transition-all duration-150 hover:bg-[color-mix(in_srgb,var(--color-error)_12%,transparent)] hover:text-(--color-error) group-hover:opacity-100"
+        className="absolute top-2 right-2 flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded border-none bg-transparent opacity-0 transition-all duration-150 hover:bg-[color-mix(in_srgb,var(--color-error-base)_12%,transparent)] hover:text-(--color-error-text) group-hover:opacity-100"
         onClick={onRemoveErrorPart}
         aria-label="close"
         title={t('common.close')}>
@@ -209,18 +209,18 @@ const MessageErrorInfo: React.FC<{
 
       {/* Header: icon + title */}
       <div className="mb-1.5 flex items-center gap-2">
-        <div className="flex shrink-0 items-center justify-center" style={{ color: 'var(--color-error)' }}>
+        <div className="flex shrink-0 items-center justify-center" style={{ color: 'var(--color-error-base)' }}>
           <AlertTriangle size={15} />
         </div>
-        <div className="pr-5 font-semibold text-[13px] leading-[1.4]" style={{ color: 'var(--color-error)' }}>
+        <div className="pr-5 font-semibold text-[13px] leading-[1.4]" style={{ color: 'var(--color-error-base)' }}>
           {aiSummary || t(classification.i18nKey)}
         </div>
       </div>
 
       {/* Description */}
       <div
-        className="wrap-break-word ml-5.75 line-clamp-3 text-xs leading-normal [&_a]:text-(--color-link)"
-        style={{ color: 'var(--color-text-2)' }}>
+        className="wrap-break-word ml-5.75 line-clamp-3 text-xs leading-normal [&_a]:text-primary"
+        style={{ color: 'var(--color-foreground-secondary)' }}>
         {error?.message || <ErrorMessage error={error} />}
       </div>
 
@@ -230,15 +230,15 @@ const MessageErrorInfo: React.FC<{
           <Button
             size="sm"
             type="button"
-            className="inline-flex items-center gap-1 rounded-[5px] border-[color-mix(in_srgb,var(--color-error)_25%,transparent)] text-(--color-error) text-xs hover:border-(--color-error)"
+            className="inline-flex items-center gap-1 rounded-[5px] border-[color-mix(in_srgb,var(--color-error-base)_25%,transparent)] text-(--color-error-text) text-xs hover:border-(--color-error-border)"
             onClick={onNavigate}>
             <Settings size={12} />
             {t('error.diagnosis.go_to_settings')}
           </Button>
         )}
         <div
-          className="ml-auto inline-flex items-center gap-0.5 text-xs transition-colors duration-150 group-hover:text-(--color-error)"
-          style={{ color: 'var(--color-text-3)' }}>
+          className="ml-auto inline-flex items-center gap-0.5 text-xs transition-colors duration-150 group-hover:text-(--color-error-text)"
+          style={{ color: 'var(--color-foreground-muted)' }}>
           {t('common.detail')}
           <ChevronRight size={14} />
         </div>

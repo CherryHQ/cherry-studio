@@ -15,16 +15,16 @@ const ThinkingEffect: React.FC<Props> = ({ isThinking, thinkingTimeText, expande
   return (
     <div
       className={cn(
-        'pointer-events-none relative flex min-h-9 w-full select-none items-center gap-2 overflow-hidden rounded-lg py-1 text-(--color-text-2) text-sm'
+        'pointer-events-none relative flex min-h-9 w-full select-none items-center gap-2 overflow-hidden rounded-lg py-1 text-foreground-secondary text-sm'
       )}>
-      <div className="flex h-6 w-4 shrink-0 items-center justify-start text-(--color-text-3) transition-colors duration-150 group-hover/thought:text-(--color-text-2)">
+      <div className="flex h-6 w-4 shrink-0 items-center justify-start text-foreground-muted transition-colors duration-150 group-hover/thought:text-foreground-secondary">
         <motion.div variants={lightbulbVariants} animate={isThinking ? 'active' : 'idle'} initial="idle">
           <Brain size={15} strokeWidth={2} />
         </motion.div>
       </div>
 
       <div className="flex min-w-0 flex-1 items-center">
-        <div className="shrink-0 font-normal text-(--color-text-2) text-sm leading-6 transition-colors duration-150 group-hover/thought:text-(--color-text)">
+        <div className="shrink-0 font-normal text-foreground-secondary text-sm leading-6 transition-colors duration-150 group-hover/thought:text-foreground">
           {thinkingTimeText}
         </div>
         {copyButton && (
@@ -36,7 +36,7 @@ const ThinkingEffect: React.FC<Props> = ({ isThinking, thinkingTimeText, expande
 
       <div
         className={cn(
-          'flex h-6 w-6 shrink-0 items-center justify-center text-(--color-text-3) opacity-0 transition-all duration-150 group-hover/thought:opacity-100',
+          'flex h-6 w-6 shrink-0 items-center justify-center text-foreground-muted opacity-0 transition-all duration-150 group-hover/thought:opacity-100',
           expanded && 'rotate-180'
         )}>
         <ChevronDown size={15} strokeWidth={1.8} />

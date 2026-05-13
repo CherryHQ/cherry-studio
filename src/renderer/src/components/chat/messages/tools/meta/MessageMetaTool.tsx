@@ -341,7 +341,7 @@ const Container = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => 
 
 const CollapseShell = ({ className, ...props }: ComponentPropsWithoutRef<typeof ToolDisclosure>) => (
   <ToolDisclosure
-    className={['overflow-hidden rounded-[7px] border border-(--color-border) bg-(--color-background)', className]
+    className={['overflow-hidden rounded-[7px] border border-border bg-background', className]
       .filter(Boolean)
       .join(' ')}
     {...props}
@@ -358,7 +358,7 @@ const TitleRow = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
 const TitleText = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
   <span
     className={[
-      'overflow-hidden text-ellipsis whitespace-nowrap font-[var(--font-family-mono,monospace)] font-medium text-(--color-text) text-[13px]',
+      'overflow-hidden text-ellipsis whitespace-nowrap font-[var(--font-family-mono,monospace)] font-medium text-[13px] text-foreground',
       className
     ]
       .filter(Boolean)
@@ -375,7 +375,7 @@ const CopyButton = ({ className, ...props }: ComponentPropsWithoutRef<'button'>)
   <button
     type="button"
     className={[
-      'flex cursor-pointer items-center rounded border-none bg-transparent p-1 text-(--color-text-2) opacity-70 hover:bg-(--color-bg-3) hover:opacity-100',
+      'flex cursor-pointer items-center rounded border-none bg-transparent p-1 text-foreground-secondary opacity-70 hover:bg-(--color-accent) hover:opacity-100',
       className
     ]
       .filter(Boolean)
@@ -399,7 +399,7 @@ const ToolNameList = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) 
 const ToolNameChip = ({ className, ...props }: ComponentPropsWithoutRef<'code'>) => (
   <code
     className={[
-      'inline-flex items-center rounded border border-(--color-border) bg-(--color-background-soft) px-1.5 py-0.5 font-[var(--font-family-mono,monospace)] text-(--color-text) text-xs',
+      'inline-flex items-center rounded border border-border bg-muted px-1.5 py-0.5 font-[var(--font-family-mono,monospace)] text-foreground text-xs',
       className
     ]
       .filter(Boolean)
@@ -410,7 +410,7 @@ const ToolNameChip = ({ className, ...props }: ComponentPropsWithoutRef<'code'>)
 
 const NamespaceTitle = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={['text-(--color-text-2) text-xs [&_small]:opacity-70', className].filter(Boolean).join(' ')}
+    className={['text-foreground-secondary text-xs [&_small]:opacity-70', className].filter(Boolean).join(' ')}
     {...props}
   />
 )
@@ -422,7 +422,7 @@ const ResponseSectionStyled = ({ className, ...props }: ComponentPropsWithoutRef
 const CodeBlock = ({ className, ...props }: ComponentPropsWithoutRef<'pre'>) => (
   <pre
     className={[
-      'm-0 max-h-[300px] overflow-auto whitespace-pre-wrap break-words rounded bg-(--color-background-soft) p-2 font-[var(--font-family-mono,monospace)] text-xs [&[data-error=true]]:text-[var(--status-color-error,#ff4d4f)]',
+      'm-0 max-h-[300px] overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-2 font-[var(--font-family-mono,monospace)] text-xs [&[data-error=true]]:text-[var(--status-color-error,#ff4d4f)]',
       className
     ]
       .filter(Boolean)
@@ -434,7 +434,7 @@ const CodeBlock = ({ className, ...props }: ComponentPropsWithoutRef<'pre'>) => 
 const Highlighted = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div
     className={[
-      '[&_pre]:max-h-[300px] [&_pre]:overflow-auto [&_pre]:rounded [&_pre]:bg-(--color-background-soft)! [&_pre]:p-2 [&_pre]:text-xs',
+      '[&_pre]:max-h-[300px] [&_pre]:overflow-auto [&_pre]:rounded [&_pre]:bg-muted! [&_pre]:p-2 [&_pre]:text-xs',
       className
     ]
       .filter(Boolean)
@@ -446,7 +446,7 @@ const Highlighted = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) =
 const InnerHint = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div
     className={[
-      'flex items-center gap-1 text-(--color-text-3) text-[11px] [&_code]:font-[var(--font-family-mono,monospace)]',
+      'flex items-center gap-1 text-[11px] text-foreground-muted [&_code]:font-[var(--font-family-mono,monospace)]',
       className
     ]
       .filter(Boolean)
@@ -456,7 +456,7 @@ const InnerHint = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => 
 )
 
 const Empty = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={['text-(--color-text-3) text-xs italic', className].filter(Boolean).join(' ')} {...props} />
+  <div className={['text-foreground-muted text-xs italic', className].filter(Boolean).join(' ')} {...props} />
 )
 
 export default memo(MessageMetaTool)

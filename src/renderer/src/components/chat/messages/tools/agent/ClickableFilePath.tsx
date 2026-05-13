@@ -59,7 +59,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
           onClick={handleOpen}
           onKeyDown={handleKeyDown}
           className="inline-flex cursor-pointer items-center gap-1 hover:underline"
-          style={{ color: 'var(--color-link)', wordBreak: 'break-all' }}>
+          style={{ color: 'var(--color-primary)', wordBreak: 'break-all' }}>
           <Icon icon={`material-icon-theme:${iconName}`} className="shrink-0" style={{ fontSize: '1.1em' }} />
           {displayName ?? path}
         </span>
@@ -69,7 +69,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
           <button
             type="button"
             onClick={(e) => e.stopPropagation()}
-            className="inline-flex cursor-pointer items-center rounded px-0.5 text-(--color-link) opacity-60 hover:bg-black/10 hover:opacity-100"
+            className="inline-flex cursor-pointer items-center rounded px-0.5 text-primary opacity-60 hover:bg-black/10 hover:opacity-100"
             aria-label={t('common.more')}>
             <Tooltip content={t('common.more')} delay={500}>
               <MoreHorizontal size={14} />

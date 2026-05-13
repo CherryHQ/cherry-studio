@@ -187,7 +187,7 @@ const MessageItem: FC<Props> = ({
           if (isMultiSelectMode) return
           void EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
         }}>
-        <div className="mx-5 my-0 flex items-center gap-2 text-(--color-text-3) text-sm">
+        <div className="mx-5 my-0 flex items-center gap-2 text-foreground-muted text-sm">
           <hr className="flex-1 border-border border-dashed" />
           <span>{t('chat.message.new.context')}</span>
           <hr className="flex-1 border-border border-dashed" />

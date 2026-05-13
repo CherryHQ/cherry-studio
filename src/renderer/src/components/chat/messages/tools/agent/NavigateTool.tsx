@@ -120,7 +120,7 @@ export function NavigateToolInline({
   return (
     <button
       onClick={handleClick}
-      className="my-1 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-(--color-border) border-solid bg-(--color-background-soft) px-3 py-1.5 text-(--color-text-1) text-sm transition-colors hover:bg-(--color-background-mute)"
+      className="my-1 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border border-solid bg-muted px-3 py-1.5 text-foreground text-sm transition-colors hover:bg-accent"
       type="button">
       <Compass className="h-3.5 w-3.5 opacity-60" />
       <span>

@@ -61,7 +61,7 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
           onClick={handleClick}>
           <Favicon hostname={hostname} alt={sourceTitle} />
           <div
-            className="overflow-hidden text-ellipsis whitespace-nowrap text-(--color-text-1) text-sm leading-[1.4]"
+            className="overflow-hidden text-ellipsis whitespace-nowrap text-foreground text-sm leading-[1.4]"
             role="heading"
             aria-level={3}
             title={sourceTitle}>
@@ -70,7 +70,7 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
         </div>
         {displayContent && (
           <div
-            className="mb-2 overflow-hidden text-(--color-text-2) text-[13px] leading-normal [-webkit-box-orient:vertical] [-webkit-line-clamp:3] [display:-webkit-box]"
+            className="mb-2 overflow-hidden text-[13px] text-foreground-secondary leading-normal [-webkit-box-orient:vertical] [-webkit-line-clamp:3] [display:-webkit-box]"
             role="article"
             aria-label="Citation content"
             style={{
@@ -83,7 +83,7 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
           </div>
         )}
         <div
-          className="cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-(--color-link) text-xs hover:underline"
+          className="cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-primary text-xs hover:underline"
           role="button"
           aria-label={`Visit ${hostname}`}
           onClick={handleClick}>
@@ -98,7 +98,7 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
     <Tooltip
       content={tooltipContent}
       showArrow={false}
-      className="rounded-[8px] border border-(--color-border) bg-(--color-background) p-3">
+      className="rounded-[8px] border border-border bg-background p-3">
       {children}
     </Tooltip>
   )

@@ -137,7 +137,7 @@ const MessageGroupMenuBar: FC<Props> = ({
       )}
       {actions.deleteMessageGroup && (
         <Button variant="ghost" size="sm" onClick={handleDeleteGroup}>
-          <Trash2 size={14} color="var(--color-error)" />
+          <Trash2 size={14} color="var(--color-error-base)" />
         </Button>
       )}
     </GroupMenuBar>
@@ -153,7 +153,7 @@ const GroupMenuBar = ({
   return (
     <div
       className={[
-        'group-menu-bar mx-2.5 mt-2 mb-4 flex h-10 flex-row items-center justify-between gap-2.5 overflow-hidden rounded-[10px] border-(--color-border) border-[0.5px] p-2',
+        'group-menu-bar mx-2.5 mt-2 mb-4 flex h-10 flex-row items-center justify-between gap-2.5 overflow-hidden rounded-[10px] border-[0.5px] border-border p-2',
         className
       ]
         .filter(Boolean)
@@ -173,11 +173,7 @@ const LayoutOption = ({
   ...props
 }: React.ComponentPropsWithoutRef<'div'> & { $active: boolean }) => (
   <div
-    className={[
-      'cursor-pointer rounded px-1.5 py-0.5 hover:bg-(--color-hover)',
-      $active && 'bg-(--color-background-soft) hover:bg-(--color-background-soft)',
-      className
-    ]
+    className={['cursor-pointer rounded px-1.5 py-0.5 hover:bg-accent', $active && 'bg-muted hover:bg-muted', className]
       .filter(Boolean)
       .join(' ')}
     {...props}

@@ -21,7 +21,7 @@ export const DiffStyleToggle = memo(function DiffStyleToggle({
   return (
     <button
       type="button"
-      className="absolute top-2 right-2 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded border-none bg-(--color-background-soft) text-(--color-text-3) opacity-0 transition-all duration-200 ease-in-out hover:opacity-100 hover:[&_.tool-icon]:text-(--color-text-1) [.relative:hover_&]:opacity-60"
+      className="absolute top-2 right-2 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded border-none bg-muted text-foreground-muted opacity-0 transition-all duration-200 ease-in-out hover:opacity-100 hover:[&_.tool-icon]:text-foreground [.relative:hover_&]:opacity-60"
       onClick={onToggle}>
       <Icon size={14} className="tool-icon" />
     </button>

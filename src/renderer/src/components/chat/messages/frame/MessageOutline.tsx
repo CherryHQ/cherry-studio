@@ -100,7 +100,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message }) => {
   return (
     <div
       ref={messageOutlineContainerRef}
-      className="[&~.MessageFooter]:ml-11.5! [&~.message-content-container]:pl-11.5! pointer-events-none absolute inset-[63px_0_36px_10px] z-999">
+      className="pointer-events-none absolute inset-[63px_0_36px_10px] z-999 [&~.MessageFooter]:ml-11.5! [&~.message-content-container]:pl-11.5!">
       <Scrollbar
         className="group pointer-events-auto sticky bottom-0 inline-flex max-h-[min(100%,70vh)] max-w-1/2 flex-col gap-1 overflow-x-hidden overflow-y-hidden rounded-[10px] px-0 pt-2.5 pr-0 pb-2.5 pl-2.5 hover:overflow-y-auto hover:bg-background hover:px-2.5 hover:shadow-[0_0_10px_0_rgba(128,128,128,0.2)]"
         style={{
@@ -109,7 +109,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message }) => {
         {headings.map((heading, index) => (
           <div
             key={index}
-            className="flex h-6 shrink-0 cursor-pointer items-center gap-2 [&:hover_.outline-dot]:bg-(--color-text-3) [&:hover_.outline-text]:text-(--color-text-2)"
+            className="flex h-6 shrink-0 cursor-pointer items-center gap-2 [&:hover_.outline-dot]:bg-(--color-foreground-muted) [&:hover_.outline-text]:text-foreground-secondary"
             onClick={() => scrollToHeading(heading.id)}>
             <div
               className="mr-1 h-1 shrink-0 rounded-[2px] bg-border outline-dot transition-colors duration-200 ease-out"
@@ -118,7 +118,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message }) => {
               }}
             />
             <div
-              className="hidden truncate whitespace-nowrap px-2 py-0.5 text-(--color-text-3) opacity-0 outline-text transition-opacity duration-200 ease-out group-hover:block group-hover:opacity-100"
+              className="hidden truncate whitespace-nowrap px-2 py-0.5 text-foreground-muted opacity-0 outline-text transition-opacity duration-200 ease-out group-hover:block group-hover:opacity-100"
               style={{
                 fontSize: `${16 - heading.level}px`,
                 paddingLeft: `${(heading.level - miniLevel) * 8}px`

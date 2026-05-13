@@ -43,10 +43,10 @@ const SiblingNavigator: FC<Props> = ({ messageId }) => {
   const { group, activeIndex } = siblings
 
   return (
-    <div className="inline-flex select-none items-center gap-1 text-(--color-text-2) text-xs">
+    <div className="inline-flex select-none items-center gap-1 text-foreground-secondary text-xs">
       <button
         type="button"
-        className="flex size-5 items-center justify-center rounded transition-colors hover:bg-(--color-background-soft) hover:text-(--color-text-1)"
+        className="flex size-5 items-center justify-center rounded transition-colors hover:bg-muted hover:text-foreground"
         onClick={() => void handleSwitch(-1)}
         aria-label={t('common.previous')}>
         <ChevronLeft size={14} />
@@ -56,7 +56,7 @@ const SiblingNavigator: FC<Props> = ({ messageId }) => {
       </span>
       <button
         type="button"
-        className="flex size-5 items-center justify-center rounded transition-colors hover:bg-(--color-background-soft) hover:text-(--color-text-1)"
+        className="flex size-5 items-center justify-center rounded transition-colors hover:bg-muted hover:text-foreground"
         onClick={() => void handleSwitch(1)}
         aria-label={t('common.next')}>
         <ChevronRight size={14} />

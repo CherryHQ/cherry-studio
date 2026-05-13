@@ -160,7 +160,7 @@ describe('MainTextBlock', () => {
       renderMainTextBlock({ content: 'Styled mentions test', role: 'assistant', mentions })
 
       const mentionElement = screen.getByText('@Test Model')
-      expect(mentionElement).toHaveClass('text-(--color-link)')
+      expect(mentionElement).toHaveClass('text-primary')
     })
   })
 

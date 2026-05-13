@@ -75,12 +75,12 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
         <PopoverTrigger asChild>
           <Button
             variant="ghost"
-            className="mb-2 flex items-center self-start rounded-(--list-item-border-radius) bg-(--color-background-soft) px-2 py-0.75 text-xs">
+            className="mb-2 flex items-center self-start rounded-lg bg-muted px-2 py-0.75 text-xs">
             <div className="flex items-center">
               {previewItems.map((c, i) => (
                 <div
                   key={i}
-                  className="-ml-2 flex h-6 w-6 items-center justify-center overflow-hidden rounded-full border border-border bg-(--color-background-soft) text-(--color-text-2) first:ml-0"
+                  className="-ml-2 flex h-6 w-6 items-center justify-center overflow-hidden rounded-full border border-border bg-muted text-foreground-secondary first:ml-0"
                   style={{ zIndex: previewItems.length - i }}>
                   {c.type === 'websearch' && c.url ? (
                     <Favicon hostname={new URL(c.url).hostname} alt={c.title || ''} />
@@ -127,7 +127,7 @@ const CopyButton: React.FC<{ content: string }> = ({ content }) => {
 
   return (
     <div
-      className="-translate-y-1/2 absolute top-1/2 right-0 flex cursor-pointer items-center justify-center rounded p-1 text-(--color-text-2) opacity-0 transition-opacity duration-300 hover:bg-(--color-background-soft) hover:opacity-100 group-hover:opacity-100"
+      className="-translate-y-1/2 absolute top-1/2 right-0 flex cursor-pointer items-center justify-center rounded p-1 text-foreground-secondary opacity-0 transition-opacity duration-300 hover:bg-muted hover:opacity-100 group-hover:opacity-100"
       onClick={handleCopy}>
       {copied ? <Check size={14} /> : <Copy size={14} />}
     </div>
@@ -172,13 +172,13 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
             <Favicon hostname={new URL(citation.url).hostname} alt={citation.title || citation.hostname || ''} />
           )}
           <a
-            className="flex-1 text-nowrap text-(--color-text-1) text-sm leading-[1.6] no-underline"
+            className="flex-1 text-nowrap text-foreground text-sm leading-[1.6] no-underline"
             href={citation.url}
             onClick={(e) => handleLinkClick(citation.url, e)}>
-            {displayTitle || <span className="text-(--color-link)">{citation.hostname}</span>}
+            {displayTitle || <span className="text-primary">{citation.hostname}</span>}
           </a>
 
-          <div className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-(--color-reference) text-(--color-reference-text) text-[10px] leading-[1.6] opacity-100 transition-opacity duration-300 group-hover:opacity-0">
+          <div className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] text-primary leading-[1.6] opacity-100 transition-opacity duration-300 group-hover:opacity-0">
             {citation.number}
           </div>
           {fetchedContent && <CopyButton content={fetchedContent} />}
@@ -189,7 +189,7 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
             <Skeleton className="h-3 w-2/3" />
           </div>
         ) : (
-          <div className="selectable-text cursor-text select-text break-all text-(--color-text-2) text-[13px] leading-[1.6]">
+          <div className="selectable-text cursor-text select-text break-all text-[13px] text-foreground-secondary leading-[1.6]">
             {fetchedContent}
           </div>
         )}
@@ -205,18 +205,18 @@ const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
         <div className="relative mb-1.5 flex w-full flex-row items-center gap-2">
           {citation.showFavicon && <FileSearch width={16} />}
           <a
-            className="flex-1 text-nowrap text-(--color-text-1) text-sm leading-[1.6] no-underline"
+            className="flex-1 text-nowrap text-foreground text-sm leading-[1.6] no-underline"
             href={citation.url}
             onClick={(e) => handleLinkClick(citation.url, e)}>
             {/* example title: User/path/example.pdf */}
             {citation.title?.split('/').pop()}
           </a>
-          <div className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-(--color-reference) text-(--color-reference-text) text-[10px] leading-[1.6] opacity-100 transition-opacity duration-300 group-hover:opacity-0">
+          <div className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] text-primary leading-[1.6] opacity-100 transition-opacity duration-300 group-hover:opacity-0">
             {citation.number}
           </div>
           {citation.content && <CopyButton content={citation.content} />}
         </div>
-        <div className="selectable-text cursor-text select-text break-all text-(--color-text-2) text-[13px] leading-[1.6]">
+        <div className="selectable-text cursor-text select-text break-all text-[13px] text-foreground-secondary leading-[1.6]">
           {citation.content ?? ''}
         </div>
       </div>

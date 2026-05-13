@@ -462,9 +462,7 @@ const ExpandedToolResponseContent: FC<{
 
 const ToolContentWrapper = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={['overflow-hidden rounded-lg p-0 [&.pending]:bg-(--color-background-soft)', className]
-      .filter(Boolean)
-      .join(' ')}
+    className={['overflow-hidden rounded-lg p-0 [&.pending]:bg-muted', className].filter(Boolean).join(' ')}
     {...props}
   />
 )
@@ -475,7 +473,7 @@ const ActionsBar = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) =>
 
 const ActionLabel = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={['flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-(--color-text-2) text-sm', className]
+    className={['flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-foreground-secondary text-sm', className]
       .filter(Boolean)
       .join(' ')}
     {...props}
@@ -485,7 +483,7 @@ const ActionLabel = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) =
 const CollapseContainer = ({ className, ...props }: ComponentPropsWithoutRef<typeof ToolDisclosure>) => (
   <ToolDisclosure
     className={[
-      'border-none [--status-color-error:var(--color-status-error,#ff4d4f)] [--status-color-invoking:var(--color-primary)] [--status-color-success:var(--color-primary,green)] [--status-color-warning:var(--color-status-warning,#faad14)]',
+      'border-none [--status-color-error:var(--color-error-base,#ff4d4f)] [--status-color-invoking:var(--color-primary)] [--status-color-success:var(--color-primary,green)] [--status-color-warning:var(--color-warning,#faad14)]',
       className
     ]
       .filter(Boolean)
@@ -522,7 +520,7 @@ const TitleContent = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) 
 const StatusIconColumn = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div
     className={[
-      'items-left justify-left flex h-6 w-4 shrink-0 items-center text-(--color-text-3) transition-colors duration-150 group-hover/tool:text-(--color-text-2)',
+      'items-left justify-left flex h-6 w-4 shrink-0 items-center text-foreground-muted transition-colors duration-150 group-hover/tool:text-foreground-secondary',
       className
     ]
       .filter(Boolean)
@@ -534,7 +532,7 @@ const StatusIconColumn = ({ className, ...props }: ComponentPropsWithoutRef<'div
 const ToolName = ({ className, ...props }: ComponentPropsWithoutRef<typeof Flex>) => (
   <Flex
     className={[
-      'font-normal text-(--color-text-2) text-[13px] transition-colors duration-150 group-hover/tool:text-(--color-text)',
+      'font-normal text-[13px] text-foreground-secondary transition-colors duration-150 group-hover/tool:text-foreground',
       className
     ]
       .filter(Boolean)
@@ -551,7 +549,7 @@ const ActionButton = ({ className, ...props }: ComponentPropsWithoutRef<'button'
   <button
     type="button"
     className={[
-      'flex size-5 cursor-pointer items-center justify-center gap-1 rounded border-none bg-transparent p-0 text-(--color-text-2) opacity-70 transition-all duration-200 hover:bg-(--color-bg-3) hover:text-(--color-text) hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-(--color-primary) focus-visible:outline-2 focus-visible:outline-offset-2 [&.confirm-button:hover]:bg-(--color-primary-bg) [&.confirm-button:hover]:text-(--color-primary) [&.confirm-button]:text-(--color-primary) [&_.iconfont]:text-[13px]',
+      'flex size-5 cursor-pointer items-center justify-center gap-1 rounded border-none bg-transparent p-0 text-foreground-secondary opacity-70 transition-all duration-200 hover:bg-(--color-accent) hover:text-foreground hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-(--color-primary) focus-visible:outline-2 focus-visible:outline-offset-2 [&.confirm-button:hover]:bg-(--color-primary-soft) [&.confirm-button:hover]:text-(--color-primary) [&.confirm-button]:text-(--color-primary) [&_.iconfont]:text-[13px]',
       className
     ]
       .filter(Boolean)

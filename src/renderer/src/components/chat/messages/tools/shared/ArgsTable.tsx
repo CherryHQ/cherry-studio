@@ -66,7 +66,7 @@ export const ArgsSection = ({ className, ...props }: ComponentPropsWithoutRef<'d
 )
 
 export const ArgsSectionTitle = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mb-2 font-semibold text-(--color-text-3) text-[11px] uppercase', className)} {...props} />
+  <div className={cn('mb-2 font-semibold text-[11px] text-foreground-muted uppercase', className)} {...props} />
 )
 
 export const ArgsTable = ({ className, ...props }: ComponentPropsWithoutRef<'table'>) => (
@@ -81,7 +81,7 @@ export const ArgKey = ({ className, ...props }: ComponentPropsWithoutRef<'td'>) 
 )
 
 export const ArgValue = ({ className, ...props }: ComponentPropsWithoutRef<'td'>) => (
-  <td className={cn('whitespace-pre-wrap break-all py-1 text-(--color-text)', className)} {...props} />
+  <td className={cn('whitespace-pre-wrap break-all py-1 text-foreground', className)} {...props} />
 )
 
 export const ResponseSection = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (

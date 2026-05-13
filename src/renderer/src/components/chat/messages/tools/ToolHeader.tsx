@@ -129,7 +129,7 @@ const getToolDescription = (toolResponse?: MCPToolResponse | NormalToolResponse)
 const HeaderContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div
     className={[
-      'flex min-w-0 items-center gap-2 rounded-xl border border-(--color-border) bg-(--color-background) px-3 py-2 text-[13px]',
+      'flex min-w-0 items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-[13px]',
       className
     ]
       .filter(Boolean)
@@ -146,7 +146,7 @@ const LabelContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>
 const ToolName = ({ className, ...props }: ComponentPropsWithoutRef<typeof Flex>) => (
   <Flex
     className={[
-      'shrink-0 font-medium text-(--color-text) [&_.name]:whitespace-nowrap [&_.tool-icon]:text-(--color-primary)',
+      'shrink-0 font-medium text-foreground [&_.name]:whitespace-nowrap [&_.tool-icon]:text-(--color-primary)',
       className
     ]
       .filter(Boolean)
@@ -158,7 +158,7 @@ const ToolName = ({ className, ...props }: ComponentPropsWithoutRef<typeof Flex>
 const Description = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
   <span
     className={[
-      'inline-flex min-w-0 max-w-[300px] flex-1 items-center overflow-hidden text-ellipsis whitespace-nowrap font-normal text-(--color-text-2) text-[13px]',
+      'inline-flex min-w-0 max-w-[300px] flex-1 items-center overflow-hidden text-ellipsis whitespace-nowrap font-normal text-[13px] text-foreground-secondary',
       className
     ]
       .filter(Boolean)
@@ -169,7 +169,7 @@ const Description = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) 
 
 const Stats = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
   <span
-    className={['shrink-0 whitespace-nowrap font-normal text-(--color-text-2) text-xs', className]
+    className={['shrink-0 whitespace-nowrap font-normal text-foreground-secondary text-xs', className]
       .filter(Boolean)
       .join(' ')}
     {...props}

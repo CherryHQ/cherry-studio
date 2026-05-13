@@ -20,7 +20,7 @@ export function MessageKnowledgeSearchToolTitle({ toolResponse }: { toolResponse
       }
     />
   ) : (
-    <span className="flex items-center gap-1 text-(--color-text-2)">
+    <span className="flex items-center gap-1 text-foreground-secondary">
       <FileSearch size={16} style={{ color: 'unset' }} />
       {i18n.t('message.websearch.fetch_complete', { count: resultCount })}
     </span>

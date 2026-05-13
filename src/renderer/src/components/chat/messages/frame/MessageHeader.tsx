@@ -127,7 +127,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
           <span
             className="font-semibold text-sm"
             style={{
-              color: isBubbleStyle && theme === 'dark' ? 'white' : 'var(--color-text)'
+              color: isBubbleStyle && theme === 'dark' ? 'white' : 'var(--color-foreground)'
             }}>
             {username}
           </span>
@@ -137,7 +137,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
             </Tooltip>
           )}
         </RowFlex>
-        <div className="message-header-info-wrap flex items-center gap-1 text-(--color-text-3) text-[10px]">
+        <div className="message-header-info-wrap flex items-center gap-1 text-[10px] text-foreground-muted">
           <div>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</div>
           {isBubbleStyle && message.usage !== undefined && (
             <>

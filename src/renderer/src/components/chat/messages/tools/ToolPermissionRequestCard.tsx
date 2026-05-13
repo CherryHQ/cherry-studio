@@ -70,7 +70,7 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
   }, [toolResponse.tool?.name, approval.input, toolResponse.arguments, statusInfo])
 
   return (
-    <div className="w-full max-w-xl overflow-hidden rounded-xl border border-border bg-(--color-background-soft)">
+    <div className="w-full max-w-xl overflow-hidden rounded-xl border border-border bg-muted">
       {/* Tool content area with status in header */}
       {renderToolContent()}
 

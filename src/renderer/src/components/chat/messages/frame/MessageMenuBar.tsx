@@ -614,9 +614,9 @@ const ActionButton = ({
       className={classNames(
         'flex h-[26px] w-[26px] items-center justify-center rounded-lg border-0 bg-transparent p-0 text-(--color-icon) transition-all duration-200 ease-out',
         '[&_.anticon]:text-sm [&_.icon-at]:text-base [&_.iconfont]:text-sm',
-        'enabled:cursor-pointer enabled:hover:text-(--color-text-1)',
+        'enabled:cursor-pointer enabled:hover:text-foreground',
         'enabled:[&_.anticon]:cursor-pointer enabled:[&_.iconfont]:cursor-pointer',
-        $softHoverBg ? 'enabled:hover:bg-(--color-background-soft)' : 'enabled:hover:bg-(--color-background-mute)',
+        $softHoverBg ? 'enabled:hover:bg-muted' : 'enabled:hover:bg-accent',
         'disabled:cursor-not-allowed disabled:opacity-40',
         className
       )}
@@ -694,7 +694,7 @@ const MessageMenuItems = ({ items, depth = 0 }: { items: MessageMenuItem[]; dept
       if (item.children?.length) {
         return (
           <div key={item.key}>
-            <div className="flex items-center gap-2 px-2.5 py-1 font-medium text-(--color-text-2) text-[11px]">
+            <div className="flex items-center gap-2 px-2.5 py-1 font-medium text-[11px] text-foreground-secondary">
               {item.icon}
               <span>{item.label}</span>
             </div>

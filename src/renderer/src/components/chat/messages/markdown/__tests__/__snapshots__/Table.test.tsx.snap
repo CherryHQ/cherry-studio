@@ -17,7 +17,7 @@ exports[`Table > rendering > should match snapshot 1`] = `
     </tbody>
   </table>
   <div
-    class="table-toolbar absolute top-2 right-2 z-10 flex gap-1 rounded opacity-0 transition-opacity duration-200 ease-in-out [transform:translateZ(0)] [will-change:opacity]"
+    class="table-toolbar transform-[translateZ(0)] absolute top-2 right-2 z-10 flex gap-1 rounded opacity-0 transition-opacity duration-200 ease-in-out will-change-[opacity]"
   >
     <div
       data-testid="tooltip"
@@ -25,7 +25,7 @@ exports[`Table > rendering > should match snapshot 1`] = `
     >
       <div
         aria-label="common.copy"
-        class="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded bg-(--color-background-mute) text-(--color-text-3) opacity-100 transition-all duration-200 ease-in-out [will-change:background-color,opacity] hover:bg-(--color-background-soft)"
+        class="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded bg-accent text-foreground-muted opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-muted"
         role="button"
       >
         <div
@@ -40,7 +40,7 @@ exports[`Table > rendering > should match snapshot 1`] = `
     >
       <div
         aria-label="common.export.excel"
-        class="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded bg-(--color-background-mute) text-(--color-text-3) opacity-100 transition-all duration-200 ease-in-out [will-change:background-color,opacity] hover:bg-(--color-background-soft)"
+        class="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded bg-accent text-foreground-muted opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-muted"
         role="button"
       >
         <div

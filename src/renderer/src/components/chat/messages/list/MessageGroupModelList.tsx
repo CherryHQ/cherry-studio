@@ -138,10 +138,7 @@ const DisplayModeToggle = ({
   void displayMode
   return (
     <div
-      className={[
-        'flex h-[26px] w-[26px] cursor-pointer rounded px-1.5 pt-0.5 pb-[3px] hover:bg-(--color-hover)',
-        className
-      ]
+      className={['flex h-[26px] w-[26px] cursor-pointer rounded px-1.5 pt-0.5 pb-[3px] hover:bg-accent', className]
         .filter(Boolean)
         .join(' ')}
       {...props}
@@ -174,7 +171,7 @@ const AvatarWrapper = ({
 }: React.ComponentPropsWithoutRef<'div'> & { $isSelected: boolean }) => (
   <div
     className={[
-      'inline-flex cursor-pointer rounded-full bg-(--color-background) transition-[transform,margin,filter] duration-[180ms] ease-out hover:mr-1! hover:ml-2! hover:translate-x-1.5 hover:scale-115 hover:brightness-[1.02]',
+      'inline-flex cursor-pointer rounded-full bg-background transition-[transform,margin,filter] duration-[180ms] ease-out hover:mr-1! hover:ml-2! hover:translate-x-1.5 hover:scale-115 hover:brightness-[1.02]',
       className
     ]
       .filter(Boolean)

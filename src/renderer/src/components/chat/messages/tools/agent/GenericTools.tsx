@@ -187,11 +187,11 @@ function getStatusColor(color: StatusColor): string {
     case 'success':
       return 'var(--color-primary)'
     case 'warning':
-      return 'var(--color-status-warning, #faad14)'
+      return 'var(--color-warning, #faad14)'
     case 'error':
-      return 'var(--color-status-error, #ff4d4f)'
+      return 'var(--color-error-base, #ff4d4f)'
     default:
-      return 'var(--color-text)'
+      return 'var(--color-foreground)'
   }
 }
 

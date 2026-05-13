@@ -2,7 +2,7 @@
 
 exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
 <div
-  class="rounded-[8px] border border-[var(--color-border)] bg-[var(--color-background)] p-3"
+  class="rounded-[8px] border border-border bg-background p-3"
   data-testid="tooltip-wrapper"
 >
   <span>
@@ -26,7 +26,7 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
         />
         <div
           aria-level="3"
-          class="overflow-hidden text-ellipsis whitespace-nowrap text-(--color-text-1) text-sm leading-[1.4]"
+          class="overflow-hidden text-ellipsis whitespace-nowrap text-foreground text-sm leading-[1.4]"
           role="heading"
           title="Example Article"
         >
@@ -43,7 +43,7 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
       </div>
       <div
         aria-label="Citation content"
-        class="mb-2 overflow-hidden text-(--color-text-2) text-[13px] leading-normal [-webkit-box-orient:vertical] [-webkit-line-clamp:3] [display:-webkit-box]"
+        class="mb-2 overflow-hidden text-[13px] text-foreground-secondary leading-normal [-webkit-box-orient:vertical] [-webkit-line-clamp:3] [display:-webkit-box]"
         role="article"
         style="display: -webkit-box; overflow: hidden; -webkit-line-clamp: 3;"
       >
@@ -51,7 +51,7 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
       </div>
       <div
         aria-label="Visit example.com"
-        class="cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-(--color-link) text-xs hover:underline"
+        class="cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-primary text-xs hover:underline"
         role="button"
       >
         example.com

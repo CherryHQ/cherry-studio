@@ -261,7 +261,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
           onClick={scrollToBottom}>
           <CircleChevronDown
             size={10 + calculateValueByDistance('bottom-anchor', 20)}
-            style={{ color: theme === 'dark' ? 'var(--color-text)' : 'var(--color-primary)' }}
+            style={{ color: theme === 'dark' ? 'var(--color-foreground)' : 'var(--color-primary)' }}
           />
         </MessageItem>
       </MessagesList>
@@ -352,14 +352,11 @@ const MessageItem = ({
 MessageItem.displayName = 'MessageItem'
 
 const MessageItemTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={['whitespace-nowrap font-medium text-(--color-text)', className].filter(Boolean).join(' ')}
-    {...props}
-  />
+  <div className={['whitespace-nowrap font-medium text-foreground', className].filter(Boolean).join(' ')} {...props} />
 )
 const MessageItemContent = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={['max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap text-(--color-text-2)', className]
+    className={['max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap text-foreground-secondary', className]
       .filter(Boolean)
       .join(' ')}
     {...props}

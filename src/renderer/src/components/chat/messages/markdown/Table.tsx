@@ -74,10 +74,10 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
   return (
     <div className="table-wrapper relative hover:[&_.table-toolbar]:opacity-100">
       <table>{children}</table>
-      <div className="table-toolbar absolute top-2 right-2 z-10 flex gap-1 rounded opacity-0 transition-opacity duration-200 ease-in-out transform-[translateZ(0)] will-change-[opacity]">
+      <div className="table-toolbar transform-[translateZ(0)] absolute top-2 right-2 z-10 flex gap-1 rounded opacity-0 transition-opacity duration-200 ease-in-out will-change-[opacity]">
         <Tooltip content={t('common.copy')} delay={800}>
           <div
-            className="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded bg-(--color-background-mute) text-(--color-text-3) opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-(--color-background-soft)"
+            className="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded bg-accent text-foreground-muted opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-muted"
             role="button"
             aria-label={t('common.copy')}
             onClick={handleCopyTable}>
@@ -86,7 +86,7 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
         </Tooltip>
         <Tooltip content={t('common.export.excel')} delay={800}>
           <div
-            className="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded bg-(--color-background-mute) text-(--color-text-3) opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-(--color-background-soft)"
+            className="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded bg-accent text-foreground-muted opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-muted"
             role="button"
             aria-label={t('common.export.excel')}
             onClick={handleExportExcel}>

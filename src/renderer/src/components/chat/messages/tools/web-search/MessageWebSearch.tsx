@@ -21,7 +21,7 @@ export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: Norm
       }
     />
   ) : (
-    <span className="flex items-center gap-1 p-1.25 text-(--color-text-2)">
+    <span className="flex items-center gap-1 p-1.25 text-foreground-secondary">
       <Search size={16} style={{ color: 'unset' }} />
       {t('message.websearch.fetch_complete', { count: resultCount })}
     </span>
