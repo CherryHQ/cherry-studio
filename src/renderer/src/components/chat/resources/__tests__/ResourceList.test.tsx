@@ -39,6 +39,8 @@ vi.mock('@dnd-kit/core', () => {
       dndMocks.onDragStart = onDragStart
       return React.createElement('div', { 'data-testid': 'dnd-context' }, children)
     },
+    DragOverlay: ({ children }: { children: ReactNode }) =>
+      React.createElement('div', { 'data-testid': 'drag-overlay' }, children),
     KeyboardSensor: vi.fn(),
     PointerSensor: vi.fn(),
     useDroppable: ({ data, id }: { data: unknown; id: string }) => {

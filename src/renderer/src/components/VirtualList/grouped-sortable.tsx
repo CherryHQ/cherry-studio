@@ -1,9 +1,18 @@
-import type { DragEndEvent, DragStartEvent, UniqueIdentifier } from '@dnd-kit/core'
-import { DndContext, KeyboardSensor, PointerSensor, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
+import type { DragEndEvent, DragOverEvent, DragStartEvent, UniqueIdentifier } from '@dnd-kit/core'
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  useDroppable,
+  useSensor,
+  useSensors
+} from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type React from 'react'
-import { memo, useCallback, useMemo } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 import DynamicVirtualList, { type DynamicVirtualListProps } from './dynamic'
 import { buildGroupedVirtualRows, type GroupedVirtualListGroup, type GroupedVirtualListRow } from './grouped'
@@ -39,6 +48,21 @@ type GroupDragData<TGroup> = DragDataBase<TGroup> & {
 }
 
 type RowDragData<TGroup, TItem> = GroupDragData<TGroup> | ItemDragData<TGroup, TItem>
+
+type ActiveDragState<TGroup, TItem> = {
+  active: RowDragData<TGroup, TItem>
+  blockedGroupIds: Set<UniqueIdentifier>
+  overlaySize?: {
+    height: number
+    width: number
+  }
+}
+
+type OverDropState = {
+  rowType: 'group' | 'item'
+  targetId: UniqueIdentifier
+  targetGroupId: UniqueIdentifier
+}
 
 export type GroupedSortableVirtualListItemDragPayload<TGroup, TItem> = {
   type: 'item'
@@ -177,6 +201,10 @@ function toGroupSortableId(id: UniqueIdentifier) {
   return `group:${String(id)}`
 }
 
+function toGroupFooterDroppableId(id: UniqueIdentifier) {
+  return `group-footer:${String(id)}`
+}
+
 function getEventData<TGroup, TItem>(data: unknown): RowDragData<TGroup, TItem> | null {
   if (!data || typeof data !== 'object') return null
   const rowData = data as Partial<RowDragData<TGroup, TItem>>
@@ -206,6 +234,48 @@ function buildDragStartPayload<TGroup, TItem>(
     activeGroup: active.group,
     activeGroupId: active.groupId,
     sourceIndex: active.groupIndex
+  }
+}
+
+function buildGroupDragData<TGroup>(
+  group: TGroup,
+  groupId: UniqueIdentifier,
+  groupIndex: number
+): GroupDragData<TGroup> {
+  return {
+    rowType: 'group',
+    group,
+    groupId,
+    groupIndex
+  }
+}
+
+function buildItemDragData<TGroup, TItem>({
+  group,
+  groupId,
+  groupIndex,
+  item,
+  itemId,
+  itemIndex,
+  itemIndexInGroup
+}: {
+  group: TGroup
+  groupId: UniqueIdentifier
+  groupIndex: number
+  item: TItem
+  itemId: UniqueIdentifier
+  itemIndex: number
+  itemIndexInGroup: number
+}): ItemDragData<TGroup, TItem> {
+  return {
+    rowType: 'item',
+    group,
+    groupId,
+    groupIndex,
+    item,
+    itemId,
+    itemIndex,
+    itemIndexInGroup
   }
 }
 
@@ -254,7 +324,7 @@ function getRectCenterY(rect: { top: number; height: number } | null | undefined
 }
 
 function getItemDropPosition<TGroup, TItem>(
-  event: DragEndEvent,
+  event: Pick<DragEndEvent, 'active' | 'over'>,
   active: RowDragData<TGroup, TItem>,
   over: RowDragData<TGroup, TItem>
 ): 'before' | 'after' {
@@ -272,6 +342,66 @@ function getItemDropPosition<TGroup, TItem>(
   }
 
   return 'after'
+}
+
+function buildDropPayloadFromEvent<TGroup, TItem>(event: Pick<DragEndEvent, 'active' | 'over'>) {
+  const active = getEventData<TGroup, TItem>(event.active.data.current)
+  const over = getEventData<TGroup, TItem>(event.over?.data.current)
+  if (!active || !over) return null
+
+  const payload = buildDragEndPayload(active, over, getItemDropPosition(event, active, over))
+  if (!payload) return null
+
+  return { active, over, payload }
+}
+
+function getOverDropState<TGroup, TItem>(over: RowDragData<TGroup, TItem>): OverDropState {
+  return {
+    rowType: over.rowType,
+    targetId: isItemDragData(over) ? over.itemId : over.groupId,
+    targetGroupId: over.groupId
+  }
+}
+
+function isSameOverDropState(current: OverDropState | null, next: OverDropState | null) {
+  return (
+    current?.rowType === next?.rowType &&
+    current?.targetId === next?.targetId &&
+    current?.targetGroupId === next?.targetGroupId
+  )
+}
+
+function getDropTargetRowState<TGroup, TItem>({
+  activeDragState,
+  groupId,
+  overDropState,
+  rowId,
+  rowType
+}: {
+  activeDragState: ActiveDragState<TGroup, TItem> | null
+  groupId: UniqueIdentifier
+  overDropState: OverDropState | null
+  rowId?: UniqueIdentifier
+  rowType?: 'group' | 'item'
+}) {
+  const isBlocked = activeDragState?.blockedGroupIds.has(groupId) ?? false
+  const isAllowed =
+    !isBlocked &&
+    rowType !== undefined &&
+    rowId !== undefined &&
+    overDropState?.rowType === rowType &&
+    overDropState.targetId === rowId
+
+  return {
+    isBlocked,
+    props: {
+      className: isBlocked ? 'cursor-not-allowed opacity-50 [&_*]:pointer-events-none' : undefined,
+      'data-drop-allowed': isAllowed || undefined,
+      'data-drop-blocked': isBlocked || undefined,
+      'data-drop-invalid': isBlocked || undefined,
+      'data-drop-target': isAllowed || undefined
+    }
+  }
 }
 
 function shouldDropPayload<TGroup, TItem>(
@@ -319,25 +449,46 @@ function shouldDropPayload<TGroup, TItem>(
 }
 
 type SortableItemRowProps<TGroup, TItem> = {
+  activeDragState: ActiveDragState<TGroup, TItem> | null
   children: React.ReactNode
   data: ItemDragData<TGroup, TItem>
   disabled: boolean
+  overDropState: OverDropState | null
 }
 
-function SortableItemRow<TGroup, TItem>({ children, data, disabled }: SortableItemRowProps<TGroup, TItem>) {
+function SortableItemRow<TGroup, TItem>({
+  activeDragState,
+  children,
+  data,
+  disabled,
+  overDropState
+}: SortableItemRowProps<TGroup, TItem>) {
+  const dropTargetRowState = getDropTargetRowState({
+    activeDragState,
+    groupId: data.groupId,
+    overDropState,
+    rowId: data.itemId,
+    rowType: 'item'
+  })
+  const isActiveItem =
+    activeDragState?.active !== undefined &&
+    isItemDragData(activeDragState.active) &&
+    activeDragState.active.itemId === data.itemId
   const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({
     id: toItemSortableId(data.itemId),
     data,
-    disabled
+    disabled: disabled || (dropTargetRowState.isBlocked && !isActiveItem)
   })
 
   return (
     <div
       ref={setNodeRef}
       data-dragging={isDragging || undefined}
+      {...dropTargetRowState.props}
       style={{
-        transform: CSS.Transform.toString(transform),
-        transition
+        opacity: isDragging ? 0 : undefined,
+        transform: dropTargetRowState.isBlocked ? undefined : CSS.Transform.toString(transform),
+        transition: dropTargetRowState.isBlocked ? undefined : transition
       }}
       {...attributes}
       {...listeners}>
@@ -346,43 +497,75 @@ function SortableItemRow<TGroup, TItem>({ children, data, disabled }: SortableIt
   )
 }
 
-type GroupHeaderRowProps<TGroup> = {
+type GroupHeaderRowProps<TGroup, TItem> = {
+  activeDragState: ActiveDragState<TGroup, TItem> | null
   children: React.ReactNode
   data: GroupDragData<TGroup>
   draggable: boolean
   disabled: boolean
+  overDropState: OverDropState | null
 }
 
-function GroupHeaderRow<TGroup>({ children, data, draggable, disabled }: GroupHeaderRowProps<TGroup>) {
+function GroupHeaderRow<TGroup, TItem>({
+  activeDragState,
+  children,
+  data,
+  draggable,
+  disabled,
+  overDropState
+}: GroupHeaderRowProps<TGroup, TItem>) {
   if (draggable) {
     return (
-      <SortableGroupHeaderRow data={data} disabled={disabled}>
+      <SortableGroupHeaderRow
+        activeDragState={activeDragState}
+        data={data}
+        disabled={disabled}
+        overDropState={overDropState}>
         {children}
       </SortableGroupHeaderRow>
     )
   }
 
   return (
-    <DroppableGroupHeaderRow data={data} disabled={disabled}>
+    <DroppableGroupHeaderRow
+      activeDragState={activeDragState}
+      data={data}
+      disabled={disabled}
+      overDropState={overDropState}>
       {children}
     </DroppableGroupHeaderRow>
   )
 }
 
-function SortableGroupHeaderRow<TGroup>({ children, data, disabled }: Omit<GroupHeaderRowProps<TGroup>, 'draggable'>) {
+function SortableGroupHeaderRow<TGroup, TItem>({
+  activeDragState,
+  children,
+  data,
+  disabled,
+  overDropState
+}: Omit<GroupHeaderRowProps<TGroup, TItem>, 'draggable'>) {
+  const dropTargetRowState = getDropTargetRowState({
+    activeDragState,
+    groupId: data.groupId,
+    overDropState,
+    rowId: data.groupId,
+    rowType: 'group'
+  })
   const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({
     id: toGroupSortableId(data.groupId),
     data,
-    disabled
+    disabled: disabled || dropTargetRowState.isBlocked
   })
 
   return (
     <div
       ref={setNodeRef}
       data-dragging={isDragging || undefined}
+      {...dropTargetRowState.props}
       style={{
-        transform: CSS.Transform.toString(transform),
-        transition
+        opacity: isDragging ? 0 : undefined,
+        transform: dropTargetRowState.isBlocked ? undefined : CSS.Transform.toString(transform),
+        transition: dropTargetRowState.isBlocked ? undefined : transition
       }}
       {...attributes}
       {...listeners}>
@@ -391,15 +574,59 @@ function SortableGroupHeaderRow<TGroup>({ children, data, disabled }: Omit<Group
   )
 }
 
-function DroppableGroupHeaderRow<TGroup>({ children, data, disabled }: Omit<GroupHeaderRowProps<TGroup>, 'draggable'>) {
+function DroppableGroupHeaderRow<TGroup, TItem>({
+  activeDragState,
+  children,
+  data,
+  disabled,
+  overDropState
+}: Omit<GroupHeaderRowProps<TGroup, TItem>, 'draggable'>) {
+  const dropTargetRowState = getDropTargetRowState({
+    activeDragState,
+    groupId: data.groupId,
+    overDropState,
+    rowId: data.groupId,
+    rowType: 'group'
+  })
   const { isOver, setNodeRef } = useDroppable({
     id: toGroupSortableId(data.groupId),
     data,
-    disabled
+    disabled: disabled || dropTargetRowState.isBlocked
   })
 
   return (
-    <div ref={setNodeRef} data-over={isOver || undefined}>
+    <div ref={setNodeRef} data-over={isOver || undefined} {...dropTargetRowState.props}>
+      {children}
+    </div>
+  )
+}
+
+type GroupFooterRowProps<TGroup, TItem> = {
+  activeDragState: ActiveDragState<TGroup, TItem> | null
+  children: React.ReactNode
+  data: GroupDragData<TGroup>
+  disabled: boolean
+}
+
+function GroupFooterRow<TGroup, TItem>({
+  activeDragState,
+  children,
+  data,
+  disabled
+}: GroupFooterRowProps<TGroup, TItem>) {
+  const dropTargetRowState = getDropTargetRowState({
+    activeDragState,
+    groupId: data.groupId,
+    overDropState: null
+  })
+  const { setNodeRef } = useDroppable({
+    id: toGroupFooterDroppableId(data.groupId),
+    data,
+    disabled: disabled || dropTargetRowState.isBlocked
+  })
+
+  return (
+    <div ref={setNodeRef} {...dropTargetRowState.props}>
       {children}
     </div>
   )
@@ -434,6 +661,8 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
     () => ({ ...DEFAULT_DRAG_CAPABILITIES, ...dragCapabilities }),
     [dragCapabilities]
   )
+  const [activeDragState, setActiveDragState] = useState<ActiveDragState<TGroup, TItem> | null>(null)
+  const [overDropState, setOverDropState] = useState<OverDropState | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: dragActivationDistance } }),
@@ -483,53 +712,166 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
     [estimateGroupFooterSize, estimateGroupHeaderSize, estimateItemSize, rows]
   )
 
+  const buildRowDragData = useCallback(
+    (row: GroupedSortableVirtualListRow<TGroup, TItem, THeader, TFooter>): RowDragData<TGroup, TItem> | null => {
+      const groupId = getGroupId(row.group, row.groupIndex)
+      if (row.type === 'group-header') {
+        return buildGroupDragData(row.group, groupId, row.groupIndex)
+      }
+
+      if (row.type === 'group-footer') {
+        return buildGroupDragData(row.group, groupId, row.groupIndex)
+      }
+
+      if (row.type === 'item') {
+        return buildItemDragData({
+          group: row.group,
+          groupId,
+          groupIndex: row.groupIndex,
+          item: row.item,
+          itemId: getItemId(row.item, row.itemIndex, row.group, row.groupIndex, row.itemIndexInGroup),
+          itemIndex: row.itemIndex,
+          itemIndexInGroup: row.itemIndexInGroup
+        })
+      }
+
+      return null
+    },
+    [getGroupId, getItemId]
+  )
+
+  const canDragActive = useCallback(
+    (active: RowDragData<TGroup, TItem>) => {
+      if (isItemDragData(active)) {
+        return (
+          canDragItem?.(active.item, active.itemIndex, active.group, active.groupIndex, active.itemIndexInGroup) ?? true
+        )
+      }
+
+      return canDragGroup?.(active.group, active.groupIndex) ?? true
+    },
+    [canDragGroup, canDragItem]
+  )
+
+  const buildBlockedGroupIds = useCallback(
+    (active: RowDragData<TGroup, TItem>) => {
+      const groupIds: UniqueIdentifier[] = []
+      const candidateDataByGroupId = new Map<UniqueIdentifier, RowDragData<TGroup, TItem>[]>()
+
+      for (const row of rows) {
+        const groupId = getGroupId(row.group, row.groupIndex)
+        if (!candidateDataByGroupId.has(groupId)) {
+          candidateDataByGroupId.set(groupId, [])
+          groupIds.push(groupId)
+        }
+
+        const rowDragData = buildRowDragData(row)
+        if (rowDragData) {
+          candidateDataByGroupId.get(groupId)?.push(rowDragData)
+        }
+      }
+
+      const blockedGroupIds = new Set<UniqueIdentifier>()
+      for (const groupId of groupIds) {
+        const isAllowed = (candidateDataByGroupId.get(groupId) ?? []).some((over) => {
+          const payload = buildDragEndPayload(active, over, 'before')
+          if (!payload) return false
+          if (payload.type === 'item' && payload.overType === 'item' && payload.activeId === payload.overId)
+            return false
+          return shouldDropPayload(payload, effectiveDragCapabilities, canDropGroup, canDropItem)
+        })
+
+        if (!isAllowed) {
+          blockedGroupIds.add(groupId)
+        }
+      }
+
+      return blockedGroupIds
+    },
+    [buildRowDragData, canDropGroup, canDropItem, effectiveDragCapabilities, getGroupId, rows]
+  )
+
+  const clearOverDropState = useCallback(() => {
+    setOverDropState((current) => (current === null ? current : null))
+  }, [])
+
+  const clearDragState = useCallback(() => {
+    setActiveDragState((current) => (current === null ? current : null))
+    setOverDropState((current) => (current === null ? current : null))
+  }, [])
+
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
+      clearDragState()
       const active = getEventData<TGroup, TItem>(event.active.data.current)
+      if (active && canDragActive(active)) {
+        const initialRect = event.active.rect.current.initial
+        setActiveDragState({
+          active,
+          blockedGroupIds: buildBlockedGroupIds(active),
+          overlaySize: initialRect ? { height: initialRect.height, width: initialRect.width } : undefined
+        })
+      }
       if (active) onDragStart?.(buildDragStartPayload(active))
     },
-    [onDragStart]
+    [buildBlockedGroupIds, canDragActive, clearDragState, onDragStart]
+  )
+
+  const handleDragOver = useCallback(
+    (event: DragOverEvent) => {
+      const result = buildDropPayloadFromEvent<TGroup, TItem>(event)
+      if (!result || !canDragActive(result.active)) {
+        clearOverDropState()
+        return
+      }
+
+      if (
+        result.payload.type === 'item' &&
+        result.payload.overType === 'item' &&
+        result.payload.activeId === result.payload.overId
+      ) {
+        clearOverDropState()
+        return
+      }
+
+      if (!shouldDropPayload(result.payload, effectiveDragCapabilities, canDropGroup, canDropItem)) {
+        clearOverDropState()
+        return
+      }
+
+      const nextOverDropState = getOverDropState(result.over)
+      setOverDropState((current) => (isSameOverDropState(current, nextOverDropState) ? current : nextOverDropState))
+    },
+    [canDragActive, canDropGroup, canDropItem, clearOverDropState, effectiveDragCapabilities]
   )
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
-      const active = getEventData<TGroup, TItem>(event.active.data.current)
-      const over = getEventData<TGroup, TItem>(event.over?.data.current)
-      if (!active || !over) return
-      if (isItemDragData(active)) {
-        const canDragActiveItem =
-          canDragItem?.(active.item, active.itemIndex, active.group, active.groupIndex, active.itemIndexInGroup) ?? true
-        if (!canDragActiveItem) return
-      } else {
-        const canDragActiveGroup = canDragGroup?.(active.group, active.groupIndex) ?? true
-        if (!canDragActiveGroup) return
-      }
+      clearDragState()
+      const result = buildDropPayloadFromEvent<TGroup, TItem>(event)
+      if (!result || !canDragActive(result.active)) return
 
-      const payload = buildDragEndPayload(active, over, getItemDropPosition(event, active, over))
-      if (!payload) return
+      const { payload } = result
       if (payload.type === 'item' && payload.overType === 'item' && payload.activeId === payload.overId) return
       if (!shouldDropPayload(payload, effectiveDragCapabilities, canDropGroup, canDropItem)) return
 
       onDragEnd?.(payload)
     },
-    [canDragGroup, canDragItem, canDropGroup, canDropItem, effectiveDragCapabilities, onDragEnd]
+    [canDragActive, canDropGroup, canDropItem, clearDragState, effectiveDragCapabilities, onDragEnd]
   )
 
   const renderRow = useCallback(
     (row: GroupedSortableVirtualListRow<TGroup, TItem, THeader, TFooter>) => {
       if (row.type === 'group-header') {
         const groupId = getGroupId(row.group, row.groupIndex)
-        const data: GroupDragData<TGroup> = {
-          rowType: 'group',
-          group: row.group,
-          groupId,
-          groupIndex: row.groupIndex
-        }
+        const data = buildGroupDragData(row.group, groupId, row.groupIndex)
 
         return (
           <GroupHeaderRow
+            activeDragState={activeDragState}
             data={data}
             disabled={disabled}
+            overDropState={overDropState}
             draggable={
               !disabled && effectiveDragCapabilities.groups && (canDragGroup?.(row.group, row.groupIndex) ?? true)
             }>
@@ -539,7 +881,14 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
       }
 
       if (row.type === 'group-footer') {
-        return renderGroupFooter?.(row.footer, row.group, row.groupIndex) ?? null
+        const groupId = getGroupId(row.group, row.groupIndex)
+        const data = buildGroupDragData(row.group, groupId, row.groupIndex)
+
+        return (
+          <GroupFooterRow activeDragState={activeDragState} data={data} disabled={disabled}>
+            {renderGroupFooter?.(row.footer, row.group, row.groupIndex) ?? null}
+          </GroupFooterRow>
+        )
       }
 
       const itemId = getItemId(row.item, row.itemIndex, row.group, row.groupIndex, row.itemIndexInGroup)
@@ -547,8 +896,7 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
         disabled ||
         !effectiveDragCapabilities.items ||
         !(canDragItem?.(row.item, row.itemIndex, row.group, row.groupIndex, row.itemIndexInGroup) ?? true)
-      const data: ItemDragData<TGroup, TItem> = {
-        rowType: 'item',
+      const data = buildItemDragData({
         group: row.group,
         groupId: getGroupId(row.group, row.groupIndex),
         groupIndex: row.groupIndex,
@@ -556,15 +904,20 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
         itemId,
         itemIndex: row.itemIndex,
         itemIndexInGroup: row.itemIndexInGroup
-      }
+      })
 
       return (
-        <SortableItemRow data={data} disabled={itemDisabled}>
+        <SortableItemRow
+          activeDragState={activeDragState}
+          data={data}
+          disabled={itemDisabled}
+          overDropState={overDropState}>
           {renderItem(row.item, row.itemIndex, row.group, row.groupIndex, row.itemIndexInGroup)}
         </SortableItemRow>
       )
     },
     [
+      activeDragState,
       canDragGroup,
       canDragItem,
       disabled,
@@ -572,17 +925,55 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
       effectiveDragCapabilities.items,
       getGroupId,
       getItemId,
+      overDropState,
       renderGroupFooter,
       renderGroupHeader,
       renderItem
     ]
   )
 
+  const dragOverlayContent = useMemo(() => {
+    const active = activeDragState?.active
+    if (!active) return null
+
+    if (isItemDragData(active)) {
+      return renderItem(active.item, active.itemIndex, active.group, active.groupIndex, active.itemIndexInGroup)
+    }
+
+    const headerRow = rows.find(
+      (row) => row.type === 'group-header' && getGroupId(row.group, row.groupIndex) === active.groupId
+    )
+    if (!headerRow || headerRow.type !== 'group-header') return null
+
+    return renderGroupHeader?.(headerRow.header, headerRow.group, headerRow.groupIndex) ?? null
+  }, [activeDragState, getGroupId, renderGroupHeader, renderItem, rows])
+
+  const dragOverlay = (
+    <DragOverlay dropAnimation={null}>
+      {dragOverlayContent ? (
+        <div
+          className="pointer-events-none"
+          style={{
+            height: activeDragState?.overlaySize?.height,
+            width: activeDragState?.overlaySize?.width
+          }}>
+          {dragOverlayContent}
+        </div>
+      ) : null}
+    </DragOverlay>
+  )
+
   return (
-    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragCancel={clearDragState}
+      onDragEnd={handleDragEnd}>
       <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
         <DynamicVirtualList {...virtualListProps} list={rows} estimateSize={estimateRowSize} children={renderRow} />
       </SortableContext>
+      {createPortal(dragOverlay, document.body)}
     </DndContext>
   )
 }

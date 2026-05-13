@@ -1,5 +1,5 @@
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,7 +20,10 @@ const virtualMocks = vi.hoisted(() => ({
 
 const dndMocks = vi.hoisted(() => ({
   droppableData: new Map<string, unknown>(),
+  onDragCancel: undefined as undefined | ((event: any) => void),
   onDragEnd: undefined as undefined | ((event: any) => void),
+  onDragOver: undefined as undefined | ((event: any) => void),
+  onDragStart: undefined as undefined | ((event: any) => void),
   sortableData: new Map<string, unknown>()
 }))
 
@@ -34,10 +37,27 @@ vi.mock('@tanstack/react-virtual', () => ({
 vi.mock('@dnd-kit/core', () => {
   const React = require('react')
   return {
-    DndContext: ({ children, onDragEnd }: { children: ReactNode; onDragEnd?: any }) => {
+    DndContext: ({
+      children,
+      onDragCancel,
+      onDragEnd,
+      onDragOver,
+      onDragStart
+    }: {
+      children: ReactNode
+      onDragCancel?: any
+      onDragEnd?: any
+      onDragOver?: any
+      onDragStart?: any
+    }) => {
+      dndMocks.onDragCancel = onDragCancel
       dndMocks.onDragEnd = onDragEnd
+      dndMocks.onDragOver = onDragOver
+      dndMocks.onDragStart = onDragStart
       return React.createElement('div', { 'data-testid': 'dnd-context' }, children)
     },
+    DragOverlay: ({ children }: { children: ReactNode }) =>
+      React.createElement('div', { 'data-testid': 'drag-overlay' }, children),
     KeyboardSensor: vi.fn(),
     PointerSensor: vi.fn(),
     useDroppable: ({ data, id }: { data: unknown; id: string }) => {
@@ -235,6 +255,26 @@ function sortableData(id: string) {
   return { current: data }
 }
 
+function startDraggingSession(id: string) {
+  act(() => {
+    dndMocks.onDragStart?.({
+      active: {
+        data: sortableData(`item:${id}`),
+        id: `item:${id}`,
+        rect: { current: { initial: { height: 32, width: 240 }, translated: null } }
+      }
+    })
+  })
+}
+
+function expectSessionBlocked(name: string) {
+  expect(screen.getByText(name).closest('[data-drop-blocked="true"]')).toBeInTheDocument()
+}
+
+function expectGroupBlocked(name: string) {
+  expect(screen.getByRole('button', { name }).closest('[data-drop-blocked="true"]')).toBeInTheDocument()
+}
+
 function setupSessions(overrides: Record<string, unknown> = {}) {
   sessionDataMocks.useSessions.mockReturnValue({
     sessions: [
@@ -343,24 +383,87 @@ describe('Sessions', () => {
     render(<Sessions />)
 
     expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
-    dndMocks.onDragEnd?.({
-      active: {
-        data: sortableData('item:session-a'),
-        id: 'item:session-a',
-        rect: { current: { initial: null, translated: { top: 10, height: 20 } } }
-      },
-      over: { data: sortableData('item:session-c'), id: 'item:session-c', rect: { top: 80, height: 20 } }
+    startDraggingSession('session-a')
+
+    expectGroupBlocked('Beta agent')
+    expectSessionBlocked('Gamma session')
+    expect(screen.getByRole('button', { name: 'Alpha agent' }).closest('[data-drop-blocked="true"]')).toBeNull()
+    expect(screen.getByText('Beta session').closest('[data-drop-blocked="true"]')).toBeNull()
+
+    act(() => {
+      dndMocks.onDragEnd?.({
+        active: {
+          data: sortableData('item:session-a'),
+          id: 'item:session-a',
+          rect: { current: { initial: null, translated: { top: 10, height: 20 } } }
+        },
+        over: { data: sortableData('item:session-c'), id: 'item:session-c', rect: { top: 80, height: 20 } }
+      })
     })
 
     expect(dataApiService.patch).not.toHaveBeenCalled()
 
-    dndMocks.onDragEnd?.({
-      active: {
-        data: sortableData('item:session-a'),
-        id: 'item:session-a',
-        rect: { current: { initial: null, translated: { top: 10, height: 20 } } }
-      },
-      over: { data: sortableData('item:session-b'), id: 'item:session-b', rect: { top: 80, height: 20 } }
+    act(() => {
+      dndMocks.onDragEnd?.({
+        active: {
+          data: sortableData('item:session-a'),
+          id: 'item:session-a',
+          rect: { current: { initial: null, translated: { top: 10, height: 20 } } }
+        },
+        over: { data: sortableData('item:session-b'), id: 'item:session-b', rect: { top: 80, height: 20 } }
+      })
+    })
+
+    await vi.waitFor(() =>
+      expect(dataApiService.patch).toHaveBeenCalledWith('/sessions/session-a/order', { body: { after: 'session-b' } })
+    )
+  })
+
+  it('blocks cross-workspace groups from drag start while preserving same-workspace reorder', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'workdir')
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'session-a',
+          name: 'Alpha session',
+          accessiblePaths: ['/Users/jd/project-a'],
+          orderKey: 'a'
+        }),
+        createSession({
+          id: 'session-b',
+          name: 'Beta session',
+          accessiblePaths: ['/Users/jd/project-a'],
+          orderKey: 'b'
+        }),
+        createSession({
+          id: 'session-c',
+          name: 'Gamma session',
+          accessiblePaths: ['/Users/jd/project-b'],
+          orderKey: 'c'
+        })
+      ],
+      pinIdBySessionId: new Map([['session-c', 'pin-session-c']])
+    })
+
+    render(<Sessions />)
+
+    expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
+    startDraggingSession('session-a')
+
+    expectGroupBlocked('Pinned')
+    expectSessionBlocked('Gamma session')
+    expect(screen.getByRole('button', { name: 'project-a' }).closest('[data-drop-blocked="true"]')).toBeNull()
+    expect(screen.getByText('Beta session').closest('[data-drop-blocked="true"]')).toBeNull()
+
+    act(() => {
+      dndMocks.onDragEnd?.({
+        active: {
+          data: sortableData('item:session-a'),
+          id: 'item:session-a',
+          rect: { current: { initial: null, translated: { top: 10, height: 20 } } }
+        },
+        over: { data: sortableData('item:session-b'), id: 'item:session-b', rect: { top: 80, height: 20 } }
+      })
     })
 
     await vi.waitFor(() =>
