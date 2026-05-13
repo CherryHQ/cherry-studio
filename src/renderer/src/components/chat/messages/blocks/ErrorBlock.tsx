@@ -200,7 +200,7 @@ const MessageErrorInfo: React.FC<{
       {/* Close button */}
       <button
         type="button"
-        className="absolute top-2 right-2 flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded border-none bg-transparent opacity-0 transition-all duration-150 hover:bg-[color-mix(in_srgb,var(--color-error-base)_12%,transparent)] hover:text-(--color-error-text) group-hover:opacity-100"
+        className="absolute top-2 right-2 flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded border-none bg-transparent opacity-0 transition-all duration-150 hover:bg-[color-mix(in_srgb,var(--color-error-base)_12%,transparent)] hover:text-error-text group-hover:opacity-100"
         onClick={onRemoveErrorPart}
         aria-label="close"
         title={t('common.close')}>
@@ -230,14 +230,14 @@ const MessageErrorInfo: React.FC<{
           <Button
             size="sm"
             type="button"
-            className="inline-flex items-center gap-1 rounded-[5px] border-[color-mix(in_srgb,var(--color-error-base)_25%,transparent)] text-(--color-error-text) text-xs hover:border-(--color-error-border)"
+            className="inline-flex items-center gap-1 rounded-[5px] border-[color-mix(in_srgb,var(--color-error-base)_25%,transparent)] text-error-text text-xs hover:border-error-border"
             onClick={onNavigate}>
             <Settings size={12} />
             {t('error.diagnosis.go_to_settings')}
           </Button>
         )}
         <div
-          className="ml-auto inline-flex items-center gap-0.5 text-xs transition-colors duration-150 group-hover:text-(--color-error-text)"
+          className="ml-auto inline-flex items-center gap-0.5 text-xs transition-colors duration-150 group-hover:text-error-text"
           style={{ color: 'var(--color-foreground-muted)' }}>
           {t('common.detail')}
           <ChevronRight size={14} />

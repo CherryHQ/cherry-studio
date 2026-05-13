@@ -365,7 +365,7 @@ const UserBubbleMessage = ({
             {avatar}
           </EmojiAvatar>
         ) : (
-          <Avatar className="size-[30px] shrink-0 cursor-pointer rounded-full" onClick={() => UserPopup.show()}>
+          <Avatar className="size-7.5 shrink-0 cursor-pointer rounded-full" onClick={() => UserPopup.show()}>
             <AvatarImage src={avatar} />
           </Avatar>
         )}
