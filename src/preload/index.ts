@@ -310,7 +310,7 @@ const api = {
     ensureExternalEntry: (params: EnsureExternalEntryIpcParams) =>
       ipcRenderer.invoke(IpcChannel.File_EnsureExternalEntry, params),
     getPhysicalPath: (params: GetPhysicalPathIpcParams) => ipcRenderer.invoke(IpcChannel.File_GetPhysicalPath, params),
-    permanentDeleteEntry: (params: PermanentDeleteEntryIpcParams) =>
+    permanentDelete: (params: PermanentDeleteEntryIpcParams) =>
       ipcRenderer.invoke(IpcChannel.File_PermanentDeleteEntry, params)
   },
   fs: {
