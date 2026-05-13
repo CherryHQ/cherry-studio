@@ -230,6 +230,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import type * as TopicDataApiModule from '@renderer/hooks/useTopicDataApi'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -244,6 +245,7 @@ import {
 } from '../../../../../../../../tests/__mocks__/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '../../../../../../../../tests/__mocks__/renderer/usePreference'
 import { TopicListV2 } from '../TopicListV2'
+import { applyOptimisticTopicDisplayMove } from '../TopicListV2.helpers'
 
 function createApiTopic(overrides: Partial<ApiTopic> = {}) {
   return {
@@ -320,10 +322,26 @@ function sortableData(id: string) {
   return { current: data }
 }
 
+const topicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses.${topicId}` as never
+const topicStreamSeenCacheKey = (topicId: string) => `topic.stream.seen.${topicId}` as never
+
+function setTopicStreamCacheStatus(topicId: string, status: 'done' | 'pending' | 'streaming') {
+  cacheService.setShared(topicStreamStatusCacheKey(topicId), { status } as never)
+  cacheService.set(topicStreamSeenCacheKey(topicId), false as never)
+}
+
+function clearTopicStreamCache(...topicIds: string[]) {
+  for (const topicId of topicIds) {
+    cacheService.deleteShared(topicStreamStatusCacheKey(topicId))
+    cacheService.delete(topicStreamSeenCacheKey(topicId))
+  }
+}
+
 describe('TopicListV2', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     topicStreamStatusMocks.statuses.clear()
+    clearTopicStreamCache('topic-a', 'topic-b', 'topic-c', 'topic-d', 'topic-e')
     vi.useFakeTimers({ shouldAdvanceTime: true })
     vi.setSystemTime(new Date(2026, 0, 3, 12))
     MockUsePreferenceUtils.resetMocks()
@@ -480,7 +498,7 @@ describe('TopicListV2', () => {
     expect(screen.getByText('Beta pinned')).toBeInTheDocument()
     const pinnedRow = getByText('Beta pinned').closest('[data-testid="topic-list-v2-row"]')
     expect(pinnedRow?.querySelector('[aria-label="Unpin Topic"]') ?? null).toBeInTheDocument()
-    expect(pinnedRow?.querySelector('[aria-label="common.delete"]') ?? null).not.toBeInTheDocument()
+    expect(pinnedRow?.querySelector('[aria-label="Delete"]') ?? null).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Gamma topic'))
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
@@ -589,8 +607,9 @@ describe('TopicListV2', () => {
   })
 
   it('keeps inactive topic stream indicator in the action slot and opens fulfilled topics', () => {
-    topicStreamStatusMocks.statuses.set('topic-c', { isPending: true })
-    const { rerenderTopicList, setActiveTopic } = renderTopicList()
+    setTopicStreamCacheStatus('topic-c', 'pending')
+    let view = renderTopicList()
+    let setActiveTopic = view.setActiveTopic
 
     let topicRow = getTopicRow('Gamma topic')
     let indicator = topicRow.querySelector('[data-testid="topic-stream-indicator"] .animation-pulse')
@@ -598,20 +617,23 @@ describe('TopicListV2', () => {
     expect(topicRow.querySelector('[data-deleting]')).not.toBeInTheDocument()
     expect(topicStreamStatusMocks.markSeen).not.toHaveBeenCalled()
 
-    topicStreamStatusMocks.statuses.set('topic-c', { isFulfilled: true })
-    rerenderTopicList()
+    setTopicStreamCacheStatus('topic-c', 'done')
+    view.unmount()
+    view = renderTopicList()
+    setActiveTopic = view.setActiveTopic
 
     topicRow = getTopicRow('Gamma topic')
     indicator = topicRow.querySelector('[data-testid="topic-stream-indicator"] .animation-pulse')
     expect(indicator).toHaveClass('bg-(--color-status-success)')
     expect(topicRow.querySelector('[data-deleting]')).not.toBeInTheDocument()
 
-    fireEvent.click(within(topicRow).getByRole('button', { name: 'Gamma topic' }))
+    fireEvent.click(topicRow)
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
     expect(topicStreamStatusMocks.markSeen).not.toHaveBeenCalled()
 
-    topicStreamStatusMocks.statuses.delete('topic-c')
-    rerenderTopicList()
+    clearTopicStreamCache('topic-c')
+    view.unmount()
+    view = renderTopicList()
 
     topicRow = getTopicRow('Gamma topic')
     expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
@@ -929,6 +951,44 @@ describe('TopicListV2', () => {
     ])
   })
 
+  it('moves only the active topic in the optimistic display overlay without rewriting order keys', () => {
+    const topics = [
+      createRendererTopic({ id: 'topic-a', name: 'Known alpha', assistantId: 'assistant-1', orderKey: 'a' }),
+      createRendererTopic({ id: 'topic-c', name: 'Known beta', assistantId: 'assistant-2', orderKey: 'c' }),
+      createRendererTopic({ id: 'topic-d', name: 'Beta tail', assistantId: 'assistant-2', orderKey: 'd' })
+    ]
+    const groupBy = (topic: Topic) => ({
+      id: topic.assistantId ? `topic:assistant:${topic.assistantId}` : 'topic:assistant:default',
+      label: topic.assistantId ?? 'default'
+    })
+
+    const next = applyOptimisticTopicDisplayMove(
+      topics,
+      {
+        type: 'item',
+        activeId: 'topic-a',
+        overId: 'topic-c',
+        overType: 'item',
+        position: 'after',
+        sourceGroupId: 'topic:assistant:assistant-1',
+        targetGroupId: 'topic:assistant:assistant-2',
+        sourceIndex: 0,
+        targetIndex: 0
+      },
+      'assistant-2',
+      groupBy
+    )
+
+    expect(next.map((topic) => topic.id)).toEqual(['topic-c', 'topic-a', 'topic-d'])
+    expect(next.find((topic) => topic.id === 'topic-a')).toMatchObject({
+      assistantId: 'assistant-2',
+      orderKey: 'a'
+    })
+    expect(next.find((topic) => topic.id === 'topic-c')).toBe(topics[1])
+    expect(next.find((topic) => topic.id === 'topic-d')).toBe(topics[2])
+    expect(next.map((topic) => topic.orderKey)).toEqual(['c', 'a', 'd'])
+  })
+
   it('reorders topics within the same assistant group in assistant mode', async () => {
     const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
@@ -941,9 +1001,16 @@ describe('TopicListV2', () => {
       over: { data: sortableData('item:topic-c'), id: 'item:topic-c' }
     })
 
+    await vi.waitFor(() => {
+      const rowTexts = screen.getAllByTestId('topic-list-v2-row').map((row) => row.textContent ?? '')
+      expect(rowTexts.findIndex((text) => text.includes('Delta archive'))).toBeLessThan(
+        rowTexts.findIndex((text) => text.includes('Gamma topic'))
+      )
+    })
     await vi.waitFor(() =>
-      expect(patchSpy).toHaveBeenCalledWith('/topics/topic-d/order', { body: { after: 'topic-c' } })
+      expect(patchSpy).toHaveBeenCalledWith('/topics/topic-d/order', { body: { before: 'topic-c' } })
     )
+    expect(patchSpy).toHaveBeenCalledTimes(1)
     expect(patchSpy).not.toHaveBeenCalledWith('/topics/topic-d', expect.anything())
   })
 
@@ -958,10 +1025,20 @@ describe('TopicListV2', () => {
       over: { data: sortableData('item:topic-c'), id: 'item:topic-c' }
     })
 
+    await vi.waitFor(() => {
+      const rowTexts = screen.getAllByTestId('topic-list-v2-row').map((row) => row.textContent ?? '')
+      expect(rowTexts.findIndex((text) => text.includes('Alpha topic'))).toBeGreaterThan(
+        rowTexts.findIndex((text) => text.includes('Gamma topic'))
+      )
+      expect(rowTexts.findIndex((text) => text.includes('Alpha topic'))).toBeLessThan(
+        rowTexts.findIndex((text) => text.includes('Delta archive'))
+      )
+    })
     await vi.waitFor(() =>
       expect(patchSpy).toHaveBeenNthCalledWith(1, '/topics/topic-a', { body: { assistantId: 'assistant-2' } })
     )
     expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-a/order', { body: { after: 'topic-c' } })
+    expect(patchSpy).toHaveBeenCalledTimes(2)
   })
 
   it('moves topics into the default assistant group with a null assistantId', async () => {

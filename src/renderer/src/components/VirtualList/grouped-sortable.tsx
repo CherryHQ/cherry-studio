@@ -47,6 +47,7 @@ export type GroupedSortableVirtualListItemDragPayload<TGroup, TItem> = {
   overId: UniqueIdentifier
   overItem?: TItem
   overType: 'group' | 'item'
+  position: 'before' | 'after'
   sourceGroup: TGroup
   sourceGroupId: UniqueIdentifier
   sourceIndex: number
@@ -210,7 +211,8 @@ function buildDragStartPayload<TGroup, TItem>(
 
 function buildDragEndPayload<TGroup, TItem>(
   active: RowDragData<TGroup, TItem>,
-  over: RowDragData<TGroup, TItem>
+  over: RowDragData<TGroup, TItem>,
+  position: 'before' | 'after'
 ): GroupedSortableVirtualListDragPayload<TGroup, TItem> | null {
   if (isItemDragData(active)) {
     const overItem = isItemDragData(over) ? over.item : undefined
@@ -221,6 +223,7 @@ function buildDragEndPayload<TGroup, TItem>(
       overId: isItemDragData(over) ? over.itemId : over.groupId,
       overItem,
       overType: over.rowType,
+      position,
       sourceGroup: active.group,
       sourceGroupId: active.groupId,
       sourceIndex: active.itemIndexInGroup,
@@ -243,6 +246,32 @@ function buildDragEndPayload<TGroup, TItem>(
     sourceIndex: active.groupIndex,
     targetIndex: over.groupIndex
   }
+}
+
+function getRectCenterY(rect: { top: number; height: number } | null | undefined) {
+  if (!rect) return null
+  return rect.top + rect.height / 2
+}
+
+function getItemDropPosition<TGroup, TItem>(
+  event: DragEndEvent,
+  active: RowDragData<TGroup, TItem>,
+  over: RowDragData<TGroup, TItem>
+): 'before' | 'after' {
+  if (!isItemDragData(over)) return 'before'
+
+  const activeCenterY = getRectCenterY(event.active.rect?.current?.translated ?? event.active.rect?.current?.initial)
+  const overCenterY = getRectCenterY(event.over?.rect)
+
+  if (activeCenterY !== null && overCenterY !== null) {
+    return activeCenterY < overCenterY ? 'before' : 'after'
+  }
+
+  if (isItemDragData(active) && active.groupId === over.groupId && active.itemIndexInGroup > over.itemIndexInGroup) {
+    return 'before'
+  }
+
+  return 'after'
 }
 
 function shouldDropPayload<TGroup, TItem>(
@@ -476,7 +505,7 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
         if (!canDragActiveGroup) return
       }
 
-      const payload = buildDragEndPayload(active, over)
+      const payload = buildDragEndPayload(active, over, getItemDropPosition(event, active, over))
       if (!payload) return
       if (payload.type === 'item' && payload.overType === 'item' && payload.activeId === payload.overId) return
       if (!shouldDropPayload(payload, effectiveDragCapabilities, canDropGroup, canDropItem)) return

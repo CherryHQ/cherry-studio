@@ -135,6 +135,14 @@ function sortableData(id: string) {
   return { current: data }
 }
 
+function droppableData(id: string) {
+  const data = dndMocks.droppableData.get(id)
+  if (!data) {
+    throw new Error(`Expected droppable data for ${id}`)
+  }
+  return { current: data }
+}
+
 describe('ResourceList', () => {
   it('derives search, filter, sort, and group state without mutating items', () => {
     const originalOrder = ITEMS.map((item) => item.id).join(',')
@@ -233,9 +241,8 @@ describe('ResourceList', () => {
     })
   })
 
-  it('renders context menu actions and calls reorder from explicit draggable composition', () => {
+  it('renders context menu actions from resource item composition', () => {
     const onRenameItem = vi.fn()
-    const onReorder = vi.fn()
     const Provider = ResourceList.Provider<TestItem>
 
     function Row({ item }: { item: TestItem }) {
@@ -256,28 +263,15 @@ describe('ResourceList', () => {
     }
 
     render(
-      <Provider items={ITEMS} onRenameItem={onRenameItem} onReorder={onReorder}>
+      <Provider items={ITEMS} onRenameItem={onRenameItem}>
         <ResourceList.Frame>
-          <ResourceList.DraggableItems<TestItem> renderItem={(item) => <Row item={item} />} />
+          <ResourceList.VirtualItems<TestItem> renderItem={(item) => <Row item={item} />} />
         </ResourceList.Frame>
       </Provider>
     )
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Rename' })[0])
     expect(screen.getByLabelText('Rename Alpha')).toBeInTheDocument()
-
-    dndMocks.onDragEnd?.({ active: { id: 'alpha' }, over: { id: 'gamma' } })
-    expect(onReorder).toHaveBeenCalledWith(
-      expect.objectContaining({
-        activeId: 'alpha',
-        overId: 'gamma',
-        overType: 'item',
-        position: 'after',
-        sourceGroupId: 'all',
-        targetGroupId: 'all',
-        type: 'item'
-      })
-    )
   })
 
   it('combines virtualization and drag reorder for large resource lists', () => {
@@ -315,12 +309,130 @@ describe('ResourceList', () => {
         activeId: 'beta',
         overId: 'alpha',
         overType: 'item',
-        position: 'after',
+        position: 'before',
         sourceGroupId: 'all',
         targetGroupId: 'all',
         type: 'item'
       })
     )
+  })
+
+  it('maps grouped virtual item and group drops through resource reorder payloads', () => {
+    const onReorder = vi.fn()
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        dragCapabilities={{ items: true, itemCrossGroup: true, itemSameGroup: true }}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        onReorder={onReorder}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualDraggableItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    dndMocks.onDragEnd?.({
+      active: { data: sortableData('item:beta'), id: 'item:beta' },
+      over: { data: sortableData('item:alpha'), id: 'item:alpha' }
+    })
+    expect(onReorder).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        activeId: 'beta',
+        overId: 'alpha',
+        overType: 'item',
+        sourceGroupId: 'session',
+        sourceIndex: 1,
+        targetGroupId: 'session',
+        targetIndex: 0,
+        type: 'item'
+      })
+    )
+
+    dndMocks.onDragEnd?.({
+      active: { data: sortableData('item:alpha'), id: 'item:alpha' },
+      over: { data: sortableData('item:gamma'), id: 'item:gamma' }
+    })
+    expect(onReorder).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        activeId: 'alpha',
+        overId: 'gamma',
+        overType: 'item',
+        sourceGroupId: 'session',
+        sourceIndex: 0,
+        targetGroupId: 'topic',
+        targetIndex: 0,
+        type: 'item'
+      })
+    )
+
+    dndMocks.onDragEnd?.({
+      active: { data: sortableData('item:beta'), id: 'item:beta' },
+      over: { data: droppableData('group:topic'), id: 'group:topic' }
+    })
+    expect(onReorder).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        activeId: 'beta',
+        overId: 'topic',
+        overType: 'group',
+        sourceGroupId: 'session',
+        sourceIndex: 1,
+        targetGroupId: 'topic',
+        targetIndex: 0,
+        type: 'item'
+      })
+    )
+  })
+
+  it('does not reorder grouped virtual items when the resource drop guard rejects the drop', () => {
+    const canDropItem = vi.fn(() => false)
+    const onReorder = vi.fn()
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        canDropItem={canDropItem}
+        dragCapabilities={{ items: true, itemCrossGroup: true, itemSameGroup: true }}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        onReorder={onReorder}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualDraggableItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    dndMocks.onDragEnd?.({
+      active: { data: sortableData('item:alpha'), id: 'item:alpha' },
+      over: { data: sortableData('item:gamma'), id: 'item:gamma' }
+    })
+
+    expect(canDropItem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeId: 'alpha',
+        overId: 'gamma',
+        overType: 'item',
+        sourceGroupId: 'session',
+        targetGroupId: 'topic'
+      })
+    )
+    expect(onReorder).not.toHaveBeenCalled()
   })
 
   it('renders grouped virtual rows without visible group counts', () => {

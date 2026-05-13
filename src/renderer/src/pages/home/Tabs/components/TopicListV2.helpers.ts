@@ -104,6 +104,44 @@ export function moveTopicAfterDrop<T extends { id: string }>(
   return next
 }
 
+export function applyOptimisticTopicDisplayMove<T extends TopicListItem>(
+  topics: readonly T[],
+  payload: ResourceListItemReorderPayload,
+  targetAssistantId: string | null,
+  groupBy: ResourceListGroupResolver<T>
+): T[] {
+  const activeIndex = topics.findIndex((topic) => topic.id === payload.activeId)
+  if (activeIndex < 0) return [...topics]
+
+  const activeTopic = topics[activeIndex]
+  const currentAssistantId = activeTopic.assistantId ?? null
+  const movedTopic =
+    currentAssistantId === targetAssistantId
+      ? activeTopic
+      : ({
+          ...activeTopic,
+          assistantId: targetAssistantId ?? undefined
+        } as T)
+
+  const next = topics.filter((topic) => topic.id !== payload.activeId)
+  let insertIndex = next.length
+
+  if (payload.overType === 'item') {
+    const overIndex = next.findIndex((topic) => topic.id === payload.overId)
+    if (overIndex >= 0) {
+      insertIndex = payload.position === 'before' ? overIndex : overIndex + 1
+    }
+  } else {
+    const firstTargetTopicIndex = next.findIndex((topic) => groupBy(topic)?.id === payload.targetGroupId)
+    if (firstTargetTopicIndex >= 0) {
+      insertIndex = firstTargetTopicIndex
+    }
+  }
+
+  next.splice(insertIndex, 0, movedTopic)
+  return next
+}
+
 export function filterTopicsForManageMode<T extends TopicListItem>(
   topics: readonly T[],
   searchText: string,

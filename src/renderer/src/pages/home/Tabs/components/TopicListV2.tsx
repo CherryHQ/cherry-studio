@@ -8,6 +8,7 @@ import {
   PopoverTrigger,
   Tooltip
 } from '@cherrystudio/ui'
+import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
@@ -75,10 +76,11 @@ import {
   XIcon
 } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  applyOptimisticTopicDisplayMove,
   buildTopicOrderMoves,
   createTopicDisplayGroupResolver,
   filterTopicsForManageMode,
@@ -249,7 +251,7 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
   const deleteTimerRef = useRef<NodeJS.Timeout>(null)
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
 
-  const topics = useMemo(
+  const apiBackedTopics = useMemo(
     () =>
       apiTopics.map((apiTopic) => {
         const topic = mapApiTopicToRendererTopic(apiTopic)
@@ -257,6 +259,22 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
       }),
     [apiTopics, isTopicPinned]
   )
+  const [optimisticMove, setOptimisticMove] = useState<{
+    payload: ResourceListItemReorderPayload
+    targetAssistantId: string | null
+  } | null>(null)
+  const apiTopicOrderSignature = useMemo(
+    () =>
+      apiBackedTopics
+        .map((topic) => `${topic.id}:${topic.assistantId ?? ''}:${topic.orderKey ?? ''}:${topic.pinned ? '1' : '0'}`)
+        .join('|'),
+    [apiBackedTopics]
+  )
+  const topics = apiBackedTopics
+
+  useEffect(() => {
+    setOptimisticMove(null)
+  }, [apiTopicOrderSignature])
 
   const assistantById = useMemo(() => new Map(assistants.map((assistant) => [assistant.id, assistant])), [assistants])
   const assistantRankById = useMemo(
@@ -439,25 +457,6 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
     [t, updateTopic]
   )
 
-  const groupedTopics = useMemo(
-    () =>
-      sortTopicsForDisplayGroups(topics, {
-        assistantRankById,
-        mode: displayMode,
-        now: groupNow
-      }),
-    [assistantRankById, displayMode, groupNow, topics]
-  )
-
-  const filteredTopics = useMemo(
-    () => filterTopicsForManageMode(groupedTopics, deferredSearchText, isManageMode),
-    [deferredSearchText, groupedTopics, isManageMode]
-  )
-
-  const listError = error || (isAssistantDisplayMode ? assistantsError : undefined)
-  const listLoading = isLoading || (isAssistantDisplayMode && isAssistantsLoading)
-  const listStatus = listError ? 'error' : listLoading ? 'loading' : filteredTopics.length === 0 ? 'empty' : 'idle'
-  const singlealone = topicPosition === 'right' && position === 'right'
   const topicGroupBy = useMemo(
     () =>
       createTopicDisplayGroupResolver<Topic>({
@@ -480,6 +479,39 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
       }),
     [assistantById, displayMode, groupNow, t]
   )
+
+  const baseGroupedTopics = useMemo(
+    () =>
+      sortTopicsForDisplayGroups(topics, {
+        assistantRankById,
+        mode: displayMode,
+        now: groupNow
+      }),
+    [assistantRankById, displayMode, groupNow, topics]
+  )
+
+  const groupedTopics = useMemo(
+    () =>
+      optimisticMove
+        ? applyOptimisticTopicDisplayMove(
+            baseGroupedTopics,
+            optimisticMove.payload,
+            optimisticMove.targetAssistantId,
+            topicGroupBy
+          )
+        : baseGroupedTopics,
+    [baseGroupedTopics, optimisticMove, topicGroupBy]
+  )
+
+  const filteredTopics = useMemo(
+    () => filterTopicsForManageMode(groupedTopics, deferredSearchText, isManageMode),
+    [deferredSearchText, groupedTopics, isManageMode]
+  )
+
+  const listError = error || (isAssistantDisplayMode ? assistantsError : undefined)
+  const listLoading = isLoading || (isAssistantDisplayMode && isAssistantsLoading)
+  const listStatus = listError ? 'error' : listLoading ? 'loading' : filteredTopics.length === 0 ? 'empty' : 'idle'
+  const singlealone = topicPosition === 'right' && position === 'right'
 
   const getGroupHeaderAction = useCallback(
     (group: { id: string }) => {
@@ -586,6 +618,7 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
       const visibleTopics = visibleTopicsRef.current.length > 0 ? visibleTopicsRef.current : filteredTopics
       const anchor = buildTopicDropAnchor(payload, visibleTopics, topicGroupBy)
       const currentAssistantId = topic.assistantId ?? null
+      setOptimisticMove({ payload, targetAssistantId })
 
       try {
         if (targetAssistantId !== currentAssistantId) {
@@ -599,6 +632,7 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
         })
         await refreshTopics()
       } catch (err) {
+        setOptimisticMove(null)
         logger.error('Failed to reorder topic by assistant group', { err, topicId: payload.activeId })
       }
     },
@@ -678,10 +712,8 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
 
         <TopicListBody
           activeTopic={activeTopic}
-          canDragTopics={isAssistantDisplayMode && !isManageMode}
           deletingTopicId={deletingTopicId}
           exportMenuOptions={exportMenuOptions as ExportMenuOptions}
-          isManageMode={isManageMode}
           isNewlyRenamed={isNewlyRenamed}
           isRenaming={isRenaming}
           listRef={listRef}
@@ -694,10 +726,11 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
           onPinTopic={handlePinTopic}
           onPromptRename={handlePromptRename}
           onSwitchTopic={setActiveTopic}
+          rowLayout={singlealone ? 'single' : 'grouped'}
           selectedIds={selectedIds}
-          singlealone={singlealone}
           toggleSelectTopic={toggleSelectTopic}
           topicsLength={topics.length}
+          variant={isManageMode ? 'manage' : isAssistantDisplayMode ? 'draggable' : 'plain'}
           visibleTopicsRef={visibleTopicsRef}
         />
       </TopicResourceList>
@@ -714,12 +747,111 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
   )
 }
 
+type TopicListBodyVariant = 'manage' | 'draggable' | 'plain'
+type TopicRowLayout = 'grouped' | 'single'
+type TopicRowMode = 'manage' | 'default'
+type TopicStreamState = {
+  isFulfilled: boolean
+  isPending: boolean
+}
+
+type TopicStreamStatusSnapshot = {
+  signature: string
+  value: ReadonlyMap<string, TopicStreamState>
+}
+
+const EMPTY_TOPIC_STREAM_STATE: TopicStreamState = Object.freeze({
+  isFulfilled: false,
+  isPending: false
+})
+
+const EMPTY_TOPIC_STREAM_STATUS_MAP: ReadonlyMap<string, TopicStreamState> = new Map()
+
+const getTopicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses.${topicId}` as const
+
+const getTopicStreamSeenCacheKey = (topicId: string) => `topic.stream.seen.${topicId}` as const
+
+const buildTopicStreamStatusSnapshot = (topicIds: readonly string[]): TopicStreamStatusSnapshot => {
+  if (topicIds.length === 0) {
+    return {
+      signature: '',
+      value: EMPTY_TOPIC_STREAM_STATUS_MAP
+    }
+  }
+
+  const value = new Map<string, TopicStreamState>()
+  const signatureParts: string[] = []
+
+  for (const topicId of topicIds) {
+    const statusEntry = cacheService.getShared(getTopicStreamStatusCacheKey(topicId))
+    const seen = cacheService.get(getTopicStreamSeenCacheKey(topicId)) ?? false
+    const status = statusEntry?.status
+    const streamStatus = {
+      isFulfilled: status === 'done' && !seen,
+      isPending: status === 'pending' || status === 'streaming'
+    }
+
+    signatureParts.push(`${topicId}:${streamStatus.isPending ? 1 : 0}:${streamStatus.isFulfilled ? 1 : 0}`)
+
+    if (streamStatus.isPending || streamStatus.isFulfilled) {
+      value.set(topicId, streamStatus)
+    }
+  }
+
+  return {
+    signature: signatureParts.join('|'),
+    value: value.size > 0 ? value : EMPTY_TOPIC_STREAM_STATUS_MAP
+  }
+}
+
+const subscribeTopicStreamStatuses = (topicIds: readonly string[], onStoreChange: () => void): (() => void) => {
+  if (topicIds.length === 0) {
+    return () => undefined
+  }
+
+  const unsubscribes: Array<() => void> = []
+
+  for (const topicId of new Set(topicIds)) {
+    unsubscribes.push(cacheService.subscribe(getTopicStreamStatusCacheKey(topicId), onStoreChange))
+    unsubscribes.push(cacheService.subscribe(getTopicStreamSeenCacheKey(topicId), onStoreChange))
+  }
+
+  return () => {
+    for (const unsubscribe of unsubscribes) {
+      unsubscribe()
+    }
+  }
+}
+
+const useTopicListStreamStatuses = (topicIds: readonly string[]): ReadonlyMap<string, TopicStreamState> => {
+  const snapshotRef = useRef<TopicStreamStatusSnapshot>({
+    signature: '',
+    value: EMPTY_TOPIC_STREAM_STATUS_MAP
+  })
+
+  const getSnapshot = useCallback(() => {
+    const nextSnapshot = buildTopicStreamStatusSnapshot(topicIds)
+
+    if (snapshotRef.current.signature === nextSnapshot.signature) {
+      return snapshotRef.current.value
+    }
+
+    snapshotRef.current = nextSnapshot
+    return nextSnapshot.value
+  }, [topicIds])
+
+  const subscribe = useCallback(
+    (onStoreChange: () => void) => subscribeTopicStreamStatuses(topicIds, onStoreChange),
+    [topicIds]
+  )
+
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+}
+
 interface TopicListBodyProps {
   activeTopic: Topic
-  canDragTopics: boolean
   deletingTopicId: string | null
   exportMenuOptions: ExportMenuOptions
-  isManageMode: boolean
   isNewlyRenamed: (topicId: string) => boolean
   isRenaming: (topicId: string) => boolean
   listRef: RefObject<HTMLDivElement | null>
@@ -732,17 +864,25 @@ interface TopicListBodyProps {
   onPinTopic: (topic: Topic) => Promise<void>
   onPromptRename: (topic: Topic) => Promise<void>
   onSwitchTopic: (topic: Topic) => void
+  rowLayout: TopicRowLayout
   selectedIds: Set<string>
-  singlealone: boolean
   toggleSelectTopic: (topicId: string) => void
   topicsLength: number
+  variant: TopicListBodyVariant
   visibleTopicsRef: RefObject<readonly Topic[]>
 }
 
 function TopicListBody(props: TopicListBodyProps) {
   const { t } = useTranslation()
   const context = useResourceList<Topic>()
-  props.visibleTopicsRef.current = context.view.items
+  const { listRef, rowLayout, variant, visibleTopicsRef, ...rowProps } = props
+  const visibleItems = context.view.items
+  const visibleTopicIds = useMemo(() => visibleItems.map((topic) => topic.id), [visibleItems])
+  const streamStatusByTopicId = useTopicListStreamStatuses(visibleTopicIds)
+
+  useEffect(() => {
+    visibleTopicsRef.current = visibleItems
+  }, [visibleItems, visibleTopicsRef])
 
   if (context.state.status === 'loading') {
     return <ResourceList.LoadingState />
@@ -756,30 +896,49 @@ function TopicListBody(props: TopicListBodyProps) {
     return <ResourceList.EmptyState />
   }
 
-  const renderItem = (topic: Topic) => <TopicRow key={topic.id} topic={topic} {...props} />
+  const renderItem = (topic: Topic) => (
+    <TopicRow
+      key={topic.id}
+      topic={topic}
+      {...rowProps}
+      layout={rowLayout}
+      mode={variant === 'manage' ? 'manage' : 'default'}
+      streamStatus={streamStatusByTopicId.get(topic.id) ?? EMPTY_TOPIC_STREAM_STATE}
+    />
+  )
 
-  if (props.isManageMode) {
-    return <ResourceList.VirtualItems ref={props.listRef} className="pb-[76px]" renderItem={renderItem} />
+  if (variant === 'manage') {
+    return <ResourceList.VirtualItems ref={listRef} className="pb-[76px]" renderItem={renderItem} />
   }
 
-  if (props.canDragTopics) {
-    return <ResourceList.VirtualDraggableItems ref={props.listRef} className="pb-3" renderItem={renderItem} />
+  if (variant === 'draggable') {
+    return <ResourceList.VirtualDraggableItems ref={listRef} className="pb-3" renderItem={renderItem} />
   }
 
-  return <ResourceList.VirtualItems ref={props.listRef} className="pb-3" renderItem={renderItem} />
+  return <ResourceList.VirtualItems ref={listRef} className="pb-3" renderItem={renderItem} />
 }
 
-interface TopicRowProps extends TopicListBodyProps {
+type TopicRowSharedProps = Omit<TopicListBodyProps, 'listRef' | 'rowLayout' | 'variant' | 'visibleTopicsRef'> & {
+  layout: TopicRowLayout
+  mode: TopicRowMode
+}
+
+interface TopicRowWithStatusProps extends TopicRowSharedProps {
   topic: Topic
+}
+
+interface TopicRowProps extends TopicRowWithStatusProps {
+  streamStatus: TopicStreamState
 }
 
 function TopicRow({
   activeTopic,
   deletingTopicId,
   exportMenuOptions,
-  isManageMode,
   isNewlyRenamed,
   isRenaming,
+  layout,
+  mode,
   notesPath,
   onAutoRename,
   onClearMessages,
@@ -790,13 +949,14 @@ function TopicRow({
   onPromptRename,
   onSwitchTopic,
   selectedIds,
-  singlealone,
+  streamStatus,
   toggleSelectTopic,
   topic,
   topicsLength
 }: TopicRowProps) {
   const { t } = useTranslation()
   const context = useResourceList<Topic>()
+  const isManageMode = mode === 'manage'
   const isActive = topic.id === activeTopic?.id
   const isSelected = selectedIds.has(topic.id)
   const canSelect = !topic.pinned
@@ -806,7 +966,7 @@ function TopicRow({
     : isNewlyRenamed(topic.id)
       ? 'animation-reveal'
       : ''
-  const { isFulfilled: isTopicStreamFulfilled, isPending: isTopicStreamPending } = useTopicStreamStatus(topic.id)
+  const { isFulfilled: isTopicStreamFulfilled, isPending: isTopicStreamPending } = streamStatus
   const hasTopicStreamIndicator = !isActive && (isTopicStreamPending || isTopicStreamFulfilled)
 
   const row = (
@@ -817,9 +977,9 @@ function TopicRow({
         'relative',
         isManageMode && isSelected && 'bg-sidebar-accent shadow-[inset_0_0_0_1px_var(--color-sidebar-active-border)]',
         isManageMode && !canSelect && 'cursor-not-allowed opacity-50',
-        !singlealone && !isManageMode && isActive && 'bg-sidebar-accent',
-        singlealone && !isManageMode && isActive && 'bg-sidebar-accent shadow-none',
-        singlealone && !isManageMode && !isActive && 'hover:bg-(--color-background-soft)'
+        layout === 'grouped' && !isManageMode && isActive && 'bg-sidebar-accent',
+        layout === 'single' && !isManageMode && isActive && 'bg-sidebar-accent shadow-none',
+        layout === 'single' && !isManageMode && !isActive && 'hover:bg-(--color-background-soft)'
       )}
       style={{ cursor: isManageMode && !canSelect ? 'not-allowed' : 'pointer' }}
       onMouseEnter={() =>
@@ -878,7 +1038,7 @@ function TopicRow({
         </ResourceList.ItemTitle>
       )}
       {hasTopicStreamIndicator ? (
-        <TopicStreamIndicator isFulfilled={isTopicStreamFulfilled} isPending={isTopicStreamPending} label={topicName} />
+        <TopicStreamIndicator isFulfilled={isTopicStreamFulfilled} isPending={isTopicStreamPending} />
       ) : !topic.pinned ? (
         <Tooltip
           placement="bottom"
@@ -889,6 +1049,7 @@ function TopicRow({
             </span>
           }>
           <ResourceList.ItemAction
+            aria-label={t('common.delete')}
             data-deleting={deletingTopicId === topic.id}
             onClick={(event) => {
               if (event.ctrlKey || event.metaKey || deletingTopicId === topic.id) {
@@ -1101,15 +1262,7 @@ function TopicContextMenuContent({
   )
 }
 
-const TopicStreamIndicator = ({
-  isFulfilled,
-  isPending,
-  label
-}: {
-  isFulfilled: boolean
-  isPending: boolean
-  label: string
-}) => {
+const TopicStreamIndicator = ({ isFulfilled, isPending }: { isFulfilled: boolean; isPending: boolean }) => {
   const dotClassName = cn(
     'animation-pulse size-[5px] rounded-full',
     isPending ? 'bg-(--color-status-warning)' : 'bg-(--color-status-success)'
@@ -1128,12 +1281,12 @@ const TopicStreamIndicator = ({
 
   if (isFulfilled) {
     return (
-      <ResourceList.ItemAction
-        aria-label={label}
-        className="opacity-100 hover:bg-transparent hover:text-muted-foreground/70 group-hover:opacity-100"
+      <span
+        aria-hidden="true"
+        className="flex size-5 shrink-0 items-center justify-center opacity-100 group-hover:opacity-100"
         data-testid="topic-stream-indicator">
         <span className={dotClassName} />
-      </ResourceList.ItemAction>
+      </span>
     )
   }
 

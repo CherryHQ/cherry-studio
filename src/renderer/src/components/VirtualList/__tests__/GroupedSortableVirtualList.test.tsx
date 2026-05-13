@@ -155,6 +155,7 @@ describe('GroupedSortableVirtualList', () => {
         activeId: 'a',
         overId: 'b',
         overType: 'item',
+        position: 'after',
         sourceGroupId: 'first',
         sourceIndex: 0,
         targetGroupId: 'first',
@@ -232,5 +233,20 @@ describe('GroupedSortableVirtualList', () => {
     })
 
     expect(onDragEnd).toHaveBeenCalledWith(expect.objectContaining({ sourceGroupId: 'first', targetGroupId: 'first' }))
+  })
+
+  it('uses the dragged row center to resolve before or after item drops', () => {
+    const onDragEnd = renderList()
+
+    dndMocks.onDragEnd?.({
+      active: {
+        data: dataFor('sortable', 'item:a'),
+        id: 'item:a',
+        rect: { current: { initial: null, translated: { top: 10, height: 20 } } }
+      },
+      over: { data: dataFor('sortable', 'item:b'), id: 'item:b', rect: { top: 80, height: 20 } }
+    })
+
+    expect(onDragEnd).toHaveBeenCalledWith(expect.objectContaining({ position: 'before' }))
   })
 })

@@ -11,20 +11,15 @@ import {
   Input,
   Skeleton
 } from '@cherrystudio/ui'
-import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
-import { DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
-import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
 import {
   GroupedSortableVirtualList,
   type GroupedSortableVirtualListDragPayload,
-  type GroupedSortableVirtualListDragStartPayload,
   GroupedVirtualList,
   type GroupedVirtualListGroup
 } from '@renderer/components/VirtualList'
 import { cn } from '@renderer/utils/style'
 import { CalendarDays, ChevronsDown, ChevronsUp, SearchIcon } from 'lucide-react'
-import type { ComponentProps, CSSProperties, ReactNode, Ref } from 'react'
+import type { ComponentProps, ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 
 import {
@@ -51,6 +46,11 @@ const CONTEXT_MENU_ITEM_CLASS =
   'h-7 gap-2 rounded-md px-2 text-[12px] font-normal leading-4 text-foreground/80 focus:bg-sidebar-accent focus:text-foreground [&_svg]:size-3.5 [&_svg]:shrink-0'
 const CONTEXT_MENU_SUB_TRIGGER_CLASS =
   'h-7 gap-2 rounded-md px-2 text-[12px] font-normal leading-4 text-foreground/80 focus:bg-sidebar-accent focus:text-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-foreground [&_svg]:size-3.5 [&_svg]:shrink-0'
+const EMPTY_SORT_OPTIONS: ResourceListSortOption<ResourceListItemBase>[] = []
+const EMPTY_FILTER_OPTIONS: ResourceListFilterOption<ResourceListItemBase>[] = []
+const getDefaultItemId = (item: ResourceListItemBase) => item.id
+const getDefaultItemLabel = (item: ResourceListItemBase) => item.name
+const estimateDefaultItemSize = () => 34
 
 type ScrollbarStage = 'active' | 'fade-1' | 'fade-2' | 'fade-3' | 'idle'
 
@@ -219,11 +219,11 @@ function ResourceListProvider<T extends ResourceListItemBase>({
   status = 'idle',
   selectedId: selectedIdProp,
   defaultSortId,
-  sortOptions = [],
-  filterOptions = [],
+  sortOptions = EMPTY_SORT_OPTIONS as ResourceListSortOption<T>[],
+  filterOptions = EMPTY_FILTER_OPTIONS as ResourceListFilterOption<T>[],
   groupBy,
-  getItemId = (item) => item.id,
-  getItemLabel = (item) => item.name,
+  getItemId = getDefaultItemId as (item: T) => string,
+  getItemLabel = getDefaultItemLabel as (item: T) => string,
   getGroupHeaderAction,
   getGroupHeaderIcon,
   collapsedGroupIds,
@@ -236,7 +236,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
   groupLoadStep = 5,
   groupShowMoreLabel = DEFAULT_GROUP_SHOW_MORE_LABEL,
   groupCollapseLabel = DEFAULT_GROUP_COLLAPSE_LABEL,
-  estimateItemSize = () => 34,
+  estimateItemSize = estimateDefaultItemSize,
   onSelectItem,
   onRenameItem,
   onOpenContextMenu,
@@ -576,10 +576,6 @@ function HeaderActionButton({ className, ref, size, variant = 'ghost', ...props 
   )
 }
 
-type ListViewportProps = ComponentProps<'div'> & {
-  ref?: Ref<HTMLDivElement>
-}
-
 function useAutoHideScrollbar(delay = SCROLLBAR_AUTO_HIDE_DELAY) {
   const [stage, setStage] = useState<ScrollbarStage>('idle')
   const timeoutRefs = useRef<ReturnType<typeof setTimeout>[]>([])
@@ -612,29 +608,6 @@ function getListViewportClassName(stage: ScrollbarStage, className?: string) {
     '[&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-150 [&::-webkit-scrollbar-thumb]:ease-out',
     SCROLLBAR_THUMB_CLASS_BY_STAGE[stage],
     className
-  )
-}
-
-function ListViewport({ className, onScroll, ref, role, style, ...props }: ListViewportProps) {
-  const { stage, handleScroll } = useAutoHideScrollbar()
-  const isScrolling = stage !== 'idle'
-
-  return (
-    <div
-      ref={ref}
-      data-scrolling={isScrolling ? 'true' : 'false'}
-      role={role}
-      className={getListViewportClassName(stage, className)}
-      onScroll={(event) => {
-        handleScroll()
-        onScroll?.(event)
-      }}
-      style={{
-        ...style,
-        scrollbarColor: SCROLLBAR_COLOR_BY_STAGE[stage]
-      }}
-      {...props}
-    />
   )
 }
 
@@ -765,8 +738,10 @@ function Item<T extends ResourceListItemBase>({
   className,
   ref,
   onClick,
+  onKeyDown,
   onMouseEnter,
   onMouseLeave,
+  tabIndex,
   ...props
 }: ItemProps<T>) {
   const { actions, meta, state } = useResourceList<T>()
@@ -781,9 +756,10 @@ function Item<T extends ResourceListItemBase>({
       aria-selected={selected}
       data-selected={selected || undefined}
       data-hovered={hovered || undefined}
+      tabIndex={tabIndex ?? 0}
       className={cn(
         'group flex min-h-8 w-full cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1.5 text-sm outline-none transition-colors',
-        'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+        'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground focus-visible:ring-1 focus-visible:ring-ring',
         selected && 'bg-sidebar-accent text-sidebar-accent-foreground',
         className
       )}
@@ -791,12 +767,19 @@ function Item<T extends ResourceListItemBase>({
         actions.selectItem(id)
         onClick?.(event)
       }}
+      onKeyDown={(event) => {
+        onKeyDown?.(event)
+        if (event.defaultPrevented || event.target !== event.currentTarget) return
+
+        if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+          event.preventDefault()
+          event.currentTarget.click()
+        }
+      }}
       onMouseEnter={(event) => {
-        actions.hoverItem(id)
         onMouseEnter?.(event)
       }}
       onMouseLeave={(event) => {
-        actions.hoverItem(null)
         onMouseLeave?.(event)
       }}
       {...props}
@@ -902,6 +885,7 @@ function ItemAction({ className, ref, type = 'button', ...props }: ItemActionPro
       className={cn(
         'flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 opacity-0 transition-colors transition-opacity',
         'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+        'focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
         'group-hover:opacity-100 data-[deleting=true]:opacity-100',
         className
       )}
@@ -920,6 +904,7 @@ function ItemLeadingAction({ className, ref, type = 'button', ...props }: ItemLe
       className={cn(
         'flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 opacity-0 transition-colors transition-opacity',
         'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+        'focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
         'group-hover:opacity-100 data-[active=true]:opacity-100',
         className
       )}
@@ -1098,116 +1083,10 @@ function ContextMenuRenameAction<T extends ResourceListItemBase>({ item, label }
   return <ContextMenuItem onSelect={() => actions.startRename(meta.getItemId(item))}>{label}</ContextMenuItem>
 }
 
-type DraggableItemsProps<T extends ResourceListItemBase> = {
+type VirtualDraggableItemsProps<T extends ResourceListItemBase> = {
   className?: string
   renderItem: (item: T, context: ResourceListContextValue<T>) => ReactNode
-}
-
-type VirtualDraggableItemsProps<T extends ResourceListItemBase> = DraggableItemsProps<T> & {
   ref?: Ref<HTMLDivElement>
-}
-
-function findVisibleItemLocation<T extends ResourceListItemBase>(context: ResourceListContextValue<T>, itemId: string) {
-  for (const group of context.view.groups) {
-    const itemIndexInGroup = group.items.findIndex((item) => context.meta.getItemId(item) === itemId)
-    if (itemIndexInGroup >= 0) {
-      return {
-        group: group.group,
-        item: group.items[itemIndexInGroup],
-        itemIndexInGroup
-      }
-    }
-  }
-
-  return null
-}
-
-function useResourceListDnd<T extends ResourceListItemBase>(context: ResourceListContextValue<T>) {
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor)
-  )
-  const itemIds = context.view.visibleItems.map((item) => context.meta.getItemId(item))
-
-  const handleDragStart = useCallback(
-    (event: DragStartEvent) => {
-      context.actions.hoverItem(String(event.active.id))
-    },
-    [context]
-  )
-
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      context.actions.hoverItem(null)
-      const activeId = String(event.active.id)
-      const overId = event.over?.id ? String(event.over.id) : null
-      if (!overId || activeId === overId) return
-      const activeLocation = findVisibleItemLocation(context, activeId)
-      const overLocation = findVisibleItemLocation(context, overId)
-      const isSameGroup = activeLocation?.group.id === overLocation?.group.id
-      if (context.meta.dragCapabilities.items === false) return
-      if (isSameGroup && context.meta.dragCapabilities.itemSameGroup === false) return
-      if (!isSameGroup && context.meta.dragCapabilities.itemCrossGroup === false) return
-      if (
-        activeLocation?.item &&
-        overLocation?.item &&
-        context.meta.canDropItem?.({
-          activeId,
-          activeItem: activeLocation.item,
-          overId,
-          overItem: overLocation.item,
-          overType: 'item',
-          sourceGroup: activeLocation.group,
-          sourceGroupId: activeLocation.group.id,
-          sourceIndex: activeLocation.itemIndexInGroup,
-          targetGroup: overLocation.group,
-          targetGroupId: overLocation.group.id,
-          targetIndex: overLocation.itemIndexInGroup
-        }) === false
-      ) {
-        return
-      }
-      context.actions.reorder({
-        type: 'item',
-        activeId,
-        overId,
-        position: 'after',
-        overType: 'item',
-        sourceGroupId: activeLocation?.group.id ?? 'all',
-        targetGroupId: overLocation?.group.id ?? 'all',
-        sourceIndex: activeLocation?.itemIndexInGroup ?? -1,
-        targetIndex: overLocation?.itemIndexInGroup ?? -1
-      })
-    },
-    [context]
-  )
-
-  return { sensors, itemIds, handleDragStart, handleDragEnd }
-}
-
-function DraggableItems<T extends ResourceListItemBase>({ className, renderItem }: DraggableItemsProps<T>) {
-  const context = useResourceList<T>()
-  const { sensors, itemIds, handleDragStart, handleDragEnd } = useResourceListDnd(context)
-
-  return (
-    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
-        <ListViewport className={cn('flex flex-col gap-1', className)}>
-          {context.view.groups.map((group) => (
-            <div key={group.group.id} className="contents">
-              <GroupHeader group={group.group} />
-              {group.items.map((item) => (
-                <SortableResourceItem key={context.meta.getItemId(item)} item={item}>
-                  {renderItem(item, context)}
-                </SortableResourceItem>
-              ))}
-              {(group.hasMore || group.canCollapseToDefault) && <GroupShowMore groupId={group.group.id} />}
-            </div>
-          ))}
-        </ListViewport>
-      </SortableContext>
-    </DndContext>
-  )
 }
 
 function VirtualDraggableItems<T extends ResourceListItemBase>({
@@ -1228,17 +1107,8 @@ function VirtualDraggableItems<T extends ResourceListItemBase>({
     (virtualItem: ResourceListVirtualItem<T>) => context.meta.estimateItemSize(virtualItem.itemIndex),
     [context.meta]
   )
-  const handleGroupedDragStart = useCallback(
-    (payload: GroupedSortableVirtualListDragStartPayload<ResourceListGroup, ResourceListVirtualItem<T>>) => {
-      if (payload.type === 'item') {
-        context.actions.hoverItem(String(payload.activeId))
-      }
-    },
-    [context.actions]
-  )
   const handleGroupedDragEnd = useCallback(
     (payload: GroupedSortableVirtualListDragPayload<ResourceListGroup, ResourceListVirtualItem<T>>) => {
-      context.actions.hoverItem(null)
       if (payload.type === 'group') {
         context.actions.reorder({
           type: 'group',
@@ -1256,7 +1126,7 @@ function VirtualDraggableItems<T extends ResourceListItemBase>({
         type: 'item',
         activeId: String(payload.activeId),
         overId: String(payload.overId),
-        position: payload.overType === 'item' ? 'after' : 'before',
+        position: payload.position,
         overType: payload.overType,
         sourceGroupId: String(payload.sourceGroupId),
         targetGroupId: String(payload.targetGroupId),
@@ -1363,30 +1233,11 @@ function VirtualDraggableItems<T extends ResourceListItemBase>({
       canDragItem={canDragVirtualItem}
       canDropGroup={canDropGroup}
       canDropItem={canDropVirtualItem}
-      onDragStart={handleGroupedDragStart}
       onDragEnd={handleGroupedDragEnd}
       renderGroupHeader={renderGroupHeader}
       renderItem={renderVirtualItem}
       renderGroupFooter={renderGroupFooter}
     />
-  )
-}
-
-function SortableResourceItem<T extends ResourceListItemBase>({ item, children }: { item: T; children: ReactNode }) {
-  const { meta } = useResourceList<T>()
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: meta.getItemId(item)
-  })
-  const style: CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.6 : undefined
-  }
-
-  return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      {children}
-    </div>
   )
 }
 
@@ -1437,7 +1288,6 @@ const ResourceList = {
   GroupHeader,
   GroupShowMore,
   VirtualItems,
-  DraggableItems,
   VirtualDraggableItems,
   Item,
   ItemAction,
