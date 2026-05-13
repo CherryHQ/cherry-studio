@@ -474,7 +474,11 @@ describe('ResourceList', () => {
       <Provider
         items={ITEMS}
         groupBy={(item) => ({ id: item.kind, label: item.kind })}
-        getGroupHeaderIcon={(group) => <span data-testid={`${group.id}-icon`}>#</span>}>
+        getGroupHeaderIcon={(group, { collapsed }) => (
+          <span data-collapsed={collapsed} data-testid={`${group.id}-icon`}>
+            #
+          </span>
+        )}>
         <ResourceList.Frame>
           <ResourceList.VirtualItems<TestItem>
             renderItem={(item) => (
@@ -489,6 +493,10 @@ describe('ResourceList', () => {
 
     expect(screen.getByTestId('session-icon')).toBeInTheDocument()
     expect(screen.getByTestId('topic-icon')).toBeInTheDocument()
+    expect(screen.getByTestId('session-icon')).toHaveAttribute('data-collapsed', 'false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'session' }))
+    expect(screen.getByTestId('session-icon')).toHaveAttribute('data-collapsed', 'true')
   })
 
   it('auto-hides the shared list viewport scrollbar after scrolling stops', () => {

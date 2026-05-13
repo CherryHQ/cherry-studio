@@ -105,7 +105,7 @@ type ResourceListProviderProps<T extends ResourceListItemBase> = {
   getItemId?: (item: T) => string
   getItemLabel?: (item: T) => string
   getGroupHeaderAction?: (group: ResourceListGroup) => ReactNode
-  getGroupHeaderIcon?: (group: ResourceListGroup) => ReactNode
+  getGroupHeaderIcon?: ResourceListMeta<T>['getGroupHeaderIcon']
   collapsedGroupIds?: readonly string[]
   dragCapabilities?: ResourceListDragCapabilities
   canDragGroup?: (group: ResourceListGroup, groupIndex: number) => boolean
@@ -666,7 +666,7 @@ function GroupHeader({ group, className, ref, ...props }: GroupHeaderProps) {
   const viewGroup = view.groups.find((candidate) => candidate.group.id === group.id)
   const collapsed = viewGroup?.collapsed ?? false
   const groupHeaderAction = meta.getGroupHeaderAction?.(group)
-  const customGroupHeaderIcon = meta.getGroupHeaderIcon?.(group)
+  const customGroupHeaderIcon = meta.getGroupHeaderIcon?.(group, { collapsed })
   const groupHeaderIcon = customGroupHeaderIcon === undefined ? <CalendarDays size={13} /> : customGroupHeaderIcon
 
   if (!group.label) return null
@@ -674,7 +674,7 @@ function GroupHeader({ group, className, ref, ...props }: GroupHeaderProps) {
     <div
       ref={ref}
       className={cn(
-        'flex h-7 items-center gap-1.5 px-1.5 pt-2 pb-1 font-medium text-muted-foreground/70 text-[11px]',
+        'group/resource-list-group flex h-7 items-center gap-1.5 px-1.5 pt-2 pb-1 font-medium text-muted-foreground/70 text-[11px]',
         className
       )}
       {...props}>
@@ -690,7 +690,11 @@ function GroupHeader({ group, className, ref, ...props }: GroupHeaderProps) {
         )}
         <span className="truncate">{group.label}</span>
       </button>
-      {groupHeaderAction && <div className="ml-auto flex shrink-0 items-center">{groupHeaderAction}</div>}
+      {groupHeaderAction && (
+        <div className="pointer-events-none ml-auto flex shrink-0 items-center opacity-0 transition-opacity group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100">
+          {groupHeaderAction}
+        </div>
+      )}
     </div>
   )
 }

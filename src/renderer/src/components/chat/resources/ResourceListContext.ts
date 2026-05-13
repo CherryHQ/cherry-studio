@@ -14,6 +14,10 @@ export type ResourceListGroup = {
   count?: number
 }
 
+export type ResourceListGroupHeaderIconContext = {
+  collapsed: boolean
+}
+
 export type ResourceListSortOption<T extends ResourceListItemBase> = {
   id: string
   label: string
@@ -96,7 +100,7 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   getItemLabel: (item: T) => string
   groups: ResourceListGroup[]
   getGroupHeaderAction?: (group: ResourceListGroup) => ReactNode
-  getGroupHeaderIcon?: (group: ResourceListGroup) => ReactNode
+  getGroupHeaderIcon?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => ReactNode
   sortOptions: ResourceListSortOption<T>[]
   filterOptions: ResourceListFilterOption<T>[]
   estimateItemSize: (index: number) => number

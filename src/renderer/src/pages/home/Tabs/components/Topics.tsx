@@ -55,6 +55,7 @@ import {
   BrushCleaning,
   Check,
   CheckSquare,
+  ChevronDown,
   ChevronsUpDown,
   Clock3,
   Copy,
@@ -501,13 +502,13 @@ export function Topics({ activeTopic, setActiveTopic, position }: Props) {
   )
 
   const getGroupHeaderIcon = useCallback(
-    (group: { id: string }) => {
+    (group: { id: string }, { collapsed }: { collapsed: boolean }) => {
       if (group.id === TOPIC_PINNED_GROUP_ID) {
-        return null
+        return <ChevronDown size={14} className={cn('transition-transform', collapsed && '-rotate-90')} />
       }
 
       if (displayMode !== 'assistant') {
-        return undefined
+        return <ChevronDown size={14} className={cn('transition-transform', collapsed && '-rotate-90')} />
       }
 
       if (group.id === TOPIC_DEFAULT_ASSISTANT_GROUP_ID) {
@@ -633,17 +634,10 @@ export function Topics({ activeTopic, setActiveTopic, position }: Props) {
           icon={<Clock3 size={12} />}
           title={t('chat.topics.title')}
           count={topics.length}
+          className="gap-1 pb-0"
           actions={
             <>
               <TopicDisplayModeMenu mode={displayMode} onChange={(nextMode) => void setTopicDisplayMode(nextMode)} />
-              <Tooltip title={t('chat.add.topic.title')} delay={500}>
-                <ResourceList.HeaderActionButton
-                  type="button"
-                  aria-label={t('chat.add.topic.title')}
-                  onClick={() => void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>
-                  <Plus size={12} className="block" />
-                </ResourceList.HeaderActionButton>
-              </Tooltip>
               <Tooltip title={t('chat.topics.manage.title')} delay={500}>
                 <ResourceList.HeaderActionButton
                   type="button"
@@ -663,6 +657,15 @@ export function Topics({ activeTopic, setActiveTopic, position }: Props) {
             </>
           }>
           <ResourceList.Search placeholder={t('chat.topics.search.placeholder')} />
+          <Button
+            type="button"
+            variant="ghost"
+            aria-label={t('chat.add.topic.title')}
+            className="h-7 w-full justify-start gap-1.5 rounded-md px-2.5 text-[12px] font-normal text-muted-foreground/70 shadow-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground"
+            onClick={() => void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>
+            <Plus size={13} className="block shrink-0" />
+            <span className="truncate">{t('chat.add.topic.title')}</span>
+          </Button>
         </ResourceList.Header>
 
         <TopicListBody
@@ -860,10 +863,10 @@ function TopicListBody(props: TopicListBodyProps) {
   }
 
   if (variant === 'draggable') {
-    return <ResourceList.VirtualDraggableItems ref={listRef} className="pb-3" renderItem={renderItem} />
+    return <ResourceList.VirtualDraggableItems ref={listRef} className="pt-0 pb-3" renderItem={renderItem} />
   }
 
-  return <ResourceList.VirtualItems ref={listRef} className="pb-3" renderItem={renderItem} />
+  return <ResourceList.VirtualItems ref={listRef} className="pt-0 pb-3" renderItem={renderItem} />
 }
 
 type TopicRowSharedProps = Omit<TopicListBodyProps, 'listRef' | 'rowLayout' | 'variant'> & {
@@ -958,7 +961,6 @@ function TopicRow({
         <Tooltip title={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
           <ResourceList.ItemLeadingAction
             aria-label={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
-            data-active={topic.pinned || undefined}
             className={cn(topic.pinned && 'text-muted-foreground/55 hover:text-muted-foreground/75')}
             onClick={(event) => {
               event.stopPropagation()

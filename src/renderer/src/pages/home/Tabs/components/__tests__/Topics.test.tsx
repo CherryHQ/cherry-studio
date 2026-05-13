@@ -499,7 +499,9 @@ describe('Topics', () => {
     expect(screen.getByText('Earlier')).toBeInTheDocument()
     expect(screen.getByText('Beta pinned')).toBeInTheDocument()
     const pinnedRow = getByText('Beta pinned').closest('[data-testid="topic-list-row"]')
-    expect(pinnedRow?.querySelector('[aria-label="Unpin Topic"]') ?? null).toBeInTheDocument()
+    const unpinButton = pinnedRow?.querySelector('[aria-label="Unpin Topic"]')
+    expect(unpinButton ?? null).toBeInTheDocument()
+    expect(unpinButton).not.toHaveAttribute('data-active')
     expect(pinnedRow?.querySelector('[aria-label="Delete"]') ?? null).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Gamma topic'))
@@ -721,11 +723,19 @@ describe('Topics', () => {
       'This week',
       'Earlier'
     ])
+    expect(screen.getByRole('button', { name: 'Pinned' }).querySelector('.lucide-chevron-down')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Pinned' }).querySelector('.lucide-chevron-down')).not.toHaveClass(
+      '-rotate-90'
+    )
+    expect(screen.getByRole('button', { name: 'Today' }).querySelector('.lucide-chevron-down')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
     rerenderTopicList()
 
     expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Pinned' }).querySelector('.lucide-chevron-down')).toHaveClass(
+      '-rotate-90'
+    )
     expect(screen.queryByText('Beta pinned')).not.toBeInTheDocument()
     expect(screen.getByText('Alpha topic')).toBeInTheDocument()
   })
@@ -736,12 +746,18 @@ describe('Topics', () => {
     const { rerenderTopicList } = renderTopicList()
 
     expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Today' }).querySelector('.lucide-chevron-down')).toHaveClass(
+      '-rotate-90'
+    )
     expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
     expect(screen.getByText('Beta pinned')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Today' }))
     expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toEqual([])
     rerenderTopicList()
+    expect(screen.getByRole('button', { name: 'Today' }).querySelector('.lucide-chevron-down')).not.toHaveClass(
+      '-rotate-90'
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
     expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toEqual([
@@ -772,10 +788,15 @@ describe('Topics', () => {
     expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('time')
   })
 
-  it('adds a new topic when clicking the new-topic header action', () => {
+  it('adds a new topic from the search-area create bar', () => {
     renderTopicList()
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'New Topic' })[0])
+    const createButton = screen.getAllByRole('button', { name: 'New Topic' })[0]
+    expect(createButton).toHaveClass('h-7', 'w-full', 'justify-start', 'rounded-md', 'text-[12px]')
+    expect(createButton).not.toHaveClass('border')
+    expect(screen.getByRole('listbox')).toHaveClass('pt-0')
+
+    fireEvent.click(createButton)
 
     expect(EventEmitter.emit).toHaveBeenCalledWith(EVENT_NAMES.ADD_NEW_TOPIC)
   })
@@ -787,6 +808,14 @@ describe('Topics', () => {
     expect(todayHeader).toBeInTheDocument()
 
     const todayCreateButton = within(todayHeader as HTMLElement).getByRole('button', { name: 'New Topic' })
+    const todayCreateActionWrapper = Array.from((todayHeader as HTMLElement).querySelectorAll('div')).find((element) =>
+      element.className.includes('group-hover/resource-list-group:opacity-100')
+    )
+    expect(todayCreateActionWrapper).toHaveClass(
+      'opacity-0',
+      'group-hover/resource-list-group:opacity-100',
+      'focus-within:opacity-100'
+    )
     fireEvent.click(todayCreateButton)
 
     expect(EventEmitter.emit).toHaveBeenCalledWith(EVENT_NAMES.ADD_NEW_TOPIC)
