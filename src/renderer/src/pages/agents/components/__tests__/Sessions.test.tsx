@@ -1,7 +1,17 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryStudioUi>()
+  return actual
+})
+
+beforeAll(() => {
+  HTMLElement.prototype.scrollIntoView = () => {}
+})
 
 const virtualMocks = vi.hoisted(() => ({
   useVirtualizer: vi.fn((options: { count: number; estimateSize: (index: number) => number }) => ({
@@ -155,13 +165,42 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
-  useQuery: vi.fn(() => ({
-    data: [],
+  useQuery: vi.fn((path: string) => {
+    if (path === '/agents') {
+      const agentResult = agentDataMocks.useAgents()
+      return {
+        data: {
+          items: agentResult.agents,
+          page: 1,
+          total: agentResult.agents.length
+        },
+        isLoading: agentResult.isLoading,
+        isRefreshing: false,
+        error: agentResult.error,
+        refetch: vi.fn(),
+        mutate: vi.fn()
+      }
+    }
+
+    return {
+      data: [],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn(),
+      mutate: vi.fn()
+    }
+  })
+}))
+
+vi.mock('@renderer/hooks/usePins', () => ({
+  usePins: vi.fn(() => ({
     isLoading: false,
     isRefreshing: false,
-    error: undefined,
+    isMutating: false,
+    pinnedIds: [],
     refetch: vi.fn(),
-    mutate: vi.fn()
+    togglePin: vi.fn()
   }))
 }))
 
@@ -217,12 +256,23 @@ vi.mock('react-i18next', () => ({
         'chat.topics.pin': 'Pin',
         'chat.topics.unpin': 'Unpin',
         'common.delete': 'Delete',
+        'common.error': 'Error',
         'common.loading': 'Loading...',
         'common.retry': 'Retry',
         'common.saved': 'Saved',
         'common.unnamed': 'Untitled',
         'error.model.not_exists': 'Model does not exist',
-        'selector.common.pinned_title': 'Pinned'
+        'selector.agent.create_new': 'Create agent',
+        'selector.agent.empty_text': 'No agents',
+        'selector.agent.search_placeholder': 'Search agents',
+        'selector.common.edit': 'Edit',
+        'selector.common.pin': 'Pin',
+        'selector.common.pinned_title': 'Pinned',
+        'selector.common.sort.asc': 'Oldest first',
+        'selector.common.sort.desc': 'Newest first',
+        'selector.common.sort_label': 'Sort',
+        'selector.common.unpin': 'Unpin',
+        'shortcut.general.toggle_sidebar': 'Toggle sidebar'
       }
       return labels[key] ?? key
     }
@@ -299,6 +349,7 @@ describe('Sessions', () => {
     preferenceMocks.values.clear()
     preferenceMocks.values.set('agent.session.display_mode', 'time')
     preferenceMocks.values.set('agent.session.collapsed_group_ids', [])
+    preferenceMocks.values.set('topic.tab.show', true)
     cacheMocks.state.activeSessionId = 'session-a'
     setupSessions()
     agentDataMocks.useAgents.mockReturnValue({
@@ -324,17 +375,46 @@ describe('Sessions', () => {
     expect(screen.queryByTestId('dnd-context')).not.toBeInTheDocument()
   })
 
-  it('creates sessions from the header and the time group action', async () => {
+  it('uses agent configuration avatar for agent group headers without changing session rows', () => {
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: '🧠' } }],
+      isLoading: false,
+      error: undefined
+    })
+
+    const { unmount } = render(<Sessions />)
+
+    expect(screen.getByText('Alpha session').closest('[data-testid="agent-session-row"]')).not.toHaveTextContent('🧠')
+
+    unmount()
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    render(<Sessions />)
+
+    expect(screen.getByRole('button', { name: 'Alpha agent' }).closest('div')).toHaveTextContent('🧠')
+  })
+
+  it('creates sessions from the header after selecting an agent', async () => {
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent' },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent' }
+      ],
+      isLoading: false,
+      error: undefined
+    })
+
     render(<Sessions />)
 
     const addButtons = screen.getAllByLabelText('Add session')
     expect(addButtons).toHaveLength(2)
 
     fireEvent.click(addButtons[0])
+    expect(dataApiService.post).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByText('Beta agent'))
 
     await vi.waitFor(() =>
       expect(dataApiService.post).toHaveBeenCalledWith('/sessions', {
-        body: { agentId: 'agent-a', name: 'Untitled' }
+        body: { agentId: 'agent-b', name: 'Untitled' }
       })
     )
     expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith('created-session')
@@ -351,6 +431,14 @@ describe('Sessions', () => {
         body: { agentId: 'agent-a', name: 'Untitled' }
       })
     )
+  })
+
+  it('toggles the agent sidebar from the header action', () => {
+    render(<Sessions />)
+
+    fireEvent.click(screen.getByLabelText('Toggle sidebar'))
+
+    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.tab.show', false)
   })
 
   it('persists display mode selection from the header menu', () => {

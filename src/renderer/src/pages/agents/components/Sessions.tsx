@@ -10,6 +10,8 @@ import {
   SessionResourceList,
   useResourceList
 } from '@renderer/components/chat/resources'
+import EmojiIcon from '@renderer/components/EmojiIcon'
+import { AgentSelector } from '@renderer/components/ResourceSelector'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -19,7 +21,7 @@ import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { AgentEntity } from '@shared/data/types/agent'
-import { Bot, Check, Clock3, Folder, ListFilter, Plus, Sparkles } from 'lucide-react'
+import { Bot, Check, ChevronsUpDown, Clock3, Folder, ListFilter, Plus, Sparkles } from 'lucide-react'
 import { memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -54,6 +56,11 @@ const SESSION_DISPLAY_LABEL_KEYS: Record<AgentSessionDisplayMode, string> = {
   agent: 'agent.session.display.agent',
   time: 'agent.session.display.time',
   workdir: 'agent.session.display.workdir'
+}
+
+function resolveAgentAvatar(agent: AgentEntity | undefined): string | undefined {
+  const avatar = agent?.configuration?.avatar?.trim()
+  return avatar || undefined
 }
 
 function SessionDisplayModeMenu({
@@ -117,6 +124,7 @@ export function resolveCreateSessionAgentId(
 const Sessions = ({ onSelectItem }: SessionsProps) => {
   const { t } = useTranslation()
   const [groupNow] = useState(() => new Date())
+  const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const [collapsedSessionGroupIds, setCollapsedSessionGroupIds] = usePreference('agent.session.collapsed_group_ids')
   const {
@@ -290,6 +298,14 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
     [agentById, creatingSession, reload, setActiveSessionId, t]
   )
 
+  const handleHeaderCreateAgentChange = useCallback(
+    (agentId: string | null) => {
+      if (!agentId) return
+      void createSessionForGroup(agentId)
+    },
+    [createSessionForGroup]
+  )
+
   const canDragSessionItem = useCallback(
     ({ item }: { item: SessionListItem }) => dragReady && !item.pinned,
     [dragReady]
@@ -338,7 +354,11 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
     (group: { id: string }) => {
       if (group.id === SESSION_PINNED_GROUP_ID) return null
       if (displayMode === 'agent') {
-        return group.id === SESSION_UNKNOWN_AGENT_GROUP_ID ? <Sparkles size={13} /> : <Bot size={13} />
+        if (group.id === SESSION_UNKNOWN_AGENT_GROUP_ID) return <Sparkles size={13} />
+
+        const agentId = getAgentIdFromSessionGroupId(group.id)
+        const avatar = resolveAgentAvatar(agentId ? agentById.get(agentId) : undefined)
+        return avatar ? <EmojiIcon emoji={avatar} size={16} fontSize={10} className="mr-0" /> : <Bot size={13} />
       }
       if (displayMode === 'workdir') {
         return group.id === SESSION_NO_WORKDIR_GROUP_ID ? (
@@ -349,7 +369,7 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
       }
       return undefined
     },
-    [displayMode]
+    [agentById, displayMode]
   )
 
   const getGroupHeaderAction = useCallback(
@@ -444,15 +464,25 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
         actions={
           <>
             <SessionDisplayModeMenu mode={displayMode} onChange={(nextMode) => void setSessionDisplayMode(nextMode)} />
-            <Tooltip title={t('agent.session.add.title')} delay={500}>
-              <ResourceList.HeaderActionButton
-                type="button"
-                aria-label={t('agent.session.add.title')}
-                disabled={creatingSession || !fallbackAgentId || !agentById.has(fallbackAgentId)}
-                onClick={() => void createSessionForGroup(fallbackAgentId)}>
-                <Plus size={12} className="block" />
-              </ResourceList.HeaderActionButton>
-            </Tooltip>
+            <AgentSelector
+              value={null}
+              onChange={handleHeaderCreateAgentChange}
+              trigger={
+                <ResourceList.HeaderActionButton
+                  type="button"
+                  aria-label={t('agent.session.add.title')}
+                  title={t('agent.session.add.title')}
+                  disabled={creatingSession || isAgentsLoading || agents.length === 0}>
+                  <Plus size={12} className="block" />
+                </ResourceList.HeaderActionButton>
+              }
+            />
+            <ResourceList.HeaderActionButton
+              type="button"
+              aria-label={t('shortcut.general.toggle_sidebar')}
+              onClick={() => void setShowSidebar(!showSidebar)}>
+              <ChevronsUpDown size={12} className="block rotate-45" />
+            </ResourceList.HeaderActionButton>
           </>
         }>
         <ResourceList.Search placeholder={t('agent.session.search.placeholder')} />
