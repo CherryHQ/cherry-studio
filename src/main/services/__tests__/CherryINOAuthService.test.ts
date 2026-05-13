@@ -378,6 +378,27 @@ describe('CherryINOAuthService', () => {
       accessToken: 'oauth-access',
       refreshToken: null
     })
+    // Pick a non-401 status so the 401 → refresh / clear-session path is not engaged
+    // and the raw HTTP status surfaces in the thrown message verbatim.
+    vi.mocked(net.fetch).mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error'
+    } as Response)
+
+    await expect(
+      cherryINOAuthService.getBalance({} as Electron.IpcMainInvokeEvent, 'https://open.cherryin.ai')
+    ).rejects.toThrow('Failed to get balance: HTTP 500 Internal Server Error from /api/v1/oauth/balance')
+  })
+
+  it('clears the OAuth session and throws OAuthSessionExpired when 401 hits with no refresh token', async () => {
+    providerServiceMocks.getAuthConfig.mockResolvedValue({
+      type: 'oauth',
+      clientId: 'client-id',
+      accessToken: 'oauth-access',
+      refreshToken: null
+    })
+    providerServiceMocks.update.mockResolvedValue(undefined)
     vi.mocked(net.fetch).mockResolvedValue({
       ok: false,
       status: 401,
@@ -386,26 +407,43 @@ describe('CherryINOAuthService', () => {
 
     await expect(
       cherryINOAuthService.getBalance({} as Electron.IpcMainInvokeEvent, 'https://open.cherryin.ai')
-    ).rejects.toThrow('Failed to get balance: HTTP 401 Unauthorized from /api/v1/oauth/balance')
+    ).rejects.toThrow('OAuth session expired: no refresh token available')
+
+    expect(providerServiceMocks.update).toHaveBeenCalledWith('cherryin', { authConfig: { type: 'api-key' } })
   })
 
-  it('logs 401 response details with request context', async () => {
+  it('logs 401 response details when refresh succeeds but the retry is still unauthorized', async () => {
     const errorSpy = vi.spyOn(mockMainLoggerService, 'error').mockImplementation(() => {})
     providerServiceMocks.getAuthConfig.mockResolvedValue({
       type: 'oauth',
       clientId: 'client-id',
       accessToken: 'oauth-access-token',
-      refreshToken: null
+      refreshToken: 'refresh-token'
     })
-    vi.mocked(net.fetch).mockResolvedValue({
-      ok: false,
-      status: 401,
-      statusText: 'Unauthorized',
-      clone: () =>
-        ({
-          text: async () => '{"error":"invalid_token","access_token":"server-token"}'
-        }) as Response
-    } as Response)
+    providerServiceMocks.update.mockResolvedValue(undefined)
+    vi.mocked(net.fetch).mockImplementation(async (url) => {
+      const urlString = String(url)
+      if (urlString.endsWith('/oauth2/token')) {
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => ({
+            access_token: 'fresh-access',
+            refresh_token: 'fresh-refresh'
+          })
+        } as Response
+      }
+      return {
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+        clone: () =>
+          ({
+            text: async () => '{"error":"invalid_token","access_token":"server-token"}'
+          }) as Response
+      } as Response
+    })
 
     await expect(
       cherryINOAuthService.getBalance({} as Electron.IpcMainInvokeEvent, 'https://open.cherryin.ai')
