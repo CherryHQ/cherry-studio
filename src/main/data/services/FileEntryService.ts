@@ -322,12 +322,15 @@ class FileEntryServiceImpl implements FileEntryService {
     // user-selected sort value (same createdAt, same name, etc.) have a
     // deterministic relative order across pages. Without this, limit/offset
     // pagination over ties may surface a row on page 1 and again (or not
-    // at all) on page 2 depending on SQLite's internal row order. Built as
-    // a single `sql` fragment rather than the variadic `orderBy(orderA, orderB)`
-    // shape — the latter was observed at runtime to fall back to insertion
-    // order on the secondary key for `desc`-direction queries.
-    const dir = query.sortOrder === 'desc' ? sql`desc` : sql`asc`
-    const orderClause = sql`${sortColumn} ${dir}, ${fileEntryTable.id} ${dir}`
+    // at all) on page 2 depending on SQLite's internal row order. The
+    // direction word lives inside the `sql` template literal so it reaches
+    // SQLite as part of the static SQL text rather than a value parameter
+    // (the variadic `orderBy(orderA, orderB)` and `${sqlDirFragment}` forms
+    // were both observed at runtime to lose the secondary direction).
+    const orderClause =
+      query.sortOrder === 'desc'
+        ? sql`${sortColumn} desc, ${fileEntryTable.id} desc`
+        : sql`${sortColumn} asc, ${fileEntryTable.id} asc`
 
     const page = query.page ?? 1
     const pageSize = query.limit ?? 50
