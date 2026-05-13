@@ -605,6 +605,10 @@ class BackupManager {
       // B5: Reject backups created by a future version of this app
       const dataFormatVersion = metadata.dataFormatVersion ?? 1
       if (dataFormatVersion > 2) {
+        // TODO(v2 i18n): this error message is user-visible per CLAUDE.md i18n rule.
+        // BackupManager has no i18n integration — all errors in this file are hardcoded
+        // English strings (see also line 602). Defer to a broader main-process i18n
+        // migration rather than patching in isolation.
         throw new Error(
           `This backup was created with a newer version of Cherry Studio (dataFormatVersion=${dataFormatVersion}) ` +
             `and cannot be restored by this version. Please upgrade Cherry Studio to restore this backup.`
