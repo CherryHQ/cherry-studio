@@ -151,6 +151,7 @@ class BackupManager {
    */
   private createDirectBackupMetadata(): {
     version: number
+    dataFormatVersion: number
     timestamp: number
     appName: string
     appVersion: string
@@ -159,6 +160,7 @@ class BackupManager {
   } {
     return {
       version: 6,
+      dataFormatVersion: 2,
       timestamp: Date.now(),
       appName: 'Cherry Studio',
       appVersion: app.getVersion(),
@@ -598,6 +600,15 @@ class BackupManager {
       // Validate appName to ensure backup is from Cherry Studio
       if (metadata.appName !== 'Cherry Studio') {
         throw new Error('This backup file is not from Cherry Studio and cannot be restored')
+      }
+
+      // B5: Reject backups created by a future version of this app
+      const dataFormatVersion = metadata.dataFormatVersion ?? 1
+      if (dataFormatVersion > 2) {
+        throw new Error(
+          `This backup was created with a newer version of Cherry Studio (dataFormatVersion=${dataFormatVersion}) ` +
+            `and cannot be restored by this version. Please upgrade Cherry Studio to restore this backup.`
+        )
       }
 
       // Warn about cross-platform restore
