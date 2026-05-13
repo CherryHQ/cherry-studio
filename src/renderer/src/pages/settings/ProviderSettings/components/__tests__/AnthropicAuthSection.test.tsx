@@ -57,6 +57,7 @@ vi.mock('../../primitives/ProviderSection', () => ({
 describe('AnthropicAuthSection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    updateAuthConfigMock.mockResolvedValue(undefined)
     ;(window as any).toast = {
       error: vi.fn()
     }
