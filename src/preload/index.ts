@@ -297,7 +297,14 @@ const api = {
       ipcRenderer.on('file-change', listener)
       return () => ipcRenderer.off('file-change', listener)
     },
-    showInFolder: (path: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_ShowInFolder, path)
+    showInFolder: (path: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_ShowInFolder, path),
+    // FileManager v2 surface (Phase 2)
+    createInternalEntry: (params: import('@shared/file/types/ipc').CreateInternalEntryIpcParams) =>
+      ipcRenderer.invoke(IpcChannel.File_CreateInternalEntry, params),
+    ensureExternalEntry: (params: import('@shared/file/types/ipc').EnsureExternalEntryIpcParams) =>
+      ipcRenderer.invoke(IpcChannel.File_EnsureExternalEntry, params),
+    getPhysicalPath: (params: { id: import('@shared/data/types/file').FileEntryId }) =>
+      ipcRenderer.invoke(IpcChannel.File_GetPhysicalPath, params)
   },
   fs: {
     read: (pathOrUrl: string, encoding?: BufferEncoding) => ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding),

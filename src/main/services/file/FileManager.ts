@@ -189,7 +189,7 @@ const fileManagerLogger = loggerService.withContext('FileManager')
 export type CreateInternalEntryParams = CreateInternalEntryIpcParams
 export type EnsureExternalEntryParams = EnsureExternalEntryIpcParams
 
-// ─── File IPC input schemas (Phase 1 wired channels only) ───
+// ─── File IPC input schemas ───
 
 /**
  * Maximum number of entry ids a single `File_BatchGetDanglingStates` call may
@@ -203,6 +203,28 @@ export const GetDanglingStateIpcSchema = z.strictObject({ id: FileEntryIdSchema 
 export const BatchGetDanglingStatesIpcSchema = z.strictObject({
   ids: z.array(FileEntryIdSchema).max(FILE_BATCH_DANGLING_MAX_IDS)
 })
+
+// Phase 2 schemas
+const SafeExtNullableSchema = z
+  .string()
+  .nullable()
+  .refine((v) => v == null || (!v.startsWith('.') && !v.includes('/') && !v.includes('\0')), 'invalid ext')
+
+export const CreateInternalEntryIpcSchema = z.discriminatedUnion('source', [
+  z.strictObject({ source: z.literal('path'), path: z.string().min(1) }),
+  z.strictObject({ source: z.literal('url'), url: z.string().min(1) }),
+  z.strictObject({ source: z.literal('base64'), data: z.string().min(1), name: z.string().optional() }),
+  z.strictObject({
+    source: z.literal('bytes'),
+    data: z.instanceof(Uint8Array),
+    name: z.string().min(1),
+    ext: SafeExtNullableSchema
+  })
+])
+
+export const EnsureExternalEntryIpcSchema = z.strictObject({ externalPath: z.string().min(1) })
+
+export const GetPhysicalPathIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 
 // ─── Version types ───
 
@@ -638,6 +660,16 @@ export class FileManager extends BaseService implements IFileManager {
     )
     this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, (_e, params: unknown) =>
       this.batchGetDanglingStates(BatchGetDanglingStatesIpcSchema.parse(params))
+    )
+    // Phase 2 channels
+    this.ipcHandle(IpcChannel.File_CreateInternalEntry, (_e, params: unknown) =>
+      this.createInternalEntry(CreateInternalEntryIpcSchema.parse(params))
+    )
+    this.ipcHandle(IpcChannel.File_EnsureExternalEntry, (_e, params: unknown) =>
+      this.ensureExternalEntry(EnsureExternalEntryIpcSchema.parse(params))
+    )
+    this.ipcHandle(IpcChannel.File_GetPhysicalPath, (_e, params: unknown) =>
+      this.getPhysicalPath(GetPhysicalPathIpcSchema.parse(params).id)
     )
   }
 

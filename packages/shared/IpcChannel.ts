@@ -257,6 +257,10 @@ export enum IpcChannel {
   // FileManager v2 surface (Phase 1b.3)
   File_GetDanglingState = 'file:getDanglingState',
   File_BatchGetDanglingStates = 'file:batchGetDanglingStates',
+  // FileManager v2 surface (Phase 2)
+  File_CreateInternalEntry = 'file:createInternalEntry',
+  File_EnsureExternalEntry = 'file:ensureExternalEntry',
+  File_GetPhysicalPath = 'file:getPhysicalPath',
 
   // PDF
   Pdf_ExtractText = 'pdf:extractText',
