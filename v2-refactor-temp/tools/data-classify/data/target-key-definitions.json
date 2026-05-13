@@ -160,6 +160,20 @@
       "description": "Collapsed topic sidebar group ids"
     },
     {
+      "targetKey": "agent.session.display_mode",
+      "type": "PreferenceTypes.AgentSessionDisplayMode",
+      "defaultValue": "time",
+      "status": "classified",
+      "description": "Agent session sidebar display grouping mode"
+    },
+    {
+      "targetKey": "agent.session.collapsed_group_ids",
+      "type": "string[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Collapsed agent session sidebar group ids"
+    },
+    {
       "targetKey": "feature.quick_assistant.model_id",
       "type": "string",
       "defaultValue": null,

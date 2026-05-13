@@ -1,0 +1,414 @@
+import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import { fireEvent, render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const virtualMocks = vi.hoisted(() => ({
+  useVirtualizer: vi.fn((options: { count: number; estimateSize: (index: number) => number }) => ({
+    getVirtualItems: () =>
+      Array.from({ length: options.count }, (_, index) => ({
+        index,
+        key: `row-${index}`,
+        start: index * options.estimateSize(index),
+        size: options.estimateSize(index)
+      })),
+    getTotalSize: () => options.count * 40,
+    measureElement: vi.fn(),
+    scrollElement: null
+  }))
+}))
+
+const dndMocks = vi.hoisted(() => ({
+  droppableData: new Map<string, unknown>(),
+  onDragEnd: undefined as undefined | ((event: any) => void),
+  sortableData: new Map<string, unknown>()
+}))
+
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: virtualMocks.useVirtualizer,
+  defaultRangeExtractor: vi.fn((range) =>
+    Array.from({ length: range.endIndex - range.startIndex + 1 }, (_, i) => range.startIndex + i)
+  )
+}))
+
+vi.mock('@dnd-kit/core', () => {
+  const React = require('react')
+  return {
+    DndContext: ({ children, onDragEnd }: { children: ReactNode; onDragEnd?: any }) => {
+      dndMocks.onDragEnd = onDragEnd
+      return React.createElement('div', { 'data-testid': 'dnd-context' }, children)
+    },
+    KeyboardSensor: vi.fn(),
+    PointerSensor: vi.fn(),
+    useDroppable: ({ data, id }: { data: unknown; id: string }) => {
+      dndMocks.droppableData.set(id, data)
+      return { isOver: false, setNodeRef: vi.fn() }
+    },
+    useSensor: vi.fn((sensor, options) => ({ sensor, options })),
+    useSensors: vi.fn((...sensors) => sensors)
+  }
+})
+
+vi.mock('@dnd-kit/sortable', () => {
+  const React = require('react')
+  return {
+    SortableContext: ({ children }: { children: ReactNode }) =>
+      React.createElement('div', { 'data-testid': 'sortable-context' }, children),
+    useSortable: ({ data, id }: { data?: unknown; id: string }) => {
+      if (data) {
+        dndMocks.sortableData.set(id, data)
+      }
+
+      return {
+        attributes: { 'data-sortable-id': id },
+        listeners: {},
+        setNodeRef: vi.fn(),
+        transform: null,
+        transition: undefined,
+        isDragging: false
+      }
+    },
+    verticalListSortingStrategy: {}
+  }
+})
+
+vi.mock('@dnd-kit/utilities', () => ({
+  CSS: {
+    Transform: {
+      toString: () => undefined
+    }
+  }
+}))
+
+const sessionDataMocks = vi.hoisted(() => ({
+  deleteSession: vi.fn().mockResolvedValue(true),
+  reload: vi.fn().mockResolvedValue(undefined),
+  togglePin: vi.fn().mockResolvedValue(undefined),
+  useSessions: vi.fn()
+}))
+
+const agentDataMocks = vi.hoisted(() => ({
+  useAgents: vi.fn()
+}))
+
+const preferenceMocks = vi.hoisted(() => ({
+  values: new Map<string, unknown>(),
+  setPreference: vi.fn()
+}))
+
+const cacheMocks = vi.hoisted(() => ({
+  state: { activeSessionId: 'session-a' as string | null },
+  setActiveSessionId: vi.fn()
+}))
+
+vi.mock('@renderer/hooks/agents/useSessionDataApi', () => ({
+  useSessions: sessionDataMocks.useSessions
+}))
+
+vi.mock('@renderer/hooks/agents/useAgentDataApi', () => ({
+  useAgents: agentDataMocks.useAgents
+}))
+
+vi.mock('@renderer/data/hooks/usePreference', () => ({
+  usePreference: (key: string) => [
+    preferenceMocks.values.get(key),
+    (value: unknown) => {
+      preferenceMocks.values.set(key, value)
+      preferenceMocks.setPreference(key, value)
+    }
+  ]
+}))
+
+vi.mock('@renderer/data/hooks/useCache', () => ({
+  useCache: (key: string) => {
+    if (key === 'agent.active_session_id') {
+      return [
+        cacheMocks.state.activeSessionId,
+        (id: string | null) => {
+          cacheMocks.state.activeSessionId = id
+          cacheMocks.setActiveSessionId(id)
+        }
+      ]
+    }
+    return [undefined, vi.fn()]
+  }
+}))
+
+vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useQuery: vi.fn(() => ({
+    data: [],
+    isLoading: false,
+    isRefreshing: false,
+    error: undefined,
+    refetch: vi.fn(),
+    mutate: vi.fn()
+  }))
+}))
+
+vi.mock('@data/DataApiService', () => ({
+  dataApiService: {
+    patch: vi.fn().mockResolvedValue(undefined),
+    post: vi.fn().mockResolvedValue({ id: 'created-session' })
+  }
+}))
+
+vi.mock('@data/CacheService', () => ({
+  cacheService: {
+    get: vi.fn(),
+    getShared: vi.fn(),
+    set: vi.fn(),
+    subscribe: vi.fn(() => vi.fn())
+  }
+}))
+
+vi.mock('@renderer/utils/agentSession', () => ({
+  buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`,
+  getChannelTypeIcon: vi.fn(() => undefined)
+}))
+
+vi.mock('react-i18next', () => ({
+  initReactI18next: {
+    init: vi.fn(),
+    type: '3rdParty'
+  },
+  useTranslation: () => ({
+    t: (key: string) => {
+      const labels: Record<string, string> = {
+        'agent.session.add.title': 'Add session',
+        'agent.session.display.agent': 'Agent',
+        'agent.session.display.time': 'Time',
+        'agent.session.display.title': 'Display mode',
+        'agent.session.display.workdir': 'Workspace',
+        'agent.session.edit.title': 'Edit session',
+        'agent.session.get.error.failed': 'Failed to get sessions',
+        'agent.session.group.collapse': 'Collapse sessions',
+        'agent.session.group.earlier': 'Earlier',
+        'agent.session.group.no_workdir': 'No workspace',
+        'agent.session.group.show_more': 'Show more sessions',
+        'agent.session.group.this_week': 'This week',
+        'agent.session.group.today': 'Today',
+        'agent.session.group.unknown_agent': 'Unknown agent',
+        'agent.session.group.yesterday': 'Yesterday',
+        'agent.session.list.title': 'Sessions',
+        'agent.session.reorder.error.failed': 'Failed to reorder sessions',
+        'agent.session.search.placeholder': 'Search sessions',
+        'agent.session.update.error.failed': 'Failed to update session',
+        'chat.topics.delete.shortcut': 'Hold Ctrl to delete directly',
+        'chat.topics.pin': 'Pin',
+        'chat.topics.unpin': 'Unpin',
+        'common.delete': 'Delete',
+        'common.loading': 'Loading...',
+        'common.retry': 'Retry',
+        'common.saved': 'Saved',
+        'common.unnamed': 'Untitled',
+        'error.model.not_exists': 'Model does not exist',
+        'selector.common.pinned_title': 'Pinned'
+      }
+      return labels[key] ?? key
+    }
+  })
+}))
+
+import { dataApiService } from '@data/DataApiService'
+
+import Sessions from '../Sessions'
+
+function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessionEntity {
+  return {
+    id: 'session-a',
+    agentId: 'agent-a',
+    name: 'Alpha session',
+    description: '',
+    accessiblePaths: ['/Users/jd/project-a'],
+    orderKey: 'a',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-05-13T00:00:00.000Z',
+    ...overrides
+  }
+}
+
+function sortableData(id: string) {
+  const data = dndMocks.sortableData.get(id)
+  if (!data) {
+    throw new Error(`Expected sortable data for ${id}`)
+  }
+  return { current: data }
+}
+
+function setupSessions(overrides: Record<string, unknown> = {}) {
+  sessionDataMocks.useSessions.mockReturnValue({
+    sessions: [
+      createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' }),
+      createSession({ id: 'session-b', name: 'Beta session', orderKey: 'b' })
+    ],
+    pinIdBySessionId: new Map(),
+    isLoading: false,
+    error: undefined,
+    deleteSession: sessionDataMocks.deleteSession,
+    hasMore: false,
+    isLoadingMore: false,
+    isValidating: false,
+    reload: sessionDataMocks.reload,
+    togglePin: sessionDataMocks.togglePin,
+    ...overrides
+  })
+}
+
+describe('Sessions', () => {
+  beforeEach(() => {
+    preferenceMocks.values.clear()
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
+    preferenceMocks.values.set('agent.session.collapsed_group_ids', [])
+    cacheMocks.state.activeSessionId = 'session-a'
+    setupSessions()
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
+      isLoading: false,
+      error: undefined
+    })
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    dndMocks.droppableData.clear()
+    dndMocks.sortableData.clear()
+  })
+
+  it('loads all sessions and renders time groups without drag', () => {
+    render(<Sessions />)
+
+    expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(undefined, { loadAll: true, pageSize: 50 })
+    expect(screen.getByText('Sessions')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Search sessions')).toBeInTheDocument()
+    expect(screen.getByText('Alpha session')).toHaveClass('text-[12px]', 'font-medium', 'text-sidebar-foreground/70')
+    expect(screen.queryByTestId('dnd-context')).not.toBeInTheDocument()
+  })
+
+  it('creates sessions from the header and the time group action', async () => {
+    render(<Sessions />)
+
+    const addButtons = screen.getAllByLabelText('Add session')
+    expect(addButtons).toHaveLength(2)
+
+    fireEvent.click(addButtons[0])
+
+    await vi.waitFor(() =>
+      expect(dataApiService.post).toHaveBeenCalledWith('/sessions', {
+        body: { agentId: 'agent-a', name: 'Untitled' }
+      })
+    )
+    expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith('created-session')
+  })
+
+  it('creates sessions from the time group action', async () => {
+    render(<Sessions />)
+
+    const addButtons = screen.getAllByLabelText('Add session')
+    fireEvent.click(addButtons[1])
+
+    await vi.waitFor(() =>
+      expect(dataApiService.post).toHaveBeenCalledWith('/sessions', {
+        body: { agentId: 'agent-a', name: 'Untitled' }
+      })
+    )
+  })
+
+  it('persists display mode selection from the header menu', () => {
+    render(<Sessions />)
+
+    fireEvent.click(screen.getByLabelText('Display mode'))
+    fireEvent.click(screen.getByRole('button', { name: 'Agent' }))
+
+    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'agent')
+  })
+
+  it('blocks cross-agent drops and persists same-group ordering', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-a', orderKey: 'b' }),
+        createSession({ id: 'session-c', name: 'Gamma session', agentId: 'agent-b', orderKey: 'c' })
+      ]
+    })
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent' },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent' }
+      ],
+      isLoading: false,
+      error: undefined
+    })
+
+    render(<Sessions />)
+
+    expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
+    dndMocks.onDragEnd?.({
+      active: {
+        data: sortableData('item:session-a'),
+        id: 'item:session-a',
+        rect: { current: { initial: null, translated: { top: 10, height: 20 } } }
+      },
+      over: { data: sortableData('item:session-c'), id: 'item:session-c', rect: { top: 80, height: 20 } }
+    })
+
+    expect(dataApiService.patch).not.toHaveBeenCalled()
+
+    dndMocks.onDragEnd?.({
+      active: {
+        data: sortableData('item:session-a'),
+        id: 'item:session-a',
+        rect: { current: { initial: null, translated: { top: 10, height: 20 } } }
+      },
+      over: { data: sortableData('item:session-b'), id: 'item:session-b', rect: { top: 80, height: 20 } }
+    })
+
+    await vi.waitFor(() =>
+      expect(dataApiService.patch).toHaveBeenCalledWith('/sessions/session-a/order', { body: { after: 'session-b' } })
+    )
+  })
+
+  it('creates sessions from agent and workspace group actions', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
+      ]
+    })
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent' },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent' }
+      ],
+      isLoading: false,
+      error: undefined
+    })
+
+    const { unmount } = render(<Sessions />)
+
+    const betaGroup = screen.getByRole('button', { name: 'Beta agent' }).closest('div')
+    expect(betaGroup).not.toBeNull()
+    fireEvent.click(betaGroup!.querySelector('[aria-label="Add session"]')!)
+
+    await vi.waitFor(() =>
+      expect(dataApiService.post).toHaveBeenCalledWith('/sessions', {
+        body: { agentId: 'agent-b', name: 'Untitled' }
+      })
+    )
+
+    unmount()
+    preferenceMocks.values.set('agent.session.display_mode', 'workdir')
+    render(<Sessions />)
+
+    const workdirGroup = screen.getByRole('button', { name: 'project-a' }).closest('div')
+    expect(workdirGroup).not.toBeNull()
+    fireEvent.click(workdirGroup!.querySelector('[aria-label="Add session"]')!)
+
+    await vi.waitFor(() =>
+      expect(dataApiService.post).toHaveBeenCalledWith('/sessions', {
+        body: { agentId: 'agent-a', name: 'Untitled', accessiblePaths: ['/Users/jd/project-a'] }
+      })
+    )
+  })
+})

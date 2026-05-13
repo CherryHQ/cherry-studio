@@ -102,6 +102,38 @@ describe('useSessions', () => {
     expect(loadNext).toHaveBeenCalledTimes(1)
   })
 
+  it('auto-loads the next page when loadAll is enabled', async () => {
+    const loadNext = vi.fn()
+    mockUseInfiniteQuery.mockReturnValue(
+      buildInfiniteReturn({
+        pages: [{ items: [{ id: 's-1', name: 'Session 1' }], nextCursor: 'c1' }],
+        hasNext: true,
+        loadNext
+      }) as never
+    )
+
+    renderHook(() => useSessions('agent-1', { loadAll: true }))
+    await act(async () => {})
+
+    expect(loadNext).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not auto-load more pages by default', async () => {
+    const loadNext = vi.fn()
+    mockUseInfiniteQuery.mockReturnValue(
+      buildInfiniteReturn({
+        pages: [{ items: [{ id: 's-1', name: 'Session 1' }], nextCursor: 'c1' }],
+        hasNext: true,
+        loadNext
+      }) as never
+    )
+
+    renderHook(() => useSessions('agent-1'))
+    await act(async () => {})
+
+    expect(loadNext).not.toHaveBeenCalled()
+  })
+
   it('loadMore is a no-op when hasMore is false', async () => {
     const loadNext = vi.fn()
     mockUseInfiniteQuery.mockReturnValue(

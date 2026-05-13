@@ -20,10 +20,14 @@ import type { UpdateAgentBaseOptions, UpdateAgentSessionFunction } from '@render
 import { getErrorMessage } from '@renderer/utils/error'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const DEFAULT_SESSION_PAGE_SIZE = 20
+type UseSessionsOptions = {
+  pageSize?: number
+  loadAll?: boolean
+}
 
 /**
  * Fetch a single session by id. Config (model / instructions / ...) lives on
@@ -62,11 +66,18 @@ export const useActiveSession = () => {
 /**
  * Cursor-paginated session list. With `agentId` undefined / null the result
  * spans every agent (the global session view); pass an id to scope the
- * listing. Reorder uses the same cache key so applying a new order syncs the
- * infinite-query view.
+ * listing. Consumers that genuinely need every session can pass
+ * `{ loadAll: true }` to auto-page to completion; grouped sidebars use this
+ * so drag order is based on the complete list. Reorder uses the same cache key
+ * so applying a new order syncs the infinite-query view.
  */
-export const useSessions = (agentId?: string | null, pageSize = DEFAULT_SESSION_PAGE_SIZE) => {
+export const useSessions = (
+  agentId?: string | null,
+  options: number | UseSessionsOptions = DEFAULT_SESSION_PAGE_SIZE
+) => {
   const { t } = useTranslation()
+  const pageSize = typeof options === 'number' ? options : (options.pageSize ?? DEFAULT_SESSION_PAGE_SIZE)
+  const loadAll = typeof options === 'number' ? false : (options.loadAll ?? false)
 
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/sessions', {
     query: agentId ? { agentId } : undefined,
@@ -87,6 +98,12 @@ export const useSessions = (agentId?: string | null, pageSize = DEFAULT_SESSION_
   const total = sessions.length
   const hasMore = hasNext
   const isLoadingMore = isRefreshing && pages.length > 1
+
+  useEffect(() => {
+    if (loadAll && hasMore && !isLoading && !isRefreshing) {
+      loadNext()
+    }
+  }, [loadAll, hasMore, isLoading, isRefreshing, loadNext])
 
   const reload = useCallback(() => refresh(), [refresh])
 

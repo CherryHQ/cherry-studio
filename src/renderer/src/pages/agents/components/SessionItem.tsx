@@ -1,115 +1,56 @@
-import { Tooltip } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
-import { ActionMenu, ContextMenu, ContextMenuTrigger } from '@renderer/components/chat'
-import { DeleteIcon } from '@renderer/components/Icons'
-import MarqueeText from '@renderer/components/MarqueeText'
+import { ContextMenuSub, Tooltip } from '@cherrystudio/ui'
+import { ResourceList, useResourceList } from '@renderer/components/chat/resources'
 import { isMac } from '@renderer/config/constant'
-import { useCache } from '@renderer/data/hooks/useCache'
-import { useUpdateSession } from '@renderer/hooks/agents/useSessionDataApi'
-import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
-import { useTimer } from '@renderer/hooks/useTimer'
-import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { SessionLabel } from '@renderer/pages/agents/AgentSettings/shared'
-import { classNames } from '@renderer/utils'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
-import { XIcon } from 'lucide-react'
-import React, { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
+import { MenuIcon, PinIcon, Trash2, XIcon } from 'lucide-react'
+import type { MouseEvent, ReactNode } from 'react'
+import { memo, startTransition, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { executeSessionMenuAction, resolveSessionMenuActions, type SessionActionContext } from './sessionItemActions'
 
-// const logger = loggerService.withContext('AgentItem')
-
-interface SessionItemProps {
-  session: AgentSessionEntity
-  channelType?: string
-  pinned?: boolean
-  onTogglePin?: () => void
-  onDelete: () => void
-  onPress: () => void
+export type SessionStreamState = {
+  isFulfilled: boolean
+  isPending: boolean
 }
 
-const SessionItem = ({ session, channelType, pinned, onTogglePin, onDelete, onPress }: SessionItemProps) => {
+interface SessionItemProps {
+  channelType?: string
+  isNewlyRenamed?: boolean
+  isRenaming?: boolean
+  onDelete: () => void
+  onPress: () => void
+  onTogglePin?: () => void
+  pinned?: boolean
+  session: AgentSessionEntity
+  streamStatus?: SessionStreamState
+}
+
+const DELETE_CONFIRMATION_TIMEOUT = 3000
+
+const SessionItem = ({
+  channelType,
+  isNewlyRenamed = false,
+  isRenaming = false,
+  onDelete,
+  onPress,
+  onTogglePin,
+  pinned = false,
+  session,
+  streamStatus
+}: SessionItemProps) => {
   const { t } = useTranslation()
-  const [activeSessionId] = useCache('agent.active_session_id')
-  const { updateSession } = useUpdateSession(session.agentId)
+  const context = useResourceList<AgentSessionEntity>()
   const [isConfirmingDeletion, setIsConfirmingDeletion] = useState(false)
-  const { setTimeoutTimer } = useTimer()
-
-  const { isEditing, isSaving, startEdit, inputProps } = useInPlaceEdit({
-    onSave: async (value) => {
-      if (value !== session.name) {
-        await updateSession({ id: session.id, name: value })
-      }
-    }
-  })
-
-  const DeleteButton = () => {
-    return (
-      <Tooltip
-        placement="bottom"
-        delay={700}
-        content={
-          <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
-            {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
-          </div>
-        }>
-        <MenuButton
-          className="menu"
-          onClick={(e: React.MouseEvent) => {
-            e.stopPropagation()
-            if (isConfirmingDeletion || e.ctrlKey || e.metaKey) {
-              onDelete()
-            } else {
-              startTransition(() => {
-                setIsConfirmingDeletion(true)
-                setTimeoutTimer(
-                  'confirmDeletion',
-                  () => {
-                    setIsConfirmingDeletion(false)
-                  },
-                  3000
-                )
-              })
-            }
-          }}>
-          {isConfirmingDeletion ? (
-            <DeleteIcon size={14} color="var(--color-error)" style={{ pointerEvents: 'none' }} />
-          ) : (
-            <XIcon size={14} color="var(--color-text-3)" style={{ pointerEvents: 'none' }} />
-          )}
-        </MenuButton>
-      </Tooltip>
-    )
-  }
-
-  const isActive = activeSessionId === session.id
-  const sessionTopicId = buildAgentSessionTopicId(session.id)
-  // `pending` (request sent, waiting for provider) and `streaming` (chunks
-  // flowing) both mean "busy" from the sidebar's perspective. If a future
-  // design wants to distinguish them (spinner vs pulse), split here.
-  const { isPending, isFulfilled, markSeen } = useTopicStreamStatus(sessionTopicId)
-  const [renamingTopics] = useCache('topic.renaming')
-  const [newlyRenamedTopics] = useCache('topic.newly_renamed')
-  const isRenaming = renamingTopics.includes(sessionTopicId)
-  const isNewlyRenamed = newlyRenamedTopics.includes(sessionTopicId)
-
-  useEffect(() => {
-    // Mark the fulfilled badge as consumed when the user opens the
-    // session — the shared stream status stays `done` globally, but each
-    // window tracks its own "already seen" flag.
-    if (isFulfilled && activeSessionId === session.id) {
-      markSeen()
-    }
-  }, [activeSessionId, isFulfilled, markSeen, session.id])
-
   const channelIcon = getChannelTypeIcon(channelType)
+  const isActive = context.state.selectedId === session.id
+  const sessionName = session.name ?? session.id
+  const nameAnimationClassName = isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''
+  const hasStreamIndicator = !isActive && (streamStatus?.isPending === true || streamStatus?.isFulfilled === true)
 
-  const [topicPosition, setTopicPosition] = usePreference('topic.position')
-  const singlealone = topicPosition === 'right'
+  const startEdit = useCallback(() => context.actions.startRename(session.id), [context.actions, session.id])
 
   const actionContext = useMemo<SessionActionContext>(
     () => ({
@@ -117,11 +58,10 @@ const SessionItem = ({ session, channelType, pinned, onTogglePin, onDelete, onPr
       onTogglePin,
       pinned,
       sessionName: session.name ?? '',
-      setTopicPosition,
       startEdit,
       t
     }),
-    [onDelete, onTogglePin, pinned, session.name, setTopicPosition, startEdit, t]
+    [onDelete, onTogglePin, pinned, session.name, startEdit, t]
   )
 
   const menuActions = useMemo(() => resolveSessionMenuActions(actionContext), [actionContext])
@@ -133,167 +73,168 @@ const SessionItem = ({ session, channelType, pinned, onTogglePin, onDelete, onPr
     [actionContext]
   )
 
-  return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
-        <SessionListItem
-          className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
-          onClick={isEditing ? undefined : onPress}
-          onDoubleClick={() => startEdit(session.name ?? '')}
-          title={session.name ?? session.id}
-          style={{
-            borderRadius: 'var(--list-item-border-radius)',
-            cursor: isEditing ? 'default' : 'pointer'
+  const handleDeleteClick = useCallback(
+    (event: MouseEvent) => {
+      event.stopPropagation()
+
+      if (isConfirmingDeletion || event.ctrlKey || event.metaKey) {
+        onDelete()
+        return
+      }
+
+      startTransition(() => {
+        setIsConfirmingDeletion(true)
+        window.setTimeout(() => setIsConfirmingDeletion(false), DELETE_CONFIRMATION_TIMEOUT)
+      })
+    },
+    [isConfirmingDeletion, onDelete]
+  )
+
+  const row = (
+    <ResourceList.Item
+      item={session}
+      data-testid="agent-session-row"
+      className={cn('relative', isActive && 'bg-sidebar-accent')}
+      style={{ cursor: 'pointer' }}
+      onClick={onPress}
+      title={sessionName}>
+      <Tooltip title={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
+        <ResourceList.ItemLeadingAction
+          aria-label={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
+          data-active={pinned || undefined}
+          className={cn(pinned && 'text-muted-foreground/55 hover:text-muted-foreground/75')}
+          onClick={(event) => {
+            event.stopPropagation()
+            onTogglePin?.()
           }}>
-          {isPending && !isActive && <PendingIndicator />}
-          {isFulfilled && !isActive && <FulfilledIndicator />}
-          <SessionNameContainer>
-            {isEditing ? (
-              <SessionEditInput {...inputProps} style={{ opacity: isSaving ? 0.5 : 1 }} />
-            ) : (
-              <>
-                <SessionName>
-                  {channelIcon && <ChannelIconImg src={channelIcon} />}
-                  <MarqueeText className="flex min-w-0 flex-1">
-                    <SessionLabel
-                      session={session}
-                      className={isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''}
-                    />
-                  </MarqueeText>
-                </SessionName>
-                <DeleteButton />
-              </>
-            )}
-          </SessionNameContainer>
-        </SessionListItem>
-      </ContextMenuTrigger>
-      <ActionMenu actions={menuActions} onAction={handleMenuAction} />
-    </ContextMenu>
+          {pinned ? <PinIcon size={13} className="-rotate-45" /> : <PinIcon size={13} />}
+        </ResourceList.ItemLeadingAction>
+      </Tooltip>
+
+      <ResourceList.RenameField
+        item={session}
+        aria-label={t('agent.session.edit.title')}
+        onClick={(event) => event.stopPropagation()}
+      />
+
+      {context.state.renamingId !== session.id && (
+        <>
+          {channelIcon && (
+            <ResourceList.ItemIcon className="size-4 rounded-sm">
+              <img src={channelIcon} alt="" className="size-3.5 rounded-[2px] object-contain" />
+            </ResourceList.ItemIcon>
+          )}
+          <ResourceList.ItemTitle
+            title={sessionName}
+            className={nameAnimationClassName}
+            onDoubleClick={(event) => {
+              event.stopPropagation()
+              startEdit()
+            }}>
+            {sessionName}
+          </ResourceList.ItemTitle>
+        </>
+      )}
+
+      {hasStreamIndicator ? (
+        <SessionStreamIndicator
+          isFulfilled={streamStatus?.isFulfilled === true}
+          isPending={streamStatus?.isPending === true}
+        />
+      ) : (
+        <Tooltip
+          placement="bottom"
+          delay={700}
+          title={
+            <span className="text-xs italic opacity-80">
+              {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
+            </span>
+          }>
+          <ResourceList.ItemAction
+            aria-label={t('common.delete')}
+            data-deleting={isConfirmingDeletion}
+            onClick={handleDeleteClick}>
+            {isConfirmingDeletion ? <Trash2 size={14} className="text-destructive" /> : <XIcon size={14} />}
+          </ResourceList.ItemAction>
+        </Tooltip>
+      )}
+    </ResourceList.Item>
+  )
+
+  return (
+    <ResourceList.ContextMenu
+      item={session}
+      content={<SessionContextMenu actions={menuActions} onAction={handleMenuAction} />}>
+      {row}
+    </ResourceList.ContextMenu>
   )
 }
 
-const SessionListItem = styled.div`
-  padding: 7px 12px;
-  border-radius: var(--list-item-border-radius);
-  font-size: 13px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  cursor: pointer;
-  width: calc(var(--assistants-width) - 20px);
+function SessionContextMenu({
+  actions,
+  onAction
+}: {
+  actions: ReturnType<typeof resolveSessionMenuActions>
+  onAction: (action: ReturnType<typeof resolveSessionMenuActions>[number]) => Promise<void>
+}) {
+  const actionItems: ReactNode[] = []
 
-  .menu {
-    opacity: 0;
-    color: var(--color-text-3);
-  }
-
-  &:hover {
-    background-color: var(--color-list-item-hover);
-    transition: background-color 0.1s;
-
-    .menu {
-      opacity: 1;
+  actions.forEach((action) => {
+    if (action.children.length > 0) {
+      actionItems.push(
+        <ContextMenuSub key={action.id}>
+          <ResourceList.ContextMenuSubAction icon={action.icon ?? <MenuIcon />}>
+            {action.label}
+          </ResourceList.ContextMenuSubAction>
+          <ResourceList.ContextMenuSubContent>
+            {action.children.map((child) => (
+              <ResourceList.ContextMenuAction
+                key={child.id}
+                disabled={!child.availability.enabled}
+                icon={child.icon}
+                variant={child.danger ? 'destructive' : undefined}
+                onSelect={() => void onAction(child)}>
+                {child.label}
+              </ResourceList.ContextMenuAction>
+            ))}
+          </ResourceList.ContextMenuSubContent>
+        </ContextMenuSub>
+      )
+      return
     }
-  }
 
-  &.active {
-    background-color: var(--color-list-item);
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    .menu {
-      opacity: 1;
-
-      &:hover {
-        color: var(--color-text-2);
-      }
+    if (action.group === 'danger' && actionItems.length > 0) {
+      actionItems.push(<ResourceList.ContextMenuSeparator key={`${action.id}:separator`} />)
     }
-  }
 
-  &.singlealone {
-    &:hover {
-      background-color: var(--color-background-soft);
-    }
-    &.active {
-      background-color: var(--color-background-mute);
-      box-shadow: none;
-    }
-  }
-`
+    actionItems.push(
+      <ResourceList.ContextMenuAction
+        key={action.id}
+        disabled={!action.availability.enabled}
+        icon={action.icon}
+        variant={action.danger ? 'destructive' : undefined}
+        onSelect={() => void onAction(action)}>
+        {action.label}
+      </ResourceList.ContextMenuAction>
+    )
+  })
 
-const SessionNameContainer = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 4px;
-  height: 20px;
-  justify-content: space-between;
-`
+  return <>{actionItems}</>
+}
 
-const SessionName = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  overflow: hidden;
-  font-size: 13px;
-  position: relative;
-  min-width: 0;
-`
+const SessionStreamIndicator = ({ isFulfilled, isPending }: { isFulfilled: boolean; isPending: boolean }) => {
+  const dotClassName = cn('animation-pulse size-[5px] rounded-full', isPending ? 'bg-warning' : 'bg-success')
 
-const ChannelIconImg = styled.img`
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-  border-radius: 2px;
-  object-fit: contain;
-`
+  if (!isPending && !isFulfilled) return null
 
-const SessionEditInput = styled.input`
-  background: var(--color-background);
-  border: none;
-  color: var(--color-text-1);
-  font-size: 13px;
-  font-family: inherit;
-  padding: 2px 6px;
-  width: 100%;
-  outline: none;
-  padding: 0;
-`
-
-const MenuButton = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  min-width: 20px;
-  min-height: 20px;
-  .anticon {
-    font-size: 12px;
-  }
-`
-
-const PendingIndicator = styled.div.attrs({
-  className: 'animation-pulse'
-})`
-  --pulse-size: 5px;
-  width: 5px;
-  height: 5px;
-  position: absolute;
-  left: 3px;
-  top: 15px;
-  border-radius: 50%;
-  background-color: var(--color-status-warning);
-`
-
-const FulfilledIndicator = styled.div.attrs({
-  className: 'animation-pulse'
-})`
-  --pulse-size: 5px;
-  width: 5px;
-  height: 5px;
-  position: absolute;
-  left: 3px;
-  top: 15px;
-  border-radius: 50%;
-  background-color: var(--color-status-success);
-`
+  return (
+    <span
+      aria-hidden="true"
+      className="flex size-5 shrink-0 items-center justify-center opacity-100 group-hover:opacity-100"
+      data-testid="agent-session-stream-indicator">
+      <span className={dotClassName} />
+    </span>
+  )
+}
 
 export default memo(SessionItem)
