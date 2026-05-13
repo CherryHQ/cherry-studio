@@ -124,6 +124,8 @@ import { createReadStream as nodeCreateReadStream } from 'node:fs'
 import type { Readable, Writable } from 'node:stream'
 import { pathToFileURL } from 'node:url'
 
+import { application } from '@application'
+import { appStateTable } from '@data/db/schemas/appState'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { orphanCheckerRegistry } from '@data/services/orphan/FileRefCheckerRegistry'
@@ -142,6 +144,7 @@ import type {
   PhysicalFileMetadata
 } from '@shared/file/types'
 import { IpcChannel } from '@shared/IpcChannel'
+import { eq } from 'drizzle-orm'
 import mime from 'mime'
 import * as z from 'zod'
 
@@ -687,6 +690,19 @@ export class FileManager extends BaseService implements IFileManager {
           this.lastDbSweepRanAt = Date.now()
         })
     ])
+  }
+
+  /**
+   * Read the `completedAt` ms-epoch from `app_state.migration_v2_status`.
+   * Returns null if the row is absent or if `completedAt` is not a number
+   * (e.g. fresh install, in-progress, or failed run).
+   */
+  private async getMigrationCompletedAt(): Promise<number | null> {
+    const db = application.get('DbService').getDb()
+    const row = await db.select().from(appStateTable).where(eq(appStateTable.key, 'migration_v2_status')).get()
+    if (!row) return null
+    const value = row.value as { completedAt?: unknown }
+    return typeof value.completedAt === 'number' ? value.completedAt : null
   }
 
   /**
