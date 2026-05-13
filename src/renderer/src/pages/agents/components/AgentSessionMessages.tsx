@@ -1,9 +1,9 @@
 import { loggerService } from '@logger'
 import { LoadingIcon } from '@renderer/components/Icons'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useSession } from '@renderer/hooks/agents/useSessionDataApi'
 import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { PartsProvider } from '@renderer/pages/home/Messages/Blocks'
 import { ChatVirtualList, type ChatVirtualListHandle } from '@renderer/pages/home/Messages/ChatVirtualList'
@@ -47,7 +47,7 @@ const AgentSessionMessages = ({
 }: Props) => {
   const { session } = useSession(sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
-  const { messageNavigation } = useSettings()
+  const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const chatListRef = useRef<ChatVirtualListHandle | null>(null)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const { setTimeoutTimer } = useTimer()

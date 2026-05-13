@@ -1,3 +1,4 @@
+import type * as ConfigConstant from '@renderer/config/constant'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -6,11 +7,13 @@ import CodeBlock from '../CodeBlock'
 // Hoisted mocks
 const mocks = vi.hoisted(() => ({
   EventEmitter: {
-    emit: vi.fn()
+    emit: vi.fn(),
+    off: vi.fn(),
+    on: vi.fn()
   },
   getCodeBlockId: vi.fn(),
   isOpenFenceBlock: vi.fn(),
-  useSettings: vi.fn().mockReturnValue({ codeFancyBlock: true }),
+  usePreference: vi.fn().mockReturnValue([true, vi.fn()]),
   isWin: false,
   CodeBlockView: vi.fn(({ onSave, children }) => (
     <div>
@@ -41,14 +44,19 @@ vi.mock('@renderer/utils/markdown', () => ({
   isOpenFenceBlock: mocks.isOpenFenceBlock
 }))
 
-vi.mock('@renderer/store', () => ({
-  default: {
-    getState: vi.fn(() => ({})) // Mock store, state doesn't matter here
-  }
-}))
+vi.mock('@renderer/config/constant', async (importOriginal) => {
+  const actual = await importOriginal<typeof ConfigConstant>()
 
-vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: () => mocks.useSettings()
+  return {
+    ...actual,
+    get isWin() {
+      return mocks.isWin
+    }
+  }
+})
+
+vi.mock('@data/hooks/usePreference', () => ({
+  usePreference: (key: string) => mocks.usePreference(key)
 }))
 
 vi.mock('@renderer/components/CodeBlockView', () => ({

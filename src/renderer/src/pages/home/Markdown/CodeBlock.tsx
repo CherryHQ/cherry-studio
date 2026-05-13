@@ -1,6 +1,6 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { CodeBlockView, HtmlArtifactsCard } from '@renderer/components/CodeBlockView'
 import { isWin } from '@renderer/config/constant'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { ClickableFilePath } from '@renderer/pages/home/Messages/Tools/MessageAgentTools/ClickableFilePath'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getCodeBlockId, isOpenFenceBlock } from '@renderer/utils/markdown'
@@ -28,7 +28,7 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
         ? 'svg'
         : detectedLanguage
   }, [children, detectedLanguage])
-  const { codeFancyBlock } = useSettings()
+  const [codeFancyBlock] = usePreference('chat.code.fancy_block')
 
   // 代码块 id
   const id = useMemo(() => getCodeBlockId(node?.position?.start), [node?.position?.start])
