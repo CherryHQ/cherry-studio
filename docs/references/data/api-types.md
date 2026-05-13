@@ -26,6 +26,18 @@ packages/shared/data/api/
 | `schemas/index.ts` | Composes all domain schemas into `ApiSchemas` using intersection types |
 | `schemas/*.ts` | Domain-specific API definitions and DTOs |
 
+## Schema File Organization
+
+Schema files in `schemas/` are organized by the **domain of the entity being operated on or returned**, not by URL prefix. A parent resource in the path (`:topicId`, `:providerId`) only scopes the operation — it does not determine which file the route belongs in.
+
+| Route | Returned entity | Lives in |
+|---|---|---|
+| `'/topics/:topicId/messages'` | `Message` | `messages.ts` |
+| `'/topics/:topicId/tree'` | `Tree` (Message-derived view) | `messages.ts` |
+| `'/topics/:id/active-node'` | `ActiveNodeResponse` (Topic state) | `topics.ts` |
+
+When a route's URL parent and returned entity disagree, the entity wins.
+
 ## Import Conventions
 
 ### Infrastructure Types (via barrel export)
