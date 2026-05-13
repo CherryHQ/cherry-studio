@@ -1,22 +1,26 @@
+import { Avatar, AvatarImage, EmojiAvatar } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
+import UserPopup from '@renderer/components/Popups/UserPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import useAvatar from '@renderer/hooks/useAvatar'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessage } from '@renderer/hooks/useMessage'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicAwaitingApproval } from '@renderer/hooks/useTopicAwaitingApproval'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Assistant, Topic } from '@renderer/types'
+import type { Assistant, Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
-import { classNames, cn } from '@renderer/utils'
+import { classNames, cn, isEmoji } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { isMessageAwaitingApproval } from '@renderer/utils/messageUtils/is'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
+import dayjs from 'dayjs'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import React, { memo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -78,6 +82,7 @@ const MessageItem: FC<Props> = ({
   const [messageFont] = usePreference('chat.message.font')
   const [fontSize] = usePreference('chat.message.font_size')
   const [showMessageOutline] = usePreference('chat.message.show_outline')
+  const [messageStyle] = usePreference('chat.message.style')
 
   const { editParts, forkAndResend } = useMessage(message.id, topic)
   const messageContainerRef = useRef<HTMLDivElement>(null)
@@ -135,6 +140,7 @@ const MessageItem: FC<Props> = ({
   const showMenuBar = !hideMenuBar && !isEditing && !isStreamTarget && !isApprovalAnchor
   const showUserHeaderActions = showMenuBar && !isAssistantMessage && !isMultiSelectMode
   const showAssistantFooterActions = showMenuBar && isAssistantMessage
+  const isUserBubbleMessage = messageStyle === 'bubble' && !isAssistantMessage && !isMultiSelectMode
 
   const messageHighlightHandler = useCallback(
     (highlight: boolean = true) => {
@@ -207,34 +213,36 @@ const MessageItem: FC<Props> = ({
           'message-user': !isAssistantMessage
         })}
         ref={messageContainerRef}>
-        <MessageHeader
-          message={message}
-          assistant={assistant}
-          model={model}
-          key={model ? createUniqueModelId(model.provider, model.id) : ''}
-          topic={topic}
-          isGroupContextMessage={isGroupContextMessage}
-          actionsSlot={
-            showUserHeaderActions ? (
-              <>
-                <MessageMenuBar
-                  message={message}
-                  model={model}
-                  topic={topic}
-                  isLastMessage={isLastMessage}
-                  isAssistantMessage={isAssistantMessage}
-                  isGrouped={isGrouped}
-                  isProcessing={isProcessing}
-                  messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-                  setModel={setModel}
-                  onUpdateUseful={onUpdateUseful}
-                  variant="header"
-                />
-                <SiblingNavigator messageId={message.id} />
-              </>
-            ) : undefined
-          }
-        />
+        {!isUserBubbleMessage && (
+          <MessageHeader
+            message={message}
+            assistant={assistant}
+            model={model}
+            key={model ? createUniqueModelId(model.provider, model.id) : ''}
+            topic={topic}
+            isGroupContextMessage={isGroupContextMessage}
+            actionsSlot={
+              showUserHeaderActions ? (
+                <>
+                  <MessageMenuBar
+                    message={message}
+                    model={model}
+                    topic={topic}
+                    isLastMessage={isLastMessage}
+                    isAssistantMessage={isAssistantMessage}
+                    isGrouped={isGrouped}
+                    isProcessing={isProcessing}
+                    messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+                    setModel={setModel}
+                    onUpdateUseful={onUpdateUseful}
+                    variant="header"
+                  />
+                  <SiblingNavigator messageId={message.id} />
+                </>
+              ) : undefined
+            }
+          />
+        )}
         {isEditing && (
           <MessageEditor
             message={message}
@@ -248,17 +256,33 @@ const MessageItem: FC<Props> = ({
             {!isMultiSelectMode && message.role === 'assistant' && showMessageOutline && (
               <MessageOutline message={message} />
             )}
-            <Scrollbar
-              className="message-content-container mt-0 max-w-full overflow-y-auto pl-10"
-              style={{
-                fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-                fontSize,
-                overflowY: isHorizontalMultiModelLayout ? 'auto' : 'visible'
-              }}>
-              <MessageErrorBoundary>
-                <MessageContent message={message} />
-              </MessageErrorBoundary>
-            </Scrollbar>
+            {isUserBubbleMessage ? (
+              <UserBubbleMessage
+                message={message}
+                model={model}
+                topic={topic}
+                isLastMessage={isLastMessage}
+                isGrouped={isGrouped}
+                isProcessing={isProcessing}
+                messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+                setModel={setModel}
+                onUpdateUseful={onUpdateUseful}
+                messageFont={messageFont}
+                fontSize={fontSize}
+              />
+            ) : (
+              <Scrollbar
+                className="message-content-container mt-0 max-w-full overflow-y-auto pl-10"
+                style={{
+                  fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+                  fontSize,
+                  overflowY: isHorizontalMultiModelLayout ? 'auto' : 'visible'
+                }}>
+                <MessageErrorBoundary>
+                  <MessageContent message={message} />
+                </MessageErrorBoundary>
+              </Scrollbar>
+            )}
             {showAssistantFooterActions && (
               <div
                 className={cn(
@@ -292,3 +316,77 @@ const MessageItem: FC<Props> = ({
 }
 
 export default memo(MessageItem)
+
+const UserBubbleMessage = ({
+  message,
+  model,
+  topic,
+  isLastMessage,
+  isGrouped,
+  isProcessing,
+  messageContainerRef,
+  setModel,
+  onUpdateUseful,
+  messageFont,
+  fontSize
+}: {
+  message: Message
+  model?: Model
+  topic: Topic
+  isLastMessage: boolean
+  isGrouped?: boolean
+  isProcessing: boolean
+  messageContainerRef: React.RefObject<HTMLDivElement>
+  setModel: (model: Model) => void
+  onUpdateUseful?: (msgId: string) => void
+  messageFont: string
+  fontSize: number
+}) => {
+  const avatar = useAvatar()
+
+  return (
+    <div className="flex w-full flex-col items-end">
+      <div className="flex max-w-full items-center justify-end gap-2.5">
+        <div className="flex min-w-0 flex-1 flex-col items-end">
+          <Scrollbar
+            className="message-content-container mt-0 max-w-full overflow-y-auto rounded-[10px] bg-(--chat-background-user) px-4 py-2.5 [&_.block-wrapper:last-child>*:last-child]:mb-0! [&_.markdown>p:last-child]:mb-0!"
+            style={{
+              fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+              fontSize,
+              overflowY: 'visible'
+            }}>
+            <MessageErrorBoundary>
+              <MessageContent message={message} />
+            </MessageErrorBoundary>
+          </Scrollbar>
+        </div>
+        {isEmoji(avatar) ? (
+          <EmojiAvatar className="shrink-0 rounded-full" onClick={() => UserPopup.show()} size={30} fontSize={17}>
+            {avatar}
+          </EmojiAvatar>
+        ) : (
+          <Avatar className="size-[30px] shrink-0 cursor-pointer rounded-full" onClick={() => UserPopup.show()}>
+            <AvatarImage src={avatar} />
+          </Avatar>
+        )}
+      </div>
+      <div className="MessageFooter mt-1 mr-10 flex min-h-6.5 max-w-full items-center justify-end gap-2 text-foreground-muted text-xs leading-none opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100">
+        <span className="shrink-0">{dayjs(message.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
+        <MessageMenuBar
+          message={message}
+          model={model}
+          topic={topic}
+          isLastMessage={isLastMessage}
+          isAssistantMessage={false}
+          isGrouped={isGrouped}
+          isProcessing={isProcessing}
+          messageContainerRef={messageContainerRef}
+          setModel={setModel}
+          onUpdateUseful={onUpdateUseful}
+          variant="header"
+        />
+        <SiblingNavigator messageId={message.id} />
+      </div>
+    </div>
+  )
+}
