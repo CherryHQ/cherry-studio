@@ -200,7 +200,7 @@ const MessageItem: FC<Props> = ({
       <div
         key={message.id}
         className={classNames({
-          'message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] p-[10px] pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200': true,
+          'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] p-[10px] pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200': true,
           'message-assistant': isAssistantMessage,
           'message-user': !isAssistantMessage
         })}
@@ -238,7 +238,12 @@ const MessageItem: FC<Props> = ({
               </MessageErrorBoundary>
             </Scrollbar>
             {showMenuBar && (
-              <div className="MessageFooter mt-0.75 ml-11.5 flex items-center justify-between gap-2.5">
+              <div
+                className={cn(
+                  'MessageFooter mt-0.75 ml-11.5 flex items-center justify-between gap-2.5',
+                  !isAssistantMessage &&
+                    'pointer-events-none opacity-0 transition-opacity duration-200 focus-within:pointer-events-auto focus-within:opacity-100 group-hover/message:pointer-events-auto group-hover/message:opacity-100'
+                )}>
                 <HorizontalScrollContainer
                   classNames={{
                     content: cn('flex-1 flex-row items-center justify-between')
