@@ -117,6 +117,14 @@ describe('ApiHost', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+    window.toast = {
+      success: vi.fn(),
+      error: vi.fn()
+    } as unknown as typeof window.toast
     useProviderMock.mockReturnValue({ provider })
     useProviderMutationsMock.mockReturnValue({ updateProvider: updateProviderMock })
     useProviderEndpointsMock.mockReturnValue(endpointState)
@@ -129,6 +137,27 @@ describe('ApiHost', () => {
     useProviderModelSyncMock.mockReturnValue({
       syncProviderModels: syncProviderModelsMock
     })
+  })
+
+  it('copies the api host from the hover action and shows copied feedback', () => {
+    useProviderHostPreviewMock.mockReturnValue({
+      hostPreview: 'https://api.example.com/chat/completions',
+      anthropicHostPreview: 'https://api.example.com/messages',
+      isApiHostResettable: false
+    })
+    useProviderEndpointActionsMock.mockReturnValue({
+      commitApiHost: vi.fn(),
+      commitAnthropicApiHost: vi.fn(),
+      commitApiVersion: vi.fn(),
+      resetApiHost: vi.fn()
+    })
+
+    render(<ApiHost providerId="openai" />)
+
+    fireEvent.click(screen.getByRole('button', { name: /^复制$|^Copy$/ }))
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('https://api.example.com')
+    expect(window.toast.success).toHaveBeenCalled()
   })
 
   it('commits host from the request-configuration drawer and resets the primary API host from the connection row', () => {

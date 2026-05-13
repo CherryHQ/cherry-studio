@@ -14,8 +14,7 @@ export function useProviderModelPullReconcile(providerId: string) {
 
   const closePullReconcile = useCallback(() => {
     setPullReconcileDrawerOpen(false)
-    pullPreview.reset()
-  }, [pullPreview.reset])
+  }, [])
 
   const { confirmApply, applyBusy } = usePullReconcileSubmit({
     providerId,
@@ -40,7 +39,7 @@ export function useProviderModelPullReconcile(providerId: string) {
     } catch {
       /* toast + throw inside fetchPreview */
     }
-  }, [pullPreview.fetchPreview, pullPreview.reset, t])
+  }, [pullPreview, t])
 
   return {
     openPullReconcile,
