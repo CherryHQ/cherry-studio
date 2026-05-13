@@ -181,7 +181,7 @@ export class DexieMessageDataSource implements MessageDataSource {
 
   async deleteMessage(topicId: string, messageId: string): Promise<void> {
     try {
-      await db.transaction('rw', db.topics, db.message_blocks, db.files, async () => {
+      await db.transaction('rw', db.topics, db.message_blocks, async () => {
         const topic = await db.topics.get(topicId)
         if (!topic) return
 
@@ -221,7 +221,7 @@ export class DexieMessageDataSource implements MessageDataSource {
 
   async deleteMessages(topicId: string, messageIds: string[]): Promise<void> {
     try {
-      await db.transaction('rw', db.topics, db.message_blocks, db.files, async () => {
+      await db.transaction('rw', db.topics, db.message_blocks, async () => {
         const topic = await db.topics.get(topicId)
         if (!topic) return
 
