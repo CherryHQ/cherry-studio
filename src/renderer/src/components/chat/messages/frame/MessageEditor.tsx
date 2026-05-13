@@ -51,6 +51,14 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
   const { t } = useTranslation()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const isUserMessage = message.role === 'user'
+  const editableText = useMemo(
+    () =>
+      editedParts
+        .filter((part): part is Extract<CherryMessagePart, { type: 'text' }> => part.type === 'text')
+        .map((part) => part.text)
+        .join('\n\n'),
+    [editedParts]
+  )
 
   const noopQuickPanel = useMemo<ToolQuickPanelApi>(
     () => ({
@@ -229,14 +237,26 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
   }
 
   return (
-    <>
-      <EditorContainer className="message-editor" onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
+    <EditorContainer
+      className={classNames('message-editor', isFileDragging && 'file-dragging')}
+      onDragEnter={() => setIsFileDragging(true)}
+      onDragOver={(e) => {
+        e.preventDefault()
+        setIsFileDragging(true)
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          setIsFileDragging(false)
+        }
+      }}
+      onDrop={handleDrop}>
+      <EditorInputArea>
         {editedParts
           .map((part, index) => ({ part, index }))
           .filter(({ part }) => part.type === 'text')
           .map(({ part, index }) => (
             <Textarea.Input
-              className={classNames('editing-message', isFileDragging && 'file-dragging')}
+              className="editing-message"
               key={`part-${index}`}
               ref={textareaRef}
               value={(part as { text: string }).text}
@@ -251,42 +271,42 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
               style={{ fontSize }}
             />
           ))}
-        <TranslateButton onTranslated={onTranslated} />
-        {(editedParts.some((part) => part.type === 'file') || files.length > 0) && (
-          <FileBlocksContainer>
-            {editedParts
-              .map((part, index) => ({ part, index }))
-              .filter(({ part }) => part.type === 'file')
-              .map(({ part, index }) => {
-                const filePart = part as { filename?: string; url?: string }
-                const ext = filePart.filename?.split('.').pop() || ''
-                return (
-                  <CustomTag
-                    key={`file-part-${index}`}
-                    icon={getFileIcon(ext)}
-                    color="#37a5aa"
-                    closable
-                    onClose={() => handlePartRemove(index)}>
-                    {filePart.filename || filePart.url || 'file'}
-                  </CustomTag>
-                )
-              })}
+      </EditorInputArea>
+      {(editedParts.some((part) => part.type === 'file') || files.length > 0) && (
+        <FileBlocksContainer>
+          {editedParts
+            .map((part, index) => ({ part, index }))
+            .filter(({ part }) => part.type === 'file')
+            .map(({ part, index }) => {
+              const filePart = part as { filename?: string; url?: string }
+              const ext = filePart.filename?.split('.').pop() || ''
+              return (
+                <CustomTag
+                  key={`file-part-${index}`}
+                  icon={getFileIcon(ext)}
+                  color="#37a5aa"
+                  closable
+                  onClose={() => handlePartRemove(index)}>
+                  {filePart.filename || filePart.url || 'file'}
+                </CustomTag>
+              )
+            })}
 
-            {files.map((file) => (
-              <CustomTag
-                key={file.id}
-                icon={getFileIcon(file.ext)}
-                color="#37a5aa"
-                closable
-                onClose={() => setFiles((prevFiles) => prevFiles.filter((f) => f.id !== file.id))}>
-                <FileNameRender file={file} />
-              </CustomTag>
-            ))}
-          </FileBlocksContainer>
-        )}
-      </EditorContainer>
+          {files.map((file) => (
+            <CustomTag
+              key={file.id}
+              icon={getFileIcon(file.ext)}
+              color="#37a5aa"
+              closable
+              onClose={() => setFiles((prevFiles) => prevFiles.filter((f) => f.id !== file.id))}>
+              <FileNameRender file={file} />
+            </CustomTag>
+          ))}
+        </FileBlocksContainer>
+      )}
       <ActionBar>
         <ActionBarLeft>
+          <TranslateButton text={editableText} onTranslated={onTranslated} disabled={!editableText.trim()} />
           {isUserMessage && (
             <AttachmentButton
               quickPanel={noopQuickPanel}
@@ -297,29 +317,28 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
             />
           )}
         </ActionBarLeft>
-        <ActionBarMiddle />
         <ActionBarRight>
           <Tooltip content={t('common.cancel')}>
             <ActionIconButton onClick={onCancel} icon={<X size={16} />} />
           </Tooltip>
           <Tooltip content={t('common.save')}>
-            <ActionIconButton onClick={handleSave} icon={<Save size={16} />} />
+            <ActionIconButton onClick={handleSave} icon={<Save size={16} />} disabled={isProcessing} />
           </Tooltip>
           {message.role === 'user' && (
             <Tooltip content={t('chat.resend')}>
-              <ActionIconButton onClick={handleResend} icon={<Send size={16} />} />
+              <ActionIconButton onClick={handleResend} icon={<Send size={16} />} disabled={isProcessing} />
             </Tooltip>
           )}
         </ActionBarRight>
       </ActionBar>
-    </>
+    </EditorContainer>
   )
 }
 
 const EditorContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div
     className={[
-      "[&_.editing-message]:resize-none! my-[15px] mb-[5px] flex w-full flex-col transition-all duration-200 ease-in-out [&.file-dragging]:border-2 [&.file-dragging]:border-[#2ecc71] [&.file-dragging]:border-dashed [&.file-dragging]:before:pointer-events-none [&.file-dragging]:before:absolute [&.file-dragging]:before:inset-0 [&.file-dragging]:before:z-[5] [&.file-dragging]:before:rounded-[14px] [&.file-dragging]:before:bg-[rgba(46,204,113,0.03)] [&.file-dragging]:before:content-[''] [&_.editing-message]:box-border [&_.editing-message]:max-h-[480px] [&_.editing-message]:min-h-[42px] [&_.editing-message]:w-full [&_.editing-message]:flex-1 [&_.editing-message]:overflow-auto [&_.editing-message]:rounded-[15px] [&_.editing-message]:border-[0.5px] [&_.editing-message]:border-border [&_.editing-message]:bg-background [&_.editing-message]:p-[1em] [&_.editing-message]:font-[Ubuntu] [&_.editing-message]:leading-[1.4]",
+      '[&_.editing-message]:resize-none! relative my-3 ml-10 flex w-[calc(100%-2.5rem)] flex-col overflow-hidden rounded-[14px] border border-border bg-background shadow-sm transition-all duration-200 ease-in-out focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/15 [&.file-dragging]:border-[#2ecc71] [&.file-dragging]:border-dashed [&.file-dragging]:bg-[#2ecc71]/5 [&_.editing-message]:box-border [&_.editing-message]:max-h-[480px] [&_.editing-message]:min-h-[72px] [&_.editing-message]:w-full [&_.editing-message]:flex-1 [&_.editing-message]:overflow-auto [&_.editing-message]:rounded-none [&_.editing-message]:border-0 [&_.editing-message]:bg-transparent [&_.editing-message]:px-4 [&_.editing-message]:py-3.5 [&_.editing-message]:font-[Ubuntu] [&_.editing-message]:leading-[1.5] [&_.editing-message]:shadow-none [&_.editing-message]:outline-none [&_.editing-message]:ring-0',
       className
     ]
       .filter(Boolean)
@@ -328,27 +347,32 @@ const EditorContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'
   />
 )
 
+const EditorInputArea = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={['flex min-h-[72px] flex-col', className].filter(Boolean).join(' ')} {...props} />
+)
+
 const FileBlocksContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={['my-2 flex flex-wrap gap-2 rounded bg-transparent p-0', className].filter(Boolean).join(' ')}
+    className={['flex flex-wrap gap-2 border-t border-border/70 px-3 py-2', className].filter(Boolean).join(' ')}
     {...props}
   />
 )
 
 const ActionBar = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={['mt-2 flex justify-between px-2', className].filter(Boolean).join(' ')} {...props} />
+  <div
+    className={['flex min-h-11 items-center justify-between gap-2 border-t border-border/70 px-2.5', className]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
 )
 
 const ActionBarLeft = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={['flex items-center', className].filter(Boolean).join(' ')} {...props} />
-)
-
-const ActionBarMiddle = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={['flex-1', className].filter(Boolean).join(' ')} {...props} />
+  <div className={['flex min-w-0 items-center gap-1', className].filter(Boolean).join(' ')} {...props} />
 )
 
 const ActionBarRight = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={['flex items-center gap-2', className].filter(Boolean).join(' ')} {...props} />
+  <div className={['ml-auto flex items-center gap-1', className].filter(Boolean).join(' ')} {...props} />
 )
 
 export default memo(MessageEditor)
