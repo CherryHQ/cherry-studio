@@ -5152,11 +5152,13 @@
           "label": "新增列表中的模型"
         },
         "add_whole_group": "新增整個分組",
+        "batch_add_selected": "新增選中的模型",
         "fetch_list": "取得模型列表",
         "refetch_list": "重新取得模型列表",
         "remove_listed": "移除列表中的模型",
         "remove_model": "移除模型",
-        "remove_whole_group": "移除整個分組"
+        "remove_whole_group": "移除整個分組",
+        "select_all": "全選"
       },
       "provider_id": "提供者 ID",
       "provider_key_add_confirm": "是否要為 {{provider}} 新增 API 金鑰？",

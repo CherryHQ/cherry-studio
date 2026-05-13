@@ -5152,11 +5152,13 @@
           "label": "Add models to the list"
         },
         "add_whole_group": "Add the whole group",
+        "batch_add_selected": "Add selected models",
         "fetch_list": "Fetch model list",
         "refetch_list": "Refetch model list",
         "remove_listed": "Remove models from the list",
         "remove_model": "Remove model",
-        "remove_whole_group": "Remove the whole group"
+        "remove_whole_group": "Remove the whole group",
+        "select_all": "Select all"
       },
       "provider_id": "Provider ID",
       "provider_key_add_confirm": "Do you want to add the API key for {{provider}}?",
