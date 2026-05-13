@@ -126,69 +126,66 @@ describe('FileMigrator registration', () => {
   })
 })
 
-// ─── ID translation + idRemap (Task 2.2) ────────────────────────────────────
+// ─── ID preservation (per migration-plan §2.9) ──────────────────────────────
 
-describe('FileMigrator ID translation', () => {
+describe('FileMigrator id preservation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('v7 ids are preserved as-is (identity)', async () => {
+  it('preserves v7 ids verbatim into file_entry', async () => {
     const v7Id = '018f4e4a-7b3d-7b3d-8b3d-9b3d0b3d1b3d'
     const row = makeInternalRow({
       id: v7Id,
       path: `${MOCK_USER_DATA}/Data/Files/${v7Id}.pdf`
     })
-    const { ctx } = createMockContext([row])
+    const { ctx, insertValues } = createMockContext([row])
     const m = new FileMigrator()
     await m.prepare(ctx as never)
     await m.execute(ctx as never)
 
-    const idRemap = ctx.sharedData.get('file.idRemap') as Map<string, string>
-    expect(idRemap).toBeDefined()
-    // v7 ids have version nibble = 7 at position 14
-    expect(idRemap.get(v7Id)).toBe(v7Id)
+    const inserted = insertValues.mock.calls[0][0]
+    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
+    expect(firstRow.id).toBe(v7Id)
   })
 
-  it('v4 ids are deterministically translated to v7 via uuidv5', async () => {
+  it('preserves v4 ids verbatim (no translation, no idRemap)', async () => {
     const v4Id = '550e8400-e29b-41d4-a716-446655440000'
     const row = makeInternalRow({ id: v4Id, path: `${MOCK_USER_DATA}/Data/Files/${v4Id}.pdf` })
-    const { ctx } = createMockContext([row])
+    const { ctx, insertValues } = createMockContext([row])
     const m = new FileMigrator()
     await m.prepare(ctx as never)
     await m.execute(ctx as never)
 
-    const idRemap = ctx.sharedData.get('file.idRemap') as Map<string, string>
-    expect(idRemap).toBeDefined()
-
-    const newId = idRemap.get(v4Id)
-    expect(newId).toBeDefined()
-    // Must be different from original
-    expect(newId).not.toBe(v4Id)
-    // Must be a valid UUID format
-    expect(newId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+    const inserted = insertValues.mock.calls[0][0]
+    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
+    expect(firstRow.id).toBe(v4Id)
+    expect(ctx.sharedData.has('file.idRemap')).toBe(false)
   })
 
-  it('same v4 id maps to same v7 id on repeated runs (deterministic)', async () => {
+  it('repeated execute on the same fixture produces identical file_entry rows', async () => {
     const v4Id = '550e8400-e29b-41d4-a716-446655440000'
     const row = makeInternalRow({ id: v4Id, path: `${MOCK_USER_DATA}/Data/Files/${v4Id}.pdf` })
 
-    const { ctx: ctx1 } = createMockContext([row])
+    const { ctx: ctx1, insertValues: insert1 } = createMockContext([row])
     const m1 = new FileMigrator()
     await m1.prepare(ctx1 as never)
     await m1.execute(ctx1 as never)
 
-    const { ctx: ctx2 } = createMockContext([row])
+    const { ctx: ctx2, insertValues: insert2 } = createMockContext([row])
     const m2 = new FileMigrator()
     await m2.prepare(ctx2 as never)
     await m2.execute(ctx2 as never)
 
-    const idRemap1 = ctx1.sharedData.get('file.idRemap') as Map<string, string>
-    const idRemap2 = ctx2.sharedData.get('file.idRemap') as Map<string, string>
-    expect(idRemap1.get(v4Id)).toBe(idRemap2.get(v4Id))
+    const firstId1 = (Array.isArray(insert1.mock.calls[0][0]) ? insert1.mock.calls[0][0][0] : insert1.mock.calls[0][0])
+      .id
+    const firstId2 = (Array.isArray(insert2.mock.calls[0][0]) ? insert2.mock.calls[0][0][0] : insert2.mock.calls[0][0])
+      .id
+    expect(firstId1).toBe(firstId2)
+    expect(firstId1).toBe(v4Id)
   })
 
-  it('sharedData file.idRemap contains all migrated ids', async () => {
+  it('inserts every prepared row exactly once', async () => {
     const rows = [
       makeInternalRow({
         id: 'aaaabbbb-aaaa-4aaa-aaaa-aaaaaaaaaaaa',
@@ -202,15 +199,14 @@ describe('FileMigrator ID translation', () => {
         ext: '.txt'
       })
     ]
-    const { ctx } = createMockContext(rows)
+    const { ctx, insertValues } = createMockContext(rows)
     const m = new FileMigrator()
     await m.prepare(ctx as never)
     await m.execute(ctx as never)
 
-    const idRemap = ctx.sharedData.get('file.idRemap') as Map<string, string>
-    expect(idRemap.size).toBe(2)
-    expect(idRemap.has('aaaabbbb-aaaa-4aaa-aaaa-aaaaaaaaaaaa')).toBe(true)
-    expect(idRemap.has('bbbbcccc-bbbb-4bbb-bbbb-bbbbbbbbbbbb')).toBe(true)
+    const inserted = insertValues.mock.calls[0][0]
+    const ids = (Array.isArray(inserted) ? inserted : [inserted]).map((r: { id: string }) => r.id)
+    expect(ids).toEqual(['aaaabbbb-aaaa-4aaa-aaaa-aaaaaaaaaaaa', 'bbbbcccc-bbbb-4bbb-bbbb-bbbbbbbbbbbb'])
   })
 })
 
@@ -417,18 +413,14 @@ describe('FileMigrator idempotency', () => {
     })
     await m.execute(ctx as never)
 
-    // Capture the translated id from idRemap after first execute
-    const idRemap = ctx.sharedData.get('file.idRemap') as Map<string, string>
-    const translatedId = idRemap.get(row.id)!
-
     // Reset transaction tracking
     txFn.mockClear()
 
-    // Second execute: row already exists (idempotent) — return the actual translated id
+    // Second execute: row already exists (idempotent) — id is preserved verbatim
     ;(ctx.db as any).select = vi.fn().mockReturnValue({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({
-          all: vi.fn().mockResolvedValue([{ id: translatedId }])
+          all: vi.fn().mockResolvedValue([{ id: row.id }])
         })
       })
     })

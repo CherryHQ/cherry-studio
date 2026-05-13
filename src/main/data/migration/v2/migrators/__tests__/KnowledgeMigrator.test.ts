@@ -1310,12 +1310,12 @@ describe('KnowledgeMigrator file_ref creation', () => {
   /**
    * Build a minimal ctx mock that captures insert calls made outside the
    * knowledge-base transaction (i.e. the file_ref inserts).
+   *
+   * Per migration-plan §2.9 the v1 file id is preserved verbatim into v2, so
+   * file_ref.fileEntryId is just the legacyFileId — no idRemap lookup.
    */
-  function makeExecCtx(idRemap?: Map<string, string>) {
+  function makeExecCtx() {
     const sharedData = new Map<string, unknown>()
-    if (idRemap !== undefined) {
-      sharedData.set('file.idRemap', idRemap)
-    }
 
     const insertedOutsideTx: unknown[] = []
     const outerInsert = vi.fn((/* _table */) => ({
@@ -1342,11 +1342,9 @@ describe('KnowledgeMigrator file_ref creation', () => {
     }
   }
 
-  it('creates one file_ref row for a knowledge item with a valid v1 fileId', async () => {
+  it('creates one file_ref row for a knowledge item with a fileId (id preserved verbatim)', async () => {
     const legacyFileId = 'legacy-file-001'
-    const v2FileId = 'v2-file-uuid-001'
-    const idRemap = new Map([[legacyFileId, v2FileId]])
-    const { sharedData, db, logger, insertedOutsideTx } = makeExecCtx(idRemap)
+    const { sharedData, db, logger, insertedOutsideTx } = makeExecCtx()
 
     const migrator = new KnowledgeMigrator() as any
     migrator.preparedBases = [{ id: 'kb-1', name: 'KB 1', dimensions: 512, embeddingModelId: 'openai::emb' }]
@@ -1366,7 +1364,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
     expect(result.success).toBe(true)
     expect(insertedOutsideTx).toHaveLength(1)
     expect(insertedOutsideTx[0]).toMatchObject({
-      fileEntryId: v2FileId,
+      fileEntryId: legacyFileId,
       sourceType: 'knowledge_item',
       sourceId: 'item-file-1',
       role: 'source'
@@ -1374,9 +1372,8 @@ describe('KnowledgeMigrator file_ref creation', () => {
     expect(typeof (insertedOutsideTx[0] as any).id).toBe('string')
   })
 
-  it('skips file_ref creation for a knowledge item whose fileId is not in idRemap', async () => {
-    const idRemap = new Map([['other-id', 'v2-other']])
-    const { sharedData, db, logger, insertedOutsideTx } = makeExecCtx(idRemap)
+  it('skips file_ref creation for a knowledge item without a fileId', async () => {
+    const { sharedData, db, logger, insertedOutsideTx } = makeExecCtx()
 
     const migrator = new KnowledgeMigrator() as any
     migrator.preparedBases = [{ id: 'kb-1', name: 'KB 1', dimensions: 512, embeddingModelId: 'openai::emb' }]
@@ -1386,7 +1383,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
         baseId: 'kb-1',
         groupId: null,
         type: 'file',
-        data: { source: '/tmp/bar.pdf', file: { id: 'missing-legacy-id', name: 'bar.pdf' } },
+        data: { source: '/tmp/bar.pdf' },
         status: 'idle'
       }
     ]
@@ -1397,12 +1394,8 @@ describe('KnowledgeMigrator file_ref creation', () => {
     expect(insertedOutsideTx).toHaveLength(0)
   })
 
-  it('creates correct number of file_ref rows for multiple items referencing different v2 ids', async () => {
-    const idRemap = new Map([
-      ['legacy-a', 'v2-a'],
-      ['legacy-b', 'v2-b']
-    ])
-    const { sharedData, db, logger, insertedOutsideTx } = makeExecCtx(idRemap)
+  it('creates one file_ref per file item; skips non-file types', async () => {
+    const { sharedData, db, logger, insertedOutsideTx } = makeExecCtx()
 
     const migrator = new KnowledgeMigrator() as any
     migrator.preparedBases = [{ id: 'kb-1', name: 'KB 1', dimensions: 512, embeddingModelId: 'openai::emb' }]
@@ -1440,29 +1433,16 @@ describe('KnowledgeMigrator file_ref creation', () => {
     const refSourceIds = insertedOutsideTx.map((r) => (r as any).sourceId).sort()
     expect(refSourceIds).toEqual(['item-a', 'item-b'])
     const refFileEntryIds = insertedOutsideTx.map((r) => (r as any).fileEntryId).sort()
-    expect(refFileEntryIds).toEqual(['v2-a', 'v2-b'])
+    expect(refFileEntryIds).toEqual(['legacy-a', 'legacy-b'])
   })
 
   it('file_ref insert is retry-safe: second execute() with same data does not throw UNIQUE constraint error', async () => {
     // Simulate the retry scenario:
     // - First execute() succeeds and inserts file_ref rows.
     // - Second execute() (retry after KnowledgeMigrator failure) attempts to insert
-    //   the same rows again. Without onConflictDoNothing(), this would throw a
-    //   UNIQUE constraint error on (fileEntryId, sourceType, sourceId, role).
-    //   With onConflictDoNothing(), it must succeed silently.
+    //   the same rows again. onConflictDoNothing() must absorb the conflict.
     const legacyFileId = 'legacy-retry-file'
-    const v2FileId = 'v2-retry-uuid'
-    const idRemap = new Map([[legacyFileId, v2FileId]])
 
-    const sharedData = new Map<string, unknown>()
-    sharedData.set('file.idRemap', idRemap)
-
-    // The mock simulates the real DB behaviour:
-    // - values() returns an object with onConflictDoNothing().
-    // - onConflictDoNothing() always resolves (the DB absorbs any conflict silently).
-    // Without the fix, the code awaits values() directly and the UNIQUE constraint
-    // would propagate as an error on retry. With the fix, the code chains
-    // onConflictDoNothing() which resolves successfully even on a second attempt.
     const onConflictDoNothingMock = vi.fn(() => Promise.resolve())
     const outerInsert = vi.fn((_table: unknown) => ({
       values: vi.fn((_rows: unknown) => ({
@@ -1476,6 +1456,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
     })
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
     const db = { transaction, insert: outerInsert }
+    const sharedData = new Map<string, unknown>()
 
     const migrator = new KnowledgeMigrator() as any
     migrator.preparedBases = [{ id: 'kb-retry', name: 'KB retry', dimensions: 512, embeddingModelId: 'openai::emb' }]
@@ -1490,13 +1471,10 @@ describe('KnowledgeMigrator file_ref creation', () => {
       }
     ]
 
-    // First execute: should succeed and call onConflictDoNothing once.
     const firstResult = await migrator.execute({ db, sharedData, logger } as any)
     expect(firstResult.success).toBe(true)
     expect(onConflictDoNothingMock).toHaveBeenCalledTimes(1)
 
-    // Second execute: simulates retry. With the fix, onConflictDoNothing() absorbs
-    // any duplicate-row conflict and the insert resolves successfully.
     const secondResult = await migrator.execute({ db, sharedData, logger } as any)
     expect(secondResult.success).toBe(true)
     expect(onConflictDoNothingMock).toHaveBeenCalledTimes(2)

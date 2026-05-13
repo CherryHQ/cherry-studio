@@ -18,7 +18,6 @@ import { sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
-import { resolveFileRefForLegacyId } from '../utils/resolveFileRefForLegacyId'
 import { BaseMigrator } from './BaseMigrator'
 import {
   type LegacyKnowledgeBase,
@@ -610,10 +609,10 @@ export class KnowledgeMigrator extends BaseMigrator {
         })
       }
 
-      // Create file_ref rows for file-type knowledge items whose v1 file id
-      // resolves in the FileMigrator idRemap. Non-file items and items with
-      // missing/orphaned file ids are silently skipped — missing refs do not
-      // block the migration.
+      // Create file_ref rows for file-type knowledge items. The v1 file id is
+      // preserved verbatim by FileMigrator (per migration-plan §2.9), so each
+      // legacyFileId is already the v2 fileEntryId. Items without a fileId are
+      // silently skipped — missing refs do not block the migration.
       const now = Date.now()
       const fileRefRows: Array<typeof fileRefTable.$inferInsert> = []
       for (const item of this.preparedItems) {
@@ -622,12 +621,9 @@ export class KnowledgeMigrator extends BaseMigrator {
         const legacyFileId = fileData?.file?.id
         if (!legacyFileId) continue
 
-        const resolution = resolveFileRefForLegacyId(ctx, legacyFileId)
-        if (resolution.kind !== 'resolved') continue
-
         fileRefRows.push({
           id: uuidv4(),
-          fileEntryId: resolution.v2Id,
+          fileEntryId: legacyFileId,
           sourceType: knowledgeItemSourceType,
           sourceId: item.id!,
           role: 'source',
