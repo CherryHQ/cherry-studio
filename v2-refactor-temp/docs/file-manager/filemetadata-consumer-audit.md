@@ -10,6 +10,7 @@
 > - `createEntry({origin:'external',...})` → `ensureExternalEntry(...)`（纯 upsert by path）
 > - External entry 不进入 trash 生命周期；`permanentDelete` 对 external 只动 DB 行
 > - **类型角色拆分**：旧 `FileMetadata` 同时承担"DB 行"与"通用文件描述符"两个角色。v2 把这两个角色拆成 `FileEntry`（持久化）与 `FileInfo`（描述符），跨边界统一用 `FileHandle` 引用。每个消费者按"持久化 / 描述符 / 两栖"分 P/I/A 桶——§6 域分析已标注桶归属。
+> - **ID 翻译列也过期**（Batch 0 实现期间确认）：本报告多处提到"v1 v4 id 翻译为 v2 v7"或把"id 不一致"列为风险。实际方案按 migration-plan §2.9 执行——v1 id（包括 v4）**原样保留**到 v2 `file_entry.id`，schema 已放宽至 `z.uuid()` 同时接受两种形态。跨表引用（message_blocks / paintings / knowledge_item / file_ref）零翻译。
 >
 > **新 IPC 形状请以以下为准**：[`docs/references/file/architecture.md`](../../../docs/references/file/architecture.md)、[`rfc-file-manager.md`](./rfc-file-manager.md)、[`file-arch-problems-response.md`](./file-arch-problems-response.md)。
 

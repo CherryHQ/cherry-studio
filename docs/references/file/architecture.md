@@ -184,7 +184,7 @@ Once a handle is dispatched, the handler works with either a `FileEntry` (the DB
 | Aspect         | `FileEntry`                                                | `FileInfo`                                                |
 |----------------|------------------------------------------------------------|-----------------------------------------------------------|
 | Role           | DB row identified by `id`                                  | Live descriptor identified by `path`                      |
-| Identity field | `id` (UUID v7)                                             | `path` (absolute filesystem path)                         |
+| Identity field | `id` (UUID — v7 from `uuidPrimaryKeyOrdered`, v4 preserved from v1 migration) | `path` (absolute filesystem path)                         |
 | Liveness       | Persistent record — identity + stable projections only     | Live view — re-read from `fs.stat`                        |
 | Lifecycle      | Persistent; trash/restore (internal-origin only)           | Transient — per-call descriptor                           |
 | Produced by    | `createInternalEntry` / `ensureExternalEntry` / DataApi    | `fs.stat(path)` / `toFileInfo(entry)`                    |
