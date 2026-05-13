@@ -2,7 +2,7 @@ import { resolve } from 'node:path'
 
 import { application } from '@application'
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { clearProviderPresetDisplayMetadataCache } from '@data/services/ProviderRegistryMetadata'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api'
@@ -14,7 +14,7 @@ describe('ProviderService API keys', () => {
   const dbh = setupTestDatabase()
 
   beforeEach(() => {
-    clearProviderPresetDisplayMetadataCache()
+    providerRegistryService.clearCache()
     vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) => {
       if (key === 'feature.provider_registry.data' && filename) {
         return resolve('packages/provider-registry/data', filename)

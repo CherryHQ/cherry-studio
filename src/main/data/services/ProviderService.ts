@@ -13,7 +13,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
-import { getProviderPresetDisplayMetadata } from '@data/services/ProviderRegistryMetadata'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api'
@@ -65,7 +65,7 @@ function normalizeApiKeyEntries(apiKeys: ApiKeyEntry[]): ApiKeyEntry[] {
  * Convert database row to Provider entity
  */
 function rowToRuntimeProvider(row: UserProvider): Provider {
-  const presetMetadata = getProviderPresetDisplayMetadata(row.presetProviderId ?? row.providerId)
+  const presetMetadata = providerRegistryService.getProviderDisplayMetadata(row.presetProviderId ?? row.providerId)
 
   // Process API keys (strip actual key values for security)
   // oxlint-disable-next-line no-unused-vars

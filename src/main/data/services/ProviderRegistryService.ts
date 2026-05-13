@@ -27,11 +27,14 @@ import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/apiErrors'
 import type { Model, RuntimeModelPricing, RuntimeReasoning } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
-import type { EndpointConfig, ReasoningFormatType } from '@shared/data/types/provider'
-
-import { providerService } from './ProviderService'
+import type { EndpointConfig, ProviderWebsites, ReasoningFormatType } from '@shared/data/types/provider'
 
 const logger = loggerService.withContext('DataApi:ProviderRegistryService')
+
+export interface ProviderDisplayMetadata {
+  description?: string
+  websites?: ProviderWebsites
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Registry → Runtime Model merge functions
@@ -365,6 +368,30 @@ class ProviderRegistryService {
     return this.loader
   }
 
+  clearCache(): void {
+    this.loader = null
+  }
+
+  private findRegistryProvider(providerId: string) {
+    return this.getLoader()
+      .loadProviders()
+      .find((provider) => provider.id === providerId)
+  }
+
+  getProviderDisplayMetadata(providerId: string): ProviderDisplayMetadata {
+    try {
+      const provider = this.findRegistryProvider(providerId)
+
+      return {
+        description: provider?.description,
+        websites: provider?.metadata?.website
+      }
+    } catch (error) {
+      logger.warn('Failed to load provider display metadata', { providerId, error })
+      return {}
+    }
+  }
+
   /**
    * Get reasoning config from registry providers.json only (no DB).
    *
@@ -378,9 +405,7 @@ class ProviderRegistryService {
     defaultChatEndpoint?: EndpointType
     reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
   } {
-    const loader = this.getLoader()
-    const providers = loader.loadProviders()
-    const provider = providers.find((p) => p.id === providerId)
+    const provider = this.findRegistryProvider(providerId)
     const endpointConfigs = provider
       ? (buildRuntimeEndpointConfigs(provider.endpointConfigs) as Partial<Record<EndpointType, EndpointConfig>> | null)
       : null
@@ -407,6 +432,7 @@ class ProviderRegistryService {
     const registryConfig = this.getRegistryReasoningConfig(providerId)
 
     try {
+      const { providerService } = await import('./ProviderService')
       const provider = await providerService.getByProviderId(providerId)
       const defaultChatEndpoint = provider.defaultChatEndpoint ?? registryConfig.defaultChatEndpoint
       const reasoningFormatTypes =

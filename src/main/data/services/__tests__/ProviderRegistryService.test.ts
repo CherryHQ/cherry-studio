@@ -189,8 +189,7 @@ function setupRegistryData() {
 }
 
 function clearServiceCache() {
-  const svc = providerRegistryService as unknown as Record<string, unknown>
-  svc['loader'] = null
+  providerRegistryService.clearCache()
 }
 
 describe('ProviderRegistryService', () => {
