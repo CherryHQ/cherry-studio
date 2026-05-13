@@ -636,7 +636,7 @@ export class KnowledgeMigrator extends BaseMigrator {
         })
       }
       if (fileRefRows.length > 0) {
-        await ctx.db.insert(fileRefTable).values(fileRefRows)
+        await ctx.db.insert(fileRefTable).values(fileRefRows).onConflictDoNothing()
       }
 
       logger.info('KnowledgeMigrator.execute completed', {

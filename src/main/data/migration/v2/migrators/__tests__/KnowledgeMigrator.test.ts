@@ -1322,7 +1322,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
       values: vi.fn((rows: unknown) => {
         const arr = Array.isArray(rows) ? rows : [rows]
         insertedOutsideTx.push(...arr)
-        return Promise.resolve()
+        return { onConflictDoNothing: vi.fn(() => Promise.resolve()) }
       })
     }))
 
@@ -1457,21 +1457,17 @@ describe('KnowledgeMigrator file_ref creation', () => {
     const sharedData = new Map<string, unknown>()
     sharedData.set('file.idRemap', idRemap)
 
-    // Track how many times the outer values() is called.
-    let fileRefInsertCallCount = 0
+    // The mock simulates the real DB behaviour:
+    // - values() returns an object with onConflictDoNothing().
+    // - onConflictDoNothing() always resolves (the DB absorbs any conflict silently).
+    // Without the fix, the code awaits values() directly and the UNIQUE constraint
+    // would propagate as an error on retry. With the fix, the code chains
+    // onConflictDoNothing() which resolves successfully even on a second attempt.
+    const onConflictDoNothingMock = vi.fn(() => Promise.resolve())
     const outerInsert = vi.fn((_table: unknown) => ({
-      values: vi.fn((rows: unknown) => {
-        fileRefInsertCallCount += 1
-        if (fileRefInsertCallCount > 1) {
-          // Simulate what SQLite throws when a UNIQUE constraint is violated on retry.
-          return Promise.reject(
-            new Error(
-              'UNIQUE constraint failed: file_ref.fileEntryId, file_ref.sourceType, file_ref.sourceId, file_ref.role'
-            )
-          )
-        }
-        return Promise.resolve(rows)
-      })
+      values: vi.fn((_rows: unknown) => ({
+        onConflictDoNothing: onConflictDoNothingMock
+      }))
     }))
 
     const txInsert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) })
@@ -1494,16 +1490,15 @@ describe('KnowledgeMigrator file_ref creation', () => {
       }
     ]
 
-    // First execute: should succeed.
+    // First execute: should succeed and call onConflictDoNothing once.
     const firstResult = await migrator.execute({ db, sharedData, logger } as any)
     expect(firstResult.success).toBe(true)
+    expect(onConflictDoNothingMock).toHaveBeenCalledTimes(1)
 
-    // Second execute: simulates retry. The outer values() mock throws UNIQUE constraint
-    // on second invocation. With the bug (no onConflictDoNothing), this propagates as
-    // an error. With the fix, onConflictDoNothing() is chained and the insert succeeds.
-    // NOTE: migrator state is NOT reset between retries (reset() is called by MigrationEngine,
-    // but execute() is the hot path that must be idempotent for file_ref inserts).
+    // Second execute: simulates retry. With the fix, onConflictDoNothing() absorbs
+    // any duplicate-row conflict and the insert resolves successfully.
     const secondResult = await migrator.execute({ db, sharedData, logger } as any)
     expect(secondResult.success).toBe(true)
+    expect(onConflictDoNothingMock).toHaveBeenCalledTimes(2)
   })
 })
