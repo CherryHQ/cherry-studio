@@ -1,6 +1,13 @@
 import type * as PathModule from 'path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+// -------------------------------------------------------------------------
+// Hoisted mock factories shared across all describe blocks in this file.
+// -------------------------------------------------------------------------
+const { mockCheckpoint } = vi.hoisted(() => ({
+  mockCheckpoint: vi.fn().mockResolvedValue(undefined)
+}))
+
 // Mock path module to normalize all paths to POSIX format for cross-platform consistency
 // This ensures path operations work the same way regardless of the actual OS
 vi.mock('path', async () => {
@@ -42,7 +49,8 @@ const { mockLogger } = vi.hoisted(() => ({
   mockLogger: {
     info: vi.fn(),
     warn: vi.fn(),
-    error: vi.fn()
+    error: vi.fn(),
+    debug: vi.fn()
   }
 }))
 
@@ -58,7 +66,8 @@ vi.mock('electron', () => ({
       if (key === 'temp') return '/tmp'
       if (key === 'userData') return '/mock/userData'
       return '/mock/unknown'
-    })
+    }),
+    getVersion: vi.fn(() => '1.0.0')
   }
 }))
 
@@ -74,8 +83,14 @@ vi.mock('fs-extra', () => ({
     realpath: vi.fn(),
     readFile: vi.fn(),
     writeFile: vi.fn(),
+    writeJson: vi.fn().mockResolvedValue(undefined),
+    readJson: vi.fn(),
     createWriteStream: vi.fn(),
-    createReadStream: vi.fn()
+    createReadStream: vi.fn(),
+    promises: {
+      mkdir: vi.fn().mockResolvedValue(undefined),
+      readFile: vi.fn()
+    }
   },
   pathExists: vi.fn(),
   remove: vi.fn(),
@@ -87,8 +102,14 @@ vi.mock('fs-extra', () => ({
   realpath: vi.fn(),
   readFile: vi.fn(),
   writeFile: vi.fn(),
+  writeJson: vi.fn().mockResolvedValue(undefined),
+  readJson: vi.fn(),
   createWriteStream: vi.fn(),
-  createReadStream: vi.fn()
+  createReadStream: vi.fn(),
+  promises: {
+    mkdir: vi.fn().mockResolvedValue(undefined),
+    readFile: vi.fn()
+  }
 }))
 
 vi.mock('@application', () => ({
@@ -100,12 +121,16 @@ vi.mock('@application', () => ({
       if (name === 'WindowManager') {
         return { broadcastToType: vi.fn(), getWindowsByType: vi.fn(() => []), getAllWindows: vi.fn(() => []) }
       }
+      if (name === 'DbService') {
+        return { checkpoint: mockCheckpoint }
+      }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }),
     // Mirrors tests/__mocks__/main/application.ts so that BackupManager methods
     // calling application.getPath('app.userdata.data') still work in this test
     // (this file overrides the global application mock from main.setup.ts).
-    getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`))
+    getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`)),
+    relaunch: vi.fn()
   }
 }))
 
@@ -126,6 +151,7 @@ vi.mock('node-stream-zip', () => ({
 }))
 
 // Import after mocks
+import archiver from 'archiver'
 import * as fs from 'fs-extra'
 import * as path from 'path'
 
@@ -353,6 +379,98 @@ describe('BackupManager.copyDirWithProgress - Symlink Handling', () => {
     expect(mockLogger.warn).toHaveBeenCalledWith(
       expect.stringContaining('Skipping circular symlink directory'),
       expect.objectContaining({ path: '/src/self-link', realPath: '/src' })
+    )
+  })
+})
+
+// -------------------------------------------------------------------------
+// Helper: create a minimal mock archiver that resolves the backup promise
+// -------------------------------------------------------------------------
+function makeMockArchiver() {
+  const handlers: Record<string, Array<(...args: unknown[]) => void>> = {}
+  const archive: Record<string, unknown> = {
+    on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+      if (!handlers[event]) handlers[event] = []
+      handlers[event].push(handler)
+      return archive
+    }),
+    pipe: vi.fn(),
+    directory: vi.fn(),
+    finalize: vi.fn(() => {
+      // Simulate successful archive completion — emit close on the writable stream
+      setImmediate(() => handlers['close']?.forEach((h) => h()))
+    }),
+    emit: (event: string, ...args: unknown[]) => handlers[event]?.forEach((h) => h(...args))
+  }
+  return archive
+}
+
+function makeMockWriteStream() {
+  const handlers: Record<string, Array<(...args: unknown[]) => void>> = {}
+  return {
+    on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+      if (!handlers[event]) handlers[event] = []
+      handlers[event].push(handler)
+      // If close listener is added after finalize already fired, fire immediately
+    }),
+    _handlers: handlers,
+    // Called by archive.pipe(output): make output.on('close', ...) resolvable
+    __triggerClose: () => handlers['close']?.forEach((h) => h())
+  }
+}
+
+describe('BackupManager — B1: SQLite included in backup product', () => {
+  let backupManager: BackupManager
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockCheckpoint.mockResolvedValue(undefined)
+    backupManager = new BackupManager()
+    vi.mocked(fs.ensureDir).mockResolvedValue(undefined as never)
+    vi.mocked(fs.remove).mockResolvedValue(undefined as never)
+    vi.mocked(fs.pathExists).mockResolvedValue(false as never)
+    vi.mocked(fs.writeJson).mockResolvedValue(undefined as never)
+  })
+
+  it('calls DbService.checkpoint() before archiving', async () => {
+    const mockWriteStream = makeMockWriteStream()
+    const mockArchive = makeMockArchiver()
+
+    vi.mocked(fs.createWriteStream).mockReturnValue(mockWriteStream as any)
+    vi.mocked(archiver).mockReturnValue(mockArchive as any)
+
+    // Trigger close on the writeStream after pipe is called
+    vi.mocked(mockArchive.pipe as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      setImmediate(() => mockWriteStream.__triggerClose())
+    })
+
+    await backupManager.backup({} as Electron.IpcMainInvokeEvent, 'test.zip', '/tmp/dest')
+
+    expect(mockCheckpoint).toHaveBeenCalled()
+  })
+
+  it('copies sqlite db file to sqlite/ subdirectory of staging dir', async () => {
+    const mockWriteStream = makeMockWriteStream()
+    const mockArchive = makeMockArchiver()
+
+    vi.mocked(fs.createWriteStream).mockReturnValue(mockWriteStream as any)
+    vi.mocked(archiver).mockReturnValue(mockArchive as any)
+    vi.mocked(mockArchive.pipe as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      setImmediate(() => mockWriteStream.__triggerClose())
+    })
+
+    // application.getPath('app.database.file') returns '/mock/app.database.file'
+    // basename is 'app.database.file' — actual path from mock is '/mock/app.database.file'
+    // The staging dir is this.tempDir = /tmp/cherry-studio/backup/temp
+
+    await backupManager.backup({} as Electron.IpcMainInvokeEvent, 'test.zip', '/tmp/dest')
+
+    // Expect copy to have been called for the sqlite file
+    // Source: application.getPath('app.database.file') = '/mock/app.database.file'
+    // Dest:   <tempDir>/sqlite/<basename> = '/tmp/cherry-studio/backup/temp/sqlite/app.database.file'
+    expect(fs.copy).toHaveBeenCalledWith(
+      '/mock/app.database.file',
+      '/tmp/cherry-studio/backup/temp/sqlite/app.database.file'
     )
   })
 })
