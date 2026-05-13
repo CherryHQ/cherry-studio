@@ -135,6 +135,7 @@ import { bootConfigService } from '@main/data/bootConfig'
 import { stat as fsStat } from '@main/utils/file/fs'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { FileEntryIdSchema } from '@shared/data/types/file'
+import { SafeExtSchema } from '@shared/data/types/file/essential'
 import type {
   BatchCreateResult,
   BatchMutationResult,
@@ -204,11 +205,8 @@ export const BatchGetDanglingStatesIpcSchema = z.strictObject({
   ids: z.array(FileEntryIdSchema).max(FILE_BATCH_DANGLING_MAX_IDS)
 })
 
-// Phase 2 schemas
-const SafeExtNullableSchema = z
-  .string()
-  .nullable()
-  .refine((v) => v == null || (!v.startsWith('.') && !v.includes('/') && !v.includes('\0')), 'invalid ext')
+// Phase 2 schemas — reuse SafeExtSchema (canonical bare-suffix rules + whitespace guard).
+const SafeExtNullableSchema = SafeExtSchema.nullable()
 
 export const CreateInternalEntryIpcSchema = z.discriminatedUnion('source', [
   z.strictObject({ source: z.literal('path'), path: z.string().min(1) }),
