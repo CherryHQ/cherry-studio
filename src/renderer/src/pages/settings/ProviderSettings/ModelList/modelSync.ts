@@ -17,6 +17,29 @@ import { isEmpty } from 'lodash'
 
 const logger = loggerService.withContext('ProviderModelSync')
 
+export type ModelSyncErrorCode = 'NO_ENABLED_API_KEY'
+
+export class ModelSyncError extends Error {
+  constructor(
+    message: string,
+    public readonly code: ModelSyncErrorCode,
+    public readonly meta?: Record<string, unknown>
+  ) {
+    super(message)
+    this.name = 'ModelSyncError'
+  }
+}
+
+function providerNeedsApiKeyForModelSync(provider: Provider): boolean {
+  return !(
+    provider.id === 'ollama' ||
+    provider.id === 'lmstudio' ||
+    provider.id === 'copilot' ||
+    provider.authType === 'iam-gcp' ||
+    provider.authType === 'iam-aws'
+  )
+}
+
 type ProviderResolveModelsPath = Extract<ConcreteApiPaths, `/providers/${string}/models:resolve`>
 type ProviderApiKeysPath = Extract<ConcreteApiPaths, `/providers/${string}/api-keys`>
 type ProviderApiKeysResponse = { keys: ApiKeyEntry[] }
@@ -162,7 +185,13 @@ export async function fetchResolvedProviderModels(providerId: string, provider: 
       const keysResp = (await dataApiService.get(apiKeysPath, {
         query: { enabled: true }
       })) as ProviderApiKeysResponse
-      apiKey = keysResp.keys[0]?.key ?? ''
+      const firstEnabled = keysResp.keys[0]
+      if (providerNeedsApiKeyForModelSync(provider) && !firstEnabled?.key) {
+        // Fail fast with a typed code so the UI can surface "add an enabled key"
+        // instead of forwarding an opaque 401/403 from the upstream provider.
+        throw new ModelSyncError('No enabled API key for provider', 'NO_ENABLED_API_KEY', { providerId })
+      }
+      apiKey = firstEnabled?.key ?? ''
       logger.info('Fetched first enabled provider API key for model sync', {
         providerId,
         hasApiKey: apiKey.length > 0

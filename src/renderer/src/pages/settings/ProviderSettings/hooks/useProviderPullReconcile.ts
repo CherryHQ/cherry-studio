@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { buildModelListSyncPreview } from '../ModelList/buildModelListSyncPreview'
+import { ModelSyncError } from '../ModelList/modelSync'
 import type { ModelSyncPreviewResponse } from '../ModelList/modelSyncPreviewTypes'
 
 const logger = loggerService.withContext('ProviderPullReconcile')
@@ -36,7 +37,11 @@ export function useProviderPullReconcile(providerId: string) {
     } catch (error) {
       logger.error('Pull reconcile preview failed', { providerId, error })
       setPreview(null)
-      window.toast.error(t('settings.models.manage.sync_pull_failed'))
+      if (error instanceof ModelSyncError && error.code === 'NO_ENABLED_API_KEY') {
+        window.toast.error(t('settings.models.check.no_api_keys'))
+      } else {
+        window.toast.error(t('settings.models.manage.sync_pull_failed'))
+      }
       throw error instanceof Error ? error : new Error(String(error))
     } finally {
       setIsPreviewLoading(false)
