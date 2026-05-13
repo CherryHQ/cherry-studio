@@ -47,6 +47,12 @@ import type {
   WebSearchSearchKeywordsRequest
 } from '@shared/data/types/webSearch'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
+import type {
+  CreateInternalEntryIpcParams,
+  EnsureExternalEntryIpcParams,
+  GetPhysicalPathIpcParams,
+  PermanentDeleteEntryIpcParams
+} from '@shared/file/types/ipc'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
 import type {
@@ -299,13 +305,12 @@ const api = {
     },
     showInFolder: (path: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_ShowInFolder, path),
     // FileManager v2 surface (Phase 2)
-    createInternalEntry: (params: import('@shared/file/types/ipc').CreateInternalEntryIpcParams) =>
+    createInternalEntry: (params: CreateInternalEntryIpcParams) =>
       ipcRenderer.invoke(IpcChannel.File_CreateInternalEntry, params),
-    ensureExternalEntry: (params: import('@shared/file/types/ipc').EnsureExternalEntryIpcParams) =>
+    ensureExternalEntry: (params: EnsureExternalEntryIpcParams) =>
       ipcRenderer.invoke(IpcChannel.File_EnsureExternalEntry, params),
-    getPhysicalPath: (params: { id: import('@shared/data/types/file').FileEntryId }) =>
-      ipcRenderer.invoke(IpcChannel.File_GetPhysicalPath, params),
-    permanentDeleteEntry: (params: { id: import('@shared/data/types/file').FileEntryId }) =>
+    getPhysicalPath: (params: GetPhysicalPathIpcParams) => ipcRenderer.invoke(IpcChannel.File_GetPhysicalPath, params),
+    permanentDeleteEntry: (params: PermanentDeleteEntryIpcParams) =>
       ipcRenderer.invoke(IpcChannel.File_PermanentDeleteEntry, params)
   },
   fs: {
