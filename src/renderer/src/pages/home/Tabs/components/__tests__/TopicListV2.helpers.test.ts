@@ -1,4 +1,4 @@
-import type { ResourceListReorderPayload } from '@renderer/components/chat/resources'
+import type { ResourceListItemReorderPayload } from '@renderer/components/chat/resources'
 import type { Topic } from '@renderer/types'
 import { describe, expect, it } from 'vitest'
 
@@ -60,7 +60,17 @@ describe('TopicListV2 helpers', () => {
 
   it('projects ResourceList drag payload into the dropped topic order', () => {
     const topics = [createTopic({ id: 'a' }), createTopic({ id: 'b' }), createTopic({ id: 'c' })]
-    const payload: ResourceListReorderPayload = { activeId: 'a', overId: 'c', position: 'after' }
+    const payload: ResourceListItemReorderPayload = {
+      type: 'item',
+      activeId: 'a',
+      overId: 'c',
+      position: 'after',
+      overType: 'item',
+      sourceGroupId: 'all',
+      targetGroupId: 'all',
+      sourceIndex: 0,
+      targetIndex: 2
+    }
 
     expect(moveTopicAfterDrop(topics, payload).map((topic) => topic.id)).toEqual(['b', 'c', 'a'])
     expect(topics.map((topic) => topic.id)).toEqual(['a', 'b', 'c'])
@@ -187,5 +197,20 @@ describe('TopicListV2 helpers', () => {
         mode: 'assistant'
       }).map((topic) => topic.id)
     ).toEqual(['pinned-1', 'default-1', 'assistant-a-1', 'assistant-b-1', 'assistant-b-2', 'unknown-1'])
+  })
+
+  it('sorts assistant group topics by persisted orderKey when available', () => {
+    const topics = [
+      createTopic({ id: 'assistant-a-3', assistantId: 'assistant-a', orderKey: 'c' }),
+      createTopic({ id: 'assistant-a-1', assistantId: 'assistant-a', orderKey: 'a' }),
+      createTopic({ id: 'assistant-a-2', assistantId: 'assistant-a', orderKey: 'b' })
+    ]
+
+    expect(
+      sortTopicsForDisplayGroups(topics, {
+        assistantRankById: new Map([['assistant-a', 0]]),
+        mode: 'assistant'
+      }).map((topic) => topic.id)
+    ).toEqual(['assistant-a-1', 'assistant-a-2', 'assistant-a-3'])
   })
 })

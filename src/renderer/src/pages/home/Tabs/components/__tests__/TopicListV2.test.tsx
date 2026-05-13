@@ -18,11 +18,16 @@ const virtualMocks = vi.hoisted(() => ({
 }))
 
 const dndMocks = vi.hoisted(() => ({
-  onDragEnd: undefined as undefined | ((event: any) => void)
+  droppableData: new Map<string, unknown>(),
+  onDragEnd: undefined as undefined | ((event: any) => void),
+  sortableData: new Map<string, unknown>()
 }))
 
 vi.mock('@tanstack/react-virtual', () => ({
-  useVirtualizer: virtualMocks.useVirtualizer
+  useVirtualizer: virtualMocks.useVirtualizer,
+  defaultRangeExtractor: vi.fn((range) =>
+    Array.from({ length: range.endIndex - range.startIndex + 1 }, (_, i) => range.startIndex + i)
+  )
 }))
 
 vi.mock('@dnd-kit/core', () => {
@@ -34,6 +39,10 @@ vi.mock('@dnd-kit/core', () => {
     },
     KeyboardSensor: vi.fn(),
     PointerSensor: vi.fn(),
+    useDroppable: ({ data, id }: { data: unknown; id: string }) => {
+      dndMocks.droppableData.set(id, data)
+      return { isOver: false, setNodeRef: vi.fn() }
+    },
     useSensor: vi.fn((sensor, options) => ({ sensor, options })),
     useSensors: vi.fn((...sensors) => sensors)
   }
@@ -44,14 +53,20 @@ vi.mock('@dnd-kit/sortable', () => {
   return {
     SortableContext: ({ children }: { children: ReactNode }) =>
       React.createElement('div', { 'data-testid': 'sortable-context' }, children),
-    useSortable: ({ id }: { id: string }) => ({
-      attributes: { 'data-sortable-id': id },
-      listeners: {},
-      setNodeRef: vi.fn(),
-      transform: null,
-      transition: undefined,
-      isDragging: false
-    }),
+    useSortable: ({ data, id }: { data?: unknown; id: string }) => {
+      if (data) {
+        dndMocks.sortableData.set(id, data)
+      }
+
+      return {
+        attributes: { 'data-sortable-id': id },
+        listeners: {},
+        setNodeRef: vi.fn(),
+        transform: null,
+        transition: undefined,
+        isDragging: false
+      }
+    },
     verticalListSortingStrategy: {}
   }
 })
@@ -297,6 +312,14 @@ function getTopicRow(topicName: string) {
   return row as HTMLElement
 }
 
+function sortableData(id: string) {
+  const data = dndMocks.sortableData.get(id)
+  if (!data) {
+    throw new Error(`Expected sortable data for ${id}`)
+  }
+  return { current: data }
+}
+
 describe('TopicListV2', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -438,6 +461,8 @@ describe('TopicListV2', () => {
       mutate: vi.fn()
     })
     dndMocks.onDragEnd = undefined
+    dndMocks.droppableData.clear()
+    dndMocks.sortableData.clear()
   })
 
   afterEach(() => {
@@ -904,14 +929,195 @@ describe('TopicListV2', () => {
     ])
   })
 
-  it('disables drag reorder when grouped by assistant', () => {
+  it('reorders topics within the same assistant group in assistant mode', async () => {
     const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
 
     renderTopicList()
 
-    expect(screen.queryByTestId('dnd-context')).not.toBeInTheDocument()
-    dndMocks.onDragEnd?.({ active: { id: 'topic-a' }, over: { id: 'topic-c' } })
+    expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
+    dndMocks.onDragEnd?.({
+      active: { data: sortableData('item:topic-d'), id: 'item:topic-d' },
+      over: { data: sortableData('item:topic-c'), id: 'item:topic-c' }
+    })
+
+    await vi.waitFor(() =>
+      expect(patchSpy).toHaveBeenCalledWith('/topics/topic-d/order', { body: { after: 'topic-c' } })
+    )
+    expect(patchSpy).not.toHaveBeenCalledWith('/topics/topic-d', expect.anything())
+  })
+
+  it('moves topics across assistant groups before ordering them at the target position', async () => {
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+
+    renderTopicList()
+
+    dndMocks.onDragEnd?.({
+      active: { data: sortableData('item:topic-a'), id: 'item:topic-a' },
+      over: { data: sortableData('item:topic-c'), id: 'item:topic-c' }
+    })
+
+    await vi.waitFor(() =>
+      expect(patchSpy).toHaveBeenNthCalledWith(1, '/topics/topic-a', { body: { assistantId: 'assistant-2' } })
+    )
+    expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-a/order', { body: { after: 'topic-c' } })
+  })
+
+  it('moves topics into the default assistant group with a null assistantId', async () => {
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    mockUseQuery.mockImplementation((path) => {
+      if (path === '/pins') {
+        return {
+          data: [],
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn().mockResolvedValue(undefined),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+      if (path === '/assistants') {
+        return {
+          data: {
+            items: [
+              {
+                id: 'assistant-1',
+                name: 'Alpha Assistant',
+                emoji: '🧪',
+                createdAt: '2026-01-01T00:00:00.000Z',
+                updatedAt: '2026-01-01T00:00:00.000Z'
+              }
+            ],
+            total: 1
+          },
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn().mockResolvedValue(undefined),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+      return {
+        data: undefined,
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        refetch: vi.fn().mockResolvedValue(undefined),
+        mutate: vi.fn().mockResolvedValue(undefined)
+      }
+    })
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({ id: 'topic-a', name: 'Known alpha', assistantId: 'assistant-1', orderKey: 'a' }),
+            createApiTopic({ id: 'topic-c', name: 'Default topic', assistantId: undefined, orderKey: 'c' })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    renderTopicList()
+
+    dndMocks.onDragEnd?.({
+      active: { data: sortableData('item:topic-a'), id: 'item:topic-a' },
+      over: { data: sortableData('item:topic-c'), id: 'item:topic-c' }
+    })
+
+    await vi.waitFor(() =>
+      expect(patchSpy).toHaveBeenNthCalledWith(1, '/topics/topic-a', { body: { assistantId: null } })
+    )
+    expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-a/order', { body: { after: 'topic-c' } })
+  })
+
+  it('allows unknown assistant topics to move into known assistant groups', async () => {
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({ id: 'topic-a', name: 'Known alpha', assistantId: 'assistant-1', orderKey: 'a' }),
+            createApiTopic({
+              id: 'topic-e',
+              name: 'Unknown topic',
+              assistantId: 'missing-assistant',
+              orderKey: 'e'
+            })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    renderTopicList()
+
+    dndMocks.onDragEnd?.({
+      active: { data: sortableData('item:topic-e'), id: 'item:topic-e' },
+      over: { data: sortableData('item:topic-a'), id: 'item:topic-a' }
+    })
+
+    await vi.waitFor(() =>
+      expect(patchSpy).toHaveBeenNthCalledWith(1, '/topics/topic-e', { body: { assistantId: 'assistant-1' } })
+    )
+    expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-e/order', { body: { after: 'topic-a' } })
+  })
+
+  it('does not drop topics into pinned or unknown assistant groups', () => {
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({ id: 'topic-a', name: 'Known alpha', assistantId: 'assistant-1', orderKey: 'a' }),
+            createApiTopic({ id: 'topic-b', name: 'Pinned topic', assistantId: 'assistant-1', orderKey: 'b' }),
+            createApiTopic({
+              id: 'topic-e',
+              name: 'Unknown topic',
+              assistantId: 'missing-assistant',
+              orderKey: 'e'
+            })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    renderTopicList()
+
+    dndMocks.onDragEnd?.({
+      active: { data: sortableData('item:topic-a'), id: 'item:topic-a' },
+      over: { data: sortableData('item:topic-b'), id: 'item:topic-b' }
+    })
+    dndMocks.onDragEnd?.({
+      active: { data: sortableData('item:topic-a'), id: 'item:topic-a' },
+      over: { data: sortableData('item:topic-e'), id: 'item:topic-e' }
+    })
 
     expect(patchSpy).not.toHaveBeenCalled()
   })

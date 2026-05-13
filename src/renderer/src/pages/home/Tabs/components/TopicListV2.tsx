@@ -14,6 +14,8 @@ import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference
 import { loggerService } from '@logger'
 import {
   ResourceList,
+  type ResourceListItemReorderPayload,
+  type ResourceListReorderPayload,
   TopicResourceList,
   useResourceList,
   useResourceListPinnedState
@@ -46,6 +48,7 @@ import {
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { getLeadingEmoji } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
 import {
@@ -114,6 +117,38 @@ type ExportMenuOptions = Record<
 
 const TOPIC_DISPLAY_OPTIONS: TopicDisplayMode[] = ['time', 'assistant']
 const DEFAULT_ASSISTANT_GROUP_EMOJI = '😀'
+
+function resolveAssistantIdForTopicGroup(
+  groupId: string,
+  assistantById: ReadonlyMap<string, unknown>
+): string | null | undefined {
+  if (groupId === TOPIC_DEFAULT_ASSISTANT_GROUP_ID) {
+    return null
+  }
+
+  const assistantId = getAssistantIdFromTopicGroupId(groupId)
+  if (!assistantId || !assistantById.has(assistantId)) {
+    return undefined
+  }
+
+  return assistantId
+}
+
+function buildTopicDropAnchor(
+  payload: ResourceListItemReorderPayload,
+  topics: readonly Topic[],
+  groupBy: (topic: Topic) => { id: string } | null
+): OrderRequest {
+  if (payload.overType === 'item') {
+    return payload.position === 'before' ? { before: payload.overId } : { after: payload.overId }
+  }
+
+  const firstTargetTopic = topics.find(
+    (topic) => topic.id !== payload.activeId && groupBy(topic)?.id === payload.targetGroupId
+  )
+
+  return firstTargetTopic ? { before: firstTargetTopic.id } : { position: 'first' }
+}
 
 function TopicDisplayModeMenu({
   mode,
@@ -520,6 +555,65 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
     [setCollapsedTopicGroupIds]
   )
 
+  const canDragTopicItem = useCallback(
+    ({ item }: { item: Topic }) => isAssistantDisplayMode && !isManageMode && !item.pinned,
+    [isAssistantDisplayMode, isManageMode]
+  )
+
+  const canDropTopicItem = useCallback(
+    ({ targetGroupId }: { targetGroupId: string }) =>
+      isAssistantDisplayMode &&
+      !isManageMode &&
+      targetGroupId !== TOPIC_PINNED_GROUP_ID &&
+      targetGroupId !== TOPIC_UNKNOWN_ASSISTANT_GROUP_ID &&
+      resolveAssistantIdForTopicGroup(targetGroupId, assistantById) !== undefined,
+    [assistantById, isAssistantDisplayMode, isManageMode]
+  )
+
+  const handleTopicReorder = useCallback(
+    async (payload: ResourceListReorderPayload) => {
+      if (payload.type !== 'item') return
+      if (!isAssistantDisplayMode || isManageMode) return
+      if (payload.sourceGroupId === TOPIC_PINNED_GROUP_ID || payload.targetGroupId === TOPIC_PINNED_GROUP_ID) return
+      if (payload.targetGroupId === TOPIC_UNKNOWN_ASSISTANT_GROUP_ID) return
+
+      const topic = topics.find((candidate) => candidate.id === payload.activeId)
+      if (!topic || topic.pinned) return
+
+      const targetAssistantId = resolveAssistantIdForTopicGroup(payload.targetGroupId, assistantById)
+      if (targetAssistantId === undefined) return
+
+      const visibleTopics = visibleTopicsRef.current.length > 0 ? visibleTopicsRef.current : filteredTopics
+      const anchor = buildTopicDropAnchor(payload, visibleTopics, topicGroupBy)
+      const currentAssistantId = topic.assistantId ?? null
+
+      try {
+        if (targetAssistantId !== currentAssistantId) {
+          await dataApiService.patch(`/topics/${payload.activeId}`, {
+            body: { assistantId: targetAssistantId }
+          })
+        }
+
+        await dataApiService.patch(`/topics/${payload.activeId}/order`, {
+          body: anchor
+        })
+        await refreshTopics()
+      } catch (err) {
+        logger.error('Failed to reorder topic by assistant group', { err, topicId: payload.activeId })
+      }
+    },
+    [
+      assistantById,
+      filteredTopics,
+      isAssistantDisplayMode,
+      isManageMode,
+      refreshTopics,
+      topicGroupBy,
+      topics,
+      visibleTopicsRef
+    ]
+  )
+
   return (
     <>
       <TopicResourceList<Topic>
@@ -533,9 +627,18 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
         groupLoadStep={5}
         getGroupHeaderAction={getGroupHeaderAction}
         getGroupHeaderIcon={getGroupHeaderIcon}
+        dragCapabilities={{
+          groups: false,
+          items: isAssistantDisplayMode && !isManageMode,
+          itemSameGroup: isAssistantDisplayMode && !isManageMode,
+          itemCrossGroup: isAssistantDisplayMode && !isManageMode
+        }}
+        canDragItem={canDragTopicItem}
+        canDropItem={canDropTopicItem}
         groupShowMoreLabel={t('chat.topics.group.show_more')}
         groupCollapseLabel={t('chat.topics.group.collapse')}
         onRenameItem={handleRenameTopic}
+        onReorder={handleTopicReorder}
         onCollapsedGroupIdsChange={handleCollapsedTopicGroupIdsChange}>
         <ResourceList.Header
           icon={<Clock3 size={12} />}
@@ -575,6 +678,7 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
 
         <TopicListBody
           activeTopic={activeTopic}
+          canDragTopics={isAssistantDisplayMode && !isManageMode}
           deletingTopicId={deletingTopicId}
           exportMenuOptions={exportMenuOptions as ExportMenuOptions}
           isManageMode={isManageMode}
@@ -612,6 +716,7 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
 
 interface TopicListBodyProps {
   activeTopic: Topic
+  canDragTopics: boolean
   deletingTopicId: string | null
   exportMenuOptions: ExportMenuOptions
   isManageMode: boolean
@@ -655,6 +760,10 @@ function TopicListBody(props: TopicListBodyProps) {
 
   if (props.isManageMode) {
     return <ResourceList.VirtualItems ref={props.listRef} className="pb-[76px]" renderItem={renderItem} />
+  }
+
+  if (props.canDragTopics) {
+    return <ResourceList.VirtualDraggableItems ref={props.listRef} className="pb-3" renderItem={renderItem} />
   }
 
   return <ResourceList.VirtualItems ref={props.listRef} className="pb-3" renderItem={renderItem} />

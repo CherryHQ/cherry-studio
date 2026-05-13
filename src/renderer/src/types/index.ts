@@ -274,6 +274,7 @@ export type Topic = {
   name: string
   createdAt: string
   updatedAt: string
+  orderKey?: string
   messages: Message[]
   pinned?: boolean
   prompt?: string

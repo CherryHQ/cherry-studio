@@ -5,7 +5,7 @@ import {
   getResourceTimeBucket,
   type ResourceListGroup,
   type ResourceListGroupResolver,
-  type ResourceListReorderPayload,
+  type ResourceListItemReorderPayload,
   type ResourceListTimeBucket,
   sortByResourceGroupRank
 } from '@renderer/components/chat/resources'
@@ -51,6 +51,7 @@ export type TopicOrderMove = {
 
 export type TopicListItem = Topic & {
   name: string
+  orderKey?: string
 }
 
 const TOPIC_TIME_BUCKET_RANK: Record<ResourceListTimeBucket, number> = {
@@ -85,7 +86,7 @@ export function buildTopicOrderMoves(currentIds: readonly string[], reorderedIds
 
 export function moveTopicAfterDrop<T extends { id: string }>(
   topics: readonly T[],
-  payload: ResourceListReorderPayload
+  payload: ResourceListItemReorderPayload
 ): T[] {
   const activeIndex = topics.findIndex((topic) => topic.id === payload.activeId)
   const overIndex = topics.findIndex((topic) => topic.id === payload.overId)
@@ -225,11 +226,33 @@ export function sortTopicsForDisplayGroups<T extends Pick<Topic, 'assistantId' |
   topics: readonly T[],
   options: TopicDisplaySortOptions
 ): T[] {
-  return sortByResourceGroupRank(topics, (topic) => {
-    if (options.mode === 'assistant') {
-      return getAssistantGroupRank(topic, options.assistantRankById)
-    }
+  if (options.mode === 'assistant') {
+    return topics
+      .map((topic, index) => ({
+        topic,
+        index,
+        rank: getAssistantGroupRank(topic, options.assistantRankById),
+        orderKey: 'orderKey' in topic && typeof topic.orderKey === 'string' ? topic.orderKey : undefined
+      }))
+      .sort((a, b) => {
+        const groupDelta = a.rank - b.rank
+        if (groupDelta !== 0) return groupDelta
 
+        if (a.topic.pinned === true || b.topic.pinned === true) {
+          return a.index - b.index
+        }
+
+        if (a.orderKey && b.orderKey) {
+          const orderDelta = a.orderKey.localeCompare(b.orderKey)
+          if (orderDelta !== 0) return orderDelta
+        }
+
+        return a.index - b.index
+      })
+      .map(({ topic }) => topic)
+  }
+
+  return sortByResourceGroupRank(topics, (topic) => {
     if (topic.pinned === true) {
       return 0
     }
