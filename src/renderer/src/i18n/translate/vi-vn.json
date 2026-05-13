@@ -1611,16 +1611,6 @@
     "custom_path_required": "Chemin personnalisé requis pour ce terminal",
     "custom_path_set": "Đường dẫn terminal tùy chỉnh đã được đặt thành công",
     "description": "Khởi chạy nhanh nhiều công cụ CLI mã để nâng cao hiệu suất phát triển",
-    "empty": {
-      "no_match": {
-        "description": "Hãy thử điều chỉnh các từ khóa tìm kiếm của bạn",
-        "title": "Không tìm thấy công cụ phù hợp"
-      },
-      "no_tool": {
-        "description": "Thêm một công cụ CLI hoặc trợ lý mã để bắt đầu",
-        "title": "Chưa có công cụ lập trình nào"
-      }
-    },
     "env_vars_help": "Nhập các biến môi trường tùy chỉnh (mỗi dòng một biến, định dạng: KEY=value)",
     "environment_variables": "Biến Môi trường",
     "folder_placeholder": "Chọn thư mục làm việc",
@@ -1639,9 +1629,6 @@
     "model_hint": "Chọn mô hình AI mà công cụ CLI nên sử dụng",
     "model_placeholder": "Chọn mô hình cần sử dụng",
     "model_required": "Vui lòng chọn một mô hình",
-    "official_tag": "Chính thức",
-    "official_tools": "Chính thức",
-    "search_placeholder": "Tìm kiếm công cụ CLI…",
     "select_folder": "Pilih Folder",
     "set_custom_path": "Đặt đường dẫn terminal tùy chỉnh",
     "supported_providers": "Nhà cung cấp được hỗ trợ",
@@ -1651,7 +1638,18 @@
     "title": "Công cụ mã",
     "update_options": "Tùy chọn Cập nhật",
     "working_directory": "Thư mục làm việc",
-    "working_directory_hint": "Thư mục làm việc mà công cụ CLI khởi chạy trong"
+    "working_directory_hint": "Thư mục làm việc mà công cụ CLI khởi chạy trong",
+    "hero_tagline": "[to be translated]:Pick a CLI tool to configure",
+    "tool_description": {
+      "claude_code": "[to be translated]:Anthropic's official command-line AI coding assistant",
+      "gemini_cli": "[to be translated]:Google's official Gemini command-line assistant",
+      "github_copilot_cli": "[to be translated]:GitHub's official Copilot command-line companion",
+      "iflow_cli": "[to be translated]:iFlow's multi-model command-line assistant",
+      "kimi_cli": "[to be translated]:Moonshot's Kimi command-line assistant",
+      "openai_codex": "[to be translated]:OpenAI's official code generation CLI",
+      "opencode": "[to be translated]:Open-source multi-model coding agent",
+      "qwen_code": "[to be translated]:Alibaba Tongyi's open-source CLI coding tool"
+    }
   },
   "code_block": {
     "collapse": "Colapso",

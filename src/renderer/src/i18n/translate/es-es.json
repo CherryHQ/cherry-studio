@@ -1611,16 +1611,6 @@
     "custom_path_required": "此终端需要设置自定义路径",
     "custom_path_set": "Configuración de ruta de terminal personalizada exitosa",
     "description": "Inicia rápidamente múltiples herramientas de línea de comandos para código, aumentando la eficiencia del desarrollo",
-    "empty": {
-      "no_match": {
-        "description": "Intenta ajustar los términos de búsqueda",
-        "title": "No se encontraron herramientas coincidentes"
-      },
-      "no_tool": {
-        "description": "Agrega una herramienta CLI o un asistente de código para comenzar.",
-        "title": "Aún no hay herramientas de código."
-      }
-    },
     "env_vars_help": "Introduzca variables de entorno personalizadas (una por línea, formato: CLAVE=valor)",
     "environment_variables": "Variables de entorno",
     "folder_placeholder": "Seleccionar directorio de trabajo",
@@ -1639,9 +1629,6 @@
     "model_hint": "Elige qué modelo de IA debe usar la herramienta CLI",
     "model_placeholder": "Seleccionar el modelo que se va a utilizar",
     "model_required": "Seleccione el modelo",
-    "official_tag": "Oficial",
-    "official_tools": "Oficial",
-    "search_placeholder": "Buscar herramientas de CLI…",
     "select_folder": "Seleccionar carpeta",
     "set_custom_path": "Establecer ruta de terminal personalizada",
     "supported_providers": "Proveedores de servicios compatibles",
@@ -1651,7 +1638,18 @@
     "title": "Herramientas de código",
     "update_options": "Opciones de actualización",
     "working_directory": "directorio de trabajo",
-    "working_directory_hint": "El directorio de trabajo en el que se ejecuta la herramienta CLI"
+    "working_directory_hint": "El directorio de trabajo en el que se ejecuta la herramienta CLI",
+    "hero_tagline": "[to be translated]:Pick a CLI tool to configure",
+    "tool_description": {
+      "claude_code": "[to be translated]:Anthropic's official command-line AI coding assistant",
+      "gemini_cli": "[to be translated]:Google's official Gemini command-line assistant",
+      "github_copilot_cli": "[to be translated]:GitHub's official Copilot command-line companion",
+      "iflow_cli": "[to be translated]:iFlow's multi-model command-line assistant",
+      "kimi_cli": "[to be translated]:Moonshot's Kimi command-line assistant",
+      "openai_codex": "[to be translated]:OpenAI's official code generation CLI",
+      "opencode": "[to be translated]:Open-source multi-model coding agent",
+      "qwen_code": "[to be translated]:Alibaba Tongyi's open-source CLI coding tool"
+    }
   },
   "code_block": {
     "collapse": "Replegar",

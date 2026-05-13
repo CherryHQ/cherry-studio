@@ -1611,16 +1611,6 @@
     "custom_path_required": "Calea personalizată este necesară pentru acest terminal",
     "custom_path_set": "Calea personalizată a terminalului a fost setată cu succes",
     "description": "Lansează rapid mai multe instrumente CLI de cod pentru a îmbunătăți eficiența dezvoltării",
-    "empty": {
-      "no_match": {
-        "description": "Încearcă să îți ajustezi termenii de căutare",
-        "title": "Nu au fost găsite unelte potrivite"
-      },
-      "no_tool": {
-        "description": "Adaugă un instrument CLI sau un asistent de cod pentru a începe",
-        "title": "Nu există încă instrumente de cod."
-      }
-    },
     "env_vars_help": "Introdu variabile de mediu personalizate (una pe rând, format: CHEIE=valoare)",
     "environment_variables": "Variabile de mediu",
     "folder_placeholder": "Selectează directorul de lucru",
@@ -1639,9 +1629,6 @@
     "model_hint": "Alegeți ce model AI să folosească instrumentul CLI",
     "model_placeholder": "Selectează modelul de utilizat",
     "model_required": "Te rugăm să selectezi un model",
-    "official_tag": "Oficial",
-    "official_tools": "Oficial",
-    "search_placeholder": "Caută instrumente CLI…",
     "select_folder": "Selectează dosarul",
     "set_custom_path": "Setează calea personalizată a terminalului",
     "supported_providers": "Furnizori acceptați",
@@ -1651,7 +1638,18 @@
     "title": "Instrumente de cod",
     "update_options": "Opțiuni de actualizare",
     "working_directory": "Director de lucru",
-    "working_directory_hint": "Directorul de lucru în care pornește instrumentul CLI"
+    "working_directory_hint": "Directorul de lucru în care pornește instrumentul CLI",
+    "hero_tagline": "[to be translated]:Pick a CLI tool to configure",
+    "tool_description": {
+      "claude_code": "[to be translated]:Anthropic's official command-line AI coding assistant",
+      "gemini_cli": "[to be translated]:Google's official Gemini command-line assistant",
+      "github_copilot_cli": "[to be translated]:GitHub's official Copilot command-line companion",
+      "iflow_cli": "[to be translated]:iFlow's multi-model command-line assistant",
+      "kimi_cli": "[to be translated]:Moonshot's Kimi command-line assistant",
+      "openai_codex": "[to be translated]:OpenAI's official code generation CLI",
+      "opencode": "[to be translated]:Open-source multi-model coding agent",
+      "qwen_code": "[to be translated]:Alibaba Tongyi's open-source CLI coding tool"
+    }
   },
   "code_block": {
     "collapse": "Restrânge",

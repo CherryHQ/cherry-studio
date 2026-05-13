@@ -1611,16 +1611,6 @@
     "custom_path_required": "この端末にはカスタムパスを設定する必要があります",
     "custom_path_set": "カスタムターミナルパスの設定が成功しました",
     "description": "開発効率を向上させるために、複数のコード CLI ツールを迅速に起動します",
-    "empty": {
-      "no_match": {
-        "description": "検索語を調整してみてください",
-        "title": "一致するツールが見つかりません"
-      },
-      "no_tool": {
-        "description": "CLIツールまたはコードアシスタントを追加して始めましょう",
-        "title": "コードツールはまだありません"
-      }
-    },
     "env_vars_help": "環境変数を設定して、CLI ツールの実行時に使用します。各変数は 1 行ごとに設定してください。",
     "environment_variables": "環境変数",
     "folder_placeholder": "作業ディレクトリを選択してください",
@@ -1639,9 +1629,6 @@
     "model_hint": "CLIツールが使用するAIモデルを選択してください",
     "model_placeholder": "使用するモデルを選択してください",
     "model_required": "モデルを選択してください",
-    "official_tag": "公式",
-    "official_tools": "公式",
-    "search_placeholder": "CLIツールを検索…",
     "select_folder": "フォルダを選択",
     "set_custom_path": "カスタムターミナルパスを設定",
     "supported_providers": "サポートされているプロバイダー",
@@ -1651,7 +1638,18 @@
     "title": "コードツール",
     "update_options": "更新オプション",
     "working_directory": "作業ディレクトリ",
-    "working_directory_hint": "CLIツールが起動する作業ディレクトリ"
+    "working_directory_hint": "CLIツールが起動する作業ディレクトリ",
+    "hero_tagline": "[to be translated]:Pick a CLI tool to configure",
+    "tool_description": {
+      "claude_code": "[to be translated]:Anthropic's official command-line AI coding assistant",
+      "gemini_cli": "[to be translated]:Google's official Gemini command-line assistant",
+      "github_copilot_cli": "[to be translated]:GitHub's official Copilot command-line companion",
+      "iflow_cli": "[to be translated]:iFlow's multi-model command-line assistant",
+      "kimi_cli": "[to be translated]:Moonshot's Kimi command-line assistant",
+      "openai_codex": "[to be translated]:OpenAI's official code generation CLI",
+      "opencode": "[to be translated]:Open-source multi-model coding agent",
+      "qwen_code": "[to be translated]:Alibaba Tongyi's open-source CLI coding tool"
+    }
   },
   "code_block": {
     "collapse": "折りたたむ",
