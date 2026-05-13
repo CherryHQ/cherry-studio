@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import { fileRefTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { createClient, type Value as LibsqlValue } from '@libsql/client'
@@ -11,10 +12,13 @@ import { loggerService } from '@logger'
 import { sanitizeFilename } from '@main/utils/file'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
+import { knowledgeItemSourceType } from '@shared/data/types/file/ref'
 import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
 import { sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
+import { resolveFileRefForLegacyId } from '../utils/resolveFileRefForLegacyId'
 import { BaseMigrator } from './BaseMigrator'
 import {
   type LegacyKnowledgeBase,
@@ -604,6 +608,35 @@ export class KnowledgeMigrator extends BaseMigrator {
           key: 'migration.progress.migrated_knowledge',
           params: { processed, total }
         })
+      }
+
+      // Create file_ref rows for file-type knowledge items whose v1 file id
+      // resolves in the FileMigrator idRemap. Non-file items and items with
+      // missing/orphaned file ids are silently skipped — missing refs do not
+      // block the migration.
+      const now = Date.now()
+      const fileRefRows: Array<typeof fileRefTable.$inferInsert> = []
+      for (const item of this.preparedItems) {
+        if (item.type !== 'file') continue
+        const fileData = item.data as { file?: { id?: string } } | undefined
+        const legacyFileId = fileData?.file?.id
+        if (!legacyFileId) continue
+
+        const resolution = resolveFileRefForLegacyId(ctx, legacyFileId)
+        if (resolution.kind !== 'resolved') continue
+
+        fileRefRows.push({
+          id: uuidv4(),
+          fileEntryId: resolution.v2Id,
+          sourceType: knowledgeItemSourceType,
+          sourceId: item.id!,
+          role: 'attachment',
+          createdAt: now,
+          updatedAt: now
+        })
+      }
+      if (fileRefRows.length > 0) {
+        await ctx.db.insert(fileRefTable).values(fileRefRows)
       }
 
       logger.info('KnowledgeMigrator.execute completed', {
