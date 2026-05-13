@@ -1029,7 +1029,8 @@ class CodeToolsService {
         ]
       } else {
         // Third-party providers: use Cherry- prefix to avoid conflicts with reserved IDs
-        const cherryProviderKey = `Cherry-${providerName}`
+        // Strip dots from providerName to prevent Codex CLI from parsing them as nested config keys
+        const cherryProviderKey = `Cherry-${providerName.replace(/\./g, '-')}`
         configParams = [
           `--config model_provider="${cherryProviderKey}"`,
           `--config model_providers.${cherryProviderKey}.name="${providerName}"`,
