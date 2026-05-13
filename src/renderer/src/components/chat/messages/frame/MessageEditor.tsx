@@ -2,14 +2,10 @@ import { Textarea, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
-import CustomTag from '@renderer/components/Tags/CustomTag'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isVisionModel } from '@renderer/config/models'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { FileNameRender, getFileIcon } from '@renderer/pages/home/Inputbar/AttachmentPreview'
-import AttachmentButton from '@renderer/pages/home/Inputbar/tools/components/AttachmentButton'
-import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import FileManager from '@renderer/services/FileManager'
 import PasteService from '@renderer/services/PasteService'
 import type { FileMetadata } from '@renderer/types'
@@ -25,6 +21,8 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useMessageParts } from '../blocks'
+import { useMessageList } from '../MessageListProvider'
+import { MessageAttachmentButton, MessageAttachmentPreview } from './MessageAttachmentPreview'
 
 interface Props {
   message: Message
@@ -41,7 +39,9 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
   const [files, setFiles] = useState<FileMetadata[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [isFileDragging, setIsFileDragging] = useState(false)
+  const [isSelectingFiles, setIsSelectingFiles] = useState(false)
   const { model: v2Model } = useAssistant(message.assistantId)
+  const { actions } = useMessageList()
   const model = useMemo(() => (v2Model ? fromSharedModel(v2Model) : undefined), [v2Model])
   const [pasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
   const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
@@ -58,14 +58,6 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
         .map((part) => part.text)
         .join('\n\n'),
     [editedParts]
-  )
-
-  const noopQuickPanel = useMemo<ToolQuickPanelApi>(
-    () => ({
-      registerRootMenu: () => () => {},
-      registerTrigger: () => () => {}
-    }),
-    []
   )
 
   const couldAddImageFile = useMemo(() => (model ? isVisionModel(model) : false), [model])
@@ -150,6 +142,26 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
   const handlePartRemove = (index: number) => {
     setEditedParts((prev) => prev.filter((_, i) => i !== index))
   }
+
+  const handleFileRemove = (fileId: string) => {
+    setFiles((prevFiles) => prevFiles.filter((file) => file.id !== fileId))
+  }
+
+  const handleSelectFiles = useCallback(async () => {
+    if (!actions.selectFiles || isSelectingFiles) return
+
+    setIsSelectingFiles(true)
+    try {
+      const selectedFiles = await actions.selectFiles({ extensions })
+      if (selectedFiles?.length) {
+        setFiles((prevFiles) => [...prevFiles, ...selectedFiles])
+      }
+    } catch (error) {
+      logger.error('Failed to select files:', error as Error)
+    } finally {
+      setIsSelectingFiles(false)
+    }
+  }, [actions, extensions, isSelectingFiles])
 
   const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -272,48 +284,21 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
             />
           ))}
       </EditorInputArea>
-      {(editedParts.some((part) => part.type === 'file') || files.length > 0) && (
-        <FileBlocksContainer>
-          {editedParts
-            .map((part, index) => ({ part, index }))
-            .filter(({ part }) => part.type === 'file')
-            .map(({ part, index }) => {
-              const filePart = part as { filename?: string; url?: string }
-              const ext = filePart.filename?.split('.').pop() || ''
-              return (
-                <CustomTag
-                  key={`file-part-${index}`}
-                  icon={getFileIcon(ext)}
-                  color="#37a5aa"
-                  closable
-                  onClose={() => handlePartRemove(index)}>
-                  {filePart.filename || filePart.url || 'file'}
-                </CustomTag>
-              )
-            })}
-
-          {files.map((file) => (
-            <CustomTag
-              key={file.id}
-              icon={getFileIcon(file.ext)}
-              color="#37a5aa"
-              closable
-              onClose={() => setFiles((prevFiles) => prevFiles.filter((f) => f.id !== file.id))}>
-              <FileNameRender file={file} />
-            </CustomTag>
-          ))}
-        </FileBlocksContainer>
-      )}
+      <MessageAttachmentPreview
+        parts={editedParts}
+        files={files}
+        onRemovePart={handlePartRemove}
+        onRemoveFile={handleFileRemove}
+      />
       <ActionBar>
         <ActionBarLeft>
           <TranslateButton text={editableText} onTranslated={onTranslated} disabled={!editableText.trim()} />
-          {isUserMessage && (
-            <AttachmentButton
-              quickPanel={noopQuickPanel}
-              files={files}
-              setFiles={setFiles}
+          {isUserMessage && actions.selectFiles && (
+            <MessageAttachmentButton
+              active={files.length > 0}
               couldAddImageFile={couldAddImageFile}
-              extensions={extensions}
+              disabled={isSelectingFiles}
+              onClick={handleSelectFiles}
             />
           )}
         </ActionBarLeft>
@@ -351,16 +336,9 @@ const EditorInputArea = ({ className, ...props }: ComponentPropsWithoutRef<'div'
   <div className={['flex min-h-[72px] flex-col', className].filter(Boolean).join(' ')} {...props} />
 )
 
-const FileBlocksContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={['flex flex-wrap gap-2 border-t border-border/70 px-3 py-2', className].filter(Boolean).join(' ')}
-    {...props}
-  />
-)
-
 const ActionBar = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={['flex min-h-11 items-center justify-between gap-2 border-t border-border/70 px-2.5', className]
+    className={['flex min-h-11 items-center justify-between gap-2 border-border/70 border-t px-2.5', className]
       .filter(Boolean)
       .join(' ')}
     {...props}

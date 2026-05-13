@@ -10,6 +10,7 @@ import { useV2Chat } from '@renderer/hooks/V2ChatContext'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic, TranslateLangCode } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
+import { filterSupportedFiles } from '@renderer/utils/file'
 import { updateCodeBlock } from '@renderer/utils/markdown'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
@@ -188,6 +189,36 @@ export function useHomeMessageListProviderValue({
     [t]
   )
 
+  const selectFiles = useCallback(
+    async ({ extensions }: { extensions: string[] }) => {
+      const useAllFiles = extensions.length > 20
+      const selectedFiles = await window.api.file.select({
+        properties: ['openFile', 'multiSelections'],
+        filters: [
+          {
+            name: 'Files',
+            extensions: useAllFiles ? ['*'] : extensions.map((extension) => extension.replace('.', ''))
+          }
+        ]
+      })
+
+      if (!selectedFiles) return selectedFiles
+      if (!useAllFiles) return selectedFiles
+
+      const supportedFiles = await filterSupportedFiles(selectedFiles, extensions)
+      if (supportedFiles.length !== selectedFiles.length) {
+        window.toast.info(
+          t('chat.input.file_not_supported_count', {
+            count: selectedFiles.length - supportedFiles.length
+          })
+        )
+      }
+
+      return supportedFiles
+    },
+    [t]
+  )
+
   const getMessageUiState = useCallback(
     (messageId: string) => (cacheService.get(`message.ui.${messageId}` as const) || {}) as MessageUiState,
     []
@@ -277,6 +308,7 @@ export function useHomeMessageListProviderValue({
         locateMessage,
         startNewContext,
         saveCodeBlock,
+        selectFiles,
         selectMessage: handleSelectMessage,
         toggleMultiSelectMode,
         updateMessageUiState,
@@ -314,6 +346,7 @@ export function useHomeMessageListProviderValue({
       messages,
       saveCodeBlock,
       selectedMessageIds,
+      selectFiles,
       startNewContext,
       toggleMultiSelectMode,
       topic,

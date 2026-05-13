@@ -1,4 +1,4 @@
-import type { Topic, TranslateLangCode } from '@renderer/types'
+import type { FileMetadata, Topic, TranslateLangCode } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -69,6 +69,7 @@ export interface MessageListActions {
   locateMessage?: (messageId: string, highlight?: boolean) => void
   startNewContext?: () => void
   saveCodeBlock?: (data: { msgBlockId: string; codeBlockId: string; newContent: string }) => void | Promise<void>
+  selectFiles?: (options: { extensions: string[] }) => Promise<FileMetadata[] | null | undefined>
   selectMessage?: (messageId: string, selected: boolean) => void
   toggleMultiSelectMode?: (enabled: boolean) => void
   updateMessageUiState?: (messageId: string, updates: MessageUiState) => void
