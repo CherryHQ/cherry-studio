@@ -589,7 +589,7 @@ describe('BackupManager — B5: dataFormatVersion marker', () => {
 // 1700000000000) — DB sweep skipped, marker updated".
 // -------------------------------------------------------------------------
 
-describe('BackupManager — B2/B3: SQLite atomic restore', () => {
+describe('BackupManager — B2/B3: SQLite cross-filesystem restore', () => {
   let backupManager: BackupManager
   // tempDir for BackupManager is /tmp/cherry-studio/backup/temp
   const TEMP_DIR = '/tmp/cherry-studio/backup/temp'
@@ -605,7 +605,7 @@ describe('BackupManager — B2/B3: SQLite atomic restore', () => {
     vi.mocked(fs.readdir).mockResolvedValue([] as never)
   })
 
-  it('B2: renames staged sqlite file to target db path on v2 restore', async () => {
+  it('B2: copies staged sqlite file to target db path and removes source (cross-filesystem safe)', async () => {
     const zipMock = makeZipMock()
     vi.mocked(StreamZip.async).mockReturnValue(zipMock as any)
 
@@ -622,10 +622,15 @@ describe('BackupManager — B2/B3: SQLite atomic restore', () => {
 
     // application.getPath('app.database.file') returns '/mock/app.database.file'
     // staged file: TEMP_DIR/sqlite/app.database.file
-    expect(fs.renameSync).toHaveBeenCalledWith(`${TEMP_DIR}/sqlite/app.database.file`, '/mock/app.database.file')
+    // copy+remove instead of renameSync to avoid EXDEV across filesystems (e.g. macOS)
+    expect(fs.copy).toHaveBeenCalledWith(`${TEMP_DIR}/sqlite/app.database.file`, '/mock/app.database.file', {
+      overwrite: true
+    })
+    expect(fs.remove).toHaveBeenCalledWith(`${TEMP_DIR}/sqlite/app.database.file`)
+    expect(fs.renameSync).not.toHaveBeenCalled()
   })
 
-  it('B3: skips sqlite rename on v1 restore (no sqlite/ dir)', async () => {
+  it('B3: skips sqlite restore on v1 restore (no sqlite/ dir)', async () => {
     const zipMock = makeZipMock()
     vi.mocked(StreamZip.async).mockReturnValue(zipMock as any)
 
@@ -639,7 +644,9 @@ describe('BackupManager — B2/B3: SQLite atomic restore', () => {
 
     await backupManager.restore({} as Electron.IpcMainInvokeEvent, '/path/to/v1-backup.zip')
 
-    // Should NOT have renamed any sqlite file
+    // Should NOT have copied or renamed any sqlite file
+    const copyCalls = vi.mocked(fs.copy).mock.calls.filter((args) => String(args[1]).includes('app.database.file'))
+    expect(copyCalls).toHaveLength(0)
     expect(fs.renameSync).not.toHaveBeenCalled()
   })
 })
