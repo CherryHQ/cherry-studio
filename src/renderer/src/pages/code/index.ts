@@ -184,7 +184,7 @@ export const generateToolEnvironment = ({
       env.OPENAI_BASE_URL = formattedBaseUrl
       env.OPENAI_MODEL = model.id
       env.OPENAI_MODEL_PROVIDER = modelProvider.id
-      env.OPENAI_MODEL_PROVIDER_NAME = modelProvider.name
+      env.OPENAI_MODEL_PROVIDER_NAME = sanitizeProviderName(getFancyProviderName(modelProvider))
       break
 
     case codeTools.iFlowCli:
