@@ -61,7 +61,7 @@ const Prompt: FC<Props> = ({ topic }) => {
 
   return (
     <div
-      className="system-prompt mx-5 mt-[15px] mb-0 cursor-pointer rounded-[10px] border-(--color-border) border-[0.5px] px-4 py-[11px]"
+      className="system-prompt mx-5 mt-3.75 mb-0 cursor-pointer rounded-[10px] border-border border-[0.5px] px-4 py-2.75"
       onClick={() => assistant && AssistantSettingsPopup.show({ assistant, tab: 'prompt' })}>
       <div
         className="select-none overflow-hidden text-(--color-text-2) text-xs transition-opacity duration-300 ease-in-out [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box]"

@@ -188,9 +188,9 @@ const MessageItem: FC<Props> = ({
           void EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
         }}>
         <div className="mx-5 my-0 flex items-center gap-2 text-(--color-text-3) text-sm">
-          <hr className="flex-1 border-(--color-border) border-dashed" />
+          <hr className="flex-1 border-border border-dashed" />
           <span>{t('chat.message.new.context')}</span>
-          <hr className="flex-1 border-(--color-border) border-dashed" />
+          <hr className="flex-1 border-border border-dashed" />
         </div>
       </div>
     )
@@ -228,7 +228,7 @@ const MessageItem: FC<Props> = ({
               <MessageOutline message={message} />
             )}
             <Scrollbar
-              className="message-content-container mt-0 max-w-full overflow-y-auto pl-[46px]"
+              className="message-content-container mt-0 max-w-full overflow-y-auto pl-11.5"
               style={{
                 fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
                 fontSize,
@@ -239,7 +239,7 @@ const MessageItem: FC<Props> = ({
               </MessageErrorBoundary>
             </Scrollbar>
             {showMenuBar && (
-              <div className="MessageFooter mt-[3px] ml-[46px] flex items-center justify-between gap-2.5">
+              <div className="MessageFooter mt-0.75 ml-11.5 flex items-center justify-between gap-2.5">
                 <HorizontalScrollContainer
                   classNames={{
                     content: cn(

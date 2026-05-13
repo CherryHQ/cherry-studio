@@ -100,9 +100,9 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message }) => {
   return (
     <div
       ref={messageOutlineContainerRef}
-      className="[&~.MessageFooter]:!ml-[46px] [&~.message-content-container]:!pl-[46px] pointer-events-none absolute inset-[63px_0_36px_10px] z-[999]">
+      className="[&~.MessageFooter]:ml-11.5! [&~.message-content-container]:pl-11.5! pointer-events-none absolute inset-[63px_0_36px_10px] z-999">
       <Scrollbar
-        className="group pointer-events-auto sticky bottom-0 inline-flex max-h-[min(100%,70vh)] max-w-1/2 flex-col gap-1 overflow-x-hidden overflow-y-hidden rounded-[10px] px-0 pt-[10px] pr-0 pb-[10px] pl-[10px] hover:overflow-y-auto hover:bg-(--color-background) hover:px-[10px] hover:shadow-[0_0_10px_0_rgba(128,128,128,0.2)]"
+        className="group pointer-events-auto sticky bottom-0 inline-flex max-h-[min(100%,70vh)] max-w-1/2 flex-col gap-1 overflow-x-hidden overflow-y-hidden rounded-[10px] px-0 pt-2.5 pr-0 pb-2.5 pl-2.5 hover:overflow-y-auto hover:bg-background hover:px-2.5 hover:shadow-[0_0_10px_0_rgba(128,128,128,0.2)]"
         style={{
           top: `max(calc(50% - ${Math.floor((headings.length * 24) / 2 + 10)}px), 20px)`
         }}>
@@ -112,7 +112,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message }) => {
             className="flex h-6 shrink-0 cursor-pointer items-center gap-2 [&:hover_.outline-dot]:bg-(--color-text-3) [&:hover_.outline-text]:text-(--color-text-2)"
             onClick={() => scrollToHeading(heading.id)}>
             <div
-              className="mr-1 h-1 shrink-0 rounded-[2px] bg-(--color-border) outline-dot transition-colors duration-200 ease-out"
+              className="mr-1 h-1 shrink-0 rounded-[2px] bg-border outline-dot transition-colors duration-200 ease-out"
               style={{
                 width: `${16 - heading.level * 2}px`
               }}

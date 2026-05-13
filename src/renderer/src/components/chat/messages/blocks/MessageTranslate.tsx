@@ -19,7 +19,7 @@ const MessageTranslate: FC<Props> = ({ block }) => {
     <Fragment>
       <div className="relative mb-2.5">
         <Divider />
-        <div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 bg-(--color-background) px-2">
+        <div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 bg-background px-2">
           <Languages size={14} className="text-(--color-text-2)" />
         </div>
       </div>

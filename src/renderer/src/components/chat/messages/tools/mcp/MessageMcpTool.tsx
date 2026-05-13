@@ -9,7 +9,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import type { MCPToolResponse } from '@renderer/types'
 import type { MCPProgressEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Check, ShieldCheck } from 'lucide-react'
+import { Check, ShieldCheck, Wrench } from 'lucide-react'
 import { parse as parsePartialJson } from 'partial-json'
 import type { ComponentPropsWithoutRef, FC } from 'react'
 import { memo, useEffect, useMemo, useState } from 'react'
@@ -17,15 +17,7 @@ import { useTranslation } from 'react-i18next'
 
 import { getEffectiveStatus, SkeletonSpan, ToolStatusIndicator, TruncatedIndicator } from '../agent/GenericTools'
 import { useToolApproval } from '../hooks/useToolApproval'
-import {
-  ArgKey,
-  ArgsSection,
-  ArgsSectionTitle,
-  ArgsTable,
-  ArgValue,
-  formatArgValue,
-  ResponseSection
-} from '../shared/ArgsTable'
+import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, ResponseSection } from '../shared/ArgsTable'
 import { ToolDisclosure, type ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
 import ToolApprovalActionsComponent from '../ToolApprovalActions'
@@ -35,6 +27,13 @@ interface Props {
 }
 
 const logger = loggerService.withContext('MessageTools')
+const TOOL_RESPONSE_RENDER_DELAY_MS = 40
+const TOOL_ARGS_RENDER_DELAY_MS = 120
+const TOOL_RESPONSE_HIGHLIGHT_DELAY_MS = 220
+const MAX_ARG_STRING_PARSE_LENGTH = 20000
+const MAX_ARG_VALUE_LENGTH = 4000
+const MAX_ARG_OBJECT_KEYS = 24
+const MAX_ARG_ARRAY_ITEMS = 24
 
 const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
   const [activeKeys, setActiveKeys] = useState<string[]>([])
@@ -122,37 +121,42 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
       key: id,
       label: (
         <MessageTitleLabel>
+          <StatusIconColumn>
+            <Wrench size={15} />
+          </StatusIconColumn>
           <TitleContent>
-            <ToolName className="items-center gap-1">
-              {tool.serverName} : {tool.name}
+            <ToolName className="min-w-0 items-center gap-1">
+              <span className="truncate">
+                {tool.serverName} : {tool.name}
+              </span>
+            </ToolName>
+            <TitleActions>
+              {progress > 0 ? (
+                <CircularProgress value={Number((progress * 100)?.toFixed(0))} size={13} strokeWidth={2} />
+              ) : (
+                <ToolStatusIndicator status={getEffectiveStatus(status, willAwaitApproval)} hasError={hasError} />
+              )}
               {autoApproved && (
                 <Tooltip content={t('message.tools.autoApproveEnabled')}>
-                  <ShieldCheck size={14} color="var(--status-color-success)" />
+                  <ShieldCheck size={13} color="var(--status-color-success)" />
                 </Tooltip>
               )}
-            </ToolName>
+              {!isPending && (
+                <Tooltip content={t('common.copy')} delay={500}>
+                  <ActionButton
+                    className="message-action-button invisible opacity-0 transition-opacity duration-150 focus-visible:visible focus-visible:opacity-100 group-hover/tool:visible group-hover/tool:opacity-100"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      copyContent(JSON.stringify(result, null, 2), id)
+                    }}
+                    aria-label={t('common.copy')}>
+                    {!copiedMap[id] && <CopyIcon size={13} />}
+                    {copiedMap[id] && <Check size={13} color="var(--status-color-success)" />}
+                  </ActionButton>
+                </Tooltip>
+              )}
+            </TitleActions>
           </TitleContent>
-          <ActionButtonsContainer>
-            {progress > 0 ? (
-              <CircularProgress value={Number((progress * 100)?.toFixed(0))} size={14} strokeWidth={2} />
-            ) : (
-              <ToolStatusIndicator status={getEffectiveStatus(status, willAwaitApproval)} hasError={hasError} />
-            )}
-            {!isPending && (
-              <Tooltip content={t('common.copy')} delay={500}>
-                <ActionButton
-                  className="message-action-button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    copyContent(JSON.stringify(result, null, 2), id)
-                  }}
-                  aria-label={t('common.copy')}>
-                  {!copiedMap[id] && <CopyIcon size={14} />}
-                  {copiedMap[id] && <Check size={14} color="var(--status-color-success)" />}
-                </ActionButton>
-              </Tooltip>
-            )}
-          </ActionButtonsContainer>
         </MessageTitleLabel>
       ),
       children: (
@@ -178,6 +182,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
     <ToolContainer>
       <ToolContentWrapper className={isPending || approval.isWaiting ? 'pending' : status}>
         <CollapseContainer
+          variant="light"
           activeKey={activeKeys}
           onActiveKeyChange={handleCollapseChange}
           className="message-tools-container"
@@ -248,55 +253,146 @@ const extractPreviewContent = (response: unknown): ExtractedContent => {
   return { text: JSON.stringify(response, null, 2), images: [] }
 }
 
-// Unified tool response content component
+const truncateArgText = (text: string): string => {
+  const result = truncateOutput(text, MAX_ARG_VALUE_LENGTH)
+  return result.isTruncated ? `${result.data}\n... truncated (${result.originalLength} chars)` : result.data
+}
+
+const formatArgPreviewValue = (value: unknown, depth = 0): string => {
+  if (value === null) return 'null'
+  if (value === undefined) return ''
+  if (typeof value === 'string') return truncateArgText(value)
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (typeof value === 'bigint') return value.toString()
+
+  if (depth >= 2) {
+    if (Array.isArray(value)) return `[${value.length} items]`
+    return '{...}'
+  }
+
+  if (Array.isArray(value)) {
+    const visibleItems = value.slice(0, MAX_ARG_ARRAY_ITEMS).map((item) => formatArgPreviewValue(item, depth + 1))
+    const suffix = value.length > MAX_ARG_ARRAY_ITEMS ? `, ... ${value.length - MAX_ARG_ARRAY_ITEMS} more items` : ''
+    return `[${visibleItems.join(', ')}${suffix}]`
+  }
+
+  if (typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+    const visibleEntries = entries.slice(0, MAX_ARG_OBJECT_KEYS).map(([key, item]) => {
+      return `${JSON.stringify(key)}: ${formatArgPreviewValue(item, depth + 1)}`
+    })
+    const suffix = entries.length > MAX_ARG_OBJECT_KEYS ? `, ... ${entries.length - MAX_ARG_OBJECT_KEYS} more keys` : ''
+    return `{${visibleEntries.join(', ')}${suffix}}`
+  }
+
+  return truncateArgText(String(value))
+}
+
 const ToolResponseContent: FC<{
   isExpanded: boolean
   args: string | Record<string, unknown> | Record<string, unknown>[] | undefined
   isStreaming: boolean
   response?: unknown
 }> = ({ isExpanded, args, isStreaming, response }) => {
+  const [shouldRender, setShouldRender] = useState(false)
+
+  useEffect(() => {
+    if (!isExpanded) {
+      setShouldRender(false)
+      return
+    }
+
+    const timer = window.setTimeout(() => setShouldRender(true), TOOL_RESPONSE_RENDER_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [isExpanded])
+
+  if (!isExpanded || !shouldRender) return null
+
+  return <ExpandedToolResponseContent args={args} isStreaming={isStreaming} response={response} />
+}
+
+// Unified tool response content component
+const ExpandedToolResponseContent: FC<{
+  args: string | Record<string, unknown> | Record<string, unknown>[] | undefined
+  isStreaming: boolean
+  response?: unknown
+}> = ({ args, isStreaming, response }) => {
   const { highlightCode } = useCodeStyle()
+  const [showArgs, setShowArgs] = useState(false)
+  const [showResponse, setShowResponse] = useState(false)
   const [highlightedResponse, setHighlightedResponse] = useState<string>('')
   const [responseImages, setResponseImages] = useState<Array<{ data: string; mimeType: string }>>([])
   const [isTruncated, setIsTruncated] = useState(false)
   const [originalLength, setOriginalLength] = useState(0)
 
+  useEffect(() => {
+    const argsTimer = window.setTimeout(() => setShowArgs(true), TOOL_ARGS_RENDER_DELAY_MS)
+    const responseTimer = window.setTimeout(() => setShowResponse(true), TOOL_RESPONSE_HIGHLIGHT_DELAY_MS)
+
+    return () => {
+      window.clearTimeout(argsTimer)
+      window.clearTimeout(responseTimer)
+    }
+  }, [])
+
   // Parse args if it's a string (streaming partial JSON)
   const parsedArgs = useMemo(() => {
+    if (!showArgs) return null
     if (!args) return null
     if (typeof args === 'string') {
+      if (args.length > MAX_ARG_STRING_PARSE_LENGTH) {
+        return { arguments: truncateArgText(args) }
+      }
       try {
         return parsePartialJson(args)
       } catch {
-        return null
+        return { arguments: truncateArgText(args) }
       }
     }
     return args
-  }, [args])
+  }, [args, showArgs])
 
   // Extract and highlight response when available
   useEffect(() => {
-    if (!isExpanded || !response) return
+    if (!showResponse || !response) return
+
+    let cancelled = false
 
     const highlight = async () => {
+      setHighlightedResponse('')
+      setResponseImages([])
+      setIsTruncated(false)
+      setOriginalLength(0)
       const { text: previewContent, images } = extractPreviewContent(response)
+      if (cancelled) return
       setResponseImages(images)
       const {
         data: truncatedContent,
         isTruncated: wasTruncated,
         originalLength: origLen
       } = truncateOutput(previewContent)
+      if (cancelled) return
       setIsTruncated(wasTruncated)
       setOriginalLength(origLen)
       const result = await highlightCode(truncatedContent, 'json')
+      if (cancelled) return
       setHighlightedResponse(result)
     }
 
-    const timer = setTimeout(highlight, 0)
-    return () => clearTimeout(timer)
-  }, [isExpanded, response, highlightCode])
+    if (window.requestIdleCallback) {
+      const idleId = window.requestIdleCallback(() => void highlight(), { timeout: 500 })
+      return () => {
+        cancelled = true
+        window.cancelIdleCallback(idleId)
+      }
+    }
 
-  if (!isExpanded) return null
+    const timer = window.setTimeout(() => void highlight(), 80)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [showResponse, response, highlightCode])
 
   // Handle both object and array args - for arrays, show as single entry
   const getEntries = (): Array<[string, unknown]> => {
@@ -318,7 +414,7 @@ const ToolResponseContent: FC<{
             {entries.map(([key, value]) => (
               <tr key={key}>
                 <ArgKey>{key}</ArgKey>
-                <ArgValue>{formatArgValue(value)}</ArgValue>
+                <ArgValue>{formatArgPreviewValue(value)}</ArgValue>
               </tr>
             ))}
             {isStreaming && (
@@ -366,7 +462,7 @@ const ToolResponseContent: FC<{
 
 const ToolContentWrapper = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={['overflow-hidden rounded-lg p-px [&.pending]:bg-(--color-background-soft)', className]
+    className={['overflow-hidden rounded-lg p-0 [&.pending]:bg-(--color-background-soft)', className]
       .filter(Boolean)
       .join(' ')}
     {...props}
@@ -399,7 +495,7 @@ const CollapseContainer = ({ className, ...props }: ComponentPropsWithoutRef<typ
 )
 
 const ToolContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={['my-2.5 first:mt-0 first:pt-0', className].filter(Boolean).join(' ')} {...props} />
+  <div className={['group/tool my-px first:mt-0 first:pt-0', className].filter(Boolean).join(' ')} {...props} />
 )
 
 const MarkdownContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
@@ -411,30 +507,51 @@ const MarkdownContainer = ({ className, ...props }: ComponentPropsWithoutRef<'di
 
 const MessageTitleLabel = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={['ml-1 flex w-full flex-row items-center justify-between gap-2.5 p-0', className]
+    className={['flex w-full flex-row items-center justify-between gap-2 p-0', className].filter(Boolean).join(' ')}
+    {...props}
+  />
+)
+
+const TitleContent = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={['flex min-w-0 flex-1 flex-row items-center gap-1.5', className].filter(Boolean).join(' ')}
+    {...props}
+  />
+)
+
+const StatusIconColumn = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={[
+      'items-left justify-left flex h-6 w-4 shrink-0 items-center text-(--color-text-3) transition-colors duration-150 group-hover/tool:text-(--color-text-2)',
+      className
+    ]
       .filter(Boolean)
       .join(' ')}
     {...props}
   />
 )
 
-const TitleContent = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={['flex flex-row items-center gap-2', className].filter(Boolean).join(' ')} {...props} />
-)
-
 const ToolName = ({ className, ...props }: ComponentPropsWithoutRef<typeof Flex>) => (
-  <Flex className={['font-medium text-(--color-text) text-[13px]', className].filter(Boolean).join(' ')} {...props} />
+  <Flex
+    className={[
+      'font-normal text-(--color-text-2) text-[13px] transition-colors duration-150 group-hover/tool:text-(--color-text)',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
 )
 
-const ActionButtonsContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={['ml-auto flex items-center gap-1.5', className].filter(Boolean).join(' ')} {...props} />
+const TitleActions = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={['flex shrink-0 items-center gap-1.5', className].filter(Boolean).join(' ')} {...props} />
 )
 
 const ActionButton = ({ className, ...props }: ComponentPropsWithoutRef<'button'>) => (
   <button
     type="button"
     className={[
-      'flex h-7 min-w-7 cursor-pointer items-center justify-center gap-1 rounded border-none bg-transparent p-1 text-(--color-text-2) opacity-70 transition-all duration-200 hover:bg-(--color-bg-3) hover:text-(--color-text) hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-(--color-primary) focus-visible:outline-2 focus-visible:outline-offset-2 [&.confirm-button:hover]:bg-(--color-primary-bg) [&.confirm-button:hover]:text-(--color-primary) [&.confirm-button]:text-(--color-primary) [&_.iconfont]:text-sm',
+      'flex size-5 cursor-pointer items-center justify-center gap-1 rounded border-none bg-transparent p-0 text-(--color-text-2) opacity-70 transition-all duration-200 hover:bg-(--color-bg-3) hover:text-(--color-text) hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-(--color-primary) focus-visible:outline-2 focus-visible:outline-offset-2 [&.confirm-button:hover]:bg-(--color-primary-bg) [&.confirm-button:hover]:text-(--color-primary) [&.confirm-button]:text-(--color-primary) [&_.iconfont]:text-[13px]',
       className
     ]
       .filter(Boolean)
@@ -445,7 +562,7 @@ const ActionButton = ({ className, ...props }: ComponentPropsWithoutRef<'button'
 
 const ToolResponseContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={['relative max-h-[300px] overflow-auto rounded-b border-t-0', className].filter(Boolean).join(' ')}
+    className={['relative max-h-[300px] overflow-auto rounded-none border-t-0', className].filter(Boolean).join(' ')}
     {...props}
   />
 )

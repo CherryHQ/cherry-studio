@@ -23,6 +23,14 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => mockUseTranslation()
 }))
 
+vi.mock('@renderer/components/Icons', () => ({
+  CopyIcon: ({ size }: any) => (
+    <span data-testid="copy-icon" data-size={size}>
+      copy
+    </span>
+  )
+}))
+
 // Mock Shadcn Accordion components
 vi.mock('@cherrystudio/ui', () => ({
   Accordion: ({ value, children, className }: any) => (
@@ -65,12 +73,12 @@ vi.mock('lucide-react', () => ({
       check
     </span>
   ),
-  Lightbulb: ({ size }: any) => (
-    <span data-testid="lightbulb-icon" data-size={size}>
-      💡
+  Brain: ({ size }: any) => (
+    <span data-testid="brain-icon" data-size={size}>
+      brain
     </span>
   ),
-  ChevronRight: (props: any) => <svg data-testid="chevron-right-icon" {...props} />,
+  ChevronDown: (props: any) => <svg data-testid="chevron-down-icon" {...props} />,
   CheckIcon: () => <span>check</span>,
   CircleXIcon: () => <span>error</span>,
   AlertTriangleIcon: () => <span>alert</span>
@@ -115,13 +123,10 @@ vi.mock('@renderer/components/chat/messages/markdown/Markdown', () => ({
 // Mock ThinkingEffect component
 vi.mock('../ThinkingEffect', () => ({
   __esModule: true,
-  default: ({ isThinking, thinkingTimeText, content, expanded }: any) => (
-    <div
-      data-testid="mock-marquee-component"
-      data-is-thinking={isThinking}
-      data-expanded={expanded}
-      data-content={content}>
+  default: ({ isThinking, thinkingTimeText, expanded, copyButton }: any) => (
+    <div data-testid="mock-marquee-component" data-is-thinking={isThinking} data-expanded={expanded}>
       <div data-testid="thinking-time-text">{thinkingTimeText}</div>
+      {copyButton}
     </div>
   )
 }))
@@ -308,8 +313,7 @@ describe('ThinkingBlock', () => {
   })
 
   describe('collapse behavior', () => {
-    it('should respect auto-collapse setting for initial state', () => {
-      // Test expanded by default (auto-collapse disabled)
+    it('should render collapsed by default', () => {
       mockUseSettings.mockReturnValue({
         messageFont: 'sans-serif',
         fontSize: 14,
@@ -319,11 +323,11 @@ describe('ThinkingBlock', () => {
       const block = createThinkingBlock()
       const { unmount } = renderThinkingBlock(block)
 
-      // Content should be visible when expanded
+      expect(screen.getByTestId('accordion-root')).toHaveAttribute('data-value', '')
+      // With mocked Accordion, content is always rendered in DOM.
       expect(getThinkingContent()).toBeInTheDocument()
       unmount()
 
-      // Test collapsed by default (auto-collapse enabled)
       mockUsePreference.mockImplementation((key: string) => {
         switch (key) {
           case 'chat.message.font':
@@ -339,8 +343,6 @@ describe('ThinkingBlock', () => {
 
       renderThinkingBlock(block)
 
-      // With mocked Accordion, content is always rendered in DOM
-      // The real Radix accordion hides via data-state; here we check the accordion value
       const accordionRoot = screen.getByTestId('accordion-root')
       expect(accordionRoot).toHaveAttribute('data-value', '')
     })
@@ -417,6 +419,7 @@ describe('ThinkingBlock', () => {
         const contentEl = screen.getByTestId('accordion-content')
         const styledDiv = contentEl.querySelector('div')
 
+        expect(styledDiv).toHaveClass('[&_.markdown>p:only-child]:mb-0!')
         expect(styledDiv).toHaveStyle({
           fontFamily: expectedFont,
           fontSize: expectedSize

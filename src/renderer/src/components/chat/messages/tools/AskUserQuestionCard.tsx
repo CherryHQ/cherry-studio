@@ -31,7 +31,7 @@ function CardHeader({ currentIndex, totalQuestions, extra }: CardHeaderProps) {
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
-        <HelpCircle className="h-5 w-5 text-(--color-primary)" />
+        <HelpCircle className="h-5 w-5 text-primary" />
         <span className="font-semibold text-default-700">{t('agent.askUserQuestion.title')}</span>
       </div>
       <span className="text-default-500 text-xs">
@@ -83,7 +83,7 @@ function OptionItem({ label, description, isSelected, control, onClick }: Option
     <div
       className={cn(
         'flex cursor-pointer items-start gap-2 rounded-lg border p-2 transition-colors',
-        'hover:border-(--color-primary) hover:bg-primary/10',
+        'hover:border-primary hover:bg-primary/10',
         isSelected ? 'border-(--color-primary) bg-primary/10' : 'border-default-200 bg-default-50'
       )}
       onClick={onClick}>
@@ -166,15 +166,15 @@ function CompletedContent({ question, answer }: CompletedContentProps) {
         <Badge variant={answer ? 'secondary' : 'outline'} className="m-0">
           <SkeletonValue value={question?.header} width="60px" />
         </Badge>
-        {answer && <CheckCircle2 className="h-4 w-4 text-(--color-primary)" />}
+        {answer && <CheckCircle2 className="h-4 w-4 text-primary" />}
       </div>
       <div className="text-default-700 text-sm">
         <SkeletonValue value={question?.question} width="100%" />
       </div>
       {answer && (
         <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 p-2">
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-(--color-primary)" />
-          <span className="text-(--color-primary) text-sm">{answer}</span>
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
+          <span className="text-primary text-sm">{answer}</span>
         </div>
       )}
     </div>
@@ -221,7 +221,7 @@ function PendingContent({
             {t('agent.askUserQuestion.multiSelect')}
           </Badge>
         )}
-        {isAnswered && <CheckCircle className="h-4 w-4 text-(--color-primary)" />}
+        {isAnswered && <CheckCircle className="h-4 w-4 text-primary" />}
       </div>
 
       {/* Question */}

@@ -18,7 +18,7 @@ const MessageGroupSettings: FC = () => {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Settings className="ml-[15px] cursor-pointer" size={16} />
+        <Settings className="ml-3.75 cursor-pointer" size={16} />
       </PopoverTrigger>
       <PopoverContent className="w-80 p-2" align="end">
         <div>

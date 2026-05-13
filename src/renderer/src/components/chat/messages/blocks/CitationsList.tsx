@@ -48,19 +48,19 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
       {citations.map((citation) => (
         <div
           key={citation.url || citation.number || citation.title}
-          className="border-(--color-border) border-b-[0.5px] last:border-b-0">
+          className="border-border border-b-[0.5px] last:border-b-0">
           {citation.type === 'websearch' && (
             <div className="max-w-[min(400px,60vw)] px-3">
               <WebSearchCitation citation={citation} />
             </div>
           )}
           {citation.type === 'memory' && (
-            <div className="max-w-[600px] px-3">
+            <div className="max-w-150 px-3">
               <KnowledgeCitation citation={{ ...citation }} />
             </div>
           )}
           {citation.type === 'knowledge' && (
-            <div className="max-w-[600px] px-3">
+            <div className="max-w-150 px-3">
               <KnowledgeCitation citation={{ ...citation }} />
             </div>
           )}
@@ -75,12 +75,12 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
         <PopoverTrigger asChild>
           <Button
             variant="ghost"
-            className="mb-2 flex items-center self-start rounded-(--list-item-border-radius) bg-(--color-background-soft) px-2 py-[3px] text-xs">
+            className="mb-2 flex items-center self-start rounded-(--list-item-border-radius) bg-(--color-background-soft) px-2 py-0.75 text-xs">
             <div className="flex items-center">
               {previewItems.map((c, i) => (
                 <div
                   key={i}
-                  className="-ml-2 flex h-6 w-6 items-center justify-center overflow-hidden rounded-full border border-(--color-border) bg-(--color-background-soft) text-(--color-text-2) first:ml-0"
+                  className="-ml-2 flex h-6 w-6 items-center justify-center overflow-hidden rounded-full border border-border bg-(--color-background-soft) text-(--color-text-2) first:ml-0"
                   style={{ zIndex: previewItems.length - i }}>
                   {c.type === 'websearch' && c.url ? (
                     <Favicon hostname={new URL(c.url).hostname} alt={c.title || ''} />
@@ -94,9 +94,7 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0 pb-2" side="right" align="start">
-          <div className="mb-0 border-(--color-border) border-b-[0.5px] px-3 pt-2 pb-2 font-bold">
-            {t('message.citations')}
-          </div>
+          <div className="mb-0 border-border border-b-[0.5px] px-3 pt-2 pb-2 font-bold">{t('message.citations')}</div>
           {popoverContent}
         </PopoverContent>
       </Popover>

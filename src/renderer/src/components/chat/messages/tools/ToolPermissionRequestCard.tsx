@@ -70,13 +70,13 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
   }, [toolResponse.tool?.name, approval.input, toolResponse.arguments, statusInfo])
 
   return (
-    <div className="w-full max-w-xl overflow-hidden rounded-xl border border-(--color-border) bg-(--color-background-soft)">
+    <div className="w-full max-w-xl overflow-hidden rounded-xl border border-border bg-(--color-background-soft)">
       {/* Tool content area with status in header */}
       {renderToolContent()}
 
       {/* Bottom action bar - only show when not invoking */}
       {!approval.isExecuting && (
-        <div className="flex items-center justify-end border-(--color-border) border-t bg-(--color-background) px-3 py-2">
+        <div className="flex items-center justify-end border-border border-t bg-background px-3 py-2">
           <ToolApprovalActionsComponent {...approval} />
         </div>
       )}

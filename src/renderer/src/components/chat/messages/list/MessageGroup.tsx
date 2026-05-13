@@ -439,7 +439,7 @@ const GridMessagePopover = ({
       <PopoverContent
         onMouseEnter={isHover ? () => setOpen(true) : undefined}
         onMouseLeave={isHover ? () => setOpen(false) : undefined}
-        className="z-[1000] max-h-[60vh] w-auto max-w-[60vw] overflow-y-auto p-0.5"
+        className="z-1000 max-h-[60vh] w-auto max-w-[60vw] overflow-y-auto p-0.5"
         side="top"
         align="center">
         {content}

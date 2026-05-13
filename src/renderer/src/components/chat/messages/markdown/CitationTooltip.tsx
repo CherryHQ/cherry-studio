@@ -98,7 +98,7 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
     <Tooltip
       content={tooltipContent}
       showArrow={false}
-      className="rounded-[8px] border border-[var(--color-border)] bg-[var(--color-background)] p-3">
+      className="rounded-[8px] border border-(--color-border) bg-(--color-background) p-3">
       {children}
     </Tooltip>
   )

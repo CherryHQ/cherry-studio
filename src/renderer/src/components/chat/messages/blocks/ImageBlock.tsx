@@ -9,7 +9,7 @@ interface Props {
 
 const ImageBlock: React.FC<Props> = ({ images, isPending = false, isSingle = false }) => {
   if (isPending) {
-    return <div className="h-[200px] w-[200px] animate-pulse rounded-lg bg-(--color-background-soft)" />
+    return <div className="h-50 w-50 animate-pulse rounded-lg bg-(--color-background-soft)" />
   }
 
   if (images.length === 0) {

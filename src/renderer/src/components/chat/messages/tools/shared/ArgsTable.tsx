@@ -62,10 +62,7 @@ export function ToolArgsTable({
 }
 
 export const ArgsSection = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={cn('px-3 py-2 font-[var(--font-family-mono,monospace)] text-xs leading-normal', className)}
-    {...props}
-  />
+  <div className={cn('px-3 py-2 font-(--font-family-mono,monospace) text-xs leading-normal', className)} {...props} />
 )
 
 export const ArgsSectionTitle = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
@@ -78,7 +75,7 @@ export const ArgsTable = ({ className, ...props }: ComponentPropsWithoutRef<'tab
 
 export const ArgKey = ({ className, ...props }: ComponentPropsWithoutRef<'td'>) => (
   <td
-    className={cn('w-[1%] whitespace-nowrap py-1 pr-2 pl-0 align-top font-medium text-(--color-primary)', className)}
+    className={cn('w-[1%] whitespace-nowrap py-1 pr-2 pl-0 align-top font-medium text-primary', className)}
     {...props}
   />
 )
@@ -88,5 +85,5 @@ export const ArgValue = ({ className, ...props }: ComponentPropsWithoutRef<'td'>
 )
 
 export const ResponseSection = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('border-(--color-border) border-t px-3 py-2', className)} {...props} />
+  <div className={cn('border-border border-t px-3 py-2', className)} {...props} />
 )

@@ -35,7 +35,7 @@ const SelectableMessage: FC<SelectableMessageProps> = ({ children, messageId, to
   return (
     <div ref={containerRef} className="relative flex w-full">
       {isMultiSelectMode && !isClearMessage && (
-        <div className="mr-[-10px] flex items-start px-0 pt-[22px] pb-[10px] pl-5">
+        <div className="-mr-2.5 flex items-start px-0 pt-5.5 pb-2.5 pl-5">
           <Checkbox
             checked={isSelected}
             onCheckedChange={(checked) => handleSelectMessage(messageId, checked === true)}

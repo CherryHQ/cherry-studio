@@ -14,14 +14,14 @@ export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: Norm
   return toolResponse.status !== 'done' ? (
     <Spinner
       text={
-        <span className="flex items-center gap-1 py-[5px] pr-[5px] pl-0 text-sm">
+        <span className="flex items-center gap-1 py-1.25 pr-1.25 pl-0 text-sm">
           {t('message.searching')}
           <span>{query}</span>
         </span>
       }
     />
   ) : (
-    <span className="flex items-center gap-1 p-[5px] text-(--color-text-2)">
+    <span className="flex items-center gap-1 p-1.25 text-(--color-text-2)">
       <Search size={16} style={{ color: 'unset' }} />
       {t('message.websearch.fetch_complete', { count: resultCount })}
     </span>

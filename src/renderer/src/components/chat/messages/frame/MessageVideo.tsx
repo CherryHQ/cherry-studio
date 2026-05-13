@@ -63,7 +63,7 @@ const MessageVideo: FC<Props> = ({ url, filePath, videoPath, startTime }) => {
     return <div>{t('message.video.error.unsupported_type')}</div>
   }
 
-  return <div className="aspect-video h-auto w-full max-w-[560px] bg-black">{renderVideo()}</div>
+  return <div className="aspect-video h-auto w-full max-w-140 bg-black">{renderVideo()}</div>
 }
 
 export default MessageVideo

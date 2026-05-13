@@ -88,7 +88,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
               {assistantProfile.avatar}
             </EmojiAvatar>
           ) : (
-            <Avatar className="h-[35px] w-[35px] rounded-[25%]">
+            <Avatar className="h-8.75 w-8.75 rounded-[25%]">
               <AvatarImage src={assistantProfile.avatar} />
               <AvatarFallback className="rounded-[25%]">{avatarName}</AvatarFallback>
             </Avatar>
@@ -99,7 +99,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
           </div>
         ) : (
           <Avatar
-            className="h-[35px] w-[35px] cursor-pointer rounded-[25%]"
+            className="h-8.75 w-8.75 cursor-pointer rounded-[25%]"
             style={{
               cursor: showMiniAppIcon ? 'pointer' : 'default',
               border: 'none',
@@ -116,7 +116,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
               {avatar}
             </EmojiAvatar>
           ) : (
-            <Avatar className="h-[35px] w-[35px] cursor-pointer rounded-[25%]" onClick={() => UserPopup.show()}>
+            <Avatar className="h-8.75 w-8.75 cursor-pointer rounded-[25%]" onClick={() => UserPopup.show()}>
               <AvatarImage src={avatar} />
             </Avatar>
           )}

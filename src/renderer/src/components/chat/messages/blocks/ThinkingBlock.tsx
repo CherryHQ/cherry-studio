@@ -1,6 +1,7 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { CopyIcon } from '@renderer/components/Icons'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { MessageBlockStatus } from '@renderer/types/newMessage'
 import { Check } from 'lucide-react'
@@ -39,7 +40,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs }
   const [messageFont] = usePreference('chat.message.font')
   const [fontSize] = usePreference('chat.message.font_size')
   const [thoughtAutoCollapse] = usePreference('chat.message.thought.auto_collapse')
-  const [activeKey, setActiveKey] = useState<string>(thoughtAutoCollapse ? '' : 'thought')
+  const [activeKey, setActiveKey] = useState<string>('')
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
 
   const isThinking = isStreaming
@@ -47,10 +48,8 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs }
   useEffect(() => {
     if (thoughtAutoCollapse) {
       setActiveKey('')
-    } else {
-      setActiveKey('thought')
     }
-  }, [isThinking, thoughtAutoCollapse])
+  }, [thoughtAutoCollapse])
 
   const copyThought = useCallback(() => {
     if (content) {
@@ -78,38 +77,39 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs }
       collapsible
       value={activeKey}
       onValueChange={(value) => withScrollAnchor(() => setActiveKey(value))}
-      className="message-thought-container mb-3.75">
+      className="message-thought-container group/thought mb-1.5">
       <AccordionItem value="thought" className="border-0 first:border-t-0">
         <AccordionTrigger className="p-0 hover:no-underline [&>svg]:hidden">
           <ThinkingEffect
             expanded={activeKey === 'thought'}
             isThinking={isThinking}
             thinkingTimeText={<ThinkingTimeSeconds blockThinkingTime={thinkingMs} isThinking={isThinking} />}
-            content={content}
+            copyButton={
+              !isThinking ? (
+                <Tooltip content={t('common.copy')} delay={800}>
+                  <button
+                    className="message-action-button flex size-5 cursor-pointer items-center justify-center rounded border-none bg-transparent p-0 text-(--color-text-2) transition-colors duration-150 hover:bg-(--color-background-soft) hover:text-(--color-text) focus-visible:outline-primary focus-visible:outline-2 focus-visible:outline-offset-2"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      copyThought()
+                    }}
+                    aria-label={t('common.copy')}>
+                    {!copied && <CopyIcon size={13} />}
+                    {copied && <Check size={13} color="var(--color-primary)" />}
+                  </button>
+                </Tooltip>
+              ) : undefined
+            }
           />
         </AccordionTrigger>
-        <AccordionContent className="rounded-b-xl border-(--color-border) border-x-[0.5px] border-b-[0.5px] border-solid px-4 pt-4 pb-4">
+        <AccordionContent className="ml-2 border-border border-l pt-1 pr-0 pb-2 pl-6.5">
           {/* FIXME: 临时兼容 */}
           <div
-            className="relative"
+            className="relative [&_.markdown>p:only-child]:mb-0!"
             style={{
               fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
               fontSize
             }}>
-            {!isThinking && (
-              <Tooltip content={t('common.copy')} delay={800}>
-                <button
-                  className="message-action-button -right-3 -top-3 absolute ml-auto flex cursor-pointer items-center justify-center border-none bg-transparent p-1 text-(--color-text-2) opacity-60 transition-all duration-300 hover:text-(--color-text) hover:opacity-100 focus-visible:outline-(--color-primary) focus-visible:outline-2 focus-visible:outline-offset-2 [&_.iconfont]:text-sm"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    copyThought()
-                  }}
-                  aria-label={t('common.copy')}>
-                  {!copied && <i className="iconfont icon-copy"></i>}
-                  {copied && <Check size={14} color="var(--color-primary)" />}
-                </button>
-              </Tooltip>
-            )}
             <Markdown block={block} />
           </div>
         </AccordionContent>
