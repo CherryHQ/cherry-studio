@@ -53,51 +53,6 @@ vi.mock('@logger', () => ({
   }
 }))
 
-// Mock antd components
-vi.mock('antd', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
-  return {
-    ...actual,
-    Collapse: ({ items, defaultActiveKey, className }: any) => (
-      <div data-testid="collapse" className={className} data-active-key={JSON.stringify(defaultActiveKey)}>
-        {items?.map((item: any) => (
-          <div key={item.key} data-testid={`collapse-item-${item.key}`}>
-            <div data-testid={`collapse-header-${item.key}`}>{item.label}</div>
-            <div data-testid={`collapse-content-${item.key}`}>{item.children}</div>
-          </div>
-        ))}
-      </div>
-    ),
-    Spin: ({ size }: any) => <div data-testid="spin" data-size={size} />,
-    Skeleton: {
-      Input: ({ style }: any) => <span data-testid="skeleton-input" style={style} />
-    },
-    Tag: ({ children, className }: any) => (
-      <span data-testid="tag" className={className}>
-        {children}
-      </span>
-    ),
-    Popover: ({ children }: any) => <>{children}</>,
-    Card: ({ children, className }: any) => (
-      <div data-testid="card" className={className}>
-        {children}
-      </div>
-    ),
-    Button: ({ children, onClick, type, size, icon, disabled }: any) => (
-      <button
-        type="button"
-        data-testid="button"
-        onClick={onClick}
-        data-type={type}
-        data-size={size}
-        disabled={disabled}>
-        {icon}
-        {children}
-      </button>
-    )
-  }
-})
-
 // Mock lucide-react icons
 vi.mock('lucide-react', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>

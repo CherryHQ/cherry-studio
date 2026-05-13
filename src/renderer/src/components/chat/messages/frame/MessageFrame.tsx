@@ -133,7 +133,7 @@ const MessageItem: FC<Props> = ({
   const isProcessing = isTopicStreaming || isAwaitingApproval
   const isStreamTarget = activeExecutions.some((e) => e.anchorMessageId === message.id)
   const isApprovalAnchor = isMessageAwaitingApproval(message)
-  const showMenubar = !hideMenuBar && !isEditing && !isStreamTarget && !isApprovalAnchor
+  const showMenuBar = !hideMenuBar && !isEditing && !isStreamTarget && !isApprovalAnchor
 
   const messageHighlightHandler = useCallback(
     (highlight: boolean = true) => {
@@ -238,7 +238,7 @@ const MessageItem: FC<Props> = ({
                 <MessageContent message={message} />
               </MessageErrorBoundary>
             </Scrollbar>
-            {showMenubar && (
+            {showMenuBar && (
               <div className="MessageFooter mt-[3px] ml-[46px] flex items-center justify-between gap-2.5">
                 <HorizontalScrollContainer
                   classNames={{

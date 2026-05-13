@@ -115,7 +115,7 @@ type MessageMenuBarButtonContext = {
   copied: boolean
   /** Bound by `useMessage(message.id, topic)` — signature drops the leading id. */
   deleteMessage: (traceId?: string, modelName?: string) => Promise<void>
-  dropdownItems: MessageMenuItem[]
+  menuItems: MessageMenuItem[]
   enableDeveloperMode: boolean
   handleTraceUserMessage: () => void | Promise<void>
   handleTranslate: (language: TranslateLanguage) => Promise<void>
@@ -328,7 +328,7 @@ const MessageMenuBar: FC<Props> = (props) => {
   // agent-session read-only view) can opt out by setting it to `false`.
   const supportsWrites = true
 
-  const dropdownItems = useMemo(() => {
+  const menuItems = useMemo(() => {
     // Assistant edit is intentionally hidden from the UI — editing an LLM
     // reply in-place produces a confusing "the AI said X" fiction in the
     // context window. Power users can still get the effect via edit-and-
@@ -546,7 +546,7 @@ const MessageMenuBar: FC<Props> = (props) => {
     confirmRegenerateMessage,
     copied,
     deleteMessage,
-    dropdownItems,
+    menuItems,
     enableDeveloperMode,
     handleTraceUserMessage,
     handleTranslate,
@@ -1019,13 +1019,13 @@ const buttonRenderers: Record<MessageMenuBarButtonId, MessageMenuBarButtonRender
       </Tooltip>
     )
   },
-  'more-menu': ({ isUserMessage, dropdownItems, softHoverBg }) => {
+  'more-menu': ({ isUserMessage, menuItems, softHoverBg }) => {
     if (isUserMessage) {
       return null
     }
 
     return (
-      <MessageMenuPopover items={dropdownItems} align="end">
+      <MessageMenuPopover items={menuItems} align="end">
         <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()} $softHoverBg={softHoverBg}>
           <Menu size={19} />
         </ActionButton>
