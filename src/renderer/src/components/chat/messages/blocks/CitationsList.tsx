@@ -11,7 +11,6 @@ import { Popover, Skeleton } from 'antd'
 import { Check, Copy, FileSearch } from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface CitationsListProps {
   citations: Citation[]
@@ -46,27 +45,29 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
   if (!count) return null
 
   const popoverContent = (
-    <PopoverContentContainer>
+    <Scrollbar className="max-h-[70vh]">
       {citations.map((citation) => (
-        <PopoverContentItem key={citation.url || citation.number || citation.title}>
+        <div
+          key={citation.url || citation.number || citation.title}
+          className="border-(--color-border) border-b-[0.5px] last:border-b-0">
           {citation.type === 'websearch' && (
-            <PopoverContent>
+            <div className="max-w-[min(400px,60vw)] px-3">
               <WebSearchCitation citation={citation} />
-            </PopoverContent>
+            </div>
           )}
           {citation.type === 'memory' && (
-            <KnowledgePopoverContent>
+            <div className="max-w-[600px] px-3">
               <KnowledgeCitation citation={{ ...citation }} />
-            </KnowledgePopoverContent>
+            </div>
           )}
           {citation.type === 'knowledge' && (
-            <KnowledgePopoverContent>
+            <div className="max-w-[600px] px-3">
               <KnowledgeCitation citation={{ ...citation }} />
-            </KnowledgePopoverContent>
+            </div>
           )}
-        </PopoverContentItem>
+        </div>
       ))}
-    </PopoverContentContainer>
+    </Scrollbar>
   )
 
   return (
@@ -92,20 +93,25 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
             padding: '0 0 8px 0'
           }
         }}>
-        <OpenButton variant="ghost">
-          <PreviewIcons>
+        <Button
+          variant="ghost"
+          className="mb-2 flex items-center self-start rounded-(--list-item-border-radius) bg-(--color-background-soft) px-2 py-[3px] text-xs">
+          <div className="flex items-center">
             {previewItems.map((c, i) => (
-              <PreviewIcon key={i} style={{ zIndex: previewItems.length - i }}>
+              <div
+                key={i}
+                className="-ml-2 flex h-6 w-6 items-center justify-center overflow-hidden rounded-full border border-(--color-border) bg-(--color-background-soft) text-(--color-text-2) first:ml-0"
+                style={{ zIndex: previewItems.length - i }}>
                 {c.type === 'websearch' && c.url ? (
                   <Favicon hostname={new URL(c.url).hostname} alt={c.title || ''} />
                 ) : (
                   <FileSearch width={16} />
                 )}
-              </PreviewIcon>
+              </div>
             ))}
-          </PreviewIcons>
+          </div>
           {t('message.citation', { count })}
-        </OpenButton>
+        </Button>
       </Popover>
     </QueryClientProvider>
   )
@@ -134,7 +140,13 @@ const CopyButton: React.FC<{ content: string }> = ({ content }) => {
       })
   }
 
-  return <CopyIconWrapper onClick={handleCopy}>{copied ? <Check size={14} /> : <Copy size={14} />}</CopyIconWrapper>
+  return (
+    <div
+      className="absolute top-1/2 right-0 flex -translate-y-1/2 cursor-pointer items-center justify-center rounded p-1 text-(--color-text-2) opacity-0 transition-opacity duration-300 hover:bg-(--color-background-soft) hover:opacity-100 group-hover:opacity-100"
+      onClick={handleCopy}>
+      {copied ? <Check size={14} /> : <Copy size={14} />}
+    </div>
+  )
 }
 
 const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
@@ -169,24 +181,31 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
 
   return (
     <SelectionContextMenu>
-      <WebSearchCard>
-        <WebSearchCardHeader>
+      <div className="group relative flex w-full flex-col py-3 transition-all duration-300">
+        <div className="relative mb-1.5 flex w-full flex-row items-center gap-2">
           {citation.showFavicon && citation.url && (
             <Favicon hostname={new URL(citation.url).hostname} alt={citation.title || citation.hostname || ''} />
           )}
-          <CitationLink className="text-nowrap" href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
-            {displayTitle || <span className="hostname">{citation.hostname}</span>}
-          </CitationLink>
+          <a
+            className="flex-1 text-nowrap text-sm leading-[1.6] text-(--color-text-1) no-underline"
+            href={citation.url}
+            onClick={(e) => handleLinkClick(citation.url, e)}>
+            {displayTitle || <span className="text-(--color-link)">{citation.hostname}</span>}
+          </a>
 
-          <CitationIndex>{citation.number}</CitationIndex>
+          <div className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-(--color-reference) text-[10px] text-(--color-reference-text) leading-[1.6] opacity-100 transition-opacity duration-300 group-hover:opacity-0">
+            {citation.number}
+          </div>
           {fetchedContent && <CopyButton content={fetchedContent} />}
-        </WebSearchCardHeader>
+        </div>
         {isLoading ? (
           <Skeleton active paragraph={{ rows: 1 }} title={false} />
         ) : (
-          <WebSearchCardContent className="selectable-text">{fetchedContent}</WebSearchCardContent>
+          <div className="selectable-text cursor-text break-all text-[13px] text-(--color-text-2) leading-[1.6] select-text">
+            {fetchedContent}
+          </div>
         )}
-      </WebSearchCard>
+      </div>
     </SelectionContextMenu>
   )
 }
@@ -194,165 +213,27 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
 const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
   return (
     <SelectionContextMenu>
-      <WebSearchCard>
-        <WebSearchCardHeader>
+      <div className="group relative flex w-full flex-col py-3 transition-all duration-300">
+        <div className="relative mb-1.5 flex w-full flex-row items-center gap-2">
           {citation.showFavicon && <FileSearch width={16} />}
-          <CitationLink className="text-nowrap" href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
+          <a
+            className="flex-1 text-nowrap text-sm leading-[1.6] text-(--color-text-1) no-underline"
+            href={citation.url}
+            onClick={(e) => handleLinkClick(citation.url, e)}>
             {/* example title: User/path/example.pdf */}
             {citation.title?.split('/').pop()}
-          </CitationLink>
-          <CitationIndex>{citation.number}</CitationIndex>
+          </a>
+          <div className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-(--color-reference) text-[10px] text-(--color-reference-text) leading-[1.6] opacity-100 transition-opacity duration-300 group-hover:opacity-0">
+            {citation.number}
+          </div>
           {citation.content && <CopyButton content={citation.content} />}
-        </WebSearchCardHeader>
-        <WebSearchCardContent className="selectable-text">{citation.content ?? ''}</WebSearchCardContent>
-      </WebSearchCard>
+        </div>
+        <div className="selectable-text cursor-text break-all text-[13px] text-(--color-text-2) leading-[1.6] select-text">
+          {citation.content ?? ''}
+        </div>
+      </div>
     </SelectionContextMenu>
   )
 }
-
-const OpenButton = styled(Button)`
-  display: flex;
-  align-items: center;
-  padding: 3px 8px;
-  margin-bottom: 8px;
-  align-self: flex-start;
-  font-size: 12px;
-  background-color: var(--color-background-soft);
-  border-radius: var(--list-item-border-radius);
-`
-
-const PreviewIcons = styled.div`
-  display: flex;
-  align-items: center;
-`
-
-const PreviewIcon = styled.div`
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-background-soft);
-  border: 1px solid var(--color-border);
-  margin-left: -8px;
-  color: var(--color-text-2);
-
-  &:first-child {
-    margin-left: 0;
-  }
-`
-
-const CitationIndex = styled.div`
-  width: 14px;
-  height: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background-color: var(--color-reference);
-  font-size: 10px;
-  line-height: 1.6;
-  color: var(--color-reference-text);
-  flex-shrink: 0;
-  opacity: 1;
-  transition: opacity 0.3s ease;
-`
-
-const CitationLink = styled.a`
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--color-text-1);
-  text-decoration: none;
-  flex: 1;
-  .hostname {
-    color: var(--color-link);
-  }
-`
-
-const CopyIconWrapper = styled.div`
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-2);
-  opacity: 0;
-  padding: 4px;
-  border-radius: 4px;
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  transition: opacity 0.3s ease;
-
-  &:hover {
-    opacity: 1;
-    background-color: var(--color-background-soft);
-  }
-`
-
-const WebSearchCard = styled.div`
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  padding: 12px 0;
-  transition: all 0.3s ease;
-  position: relative;
-  &:hover {
-    ${CopyIconWrapper} {
-      opacity: 1;
-    }
-    ${CitationIndex} {
-      opacity: 0;
-    }
-  }
-`
-
-const WebSearchCardHeader = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-  width: 100%;
-  position: relative;
-`
-
-const WebSearchCardContent = styled.div`
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--color-text-2);
-  user-select: text;
-  cursor: text;
-  word-break: break-all;
-
-  &.selectable-text {
-    -webkit-user-select: text;
-    -moz-user-select: text;
-    -ms-user-select: text;
-    user-select: text;
-  }
-`
-
-const PopoverContentContainer = styled(Scrollbar)`
-  max-height: 70vh;
-`
-
-const PopoverContent = styled.div`
-  max-width: min(400px, 60vw);
-  padding: 0 12px;
-`
-
-const KnowledgePopoverContent = styled(PopoverContent)`
-  max-width: 600px;
-`
-
-const PopoverContentItem = styled.div`
-  border-bottom: 0.5px solid var(--color-border);
-  &:last-child {
-    border-bottom: none;
-  }
-`
 
 export default CitationsList
