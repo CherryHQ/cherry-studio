@@ -1,51 +1,55 @@
-import FileManager from '@renderer/services/FileManager'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { addPainting, removePainting, updatePainting, updatePaintings } from '@renderer/store/paintings'
-import type { PaintingAction, PaintingsState } from '@renderer/types'
+import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useReorder } from '@renderer/data/hooks/useReorder'
+import type { CreatePaintingDto, ListPaintingsQueryParams, UpdatePaintingDto } from '@shared/data/api/schemas/paintings'
+import type { Painting } from '@shared/data/types/painting'
+import { isUndefined, omitBy } from 'lodash'
+import { useCallback } from 'react'
 
-export function usePaintings() {
-  const siliconflow_paintings = useAppSelector((state) => state.paintings.siliconflow_paintings)
-  const dmxapi_paintings = useAppSelector((state) => state.paintings.dmxapi_paintings)
-  const tokenflux_paintings = useAppSelector((state) => state.paintings.tokenflux_paintings)
-  const zhipu_paintings = useAppSelector((state) => state.paintings.zhipu_paintings)
-  const aihubmix_image_generate = useAppSelector((state) => state.paintings.aihubmix_image_generate)
-  const aihubmix_image_remix = useAppSelector((state) => state.paintings.aihubmix_image_remix)
-  const aihubmix_image_edit = useAppSelector((state) => state.paintings.aihubmix_image_edit)
-  const aihubmix_image_upscale = useAppSelector((state) => state.paintings.aihubmix_image_upscale)
-  const openai_image_generate = useAppSelector((state) => state.paintings.openai_image_generate)
-  const openai_image_edit = useAppSelector((state) => state.paintings.openai_image_edit)
-  const ovms_paintings = useAppSelector((state) => state.paintings.ovms_paintings)
-  const ppio_draw = useAppSelector((state) => state.paintings.ppio_draw)
-  const ppio_edit = useAppSelector((state) => state.paintings.ppio_edit)
-  const dispatch = useAppDispatch()
+export function usePaintings(query?: ListPaintingsQueryParams) {
+  const filtered = query ? (omitBy(query, isUndefined) as ListPaintingsQueryParams) : undefined
+  const hasQuery = filtered && Object.keys(filtered).length > 0
+  const { data, isLoading, refetch } = useQuery('/paintings', hasQuery ? { query: filtered } : undefined)
+  const { trigger: createTrigger } = useMutation('POST', '/paintings', { refresh: ['/paintings'] })
+  const { trigger: updateTrigger } = useMutation('PATCH', '/paintings/:id', { refresh: ['/paintings'] })
+  const { trigger: deleteTrigger } = useMutation('DELETE', '/paintings/:id', { refresh: ['/paintings'] })
+  const { applyReorderedList } = useReorder('/paintings')
+
+  const createPainting = useCallback(
+    (painting: CreatePaintingDto) => {
+      return createTrigger({ body: painting })
+    },
+    [createTrigger]
+  )
+
+  const updatePainting = useCallback(
+    (id: string, updates: UpdatePaintingDto) => {
+      return updateTrigger({ params: { id }, body: updates })
+    },
+    [updateTrigger]
+  )
+
+  const deletePainting = useCallback(
+    (id: string) => {
+      return deleteTrigger({ params: { id } })
+    },
+    [deleteTrigger]
+  )
+
+  const reorderPaintings = useCallback(
+    (paintings: Painting[]) => {
+      return applyReorderedList(paintings as unknown as Array<Record<string, unknown>>)
+    },
+    [applyReorderedList]
+  )
 
   return {
-    siliconflow_paintings,
-    dmxapi_paintings,
-    tokenflux_paintings,
-    zhipu_paintings,
-    aihubmix_image_generate,
-    aihubmix_image_remix,
-    aihubmix_image_edit,
-    aihubmix_image_upscale,
-    openai_image_generate,
-    openai_image_edit,
-    ovms_paintings,
-    ppio_draw,
-    ppio_edit,
-    addPainting: (namespace: keyof PaintingsState, painting: PaintingAction) => {
-      dispatch(addPainting({ namespace, painting }))
-      return painting
-    },
-    removePainting: async (namespace: keyof PaintingsState, painting: PaintingAction) => {
-      void FileManager.deleteFiles(painting.files)
-      dispatch(removePainting({ namespace, painting }))
-    },
-    updatePainting: (namespace: keyof PaintingsState, painting: PaintingAction) => {
-      dispatch(updatePainting({ namespace, painting }))
-    },
-    updatePaintings: (namespace: keyof PaintingsState, paintings: PaintingAction[]) => {
-      dispatch(updatePaintings({ namespace, paintings }))
-    }
+    records: data?.items ?? [],
+    total: data?.total ?? 0,
+    isLoading,
+    refresh: refetch,
+    createPainting,
+    updatePainting,
+    deletePainting,
+    reorderPaintings
   }
 }

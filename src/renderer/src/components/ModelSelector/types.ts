@@ -13,8 +13,14 @@ interface ModelSelectorCommonProps {
   open?: boolean
   onOpenChange?: (open: boolean) => void
   filter?: (model: Model) => boolean
+  dataOverride?: {
+    providers: Provider[]
+    models: Model[]
+    isLoading?: boolean
+  }
   showTagFilter?: boolean
   showPinnedModels?: boolean
+  showPinActions?: boolean
   prioritizedProviderIds?: string[]
   side?: ModelSelectorSide
   align?: ModelSelectorAlign
@@ -89,6 +95,9 @@ export type FlatListItem = ModelSelectorGroupItem | ModelSelectorModelItem
 export interface UseModelSelectorDataOptions {
   selectedModelIds?: readonly UniqueModelId[]
   maxSelectedCount?: number
+  providersOverride?: Provider[]
+  modelsOverride?: Model[]
+  isDataLoadingOverride?: boolean
   searchText: string
   filter?: (model: Model) => boolean
   showTagFilter?: boolean

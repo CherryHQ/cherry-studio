@@ -1773,6 +1773,7 @@
     "on": "オン",
     "open": "開く",
     "open_in": "{{name}}で開く",
+    "parameter": "パラメータ",
     "paste": "貼り付け",
     "placeholders": {
       "select": {
@@ -3761,6 +3762,7 @@
     },
     "generate_failed": "画像の生成に失敗しました",
     "generated_image": "生成画像",
+    "generating": "生成中...",
     "go_to_settings": "設定に移動",
     "guidance_scale": "ガイダンススケール",
     "guidance_scale_tip": "分類器なしのガイダンス。モデルが関連する画像を探す際にプロンプトにどれだけ従うかを制御します",
@@ -3804,6 +3806,7 @@
     "number_images_tip": "生成する画像の数（1-4）",
     "operation_failed": "操作に失敗しました。後でもう一度お試しください。",
     "paint_course": "チュートリアル",
+    "parameters": "パラメータ",
     "per_image": "1枚あたり",
     "per_images": "複数枚あたり",
     "person_generation_options": {

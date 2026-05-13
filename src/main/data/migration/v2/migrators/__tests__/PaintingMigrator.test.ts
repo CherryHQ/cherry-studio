@@ -1,0 +1,150 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: vi.fn(() => ({
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn()
+    }))
+  }
+}))
+
+import { PaintingMigrator } from '../PaintingMigrator'
+
+function createMigrationContext(
+  paintingsState: Record<string, unknown>,
+  insertedRows: unknown[],
+  validModelIds: string[] = []
+): Record<string, unknown> {
+  return {
+    sources: {
+      reduxState: {
+        getCategory: vi.fn((name: string) => (name === 'paintings' ? paintingsState : undefined))
+      }
+    },
+    db: {
+      transaction: vi.fn(async (fn: (tx: Record<string, unknown>) => Promise<unknown>) =>
+        fn({
+          insert: vi.fn(() => ({
+            values: vi.fn(async (values: unknown[]) => {
+              insertedRows.push(...values)
+            })
+          }))
+        })
+      ),
+      select: vi.fn(() => ({
+        from: vi.fn(() =>
+          Object.assign(
+            validModelIds.map((id) => ({ id })),
+            {
+              get: vi.fn(async () => ({ count: insertedRows.length }))
+            }
+          )
+        )
+      }))
+    }
+  }
+}
+
+describe('PaintingMigrator', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('prepares records with global orderKey and DMXAPI mode normalization', async () => {
+    const migrator = new PaintingMigrator()
+    const insertedRows: unknown[] = []
+    const ctx = createMigrationContext(
+      {
+        dmxapi_paintings: [
+          { id: 'dmx-1', prompt: 'first', generationMode: 'generation' },
+          { id: 'dmx-2', prompt: 'second', generationMode: 'edit' }
+        ],
+        openai_image_generate: [{ id: 'openai-1', providerId: 'custom-openai', prompt: 'third' }]
+      },
+      insertedRows
+    )
+
+    const prepareResult = await migrator.prepare(ctx as never)
+    expect(prepareResult.success).toBe(true)
+
+    const preparedRows = (migrator as unknown as { preparedPaintings: Array<Record<string, unknown>> })
+      .preparedPaintings
+    expect(preparedRows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'dmx-1',
+          providerId: 'dmxapi',
+          mode: 'generate',
+          mediaType: 'image',
+          orderKey: expect.any(String)
+        }),
+        expect.objectContaining({
+          id: 'dmx-2',
+          providerId: 'dmxapi',
+          mode: 'edit',
+          orderKey: expect.any(String)
+        }),
+        expect.objectContaining({
+          id: 'openai-1',
+          providerId: 'custom-openai',
+          mode: 'generate',
+          orderKey: expect.any(String)
+        })
+      ])
+    )
+    expect(new Set(preparedRows.map((row) => row.orderKey)).size).toBe(preparedRows.length)
+  })
+
+  it('executes inserts and validates migrated row counts', async () => {
+    const migrator = new PaintingMigrator()
+    const insertedRows: unknown[] = []
+    const ctx = createMigrationContext(
+      {
+        siliconflow_paintings: [{ id: 'painting-1', prompt: 'hello' }],
+        ppio_edit: [{ id: 'painting-2', prompt: 'world', taskId: 'task-2' }]
+      },
+      insertedRows
+    )
+
+    await migrator.prepare(ctx as never)
+    await expect(migrator.execute(ctx as never)).resolves.toMatchObject({
+      success: true,
+      processedCount: 2
+    })
+    await expect(migrator.validate(ctx as never)).resolves.toMatchObject({
+      success: true,
+      stats: {
+        sourceCount: 2,
+        targetCount: 2,
+        skippedCount: 0
+      }
+    })
+  })
+
+  it('preserves all model references during migration regardless of userModel presence', async () => {
+    const migrator = new PaintingMigrator()
+    const insertedRows: unknown[] = []
+    const ctx = createMigrationContext(
+      {
+        openai_image_generate: [
+          { id: 'painting-known', providerId: 'openai', modelId: 'openai::gpt-image-1', prompt: 'known' },
+          { id: 'painting-dangling', providerId: 'openai', modelId: 'openai::missing', prompt: 'dangling' }
+        ]
+      },
+      insertedRows
+    )
+
+    await migrator.prepare(ctx as never)
+    await migrator.execute(ctx as never)
+
+    expect(insertedRows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'painting-known', modelId: 'openai::gpt-image-1' }),
+        expect.objectContaining({ id: 'painting-dangling', modelId: 'openai::missing' })
+      ])
+    )
+  })
+})

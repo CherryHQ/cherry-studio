@@ -1773,6 +1773,7 @@
     "on": "An",
     "open": "Öffnen",
     "open_in": "In {{name}} öffnen",
+    "parameter": "Parameter",
     "paste": "Einfügen",
     "placeholders": {
       "select": {
@@ -3761,6 +3762,7 @@
     },
     "generate_failed": "Fehler beim Generieren des Bildes",
     "generated_image": "Generiertes Bild",
+    "generating": "Wird generiert...",
     "go_to_settings": "Zu Einstellungen",
     "guidance_scale": "Guidance-Skala",
     "guidance_scale_tip": "Classifier-free Guidance. Kontrolliert, wie genau das Modell dem Prompt folgt",
@@ -3804,6 +3806,7 @@
     "number_images_tip": "Anzahl der Bilder pro Generierung (1-4)",
     "operation_failed": "Vorgang fehlgeschlagen, bitte versuchen Sie es später erneut",
     "paint_course": "Tutorial",
+    "parameters": "Parameter",
     "per_image": "Pro Bild",
     "per_images": "Pro Bild",
     "person_generation_options": {

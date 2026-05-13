@@ -1773,6 +1773,7 @@
     "on": "Ligado",
     "open": "Abrir",
     "open_in": "Abrir em {{name}}",
+    "parameter": "Parâmetro",
     "paste": "Colar",
     "placeholders": {
       "select": {
@@ -3761,6 +3762,7 @@
     },
     "generate_failed": "Falha ao gerar imagem",
     "generated_image": "Imagem gerada",
+    "generating": "A gerar...",
     "go_to_settings": "Ir para configurações",
     "guidance_scale": "Escala de Direção",
     "guidance_scale_tip": "Sem direção do classificador. Controle o grau ao qual o modelo segue a palavra-chave ao procurar imagens relacionadas",
@@ -3804,6 +3806,7 @@
     "number_images_tip": "Quantidade de imagens a serem geradas por vez (1-4)",
     "operation_failed": "Operação falhou, por favor tente novamente mais tarde",
     "paint_course": "Tutorial",
+    "parameters": "Parâmetros",
     "per_image": "Por imagem",
     "per_images": "Por imagem",
     "person_generation_options": {

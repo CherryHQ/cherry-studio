@@ -366,6 +366,8 @@ export interface PreferenceSchemas {
     'feature.openclaw.gateway_port': number
     // target-key-definitions/complex/complex
     'feature.openclaw.selected_model_id': string | null
+    // target-key-definitions/complex/complex
+    'feature.paintings.default_provider': string
     // redux/llm/quickAssistantId
     'feature.quick_assistant.assistant_id': string
     // redux/settings/clickTrayToShowQuickAssistant
@@ -667,6 +669,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.notes.sort_type': 'sort_a2z',
     'feature.openclaw.gateway_port': 18790,
     'feature.openclaw.selected_model_id': null,
+    'feature.paintings.default_provider': 'zhipu',
     'feature.quick_assistant.assistant_id': '',
     'feature.quick_assistant.click_tray_to_show': false,
     'feature.quick_assistant.enabled': false,

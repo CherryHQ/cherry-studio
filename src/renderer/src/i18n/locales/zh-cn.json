@@ -1777,6 +1777,7 @@
     "on": "启用",
     "open": "打开",
     "open_in": "在 {{name}} 中打开",
+    "parameter": "参数",
     "paste": "粘贴",
     "placeholders": {
       "select": {
@@ -3741,6 +3742,9 @@
       },
       "new": {
         "image": "新建图片"
+      },
+      "select": {
+        "image": "选择图片"
       }
     },
     "custom_size": "自定义尺寸",
@@ -3798,6 +3802,7 @@
     },
     "generate_failed": "生成图像失败",
     "generated_image": "生成图片",
+    "generating": "生成中...",
     "go_to_settings": "去设置",
     "guidance_scale": "引导比例",
     "guidance_scale_tip": "无分类器指导。控制模型在寻找相关图像时对提示词的遵循程度",
@@ -3841,6 +3846,7 @@
     "number_images_tip": "一次生成的图片数量 (1-4)",
     "operation_failed": "操作失败，请稍后重试",
     "paint_course": "教程",
+    "parameters": "参数设置",
     "per_image": "每张图片",
     "per_images": "每张图片",
     "person_generation_options": {

@@ -3,7 +3,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import { AppLogo } from '@renderer/config/env'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { modelGenerating } from '@renderer/hooks/useModel'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { getSidebarIconLabel } from '@renderer/i18n/label'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarIcon as SidebarIconType } from '@shared/data/preference/preferenceTypes'
@@ -61,10 +60,7 @@ const iconMap: Record<SidebarIconType, SidebarMenuItem['icon']> = {
   openclaw: OpenClawSidebarIcon
 }
 
-function getMenuPath(icon: SidebarIconType, defaultPaintingProvider: string): string {
-  if (icon === 'paintings') {
-    return `/app/paintings/${defaultPaintingProvider}`
-  }
+function getMenuPath(icon: SidebarIconType): string {
   return routePrefixMap[icon] || ''
 }
 
@@ -80,7 +76,6 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const [userName] = usePreference('app.user.name')
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const { activeTab, updateTab, openTab } = useTabs()
-  const { defaultPaintingProvider } = useSettings()
 
   // Sidebar width — persisted across restarts
   const [persistedWidth, setPersistedWidth] = usePersistCache('ui.sidebar.width')
@@ -113,7 +108,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const items = useMemo<SidebarMenuItem[]>(
     () =>
       visibleSidebarIcons.flatMap((icon) => {
-        const path = getMenuPath(icon, defaultPaintingProvider)
+        const path = getMenuPath(icon)
         const Icon = iconMap[icon]
         if (!path || !Icon) {
           return []
@@ -126,7 +121,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           }
         ]
       }),
-    [defaultPaintingProvider, visibleSidebarIcons]
+    [visibleSidebarIcons]
   )
 
   const activeItem = resolveActiveItem(pathname)
@@ -134,7 +129,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const handleNavigate = useCallback(
     async (menuItemId: string) => {
       const menuId = menuItemId as SidebarIconType
-      const path = getMenuPath(menuId, defaultPaintingProvider)
+      const path = getMenuPath(menuId)
       if (!path) return
 
       try {
@@ -157,7 +152,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
       }
     },
-    [activeTab, updateTab, openTab, defaultPaintingProvider]
+    [activeTab, updateTab, openTab]
   )
 
   // Common props shared between normal and floating sidebar

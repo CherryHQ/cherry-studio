@@ -1,211 +1,120 @@
-import { Button } from '@cherrystudio/ui'
-import ImageViewer from '@renderer/components/ImageViewer'
+import { Button, ImagePreviewTrigger } from '@cherrystudio/ui'
 import FileManager from '@renderer/services/FileManager'
-import type { Painting } from '@renderer/types'
-import { Spin } from 'antd'
-import type { FC } from 'react'
-import React from 'react'
+import { motion } from 'framer-motion'
+import { type FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
-interface ArtboardProps {
-  painting: Painting
+import type { PaintingData } from '../model/types/paintingData'
+
+export interface ArtboardProps {
+  painting: PaintingData
   isLoading: boolean
-  currentImageIndex: number
-  onPrevImage: () => void
-  onNextImage: () => void
   onCancel: () => void
-  retry?: (painting: Painting) => void
   imageCover?: React.ReactNode
   loadText?: React.ReactNode
 }
 
-const Artboard: FC<ArtboardProps> = ({
-  painting,
-  isLoading,
-  currentImageIndex,
-  onPrevImage,
-  onNextImage,
+const LoadingStateCard: FC<{ text: React.ReactNode; onCancel: () => void; cancelLabel: string }> = ({
+  text,
   onCancel,
-  retry,
-  imageCover,
-  loadText
+  cancelLabel
 }) => {
-  const { t } = useTranslation()
-
-  const getCurrentImageUrl = () => {
-    const currentFile = painting.files[currentImageIndex]
-    return currentFile ? FileManager.getFileUrl(currentFile) : ''
-  }
-
   return (
-    <Container>
-      <LoadingContainer spinning={isLoading}>
-        {painting.files.length > 0 ? (
-          <ImageContainer>
-            {painting.files.length > 1 && (
-              <NavigationButton onClick={onPrevImage} className="left-2.5">
-                ←
-              </NavigationButton>
-            )}
-            <ImageViewer
-              src={getCurrentImageUrl()}
-              preview={{ mask: false }}
-              style={{
-                maxWidth: 'var(--artboard-max)',
-                maxHeight: 'var(--artboard-max)',
-                objectFit: 'contain',
-                backgroundColor: 'var(--color-background-soft)',
-                cursor: 'pointer'
-              }}
-            />
-            {painting.files.length > 1 && (
-              <NavigationButton onClick={onNextImage} className="right-2.5">
-                →
-              </NavigationButton>
-            )}
-            <ImageCounter>
-              {currentImageIndex + 1} / {painting.files.length}
-            </ImageCounter>
-          </ImageContainer>
-        ) : (
-          <ImagePlaceholder>
-            {painting.urls.length > 0 && retry ? (
-              <div>
-                <ImageList>
-                  {painting.urls.map((url, index) => (
-                    <ImageListItem key={url || index}>{url}</ImageListItem>
-                  ))}
-                </ImageList>
-                <div>
-                  {t('paintings.proxy_required')}
-                  <Button variant="ghost" onClick={() => retry?.(painting)}>
-                    {t('paintings.image_retry')}
-                  </Button>
-                </div>
-              </div>
-            ) : imageCover ? (
-              imageCover
-            ) : loadText && isLoading ? (
-              ''
-            ) : (
-              <div>{t('paintings.image_placeholder')}</div>
-            )}
-          </ImagePlaceholder>
-        )}
-        {isLoading && (
-          <LoadingOverlay>
-            <Spin size="large" />
-            {loadText ? loadText : ''}
-            <CancelButton onClick={onCancel}>{t('common.cancel')}</CancelButton>
-          </LoadingOverlay>
-        )}
-      </LoadingContainer>
-    </Container>
+    <div className="flex min-w-56 flex-col items-center gap-4 rounded-[18px] border border-border/70 bg-card/96 px-10 py-10 shadow-2xl shadow-black/10 backdrop-blur-sm">
+      <div className="relative h-12 w-12">
+        <motion.div
+          className="absolute inset-0 rounded-full border-2 border-border"
+          animate={{ rotate: 360 }}
+          transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY, ease: 'linear' }}
+        />
+        <motion.div
+          className="absolute inset-1 rounded-full border-2 border-primary border-r-transparent border-b-transparent"
+          animate={{ rotate: -360 }}
+          transition={{ duration: 1.5, repeat: Number.POSITIVE_INFINITY, ease: 'linear' }}
+        />
+      </div>
+      <div className="text-center font-medium text-[13px] text-foreground/85">{text}</div>
+      <Button variant="outline" size="sm" onClick={onCancel} className="mt-1 min-w-20">
+        {cancelLabel}
+      </Button>
+    </div>
   )
 }
 
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
+const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover, loadText }) => {
+  const { t } = useTranslation()
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const displayedImageIndex = painting.files.length > 0 ? Math.min(currentImageIndex, painting.files.length - 1) : 0
+  const currentFile = painting.files[displayedImageIndex]
+  const currentImageUrl = currentFile ? FileManager.getFileUrl(currentFile) : ''
+  const loadingText = loadText || t('paintings.generating')
 
-  --artboard-max: calc(100vh - 256px);
-`
+  const onPrevImage = useCallback(() => {
+    setCurrentImageIndex((index) => (index > 0 ? index - 1 : Math.max(0, painting.files.length - 1)))
+  }, [painting.files.length])
 
-const ImagePlaceholder = styled.div`
-  display: flex;
-  width: var(--artboard-max);
-  height: var(--artboard-max);
-  background-color: var(--color-background-soft);
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  box-sizing: border-box;
-`
+  const onNextImage = useCallback(() => {
+    setCurrentImageIndex((index) => (painting.files.length > 0 ? (index + 1) % painting.files.length : 0))
+  }, [painting.files.length])
 
-const ImageList = styled.ul`
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  word-break: break-all;
-  user-select: text;
-`
+  useEffect(() => {
+    setCurrentImageIndex(0)
+  }, [painting.id])
 
-const ImageListItem = styled.li`
-  color: var(--color-text-secondary);
-  margin-bottom: 10px;
-`
+  useEffect(() => {
+    setCurrentImageIndex((index) => {
+      if (painting.files.length === 0) return 0
+      return Math.min(index, painting.files.length - 1)
+    })
+  }, [painting.files.length])
 
-const ImageContainer = styled.div`
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  return (
+    <div className="flex min-h-0 w-full flex-1 flex-col p-2">
+      <div
+        className={`relative flex min-h-0 flex-1 flex-col items-center justify-center transition-opacity ${isLoading ? 'opacity-70' : 'opacity-100'}`}>
+        {painting.files.length > 0 ? (
+          <div className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden">
+            {painting.files.length > 1 && (
+              <Button
+                size="icon-sm"
+                variant="outline"
+                onClick={onPrevImage}
+                className="-translate-y-1/2 absolute top-1/2 left-2.5 z-20 opacity-80 hover:opacity-100">
+                ←
+              </Button>
+            )}
+            <ImagePreviewTrigger
+              item={{ id: currentFile.id, src: currentImageUrl }}
+              items={painting.files.map((file) => ({ id: file.id, src: FileManager.getFileUrl(file) }))}
+              alt=""
+              className="max-h-full max-w-full cursor-zoom-in rounded-md object-contain"
+              style={{ backgroundColor: 'hsl(var(--muted) / 0.35)' }}
+            />
+            {painting.files.length > 1 && (
+              <Button
+                size="icon-sm"
+                variant="outline"
+                onClick={onNextImage}
+                className="-translate-y-1/2 absolute top-1/2 right-2.5 z-20 opacity-80 hover:opacity-100">
+                →
+              </Button>
+            )}
+            <div className="-translate-x-1/2 absolute bottom-2.5 left-1/2 rounded-full bg-black/50 px-2 py-1 text-white text-xs">
+              {displayedImageIndex + 1} / {painting.files.length}
+            </div>
+          </div>
+        ) : imageCover ? (
+          imageCover
+        ) : null}
 
-  .ant-spin {
-    max-height: none;
-  }
-
-  .ant-spin-spinning {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 3;
-  }
-`
-
-const NavigationButton = styled(Button)`
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 2;
-  opacity: 0.7;
-  &:hover {
-    opacity: 1;
-  }
-`
-
-const ImageCounter = styled.div`
-  position: absolute;
-  bottom: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: rgba(0, 0, 0, 0.5);
-  color: white;
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 12px;
-`
-
-const LoadingContainer = styled.div<{ spinning: boolean }>`
-  position: relative;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  opacity: ${(props) => (props.spinning ? 0.5 : 1)};
-  transition: opacity 0.3s;
-`
-
-const LoadingOverlay = styled.div`
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-`
-
-const CancelButton = styled(Button)`
-  margin-top: 10px;
-  z-index: 1001;
-`
+        {isLoading && (
+          <div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 z-30">
+            <LoadingStateCard text={loadingText} onCancel={onCancel} cancelLabel={t('common.cancel')} />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
 export default Artboard
