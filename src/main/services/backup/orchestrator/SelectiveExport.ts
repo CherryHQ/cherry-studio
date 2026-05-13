@@ -185,9 +185,9 @@ async function tryAttachAndCopy(
   try {
     for (const table of tables) {
       token.throwIfCancelled()
-      // Column-order consistency: both databases share identical schema from the same
-      // Drizzle migrations, so SELECT * column order matches INSERT target order.
-      // This assumption breaks if migrations ever diverge between live and backup.
+      // Column-order consistency: source and backup databases use the same schema
+      // initialization flow (Drizzle migrations + CUSTOM_SQL_STATEMENTS), so table
+      // definitions and column order are identical. This breaks if they diverge.
       await backupClient.execute(`INSERT INTO "${table}" SELECT * FROM source."${table}"`)
     }
     logger.info('Tables copied via ATTACH', { count: tables.length })
@@ -235,17 +235,22 @@ async function copyTableDualClient(
   const placeholders = columns.map(() => '?').join(', ')
   const insertSql = `INSERT INTO "${table}" (${columnList}) VALUES (${placeholders})`
 
-  // Cursor-based pagination via rowid — safe under concurrent WAL writes
-  let lastRowid = 0
+  // Cursor-based pagination via rowid — safe under concurrent WAL writes.
+  // First batch fetches without cursor to include negative rowid rows.
+  // Subsequent batches resume from the last seen rowid.
+  let lastRowid: number | null = null
   let copied = 0
 
   while (copied < totalRows) {
     token.throwIfCancelled()
 
-    const batch = await liveClient.execute({
-      sql: `SELECT rowid AS _rowid_, * FROM "${table}" WHERE rowid > ? ORDER BY rowid LIMIT ?`,
-      args: [lastRowid, FALLBACK_BATCH_SIZE]
-    })
+    const sql =
+      lastRowid === null
+        ? `SELECT rowid AS _rowid_, * FROM "${table}" ORDER BY rowid LIMIT ?`
+        : `SELECT rowid AS _rowid_, * FROM "${table}" WHERE rowid > ? ORDER BY rowid LIMIT ?`
+    const args = lastRowid === null ? [FALLBACK_BATCH_SIZE] : [lastRowid, FALLBACK_BATCH_SIZE]
+
+    const batch = await liveClient.execute({ sql, args: args as InValue[] })
 
     if (batch.rows.length === 0) break
 
