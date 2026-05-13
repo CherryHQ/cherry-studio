@@ -161,6 +161,13 @@
       "when": 1778476119706,
       "tag": "0022_hot_reptil",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1778600480389,
+      "tag": "0023_careless_fat_cobra",
+      "breakpoints": true
     }
   ],
   "version": "7"

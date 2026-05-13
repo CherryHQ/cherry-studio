@@ -7,8 +7,15 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { audioExts, documentExts, imageExts, MB, textExts, videoExts } from '@shared/config/constant'
+import { sanitizeFilename, validateFileName } from '@shared/file/types/filename'
 import type { FileMetadata, FileType, NotesTreeNode } from '@types'
 import { FILE_TYPE } from '@types'
+
+// Re-export the promoted utilities so existing import sites
+// (`@main/utils/file → sanitizeFilename / validateFileName`) keep working.
+// SoT lives in `@shared/file/types/filename` per `utils-file-migration.md`
+// Phase 1b.1; callers migrate to the shared path opportunistically.
+export { sanitizeFilename, validateFileName } from '@shared/file/types/filename'
 import chardet from 'chardet'
 import iconv from 'iconv-lite'
 import { v4 as uuidv4 } from 'uuid'
@@ -392,61 +399,6 @@ export function getName(baseDir: string, fileName: string, isFile: boolean): str
 }
 
 /**
- * 文件名合法性校验
- * @param fileName 文件名
- * @param platform 平台，默认为当前运行平台
- * @returns 验证结果
- */
-export function validateFileName(fileName: string, platform = process.platform): { valid: boolean; error?: string } {
-  if (!fileName) {
-    return { valid: false, error: 'File name cannot be empty' }
-  }
-
-  // 通用检查
-  if (fileName.length === 0 || fileName.length > 255) {
-    return { valid: false, error: 'File name length must be between 1 and 255 characters' }
-  }
-
-  // 检查 null 字符（所有系统都不允许）
-  if (fileName.includes('\0')) {
-    return { valid: false, error: 'File name cannot contain null characters.' }
-  }
-
-  // Windows 特殊限制
-  if (platform === 'win32') {
-    const winInvalidChars = /[<>:"/\\|?*]/
-    if (winInvalidChars.test(fileName)) {
-      return { valid: false, error: 'File name contains characters not supported by Windows: < > : " / \\ | ? *' }
-    }
-
-    const reservedNames = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)/i
-    if (reservedNames.test(fileName)) {
-      return { valid: false, error: 'File name is a Windows reserved name.' }
-    }
-
-    if (fileName.endsWith('.') || fileName.endsWith(' ')) {
-      return { valid: false, error: 'File name cannot end with a dot or a space' }
-    }
-  }
-
-  // Unix/Linux/macOS 限制
-  if (platform !== 'win32') {
-    if (fileName.includes('/')) {
-      return { valid: false, error: 'File name cannot contain slashes /' }
-    }
-  }
-
-  // macOS 额外限制
-  if (platform === 'darwin') {
-    if (fileName.includes(':')) {
-      return { valid: false, error: 'macOS filenames cannot contain a colon :' }
-    }
-  }
-
-  return { valid: true }
-}
-
-/**
  * 文件名合法性检查
  * @param fileName 文件名
  * @throws 如果文件名不合法则抛出异常
@@ -462,31 +414,6 @@ export function checkName(fileName: string): string {
     return sanitized
   }
   return baseName
-}
-
-/**
- * 清理文件名，替换不合法字符
- * @param fileName 原始文件名
- * @param replacement 替换字符，默认为下划线
- * @returns 清理后的文件名
- */
-export function sanitizeFilename(fileName: string, replacement = '_'): string {
-  if (!fileName) return ''
-
-  // 移除或替换非法字符
-  let sanitized = fileName
-    // oxlint-disable-next-line no-control-regex
-    .replace(/[<>:"/\\|?*\x00-\x1f]/g, replacement) // Windows 非法字符
-    .replace(/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)/i, replacement + '$2') // Windows 保留名
-    .replace(/[\s.]+$/, '') // 移除末尾的空格和点
-    .substring(0, 255) // 限制长度
-
-  // 确保不为空
-  if (!sanitized) {
-    sanitized = 'untitled'
-  }
-
-  return sanitized
 }
 
 /**
