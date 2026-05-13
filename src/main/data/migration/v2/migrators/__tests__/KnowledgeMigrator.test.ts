@@ -1369,7 +1369,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
       fileEntryId: v2FileId,
       sourceType: 'knowledge_item',
       sourceId: 'item-file-1',
-      role: 'attachment'
+      role: 'source'
     })
     expect(typeof (insertedOutsideTx[0] as any).id).toBe('string')
   })

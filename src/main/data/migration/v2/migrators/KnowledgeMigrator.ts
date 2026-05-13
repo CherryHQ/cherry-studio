@@ -630,7 +630,7 @@ export class KnowledgeMigrator extends BaseMigrator {
           fileEntryId: resolution.v2Id,
           sourceType: knowledgeItemSourceType,
           sourceId: item.id!,
-          role: 'attachment',
+          role: 'source',
           createdAt: now,
           updatedAt: now
         })
