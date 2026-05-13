@@ -2,23 +2,17 @@ import { loggerService } from '@logger'
 import { useProviderActions, useProviders } from '@renderer/hooks/useProviders'
 import { uuid } from '@renderer/utils'
 import type { EndpointType } from '@shared/data/types/model'
-import type { AuthConfig, AuthType, Provider } from '@shared/data/types/provider'
+import type { ApiKeyEntry, AuthConfig, EndpointConfig, Provider } from '@shared/data/types/provider'
 import { useCallback, useRef, useState } from 'react'
 
 import { clearProviderLogo, saveProviderLogo, useProviderLogo } from '../hooks/useProviderLogo'
 
-/**
- * Minimal hint the drawer needs to pre-select a template when the user clicks
- * the "+" affordance on an existing row / group. Only carries the shape of the
- * source provider, never an id (the new row is always a fresh provider).
- */
-export interface ProviderEditorAddTemplate {
-  presetProviderId?: string
-  defaultChatEndpoint?: EndpointType
-  authType?: AuthType
-}
-
 const logger = loggerService.withContext('useProviderEditor')
+
+export type ProviderEditorMode =
+  | { kind: 'create-custom' }
+  | { kind: 'duplicate'; source: Provider }
+  | { kind: 'edit'; provider: Provider }
 
 interface UseProviderEditorParams {
   onProviderCreated: (providerId: string) => void
@@ -27,8 +21,10 @@ interface UseProviderEditorParams {
 export interface SubmitProviderEditorParams {
   name: string
   defaultChatEndpoint: EndpointType
+  endpointConfigs?: Partial<Record<EndpointType, EndpointConfig>>
   presetProviderId?: string
   authConfig?: AuthConfig
+  apiKeys?: ApiKeyEntry[]
   logo?: string | null
 }
 
@@ -41,55 +37,31 @@ export interface ProviderEditorSubmitResult {
 export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams) {
   const { createProvider } = useProviders()
   const { updateProviderById } = useProviderActions()
-  const [addingProvider, setAddingProvider] = useState(false)
-  const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
-  const [addTemplate, setAddTemplate] = useState<ProviderEditorAddTemplate | null>(null)
-  const editingProviderRef = useRef<Provider | null>(null)
+  const [mode, setMode] = useState<ProviderEditorMode | null>(null)
+  const modeRef = useRef<ProviderEditorMode | null>(null)
   const submitTokenRef = useRef(0)
+  const editingProvider = mode?.kind === 'edit' ? mode.provider : null
   const { logo: initialLogo } = useProviderLogo(editingProvider?.id)
 
-  const cancel = useCallback(() => {
+  const updateMode = useCallback((next: ProviderEditorMode | null) => {
     submitTokenRef.current += 1
-    setAddingProvider(false)
-    setEditingProvider(null)
-    setAddTemplate(null)
-    editingProviderRef.current = null
+    modeRef.current = next
+    setMode(next)
   }, [])
 
-  const startAdd = useCallback(() => {
-    submitTokenRef.current += 1
-    setAddingProvider(true)
-    setEditingProvider(null)
-    setAddTemplate(null)
-    editingProviderRef.current = null
-  }, [])
-
-  const startAddFrom = useCallback((provider: Provider) => {
-    submitTokenRef.current += 1
-    setAddingProvider(true)
-    setEditingProvider(null)
-    setAddTemplate({
-      presetProviderId: provider.presetProviderId,
-      defaultChatEndpoint: provider.defaultChatEndpoint,
-      authType: provider.authType
-    })
-    editingProviderRef.current = null
-  }, [])
-
-  const startEdit = useCallback((provider: Provider) => {
-    submitTokenRef.current += 1
-    setAddingProvider(false)
-    setEditingProvider(provider)
-    setAddTemplate(null)
-    editingProviderRef.current = provider
-  }, [])
+  const cancel = useCallback(() => updateMode(null), [updateMode])
+  const startAdd = useCallback(() => updateMode({ kind: 'create-custom' }), [updateMode])
+  const startAddFrom = useCallback((source: Provider) => updateMode({ kind: 'duplicate', source }), [updateMode])
+  const startEdit = useCallback((provider: Provider) => updateMode({ kind: 'edit', provider }), [updateMode])
 
   const submit = useCallback(
     async ({
       name,
       defaultChatEndpoint,
+      endpointConfigs,
       presetProviderId,
       authConfig,
+      apiKeys,
       logo
     }: SubmitProviderEditorParams): Promise<ProviderEditorSubmitResult> => {
       const trimmedName = name.trim()
@@ -119,7 +91,7 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
           }
         }
 
-        if (editingProviderRef.current?.id === originalEditingId) {
+        if (modeRef.current?.kind === 'edit' && modeRef.current.provider.id === originalEditingId) {
           cancel()
         }
         return notice ? { notice } : {}
@@ -132,7 +104,9 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
         name: trimmedName,
         ...(presetProviderId ? { presetProviderId } : {}),
         defaultChatEndpoint,
-        ...(authConfig ? { authConfig } : {})
+        ...(endpointConfigs ? { endpointConfigs } : {}),
+        ...(authConfig ? { authConfig } : {}),
+        ...(apiKeys && apiKeys.length > 0 ? { apiKeys } : {})
       })
       let notice: ProviderEditorSubmitNotice | undefined
 
@@ -145,7 +119,7 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
         }
       }
 
-      if (submitTokenRef.current === submitToken && editingProviderRef.current == null) {
+      if (submitTokenRef.current === submitToken && modeRef.current?.kind !== 'edit') {
         onProviderCreated(provider.id)
         cancel()
       }
@@ -155,9 +129,9 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
   )
 
   return {
-    isOpen: addingProvider || editingProvider != null,
+    isOpen: mode != null,
+    mode,
     editingProvider,
-    addTemplate,
     initialLogo,
     startAdd,
     startAddFrom,

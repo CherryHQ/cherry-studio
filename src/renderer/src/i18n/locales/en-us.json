@@ -6385,6 +6385,10 @@
         }
       },
       "balance": "Balance",
+      "base_url": {
+        "label": "Base URL",
+        "placeholder": "https://api.example.com"
+      },
       "basic_auth": {
         "label": "HTTP authentication",
         "password": {
@@ -6453,6 +6457,9 @@
         "toggle_headers_editor_json": "Switch to JSON editor",
         "toggle_headers_editor_list": "Switch to header list"
       },
+      "create_custom": {
+        "title": "Add Custom Provider"
+      },
       "delete": {
         "content": "Are you sure you want to delete this provider?",
         "title": "Delete Provider"
@@ -6468,7 +6475,10 @@
       "duplicate": {
         "add_another": "Add another {{name}}",
         "aria_label": "Add another {{name}}",
-        "menu_label": "Add another"
+        "drawer_title": "Add another {{name}}",
+        "fill_after_create": "Authentication fields can be filled after create",
+        "menu_label": "Add another",
+        "tooltip": "Add another {{name}} instance (e.g. a Coding Plan, a different deployment or account)"
       },
       "filter": {
         "agent": "Agent Supported",
@@ -6479,6 +6489,13 @@
       "filter_agent": "Filter Agent Supported Providers",
       "get_api_key": "Get API Key",
       "misc": "Other",
+      "more_endpoints": {
+        "anthropic": "Anthropic Messages",
+        "gemini": "Google Gemini",
+        "openai_chat": "OpenAI Chat Completions",
+        "openai_responses": "OpenAI Responses",
+        "toggle": "More Endpoints"
+      },
       "no_models_for_check": "No models available for checking (e.g. chat models)",
       "not_checked": "Not Checked",
       "notes": {

@@ -31,7 +31,7 @@ function v1ProviderTypeFromV2(v2: V2Provider): ProviderType {
   if (v2.authType === 'iam-gcp') {
     return 'vertexai'
   }
-  if (v2.authType === 'iam-aws') {
+  if (v2.authType === 'iam-aws' || v2.authType === 'api-key-aws') {
     return 'aws-bedrock'
   }
 

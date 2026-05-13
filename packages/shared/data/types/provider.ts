@@ -83,7 +83,7 @@ export type ApiKeyEntry = z.infer<typeof ApiKeyEntrySchema>
 export const RuntimeApiKeySchema = ApiKeyEntrySchema.omit({ key: true })
 export type RuntimeApiKey = z.infer<typeof RuntimeApiKeySchema>
 
-export const AuthTypeSchema = z.enum(['api-key', 'oauth', 'iam-aws', 'iam-gcp', 'iam-azure'])
+export const AuthTypeSchema = z.enum(['api-key', 'oauth', 'iam-aws', 'api-key-aws', 'iam-gcp', 'iam-azure'])
 export type AuthType = z.infer<typeof AuthTypeSchema>
 
 const AuthConfigApiKey = z.object({
@@ -109,6 +109,17 @@ const AuthConfigIamAws = z.object({
   secretAccessKey: z.string().optional()
 })
 
+/**
+ * AWS Bedrock api-key auth. AWS issues short-lived bearer tokens that work
+ * as a `Bearer` header against the regional Bedrock endpoint, so this still
+ * needs a region — region is *not* in the generic `api-key` variant because
+ * only AWS uses it that way.
+ */
+const AuthConfigApiKeyAws = z.object({
+  type: z.literal('api-key-aws'),
+  region: z.string()
+})
+
 const AuthConfigIamGcp = z.object({
   type: z.literal('iam-gcp'),
   project: z.string(),
@@ -126,6 +137,7 @@ export const AuthConfigSchema = z.discriminatedUnion('type', [
   AuthConfigApiKey,
   AuthConfigOAuth,
   AuthConfigIamAws,
+  AuthConfigApiKeyAws,
   AuthConfigIamGcp,
   AuthConfigIamAzure
 ])

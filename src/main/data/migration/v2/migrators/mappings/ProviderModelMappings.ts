@@ -272,7 +272,7 @@ function buildAuthConfig(legacy: LegacyProvider, settings: OldLlmSettings): Auth
   if (isAwsBedrockProvider(legacy)) {
     const aws = settings.awsBedrock
     if (aws?.authType === 'apiKey') {
-      return { type: 'api-key' }
+      return { type: 'api-key-aws', region: aws.region ?? '' }
     }
 
     return {

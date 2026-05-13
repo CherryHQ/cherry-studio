@@ -39,7 +39,7 @@ export function isVertexProvider(provider: Provider): boolean {
 }
 
 export function isAwsBedrockProvider(provider: Provider): boolean {
-  return provider.authType === 'iam-aws'
+  return provider.authType === 'iam-aws' || provider.authType === 'api-key-aws'
 }
 
 // ─── ID-level: direct comparison ─────────────────────────────────────────────

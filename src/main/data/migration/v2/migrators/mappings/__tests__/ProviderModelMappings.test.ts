@@ -199,7 +199,7 @@ describe('ProviderModelMappings', () => {
       )
 
       expect(result.defaultChatEndpoint).toBeNull()
-      expect(result.authConfig).toEqual({ type: 'api-key' })
+      expect(result.authConfig).toEqual({ type: 'api-key-aws', region: 'us-west-2' })
       expect(result.apiKeys).toBeDefined()
       const apiKeys = result.apiKeys!
       expect(apiKeys).toHaveLength(1)

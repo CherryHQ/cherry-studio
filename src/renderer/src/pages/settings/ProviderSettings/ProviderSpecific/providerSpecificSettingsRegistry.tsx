@@ -1,4 +1,8 @@
-import { isProviderSupportAuth } from '@renderer/pages/settings/ProviderSettings/utils/provider'
+import {
+  isAwsBedrockProvider,
+  isProviderSupportAuth,
+  isVertexProvider
+} from '@renderer/pages/settings/ProviderSettings/utils/provider'
 import type { Provider } from '@shared/data/types/provider'
 import type { ReactNode } from 'react'
 
@@ -14,6 +18,11 @@ import LMStudioSettings from './LMStudioSettings'
 import OVMSSettings from './OVMSSettings'
 import ProviderOAuth from './ProviderOAuth'
 import VertexAISettings from './VertexAISettings'
+
+/** True when the provider is the canonical preset or any user-cloned variant of it. */
+function matchesPreset(provider: Provider, presetId: string): boolean {
+  return provider.id === presetId || provider.presetProviderId === presetId
+}
 
 export type ProviderSpecificPlacement = 'beforeAuth' | 'afterAuth'
 
@@ -42,12 +51,12 @@ export const PROVIDER_SPECIFIC_SETTINGS_REGISTRY: Record<ProviderSpecificPlaceme
     },
     {
       key: 'openai-alert',
-      when: ({ provider }) => provider.id === 'openai',
+      when: ({ provider }) => matchesPreset(provider, 'openai'),
       render: () => <OpenAIAlert />
     },
     {
       key: 'ovms-settings',
-      when: ({ provider }) => provider.id === 'ovms',
+      when: ({ provider }) => matchesPreset(provider, 'ovms'),
       render: () => <OVMSSettings />
     },
     {
@@ -57,34 +66,34 @@ export const PROVIDER_SPECIFIC_SETTINGS_REGISTRY: Record<ProviderSpecificPlaceme
     },
     {
       key: 'anthropic-auth',
-      when: ({ provider }) => provider.id === 'anthropic',
+      when: ({ provider }) => matchesPreset(provider, 'anthropic'),
       render: (providerId) => <AnthropicAuthSection providerId={providerId} />
     }
   ],
   afterAuth: [
     {
       key: 'lmstudio-settings',
-      when: ({ provider }) => provider.id === 'lmstudio',
+      when: ({ provider }) => matchesPreset(provider, 'lmstudio'),
       render: (providerId) => <LMStudioSettings providerId={providerId} />
     },
     {
       key: 'gpustack-settings',
-      when: ({ provider }) => provider.id === 'gpustack',
+      when: ({ provider }) => matchesPreset(provider, 'gpustack'),
       render: (providerId) => <GPUStackSettings providerId={providerId} />
     },
     {
       key: 'copilot-settings',
-      when: ({ provider }) => provider.id === 'copilot',
+      when: ({ provider }) => matchesPreset(provider, 'copilot'),
       render: (providerId) => <GithubCopilotSettings providerId={providerId} />
     },
     {
       key: 'aws-bedrock-settings',
-      when: ({ provider }) => provider.id === 'aws-bedrock',
+      when: ({ provider }) => isAwsBedrockProvider(provider),
       render: (providerId) => <AwsBedrockSettings providerId={providerId} />
     },
     {
       key: 'vertexai-settings',
-      when: ({ provider }) => provider.id === 'vertexai',
+      when: ({ provider }) => isVertexProvider(provider),
       render: (providerId) => <VertexAISettings providerId={providerId} />
     }
   ]

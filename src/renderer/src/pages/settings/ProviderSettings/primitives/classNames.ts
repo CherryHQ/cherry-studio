@@ -119,7 +119,12 @@ export const providerListClasses = {
   itemDuplicate:
     'absolute right-1.5 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-[color,opacity,background-color] hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground group-hover/row:opacity-100 focus-visible:opacity-100',
   groupAddRow:
-    'flex w-full items-center gap-2 rounded-xl border border-dashed border-[color:var(--section-border)] bg-transparent px-2 py-[6px] text-[length:var(--font-size-body-xs)] leading-[1.35] text-muted-foreground/70 shadow-none transition-colors hover:border-[color:var(--color-border)] hover:bg-accent/40 hover:text-foreground'
+    'flex w-full items-center gap-2 rounded-xl border border-dashed border-[color:var(--section-border)] bg-transparent px-2 py-[6px] text-[length:var(--font-size-body-xs)] leading-[1.35] text-muted-foreground/70 shadow-none transition-colors hover:border-[color:var(--color-border)] hover:bg-accent/40 hover:text-foreground',
+  disclosureToggle:
+    'flex w-full items-center gap-1.5 rounded-md bg-transparent px-1 py-1 text-left text-[length:var(--font-size-body-xs)] leading-none text-muted-foreground/80 shadow-none outline-none transition-colors hover:text-foreground focus-visible:ring-0',
+  disclosureChevron: 'size-3 shrink-0 text-muted-foreground/60 transition-transform duration-150',
+  disclosureChevronOpen: 'rotate-90',
+  disclosureBody: 'mt-2 flex flex-col gap-3 pl-1'
 } as const
 
 /**

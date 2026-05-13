@@ -31,7 +31,8 @@ export function useProviderAutoModelSync(providerId: string) {
       provider.id === 'lmstudio' ||
       provider.id === 'copilot' ||
       provider.authType === 'iam-gcp' ||
-      provider.authType === 'iam-aws'
+      provider.authType === 'iam-aws' ||
+      provider.authType === 'api-key-aws'
     )
   }, [provider])
 

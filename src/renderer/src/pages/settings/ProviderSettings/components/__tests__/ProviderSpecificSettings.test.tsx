@@ -16,7 +16,9 @@ vi.mock('../../hooks/providerSetting/useProviderMeta', () => ({
 }))
 
 vi.mock('@renderer/pages/settings/ProviderSettings/utils/provider', () => ({
-  isProviderSupportAuth: (...args: any[]) => isProviderSupportAuthMock(...args)
+  isProviderSupportAuth: (...args: any[]) => isProviderSupportAuthMock(...args),
+  isAwsBedrockProvider: (provider: any) => provider?.authType === 'iam-aws',
+  isVertexProvider: (provider: any) => provider?.authType === 'iam-gcp'
 }))
 
 vi.mock('../OpenAIAlert', () => ({
@@ -134,19 +136,21 @@ describe('ProviderSpecificSettings', () => {
       providerId: 'aws-bedrock',
       placement: 'afterAuth' as const,
       meta: { isCherryIN: false, isDmxapi: false },
-      expectedText: 'aws-bedrock-settings-aws-bedrock'
+      expectedText: 'aws-bedrock-settings-aws-bedrock',
+      authType: 'iam-aws'
     },
     {
       providerId: 'vertexai',
       placement: 'afterAuth' as const,
       meta: { isCherryIN: false, isDmxapi: false },
-      expectedText: 'vertexai-settings-vertexai'
+      expectedText: 'vertexai-settings-vertexai',
+      authType: 'iam-gcp'
     }
   ])(
     'renders the expected provider-specific block for $providerId',
-    ({ providerId, placement, meta, expectedText }) => {
+    ({ providerId, placement, meta, expectedText, authType }: any) => {
       useProviderMock.mockReturnValue({
-        provider: { id: providerId, name: providerId, isEnabled: true }
+        provider: { id: providerId, name: providerId, isEnabled: true, ...(authType ? { authType } : {}) }
       })
       useProviderMetaMock.mockReturnValue(meta)
 

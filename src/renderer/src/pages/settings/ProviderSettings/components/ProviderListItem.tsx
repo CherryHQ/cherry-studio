@@ -1,3 +1,4 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils'
@@ -56,14 +57,16 @@ export default function ProviderListItem({
         </span>
       </div>
       {onDuplicate && (
-        <button
-          type="button"
-          data-testid={`provider-list-duplicate-${provider.id}`}
-          aria-label={t('settings.provider.duplicate.aria_label', { name: provider.name })}
-          onClick={handleDuplicate}
-          className={providerListClasses.itemDuplicate}>
-          <Plus size={12} />
-        </button>
+        <Tooltip content={t('settings.provider.duplicate.tooltip', { name: provider.name })} placement="top">
+          <button
+            type="button"
+            data-testid={`provider-list-duplicate-${provider.id}`}
+            aria-label={t('settings.provider.duplicate.aria_label', { name: provider.name })}
+            onClick={handleDuplicate}
+            className={providerListClasses.itemDuplicate}>
+            <Plus size={12} />
+          </button>
+        </Tooltip>
       )}
     </div>
   )

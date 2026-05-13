@@ -6385,6 +6385,10 @@
         }
       },
       "balance": "余额",
+      "base_url": {
+        "label": "Base URL",
+        "placeholder": "https://api.example.com"
+      },
       "basic_auth": {
         "label": "HTTP 认证",
         "password": {
@@ -6453,6 +6457,9 @@
         "toggle_headers_editor_json": "切换为 JSON 编辑",
         "toggle_headers_editor_list": "切换为键值列表"
       },
+      "create_custom": {
+        "title": "添加自定义提供商"
+      },
       "delete": {
         "content": "确定要删除此模型提供商吗？",
         "title": "删除提供商"
@@ -6468,7 +6475,10 @@
       "duplicate": {
         "add_another": "再添加一个 {{name}}",
         "aria_label": "再添加一个 {{name}}",
-        "menu_label": "再添加一个"
+        "drawer_title": "添加新的 {{name}}",
+        "fill_after_create": "创建后请在详情页填写认证字段",
+        "menu_label": "再添加一个",
+        "tooltip": "再添加一个 {{name}} 实例（如 Coding Plan、其它部署或账号）"
       },
       "filter": {
         "agent": "支持 Agent",
@@ -6479,6 +6489,13 @@
       "filter_agent": "筛选支持 Agent 的服务商",
       "get_api_key": "点击这里获取密钥",
       "misc": "其他",
+      "more_endpoints": {
+        "anthropic": "Anthropic Messages",
+        "gemini": "Google Gemini",
+        "openai_chat": "OpenAI Chat Completions",
+        "openai_responses": "OpenAI Responses",
+        "toggle": "更多端点"
+      },
       "no_models_for_check": "没有可以被检测的模型（例如对话模型）",
       "not_checked": "未检测",
       "notes": {

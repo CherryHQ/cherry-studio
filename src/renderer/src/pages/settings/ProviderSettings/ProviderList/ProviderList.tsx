@@ -46,8 +46,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
 
   const {
     isOpen: editorOpen,
-    editingProvider,
-    addTemplate,
+    mode: editorMode,
     initialLogo,
     startAdd,
     startAddFrom,
@@ -107,6 +106,16 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
       }, new Map()),
     [providers]
   )
+
+  const groupedPresetIds = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const p of filteredProviders) {
+      if (p.presetProviderId) counts.set(p.presetProviderId, (counts.get(p.presetProviderId) ?? 0) + 1)
+    }
+    const ids = new Set<string>()
+    for (const [presetId, count] of counts) if (count >= 2) ids.add(presetId)
+    return ids
+  }, [filteredProviders])
 
   const setProviderItemRef = useCallback((providerId: string, element: HTMLDivElement | null) => {
     if (element) {
@@ -210,7 +219,11 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
         onSelect={() => onSelectProvider(provider.id)}
         onEdit={() => startEdit(provider)}
         onDelete={() => handleDeleteProvider(provider.id)}
-        onDuplicate={provider.presetProviderId ? () => startAddFrom(provider) : undefined}
+        onDuplicate={
+          provider.presetProviderId && !groupedPresetIds.has(provider.presetProviderId)
+            ? () => startAddFrom(provider)
+            : undefined
+        }
         showManagementActions={showManagementActions}
         listState={state}
         onSetListItemRef={setProviderItemRef}
@@ -241,8 +254,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
       <ProviderListAddButton label={t('settings.provider.add.title')} disabled={dragging} onAdd={startAdd} />
       <ProviderEditorDrawer
         open={editorOpen}
-        provider={editingProvider}
-        addTemplate={addTemplate}
+        mode={editorMode}
         initialLogo={initialLogo}
         onClose={cancelEditor}
         onSubmit={handleSubmitEditor}
