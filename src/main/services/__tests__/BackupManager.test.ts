@@ -516,6 +516,62 @@ const V1_METADATA = {
   arch: process.arch
 }
 
+describe('BackupManager — B5: dataFormatVersion marker', () => {
+  let backupManager: BackupManager
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockCheckpoint.mockResolvedValue(undefined)
+    backupManager = new BackupManager()
+    vi.mocked(fs.ensureDir).mockResolvedValue(undefined as never)
+    vi.mocked(fs.remove).mockResolvedValue(undefined as never)
+    vi.mocked(fs.pathExists).mockResolvedValue(false as never)
+    vi.mocked(fs.writeJson).mockResolvedValue(undefined as never)
+  })
+
+  it('backup() writes dataFormatVersion: 2 in metadata.json', async () => {
+    const mockWriteStream = makeMockWriteStream()
+    const mockArchive = makeMockArchiver()
+    vi.mocked(fs.createWriteStream).mockReturnValue(mockWriteStream as any)
+    vi.mocked(archiver).mockReturnValue(mockArchive as any)
+    vi.mocked(mockArchive.pipe as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      setImmediate(() => mockWriteStream.__triggerClose())
+    })
+
+    await backupManager.backup({} as Electron.IpcMainInvokeEvent, 'test.zip', '/tmp/dest')
+
+    // metadata.json should include dataFormatVersion: 2
+    expect(fs.writeJson).toHaveBeenCalledWith(
+      expect.stringContaining('metadata.json'),
+      expect.objectContaining({ dataFormatVersion: 2 }),
+      expect.anything()
+    )
+  })
+
+  it('restore() throws when dataFormatVersion > 2 (future format)', async () => {
+    const zipMock = makeZipMock()
+    vi.mocked(StreamZip.async).mockReturnValue(zipMock as any)
+
+    const TEMP_DIR = '/tmp/cherry-studio/backup/temp'
+    vi.mocked(fs.pathExists).mockImplementation(async (p) => {
+      if (String(p) === `${TEMP_DIR}/metadata.json`) return true as never
+      return false as never
+    })
+    vi.mocked(fs.readJson).mockResolvedValue({
+      version: 6,
+      dataFormatVersion: 3, // future, unsupported
+      appName: 'Cherry Studio',
+      appVersion: '1.0.0',
+      platform: process.platform,
+      arch: process.arch
+    } as never)
+
+    await expect(
+      backupManager.restore({} as Electron.IpcMainInvokeEvent, '/path/to/future-backup.zip')
+    ).rejects.toThrow()
+  })
+})
+
 // -------------------------------------------------------------------------
 // B4: Skip-once after restore (implicit via Task 4 marker comparison)
 //
