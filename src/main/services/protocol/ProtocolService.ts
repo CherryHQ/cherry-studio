@@ -122,6 +122,14 @@ export class ProtocolService extends BaseService {
       // in v2. Trade-off: the payload reaches renderers that don't need it; if
       // selective routing is required (e.g. to confine OAuth `code`), promote
       // that scheme to its own switch case alongside mcp/providers/navigate.
+      //
+      // TODO(security): any future OAuth-style host added to this scheme MUST
+      // get its own switch case above instead of falling through here — leaving
+      // it on the default broadcast would fan out `code` / `token` query params
+      // to renderers that have no business seeing them. Reviewer flagged in
+      // PR #14631 review #4282327822 (Important #5). When adding such a host,
+      // either route it through a dedicated case or add a parameter allowlist /
+      // sensitive-name strip to this default broadcast.
       application.get('WindowManager').broadcast('protocol-data', {
         url,
         params: Object.fromEntries(params.entries())
