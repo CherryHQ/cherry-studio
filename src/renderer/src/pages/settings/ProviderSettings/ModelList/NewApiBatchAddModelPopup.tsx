@@ -15,29 +15,24 @@ interface ShowParams {
   batchModels: Model[]
 }
 
+interface ResolveData {
+  success: boolean
+}
+
 interface Props extends ShowParams {
-  resolve: (data: any) => void
+  resolve: (data: ResolveData | null) => void
 }
 
 type FieldType = {
-  provider: string
-  group?: string
   endpointType?: EndpointType
 }
 
 const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels }) => {
-  const [open, setOpen] = useState(true)
+  const [open] = useState(true)
   const [form] = Form.useForm()
   const { addModel } = useProvider(provider.id)
   const { t } = useTranslation()
-
-  const onOk = () => {
-    setOpen(false)
-  }
-
-  const onCancel = () => {
-    setOpen(false)
-  }
+  const labelWidth = useDynamicLabelWidth([t('settings.models.add.endpoint_type.label')])
 
   const onClose = () => {
     resolve(null)
@@ -64,8 +59,6 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
     <Modal
       title={title}
       open={open}
-      onOk={onOk}
-      onCancel={onCancel}
       maskClosable={false}
       afterClose={onClose}
       footer={null}
@@ -73,7 +66,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
       centered>
       <Form
         form={form}
-        labelCol={{ style: { width: useDynamicLabelWidth([t('settings.models.add.endpoint_type.label')]) } }}
+        labelCol={{ style: { width: labelWidth } }}
         labelAlign="left"
         colon={false}
         style={{ marginTop: 25 }}
@@ -107,12 +100,11 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
 }
 
 export default class NewApiBatchAddModelPopup {
-  static topviewId = 0
   static hide() {
     TopView.hide('NewApiBatchAddModelPopup')
   }
   static show(props: ShowParams) {
-    return new Promise<any>((resolve) => {
+    return new Promise<ResolveData | null>((resolve) => {
       TopView.show(
         <PopupContainer
           {...props}

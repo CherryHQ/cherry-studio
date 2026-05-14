@@ -70,7 +70,8 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
       }
       return changed ? newSelected : prev
     })
-  }, [provider])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [provider.models])
 
   const handleGroupToggle = useCallback((groupName: string) => {
     setCollapsedGroups((prev) => {
@@ -338,7 +339,7 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(
             boxShadow: 'none'
           }}
           fileInfo={{
-            icon: <Avatar src={getModelLogoById(model.id)}>{model?.name?.[0]?.toUpperCase()}</Avatar>,
+            icon: <Avatar src={getModelLogoById(model.id)}>{model?.name?.[0]?.toUpperCase() || '?'}</Avatar>,
             name: (
               <Flex align="center" gap={8}>
                 {!isAdded && onSelectChange && (
