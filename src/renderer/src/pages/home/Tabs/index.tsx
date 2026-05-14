@@ -9,12 +9,13 @@ import Topics from './TopicsTab'
 
 interface Props {
   activeTopic: Topic
+  onOpenHistory?: () => void
   setActiveTopic: (topic: Topic) => void
   position: 'left' | 'right'
   style?: React.CSSProperties
 }
 
-const HomeTabs: FC<Props> = ({ activeTopic, setActiveTopic, position, style }) => {
+const HomeTabs: FC<Props> = ({ activeTopic, onOpenHistory, setActiveTopic, position, style }) => {
   const [topicPosition] = usePreference('topic.position')
   const { isLeftNavbar } = useNavbarPosition()
 
@@ -29,7 +30,12 @@ const HomeTabs: FC<Props> = ({ activeTopic, setActiveTopic, position, style }) =
       style={{ ...border, ...style }}
       className={classNames('home-tabs', { right: position === 'right' && topicPosition === 'right' })}>
       <TabContent className="home-tabs-content">
-        <Topics activeTopic={activeTopic} setActiveTopic={setActiveTopic} position={position} />
+        <Topics
+          activeTopic={activeTopic}
+          setActiveTopic={setActiveTopic}
+          position={position}
+          onOpenHistory={onOpenHistory}
+        />
       </TabContent>
     </Container>
   )

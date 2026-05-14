@@ -1736,8 +1736,10 @@
     "add": "新增",
     "add_success": "新增成功",
     "advanced_settings": "進階設定",
+    "agent": "智能體",
     "agent_one": "智能體",
     "agent_other": "智能體",
+    "all": "全部",
     "and": "與",
     "assistant": "智慧智能體",
     "assistant_one": "助手",
@@ -1864,6 +1866,7 @@
     "upload_image": "上傳圖片檔案",
     "uploaded_image": "已上傳圖片",
     "warning": "警告",
+    "yesterday": "昨天",
     "you": "您"
   },
   "dialog": {
@@ -2088,7 +2091,45 @@
         "empty": "沒有找到相關話題，按 Enter 鍵搜尋所有訊息"
       }
     },
-    "title": "搜尋話題"
+    "title": "搜尋話題",
+    "v2": {
+      "agentSubtitle": "{{count}} 個會話",
+      "agentTitle": "智能體歷史記錄",
+      "assistantSubtitle": "{{count}} 個話題",
+      "empty": {
+        "description": "目前篩選下沒有可顯示的話題。",
+        "sessionsDescription": "目前篩選下沒有可顯示的會話。",
+        "sessionsTitle": "暫無會話",
+        "title": "暫無話題"
+      },
+      "loading": {
+        "description": "正在讀取話題列表。",
+        "sessionsDescription": "正在讀取會話列表。",
+        "sessionsTitle": "正在載入會話",
+        "title": "正在載入話題"
+      },
+      "resultCount": "{{count}} 筆結果",
+      "searchSession": "搜尋會話...",
+      "searchTopic": "搜尋話題...",
+      "sidebar": {
+        "searchAssistant": "搜尋助手...",
+        "status": "狀態",
+        "unknownAssistant": "未知助手"
+      },
+      "status": {
+        "completed": "已完成",
+        "failed": "失敗",
+        "running": "運行中"
+      },
+      "table": {
+        "emptyValue": "—",
+        "messages": "訊息",
+        "session": "會話",
+        "time": "時間",
+        "title": "標題"
+      },
+      "title": "話題歷史記錄"
+    }
   },
   "html_artifacts": {
     "capture": {

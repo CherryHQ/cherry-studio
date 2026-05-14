@@ -1,10 +1,21 @@
 import { Button } from '@cherrystudio/ui'
+import { useCache } from '@renderer/data/hooks/useCache'
+import { useAgents } from '@renderer/hooks/agents/useAgentDataApi'
+import {
+  type AgentSessionStreamState,
+  useAgentSessionStreamStatuses
+} from '@renderer/hooks/agents/useAgentSessionStreamStatuses'
+import { useSessions } from '@renderer/hooks/agents/useSessionDataApi'
 import { useAssistants } from '@renderer/hooks/useAssistant'
-import { useAllTopics } from '@renderer/hooks/useTopicDataApi'
+import { usePins } from '@renderer/hooks/usePins'
+import { mapApiTopicToRendererTopic, useAllTopics } from '@renderer/hooks/useTopicDataApi'
+import type { Topic as RendererTopic } from '@renderer/types'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentEntity } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic } from '@shared/data/types/topic'
-import { Bot, History, X } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { Bot, History, Wrench, X } from 'lucide-react'
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -12,21 +23,27 @@ import HistoryQueryForm from './components/HistoryQueryForm'
 import HistoryResultList from './components/HistoryResultList'
 import HistorySourceSidebar, {
   type HistorySourceItem,
-  type HistorySourceStatus
+  type HistorySourceStatus,
+  type HistoryStatusItem
 } from './components/HistorySourceSidebar'
 
 export type HistoryPageV2Mode = 'assistant' | 'agent'
 
 const ALL_SOURCE_ID = 'all'
 const DEFAULT_ASSISTANT_SOURCE_ID = '__default_assistant__'
+const UNKNOWN_AGENT_SOURCE_ID = '__unknown_agent__'
+const EMPTY_ASSISTANT_BY_ID: ReadonlyMap<string, Assistant> = new Map()
+const EMPTY_AGENT_BY_ID: ReadonlyMap<string, AgentEntity> = new Map()
+type AgentHistorySessionStatus = Exclude<HistorySourceStatus, 'all'>
 
 interface HistoryPageV2Props {
   mode: HistoryPageV2Mode
   open: boolean
   onClose: () => void
+  onTopicSelect?: (topic: RendererTopic) => void
 }
 
-const HistoryPageV2 = ({ mode, open, onClose }: HistoryPageV2Props) => {
+const HistoryPageV2 = ({ mode, open, onClose, onTopicSelect }: HistoryPageV2Props) => {
   if (!open) return null
 
   const portalRootId = mode === 'assistant' ? 'home-page' : 'agent-page'
@@ -34,26 +51,58 @@ const HistoryPageV2 = ({ mode, open, onClose }: HistoryPageV2Props) => {
 
   if (!portalRoot) return null
 
-  return createPortal(<HistoryPageV2Content mode={mode} onClose={onClose} />, portalRoot)
+  return createPortal(<HistoryPageV2Content mode={mode} onClose={onClose} onTopicSelect={onTopicSelect} />, portalRoot)
 }
 
 interface HistoryPageV2ContentProps {
   mode: HistoryPageV2Mode
   onClose: () => void
+  onTopicSelect?: (topic: RendererTopic) => void
 }
 
-const HistoryPageV2Content = ({ mode, onClose }: HistoryPageV2ContentProps) => {
+const HistoryPageV2Content = ({ mode, onClose, onTopicSelect }: HistoryPageV2ContentProps) => {
+  if (mode === 'assistant') {
+    return <AssistantHistoryPageV2Content onClose={onClose} onTopicSelect={onTopicSelect} />
+  }
+
+  return <AgentHistoryPageV2Content onClose={onClose} />
+}
+
+interface HistoryPageV2ModeContentProps {
+  onClose: () => void
+  onTopicSelect?: (topic: RendererTopic) => void
+}
+
+const AssistantHistoryPageV2Content = ({ onClose, onTopicSelect }: HistoryPageV2ModeContentProps) => {
   const { t } = useTranslation()
   const [selectedSourceId, setSelectedSourceId] = useState(ALL_SOURCE_ID)
-  const [selectedStatus, setSelectedStatus] = useState<HistorySourceStatus>('all')
   const [searchText, setSearchText] = useState('')
 
   const { topics: rawTopics, isLoading: isTopicsLoading } = useAllTopics({ loadAll: true })
   const { assistants } = useAssistants()
-  const topics = rawTopics
+  const { pinnedIds: topicPinnedIds } = usePins('topic')
+  const topicPinnedIdSet = useMemo(() => new Set(topicPinnedIds), [topicPinnedIds])
+  const isTopicPinned = useCallback((topicId: string) => topicPinnedIdSet.has(topicId), [topicPinnedIdSet])
+  const topics = useMemo(
+    () => sortHistoryEntries(rawTopics, isTopicPinned, (topic) => topic.updatedAt),
+    [isTopicPinned, rawTopics]
+  )
 
   const assistantById = useMemo(() => new Map(assistants.map((assistant) => [assistant.id, assistant])), [assistants])
   const defaultAssistantLabel = t('chat.default.name', '默认助手')
+  const rendererTopicById = useMemo(
+    () =>
+      new Map(
+        topics.map((topic) => [
+          topic.id,
+          {
+            ...mapApiTopicToRendererTopic(topic),
+            pinned: isTopicPinned(topic.id)
+          }
+        ])
+      ),
+    [isTopicPinned, topics]
+  )
 
   const assistantSources = useMemo(
     () => buildAssistantSources(topics, assistantById, defaultAssistantLabel, t),
@@ -83,26 +132,196 @@ const HistoryPageV2Content = ({ mode, onClose }: HistoryPageV2ContentProps) => {
     setSelectedSourceId(ALL_SOURCE_ID)
   }, [assistantSources, selectedSourceId])
 
-  const visibleTopics = mode === 'assistant' ? searchedTopics : []
-  const subtitle =
-    mode === 'assistant'
-      ? t('history.v2.assistantSubtitle', '{{count}} 个话题', { count: topics.length })
-      : t('history.v2.agentSubtitlePlaceholder', '话题与运行状态待接入')
+  const handleTopicSelect = useCallback(
+    (topic: Topic) => {
+      onTopicSelect?.(rendererTopicById.get(topic.id) ?? mapApiTopicToRendererTopic(topic))
+      onClose()
+    },
+    [onClose, onTopicSelect, rendererTopicById]
+  )
+
+  return (
+    <HistoryPageV2Layout
+      mode="assistant"
+      onClose={onClose}
+      sources={assistantSources}
+      selectedSourceId={selectedSourceId}
+      subtitle={t('history.v2.assistantSubtitle', '{{count}} 个话题', { count: topics.length })}
+      resultCount={searchedTopics.length}
+      searchText={searchText}
+      onSearchTextChange={setSearchText}
+      onSourceSelect={setSelectedSourceId}>
+      <HistoryResultList
+        mode="assistant"
+        topics={searchedTopics}
+        sessions={[]}
+        assistantById={assistantById}
+        agentById={EMPTY_AGENT_BY_ID}
+        defaultAssistantLabel={defaultAssistantLabel}
+        unknownAgentLabel=""
+        isLoading={isTopicsLoading}
+        onTopicSelect={handleTopicSelect}
+      />
+    </HistoryPageV2Layout>
+  )
+}
+
+const AgentHistoryPageV2Content = ({ onClose }: HistoryPageV2ModeContentProps) => {
+  const { t } = useTranslation()
+  const [selectedSourceId, setSelectedSourceId] = useState(ALL_SOURCE_ID)
+  const [selectedStatus, setSelectedStatus] = useState<HistorySourceStatus>(ALL_SOURCE_ID)
+  const [searchText, setSearchText] = useState('')
+  const [, setActiveSessionId] = useCache('agent.active_session_id')
+
+  const {
+    sessions,
+    pinIdBySessionId,
+    isLoading: isSessionsLoading
+  } = useSessions(undefined, {
+    loadAll: true,
+    pageSize: 50
+  })
+  const { agents, isLoading: isAgentsLoading } = useAgents()
+  const sortedSessions = useMemo(
+    () =>
+      sortHistoryEntries(
+        sessions,
+        (session) => pinIdBySessionId.has(session.id),
+        (session) => session.updatedAt
+      ),
+    [pinIdBySessionId, sessions]
+  )
+  const sessionIds = useMemo(() => sortedSessions.map((session) => session.id), [sortedSessions])
+  const streamStatusBySessionId = useAgentSessionStreamStatuses(sessionIds)
+
+  const agentById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents])
+  const unknownAgentLabel = t('agent.session.group.unknown_agent', '未知智能体')
+  const statusItems = useMemo(
+    () => buildAgentStatusItems(sessions, streamStatusBySessionId, t),
+    [sessions, streamStatusBySessionId, t]
+  )
+  const agentSources = useMemo(
+    () => buildAgentSources(sessions, agents, agentById, unknownAgentLabel, t),
+    [agentById, agents, sessions, t, unknownAgentLabel]
+  )
+
+  const statusFilteredSessions = useMemo(() => {
+    if (selectedStatus === ALL_SOURCE_ID) return sortedSessions
+
+    return sortedSessions.filter(
+      (session) => getAgentHistoryStatus(streamStatusBySessionId.get(session.id)) === selectedStatus
+    )
+  }, [selectedStatus, sortedSessions, streamStatusBySessionId])
+
+  const filteredSessions = useMemo(() => {
+    if (selectedSourceId === ALL_SOURCE_ID) return statusFilteredSessions
+
+    return statusFilteredSessions.filter((session) => getSessionSourceId(session) === selectedSourceId)
+  }, [selectedSourceId, statusFilteredSessions])
+
+  const searchedSessions = useMemo(() => {
+    const keywords = searchText.trim().toLowerCase()
+    if (!keywords) return filteredSessions
+
+    return filteredSessions.filter((session) => {
+      const agent = session.agentId ? agentById.get(session.agentId) : undefined
+      const searchFields = [session.name, session.description, agent?.name]
+
+      return searchFields.some((value) => value?.toLowerCase().includes(keywords))
+    })
+  }, [agentById, filteredSessions, searchText])
+
+  useEffect(() => {
+    if (selectedSourceId === ALL_SOURCE_ID) return
+    if (agentSources.some((source) => source.id === selectedSourceId)) return
+
+    setSelectedSourceId(ALL_SOURCE_ID)
+  }, [agentSources, selectedSourceId])
+
+  const handleSessionSelect = useCallback(
+    (sessionId: string) => {
+      setActiveSessionId(sessionId)
+      onClose()
+    },
+    [onClose, setActiveSessionId]
+  )
+
+  return (
+    <HistoryPageV2Layout
+      mode="agent"
+      onClose={onClose}
+      sources={agentSources}
+      selectedSourceId={selectedSourceId}
+      selectedStatus={selectedStatus}
+      statusItems={statusItems}
+      subtitle={t('history.v2.agentSubtitle', '{{count}} 个会话', { count: sessions.length })}
+      resultCount={searchedSessions.length}
+      searchText={searchText}
+      onSearchTextChange={setSearchText}
+      onSourceSelect={setSelectedSourceId}
+      onStatusSelect={setSelectedStatus}>
+      <HistoryResultList
+        mode="agent"
+        topics={[]}
+        sessions={searchedSessions}
+        assistantById={EMPTY_ASSISTANT_BY_ID}
+        agentById={agentById}
+        defaultAssistantLabel=""
+        unknownAgentLabel={unknownAgentLabel}
+        isLoading={isSessionsLoading || isAgentsLoading}
+        onSessionSelect={handleSessionSelect}
+      />
+    </HistoryPageV2Layout>
+  )
+}
+
+interface HistoryPageV2LayoutProps {
+  mode: HistoryPageV2Mode
+  onClose: () => void
+  sources: HistorySourceItem[]
+  selectedSourceId: string
+  selectedStatus?: HistorySourceStatus
+  statusItems?: HistoryStatusItem[]
+  subtitle: string
+  resultCount: number
+  searchText: string
+  children: ReactNode
+  onSearchTextChange: (value: string) => void
+  onSourceSelect: (sourceId: string) => void
+  onStatusSelect?: (status: HistorySourceStatus) => void
+}
+
+const HistoryPageV2Layout = ({
+  mode,
+  onClose,
+  sources,
+  selectedSourceId,
+  selectedStatus,
+  statusItems,
+  subtitle,
+  resultCount,
+  searchText,
+  children,
+  onSearchTextChange,
+  onSourceSelect,
+  onStatusSelect
+}: HistoryPageV2LayoutProps) => {
+  const { t } = useTranslation()
+  const title =
+    mode === 'assistant' ? t('history.v2.title', '话题历史记录') : t('history.v2.agentTitle', '智能体历史记录')
 
   return (
     <div className="absolute inset-0 z-[1000] flex bg-background [-webkit-app-region:none]">
       <section
         className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background text-foreground"
-        aria-label={t('history.v2.overlayLabel', '话题历史记录')}>
+        aria-label={title}>
         <header className="flex h-[52px] shrink-0 items-center justify-between bg-background px-5 [border-bottom:0.5px_solid_var(--color-border-subtle)]">
           <div className="flex min-w-0 items-center gap-2.5">
             <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border-subtle bg-background text-foreground-secondary">
               <History size={16} />
             </div>
             <div className="min-w-0">
-              <h2 className="truncate font-semibold text-base text-foreground leading-5">
-                {t('history.v2.title', '话题历史记录')}
-              </h2>
+              <h2 className="truncate font-semibold text-base text-foreground leading-5">{title}</h2>
               <p className="mt-0.5 truncate text-foreground-muted text-xs leading-4">{subtitle}</p>
             </div>
           </div>
@@ -121,26 +340,22 @@ const HistoryPageV2Content = ({ mode, onClose }: HistoryPageV2ContentProps) => {
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <HistorySourceSidebar
             mode={mode}
-            assistantSources={assistantSources}
+            sources={sources}
             selectedSourceId={selectedSourceId}
             selectedStatus={selectedStatus}
-            onSourceSelect={setSelectedSourceId}
-            onStatusSelect={setSelectedStatus}
+            statusItems={statusItems}
+            onSourceSelect={onSourceSelect}
+            onStatusSelect={onStatusSelect}
           />
 
           <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
             <HistoryQueryForm
-              resultCount={visibleTopics.length}
-              searchText={searchText}
-              onSearchTextChange={setSearchText}
-            />
-            <HistoryResultList
               mode={mode}
-              topics={visibleTopics}
-              assistantById={assistantById}
-              defaultAssistantLabel={defaultAssistantLabel}
-              isLoading={mode === 'assistant' && isTopicsLoading}
+              resultCount={resultCount}
+              searchText={searchText}
+              onSearchTextChange={onSearchTextChange}
             />
+            {children}
           </main>
         </div>
       </section>
@@ -150,6 +365,77 @@ const HistoryPageV2Content = ({ mode, onClose }: HistoryPageV2ContentProps) => {
 
 function getTopicSourceId(topic: Topic) {
   return topic.assistantId ?? DEFAULT_ASSISTANT_SOURCE_ID
+}
+
+function getSessionSourceId(session: AgentSessionEntity) {
+  return session.agentId ?? UNKNOWN_AGENT_SOURCE_ID
+}
+
+function getAgentHistoryStatus(streamStatus?: AgentSessionStreamState): AgentHistorySessionStatus {
+  if (streamStatus?.isPending === true) return 'running'
+  if (streamStatus?.status === 'error') return 'failed'
+
+  return 'completed'
+}
+
+function sortHistoryEntries<T>(
+  items: readonly T[],
+  isPinned: (item: T) => boolean,
+  getUpdatedAt: (item: T) => string
+): T[] {
+  return [...items].sort((left, right) => {
+    const pinnedDelta = Number(isPinned(right)) - Number(isPinned(left))
+    if (pinnedDelta !== 0) return pinnedDelta
+
+    return getHistoryTimestamp(getUpdatedAt(right)) - getHistoryTimestamp(getUpdatedAt(left))
+  })
+}
+
+function getHistoryTimestamp(value: string): number {
+  const timestamp = Date.parse(value)
+  return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+function buildAgentStatusItems(
+  sessions: readonly AgentSessionEntity[],
+  streamStatusBySessionId: ReadonlyMap<string, AgentSessionStreamState>,
+  t: ReturnType<typeof useTranslation>['t']
+): HistoryStatusItem[] {
+  const counts: Record<AgentHistorySessionStatus, number> = {
+    running: 0,
+    completed: 0,
+    failed: 0
+  }
+
+  for (const session of sessions) {
+    counts[getAgentHistoryStatus(streamStatusBySessionId.get(session.id))] += 1
+  }
+
+  return [
+    {
+      id: ALL_SOURCE_ID,
+      label: t('common.all', '全部'),
+      count: sessions.length
+    },
+    {
+      id: 'running',
+      label: t('history.v2.status.running', '运行中'),
+      count: counts.running,
+      dotClassName: 'text-warning'
+    },
+    {
+      id: 'completed',
+      label: t('history.v2.status.completed', '已完成'),
+      count: counts.completed,
+      dotClassName: 'text-success'
+    },
+    {
+      id: 'failed',
+      label: t('history.v2.status.failed', '失败'),
+      count: counts.failed,
+      dotClassName: 'text-destructive'
+    }
+  ]
 }
 
 function buildAssistantSources(
@@ -185,6 +471,48 @@ function buildAssistantSources(
         icon: assistant?.emoji ? <span className="text-sm leading-none">{assistant.emoji}</span> : <Bot size={15} />
       }
     })
+  ]
+}
+
+function buildAgentSources(
+  sessions: readonly AgentSessionEntity[],
+  agents: readonly AgentEntity[],
+  agentById: ReadonlyMap<string, AgentEntity>,
+  unknownAgentLabel: string,
+  t: ReturnType<typeof useTranslation>['t']
+): HistorySourceItem[] {
+  const counts = new Map<string, number>()
+
+  for (const session of sessions) {
+    const sourceId = getSessionSourceId(session)
+    counts.set(sourceId, (counts.get(sourceId) ?? 0) + 1)
+  }
+
+  return [
+    {
+      id: ALL_SOURCE_ID,
+      label: t('common.all', '全部'),
+      count: sessions.length,
+      icon: <Wrench size={15} />
+    },
+    ...agents.map((agent) => {
+      const avatar = agent.configuration?.avatar?.trim()
+
+      return {
+        id: agent.id,
+        label: agent.name,
+        count: counts.get(agent.id) ?? 0,
+        icon: avatar ? <span className="text-sm leading-none">{avatar}</span> : <Wrench size={15} />
+      }
+    }),
+    ...Array.from(counts.entries())
+      .filter(([sourceId]) => sourceId === UNKNOWN_AGENT_SOURCE_ID || !agentById.has(sourceId))
+      .map(([sourceId, count]) => ({
+        id: sourceId,
+        label: unknownAgentLabel,
+        count,
+        icon: <Wrench size={15} />
+      }))
   ]
 }
 

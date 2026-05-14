@@ -4,11 +4,12 @@ import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import Sessions from './components/Sessions'
 
 interface AgentSidePanelProps {
+  onOpenHistory?: () => void
   onSelectItem?: () => void
   position?: ChatPanePosition
 }
 
-const AgentSidePanel = ({ onSelectItem, position = 'left' }: AgentSidePanelProps) => {
+const AgentSidePanel = ({ onOpenHistory, onSelectItem, position = 'left' }: AgentSidePanelProps) => {
   const { isLeftNavbar } = useNavbarPosition()
   const borderStyle = '0.5px solid var(--color-border)'
 
@@ -23,7 +24,7 @@ const AgentSidePanel = ({ onSelectItem, position = 'left' }: AgentSidePanelProps
         backgroundColor: isLeftNavbar ? 'var(--color-background)' : undefined
       }}>
       <div className="flex flex-1 flex-col overflow-hidden">
-        <Sessions onSelectItem={onSelectItem} />
+        <Sessions onOpenHistory={onOpenHistory} onSelectItem={onSelectItem} />
       </div>
     </div>
   )

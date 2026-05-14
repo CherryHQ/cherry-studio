@@ -1,4 +1,3 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { useAgents } from '@renderer/hooks/agents/useAgentDataApi'
@@ -10,9 +9,8 @@ import HistoryPageV2 from '@renderer/pages/history/HistoryPageV2'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
-import { History } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AgentChat from './AgentChat'
@@ -56,24 +54,9 @@ const AgentPage = () => {
     }
   }, [showSidebar])
 
-  const historyEntry = (
-    <>
-      <div className="absolute top-14 right-4 z-20">
-        <Tooltip title={t('history.v2.testOpenAgent', '测试智能体历史记录')} delay={800}>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            className="h-8 gap-1.5 rounded-md border border-border-muted bg-popover/95 px-2.5 text-xs shadow-sm backdrop-blur hover:bg-accent"
-            onClick={() => setHistoryOpen(true)}>
-            <History size={14} />
-            {t('history.v2.testButton', '历史')}
-          </Button>
-        </Tooltip>
-      </div>
-      <HistoryPageV2 mode="agent" open={historyOpen} onClose={() => setHistoryOpen(false)} />
-    </>
-  )
+  const openHistory = useCallback(() => setHistoryOpen(true), [])
+  const closeHistory = useCallback(() => setHistoryOpen(false), [])
+  const historyOverlay = <HistoryPageV2 mode="agent" open={historyOpen} onClose={closeHistory} />
 
   if (agents && agents.length === 0) {
     return (
@@ -82,7 +65,7 @@ const AgentPage = () => {
           <NavbarCenter style={{ borderRight: 'none' }}>{t('common.agent_one')}</NavbarCenter>
         </Navbar>
         <AgentEmpty />
-        {historyEntry}
+        {historyOverlay}
       </Container>
     )
   }
@@ -96,12 +79,12 @@ const AgentPage = () => {
         id={isLeftNavbar ? 'content-container' : undefined}
         className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
         <AgentChat
-          pane={<AgentSidePanel position={panePosition} />}
+          pane={<AgentSidePanel position={panePosition} onOpenHistory={openHistory} />}
           paneOpen={showSidebar}
           panePosition={panePosition}
         />
       </div>
-      {historyEntry}
+      {historyOverlay}
     </Container>
   )
 }

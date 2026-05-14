@@ -1,7 +1,7 @@
 import { Input } from '@cherrystudio/ui'
 import type { HistoryPageV2Mode } from '@renderer/pages/history/HistoryPageV2'
 import { cn } from '@renderer/utils'
-import { Circle, Search, Wrench } from 'lucide-react'
+import { Circle, Search } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -11,10 +11,11 @@ export type HistorySourceStatus = 'all' | 'running' | 'completed' | 'failed'
 interface HistorySourceSidebarProps {
   mode: HistoryPageV2Mode
   selectedSourceId: string
-  selectedStatus: HistorySourceStatus
-  assistantSources: HistorySourceItem[]
+  selectedStatus?: HistorySourceStatus
+  sources: HistorySourceItem[]
   onSourceSelect: (sourceId: string) => void
-  onStatusSelect: (status: HistorySourceStatus) => void
+  onStatusSelect?: (status: HistorySourceStatus) => void
+  statusItems?: HistoryStatusItem[]
 }
 
 export interface HistorySourceItem {
@@ -24,7 +25,7 @@ export interface HistorySourceItem {
   icon: ReactNode
 }
 
-interface StatusItem {
+export interface HistoryStatusItem {
   id: HistorySourceStatus
   label: string
   count: number
@@ -35,41 +36,24 @@ const HistorySourceSidebar = ({
   mode,
   selectedSourceId,
   selectedStatus,
-  assistantSources,
+  sources,
   onSourceSelect,
-  onStatusSelect
+  onStatusSelect,
+  statusItems = []
 }: HistorySourceSidebarProps) => {
   const { t } = useTranslation()
   const [assistantSearchText, setAssistantSearchText] = useState('')
-  const allLabel = t('common.all', '全部')
-
-  const agentSources: HistorySourceItem[] = [
-    { id: 'all', label: allLabel, count: 0, icon: <Wrench size={15} /> },
-    {
-      id: 'agent-placeholder',
-      label: t('history.v2.sidebar.agentPlaceholder', '智能体列表占位'),
-      count: 0,
-      icon: <Wrench size={15} />
-    }
-  ]
-
-  const statusItems: StatusItem[] = [
-    { id: 'all', label: allLabel, count: 0 },
-    { id: 'running', label: t('history.v2.status.running', '运行中'), count: 0, dotClassName: 'text-warning' },
-    { id: 'completed', label: t('history.v2.status.completed', '已完成'), count: 0, dotClassName: 'text-success' },
-    { id: 'failed', label: t('history.v2.status.failed', '失败'), count: 0, dotClassName: 'text-destructive' }
-  ]
 
   const visibleAssistantSources = useMemo(() => {
     const keywords = assistantSearchText.trim().toLowerCase()
-    if (!keywords) return assistantSources
+    if (!keywords) return sources
 
-    return assistantSources.filter((source) => source.id === 'all' || source.label.toLowerCase().includes(keywords))
-  }, [assistantSearchText, assistantSources])
+    return sources.filter((source) => source.id === 'all' || source.label.toLowerCase().includes(keywords))
+  }, [assistantSearchText, sources])
 
   return (
     <aside className="flex w-[284px] shrink-0 flex-col overflow-y-auto bg-background px-3 py-3.5 [border-right:0.5px_solid_var(--color-border-subtle)]">
-      {mode === 'agent' && (
+      {mode === 'agent' && statusItems.length > 0 && selectedStatus && onStatusSelect && (
         <SidebarSection title={t('history.v2.sidebar.status', '状态')}>
           <div className="space-y-1">
             {statusItems.map((item) => (
@@ -110,7 +94,7 @@ const HistorySourceSidebar = ({
         )}
 
         <div className="space-y-1">
-          {(mode === 'assistant' ? visibleAssistantSources : agentSources).map((item) => (
+          {(mode === 'assistant' ? visibleAssistantSources : sources).map((item) => (
             <SidebarRow
               key={item.id}
               active={selectedSourceId === item.id}

@@ -41,6 +41,7 @@ import {
 } from './SessionList.helpers'
 
 interface SessionsProps {
+  onOpenHistory?: () => void
   onSelectItem?: () => void
 }
 
@@ -117,7 +118,7 @@ export function resolveCreateSessionAgentId(
   return activeAgentId ?? sessions[0]?.agentId ?? agents[0]?.id ?? null
 }
 
-const Sessions = ({ onSelectItem }: SessionsProps) => {
+const Sessions = ({ onOpenHistory, onSelectItem }: SessionsProps) => {
   const { t } = useTranslation()
   const [groupNow] = useState(() => new Date())
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
@@ -231,6 +232,14 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
     (nextGroupIds: string[]) => void setCollapsedSessionGroupIds(nextGroupIds),
     [setCollapsedSessionGroupIds]
   )
+  const handleOpenHistoryOrToggleSidebar = useCallback(() => {
+    if (onOpenHistory) {
+      onOpenHistory()
+      return
+    }
+
+    void setShowSidebar(!showSidebar)
+  }, [onOpenHistory, setShowSidebar, showSidebar])
 
   const handleDeleteSession = useCallback(
     async (id: string) => {
@@ -447,8 +456,8 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
             <SessionDisplayModeMenu mode={displayMode} onChange={(nextMode) => void setSessionDisplayMode(nextMode)} />
             <ResourceList.HeaderActionButton
               type="button"
-              aria-label={t('shortcut.general.toggle_sidebar')}
-              onClick={() => void setShowSidebar(!showSidebar)}>
+              aria-label={onOpenHistory ? t('history.v2.agentTitle') : t('shortcut.general.toggle_sidebar')}
+              onClick={handleOpenHistoryOrToggleSidebar}>
               <ChevronsUpDown size={12} className="block rotate-45" />
             </ResourceList.HeaderActionButton>
           </>

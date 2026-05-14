@@ -87,6 +87,7 @@ const logger = loggerService.withContext('Topics')
 
 interface Props {
   activeTopic: Topic
+  onOpenHistory?: () => void
   setActiveTopic: (topic: Topic) => void
   position: 'left' | 'right'
 }
@@ -155,7 +156,7 @@ function TopicDisplayModeMenu({
   )
 }
 
-export function Topics({ activeTopic, setActiveTopic, position }: Props) {
+export function Topics({ activeTopic, onOpenHistory, setActiveTopic, position }: Props) {
   const { t } = useTranslation()
   const [groupNow] = useState(() => dayjs())
   const { notesPath } = useNotesSettings()
@@ -514,6 +515,14 @@ export function Topics({ activeTopic, setActiveTopic, position }: Props) {
     (nextGroupIds: string[]) => void setCollapsedTopicGroupIds(nextGroupIds),
     [setCollapsedTopicGroupIds]
   )
+  const handleOpenHistoryOrToggleSidebar = useCallback(() => {
+    if (onOpenHistory) {
+      onOpenHistory()
+      return
+    }
+
+    void setShowSidebar(!showSidebar)
+  }, [onOpenHistory, setShowSidebar, showSidebar])
 
   const canDragTopicItem = useCallback(
     ({ item }: { item: Topic }) => isAssistantDisplayMode && !isManageMode && !item.pinned,
@@ -623,8 +632,8 @@ export function Topics({ activeTopic, setActiveTopic, position }: Props) {
               </Tooltip>
               <ResourceList.HeaderActionButton
                 type="button"
-                aria-label={t('shortcut.general.toggle_sidebar')}
-                onClick={() => void setShowSidebar(!showSidebar)}>
+                aria-label={onOpenHistory ? t('history.v2.title') : t('shortcut.general.toggle_sidebar')}
+                onClick={handleOpenHistoryOrToggleSidebar}>
                 <ChevronsUpDown size={12} className="block rotate-45" />
               </ResourceList.HeaderActionButton>
             </>

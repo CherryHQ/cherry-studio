@@ -230,6 +230,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.add.topic.title') return 'New Topic'
       if (key === 'chat.default.name') return 'Default Assistant'
       if (key === 'common.prompt') return 'Prompt'
+      if (key === 'history.v2.title') return 'Topic History'
       if (key === 'settings.topic.position.label') return 'Topic position'
       if (key === 'chat.topics.delete.shortcut') return `Hold ${options?.key ?? 'Ctrl'} to delete directly`
       return key
@@ -306,10 +307,15 @@ function createTopicPin(overrides: Partial<Pin> = {}): Pin {
   }
 }
 
-function renderTopicList() {
+function renderTopicList({ onOpenHistory }: { onOpenHistory?: () => void } = {}) {
   const setActiveTopic = vi.fn()
   const renderNode = () => (
-    <Topics activeTopic={createRendererTopic()} setActiveTopic={setActiveTopic} position="left" />
+    <Topics
+      activeTopic={createRendererTopic()}
+      setActiveTopic={setActiveTopic}
+      position="left"
+      onOpenHistory={onOpenHistory}
+    />
   )
   const view = render(renderNode())
   return { ...view, rerenderTopicList: () => view.rerender(renderNode()), setActiveTopic }
@@ -806,6 +812,16 @@ describe('Topics', () => {
     fireEvent.click(screen.getByLabelText('Display mode'))
     fireEvent.click(screen.getByRole('button', { name: 'Time' }))
     expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('time')
+  })
+
+  it('opens topic history from the trailing header action when provided', () => {
+    const onOpenHistory = vi.fn()
+
+    renderTopicList({ onOpenHistory })
+
+    fireEvent.click(screen.getByLabelText('Topic History'))
+
+    expect(onOpenHistory).toHaveBeenCalledTimes(1)
   })
 
   it('adds a new topic from the search-area create bar', () => {

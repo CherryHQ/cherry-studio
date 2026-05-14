@@ -1,15 +1,19 @@
 import { Input } from '@cherrystudio/ui'
+import type { HistoryPageV2Mode } from '@renderer/pages/history/HistoryPageV2'
 import { Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 interface HistoryQueryFormProps {
+  mode: HistoryPageV2Mode
   resultCount: number
   searchText: string
   onSearchTextChange: (value: string) => void
 }
 
-const HistoryQueryForm = ({ resultCount, searchText, onSearchTextChange }: HistoryQueryFormProps) => {
+const HistoryQueryForm = ({ mode, resultCount, searchText, onSearchTextChange }: HistoryQueryFormProps) => {
   const { t } = useTranslation()
+  const searchPlaceholder =
+    mode === 'assistant' ? t('history.v2.searchTopic', '搜索话题...') : t('history.v2.searchSession', '搜索会话...')
 
   return (
     <div className="flex h-11 shrink-0 items-center justify-between gap-3 bg-background px-5 [border-bottom:0.5px_solid_var(--color-border-subtle)]">
@@ -28,8 +32,8 @@ const HistoryQueryForm = ({ resultCount, searchText, onSearchTextChange }: Histo
           <Input
             value={searchText}
             className="h-8 rounded-md border-border-subtle bg-background pl-8 text-xs shadow-none"
-            placeholder={t('history.v2.searchTopic', '搜索话题...')}
-            aria-label={t('history.v2.searchTopic', '搜索话题...')}
+            placeholder={searchPlaceholder}
+            aria-label={searchPlaceholder}
             onChange={(event) => onSearchTextChange(event.target.value)}
           />
         </div>

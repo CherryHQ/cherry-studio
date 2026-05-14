@@ -265,6 +265,7 @@ vi.mock('react-i18next', () => ({
         'common.saved': 'Saved',
         'common.unnamed': 'Untitled',
         'error.model.not_exists': 'Model does not exist',
+        'history.v2.agentTitle': 'Agent History',
         'selector.agent.create_new': 'Create agent',
         'selector.agent.empty_text': 'No agents',
         'selector.agent.search_placeholder': 'Search agents',
@@ -452,6 +453,17 @@ describe('Sessions', () => {
     fireEvent.click(screen.getByLabelText('Toggle sidebar'))
 
     expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.tab.show', false)
+  })
+
+  it('opens agent history from the trailing header action when provided', () => {
+    const onOpenHistory = vi.fn()
+
+    render(<Sessions onOpenHistory={onOpenHistory} />)
+
+    fireEvent.click(screen.getByLabelText('Agent History'))
+
+    expect(onOpenHistory).toHaveBeenCalledTimes(1)
+    expect(preferenceMocks.setPreference).not.toHaveBeenCalledWith('topic.tab.show', false)
   })
 
   it('renames sessions through the shared update session hook', async () => {
