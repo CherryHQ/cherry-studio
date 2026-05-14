@@ -19,7 +19,7 @@ import {
   ModelSelectorRow,
   ModelSelectorRowActionButton
 } from '../model/ModelSelectorRow'
-import { SelectorShell } from '../shell/SelectorShell'
+import { SelectorShell, type SelectorShellMountStrategy } from '../shell/SelectorShell'
 
 export type ResourceSelectorShellItem = {
   id: string
@@ -83,6 +83,7 @@ type ResourceSelectorShellSharedProps<T extends ResourceSelectorShellItem> = {
 
   loading?: boolean
   width?: number | string
+  mountStrategy?: SelectorShellMountStrategy
 }
 
 export type ResourceSelectorShellSelectionType = 'id' | 'item'
@@ -214,7 +215,8 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     emptyState,
     labels,
     loading,
-    width
+    width,
+    mountStrategy
   } = props
 
   const isMulti = props.multi === true
@@ -637,6 +639,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       width={width ?? 320}
       sideOffset={6}
       contentClassName="min-w-[280px]"
+      mountStrategy={mountStrategy}
       search={{
         value: searchValue,
         onChange: setSearchValue,

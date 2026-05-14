@@ -6,6 +6,7 @@ import { Bot } from 'lucide-react'
 import { type ReactElement, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { SelectorShellMountStrategy } from '../shell/SelectorShell'
 import { ResourceCreateDialog, type ResourceCreateDialogValues } from './ResourceCreateDialog'
 import { ResourceSelectorShell, type ResourceSelectorShellItem } from './ResourceSelectorShell'
 
@@ -18,6 +19,7 @@ type SharedProps = {
   trigger: ReactElement
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  mountStrategy?: SelectorShellMountStrategy
 }
 
 export type AgentSelectorSingleIdProps = SharedProps & {
@@ -35,7 +37,7 @@ export type AgentSelectorSingleItemProps = SharedProps & {
 export type AgentSelectorProps = AgentSelectorSingleIdProps | AgentSelectorSingleItemProps
 
 export function AgentSelector(props: AgentSelectorProps) {
-  const { trigger, open, onOpenChange } = props
+  const { trigger, open, onOpenChange, mountStrategy } = props
   const { t } = useTranslation()
   const modelFilter = useAgentModelFilter('claude-code')
   const [internalOpen, setInternalOpen] = useState(false)
@@ -133,6 +135,7 @@ export function AgentSelector(props: AgentSelectorProps) {
     trigger,
     open: selectorOpen,
     onOpenChange: handleSelectorOpenChange,
+    mountStrategy,
     // Refetch on every open transition (uncontrolled trigger click + controlled external opens)
     // — ResourceSelectorShell de-duplicates by routing both paths through one effect.
     onOpen: refetchPins,

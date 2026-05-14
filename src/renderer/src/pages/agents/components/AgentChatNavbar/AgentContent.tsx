@@ -98,6 +98,7 @@ const AgentContent = ({ activeAgent, onOpenSettings }: AgentContentProps) => {
             <AgentSelector
               value={activeAgent.id}
               onChange={handleAgentChange}
+              mountStrategy="lazy-keep"
               trigger={
                 <Button variant="ghost" size="sm" className="h-7 gap-1.5 rounded-full px-2 text-xs">
                   <AgentLabel

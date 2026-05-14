@@ -177,6 +177,32 @@ describe('ResourceSelectorShell', () => {
       expect(screen.getByText('Nothing')).toBeInTheDocument()
       expect(screen.getByRole('listbox').querySelector('.lucide-package')).toBeInTheDocument()
     })
+
+    it('lazy keeps content mounted after the first open', async () => {
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          pinnedIds={[]}
+          onTogglePin={vi.fn()}
+          labels={LABELS}
+          value={null}
+          onChange={vi.fn()}
+          mountStrategy="lazy-keep"
+        />
+      )
+
+      expect(document.querySelector('[data-selector-shell-content]')).toBeNull()
+
+      openPopover()
+      const content = document.querySelector('[data-selector-shell-content]')
+      expect(content).toBeInTheDocument()
+      expect(content).not.toHaveAttribute('hidden')
+
+      openPopover()
+      await waitFor(() => expect(content).toHaveAttribute('hidden'))
+      expect(document.querySelector('[data-selector-shell-content]')).toBe(content)
+    })
   })
 
   describe('value adapter', () => {

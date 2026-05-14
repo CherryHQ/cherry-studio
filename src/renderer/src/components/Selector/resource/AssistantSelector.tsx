@@ -5,6 +5,7 @@ import { isSelectableAssistantModel } from '@renderer/pages/library/editor/assis
 import { type ReactElement, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { SelectorShellMountStrategy } from '../shell/SelectorShell'
 import { ResourceCreateDialog, type ResourceCreateDialogValues } from './ResourceCreateDialog'
 import {
   ResourceSelectorShell,
@@ -26,6 +27,7 @@ type SharedProps = {
   trigger: ReactElement
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  mountStrategy?: SelectorShellMountStrategy
 }
 
 export type AssistantSelectorSingleIdProps = SharedProps & {
@@ -63,7 +65,7 @@ export type AssistantSelectorProps =
   | AssistantSelectorMultiItemProps
 
 export function AssistantSelector(props: AssistantSelectorProps) {
-  const { trigger, open, onOpenChange } = props
+  const { trigger, open, onOpenChange, mountStrategy } = props
   const { t } = useTranslation()
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
@@ -175,6 +177,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     trigger,
     open: selectorOpen,
     onOpenChange: handleSelectorOpenChange,
+    mountStrategy,
     // Refetch on every open transition (uncontrolled trigger click + controlled external opens)
     // — ResourceSelectorShell de-duplicates by routing both paths through one effect.
     onOpen: refetchPins,
