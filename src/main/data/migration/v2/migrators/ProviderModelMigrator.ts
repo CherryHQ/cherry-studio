@@ -228,7 +228,9 @@ export class ProviderModelMigrator extends BaseMigrator {
       reasoningFormatTypes,
       defaultChatEndpoint
     )
-    const merged = applyUserOverlay(baseline, row)
+
+    const overlayName = row.name && row.name !== row.modelId ? row.name : null
+    const merged = applyUserOverlay(baseline, { ...row, name: overlayName })
 
     return {
       ...row,
