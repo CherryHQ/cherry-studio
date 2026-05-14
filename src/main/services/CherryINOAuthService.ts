@@ -390,10 +390,12 @@ export class CherryINOAuthService extends BaseService implements Activatable {
       const tokenData = TokenResponseSchema.parse(tokenJson)
 
       const { access_token: accessToken, refresh_token: refreshToken } = tokenData
-
-      await this.saveTokenInternal(accessToken, refreshToken)
       logger.debug('Successfully obtained access token, fetching API keys')
 
+      // Persist the token only after the api-keys fetch + validation succeeds.
+      // Otherwise a downstream failure leaves the token in SQLite (hasToken()
+      // returns true) while the user-visible flow throws — the UI then thinks
+      // it is logged in but every subsequent call fails.
       const apiKeysResponse = await net.fetch(`${apiHost}/api/v1/oauth/tokens`, {
         method: 'GET',
         headers: {
@@ -418,6 +420,7 @@ export class CherryINOAuthService extends BaseService implements Activatable {
         throw new CherryINOAuthServiceError('No API keys received')
       }
 
+      await this.saveTokenInternal(accessToken, refreshToken)
       logger.debug('Successfully obtained API keys')
       return apiKeys
     } catch (error) {
