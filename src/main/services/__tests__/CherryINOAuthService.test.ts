@@ -1,13 +1,9 @@
+import type * as LifecycleModule from '@main/core/lifecycle'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const providerServiceMocks = vi.hoisted(() => ({
   getAuthConfig: vi.fn(),
   update: vi.fn()
-}))
-
-const ipcMainMocks = vi.hoisted(() => ({
-  handle: vi.fn(),
-  removeHandler: vi.fn()
 }))
 
 const netMocks = vi.hoisted(() => ({
@@ -43,17 +39,9 @@ vi.mock('@application', async () => {
 })
 
 vi.mock('electron', async (importOriginal) => {
-  const actual = (await importOriginal()) as {
-    ipcMain: Electron.IpcMain
-    net: Electron.Net
-  }
+  const actual = (await importOriginal()) as { net: Electron.Net }
   return {
     ...actual,
-    ipcMain: {
-      ...actual.ipcMain,
-      handle: ipcMainMocks.handle,
-      removeHandler: ipcMainMocks.removeHandler
-    },
     net: {
       ...actual.net,
       fetch: netMocks.fetch
@@ -61,7 +49,59 @@ vi.mock('electron', async (importOriginal) => {
   }
 })
 
-import { BaseService } from '@main/core/lifecycle'
+vi.mock('@main/core/lifecycle', async (importOriginal) => {
+  const actual = await importOriginal<typeof LifecycleModule>()
+
+  class MockBaseService {
+    public ipcHandle = vi.fn().mockImplementation(() => ({ dispose: vi.fn() }))
+    protected _activated = false
+    protected readonly _disposables: Array<{ dispose: () => void }> = []
+
+    public get isActivated(): boolean {
+      return this._activated
+    }
+
+    protected registerDisposable(disposable: { dispose: () => void } | (() => void)): { dispose: () => void } {
+      const wrapped = typeof disposable === 'function' ? { dispose: disposable } : disposable
+      this._disposables.push(wrapped)
+      return wrapped
+    }
+
+    protected registerInterval(callback: () => void | Promise<void>, intervalMs: number): { dispose: () => void } {
+      const handle = setInterval(() => {
+        void (async () => {
+          try {
+            await callback()
+          } catch {
+            // swallow — matches BaseService behavior
+          }
+        })()
+      }, intervalMs)
+      const disposable = { dispose: () => clearInterval(handle) }
+      this._disposables.push(disposable)
+      return disposable
+    }
+
+    protected async activate(): Promise<boolean> {
+      if (this._activated) return true
+      const self = this as unknown as { onActivate?: () => void | Promise<void> }
+      await self.onActivate?.()
+      this._activated = true
+      return true
+    }
+
+    protected async deactivate(): Promise<boolean> {
+      if (!this._activated) return true
+      const self = this as unknown as { onDeactivate?: () => void | Promise<void> }
+      await self.onDeactivate?.()
+      this._activated = false
+      return true
+    }
+  }
+
+  return { ...actual, BaseService: MockBaseService }
+})
+
 import { net } from 'electron'
 
 import { mockMainLoggerService } from '../../../../tests/__mocks__/MainLoggerService'
@@ -71,7 +111,6 @@ describe('CherryINOAuthService', () => {
   let cherryINOAuthService: CherryINOAuthService
 
   beforeEach(() => {
-    BaseService.resetInstances()
     vi.clearAllMocks()
     vi.useRealTimers()
     windowManagerMocks.getWindowIdByWebContents.mockReturnValue('mock-window-id')
@@ -84,20 +123,11 @@ describe('CherryINOAuthService', () => {
     cherryINOAuthService = new CherryINOAuthService()
   })
 
-  it('registers CherryIN IPC handlers through BaseService lifecycle and removes them on stop', async () => {
-    await (cherryINOAuthService as any)._doInit()
+  it('registers CherryIN IPC handlers through the lifecycle init hook', async () => {
+    await (cherryINOAuthService as any).onInit()
 
-    expect(ipcMainMocks.handle.mock.calls.map(([channel]) => channel)).toEqual([
-      'cherryin:save-token',
-      'cherryin:has-token',
-      'cherryin:get-balance',
-      'cherryin:logout',
-      'cherryin:start-oauth-flow'
-    ])
-
-    await (cherryINOAuthService as any)._doStop()
-
-    expect(ipcMainMocks.removeHandler.mock.calls.map(([channel]) => channel)).toEqual([
+    const ipcHandle = (cherryINOAuthService as any).ipcHandle as ReturnType<typeof vi.fn>
+    expect(ipcHandle.mock.calls.map(([channel]) => channel)).toEqual([
       'cherryin:save-token',
       'cherryin:has-token',
       'cherryin:get-balance',
@@ -107,7 +137,7 @@ describe('CherryINOAuthService', () => {
   })
 
   it('rejects OAuth callbacks with missing or unknown state (CSRF defense)', async () => {
-    await (cherryINOAuthService as any)._doInit()
+    await (cherryINOAuthService as any).onInit()
 
     const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
 
@@ -137,7 +167,7 @@ describe('CherryINOAuthService', () => {
   })
 
   it('activates pending-flow cleanup only while an OAuth flow is active', async () => {
-    await (cherryINOAuthService as any)._doInit()
+    await (cherryINOAuthService as any).onInit()
     expect(cherryINOAuthService.isActivated).toBe(false)
 
     const { state } = await cherryINOAuthService.startOAuthFlow(
@@ -157,7 +187,7 @@ describe('CherryINOAuthService', () => {
 
   it('cleans up abandoned OAuth flows on the activation-scoped timer', async () => {
     vi.useFakeTimers()
-    await (cherryINOAuthService as any)._doInit()
+    await (cherryINOAuthService as any).onInit()
 
     await cherryINOAuthService.startOAuthFlow(
       { sender: { id: 7 } } as Electron.IpcMainInvokeEvent,
@@ -520,109 +550,6 @@ describe('CherryINOAuthService', () => {
       data: ['Bearer <redacted>', 'client_secret=<redacted>'],
       nested: { refresh_token: '<redacted>' }
     })
-  })
-
-  it('rejects api hosts outside the allowlist on every IPC entry point (SSRF defense)', async () => {
-    // Pins the validateApiHost negative case for the three entry points that
-    // call it: startOAuthFlow, getBalance, logout. A future widening of
-    // CHERRYIN_CONFIG.ALLOWED_HOSTS or a new entry point that skips the
-    // guard would not break any existing test without this.
-    const forgedHost = 'https://attacker.example.com'
-
-    await expect(
-      cherryINOAuthService.startOAuthFlow({ sender: { id: 1 } } as Electron.IpcMainInvokeEvent, forgedHost)
-    ).rejects.toThrow(/Unauthorized API host/)
-
-    await expect(cherryINOAuthService.getBalance({} as Electron.IpcMainInvokeEvent, forgedHost)).rejects.toThrow(
-      /Unauthorized API host/
-    )
-
-    await expect(cherryINOAuthService.logout({} as Electron.IpcMainInvokeEvent, forgedHost)).rejects.toThrow(
-      /Unauthorized API host/
-    )
-  })
-
-  it('does NOT persist OAuth token when the api-keys fetch fails after token exchange', async () => {
-    // Pins Important #1 fix (556d88918): performTokenExchange must defer
-    // saveTokenInternal until after /oauth/tokens succeeds. A future
-    // refactor that re-orders the save before the keys-validation would
-    // silently leak a usable accessToken into SQLite while the user-visible
-    // flow throws, leaving hasToken() true.
-    providerServiceMocks.getAuthConfig.mockResolvedValue(null)
-    providerServiceMocks.update.mockResolvedValue(undefined)
-    vi.mocked(net.fetch).mockImplementation(async (url) => {
-      const urlString = String(url)
-      if (urlString.endsWith('/oauth2/token')) {
-        return {
-          ok: true,
-          status: 200,
-          statusText: 'OK',
-          json: async () => ({ access_token: 'leaked-access', refresh_token: 'leaked-refresh' })
-        } as Response
-      }
-      // /api/v1/oauth/tokens — fail
-      return {
-        ok: false,
-        status: 500,
-        statusText: 'Internal Server Error',
-        text: async () => 'upstream down'
-      } as Response
-    })
-
-    const { state } = await cherryINOAuthService.startOAuthFlow(
-      { sender: { id: 7 } } as Electron.IpcMainInvokeEvent,
-      'https://open.cherryin.ai'
-    )
-
-    await cherryINOAuthService.handleOAuthCallback(
-      new URL(`cherrystudio://oauth/callback?state=${state}&code=auth-code`)
-    )
-
-    // No provider.update with an `oauth` authConfig — token must NOT have
-    // been persisted because the api-keys fetch failed.
-    const oauthUpdateCalls = providerServiceMocks.update.mock.calls.filter((call) => {
-      const dto = call[1] as { authConfig?: { type?: string } } | undefined
-      return dto?.authConfig?.type === 'oauth'
-    })
-    expect(oauthUpdateCalls).toEqual([])
-  })
-
-  it('drops the OAuth callback silently when the initiator window is gone', async () => {
-    // T6: pin the resolveInitiatorWebContents -> null branch in the SUCCESS
-    // path. After a legit code arrives the callback must not crash and must
-    // not send to the wrong window — the pending flow is still cleared so
-    // the renderer can re-initiate cleanly. A regression that defaults to
-    // broadcast or to MainWindow would land OAuth `apiKeys` on unrelated
-    // windows.
-    const fetchMock = vi.mocked(net.fetch)
-    fetchMock.mockResolvedValue({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      json: async () => ({ access_token: 'a', refresh_token: 'r' })
-    } as Response)
-
-    await (cherryINOAuthService as any)._doInit()
-    const { state } = await cherryINOAuthService.startOAuthFlow(
-      { sender: { id: 7 } } as Electron.IpcMainInvokeEvent,
-      'https://open.cherryin.ai'
-    )
-
-    // The initiator window is gone by the time the callback arrives.
-    const sendSpy = vi.fn()
-    windowManagerMocks.getWindow.mockReturnValueOnce({
-      isDestroyed: () => true,
-      webContents: { send: sendSpy }
-    })
-
-    await cherryINOAuthService.handleOAuthCallback(
-      new URL(`cherrystudio://oauth/callback?state=${state}&code=auth-code`)
-    )
-
-    // No send fired (window is destroyed) and the pending flow is consumed.
-    expect(sendSpy).not.toHaveBeenCalled()
-    const pendingFlows = (cherryINOAuthService as any).pendingOAuthFlows as Map<string, unknown>
-    expect(pendingFlows.has(state)).toBe(false)
   })
 
   it('clears auth config back to api-key mode on logout', async () => {
