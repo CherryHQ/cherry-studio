@@ -1,10 +1,12 @@
 import { PageSidePanel, Skeleton } from '@cherrystudio/ui'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { useAssistant, useDefaultAssistant } from '@renderer/hooks/useAssistant'
-import ChatPreferencesTab from '@renderer/pages/agents/ChatPreferencesTab'
 import { AssistantSettingsTab } from '@renderer/pages/home/components/ChatNavBar/Tools/SettingsTab'
 import { SlidersHorizontal } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import ChatPreferenceSections from './ChatPreferenceSections'
 
 type SettingsPanelMode = 'assistant' | 'agent'
 
@@ -36,7 +38,13 @@ const SettingsPanel: FC<Props> = ({ open, onClose, mode, assistantId }) => {
       headerClassName="h-[38px] [border-bottom:0.5px_solid_var(--color-border)] px-3"
       bodyClassName="space-y-0 p-0 text-xs"
       closeButtonClassName="h-6 w-6 rounded-md p-0">
-      {mode === 'assistant' ? <AssistantSettingsPanelBody assistantId={assistantId} /> : <ChatPreferencesTab />}
+      {mode === 'assistant' ? (
+        <AssistantSettingsPanelBody assistantId={assistantId} />
+      ) : (
+        <Scrollbar className="settings-tab flex flex-1 flex-col px-3 py-2 text-xs">
+          <ChatPreferenceSections />
+        </Scrollbar>
+      )}
     </PageSidePanel>
   )
 }

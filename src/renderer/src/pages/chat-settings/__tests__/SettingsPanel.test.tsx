@@ -14,8 +14,16 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
   useDefaultAssistant: () => ({ assistant: mocks.defaultAssistant })
 }))
 
-vi.mock('@renderer/pages/agents/ChatPreferencesTab', () => ({
-  default: () => <div data-testid="chat-preferences-tab" />
+vi.mock('@renderer/components/Scrollbar', () => ({
+  default: ({ children, className }: React.PropsWithChildren<{ className?: string }>) => (
+    <div className={className} data-testid="chat-preferences-scrollbar">
+      {children}
+    </div>
+  )
+}))
+
+vi.mock('@renderer/pages/chat-settings/ChatPreferenceSections', () => ({
+  default: () => <div data-testid="chat-preferences" />
 }))
 
 vi.mock('@renderer/pages/home/components/ChatNavBar/Tools/SettingsTab', () => ({
@@ -78,7 +86,7 @@ describe('SettingsPanel', () => {
 
     expect(mocks.useAssistant).toHaveBeenCalledWith('assistant-1')
     expect(screen.getByTestId('assistant-settings-tab')).toHaveTextContent('assistant-1')
-    expect(screen.queryByTestId('chat-preferences-tab')).toBeNull()
+    expect(screen.queryByTestId('chat-preferences')).toBeNull()
   })
 
   it('applies slide panel aligned classes', () => {
@@ -126,7 +134,8 @@ describe('SettingsPanel', () => {
     render(<SettingsPanel open={true} onClose={vi.fn()} mode="agent" />)
 
     expect(mocks.useAssistant).not.toHaveBeenCalled()
-    expect(screen.getByTestId('chat-preferences-tab')).toBeInTheDocument()
+    expect(screen.getByTestId('chat-preferences')).toBeInTheDocument()
+    expect(screen.getByTestId('chat-preferences-scrollbar').getAttribute('class')).toContain('settings-tab')
     expect(screen.queryByTestId('assistant-settings-tab')).toBeNull()
   })
 })
