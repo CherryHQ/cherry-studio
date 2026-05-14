@@ -3340,8 +3340,6 @@
       "cost": "Cost",
       "currency": "Currency",
       "custom": "Custom",
-      "custom_currency": "Custom Currency",
-      "custom_currency_placeholder": "Enter Custom Currency",
       "input": "Input Price",
       "million_tokens": "M Tokens",
       "output": "Output Price",
@@ -3693,6 +3691,12 @@
       "model_task": "Model Task:",
       "success": "Download successful",
       "success_desc": "Model \"{{modelName}}\"-\"{{modelId}}\" downloaded successfully, please go to the OVMS management interface to add the model",
+      "task": {
+        "embeddings": "Embeddings",
+        "image_generation": "Image Generation",
+        "rerank": "Rerank",
+        "text_generation": "Text Generation"
+      },
       "tip": "The model is downloading, sometimes it takes hours. Please be patient...",
       "title": "Download Intel OpenVINO Model"
     },
@@ -3709,6 +3713,7 @@
       "run": "Run OVMS failed:",
       "stop": "Stop OVMS failed:"
     },
+    "guide": "Intel OVMS Guide:",
     "status": {
       "not_installed": "OVMS is not installed",
       "not_running": "OVMS is not running",
@@ -4047,6 +4052,7 @@
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
+    "cherryai": "CherryAI",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
@@ -5978,9 +5984,14 @@
       "add": {
         "add_model": "Add Model",
         "batch_add_models": "Batch Add Models",
+        "context_window": {
+          "label": "Context window",
+          "placeholder": "e.g. 128000"
+        },
         "endpoint_type": {
           "label": "Endpoint Type",
           "placeholder": "Select endpoint type",
+          "remove_chip": "Remove",
           "required": "Please select an endpoint type",
           "tooltip": "Select the API endpoint type format"
         },
@@ -5988,6 +5999,14 @@
           "label": "Group Name",
           "placeholder": "Optional e.g. ChatGPT",
           "tooltip": "Optional e.g. ChatGPT"
+        },
+        "max_input_tokens": {
+          "label": "Max input tokens",
+          "placeholder": "e.g. 128000"
+        },
+        "max_output_tokens": {
+          "label": "Max output tokens",
+          "placeholder": "e.g. 4096"
         },
         "model_id": {
           "label": "Model ID",
@@ -6009,15 +6028,19 @@
       },
       "api_key": "API Key",
       "base_url": "Base URL",
+      "bulk_disable": "Select none",
+      "bulk_enable": "Select all",
       "check": {
         "all": "All",
         "all_models_passed": "All models check passed",
         "button_caption": "Health check",
-        "disabled": "Disabled",
+        "disabled": "Not enabled",
         "disclaimer": "Health check requires sending requests, please use it with caution. Models that charge per request may incur additional costs, please bear the responsibility.",
+        "drawer_result_hint": "Results remain here until you close the drawer or run the check again.",
         "enable_concurrent": "Concurrent",
         "enabled": "Enabled",
         "failed": "Failed",
+        "failed_to_start": "Failed to start health check",
         "keys_status_count": "Passed: {{count_passed}} keys, failed: {{count_failed}} keys",
         "model_status_failed": "{{count}} models completely inaccessible",
         "model_status_partial": "{{count}} models had inaccessible keys",
@@ -6025,28 +6048,92 @@
         "model_status_summary": "{{provider}}: {{summary}}",
         "no_api_keys": "No API keys found, please add API keys first.",
         "no_results": "No results",
+        "outcome_fail_short": "{{count}} failed",
+        "outcome_success_short": "{{count}} passed",
+        "outcome_total": "{{count}} total",
         "passed": "Passed",
+        "pipeline_heading": "Detection progress",
+        "progress_count": "{{done}} / {{total}}",
+        "progress_current": "Checking: {{name}}",
+        "progress_hint": "While running, watch the list below. When finished, a short summary appears above the list.",
+        "progress_title": "Running health check",
+        "retry": "Check again",
         "select_api_key": "Select the API key to use:",
         "single": "Single",
         "start": "Start",
+        "status_checking": "Checking…",
         "timeout": "Timeout",
         "title": "Model health check",
         "use_all_keys": "Key(s)"
       },
+      "copy_model_id_tooltip": "Click to copy model ID: {{id}}",
       "default_assistant_model": "Default Assistant Model",
       "default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
       "empty": "No models found",
+      "list_title": "Model list",
       "manage": {
+        "add_custom_model": "Add custom model",
         "add_listed": {
           "confirm": "Are you sure you want to add all models to the list?",
           "label": "Add models to the list"
         },
         "add_whole_group": "Add the whole group",
-        "fetch_list": "Fetch model list",
-        "refetch_list": "Refetch model list",
+        "drawer_title": "Model management",
+        "fetch_deselect_all_add": "Deselect all",
+        "fetch_deselect_all_remove": "Deselect all",
+        "fetch_list": "Pull models",
+        "fetch_ok": "OK",
+        "fetch_removed_hint": "These models no longer exist on the provider API. Check to remove them from your list.",
+        "fetch_result_title": "Pull result",
+        "fetch_select_all_add": "Select all to add",
+        "fetch_select_all_remove": "Select all to remove",
+        "fetch_summary_add": "Add {{selected}}/{{total}} models",
+        "fetch_summary_remove": "Remove {{selected}}/{{total}} models",
+        "fetch_up_to_date": "Your model list is up to date",
+        "fetch_up_to_date_hint": "No new or removed models were found.",
+        "filter_add_all": "Add all in view",
+        "filter_remove_all": "Remove from provider",
+        "footer_done": "Done",
+        "large_group_hidden": "Show {{count}} more models",
+        "operation_failed": "Model operation failed.",
+        "refetch_list": "Pull models again",
+        "reload_catalog": "Refresh list",
         "remove_listed": "Remove models from the list",
         "remove_model": "Remove model",
-        "remove_whole_group": "Remove the whole group"
+        "remove_whole_group": "Remove the whole group",
+        "search_models_placeholder": "Search models…",
+        "select_none": "Select none",
+        "status_all": "All",
+        "status_disabled": "Disabled",
+        "status_enabled": "Enabled",
+        "sync_added_description": "New upstream models that can be added to this provider.",
+        "sync_added_metric": "{{count}} new models",
+        "sync_added_section": "New models",
+        "sync_apply_changes": "Apply changes",
+        "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
+        "sync_empty_added": "No new upstream models were found.",
+        "sync_empty_missing": "No unavailable local models were found.",
+        "sync_impact_section": "Reference impact",
+        "sync_impact_summary": "{{models}} impacted models, {{references}} strong references",
+        "sync_missing_description": "Local models that no longer exist in the latest upstream list.",
+        "sync_missing_metric": "{{count}} unavailable models",
+        "sync_missing_section": "Unavailable models",
+        "sync_no_references": "No strong references",
+        "sync_pick_delete": "Delete",
+        "sync_pick_deprecate": "Mark deprecated",
+        "sync_preview_description": "Review upstream model changes before updating your local model list.",
+        "sync_preview_summary": "Pull preview",
+        "sync_pull_failed": "Failed to pull models.",
+        "sync_reference_assistants": "Assistants {{count}}",
+        "sync_reference_knowledge": "Knowledge bases {{count}}",
+        "sync_reference_preferences": "Preferences {{count}}",
+        "sync_references": "Strong references {{count}}",
+        "sync_replacement": "Suggested replacement: {{model}}",
+        "sync_selected_metric": "{{count}} selected",
+        "sync_selected_summary": "{{selected}} / {{total}} selected",
+        "sync_switch_to_delete": "Delete instead",
+        "sync_switch_to_deprecate": "Mark deprecated instead",
+        "sync_will_deprecate": "Will be marked deprecated"
       },
       "provider_id": "Provider ID",
       "provider_key_add_confirm": "Do you want to add the API key for {{provider}}?",
@@ -6067,6 +6154,11 @@
         "label": "Quick Model",
         "setting_title": "Quick model setup",
         "tooltip": "It is recommended to choose a lightweight model and not recommended to choose a thinking model."
+      },
+      "toolbar": {
+        "filter_close": "Close filter",
+        "filter_open": "Filter by capability",
+        "pull_short": "Pull"
       },
       "topic_naming": {
         "auto": "Topic Auto Naming",
@@ -6251,14 +6343,26 @@
         }
       },
       "api_host": "API Host",
+      "api_host_drawer_hint": "Custom API request URL; leave empty when the catalog default applies.",
       "api_host_no_valid": "API address is invalid",
+      "api_host_placeholder": "Not configured",
       "api_host_preview": "Preview: {{url}}",
       "api_host_tooltip": "Override only when your provider requires a custom OpenAI-compatible endpoint.",
       "api_key": {
+        "copy": "Copy",
+        "enabled_suffix": "enabled",
+        "hide_key": "Hide key",
         "label": "API Key",
-        "tip": "Use commas to separate multiple keys"
+        "label_placeholder": "Label",
+        "list_description": "Manage multiple API keys for this provider",
+        "placeholder": "Use commas to separate multiple keys",
+        "save_failed": "Failed to save API keys",
+        "show_key": "Show key",
+        "tip": "Use commas to separate multiple keys",
+        "unnamed": "API Key"
       },
       "api_version": "API Version",
+      "auth_connection_section": "Connection & authentication",
       "aws-bedrock": {
         "access_key_id": "AWS Access Key ID",
         "access_key_id_help": "Your AWS Access Key ID for accessing AWS Bedrock services",
@@ -6298,7 +6402,15 @@
       "check": "Check",
       "check_all_keys": "Check All Keys",
       "check_multiple_keys": "Check Multiple API Keys",
+      "cherryin": {
+        "api_host": {
+          "acceleration": "Acceleration domain",
+          "backup": "Backup domain",
+          "international": "International domain"
+        }
+      },
       "copilot": {
+        "add_request_header": "Add header",
         "auth_failed": "Github Copilot authentication failed.",
         "auth_success": "GitHub Copilot authentication successful.",
         "auth_success_title": "Certification successful.",
@@ -6311,7 +6423,12 @@
         "description": "Your GitHub account needs to subscribe to Copilot.",
         "description_detail": "GitHub Copilot is an AI-powered code assistant that requires a valid GitHub Copilot subscription to use",
         "expand": "Expand",
+        "header_field_name": "Header",
+        "header_field_value": "Value",
+        "header_name_placeholder": "Header name",
+        "header_value_placeholder": "Header value",
         "headers_description": "Custom request headers (JSON format)",
+        "headers_json_placeholder": "{\n  \"X-Custom-Header\": \"value\"\n}",
         "invalid_json": "JSON format error",
         "login": "Log in to Github",
         "logout": "Exit GitHub",
@@ -6332,7 +6449,9 @@
         "step_copy_code_desc": "Copy device authorization code",
         "step_copy_code_detail": "Authorization code has been automatically copied, you can also copy it manually",
         "step_get_code": "Get Authorization Code",
-        "step_get_code_desc": "Generate device authorization code"
+        "step_get_code_desc": "Generate device authorization code",
+        "toggle_headers_editor_json": "Switch to JSON editor",
+        "toggle_headers_editor_list": "Switch to header list"
       },
       "delete": {
         "content": "Are you sure you want to delete this provider?",
@@ -6362,13 +6481,19 @@
       },
       "oauth": {
         "balance": "Balance",
+        "balance_error": "Failed to fetch balance",
         "button": "Login with {{provider}}",
         "cherryIn": {
+          "account_title": "Cherry IN account",
           "description": "Login to CherryIN using OAuth 2.0",
           "logged_in": "Logged in via OAuth",
-          "login_button": "Login with OAuth",
+          "login_button": "Authorize with OAuth",
           "logout_button": "Logout",
-          "title": "OAuth Login"
+          "register_account": "Create account",
+          "service_attribution": "This service is provided by <link>open.cherryin.ai</link>",
+          "tagline": "After you sign in, you can use all model services",
+          "title": "OAuth Login",
+          "use_api_key": "Use API key instead"
         },
         "connect": "Connect {{provider}}",
         "description": "This service is provided by <website>{{provider}}</website>",
@@ -6383,13 +6508,18 @@
         "provided_by_suffix": "",
         "requests": "Requests",
         "topup": "Top Up",
-        "usage_title": "Usage"
+        "usage_title": "Usage",
+        "usage_unit": "tokens"
       },
       "openai": {
         "alert": "OpenAI Provider no longer support the old calling methods. If using a third-party API, please create a new service provider."
       },
       "remove_duplicate_keys": "Remove Duplicate Keys",
       "remove_invalid_keys": "Remove Invalid Keys",
+      "reorder_failed": "Failed to reorder providers",
+      "request_configuration": "Request configuration",
+      "request_configuration_tooltip": "Configure API Host and custom request headers",
+      "save_failed": "Failed to save provider settings",
       "search": "Search Providers...",
       "search_placeholder": "Search model id or name",
       "title": "Model Provider",

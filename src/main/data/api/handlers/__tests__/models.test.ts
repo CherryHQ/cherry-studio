@@ -1,17 +1,28 @@
 import type { CreateModelInput } from '@data/services/ModelService'
 import { DataApiErrorFactory, ErrorCode } from '@shared/data/api'
-import { CreateModelsSchema, MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
+import { BulkUpdateModelsSchema, CreateModelsSchema, MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../tests/__mocks__/MainLoggerService'
 
-const { listMock, getByKeyMock, updateMock, deleteMock, createMock, lookupModelMock } = vi.hoisted(() => ({
+const {
+  listMock,
+  getByKeyMock,
+  updateMock,
+  deleteMock,
+  createMock,
+  bulkUpdateMock,
+  lookupModelMock,
+  resolveModelsMock
+} = vi.hoisted(() => ({
   listMock: vi.fn(),
   getByKeyMock: vi.fn(),
   updateMock: vi.fn(),
   deleteMock: vi.fn(),
   createMock: vi.fn(),
-  lookupModelMock: vi.fn()
+  bulkUpdateMock: vi.fn(),
+  lookupModelMock: vi.fn(),
+  resolveModelsMock: vi.fn()
 }))
 
 vi.mock('@data/services/ModelService', () => ({
@@ -20,13 +31,15 @@ vi.mock('@data/services/ModelService', () => ({
     getByKey: getByKeyMock,
     update: updateMock,
     delete: deleteMock,
-    create: createMock
+    create: createMock,
+    bulkUpdate: bulkUpdateMock
   }
 }))
 
 vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: {
-    lookupModel: lookupModelMock
+    lookupModel: lookupModelMock,
+    resolveModels: resolveModelsMock
   }
 }))
 
@@ -57,6 +70,15 @@ describe('Model handler validation', () => {
     }))
 
     expect(() => CreateModelsSchema.parse(items)).toThrow()
+  })
+
+  it('accepts bulk update payload arrays larger than the create batch limit', () => {
+    const items = Array.from({ length: MODELS_BATCH_MAX_ITEMS + 63 }, (_, index) => ({
+      uniqueModelId: `cherryin::model-${index}`,
+      patch: { isEnabled: false }
+    }))
+
+    expect(() => BulkUpdateModelsSchema.parse(items)).not.toThrow()
   })
 })
 
@@ -101,9 +123,9 @@ describe('/models', () => {
     ] satisfies CreateModelInput[])
   })
 
-  it('falls back to custom model creation when registry lookup fails', async () => {
+  it('falls back to custom model creation when registry lookup returns NOT_FOUND', async () => {
     const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
-    lookupModelMock.mockRejectedValue(new Error('registry down'))
+    lookupModelMock.mockRejectedValue(DataApiErrorFactory.notFound('Registry model', 'custom-model'))
     createMock.mockResolvedValue([{ id: 'openai::custom-model' }])
 
     await modelHandlers['/models'].POST({
@@ -117,8 +139,26 @@ describe('/models', () => {
       }
     ] satisfies CreateModelInput[])
     expect(warnSpy).toHaveBeenCalledWith(
-      'Registry lookup failed during create, falling back to custom',
+      'Registry lookup missed during create, falling back to custom',
       expect.objectContaining({ providerId: 'openai', modelId: 'custom-model' })
+    )
+  })
+
+  it('rethrows non-NOT_FOUND registry lookup errors instead of creating custom models', async () => {
+    const error = new Error('registry down')
+    const errorSpy = vi.spyOn(mockMainLoggerService, 'error').mockImplementation(() => {})
+    lookupModelMock.mockRejectedValue(error)
+
+    await expect(
+      modelHandlers['/models'].POST({
+        body: [{ providerId: 'openai', modelId: 'gpt-4o' }]
+      } as any)
+    ).rejects.toBe(error)
+
+    expect(createMock).not.toHaveBeenCalled()
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Registry lookup failed during create',
+      expect.objectContaining({ providerId: 'openai', modelId: 'gpt-4o', error })
     )
   })
 
@@ -150,11 +190,13 @@ describe('/models', () => {
     expect(result).toEqual(created)
   })
 
-  it('falls back to custom model creation when registry lookup fails for one batch item', async () => {
+  it('falls back to custom model creation when registry lookup returns NOT_FOUND for one batch item', async () => {
     const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
     const registryData = { presetModel: { id: 'gpt-4o', name: 'GPT-4o' }, registryOverride: null }
 
-    lookupModelMock.mockResolvedValueOnce(registryData).mockRejectedValueOnce(new Error('lookup failed'))
+    lookupModelMock
+      .mockResolvedValueOnce(registryData)
+      .mockRejectedValueOnce(DataApiErrorFactory.notFound('Model', 'my-model'))
     createMock.mockResolvedValue([])
 
     await modelHandlers['/models'].POST({
@@ -175,7 +217,7 @@ describe('/models', () => {
       }
     ] satisfies CreateModelInput[])
     expect(warnSpy).toHaveBeenCalledWith(
-      'Registry lookup failed during batch create, falling back to custom',
+      'Registry lookup missed during batch create, falling back to custom',
       expect.objectContaining({ providerId: 'custom/provider', modelId: 'my-model' })
     )
   })
@@ -192,6 +234,20 @@ describe('/models', () => {
         body: [{ providerId: 'openai', modelId: 'gpt-4o' }]
       } as any)
     ).rejects.toBe(serviceError)
+  })
+
+  it('delegates bulk PATCH to modelService.bulkUpdate', async () => {
+    const updated = [{ id: 'cherryin::model-1', isEnabled: false }]
+    bulkUpdateMock.mockResolvedValueOnce(updated)
+
+    const result = await modelHandlers['/models'].PATCH({
+      body: [{ uniqueModelId: 'cherryin::model-1', patch: { isEnabled: false } }]
+    } as any)
+
+    expect(bulkUpdateMock).toHaveBeenCalledWith([
+      { providerId: 'cherryin', modelId: 'model-1', patch: { isEnabled: false } }
+    ])
+    expect(result).toBe(updated)
   })
 })
 
@@ -270,5 +326,52 @@ describe('/models/:uniqueModelId*', () => {
     await expect(
       modelHandlers['/models/:uniqueModelId*'].GET({ params: { uniqueModelId: 'openai::missing' } } as never)
     ).rejects.toBe(serviceError)
+  })
+})
+
+describe('/providers/:providerId/models:resolve', () => {
+  it('resolves a single ids query string through ProviderRegistryService', async () => {
+    resolveModelsMock.mockResolvedValueOnce([{ id: 'openai::gpt-4o' }])
+
+    const result = await modelHandlers['/providers/:providerId/models:resolve'].GET({
+      params: { providerId: 'openai' },
+      query: { ids: 'gpt-4o' }
+    } as never)
+
+    expect(resolveModelsMock).toHaveBeenCalledWith('openai', ['gpt-4o'])
+    expect(result).toEqual([{ id: 'openai::gpt-4o' }])
+  })
+
+  it('resolves repeated ids arrays without a request body', async () => {
+    resolveModelsMock.mockResolvedValueOnce([])
+
+    await modelHandlers['/providers/:providerId/models:resolve'].GET({
+      params: { providerId: 'openai' },
+      query: { ids: ['gpt-4o', 'o3'] }
+    } as never)
+
+    expect(resolveModelsMock).toHaveBeenCalledWith('openai', ['gpt-4o', 'o3'])
+  })
+
+  it('rejects missing ids before calling the registry service', async () => {
+    await expect(
+      modelHandlers['/providers/:providerId/models:resolve'].GET({
+        params: { providerId: 'openai' },
+        query: {}
+      } as never)
+    ).rejects.toThrow()
+
+    expect(resolveModelsMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects empty ids arrays before calling the registry service', async () => {
+    await expect(
+      modelHandlers['/providers/:providerId/models:resolve'].GET({
+        params: { providerId: 'openai' },
+        query: { ids: [] }
+      } as never)
+    ).rejects.toThrow()
+
+    expect(resolveModelsMock).not.toHaveBeenCalled()
   })
 })

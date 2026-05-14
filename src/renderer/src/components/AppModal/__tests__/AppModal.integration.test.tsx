@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import { PageSidePanel } from '@cherrystudio/ui'
 import i18n from '@renderer/i18n'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -66,5 +67,25 @@ describe('AppModalProvider Dialog integration', () => {
     await user.click(screen.getByRole('button', { name: i18n.t('common.confirm') }))
 
     await expect(confirmed!).resolves.toBe(true)
+  })
+
+  it('layers confirm dialogs above in-page side panels', async () => {
+    const modal = await renderModalProvider()
+
+    render(<PageSidePanel open onClose={vi.fn()} />)
+
+    act(() => {
+      modal.confirm({
+        title: 'Delete model',
+        content: 'This cannot be undone.',
+        okButtonProps: { danger: true }
+      })
+    })
+
+    expect(await screen.findByText('Delete model')).toBeInTheDocument()
+    expect(document.querySelector('[data-slot="page-side-panel-backdrop"]')).toHaveClass('z-[60]')
+    expect(document.querySelector('[data-slot="page-side-panel"]')).toHaveClass('z-[70]')
+    expect(document.querySelector('[data-slot="dialog-overlay"]')).toHaveClass('z-[90]')
+    expect(screen.getByRole('dialog', { name: 'Delete model' })).toHaveClass('z-[90]')
   })
 })

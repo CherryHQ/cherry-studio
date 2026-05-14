@@ -831,7 +831,23 @@ export function checkApiProvider(provider: Provider): void {
  * @param timeout - Maximum time (ms) to wait for the request to complete. Defaults to 15000 ms.
  * @throws {Error} If the request fails or times out, indicating the API is not usable.
  */
-export async function checkApi(provider: Provider, model: Model, timeout = 15000): Promise<void> {
+function createAbortPromise(signal: AbortSignal | undefined): Promise<never> | null {
+  if (!signal) {
+    return null
+  }
+
+  return new Promise((_, reject) => {
+    const rejectAborted = () => reject(new DOMException('Aborted', 'AbortError'))
+    if (signal.aborted) {
+      rejectAborted()
+      return
+    }
+
+    signal.addEventListener('abort', rejectAborted, { once: true })
+  })
+}
+
+export async function checkApi(provider: Provider, model: Model, timeout = 15000, signal?: AbortSignal): Promise<void> {
   checkApiProvider(provider)
 
   const ai = new AiProvider(model, provider)
@@ -843,15 +859,21 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
   if (isEmbeddingModel(model)) {
     logger.info('checkApi: embedding model detected, calling getEmbeddingDimensions', { modelId: model.id })
     const timerPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout))
-    await Promise.race([ai.getEmbeddingDimensions(model), timerPromise])
+    const abortPromise = createAbortPromise(signal)
+    await Promise.race([
+      ai.getEmbeddingDimensions(model, signal),
+      timerPromise,
+      ...(abortPromise ? [abortPromise] : [])
+    ])
   } else {
     const abortId = uuid()
-    const signal = readyToAbort(abortId)
+    const checkSignal = readyToAbort(abortId)
+    const abortSignal = signal ? AbortSignal.any([checkSignal, signal]) : checkSignal
     let streamError: ResponseError | undefined
     const params: StreamTextParams = {
       system: assistant.prompt,
       prompt: 'hi',
-      abortSignal: signal
+      abortSignal
     }
     const config: AiProviderConfig = {
       streamOutput: true,
@@ -882,8 +904,13 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
   }
 }
 
-export async function checkModel(provider: Provider, model: Model, timeout = 15000): Promise<{ latency: number }> {
+export async function checkModel(
+  provider: Provider,
+  model: Model,
+  timeout = 15000,
+  signal?: AbortSignal
+): Promise<{ latency: number }> {
   const startTime = performance.now()
-  await checkApi(provider, model, timeout)
+  await checkApi(provider, model, timeout, signal)
   return { latency: performance.now() - startTime }
 }

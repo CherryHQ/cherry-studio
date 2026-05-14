@@ -168,6 +168,13 @@
       "when": 1778600480389,
       "tag": "0023_careless_fat_cobra",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1778738430302,
+      "tag": "0024_eager_patriot",
+      "breakpoints": true
     }
   ],
   "version": "7"

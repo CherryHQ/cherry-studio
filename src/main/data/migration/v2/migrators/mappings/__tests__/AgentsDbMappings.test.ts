@@ -36,7 +36,7 @@ describe('AgentsDbMappings', () => {
 
     expect(statements[0]).toBe("ATTACH DATABASE '/tmp/agent''s.db' AS agents_legacy")
     expect(statements).toContain(
-      "INSERT INTO agent (id, type, name, description, accessible_paths, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, sort_order, deleted_at, created_at, updated_at) SELECT id, type, name, COALESCE(description, '') AS description, COALESCE(accessible_paths, '[]') AS accessible_paths, instructions, model, plan_model, small_model, COALESCE(mcps, '[]') AS mcps, COALESCE(allowed_tools, '[]') AS allowed_tools, COALESCE(configuration, '{}') AS configuration, COALESCE(sort_order, 0) AS sort_order, CASE WHEN deleted_at IS NULL THEN NULL ELSE CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 END AS deleted_at, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents"
+      "INSERT INTO agent (id, type, name, description, accessible_paths, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, sort_order, deleted_at, created_at, updated_at) SELECT id, type, name, COALESCE(description, '') AS description, COALESCE(accessible_paths, '[]') AS accessible_paths, COALESCE(instructions, '') AS instructions, model, plan_model, small_model, COALESCE(mcps, '[]') AS mcps, COALESCE(allowed_tools, '[]') AS allowed_tools, COALESCE(configuration, '{}') AS configuration, COALESCE(sort_order, 0) AS sort_order, CASE WHEN deleted_at IS NULL THEN NULL ELSE CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 END AS deleted_at, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents"
     )
     expect(statements.at(-1)).toBe('DETACH DATABASE agents_legacy')
   })
@@ -66,7 +66,7 @@ describe('AgentsDbMappings', () => {
 
     // deleted_at absent from source → skipped in INSERT (resolveColumnSelection returns null)
     expect(statements).toContain(
-      "INSERT INTO agent (id, type, name, description, accessible_paths, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, sort_order, created_at, updated_at) SELECT id, type, name, COALESCE(description, '') AS description, COALESCE(accessible_paths, '[]') AS accessible_paths, instructions, model, plan_model, small_model, COALESCE(mcps, '[]') AS mcps, COALESCE(allowed_tools, '[]') AS allowed_tools, COALESCE(configuration, '{}') AS configuration, 0 AS sort_order, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents"
+      "INSERT INTO agent (id, type, name, description, accessible_paths, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, sort_order, created_at, updated_at) SELECT id, type, name, COALESCE(description, '') AS description, COALESCE(accessible_paths, '[]') AS accessible_paths, COALESCE(instructions, '') AS instructions, model, plan_model, small_model, COALESCE(mcps, '[]') AS mcps, COALESCE(allowed_tools, '[]') AS allowed_tools, COALESCE(configuration, '{}') AS configuration, 0 AS sort_order, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents"
     )
     expect(statements.some((statement) => statement.includes('agents_legacy.skills'))).toBe(false)
   })
@@ -392,6 +392,9 @@ describe('AgentsDbMappings', () => {
       agent: {
         description: { defaultExpr: "''" },
         accessible_paths: { defaultExpr: "'[]'" },
+        // Legacy `agents.instructions` is nullable text but v2 `agent.instructions`
+        // is NOT NULL with no SQL default — coalesce NULL to empty string.
+        instructions: { defaultExpr: "''" },
         mcps: { defaultExpr: "'[]'" },
         allowed_tools: { defaultExpr: "'[]'" },
         configuration: { defaultExpr: "'{}'" },
@@ -400,6 +403,7 @@ describe('AgentsDbMappings', () => {
       agent_session: {
         description: { defaultExpr: "''" },
         accessible_paths: { defaultExpr: "'[]'" },
+        instructions: { defaultExpr: "''" },
         mcps: { defaultExpr: "'[]'" },
         allowed_tools: { defaultExpr: "'[]'" },
         slash_commands: { defaultExpr: "'[]'" },

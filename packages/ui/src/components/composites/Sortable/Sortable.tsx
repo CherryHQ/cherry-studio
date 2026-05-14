@@ -49,6 +49,8 @@ interface SortableProps<T> {
   onDragStart?: (event: { active: Active }) => void
   /** Callback when drag ends, will be passed to dnd-kit's onDragEnd */
   onDragEnd?: (event: { over: Over | null }) => void
+  /** Callback when drag is cancelled */
+  onDragCancel?: () => void
   /** Function to render individual item, receives item data and drag state */
   renderItem: RenderItemType<T>
   /** Layout type - 'list' for vertical/horizontal list, 'grid' for grid layout */
@@ -63,6 +65,8 @@ interface SortableProps<T> {
   showGhost?: boolean
   /** Item list class name */
   className?: string
+  /** Disable dragging for the whole collection */
+  disabled?: boolean
   /** Item list style */
   listStyle?: React.CSSProperties
   /** Item style */
@@ -86,12 +90,14 @@ function Sortable<T>({
   onSortEnd,
   onDragStart: customOnDragStart,
   onDragEnd: customOnDragEnd,
+  onDragCancel: customOnDragCancel,
   renderItem,
   layout = 'list',
   horizontal = false,
   useDragOverlay = true,
   showGhost = false,
   className,
+  disabled = false,
   listStyle,
   itemStyle,
   gap,
@@ -151,6 +157,7 @@ function Sortable<T>({
 
   const handleDragCancel = () => {
     setActiveId(null)
+    customOnDragCancel?.()
   }
 
   const strategy =
@@ -191,7 +198,7 @@ function Sortable<T>({
           className={cn(
             layout === 'grid'
               ? 'grid w-full grid-cols-[repeat(auto-fill,minmax(280px,1fr))] max-md:grid-cols-1'
-              : cn('flex items-center', horizontal ? 'flex-row' : 'flex-col'),
+              : cn('flex', horizontal ? 'flex-row items-center' : 'w-full flex-col items-stretch'),
             className
           )}
           data-layout={layout}
@@ -204,6 +211,7 @@ function Sortable<T>({
               index={index}
               item={item}
               renderItem={renderItem}
+              disabled={disabled}
               useDragOverlay={useDragOverlay}
               showGhost={showGhost}
               itemStyle={itemStyle}

@@ -25,7 +25,7 @@ src/main/data/
 │   └── ProviderService.ts         Provider CRUD, preset deletion protection
 └── api/handlers/
     ├── models.ts                  POST /models: accepts model arrays, does registry lookup, passes to service
-    └── providers.ts               Registry model endpoints
+    └── providers.ts               Registry model resolution endpoint
 ```
 
 ## Data Flow
@@ -61,7 +61,7 @@ POST /models [{ providerId: 'openai', modelId: 'gpt-4o' }]
 ### 3. Resolve SDK Model List
 
 ```
-POST /providers/:providerId/registry-models { models: [{ modelId: 'gpt-4o' }, ...] }
+GET /providers/:providerId/models:resolve?ids=gpt-4o&ids=o3
   → providerRegistryService.resolveModels(providerId, modelIds)
     → For each modelId:
         → RegistryLoader.findModel(modelId)         // O(1), normalize fallback
@@ -71,17 +71,6 @@ POST /providers/:providerId/registry-models { models: [{ modelId: 'gpt-4o' }, ..
 
 SDK only provides model IDs. All other data (capabilities, pricing, etc.)
 comes from the registry — SDK data does not overwrite curated registry data.
-```
-
-### 4. Read-Only: Registry Model Queries
-
-```
-GET /providers/:providerId/registry-models
-  → providerRegistryService.getRegistryModelsByProvider(providerId)
-    → RegistryLoader.getOverridesForProvider(providerId)  // O(1) indexed
-    → For each override: RegistryLoader.findModel(modelId)  // O(1)
-    → mergePresetModel for each
-    → Return merged Model[] (no DB writes)
 ```
 
 ## Merge Functions

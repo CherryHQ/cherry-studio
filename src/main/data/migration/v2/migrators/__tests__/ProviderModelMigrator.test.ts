@@ -1,4 +1,11 @@
+/* eslint-disable @eslint-react/naming-convention/context-name */
 import { pinTable } from '@data/db/schemas/pin'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
+import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
+import { createUniqueModelId } from '@shared/data/types/model'
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { MigrationContext } from '../../core/MigrationContext'
@@ -9,33 +16,38 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-interface MockContextOptions {
-  failOnPinInsert?: boolean
+const registryFixtures = {
+  models: new Map<string, unknown>(),
+  overrides: new Map<string, unknown>(),
+  providers: [] as unknown[]
 }
 
-function createMockContext(
-  reduxState: Record<string, unknown> = {},
-  dexieSettings: Record<string, unknown> = {},
-  options: MockContextOptions = {}
-): MigrationContext {
-  const insertValues: unknown[][] = []
-  let stagedInsertValues: unknown[][] = []
-
-  const mockTx = {
-    insert: vi.fn((table: unknown) => ({
-      values: vi.fn((vals: unknown) => {
-        const rows = Array.isArray(vals) ? vals : [vals]
-        if (options.failOnPinInsert && table === pinTable) {
-          throw new Error('pin insert failed')
-        }
-        stagedInsertValues.push(rows)
-        return {
-          onConflictDoNothing: vi.fn(() => Promise.resolve())
-        }
-      })
-    }))
+vi.mock('@cherrystudio/provider-registry/node', () => {
+  class RegistryLoader {
+    findModel(modelId: string) {
+      return registryFixtures.models.get(modelId) ?? null
+    }
+    findOverride(providerId: string, modelId: string) {
+      return registryFixtures.overrides.get(`${providerId}::${modelId}`) ?? null
+    }
+    loadModels() {
+      return []
+    }
+    loadProviders() {
+      return registryFixtures.providers
+    }
+    loadProviderModels() {
+      return []
+    }
   }
+  return { RegistryLoader }
+})
 
+function createContext(
+  db: MigrationContext['db'],
+  reduxState: Record<string, unknown> = {},
+  dexieSettings: Record<string, unknown> = {}
+): MigrationContext {
   return {
     sources: {
       reduxState: {
@@ -45,21 +57,8 @@ function createMockContext(
         get: vi.fn((key: string) => dexieSettings[key])
       }
     },
-    db: {
-      transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
-        stagedInsertValues = []
-        const result = await fn(mockTx)
-        insertValues.push(...stagedInsertValues)
-        return result
-      }),
-      select: vi.fn(() => ({
-        from: vi.fn(() => ({
-          get: vi.fn(() => Promise.resolve({ count: 0 }))
-        }))
-      }))
-    },
-    _insertValues: insertValues
-  } as unknown as MigrationContext & { _insertValues: unknown[][] }
+    db
+  } as unknown as MigrationContext
 }
 
 function makeProvider(id: string, models: Array<{ id: string }> = []) {
@@ -73,103 +72,128 @@ function makeProvider(id: string, models: Array<{ id: string }> = []) {
 }
 
 describe('ProviderModelMigrator', () => {
+  const dbh = setupTestDatabase()
   let migrator: ProviderModelMigrator
 
   beforeEach(() => {
     migrator = new ProviderModelMigrator()
+    registryFixtures.models.clear()
+    registryFixtures.overrides.clear()
+    registryFixtures.providers = []
   })
 
   describe('prepare', () => {
     it('returns success with provider count', async () => {
-      const ctx = createMockContext({
+      const migrationContext = createContext(dbh.db, {
         llm: {
           providers: [makeProvider('openai'), makeProvider('anthropic')]
         }
       })
 
-      const result = await migrator.prepare(ctx)
+      const result = await migrator.prepare(migrationContext)
 
       expect(result.success).toBe(true)
       expect(result.itemCount).toBe(2)
     })
 
     it('handles missing providers gracefully', async () => {
-      const ctx = createMockContext({ llm: {} })
+      const migrationContext = createContext(dbh.db, { llm: {} })
 
-      const result = await migrator.prepare(ctx)
+      const result = await migrator.prepare(migrationContext)
 
       expect(result.success).toBe(true)
       expect(result.itemCount).toBe(0)
     })
 
     it('deduplicates providers by ID', async () => {
-      const ctx = createMockContext({
+      const migrationContext = createContext(dbh.db, {
         llm: {
           providers: [makeProvider('openai'), makeProvider('openai'), makeProvider('anthropic')]
         }
       })
 
-      const result = await migrator.prepare(ctx)
+      const result = await migrator.prepare(migrationContext)
 
       expect(result.success).toBe(true)
       expect(result.itemCount).toBe(2) // deduplicated
       expect(result.warnings).toBeDefined()
       expect(result.warnings?.some((w) => w.includes('duplicate'))).toBe(true)
     })
+
+    it('returns an error ID when preparation fails', async () => {
+      const cause = new Error('redux state unreadable')
+      const migrationContext = {
+        sources: {
+          reduxState: {
+            getCategory: vi.fn(() => {
+              throw cause
+            })
+          },
+          dexieSettings: {
+            get: vi.fn()
+          }
+        },
+        db: dbh.db
+      } as unknown as MigrationContext
+
+      const result = await migrator.prepare(migrationContext)
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('provider_model_prepare_failed')
+      expect(result.error).toContain('Provider/model preparation failed')
+    })
   })
 
   describe('execute', () => {
     it('returns success with zero count when no providers', async () => {
-      const ctx = createMockContext({ llm: {} })
-      await migrator.prepare(ctx)
+      const migrationContext = createContext(dbh.db, { llm: {} })
+      await migrator.prepare(migrationContext)
 
-      const result = await migrator.execute(ctx)
+      const result = await migrator.execute(migrationContext)
 
       expect(result.success).toBe(true)
       expect(result.processedCount).toBe(0)
     })
 
     it('inserts provider row and model rows', async () => {
-      const ctx = createMockContext({
+      const migrationContext = createContext(dbh.db, {
         llm: {
           providers: [makeProvider('openai', [{ id: 'gpt-4o' }, { id: 'gpt-4' }])]
         }
       })
-      await migrator.prepare(ctx)
+      await migrator.prepare(migrationContext)
 
-      const result = await migrator.execute(ctx)
+      const result = await migrator.execute(migrationContext)
 
       expect(result.success).toBe(true)
       expect(result.processedCount).toBe(1)
 
-      // First insert: 1 provider, second insert: 2 models (batch)
-      const inserted = (ctx as unknown as { _insertValues: unknown[][] })._insertValues
-      expect(inserted).toHaveLength(2)
-      expect(inserted[0]).toHaveLength(1) // 1 provider row
-      expect(inserted[1]).toHaveLength(2) // 2 model rows
-      expect((inserted[0][0] as Record<string, unknown>).providerId).toBe('openai')
+      const providers = await dbh.db.select().from(userProviderTable)
+      const models = await dbh.db.select().from(userModelTable)
+      expect(providers).toHaveLength(1)
+      expect(models).toHaveLength(2)
+      expect(providers[0].providerId).toBe('openai')
     })
 
     it('deduplicates models within a provider', async () => {
-      const ctx = createMockContext({
+      const migrationContext = createContext(dbh.db, {
         llm: {
           providers: [makeProvider('openai', [{ id: 'gpt-4o' }, { id: 'gpt-4o' }])]
         }
       })
-      await migrator.prepare(ctx)
+      await migrator.prepare(migrationContext)
 
-      const result = await migrator.execute(ctx)
+      const result = await migrator.execute(migrationContext)
 
       expect(result.success).toBe(true)
 
-      // Should insert only 1 unique model, not 2
-      const inserted = (ctx as unknown as { _insertValues: unknown[][] })._insertValues
-      const modelInsert = inserted[1] // second insert is the model batch
-      expect(modelInsert).toHaveLength(1)
+      const models = await dbh.db.select().from(userModelTable)
+      expect(models).toHaveLength(1)
     })
 
     it('migrates pinned models from Dexie settings into pin rows in legacy order', async () => {
-      const ctx = createMockContext(
+      const migrationContext = createContext(
+        dbh.db,
         {
           llm: {
             providers: [makeProvider('openai', [{ id: 'gpt-4o' }]), makeProvider('anthropic', [{ id: 'claude-3' }])]
@@ -186,60 +210,265 @@ describe('ProviderModelMigrator', () => {
           ]
         }
       )
-      await migrator.prepare(ctx)
+      await migrator.prepare(migrationContext)
 
-      const result = await migrator.execute(ctx)
+      const result = await migrator.execute(migrationContext)
 
       expect(result.success).toBe(true)
-      const inserted = (ctx as unknown as { _insertValues: unknown[][] })._insertValues
-      const pinRows = inserted.flat().filter((row): row is { entityId: string; orderKey: string } => {
-        const pinRow = row as { entityId?: unknown; entityType?: unknown; orderKey?: unknown }
-        return (
-          pinRow.entityType === 'model' && typeof pinRow.entityId === 'string' && typeof pinRow.orderKey === 'string'
-        )
-      })
+      const pinRows = await dbh.db.select().from(pinTable).where(eq(pinTable.entityType, 'model'))
 
       expect(pinRows.map((row) => row.entityId)).toEqual(['openai::gpt-4o', 'anthropic::claude-3'])
       expect(pinRows.every((row) => row.orderKey.length > 0)).toBe(true)
       expect(pinRows[0].orderKey < pinRows[1].orderKey).toBe(true)
     })
 
-    it('rolls back provider and model inserts when pin insertion fails', async () => {
-      const ctx = createMockContext(
+    it('enriches provider rows with registry baseline (endpointConfigs/apiFeatures/defaultChatEndpoint)', async () => {
+      registryFixtures.providers = [
         {
-          llm: {
-            providers: [makeProvider('openai', [{ id: 'gpt-4o' }])]
-          }
-        },
-        {
-          'pinned:models': ['openai::gpt-4o']
-        },
-        {
-          failOnPinInsert: true
+          id: 'openai',
+          name: 'OpenAI',
+          endpointConfigs: {
+            'openai-chat-completions': {
+              baseUrl: 'https://api.openai.com/v1',
+              reasoningFormat: { type: 'openai-chat' }
+            },
+            'openai-responses': {
+              baseUrl: 'https://api.openai.com/v1',
+              reasoningFormat: { type: 'openai-responses' }
+            }
+          },
+          defaultChatEndpoint: 'openai-chat-completions',
+          apiFeatures: { serviceTier: false }
         }
-      )
-      await migrator.prepare(ctx)
+      ]
 
-      const result = await migrator.execute(ctx)
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              id: 'openai',
+              name: 'OpenAI',
+              type: 'openai',
+              enabled: true,
+              apiHost: 'https://my-proxy.com/v1',
+              models: []
+            }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+
+      const [providerRow] = await dbh.db
+        .select()
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, 'openai'))
+      const endpointConfigs = providerRow.endpointConfigs as Record<
+        string,
+        { baseUrl?: string; reasoningFormatType?: string }
+      >
+
+      // Legacy apiHost wins on the chat endpoint, registry reasoningFormat is preserved
+      expect(endpointConfigs['openai-chat-completions'].baseUrl).toBe('https://my-proxy.com/v1')
+      expect(endpointConfigs['openai-chat-completions'].reasoningFormatType).toBe('openai-chat')
+      // Registry-only endpoint survives migration
+      expect(endpointConfigs['openai-responses'].baseUrl).toBe('https://api.openai.com/v1')
+      expect(endpointConfigs['openai-responses'].reasoningFormatType).toBe('openai-responses')
+      // apiFeatures baseline filled from registry
+      expect(providerRow.apiFeatures).toEqual({ serviceTier: false })
+    })
+
+    it('leaves custom provider rows untouched when registry has no matching preset', async () => {
+      registryFixtures.providers = [{ id: 'openai', name: 'OpenAI', endpointConfigs: {} }]
+
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [makeProvider('custom-provider')]
+        }
+      })
+      await migrator.prepare(migrationContext)
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+      const [providerRow] = await dbh.db
+        .select()
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, 'custom-provider'))
+      // No registry baseline applied — apiFeatures stays null (transformProvider default)
+      expect(providerRow.apiFeatures).toBeNull()
+    })
+
+    it('enriches model rows with registry preset metadata when a preset is found', async () => {
+      registryFixtures.models.set('gpt-4o', {
+        id: 'gpt-4o',
+        name: 'GPT-4o',
+        description: 'OpenAI flagship model',
+        capabilities: ['function-call', 'image-recognition'],
+        inputModalities: ['text', 'image'],
+        outputModalities: ['text'],
+        contextWindow: 128_000,
+        maxOutputTokens: 16_384
+      })
+
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [makeProvider('openai', [{ id: 'gpt-4o' }])]
+        }
+      })
+      await migrator.prepare(migrationContext)
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+
+      const [modelRow] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
+      expect(modelRow.presetModelId).toBe('gpt-4o')
+      expect(modelRow.contextWindow).toBe(128_000)
+      expect(modelRow.maxOutputTokens).toBe(16_384)
+      expect(modelRow.inputModalities).toEqual(['text', 'image'])
+      expect(modelRow.outputModalities).toEqual(['text'])
+      expect(modelRow.capabilities).toEqual(['function-call', 'image-recognition'])
+      expect(modelRow.description).toBe('OpenAI flagship model')
+    })
+
+    it('leaves rows untouched when no registry preset matches', async () => {
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [makeProvider('custom-provider', [{ id: 'unknown-model' }])]
+        }
+      })
+      await migrator.prepare(migrationContext)
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+
+      const [modelRow] = await dbh.db
+        .select()
+        .from(userModelTable)
+        .where(eq(userModelTable.id, 'custom-provider::unknown-model'))
+      expect(modelRow.contextWindow).toBeNull()
+      expect(modelRow.inputModalities).toBeNull()
+      expect(modelRow.outputModalities).toBeNull()
+    })
+
+    it('tolerates a provider whose models field is null or undefined', async () => {
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            { id: 'no-models-null', name: 'No Models Null', type: 'openai', enabled: true, models: null },
+            { id: 'no-models-undef', name: 'No Models Undef', type: 'openai', enabled: true }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+      const providers = await dbh.db.select().from(userProviderTable)
+      expect(providers.map((p) => p.providerId).sort()).toEqual(['no-models-null', 'no-models-undef'])
+      const models = await dbh.db.select().from(userModelTable)
+      expect(models).toEqual([])
+    })
+
+    it('filters providers with missing or empty id and reports a warning', async () => {
+      // SQLite's text PK accepts '' so an unfiltered empty-id row would land
+      // in userProvider and shadow lookups across the v2 data layer.
+      // prepare() must drop these and surface a warning; execute() then
+      // processes only the remaining valid rows.
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            { id: '', name: 'Empty ID', type: 'openai', enabled: true, models: [] },
+            makeProvider('openai', [{ id: 'gpt-4o' }])
+          ]
+        }
+      })
+
+      const prepareResult = await migrator.prepare(migrationContext)
+      expect(prepareResult.success).toBe(true)
+      expect(prepareResult.itemCount).toBe(1)
+      expect(prepareResult.warnings?.some((w) => w.includes('missing or empty id'))).toBe(true)
+
+      const result = await migrator.execute(migrationContext)
+      expect(result.success).toBe(true)
+
+      const providers = await dbh.db.select().from(userProviderTable)
+      expect(providers.map((p) => p.providerId)).toEqual(['openai'])
+      const emptyIdRows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, ''))
+      expect(emptyIdRows).toEqual([])
+    })
+
+    it('rolls back provider inserts when a later model insert fails', async () => {
+      await dbh.db.insert(userProviderTable).values({
+        providerId: 'other',
+        name: 'Other',
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+      await dbh.db.insert(userModelTable).values({
+        id: createUniqueModelId('openai', 'gpt-4o'),
+        providerId: 'other',
+        modelId: 'conflicting-row',
+        name: 'Conflicting row',
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false,
+        isDeprecated: false,
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [makeProvider('openai', [{ id: 'gpt-4o' }])]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
 
       expect(result.success).toBe(false)
-      expect(result.error).toContain('pin insert failed')
-      expect((ctx as unknown as { _insertValues: unknown[][] })._insertValues).toEqual([])
+      expect(result.error).toContain('provider_model_execute_failed')
+      expect(result.error).toBeDefined()
+      const openaiProviders = await dbh.db
+        .select()
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, 'openai'))
+      expect(openaiProviders).toEqual([])
+    })
+  })
+
+  describe('validate', () => {
+    it('returns an error ID when validation throws', async () => {
+      const cause = new Error('count query failed')
+      const migrationContext = createContext({
+        select: vi.fn(() => {
+          throw cause
+        })
+      } as unknown as MigrationContext['db'])
+
+      const result = await migrator.validate(migrationContext)
+
+      expect(result.success).toBe(false)
+      expect(result.errors[0].key).toBe('provider_model_validate_failed')
+      expect(result.errors[0].message).toContain('provider_model_validate_failed')
+      expect(result.errors[0].message).toContain('Provider/model validation failed')
     })
   })
 
   describe('reset', () => {
     it('clears internal state', async () => {
-      const ctx = createMockContext({
+      const migrationContext = createContext(dbh.db, {
         llm: {
           providers: [makeProvider('openai')]
         }
       })
-      await migrator.prepare(ctx)
+      await migrator.prepare(migrationContext)
 
       migrator.reset()
 
-      const result = await migrator.execute(ctx)
+      const result = await migrator.execute(migrationContext)
       expect(result.processedCount).toBe(0)
     })
   })

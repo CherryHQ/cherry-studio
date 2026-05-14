@@ -320,15 +320,15 @@ export default class AiProvider {
    * 获取模型列表
    * 使用 ModelListService 统一处理各 Provider 的模型列表获取
    */
-  public async models(): Promise<Model[]> {
-    return await listModels(this.actualProvider)
+  public async models(options?: { throwOnError?: boolean }): Promise<Model[]> {
+    return await listModels(this.actualProvider, undefined, options)
   }
 
   /**
    * 获取嵌入模型的维度
    * 使用 AI SDK embedMany 测试获取维度
    */
-  public async getEmbeddingDimensions(model: Model): Promise<number> {
+  public async getEmbeddingDimensions(model: Model, signal?: AbortSignal): Promise<number> {
     // 确保 config 已定义
     if (!this.config) {
       this.config = await Promise.resolve(providerToAiSdkConfig(this.actualProvider, model))
@@ -343,7 +343,8 @@ export default class AiProvider {
     // 使用 AI SDK embedMany 测试获取维度
     const result = await executor.embedMany({
       model: model.id,
-      values: ['test']
+      values: ['test'],
+      abortSignal: signal
     })
 
     return result.embeddings[0].length

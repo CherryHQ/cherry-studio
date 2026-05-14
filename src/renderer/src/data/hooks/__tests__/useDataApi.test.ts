@@ -151,6 +151,15 @@ describe('resolveTemplate', () => {
     expect(resolveTemplate('/topics/:topicId', { topicId: 42 })).toBe('/topics/42')
   })
 
+  it('leaves RPC verb suffixes (`models:resolve`, `models:reconcile`) intact', () => {
+    expect(resolveTemplate('/providers/:providerId/models:reconcile', { providerId: 'cherryin' })).toBe(
+      '/providers/cherryin/models:reconcile'
+    )
+    expect(resolveTemplate('/providers/:providerId/models:resolve', { providerId: 'openai' })).toBe(
+      '/providers/openai/models:resolve'
+    )
+  })
+
   it('throws when a required placeholder is missing', () => {
     expect(() => resolveTemplate('/providers/:providerId', {})).toThrow(/Missing param "providerId"/)
     expect(() => resolveTemplate('/providers/:providerId/api-keys/:keyId', { providerId: 'abc' })).toThrow(

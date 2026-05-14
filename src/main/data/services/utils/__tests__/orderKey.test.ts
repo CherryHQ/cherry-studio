@@ -88,6 +88,37 @@ describe('orderKey', () => {
     it('returns [] for count = 0', () => {
       expect(generateOrderKeySequenceBetween(null, null, 0)).toEqual([])
     })
+
+    it('keeps repeated mid-insertion between two fixed anchors monotonic and bounded', () => {
+      // Force the worst-case pattern: always insert immediately before the
+      // right anchor. fractional-indexing must grow string length to keep
+      // strict ordering. We verify monotonicity at every step and bound the
+      // total growth at O(N) characters (in practice ~N/2 with the default
+      // alphabet) so a future bug that double-grows the key per insertion
+      // surfaces.
+      const N = 100
+      const lower = generateOrderKeyBetween(null, null)
+      const upper = generateOrderKeyBetween(lower, null)
+      let right = upper
+      const inserted: string[] = []
+
+      for (let i = 0; i < N; i++) {
+        const next = generateOrderKeyBetween(lower, right)
+        expect(next > lower).toBe(true)
+        expect(next < right).toBe(true)
+        inserted.push(next)
+        right = next
+      }
+
+      // Every insertion must be strictly decreasing (each `next < previous right`).
+      for (let i = 1; i < inserted.length; i++) {
+        expect(inserted[i] < inserted[i - 1]).toBe(true)
+      }
+      // Length must grow but not faster than linear with N.
+      const maxLen = Math.max(...inserted.map((key) => key.length))
+      expect(maxLen).toBeGreaterThan(upper.length)
+      expect(maxLen).toBeLessThanOrEqual(upper.length + N)
+    })
   })
 
   // --- insertWithOrderKey ---
