@@ -3,13 +3,15 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import type { ComponentPropsWithoutRef, KeyboardEvent, MouseEvent, ReactNode } from 'react'
 
 export const MODEL_SELECTOR_ROW_CLASS =
-  'group relative flex w-full items-center gap-2 rounded-[10px] px-2 py-1.5 text-left text-xs transition-colors'
+  'group relative flex w-full items-center gap-1 rounded-[10px] px-2 py-1.5 text-left text-xs transition-colors'
 
 export const MODEL_SELECTOR_ROW_ACTION_BUTTON_CLASS =
   'flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 shadow-none transition hover:bg-accent hover:text-accent-foreground hover:opacity-100! group-hover:opacity-60 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent'
 
 export const MODEL_SELECTOR_ROW_PINNED_ACTION_BUTTON_CLASS = '-rotate-45 opacity-100'
-export const MODEL_SELECTOR_ROW_ACTIVE_ACTION_COLOR_CLASS = 'text-primary!'
+export const MODEL_SELECTOR_ROW_ACTIVE_ACTION_COLOR_CLASS = 'text-foreground!'
+export const MODEL_SELECTOR_ROW_CHECKBOX_CLASS =
+  'border-muted-foreground/40 hover:bg-muted/70 data-[state=checked]:border-muted-foreground data-[state=checked]:bg-muted-foreground data-[state=checked]:text-background focus-visible:ring-muted-foreground/20'
 
 type DataAttributes = {
   [key: `data-${string}`]: string | number | boolean | undefined
@@ -52,7 +54,7 @@ export function ModelSelectorRow({
       {...restRootProps}
       className={cn(
         MODEL_SELECTOR_ROW_CLASS,
-        selected && 'bg-primary/10 text-foreground',
+        selected && 'bg-accent/70 text-foreground',
         !selected && !disabled && focused && 'bg-accent/60',
         !selected && !disabled && !focused && 'text-foreground hover:bg-accent/60',
         disabled && 'cursor-not-allowed text-muted-foreground opacity-50',
@@ -62,7 +64,7 @@ export function ModelSelectorRow({
       {showSelectedIndicator ? (
         <span
           aria-hidden="true"
-          className="-translate-y-1/2 absolute top-1/2 left-0 block h-[60%] w-0.75 rounded-4xs bg-primary/40"
+          className="-translate-y-1/2 absolute top-1/2 left-0 block h-[60%] w-0.75 rounded-full bg-muted-foreground/60"
         />
       ) : null}
       <div
@@ -88,7 +90,7 @@ export function ModelSelectorRow({
         <div className="flex min-w-0 flex-1 items-center gap-1.5">{children}</div>
         {trailing}
       </div>
-      {actions ? <div className="ml-1 flex shrink-0 items-center gap-1">{actions}</div> : null}
+      {actions ? <div className="ml-0 flex shrink-0 items-center gap-1">{actions}</div> : null}
     </div>
   )
 }

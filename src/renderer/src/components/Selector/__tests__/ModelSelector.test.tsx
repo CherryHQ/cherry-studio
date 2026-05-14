@@ -306,7 +306,7 @@ describe('ModelSelector', () => {
     expect(togglePin).toHaveBeenCalledWith('openai::gpt-4')
   })
 
-  it('uses the model selector row styling and pinned action color', () => {
+  it('uses neutral row styling and pinned action color', () => {
     const pinnedItem = makeModelItem('openai::gpt-4' as UniqueModelId, { isPinned: true, isSelected: true })
     mockUseModelSelectorData.mockReturnValue(
       makeData({
@@ -320,11 +320,13 @@ describe('ModelSelector', () => {
 
     const option = screen.getByTestId('model-selector-item-openai::gpt-4')
     const row = option.closest('[data-model-selector-row]')
-    expect(row).toHaveClass('group', 'relative', 'rounded-[10px]', 'px-2', 'py-1.5', 'bg-primary/10')
-    expect(screen.getByLabelText('models.action.unpin')).toHaveClass('text-primary!')
+    expect(row).toHaveClass('group', 'relative', 'rounded-[10px]', 'px-2', 'py-1.5', 'bg-accent/70')
+    expect(row).not.toHaveClass('bg-primary/10')
+    expect(screen.getByLabelText('models.action.unpin')).toHaveClass('text-foreground!')
+    expect(screen.getByLabelText('models.action.unpin')).not.toHaveClass('text-primary!')
   })
 
-  it('uses the theme color on the row action when the model row is selected', () => {
+  it('uses neutral color on the row action when the model row is selected', () => {
     const selectedItem = makeModelItem('openai::gpt-4' as UniqueModelId, { isSelected: true })
     mockUseModelSelectorData.mockReturnValue(
       makeData({
@@ -336,7 +338,8 @@ describe('ModelSelector', () => {
 
     render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
 
-    expect(screen.getByLabelText('models.action.pin')).toHaveClass('text-primary!')
+    expect(screen.getByLabelText('models.action.pin')).toHaveClass('text-foreground!')
+    expect(screen.getByLabelText('models.action.pin')).not.toHaveClass('text-primary!')
   })
 
   it('keeps keyboard focus stable when multi-select value changes while open', async () => {

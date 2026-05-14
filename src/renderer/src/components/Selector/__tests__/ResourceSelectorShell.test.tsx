@@ -418,7 +418,7 @@ describe('ResourceSelectorShell', () => {
       expect(onChange).not.toHaveBeenCalled()
     })
 
-    it('uses the theme color from the model selector row action when pinned', () => {
+    it('uses neutral color from the model selector row action when pinned', () => {
       render(
         <ResourceSelectorShell
           trigger={<button type="button">Open</button>}
@@ -433,10 +433,11 @@ describe('ResourceSelectorShell', () => {
       openPopover()
 
       expect(screen.getByRole('button', { name: 'Unpin' })).toHaveAttribute('data-slot', 'button')
-      expect(screen.getByRole('button', { name: 'Unpin' })).toHaveClass('text-primary!')
+      expect(screen.getByRole('button', { name: 'Unpin' })).toHaveClass('text-foreground!')
+      expect(screen.getByRole('button', { name: 'Unpin' })).not.toHaveClass('text-primary!')
     })
 
-    it('uses the theme color on the unpin action when the pinned resource row is selected', () => {
+    it('uses neutral color on the unpin action when the pinned resource row is selected', () => {
       render(
         <ResourceSelectorShell
           trigger={<button type="button">Open</button>}
@@ -450,10 +451,11 @@ describe('ResourceSelectorShell', () => {
       )
       openPopover()
 
-      expect(screen.getByRole('button', { name: 'Unpin' })).toHaveClass('text-primary!')
+      expect(screen.getByRole('button', { name: 'Unpin' })).toHaveClass('text-foreground!')
+      expect(screen.getByRole('button', { name: 'Unpin' })).not.toHaveClass('text-primary!')
     })
 
-    it('uses the theme color on the pin action when the resource row is selected', () => {
+    it('uses neutral color on the pin action when the resource row is selected', () => {
       render(
         <ResourceSelectorShell
           trigger={<button type="button">Open</button>}
@@ -467,7 +469,8 @@ describe('ResourceSelectorShell', () => {
       )
       openPopover()
 
-      expect(screen.getAllByRole('button', { name: 'Pin' })[0]).toHaveClass('text-primary!')
+      expect(screen.getAllByRole('button', { name: 'Pin' })[0]).toHaveClass('text-foreground!')
+      expect(screen.getAllByRole('button', { name: 'Pin' })[0]).not.toHaveClass('text-primary!')
     })
 
     it('pin action is available on unpinned rows and does not select the row', () => {
@@ -527,7 +530,8 @@ describe('ResourceSelectorShell', () => {
 
       const alphaOption = getRow('Alpha')
       const row = alphaOption.closest('[data-model-selector-row]')
-      expect(row).toHaveClass('group', 'relative', 'rounded-[10px]', 'px-2', 'py-1.5', 'bg-primary/10')
+      expect(row).toHaveClass('group', 'relative', 'rounded-[10px]', 'px-2', 'py-1.5', 'bg-accent/70')
+      expect(row).not.toHaveClass('bg-primary/10')
     })
 
     it('does not select the active row when pressing Enter on a row action', async () => {

@@ -14,7 +14,11 @@ import {
   useState
 } from 'react'
 
-import { ModelSelectorRow, ModelSelectorRowActionButton } from '../model/ModelSelectorRow'
+import {
+  MODEL_SELECTOR_ROW_CHECKBOX_CLASS,
+  ModelSelectorRow,
+  ModelSelectorRowActionButton
+} from '../model/ModelSelectorRow'
 import { SelectorShell } from '../shell/SelectorShell'
 
 export type ResourceSelectorShellItem = {
@@ -571,7 +575,12 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
           showSelectedIndicator={!multiEnabled && isSelected}
           checkbox={
             multiEnabled ? (
-              <Checkbox checked={isSelected} tabIndex={-1} aria-hidden="true" className="pointer-events-none" />
+              <Checkbox
+                checked={isSelected}
+                tabIndex={-1}
+                aria-hidden="true"
+                className={cn('pointer-events-none', MODEL_SELECTOR_ROW_CHECKBOX_CLASS)}
+              />
             ) : null
           }
           leading={leading}

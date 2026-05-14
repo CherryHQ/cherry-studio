@@ -1,5 +1,6 @@
 import { Avatar, AvatarFallback, Button, Checkbox, Tooltip } from '@cherrystudio/ui'
 import { resolveIcon } from '@cherrystudio/ui/icons'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { isDev } from '@renderer/config/constant'
@@ -14,7 +15,7 @@ import { useTranslation } from 'react-i18next'
 import { SelectorShell } from '../shell/SelectorShell'
 import { matchesModelTag, MODEL_SELECTOR_TAGS } from './filters'
 import { FreeTrialModelTag } from './FreeTrialModelTag'
-import { ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
+import { MODEL_SELECTOR_ROW_CHECKBOX_CLASS, ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
 import { ModelTagChip } from './ModelTagChip'
 import { computeCollapsedSelection, computeToggledSelection } from './selection'
 import type { FlatListItem, ModelSelectorModelItem, ModelSelectorProps } from './types'
@@ -161,7 +162,7 @@ function ModelRow({
       checked={item.isSelected}
       tabIndex={-1}
       aria-hidden="true"
-      className="pointer-events-none"
+      className={cn('pointer-events-none', MODEL_SELECTOR_ROW_CHECKBOX_CLASS)}
       data-testid={`model-selector-checkbox-${item.modelId}`}
     />
   ) : null
@@ -541,7 +542,7 @@ export function ModelSelector(props: ModelSelectorProps) {
           item.groupKind === 'pinned' ? t('models.pinned') : item.provider ? getProviderDisplayName(item.provider) : ''
 
         return (
-          <div className="group flex h-7 items-center gap-1 bg-popover px-3 text-[11px] text-muted-foreground">
+          <div className="group flex h-7 items-center gap-1 bg-popover px-4 text-[11px] text-muted-foreground">
             <span className="truncate">{groupTitle}</span>
             {item.provider && item.canNavigateToSettings && (
               <Tooltip content={t('navigate.provider_settings')} delay={500}>
@@ -567,7 +568,7 @@ export function ModelSelector(props: ModelSelectorProps) {
         // 静态时 onMouseEnter 同步 focusedItemKey（让 Enter 命中鼠标所在行）。
         // 滚动中通过 isScrollingRef 跳过 setState，避免与 virtualizer flushSync 竞争。
         <div
-          className="py-0.5"
+          className="px-1 py-0.5"
           onMouseEnter={() => {
             if (isScrollingRef.current) return
             setFocusedItemKey(item.key)
@@ -657,7 +658,7 @@ export function ModelSelector(props: ModelSelectorProps) {
             availableListHeight === undefined ? listHeight : Math.min(listHeight, availableListHeight)
 
           return listItems.length > 0 ? (
-            <div className="px-1 py-1" role="listbox" aria-multiselectable={multiple && multiSelectMode}>
+            <div className="py-1" role="listbox" aria-multiselectable={multiple && multiSelectMode}>
               <DynamicVirtualList
                 ref={listRef}
                 list={listItems}
