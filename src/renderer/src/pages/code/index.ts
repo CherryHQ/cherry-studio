@@ -182,9 +182,9 @@ export const generateToolEnvironment = ({
     case codeTools.openaiCodex:
       env.OPENAI_API_KEY = apiKey
       env.CHERRY_CODEX_BASE_URL = formattedBaseUrl
-      env.OPENAI_MODEL = model.id
-      env.OPENAI_MODEL_PROVIDER = modelProvider.id
-      env.OPENAI_MODEL_PROVIDER_NAME = sanitizeProviderName(getFancyProviderName(modelProvider))
+      env.CHERRY_CODEX_MODEL = model.id
+      env.CHERRY_CODEX_PROVIDER_ID = modelProvider.id
+      env.CHERRY_CODEX_PROVIDER_NAME = sanitizeProviderName(getFancyProviderName(modelProvider))
       break
 
     case codeTools.iFlowCli:

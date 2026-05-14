@@ -1010,9 +1010,9 @@ class CodeToolsService {
     }
 
     // Add configuration parameters for OpenAI Codex using command line args
-    if (cliTool === codeTools.openaiCodex && env.OPENAI_MODEL_PROVIDER) {
-      const providerId = env.OPENAI_MODEL_PROVIDER
-      const providerName = env.OPENAI_MODEL_PROVIDER_NAME || providerId
+    if (cliTool === codeTools.openaiCodex && env.CHERRY_CODEX_PROVIDER_ID) {
+      const providerId = env.CHERRY_CODEX_PROVIDER_ID
+      const providerName = env.CHERRY_CODEX_PROVIDER_NAME || providerId
       const normalizedBaseUrl = env.CHERRY_CODEX_BASE_URL.replace(/\/$/, '')
       const model = _model
       // All Codex providers use Cherry- prefix to avoid conflicts with built-in provider IDs
