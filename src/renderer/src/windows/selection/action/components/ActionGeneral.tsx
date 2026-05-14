@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { processMessages } from './ActionUtils'
+import TextDiffDisplay from './TextDiffDisplay'
 import WindowFooter from './WindowFooter'
 
 const logger = loggerService.withContext('ActionGeneral')
@@ -35,6 +36,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const [language] = usePreference('app.language')
   const [error, setError] = useState<string | null>(null)
   const [showOriginal, setShowOriginal] = useState(false)
+  const [showDiff, setShowDiff] = useState(true)
   const [status, setStatus] = useState<'preparing' | 'streaming' | 'finished'>('preparing')
   const [contentToCopy, setContentToCopy] = useState('')
   const initialized = useRef(false)
@@ -174,13 +176,24 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
   const handleRegenerate = () => {
     setContentToCopy('')
+    setShowDiff(true)
     fetchResult()
   }
+
+  const isRefineFinished = action.id === 'refine' && status === 'finished'
 
   return (
     <>
       <Container>
         <MenuContainer>
+          {isRefineFinished && (
+            <DiffToggle onClick={() => setShowDiff(!showDiff)}>
+              <span>
+                {showDiff ? t('selection.action.window.result_view') : t('selection.action.window.diff_view')}
+              </span>
+              <ChevronDown size={14} className={showDiff ? 'expanded' : ''} />
+            </DiffToggle>
+          )}
           <OriginalHeader onClick={() => setShowOriginal(!showOriginal)}>
             <span>
               {showOriginal ? t('selection.action.window.original_hide') : t('selection.action.window.original_show')}
@@ -202,9 +215,13 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
         )}
         <Result>
           {isPreparing && <LoadingOutlined style={{ fontSize: 16 }} spin />}
-          {!isPreparing && currentAssistantMessage && (
-            <MessageContent key={currentAssistantMessage.id} message={currentAssistantMessage} />
-          )}
+          {!isPreparing &&
+            currentAssistantMessage &&
+            (isRefineFinished && showDiff && contentToCopy ? (
+              <TextDiffDisplay original={action.selectedText ?? ''} refined={contentToCopy} />
+            ) : (
+              <MessageContent key={currentAssistantMessage.id} message={currentAssistantMessage} />
+            ))}
         </Result>
         {error && <ErrorMsg>{error}</ErrorMsg>}
       </Container>
@@ -238,6 +255,28 @@ const MenuContainer = styled.div`
   flex-direction: row;
   align-items: center;
   justify-content: flex-end;
+  gap: 8px;
+`
+
+const DiffToggle = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+
+  &:hover {
+    color: var(--color-primary);
+  }
+
+  .lucide {
+    transition: transform 0.2s ease;
+    margin-left: 2px;
+    &.expanded {
+      transform: rotate(180deg);
+    }
+  }
 `
 
 const OriginalHeader = styled.div`

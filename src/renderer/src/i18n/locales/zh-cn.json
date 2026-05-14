@@ -4402,9 +4402,11 @@
         "esc_close": "Esc 关闭",
         "esc_stop": "Esc 停止",
         "opacity": "窗口透明度",
+        "diff_view": "差异视图",
         "original_copy": "复制原文",
         "original_hide": "隐藏原文",
         "original_show": "显示原文",
+        "result_view": "结果视图",
         "pin": "置顶",
         "pinned": "已置顶",
         "r_regenerate": "R 重新生成"
