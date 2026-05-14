@@ -68,7 +68,7 @@ export const isSpeechToTextModel = (model: Model): boolean =>
   !!(model.capabilities.includes(MODEL_CAPABILITY.AUDIO_TRANSCRIPT) || model.inputModalities?.includes(MODALITY.AUDIO))
 
 export const isTextToSpeechModel = (model: Model): boolean =>
-  !!(model.capabilities.includes(MODEL_CAPABILITY.AUDIO_GENERATION) || model.inputModalities?.includes(MODALITY.AUDIO))
+  !!(model.capabilities.includes(MODEL_CAPABILITY.AUDIO_GENERATION) || model.outputModalities?.includes(MODALITY.AUDIO))
 
 /** Check if model is a dedicated text-to-image model (no text chat) */
 export const isTextToImageModel = (model: Model): boolean =>

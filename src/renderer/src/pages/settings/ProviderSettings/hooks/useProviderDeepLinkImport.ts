@@ -2,6 +2,7 @@ import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useProviderActions, useProviders } from '@renderer/hooks/useProviders'
 import type { ProviderType } from '@renderer/types'
+import { validateApiHost } from '@renderer/utils'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
@@ -70,6 +71,12 @@ export function useProviderDeepLinkImport(
 
         const providerId = updatedProvider.id
         const defaultChatEndpoint = resolveDefaultEndpoint(updatedProvider.type)
+        if (updatedProvider.apiHost && !validateApiHost(updatedProvider.apiHost)) {
+          logger.warn('Rejected deep-link apiHost with invalid scheme', { providerId })
+          window.toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
+          void navigate({ to: '/settings/provider' })
+          return
+        }
         const endpointConfigs = updatedProvider.apiHost
           ? {
               [defaultChatEndpoint]: {

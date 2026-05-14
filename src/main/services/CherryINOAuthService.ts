@@ -675,7 +675,15 @@ export class CherryINOAuthService extends BaseService implements Activatable {
       } else {
         // No usable access token after refresh — clear the OAuth session so the
         // UI stops reporting "logged in" and surface a typed error for the caller.
-        await this.clearOAuthSession()
+        // Guard the clear: if providerService.update rejects (DB write failure,
+        // schema validation), we still need OAuthSessionExpired to surface so
+        // the caller doesn't see a raw DB error and the UI keeps thinking it's
+        // logged in. The clear-failure is logged for diagnostics.
+        try {
+          await this.clearOAuthSession()
+        } catch (clearError) {
+          logger.error('Failed to clear OAuth session after refresh failure', clearError as Error)
+        }
         throw new CherryINOAuthServiceError(
           refreshResult.attempted
             ? 'OAuth session expired: failed to refresh access token'

@@ -267,10 +267,33 @@ export class ProviderModelMigrator extends BaseMigrator {
       // Filter out corrupted v1 rows before dedup. Missing/empty providerId
       // would otherwise land in userProvider as an empty-string PK (SQLite
       // text PK accepts '') and shadow lookups across the v2 data layer.
+      // Symmetric treatment for model rows: invalid/duplicate model ids are
+      // dropped here with explicit warns so silently-lost rows are visible.
       const seenIds = new Set<string>()
       const dedupedProviders: LegacyProvider[] = []
       let skippedProviders = 0
       let skippedInvalidId = 0
+      let skippedInvalidModels = 0
+      let skippedDuplicateModels = 0
+      const cleanProviderModels = (provider: LegacyProvider): LegacyProvider['models'] => {
+        const cleaned: NonNullable<LegacyProvider['models']> = []
+        const seenModelIds = new Set<string>()
+        for (const model of provider.models ?? []) {
+          if (typeof model?.id !== 'string' || model.id.length === 0) {
+            skippedInvalidModels++
+            logger.warn('Model with missing or empty id skipped', { providerId: provider.id, name: model?.name })
+            continue
+          }
+          if (seenModelIds.has(model.id)) {
+            skippedDuplicateModels++
+            logger.warn('Duplicate model id skipped', { providerId: provider.id, modelId: model.id })
+            continue
+          }
+          seenModelIds.add(model.id)
+          cleaned.push(model)
+        }
+        return cleaned
+      }
       for (const provider of llmState.providers) {
         if (typeof provider?.id !== 'string' || provider.id.length === 0) {
           skippedInvalidId++
@@ -283,7 +306,7 @@ export class ProviderModelMigrator extends BaseMigrator {
           continue
         }
         seenIds.add(provider.id)
-        dedupedProviders.push(provider)
+        dedupedProviders.push({ ...provider, models: cleanProviderModels(provider) })
       }
 
       this.providers = dedupedProviders
@@ -306,6 +329,12 @@ export class ProviderModelMigrator extends BaseMigrator {
       }
       if (skippedInvalidId > 0) {
         warnings.push(`Skipped ${skippedInvalidId} provider(s) with missing or empty id`)
+      }
+      if (skippedInvalidModels > 0) {
+        warnings.push(`Skipped ${skippedInvalidModels} model(s) with missing or empty id`)
+      }
+      if (skippedDuplicateModels > 0) {
+        warnings.push(`Skipped ${skippedDuplicateModels} duplicate model(s)`)
       }
 
       logger.info('Preparation completed', {
@@ -351,10 +380,12 @@ export class ProviderModelMigrator extends BaseMigrator {
           await tx.insert(userProviderTable).values(providerRow)
           processedProviders++
 
-          const uniqueModels = Array.from(new Map((provider.models ?? []).map((model) => [model.id, model])).values())
-
+          // Model dedup + invalid-id filtering happens in prepare(); use the
+          // cleaned list directly here.
           const modelRows = assignOrderKeysByScope(
-            uniqueModels.map((model) => this.enrichModelRow(transformModel(model, provider.id), providerRow)),
+            (provider.models ?? []).map((model) =>
+              this.enrichModelRow(transformModel(model, provider.id), providerRow)
+            ),
             (model) => model.providerId
           )
 
