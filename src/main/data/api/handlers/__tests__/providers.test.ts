@@ -13,8 +13,7 @@ const {
   updateApiKeyMock,
   deleteApiKeyMock,
   moveMock,
-  reorderMock,
-  resolveModelsMock
+  reorderMock
 } = vi.hoisted(() => ({
   createMock: vi.fn(),
   listMock: vi.fn(),
@@ -28,8 +27,7 @@ const {
   updateApiKeyMock: vi.fn(),
   deleteApiKeyMock: vi.fn(),
   moveMock: vi.fn(),
-  reorderMock: vi.fn(),
-  resolveModelsMock: vi.fn()
+  reorderMock: vi.fn()
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
@@ -47,12 +45,6 @@ vi.mock('@data/services/ProviderService', () => ({
     deleteApiKey: deleteApiKeyMock,
     move: moveMock,
     reorder: reorderMock
-  }
-}))
-
-vi.mock('@data/services/ProviderRegistryService', () => ({
-  providerRegistryService: {
-    resolveModels: resolveModelsMock
   }
 }))
 
@@ -217,53 +209,6 @@ describe('providerHandlers', () => {
       ).rejects.toThrow()
 
       expect(replaceApiKeysMock).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('/providers/:providerId/models:resolve', () => {
-    it('resolves a single ids query string through ProviderRegistryService', async () => {
-      resolveModelsMock.mockResolvedValueOnce([{ id: 'openai::gpt-4o' }])
-
-      const result = await providerHandlers['/providers/:providerId/models:resolve'].GET({
-        params: { providerId: 'openai' },
-        query: { ids: 'gpt-4o' }
-      } as never)
-
-      expect(resolveModelsMock).toHaveBeenCalledWith('openai', ['gpt-4o'])
-      expect(result).toEqual([{ id: 'openai::gpt-4o' }])
-    })
-
-    it('resolves repeated ids arrays without a request body', async () => {
-      resolveModelsMock.mockResolvedValueOnce([])
-
-      await providerHandlers['/providers/:providerId/models:resolve'].GET({
-        params: { providerId: 'openai' },
-        query: { ids: ['gpt-4o', 'o3'] }
-      } as never)
-
-      expect(resolveModelsMock).toHaveBeenCalledWith('openai', ['gpt-4o', 'o3'])
-    })
-
-    it('rejects missing ids before calling the registry service', async () => {
-      await expect(
-        providerHandlers['/providers/:providerId/models:resolve'].GET({
-          params: { providerId: 'openai' },
-          query: {}
-        } as never)
-      ).rejects.toThrow()
-
-      expect(resolveModelsMock).not.toHaveBeenCalled()
-    })
-
-    it('rejects empty ids arrays before calling the registry service', async () => {
-      await expect(
-        providerHandlers['/providers/:providerId/models:resolve'].GET({
-          params: { providerId: 'openai' },
-          query: { ids: [] }
-        } as never)
-      ).rejects.toThrow()
-
-      expect(resolveModelsMock).not.toHaveBeenCalled()
     })
   })
 

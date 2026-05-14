@@ -5,17 +5,25 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../tests/__mocks__/MainLoggerService'
 
-const { listMock, getByKeyMock, updateMock, deleteMock, createMock, bulkUpdateMock, lookupModelMock } = vi.hoisted(
-  () => ({
-    listMock: vi.fn(),
-    getByKeyMock: vi.fn(),
-    updateMock: vi.fn(),
-    deleteMock: vi.fn(),
-    createMock: vi.fn(),
-    bulkUpdateMock: vi.fn(),
-    lookupModelMock: vi.fn()
-  })
-)
+const {
+  listMock,
+  getByKeyMock,
+  updateMock,
+  deleteMock,
+  createMock,
+  bulkUpdateMock,
+  lookupModelMock,
+  resolveModelsMock
+} = vi.hoisted(() => ({
+  listMock: vi.fn(),
+  getByKeyMock: vi.fn(),
+  updateMock: vi.fn(),
+  deleteMock: vi.fn(),
+  createMock: vi.fn(),
+  bulkUpdateMock: vi.fn(),
+  lookupModelMock: vi.fn(),
+  resolveModelsMock: vi.fn()
+}))
 
 vi.mock('@data/services/ModelService', () => ({
   modelService: {
@@ -30,7 +38,8 @@ vi.mock('@data/services/ModelService', () => ({
 
 vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: {
-    lookupModel: lookupModelMock
+    lookupModel: lookupModelMock,
+    resolveModels: resolveModelsMock
   }
 }))
 
@@ -317,5 +326,52 @@ describe('/models/:uniqueModelId*', () => {
     await expect(
       modelHandlers['/models/:uniqueModelId*'].GET({ params: { uniqueModelId: 'openai::missing' } } as never)
     ).rejects.toBe(serviceError)
+  })
+})
+
+describe('/providers/:providerId/models:resolve', () => {
+  it('resolves a single ids query string through ProviderRegistryService', async () => {
+    resolveModelsMock.mockResolvedValueOnce([{ id: 'openai::gpt-4o' }])
+
+    const result = await modelHandlers['/providers/:providerId/models:resolve'].GET({
+      params: { providerId: 'openai' },
+      query: { ids: 'gpt-4o' }
+    } as never)
+
+    expect(resolveModelsMock).toHaveBeenCalledWith('openai', ['gpt-4o'])
+    expect(result).toEqual([{ id: 'openai::gpt-4o' }])
+  })
+
+  it('resolves repeated ids arrays without a request body', async () => {
+    resolveModelsMock.mockResolvedValueOnce([])
+
+    await modelHandlers['/providers/:providerId/models:resolve'].GET({
+      params: { providerId: 'openai' },
+      query: { ids: ['gpt-4o', 'o3'] }
+    } as never)
+
+    expect(resolveModelsMock).toHaveBeenCalledWith('openai', ['gpt-4o', 'o3'])
+  })
+
+  it('rejects missing ids before calling the registry service', async () => {
+    await expect(
+      modelHandlers['/providers/:providerId/models:resolve'].GET({
+        params: { providerId: 'openai' },
+        query: {}
+      } as never)
+    ).rejects.toThrow()
+
+    expect(resolveModelsMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects empty ids arrays before calling the registry service', async () => {
+    await expect(
+      modelHandlers['/providers/:providerId/models:resolve'].GET({
+        params: { providerId: 'openai' },
+        query: { ids: [] }
+      } as never)
+    ).rejects.toThrow()
+
+    expect(resolveModelsMock).not.toHaveBeenCalled()
   })
 })
