@@ -1,8 +1,15 @@
 import { EmptyState } from '@cherrystudio/ui'
-import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import { ResourceList } from '@renderer/components/chat/resources'
+import { ResourceList, useResourceList } from '@renderer/components/chat/resources'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
+import type {
+  SessionMenuActionContextOverride,
+  SessionMenuPreset
+} from '@renderer/pages/agents/components/useSessionMenuActions'
 import type { HistoryRecordsMode } from '@renderer/pages/history/HistoryRecordsPage'
+import type {
+  TopicMenuActionContextOverride,
+  TopicMenuPreset
+} from '@renderer/pages/home/Tabs/components/useTopicMenuActions'
 import { cn } from '@renderer/utils'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -10,23 +17,20 @@ import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic } from '@shared/data/types/topic'
 import dayjs from 'dayjs'
 import { Bot, MessageSquareText, Wrench } from 'lucide-react'
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const HISTORY_HEADER_GRID_CLASS =
-  'grid min-w-[760px] grid-cols-[minmax(320px,1fr)_160px_72px_92px] gap-3 px-5 py-2.5 font-medium text-foreground-muted text-xs leading-4'
+  'grid min-w-[760px] grid-cols-[minmax(320px,1fr)_160px_92px] gap-3 px-5 py-2.5 font-medium text-foreground-muted text-xs leading-4'
 const HISTORY_ROW_GRID_CLASS =
-  'grid w-full min-w-[736px] grid-cols-[minmax(320px,1fr)_160px_72px_92px] items-center gap-3 rounded-md px-3 text-sm leading-5'
+  'grid w-full min-w-[736px] grid-cols-[minmax(320px,1fr)_160px_92px] items-center gap-3 rounded-md px-3 text-sm leading-5'
 const HISTORY_CONTEXT_MENU_CLASS = 'z-[1001]'
 const HISTORY_CONFIRM_DIALOG_OVERLAY_CLASS = 'z-[1001]'
 const HISTORY_CONFIRM_DIALOG_CONTENT_CLASS = 'z-[1002]'
+const HISTORY_RENAME_FIELD_CLASS =
+  'rounded-md border border-border-subtle bg-background px-2 shadow-sm transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20'
 const TopicHistoryResourceProvider = ResourceList.Provider<Topic>
 const SessionHistoryResourceProvider = ResourceList.Provider<AgentSessionEntity>
-
-type HistoryRowMenuPreset<T> = {
-  getActions: (item: T) => readonly ResolvedAction[]
-  onAction: (item: T, action: ResolvedAction) => void | Promise<void>
-}
 
 interface HistoryResultListProps {
   mode: HistoryRecordsMode
@@ -37,8 +41,10 @@ interface HistoryResultListProps {
   defaultAssistantLabel: string
   unknownAgentLabel: string
   isLoading?: boolean
-  topicMenuPreset?: HistoryRowMenuPreset<Topic>
-  sessionMenuPreset?: HistoryRowMenuPreset<AgentSessionEntity>
+  topicMenuPreset?: TopicMenuPreset<Topic>
+  sessionMenuPreset?: SessionMenuPreset<AgentSessionEntity>
+  onTopicRename?: (id: string, name: string) => void | Promise<void>
+  onSessionRename?: (id: string, name: string) => void | Promise<void>
   onTopicSelect?: (topic: Topic) => void
   onSessionSelect?: (sessionId: string) => void
 }
@@ -54,6 +60,8 @@ const HistoryResultList = ({
   isLoading = false,
   topicMenuPreset,
   sessionMenuPreset,
+  onTopicRename,
+  onSessionRename,
   onTopicSelect,
   onSessionSelect
 }: HistoryResultListProps) => {
@@ -61,6 +69,11 @@ const HistoryResultList = ({
   const topicList = useMemo(() => Array.from(topics), [topics])
   const sessionList = useMemo(() => Array.from(sessions), [sessions])
   const itemCount = mode === 'assistant' ? topicList.length : sessionList.length
+  const handleTopicRename = useCallback((id: string, name: string) => void onTopicRename?.(id, name), [onTopicRename])
+  const handleSessionRename = useCallback(
+    (id: string, name: string) => void onSessionRename?.(id, name),
+    [onSessionRename]
+  )
   const emptyTitle = isLoading
     ? mode === 'assistant'
       ? t('history.records.loading.title', '正在加载话题')
@@ -87,12 +100,11 @@ const HistoryResultList = ({
                 : t('history.records.table.session', '会话')
             }
             sourceLabel={mode === 'assistant' ? t('common.assistant', '助手') : t('common.agent', '智能体')}
-            metadataLabel={t('history.records.table.messages', '消息')}
             timeLabel={t('history.records.table.time', '时间')}
           />
 
           {itemCount > 0 && mode === 'assistant' ? (
-            <TopicHistoryResourceProvider items={topicList} variant="history">
+            <TopicHistoryResourceProvider items={topicList} variant="history" onRenameItem={handleTopicRename}>
               <DynamicVirtualList
                 list={topicList}
                 estimateSize={() => 44}
@@ -110,7 +122,6 @@ const HistoryResultList = ({
                       topic={topic}
                       assistant={assistant}
                       sourceName={sourceName}
-                      emptyValue={t('history.records.table.emptyValue', '—')}
                       fallbackTitle={t('chat.default.topic.name', '新话题')}
                       timeLabel={formatHistoryTime(topic.updatedAt, t)}
                       menuPreset={topicMenuPreset}
@@ -121,7 +132,7 @@ const HistoryResultList = ({
               </DynamicVirtualList>
             </TopicHistoryResourceProvider>
           ) : itemCount > 0 ? (
-            <SessionHistoryResourceProvider items={sessionList} variant="history">
+            <SessionHistoryResourceProvider items={sessionList} variant="history" onRenameItem={handleSessionRename}>
               <DynamicVirtualList
                 list={sessionList}
                 estimateSize={() => 52}
@@ -137,7 +148,6 @@ const HistoryResultList = ({
                       session={session}
                       agent={agent}
                       sourceName={sourceName}
-                      emptyValue={t('history.records.table.emptyValue', '—')}
                       fallbackTitle={t('common.unnamed', '未命名')}
                       timeLabel={formatHistoryTime(session.updatedAt, t)}
                       menuPreset={sessionMenuPreset}
@@ -161,16 +171,14 @@ const HistoryResultList = ({
 interface HistoryListHeaderProps {
   titleLabel: string
   sourceLabel: string
-  metadataLabel: string
   timeLabel: string
 }
 
-const HistoryListHeader = ({ titleLabel, sourceLabel, metadataLabel, timeLabel }: HistoryListHeaderProps) => (
+const HistoryListHeader = ({ titleLabel, sourceLabel, timeLabel }: HistoryListHeaderProps) => (
   <div className="shrink-0 overflow-hidden bg-background [border-bottom:0.5px_solid_var(--color-border-subtle)]">
     <div className={HISTORY_HEADER_GRID_CLASS}>
       <div>{titleLabel}</div>
       <div>{sourceLabel}</div>
-      <div>{metadataLabel}</div>
       <div>{timeLabel}</div>
     </div>
   </div>
@@ -180,10 +188,9 @@ interface HistoryTopicRowProps {
   topic: Topic
   assistant?: Assistant
   sourceName: string
-  emptyValue: string
   fallbackTitle: string
   timeLabel: string
-  menuPreset?: HistoryRowMenuPreset<Topic>
+  menuPreset?: TopicMenuPreset<Topic>
   onPress?: (topic: Topic) => void
 }
 
@@ -191,16 +198,23 @@ const HistoryTopicRow = ({
   topic,
   assistant,
   sourceName,
-  emptyValue,
   fallbackTitle,
   timeLabel,
   menuPreset,
   onPress
 }: HistoryTopicRowProps) => {
-  const menuActions = menuPreset?.getActions(topic)
+  const { t } = useTranslation()
+  const context = useResourceList<Topic>()
+  const isRenaming = context.state.renamingId === topic.id
+  const startRename = useCallback(() => context.actions.startRename(topic.id), [context.actions, topic.id])
+  const menuContextOverride = useMemo<TopicMenuActionContextOverride>(
+    () => ({ onStartRename: startRename }),
+    [startRename]
+  )
+  const menuActions = menuPreset?.getActions(topic, menuContextOverride)
   const row = (
-    <button
-      type="button"
+    <ResourceList.Item
+      item={topic}
       className={cn(
         HISTORY_ROW_GRID_CLASS,
         'min-h-11 text-left',
@@ -211,12 +225,23 @@ const HistoryTopicRow = ({
         <span className="flex size-5 shrink-0 items-center justify-center text-foreground-muted text-sm leading-none">
           {assistant?.emoji ? <span aria-hidden>{assistant.emoji}</span> : <Bot size={14} />}
         </span>
-        <span className="min-w-0 truncate font-medium text-foreground-secondary">{topic.name || fallbackTitle}</span>
+        <span
+          className={cn('min-w-0 flex-1', isRenaming && HISTORY_RENAME_FIELD_CLASS)}
+          data-testid="history-topic-rename-field">
+          <ResourceList.RenameField
+            item={topic}
+            aria-label={t('chat.topics.edit.title')}
+            className="h-7 min-w-0 text-sm font-medium text-foreground-secondary"
+            onClick={(event) => event.stopPropagation()}
+          />
+          {!isRenaming && (
+            <span className="block truncate font-medium text-foreground-secondary">{topic.name || fallbackTitle}</span>
+          )}
+        </span>
       </div>
       <div className="truncate text-foreground-secondary text-xs">{sourceName}</div>
-      <div className="text-foreground-muted text-xs">{emptyValue}</div>
       <div className="text-foreground-muted text-xs tabular-nums">{timeLabel}</div>
-    </button>
+    </ResourceList.Item>
   )
 
   if (!menuPreset || !menuActions) return row
@@ -228,7 +253,7 @@ const HistoryTopicRow = ({
       menuClassName={HISTORY_CONTEXT_MENU_CLASS}
       confirmDialogOverlayClassName={HISTORY_CONFIRM_DIALOG_OVERLAY_CLASS}
       confirmDialogContentClassName={HISTORY_CONFIRM_DIALOG_CONTENT_CLASS}
-      onAction={(action) => menuPreset.onAction(topic, action)}>
+      onAction={(action) => menuPreset.onAction(topic, action, menuContextOverride)}>
       {row}
     </ResourceList.ContextMenu>
   )
@@ -238,10 +263,9 @@ interface HistorySessionRowProps {
   session: AgentSessionEntity
   agent?: AgentEntity
   sourceName: string
-  emptyValue: string
   fallbackTitle: string
   timeLabel: string
-  menuPreset?: HistoryRowMenuPreset<AgentSessionEntity>
+  menuPreset?: SessionMenuPreset<AgentSessionEntity>
   onPress?: (sessionId: string) => void
 }
 
@@ -249,18 +273,22 @@ const HistorySessionRow = ({
   session,
   agent,
   sourceName,
-  emptyValue,
   fallbackTitle,
   timeLabel,
   menuPreset,
   onPress
 }: HistorySessionRowProps) => {
+  const { t } = useTranslation()
+  const context = useResourceList<AgentSessionEntity>()
   const avatar = agent?.configuration?.avatar?.trim()
-  const menuActions = menuPreset?.getActions(session)
+  const isRenaming = context.state.renamingId === session.id
+  const startEdit = useCallback((_: string) => context.actions.startRename(session.id), [context.actions, session.id])
+  const menuContextOverride = useMemo<SessionMenuActionContextOverride>(() => ({ startEdit }), [startEdit])
+  const menuActions = menuPreset?.getActions(session, menuContextOverride)
 
   const row = (
-    <button
-      type="button"
+    <ResourceList.Item
+      item={session}
       className={cn(
         HISTORY_ROW_GRID_CLASS,
         'min-h-13 text-left',
@@ -271,17 +299,32 @@ const HistorySessionRow = ({
         <span className="flex size-5 shrink-0 items-center justify-center text-foreground-muted text-sm leading-none">
           {avatar ? <span aria-hidden>{avatar}</span> : <Wrench size={14} />}
         </span>
-        <span className="min-w-0">
-          <span className="block truncate font-medium text-foreground-secondary">{session.name || fallbackTitle}</span>
-          {session.description && (
-            <span className="mt-0.5 block truncate text-foreground-muted text-xs leading-4">{session.description}</span>
+        <span
+          className={cn('min-w-0 flex-1', isRenaming && HISTORY_RENAME_FIELD_CLASS)}
+          data-testid="history-session-rename-field">
+          <ResourceList.RenameField
+            item={session}
+            aria-label={t('agent.session.edit.title')}
+            className="h-7 min-w-0 text-sm font-medium text-foreground-secondary"
+            onClick={(event) => event.stopPropagation()}
+          />
+          {!isRenaming && (
+            <>
+              <span className="block truncate font-medium text-foreground-secondary">
+                {session.name || fallbackTitle}
+              </span>
+              {session.description && (
+                <span className="mt-0.5 block truncate text-foreground-muted text-xs leading-4">
+                  {session.description}
+                </span>
+              )}
+            </>
           )}
         </span>
       </div>
       <div className="truncate text-foreground-secondary text-xs">{sourceName}</div>
-      <div className="text-foreground-muted text-xs">{emptyValue}</div>
       <div className="text-foreground-muted text-xs tabular-nums">{timeLabel}</div>
-    </button>
+    </ResourceList.Item>
   )
 
   if (!menuPreset || !menuActions) return row
@@ -293,7 +336,7 @@ const HistorySessionRow = ({
       menuClassName={HISTORY_CONTEXT_MENU_CLASS}
       confirmDialogOverlayClassName={HISTORY_CONFIRM_DIALOG_OVERLAY_CLASS}
       confirmDialogContentClassName={HISTORY_CONFIRM_DIALOG_CONTENT_CLASS}
-      onAction={(action) => menuPreset.onAction(session, action)}>
+      onAction={(action) => menuPreset.onAction(session, action, menuContextOverride)}>
       {row}
     </ResourceList.ContextMenu>
   )

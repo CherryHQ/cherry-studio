@@ -18,9 +18,15 @@ export async function runSessionMenuAction(
   await executeSessionMenuAction(action, actionContext)
 }
 
+export type SessionMenuActionContextOverride = Partial<Pick<SessionActionContext, 'startEdit'>>
+
 export interface SessionMenuPreset<TItem> {
-  getActions: (item: TItem) => readonly ResolvedAction[]
-  onAction: (item: TItem, action: ResolvedAction) => void | Promise<void>
+  getActions: (item: TItem, contextOverride?: SessionMenuActionContextOverride) => readonly ResolvedAction[]
+  onAction: (
+    item: TItem,
+    action: ResolvedAction,
+    contextOverride?: SessionMenuActionContextOverride
+  ) => void | Promise<void>
 }
 
 export function useSessionMenuPreset<TItem>({
@@ -28,15 +34,26 @@ export function useSessionMenuPreset<TItem>({
 }: {
   getActionContext: (item: TItem) => SessionActionContext
 }): SessionMenuPreset<TItem> {
-  const getActions = useCallback(
-    (item: TItem) => getSessionMenuActions(getActionContext(item)) as ResolvedAction[],
+  const getActionContextWithOverride = useCallback(
+    (item: TItem, contextOverride?: SessionMenuActionContextOverride) => ({
+      ...getActionContext(item),
+      ...contextOverride
+    }),
     [getActionContext]
   )
+  const getActions = useCallback(
+    (item: TItem, contextOverride?: SessionMenuActionContextOverride) =>
+      getSessionMenuActions(getActionContextWithOverride(item, contextOverride)) as ResolvedAction[],
+    [getActionContextWithOverride]
+  )
   const onAction = useCallback(
-    async (item: TItem, action: ResolvedAction) => {
-      await runSessionMenuAction(action as ResolvedAction<SessionActionContext>, getActionContext(item))
+    async (item: TItem, action: ResolvedAction, contextOverride?: SessionMenuActionContextOverride) => {
+      await runSessionMenuAction(
+        action as ResolvedAction<SessionActionContext>,
+        getActionContextWithOverride(item, contextOverride)
+      )
     },
-    [getActionContext]
+    [getActionContextWithOverride]
   )
 
   return useMemo(() => ({ getActions, onAction }), [getActions, onAction])

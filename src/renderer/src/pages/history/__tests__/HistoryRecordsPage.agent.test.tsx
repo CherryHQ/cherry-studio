@@ -229,7 +229,6 @@ vi.mock('react-i18next', () => ({
         'history.records.status.completed': 'Completed',
         'history.records.status.failed': 'Failed',
         'history.records.status.running': 'Running',
-        'history.records.table.messages': 'Messages',
         'history.records.table.session': 'Session',
         'history.records.table.time': 'Time'
       }
@@ -367,6 +366,8 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(hookMocks.useAllTopics).not.toHaveBeenCalled()
     expect(hookMocks.useAssistants).not.toHaveBeenCalled()
     expect(screen.getByText('Agent history')).toBeInTheDocument()
+    expect(screen.queryByText('Messages')).not.toBeInTheDocument()
+    expect(screen.queryByText('消息')).not.toBeInTheDocument()
     expect(screen.getByText('Alpha session')).toBeInTheDocument()
     expect(screen.getByText('Planning notes')).toBeInTheDocument()
     expect(screen.getAllByText('Alpha agent')).toHaveLength(2)
@@ -420,7 +421,7 @@ describe('HistoryRecordsPage agent mode', () => {
   it('activates the selected session and closes history', () => {
     const { onClose } = setupAgentHistory()
 
-    fireEvent.click(screen.getByRole('button', { name: /Beta session/ }))
+    fireEvent.click(screen.getByText('Beta session'))
 
     expect(hookMocks.setActiveSessionId).toHaveBeenCalledWith('session-beta')
     expect(onClose).toHaveBeenCalledTimes(1)
@@ -450,12 +451,22 @@ describe('HistoryRecordsPage agent mode', () => {
   })
 
   it('renames a session from the history row context menu without selecting the row', async () => {
-    hookMocks.promptShow.mockResolvedValue('Renamed session')
     const { onClose } = setupAgentHistory()
 
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Rename' }))
+
+    expect(hookMocks.promptShow).not.toHaveBeenCalled()
+    expect(hookMocks.setActiveSessionId).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+
+    const input = screen.getByLabelText('Edit session')
+    fireEvent.blur(input)
+    await vi.waitFor(() => expect(input).toHaveFocus())
+    expect(input.closest('[data-testid="history-session-rename-field"]')).toHaveClass('focus-within:ring-2')
+    fireEvent.change(input, { target: { value: 'Renamed session' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
 
     await vi.waitFor(() =>
       expect(hookMocks.updateSession).toHaveBeenCalledWith(
@@ -463,8 +474,6 @@ describe('HistoryRecordsPage agent mode', () => {
         { showSuccessToast: false }
       )
     )
-    expect(hookMocks.setActiveSessionId).not.toHaveBeenCalled()
-    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('pins a session from the history row context menu without selecting the row', () => {

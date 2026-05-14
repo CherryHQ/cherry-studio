@@ -1,6 +1,5 @@
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useMultiplePreferences } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agents/useAgentDataApi'
@@ -277,20 +276,16 @@ const AssistantHistoryRecordsContent = ({ onClose, onTopicSelect }: HistoryRecor
     [t, updateTopic]
   )
 
-  const handlePromptRename = useCallback(
-    async (topic: RendererTopic) => {
-      const name = await PromptPopup.show({
-        title: t('chat.topics.edit.title'),
-        message: '',
-        defaultValue: topic.name || '',
-        extraNode: <div className="mt-2 text-foreground-muted text-xs">{t('chat.topics.edit.title_tip')}</div>
-      })
+  const handleRenameTopic = useCallback(
+    (topicId: string, name: string) => {
+      const topic = rendererTopicById.get(topicId)
+      const trimmedName = name.trim()
+      if (!topic || !trimmedName || trimmedName === topic.name) return
 
-      if (name && topic.name !== name) {
-        void updateTopic({ ...topic, name, isNameManuallyEdited: true })
-      }
+      void updateTopic({ ...topic, name: trimmedName, isNameManuallyEdited: true })
+      window.toast.success(t('common.saved'))
     },
-    [t, updateTopic]
+    [rendererTopicById, t, updateTopic]
   )
 
   const getTopicActionContext = useCallback(
@@ -304,7 +299,7 @@ const AssistantHistoryRecordsContent = ({ onClose, onTopicSelect }: HistoryRecor
         onClearMessages: handleClearMessages,
         onDelete: handleDeleteTopicFromMenu,
         onPinTopic: handlePinTopic,
-        onPromptRename: handlePromptRename,
+        onStartRename: () => undefined,
         notesPath,
         t,
         topic,
@@ -318,7 +313,6 @@ const AssistantHistoryRecordsContent = ({ onClose, onTopicSelect }: HistoryRecor
       handleClearMessages,
       handleDeleteTopicFromMenu,
       handlePinTopic,
-      handlePromptRename,
       isTopicRenaming,
       notesPath,
       t,
@@ -349,6 +343,7 @@ const AssistantHistoryRecordsContent = ({ onClose, onTopicSelect }: HistoryRecor
         unknownAgentLabel=""
         isLoading={isTopicsLoading}
         topicMenuPreset={topicMenuPreset}
+        onTopicRename={handleRenameTopic}
         onTopicSelect={handleTopicSelect}
       />
     </HistoryRecordsLayout>
@@ -487,21 +482,10 @@ const AgentHistoryRecordsContent = ({ onClose }: HistoryRecordsModeContentProps)
         },
         pinned: pinIdBySessionId.has(session.id),
         sessionName: session.name ?? session.id,
-        startEdit: (value) => {
-          void (async () => {
-            const name = await PromptPopup.show({
-              title: t('agent.session.edit.title'),
-              message: '',
-              defaultValue: value
-            })
-            if (name) {
-              await handleRenameSession(session.id, name)
-            }
-          })()
-        },
+        startEdit: () => undefined,
         t
       }),
-    [handleDeleteSession, handleRenameSession, pinIdBySessionId, t, togglePin]
+    [handleDeleteSession, pinIdBySessionId, t, togglePin]
   )
 
   const sessionMenuPreset = useSessionMenuPreset<AgentSessionEntity>({ getActionContext: getSessionActionContext })
@@ -530,6 +514,7 @@ const AgentHistoryRecordsContent = ({ onClose }: HistoryRecordsModeContentProps)
         unknownAgentLabel={unknownAgentLabel}
         isLoading={isSessionsLoading || isAgentsLoading}
         sessionMenuPreset={sessionMenuPreset}
+        onSessionRename={handleRenameSession}
         onSessionSelect={handleSessionSelect}
       />
     </HistoryRecordsLayout>

@@ -238,7 +238,6 @@ vi.mock('react-i18next', () => ({
         'history.records.resultCount': '{{count}} results',
         'history.records.searchTopic': 'Search topics...',
         'history.records.table.emptyValue': '-',
-        'history.records.table.messages': 'Messages',
         'history.records.table.time': 'Time',
         'history.records.table.title': 'Title',
         'history.records.title': 'Topic history',
@@ -357,7 +356,10 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     render(<HistoryRecordsPage mode="assistant" open onClose={onClose} onTopicSelect={onTopicSelect} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /Alpha topic/ }))
+    expect(screen.queryByText('Messages')).not.toBeInTheDocument()
+    expect(screen.queryByText('消息')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Alpha topic'))
 
     expect(onTopicSelect).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -461,6 +463,64 @@ describe('HistoryRecordsPage assistant mode', () => {
     expect(hookMocks.togglePin).toHaveBeenCalledWith('topic-alpha')
     expect(onTopicSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('renames a topic from the history row context menu inline without selecting the row', async () => {
+    hookMocks.useAllTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+    const onClose = vi.fn()
+    const onTopicSelect = vi.fn()
+
+    render(<HistoryRecordsPage mode="assistant" open onClose={onClose} onTopicSelect={onTopicSelect} />)
+
+    const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit topic name' }))
+
+    expect(hookMocks.promptShow).not.toHaveBeenCalled()
+    expect(onTopicSelect).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+
+    const input = screen.getByLabelText('Edit topic name')
+    fireEvent.blur(input)
+    await vi.waitFor(() => expect(input).toHaveFocus())
+    expect(input.closest('[data-testid="history-topic-rename-field"]')).toHaveClass('focus-within:ring-2')
+    fireEvent.change(input, { target: { value: 'Renamed topic' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await vi.waitFor(() =>
+      expect(hookMocks.updateTopic).toHaveBeenCalledWith('topic-alpha', {
+        name: 'Renamed topic',
+        isNameManuallyEdited: true
+      })
+    )
+  })
+
+  it('does not persist empty or unchanged topic names from history inline rename', () => {
+    hookMocks.useAllTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+
+    const { unmount } = render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onTopicSelect={vi.fn()} />)
+
+    const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit topic name' }))
+    fireEvent.change(screen.getByLabelText('Edit topic name'), { target: { value: '   ' } })
+    fireEvent.blur(screen.getByLabelText('Edit topic name'))
+
+    expect(hookMocks.updateTopic).not.toHaveBeenCalled()
+
+    unmount()
+    hookMocks.updateTopic.mockClear()
+    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onTopicSelect={vi.fn()} />)
+
+    const nextAlphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const nextMenuContent = nextAlphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(nextMenuContent as HTMLElement).getByRole('button', { name: 'Edit topic name' }))
+    fireEvent.change(screen.getByLabelText('Edit topic name'), { target: { value: 'Alpha topic' } })
+    fireEvent.keyDown(screen.getByLabelText('Edit topic name'), { key: 'Enter' })
+
+    expect(hookMocks.updateTopic).not.toHaveBeenCalled()
   })
 
   it('confirms topic deletion from the history row context menu', async () => {

@@ -13,7 +13,6 @@ import {
   useResourceListPinnedState
 } from '@renderer/components/chat/resources'
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { isMac } from '@renderer/config/constant'
 import { prefetch } from '@renderer/data/hooks/useDataApi'
 import { useAssistantsApi } from '@renderer/hooks/useAssistantDataApi'
@@ -353,22 +352,6 @@ export function Topics({ activeTopic, onOpenHistory, setActiveTopic, position }:
     [t, updateTopic, finishTopicRenaming]
   )
 
-  const handlePromptRename = useCallback(
-    async (topic: Topic) => {
-      const name = await PromptPopup.show({
-        title: t('chat.topics.edit.title'),
-        message: '',
-        defaultValue: topic.name || '',
-        extraNode: <div className="mt-2 text-(--color-text-3)">{t('chat.topics.edit.title_tip')}</div>
-      })
-
-      if (name && topic.name !== name) {
-        void updateTopic({ ...topic, name, isNameManuallyEdited: true })
-      }
-    },
-    [t, updateTopic]
-  )
-
   const topicGroupBy = useMemo(
     () =>
       createTopicDisplayGroupResolver<Topic>({
@@ -650,7 +633,6 @@ export function Topics({ activeTopic, onOpenHistory, setActiveTopic, position }:
           onDeleteClick={handleDeleteClick}
           onDeleteFromMenu={handleDeleteTopicFromMenu}
           onPinTopic={handlePinTopic}
-          onPromptRename={handlePromptRename}
           onSwitchTopic={setActiveTopic}
           rowLayout={singlealone ? 'single' : 'grouped'}
           selectedIds={selectedIds}
@@ -786,7 +768,6 @@ interface TopicListBodyProps {
   onDeleteClick: (topicId: string, event: MouseEvent) => void
   onDeleteFromMenu: (topic: Topic) => Promise<void>
   onPinTopic: (topic: Topic) => Promise<void>
-  onPromptRename: (topic: Topic) => Promise<void>
   onSwitchTopic: (topic: Topic) => void
   rowLayout: TopicRowLayout
   selectedIds: Set<string>
@@ -865,7 +846,6 @@ function TopicRow({
   onDeleteClick,
   onDeleteFromMenu,
   onPinTopic,
-  onPromptRename,
   onSwitchTopic,
   selectedIds,
   streamStatus,
@@ -887,6 +867,7 @@ function TopicRow({
       : ''
   const { isFulfilled: isTopicStreamFulfilled, isPending: isTopicStreamPending } = streamStatus
   const hasTopicStreamIndicator = !isActive && (isTopicStreamPending || isTopicStreamFulfilled)
+  const startRename = useCallback(() => context.actions.startRename(topic.id), [context.actions, topic.id])
   const { menuActions, handleMenuAction } = useTopicMenuActions({
     exportMenuOptions,
     isRenaming: isRenaming(topic.id),
@@ -895,7 +876,7 @@ function TopicRow({
     onClearMessages,
     onDelete: onDeleteFromMenu,
     onPinTopic,
-    onPromptRename,
+    onStartRename: startRename,
     t,
     topic,
     topicsLength

@@ -35,7 +35,7 @@ export interface TopicMenuActionOptions {
   onClearMessages: TopicMenuHandler
   onDelete: TopicMenuHandler
   onPinTopic: TopicMenuHandler
-  onPromptRename: TopicMenuHandler
+  onStartRename: TopicMenuHandler
   t: TFunction
   topic: Topic
   topicsLength: number
@@ -49,7 +49,7 @@ export function createTopicActionContext({
   onClearMessages,
   onDelete,
   onPinTopic,
-  onPromptRename,
+  onStartRename,
   t,
   topic,
   topicsLength
@@ -89,7 +89,6 @@ export function createTopicActionContext({
       void exportMarkdownToYuque(topic.name, markdown)
     },
     onPinTopic,
-    onPromptRename,
     onSaveToKnowledge: async (topic) => {
       try {
         const result = await SaveToKnowledgePopup.showForTopic(topic)
@@ -101,6 +100,7 @@ export function createTopicActionContext({
       }
     },
     onSaveToNotes: (topic) => exportTopicToNotes(topic, notesPath),
+    onStartRename,
     t,
     topic,
     topicsLength
@@ -118,9 +118,15 @@ export async function runTopicMenuAction(
   await executeTopicMenuAction(action, actionContext)
 }
 
+export type TopicMenuActionContextOverride = Partial<Pick<TopicActionContext, 'onStartRename'>>
+
 export interface TopicMenuPreset<TItem> {
-  getActions: (item: TItem) => readonly ResolvedAction[]
-  onAction: (item: TItem, action: ResolvedAction) => void | Promise<void>
+  getActions: (item: TItem, contextOverride?: TopicMenuActionContextOverride) => readonly ResolvedAction[]
+  onAction: (
+    item: TItem,
+    action: ResolvedAction,
+    contextOverride?: TopicMenuActionContextOverride
+  ) => void | Promise<void>
 }
 
 export function useTopicMenuPreset<TItem>({
@@ -128,15 +134,26 @@ export function useTopicMenuPreset<TItem>({
 }: {
   getActionContext: (item: TItem) => TopicActionContext
 }): TopicMenuPreset<TItem> {
-  const getActions = useCallback(
-    (item: TItem) => getTopicMenuActions(getActionContext(item)) as ResolvedAction[],
+  const getActionContextWithOverride = useCallback(
+    (item: TItem, contextOverride?: TopicMenuActionContextOverride) => ({
+      ...getActionContext(item),
+      ...contextOverride
+    }),
     [getActionContext]
   )
+  const getActions = useCallback(
+    (item: TItem, contextOverride?: TopicMenuActionContextOverride) =>
+      getTopicMenuActions(getActionContextWithOverride(item, contextOverride)) as ResolvedAction[],
+    [getActionContextWithOverride]
+  )
   const onAction = useCallback(
-    async (item: TItem, action: ResolvedAction) => {
-      await runTopicMenuAction(action as ResolvedAction<TopicActionContext>, getActionContext(item))
+    async (item: TItem, action: ResolvedAction, contextOverride?: TopicMenuActionContextOverride) => {
+      await runTopicMenuAction(
+        action as ResolvedAction<TopicActionContext>,
+        getActionContextWithOverride(item, contextOverride)
+      )
     },
-    [getActionContext]
+    [getActionContextWithOverride]
   )
 
   return useMemo(() => ({ getActions, onAction }), [getActions, onAction])
@@ -151,7 +168,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     onClearMessages,
     onDelete,
     onPinTopic,
-    onPromptRename,
+    onStartRename,
     t,
     topic,
     topicsLength
@@ -166,7 +183,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
         onClearMessages,
         onDelete,
         onPinTopic,
-        onPromptRename,
+        onStartRename,
         t,
         topic,
         topicsLength
@@ -179,7 +196,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       onClearMessages,
       onDelete,
       onPinTopic,
-      onPromptRename,
+      onStartRename,
       t,
       topic,
       topicsLength

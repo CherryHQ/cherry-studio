@@ -353,6 +353,13 @@ function clearTopicStreamCache(...topicIds: string[]) {
 describe('Topics', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    Object.assign(window, {
+      toast: {
+        error: vi.fn(),
+        success: vi.fn(),
+        warning: vi.fn()
+      }
+    })
     topicStreamStatusMocks.statuses.clear()
     clearTopicStreamCache('topic-a', 'topic-b', 'topic-c', 'topic-d', 'topic-e')
     vi.useFakeTimers({ shouldAdvanceTime: true })
@@ -608,6 +615,27 @@ describe('Topics', () => {
     expect(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' })).toHaveAttribute(
       'variant',
       'destructive'
+    )
+  })
+
+  it('renames a topic inline from the shared context menu', async () => {
+    const { getByText } = renderTopicList()
+
+    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit topic name' }))
+
+    const input = screen.getByLabelText('Edit topic name')
+    fireEvent.blur(input)
+    await vi.waitFor(() => expect(input).toHaveFocus())
+    fireEvent.change(input, { target: { value: 'Renamed topic' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await vi.waitFor(() =>
+      expect(topicDataMocks.updateTopic).toHaveBeenCalledWith('topic-a', {
+        name: 'Renamed topic',
+        isNameManuallyEdited: true
+      })
     )
   })
 

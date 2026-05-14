@@ -805,13 +805,50 @@ type RenameFieldProps<T extends ResourceListItemBase> = Omit<
 function RenameField<T extends ResourceListItemBase>({ item, className, ref, ...props }: RenameFieldProps<T>) {
   const { actions, meta, state } = useResourceList<T>()
   const id = meta.getItemId(item)
+  const inputRef = useRef<HTMLInputElement | null>(null)
   const didCommitRef = useRef(false)
+  const isRestoringFocusRef = useRef(false)
+  const setInputRef = useCallback(
+    (node: HTMLInputElement | null) => {
+      inputRef.current = node
+      if (typeof ref === 'function') {
+        ref(node)
+      } else if (ref) {
+        ;(ref as { current: HTMLInputElement | null }).current = node
+      }
+    },
+    [ref]
+  )
+  const focusInput = useCallback(() => {
+    inputRef.current?.focus()
+    inputRef.current?.select()
+  }, [])
 
   useEffect(() => {
     if (state.renamingId !== id) {
       didCommitRef.current = false
+      isRestoringFocusRef.current = false
     }
   }, [state.renamingId, id])
+
+  useEffect(() => {
+    if (state.renamingId !== id) return
+
+    isRestoringFocusRef.current = true
+    focusInput()
+    const frameId = window.requestAnimationFrame(focusInput)
+    const timerId = window.setTimeout(focusInput, 0)
+    const releaseFocusGuardId = window.setTimeout(() => {
+      isRestoringFocusRef.current = false
+    }, 120)
+
+    return () => {
+      window.cancelAnimationFrame(frameId)
+      window.clearTimeout(timerId)
+      window.clearTimeout(releaseFocusGuardId)
+      isRestoringFocusRef.current = false
+    }
+  }, [state.renamingId, id, focusInput])
 
   const commitRename = (name: string) => {
     if (didCommitRef.current) return
@@ -823,14 +860,21 @@ function RenameField<T extends ResourceListItemBase>({ item, className, ref, ...
 
   return (
     <Input
-      ref={ref}
+      ref={setInputRef}
       autoFocus
       defaultValue={meta.getItemLabel(item)}
       className={cn(
         'h-6 flex-1 border-none bg-transparent px-0 text-[12px] text-sidebar-foreground/70 shadow-none focus-visible:ring-0',
         className
       )}
-      onBlur={(event) => commitRename(event.currentTarget.value)}
+      onBlur={(event) => {
+        if (isRestoringFocusRef.current) {
+          event.stopPropagation()
+          window.setTimeout(focusInput, 0)
+          return
+        }
+        commitRename(event.currentTarget.value)
+      }}
       onKeyDown={(event) => {
         if (event.key === 'Enter') {
           event.preventDefault()
