@@ -97,4 +97,48 @@ describe('usePullReconcileSubmit', () => {
     expect(onApplyCommitted).not.toHaveBeenCalled()
     expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.sync_pull_failed')
   })
+
+  it('keeps the drawer dirty on rejection of a large payload — no partial commit', async () => {
+    // Pre-C4 the renderer chunked toAdd via MODELS_BATCH_MAX_ITEMS, so a
+    // 2nd-chunk failure left the user with the 1st chunk's adds persisted
+    // and a confusing toast. After C4 the renderer sends one atomic POST
+    // /providers/:id/models:reconcile; any rejection (mid-server or up-front
+    // validation) must roll back to the pre-confirm state and skip the
+    // onApplyCommitted callback. This pins the atomic guarantee.
+    reconcileTriggerMock.mockRejectedValueOnce(new Error('reconcile rejected'))
+    const onApplyCommitted = vi.fn()
+    const { result } = renderHook(() => usePullReconcileSubmit({ providerId: 'cherryin', onApplyCommitted }))
+
+    const largeToAdd = Array.from(
+      { length: 1200 },
+      (_, index): Model =>
+        ({
+          id: `cherryin::model-${index}`,
+          providerId: 'cherryin',
+          apiModelId: `model-${index}`,
+          name: `Model ${index}`,
+          isEnabled: true,
+          isHidden: false
+        }) as Model
+    )
+
+    await act(async () => {
+      await result.current.confirmApply({
+        toAdd: largeToAdd,
+        toRemove: ['cherryin::old-model-1', 'cherryin::old-model-2']
+      })
+    })
+
+    expect(reconcileTriggerMock).toHaveBeenCalledTimes(1)
+    expect(reconcileTriggerMock.mock.calls[0][0]).toMatchObject({
+      params: { providerId: 'cherryin' },
+      body: {
+        toRemove: ['cherryin::old-model-1', 'cherryin::old-model-2']
+      }
+    })
+    expect(reconcileTriggerMock.mock.calls[0][0].body.toAdd).toHaveLength(1200)
+    expect(onApplyCommitted).not.toHaveBeenCalled()
+    expect(window.toast.success).not.toHaveBeenCalled()
+    expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.sync_pull_failed')
+  })
 })

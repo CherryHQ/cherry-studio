@@ -6,6 +6,7 @@ import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api'
+import { AddProviderApiKeySchema, ReplaceProviderApiKeysSchema } from '@shared/data/api/schemas/providers'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { eq } from 'drizzle-orm'
@@ -216,6 +217,50 @@ describe('ProviderService API keys', () => {
       { id: 'key-b', key: 'sk-b', label: 'B', isEnabled: true },
       { id: 'key-c', key: 'sk-c', label: 'C', isEnabled: false }
     ])
+  })
+
+  it('addApiKey and replaceApiKeys normalize whitespace-wrapped keys to the same stored shape', async () => {
+    // Pins the C1 fix: AddProviderApiKeySchema + ReplaceProviderApiKeysSchema
+    // both run inputs through trim().min(1) so whitespace-only keys are
+    // rejected and surrounding whitespace is stripped. A future change that
+    // reintroduces the raw-key field on either schema should fail this test.
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'parity-add',
+      name: 'Parity Add',
+      orderKey: generateOrderKeyBetween(null, null),
+      apiKeys: []
+    })
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'parity-replace',
+      name: 'Parity Replace',
+      orderKey: generateOrderKeyBetween(null, null),
+      apiKeys: []
+    })
+
+    const addBody = AddProviderApiKeySchema.parse({ key: '  sk-shared  ', label: 'shared' })
+    await providerService.addApiKey('parity-add', addBody.key, addBody.label)
+
+    const replaceBody = ReplaceProviderApiKeysSchema.parse({
+      keys: [{ id: 'replace-key-id', key: '  sk-shared  ', label: 'shared', isEnabled: true }]
+    })
+    await providerService.replaceApiKeys('parity-replace', replaceBody.keys)
+
+    const readApiKeysFor = async (providerId: string) => {
+      const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId))
+      return row?.apiKeys ?? []
+    }
+
+    const [addedKey] = await readApiKeysFor('parity-add')
+    const [replacedKey] = await readApiKeysFor('parity-replace')
+
+    expect(addedKey).toMatchObject({ key: 'sk-shared', label: 'shared', isEnabled: true })
+    expect(replacedKey).toMatchObject({ key: 'sk-shared', label: 'shared', isEnabled: true })
+    expect(addedKey.key).toBe(replacedKey.key)
+    expect(addedKey.label).toBe(replacedKey.label)
+    expect(addedKey.isEnabled).toBe(replacedKey.isEnabled)
+
+    expect(() => AddProviderApiKeySchema.parse({ key: '   ' })).toThrow()
+    expect(() => ReplaceProviderApiKeysSchema.parse({ keys: [{ id: 'k', key: '   ', isEnabled: true }] })).toThrow()
   })
 
   it('returns authConfig for an existing provider, null when absent, and NOT_FOUND when missing', async () => {
