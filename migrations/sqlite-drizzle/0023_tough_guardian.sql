@@ -30,7 +30,58 @@ CREATE TABLE `__new_assistant` (
 	FOREIGN KEY (`model_id`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
-INSERT INTO `__new_assistant`("id", "name", "prompt", "emoji", "description", "model_id", "settings", "order_key", "created_at", "updated_at", "deleted_at") SELECT "id", "name", "prompt", "emoji", "description", "model_id", "settings", 'a0', "created_at", "updated_at", "deleted_at" FROM `assistant`;--> statement-breakpoint
+WITH `ordered_assistant` AS (
+	SELECT
+		"id",
+		"name",
+		"prompt",
+		"emoji",
+		"description",
+		"model_id",
+		"settings",
+		"created_at",
+		"updated_at",
+		"deleted_at",
+		ROW_NUMBER() OVER (ORDER BY "created_at", "id") - 1 AS "order_index"
+	FROM `assistant`
+),
+`base62_digits` AS (
+	SELECT '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz' AS "digits"
+),
+`assistant_with_order_key` AS (
+	SELECT
+		"id",
+		"name",
+		"prompt",
+		"emoji",
+		"description",
+		"model_id",
+		"settings",
+		CASE
+			WHEN "order_index" < 62 THEN
+				'a' || substr("digits", "order_index" + 1, 1)
+			WHEN "order_index" < 3906 THEN
+				'b' ||
+				substr("digits", CAST(("order_index" - 62) / 62 AS INTEGER) + 1, 1) ||
+				substr("digits", (("order_index" - 62) % 62) + 1, 1)
+			WHEN "order_index" < 242234 THEN
+				'c' ||
+				substr("digits", CAST(("order_index" - 3906) / 3844 AS INTEGER) + 1, 1) ||
+				substr("digits", (CAST(("order_index" - 3906) / 62 AS INTEGER) % 62) + 1, 1) ||
+				substr("digits", (("order_index" - 3906) % 62) + 1, 1)
+			ELSE
+				'd' ||
+				substr("digits", CAST(("order_index" - 242234) / 238328 AS INTEGER) + 1, 1) ||
+				substr("digits", (CAST(("order_index" - 242234) / 3844 AS INTEGER) % 62) + 1, 1) ||
+				substr("digits", (CAST(("order_index" - 242234) / 62 AS INTEGER) % 62) + 1, 1) ||
+				substr("digits", (("order_index" - 242234) % 62) + 1, 1)
+		END AS "order_key",
+		"created_at",
+		"updated_at",
+		"deleted_at"
+	FROM `ordered_assistant`, `base62_digits`
+)
+INSERT INTO `__new_assistant`("id", "name", "prompt", "emoji", "description", "model_id", "settings", "order_key", "created_at", "updated_at", "deleted_at") SELECT "id", "name", "prompt", "emoji", "description", "model_id", "settings", "order_key", "created_at", "updated_at", "deleted_at" FROM `assistant_with_order_key`;--> statement-breakpoint
 DROP TABLE `assistant`;--> statement-breakpoint
 ALTER TABLE `__new_assistant` RENAME TO `assistant`;--> statement-breakpoint
 PRAGMA foreign_keys=ON;--> statement-breakpoint

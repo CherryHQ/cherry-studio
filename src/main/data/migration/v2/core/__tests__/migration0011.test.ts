@@ -53,7 +53,7 @@ async function getForeignKeyCheckRows(client: Client) {
   return result.rows
 }
 
-describe('migration 0011', () => {
+describe('schema migrations', () => {
   let tempRoot: string
   let dbPath: string
   let client: Client
@@ -242,5 +242,48 @@ describe('migration 0011', () => {
     const cascadeModels = await client.execute("SELECT id FROM user_model WHERE provider_id = 'cascade-provider'")
     expect(cascadeModels.rows).toEqual([])
     expect(await getForeignKeyCheckRows(client)).toEqual([])
+  })
+
+  it('backfills assistant order keys in createdAt order when migrating 0022 data to 0023', async () => {
+    const db = drizzle({ client, casing: 'snake_case' })
+    const migrations0022 = await createMigrationFolder(tempRoot, 22)
+    const migrations0023 = await createMigrationFolder(tempRoot, 23)
+    const sourceRows = Array.from({ length: 65 }, (_, index) => ({
+      id: `ast-${String(65 - index).padStart(3, '0')}`,
+      name: `Assistant ${index}`,
+      createdAt: (index + 1) * 100
+    }))
+
+    await migrate(db, { migrationsFolder: migrations0022 })
+
+    await client.execute(`
+      INSERT INTO assistant (
+        id,
+        name,
+        prompt,
+        emoji,
+        description,
+        settings,
+        created_at,
+        updated_at,
+        deleted_at
+      ) VALUES
+        ${sourceRows
+          .map((row) => `('${row.id}', '${row.name}', '', ':)', '', '{}', ${row.createdAt}, ${row.createdAt}, NULL)`)
+          .join(',\n')}
+    `)
+
+    await migrate(db, { migrationsFolder: migrations0023 })
+
+    const assistants = await client.execute('SELECT id, order_key FROM assistant ORDER BY order_key, id')
+
+    expect(assistants.rows.map((row) => row.id)).toEqual(sourceRows.map((row) => row.id))
+
+    const orderKeys = assistants.rows.map((row) => String(row.order_key))
+    expect(orderKeys.every((orderKey) => orderKey.length > 0)).toBe(true)
+    expect(new Set(orderKeys).size).toBe(orderKeys.length)
+    for (let i = 1; i < orderKeys.length; i++) {
+      expect(orderKeys[i - 1] < orderKeys[i]).toBe(true)
+    }
   })
 })
