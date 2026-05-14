@@ -5,8 +5,8 @@
  *   1. Vectorize  — convert PNG/JPG to SVG (skipped if no raster files or --skip-vectorize)
  *   2. Validate   — check SVG quality (exits on errors)
  *   3. Normalize  — normalize SVG viewBox dimensions to 32x32
- *   4. Generate   — create color React components from SVGs
- *   5. Mono       — create mono React components + compound exports
+ *   4. Generate   — emit light.tsx + dark.tsx + meta.ts per logo
+ *   5. Avatars    — emit avatar.tsx + index.tsx + barrel + catalog
  *
  * Usage:
  *   tsx scripts/pipeline.ts --dir=providers
@@ -127,10 +127,6 @@ async function main() {
     {
       name: 'Generate',
       args: ['scripts/generate-icons.ts', `--type=${dir}`, ...(force ? ['--force'] : [])]
-    },
-    {
-      name: 'Mono',
-      args: ['scripts/generate-mono-icons.ts', `--type=${dir}`]
     },
     {
       name: 'Avatars',
