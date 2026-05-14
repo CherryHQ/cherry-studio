@@ -31,6 +31,7 @@ describe('assistant', () => {
     settings: DEFAULT_SETTINGS,
     modelId: null,
     modelName: null,
+    orderKey: 'a0',
     mcpServerIds: [],
     knowledgeBaseIds: [],
     tags: [],

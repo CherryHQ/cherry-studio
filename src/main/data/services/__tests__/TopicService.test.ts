@@ -19,8 +19,24 @@ describe('TopicService', () => {
       const service = new TopicService()
       // FK: topic.assistantId → assistant.id — seed both assistants first.
       await dbh.db.insert(assistantTable).values([
-        { id: 'asst-1', name: 'A', emoji: '🌟', settings: DEFAULT_ASSISTANT_SETTINGS, createdAt: 1, updatedAt: 1 },
-        { id: 'asst-2', name: 'B', emoji: '🌟', settings: DEFAULT_ASSISTANT_SETTINGS, createdAt: 1, updatedAt: 1 }
+        {
+          id: 'asst-1',
+          name: 'A',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: 'asst-2',
+          name: 'B',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a1',
+          createdAt: 1,
+          updatedAt: 1
+        }
       ])
       await dbh.db.insert(topicTable).values({
         id: 't1',

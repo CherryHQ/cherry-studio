@@ -23,6 +23,7 @@ export function composeDefaultAssistant(modelId: UniqueModelId | null): Assistan
     settings: DEFAULT_ASSISTANT_SETTINGS,
     modelId,
     modelName: null,
+    orderKey: '',
     mcpServerIds: [],
     knowledgeBaseIds: [],
     tags: [],
