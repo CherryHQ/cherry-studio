@@ -271,7 +271,11 @@ export default function ProviderEditorDrawer({
     return t('settings.provider.create_custom.title')
   })()
 
-  const submitLabel = mode?.kind === 'edit' ? t('common.save') : t('button.add')
+  const submitLabel = (() => {
+    if (mode?.kind === 'edit') return t('common.save')
+    if (mode?.kind === 'duplicate') return t('settings.provider.duplicate.menu_label')
+    return t('button.add')
+  })()
 
   const footer = (
     <div className="flex items-center justify-end gap-2">
