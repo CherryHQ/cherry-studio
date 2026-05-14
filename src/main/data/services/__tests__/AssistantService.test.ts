@@ -7,13 +7,14 @@ import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { AssistantDataService, assistantDataService } from '@data/services/AssistantService'
+import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api'
 import { type ListAssistantsQuery, ListAssistantsQuerySchema } from '@shared/data/api/schemas/assistants'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { eq } from 'drizzle-orm'
+import { asc, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -99,11 +100,13 @@ describe('AssistantDataService', () => {
   type SeedAssistantValues = Partial<typeof assistantTable.$inferInsert>
   async function seedAssistantRow(values: SeedAssistantValues | SeedAssistantValues[]) {
     const rows = Array.isArray(values) ? values : [values]
+    const orderKeys = generateOrderKeySequence(rows.length)
     await dbh.db.insert(assistantTable).values(
-      rows.map((v) => ({
+      rows.map((v, index) => ({
         emoji: '🌟',
         settings: DEFAULT_ASSISTANT_SETTINGS,
         name: 'test',
+        orderKey: orderKeys[index],
         ...v
       }))
     )
@@ -373,15 +376,16 @@ describe('AssistantDataService', () => {
       expect(result.items[1].id).toBe('ast-3')
     })
 
-    it('should order by createdAt ascending', async () => {
+    it('should order by orderKey ascending with id tiebreaker', async () => {
       await seedAssistantRow([
-        { id: 'ast-new', name: 'new', createdAt: 300 },
-        { id: 'ast-old', name: 'old', createdAt: 100 },
-        { id: 'ast-mid', name: 'mid', createdAt: 200 }
+        { id: 'ast-later-created', name: 'first-by-key', orderKey: 'a0', createdAt: 300 },
+        { id: 'ast-a', name: 'tie-a', orderKey: 'a1', createdAt: 100 },
+        { id: 'ast-b', name: 'tie-b', orderKey: 'a1', createdAt: 200 },
+        { id: 'ast-earlier-created', name: 'last-by-key', orderKey: 'a2', createdAt: 50 }
       ])
 
       const result = await assistantDataService.list(listQuery())
-      expect(result.items.map((a) => a.id)).toEqual(['ast-old', 'ast-mid', 'ast-new'])
+      expect(result.items.map((a) => a.id)).toEqual(['ast-later-created', 'ast-a', 'ast-b', 'ast-earlier-created'])
     })
 
     it('should embed tags per assistant via inline JOIN', async () => {
@@ -507,7 +511,23 @@ describe('AssistantDataService', () => {
       expect(result.id).toBeTruthy()
       expect(result.name).toBe('test-assistant')
       expect(result.modelId).toBeNull()
+      expect(result.orderKey.length).toBeGreaterThan(0)
       expect(typeof result.createdAt).toBe('string')
+    })
+
+    it('should assign strictly increasing order keys on successive creates', async () => {
+      const first = await assistantDataService.create({ name: 'first' })
+      const second = await assistantDataService.create({ name: 'second' })
+      const third = await assistantDataService.create({ name: 'third' })
+
+      const rows = await dbh.db
+        .select({ id: assistantTable.id, orderKey: assistantTable.orderKey })
+        .from(assistantTable)
+        .orderBy(asc(assistantTable.orderKey), asc(assistantTable.id))
+
+      expect(rows.map((row) => row.id)).toEqual([first.id, second.id, third.id])
+      expect(first.orderKey < second.orderKey).toBe(true)
+      expect(second.orderKey < third.orderKey).toBe(true)
     })
 
     it('should persist assistant to database', async () => {
@@ -683,6 +703,66 @@ describe('AssistantDataService', () => {
       const result = await assistantDataService.create({ name: 'explicit-null', modelId: null })
 
       expect(result.modelId).toBeNull()
+    })
+  })
+
+  describe('reorder', () => {
+    it("should move an assistant to the first position via { position: 'first' }", async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'A', orderKey: 'a0' },
+        { id: 'ast-2', name: 'B', orderKey: 'a1' },
+        { id: 'ast-3', name: 'C', orderKey: 'a2' }
+      ])
+
+      await assistantDataService.reorder('ast-3', { position: 'first' })
+
+      const result = await assistantDataService.list(listQuery())
+      expect(result.items.map((a) => a.id)).toEqual(['ast-3', 'ast-1', 'ast-2'])
+    })
+
+    it('should move an assistant before an anchor', async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'A', orderKey: 'a0' },
+        { id: 'ast-2', name: 'B', orderKey: 'a1' },
+        { id: 'ast-3', name: 'C', orderKey: 'a2' }
+      ])
+
+      await assistantDataService.reorder('ast-3', { before: 'ast-2' })
+
+      const result = await assistantDataService.list(listQuery())
+      expect(result.items.map((a) => a.id)).toEqual(['ast-1', 'ast-3', 'ast-2'])
+    })
+
+    it('should reject soft-deleted targets and anchors as NOT_FOUND', async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'A', orderKey: 'a0' },
+        { id: 'ast-2', name: 'B', orderKey: 'a1', deletedAt: Date.now() }
+      ])
+
+      await expect(assistantDataService.reorder('ast-2', { position: 'first' })).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+      await expect(assistantDataService.reorder('ast-1', { before: 'ast-2' })).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+  })
+
+  describe('reorderBatch', () => {
+    it('should apply multiple assistant moves atomically', async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'A', orderKey: 'a0' },
+        { id: 'ast-2', name: 'B', orderKey: 'a1' },
+        { id: 'ast-3', name: 'C', orderKey: 'a2' }
+      ])
+
+      await assistantDataService.reorderBatch([
+        { id: 'ast-3', anchor: { position: 'first' } },
+        { id: 'ast-1', anchor: { position: 'last' } }
+      ])
+
+      const result = await assistantDataService.list(listQuery())
+      expect(result.items.map((a) => a.id)).toEqual(['ast-3', 'ast-2', 'ast-1'])
     })
   })
 

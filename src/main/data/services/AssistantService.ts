@@ -13,6 +13,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateAssistantDto, ListAssistantsQuery, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -22,6 +23,7 @@ import { and, asc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { modelService } from './ModelService'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
+import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:AssistantService')
@@ -238,7 +240,7 @@ export class AssistantDataService {
         .from(assistantTable)
         .leftJoin(userModelTable, eq(assistantTable.modelId, userModelTable.id))
         .where(whereClause)
-        .orderBy(asc(assistantTable.createdAt))
+        .orderBy(asc(assistantTable.orderKey), asc(assistantTable.id))
         .limit(limit)
         .offset(offset),
       this.db.select({ count: sql<number>`count(*)` }).from(assistantTable).where(whereClause)
@@ -279,14 +281,17 @@ export class AssistantDataService {
       // Split relation/tag fields from columns. Service owns emoji/settings
       // defaults; prompt/description stay omitted when undefined so DB DEFAULTs apply.
       const { mcpServerIds, knowledgeBaseIds, tagIds, ...columnDto } = dto
-      const insertValues: typeof assistantTable.$inferInsert = {
+      const insertValues = {
         ...columnDto,
         modelId,
         emoji: dto.emoji ?? '🌟',
         settings: dto.settings ?? DEFAULT_ASSISTANT_SETTINGS
-      }
+      } satisfies Omit<typeof assistantTable.$inferInsert, 'orderKey'>
 
-      const [inserted] = await tx.insert(assistantTable).values(insertValues).returning()
+      const inserted = (await insertWithOrderKey(tx, assistantTable, insertValues, {
+        pkColumn: assistantTable.id,
+        scope: isNull(assistantTable.deletedAt)
+      })) as AssistantRow
 
       // Insert junction table rows
       await this.syncRelationsTx(tx, inserted.id, { mcpServerIds, knowledgeBaseIds })
@@ -415,6 +420,28 @@ export class AssistantDataService {
     logger.info('Updated assistant', { id, changes: Object.keys(dto) })
 
     return rowToAssistant(row, nextRelations, tags, modelName)
+  }
+
+  /** Move a single assistant within the active (non-deleted) assistant list. */
+  async reorder(id: string, anchor: OrderRequest): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await applyMoves(tx, assistantTable, [{ id, anchor }], {
+        pkColumn: assistantTable.id,
+        scope: isNull(assistantTable.deletedAt)
+      })
+    })
+  }
+
+  /** Apply multiple assistant moves atomically within the active assistant list. */
+  async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
+    if (moves.length === 0) return
+
+    await this.db.transaction(async (tx) => {
+      await applyMoves(tx, assistantTable, moves, {
+        pkColumn: assistantTable.id,
+        scope: isNull(assistantTable.deletedAt)
+      })
+    })
   }
 
   /**

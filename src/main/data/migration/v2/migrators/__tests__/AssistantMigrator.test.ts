@@ -437,6 +437,50 @@ describe('AssistantMigrator', () => {
       expect(ctx.db.transaction).toHaveBeenCalled()
     })
 
+    it('should stamp assistant order keys in source order during execute', async () => {
+      const ctx = createMockContext({ assistants: { assistants: SAMPLE_ASSISTANTS, presets: [] } })
+      ctx.sharedData.set('mcpServerIdMapping', new Map([['srv-1', 'new-srv-uuid']]))
+      const inserted: unknown[][] = []
+      ctx.db.transaction = vi.fn(async (fn: (tx: any) => Promise<void>) => {
+        const tx = {
+          insert: vi.fn().mockReturnValue({
+            values: vi.fn().mockImplementation((vals: unknown[]) => {
+              inserted.push(Array.isArray(vals) ? vals : [vals])
+              return {
+                onConflictDoNothing: vi.fn().mockReturnValue({
+                  returning: vi.fn().mockResolvedValue([]),
+                  then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
+                }),
+                returning: vi.fn().mockResolvedValue([]),
+                then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
+              }
+            })
+          }),
+          select: vi.fn().mockReturnValue({
+            from: vi
+              .fn()
+              .mockReturnValue(Object.assign([], { then: (r: (v: unknown) => unknown) => Promise.resolve([]).then(r) }))
+          })
+        }
+        await fn(tx)
+      }) as any
+
+      await migrator.prepare(ctx as any)
+      const result = await migrator.execute(ctx as any)
+
+      expect(result.success).toBe(true)
+      const assistantRows = (inserted.flat() as Array<Record<string, unknown>>).filter((row) =>
+        String(row.id).startsWith('ast-')
+      )
+      expect(assistantRows.map((row) => row.id)).toEqual(['ast-1', 'ast-2'])
+      const orderKeys = assistantRows
+        .map((row) => row.orderKey)
+        .filter((orderKey): orderKey is string => typeof orderKey === 'string')
+      expect(orderKeys).toHaveLength(2)
+      expect(orderKeys.every((orderKey) => orderKey.length > 0)).toBe(true)
+      expect(orderKeys[0] < orderKeys[1]).toBe(true)
+    })
+
     it('should store assistantIds in sharedData (only migrated user assistants — no synthetic default)', async () => {
       const ctx = createMockContext({ assistants: { assistants: SAMPLE_ASSISTANTS, presets: [] } })
       ctx.sharedData.set('mcpServerIdMapping', new Map([['srv-1', 'new-srv-uuid']]))
