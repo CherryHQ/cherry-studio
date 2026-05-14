@@ -17,7 +17,7 @@ export const DolphinAiIcon: CompoundIcon = /*#__PURE__*/ Object.assign(DolphinAi
   Light: DolphinAiLight,
   Dark: DolphinAiDark,
   Avatar: DolphinAiAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#000'
 })
 
 export default DolphinAiIcon
