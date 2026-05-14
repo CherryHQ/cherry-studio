@@ -1,13 +1,11 @@
-import type { SVGProps } from 'react'
+/**
+ * Auto-generated reexport stub.
+ * This logo's dark variant is byte-identical to its light variant,
+ * so dark.tsx reexports the light component to avoid duplicating SVG payload.
+ */
+import { StreamlakeLight } from './light'
 
-import type { IconComponent } from '../../types'
-const StreamlakeDark: IconComponent = (props: SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
-    <path
-      fill="#1D70FF"
-      d="M60.0011 30.975C50.8994 30.975 42.5144 27.6783 35.7778 22.2316C35.1328 21.73 34.2011 21.8016 33.7711 22.5183L20.5128 40.005C20.0828 40.5783 20.1544 41.4383 20.7278 41.94C31.4778 51.4 45.1661 57.1333 60.0011 57.1333C74.8361 57.1333 88.5244 51.4716 99.2744 41.94C99.8478 41.4383 99.9194 40.5783 99.4894 40.005L86.3028 22.4466C85.8011 21.8016 84.8694 21.6583 84.2961 22.16C77.5594 27.6783 69.1744 30.9033 60.0728 30.9033L60.0011 30.975ZM60.0011 89.025C50.8994 89.025 42.5144 92.3216 35.7778 97.7683C35.1328 98.27 34.2011 98.1983 33.7711 97.4816L20.5844 79.9233C20.1544 79.35 20.2261 78.49 20.7994 77.9883C31.5494 68.5283 45.2378 62.795 60.0728 62.795C74.9078 62.795 88.5961 68.4566 99.3461 77.9883C99.9194 78.49 99.9911 79.35 99.5611 79.9233L86.3744 97.4816C85.8728 98.1266 84.9411 98.27 84.3678 97.7683C77.6311 92.25 69.2461 89.025 60.1444 89.025H60.0011Z"
-    />
-  </svg>
-)
+const StreamlakeDark = StreamlakeLight
+
 export { StreamlakeDark }
 export default StreamlakeDark

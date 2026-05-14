@@ -70,29 +70,34 @@ export function buildSvgMap(type: LogoType): Map<string, string> {
 
 export interface LightDarkSvgPair {
   light: string
-  dark: string
+  /** null when the logo has no dedicated dark variant (single-source logo).
+   * The generator emits dark.tsx as a reexport of light.tsx in that case. */
+  dark: string | null
 }
 
 /**
- * Scan a logo source directory with light/ and dark/ subdirectories,
+ * Scan a logo source directory with light/ and (optional) dark/ subdirectories,
  * returning a map keyed by camelCase dirName → { light, dark } SVG paths.
  *
- * Files present in only one of light/dark are skipped (no orphans).
+ * The light variant is required. The dark variant is optional — if dark/{name}.svg
+ * is missing, the entry has dark=null and the generator produces a reexport stub
+ * so the public CompoundIcon API stays uniform (.Light / .Dark / .Avatar always
+ * present), without paying the cost of duplicating identical SVG payloads.
  */
 export function buildLightDarkSvgMap(type: LogoType): Map<string, LightDarkSvgPair> {
   const svgDir = SVG_SOURCE_MAP[type]
   const lightDir = path.join(svgDir, 'light')
   const darkDir = path.join(svgDir, 'dark')
   const map = new Map<string, LightDarkSvgPair>()
-  if (!fs.existsSync(lightDir) || !fs.existsSync(darkDir)) return map
+  if (!fs.existsSync(lightDir)) return map
 
   for (const file of fs.readdirSync(lightDir)) {
     if (!file.endsWith('.svg')) continue
     const darkPath = path.join(darkDir, file)
-    if (!fs.existsSync(darkPath)) continue
+    const hasDark = fs.existsSync(darkPath)
     map.set(toCamelCase(file), {
       light: path.join(lightDir, file),
-      dark: darkPath
+      dark: hasDark ? darkPath : null
     })
   }
   return map

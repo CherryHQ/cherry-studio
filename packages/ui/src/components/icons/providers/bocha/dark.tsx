@@ -1,34 +1,11 @@
-import type { SVGProps } from 'react'
+/**
+ * Auto-generated reexport stub.
+ * This logo's dark variant is byte-identical to its light variant,
+ * so dark.tsx reexports the light component to avoid duplicating SVG payload.
+ */
+import { BochaLight } from './light'
 
-import type { IconComponent } from '../../types'
-const BochaDark: IconComponent = (props: SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
-    <path
-      fill="#A5CCFF"
-      fillRule="evenodd"
-      d="M27.8789 35.764C34.8617 32.3596 43.281 35.2599 46.6887 42.2436L53.964 57.1542C55.6664 60.6429 54.2195 64.8519 50.7323 66.5547L50.728 66.5569C47.2366 68.2589 43.0269 66.8091 41.323 63.3172L27.8789 35.764Z"
-      clipRule="evenodd"
-    />
-    <path
-      fill="#A5CCFF"
-      fillRule="evenodd"
-      d="M20.582 49.972C26.0759 44.4804 34.9781 44.4804 40.472 49.972L52.6387 62.1338C55.3826 64.8761 55.3844 69.3252 52.643 72.07L52.6387 72.0743C49.8919 74.8202 45.4407 74.8202 42.6937 72.0743L20.582 49.972Z"
-      clipRule="evenodd"
-      opacity={0.648}
-    />
-    <path
-      fill="#006EFF"
-      fillRule="evenodd"
-      d="M70.9882 38.2192C86.6886 38.2192 99.4162 50.9417 99.4162 66.6357C99.4162 74.2976 95.4771 82.0831 90.5446 87.194L88.5025 84.7458C84.999 80.5469 83.7549 74.9064 85.1664 69.6224C85.4219 68.6646 85.5498 67.7849 85.5498 66.9829C85.5498 58.8882 78.9851 52.326 70.8868 52.326C62.7892 52.326 56.2242 58.8882 56.2242 66.9829C56.2242 75.0773 62.7892 81.6395 70.8868 81.6395C72.4029 81.6395 73.8653 81.4094 75.2409 80.9826C79.3628 79.703 83.8545 80.7655 86.9674 83.7565L90.5446 87.194C85.4656 91.934 78.4853 95.0515 70.9882 95.0515C55.2882 95.0515 42.5605 82.3293 42.5605 66.6357C42.5605 50.9417 55.2882 38.2192 70.9882 38.2192Z"
-      clipRule="evenodd"
-    />
-    <path
-      fill="#006EFF"
-      fillRule="evenodd"
-      d="M42.5605 27.75C50.328 27.75 56.6248 34.0498 56.6248 41.8207V51.9663C56.6248 59.7373 50.328 66.0368 42.5605 66.0368V27.75Z"
-      clipRule="evenodd"
-    />
-  </svg>
-)
+const BochaDark = BochaLight
+
 export { BochaDark }
 export default BochaDark

@@ -212,8 +212,11 @@ async function generateFlatIcon(
 
 /**
  * Generate per-logo directory with light.tsx + dark.tsx + meta.ts.
- * Both variants are generated as faithful SVGR transforms — no color rewriting,
- * since the designer authored two separate SVGs for theme-aware display.
+ *
+ * Both files are always emitted so the downstream codegen + CompoundIcon API
+ * stay uniform. When the logo has no dedicated dark variant (pair.dark === null),
+ * dark.tsx is emitted as a one-line reexport stub of light.tsx instead of
+ * duplicating the entire SVG inline.
  */
 async function generateLogoDirDual(
   pair: LightDarkSvgPair,
@@ -225,13 +228,19 @@ async function generateLogoDirDual(
   await fs.mkdir(logoDir, { recursive: true })
 
   const lightSvg = await fs.readFile(pair.light, 'utf-8')
-  const darkSvg = await fs.readFile(pair.dark, 'utf-8')
-
   const lightTsx = await svgrTransform(lightSvg, `${componentName}Light`)
-  const darkTsx = await svgrTransform(darkSvg, `${componentName}Dark`)
-
   await fs.writeFile(path.join(logoDir, 'light.tsx'), lightTsx, 'utf-8')
-  await fs.writeFile(path.join(logoDir, 'dark.tsx'), darkTsx, 'utf-8')
+
+  if (pair.dark) {
+    const darkSvg = await fs.readFile(pair.dark, 'utf-8')
+    const darkTsx = await svgrTransform(darkSvg, `${componentName}Dark`)
+    await fs.writeFile(path.join(logoDir, 'dark.tsx'), darkTsx, 'utf-8')
+  } else {
+    // Single-source logo — dark variant is identical to light. Emit a tiny
+    // reexport stub so consumers can still address `.Dark` uniformly.
+    const stub = `/**\n * Auto-generated reexport stub.\n * This logo's dark variant is byte-identical to its light variant,\n * so dark.tsx reexports the light component to avoid duplicating SVG payload.\n */\nimport { ${componentName}Light } from './light'\n\nconst ${componentName}Dark = ${componentName}Light\n\nexport { ${componentName}Dark }\nexport default ${componentName}Dark\n`
+    await fs.writeFile(path.join(logoDir, 'dark.tsx'), stub, 'utf-8')
+  }
 
   let colorPrimary = extractColorPrimary(lightSvg)
   if (/^black$/i.test(colorPrimary)) colorPrimary = '#000000'
@@ -296,7 +305,7 @@ async function main() {
 
       try {
         const lightContent = await fs.readFile(pair.light, 'utf-8')
-        const darkContent = await fs.readFile(pair.dark, 'utf-8')
+        const darkContent = pair.dark ? await fs.readFile(pair.dark, 'utf-8') : '<reexport-light>'
         const hash = computeHash(`light:${lightContent}\ndark:${darkContent}`)
         const cacheKey = `${type}:${baseFile}`
 
