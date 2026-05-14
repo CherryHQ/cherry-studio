@@ -1,7 +1,5 @@
 import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
-import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
-import { ErrorState } from '@renderer/components/chat'
 import {
   ResourceList,
   type ResourceListItemReorderPayload,
@@ -135,6 +133,8 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
     isLoadingMore,
     isValidating,
     reload,
+    createSession,
+    reorderSession,
     togglePin
   } = useSessions(undefined, { loadAll: true, pageSize: 50 })
   const [activeSessionId, setActiveSessionId] = useCache('agent.active_session_id')
@@ -276,16 +276,15 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
 
       setCreatingSession(true)
       try {
-        const created = await dataApiService.post('/sessions', {
-          body: {
-            agentId,
-            name: t('common.unnamed'),
-            ...(accessiblePaths && accessiblePaths.length > 0 ? { accessiblePaths } : {})
-          }
+        const created = await createSession({
+          agentId,
+          name: t('common.unnamed'),
+          ...(accessiblePaths && accessiblePaths.length > 0 ? { accessiblePaths } : {})
         })
 
+        if (!created) return null
+
         setActiveSessionId(created.id)
-        await reload()
         return created
       } catch (err) {
         logger.error('Failed to create session from session list', { err, agentId })
@@ -295,7 +294,7 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
         setCreatingSession(false)
       }
     },
-    [agentById, creatingSession, reload, setActiveSessionId, t]
+    [agentById, createSession, creatingSession, setActiveSessionId, t]
   )
 
   const handleHeaderCreateSession = useCallback(() => {
@@ -341,16 +340,12 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
       const anchor = buildSessionDropAnchor(normalizedPayload)
       setOptimisticMove(normalizedPayload)
 
-      try {
-        await dataApiService.patch(`/sessions/${payload.activeId}/order`, { body: anchor })
-        await reload()
-      } catch (err) {
+      const reordered = await reorderSession(payload.activeId, anchor)
+      if (!reordered) {
         setOptimisticMove(null)
-        logger.error('Failed to reorder session', { err, sessionId: payload.activeId })
-        window.toast.error(t('agent.session.reorder.error.failed'))
       }
     },
-    [displayMode, dragReady, reload, sessionItems, t]
+    [displayMode, dragReady, reorderSession, sessionItems]
   )
 
   const getGroupHeaderIcon = useCallback(
@@ -417,21 +412,6 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
   const listLoading = isLoading || (displayMode === 'agent' && isAgentsLoading)
   const listStatus = listError ? 'error' : listLoading ? 'loading' : groupedSessions.length === 0 ? 'empty' : 'idle'
 
-  if (listError) {
-    return (
-      <ErrorState
-        className="m-2.5"
-        title={t('agent.session.get.error.failed')}
-        description={formatErrorMessage(listError)}
-        action={
-          <Button size="sm" variant="outline" onClick={() => void reload()} disabled={isValidating}>
-            {t('common.retry')}
-          </Button>
-        }
-      />
-    )
-  }
-
   return (
     <SessionResourceList<SessionListItem>
       items={groupedSessions}
@@ -487,9 +467,12 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
       </ResourceList.Header>
       <SessionListBody
         channelTypeMap={channelTypeMap}
+        error={listError}
         isDraggable={dragReady}
+        isValidating={isValidating}
         listRef={listRef}
         onDeleteSession={handleDeleteSession}
+        onRetry={reload}
         onSelectItem={onSelectItem}
         onTogglePin={togglePin}
         setActiveSessionId={handleSelectSession}
@@ -503,9 +486,12 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
 
 interface SessionListBodyProps {
   channelTypeMap: Record<string, string>
+  error?: unknown
   isDraggable: boolean
+  isValidating: boolean
   listRef: RefObject<HTMLDivElement | null>
   onDeleteSession: (id: string) => Promise<void>
+  onRetry: () => Promise<unknown>
   onSelectItem?: () => void
   onTogglePin: (id: string) => Promise<void>
   setActiveSessionId: (id: string | null) => void
@@ -513,9 +499,12 @@ interface SessionListBodyProps {
 
 function SessionListBody({
   channelTypeMap,
+  error,
   isDraggable,
+  isValidating,
   listRef,
   onDeleteSession,
+  onRetry,
   onSelectItem,
   onTogglePin,
   setActiveSessionId
@@ -528,7 +517,17 @@ function SessionListBody({
   }
 
   if (context.state.status === 'error') {
-    return <ResourceList.ErrorState message={t('error.boundary.default.message')} />
+    return (
+      <ResourceList.ErrorState>
+        <div className="flex flex-col gap-2">
+          <div className="font-medium text-destructive">{t('agent.session.get.error.failed')}</div>
+          <div className="text-muted-foreground">{formatErrorMessage(error)}</div>
+          <Button size="sm" variant="outline" className="w-fit" onClick={() => void onRetry()} disabled={isValidating}>
+            {t('common.retry')}
+          </Button>
+        </div>
+      </ResourceList.ErrorState>
+    )
   }
 
   if (context.view.items.length === 0) {

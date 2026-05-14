@@ -111,8 +111,10 @@ vi.mock('@dnd-kit/utilities', () => ({
 }))
 
 const sessionDataMocks = vi.hoisted(() => ({
+  createSession: vi.fn().mockResolvedValue({ id: 'created-session' }),
   deleteSession: vi.fn().mockResolvedValue(true),
   reload: vi.fn().mockResolvedValue(undefined),
+  reorderSession: vi.fn().mockResolvedValue(true),
   togglePin: vi.fn().mockResolvedValue(undefined),
   updateSession: vi.fn().mockResolvedValue(undefined),
   useUpdateSession: vi.fn(),
@@ -221,13 +223,6 @@ vi.mock('@renderer/hooks/usePins', () => ({
   }))
 }))
 
-vi.mock('@data/DataApiService', () => ({
-  dataApiService: {
-    patch: vi.fn().mockResolvedValue(undefined),
-    post: vi.fn().mockResolvedValue({ id: 'created-session' })
-  }
-}))
-
 vi.mock('@renderer/utils/agentSession', () => ({
   buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`,
   getChannelTypeIcon: vi.fn(() => undefined)
@@ -287,8 +282,6 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-import { dataApiService } from '@data/DataApiService'
-
 import Sessions from '../Sessions'
 
 const CURRENT_SESSION_ISO = new Date().toISOString()
@@ -341,6 +334,7 @@ function setupSessions(overrides: Record<string, unknown> = {}) {
       createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' }),
       createSession({ id: 'session-b', name: 'Beta session', orderKey: 'b' })
     ],
+    createSession: sessionDataMocks.createSession,
     pinIdBySessionId: new Map(),
     isLoading: false,
     error: undefined,
@@ -349,6 +343,7 @@ function setupSessions(overrides: Record<string, unknown> = {}) {
     isLoadingMore: false,
     isValidating: false,
     reload: sessionDataMocks.reload,
+    reorderSession: sessionDataMocks.reorderSession,
     togglePin: sessionDataMocks.togglePin,
     ...overrides
   })
@@ -387,6 +382,21 @@ describe('Sessions', () => {
     expect(screen.queryByTestId('dnd-context')).not.toBeInTheDocument()
   })
 
+  it('renders load errors inside the shared ResourceList shell', () => {
+    setupSessions({ error: new Error('Failed request'), sessions: [] })
+
+    render(<Sessions />)
+
+    expect(screen.getByText('Sessions')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Search sessions')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Failed to get sessions')
+    expect(screen.getByRole('alert')).toHaveTextContent('Failed request')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(sessionDataMocks.reload).toHaveBeenCalled()
+  })
+
   it('uses agent configuration avatar for agent group headers without changing session rows', () => {
     agentDataMocks.useAgents.mockReturnValue({
       agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: '🧠' } }],
@@ -421,7 +431,7 @@ describe('Sessions', () => {
     expect(addButtons).toHaveLength(2)
 
     fireEvent.click(addButtons[0])
-    expect(dataApiService.post).not.toHaveBeenCalled()
+    expect(sessionDataMocks.createSession).not.toHaveBeenCalled()
     expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith(null)
   })
 
@@ -432,9 +442,7 @@ describe('Sessions', () => {
     fireEvent.click(addButtons[1])
 
     await vi.waitFor(() =>
-      expect(dataApiService.post).toHaveBeenCalledWith('/sessions', {
-        body: { agentId: 'agent-a', name: 'Untitled' }
-      })
+      expect(sessionDataMocks.createSession).toHaveBeenCalledWith({ agentId: 'agent-a', name: 'Untitled' })
     )
   })
 
@@ -460,7 +468,7 @@ describe('Sessions', () => {
         { showSuccessToast: false }
       )
     )
-    expect(dataApiService.patch).not.toHaveBeenCalledWith('/sessions/session-a', expect.anything())
+    expect(sessionDataMocks.reorderSession).not.toHaveBeenCalled()
   })
 
   it('clears pending delete confirmation timers on unmount', () => {
@@ -535,7 +543,7 @@ describe('Sessions', () => {
       })
     })
 
-    expect(dataApiService.patch).not.toHaveBeenCalled()
+    expect(sessionDataMocks.reorderSession).not.toHaveBeenCalled()
 
     act(() => {
       dndMocks.onDragEnd?.({
@@ -549,7 +557,7 @@ describe('Sessions', () => {
     })
 
     await vi.waitFor(() =>
-      expect(dataApiService.patch).toHaveBeenCalledWith('/sessions/session-a/order', { body: { after: 'session-b' } })
+      expect(sessionDataMocks.reorderSession).toHaveBeenCalledWith('session-a', { after: 'session-b' })
     )
   })
 
@@ -601,7 +609,7 @@ describe('Sessions', () => {
     })
 
     await vi.waitFor(() =>
-      expect(dataApiService.patch).toHaveBeenCalledWith('/sessions/session-a/order', { body: { after: 'session-b' } })
+      expect(sessionDataMocks.reorderSession).toHaveBeenCalledWith('session-a', { after: 'session-b' })
     )
   })
 
@@ -629,9 +637,7 @@ describe('Sessions', () => {
     fireEvent.click(betaGroup!.querySelector('[aria-label="Add session"]')!)
 
     await vi.waitFor(() =>
-      expect(dataApiService.post).toHaveBeenCalledWith('/sessions', {
-        body: { agentId: 'agent-b', name: 'Untitled' }
-      })
+      expect(sessionDataMocks.createSession).toHaveBeenCalledWith({ agentId: 'agent-b', name: 'Untitled' })
     )
 
     unmount()
@@ -643,8 +649,10 @@ describe('Sessions', () => {
     fireEvent.click(workdirGroup!.querySelector('[aria-label="Add session"]')!)
 
     await vi.waitFor(() =>
-      expect(dataApiService.post).toHaveBeenCalledWith('/sessions', {
-        body: { agentId: 'agent-a', name: 'Untitled', accessiblePaths: ['/Users/jd/project-a'] }
+      expect(sessionDataMocks.createSession).toHaveBeenCalledWith({
+        agentId: 'agent-a',
+        name: 'Untitled',
+        accessiblePaths: ['/Users/jd/project-a']
       })
     )
   })

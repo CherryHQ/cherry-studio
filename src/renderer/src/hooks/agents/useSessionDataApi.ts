@@ -19,6 +19,7 @@ import type { CreateSessionForm, UpdateSessionForm } from '@renderer/types'
 import type { UpdateAgentBaseOptions, UpdateAgentSessionFunction } from '@renderer/types/agent'
 import { getErrorMessage } from '@renderer/utils/error'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -116,16 +117,15 @@ export const useSessions = (
   const { trigger: createTrigger } = useMutation('POST', '/sessions', { refresh: ['/sessions'] })
   const createSession = useCallback(
     async (form: CreateSessionForm): Promise<AgentSessionEntity | null> => {
-      if (!agentId) return null
       try {
-        const result = await createTrigger({ body: { agentId, name: form.name, description: form.description } })
+        const result = await createTrigger({ body: form })
         return result
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.create.error.failed')))
         return null
       }
     },
-    [agentId, createTrigger, t]
+    [createTrigger, t]
   )
 
   const { trigger: deleteTrigger } = useMutation('DELETE', '/sessions/:sessionId', { refresh: ['/sessions'] })
@@ -151,6 +151,20 @@ export const useSessions = (
       }
     },
     [applyReorderedList, t]
+  )
+
+  const { trigger: reorderTrigger } = useMutation('PATCH', '/sessions/:id/order', { refresh: ['/sessions'] })
+  const reorderSession = useCallback(
+    async (id: string, anchor: OrderRequest): Promise<boolean> => {
+      try {
+        await reorderTrigger({ params: { id }, body: anchor })
+        return true
+      } catch (error) {
+        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.reorder.error.failed')))
+        return false
+      }
+    },
+    [reorderTrigger, t]
   )
 
   // Server returns pinned-first via the two-section cursor in
@@ -188,6 +202,7 @@ export const useSessions = (
     loadMore,
     createSession,
     deleteSession,
+    reorderSession,
     reorderSessions,
     togglePin
   }
