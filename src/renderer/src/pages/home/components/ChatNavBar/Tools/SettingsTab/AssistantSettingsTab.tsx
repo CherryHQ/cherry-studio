@@ -5,11 +5,7 @@ import { useDefaultModel, useModelById } from '@renderer/hooks/useModels'
 import { useProvider } from '@renderer/hooks/useProviders'
 import type { ChatPreferenceSectionsFeatures } from '@renderer/pages/chat-settings/ChatPreferenceSections'
 import ChatPreferenceSections from '@renderer/pages/chat-settings/ChatPreferenceSections'
-import {
-  SettingDivider,
-  SettingGroup,
-  SettingRowTitleSmall
-} from '@renderer/pages/chat-settings/settingsPanelPrimitives'
+import { SettingDivider } from '@renderer/pages/chat-settings/settingsPanelPrimitives'
 import type { Assistant } from '@renderer/types'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ProviderSettings } from '@shared/data/types/provider'
@@ -71,8 +67,6 @@ const AssistantSettingsTab: FC<Props> = (props) => {
             provider={provider}
             disabled={isUpdating}
             onProviderSettingsChange={updateProviderSettings}
-            SettingGroup={SettingGroup}
-            SettingRowTitleSmall={SettingRowTitleSmall}
           />
           <SettingDivider className="my-0" />
         </>
@@ -83,8 +77,6 @@ const AssistantSettingsTab: FC<Props> = (props) => {
             provider={provider}
             disabled={isUpdating}
             onProviderSettingsChange={updateProviderSettings}
-            SettingGroup={SettingGroup}
-            SettingRowTitleSmall={SettingRowTitleSmall}
           />
           <SettingDivider className="my-0" />
         </>

@@ -1,9 +1,10 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
+import { SettingRowTitleSmall } from '@renderer/pages/chat-settings/settingsPanelPrimitives'
 import { SettingRow } from '@renderer/pages/settings'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'
 import type { OpenAICompletionsStreamOptions } from '@shared/types/aiSdk'
 import type { FC } from 'react'
-import { useCallback, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type IncludeUsageOption = {
@@ -15,18 +16,10 @@ interface Props {
   includeUsage: OpenAICompletionsStreamOptions['include_usage']
   disabled?: boolean
   onIncludeUsageChange: (value: OpenAICompletionsStreamOptions['include_usage']) => void
-  SettingRowTitleSmall: FC<{ children: React.ReactNode; hint?: string }>
 }
 
-const StreamOptionsSetting: FC<Props> = ({ includeUsage, disabled, onIncludeUsageChange, SettingRowTitleSmall }) => {
+const StreamOptionsSetting: FC<Props> = ({ includeUsage, disabled, onIncludeUsageChange }) => {
   const { t } = useTranslation()
-
-  const setIncludeUsage = useCallback(
-    (value: OpenAICompletionsStreamOptions['include_usage']) => {
-      onIncludeUsageChange(value)
-    },
-    [onIncludeUsageChange]
-  )
 
   const includeUsageOptions = useMemo(() => {
     return [
@@ -54,7 +47,7 @@ const StreamOptionsSetting: FC<Props> = ({ includeUsage, disabled, onIncludeUsag
         disabled={disabled}
         value={toOptionValue(includeUsage)}
         onValueChange={(value) => {
-          setIncludeUsage(toRealValue(value as IncludeUsageOption['value']))
+          onIncludeUsageChange(toRealValue(value as IncludeUsageOption['value']))
         }}>
         <SelectTrigger disabled={disabled} size="sm" className="w-45 text-xs">
           <SelectValue />

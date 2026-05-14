@@ -1,10 +1,11 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
+import { SettingGroup, SettingRowTitleSmall } from '@renderer/pages/chat-settings/settingsPanelPrimitives'
 import { SettingRow } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'
 import type { GroqServiceTier, Provider, ProviderSettings, ServiceTier } from '@shared/data/types/provider'
 import type { FC } from 'react'
-import { useCallback, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type ServiceTierOptions = { value: NonNullable<GroqServiceTier> | 'undefined'; label: string }
@@ -13,26 +14,11 @@ interface Props {
   provider: Provider
   disabled?: boolean
   onProviderSettingsChange: (providerSettings: Partial<ProviderSettings>) => void
-  SettingGroup: FC<{ children: React.ReactNode }>
-  SettingRowTitleSmall: FC<{ children: React.ReactNode; hint?: string }>
 }
 
-const GroqSettingsGroup: FC<Props> = ({
-  provider,
-  disabled,
-  onProviderSettingsChange,
-  SettingGroup,
-  SettingRowTitleSmall
-}) => {
+const GroqSettingsGroup: FC<Props> = ({ provider, disabled, onProviderSettingsChange }) => {
   const { t } = useTranslation()
   const serviceTierMode = provider.settings.serviceTier as ServiceTier
-
-  const setServiceTierMode = useCallback(
-    (value: ServiceTier) => {
-      onProviderSettingsChange({ serviceTier: value })
-    },
-    [onProviderSettingsChange]
-  )
 
   const serviceTierOptions = useMemo(() => {
     const options = [
@@ -67,7 +53,7 @@ const GroqSettingsGroup: FC<Props> = ({
             disabled={disabled}
             value={toOptionValue(serviceTierMode)}
             onValueChange={(value) => {
-              setServiceTierMode(toRealValue(value as ServiceTierOptions['value']))
+              onProviderSettingsChange({ serviceTier: toRealValue(value as ServiceTierOptions['value']) })
             }}>
             <SelectTrigger disabled={disabled} size="sm" className="w-45 text-xs">
               <SelectValue />

@@ -1,4 +1,5 @@
 import { isSupportedReasoningEffortOpenAIModel, isSupportVerbosityModel } from '@renderer/config/models'
+import { SettingGroup } from '@renderer/pages/chat-settings/settingsPanelPrimitives'
 import { SettingDivider } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import type { Model } from '@renderer/types'
@@ -18,8 +19,6 @@ interface Props {
   provider: Provider
   disabled?: boolean
   onProviderSettingsChange: (providerSettings: Partial<ProviderSettings>) => void
-  SettingGroup: FC<{ children: React.ReactNode }>
-  SettingRowTitleSmall: FC<{ children: React.ReactNode; hint?: string }>
 }
 
 const OPENAI_RESPONSES_ENDPOINTS = new Set<string>(['openai-response', ENDPOINT_TYPE.OPENAI_RESPONSES])
@@ -67,14 +66,7 @@ export function getOpenAISettingsVisibility(model: Model, provider: Provider) {
   }
 }
 
-const OpenAISettingsGroup: FC<Props> = ({
-  model,
-  provider,
-  disabled,
-  onProviderSettingsChange,
-  SettingGroup,
-  SettingRowTitleSmall
-}) => {
+const OpenAISettingsGroup: FC<Props> = ({ model, provider, disabled, onProviderSettingsChange }) => {
   const { t } = useTranslation()
   const { showSummarySetting, showServiceTierSetting, showVerbositySetting, showStreamOptionsSetting } =
     getOpenAISettingsVisibility(model, provider)
@@ -93,7 +85,6 @@ const OpenAISettingsGroup: FC<Props> = ({
               serviceTierMode={provider.settings.serviceTier as ServiceTier}
               disabled={disabled}
               onServiceTierChange={(serviceTier) => onProviderSettingsChange({ serviceTier })}
-              SettingRowTitleSmall={SettingRowTitleSmall}
             />
             {(showSummarySetting || showVerbositySetting || showStreamOptionsSetting) && <SettingDivider />}
           </>
@@ -104,7 +95,6 @@ const OpenAISettingsGroup: FC<Props> = ({
               summaryText={provider.settings.summaryText}
               disabled={disabled}
               onSummaryTextChange={(summaryText) => onProviderSettingsChange({ summaryText })}
-              SettingRowTitleSmall={SettingRowTitleSmall}
             />
             {(showVerbositySetting || showStreamOptionsSetting) && <SettingDivider />}
           </>
@@ -116,7 +106,6 @@ const OpenAISettingsGroup: FC<Props> = ({
               verbosity={provider.settings.verbosity as OpenAIVerbosity}
               disabled={disabled}
               onVerbosityChange={(verbosity) => onProviderSettingsChange({ verbosity })}
-              SettingRowTitleSmall={SettingRowTitleSmall}
             />
             {showStreamOptionsSetting && <SettingDivider />}
           </>
@@ -128,7 +117,6 @@ const OpenAISettingsGroup: FC<Props> = ({
             onIncludeUsageChange={(includeUsage) =>
               onProviderSettingsChange({ streamOptions: { ...provider.settings.streamOptions, includeUsage } })
             }
-            SettingRowTitleSmall={SettingRowTitleSmall}
           />
         )}
       </SettingGroup>

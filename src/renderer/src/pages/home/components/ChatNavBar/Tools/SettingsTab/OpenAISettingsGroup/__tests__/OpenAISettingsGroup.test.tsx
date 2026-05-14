@@ -22,6 +22,11 @@ vi.mock('@renderer/pages/settings/SettingGroup', () => ({
   )
 }))
 
+vi.mock('@renderer/pages/chat-settings/settingsPanelPrimitives', () => ({
+  SettingGroup: ({ children }: PropsWithChildren) => <div>{children}</div>,
+  SettingRowTitleSmall: ({ children }: PropsWithChildren) => <span>{children}</span>
+}))
+
 const SelectContext = createContext<((value: string) => void) | undefined>(undefined)
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -98,13 +103,7 @@ describe('OpenAISettingsGroup', () => {
     const onProviderSettingsChange = vi.fn()
 
     render(
-      <OpenAISettingsGroup
-        model={model}
-        provider={provider}
-        onProviderSettingsChange={onProviderSettingsChange}
-        SettingGroup={({ children }) => <div>{children}</div>}
-        SettingRowTitleSmall={({ children }) => <span>{children}</span>}
-      />
+      <OpenAISettingsGroup model={model} provider={provider} onProviderSettingsChange={onProviderSettingsChange} />
     )
 
     fireEvent.click(screen.getByText('settings.openai.summary_text_mode.detailed'))
@@ -117,16 +116,7 @@ describe('OpenAISettingsGroup', () => {
   })
 
   it('disables every setting select while provider settings are updating', () => {
-    render(
-      <OpenAISettingsGroup
-        model={model}
-        provider={provider}
-        disabled
-        onProviderSettingsChange={vi.fn()}
-        SettingGroup={({ children }) => <div>{children}</div>}
-        SettingRowTitleSmall={({ children }) => <span>{children}</span>}
-      />
-    )
+    render(<OpenAISettingsGroup model={model} provider={provider} disabled onProviderSettingsChange={vi.fn()} />)
 
     screen.getAllByTestId('select-trigger').forEach((trigger) => {
       expect(trigger).toBeDisabled()

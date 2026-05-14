@@ -19,6 +19,11 @@ vi.mock('@renderer/pages/settings/SettingGroup', () => ({
   )
 }))
 
+vi.mock('@renderer/pages/chat-settings/settingsPanelPrimitives', () => ({
+  SettingGroup: ({ children }: PropsWithChildren) => <div>{children}</div>,
+  SettingRowTitleSmall: ({ children }: PropsWithChildren) => <span>{children}</span>
+}))
+
 const SelectContext = createContext<((value: string) => void) | undefined>(undefined)
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -75,15 +80,7 @@ const provider = {
 
 describe('GroqSettingsGroup', () => {
   it('disables the service-tier select while provider settings are updating', () => {
-    render(
-      <GroqSettingsGroup
-        provider={provider}
-        disabled
-        onProviderSettingsChange={vi.fn()}
-        SettingGroup={({ children }) => <div>{children}</div>}
-        SettingRowTitleSmall={({ children }) => <span>{children}</span>}
-      />
-    )
+    render(<GroqSettingsGroup provider={provider} disabled onProviderSettingsChange={vi.fn()} />)
 
     expect(screen.getByTestId('select-trigger')).toBeDisabled()
   })

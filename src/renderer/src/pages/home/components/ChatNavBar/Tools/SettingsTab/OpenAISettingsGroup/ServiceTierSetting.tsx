@@ -1,11 +1,12 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { isSupportFlexServiceTierModel } from '@renderer/config/models'
+import { SettingRowTitleSmall } from '@renderer/pages/chat-settings/settingsPanelPrimitives'
 import { SettingRow } from '@renderer/pages/settings'
 import type { Model } from '@renderer/types'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'
 import type { OpenAIServiceTier, ServiceTier } from '@shared/data/types/provider'
 import type { FC } from 'react'
-import { useCallback, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type OpenAIServiceTierOption = { value: NonNullable<OpenAIServiceTier> | 'null' | 'undefined'; label: string }
@@ -15,25 +16,11 @@ interface Props {
   serviceTierMode: ServiceTier
   disabled?: boolean
   onServiceTierChange: (value: ServiceTier) => void
-  SettingRowTitleSmall: FC<{ children: React.ReactNode; hint?: string }>
 }
 
-const ServiceTierSetting: FC<Props> = ({
-  model,
-  serviceTierMode,
-  disabled,
-  onServiceTierChange,
-  SettingRowTitleSmall
-}) => {
+const ServiceTierSetting: FC<Props> = ({ model, serviceTierMode, disabled, onServiceTierChange }) => {
   const { t } = useTranslation()
   const isSupportFlexServiceTier = isSupportFlexServiceTierModel(model)
-
-  const setServiceTierMode = useCallback(
-    (value: ServiceTier) => {
-      onServiceTierChange(value)
-    },
-    [onServiceTierChange]
-  )
 
   const serviceTierOptions = useMemo(() => {
     const options = [
@@ -79,7 +66,7 @@ const ServiceTierSetting: FC<Props> = ({
         disabled={disabled}
         value={toOptionValue(serviceTierMode)}
         onValueChange={(value) => {
-          setServiceTierMode(toRealValue(value as OpenAIServiceTierOption['value']))
+          onServiceTierChange(toRealValue(value as OpenAIServiceTierOption['value']))
         }}>
         <SelectTrigger disabled={disabled} size="sm" className="w-45 text-xs">
           <SelectValue />
