@@ -1,21 +1,21 @@
-import type { SVGProps } from 'react'
-
 import { cn } from '../../../../lib/utils'
-import type { CompoundIcon } from '../../types'
+import type { CompoundIcon, CompoundIconProps } from '../../types'
 import { MimoAvatar } from './avatar'
 import { MimoDark } from './dark'
 import { MimoLight } from './light'
 
-const Mimo = ({ className, ...props }: SVGProps<SVGSVGElement>) => (
-  <>
-    <MimoLight className={cn('dark:hidden', className)} {...props} />
-    <MimoDark className={cn('hidden dark:block', className)} {...props} />
-  </>
-)
+const Mimo = ({ variant, className, ...props }: CompoundIconProps) => {
+  if (variant === 'light') return <MimoLight {...props} className={className} />
+  if (variant === 'dark') return <MimoDark {...props} className={className} />
+  return (
+    <>
+      <MimoLight className={cn('dark:hidden', className)} {...props} />
+      <MimoDark className={cn('hidden dark:block', className)} {...props} />
+    </>
+  )
+}
 
 export const MimoIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Mimo, {
-  Light: MimoLight,
-  Dark: MimoDark,
   Avatar: MimoAvatar,
   colorPrimary: '#000000'
 })

@@ -1,21 +1,21 @@
-import type { SVGProps } from 'react'
-
 import { cn } from '../../../../lib/utils'
-import type { CompoundIcon } from '../../types'
+import type { CompoundIcon, CompoundIconProps } from '../../types'
 import { GrokAvatar } from './avatar'
 import { GrokDark } from './dark'
 import { GrokLight } from './light'
 
-const Grok = ({ className, ...props }: SVGProps<SVGSVGElement>) => (
-  <>
-    <GrokLight className={cn('dark:hidden', className)} {...props} />
-    <GrokDark className={cn('hidden dark:block', className)} {...props} />
-  </>
-)
+const Grok = ({ variant, className, ...props }: CompoundIconProps) => {
+  if (variant === 'light') return <GrokLight {...props} className={className} />
+  if (variant === 'dark') return <GrokDark {...props} className={className} />
+  return (
+    <>
+      <GrokLight className={cn('dark:hidden', className)} {...props} />
+      <GrokDark className={cn('hidden dark:block', className)} {...props} />
+    </>
+  )
+}
 
 export const GrokIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Grok, {
-  Light: GrokLight,
-  Dark: GrokDark,
   Avatar: GrokAvatar,
   colorPrimary: '#000000'
 })

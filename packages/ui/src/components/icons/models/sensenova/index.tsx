@@ -1,21 +1,21 @@
-import type { SVGProps } from 'react'
-
 import { cn } from '../../../../lib/utils'
-import type { CompoundIcon } from '../../types'
+import type { CompoundIcon, CompoundIconProps } from '../../types'
 import { SensenovaAvatar } from './avatar'
 import { SensenovaDark } from './dark'
 import { SensenovaLight } from './light'
 
-const Sensenova = ({ className, ...props }: SVGProps<SVGSVGElement>) => (
-  <>
-    <SensenovaLight className={cn('dark:hidden', className)} {...props} />
-    <SensenovaDark className={cn('hidden dark:block', className)} {...props} />
-  </>
-)
+const Sensenova = ({ variant, className, ...props }: CompoundIconProps) => {
+  if (variant === 'light') return <SensenovaLight {...props} className={className} />
+  if (variant === 'dark') return <SensenovaDark {...props} className={className} />
+  return (
+    <>
+      <SensenovaLight className={cn('dark:hidden', className)} {...props} />
+      <SensenovaDark className={cn('hidden dark:block', className)} {...props} />
+    </>
+  )
+}
 
 export const SensenovaIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Sensenova, {
-  Light: SensenovaLight,
-  Dark: SensenovaDark,
   Avatar: SensenovaAvatar,
   colorPrimary: '#01FFB9'
 })

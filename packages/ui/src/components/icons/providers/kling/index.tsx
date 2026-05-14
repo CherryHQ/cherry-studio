@@ -1,21 +1,21 @@
-import type { SVGProps } from 'react'
-
 import { cn } from '../../../../lib/utils'
-import type { CompoundIcon } from '../../types'
+import type { CompoundIcon, CompoundIconProps } from '../../types'
 import { KlingAvatar } from './avatar'
 import { KlingDark } from './dark'
 import { KlingLight } from './light'
 
-const Kling = ({ className, ...props }: SVGProps<SVGSVGElement>) => (
-  <>
-    <KlingLight className={cn('dark:hidden', className)} {...props} />
-    <KlingDark className={cn('hidden dark:block', className)} {...props} />
-  </>
-)
+const Kling = ({ variant, className, ...props }: CompoundIconProps) => {
+  if (variant === 'light') return <KlingLight {...props} className={className} />
+  if (variant === 'dark') return <KlingDark {...props} className={className} />
+  return (
+    <>
+      <KlingLight className={cn('dark:hidden', className)} {...props} />
+      <KlingDark className={cn('hidden dark:block', className)} {...props} />
+    </>
+  )
+}
 
 export const KlingIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Kling, {
-  Light: KlingLight,
-  Dark: KlingDark,
   Avatar: KlingAvatar,
   colorPrimary: '#000000'
 })

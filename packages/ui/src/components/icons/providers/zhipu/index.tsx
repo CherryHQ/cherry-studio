@@ -1,21 +1,21 @@
-import type { SVGProps } from 'react'
-
 import { cn } from '../../../../lib/utils'
-import type { CompoundIcon } from '../../types'
+import type { CompoundIcon, CompoundIconProps } from '../../types'
 import { ZhipuAvatar } from './avatar'
 import { ZhipuDark } from './dark'
 import { ZhipuLight } from './light'
 
-const Zhipu = ({ className, ...props }: SVGProps<SVGSVGElement>) => (
-  <>
-    <ZhipuLight className={cn('dark:hidden', className)} {...props} />
-    <ZhipuDark className={cn('hidden dark:block', className)} {...props} />
-  </>
-)
+const Zhipu = ({ variant, className, ...props }: CompoundIconProps) => {
+  if (variant === 'light') return <ZhipuLight {...props} className={className} />
+  if (variant === 'dark') return <ZhipuDark {...props} className={className} />
+  return (
+    <>
+      <ZhipuLight className={cn('dark:hidden', className)} {...props} />
+      <ZhipuDark className={cn('hidden dark:block', className)} {...props} />
+    </>
+  )
+}
 
 export const ZhipuIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Zhipu, {
-  Light: ZhipuLight,
-  Dark: ZhipuDark,
   Avatar: ZhipuAvatar,
   colorPrimary: '#3859FF'
 })

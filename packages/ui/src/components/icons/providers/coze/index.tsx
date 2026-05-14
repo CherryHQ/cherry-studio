@@ -1,21 +1,21 @@
-import type { SVGProps } from 'react'
-
 import { cn } from '../../../../lib/utils'
-import type { CompoundIcon } from '../../types'
+import type { CompoundIcon, CompoundIconProps } from '../../types'
 import { CozeAvatar } from './avatar'
 import { CozeDark } from './dark'
 import { CozeLight } from './light'
 
-const Coze = ({ className, ...props }: SVGProps<SVGSVGElement>) => (
-  <>
-    <CozeLight className={cn('dark:hidden', className)} {...props} />
-    <CozeDark className={cn('hidden dark:block', className)} {...props} />
-  </>
-)
+const Coze = ({ variant, className, ...props }: CompoundIconProps) => {
+  if (variant === 'light') return <CozeLight {...props} className={className} />
+  if (variant === 'dark') return <CozeDark {...props} className={className} />
+  return (
+    <>
+      <CozeLight className={cn('dark:hidden', className)} {...props} />
+      <CozeDark className={cn('hidden dark:block', className)} {...props} />
+    </>
+  )
+}
 
 export const CozeIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Coze, {
-  Light: CozeLight,
-  Dark: CozeDark,
   Avatar: CozeAvatar,
   colorPrimary: '#4D53E8'
 })

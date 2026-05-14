@@ -1,21 +1,21 @@
-import type { SVGProps } from 'react'
-
 import { cn } from '../../../../lib/utils'
-import type { CompoundIcon } from '../../types'
+import type { CompoundIcon, CompoundIconProps } from '../../types'
 import { GiteeAiAvatar } from './avatar'
 import { GiteeAiDark } from './dark'
 import { GiteeAiLight } from './light'
 
-const GiteeAi = ({ className, ...props }: SVGProps<SVGSVGElement>) => (
-  <>
-    <GiteeAiLight className={cn('dark:hidden', className)} {...props} />
-    <GiteeAiDark className={cn('hidden dark:block', className)} {...props} />
-  </>
-)
+const GiteeAi = ({ variant, className, ...props }: CompoundIconProps) => {
+  if (variant === 'light') return <GiteeAiLight {...props} className={className} />
+  if (variant === 'dark') return <GiteeAiDark {...props} className={className} />
+  return (
+    <>
+      <GiteeAiLight className={cn('dark:hidden', className)} {...props} />
+      <GiteeAiDark className={cn('hidden dark:block', className)} {...props} />
+    </>
+  )
+}
 
 export const GiteeAiIcon: CompoundIcon = /*#__PURE__*/ Object.assign(GiteeAi, {
-  Light: GiteeAiLight,
-  Dark: GiteeAiDark,
   Avatar: GiteeAiAvatar,
   colorPrimary: '#000000'
 })

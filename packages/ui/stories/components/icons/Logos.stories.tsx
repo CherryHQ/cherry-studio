@@ -2,20 +2,21 @@ import type { Meta, StoryObj } from '@storybook/react'
 
 import * as Models from '../../../src/components/icons/models'
 import * as Providers from '../../../src/components/icons/providers'
+import type { CompoundIcon } from '../../../src/components/icons/types'
 
 interface IconEntry {
-  Component: React.ComponentType
+  Component: CompoundIcon
   name: string
 }
 
 /**
  * Build IconEntry[] from a barrel module's exports.
- * Each export is a compound icon (React component with .Light/.Dark/.Avatar).
+ * Each export is a compound icon (React component with `variant` prop + .Avatar).
  */
 function toIconEntries(mod: Record<string, unknown>): IconEntry[] {
   return Object.entries(mod)
     .filter(([, value]) => typeof value === 'function')
-    .map(([name, value]) => ({ Component: value as React.ComponentType, name }))
+    .map(([name, value]) => ({ Component: value as CompoundIcon, name }))
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
@@ -61,36 +62,30 @@ interface LightVsDarkGridProps {
 
 const LightVsDarkGrid = ({ icons, fontSize }: LightVsDarkGridProps) => (
   <div className="flex flex-wrap gap-6 p-2">
-    {icons.map(({ Component, name }) => {
-      const LightIcon = (Component as any).Light
-      const DarkIcon = (Component as any).Dark
-      if (!LightIcon || !DarkIcon) return null
-      return (
-        <div key={name} className="flex flex-col items-center gap-1">
-          <div className="flex gap-2" style={{ fontSize }}>
-            <div className="border-gray-200 border rounded-md p-2 bg-white">
-              <LightIcon />
-            </div>
-            <div className="border-gray-700 border rounded-md p-2 bg-neutral-900">
-              <DarkIcon />
-            </div>
+    {icons.map(({ Component, name }) => (
+      <div key={name} className="flex flex-col items-center gap-1">
+        <div className="flex gap-2" style={{ fontSize }}>
+          <div className="border-gray-200 border rounded-md p-2 bg-white">
+            <Component variant="light" />
           </div>
-          <div className="flex gap-2 text-xs text-gray-400">
-            <span>Light</span>
-            <span>Dark</span>
+          <div className="border-gray-700 border rounded-md p-2 bg-neutral-900">
+            <Component variant="dark" />
           </div>
-          <p className="text-sm">{name}</p>
         </div>
-      )
-    })}
+        <div className="flex gap-2 text-xs text-gray-400">
+          <span>Light</span>
+          <span>Dark</span>
+        </div>
+        <p className="text-sm">{name}</p>
+      </div>
+    ))}
   </div>
 )
 
 const AvatarGrid = ({ icons, size }: { icons: IconEntry[]; size: number }) => (
   <div className="flex flex-wrap gap-6 p-2">
     {icons.map(({ Component, name }) => {
-      const AvatarComponent = (Component as any).Avatar
-      if (!AvatarComponent) return null
+      const AvatarComponent = Component.Avatar
       return (
         <div key={name} className="flex flex-col items-center gap-1 w-24">
           <div className="flex gap-2">
@@ -197,9 +192,9 @@ export const AllLogos: Story = {
  * ```tsx
  * import { Anthropic } from '@cherrystudio/ui/icons'
  *
- * <Anthropic />          // 自动:在 dark mode 下显示 Dark,否则 Light
- * <Anthropic.Light />    // 强制 Light
- * <Anthropic.Dark />     // 强制 Dark
+ * <Anthropic />                    // 自动:dark mode 下显示 Dark,否则 Light
+ * <Anthropic variant="light" />    // 强制 Light
+ * <Anthropic variant="dark" />     // 强制 Dark
  * ```
  */
 export const LightVsDark: StoryObj<typeof LightVsDarkShowcase> = {

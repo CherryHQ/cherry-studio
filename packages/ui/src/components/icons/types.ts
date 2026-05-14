@@ -5,15 +5,27 @@ export interface IconComponent {
   (props: SVGProps<SVGSVGElement>): React.JSX.Element
 }
 
-/** Compound icon with .Light, .Dark, and .Avatar sub-components.
+/** Props for the default theme-aware compound icon component.
  *
- * The default component (when used as `<XxxIcon />`) renders both light and
- * dark variants, toggled by the Tailwind `dark:` modifier for zero-JS theme
- * switching.
+ * Without `variant`, the component renders both light and dark internally and
+ * lets Tailwind's `dark:` modifier pick which one is visible.
+ *
+ * With `variant="light"` or `variant="dark"`, only the chosen variant renders.
  */
-export interface CompoundIcon extends IconComponent {
-  Light: IconComponent
-  Dark: IconComponent
+export interface CompoundIconProps extends SVGProps<SVGSVGElement> {
+  variant?: 'light' | 'dark'
+}
+
+/** Compound icon: one theme-aware default component plus a circular `.Avatar`.
+ *
+ * Usage:
+ *   <Anthropic />                  — auto light/dark (Tailwind `dark:` modifier)
+ *   <Anthropic variant="light" />  — force light variant
+ *   <Anthropic variant="dark" />   — force dark variant
+ *   <Anthropic.Avatar />           — circular wrapper (separate concept)
+ */
+export interface CompoundIcon {
+  (props: CompoundIconProps): React.JSX.Element
   Avatar: React.FC<Omit<IconAvatarProps, 'icon'>>
   colorPrimary: string
 }

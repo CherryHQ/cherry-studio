@@ -39,23 +39,23 @@ export function generateIconIndex(opts: {
   const avatarImport = hasAvatar ? `import { ${avatarName} } from './avatar'\n` : ''
   const avatarField = hasAvatar ? `  Avatar: ${avatarName},\n` : ''
 
-  const content = `import type { SVGProps } from 'react'
-
-import { cn } from '../../../../lib/utils'
-import type { CompoundIcon } from '../../types'
+  const content = `import { cn } from '../../../../lib/utils'
+import type { CompoundIcon, CompoundIconProps } from '../../types'
 ${avatarImport}import { ${darkName} } from './dark'
 import { ${lightName} } from './light'
 
-const ${colorName} = ({ className, ...props }: SVGProps<SVGSVGElement>) => (
-  <>
-    <${lightName} className={cn('dark:hidden', className)} {...props} />
-    <${darkName} className={cn('hidden dark:block', className)} {...props} />
-  </>
-)
+const ${colorName} = ({ variant, className, ...props }: CompoundIconProps) => {
+  if (variant === 'light') return <${lightName} {...props} className={className} />
+  if (variant === 'dark') return <${darkName} {...props} className={className} />
+  return (
+    <>
+      <${lightName} className={cn('dark:hidden', className)} {...props} />
+      <${darkName} className={cn('hidden dark:block', className)} {...props} />
+    </>
+  )
+}
 
 export const ${colorName}Icon: CompoundIcon = /*#__PURE__*/ Object.assign(${colorName}, {
-  Light: ${lightName},
-  Dark: ${darkName},
 ${avatarField}  colorPrimary: '${colorPrimary}'
 })
 

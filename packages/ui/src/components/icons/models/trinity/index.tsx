@@ -1,21 +1,21 @@
-import type { SVGProps } from 'react'
-
 import { cn } from '../../../../lib/utils'
-import type { CompoundIcon } from '../../types'
+import type { CompoundIcon, CompoundIconProps } from '../../types'
 import { TrinityAvatar } from './avatar'
 import { TrinityDark } from './dark'
 import { TrinityLight } from './light'
 
-const Trinity = ({ className, ...props }: SVGProps<SVGSVGElement>) => (
-  <>
-    <TrinityLight className={cn('dark:hidden', className)} {...props} />
-    <TrinityDark className={cn('hidden dark:block', className)} {...props} />
-  </>
-)
+const Trinity = ({ variant, className, ...props }: CompoundIconProps) => {
+  if (variant === 'light') return <TrinityLight {...props} className={className} />
+  if (variant === 'dark') return <TrinityDark {...props} className={className} />
+  return (
+    <>
+      <TrinityLight className={cn('dark:hidden', className)} {...props} />
+      <TrinityDark className={cn('hidden dark:block', className)} {...props} />
+    </>
+  )
+}
 
 export const TrinityIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Trinity, {
-  Light: TrinityLight,
-  Dark: TrinityDark,
   Avatar: TrinityAvatar,
   colorPrimary: '#000000'
 })
