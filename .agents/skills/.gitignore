@@ -8,6 +8,8 @@
 !cherry-pr-test/**
 !create-skill/
 !create-skill/**
+!gh-cherry-usage/
+!gh-cherry-usage/**
 !gh-create-issue/
 !gh-create-issue/**
 !gh-create-pr/
