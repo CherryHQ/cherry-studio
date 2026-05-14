@@ -1,15 +1,18 @@
-import { cn } from '../../../../lib/utils'
-import { Avatar, AvatarFallback } from '../../../primitives/avatar'
+import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/avatar'
+import { cn } from '@cherrystudio/ui/lib/utils'
+
 import { type IconAvatarProps } from '../../types'
-import { Ai302 } from './color'
+import { Ai302Dark } from './dark'
+import { Ai302Light } from './light'
 
 export function Ai302Avatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
   return (
     <Avatar
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
-      <AvatarFallback className="text-foreground">
-        <Ai302 style={{ width: size, height: size }} />
+      <AvatarFallback className="text-foreground bg-background">
+        <Ai302Light className="dark:hidden" style={{ width: size * 0.85, height: size * 0.85 }} />
+        <Ai302Dark className="hidden dark:block" style={{ width: size * 0.85, height: size * 0.85 }} />
       </AvatarFallback>
     </Avatar>
   )

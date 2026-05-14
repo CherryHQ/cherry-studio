@@ -220,17 +220,15 @@ function generatePaddedAvatar(baseDir: string, dirName: string): void {
 }
 
 /**
- * Generate per-icon index.ts with compound export (Color + Mono + Avatar).
+ * Generate per-icon index.tsx with compound export (Light + Dark + Avatar).
  */
 function generateIconIndex(baseDir: string, dirName: string): void {
   const colorName = getComponentName(baseDir, dirName)
   const colorPrimary = readColorPrimary(baseDir, dirName)
-  const hasMono = fs.existsSync(path.join(baseDir, dirName, 'mono.tsx'))
 
   codegenIconIndex({
-    outPath: path.join(baseDir, dirName, 'index.ts'),
+    outPath: path.join(baseDir, dirName, 'index.tsx'),
     colorName,
-    hasMono,
     hasAvatar: true,
     colorPrimary
   })
@@ -247,7 +245,7 @@ function generateBarrelIndex(baseDir: string, iconDirs: string[]): void {
 
   const headerLines = [
     'Auto-generated compound icon exports',
-    'Each icon supports: <Icon /> (Color default), <Icon.Color />, <Icon.Mono />, <Icon.Avatar />, Icon.colorPrimary',
+    'Each icon supports: <Icon /> (auto light/dark), <Icon.Light />, <Icon.Dark />, <Icon.Avatar />, Icon.colorPrimary',
     'Do not edit manually',
     '',
     `Generated at: ${new Date().toISOString()}`,

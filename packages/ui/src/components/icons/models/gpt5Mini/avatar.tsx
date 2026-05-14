@@ -1,15 +1,18 @@
-import { cn } from '../../../../lib/utils'
-import { Avatar, AvatarFallback } from '../../../primitives/avatar'
+import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/avatar'
+import { cn } from '@cherrystudio/ui/lib/utils'
+
 import { type IconAvatarProps } from '../../types'
-import { Gpt5Mini } from './color'
+import { Gpt5MiniDark } from './dark'
+import { Gpt5MiniLight } from './light'
 
 export function Gpt5MiniAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
   return (
     <Avatar
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
-      <AvatarFallback className="text-foreground">
-        <Gpt5Mini style={{ width: size, height: size }} />
+      <AvatarFallback className="text-foreground bg-background">
+        <Gpt5MiniLight className="dark:hidden" style={{ width: size * 0.85, height: size * 0.85 }} />
+        <Gpt5MiniDark className="hidden dark:block" style={{ width: size * 0.85, height: size * 0.85 }} />
       </AvatarFallback>
     </Avatar>
   )

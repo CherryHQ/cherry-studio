@@ -68,14 +68,48 @@ export function buildSvgMap(type: LogoType): Map<string, string> {
   return map
 }
 
+export interface LightDarkSvgPair {
+  light: string
+  dark: string
+}
+
+/**
+ * Scan a logo source directory with light/ and dark/ subdirectories,
+ * returning a map keyed by camelCase dirName → { light, dark } SVG paths.
+ *
+ * Files present in only one of light/dark are skipped (no orphans).
+ */
+export function buildLightDarkSvgMap(type: LogoType): Map<string, LightDarkSvgPair> {
+  const svgDir = SVG_SOURCE_MAP[type]
+  const lightDir = path.join(svgDir, 'light')
+  const darkDir = path.join(svgDir, 'dark')
+  const map = new Map<string, LightDarkSvgPair>()
+  if (!fs.existsSync(lightDir) || !fs.existsSync(darkDir)) return map
+
+  for (const file of fs.readdirSync(lightDir)) {
+    if (!file.endsWith('.svg')) continue
+    const darkPath = path.join(darkDir, file)
+    if (!fs.existsSync(darkPath)) continue
+    map.set(toCamelCase(file), {
+      light: path.join(lightDir, file),
+      dark: darkPath
+    })
+  }
+  return map
+}
+
 export function getComponentName(baseDir: string, dirName: string): string {
-  const colorPath = path.join(baseDir, dirName, 'color.tsx')
-  try {
-    const content = fs.readFileSync(colorPath, 'utf-8')
-    const match = content.match(/export \{ (\w+) \}/)
-    if (match) return match[1]
-  } catch {
-    /* fallback */
+  for (const filename of ['light.tsx', 'color.tsx']) {
+    const filePath = path.join(baseDir, dirName, filename)
+    try {
+      const content = fs.readFileSync(filePath, 'utf-8')
+      const match = content.match(/export \{ (\w+) \}/)
+      if (match) {
+        return filename === 'light.tsx' ? match[1].replace(/Light$/, '') : match[1]
+      }
+    } catch {
+      /* try next filename */
+    }
   }
   return dirName.charAt(0).toUpperCase() + dirName.slice(1)
 }
@@ -83,7 +117,12 @@ export function getComponentName(baseDir: string, dirName: string): string {
 export function collectIconDirs(baseDir: string): string[] {
   return fs
     .readdirSync(baseDir, { withFileTypes: true })
-    .filter((e) => e.isDirectory() && fs.existsSync(path.join(baseDir, e.name, 'color.tsx')))
+    .filter(
+      (e) =>
+        e.isDirectory() &&
+        (fs.existsSync(path.join(baseDir, e.name, 'light.tsx')) ||
+          fs.existsSync(path.join(baseDir, e.name, 'color.tsx')))
+    )
     .map((e) => e.name)
     .sort()
 }

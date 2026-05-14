@@ -10,7 +10,7 @@ interface IconEntry {
 
 /**
  * Build IconEntry[] from a barrel module's exports.
- * Each export is a compound icon (React component with .Color/.Mono).
+ * Each export is a compound icon (React component with .Light/.Dark/.Avatar).
  */
 function toIconEntries(mod: Record<string, unknown>): IconEntry[] {
   return Object.entries(mod)
@@ -24,7 +24,6 @@ const modelIcons: IconEntry[] = toIconEntries(Models)
 
 interface ShowcaseProps {
   fontSize?: number
-  monoColor?: string
 }
 
 const IconGrid = ({ icons, fontSize }: { icons: IconEntry[]; fontSize: number }) => (
@@ -55,31 +54,30 @@ const AllIconsShowcase = ({ fontSize = 32 }: ShowcaseProps) => {
   )
 }
 
-interface ColorVsMonoGridProps {
+interface LightVsDarkGridProps {
   icons: IconEntry[]
   fontSize: number
-  monoColor?: string
 }
 
-const ColorVsMonoGrid = ({ icons, fontSize, monoColor }: ColorVsMonoGridProps) => (
+const LightVsDarkGrid = ({ icons, fontSize }: LightVsDarkGridProps) => (
   <div className="flex flex-wrap gap-6 p-2">
     {icons.map(({ Component, name }) => {
-      const ColorIcon = (Component as any).Color
-      const MonoIcon = (Component as any).Mono
-      if (!ColorIcon || !MonoIcon) return null
+      const LightIcon = (Component as any).Light
+      const DarkIcon = (Component as any).Dark
+      if (!LightIcon || !DarkIcon) return null
       return (
         <div key={name} className="flex flex-col items-center gap-1">
           <div className="flex gap-2" style={{ fontSize }}>
-            <div className="border-gray-200 border rounded-md p-2">
-              <ColorIcon />
+            <div className="border-gray-200 border rounded-md p-2 bg-white">
+              <LightIcon />
             </div>
-            <div className="border-gray-200 border rounded-md p-2" style={{ color: monoColor }}>
-              <MonoIcon />
+            <div className="border-gray-700 border rounded-md p-2 bg-neutral-900">
+              <DarkIcon />
             </div>
           </div>
           <div className="flex gap-2 text-xs text-gray-400">
-            <span>Color</span>
-            <span>Mono</span>
+            <span>Light</span>
+            <span>Dark</span>
           </div>
           <p className="text-sm">{name}</p>
         </div>
@@ -125,16 +123,16 @@ const AvatarShowcase = ({ fontSize = 32 }: ShowcaseProps) => {
   )
 }
 
-const ColorVsMonoShowcase = ({ fontSize = 32, monoColor }: ShowcaseProps) => {
+const LightVsDarkShowcase = ({ fontSize = 32 }: ShowcaseProps) => {
   return (
     <div className="flex flex-col gap-8 p-4">
       <div>
         <h2 className="text-lg font-semibold mb-4">Providers</h2>
-        <ColorVsMonoGrid icons={providerIcons} fontSize={fontSize} monoColor={monoColor} />
+        <LightVsDarkGrid icons={providerIcons} fontSize={fontSize} />
       </div>
       <div>
         <h2 className="text-lg font-semibold mb-4">Models</h2>
-        <ColorVsMonoGrid icons={modelIcons} fontSize={fontSize} monoColor={monoColor} />
+        <LightVsDarkGrid icons={modelIcons} fontSize={fontSize} />
       </div>
     </div>
   )
@@ -152,10 +150,6 @@ const meta: Meta<typeof AllIconsShowcase> = {
       control: { type: 'number', min: 16, max: 64, step: 4 },
       description: 'Logo 大小（通过 fontSize 控制，因为图标使用 1em 单位）',
       defaultValue: 32
-    },
-    monoColor: {
-      control: 'color',
-      description: 'Mono 版本的颜色（使用 currentColor，可以是颜色名称、hex、rgb 等）'
     }
   }
 }
@@ -195,24 +189,23 @@ export const AllLogos: Story = {
 }
 
 /**
- * Color 与 Mono 对比展示
+ * Light 与 Dark 双源对比展示
  *
- * 每个 Logo 并排展示 Color（彩色）和 Mono（单色）两种变体。
- * Mono 版本使用 `currentColor` 填充，可通过 CSS `color` 属性控制颜色。
- * 使用 `monoColor` 参数来实时预览不同颜色下的 Mono 效果。
+ * 每个 Logo 并排展示 Light（浅色背景版）和 Dark（深色背景版）两种变体。
+ * 默认导出的 `<Anthropic />` 会根据 Tailwind 的 `dark:` 修饰符自动切换。
  *
  * ```tsx
  * import { Anthropic } from '@cherrystudio/ui/icons'
  *
- * <Anthropic.Color />  // 彩色
- * <Anthropic.Mono className="text-red-500" />   // 单色自定义颜色
+ * <Anthropic />          // 自动:在 dark mode 下显示 Dark,否则 Light
+ * <Anthropic.Light />    // 强制 Light
+ * <Anthropic.Dark />     // 强制 Dark
  * ```
  */
-export const ColorVsMono: StoryObj<typeof ColorVsMonoShowcase> = {
-  render: (args) => <ColorVsMonoShowcase {...args} />,
+export const LightVsDark: StoryObj<typeof LightVsDarkShowcase> = {
+  render: (args) => <LightVsDarkShowcase {...args} />,
   args: {
-    fontSize: 32,
-    monoColor: undefined
+    fontSize: 32
   }
 }
 

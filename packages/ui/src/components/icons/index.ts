@@ -2,9 +2,10 @@
  * Icons 模块统一导出
  *
  * Logo icons are compound components:
- *   <Anthropic />        — Color (default)
- *   <Anthropic.Color />  — Color (explicit)
- *   <Anthropic.Mono />   — Mono (currentColor)
+ *   <Anthropic />         — auto light/dark (default, follows the `dark:` Tailwind variant)
+ *   <Anthropic.Light />   — force light variant
+ *   <Anthropic.Dark />    — force dark variant
+ *   <Anthropic.Avatar />  — circular avatar wrapper (padded or full-bleed)
  *   Anthropic.colorPrimary — Brand color string
  */
 

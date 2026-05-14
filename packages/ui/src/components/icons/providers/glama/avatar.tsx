@@ -1,7 +1,9 @@
-import { cn } from '../../../../lib/utils'
-import { Avatar, AvatarFallback } from '../../../primitives/avatar'
+import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/avatar'
+import { cn } from '@cherrystudio/ui/lib/utils'
+
 import { type IconAvatarProps } from '../../types'
-import { Glama } from './color'
+import { GlamaDark } from './dark'
+import { GlamaLight } from './light'
 
 export function GlamaAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
   return (
@@ -9,7 +11,8 @@ export function GlamaAvatar({ size = 32, shape = 'circle', className }: Omit<Ico
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <Glama style={{ width: size * 0.75, height: size * 0.75 }} />
+        <GlamaLight className="dark:hidden" style={{ width: size * 0.85, height: size * 0.85 }} />
+        <GlamaDark className="hidden dark:block" style={{ width: size * 0.85, height: size * 0.85 }} />
       </AvatarFallback>
     </Avatar>
   )

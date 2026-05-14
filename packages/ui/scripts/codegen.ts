@@ -28,65 +28,40 @@ const project = new Project({
 export function generateIconIndex(opts: {
   outPath: string
   colorName: string
-  hasMono: boolean
   hasAvatar: boolean
   colorPrimary: string
 }): void {
-  const { outPath, colorName, hasMono, hasAvatar, colorPrimary } = opts
-  const monoName = `${colorName}Mono`
+  const { outPath, colorName, hasAvatar, colorPrimary } = opts
+  const lightName = `${colorName}Light`
+  const darkName = `${colorName}Dark`
   const avatarName = `${colorName}Avatar`
-  const monoRef = hasMono ? monoName : colorName
 
-  const sf = project.createSourceFile('index.ts', '', { overwrite: true })
+  const avatarImport = hasAvatar ? `import { ${avatarName} } from './avatar'\n` : ''
+  const avatarField = hasAvatar ? `  Avatar: ${avatarName},\n` : ''
 
-  sf.addImportDeclaration({
-    moduleSpecifier: '../../types',
-    namedImports: [{ name: 'CompoundIcon', isTypeOnly: true }]
-  })
+  const content = `import type { SVGProps } from 'react'
 
-  if (hasAvatar) {
-    sf.addImportDeclaration({
-      moduleSpecifier: './avatar',
-      namedImports: [avatarName]
-    })
-  }
+import { cn } from '../../../../lib/utils'
+import type { CompoundIcon } from '../../types'
+${avatarImport}import { ${darkName} } from './dark'
+import { ${lightName} } from './light'
 
-  sf.addImportDeclaration({
-    moduleSpecifier: './color',
-    namedImports: [colorName]
-  })
+const ${colorName} = ({ className, ...props }: SVGProps<SVGSVGElement>) => (
+  <>
+    <${lightName} className={cn('dark:hidden', className)} {...props} />
+    <${darkName} className={cn('hidden dark:block', className)} {...props} />
+  </>
+)
 
-  if (hasMono) {
-    sf.addImportDeclaration({
-      moduleSpecifier: './mono',
-      namedImports: [monoName]
-    })
-  }
+export const ${colorName}Icon: CompoundIcon = /*#__PURE__*/ Object.assign(${colorName}, {
+  Light: ${lightName},
+  Dark: ${darkName},
+${avatarField}  colorPrimary: '${colorPrimary}'
+})
 
-  const assignParts = [`Color: ${colorName}`, `Mono: ${monoRef}`]
-  if (hasAvatar) {
-    assignParts.push(`Avatar: ${avatarName}`)
-  }
-  assignParts.push(`colorPrimary: '${colorPrimary}'`)
-
-  sf.addVariableStatement({
-    isExported: true,
-    declarationKind: VariableDeclarationKind.Const,
-    declarations: [
-      {
-        name: `${colorName}Icon`,
-        type: 'CompoundIcon',
-        initializer: `/*#__PURE__*/ Object.assign(${colorName}, { ${assignParts.join(', ')} })`
-      }
-    ]
-  })
-
-  sf.addExportAssignment({
-    isExportEquals: false,
-    expression: `${colorName}Icon`
-  })
-
-  fs.writeFileSync(outPath, sf.getFullText())
+export default ${colorName}Icon
+`
+  fs.writeFileSync(outPath, content)
 }
 
 // ---------------------------------------------------------------------------
@@ -115,11 +90,16 @@ export function generateAvatar(opts: { outPath: string; colorName: string; varia
   })
 
   sf.addImportDeclaration({
-    moduleSpecifier: './color',
-    namedImports: [colorName]
+    moduleSpecifier: './dark',
+    namedImports: [`${colorName}Dark`]
   })
 
-  const iconSize = variant === 'full-bleed' ? 'size' : 'size * 0.75'
+  sf.addImportDeclaration({
+    moduleSpecifier: './light',
+    namedImports: [`${colorName}Light`]
+  })
+
+  const iconSize = variant === 'full-bleed' ? 'size' : 'size * 0.85'
   const fallbackClasses = ['text-foreground', variant === 'padded' ? 'bg-background' : ''].filter(Boolean).join(' ')
 
   sf.addFunction({
@@ -141,7 +121,14 @@ export function generateAvatar(opts: { outPath: string; colorName: string; varia
       style={{ width: size, height: size }}
     >
       <AvatarFallback${fallbackClasses ? ` className="${fallbackClasses}"` : ''}>
-        <${colorName} style={{ width: ${iconSize}, height: ${iconSize} }} />
+        <${colorName}Light
+          className="dark:hidden"
+          style={{ width: ${iconSize}, height: ${iconSize} }}
+        />
+        <${colorName}Dark
+          className="hidden dark:block"
+          style={{ width: ${iconSize}, height: ${iconSize} }}
+        />
       </AvatarFallback>
     </Avatar>
   )`

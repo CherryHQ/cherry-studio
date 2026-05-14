@@ -1,0 +1,15 @@
+import type { SVGProps } from 'react'
+
+import type { IconComponent } from '../../types'
+const ElevenlabsDark: IconComponent = (props: SVGProps<SVGSVGElement>) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
+    <path
+      fill="#fff"
+      fillRule="evenodd"
+      d="M34.918 17H52.8346V103H34.918V17ZM67.168 17H85.0846V103H67.168V17Z"
+      clipRule="evenodd"
+    />
+  </svg>
+)
+export { ElevenlabsDark }
+export default ElevenlabsDark

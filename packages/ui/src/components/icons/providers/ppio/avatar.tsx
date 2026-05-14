@@ -1,7 +1,9 @@
-import { cn } from '../../../../lib/utils'
-import { Avatar, AvatarFallback } from '../../../primitives/avatar'
+import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/avatar'
+import { cn } from '@cherrystudio/ui/lib/utils'
+
 import { type IconAvatarProps } from '../../types'
-import { Ppio } from './color'
+import { PpioDark } from './dark'
+import { PpioLight } from './light'
 
 export function PpioAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
   return (
@@ -9,7 +11,8 @@ export function PpioAvatar({ size = 32, shape = 'circle', className }: Omit<Icon
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <Ppio style={{ width: size * 0.75, height: size * 0.75 }} />
+        <PpioLight className="dark:hidden" style={{ width: size * 0.85, height: size * 0.85 }} />
+        <PpioDark className="hidden dark:block" style={{ width: size * 0.85, height: size * 0.85 }} />
       </AvatarFallback>
     </Avatar>
   )

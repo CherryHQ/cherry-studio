@@ -1,9 +1,9 @@
 /**
  * Auto-generated compound icon exports
- * Each icon supports: <Icon /> (Color default), <Icon.Color />, <Icon.Mono />, <Icon.Avatar />, Icon.colorPrimary
+ * Each icon supports: <Icon /> (auto light/dark), <Icon.Light />, <Icon.Dark />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-02-19T11:42:04.677Z
+ * Generated at: 2026-05-14T09:10:45.191Z
  * Total icons: 35
  */
 export { AyaIcon as Aya } from './aya'

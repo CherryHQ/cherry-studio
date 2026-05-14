@@ -5,10 +5,15 @@ export interface IconComponent {
   (props: SVGProps<SVGSVGElement>): React.JSX.Element
 }
 
-/** Compound icon with .Color, .Mono, and .Avatar sub-components */
+/** Compound icon with .Light, .Dark, and .Avatar sub-components.
+ *
+ * The default component (when used as `<XxxIcon />`) renders both light and
+ * dark variants, toggled by the Tailwind `dark:` modifier for zero-JS theme
+ * switching.
+ */
 export interface CompoundIcon extends IconComponent {
-  Color: IconComponent
-  Mono: IconComponent
+  Light: IconComponent
+  Dark: IconComponent
   Avatar: React.FC<Omit<IconAvatarProps, 'icon'>>
   colorPrimary: string
 }
@@ -33,7 +38,7 @@ export interface IconProps extends SVGProps<SVGSVGElement> {
   /** Icon ID matching a catalog entry. e.g. "openai", "anthropic" */
   id: string
   /** Which variant to render */
-  variant?: 'color' | 'mono'
+  variant?: 'light' | 'dark'
   /** Icon size in px, or CSS string */
   size?: number | string
   /** Fallback when ID is not found */

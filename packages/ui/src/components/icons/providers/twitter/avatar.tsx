@@ -1,7 +1,9 @@
-import { cn } from '../../../../lib/utils'
-import { Avatar, AvatarFallback } from '../../../primitives/avatar'
+import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/avatar'
+import { cn } from '@cherrystudio/ui/lib/utils'
+
 import { type IconAvatarProps } from '../../types'
-import { Twitter } from './color'
+import { TwitterDark } from './dark'
+import { TwitterLight } from './light'
 
 export function TwitterAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
   return (
@@ -9,7 +11,8 @@ export function TwitterAvatar({ size = 32, shape = 'circle', className }: Omit<I
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <Twitter style={{ width: size * 0.75, height: size * 0.75 }} />
+        <TwitterLight className="dark:hidden" style={{ width: size * 0.85, height: size * 0.85 }} />
+        <TwitterDark className="hidden dark:block" style={{ width: size * 0.85, height: size * 0.85 }} />
       </AvatarFallback>
     </Avatar>
   )

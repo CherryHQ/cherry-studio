@@ -1,15 +1,18 @@
-import { cn } from '../../../../lib/utils'
-import { Avatar, AvatarFallback } from '../../../primitives/avatar'
+import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/avatar'
+import { cn } from '@cherrystudio/ui/lib/utils'
+
 import { type IconAvatarProps } from '../../types'
-import { GptOss120b } from './color'
+import { GptOss120bDark } from './dark'
+import { GptOss120bLight } from './light'
 
 export function GptOss120bAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
   return (
     <Avatar
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
-      <AvatarFallback className="text-foreground">
-        <GptOss120b style={{ width: size, height: size }} />
+      <AvatarFallback className="text-foreground bg-background">
+        <GptOss120bLight className="dark:hidden" style={{ width: size * 0.85, height: size * 0.85 }} />
+        <GptOss120bDark className="hidden dark:block" style={{ width: size * 0.85, height: size * 0.85 }} />
       </AvatarFallback>
     </Avatar>
   )
