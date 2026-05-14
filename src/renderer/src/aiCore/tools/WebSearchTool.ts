@@ -63,10 +63,16 @@ You can use this tool as-is to search with the prepared queries, or provide addi
       additionalContext: z
         .string()
         .optional()
-        .describe('Optional additional context, keywords, or specific focus to enhance the search')
+        .describe('Optional additional context, keywords, or specific focus to enhance the search'),
+      fullContent: z
+        .boolean()
+        .optional()
+        .describe(
+          'Set to true to request full page content instead of snippets. Use only when detailed page analysis is needed.'
+        )
     }),
 
-    execute: async ({ additionalContext }) => {
+    execute: async ({ additionalContext, fullContent }) => {
       if (cachedSearchResultsPromise) {
         return cachedSearchResultsPromise
       }
@@ -93,7 +99,12 @@ You can use this tool as-is to search with the prepared queries, or provide addi
           links: extractedKeywords.links
         }
       }
-      cachedSearchResultsPromise = WebSearchService.processWebsearch(webSearchProvider!, extractResults, requestId)
+      cachedSearchResultsPromise = WebSearchService.processWebsearch(
+        webSearchProvider!,
+        extractResults,
+        requestId,
+        fullContent
+      )
       try {
         return await cachedSearchResultsPromise
       } catch (error) {

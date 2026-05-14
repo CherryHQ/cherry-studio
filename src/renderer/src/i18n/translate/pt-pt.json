@@ -5772,6 +5772,10 @@
             "placeholder": "Por favor, insira a chave API Tavily"
           },
           "description": "Tavily é um mecanismo de busca personalizado para agentes de IA, que oferece resultados precisos e em tempo real, sugestões inteligentes de consulta e capacidades avançadas de pesquisa",
+          "include_raw_content": {
+            "label": "[to be translated]:Get Full Page Content",
+            "tip": "[to be translated]:When enabled, allows the AI to request full page content when needed. Disable to save tokens."
+          },
           "title": "Tavily"
         },
         "title": "Pesquisa na Web",

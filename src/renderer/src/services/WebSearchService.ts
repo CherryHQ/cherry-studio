@@ -156,9 +156,10 @@ class WebSearchService {
     provider: WebSearchProvider,
     query: string,
     httpOptions?: RequestInit,
-    spanId?: string
+    spanId?: string,
+    fullContent?: boolean
   ): Promise<WebSearchProviderResponse> {
-    const websearch = this.getWebSearchState()
+    const websearch = { ...this.getWebSearchState(), fullContent }
     const webSearchEngine = new WebSearchEngineProvider(provider, spanId)
 
     let formattedQuery = query
@@ -412,7 +413,8 @@ class WebSearchService {
   public async processWebsearch(
     webSearchProvider: WebSearchProvider,
     extractResults: ExtractResults,
-    requestId: string
+    requestId: string,
+    fullContent?: boolean
   ): Promise<WebSearchProviderResponse> {
     // 重置状态
     await this.setWebSearchStatus(requestId, { phase: 'default' })
@@ -458,7 +460,7 @@ class WebSearchService {
     }
 
     const searchPromises = questions.map((q) =>
-      this.search(webSearchProvider, q, { signal }, span?.spanContext().spanId)
+      this.search(webSearchProvider, q, { signal }, span?.spanContext().spanId, fullContent)
     )
     const searchResults = await Promise.allSettled(searchPromises)
 

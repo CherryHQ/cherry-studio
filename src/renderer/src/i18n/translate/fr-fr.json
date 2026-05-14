@@ -5772,6 +5772,10 @@
             "placeholder": "Veuillez saisir la clé API Tavily"
           },
           "description": "Tavily est un moteur de recherche spécialement conçu pour les agents d'intelligence artificielle, offrant des résultats en temps réel, précis, des suggestions intelligentes de requêtes et des capacités de recherche approfondie",
+          "include_raw_content": {
+            "label": "[to be translated]:Get Full Page Content",
+            "tip": "[to be translated]:When enabled, allows the AI to request full page content when needed. Disable to save tokens."
+          },
           "title": "Tavily"
         },
         "title": "Recherche web",

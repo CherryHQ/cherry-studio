@@ -17,7 +17,7 @@ import { useDefaultWebSearchProvider, useWebSearchProvider } from '@renderer/hoo
 import WebSearchService from '@renderer/services/WebSearchService'
 import type { WebSearchProviderId } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
-import { Button, Divider, Flex, Form, Input, Space, Tooltip } from 'antd'
+import { Button, Divider, Flex, Form, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { Info, List } from 'lucide-react'
 import type { FC } from 'react'
@@ -168,6 +168,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
   }
 
   const isLocalProvider = provider.id.startsWith('local')
+  const isTavilyProvider = provider.id === 'tavily'
 
   const openLocalProviderSettings = async () => {
     if (officialWebsite) {
@@ -342,6 +343,22 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
               </Form.Item>
             </Form>
           </Flex>
+        </>
+      )}
+      {isTavilyProvider && (
+        <>
+          <SettingDivider style={{ marginTop: 12, marginBottom: 12 }} />
+          <SettingSubtitle
+            style={{ marginTop: 5, marginBottom: 10, display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
+            {t('settings.tool.websearch.tavily.include_raw_content.label')}
+            <Tooltip title={t('settings.tool.websearch.tavily.include_raw_content.tip')} placement="right">
+              <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
+            </Tooltip>
+          </SettingSubtitle>
+          <Switch
+            checked={provider.includeRawContent !== false}
+            onChange={(checked) => updateProvider({ includeRawContent: checked })}
+          />
         </>
       )}
     </>

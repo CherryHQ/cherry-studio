@@ -47,7 +47,8 @@ describe('webSearchToolWithPreExtractedKeywords', () => {
           links: undefined
         }
       },
-      'request-1'
+      'request-1',
+      undefined
     )
     expect(firstResult.results[0].url).toBe('https://example.com/path?utm_source=newsletter#details')
     expect(secondResult).toBe(firstResult)
@@ -96,7 +97,8 @@ describe('webSearchToolWithPreExtractedKeywords', () => {
           links: undefined
         }
       },
-      'request-1'
+      'request-1',
+      undefined
     )
     expect(firstResult).toBe(searchResponse)
     expect(secondResult).toBe(searchResponse)

@@ -5772,6 +5772,10 @@
             "placeholder": "Παρακαλώ εισάγετε το κλειδί Tavily API"
           },
           "description": "Το Tavily είναι μια μηχανή αναζήτησης που εξατομικεύεται για AI πράκτορες, παρέχοντας πραγματικού χρόνου, ακριβή αποτελέσματα, έξυπνες προτάσεις ερωτημάτων και δυνατότητες εμβάθυνσης έρευνας",
+          "include_raw_content": {
+            "label": "[to be translated]:Get Full Page Content",
+            "tip": "[to be translated]:When enabled, allows the AI to request full page content when needed. Disable to save tokens."
+          },
           "title": "Tavily"
         },
         "title": "Διαδικτυακή Αναζήτηση",

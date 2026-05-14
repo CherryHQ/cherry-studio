@@ -5772,6 +5772,10 @@
             "placeholder": "请输入 Tavily API 密钥"
           },
           "description": "Tavily 是一个为 AI 代理量身定制的搜索引擎，提供实时、准确的结果、智能查询建议和深入的研究能力",
+          "include_raw_content": {
+            "label": "获取完整网页内容",
+            "tip": "开启后，允许 AI 在需要时请求完整网页内容。关闭可节省 token。"
+          },
           "title": "Tavily"
         },
         "title": "网络搜索",
