@@ -2,9 +2,10 @@
  * IPC handler registration tests for Phase 2 File channels.
  *
  * Verifies that `createInternalEntry`, `ensureExternalEntry`,
- * `getPhysicalPath`, and `permanentDeleteEntry` channels are registered on
+ * `getPhysicalPath`, and `permanentDelete` channels are registered on
  * `ipcMain.handle` and that each dispatches to the corresponding FileManager
- * method.
+ * method. `permanentDelete` covers both `FileEntryHandle` and `FilePathHandle`
+ * branches via `dispatchHandle`.
  */
 
 import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -128,12 +129,12 @@ describe('FileManager v2 IPC handler registration', () => {
     expect(physicalPath).toContain('bin')
   })
 
-  it('registers File:permanentDeleteEntry IPC channel', () => {
+  it('registers File:permanentDelete IPC channel', () => {
     const registeredChannels = vi.mocked(ipcMain.handle).mock.calls.map(([channel]) => channel)
-    expect(registeredChannels).toContain(IpcChannel.File_PermanentDeleteEntry)
+    expect(registeredChannels).toContain(IpcChannel.File_PermanentDelete)
   })
 
-  it('permanentDeleteEntry handler removes an internal entry row and physical file', async () => {
+  it('permanentDelete entry-handle removes an internal entry row and physical file', async () => {
     // Create an internal entry so we have a known id + physical path
     const createHandler = vi
       .mocked(ipcMain.handle)
@@ -153,24 +154,48 @@ describe('FileManager v2 IPC handler registration', () => {
 
     const deleteHandler = vi
       .mocked(ipcMain.handle)
-      .mock.calls.find(([ch]) => ch === IpcChannel.File_PermanentDeleteEntry)?.[1]
+      .mock.calls.find(([ch]) => ch === IpcChannel.File_PermanentDelete)?.[1]
     expect(deleteHandler).toBeDefined()
 
-    // Should resolve without throwing
-    await expect(deleteHandler!({} as never, { id: entry.id })).resolves.toBeUndefined()
+    // Entry-handle branch
+    await expect(deleteHandler!({} as never, { kind: 'entry', entryId: entry.id })).resolves.toBeUndefined()
 
     // Physical file must be gone
     await expect(access(physicalPath)).rejects.toThrow()
   })
 
-  it('permanentDeleteEntry handler throws when the id does not exist', async () => {
+  it('permanentDelete entry-handle throws when the id does not exist', async () => {
     const deleteHandler = vi
       .mocked(ipcMain.handle)
-      .mock.calls.find(([ch]) => ch === IpcChannel.File_PermanentDeleteEntry)?.[1]
+      .mock.calls.find(([ch]) => ch === IpcChannel.File_PermanentDelete)?.[1]
     expect(deleteHandler).toBeDefined()
 
     // Use a valid UUID that was never inserted — DB lookup will reject it
-    const nonExistentId = '123e4567-e89b-4d3c-a456-426614174000' as never
-    await expect(deleteHandler!({} as never, { id: nonExistentId })).rejects.toThrow()
+    const nonExistentId = '123e4567-e89b-4d3c-a456-426614174000'
+    await expect(deleteHandler!({} as never, { kind: 'entry', entryId: nonExistentId })).rejects.toThrow()
+  })
+
+  it('permanentDelete path-handle removes the file at the given path', async () => {
+    // Stage a real file outside the entry system
+    const orphan = path.join(tmp, 'orphan.txt')
+    await writeFile(orphan, 'bye')
+
+    const deleteHandler = vi
+      .mocked(ipcMain.handle)
+      .mock.calls.find(([ch]) => ch === IpcChannel.File_PermanentDelete)?.[1]
+    await expect(deleteHandler!({} as never, { kind: 'path', path: orphan })).resolves.toBeUndefined()
+    await expect(access(orphan)).rejects.toThrow()
+  })
+
+  it('permanentDelete rejects malformed handles at the schema boundary', async () => {
+    const deleteHandler = vi
+      .mocked(ipcMain.handle)
+      .mock.calls.find(([ch]) => ch === IpcChannel.File_PermanentDelete)?.[1]
+    // Missing discriminant
+    await expect(deleteHandler!({} as never, { entryId: 'x' })).rejects.toThrow()
+    // Unknown kind
+    await expect(deleteHandler!({} as never, { kind: 'virtual', path: '/tmp/x' })).rejects.toThrow()
+    // path-handle with a relative path
+    await expect(deleteHandler!({} as never, { kind: 'path', path: 'relative.txt' })).rejects.toThrow()
   })
 })

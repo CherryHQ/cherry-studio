@@ -158,10 +158,11 @@ export type GetPhysicalPathIpcParams = {
   id: FileEntryId
 }
 
-/** Params for permanently deleting a single FileEntry by id. */
-export type PermanentDeleteEntryIpcParams = {
-  id: FileEntryId
-}
+/**
+ * Params for permanently deleting a file by handle. See `FileIpcApi.permanentDelete`
+ * for the entry-vs-path branch semantics.
+ */
+export type PermanentDeleteIpcParams = FileHandle
 
 // ─── IPC Result ───
 
@@ -215,7 +216,7 @@ export interface BatchCreateResult {
  *
  * | Phase 1 — wired | Phase 2 Batch 0 — wired | Phase 2 — type-only |
  * |---|---|---|
- * | `getDanglingState`, `batchGetDanglingStates` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, `permanentDelete` (entry-id variant) | everything else |
+ * | `getDanglingState`, `batchGetDanglingStates` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, `permanentDelete` | everything else |
  *
  * Remaining `@phase 2` method shapes are *design drafts*; signatures may shift
  * when each channel actually lands alongside its first FileManager consumer.
@@ -405,8 +406,9 @@ export interface FileIpcApi {
 
   // ─── E. Trash / Delete ───
   //
-  // Section status: `permanentDelete` (entry-id variant) is `@phase 2` wired in Batch 0;
-  // all other methods in this section are `@phase 2` (not yet wired).
+  // Section status: `permanentDelete` (both entry and path handle branches) is
+  // `@phase 2` wired in Batch 0; all other methods in this section are
+  // `@phase 2` (not yet wired).
 
   /**
    * Move entry to Trash (soft delete via trashedAt). Internal-origin entries only.
@@ -443,11 +445,12 @@ export interface FileIpcApi {
    * expects disk deletion and files a bug report, or (b) user avoids the
    * action fearing data loss and accumulates dangling library entries.
    *
-   * @phase 2 — entry-id variant wired in Batch 0 (`IpcChannel.File_PermanentDeleteEntry` →
-   * `FileManager.registerIpcHandlers`). The channel accepts `{ id: FileEntryId }` only —
-   * the full `FileHandle`-based signature above is the planned interface for later batches.
-   * Currently unused by renderer (no v2-native consumer yet); Batches A-E will wire a caller
-   * once those consumers natively handle v2 UUIDs.
+   * @phase 2 — wired in Batch 0 (`IpcChannel.File_PermanentDelete` →
+   * `FileManager.registerIpcHandlers`). Both `FileEntryHandle` and `FilePathHandle`
+   * branches are live: entry handles route through `FileManager.permanentDelete`,
+   * path handles delegate to `@main/utils/file/fs.remove`. Currently unused by the
+   * renderer (no v2-native consumer yet); Batches A-E will wire callers once those
+   * consumers natively handle v2 UUIDs.
    */
   permanentDelete(handle: FileHandle): Promise<void>
 

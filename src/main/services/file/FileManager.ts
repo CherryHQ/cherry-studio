@@ -39,12 +39,17 @@
  * legitimate responsibility (translating request shape), not business
  * orchestration.
  *
- * **Phase 1 status — deferred**: `dispatchHandle` lives in
- * `internal/dispatch.ts` and is referenced only by its own unit tests; no
- * shipped IPC handler imports it yet. The two wired Phase 1 channels
- * (`File_GetDanglingState` / `File_BatchGetDanglingStates`) accept
- * `FileEntryId` directly. When Phase 2 channels that take `FileHandle`
- * land, they will route through `dispatchHandle`:
+ * **Current status (through Batch 0)**: `dispatchHandle` lives in
+ * `internal/dispatch.ts` and is wired by exactly one IPC handler today —
+ * `File_PermanentDelete`, which accepts a `FileHandle` and routes
+ * `{ kind: 'entry' }` to `FileManager.permanentDelete` and `{ kind: 'path' }`
+ * to `@main/utils/file/fs.remove`. The Phase 1 dangling channels
+ * (`File_GetDanglingState` / `File_BatchGetDanglingStates`) and the Phase 2
+ * entry-shaped channels (`File_CreateInternalEntry`, `File_EnsureExternalEntry`,
+ * `File_GetPhysicalPath`) take typed params directly and bypass the dispatcher
+ * because their semantics are entry-only by design. When `FileHandle`-accepting
+ * read/write/metadata channels land in later batches, they will follow the
+ * same pattern as `File_PermanentDelete`:
  *
  * - `{ kind: 'entry', entryId }` → the corresponding FileManager public
  *   method (e.g. `this.read(entryId, opts)`)
@@ -132,7 +137,7 @@ import { orphanCheckerRegistry } from '@data/services/orphan/FileRefCheckerRegis
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { bootConfigService } from '@main/data/bootConfig'
-import { stat as fsStat } from '@main/utils/file/fs'
+import { remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 import { SafeExtSchema } from '@shared/data/types/file/essential'
@@ -145,6 +150,7 @@ import type {
   FileURLString,
   PhysicalFileMetadata
 } from '@shared/file/types'
+import { FileHandleSchema } from '@shared/file/types/handle'
 import { IpcChannel } from '@shared/IpcChannel'
 import { eq } from 'drizzle-orm'
 import mime from 'mime'
@@ -159,6 +165,7 @@ import {
   writeIfUnchanged as internalWriteIfUnchanged
 } from './internal/content/write'
 import type { FileManagerDeps } from './internal/deps'
+import { dispatchHandle } from './internal/dispatch'
 import { copy as internalCopy } from './internal/entry/copy'
 import {
   createInternal as internalCreateInternal,
@@ -224,7 +231,7 @@ export const EnsureExternalEntryIpcSchema = z.strictObject({ externalPath: z.str
 
 export const GetPhysicalPathIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 
-export const PermanentDeleteEntryIpcSchema = z.strictObject({ id: FileEntryIdSchema })
+export const PermanentDeleteIpcSchema = FileHandleSchema
 
 // ─── Version types ───
 
@@ -671,9 +678,14 @@ export class FileManager extends BaseService implements IFileManager {
     this.ipcHandle(IpcChannel.File_GetPhysicalPath, (_e, params: unknown) =>
       this.getPhysicalPath(GetPhysicalPathIpcSchema.parse(params).id)
     )
-    this.ipcHandle(IpcChannel.File_PermanentDeleteEntry, (_e, params: unknown) =>
-      this.permanentDelete(PermanentDeleteEntryIpcSchema.parse(params).id)
-    )
+    this.ipcHandle(IpcChannel.File_PermanentDelete, (_e, params: unknown) => {
+      const handle = PermanentDeleteIpcSchema.parse(params)
+      return dispatchHandle(
+        handle,
+        (entryId) => this.permanentDelete(entryId),
+        (path) => fsRemove(path)
+      )
+    })
   }
 
   /**

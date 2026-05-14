@@ -47,11 +47,11 @@ import type {
   WebSearchSearchKeywordsRequest
 } from '@shared/data/types/webSearch'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
+import type { FileHandle } from '@shared/file/types/handle'
 import type {
   CreateInternalEntryIpcParams,
   EnsureExternalEntryIpcParams,
-  GetPhysicalPathIpcParams,
-  PermanentDeleteEntryIpcParams
+  GetPhysicalPathIpcParams
 } from '@shared/file/types/ipc'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
@@ -310,8 +310,7 @@ const api = {
     ensureExternalEntry: (params: EnsureExternalEntryIpcParams) =>
       ipcRenderer.invoke(IpcChannel.File_EnsureExternalEntry, params),
     getPhysicalPath: (params: GetPhysicalPathIpcParams) => ipcRenderer.invoke(IpcChannel.File_GetPhysicalPath, params),
-    permanentDelete: (params: PermanentDeleteEntryIpcParams) =>
-      ipcRenderer.invoke(IpcChannel.File_PermanentDeleteEntry, params)
+    permanentDelete: (handle: FileHandle) => ipcRenderer.invoke(IpcChannel.File_PermanentDelete, handle)
   },
   fs: {
     read: (pathOrUrl: string, encoding?: BufferEncoding) => ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding),
