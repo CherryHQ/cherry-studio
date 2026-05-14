@@ -587,6 +587,44 @@ describe('CherryINOAuthService', () => {
     expect(oauthUpdateCalls).toEqual([])
   })
 
+  it('drops the OAuth callback silently when the initiator window is gone', async () => {
+    // T6: pin the resolveInitiatorWebContents -> null branch in the SUCCESS
+    // path. After a legit code arrives the callback must not crash and must
+    // not send to the wrong window — the pending flow is still cleared so
+    // the renderer can re-initiate cleanly. A regression that defaults to
+    // broadcast or to MainWindow would land OAuth `apiKeys` on unrelated
+    // windows.
+    const fetchMock = vi.mocked(net.fetch)
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: async () => ({ access_token: 'a', refresh_token: 'r' })
+    } as Response)
+
+    await (cherryINOAuthService as any)._doInit()
+    const { state } = await cherryINOAuthService.startOAuthFlow(
+      { sender: { id: 7 } } as Electron.IpcMainInvokeEvent,
+      'https://open.cherryin.ai'
+    )
+
+    // The initiator window is gone by the time the callback arrives.
+    const sendSpy = vi.fn()
+    windowManagerMocks.getWindow.mockReturnValueOnce({
+      isDestroyed: () => true,
+      webContents: { send: sendSpy }
+    })
+
+    await cherryINOAuthService.handleOAuthCallback(
+      new URL(`cherrystudio://oauth/callback?state=${state}&code=auth-code`)
+    )
+
+    // No send fired (window is destroyed) and the pending flow is consumed.
+    expect(sendSpy).not.toHaveBeenCalled()
+    const pendingFlows = (cherryINOAuthService as any).pendingOAuthFlows as Map<string, unknown>
+    expect(pendingFlows.has(state)).toBe(false)
+  })
+
   it('clears auth config back to api-key mode on logout', async () => {
     providerServiceMocks.getAuthConfig.mockResolvedValue({
       type: 'oauth',
