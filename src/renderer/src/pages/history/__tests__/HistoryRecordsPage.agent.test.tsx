@@ -1,6 +1,6 @@
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { AgentEntity } from '@shared/data/types/agent'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { InputHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,27 +9,85 @@ const hookMocks = vi.hoisted(() => ({
   cacheGetShared: vi.fn(),
   cacheSet: vi.fn(),
   cacheSubscribe: vi.fn(),
+  deleteSession: vi.fn(),
+  promptShow: vi.fn(),
   setActiveSessionId: vi.fn(),
+  togglePin: vi.fn(),
+  updateSession: vi.fn(),
   useAgents: vi.fn(),
   useAllTopics: vi.fn(),
   useAssistants: vi.fn(),
   useCache: vi.fn(),
-  useSessions: vi.fn()
+  useMultiplePreferences: vi.fn(),
+  usePins: vi.fn(),
+  useSessions: vi.fn(),
+  useUpdateSession: vi.fn()
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: { children?: ReactNode }) => <button {...props}>{children}</button>,
-  ContextMenu: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  ContextMenuContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  ContextMenuTrigger: ({ children }: { children?: ReactNode }) => <>{children}</>,
-  EmptyState: ({ description, title }: { description?: string; title: string }) => (
-    <div>
-      <h2>{title}</h2>
-      {description && <p>{description}</p>}
-    </div>
-  ),
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />
-}))
+vi.mock('@cherrystudio/ui', async () => {
+  const React = await import('react')
+  const itemHandler = (onSelect: ((event: Event) => void) | undefined, props: Record<string, unknown>) => ({
+    ...props,
+    'data-disabled': props.disabled ? '' : undefined,
+    disabled: props.disabled as boolean | undefined,
+    onClick: (event: Event) => onSelect?.(event),
+    type: 'button'
+  })
+
+  return {
+    Button: ({ children, ...props }: { children?: ReactNode }) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
+    ConfirmDialog: ({
+      cancelText,
+      confirmText,
+      contentClassName,
+      description,
+      onConfirm,
+      open,
+      overlayClassName,
+      title
+    }: any) =>
+      open ? (
+        <div role="dialog" className={contentClassName} data-overlay-class={overlayClassName}>
+          <h2>{title}</h2>
+          {description && <p>{description}</p>}
+          <button type="button">{cancelText ?? 'Cancel'}</button>
+          <button type="button" onClick={onConfirm}>
+            {confirmText ?? 'Confirm'}
+          </button>
+        </div>
+      ) : null,
+    ContextMenu: ({ children }: { children?: ReactNode }) => <div data-testid="context-menu">{children}</div>,
+    ContextMenuContent: ({ children, ...props }: { children?: ReactNode }) => (
+      <div data-testid="context-menu-content" {...props}>
+        {children}
+      </div>
+    ),
+    ContextMenuItem: ({ children, onSelect, ...props }: any) =>
+      React.createElement('button', itemHandler(onSelect, props), children),
+    ContextMenuSeparator: (props: any) => <hr data-testid="context-menu-separator" {...props} />,
+    ContextMenuShortcut: ({ children, ...props }: { children?: ReactNode }) => <span {...props}>{children}</span>,
+    ContextMenuSub: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    ContextMenuSubContent: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
+    ContextMenuSubTrigger: ({ children, ...props }: { children?: ReactNode }) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
+    ContextMenuTrigger: ({ children }: { children?: ReactNode }) => <>{children}</>,
+    EmptyState: ({ description, title }: { description?: string; title: string }) => (
+      <div>
+        <h2>{title}</h2>
+        {description && <p>{description}</p>}
+      </div>
+    ),
+    Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+    Skeleton: (props: Record<string, unknown>) => <div {...props} />
+  }
+})
 
 vi.mock('@data/CacheService', () => ({
   cacheService: {
@@ -54,12 +112,17 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
   useCache: hookMocks.useCache
 }))
 
+vi.mock('@renderer/data/hooks/usePreference', () => ({
+  useMultiplePreferences: hookMocks.useMultiplePreferences
+}))
+
 vi.mock('@renderer/hooks/agents/useAgentDataApi', () => ({
   useAgents: hookMocks.useAgents
 }))
 
 vi.mock('@renderer/hooks/agents/useSessionDataApi', () => ({
-  useSessions: hookMocks.useSessions
+  useSessions: hookMocks.useSessions,
+  useUpdateSession: hookMocks.useUpdateSession
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
@@ -67,7 +130,68 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTopicDataApi', () => ({
-  useAllTopics: hookMocks.useAllTopics
+  mapApiTopicToRendererTopic: (topic: { id: string }) => topic,
+  useAllTopics: hookMocks.useAllTopics,
+  useTopicMutations: () => ({
+    deleteTopic: vi.fn(),
+    updateTopic: vi.fn()
+  })
+}))
+
+vi.mock('@renderer/hooks/usePins', () => ({
+  usePins: hookMocks.usePins
+}))
+
+vi.mock('@renderer/hooks/useNotesSettings', () => ({
+  useNotesSettings: () => ({ notesPath: '/notes' })
+}))
+
+vi.mock('@renderer/hooks/useTopic', () => ({
+  finishTopicRenaming: vi.fn(),
+  getTopicMessages: vi.fn().mockResolvedValue([]),
+  startTopicRenaming: vi.fn()
+}))
+
+vi.mock('@renderer/services/ApiService', () => ({
+  fetchMessagesSummary: vi.fn().mockResolvedValue({ text: 'Auto title' })
+}))
+
+vi.mock('@renderer/services/EventService', () => ({
+  EVENT_NAMES: {
+    CLEAR_MESSAGES: 'CLEAR_MESSAGES',
+    COPY_TOPIC_IMAGE: 'COPY_TOPIC_IMAGE',
+    EXPORT_TOPIC_IMAGE: 'EXPORT_TOPIC_IMAGE'
+  },
+  EventEmitter: {
+    emit: vi.fn()
+  }
+}))
+
+vi.mock('@renderer/components/Popups/ObsidianExportPopup', () => ({
+  default: { show: vi.fn() }
+}))
+
+vi.mock('@renderer/components/Popups/PromptPopup', () => ({
+  default: { show: hookMocks.promptShow }
+}))
+
+vi.mock('@renderer/components/Popups/SaveToKnowledgePopup', () => ({
+  default: { showForTopic: vi.fn() }
+}))
+
+vi.mock('@renderer/utils/copy', () => ({
+  copyTopicAsMarkdown: vi.fn(),
+  copyTopicAsPlainText: vi.fn()
+}))
+
+vi.mock('@renderer/utils/export', () => ({
+  exportMarkdownToJoplin: vi.fn(),
+  exportMarkdownToSiyuan: vi.fn(),
+  exportMarkdownToYuque: vi.fn(),
+  exportTopicAsMarkdown: vi.fn(),
+  exportTopicToNotes: vi.fn(),
+  exportTopicToNotion: vi.fn(),
+  topicToMarkdown: vi.fn().mockResolvedValue('# topic')
 }))
 
 vi.mock('react-i18next', () => ({
@@ -79,9 +203,19 @@ vi.mock('react-i18next', () => ({
     t: (key: string, fallback?: string, options?: Record<string, unknown>) => {
       const labels: Record<string, string> = {
         'agent.session.group.unknown_agent': 'Unknown agent',
+        'agent.session.delete.content': 'Delete this session?',
+        'agent.session.delete.title': 'Delete session',
+        'agent.session.edit.title': 'Edit session',
+        'agent.session.update.error.failed': 'Failed to update session',
+        'chat.topics.pin': 'Pin',
+        'chat.topics.unpin': 'Unpin',
         'common.agent': 'Agent',
         'common.all': 'All',
+        'common.cancel': 'Cancel',
         'common.close': 'Close',
+        'common.delete': 'Delete',
+        'common.rename': 'Rename',
+        'common.saved': 'Saved',
         'common.unnamed': 'Untitled',
         'history.records.agentSubtitle': '{{count}} sessions',
         'history.records.agentTitle': 'Agent history',
@@ -136,6 +270,7 @@ function createAgent(overrides: Partial<AgentEntity> = {}): AgentEntity {
 }
 
 function setupAgentHistory({
+  activeSessionId = null,
   agents = [
     createAgent(),
     createAgent({ id: 'agent-beta', name: 'Beta agent', configuration: { avatar: 'B' } }),
@@ -152,6 +287,7 @@ function setupAgentHistory({
     })
   ]
 }: {
+  activeSessionId?: string | null
   agents?: AgentEntity[]
   sessions?: AgentSessionEntity[]
 } = {}) {
@@ -160,9 +296,11 @@ function setupAgentHistory({
     sessions,
     pinIdBySessionId: new Map(),
     error: undefined,
-    isLoading: false
+    isLoading: false,
+    deleteSession: hookMocks.deleteSession,
+    togglePin: hookMocks.togglePin
   })
-  hookMocks.useCache.mockReturnValue([null, hookMocks.setActiveSessionId])
+  hookMocks.useCache.mockReturnValue([activeSessionId, hookMocks.setActiveSessionId])
 
   const onClose = vi.fn()
   render(<HistoryRecordsPage mode="agent" open onClose={onClose} />)
@@ -173,6 +311,13 @@ function setupAgentHistory({
 describe('HistoryRecordsPage agent mode', () => {
   beforeEach(() => {
     document.body.innerHTML = '<div id="agent-page"></div><div id="home-page"></div>'
+    Object.assign(window, {
+      toast: {
+        error: vi.fn(),
+        success: vi.fn(),
+        warning: vi.fn()
+      }
+    })
     hookMocks.cacheGet.mockReset()
     hookMocks.cacheGet.mockReturnValue(undefined)
     hookMocks.cacheGetShared.mockReset()
@@ -180,12 +325,39 @@ describe('HistoryRecordsPage agent mode', () => {
     hookMocks.cacheSet.mockReset()
     hookMocks.cacheSubscribe.mockReset()
     hookMocks.cacheSubscribe.mockReturnValue(() => undefined)
+    hookMocks.deleteSession.mockReset()
+    hookMocks.deleteSession.mockResolvedValue(true)
+    hookMocks.promptShow.mockReset()
     hookMocks.setActiveSessionId.mockReset()
+    hookMocks.togglePin.mockReset()
+    hookMocks.togglePin.mockResolvedValue(undefined)
+    hookMocks.updateSession.mockReset()
+    hookMocks.updateSession.mockResolvedValue(createSession({ name: 'Renamed session' }))
     hookMocks.useAgents.mockReset()
     hookMocks.useAllTopics.mockReset()
     hookMocks.useAssistants.mockReset()
     hookMocks.useCache.mockReset()
+    hookMocks.useMultiplePreferences.mockReset()
+    hookMocks.useMultiplePreferences.mockReturnValue([
+      {
+        docx: true,
+        image: true,
+        joplin: true,
+        markdown: true,
+        markdown_reason: true,
+        notes: true,
+        notion: true,
+        obsidian: true,
+        plain_text: true,
+        siyuan: true,
+        yuque: true
+      }
+    ])
+    hookMocks.usePins.mockReset()
+    hookMocks.usePins.mockReturnValue({ pinnedIds: [], togglePin: vi.fn() })
     hookMocks.useSessions.mockReset()
+    hookMocks.useUpdateSession.mockReset()
+    hookMocks.useUpdateSession.mockReturnValue({ updateSession: hookMocks.updateSession })
   })
 
   it('renders sessions from the existing agent session list data', () => {
@@ -259,5 +431,71 @@ describe('HistoryRecordsPage agent mode', () => {
 
     expect(screen.getByText('No sessions')).toBeInTheDocument()
     expect(screen.getByText('No sessions for the current filters.')).toBeInTheDocument()
+  })
+
+  it('renders the external session context menu for history rows', () => {
+    setupAgentHistory()
+
+    const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+
+    expect(menuContent ?? null).toBeInTheDocument()
+    expect(menuContent).toHaveClass('z-[1001]')
+    expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual([
+      'Rename',
+      'Pin',
+      '',
+      'Delete'
+    ])
+  })
+
+  it('renames a session from the history row context menu without selecting the row', async () => {
+    hookMocks.promptShow.mockResolvedValue('Renamed session')
+    const { onClose } = setupAgentHistory()
+
+    const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Rename' }))
+
+    await vi.waitFor(() =>
+      expect(hookMocks.updateSession).toHaveBeenCalledWith(
+        { id: 'session-alpha', name: 'Renamed session' },
+        { showSuccessToast: false }
+      )
+    )
+    expect(hookMocks.setActiveSessionId).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('pins a session from the history row context menu without selecting the row', () => {
+    const { onClose } = setupAgentHistory()
+
+    const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Pin' }))
+
+    expect(hookMocks.togglePin).toHaveBeenCalledWith('session-alpha')
+    expect(hookMocks.setActiveSessionId).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('confirms session deletion and moves the active session when needed', async () => {
+    setupAgentHistory({ activeSessionId: 'session-alpha' })
+
+    const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Delete session')
+    expect(screen.getByRole('dialog')).toHaveClass('z-[1002]')
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-overlay-class', 'z-[1001]')
+    expect(hookMocks.deleteSession).not.toHaveBeenCalled()
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    })
+
+    expect(hookMocks.deleteSession).toHaveBeenCalledWith('session-alpha')
+    expect(hookMocks.setActiveSessionId).toHaveBeenCalledWith('session-beta')
   })
 })

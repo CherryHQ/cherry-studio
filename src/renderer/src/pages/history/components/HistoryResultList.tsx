@@ -1,4 +1,6 @@
 import { EmptyState } from '@cherrystudio/ui'
+import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
+import { ResourceList } from '@renderer/components/chat/resources'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import type { HistoryRecordsMode } from '@renderer/pages/history/HistoryRecordsPage'
 import { cn } from '@renderer/utils'
@@ -15,6 +17,16 @@ const HISTORY_HEADER_GRID_CLASS =
   'grid min-w-[760px] grid-cols-[minmax(320px,1fr)_160px_72px_92px] gap-3 px-5 py-2.5 font-medium text-foreground-muted text-xs leading-4'
 const HISTORY_ROW_GRID_CLASS =
   'grid w-full min-w-[736px] grid-cols-[minmax(320px,1fr)_160px_72px_92px] items-center gap-3 rounded-md px-3 text-sm leading-5'
+const HISTORY_CONTEXT_MENU_CLASS = 'z-[1001]'
+const HISTORY_CONFIRM_DIALOG_OVERLAY_CLASS = 'z-[1001]'
+const HISTORY_CONFIRM_DIALOG_CONTENT_CLASS = 'z-[1002]'
+const TopicHistoryResourceProvider = ResourceList.Provider<Topic>
+const SessionHistoryResourceProvider = ResourceList.Provider<AgentSessionEntity>
+
+type HistoryRowMenuPreset<T> = {
+  getActions: (item: T) => readonly ResolvedAction[]
+  onAction: (item: T, action: ResolvedAction) => void | Promise<void>
+}
 
 interface HistoryResultListProps {
   mode: HistoryRecordsMode
@@ -25,6 +37,8 @@ interface HistoryResultListProps {
   defaultAssistantLabel: string
   unknownAgentLabel: string
   isLoading?: boolean
+  topicMenuPreset?: HistoryRowMenuPreset<Topic>
+  sessionMenuPreset?: HistoryRowMenuPreset<AgentSessionEntity>
   onTopicSelect?: (topic: Topic) => void
   onSessionSelect?: (sessionId: string) => void
 }
@@ -38,6 +52,8 @@ const HistoryResultList = ({
   defaultAssistantLabel,
   unknownAgentLabel,
   isLoading = false,
+  topicMenuPreset,
+  sessionMenuPreset,
   onTopicSelect,
   onSessionSelect
 }: HistoryResultListProps) => {
@@ -62,70 +78,82 @@ const HistoryResultList = ({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
-      <HistoryListHeader
-        titleLabel={
-          mode === 'assistant' ? t('history.records.table.title', '标题') : t('history.records.table.session', '会话')
-        }
-        sourceLabel={mode === 'assistant' ? t('common.assistant', '助手') : t('common.agent', '智能体')}
-        metadataLabel={t('history.records.table.messages', '消息')}
-        timeLabel={t('history.records.table.time', '时间')}
-      />
+      <div className="flex min-h-0 flex-1 overflow-x-auto overflow-y-hidden [scrollbar-gutter:stable] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:h-1.5">
+        <div className="flex min-h-0 min-w-[760px] flex-1 flex-col">
+          <HistoryListHeader
+            titleLabel={
+              mode === 'assistant'
+                ? t('history.records.table.title', '标题')
+                : t('history.records.table.session', '会话')
+            }
+            sourceLabel={mode === 'assistant' ? t('common.assistant', '助手') : t('common.agent', '智能体')}
+            metadataLabel={t('history.records.table.messages', '消息')}
+            timeLabel={t('history.records.table.time', '时间')}
+          />
 
-      {itemCount > 0 && mode === 'assistant' ? (
-        <DynamicVirtualList
-          list={topicList}
-          estimateSize={() => 44}
-          overscan={6}
-          className="min-h-0 flex-1 bg-background"
-          scrollerStyle={{ overflowX: 'hidden', padding: '4px 12px' }}>
-          {(topic) => {
-            const assistant = topic.assistantId ? assistantById.get(topic.assistantId) : undefined
-            const sourceName = topic.assistantId
-              ? (assistant?.name ?? t('history.records.sidebar.unknownAssistant', '未知助手'))
-              : defaultAssistantLabel
+          {itemCount > 0 && mode === 'assistant' ? (
+            <TopicHistoryResourceProvider items={topicList} variant="history">
+              <DynamicVirtualList
+                list={topicList}
+                estimateSize={() => 44}
+                overscan={6}
+                className="min-h-0 flex-1 bg-background"
+                scrollerStyle={{ overflowX: 'hidden', padding: '4px 12px' }}>
+                {(topic) => {
+                  const assistant = topic.assistantId ? assistantById.get(topic.assistantId) : undefined
+                  const sourceName = topic.assistantId
+                    ? (assistant?.name ?? t('history.records.sidebar.unknownAssistant', '未知助手'))
+                    : defaultAssistantLabel
 
-            return (
-              <HistoryTopicRow
-                topic={topic}
-                assistant={assistant}
-                sourceName={sourceName}
-                emptyValue={t('history.records.table.emptyValue', '—')}
-                fallbackTitle={t('chat.default.topic.name', '新话题')}
-                timeLabel={formatHistoryTime(topic.updatedAt, t)}
-                onPress={onTopicSelect}
-              />
-            )
-          }}
-        </DynamicVirtualList>
-      ) : itemCount > 0 ? (
-        <DynamicVirtualList
-          list={sessionList}
-          estimateSize={() => 52}
-          overscan={6}
-          className="min-h-0 flex-1 bg-background"
-          scrollerStyle={{ overflowX: 'hidden', padding: '4px 12px' }}>
-          {(session) => {
-            const agent = session.agentId ? agentById.get(session.agentId) : undefined
-            const sourceName = agent?.name ?? unknownAgentLabel
+                  return (
+                    <HistoryTopicRow
+                      topic={topic}
+                      assistant={assistant}
+                      sourceName={sourceName}
+                      emptyValue={t('history.records.table.emptyValue', '—')}
+                      fallbackTitle={t('chat.default.topic.name', '新话题')}
+                      timeLabel={formatHistoryTime(topic.updatedAt, t)}
+                      menuPreset={topicMenuPreset}
+                      onPress={onTopicSelect}
+                    />
+                  )
+                }}
+              </DynamicVirtualList>
+            </TopicHistoryResourceProvider>
+          ) : itemCount > 0 ? (
+            <SessionHistoryResourceProvider items={sessionList} variant="history">
+              <DynamicVirtualList
+                list={sessionList}
+                estimateSize={() => 52}
+                overscan={6}
+                className="min-h-0 flex-1 bg-background"
+                scrollerStyle={{ overflowX: 'hidden', padding: '4px 12px' }}>
+                {(session) => {
+                  const agent = session.agentId ? agentById.get(session.agentId) : undefined
+                  const sourceName = agent?.name ?? unknownAgentLabel
 
-            return (
-              <HistorySessionRow
-                session={session}
-                agent={agent}
-                sourceName={sourceName}
-                emptyValue={t('history.records.table.emptyValue', '—')}
-                fallbackTitle={t('common.unnamed', '未命名')}
-                timeLabel={formatHistoryTime(session.updatedAt, t)}
-                onPress={onSessionSelect}
-              />
-            )
-          }}
-        </DynamicVirtualList>
-      ) : (
-        <div className="flex min-h-[320px] flex-1 items-center justify-center px-5 py-8">
-          <EmptyState compact icon={MessageSquareText} title={emptyTitle} description={emptyDescription} />
+                  return (
+                    <HistorySessionRow
+                      session={session}
+                      agent={agent}
+                      sourceName={sourceName}
+                      emptyValue={t('history.records.table.emptyValue', '—')}
+                      fallbackTitle={t('common.unnamed', '未命名')}
+                      timeLabel={formatHistoryTime(session.updatedAt, t)}
+                      menuPreset={sessionMenuPreset}
+                      onPress={onSessionSelect}
+                    />
+                  )
+                }}
+              </DynamicVirtualList>
+            </SessionHistoryResourceProvider>
+          ) : (
+            <div className="flex min-h-[320px] flex-1 items-center justify-center px-5 py-8">
+              <EmptyState compact icon={MessageSquareText} title={emptyTitle} description={emptyDescription} />
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -155,6 +183,7 @@ interface HistoryTopicRowProps {
   emptyValue: string
   fallbackTitle: string
   timeLabel: string
+  menuPreset?: HistoryRowMenuPreset<Topic>
   onPress?: (topic: Topic) => void
 }
 
@@ -165,9 +194,11 @@ const HistoryTopicRow = ({
   emptyValue,
   fallbackTitle,
   timeLabel,
+  menuPreset,
   onPress
 }: HistoryTopicRowProps) => {
-  return (
+  const menuActions = menuPreset?.getActions(topic)
+  const row = (
     <button
       type="button"
       className={cn(
@@ -187,6 +218,20 @@ const HistoryTopicRow = ({
       <div className="text-foreground-muted text-xs tabular-nums">{timeLabel}</div>
     </button>
   )
+
+  if (!menuPreset || !menuActions) return row
+
+  return (
+    <ResourceList.ContextMenu
+      item={topic}
+      actions={menuActions}
+      menuClassName={HISTORY_CONTEXT_MENU_CLASS}
+      confirmDialogOverlayClassName={HISTORY_CONFIRM_DIALOG_OVERLAY_CLASS}
+      confirmDialogContentClassName={HISTORY_CONFIRM_DIALOG_CONTENT_CLASS}
+      onAction={(action) => menuPreset.onAction(topic, action)}>
+      {row}
+    </ResourceList.ContextMenu>
+  )
 }
 
 interface HistorySessionRowProps {
@@ -196,6 +241,7 @@ interface HistorySessionRowProps {
   emptyValue: string
   fallbackTitle: string
   timeLabel: string
+  menuPreset?: HistoryRowMenuPreset<AgentSessionEntity>
   onPress?: (sessionId: string) => void
 }
 
@@ -206,11 +252,13 @@ const HistorySessionRow = ({
   emptyValue,
   fallbackTitle,
   timeLabel,
+  menuPreset,
   onPress
 }: HistorySessionRowProps) => {
   const avatar = agent?.configuration?.avatar?.trim()
+  const menuActions = menuPreset?.getActions(session)
 
-  return (
+  const row = (
     <button
       type="button"
       className={cn(
@@ -234,6 +282,20 @@ const HistorySessionRow = ({
       <div className="text-foreground-muted text-xs">{emptyValue}</div>
       <div className="text-foreground-muted text-xs tabular-nums">{timeLabel}</div>
     </button>
+  )
+
+  if (!menuPreset || !menuActions) return row
+
+  return (
+    <ResourceList.ContextMenu
+      item={session}
+      actions={menuActions}
+      menuClassName={HISTORY_CONTEXT_MENU_CLASS}
+      confirmDialogOverlayClassName={HISTORY_CONFIRM_DIALOG_OVERLAY_CLASS}
+      confirmDialogContentClassName={HISTORY_CONFIRM_DIALOG_CONTENT_CLASS}
+      onAction={(action) => menuPreset.onAction(session, action)}>
+      {row}
+    </ResourceList.ContextMenu>
   )
 }
 

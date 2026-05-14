@@ -1015,6 +1015,8 @@ type ContextMenuProps<T extends ResourceListItemBase, TActionContext = unknown> 
   children: ReactNode
   content?: ReactNode
   contentClassName?: string
+  confirmDialogContentClassName?: string
+  confirmDialogOverlayClassName?: string
   menuClassName?: string
   onAction?: (action: ResolvedAction<TActionContext>) => void | Promise<void>
 }
@@ -1025,6 +1027,8 @@ function ContextMenu<T extends ResourceListItemBase, TActionContext = unknown>({
   children,
   content,
   contentClassName,
+  confirmDialogContentClassName,
+  confirmDialogOverlayClassName,
   menuClassName,
   onAction
 }: ContextMenuProps<T, TActionContext>) {
@@ -1038,6 +1042,8 @@ function ContextMenu<T extends ResourceListItemBase, TActionContext = unknown>({
         <ActionMenu
           actions={menuActions}
           className={cn(contentClass, menuClassName)}
+          confirmDialogContentClassName={confirmDialogContentClassName}
+          confirmDialogOverlayClassName={confirmDialogOverlayClassName}
           onAction={(action) => onAction?.(action)}
         />
       ) : (

@@ -1,14 +1,31 @@
 import { Button } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { useCache } from '@renderer/data/hooks/useCache'
+import { useMultiplePreferences } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agents/useAgentDataApi'
 import {
   type AgentSessionStreamState,
   useAgentSessionStreamStatuses
 } from '@renderer/hooks/agents/useAgentSessionStreamStatuses'
-import { useSessions } from '@renderer/hooks/agents/useSessionDataApi'
+import { useSessions, useUpdateSession } from '@renderer/hooks/agents/useSessionDataApi'
 import { useAssistants } from '@renderer/hooks/useAssistant'
+import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
-import { mapApiTopicToRendererTopic, useAllTopics } from '@renderer/hooks/useTopicDataApi'
+import { finishTopicRenaming, getTopicMessages, startTopicRenaming } from '@renderer/hooks/useTopic'
+import { mapApiTopicToRendererTopic, useAllTopics, useTopicMutations } from '@renderer/hooks/useTopicDataApi'
+import type { SessionActionContext } from '@renderer/pages/agents/components/sessionItemActions'
+import {
+  createSessionActionContext,
+  useSessionMenuPreset
+} from '@renderer/pages/agents/components/useSessionMenuActions'
+import type {
+  TopicActionContext,
+  TopicExportMenuOptions
+} from '@renderer/pages/home/Tabs/components/topicContextMenuActions'
+import { createTopicActionContext, useTopicMenuPreset } from '@renderer/pages/home/Tabs/components/useTopicMenuActions'
+import { fetchMessagesSummary } from '@renderer/services/ApiService'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic as RendererTopic } from '@renderer/types'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -35,6 +52,7 @@ const DEFAULT_ASSISTANT_SOURCE_ID = '__default_assistant__'
 const UNKNOWN_AGENT_SOURCE_ID = '__unknown_agent__'
 const EMPTY_ASSISTANT_BY_ID: ReadonlyMap<string, Assistant> = new Map()
 const EMPTY_AGENT_BY_ID: ReadonlyMap<string, AgentEntity> = new Map()
+const logger = loggerService.withContext('HistoryRecordsPage')
 const HISTORY_OVERLAY_OPEN_RADIUS = 12
 const HISTORY_OVERLAY_RADIUS_PADDING = 24
 const HISTORY_OVERLAY_TRANSITION = {
@@ -108,9 +126,30 @@ const AssistantHistoryRecordsContent = ({ onClose, onTopicSelect }: HistoryRecor
 
   const { topics: rawTopics, isLoading: isTopicsLoading } = useAllTopics({ loadAll: true })
   const { assistants } = useAssistants()
-  const { pinnedIds: topicPinnedIds } = usePins('topic')
+  const [renamingTopics] = useCache('topic.renaming')
+  const { notesPath } = useNotesSettings()
+  const { updateTopic: patchTopic, deleteTopic: deleteTopicById } = useTopicMutations()
+  const [exportMenuOptions] = useMultiplePreferences({
+    docx: 'data.export.menus.docx',
+    image: 'data.export.menus.image',
+    joplin: 'data.export.menus.joplin',
+    markdown: 'data.export.menus.markdown',
+    markdown_reason: 'data.export.menus.markdown_reason',
+    notes: 'data.export.menus.notes',
+    notion: 'data.export.menus.notion',
+    obsidian: 'data.export.menus.obsidian',
+    plain_text: 'data.export.menus.plain_text',
+    siyuan: 'data.export.menus.siyuan',
+    yuque: 'data.export.menus.yuque'
+  })
+  const { pinnedIds: topicPinnedIds, togglePin: toggleTopicPin } = usePins('topic')
   const topicPinnedIdSet = useMemo(() => new Set(topicPinnedIds), [topicPinnedIds])
   const isTopicPinned = useCallback((topicId: string) => topicPinnedIdSet.has(topicId), [topicPinnedIdSet])
+  const renamingTopicIdSet = useMemo(
+    () => new Set(Array.isArray(renamingTopics) ? renamingTopics : []),
+    [renamingTopics]
+  )
+  const isTopicRenaming = useCallback((topicId: string) => renamingTopicIdSet.has(topicId), [renamingTopicIdSet])
   const topics = useMemo(
     () =>
       sortHistoryEntries(
@@ -135,6 +174,14 @@ const AssistantHistoryRecordsContent = ({ onClose, onTopicSelect }: HistoryRecor
         ])
       ),
     [isTopicPinned, topics]
+  )
+  const getRendererTopic = useCallback(
+    (topic: Topic): RendererTopic =>
+      rendererTopicById.get(topic.id) ?? {
+        ...mapApiTopicToRendererTopic(topic),
+        pinned: isTopicPinned(topic.id)
+      },
+    [isTopicPinned, rendererTopicById]
   )
 
   const assistantSources = useMemo(
@@ -173,6 +220,114 @@ const AssistantHistoryRecordsContent = ({ onClose, onTopicSelect }: HistoryRecor
     [onClose, onTopicSelect, rendererTopicById]
   )
 
+  const updateTopic = useCallback(
+    (topic: RendererTopic) =>
+      patchTopic(topic.id, {
+        name: topic.name,
+        isNameManuallyEdited: topic.isNameManuallyEdited
+      }),
+    [patchTopic]
+  )
+
+  const handlePinTopic = useCallback(
+    async (topic: RendererTopic) => {
+      try {
+        await toggleTopicPin(topic.id)
+      } catch (err) {
+        logger.error('Failed to toggle topic pin from history records', { topicId: topic.id, err })
+      }
+    },
+    [toggleTopicPin]
+  )
+
+  const handleDeleteTopicFromMenu = useCallback(
+    async (topic: RendererTopic) => {
+      try {
+        await deleteTopicById(topic.id)
+      } catch (err) {
+        logger.error('Failed to delete topic from history records', { topicId: topic.id, err })
+        const message = err instanceof Error ? err.message : t('chat.topics.manage.delete.error')
+        window.toast.error(message)
+      }
+    },
+    [deleteTopicById, t]
+  )
+
+  const handleClearMessages = useCallback((topic: RendererTopic) => {
+    void EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
+  }, [])
+
+  const handleAutoRename = useCallback(
+    async (topic: RendererTopic) => {
+      const messages = await getTopicMessages(topic.id)
+      if (messages.length < 2) return
+
+      startTopicRenaming(topic.id)
+      try {
+        const { text: summaryText, error: summaryError } = await fetchMessagesSummary({ messages })
+        if (summaryText) {
+          void updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
+        } else if (summaryError) {
+          window.toast?.error(`${t('message.error.fetchTopicName')}: ${summaryError}`)
+        }
+      } finally {
+        finishTopicRenaming(topic.id)
+      }
+    },
+    [t, updateTopic]
+  )
+
+  const handlePromptRename = useCallback(
+    async (topic: RendererTopic) => {
+      const name = await PromptPopup.show({
+        title: t('chat.topics.edit.title'),
+        message: '',
+        defaultValue: topic.name || '',
+        extraNode: <div className="mt-2 text-foreground-muted text-xs">{t('chat.topics.edit.title_tip')}</div>
+      })
+
+      if (name && topic.name !== name) {
+        void updateTopic({ ...topic, name, isNameManuallyEdited: true })
+      }
+    },
+    [t, updateTopic]
+  )
+
+  const getTopicActionContext = useCallback(
+    (apiTopic: Topic): TopicActionContext => {
+      const topic = getRendererTopic(apiTopic)
+
+      return createTopicActionContext({
+        exportMenuOptions: exportMenuOptions as TopicExportMenuOptions,
+        isRenaming: isTopicRenaming(topic.id),
+        onAutoRename: handleAutoRename,
+        onClearMessages: handleClearMessages,
+        onDelete: handleDeleteTopicFromMenu,
+        onPinTopic: handlePinTopic,
+        onPromptRename: handlePromptRename,
+        notesPath,
+        t,
+        topic,
+        topicsLength: topics.length
+      })
+    },
+    [
+      exportMenuOptions,
+      getRendererTopic,
+      handleAutoRename,
+      handleClearMessages,
+      handleDeleteTopicFromMenu,
+      handlePinTopic,
+      handlePromptRename,
+      isTopicRenaming,
+      notesPath,
+      t,
+      topics.length
+    ]
+  )
+
+  const topicMenuPreset = useTopicMenuPreset<Topic>({ getActionContext: getTopicActionContext })
+
   return (
     <HistoryRecordsLayout
       mode="assistant"
@@ -193,6 +348,7 @@ const AssistantHistoryRecordsContent = ({ onClose, onTopicSelect }: HistoryRecor
         defaultAssistantLabel={defaultAssistantLabel}
         unknownAgentLabel=""
         isLoading={isTopicsLoading}
+        topicMenuPreset={topicMenuPreset}
         onTopicSelect={handleTopicSelect}
       />
     </HistoryRecordsLayout>
@@ -204,12 +360,14 @@ const AgentHistoryRecordsContent = ({ onClose }: HistoryRecordsModeContentProps)
   const [selectedSourceId, setSelectedSourceId] = useState(ALL_SOURCE_ID)
   const [selectedStatus, setSelectedStatus] = useState<HistorySourceStatus>(ALL_SOURCE_ID)
   const [searchText, setSearchText] = useState('')
-  const [, setActiveSessionId] = useCache('agent.active_session_id')
+  const [activeSessionId, setActiveSessionId] = useCache('agent.active_session_id')
 
   const {
     sessions,
     pinIdBySessionId,
-    isLoading: isSessionsLoading
+    isLoading: isSessionsLoading,
+    deleteSession,
+    togglePin
   } = useSessions(undefined, {
     loadAll: true,
     pageSize: 50
@@ -263,6 +421,15 @@ const AgentHistoryRecordsContent = ({ onClose }: HistoryRecordsModeContentProps)
       return searchFields.some((value) => value?.toLowerCase().includes(keywords))
     })
   }, [agentById, filteredSessions, searchText])
+  const sessionUpdateAgentId = useMemo(
+    () =>
+      searchedSessions.find((session) => session.agentId)?.agentId ??
+      sessions.find((session) => session.agentId)?.agentId ??
+      agents[0]?.id ??
+      null,
+    [agents, searchedSessions, sessions]
+  )
+  const { updateSession } = useUpdateSession(sessionUpdateAgentId)
 
   useEffect(() => {
     if (selectedSourceId === ALL_SOURCE_ID) return
@@ -278,6 +445,66 @@ const AgentHistoryRecordsContent = ({ onClose }: HistoryRecordsModeContentProps)
     },
     [onClose, setActiveSessionId]
   )
+
+  const handleDeleteSession = useCallback(
+    async (id: string) => {
+      const success = await deleteSession(id)
+      if (success && activeSessionId === id) {
+        const remainingSession = searchedSessions.find((session) => session.id !== id)
+        setActiveSessionId(remainingSession?.id ?? null)
+      }
+    },
+    [activeSessionId, deleteSession, searchedSessions, setActiveSessionId]
+  )
+
+  const handleRenameSession = useCallback(
+    async (id: string, name: string) => {
+      const session = sessions.find((candidate) => candidate.id === id)
+      const trimmedName = name.trim()
+      if (!session || !trimmedName || trimmedName === session.name) return
+
+      try {
+        const updatedSession = await updateSession({ id, name: trimmedName }, { showSuccessToast: false })
+        if (updatedSession) {
+          window.toast.success(t('common.saved'))
+        }
+      } catch (err) {
+        logger.error('Failed to rename session from history records', { err, sessionId: id })
+        window.toast.error(t('agent.session.update.error.failed'))
+      }
+    },
+    [sessions, t, updateSession]
+  )
+
+  const getSessionActionContext = useCallback(
+    (session: AgentSessionEntity): SessionActionContext =>
+      createSessionActionContext({
+        onDelete: () => {
+          void handleDeleteSession(session.id)
+        },
+        onTogglePin: () => {
+          void togglePin(session.id)
+        },
+        pinned: pinIdBySessionId.has(session.id),
+        sessionName: session.name ?? session.id,
+        startEdit: (value) => {
+          void (async () => {
+            const name = await PromptPopup.show({
+              title: t('agent.session.edit.title'),
+              message: '',
+              defaultValue: value
+            })
+            if (name) {
+              await handleRenameSession(session.id, name)
+            }
+          })()
+        },
+        t
+      }),
+    [handleDeleteSession, handleRenameSession, pinIdBySessionId, t, togglePin]
+  )
+
+  const sessionMenuPreset = useSessionMenuPreset<AgentSessionEntity>({ getActionContext: getSessionActionContext })
 
   return (
     <HistoryRecordsLayout
@@ -302,6 +529,7 @@ const AgentHistoryRecordsContent = ({ onClose }: HistoryRecordsModeContentProps)
         defaultAssistantLabel=""
         unknownAgentLabel={unknownAgentLabel}
         isLoading={isSessionsLoading || isAgentsLoading}
+        sessionMenuPreset={sessionMenuPreset}
         onSessionSelect={handleSessionSelect}
       />
     </HistoryRecordsLayout>
@@ -525,8 +753,7 @@ function buildAssistantSources(
     {
       id: ALL_SOURCE_ID,
       label: t('common.all', '全部'),
-      count: topics.length,
-      icon: <Bot size={15} />
+      count: topics.length
     },
     ...Array.from(counts.entries()).map(([sourceId, count]) => {
       const assistant = sourceId === DEFAULT_ASSISTANT_SOURCE_ID ? undefined : assistantById.get(sourceId)
@@ -562,8 +789,7 @@ function buildAgentSources(
     {
       id: ALL_SOURCE_ID,
       label: t('common.all', '全部'),
-      count: sessions.length,
-      icon: <Wrench size={15} />
+      count: sessions.length
     },
     ...agents.map((agent) => {
       const avatar = agent.configuration?.avatar?.trim()
