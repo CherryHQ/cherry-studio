@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import ExpandableText from '@renderer/components/ExpandableText'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import CustomTag from '@renderer/components/Tags/CustomTag'
@@ -14,6 +15,8 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { isModelInProvider, isValidNewApiModel } from './utils'
+
+const logger = loggerService.withContext('ManageModelsList')
 
 // 列表项类型定义
 interface GroupRowData {
@@ -49,8 +52,15 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
   const [collapsedGroups, setCollapsedGroups] = useState(new Set<string>())
   const [selectedModels, setSelectedModels] = useState<Set<string>>(new Set())
 
-  // 使用稳定的键来检测 modelGroups 内容变化，避免引用变化导致意外清空选中状态
-  const modelGroupsKey = useMemo(() => Object.keys(modelGroups).sort().join(','), [modelGroups])
+  // 使用稳定的键来检测 modelGroups 内容变化，包含组内所有模型ID以避免选中已不存在的模型
+  const modelGroupsKey = useMemo(() => {
+    const keys: string[] = []
+    Object.entries(modelGroups).forEach(([groupName, models]) => {
+      keys.push(groupName)
+      models.forEach((model) => keys.push(model.id))
+    })
+    return keys.sort().join(',')
+  }, [modelGroups])
 
   useEffect(() => {
     setSelectedModels(new Set())
@@ -100,22 +110,29 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
   const addModelsWithValidation = useCallback(
     async (modelsToAdd: Model[]): Promise<boolean> => {
       if (modelsToAdd.length === 0) return false
-      if (isNewApiProvider(provider)) {
-        if (modelsToAdd.every(isValidNewApiModel)) {
+
+      try {
+        if (isNewApiProvider(provider)) {
+          if (modelsToAdd.every(isValidNewApiModel)) {
+            modelsToAdd.forEach(onAddModel)
+            return true
+          } else {
+            const result = await NewApiBatchAddModelPopup.show({
+              title: t('settings.models.add.batch_add_models'),
+              batchModels: modelsToAdd,
+              provider
+            })
+            // 用户确认添加时 resolve { success: true }，取消时 resolve null
+            return result !== null && result?.success === true
+          }
+        } else {
           modelsToAdd.forEach(onAddModel)
           return true
-        } else {
-          const result = await NewApiBatchAddModelPopup.show({
-            title: t('settings.models.add.batch_add_models'),
-            batchModels: modelsToAdd,
-            provider
-          })
-          // 用户确认添加时 resolve { success: true }，取消时 resolve null
-          return result !== null && result?.success === true
         }
-      } else {
-        modelsToAdd.forEach(onAddModel)
-        return true
+      } catch (error) {
+        logger.error('Failed to add models', { error, count: modelsToAdd.length })
+        window.toast.error(t('settings.models.manage.add_error'))
+        return false
       }
     },
     [provider, onAddModel, t]
@@ -270,6 +287,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
                               modelsToAdd.forEach((m) => newSelected.delete(m.id))
                               return newSelected
                             })
+                            window.toast.success(t('settings.models.manage.add_success', { count: modelsToAdd.length }))
                           }
                         }}>
                         +{groupSelectedCount}
@@ -344,8 +362,8 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(
               <Flex align="center" gap={8}>
                 {!isAdded && onSelectChange && (
                   <Checkbox
-                    checked={isSelected}
-                    aria-label={selectAriaLabel}
+                    checked={!!isSelected}
+                    aria-label={selectAriaLabel || `Select model ${model.name}`}
                     onChange={(e) => {
                       e.stopPropagation()
                       onSelectChange(model.id, e.target.checked)

@@ -28,7 +28,7 @@ type FieldType = {
 }
 
 const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels }) => {
-  const [open] = useState(true)
+  const [open, setOpen] = useState(true)
   const [form] = Form.useForm()
   const { addModel } = useProvider(provider.id)
   const { t } = useTranslation()
@@ -36,6 +36,10 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
 
   const onClose = () => {
     resolve(null)
+  }
+
+  const onCancel = () => {
+    setOpen(false)
   }
 
   const onAddModel = (values: FieldType) => {
@@ -51,6 +55,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
 
   const onFinish: FormProps<FieldType>['onFinish'] = (values) => {
     if (onAddModel(values)) {
+      setOpen(false)
       resolve({ success: true })
     }
   }
@@ -59,6 +64,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
     <Modal
       title={title}
       open={open}
+      onCancel={onCancel}
       maskClosable={false}
       afterClose={onClose}
       footer={null}

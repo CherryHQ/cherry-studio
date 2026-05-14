@@ -158,19 +158,29 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
       title: t('settings.models.manage.add_listed.label'),
       content: t('settings.models.manage.add_listed.confirm'),
       centered: true,
-      onOk: () => {
-        if (isNewApiProvider(provider)) {
-          if (wouldAddModel.every(isValidNewApiModel)) {
-            wouldAddModel.forEach(onAddModel)
+      onOk: async () => {
+        try {
+          if (isNewApiProvider(provider)) {
+            if (wouldAddModel.every(isValidNewApiModel)) {
+              wouldAddModel.forEach(onAddModel)
+              window.toast.success(t('settings.models.manage.add_success', { count: wouldAddModel.length }))
+            } else {
+              const result = await NewApiBatchAddModelPopup.show({
+                title: t('settings.models.add.batch_add_models'),
+                batchModels: wouldAddModel,
+                provider
+              })
+              if (result?.success) {
+                window.toast.success(t('settings.models.manage.add_success', { count: wouldAddModel.length }))
+              }
+            }
           } else {
-            void NewApiBatchAddModelPopup.show({
-              title: t('settings.models.add.batch_add_models'),
-              batchModels: wouldAddModel,
-              provider
-            })
+            wouldAddModel.forEach(onAddModel)
+            window.toast.success(t('settings.models.manage.add_success', { count: wouldAddModel.length }))
           }
-        } else {
-          wouldAddModel.forEach(onAddModel)
+        } catch (error) {
+          logger.error('Failed to add all models', { error, count: wouldAddModel.length })
+          window.toast.error(t('settings.models.manage.add_error'))
         }
       }
     })

@@ -5147,10 +5147,12 @@
       "default_assistant_model_description": "创建新助手时使用的模型，如果助手未设置模型，则使用此模型",
       "empty": "没有模型",
       "manage": {
+        "add_error": "添加模型失败",
         "add_listed": {
           "confirm": "确定要添加所有模型到列表吗？",
           "label": "添加列表中的模型"
         },
+        "add_success": "成功添加 {{count}} 个模型",
         "add_whole_group": "添加整个分组",
         "batch_add_selected": "添加选中的模型",
         "fetch_list": "获取模型列表",
