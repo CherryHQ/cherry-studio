@@ -7,6 +7,7 @@ import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { userModelTable } from '@data/db/schemas/userModel'
+import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { sql } from 'drizzle-orm'
@@ -236,9 +237,12 @@ export class AssistantMigrator extends BaseMigrator {
         return { ...row, modelId: null }
       })
 
+      const orderKeys = generateOrderKeySequence(sanitizedAssistantRows.length)
+      const orderedAssistantRows = sanitizedAssistantRows.map((row, i) => ({ ...row, orderKey: orderKeys[i] }))
+
       await ctx.db.transaction(async (tx) => {
-        for (let i = 0; i < sanitizedAssistantRows.length; i += BATCH_SIZE) {
-          const batch = sanitizedAssistantRows.slice(i, i + BATCH_SIZE)
+        for (let i = 0; i < orderedAssistantRows.length; i += BATCH_SIZE) {
+          const batch = orderedAssistantRows.slice(i, i + BATCH_SIZE)
           await tx.insert(assistantTable).values(batch)
           processed += batch.length
         }

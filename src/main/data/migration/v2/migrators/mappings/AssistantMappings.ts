@@ -203,7 +203,8 @@ export function transformAssistant(source: OldAssistant): AssistantTransformResu
       emoji: source.emoji ?? '🌟',
       description: source.description ?? '',
       modelId: primaryModelId ?? null,
-      settings
+      settings,
+      orderKey: ''
     },
     mcpServers: mcpServerIds.map((mcpServerId) => ({ assistantId, mcpServerId })),
     knowledgeBases: knowledgeBaseIds.map((knowledgeBaseId) => ({ assistantId, knowledgeBaseId })),

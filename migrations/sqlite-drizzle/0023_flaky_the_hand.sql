@@ -28,6 +28,7 @@ CREATE TABLE `__new_agent` (
 	`mcps` text DEFAULT '[]' NOT NULL,
 	`allowed_tools` text DEFAULT '[]' NOT NULL,
 	`configuration` text DEFAULT '{}' NOT NULL,
+	`order_key` text NOT NULL,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
 	`deleted_at` integer,
@@ -36,11 +37,19 @@ CREATE TABLE `__new_agent` (
 	FOREIGN KEY (`small_model`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
-INSERT INTO `__new_agent`("id", "type", "name", "description", "instructions", "model", "plan_model", "small_model", "mcps", "allowed_tools", "configuration", "created_at", "updated_at", "deleted_at") SELECT "id", "type", "name", "description", "instructions", "model", "plan_model", "small_model", "mcps", "allowed_tools", "configuration", "created_at", "updated_at", "deleted_at" FROM `agent`;--> statement-breakpoint
+-- Same pattern as the agent_session rebuild: old agent table has no order_key,
+-- so substitute the 'a0' constant. AgentsMigrator.backfillAgentOrderKeys
+-- replaces it with real fractional keys when importing legacy v1 agents.
+INSERT INTO `__new_agent`("id", "type", "name", "description", "instructions", "model", "plan_model", "small_model", "mcps", "allowed_tools", "configuration", "order_key", "created_at", "updated_at", "deleted_at") SELECT "id", "type", "name", "description", "instructions", "model", "plan_model", "small_model", "mcps", "allowed_tools", "configuration", 'a0' AS "order_key", "created_at", "updated_at", "deleted_at" FROM `agent`;--> statement-breakpoint
 DROP TABLE `agent`;--> statement-breakpoint
 ALTER TABLE `__new_agent` RENAME TO `agent`;--> statement-breakpoint
 CREATE INDEX `agent_name_idx` ON `agent` (`name`);--> statement-breakpoint
 CREATE INDEX `agent_type_idx` ON `agent` (`type`);--> statement-breakpoint
+CREATE INDEX `agent_order_key_idx` ON `agent` (`order_key`);--> statement-breakpoint
+-- DEFAULT 'a0' covers existing rows; new inserts from AssistantMigrator and
+-- AssistantService always pass an explicit fractional key.
+ALTER TABLE `assistant` ADD `order_key` text NOT NULL DEFAULT 'a0';--> statement-breakpoint
+CREATE INDEX `assistant_order_key_idx` ON `assistant` (`order_key`);--> statement-breakpoint
 -- Strip v1 fields from assistant.settings JSON.
 -- `qwenThinkMode` is redundant (replaced by `reasoning_effort !== undefined`);
 -- `contextCount` is replaced by reading `model.contextWindow` at runtime.

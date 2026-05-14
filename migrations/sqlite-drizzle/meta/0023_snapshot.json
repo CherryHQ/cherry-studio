@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "6677c200-b989-4d7f-b525-7acb2b35e17c",
+  "id": "2c985d40-0b87-4f28-87d9-2c7a8e00a451",
   "prevId": "73a57fc7-c92c-48b3-a151-04bb07faf9f3",
   "tables": {
     "agent": {
@@ -88,6 +88,13 @@
           "autoincrement": false,
           "default": "'{}'"
         },
+        "order_key": {
+          "name": "order_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -119,6 +126,11 @@
         "agent_type_idx": {
           "name": "agent_type_idx",
           "columns": ["type"],
+          "isUnique": false
+        },
+        "agent_order_key_idx": {
+          "name": "agent_order_key_idx",
+          "columns": ["order_key"],
           "isUnique": false
         }
       },
@@ -1050,6 +1062,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "order_key": {
+          "name": "order_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -1076,6 +1095,11 @@
         "assistant_created_at_idx": {
           "name": "assistant_created_at_idx",
           "columns": ["created_at"],
+          "isUnique": false
+        },
+        "assistant_order_key_idx": {
+          "name": "assistant_order_key_idx",
+          "columns": ["order_key"],
           "isUnique": false
         }
       },
