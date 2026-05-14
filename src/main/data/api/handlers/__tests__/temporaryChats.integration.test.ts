@@ -56,7 +56,7 @@ describe('Temporary Chat end-to-end (handler → persist → persistent readback
     const topic = unwrap<Topic>(
       await temporaryChatHandlers['/temporary/topics'].POST(req({ body: { name: 'Quick question' } }))
     )
-    expect(topic.activeNodeId).toBeNull()
+    expect(topic.activeNodeId).toBeUndefined()
     expect(topic.id).toMatch(/^[0-9a-f-]{36}$/)
 
     // 2. Append 4 messages: user / assistant / user / assistant.

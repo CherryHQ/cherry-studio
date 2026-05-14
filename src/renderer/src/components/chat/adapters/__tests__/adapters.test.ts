@@ -4,6 +4,7 @@ import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -36,6 +37,25 @@ function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessio
     orderKey: 'a0',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+    ...overrides
+  }
+}
+
+function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
+  return {
+    id: 'assistant-1',
+    name: 'Assistant title',
+    prompt: '',
+    emoji: '🍒',
+    description: 'Assistant description',
+    tags: [],
+    settings: DEFAULT_ASSISTANT_SETTINGS,
+    modelId: null,
+    modelName: null,
+    mcpServerIds: [],
+    knowledgeBaseIds: [],
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:01.000Z',
     ...overrides
   }
 }
@@ -81,6 +101,31 @@ describe('chat adapters', () => {
         channel: 'terminal'
       }
     })
+  })
+
+  it('maps assistants to stable resource items for AssistantList', () => {
+    const item = ResourceListAdapter.fromAssistant(createAssistant(), {
+      active: true,
+      pinned: true
+    })
+
+    expect(item).toMatchObject({
+      id: 'assistant-1',
+      kind: 'assistant',
+      title: 'Assistant title',
+      subtitle: 'Assistant description',
+      status: 'active',
+      pinned: true,
+      active: true,
+      disabled: false,
+      meta: {
+        emoji: '🍒',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:01.000Z'
+      }
+    })
+    expect('settings' in item).toBe(false)
+    expect('prompt' in item).toBe(false)
   })
 
   it('maps renderer messages and preserves render fields', () => {

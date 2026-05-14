@@ -44,9 +44,12 @@ export type CreateTopicDto = z.infer<typeof CreateTopicSchema>
 export const UpdateTopicSchema = TopicSchema.pick({
   name: true,
   isNameManuallyEdited: true,
-  assistantId: true,
   groupId: true
-}).partial()
+})
+  .partial()
+  .extend({
+    assistantId: z.string().nullable().optional()
+  })
 export type UpdateTopicDto = z.infer<typeof UpdateTopicSchema>
 
 /**
@@ -94,8 +97,8 @@ export interface ActiveNodeResponse {
  * Topic API Schema definitions.
  *
  * Reorder endpoints (`/topics/:id/order`, `/topics/order:batch`) are injected
- * via `& OrderEndpoints<'/topics'>`. The reorder is scoped by `groupId`
- * server-side; callers do not include the scope in the request body.
+ * via `& OrderEndpoints<'/topics'>`. Topic reorder is global; `groupId` is not
+ * used as an ordering scope.
  */
 export type TopicSchemas = {
   /**

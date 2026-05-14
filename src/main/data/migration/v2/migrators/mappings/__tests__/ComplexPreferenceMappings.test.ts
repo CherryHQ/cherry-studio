@@ -172,7 +172,7 @@ describe('ComplexPreferenceMappings', () => {
   })
 
   describe('sidebar_icons_rename', () => {
-    it("should rewrite 'minapp' to 'mini_app' in both visible and disabled arrays", () => {
+    it("should rewrite 'minapp' to 'mini_app' in both visible and disabled arrays and add agents", () => {
       const mapping = getComplexMappingById('sidebar_icons_rename')
       expect(mapping).toBeDefined()
 
@@ -182,7 +182,7 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.icons.visible': ['assistants', 'mini_app', 'translate'],
+        'ui.sidebar.icons.visible': ['assistants', 'agents', 'mini_app', 'translate'],
         'ui.sidebar.icons.invisible': ['mini_app', 'files']
       })
     })
@@ -195,8 +195,21 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.icons.visible': ['assistants', 'translate', 'paintings'],
+        'ui.sidebar.icons.visible': ['assistants', 'agents', 'translate', 'paintings'],
         'ui.sidebar.icons.invisible': ['files', 'knowledge']
+      })
+    })
+
+    it('should not force agents visible when it was explicitly hidden', () => {
+      const mapping = getComplexMappingById('sidebar_icons_rename')!
+      const result = mapping.transform({
+        visible: ['assistants', 'translate'],
+        disabled: ['agents', 'files']
+      })
+
+      expect(result).toEqual({
+        'ui.sidebar.icons.visible': ['assistants', 'translate'],
+        'ui.sidebar.icons.invisible': ['agents', 'files']
       })
     })
 

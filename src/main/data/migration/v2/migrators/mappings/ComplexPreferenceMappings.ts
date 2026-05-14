@@ -162,10 +162,10 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     transform: transformShortcuts
   },
 
-  // Sidebar icons: rewrite 'minapp' → 'mini_app' (v1→v2 rename)
+  // Sidebar icons: rewrite 'minapp' → 'mini_app' (v1→v2 rename) and restore the v2 agents entry.
   {
     id: 'sidebar_icons_rename',
-    description: "Rewrite legacy 'minapp' icon key to 'mini_app' in sidebar icon arrays",
+    description: "Rewrite legacy 'minapp' icon key to 'mini_app' in sidebar icon arrays and add agents if visible",
     sources: {
       visible: { source: 'redux', category: 'settings', key: 'sidebarIcons.visible' },
       disabled: { source: 'redux', category: 'settings', key: 'sidebarIcons.disabled' }
@@ -174,9 +174,24 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     transform: (sources) => {
       const rewrite = (arr: unknown): unknown =>
         Array.isArray(arr) ? arr.map((v) => (v === 'minapp' ? 'mini_app' : v)) : arr
+      const addAgents = (visible: unknown, invisible: unknown): unknown => {
+        if (!Array.isArray(visible) || visible.includes('agents')) {
+          return visible
+        }
+        if (Array.isArray(invisible) && invisible.includes('agents')) {
+          return visible
+        }
+
+        const nextVisible = [...visible]
+        const assistantsIndex = nextVisible.indexOf('assistants')
+        nextVisible.splice(assistantsIndex === -1 ? nextVisible.length : assistantsIndex + 1, 0, 'agents')
+        return nextVisible
+      }
+      const visible = rewrite(sources.visible)
+      const invisible = rewrite(sources.disabled)
       return {
-        'ui.sidebar.icons.visible': rewrite(sources.visible),
-        'ui.sidebar.icons.invisible': rewrite(sources.disabled)
+        'ui.sidebar.icons.visible': addAgents(visible, invisible),
+        'ui.sidebar.icons.invisible': invisible
       }
     }
   },

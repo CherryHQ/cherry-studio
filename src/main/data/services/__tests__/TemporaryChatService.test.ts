@@ -94,13 +94,13 @@ describe('TemporaryChatService', () => {
   })
 
   describe('return shape', () => {
-    it('createTopic returns Topic with activeNodeId=null and ISO timestamps', async () => {
+    it('createTopic returns Topic with activeNodeId unset and ISO timestamps', async () => {
       // Note: we do NOT set assistantId here because FK enforcement is ON
       // and the assistant table starts empty.
       const topic = await service.createTopic({ name: 'hello' })
       expect(topic.id).toMatch(/^[0-9a-f-]{36}$/)
       expect(topic.name).toBe('hello')
-      expect(topic.activeNodeId).toBeNull()
+      expect(topic.activeNodeId).toBeUndefined()
       expect(topic.orderKey).toBe('')
       expect(typeof topic.createdAt).toBe('string')
       expect(new Date(topic.createdAt).getTime()).toBeGreaterThan(0)
