@@ -1,5 +1,6 @@
-import { ChatAppShell, type ChatPanePosition, LoadingState } from '@renderer/components/chat'
+import { ChatAppShell, type ChatPanePosition } from '@renderer/components/chat'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
+import { MessageListInitialLoading } from '@renderer/components/chat/messages/layout/MessageListLoading'
 import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
 import { useMessagePartsById } from '@renderer/components/chat/messages/stream/useMessagePartsById'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
@@ -53,11 +54,7 @@ const AgentChat = ({ pane, paneOpen, panePosition }: AgentChatProps) => {
         pane={pane}
         paneOpen={paneOpen}
         panePosition={panePosition}
-        main={
-          <div className="flex h-full flex-1 flex-col items-center justify-center">
-            <LoadingState />
-          </div>
-        }
+        main={<MessageListInitialLoading />}
       />
     )
   }

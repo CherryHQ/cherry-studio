@@ -1,4 +1,5 @@
 import type { FileMetadata, Topic, TranslateLangCode } from '@renderer/types'
+import type { MessageExportView } from '@renderer/types/messageExport'
 import type {
   ChatMessageStyle,
   MultiModelGridPopoverTrigger,
@@ -127,6 +128,21 @@ export interface MessageListActions {
   locateMessage?: (messageId: string, highlight?: boolean) => void
   startNewContext?: () => void
   saveCodeBlock?: (data: { msgBlockId: string; codeBlockId: string; newContent: string }) => void | Promise<void>
+  saveTextFile?: (fileName: string, content: string) => void | Promise<void>
+  saveImage?: (fileName: string, dataUrl: string) => boolean | Promise<boolean>
+  saveToKnowledge?: (message: MessageExportView) => void | Promise<void>
+  exportMessageAsMarkdown?: (message: MessageExportView, includeReasoning?: boolean) => void | Promise<void>
+  exportToNotes?: (message: MessageExportView) => void | Promise<void>
+  exportToWord?: (markdown: string, title: string) => void | Promise<void>
+  exportToNotion?: (message: MessageExportView) => void | Promise<void>
+  exportToYuque?: (message: MessageExportView) => void | Promise<void>
+  exportToObsidian?: (message: MessageExportView) => void | Promise<void>
+  exportToJoplin?: (message: MessageExportView) => void | Promise<void>
+  exportToSiyuan?: (message: MessageExportView) => void | Promise<void>
+  openTrace?: (message: MessageListItem, options?: { modelName?: string }) => void | Promise<void>
+  openPath?: (path: string) => void | Promise<void>
+  showInFolder?: (path: string) => void | Promise<void>
+  abortTool?: (toolId: string) => boolean | Promise<boolean>
   selectFiles?: (options: { extensions: string[] }) => Promise<FileMetadata[] | null | undefined>
   selectMessage?: (messageId: string, selected: boolean) => void
   toggleMultiSelectMode?: (enabled: boolean) => void

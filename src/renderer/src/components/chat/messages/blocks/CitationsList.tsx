@@ -10,6 +10,8 @@ import { Check, Copy, FileSearch } from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useOptionalMessageList } from '../MessageListProvider'
+
 interface CitationsListProps {
   citations: Citation[]
 }
@@ -101,10 +103,10 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
   )
 }
 
-const handleLinkClick = (url: string, event: React.MouseEvent) => {
+const handleLinkClick = (url: string, event: React.MouseEvent, openPath?: (path: string) => void | Promise<void>) => {
   event.preventDefault()
   if (url.startsWith('http')) window.open(url, '_blank', 'noopener,noreferrer')
-  else void window.api.file.openPath(url)
+  else void openPath?.(url)
 }
 
 const CopyButton: React.FC<{ content: string }> = ({ content }) => {
@@ -135,6 +137,7 @@ const CopyButton: React.FC<{ content: string }> = ({ content }) => {
 
 const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
   const isXPost = Boolean(citation.url && isXPostUrl(citation.url))
+  const openPath = useOptionalMessageList()?.actions.openPath
 
   const { data: fetchedContent, isLoading } = useQuery({
     queryKey: ['webContent', citation.url],
@@ -173,7 +176,7 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
           <a
             className="flex-1 text-nowrap text-foreground text-sm leading-[1.6] no-underline"
             href={citation.url}
-            onClick={(e) => handleLinkClick(citation.url, e)}>
+            onClick={(e) => handleLinkClick(citation.url, e, openPath)}>
             {displayTitle || <span className="text-primary">{citation.hostname}</span>}
           </a>
 
@@ -198,6 +201,8 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
 }
 
 const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
+  const openPath = useOptionalMessageList()?.actions.openPath
+
   return (
     <SelectionContextMenu>
       <div className="group relative flex w-full flex-col py-3 transition-all duration-300">
@@ -206,7 +211,7 @@ const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
           <a
             className="flex-1 text-nowrap text-foreground text-sm leading-[1.6] no-underline"
             href={citation.url}
-            onClick={(e) => handleLinkClick(citation.url, e)}>
+            onClick={(e) => handleLinkClick(citation.url, e, openPath)}>
             {/* example title: User/path/example.pdf */}
             {citation.title?.split('/').pop()}
           </a>

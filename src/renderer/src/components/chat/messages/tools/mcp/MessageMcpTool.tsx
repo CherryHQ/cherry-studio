@@ -15,6 +15,7 @@ import type { ComponentPropsWithoutRef, FC } from 'react'
 import { memo, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useOptionalMessageList } from '../../MessageListProvider'
 import { getEffectiveStatus, SkeletonSpan, ToolStatusIndicator, TruncatedIndicator } from '../agent/GenericTools'
 import { useToolApproval } from '../hooks/useToolApproval'
 import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, ResponseSection } from '../shared/ArgsTable'
@@ -43,6 +44,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
   const [fontSize] = usePreference('chat.message.font_size')
   const [progress, setProgress] = useState<number>(0)
   const { setTimeoutTimer } = useTimer()
+  const abortTool = useOptionalMessageList()?.actions.abortTool
 
   // Use the unified approval hook
   const approval = useToolApproval(toolResponse)
@@ -94,9 +96,9 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
   }
 
   const handleAbortTool = async () => {
-    if (toolResponse?.id) {
+    if (toolResponse?.id && abortTool) {
       try {
-        const success = await window.api.mcp.abortTool(toolResponse.id)
+        const success = await abortTool(toolResponse.id)
         if (success) {
           window.toast.success(t('message.tools.aborted'))
         } else {
@@ -196,7 +198,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
 
             <ToolApprovalActionsComponent
               {...approval}
-              showAbort={approval.isExecuting && !!toolResponse?.id}
+              showAbort={approval.isExecuting && !!toolResponse?.id && !!abortTool}
               onAbort={handleAbortTool}
             />
           </ActionsBar>

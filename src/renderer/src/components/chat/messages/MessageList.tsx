@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import NarrowLayout from '../layout/NarrowLayout'
 import { PartsProvider } from './blocks'
+import { MessageListInitialLoading } from './layout/MessageListLoading'
 import { MessagesContainer } from './layout/shared'
 import MessageAnchorLine from './list/MessageAnchorLine'
 import MessageGroup from './list/MessageGroup'
@@ -96,21 +97,17 @@ const MessageList = () => {
         })
       },
       exportTopicImage: async () => {
-        if (!meta.imageExportFileName) return
+        if (!meta.imageExportFileName || !actions.saveImage) return
         const imageData = await captureScrollableAsDataURL(scrollContainerRef)
         if (imageData) {
-          void window.api.file.saveImage(removeSpecialCharactersForFileName(meta.imageExportFileName), imageData)
+          void actions.saveImage(removeSpecialCharactersForFileName(meta.imageExportFileName), imageData)
         }
       }
     })
   }, [actions, meta.imageExportFileName, scrollToBottom])
 
   if (state.isInitialLoading) {
-    return (
-      <div className="flex flex-1 items-center justify-center">
-        <LoadingIcon color="var(--color-foreground-secondary)" />
-      </div>
-    )
+    return <MessageListInitialLoading />
   }
 
   return (

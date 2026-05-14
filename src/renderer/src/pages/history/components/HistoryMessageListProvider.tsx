@@ -32,6 +32,14 @@ export function HistoryMessageListProvider({ topic, messages, partsByMessageId, 
     cacheService.set(cacheKey, { ...current, ...updates })
   }, [])
 
+  const openPath = useCallback((path: string) => {
+    return window.api.file.openPath(path)
+  }, [])
+
+  const showInFolder = useCallback((path: string) => {
+    return window.api.file.showInFolder(path)
+  }, [])
+
   const value = useMemo<MessageListProviderValue>(
     () => ({
       state: {
@@ -60,6 +68,8 @@ export function HistoryMessageListProvider({ topic, messages, partsByMessageId, 
         })
       },
       actions: {
+        openPath,
+        showInFolder,
         updateMessageUiState,
         updateRenderConfig
       },
@@ -67,7 +77,17 @@ export function HistoryMessageListProvider({ topic, messages, partsByMessageId, 
         selectionLayer: false
       }
     }),
-    [getMessageUiState, messages, partsByMessageId, renderConfig, topic, updateMessageUiState, updateRenderConfig]
+    [
+      getMessageUiState,
+      messages,
+      openPath,
+      partsByMessageId,
+      renderConfig,
+      showInFolder,
+      topic,
+      updateMessageUiState,
+      updateRenderConfig
+    ]
   )
 
   return (

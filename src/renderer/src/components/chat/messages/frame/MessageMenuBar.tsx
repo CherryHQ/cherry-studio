@@ -16,8 +16,6 @@ import { loggerService } from '@logger'
 import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/components/Icons'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import InspectMessagePopup from '@renderer/components/Popups/InspectMessagePopup'
-import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
-import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import type { MessageMenuBarButtonId, MessageMenuBarScope } from '@renderer/config/registry/messageMenuBar'
 import {
   DEFAULT_MESSAGE_MENUBAR_SCOPE,
@@ -27,7 +25,6 @@ import {
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useLanguages } from '@renderer/hooks/translate'
 import { useModelById } from '@renderer/hooks/useModels'
-import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
@@ -38,15 +35,7 @@ import { captureScrollableAsBlob, captureScrollableAsDataURL, classNames } from 
 import { abortCompletion } from '@renderer/utils/abortController'
 import { copyMessageAsPlainText } from '@renderer/utils/copy'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
-import {
-  exportMarkdownToJoplin,
-  exportMarkdownToSiyuan,
-  exportMarkdownToYuque,
-  exportMessageAsMarkdown,
-  exportMessageToNotes,
-  exportMessageToNotion,
-  messageToMarkdown
-} from '@renderer/utils/export'
+import { messageToMarkdown } from '@renderer/utils/export'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
 import {
   getTextFromParts,
@@ -131,7 +120,7 @@ type MessageMenuBarButtonContext = {
   isUseful: boolean
   message: MessageListItem
   exportMessage: MessageExportView
-  notesPath: string
+  onExportToNotes: () => void | Promise<void>
   onCopy: (e: React.MouseEvent) => void
   onEdit: () => void | Promise<void>
   /** Filter applied inside the mention-model selector — narrows the model list to candidates valid for this turn. */
@@ -150,6 +139,8 @@ type MessageMenuBarButtonContext = {
   canEditMessage: boolean
   canRegenerateMessage: boolean
   canRegenerateWithModel: boolean
+  canOpenTrace: boolean
+  canExportToNotes: boolean
   canTranslateMessage: boolean
   t: TFunction
   translateLanguages: TranslateLanguage[]
@@ -194,7 +185,6 @@ const MessageMenuBar: FC<Props> = (props) => {
   const displayModel = messageModel ?? model
   const currentMentionModelId = displayModel ? createUniqueModelId(displayModel.provider, displayModel.id) : undefined
   const { model: currentMentionModel } = useModelById(currentMentionModelId ?? ('' as UniqueModelId))
-  const { notesPath } = useNotesSettings()
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const translationAbortKey = createTranslationAbortKey(message.id)
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
@@ -245,6 +235,10 @@ const MessageMenuBar: FC<Props> = (props) => {
     await actions.startMessageBranch?.(message.id)
     window.toast.success(t('chat.message.new.branch.created'))
   }, [actions, message.id, t])
+
+  const onExportToNotes = useCallback(() => {
+    return actions.exportToNotes?.(messageForExport)
+  }, [actions, messageForExport])
 
   /**
    * Mention a specific model to regenerate this assistant turn — produces a
@@ -313,15 +307,11 @@ const MessageMenuBar: FC<Props> = (props) => {
   )
 
   const handleTraceUserMessage = useCallback(async () => {
-    if (message.traceId) {
-      void window.api.trace.openWindow(
-        message.topicId,
-        message.traceId,
-        true,
-        message.role === 'user' ? undefined : getMessageListItemModelName(message)
-      )
-    }
-  }, [message])
+    if (!message.traceId || !actions.openTrace) return
+    await actions.openTrace(message, {
+      modelName: message.role === 'user' ? undefined : getMessageListItemModelName(message)
+    })
+  }, [actions, message])
 
   const menubarScope: MessageMenuBarScope = topic?.type ?? DEFAULT_MESSAGE_MENUBAR_SCOPE
   const { buttonIds, dropdownRootAllowKeys } = getMessageMenuBarConfig(menubarScope)
@@ -336,6 +326,18 @@ const MessageMenuBar: FC<Props> = (props) => {
   const canRegenerateWithModel = supportsWrites && !!actions.regenerateMessageWithModel
   const canStartBranch = supportsWrites && !!actions.startMessageBranch
   const canToggleMultiSelect = state.selection?.enabled && !!actions.toggleMultiSelectMode
+  const canSaveTextFile = !!actions.saveTextFile
+  const canSaveImage = !!actions.saveImage
+  const canSaveToKnowledge = !!actions.saveToKnowledge
+  const canExportMessageAsMarkdown = !!actions.exportMessageAsMarkdown
+  const canExportToNotes = !!actions.exportToNotes
+  const canExportToWord = !!actions.exportToWord
+  const canExportToNotion = !!actions.exportToNotion
+  const canExportToYuque = !!actions.exportToYuque
+  const canExportToObsidian = !!actions.exportToObsidian
+  const canExportToJoplin = !!actions.exportToJoplin
+  const canExportToSiyuan = !!actions.exportToSiyuan
+  const canOpenTrace = !!actions.openTrace
   const canTranslateMessage = supportsWrites && !!actions.getTranslationUpdater
 
   const menuItems = useMemo(() => {
@@ -384,21 +386,29 @@ const MessageMenuBar: FC<Props> = (props) => {
         key: 'save',
         icon: <Save size={15} />,
         children: [
-          {
-            label: t('chat.save.file.title'),
-            key: 'file',
-            onClick: () => {
-              const fileName = dayjs(message.createdAt).format('YYYYMMDDHHmm') + '.md'
-              void window.api.file.save(fileName, mainTextContent)
-            }
-          },
-          {
-            label: t('chat.save.knowledge.title'),
-            key: 'knowledge',
-            onClick: () => {
-              void SaveToKnowledgePopup.showForMessage(messageForExport)
-            }
-          }
+          ...(canSaveTextFile
+            ? [
+                {
+                  label: t('chat.save.file.title'),
+                  key: 'file',
+                  onClick: () => {
+                    const fileName = dayjs(message.createdAt).format('YYYYMMDDHHmm') + '.md'
+                    void actions.saveTextFile?.(fileName, mainTextContent)
+                  }
+                }
+              ]
+            : []),
+          ...(canSaveToKnowledge
+            ? [
+                {
+                  label: t('chat.save.knowledge.title'),
+                  key: 'knowledge',
+                  onClick: () => {
+                    void actions.saveToKnowledge?.(messageForExport)
+                  }
+                }
+              ]
+            : [])
         ]
       },
       {
@@ -422,83 +432,76 @@ const MessageMenuBar: FC<Props> = (props) => {
               })
             }
           },
-          exportMenuOptions.image && {
-            label: t('chat.topics.export.image'),
-            key: 'image',
-            onClick: async () => {
-              const imageData = await captureScrollableAsDataURL(messageContainerRef)
-              const title = await getMessageTitle(messageForExport)
-              if (title && imageData) {
-                const success = await window.api.file.saveImage(title, imageData)
-                if (success) window.toast.success(t('chat.topics.export.image_saved'))
+          exportMenuOptions.image &&
+            canSaveImage && {
+              label: t('chat.topics.export.image'),
+              key: 'image',
+              onClick: async () => {
+                const imageData = await captureScrollableAsDataURL(messageContainerRef)
+                const title = await getMessageTitle(messageForExport)
+                if (title && imageData) {
+                  const success = await actions.saveImage?.(title, imageData)
+                  if (success) window.toast.success(t('chat.topics.export.image_saved'))
+                }
               }
+            },
+          exportMenuOptions.markdown &&
+            canExportMessageAsMarkdown && {
+              label: t('chat.topics.export.md.label'),
+              key: 'markdown',
+              onClick: () => actions.exportMessageAsMarkdown?.(messageForExport)
+            },
+          exportMenuOptions.markdown_reason &&
+            canExportMessageAsMarkdown && {
+              label: t('chat.topics.export.md.reason'),
+              key: 'markdown_reason',
+              onClick: () => actions.exportMessageAsMarkdown?.(messageForExport, true)
+            },
+          exportMenuOptions.docx &&
+            canExportToWord && {
+              label: t('chat.topics.export.word'),
+              key: 'word',
+              onClick: async () => {
+                const markdown = await messageToMarkdown(messageForExport)
+                const title = await getMessageTitle(messageForExport)
+                void actions.exportToWord?.(markdown, title)
+              }
+            },
+          exportMenuOptions.notion &&
+            canExportToNotion && {
+              label: t('chat.topics.export.notion'),
+              key: 'notion',
+              onClick: () => actions.exportToNotion?.(messageForExport)
+            },
+          exportMenuOptions.yuque &&
+            canExportToYuque && {
+              label: t('chat.topics.export.yuque'),
+              key: 'yuque',
+              onClick: () => actions.exportToYuque?.(messageForExport)
+            },
+          exportMenuOptions.obsidian &&
+            canExportToObsidian && {
+              label: t('chat.topics.export.obsidian'),
+              key: 'obsidian',
+              onClick: () => actions.exportToObsidian?.(messageForExport)
+            },
+          exportMenuOptions.joplin &&
+            canExportToJoplin && {
+              label: t('chat.topics.export.joplin'),
+              key: 'joplin',
+              onClick: () => actions.exportToJoplin?.(messageForExport)
+            },
+          exportMenuOptions.siyuan &&
+            canExportToSiyuan && {
+              label: t('chat.topics.export.siyuan'),
+              key: 'siyuan',
+              onClick: () => actions.exportToSiyuan?.(messageForExport)
             }
-          },
-          exportMenuOptions.markdown && {
-            label: t('chat.topics.export.md.label'),
-            key: 'markdown',
-            onClick: () => exportMessageAsMarkdown(messageForExport)
-          },
-          exportMenuOptions.markdown_reason && {
-            label: t('chat.topics.export.md.reason'),
-            key: 'markdown_reason',
-            onClick: () => exportMessageAsMarkdown(messageForExport, true)
-          },
-          exportMenuOptions.docx && {
-            label: t('chat.topics.export.word'),
-            key: 'word',
-            onClick: async () => {
-              const markdown = await messageToMarkdown(messageForExport)
-              const title = await getMessageTitle(messageForExport)
-              void window.api.export.toWord(markdown, title)
-            }
-          },
-          exportMenuOptions.notion && {
-            label: t('chat.topics.export.notion'),
-            key: 'notion',
-            onClick: async () => {
-              const title = await getMessageTitle(messageForExport)
-              const markdown = await messageToMarkdown(messageForExport)
-              void exportMessageToNotion(title, markdown, messageForExport)
-            }
-          },
-          exportMenuOptions.yuque && {
-            label: t('chat.topics.export.yuque'),
-            key: 'yuque',
-            onClick: async () => {
-              const title = await getMessageTitle(messageForExport)
-              const markdown = await messageToMarkdown(messageForExport)
-              void exportMarkdownToYuque(title, markdown)
-            }
-          },
-          exportMenuOptions.obsidian && {
-            label: t('chat.topics.export.obsidian'),
-            key: 'obsidian',
-            onClick: async () => {
-              const title = topic.name?.replace(/\\/g, '_') || 'Untitled'
-              await ObsidianExportPopup.show({ title, message: messageForExport, processingMethod: '1' })
-            }
-          },
-          exportMenuOptions.joplin && {
-            label: t('chat.topics.export.joplin'),
-            key: 'joplin',
-            onClick: async () => {
-              const title = await getMessageTitle(messageForExport)
-              void exportMarkdownToJoplin(title, messageForExport)
-            }
-          },
-          exportMenuOptions.siyuan && {
-            label: t('chat.topics.export.siyuan'),
-            key: 'siyuan',
-            onClick: async () => {
-              const title = await getMessageTitle(messageForExport)
-              const markdown = await messageToMarkdown(messageForExport)
-              void exportMarkdownToSiyuan(title, markdown)
-            }
-          }
         ].filter(Boolean) as MessageMenuItem[]
       }
-    ].filter(Boolean) as MessageMenuItem[]
+    ]
+      .filter(Boolean)
+      .filter((item) => isMessageMenuDivider(item) || !item.children || item.children.length > 0) as MessageMenuItem[]
 
     if (!dropdownRootAllowKeys || dropdownRootAllowKeys.length === 0) {
       return items
@@ -527,7 +530,17 @@ const MessageMenuBar: FC<Props> = (props) => {
     exportMenuOptions.siyuan,
     exportMenuOptions.yuque,
     canEditMessage,
+    canExportMessageAsMarkdown,
+    canExportToJoplin,
+    canExportToNotion,
+    canExportToObsidian,
+    canExportToSiyuan,
+    canExportToWord,
+    canExportToYuque,
     canStartBranch,
+    canSaveImage,
+    canSaveTextFile,
+    canSaveToKnowledge,
     canToggleMultiSelect,
     isEditable,
     isProcessing,
@@ -539,8 +552,7 @@ const MessageMenuBar: FC<Props> = (props) => {
     onEdit,
     onNewBranch,
     actions,
-    t,
-    topic.name
+    t
   ])
 
   const onRegenerate = useCallback(
@@ -593,7 +605,7 @@ const MessageMenuBar: FC<Props> = (props) => {
     isUseful,
     message,
     exportMessage: messageForExport,
-    notesPath,
+    onExportToNotes,
     onCopy,
     onEdit,
     mentionModelFilter,
@@ -608,6 +620,8 @@ const MessageMenuBar: FC<Props> = (props) => {
     canEditMessage,
     canRegenerateMessage,
     canRegenerateWithModel,
+    canOpenTrace,
+    canExportToNotes,
     canTranslateMessage,
     t,
     translateLanguages,
@@ -950,8 +964,8 @@ const buttonRenderers: Record<MessageMenuBarButtonId, MessageMenuBarButtonRender
       </Tooltip>
     )
   },
-  notes: ({ isAssistantMessage, softHoverBg, exportMessage, notesPath, t }) => {
-    if (!isAssistantMessage) {
+  notes: ({ isAssistantMessage, softHoverBg, onExportToNotes, canExportToNotes, t }) => {
+    if (!isAssistantMessage || !canExportToNotes) {
       return null
     }
 
@@ -961,9 +975,7 @@ const buttonRenderers: Record<MessageMenuBarButtonId, MessageMenuBarButtonRender
           className="message-action-button"
           onClick={async (e) => {
             e.stopPropagation()
-            const title = await getMessageTitle(exportMessage)
-            const markdown = await messageToMarkdown(exportMessage)
-            void exportMessageToNotes(title, markdown, notesPath)
+            await onExportToNotes()
           }}
           $softHoverBg={softHoverBg}>
           <NotebookPen size={15} />
@@ -1031,8 +1043,8 @@ const buttonRenderers: Record<MessageMenuBarButtonId, MessageMenuBarButtonRender
       </ActionButton>
     )
   },
-  trace: ({ enableDeveloperMode, message, handleTraceUserMessage, t }) => {
-    if (!enableDeveloperMode || !message.traceId) {
+  trace: ({ enableDeveloperMode, message, handleTraceUserMessage, canOpenTrace, t }) => {
+    if (!enableDeveloperMode || !message.traceId || !canOpenTrace) {
       return null
     }
 
@@ -1067,7 +1079,7 @@ const buttonRenderers: Record<MessageMenuBarButtonId, MessageMenuBarButtonRender
     )
   },
   'more-menu': ({ isUserMessage, menuItems, softHoverBg }) => {
-    if (isUserMessage) {
+    if (isUserMessage || menuItems.length === 0) {
       return null
     }
 

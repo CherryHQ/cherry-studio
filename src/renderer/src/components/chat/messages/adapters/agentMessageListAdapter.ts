@@ -61,6 +61,18 @@ export function useAgentMessageListProviderValue({
     cacheService.set(cacheKey, { ...current, ...updates })
   }, [])
 
+  const openPath = useCallback((path: string) => {
+    return window.api.file.openPath(path)
+  }, [])
+
+  const showInFolder = useCallback((path: string) => {
+    return window.api.file.showInFolder(path)
+  }, [])
+
+  const abortTool = useCallback((toolId: string) => {
+    return window.api.mcp.abortTool(toolId)
+  }, [])
+
   return useMemo(
     () => ({
       state: {
@@ -87,6 +99,9 @@ export function useAgentMessageListProviderValue({
       },
       actions: {
         loadOlder,
+        openPath,
+        showInFolder,
+        abortTool,
         updateMessageUiState,
         updateRenderConfig
       },
@@ -97,6 +112,7 @@ export function useAgentMessageListProviderValue({
     }),
     [
       assistantProfile,
+      abortTool,
       getMessageActivityState,
       getMessageUiState,
       hasOlder,
@@ -104,8 +120,10 @@ export function useAgentMessageListProviderValue({
       loadOlder,
       messageNavigation,
       messageItems,
+      openPath,
       partsByMessageId,
       renderConfig,
+      showInFolder,
       topic,
       updateMessageUiState,
       updateRenderConfig

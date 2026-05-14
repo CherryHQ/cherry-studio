@@ -7,12 +7,15 @@ import { t } from 'i18next'
 import { Paperclip } from 'lucide-react'
 import type { FC } from 'react'
 
+import { useOptionalMessageList } from '../MessageListProvider'
+
 interface Props {
   file: FileMetadata
 }
 
 const MessageAttachments: FC<Props> = ({ file }) => {
   const { preview } = useAttachment()
+  const messageList = useOptionalMessageList()
 
   if (!file) {
     return null
@@ -21,6 +24,7 @@ const MessageAttachments: FC<Props> = ({ file }) => {
   const safePath = FileManager.getSafePath(file)
   const fileName = FileManager.formatFileName(file)
   const fileSuffix = file.ext ? file.ext.replace('.', '').toUpperCase() : file.type.toUpperCase()
+  const openPath = messageList?.actions.openPath
 
   const handlePreview = () => {
     const fileType = parseFileTypes(file.type)
@@ -52,7 +56,7 @@ const MessageAttachments: FC<Props> = ({ file }) => {
           <Button size="sm" variant="secondary" onClick={handlePreview}>
             {t('common.preview')}
           </Button>
-          <Button size="sm" variant="outline" onClick={() => window.api.file.openPath(safePath)}>
+          <Button size="sm" variant="outline" disabled={!openPath} onClick={() => void openPath?.(safePath)}>
             {t('files.open')}
           </Button>
         </div>

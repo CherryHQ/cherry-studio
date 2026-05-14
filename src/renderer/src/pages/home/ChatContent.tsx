@@ -15,12 +15,12 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('ChatContent')
 
 import { useHomeMessageListProviderValue } from '@renderer/components/chat/messages/adapters/homeMessageListAdapter'
 import { RefreshProvider } from '@renderer/components/chat/messages/blocks'
+import { MessageListInitialLoading } from '@renderer/components/chat/messages/layout/MessageListLoading'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
@@ -71,7 +71,6 @@ interface Props {
  * `ExecutionStreamCollector`s and are overlaid into `partsByMessageId`.
  */
 const ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight, renderFrame, onPersistTemporaryTopic }) => {
-  const { t } = useTranslation()
   const [hasPersistedTemporaryTopic, setHasPersistedTemporaryTopic] = useState(false)
   useEffect(() => setHasPersistedTemporaryTopic(false), [topic.id])
   const isFreshTemporaryTopic = !!onPersistTemporaryTopic && !hasPersistedTemporaryTopic
@@ -87,11 +86,7 @@ const ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight, renderFrame
   } = useTopicMessages(topic.id, { enabled: !isFreshTemporaryTopic })
 
   if (isHistoryLoading) {
-    const main = (
-      <div className="flex h-full flex-1 flex-col items-center justify-center">
-        <div className="text-foreground-secondary text-sm">{t('common.loading')}</div>
-      </div>
-    )
+    const main = <MessageListInitialLoading />
 
     if (renderFrame) {
       return renderFrame({ main })
