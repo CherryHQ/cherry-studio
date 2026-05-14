@@ -28,6 +28,11 @@ export default function ProviderListItem({ provider, selected, dragging, onClick
       tabIndex={0}
       onClick={onClick}
       onKeyDown={(event) => {
+        // Only intercept Enter / Space when the row itself is focused.
+        // Without this guard, keydown on the inner kebab button bubbles up,
+        // preventDefault here suppresses the button's native click action,
+        // and the menu cannot be opened via keyboard.
+        if (event.currentTarget !== event.target) return
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault()
           onClick()
