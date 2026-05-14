@@ -522,6 +522,71 @@ describe('CherryINOAuthService', () => {
     })
   })
 
+  it('rejects api hosts outside the allowlist on every IPC entry point (SSRF defense)', async () => {
+    // Pins the validateApiHost negative case for the three entry points that
+    // call it: startOAuthFlow, getBalance, logout. A future widening of
+    // CHERRYIN_CONFIG.ALLOWED_HOSTS or a new entry point that skips the
+    // guard would not break any existing test without this.
+    const forgedHost = 'https://attacker.example.com'
+
+    await expect(
+      cherryINOAuthService.startOAuthFlow({ sender: { id: 1 } } as Electron.IpcMainInvokeEvent, forgedHost)
+    ).rejects.toThrow(/Unauthorized API host/)
+
+    await expect(cherryINOAuthService.getBalance({} as Electron.IpcMainInvokeEvent, forgedHost)).rejects.toThrow(
+      /Unauthorized API host/
+    )
+
+    await expect(cherryINOAuthService.logout({} as Electron.IpcMainInvokeEvent, forgedHost)).rejects.toThrow(
+      /Unauthorized API host/
+    )
+  })
+
+  it('does NOT persist OAuth token when the api-keys fetch fails after token exchange', async () => {
+    // Pins Important #1 fix (556d88918): performTokenExchange must defer
+    // saveTokenInternal until after /oauth/tokens succeeds. A future
+    // refactor that re-orders the save before the keys-validation would
+    // silently leak a usable accessToken into SQLite while the user-visible
+    // flow throws, leaving hasToken() true.
+    providerServiceMocks.getAuthConfig.mockResolvedValue(null)
+    providerServiceMocks.update.mockResolvedValue(undefined)
+    vi.mocked(net.fetch).mockImplementation(async (url) => {
+      const urlString = String(url)
+      if (urlString.endsWith('/oauth2/token')) {
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => ({ access_token: 'leaked-access', refresh_token: 'leaked-refresh' })
+        } as Response
+      }
+      // /api/v1/oauth/tokens — fail
+      return {
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+        text: async () => 'upstream down'
+      } as Response
+    })
+
+    const { state } = await cherryINOAuthService.startOAuthFlow(
+      { sender: { id: 7 } } as Electron.IpcMainInvokeEvent,
+      'https://open.cherryin.ai'
+    )
+
+    await cherryINOAuthService.handleOAuthCallback(
+      new URL(`cherrystudio://oauth/callback?state=${state}&code=auth-code`)
+    )
+
+    // No provider.update with an `oauth` authConfig — token must NOT have
+    // been persisted because the api-keys fetch failed.
+    const oauthUpdateCalls = providerServiceMocks.update.mock.calls.filter((call) => {
+      const dto = call[1] as { authConfig?: { type?: string } } | undefined
+      return dto?.authConfig?.type === 'oauth'
+    })
+    expect(oauthUpdateCalls).toEqual([])
+  })
+
   it('clears auth config back to api-key mode on logout', async () => {
     providerServiceMocks.getAuthConfig.mockResolvedValue({
       type: 'oauth',

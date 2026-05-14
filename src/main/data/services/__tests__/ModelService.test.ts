@@ -799,3 +799,127 @@ describe('ModelService.delete', () => {
     })
   })
 })
+
+describe('ModelService.bulkUpdate', () => {
+  const dbh = setupTestDatabase()
+
+  it('rolls back the whole batch when one item is missing (atomic update)', async () => {
+    // T3: pin the cross-row atomicity of bulkUpdate. A NOT_FOUND on item 2
+    // must NOT leave item 1's update committed.
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values([modelRow('openai', 'gpt-4o', { name: 'GPT-4o-original' })])
+
+    const originalGpt4o = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(eq(userModelTable.id, createUniqueModelId('openai', 'gpt-4o')))
+      .then((rows) => rows[0])
+
+    await expect(
+      modelService.bulkUpdate([
+        { providerId: 'openai', modelId: 'gpt-4o', patch: { name: 'GPT-4o-new' } },
+        { providerId: 'openai', modelId: 'missing', patch: { name: 'should-rollback' } }
+      ])
+    ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+    const afterRollback = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(eq(userModelTable.id, createUniqueModelId('openai', 'gpt-4o')))
+      .then((rows) => rows[0])
+    expect(afterRollback?.name).toBe(originalGpt4o.name)
+    expect(afterRollback?.name).toBe('GPT-4o-original')
+  })
+})
+
+describe('ModelService.reconcileForProvider', () => {
+  const dbh = setupTestDatabase()
+
+  it('removes only the target provider rows, purges their pins, and chunks large inserts', async () => {
+    // T2: service-level coverage for the atomic reconcile path. The renderer
+    // test (T6 in usePullReconcileSubmit.test.ts) covers the aggregation
+    // contract; this test pins the DB-side guarantees: cross-provider
+    // isolation, pin cascade on remove, and per-INSERT chunking inside the
+    // single transaction.
+    await dbh.db
+      .insert(userProviderTable)
+      .values([providerRow('openai', 'OpenAI'), providerRow('anthropic', 'Anthropic')])
+
+    const openaiGpt4o = createUniqueModelId('openai', 'gpt-4o')
+    const openaiGpt4oMini = createUniqueModelId('openai', 'gpt-4o-mini')
+    const anthropicClaude = createUniqueModelId('anthropic', 'claude-3-5-sonnet')
+    await dbh.db
+      .insert(userModelTable)
+      .values([
+        modelRow('openai', 'gpt-4o', { id: openaiGpt4o }),
+        modelRow('openai', 'gpt-4o-mini', { id: openaiGpt4oMini }),
+        modelRow('anthropic', 'claude-3-5-sonnet', { id: anthropicClaude })
+      ])
+
+    await pinService.pin({ entityType: 'model', entityId: openaiGpt4o })
+    await pinService.pin({ entityType: 'model', entityId: anthropicClaude })
+
+    // Cross MODELS_RECONCILE per-INSERT chunk size of 500 (use 600).
+    const toAdd = Array.from({ length: 600 }, (_, index) => ({
+      dto: {
+        providerId: 'openai',
+        modelId: `bulk-model-${index}`,
+        name: `Bulk Model ${index}`
+      } as const,
+      registryData: undefined
+    }))
+
+    const result = await modelService.reconcileForProvider('openai', {
+      toAdd,
+      toRemove: [openaiGpt4o]
+    })
+
+    // openai: old gpt-4o-mini + 600 new = 601 rows; gpt-4o is gone.
+    expect(result.length).toBe(601)
+    expect(result.find((m) => m.id === openaiGpt4o)).toBeUndefined()
+    expect(result.find((m) => m.id === openaiGpt4oMini)).toBeDefined()
+    expect(result.filter((m) => m.id.startsWith('openai::bulk-model-')).length).toBe(600)
+
+    // anthropic untouched by the openai reconcile.
+    const anthropicRows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.providerId, 'anthropic'))
+    expect(anthropicRows.map((r) => r.id)).toEqual([anthropicClaude])
+
+    // Pin for the removed openai model is gone; pin for anthropic survives.
+    const remainingPins = await dbh.db.select().from(pinTable).where(eq(pinTable.entityType, 'model'))
+    expect(remainingPins.map((p) => p.entityId).sort()).toEqual([anthropicClaude].sort())
+
+    // Inserted rows have strictly-increasing order keys across chunk boundaries.
+    const bulkRows = result.filter((m) => m.id.startsWith('openai::bulk-model-'))
+    const bulkOrderKeys = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(or(...bulkRows.map((m) => and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.id, m.id))!)))
+    const sortedKeys = bulkOrderKeys.map((r) => r.orderKey).sort()
+    expect(new Set(sortedKeys).size).toBe(sortedKeys.length)
+  })
+
+  it('warns when toRemove references IDs that do not exist for this provider', async () => {
+    // S2 regression coverage: stale renderer state passes a toRemove with a
+    // non-existent id; reconcile completes but logs the count mismatch.
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db
+      .insert(userModelTable)
+      .values([modelRow('openai', 'gpt-4o', { id: createUniqueModelId('openai', 'gpt-4o') })])
+
+    const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
+    await modelService.reconcileForProvider('openai', {
+      toAdd: [],
+      toRemove: [createUniqueModelId('openai', 'gpt-4o'), createUniqueModelId('openai', 'never-existed')]
+    })
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Reconcile toRemove count mismatch',
+      expect.objectContaining({
+        providerId: 'openai',
+        requestedRemove: 2,
+        actuallyDeleted: 1
+      })
+    )
+    warnSpy.mockRestore()
+  })
+})
