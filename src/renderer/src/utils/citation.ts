@@ -71,8 +71,8 @@ function collectProtectedRanges(content: string): Array<{ start: number; end: nu
     ranges.push({ start: m.index, end: m.index + m[0].length })
   }
 
-  // Dollar inline math $...$ — conservative to avoid currency false positives
-  const dollarInlineRegex = /(?<!\$)\$(?!\$)([^\s$](?:[^\n$]*[^\s$])?)\$(?!\$)/g
+  // Dollar inline math $...$ — exclude $<digit> to avoid currency false positives
+  const dollarInlineRegex = /(?<!\$)\$(?!\$)([^\s$\d](?:[^\n$]*[^\s$])?)\$(?!\$)/g
   while ((m = dollarInlineRegex.exec(content)) !== null) {
     ranges.push({ start: m.index, end: m.index + m[0].length })
   }

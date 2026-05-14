@@ -266,6 +266,20 @@ Numbered list:
       expect(result).toContain('citation [cite:3]')
     })
 
+    it('should normalize citations in currency-like dollar text with dash', () => {
+      const content = 'From $5[1]-$10[2]'
+      const result = normalizeCitationMarks(content, citationMap)
+
+      expect(result).toBe('From $5[cite:1]-$10[cite:2]')
+    })
+
+    it('should normalize citations in currency-like dollar text with slash', () => {
+      const content = '$5[1]/$10[2]'
+      const result = normalizeCitationMarks(content, citationMap)
+
+      expect(result).toBe('$5[cite:1]/$10[cite:2]')
+    })
+
     it('should skip citations inside dollar display math $$...$$', () => {
       const content = '$$[2]+[3]\\equiv[1]\\pmod{4}$$\nSee [1]'
       const result = normalizeCitationMarks(content, citationMap)
