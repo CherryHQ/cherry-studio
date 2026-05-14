@@ -172,8 +172,8 @@
     {
       "idx": 24,
       "version": "6",
-      "when": 1778480000000,
-      "tag": "0024_fix_user_model_max_input_tokens",
+      "when": 1778738430302,
+      "tag": "0024_eager_patriot",
       "breakpoints": true
     }
   ],
