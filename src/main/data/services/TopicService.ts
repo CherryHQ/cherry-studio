@@ -12,7 +12,7 @@ import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateTopicDto, ListTopicsQuery, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 import type { Topic } from '@shared/data/types/topic'
 import type { SQL } from 'drizzle-orm'
-import { and, asc, desc, eq, gt, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
 
 import { pinService } from './PinService'
 import { tagService } from './TagService'
@@ -41,10 +41,6 @@ function rowToTopic(row: TopicRow): Topic {
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
-}
-
-function topicScopePredicate(groupId: string | null): SQL {
-  return groupId === null ? isNull(topicTable.groupId) : eq(topicTable.groupId, groupId)
 }
 
 // Wire format: `pin:<orderKey>` / `topic:<updatedAt>:<id>` / `topic:` (pin exhausted).
@@ -123,7 +119,6 @@ export class TopicService {
 
   async create(dto: CreateTopicDto): Promise<Topic> {
     const db = application.get('DbService').getDb()
-    const groupId = dto.groupId ?? null
 
     const row = (await db.transaction(async (tx) => {
       // In-tx so a concurrent delete can't slip between check and insert;
@@ -143,12 +138,12 @@ export class TopicService {
         {
           name: dto.name,
           assistantId: dto.assistantId,
-          groupId,
+          groupId: dto.groupId ?? null,
           activeNodeId: dto.sourceNodeId ?? null
         },
         {
           pkColumn: topicTable.id,
-          scope: topicScopePredicate(groupId)
+          scope: isNull(topicTable.deletedAt)
         }
       )
     })) as TopicRow
@@ -350,7 +345,7 @@ export class TopicService {
     const db = application.get('DbService').getDb()
     await db.transaction(async (tx) => {
       const [target] = await tx
-        .select({ groupId: topicTable.groupId })
+        .select({ id: topicTable.id })
         .from(topicTable)
         .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
         .limit(1)
@@ -358,40 +353,19 @@ export class TopicService {
 
       await applyMoves(tx, topicTable, [{ id, anchor }], {
         pkColumn: topicTable.id,
-        scope: topicScopePredicate(target.groupId)
+        scope: isNull(topicTable.deletedAt)
       })
     })
   }
 
-  /** Cross-scope (mixed `groupId`) batches are rejected with VALIDATION_ERROR. */
   async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
     if (moves.length === 0) return
 
     const db = application.get('DbService').getDb()
     await db.transaction(async (tx) => {
-      const ids = moves.map((m) => m.id)
-      const targets = await tx
-        .select({ id: topicTable.id, groupId: topicTable.groupId })
-        .from(topicTable)
-        .where(and(inArray(topicTable.id, ids), isNull(topicTable.deletedAt)))
-
-      if (targets.length !== ids.length) {
-        const found = new Set(targets.map((t) => t.id))
-        const missing = ids.find((id) => !found.has(id)) ?? ids[0]
-        throw DataApiErrorFactory.notFound('Topic', missing)
-      }
-
-      const scopeValues = new Set(targets.map((t) => t.groupId))
-      if (scopeValues.size > 1) {
-        const scopeList = [...scopeValues].map((s) => (s === null ? '<null>' : s)).join(', ')
-        const message = `reorderBatch: batch spans multiple groupId scopes (${scopeList})`
-        throw DataApiErrorFactory.validation({ _root: [message] }, message)
-      }
-
-      const [scopeValue] = [...scopeValues]
       await applyMoves(tx, topicTable, moves, {
         pkColumn: topicTable.id,
-        scope: topicScopePredicate(scopeValue ?? null)
+        scope: isNull(topicTable.deletedAt)
       })
     })
   }

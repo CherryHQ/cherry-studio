@@ -121,6 +121,8 @@ export const AssistantSchema = z.strictObject({
   settings: AssistantSettingsSchema,
   /** Default/primary model ID in UniqueModelId format ("providerId::modelId") */
   modelId: UniqueModelIdSchema.nullable(),
+  /** Persistent ordering key. Read-only; modified only through order endpoints. */
+  orderKey: z.string(),
   /** Ordered MCP server IDs linked through assistant_mcp_server */
   mcpServerIds: z.array(z.string()),
   /** Ordered knowledge base IDs linked through assistant_knowledge_base */

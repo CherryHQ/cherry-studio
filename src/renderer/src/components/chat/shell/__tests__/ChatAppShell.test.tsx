@@ -1,32 +1,48 @@
-import { render, screen } from '@testing-library/react'
-import type * as React from 'react'
+import { fireEvent, render, screen } from '@testing-library/react'
+import type { HTMLAttributes, PropsWithChildren, ReactNode, Ref } from 'react'
+import { useEffect, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { ChatAppShell } from '../ChatAppShell'
 
 vi.mock('@renderer/utils', () => ({
-  cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
+  cn: (...inputs: unknown[]) => inputs.filter(Boolean).join(' ')
 }))
 
 vi.mock('@renderer/components/ErrorBoundary', () => ({
-  ErrorBoundary: ({ children }: React.PropsWithChildren) => <>{children}</>
+  ErrorBoundary: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
-vi.mock('motion/react', () => ({
-  AnimatePresence: ({ children }: React.PropsWithChildren) => <>{children}</>,
-  motion: {
-    div: ({
-      children,
-      layout: _layout,
-      transition: _transition,
-      ...props
-    }: React.HTMLAttributes<HTMLDivElement> & { layout?: boolean; transition?: unknown }) => {
-      void _layout
-      void _transition
-      return <div {...props}>{children}</div>
+type MotionDivProps = HTMLAttributes<HTMLDivElement> & {
+  animate?: unknown
+  exit?: unknown
+  initial?: unknown
+  layout?: unknown
+  ref?: Ref<HTMLDivElement>
+  transition?: unknown
+}
+
+vi.mock('motion/react', () => {
+  return {
+    AnimatePresence: ({ children }: { children: ReactNode }) => children,
+    motion: {
+      div: ({ ref, children, ...props }: MotionDivProps) => {
+        const domProps = { ...props }
+        delete domProps.animate
+        delete domProps.exit
+        delete domProps.initial
+        delete domProps.layout
+        delete domProps.transition
+
+        return (
+          <div ref={ref} {...domProps}>
+            {children}
+          </div>
+        )
+      }
     }
   }
-}))
+})
 
 describe('ChatAppShell', () => {
   it('keeps side panel inside chat-main with the navbar layer', () => {
@@ -45,5 +61,50 @@ describe('ChatAppShell', () => {
     expect(chatMain).toContainElement(screen.getByTestId('settings-panel'))
     expect(chatMain).toContainElement(screen.getByTestId('main'))
     expect(chatMain).toHaveClass('relative')
+  })
+
+  it('keeps the pane mounted when keyed center content changes', () => {
+    const paneMounts: string[] = []
+
+    function Pane() {
+      const [count, setCount] = useState(0)
+
+      useEffect(() => {
+        paneMounts.push('mounted')
+      }, [])
+
+      return (
+        <button type="button" onClick={() => setCount((value) => value + 1)}>
+          pane count {count}
+        </button>
+      )
+    }
+
+    const { rerender } = render(
+      <ChatAppShell
+        pane={<Pane />}
+        paneOpen
+        centerContent={<div key="topic-1">topic 1 content</div>}
+        topBar={<div>topic 1 nav</div>}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'pane count 0' }))
+
+    expect(screen.getByRole('button', { name: 'pane count 1' })).toBeInTheDocument()
+
+    rerender(
+      <ChatAppShell
+        pane={<Pane />}
+        paneOpen
+        centerContent={<div key="topic-2">topic 2 content</div>}
+        topBar={<div>topic 2 nav</div>}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'pane count 1' })).toBeInTheDocument()
+    expect(screen.queryByText('topic 1 content')).not.toBeInTheDocument()
+    expect(screen.getByText('topic 2 content')).toBeInTheDocument()
+    expect(paneMounts).toEqual(['mounted'])
   })
 })

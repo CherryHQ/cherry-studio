@@ -10,6 +10,7 @@ import * as z from 'zod'
 import { type Assistant, AssistantSchema, AssistantSettingsSchema } from '../../types/assistant'
 import { TagIdSchema } from '../../types/tag'
 import type { OffsetPaginationResponse } from '../apiTypes'
+import type { OrderEndpoints } from './_endpointHelpers'
 
 // ============================================================================
 // DTO Derivation
@@ -24,6 +25,7 @@ import type { OffsetPaginationResponse } from '../apiTypes'
  * - `tags` is embedded on read via inline join; writes use `tagIds` below.
  * - `modelName` is resolved at read time from `user_model.name`; edits go via
  *   `modelId`.
+ * - `orderKey` is service-owned; writes go through `/assistants/:id/order`.
  */
 const ASSISTANT_MUTABLE_FIELDS = {
   name: true,
@@ -163,4 +165,4 @@ export type AssistantSchemas = {
       response: void
     }
   }
-}
+} & OrderEndpoints<'/assistants'>

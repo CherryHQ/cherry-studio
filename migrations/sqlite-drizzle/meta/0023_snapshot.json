@@ -1050,6 +1050,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "order_key": {
+          "name": "order_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -1076,6 +1083,11 @@
         "assistant_created_at_idx": {
           "name": "assistant_created_at_idx",
           "columns": ["created_at"],
+          "isUnique": false
+        },
+        "assistant_order_key_idx": {
+          "name": "assistant_order_key_idx",
+          "columns": ["order_key"],
           "isUnique": false
         }
       },
@@ -2518,9 +2530,9 @@
           "columns": ["updated_at"],
           "isUnique": false
         },
-        "topic_group_id_order_key_idx": {
-          "name": "topic_group_id_order_key_idx",
-          "columns": ["group_id", "order_key"],
+        "topic_order_key_idx": {
+          "name": "topic_order_key_idx",
+          "columns": ["order_key"],
           "isUnique": false
         },
         "topic_assistant_id_idx": {

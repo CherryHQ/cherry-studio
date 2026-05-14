@@ -97,6 +97,7 @@ const AgentSessionInputbar = ({
       settings: DEFAULT_ASSISTANT_SETTINGS,
       modelId: sessionModel ? createUniqueModelId(sessionModel.provider, sessionModel.id) : null,
       modelName: sessionModel?.name ?? null,
+      orderKey: '',
       mcpServerIds: [],
       knowledgeBaseIds: [],
       tags: [],

@@ -1407,6 +1407,7 @@
             "save_failed": "保存话题失败，请检查知识库配置"
           },
           "loading": "正在分析话题内容...",
+          "menu_title": "保存到知识库",
           "select": {
             "content": {
               "label": "选择要保存的内容类型",
@@ -1493,6 +1494,12 @@
       "delete": {
         "shortcut": "按住 {{key}} 可直接删除"
       },
+      "display": {
+        "assistant": "助手",
+        "tag": "标签",
+        "time": "时间",
+        "title": "展示方式"
+      },
       "edit": {
         "placeholder": "输入新名称",
         "title": "编辑话题名",
@@ -1547,6 +1554,15 @@
         "wait_for_title_naming": "正在生成标题...",
         "word": "导出为 Word",
         "yuque": "导出到语雀"
+      },
+      "group": {
+        "collapse": "折叠话题",
+        "earlier": "更早",
+        "show_more": "显示更多话题",
+        "this_week": "本周",
+        "today": "今天",
+        "unknown_assistant": "未知助手",
+        "yesterday": "昨天"
       },
       "list": "话题列表",
       "manage": {

@@ -45,6 +45,7 @@ export function mapApiTopicToRendererTopic(t: Topic): RendererTopic {
     name: t.name ?? '',
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
+    orderKey: t.orderKey,
     messages: [],
     pinned: false,
     isNameManuallyEdited: t.isNameManuallyEdited

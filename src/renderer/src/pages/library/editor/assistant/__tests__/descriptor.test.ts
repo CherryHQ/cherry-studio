@@ -32,6 +32,7 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
     description: '',
     settings: { ...DEFAULT_ASSISTANT_SETTINGS } as AssistantSettings,
     modelId: null,
+    orderKey: 'a0',
     mcpServerIds: [],
     knowledgeBaseIds: [],
     createdAt: '2026-04-20T00:00:00.000Z',

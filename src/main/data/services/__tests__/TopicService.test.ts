@@ -19,8 +19,24 @@ describe('TopicService', () => {
       const service = new TopicService()
       // FK: topic.assistantId → assistant.id — seed both assistants first.
       await dbh.db.insert(assistantTable).values([
-        { id: 'asst-1', name: 'A', emoji: '🌟', settings: DEFAULT_ASSISTANT_SETTINGS, createdAt: 1, updatedAt: 1 },
-        { id: 'asst-2', name: 'B', emoji: '🌟', settings: DEFAULT_ASSISTANT_SETTINGS, createdAt: 1, updatedAt: 1 }
+        {
+          id: 'asst-1',
+          name: 'A',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: 'asst-2',
+          name: 'B',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a1',
+          createdAt: 1,
+          updatedAt: 1
+        }
       ])
       await dbh.db.insert(topicTable).values({
         id: 't1',
@@ -280,14 +296,14 @@ describe('TopicService', () => {
 
   describe('reorder', () => {
     /**
-     * Seed three topics inside the same group with monotonically increasing
+     * Seed three topics with monotonically increasing
      * orderKeys ('a0' < 'a1' < 'a2'). Tests anchor against this baseline.
      */
-    async function seedThree(groupId: string | null = null) {
+    async function seedThree() {
       await dbh.db.insert(topicTable).values([
-        { id: 't1', name: 'A', groupId, orderKey: 'a0', createdAt: 1, updatedAt: 100 },
-        { id: 't2', name: 'B', groupId, orderKey: 'a1', createdAt: 2, updatedAt: 200 },
-        { id: 't3', name: 'C', groupId, orderKey: 'a2', createdAt: 3, updatedAt: 300 }
+        { id: 't1', name: 'A', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
+        { id: 't2', name: 'B', orderKey: 'a1', createdAt: 2, updatedAt: 200 },
+        { id: 't3', name: 'C', orderKey: 'a2', createdAt: 3, updatedAt: 300 }
       ])
     }
 
@@ -328,7 +344,7 @@ describe('TopicService', () => {
       })
     })
 
-    it('throws NOT_FOUND when anchor id does not exist in scope', async () => {
+    it('throws NOT_FOUND when anchor id does not exist', async () => {
       await seedThree()
       await expect(topicService.reorder('t1', { after: 'missing' })).rejects.toBeInstanceOf(DataApiError)
       await expect(topicService.reorder('t1', { after: 'missing' })).rejects.toMatchObject({
@@ -343,42 +359,19 @@ describe('TopicService', () => {
       })
     })
 
-    it('treats groupId=null and groupId=g1 as independent partitions', async () => {
-      await dbh.db.insert(assistantTable).values({
-        id: 'asst',
-        name: 'A',
-        emoji: '🌟',
-        settings: DEFAULT_ASSISTANT_SETTINGS,
-        createdAt: 1,
-        updatedAt: 1
-      })
+    it('does not use stored groupId as an ordering partition', async () => {
       await dbh.db
         .insert(groupTable)
         .values({ id: 'grp', entityType: 'topic', name: 'grp', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
       await dbh.db.insert(topicTable).values([
         { id: 'n1', name: 'N1', groupId: null, orderKey: 'a0', createdAt: 1, updatedAt: 1 },
         { id: 'n2', name: 'N2', groupId: null, orderKey: 'a1', createdAt: 2, updatedAt: 2 },
-        { id: 'g1', name: 'G1', groupId: 'grp', orderKey: 'a0', createdAt: 3, updatedAt: 3 },
-        { id: 'g2', name: 'G2', groupId: 'grp', orderKey: 'a1', createdAt: 4, updatedAt: 4 }
+        { id: 'g1', name: 'G1', groupId: 'grp', orderKey: 'a2', createdAt: 3, updatedAt: 3 }
       ])
-      // Reorder within the null partition; anchoring against the grp partition must fail with NOT_FOUND.
-      await expect(topicService.reorder('n1', { after: 'g1' })).rejects.toMatchObject({
-        code: ErrorCode.NOT_FOUND
-      })
-      // Same-scope reorder works.
-      await topicService.reorder('n1', { after: 'n2' })
-      const nullRows = await dbh.db
-        .select({ id: topicTable.id })
-        .from(topicTable)
-        .where(eq(topicTable.groupId, '__never__'))
-      expect(nullRows).toHaveLength(0)
-      // Verify n1 now sorts after n2 within the null partition.
-      const allRows = await dbh.db
-        .select({ id: topicTable.id, groupId: topicTable.groupId, orderKey: topicTable.orderKey })
-        .from(topicTable)
-        .orderBy(asc(topicTable.orderKey))
-      const nullPartition = allRows.filter((r) => r.groupId === null).map((r) => r.id)
-      expect(nullPartition).toEqual(['n2', 'n1'])
+
+      await topicService.reorder('n1', { after: 'g1' })
+
+      expect(await getOrderedIds()).toEqual(['n2', 'g1', 'n1'])
     })
 
     it('excludes soft-deleted topics from reorder lookups', async () => {
@@ -397,9 +390,9 @@ describe('TopicService', () => {
   })
 
   describe('create', () => {
-    it('without sourceNodeId: inserts topic with activeNodeId=null and a fresh orderKey', async () => {
+    it('without sourceNodeId: leaves activeNodeId unset and inserts a fresh orderKey', async () => {
       const result = await topicService.create({ name: 'fresh' })
-      expect(result.activeNodeId).toBeNull()
+      expect(result.activeNodeId).toBeUndefined()
       expect(result.name).toBe('fresh')
       const [row] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, result.id))
       expect(row?.orderKey).toBeDefined()
@@ -448,12 +441,12 @@ describe('TopicService', () => {
   })
 
   describe('reorderBatch', () => {
-    async function seedFour(groupId: string | null = null) {
+    async function seedFour() {
       await dbh.db.insert(topicTable).values([
-        { id: 't1', name: 'A', groupId, orderKey: 'a0', createdAt: 1, updatedAt: 100 },
-        { id: 't2', name: 'B', groupId, orderKey: 'a1', createdAt: 2, updatedAt: 200 },
-        { id: 't3', name: 'C', groupId, orderKey: 'a2', createdAt: 3, updatedAt: 300 },
-        { id: 't4', name: 'D', groupId, orderKey: 'a3', createdAt: 4, updatedAt: 400 }
+        { id: 't1', name: 'A', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
+        { id: 't2', name: 'B', orderKey: 'a1', createdAt: 2, updatedAt: 200 },
+        { id: 't3', name: 'C', orderKey: 'a2', createdAt: 3, updatedAt: 300 },
+        { id: 't4', name: 'D', orderKey: 'a3', createdAt: 4, updatedAt: 400 }
       ])
     }
 
@@ -479,41 +472,24 @@ describe('TopicService', () => {
       expect(ids.map((r) => r.id)).toEqual(['t4', 't2', 't3', 't1'])
     })
 
-    it('rejects cross-scope batch (mixed groupId) with VALIDATION_ERROR', async () => {
+    it('applies a mixed stored groupId batch in the global topic order', async () => {
       await dbh.db.insert(groupTable).values([
         { id: 'g1', entityType: 'topic', name: 'g1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
         { id: 'g2', entityType: 'topic', name: 'g2', orderKey: 'a1', createdAt: 2, updatedAt: 2 }
       ])
       await dbh.db.insert(topicTable).values([
         { id: 'a1', name: 'a1', groupId: 'g1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
-        { id: 'b1', name: 'b1', groupId: 'g2', orderKey: 'a0', createdAt: 2, updatedAt: 2 }
+        { id: 'b1', name: 'b1', groupId: 'g2', orderKey: 'a1', createdAt: 2, updatedAt: 2 },
+        { id: 'n1', name: 'n1', groupId: null, orderKey: 'a2', createdAt: 3, updatedAt: 3 }
       ])
-      await expect(
-        topicService.reorderBatch([
-          { id: 'a1', anchor: { position: 'first' } },
-          { id: 'b1', anchor: { position: 'first' } }
-        ])
-      ).rejects.toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR
-      })
-    })
 
-    it('rejects null↔non-null groupId mix with VALIDATION_ERROR', async () => {
-      await dbh.db
-        .insert(groupTable)
-        .values({ id: 'grp', entityType: 'topic', name: 'grp', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
-      await dbh.db.insert(topicTable).values([
-        { id: 'n1', name: 'n1', groupId: null, orderKey: 'a0', createdAt: 1, updatedAt: 1 },
-        { id: 'g1', name: 'g1', groupId: 'grp', orderKey: 'a0', createdAt: 2, updatedAt: 2 }
+      await topicService.reorderBatch([
+        { id: 'b1', anchor: { position: 'first' } },
+        { id: 'a1', anchor: { after: 'n1' } }
       ])
-      await expect(
-        topicService.reorderBatch([
-          { id: 'n1', anchor: { position: 'first' } },
-          { id: 'g1', anchor: { position: 'first' } }
-        ])
-      ).rejects.toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR
-      })
+
+      const ids = await dbh.db.select({ id: topicTable.id }).from(topicTable).orderBy(asc(topicTable.orderKey))
+      expect(ids.map((r) => r.id)).toEqual(['b1', 'n1', 'a1'])
     })
 
     it('throws NOT_FOUND when any target id is missing', async () => {

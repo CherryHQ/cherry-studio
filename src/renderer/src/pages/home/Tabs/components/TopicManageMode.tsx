@@ -1,7 +1,7 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
 import type { Topic } from '@renderer/types'
-import { cn } from '@renderer/utils'
-import { Tooltip } from 'antd'
+import { cn } from '@renderer/utils/style'
 import { CheckSquare, Search, Square, Trash2, XIcon } from 'lucide-react'
 import type { FC, PropsWithChildren, Ref } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -66,7 +66,6 @@ interface TopicManagePanelProps {
   topics: Topic[]
   activeTopic: Topic
   setActiveTopic: (topic: Topic) => void
-  updateTopics: (topics: Topic[]) => void
   manageState: TopicManageModeState
   filteredTopics: Topic[]
 }
@@ -78,7 +77,6 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
   topics,
   activeTopic,
   setActiveTopic,
-  updateTopics,
   manageState,
   filteredTopics
 }) => {
@@ -142,7 +140,6 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
     )
 
     const actualRemainingTopics = topics.filter((topic) => !successfulIds.has(topic.id))
-    updateTopics(actualRemainingTopics)
 
     // Switch to first remaining topic if current topic was deleted
     if (successfulIds.has(activeTopic.id) && actualRemainingTopics.length > 0) {
@@ -162,7 +159,7 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
       window.toast.error(t('chat.topics.manage.delete.error'))
     }
     exitManageMode()
-  }, [selectedIds, topics, activeTopic.id, setActiveTopic, t, exitManageMode, updateTopics])
+  }, [selectedIds, topics, activeTopic.id, setActiveTopic, t, exitManageMode, deleteTopic])
 
   // Enter search mode
   const enterSearchMode = useCallback(() => {

@@ -1,38 +1,41 @@
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuItemContent,
-  ContextMenuSeparator,
+  Button,
   ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
-  ContextMenuTrigger
+  MenuItem,
+  MenuList,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Tooltip
 } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
-import { useQuery } from '@data/hooks/useDataApi'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import AddButton from '@renderer/components/AddButton'
-import type { DraggableVirtualListRef } from '@renderer/components/DraggableList'
-import { DraggableVirtualList } from '@renderer/components/DraggableList'
-import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
+import {
+  ResourceList,
+  type ResourceListItemReorderPayload,
+  type ResourceListReorderPayload,
+  TopicResourceList,
+  useResourceList,
+  useResourceListPinnedState
+} from '@renderer/components/chat/resources'
+import EmojiIcon from '@renderer/components/EmojiIcon'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { isMac } from '@renderer/config/constant'
 import { prefetch } from '@renderer/data/hooks/useDataApi'
-import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
+import { useAssistantsApi } from '@renderer/hooks/useAssistantDataApi'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { usePins } from '@renderer/hooks/usePins'
 import { finishTopicRenaming, getTopicMessages, startTopicRenaming } from '@renderer/hooks/useTopic'
 import { mapApiTopicToRendererTopic, useAllTopics, useTopicMutations } from '@renderer/hooks/useTopicDataApi'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
-import { classNames, removeSpecialCharactersForFileName } from '@renderer/utils'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/utils/copy'
 import {
   exportMarkdownToJoplin,
@@ -43,28 +46,54 @@ import {
   exportTopicToNotion,
   topicToMarkdown
 } from '@renderer/utils/export'
-import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import { Tooltip } from 'antd'
+import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
+import { getLeadingEmoji } from '@renderer/utils/naming'
+import { cn } from '@renderer/utils/style'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
 import {
   BrushCleaning,
+  Check,
   CheckSquare,
+  ChevronDown,
+  ChevronsUpDown,
+  Clock3,
+  Copy,
+  Database,
+  Edit3,
+  FileText,
+  Image,
   ListChecks,
-  MenuIcon,
+  ListFilter,
   NotebookPen,
   PinIcon,
   PinOffIcon,
-  Save,
+  Plus,
   Sparkles,
   Square,
+  Trash2,
   UploadIcon,
   XIcon
 } from 'lucide-react'
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import type { MouseEvent, RefObject } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopicManagePanel, useTopicManageMode } from './TopicManageMode'
+import {
+  applyOptimisticTopicDisplayMove,
+  buildTopicDropAnchor,
+  createTopicDisplayGroupResolver,
+  filterTopicsForManageMode,
+  getAssistantIdFromTopicGroupId,
+  normalizeTopicDropPayload,
+  sortTopicsForDisplayGroups,
+  TOPIC_DEFAULT_ASSISTANT_GROUP_ID,
+  TOPIC_PINNED_GROUP_ID,
+  TOPIC_TODAY_GROUP_ID,
+  TOPIC_UNKNOWN_ASSISTANT_GROUP_ID,
+  type TopicDisplayMode
+} from './Topics.helpers'
 
 const logger = loggerService.withContext('Topics')
 
@@ -74,227 +103,96 @@ interface Props {
   position: 'left' | 'right'
 }
 
-export const Topics: React.FC<Props> = ({ activeTopic, setActiveTopic, position }) => {
+type ExportMenuOptions = Record<
+  | 'docx'
+  | 'image'
+  | 'joplin'
+  | 'markdown'
+  | 'markdown_reason'
+  | 'notes'
+  | 'notion'
+  | 'obsidian'
+  | 'plain_text'
+  | 'siyuan'
+  | 'yuque',
+  boolean
+>
+
+const TOPIC_DISPLAY_OPTIONS: TopicDisplayMode[] = ['time', 'assistant']
+const DEFAULT_ASSISTANT_GROUP_EMOJI = '😀'
+
+function resolveAssistantIdForTopicGroup(
+  groupId: string,
+  assistantById: ReadonlyMap<string, unknown>
+): string | null | undefined {
+  if (groupId === TOPIC_DEFAULT_ASSISTANT_GROUP_ID) {
+    return null
+  }
+
+  const assistantId = getAssistantIdFromTopicGroupId(groupId)
+  if (!assistantId || !assistantById.has(assistantId)) {
+    return undefined
+  }
+
+  return assistantId
+}
+
+function TopicDisplayModeMenu({
+  mode,
+  onChange
+}: {
+  mode: TopicDisplayMode
+  onChange: (mode: TopicDisplayMode) => void
+}) {
   const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          aria-label={t('chat.topics.display.title')}
+          className="inline-flex size-5 shrink-0 items-center justify-center p-0 leading-none text-muted-foreground/55 shadow-none hover:bg-transparent hover:text-muted-foreground/75 [&_svg]:block [&_svg]:shrink-0">
+          <ListFilter size={12} className="block" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" side="bottom" sideOffset={4} className="w-28 rounded-lg border-border p-1 shadow-lg">
+        <MenuList className="gap-0.5">
+          <div className="px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground/60">
+            {t('chat.topics.display.title')}
+          </div>
+          {TOPIC_DISPLAY_OPTIONS.map((option) => (
+            <MenuItem
+              key={option}
+              label={t(`chat.topics.display.${option}`)}
+              active={mode === option}
+              suffix={mode === option ? <Check size={11} /> : null}
+              className="h-6 gap-1.5 rounded-md px-1.5 py-0 text-[11px] font-normal text-muted-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-foreground [&_svg]:size-3"
+              onClick={() => {
+                onChange(option)
+                setOpen(false)
+              }}
+            />
+          ))}
+        </MenuList>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+export function Topics({ activeTopic, setActiveTopic, position }: Props) {
+  const { t } = useTranslation()
+  const [groupNow] = useState(() => dayjs())
   const { notesPath } = useNotesSettings()
   const { updateTopic: patchTopic, deleteTopic: deleteTopicById, refreshTopics } = useTopicMutations()
-  const removeTopic = useCallback((topic: Topic) => deleteTopicById(topic.id), [deleteTopicById])
-  const updateTopic = useCallback(
-    (topic: Topic) =>
-      patchTopic(topic.id, {
-        name: topic.name,
-        isNameManuallyEdited: topic.isNameManuallyEdited
-      }),
-    [patchTopic]
-  )
-
-  // Pin state lives on the polymorphic `pin` table now, not on the topic
-  // row — fetch it separately and overlay onto the topic list. Pin order
-  // (where pinned topics sit relative to each other) is independent from
-  // topic order; the server-side composed `/topics` view does the
-  // pinned-first ordering for us, so the renderer only needs to know which
-  // ids are pinned (for UI styling and the pin/unpin toggle).
-  const { data: pinList } = useQuery('/pins', { query: { entityType: 'topic' } })
-  const pinByTopicId = useMemo(() => new Map((pinList ?? []).map((p) => [p.entityId, p.id] as const)), [pinList])
-
-  const { topics: apiTopics } = useAllTopics({ loadAll: true })
-  const topics = useMemo(
-    () =>
-      apiTopics.map((t) => {
-        const r = mapApiTopicToRendererTopic(t)
-        return { ...r, pinned: pinByTopicId.has(t.id) }
-      }),
-    [apiTopics, pinByTopicId]
-  )
-
-  // Drag-reorder via the canonical fractional-indexing endpoint:
-  // `PATCH /topics/:id/order` with `{ before }` or `{ after }`. We compute the
-  // anchor from the new index in the dropped list — `position: 'first'` for
-  // index 0, otherwise `{ after: previousNeighbor.id }`. This replaces the
-  // legacy `batchUpdateTopics` that wrote `sortOrder` integers (the column is
-  // gone). Cross-section drags (pinning / unpinning by drag) are handled at
-  // pinPanel level via /pins POST/DELETE; same-section drags route here.
-  const updateTopics = useCallback(
-    async (reordered: Topic[]) => {
-      // Diff to find moved topics — the drag library hands back the full new
-      // ordering so we'd otherwise PATCH every row. Compute the minimal set
-      // by zipping against the current order and keeping only changed
-      // positions; one anchor PATCH per genuinely-moved topic.
-      const currentIds = topics.map((t) => t.id)
-      const reorderedIds = reordered.map((t) => t.id)
-      const moves: Array<{ id: string; anchor: OrderRequest }> = []
-      for (let i = 0; i < reorderedIds.length; i++) {
-        if (currentIds[i] === reorderedIds[i]) continue
-        const id = reorderedIds[i]
-        const anchor: OrderRequest = i === 0 ? { position: 'first' } : { after: reorderedIds[i - 1] }
-        moves.push({ id, anchor })
-      }
-      if (moves.length === 0) return
-      try {
-        if (moves.length === 1) {
-          await dataApiService.patch(`/topics/${moves[0].id}/order`, { body: moves[0].anchor })
-        } else {
-          await dataApiService.patch('/topics/order:batch', { body: { moves } })
-        }
-        await refreshTopics()
-      } catch (err) {
-        logger.error('Failed to reorder topics', { err })
-      }
-    },
-    [topics, refreshTopics]
-  )
-
-  const [showTopicTime] = usePreference('topic.tab.show_time')
-  const [pinTopicsToTop] = usePreference('topic.tab.pin_to_top')
-  const [topicPosition, setTopicPosition] = usePreference('topic.position')
-
+  const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
+  const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
+  const [collapsedTopicGroupIds, setCollapsedTopicGroupIds] = usePreference('topic.tab.collapsed_group_ids')
+  const [topicPosition] = usePreference('topic.position')
   const [renamingTopics] = useCache('topic.renaming')
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
-
-  const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
-
-  const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
-  const deleteTimerRef = useRef<NodeJS.Timeout>(null)
-  const [editingTopicId, setEditingTopicId] = useState<string | null>(null)
-  const listRef = useRef<DraggableVirtualListRef>(null)
-
-  // 管理模式状态
-  const manageState = useTopicManageMode()
-  const { isManageMode, selectedIds, searchText, enterManageMode, exitManageMode, toggleSelectTopic } = manageState
-
-  const { startEdit, isEditing, inputProps } = useInPlaceEdit({
-    onSave: (name: string) => {
-      const topic = topics.find((t) => t.id === editingTopicId)
-      if (topic && name !== topic.name) {
-        const updatedTopic = { ...topic, name, isNameManuallyEdited: true }
-        void updateTopic(updatedTopic)
-        window.toast.success(t('common.saved'))
-      }
-      setEditingTopicId(null)
-    },
-    onCancel: () => {
-      setEditingTopicId(null)
-    }
-  })
-
-  useEffect(() => {
-    // Mark the fulfilled badge as consumed when the user opens the
-    // topic. The shared stream status stays `done` globally; each
-    // window tracks its own "already seen" flag in the local cache.
-    const key = `topic.stream.seen.${activeTopic.id}` as const
-    if (cacheService.get(key) !== true) {
-      cacheService.set(key, true)
-    }
-  }, [activeTopic.id])
-
-  const isRenaming = useCallback(
-    (topicId: string) => {
-      return renamingTopics.includes(topicId)
-    },
-    [renamingTopics]
-  )
-
-  const isNewlyRenamed = useCallback(
-    (topicId: string) => {
-      return newlyRenamedTopics.includes(topicId)
-    },
-    [newlyRenamedTopics]
-  )
-
-  const handleDeleteClick = useCallback((topicId: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-
-    if (deleteTimerRef.current) {
-      clearTimeout(deleteTimerRef.current)
-    }
-
-    setDeletingTopicId(topicId)
-
-    deleteTimerRef.current = setTimeout(() => setDeletingTopicId(null), 2000)
-  }, [])
-
-  const onClearMessages = useCallback((topic: Topic) => {
-    void EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
-  }, [])
-
-  const handleConfirmDelete = useCallback(
-    async (topic: Topic, e: React.MouseEvent) => {
-      e.stopPropagation()
-      try {
-        await removeTopic(topic)
-      } catch (err) {
-        logger.error('Failed to delete topic', { topicId: topic.id, err })
-        const message = err instanceof Error ? err.message : t('chat.topics.manage.delete.error')
-        window.toast.error(message)
-        setDeletingTopicId(null)
-        return
-      }
-      // Topics are no longer assistant-scoped — when the deleted row was the
-      // active one, hop to its neighbour. An empty list now shows an empty
-      // state instead of auto-seeding a fresh topic.
-      if (topic.id === activeTopic.id && topics.length > 1) {
-        const index = findIndex(topics, (t) => t.id === topic.id)
-        setActiveTopic(topics[index + 1 === topics.length ? index - 1 : index + 1])
-      }
-      setDeletingTopicId(null)
-    },
-    [activeTopic.id, topics, removeTopic, setActiveTopic, t]
-  )
-
-  const onPinTopic = useCallback(
-    async (topic: Topic) => {
-      // Pin state moved to the polymorphic `pin` table — pin = POST /pins,
-      // unpin = DELETE /pins/:pinId. The server-composed `/topics` view
-      // re-orders pinned-first on revalidate, so we don't manually reshuffle
-      // the array anymore — the PATCHes that the legacy code did to write
-      // `sortOrder` integers are gone.
-      try {
-        if (topic.pinned) {
-          const pinId = pinByTopicId.get(topic.id)
-          if (pinId) {
-            await dataApiService.delete(`/pins/${pinId}`)
-          }
-        } else {
-          await dataApiService.post('/pins', { body: { entityType: 'topic', entityId: topic.id } })
-        }
-        await refreshTopics()
-        if (pinTopicsToTop) {
-          // After revalidation, the just-toggled topic lands at the head of
-          // its new section — scroll there so the user sees the move.
-          setTimeout(() => listRef.current?.scrollToIndex(0, { align: 'auto' }), 50)
-        }
-      } catch (err) {
-        logger.error('Failed to toggle topic pin', { topicId: topic.id, err })
-      }
-    },
-    [pinByTopicId, refreshTopics, pinTopicsToTop]
-  )
-
-  const onDeleteTopic = useCallback(
-    async (topic: Topic) => {
-      try {
-        await removeTopic(topic)
-      } catch (err) {
-        logger.error('Failed to delete topic', { topicId: topic.id, err })
-        const message = err instanceof Error ? err.message : t('chat.topics.manage.delete.error')
-        window.toast.error(message)
-        return
-      }
-      if (topic.id === activeTopic?.id) {
-        const index = findIndex(topics, (t) => t.id === topic.id)
-        setActiveTopic(topics[index + 1 === topics.length ? index - 1 : index + 1])
-      }
-    },
-    [topics, removeTopic, setActiveTopic, activeTopic, t]
-  )
-
-  const onSwitchTopic = useCallback(
-    (topic: Topic) => {
-      setActiveTopic(topic)
-    },
-    [setActiveTopic]
-  )
-
   const [exportMenuOptions] = useMultiplePreferences({
     docx: 'data.export.menus.docx',
     image: 'data.export.menus.image',
@@ -309,430 +207,495 @@ export const Topics: React.FC<Props> = ({ activeTopic, setActiveTopic, position 
     yuque: 'data.export.menus.yuque'
   })
 
-  const handleAutoRenameTopic = useCallback(
+  const {
+    isMutating: isPinsMutating,
+    isRefreshing: isPinsRefreshing,
+    pinnedIds: topicPinnedIds,
+    togglePin: toggleTopicPin
+  } = usePins('topic')
+  const topicPinState = useResourceListPinnedState({
+    disabled: isPinsRefreshing || isPinsMutating,
+    pinnedIds: topicPinnedIds,
+    onTogglePin: toggleTopicPin
+  })
+  const { isPinned: isTopicPinned, togglePinned: toggleTopicPinned } = topicPinState
+  const { topics: apiTopics, isLoading, error } = useAllTopics({ loadAll: true })
+  const displayMode = topicDisplayMode ?? 'time'
+  const isAssistantDisplayMode = displayMode === 'assistant'
+  const {
+    assistants,
+    isLoading: isAssistantsLoading,
+    error: assistantsError
+  } = useAssistantsApi({ enabled: isAssistantDisplayMode })
+  const listRef = useRef<HTMLDivElement>(null)
+  const deleteTimerRef = useRef<NodeJS.Timeout>(null)
+  const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
+
+  const apiBackedTopics = useMemo(
+    () =>
+      apiTopics.map((apiTopic) => {
+        const topic = mapApiTopicToRendererTopic(apiTopic)
+        return { ...topic, pinned: isTopicPinned(apiTopic.id) }
+      }),
+    [apiTopics, isTopicPinned]
+  )
+  const [optimisticMove, setOptimisticMove] = useState<{
+    payload: ResourceListItemReorderPayload
+    targetAssistantId: string | null
+  } | null>(null)
+  const apiTopicOrderSignature = useMemo(
+    () =>
+      apiBackedTopics
+        .map((topic) => `${topic.id}:${topic.assistantId ?? ''}:${topic.orderKey ?? ''}:${topic.pinned ? '1' : '0'}`)
+        .join('|'),
+    [apiBackedTopics]
+  )
+  const topics = apiBackedTopics
+
+  useEffect(() => {
+    setOptimisticMove(null)
+  }, [apiTopicOrderSignature])
+
+  const assistantById = useMemo(() => new Map(assistants.map((assistant) => [assistant.id, assistant])), [assistants])
+  const assistantRankById = useMemo(
+    () => new Map(assistants.map((assistant, index) => [assistant.id, index])),
+    [assistants]
+  )
+
+  const manageState = useTopicManageMode()
+  const { isManageMode, selectedIds, searchText, enterManageMode, exitManageMode, toggleSelectTopic } = manageState
+  const deferredSearchText = useDeferredValue(searchText)
+  const { isFulfilled: isActiveTopicStreamFulfilled, markSeen: markActiveTopicStreamSeen } = useTopicStreamStatus(
+    activeTopic.id
+  )
+
+  useEffect(() => {
+    if (isActiveTopicStreamFulfilled) {
+      markActiveTopicStreamSeen()
+    }
+  }, [isActiveTopicStreamFulfilled, markActiveTopicStreamSeen])
+
+  const updateTopic = useCallback(
+    (topic: Topic) =>
+      patchTopic(topic.id, {
+        name: topic.name,
+        isNameManuallyEdited: topic.isNameManuallyEdited
+      }),
+    [patchTopic]
+  )
+
+  const removeTopic = useCallback((topic: Topic) => deleteTopicById(topic.id), [deleteTopicById])
+
+  const handleRenameTopic = useCallback(
+    (topicId: string, name: string) => {
+      const topic = topics.find((candidate) => candidate.id === topicId)
+      const trimmedName = name.trim()
+      if (!topic || !trimmedName || trimmedName === topic.name) {
+        return
+      }
+
+      void updateTopic({ ...topic, name: trimmedName, isNameManuallyEdited: true })
+      window.toast.success(t('common.saved'))
+    },
+    [topics, t, updateTopic]
+  )
+
+  const isRenaming = useCallback((topicId: string) => renamingTopics.includes(topicId), [renamingTopics])
+  const isNewlyRenamed = useCallback((topicId: string) => newlyRenamedTopics.includes(topicId), [newlyRenamedTopics])
+
+  const handleDeleteClick = useCallback((topicId: string, event: MouseEvent) => {
+    event.stopPropagation()
+
+    if (deleteTimerRef.current) {
+      clearTimeout(deleteTimerRef.current)
+    }
+
+    setDeletingTopicId(topicId)
+    deleteTimerRef.current = setTimeout(() => setDeletingTopicId(null), 2000)
+  }, [])
+
+  const handleConfirmDelete = useCallback(
+    async (topic: Topic, event?: MouseEvent) => {
+      event?.stopPropagation()
+
+      try {
+        await removeTopic(topic)
+      } catch (err) {
+        logger.error('Failed to delete topic', { topicId: topic.id, err })
+        const message = err instanceof Error ? err.message : t('chat.topics.manage.delete.error')
+        window.toast.error(message)
+        setDeletingTopicId(null)
+        return
+      }
+
+      if (topic.id === activeTopic.id && topics.length > 1) {
+        const index = findIndex(topics, (candidate) => candidate.id === topic.id)
+        setActiveTopic(topics[index + 1 === topics.length ? index - 1 : index + 1])
+      }
+      setDeletingTopicId(null)
+    },
+    [activeTopic.id, removeTopic, setActiveTopic, t, topics]
+  )
+
+  const handlePinTopic = useCallback(
+    async (topic: Topic) => {
+      const nextPinned = !topic.pinned
+      if (nextPinned) {
+        setTimeout(() => listRef.current?.scrollTo?.({ top: 0, behavior: 'smooth' }), 50)
+      }
+
+      try {
+        await toggleTopicPinned(topic.id)
+      } catch (err) {
+        logger.error('Failed to toggle topic pin', { topicId: topic.id, err })
+      }
+    },
+    [toggleTopicPinned]
+  )
+
+  const handleDeleteTopicFromMenu = useCallback(
+    async (topic: Topic) => {
+      try {
+        await removeTopic(topic)
+      } catch (err) {
+        logger.error('Failed to delete topic', { topicId: topic.id, err })
+        const message = err instanceof Error ? err.message : t('chat.topics.manage.delete.error')
+        window.toast.error(message)
+        return
+      }
+
+      if (topic.id === activeTopic.id && topics.length > 1) {
+        const index = findIndex(topics, (candidate) => candidate.id === topic.id)
+        setActiveTopic(topics[index + 1 === topics.length ? index - 1 : index + 1])
+      }
+    },
+    [activeTopic.id, removeTopic, setActiveTopic, t, topics]
+  )
+
+  const handleClearMessages = useCallback((topic: Topic) => {
+    void EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
+  }, [])
+
+  const handleAutoRename = useCallback(
     async (topic: Topic) => {
       const messages = await getTopicMessages(topic.id)
       if (messages.length < 2) return
+
       startTopicRenaming(topic.id)
       try {
-        const { text: summaryText, error } = await fetchMessagesSummary({ messages })
+        const { text: summaryText, error: summaryError } = await fetchMessagesSummary({ messages })
         if (summaryText) {
           void updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
-        } else if (error) {
-          window.toast?.error(`${t('message.error.fetchTopicName')}: ${error}`)
+        } else if (summaryError) {
+          window.toast?.error(`${t('message.error.fetchTopicName')}: ${summaryError}`)
         }
-      } catch (error) {
-        logger.error('auto-rename failed', error as Error)
-        window.toast.error(`${t('message.error.fetchTopicName')}: ${(error as Error).message ?? ''}`)
       } finally {
         finishTopicRenaming(topic.id)
       }
     },
-    [t, updateTopic]
+    [t, updateTopic, finishTopicRenaming]
   )
 
-  // Wraps every async menu handler so a thrown promise surfaces as a toast +
-  // logger entry instead of dying inside Radix's `onSelect` (where antd's
-  // Dropdown used to swallow it silently). Caller passes the actual work as a
-  // thunk so we don't have to spell out a generic helper per call site.
-  const runExport = useCallback(
-    async (fn: () => Promise<unknown>) => {
-      try {
-        await fn()
-      } catch (error) {
-        logger.error('topic export failed', error as Error)
-        window.toast.error(t('chat.topics.export.failed'))
-      }
-    },
-    [t]
-  )
-
-  const handleRenameTopic = useCallback(
+  const handlePromptRename = useCallback(
     async (topic: Topic) => {
       const name = await PromptPopup.show({
         title: t('chat.topics.edit.title'),
         message: '',
-        defaultValue: topic?.name || '',
-        extraNode: <div style={{ color: 'var(--color-text-3)', marginTop: 8 }}>{t('chat.topics.edit.title_tip')}</div>
+        defaultValue: topic.name || '',
+        extraNode: <div className="mt-2 text-(--color-text-3)">{t('chat.topics.edit.title_tip')}</div>
       })
-      if (name && topic?.name !== name) {
+
+      if (name && topic.name !== name) {
         void updateTopic({ ...topic, name, isNameManuallyEdited: true })
       }
     },
     [t, updateTopic]
   )
 
-  const handleSaveToKnowledge = useCallback(
-    async (topic: Topic) => {
-      try {
-        const result = await SaveToKnowledgePopup.showForTopic(topic)
-        if (result?.success) {
-          window.toast.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
-        }
-      } catch (error) {
-        logger.error('save to knowledge failed', error as Error)
-        window.toast.error(t('chat.save.topic.knowledge.error.save_failed'))
-      }
-    },
-    [t]
+  const topicGroupBy = useMemo(
+    () =>
+      createTopicDisplayGroupResolver<Topic>({
+        assistantById,
+        mode: displayMode,
+        labels: {
+          pinned: t('selector.common.pinned_title'),
+          time: {
+            today: t('chat.topics.group.today'),
+            yesterday: t('chat.topics.group.yesterday'),
+            'this-week': t('chat.topics.group.this_week'),
+            earlier: t('chat.topics.group.earlier')
+          },
+          assistant: {
+            default: t('chat.default.name'),
+            unknown: t('chat.topics.group.unknown_assistant')
+          }
+        },
+        now: groupNow
+      }),
+    [assistantById, displayMode, groupNow, t]
   )
 
-  const renderTopicMenuItems = (topic: Topic) => {
-    const showDelete = topics.length > 1 && !topic.pinned
-    return (
-      <>
-        <ContextMenuItem disabled={isRenaming(topic.id)} onSelect={() => void handleAutoRenameTopic(topic)}>
-          <ContextMenuItemContent icon={<Sparkles size={14} />}>{t('chat.topics.auto_rename')}</ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuItem disabled={isRenaming(topic.id)} onSelect={() => void handleRenameTopic(topic)}>
-          <ContextMenuItemContent icon={<EditIcon size={14} />}>{t('chat.topics.edit.title')}</ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={() => void onPinTopic(topic)}>
-          <ContextMenuItemContent icon={topic.pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />}>
-            {topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
-          </ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={() => void runExport(() => exportTopicToNotes(topic, notesPath))}>
-          <ContextMenuItemContent icon={<NotebookPen size={14} />}>{t('notes.save')}</ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={() => onClearMessages(topic)}>
-          <ContextMenuItemContent icon={<BrushCleaning size={14} />}>
-            {t('chat.topics.clear.title')}
-          </ContextMenuItemContent>
-        </ContextMenuItem>
+  const baseGroupedTopics = useMemo(
+    () =>
+      sortTopicsForDisplayGroups(topics, {
+        assistantRankById,
+        mode: displayMode,
+        now: groupNow
+      }),
+    [assistantRankById, displayMode, groupNow, topics]
+  )
 
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <MenuIcon size={14} />
-            {t('settings.topic.position.label')}
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent>
-            <ContextMenuItem onSelect={() => setTopicPosition('left')}>
-              {t('settings.topic.position.left')}
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={() => setTopicPosition('right')}>
-              {t('settings.topic.position.right')}
-            </ContextMenuItem>
-          </ContextMenuSubContent>
-        </ContextMenuSub>
+  const groupedTopics = useMemo(
+    () =>
+      optimisticMove
+        ? applyOptimisticTopicDisplayMove(
+            baseGroupedTopics,
+            optimisticMove.payload,
+            optimisticMove.targetAssistantId,
+            topicGroupBy
+          )
+        : baseGroupedTopics,
+    [baseGroupedTopics, optimisticMove, topicGroupBy]
+  )
 
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <CopyIcon size={14} />
-            {t('chat.topics.copy.title')}
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent>
-            <ContextMenuItem onSelect={() => EventEmitter.emit(EVENT_NAMES.COPY_TOPIC_IMAGE, topic)}>
-              {t('chat.topics.copy.image')}
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={() => copyTopicAsMarkdown(topic)}>{t('chat.topics.copy.md')}</ContextMenuItem>
-            <ContextMenuItem onSelect={() => copyTopicAsPlainText(topic)}>
-              {t('chat.topics.copy.plain_text')}
-            </ContextMenuItem>
-          </ContextMenuSubContent>
-        </ContextMenuSub>
+  const filteredTopics = useMemo(
+    () => filterTopicsForManageMode(groupedTopics, deferredSearchText, isManageMode),
+    [deferredSearchText, groupedTopics, isManageMode]
+  )
 
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <Save size={14} />
-            {t('chat.save.label')}
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent>
-            <ContextMenuItem onSelect={() => void handleSaveToKnowledge(topic)}>
-              {t('chat.save.topic.knowledge.title')}
-            </ContextMenuItem>
-          </ContextMenuSubContent>
-        </ContextMenuSub>
-
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <UploadIcon size={14} />
-            {t('chat.topics.export.title')}
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent>
-            {exportMenuOptions.image && (
-              <ContextMenuItem onSelect={() => EventEmitter.emit(EVENT_NAMES.EXPORT_TOPIC_IMAGE, topic)}>
-                {t('chat.topics.export.image')}
-              </ContextMenuItem>
-            )}
-            {exportMenuOptions.markdown && (
-              <ContextMenuItem onSelect={() => void runExport(() => exportTopicAsMarkdown(topic))}>
-                {t('chat.topics.export.md.label')}
-              </ContextMenuItem>
-            )}
-            {exportMenuOptions.markdown_reason && (
-              <ContextMenuItem onSelect={() => void runExport(() => exportTopicAsMarkdown(topic, true))}>
-                {t('chat.topics.export.md.reason')}
-              </ContextMenuItem>
-            )}
-            {exportMenuOptions.docx && (
-              <ContextMenuItem
-                onSelect={() =>
-                  void runExport(async () => {
-                    const markdown = await topicToMarkdown(topic)
-                    await window.api.export.toWord(markdown, removeSpecialCharactersForFileName(topic.name))
-                  })
-                }>
-                {t('chat.topics.export.word')}
-              </ContextMenuItem>
-            )}
-            {exportMenuOptions.notion && (
-              <ContextMenuItem onSelect={() => void runExport(() => exportTopicToNotion(topic))}>
-                {t('chat.topics.export.notion')}
-              </ContextMenuItem>
-            )}
-            {exportMenuOptions.yuque && (
-              <ContextMenuItem
-                onSelect={() =>
-                  void runExport(async () => {
-                    const markdown = await topicToMarkdown(topic)
-                    await exportMarkdownToYuque(topic.name, markdown)
-                  })
-                }>
-                {t('chat.topics.export.yuque')}
-              </ContextMenuItem>
-            )}
-            {exportMenuOptions.obsidian && (
-              <ContextMenuItem
-                onSelect={() =>
-                  void runExport(() => ObsidianExportPopup.show({ title: topic.name, topic, processingMethod: '3' }))
-                }>
-                {t('chat.topics.export.obsidian')}
-              </ContextMenuItem>
-            )}
-            {exportMenuOptions.joplin && (
-              <ContextMenuItem
-                onSelect={() =>
-                  void runExport(async () => {
-                    const topicMessages = await getTopicMessages(topic.id)
-                    await exportMarkdownToJoplin(topic.name, topicMessages)
-                  })
-                }>
-                {t('chat.topics.export.joplin')}
-              </ContextMenuItem>
-            )}
-            {exportMenuOptions.siyuan && (
-              <ContextMenuItem
-                onSelect={() =>
-                  void runExport(async () => {
-                    const markdown = await topicToMarkdown(topic)
-                    await exportMarkdownToSiyuan(topic.name, markdown)
-                  })
-                }>
-                {t('chat.topics.export.siyuan')}
-              </ContextMenuItem>
-            )}
-          </ContextMenuSubContent>
-        </ContextMenuSub>
-
-        {showDelete && (
-          <>
-            <ContextMenuSeparator />
-            <ContextMenuItem variant="destructive" onSelect={() => onDeleteTopic(topic)}>
-              <ContextMenuItemContent icon={<DeleteIcon size={14} className="lucide-custom" />}>
-                {t('common.delete')}
-              </ContextMenuItemContent>
-            </ContextMenuItem>
-          </>
-        )}
-      </>
-    )
-  }
-
-  // Sort topics based on pinned status if pinTopicsToTop is enabled
-  const sortedTopics = useMemo(() => {
-    if (pinTopicsToTop) {
-      return [...topics].sort((a, b) => {
-        if (a.pinned && !b.pinned) return -1
-        if (!a.pinned && b.pinned) return 1
-        return 0
-      })
-    }
-    return topics
-  }, [topics, pinTopicsToTop])
-
-  // Filter topics based on search text (only in manage mode)
-  // Supports: case-insensitive, space-separated keywords (all must match)
-  const deferredSearchText = useDeferredValue(searchText)
-  const filteredTopics = useMemo(() => {
-    if (!isManageMode || !deferredSearchText.trim()) {
-      return sortedTopics
-    }
-    // Split by spaces and filter out empty strings
-    const keywords = deferredSearchText
-      .toLowerCase()
-      .split(/\s+/)
-      .filter((k) => k.length > 0)
-    if (keywords.length === 0) {
-      return sortedTopics
-    }
-    // All keywords must match (AND logic)
-    return sortedTopics.filter((topic) => {
-      const lowerName = topic.name.toLowerCase()
-      return keywords.every((keyword) => lowerName.includes(keyword))
-    })
-  }, [sortedTopics, deferredSearchText, isManageMode])
-
+  const listError = error || (isAssistantDisplayMode ? assistantsError : undefined)
+  const listLoading = isLoading || (isAssistantDisplayMode && isAssistantsLoading)
+  const listStatus = listError ? 'error' : listLoading ? 'loading' : filteredTopics.length === 0 ? 'empty' : 'idle'
   const singlealone = topicPosition === 'right' && position === 'right'
+
+  const getGroupHeaderAction = useCallback(
+    (group: { id: string }) => {
+      let payload: { assistantId: string | null } | undefined
+
+      if (displayMode === 'time') {
+        if (group.id !== TOPIC_TODAY_GROUP_ID) return null
+      } else if (group.id === TOPIC_DEFAULT_ASSISTANT_GROUP_ID) {
+        payload = { assistantId: null }
+      } else {
+        const assistantId = getAssistantIdFromTopicGroupId(group.id)
+        if (!assistantId || !assistantById.has(assistantId)) return null
+
+        payload = { assistantId }
+      }
+
+      return (
+        <Tooltip title={t('chat.add.topic.title')} delay={500}>
+          <ResourceList.HeaderActionButton
+            type="button"
+            aria-label={t('chat.add.topic.title')}
+            onClick={() =>
+              payload === undefined
+                ? void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)
+                : void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC, payload)
+            }>
+            <Plus size={12} className="block" />
+          </ResourceList.HeaderActionButton>
+        </Tooltip>
+      )
+    },
+    [assistantById, displayMode, t]
+  )
+
+  const getGroupHeaderIcon = useCallback(
+    (group: { id: string }, { collapsed }: { collapsed: boolean }) => {
+      if (group.id === TOPIC_PINNED_GROUP_ID) {
+        return <ChevronDown size={14} className={cn('transition-transform', collapsed && '-rotate-90')} />
+      }
+
+      if (displayMode !== 'assistant') {
+        return <ChevronDown size={14} className={cn('transition-transform', collapsed && '-rotate-90')} />
+      }
+
+      if (group.id === TOPIC_DEFAULT_ASSISTANT_GROUP_ID) {
+        return <EmojiIcon emoji={DEFAULT_ASSISTANT_GROUP_EMOJI} size={14} fontSize={10} className="mr-0" />
+      }
+
+      if (group.id === TOPIC_UNKNOWN_ASSISTANT_GROUP_ID) {
+        return <Sparkles size={13} />
+      }
+
+      const assistantId = getAssistantIdFromTopicGroupId(group.id)
+      const assistant = assistantId ? assistantById.get(assistantId) : undefined
+      if (!assistant) {
+        return <Sparkles size={13} />
+      }
+
+      return (
+        <EmojiIcon
+          emoji={assistant.emoji || getLeadingEmoji(assistant.name)}
+          size={14}
+          fontSize={10}
+          className="mr-0"
+        />
+      )
+    },
+    [assistantById, displayMode]
+  )
+
+  const handleCollapsedTopicGroupIdsChange = useCallback(
+    (nextGroupIds: string[]) => void setCollapsedTopicGroupIds(nextGroupIds),
+    [setCollapsedTopicGroupIds]
+  )
+
+  const canDragTopicItem = useCallback(
+    ({ item }: { item: Topic }) => isAssistantDisplayMode && !isManageMode && !item.pinned,
+    [isAssistantDisplayMode, isManageMode]
+  )
+
+  const canDropTopicItem = useCallback(
+    ({ targetGroupId }: { targetGroupId: string }) =>
+      isAssistantDisplayMode &&
+      !isManageMode &&
+      targetGroupId !== TOPIC_PINNED_GROUP_ID &&
+      targetGroupId !== TOPIC_UNKNOWN_ASSISTANT_GROUP_ID &&
+      resolveAssistantIdForTopicGroup(targetGroupId, assistantById) !== undefined,
+    [assistantById, isAssistantDisplayMode, isManageMode]
+  )
+
+  const handleTopicReorder = useCallback(
+    async (payload: ResourceListReorderPayload) => {
+      if (payload.type !== 'item') return
+      if (!isAssistantDisplayMode || isManageMode) return
+      if (payload.sourceGroupId === TOPIC_PINNED_GROUP_ID || payload.targetGroupId === TOPIC_PINNED_GROUP_ID) return
+      if (payload.targetGroupId === TOPIC_UNKNOWN_ASSISTANT_GROUP_ID) return
+
+      const topic = topics.find((candidate) => candidate.id === payload.activeId)
+      if (!topic || topic.pinned) return
+
+      const targetAssistantId = resolveAssistantIdForTopicGroup(payload.targetGroupId, assistantById)
+      if (targetAssistantId === undefined) return
+
+      const normalizedPayload = normalizeTopicDropPayload(payload)
+      const anchor = buildTopicDropAnchor(normalizedPayload)
+      const currentAssistantId = topic.assistantId ?? null
+      setOptimisticMove({ payload: normalizedPayload, targetAssistantId })
+
+      try {
+        if (targetAssistantId !== currentAssistantId) {
+          await dataApiService.patch(`/topics/${payload.activeId}`, {
+            body: { assistantId: targetAssistantId }
+          })
+        }
+
+        await dataApiService.patch(`/topics/${payload.activeId}/order`, {
+          body: anchor
+        })
+        await refreshTopics()
+      } catch (err) {
+        setOptimisticMove(null)
+        logger.error('Failed to reorder topic by assistant group', { err, topicId: payload.activeId })
+        if (targetAssistantId !== currentAssistantId) {
+          try {
+            await refreshTopics()
+          } catch (refreshErr) {
+            logger.error('Failed to refresh topics after partial assistant move', {
+              refreshErr,
+              topicId: payload.activeId
+            })
+          }
+        }
+      }
+    },
+    [assistantById, isAssistantDisplayMode, isManageMode, refreshTopics, topics]
+  )
 
   return (
     <>
-      <DraggableVirtualList
-        ref={listRef}
-        className="topics-tab"
-        list={filteredTopics}
-        onUpdate={updateTopics}
-        style={{ height: '100%', padding: '8px 0 10px 10px', paddingBottom: isManageMode ? 70 : 10 }}
-        itemContainerStyle={{ paddingBottom: '8px' }}
-        header={
-          <HeaderRow>
-            <AddButton onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)} className="">
-              {t('chat.add.topic.title')}
-            </AddButton>
-            <Tooltip title={t('chat.topics.manage.title')} mouseEnterDelay={0.5}>
-              <HeaderIconButton
-                onClick={isManageMode ? exitManageMode : enterManageMode}
-                className={isManageMode ? 'active' : ''}>
-                <ListChecks size={14} />
-              </HeaderIconButton>
-            </Tooltip>
-          </HeaderRow>
-        }
-        disabled={isManageMode}>
-        {(topic) => {
-          const isActive = topic.id === activeTopic?.id
-          const topicName = topic.name.replace('`', '')
-          const topicPrompt = topic.prompt
-          const fullTopicPrompt = t('common.prompt') + ': ' + topicPrompt
-          const isSelected = selectedIds.has(topic.id)
-          const canSelect = !topic.pinned
-
-          const getTopicNameClassName = () => {
-            if (isRenaming(topic.id)) return 'animation-shimmer'
-            if (isNewlyRenamed(topic.id)) return 'animation-reveal'
-            return ''
-          }
-
-          const handleItemClick = () => {
-            if (isManageMode) {
-              if (canSelect) {
-                toggleSelectTopic(topic.id)
-              }
-            } else {
-              onSwitchTopic(topic)
-            }
-          }
-
-          return (
-            <ContextMenu key={topic.id}>
-              <ContextMenuTrigger asChild disabled={isManageMode}>
-                <TopicListItem
-                  onMouseEnter={() =>
-                    prefetch(`/topics/${topic.id}/messages`, {
-                      query: { limit: 999, includeSiblings: true }
-                    })
-                  }
-                  className={classNames(
-                    isActive && !isManageMode ? 'active' : '',
-                    singlealone ? 'singlealone' : '',
-                    isManageMode && isSelected ? 'selected' : '',
-                    isManageMode && !canSelect ? 'disabled' : ''
-                  )}
-                  onClick={editingTopicId === topic.id && isEditing ? undefined : handleItemClick}
-                  style={{
-                    borderRadius,
-                    cursor:
-                      editingTopicId === topic.id && isEditing
-                        ? 'default'
-                        : isManageMode && !canSelect
-                          ? 'not-allowed'
-                          : 'pointer'
-                  }}>
-                  {!isActive && <TopicStreamIndicator topicId={topic.id} />}
-                  <TopicNameContainer>
-                    {isManageMode && (
-                      <SelectIcon className={!canSelect ? 'disabled' : ''}>
-                        {isSelected ? (
-                          <CheckSquare size={16} color="var(--color-primary)" />
-                        ) : (
-                          <Square size={16} color="var(--color-text-3)" />
-                        )}
-                      </SelectIcon>
-                    )}
-                    {editingTopicId === topic.id && isEditing ? (
-                      <TopicEditInput {...inputProps} onClick={(e) => e.stopPropagation()} />
-                    ) : (
-                      <TopicName
-                        className={getTopicNameClassName()}
-                        title={topicName}
-                        onDoubleClick={
-                          isManageMode
-                            ? undefined
-                            : () => {
-                                setEditingTopicId(topic.id)
-                                startEdit(topic.name)
-                              }
-                        }>
-                        {topicName}
-                      </TopicName>
-                    )}
-                    {!topic.pinned && (
-                      <Tooltip
-                        placement="bottom"
-                        mouseEnterDelay={0.7}
-                        mouseLeaveDelay={0}
-                        title={
-                          <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
-                            {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
-                          </div>
-                        }>
-                        <MenuButton
-                          className="menu"
-                          onClick={(e) => {
-                            if (e.ctrlKey || e.metaKey) {
-                              void handleConfirmDelete(topic, e)
-                            } else if (deletingTopicId === topic.id) {
-                              void handleConfirmDelete(topic, e)
-                            } else {
-                              handleDeleteClick(topic.id, e)
-                            }
-                          }}>
-                          {deletingTopicId === topic.id ? (
-                            <DeleteIcon size={14} color="var(--color-error)" style={{ pointerEvents: 'none' }} />
-                          ) : (
-                            <XIcon size={14} color="var(--color-text-3)" style={{ pointerEvents: 'none' }} />
-                          )}
-                        </MenuButton>
-                      </Tooltip>
-                    )}
-                    {topic.pinned && (
-                      <MenuButton className="pin">
-                        <PinIcon size={14} color="var(--color-text-3)" />
-                      </MenuButton>
-                    )}
-                  </TopicNameContainer>
-                  {topicPrompt && (
-                    <TopicPromptText className="prompt" title={fullTopicPrompt}>
-                      {fullTopicPrompt}
-                    </TopicPromptText>
-                  )}
-                  {showTopicTime && (
-                    <TopicTime className="time">{dayjs(topic.createdAt).format('YYYY/MM/DD HH:mm')}</TopicTime>
-                  )}
-                </TopicListItem>
-              </ContextMenuTrigger>
-              <ContextMenuContent>{renderTopicMenuItems(topic)}</ContextMenuContent>
-            </ContextMenu>
-          )
+      <TopicResourceList<Topic>
+        items={filteredTopics}
+        status={listStatus}
+        selectedId={isManageMode ? null : activeTopic?.id}
+        estimateItemSize={() => 34}
+        groupBy={topicGroupBy}
+        collapsedGroupIds={collapsedTopicGroupIds}
+        defaultGroupVisibleCount={5}
+        groupLoadStep={5}
+        getGroupHeaderAction={getGroupHeaderAction}
+        getGroupHeaderIcon={getGroupHeaderIcon}
+        dragCapabilities={{
+          groups: false,
+          items: isAssistantDisplayMode && !isManageMode,
+          itemSameGroup: isAssistantDisplayMode && !isManageMode,
+          itemCrossGroup: isAssistantDisplayMode && !isManageMode
         }}
-      </DraggableVirtualList>
+        canDragItem={canDragTopicItem}
+        canDropItem={canDropTopicItem}
+        groupShowMoreLabel={t('chat.topics.group.show_more')}
+        groupCollapseLabel={t('chat.topics.group.collapse')}
+        onRenameItem={handleRenameTopic}
+        onReorder={handleTopicReorder}
+        onCollapsedGroupIdsChange={handleCollapsedTopicGroupIdsChange}>
+        <ResourceList.Header
+          icon={<Clock3 size={12} />}
+          title={t('chat.topics.title')}
+          count={topics.length}
+          className="gap-1 pb-0"
+          actions={
+            <>
+              <TopicDisplayModeMenu mode={displayMode} onChange={(nextMode) => void setTopicDisplayMode(nextMode)} />
+              <Tooltip title={t('chat.topics.manage.title')} delay={500}>
+                <ResourceList.HeaderActionButton
+                  type="button"
+                  aria-label={t('chat.topics.manage.title')}
+                  aria-pressed={isManageMode}
+                  className={cn(isManageMode && 'text-foreground')}
+                  onClick={isManageMode ? exitManageMode : enterManageMode}>
+                  <ListChecks size={12} className="block" />
+                </ResourceList.HeaderActionButton>
+              </Tooltip>
+              <ResourceList.HeaderActionButton
+                type="button"
+                aria-label={t('shortcut.general.toggle_sidebar')}
+                onClick={() => void setShowSidebar(!showSidebar)}>
+                <ChevronsUpDown size={12} className="block rotate-45" />
+              </ResourceList.HeaderActionButton>
+            </>
+          }>
+          <ResourceList.Search placeholder={t('chat.topics.search.placeholder')} />
+          <Button
+            type="button"
+            variant="ghost"
+            aria-label={t('chat.add.topic.title')}
+            className="h-7 w-full justify-start gap-1.5 rounded-md px-2.5 text-[12px] font-normal text-muted-foreground/70 shadow-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground"
+            onClick={() => void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>
+            <Plus size={13} className="block shrink-0" />
+            <span className="truncate">{t('chat.add.topic.title')}</span>
+          </Button>
+        </ResourceList.Header>
 
-      {/* 管理模式底部面板 */}
+        <TopicListBody
+          activeTopic={activeTopic}
+          deletingTopicId={deletingTopicId}
+          exportMenuOptions={exportMenuOptions as ExportMenuOptions}
+          isNewlyRenamed={isNewlyRenamed}
+          isRenaming={isRenaming}
+          listRef={listRef}
+          notesPath={notesPath}
+          onAutoRename={handleAutoRename}
+          onClearMessages={handleClearMessages}
+          onConfirmDelete={handleConfirmDelete}
+          onDeleteClick={handleDeleteClick}
+          onDeleteFromMenu={handleDeleteTopicFromMenu}
+          onPinTopic={handlePinTopic}
+          onPromptRename={handlePromptRename}
+          onSwitchTopic={setActiveTopic}
+          rowLayout={singlealone ? 'single' : 'grouped'}
+          selectedIds={selectedIds}
+          toggleSelectTopic={toggleSelectTopic}
+          topicsLength={topics.length}
+          variant={isManageMode ? 'manage' : isAssistantDisplayMode ? 'draggable' : 'plain'}
+        />
+      </TopicResourceList>
+
       <TopicManagePanel
         topics={topics}
         activeTopic={activeTopic}
         setActiveTopic={setActiveTopic}
-        updateTopics={updateTopics}
         manageState={manageState}
         filteredTopics={filteredTopics}
       />
@@ -740,96 +703,542 @@ export const Topics: React.FC<Props> = ({ activeTopic, setActiveTopic, position 
   )
 }
 
-const TopicListItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={classNames(
-      'flex w-[calc(var(--assistants-width)-20px)] cursor-pointer flex-col justify-between rounded-(--list-item-border-radius) px-3 py-[7px] text-[13px] hover:bg-(--color-list-item-hover) hover:transition-colors hover:duration-100 [&.active]:bg-(--color-list-item) [&.active]:shadow-[0_1px_2px_0_rgba(0,0,0,0.05)] [&.active_.menu:hover]:text-(--color-text-2) [&.active_.menu]:opacity-100 [&.disabled]:opacity-50 [&.selected]:bg-(--color-primary-bg) [&.selected]:shadow-[inset_0_0_0_1px_var(--color-primary)] [&.singlealone.active]:bg-(--color-background-mute) [&.singlealone.active]:shadow-none [&.singlealone:hover]:bg-(--color-background-soft) [&_.menu]:text-(--color-text-3) [&_.menu]:opacity-0 hover:[&_.menu]:opacity-100',
-      className
-    )}
-    {...props}
-  />
-)
-
-const TopicNameContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={classNames('flex h-5 flex-row items-center gap-1', className)} {...props} />
-)
-
-const TopicName = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={classNames(
-      'relative flex-1 overflow-hidden text-left text-[13px] [-webkit-box-orient:vertical] [-webkit-line-clamp:1] [display:-webkit-box] [&.animation-reveal]:[-webkit-box-orient:unset] [&.animation-reveal]:[-webkit-line-clamp:unset]',
-      className
-    )}
-    {...props}
-  />
-)
-
-const TopicEditInput = ({ className, ...props }: React.ComponentPropsWithoutRef<'input'>) => (
-  <input
-    className={classNames(
-      'w-full border-none bg-(--color-background) p-0 font-[inherit] text-(--color-text-1) text-[13px] outline-none',
-      className
-    )}
-    {...props}
-  />
-)
-
-/**
- * Reads the per-topic stream status reactively. Lives as a sub-component
- * so each row's `useCache` hook subscribes only to its own key — changes
- * to one topic don't re-render the siblings, and we avoid the old
- * `streamActiveCount` tripwire.
- */
-const TopicStreamIndicator = ({ topicId }: { topicId: string }) => {
-  const { isPending, isFulfilled } = useTopicStreamStatus(topicId)
-  if (isPending) return <PendingIndicator />
-  if (isFulfilled) return <FulfilledIndicator />
-  return null
+type TopicListBodyVariant = 'manage' | 'draggable' | 'plain'
+type TopicRowLayout = 'grouped' | 'single'
+type TopicRowMode = 'manage' | 'default'
+type TopicStreamState = {
+  isFulfilled: boolean
+  isPending: boolean
 }
 
-const PendingIndicator = () => (
-  <div className="animation-pulse absolute top-[15px] left-[3px] h-[5px] w-[5px] rounded-full bg-(--color-status-warning) [--pulse-size:5px]" />
-)
+type TopicStreamStatusSnapshot = {
+  signature: string
+  value: ReadonlyMap<string, TopicStreamState>
+}
 
-const FulfilledIndicator = () => (
-  <div className="animation-pulse absolute top-[15px] left-[3px] h-[5px] w-[5px] rounded-full bg-(--color-status-success) [--pulse-size:5px]" />
-)
+const EMPTY_TOPIC_STREAM_STATE: TopicStreamState = Object.freeze({
+  isFulfilled: false,
+  isPending: false
+})
 
-const TopicPromptText = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={classNames(
-      'overflow-hidden text-(--color-text-2) text-xs [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box] [&~_.prompt-text]:mt-2.5',
-      className
-    )}
-    {...props}
-  />
-)
+const EMPTY_TOPIC_STREAM_STATUS_MAP: ReadonlyMap<string, TopicStreamState> = new Map()
 
-const TopicTime = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={classNames('text-(--color-text-3) text-[11px]', className)} {...props} />
-)
+const getTopicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses.${topicId}` as const
 
-const MenuButton = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={classNames('flex min-h-5 min-w-5 flex-row items-center justify-center [&_.anticon]:text-xs', className)}
-    {...props}
-  />
-)
+const getTopicStreamSeenCacheKey = (topicId: string) => `topic.stream.seen.${topicId}` as const
 
-const HeaderRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={classNames('mt-0.5 mb-2 flex flex-row items-center gap-1.5 pr-2.5', className)} {...props} />
-)
+const buildTopicStreamStatusSnapshot = (topicIds: readonly string[]): TopicStreamStatusSnapshot => {
+  if (topicIds.length === 0) {
+    return {
+      signature: '',
+      value: EMPTY_TOPIC_STREAM_STATUS_MAP
+    }
+  }
 
-const HeaderIconButton = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={classNames(
-      'flex h-8 min-h-8 w-8 min-w-8 cursor-pointer items-center justify-center rounded-(--list-item-border-radius) text-(--color-text-2) transition-all duration-200 hover:bg-(--color-background-mute) hover:text-(--color-text-1) [&.active:hover]:bg-(--color-background-mute) [&.active]:text-(--color-primary)',
-      className
-    )}
-    {...props}
-  />
-)
+  const value = new Map<string, TopicStreamState>()
+  const signatureParts: string[] = []
 
-const SelectIcon = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={classNames('mr-1 flex items-center [&.disabled]:opacity-50', className)} {...props} />
-)
+  for (const topicId of topicIds) {
+    const statusEntry = cacheService.getShared(getTopicStreamStatusCacheKey(topicId))
+    const seen = cacheService.get(getTopicStreamSeenCacheKey(topicId)) ?? false
+    const status = statusEntry?.status
+    const streamStatus = {
+      isFulfilled: status === 'done' && !seen,
+      isPending: status === 'pending' || status === 'streaming'
+    }
+
+    signatureParts.push(`${topicId}:${streamStatus.isPending ? 1 : 0}:${streamStatus.isFulfilled ? 1 : 0}`)
+
+    if (streamStatus.isPending || streamStatus.isFulfilled) {
+      value.set(topicId, streamStatus)
+    }
+  }
+
+  return {
+    signature: signatureParts.join('|'),
+    value: value.size > 0 ? value : EMPTY_TOPIC_STREAM_STATUS_MAP
+  }
+}
+
+const subscribeTopicStreamStatuses = (topicIds: readonly string[], onStoreChange: () => void): (() => void) => {
+  if (topicIds.length === 0) {
+    return () => undefined
+  }
+
+  const unsubscribes: Array<() => void> = []
+
+  for (const topicId of new Set(topicIds)) {
+    unsubscribes.push(cacheService.subscribe(getTopicStreamStatusCacheKey(topicId), onStoreChange))
+    unsubscribes.push(cacheService.subscribe(getTopicStreamSeenCacheKey(topicId), onStoreChange))
+  }
+
+  return () => {
+    for (const unsubscribe of unsubscribes) {
+      unsubscribe()
+    }
+  }
+}
+
+const useTopicListStreamStatuses = (topicIds: readonly string[]): ReadonlyMap<string, TopicStreamState> => {
+  const snapshotRef = useRef<TopicStreamStatusSnapshot>({
+    signature: '',
+    value: EMPTY_TOPIC_STREAM_STATUS_MAP
+  })
+
+  const getSnapshot = useCallback(() => {
+    const nextSnapshot = buildTopicStreamStatusSnapshot(topicIds)
+
+    if (snapshotRef.current.signature === nextSnapshot.signature) {
+      return snapshotRef.current.value
+    }
+
+    snapshotRef.current = nextSnapshot
+    return nextSnapshot.value
+  }, [topicIds])
+
+  const subscribe = useCallback(
+    (onStoreChange: () => void) => subscribeTopicStreamStatuses(topicIds, onStoreChange),
+    [topicIds]
+  )
+
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+}
+
+interface TopicListBodyProps {
+  activeTopic: Topic
+  deletingTopicId: string | null
+  exportMenuOptions: ExportMenuOptions
+  isNewlyRenamed: (topicId: string) => boolean
+  isRenaming: (topicId: string) => boolean
+  listRef: RefObject<HTMLDivElement | null>
+  notesPath: string
+  onAutoRename: (topic: Topic) => Promise<void>
+  onClearMessages: (topic: Topic) => void
+  onConfirmDelete: (topic: Topic, event?: MouseEvent) => Promise<void>
+  onDeleteClick: (topicId: string, event: MouseEvent) => void
+  onDeleteFromMenu: (topic: Topic) => Promise<void>
+  onPinTopic: (topic: Topic) => Promise<void>
+  onPromptRename: (topic: Topic) => Promise<void>
+  onSwitchTopic: (topic: Topic) => void
+  rowLayout: TopicRowLayout
+  selectedIds: Set<string>
+  toggleSelectTopic: (topicId: string) => void
+  topicsLength: number
+  variant: TopicListBodyVariant
+}
+
+function TopicListBody(props: TopicListBodyProps) {
+  const { t } = useTranslation()
+  const context = useResourceList<Topic>()
+  const { listRef, rowLayout, variant, ...rowProps } = props
+  const visibleItems = context.view.items
+  const visibleTopicIds = useMemo(() => visibleItems.map((topic) => topic.id), [visibleItems])
+  const streamStatusByTopicId = useTopicListStreamStatuses(visibleTopicIds)
+
+  if (context.state.status === 'loading') {
+    return <ResourceList.LoadingState />
+  }
+
+  if (context.state.status === 'error') {
+    return <ResourceList.ErrorState message={t('error.boundary.default.message')} />
+  }
+
+  if (context.view.items.length === 0) {
+    return <ResourceList.EmptyState />
+  }
+
+  const renderItem = (topic: Topic) => (
+    <TopicRow
+      key={topic.id}
+      topic={topic}
+      {...rowProps}
+      layout={rowLayout}
+      mode={variant === 'manage' ? 'manage' : 'default'}
+      streamStatus={streamStatusByTopicId.get(topic.id) ?? EMPTY_TOPIC_STREAM_STATE}
+    />
+  )
+
+  if (variant === 'manage') {
+    return <ResourceList.VirtualItems ref={listRef} className="pb-[76px]" renderItem={renderItem} />
+  }
+
+  if (variant === 'draggable') {
+    return <ResourceList.VirtualDraggableItems ref={listRef} className="pt-0 pb-3" renderItem={renderItem} />
+  }
+
+  return <ResourceList.VirtualItems ref={listRef} className="pt-0 pb-3" renderItem={renderItem} />
+}
+
+type TopicRowSharedProps = Omit<TopicListBodyProps, 'listRef' | 'rowLayout' | 'variant'> & {
+  layout: TopicRowLayout
+  mode: TopicRowMode
+}
+
+interface TopicRowWithStatusProps extends TopicRowSharedProps {
+  topic: Topic
+}
+
+interface TopicRowProps extends TopicRowWithStatusProps {
+  streamStatus: TopicStreamState
+}
+
+function TopicRow({
+  activeTopic,
+  deletingTopicId,
+  exportMenuOptions,
+  isNewlyRenamed,
+  isRenaming,
+  layout,
+  mode,
+  notesPath,
+  onAutoRename,
+  onClearMessages,
+  onConfirmDelete,
+  onDeleteClick,
+  onDeleteFromMenu,
+  onPinTopic,
+  onPromptRename,
+  onSwitchTopic,
+  selectedIds,
+  streamStatus,
+  toggleSelectTopic,
+  topic,
+  topicsLength
+}: TopicRowProps) {
+  const { t } = useTranslation()
+  const context = useResourceList<Topic>()
+  const isManageMode = mode === 'manage'
+  const isActive = topic.id === activeTopic?.id
+  const isSelected = selectedIds.has(topic.id)
+  const canSelect = !topic.pinned
+  const topicName = topic.name.replace('`', '')
+  const nameAnimationClassName = isRenaming(topic.id)
+    ? 'animation-shimmer'
+    : isNewlyRenamed(topic.id)
+      ? 'animation-reveal'
+      : ''
+  const { isFulfilled: isTopicStreamFulfilled, isPending: isTopicStreamPending } = streamStatus
+  const hasTopicStreamIndicator = !isActive && (isTopicStreamPending || isTopicStreamFulfilled)
+
+  const row = (
+    <ResourceList.Item
+      item={topic}
+      data-testid="topic-list-row"
+      className={cn(
+        'relative',
+        isManageMode && isSelected && 'bg-sidebar-accent shadow-[inset_0_0_0_1px_var(--color-sidebar-active-border)]',
+        isManageMode && !canSelect && 'cursor-not-allowed opacity-50',
+        layout === 'grouped' && !isManageMode && isActive && 'bg-sidebar-accent',
+        layout === 'single' && !isManageMode && isActive && 'bg-sidebar-accent shadow-none',
+        layout === 'single' && !isManageMode && !isActive && 'hover:bg-(--color-background-soft)'
+      )}
+      style={{ cursor: isManageMode && !canSelect ? 'not-allowed' : 'pointer' }}
+      onMouseEnter={() =>
+        prefetch(`/topics/${topic.id}/messages`, {
+          query: { limit: 999, includeSiblings: true }
+        })
+      }
+      onClick={() => {
+        if (isManageMode) {
+          if (canSelect) {
+            toggleSelectTopic(topic.id)
+          }
+          return
+        }
+
+        onSwitchTopic(topic)
+      }}>
+      {isManageMode && (
+        <ResourceList.ItemIcon className={cn('mr-0.5', !canSelect && 'opacity-50')}>
+          {isSelected ? (
+            <CheckSquare size={16} className="text-(--color-primary)" />
+          ) : (
+            <Square size={16} className="text-(--color-text-3)" />
+          )}
+        </ResourceList.ItemIcon>
+      )}
+      {!isManageMode && (
+        <Tooltip title={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
+          <ResourceList.ItemLeadingAction
+            aria-label={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
+            className={cn(topic.pinned && 'text-muted-foreground/55 hover:text-muted-foreground/75')}
+            onClick={(event) => {
+              event.stopPropagation()
+              void onPinTopic(topic)
+            }}>
+            <PinIcon size={13} className={cn(topic.pinned && '-rotate-45')} />
+          </ResourceList.ItemLeadingAction>
+        </Tooltip>
+      )}
+      <ResourceList.RenameField
+        item={topic}
+        aria-label={t('chat.topics.edit.title')}
+        onClick={(event) => event.stopPropagation()}
+      />
+      {context.state.renamingId !== topic.id && (
+        <ResourceList.ItemTitle
+          title={topicName}
+          className={nameAnimationClassName}
+          onDoubleClick={(event) => {
+            if (isManageMode) return
+            event.stopPropagation()
+            context.actions.startRename(topic.id)
+          }}>
+          {topicName}
+        </ResourceList.ItemTitle>
+      )}
+      {hasTopicStreamIndicator ? (
+        <TopicStreamIndicator isFulfilled={isTopicStreamFulfilled} isPending={isTopicStreamPending} />
+      ) : !topic.pinned ? (
+        <Tooltip
+          placement="bottom"
+          delay={700}
+          title={
+            <span className="text-xs italic opacity-80">
+              {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
+            </span>
+          }>
+          <ResourceList.ItemAction
+            aria-label={t('common.delete')}
+            data-deleting={deletingTopicId === topic.id}
+            onClick={(event) => {
+              if (event.ctrlKey || event.metaKey || deletingTopicId === topic.id) {
+                void onConfirmDelete(topic, event)
+                return
+              }
+              onDeleteClick(topic.id, event)
+            }}>
+            {deletingTopicId === topic.id ? <Trash2 size={14} className="text-(--color-error)" /> : <XIcon size={14} />}
+          </ResourceList.ItemAction>
+        </Tooltip>
+      ) : null}
+    </ResourceList.Item>
+  )
+
+  if (isManageMode) {
+    return row
+  }
+
+  return (
+    <ResourceList.ContextMenu
+      item={topic}
+      content={
+        <TopicContextMenuContent
+          exportMenuOptions={exportMenuOptions}
+          isRenaming={isRenaming}
+          notesPath={notesPath}
+          onAutoRename={onAutoRename}
+          onClearMessages={onClearMessages}
+          onDeleteFromMenu={onDeleteFromMenu}
+          onPinTopic={onPinTopic}
+          onPromptRename={onPromptRename}
+          topic={topic}
+          topicsLength={topicsLength}
+        />
+      }>
+      {row}
+    </ResourceList.ContextMenu>
+  )
+}
+
+interface TopicContextMenuContentProps {
+  exportMenuOptions: ExportMenuOptions
+  isRenaming: (topicId: string) => boolean
+  notesPath: string
+  onAutoRename: (topic: Topic) => Promise<void>
+  onClearMessages: (topic: Topic) => void
+  onDeleteFromMenu: (topic: Topic) => Promise<void>
+  onPinTopic: (topic: Topic) => Promise<void>
+  onPromptRename: (topic: Topic) => Promise<void>
+  topic: Topic
+  topicsLength: number
+}
+
+function TopicContextMenuContent({
+  exportMenuOptions,
+  isRenaming,
+  notesPath,
+  onAutoRename,
+  onClearMessages,
+  onDeleteFromMenu,
+  onPinTopic,
+  onPromptRename,
+  topic,
+  topicsLength
+}: TopicContextMenuContentProps) {
+  const { t } = useTranslation()
+
+  return (
+    <>
+      <ResourceList.ContextMenuAction
+        disabled={isRenaming(topic.id)}
+        icon={<Sparkles />}
+        onSelect={() => void onAutoRename(topic)}>
+        {t('chat.topics.auto_rename')}
+      </ResourceList.ContextMenuAction>
+      <ResourceList.ContextMenuAction
+        disabled={isRenaming(topic.id)}
+        icon={<Edit3 />}
+        onSelect={() => void onPromptRename(topic)}>
+        {t('chat.topics.edit.title')}
+      </ResourceList.ContextMenuAction>
+      <ResourceList.ContextMenuAction
+        icon={topic.pinned ? <PinOffIcon /> : <PinIcon />}
+        onSelect={() => void onPinTopic(topic)}>
+        {topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
+      </ResourceList.ContextMenuAction>
+      <ResourceList.ContextMenuAction icon={<BrushCleaning />} onSelect={() => onClearMessages(topic)}>
+        {t('chat.topics.clear.title')}
+      </ResourceList.ContextMenuAction>
+      <ResourceList.ContextMenuSeparator />
+      <ResourceList.ContextMenuAction icon={<NotebookPen />} onSelect={() => void exportTopicToNotes(topic, notesPath)}>
+        {t('notes.save')}
+      </ResourceList.ContextMenuAction>
+      <ResourceList.ContextMenuAction
+        icon={<Database />}
+        onSelect={async () => {
+          try {
+            const result = await SaveToKnowledgePopup.showForTopic(topic)
+            if (result?.success) {
+              window.toast.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
+            }
+          } catch {
+            window.toast.error(t('chat.save.topic.knowledge.error.save_failed'))
+          }
+        }}>
+        {t('chat.save.topic.knowledge.menu_title')}
+      </ResourceList.ContextMenuAction>
+      <ContextMenuSub>
+        <ResourceList.ContextMenuSubAction icon={<UploadIcon />}>
+          {t('chat.topics.export.title')}
+        </ResourceList.ContextMenuSubAction>
+        <ResourceList.ContextMenuSubContent>
+          {exportMenuOptions.image && (
+            <ResourceList.ContextMenuAction onSelect={() => EventEmitter.emit(EVENT_NAMES.EXPORT_TOPIC_IMAGE, topic)}>
+              {t('chat.topics.export.image')}
+            </ResourceList.ContextMenuAction>
+          )}
+          {exportMenuOptions.markdown && (
+            <ResourceList.ContextMenuAction onSelect={() => exportTopicAsMarkdown(topic)}>
+              {t('chat.topics.export.md.label')}
+            </ResourceList.ContextMenuAction>
+          )}
+          {exportMenuOptions.markdown_reason && (
+            <ResourceList.ContextMenuAction onSelect={() => exportTopicAsMarkdown(topic, true)}>
+              {t('chat.topics.export.md.reason')}
+            </ResourceList.ContextMenuAction>
+          )}
+          {exportMenuOptions.docx && (
+            <ResourceList.ContextMenuAction
+              onSelect={async () => {
+                const markdown = await topicToMarkdown(topic)
+                void window.api.export.toWord(markdown, removeSpecialCharactersForFileName(topic.name))
+              }}>
+              {t('chat.topics.export.word')}
+            </ResourceList.ContextMenuAction>
+          )}
+          {exportMenuOptions.notion && (
+            <ResourceList.ContextMenuAction onSelect={() => void exportTopicToNotion(topic)}>
+              {t('chat.topics.export.notion')}
+            </ResourceList.ContextMenuAction>
+          )}
+          {exportMenuOptions.yuque && (
+            <ResourceList.ContextMenuAction
+              onSelect={async () => {
+                const markdown = await topicToMarkdown(topic)
+                void exportMarkdownToYuque(topic.name, markdown)
+              }}>
+              {t('chat.topics.export.yuque')}
+            </ResourceList.ContextMenuAction>
+          )}
+          {exportMenuOptions.obsidian && (
+            <ResourceList.ContextMenuAction
+              onSelect={async () => {
+                await ObsidianExportPopup.show({ title: topic.name, topic, processingMethod: '3' })
+              }}>
+              {t('chat.topics.export.obsidian')}
+            </ResourceList.ContextMenuAction>
+          )}
+          {exportMenuOptions.joplin && (
+            <ResourceList.ContextMenuAction
+              onSelect={async () => {
+                const topicMessages = await getTopicMessages(topic.id)
+                void exportMarkdownToJoplin(topic.name, topicMessages)
+              }}>
+              {t('chat.topics.export.joplin')}
+            </ResourceList.ContextMenuAction>
+          )}
+          {exportMenuOptions.siyuan && (
+            <ResourceList.ContextMenuAction
+              onSelect={async () => {
+                const markdown = await topicToMarkdown(topic)
+                void exportMarkdownToSiyuan(topic.name, markdown)
+              }}>
+              {t('chat.topics.export.siyuan')}
+            </ResourceList.ContextMenuAction>
+          )}
+        </ResourceList.ContextMenuSubContent>
+      </ContextMenuSub>
+      <ContextMenuSub>
+        <ResourceList.ContextMenuSubAction icon={<Copy />}>
+          {t('chat.topics.copy.title')}
+        </ResourceList.ContextMenuSubAction>
+        <ResourceList.ContextMenuSubContent>
+          <ResourceList.ContextMenuAction
+            icon={<Image />}
+            onSelect={() => EventEmitter.emit(EVENT_NAMES.COPY_TOPIC_IMAGE, topic)}>
+            {t('chat.topics.copy.image')}
+          </ResourceList.ContextMenuAction>
+          <ResourceList.ContextMenuAction icon={<FileText />} onSelect={() => copyTopicAsMarkdown(topic)}>
+            {t('chat.topics.copy.md')}
+          </ResourceList.ContextMenuAction>
+          <ResourceList.ContextMenuAction icon={<FileText />} onSelect={() => copyTopicAsPlainText(topic)}>
+            {t('chat.topics.copy.plain_text')}
+          </ResourceList.ContextMenuAction>
+        </ResourceList.ContextMenuSubContent>
+      </ContextMenuSub>
+      {topicsLength > 1 && !topic.pinned && (
+        <>
+          <ResourceList.ContextMenuSeparator />
+          <ResourceList.ContextMenuAction
+            icon={<Trash2 />}
+            variant="destructive"
+            onSelect={() => void onDeleteFromMenu(topic)}>
+            {t('common.delete')}
+          </ResourceList.ContextMenuAction>
+        </>
+      )}
+    </>
+  )
+}
+
+const TopicStreamIndicator = ({ isFulfilled, isPending }: { isFulfilled: boolean; isPending: boolean }) => {
+  const dotClassName = cn(
+    'animation-pulse size-[5px] rounded-full',
+    isPending ? 'bg-(--color-status-warning)' : 'bg-(--color-status-success)'
+  )
+
+  if (isPending) {
+    return (
+      <span
+        aria-hidden="true"
+        className="flex size-5 shrink-0 items-center justify-center"
+        data-testid="topic-stream-indicator">
+        <span className={dotClassName} />
+      </span>
+    )
+  }
+
+  if (isFulfilled) {
+    return (
+      <span
+        aria-hidden="true"
+        className="flex size-5 shrink-0 items-center justify-center opacity-100 group-hover:opacity-100"
+        data-testid="topic-stream-indicator">
+        <span className={dotClassName} />
+      </span>
+    )
+  }
+
+  return null
+}
