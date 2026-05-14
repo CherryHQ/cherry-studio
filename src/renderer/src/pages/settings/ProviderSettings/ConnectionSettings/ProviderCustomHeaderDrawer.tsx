@@ -113,9 +113,15 @@ function resolveEndpointTypes(
 
 /**
  * Merge a per-endpoint baseUrl drafts map back into a full endpointConfigs
- * object. Preserves any non-baseUrl fields (reasoningFormatType, modelsApiUrls)
- * that were already configured. Empty drafts for non-primary endpoints remove
- * the entry entirely so the configs map stays clean.
+ * object.
+ *
+ * - Non-empty draft → write `baseUrl`, keep any other configured fields
+ *   (reasoningFormatType, modelsApiUrls) on that endpoint.
+ * - Empty primary draft → strip `baseUrl` but keep other fields so the
+ *   primary entry survives when fields like reasoningFormatType are set.
+ * - Empty non-primary draft → drop the entry entirely. Today no surface
+ *   sets non-baseUrl fields on secondary endpoints, so this stays clean;
+ *   if a future surface writes them, this branch must change accordingly.
  */
 function mergeEndpointConfigs(
   existing: Partial<Record<EndpointType, EndpointConfig>> | undefined,
