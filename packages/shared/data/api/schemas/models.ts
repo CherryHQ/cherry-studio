@@ -137,6 +137,13 @@ export const ReconcileProviderModelsSchema = z.strictObject({
 })
 export type ReconcileProviderModelsDto = z.infer<typeof ReconcileProviderModelsSchema>
 
+/** Query parameters for resolving raw SDK model IDs against registry presets */
+export const ResolveProviderModelsQuerySchema = z.strictObject({
+  /** Raw model IDs from SDK listModels(), repeated as ?ids=a&ids=b or provided as an array by IPC callers. */
+  ids: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)])
+})
+export type ResolveProviderModelsQuery = z.infer<typeof ResolveProviderModelsQuerySchema>
+
 /**
  * Model API Schema definitions
  */
@@ -212,6 +219,19 @@ export type ModelSchemas = {
     POST: {
       params: { providerId: string }
       body: ReconcileProviderModelsDto
+      response: Model[]
+    }
+  }
+
+  /**
+   * Statelessly resolve raw SDK model IDs against registry presets.
+   * @example GET /providers/openai/models:resolve?ids=gpt-4o&ids=o3
+   */
+  '/providers/:providerId/models:resolve': {
+    /** Resolve raw model IDs against registry presets */
+    GET: {
+      params: { providerId: string }
+      query: ResolveProviderModelsQuery
       response: Model[]
     }
   }

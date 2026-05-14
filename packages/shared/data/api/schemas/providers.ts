@@ -6,7 +6,7 @@
 
 import * as z from 'zod'
 
-import { ENDPOINT_TYPE, type EndpointType, type Model, objectValues } from '../../types/model'
+import { ENDPOINT_TYPE, type EndpointType, objectValues } from '../../types/model'
 import {
   ApiFeaturesSchema,
   type ApiKeyEntry,
@@ -108,13 +108,6 @@ export const ListProviderApiKeysQuerySchema = z.strictObject({
   enabled: z.boolean().optional()
 })
 export type ListProviderApiKeysQuery = z.infer<typeof ListProviderApiKeysQuerySchema>
-
-/** Query parameters for resolving raw SDK model IDs against registry presets */
-export const ResolveProviderModelsQuerySchema = z.strictObject({
-  /** Raw model IDs from SDK listModels(), repeated as ?ids=a&ids=b or provided as an array by IPC callers. */
-  ids: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)])
-})
-export type ResolveProviderModelsQuery = z.infer<typeof ResolveProviderModelsQuerySchema>
 
 /** POST /providers/:providerId/api-keys body */
 export const AddProviderApiKeySchema = z.strictObject({
@@ -220,19 +213,6 @@ export type ProviderSchemas = {
       params: { providerId: string }
       body: ReplaceProviderApiKeysDto
       response: Provider
-    }
-  }
-
-  /**
-   * Statelessly resolve raw SDK model IDs against registry presets.
-   * @example GET /providers/openai/models:resolve?ids=gpt-4o&ids=o3
-   */
-  '/providers/:providerId/models:resolve': {
-    /** Resolve raw model IDs against registry presets */
-    GET: {
-      params: { providerId: string }
-      query: ResolveProviderModelsQuery
-      response: Model[]
     }
   }
 

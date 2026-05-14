@@ -19,6 +19,7 @@ import {
   ListModelsQuerySchema,
   type ModelSchemas,
   ReconcileProviderModelsSchema,
+  ResolveProviderModelsQuerySchema,
   UpdateModelSchema
 } from '@shared/data/api/schemas/models'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
@@ -159,6 +160,14 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
       // Override the default POST → 201: the response is the resulting
       // collection state for the provider, not a newly-created single resource.
       return { data: models, status: SuccessStatus.OK }
+    }
+  },
+
+  '/providers/:providerId/models:resolve': {
+    GET: async ({ params, query }) => {
+      const parsed = ResolveProviderModelsQuerySchema.parse(query)
+      const ids = Array.isArray(parsed.ids) ? parsed.ids : [parsed.ids]
+      return await providerRegistryService.resolveModels(params.providerId, ids)
     }
   }
 }

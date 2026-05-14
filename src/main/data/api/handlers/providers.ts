@@ -6,7 +6,6 @@
  * - Listing with filters
  */
 
-import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
@@ -17,7 +16,6 @@ import {
   ListProvidersQuerySchema,
   type ProviderSchemas,
   ReplaceProviderApiKeysSchema,
-  ResolveProviderModelsQuerySchema,
   UpdateApiKeySchema,
   UpdateProviderSchema
 } from '@shared/data/api/schemas/providers'
@@ -66,14 +64,6 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
     PUT: async ({ params, body }) => {
       const parsed = ReplaceProviderApiKeysSchema.parse(body)
       return await providerService.replaceApiKeys(params.providerId, parsed.keys)
-    }
-  },
-
-  '/providers/:providerId/models:resolve': {
-    GET: async ({ params, query }) => {
-      const parsed = ResolveProviderModelsQuerySchema.parse(query)
-      const ids = Array.isArray(parsed.ids) ? parsed.ids : [parsed.ids]
-      return await providerRegistryService.resolveModels(params.providerId, ids)
     }
   },
 
