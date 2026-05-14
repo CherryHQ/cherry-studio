@@ -4399,17 +4399,17 @@
       },
       "window": {
         "c_copy": "C: Copy",
+        "diff_view": "Diff View",
         "esc_close": "Esc: Close",
         "esc_stop": "Esc: Stop",
         "opacity": "Window Opacity",
-        "diff_view": "Diff View",
         "original_copy": "Copy Original",
         "original_hide": "Hide Original",
         "original_show": "Show Original",
-        "result_view": "Result View",
         "pin": "Pin",
         "pinned": "Pinned",
-        "r_regenerate": "R: Regenerate"
+        "r_regenerate": "R: Regenerate",
+        "result_view": "Result View"
       }
     },
     "name": "Selection Assistant",
