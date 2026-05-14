@@ -1,5 +1,4 @@
 import { Avatar, AvatarFallback, AvatarImage, Checkbox, EmojiAvatar, Tooltip } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
 import UserPopup from '@renderer/components/Popups/UserPopup'
 import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -17,6 +16,7 @@ import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useMessageList } from '../MessageListProvider'
+import { defaultMessageRenderConfig } from '../types'
 import MessageTokens from './MessageTokens'
 
 const MESSAGE_AVATAR_SIZE = 30
@@ -34,12 +34,13 @@ interface Props {
 const MessageHeader: FC<Props> = memo(({ assistant, model, message, isGroupContextMessage, actionsSlot }) => {
   const avatar = useAvatar()
   const { theme } = useTheme()
-  const [userName] = usePreference('app.user.name')
   const showMiniAppIcon = useSidebarIconShow('mini_app')
   const { state, actions, meta } = useMessageList()
+  const renderConfig = state.renderConfig ?? defaultMessageRenderConfig
+  const userName = renderConfig.userName
   const assistantProfile = meta.assistantProfile
   const { t } = useTranslation()
-  const [messageStyle] = usePreference('chat.message.style')
+  const messageStyle = renderConfig.messageStyle
   const isBubbleStyle = messageStyle === 'bubble'
   const { openMiniAppById } = useMiniAppPopup()
 

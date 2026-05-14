@@ -126,7 +126,7 @@ const MessageGroupMenuBar: FC<Props> = ({
             setSelectedMessage={setSelectedMessage}
           />
         )}
-        {multiModelMessageStyle === 'grid' && <MessageGroupSettings />}
+        {multiModelMessageStyle === 'grid' && actions.updateRenderConfig && <MessageGroupSettings />}
       </RowFlex>
       <ActionContainer>
         {hasFailedMessages && (

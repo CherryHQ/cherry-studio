@@ -4,7 +4,7 @@ import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
-import NarrowLayout from '@renderer/components/chat/messages/layout/NarrowLayout'
+import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
@@ -137,6 +137,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   const [enableQuickPanelTriggers] = usePreference('chat.input.quick_panel.triggers_enabled')
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
+  const [narrowMode] = usePreference('chat.narrow_mode')
   const [searching, setSearching] = useCache('chat.web_search.searching')
   const quickPanelTriggersEnabled = forceEnableQuickPanelTriggers ?? enableQuickPanelTriggers
 
@@ -619,7 +620,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   const quickPanelElement = config.enableQuickPanel ? <QuickPanelView setInputText={setText} /> : null
 
   return (
-    <NarrowLayout style={{ width: '100%' }}>
+    <NarrowLayout narrowMode={narrowMode} style={{ width: '100%' }}>
       <Container
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}

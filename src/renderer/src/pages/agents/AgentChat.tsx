@@ -1,5 +1,5 @@
 import { ChatAppShell, type ChatPanePosition, LoadingState } from '@renderer/components/chat'
-import NarrowLayout from '@renderer/components/chat/messages/layout/NarrowLayout'
+import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useCache } from '@renderer/data/hooks/useCache'
@@ -136,6 +136,7 @@ const AgentChatInner = ({
   isMultiSelectMode
 }: InnerProps) => {
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [narrowMode] = usePreference('chat.narrow_mode')
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
   const { messages: uiMessages, isLoading, hasOlder, loadOlder, refresh } = useAgentSessionParts(agentId, sessionId)
   const chat = useChatWithHistory(sessionTopicId, uiMessages, refresh)
@@ -236,7 +237,7 @@ const AgentChatInner = ({
             loadOlder={loadOlder}
           />
           <div className="mt-auto px-4.5 pb-2">
-            <NarrowLayout>
+            <NarrowLayout narrowMode={narrowMode}>
               <PinnedTodoPanel messages={projectedMessages} partsMap={mergedPartsMap} />
             </NarrowLayout>
           </div>

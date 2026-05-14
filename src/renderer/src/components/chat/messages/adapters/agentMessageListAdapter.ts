@@ -1,10 +1,12 @@
+import { cacheService } from '@data/CacheService'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 
-import type { MessageListProviderValue } from '../types'
+import type { MessageListProviderValue, MessageUiState } from '../types'
 import { useMessageActivityState } from './useMessageActivityState'
+import { useMessageListRenderConfig } from './useMessageListRenderConfig'
 
 interface AgentMessageListParams {
   topic: Topic
@@ -31,6 +33,17 @@ export function useAgentMessageListProviderValue({
   partsMap
 }: AgentMessageListParams): MessageListProviderValue {
   const getMessageActivityState = useMessageActivityState(topic.id, partsMap)
+  const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
+  const getMessageUiState = useCallback(
+    (messageId: string) => (cacheService.get(`message.ui.${messageId}` as const) || {}) as MessageUiState,
+    []
+  )
+
+  const updateMessageUiState = useCallback((messageId: string, updates: MessageUiState) => {
+    const cacheKey = `message.ui.${messageId}` as const
+    const current = cacheService.get(cacheKey) || {}
+    cacheService.set(cacheKey, { ...current, ...updates })
+  }, [])
 
   return useMemo(
     () => ({
@@ -46,21 +59,38 @@ export function useAgentMessageListProviderValue({
         loadingResetDelayMs: 600,
         listKey: topic.id,
         readonly: true,
+        renderConfig,
         selection: {
           enabled: false,
           isMultiSelectMode: false,
           selectedMessageIds: []
         },
+        getMessageUiState,
         getMessageActivityState
       },
       actions: {
-        loadOlder
+        loadOlder,
+        updateMessageUiState,
+        updateRenderConfig
       },
       meta: {
         selectionLayer: false,
         assistantProfile
       }
     }),
-    [assistantProfile, getMessageActivityState, hasOlder, isLoading, loadOlder, messageNavigation, messages, topic]
+    [
+      assistantProfile,
+      getMessageActivityState,
+      getMessageUiState,
+      hasOlder,
+      isLoading,
+      loadOlder,
+      messageNavigation,
+      messages,
+      renderConfig,
+      topic,
+      updateMessageUiState,
+      updateRenderConfig
+    ]
   )
 }

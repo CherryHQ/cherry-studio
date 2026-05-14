@@ -58,18 +58,8 @@ vi.mock('@data/CacheService', () => ({
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: (key: string) => {
-    const settings = mocks.settings()
-    const values: Record<string, unknown> = {
-      'chat.message.multi_model.style': settings.multiModelMessageStyle,
-      'chat.message.multi_model.grid_columns': settings.gridColumns,
-      'chat.message.multi_model.grid_popover_trigger': settings.gridPopoverTrigger,
-      'chat.message.font': settings.messageFont,
-      'chat.message.font_size': settings.fontSize,
-      'chat.message.style': settings.messageStyle,
-      'chat.message.show_outline': settings.showMessageOutline
-    }
-    return [values[key]]
+  usePreference: () => {
+    throw new Error('MessageGroup should consume provider renderConfig instead of usePreference')
   }
 }))
 
@@ -185,15 +175,32 @@ vi.mock('../list/MessageGroupMenuBar', () => ({
 }))
 
 vi.mock('../MessageListProvider', () => ({
-  useMessageList: () => ({
-    state: {},
-    actions: {
-      setActiveBranch: vi.fn(),
-      deleteMessageGroup: vi.fn(),
-      regenerateMessage: vi.fn()
-    },
-    meta: {}
-  })
+  useMessageList: () => {
+    const settings = mocks.settings()
+
+    return {
+      state: {
+        renderConfig: {
+          userName: '',
+          narrowMode: false,
+          messageStyle: settings.messageStyle,
+          messageFont: settings.messageFont,
+          fontSize: settings.fontSize,
+          showMessageOutline: settings.showMessageOutline,
+          multiModelMessageStyle: settings.multiModelMessageStyle,
+          multiModelGridColumns: settings.gridColumns,
+          multiModelGridPopoverTrigger: settings.gridPopoverTrigger
+        }
+      },
+      actions: {
+        setActiveBranch: vi.fn(),
+        deleteMessageGroup: vi.fn(),
+        regenerateMessage: vi.fn(),
+        updateMessageUiState: vi.fn()
+      },
+      meta: {}
+    }
+  }
 }))
 
 vi.mock('../frame/MessageHeader', () => ({

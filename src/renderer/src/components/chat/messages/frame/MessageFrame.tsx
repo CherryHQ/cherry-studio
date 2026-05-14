@@ -1,5 +1,4 @@
 import { Avatar, AvatarImage, EmojiAvatar } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import UserPopup from '@renderer/components/Popups/UserPopup'
@@ -12,6 +11,7 @@ import type { Assistant, Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { classNames, cn, isEmoji } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
+import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import dayjs from 'dayjs'
@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 
 import SiblingNavigator from '../list/SiblingNavigator'
 import { useMessageList } from '../MessageListProvider'
+import { defaultMessageRenderConfig } from '../types'
 import MessageContent from './MessageContent'
 import MessageEditor from './MessageEditor'
 import MessageErrorBoundary from './MessageErrorBoundary'
@@ -42,6 +43,7 @@ interface Props {
   onUpdateUseful?: (msgId: string) => void
   isGroupContextMessage?: boolean
   isHorizontalMultiModelLayout?: boolean
+  multiModelMessageStyle?: MultiModelMessageStyle
 }
 
 const logger = loggerService.withContext('MessageItem')
@@ -65,20 +67,22 @@ const MessageItem: FC<Props> = ({
   isGrouped,
   onUpdateUseful,
   isGroupContextMessage,
-  isHorizontalMultiModelLayout = false
+  isHorizontalMultiModelLayout = false,
+  multiModelMessageStyle = 'fold'
 }) => {
   const { t } = useTranslation()
   const { assistant, setModel } = useAssistant(message.assistantId)
   const { state, actions } = useMessageList()
+  const renderConfig = state.renderConfig ?? defaultMessageRenderConfig
   const isMultiSelectMode = state.selection?.isMultiSelectMode ?? false
   // Use the message-embedded snapshot rather than re-resolving the live model
   // config: the snapshot is what the message was actually generated with.
   const model = message.model
 
-  const [messageFont] = usePreference('chat.message.font')
-  const [fontSize] = usePreference('chat.message.font_size')
-  const [showMessageOutline] = usePreference('chat.message.show_outline')
-  const [messageStyle] = usePreference('chat.message.style')
+  const messageFont = renderConfig.messageFont
+  const fontSize = renderConfig.fontSize
+  const showMessageOutline = renderConfig.showMessageOutline
+  const messageStyle = renderConfig.messageStyle
 
   const messageContainerRef = useRef<HTMLDivElement>(null)
   const { editingMessageId, startEditing, stopEditing } = useMessageEditing()
@@ -244,7 +248,7 @@ const MessageItem: FC<Props> = ({
         {!isEditing && (
           <>
             {!isMultiSelectMode && message.role === 'assistant' && showMessageOutline && (
-              <MessageOutline message={message} />
+              <MessageOutline message={message} multiModelMessageStyle={multiModelMessageStyle} />
             )}
             {isUserBubbleMessage ? (
               <UserBubbleMessage

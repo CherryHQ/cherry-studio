@@ -1,7 +1,7 @@
-import { cacheService } from '@data/CacheService'
 import Scrollbar from '@renderer/components/Scrollbar'
 import type { Message } from '@renderer/types/newMessage'
 import { scrollIntoView } from '@renderer/utils/dom'
+import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
 import React, { useMemo, useRef } from 'react'
 import remarkParse from 'remark-parse'
@@ -13,6 +13,7 @@ import { createSlugger, extractTextFromNode } from '../markdown/plugins/rehypeHe
 
 interface MessageOutlineProps {
   message: Message
+  multiModelMessageStyle: MultiModelMessageStyle
 }
 
 interface HeadingItem {
@@ -21,7 +22,7 @@ interface HeadingItem {
   text: string
 }
 
-const MessageOutline: FC<MessageOutlineProps> = ({ message }) => {
+const MessageOutline: FC<MessageOutlineProps> = ({ message, multiModelMessageStyle }) => {
   const partsMap = usePartsMap()
 
   const headings: HeadingItem[] = useMemo(() => {
@@ -84,18 +85,14 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message }) => {
     if (messageContentContainer) {
       const headingElement = messageContentContainer.querySelector<HTMLElement>(`#${id}`)
       if (headingElement) {
-        const msgStyle = (
-          cacheService.get(`message.ui.${message.id}` as const) as { multiModelMessageStyle?: string } | null
-        )?.multiModelMessageStyle
-        const scrollBlock = ['horizontal', 'grid'].includes(msgStyle ?? '') ? 'nearest' : 'start'
+        const scrollBlock = ['horizontal', 'grid'].includes(multiModelMessageStyle) ? 'nearest' : 'start'
         scrollIntoView(headingElement, { behavior: 'smooth', block: scrollBlock, container: 'nearest' })
       }
     }
   }
 
   // 暂时不支持 grid，因为在锚点滚动时会导致渲染错位
-  const outlineUi = cacheService.get(`message.ui.${message.id}` as const) as { multiModelMessageStyle?: string } | null
-  if (outlineUi?.multiModelMessageStyle === 'grid' || !headings.length) return null
+  if (multiModelMessageStyle === 'grid' || !headings.length) return null
 
   return (
     <div

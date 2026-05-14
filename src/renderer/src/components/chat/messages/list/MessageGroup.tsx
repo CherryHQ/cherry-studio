@@ -1,5 +1,4 @@
 import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
@@ -14,7 +13,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 
 import MessageItem from '../frame/MessageFrame'
 import { useMessageList } from '../MessageListProvider'
-import type { MessageUiState } from '../types'
+import { defaultMessageRenderConfig, type MessageUiState } from '../types'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
 
 const logger = loggerService.withContext('MessageGroup')
@@ -29,17 +28,21 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
 
   // Hooks
   const { state, actions } = useMessageList()
-  const [multiModelMessageStyleSetting] = usePreference('chat.message.multi_model.style')
-  const [gridColumns] = usePreference('chat.message.multi_model.grid_columns')
-  const [gridPopoverTrigger] = usePreference('chat.message.multi_model.grid_popover_trigger')
+  const renderConfig = state.renderConfig ?? defaultMessageRenderConfig
+  const multiModelMessageStyleSetting = renderConfig.multiModelMessageStyle
+  const gridColumns = renderConfig.multiModelGridColumns
+  const gridPopoverTrigger = renderConfig.multiModelGridPopoverTrigger
   const { setTimeoutTimer } = useTimer()
   const isMultiSelectMode = state.selection?.isMultiSelectMode ?? false
-  const getMessageUiState = useCallback((messageId: string) => state.getMessageUiState?.(messageId) ?? {}, [state])
+  const getMessageUiState = useCallback(
+    (messageId: string) => state.getMessageUiState?.(messageId) ?? {},
+    [state.getMessageUiState]
+  )
   const updateMessageUiState = useCallback(
     (messageId: string, updates: MessageUiState) => {
       actions.updateMessageUiState?.(messageId, updates)
     },
-    [actions]
+    [actions.updateMessageUiState]
   )
 
   const isGrouped = isMultiSelectMode ? false : messageLength > 1 && messages.every((m) => m.role === 'assistant')
@@ -244,6 +247,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
       const messageProps = {
         isGrouped,
         isHorizontalMultiModelLayout: multiModelMessageStyle === 'horizontal',
+        multiModelMessageStyle,
         message,
         topic,
         index

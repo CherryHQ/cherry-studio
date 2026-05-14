@@ -1,6 +1,4 @@
 import { Avatar, AvatarFallback, AvatarImage, EmojiAvatar } from '@cherrystudio/ui'
-import { cacheService } from '@data/CacheService'
-import { usePreference } from '@data/hooks/usePreference'
 import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
@@ -17,6 +15,7 @@ import { useTranslation } from 'react-i18next'
 
 import { usePartsMap } from '../blocks'
 import { useMessageList } from '../MessageListProvider'
+import { defaultMessageRenderConfig } from '../types'
 
 interface MessageLineProps {
   messages: Message[]
@@ -34,8 +33,9 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
   const partsMap = usePartsMap()
   const avatar = useAvatar()
   const { theme } = useTheme()
-  const [userName] = usePreference('app.user.name')
-  const { meta } = useMessageList()
+  const { state, actions, meta } = useMessageList()
+  const renderConfig = state.renderConfig ?? defaultMessageRenderConfig
+  const userName = renderConfig.userName
   const assistantProfile = meta.assistantProfile
   const { setTimeoutTimer } = useTimer()
 
@@ -108,9 +108,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
       const groupMessages = messages.filter((m) => m.askId === message.askId)
       if (groupMessages.length > 1) {
         for (const m of groupMessages) {
-          const cacheKey = `message.ui.${m.id}` as const
-          const current = cacheService.get(cacheKey) || {}
-          cacheService.set(cacheKey, { ...current, foldSelected: m.id === message.id })
+          actions.updateMessageUiState?.(m.id, { foldSelected: m.id === message.id })
         }
 
         setTimeoutTimer(
@@ -125,7 +123,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
         )
       }
     },
-    [messages, setTimeoutTimer]
+    [actions.updateMessageUiState, messages, setTimeoutTimer]
   )
 
   const scrollToMessage = useCallback(

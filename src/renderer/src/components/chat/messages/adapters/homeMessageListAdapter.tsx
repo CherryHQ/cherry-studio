@@ -28,6 +28,7 @@ import type {
   MessageUiState
 } from '../types'
 import { useMessageActivityState } from './useMessageActivityState'
+import { useMessageListRenderConfig } from './useMessageListRenderConfig'
 
 const logger = loggerService.withContext('HomeMessageListAdapter')
 
@@ -56,6 +57,7 @@ export function useHomeMessageListProviderValue({
   const siblingsContext = use(SiblingsContext)
   const { isMultiSelectMode, selectedMessageIds, handleSelectMessage, toggleMultiSelectMode } = useChatContext(topic)
   const getMessageActivityState = useMessageActivityState(topic.id, partsMap)
+  const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
 
   const messagesRef = useRef<Message[]>(messages)
   const partsMapRef = useRef(partsMap)
@@ -291,6 +293,7 @@ export function useHomeMessageListProviderValue({
         loadingResetDelayMs: 300,
         listKey: assistant?.id ?? topic.assistantId,
         readonly: false,
+        renderConfig,
         selection: {
           enabled: true,
           isMultiSelectMode,
@@ -312,6 +315,7 @@ export function useHomeMessageListProviderValue({
         selectMessage: handleSelectMessage,
         toggleMultiSelectMode,
         updateMessageUiState,
+        updateRenderConfig,
         editMessage: (messageId, parts) => v2Chat?.editMessage(messageId, parts),
         forkAndResendMessage: (messageId, parts) => v2Chat?.forkAndResend(messageId, parts),
         deleteMessage: (messageId, traceOptions) => v2Chat?.deleteMessage(messageId, traceOptions),
@@ -351,6 +355,8 @@ export function useHomeMessageListProviderValue({
       toggleMultiSelectMode,
       topic,
       updateMessageUiState,
+      updateRenderConfig,
+      renderConfig,
       v2Chat
     ]
   )

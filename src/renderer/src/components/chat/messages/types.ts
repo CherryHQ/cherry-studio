@@ -1,5 +1,10 @@
 import type { FileMetadata, Topic, TranslateLangCode } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
+import type {
+  ChatMessageStyle,
+  MultiModelGridPopoverTrigger,
+  MultiModelMessageStyle
+} from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReactNode } from 'react'
@@ -42,6 +47,34 @@ export interface MessageActivityState {
   isApprovalAnchor: boolean
 }
 
+export interface MessageRenderConfig {
+  userName: string
+  narrowMode: boolean
+  messageStyle: ChatMessageStyle
+  messageFont: string
+  fontSize: number
+  showMessageOutline: boolean
+  multiModelMessageStyle: MultiModelMessageStyle
+  multiModelGridColumns: number
+  multiModelGridPopoverTrigger: MultiModelGridPopoverTrigger
+}
+
+export const defaultMessageRenderConfig: MessageRenderConfig = {
+  userName: '',
+  narrowMode: false,
+  messageStyle: 'plain',
+  messageFont: 'system',
+  fontSize: 14,
+  showMessageOutline: false,
+  multiModelMessageStyle: 'horizontal',
+  multiModelGridColumns: 2,
+  multiModelGridPopoverTrigger: 'click'
+}
+
+export type MessageRenderConfigUpdate = Partial<
+  Pick<MessageRenderConfig, 'multiModelGridColumns' | 'multiModelGridPopoverTrigger'>
+>
+
 export interface MessageListState {
   topic: Topic
   messages: Message[]
@@ -55,6 +88,7 @@ export interface MessageListState {
   loadingResetDelayMs: number
   listKey?: string
   readonly?: boolean
+  renderConfig: MessageRenderConfig
   selection?: MessageListSelectionState
   getMessageUiState?: (messageId: string) => MessageUiState
   getMessageSiblings?: (messageId: string) => MessageSiblingInfo | null
@@ -73,6 +107,7 @@ export interface MessageListActions {
   selectMessage?: (messageId: string, selected: boolean) => void
   toggleMultiSelectMode?: (enabled: boolean) => void
   updateMessageUiState?: (messageId: string, updates: MessageUiState) => void
+  updateRenderConfig?: (updates: MessageRenderConfigUpdate) => void
   editMessage?: (messageId: string, parts: CherryMessagePart[]) => void | Promise<void>
   forkAndResendMessage?: (messageId: string, parts: CherryMessagePart[]) => void | Promise<void>
   deleteMessage?: (messageId: string, traceOptions?: { traceId?: string; modelName?: string }) => void | Promise<void>

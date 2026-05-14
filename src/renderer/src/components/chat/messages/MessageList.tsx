@@ -10,13 +10,14 @@ import {
 } from '@renderer/utils'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import NarrowLayout from './layout/NarrowLayout'
+import NarrowLayout from '../layout/NarrowLayout'
 import { MessagesContainer } from './layout/shared'
 import MessageAnchorLine from './list/MessageAnchorLine'
 import MessageGroup from './list/MessageGroup'
 import { MessageVirtualList, type MessageVirtualListHandle } from './list/MessageVirtualList'
 import SelectionBox from './list/SelectionBox'
 import { useMessageList } from './MessageListProvider'
+import { defaultMessageRenderConfig } from './types'
 
 const MessageList = () => {
   const { state, actions, meta } = useMessageList()
@@ -24,6 +25,7 @@ const MessageList = () => {
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const { setTimeoutTimer } = useTimer()
   const isMultiSelectMode = state.selection?.isMultiSelectMode ?? false
+  const renderConfig = state.renderConfig ?? defaultMessageRenderConfig
 
   const messageListRef = useRef<MessageVirtualListHandle | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
@@ -101,7 +103,9 @@ const MessageList = () => {
 
   return (
     <MessagesContainer id="messages" className="messages-container" key={state.listKey}>
-      <NarrowLayout style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      <NarrowLayout
+        narrowMode={renderConfig.narrowMode}
+        style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
         {beforeList}
         <SelectionContextMenu>
           <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
