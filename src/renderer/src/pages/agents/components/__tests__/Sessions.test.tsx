@@ -460,9 +460,18 @@ describe('Sessions', () => {
 
     render(<Sessions onOpenHistory={onOpenHistory} />)
 
-    fireEvent.click(screen.getByLabelText('Agent History'))
+    const historyButton = screen.getByLabelText('Agent History')
+    vi.spyOn(historyButton, 'getBoundingClientRect').mockReturnValue({
+      x: 14,
+      y: 24,
+      width: 34,
+      height: 44
+    } as DOMRect)
+
+    fireEvent.click(historyButton)
 
     expect(onOpenHistory).toHaveBeenCalledTimes(1)
+    expect(onOpenHistory).toHaveBeenCalledWith({ x: 14, y: 24, width: 34, height: 44 })
     expect(preferenceMocks.setPreference).not.toHaveBeenCalledWith('topic.tab.show', false)
   })
 

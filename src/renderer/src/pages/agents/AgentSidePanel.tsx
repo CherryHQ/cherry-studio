@@ -4,7 +4,7 @@ import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import Sessions from './components/Sessions'
 
 interface AgentSidePanelProps {
-  onOpenHistory?: () => void
+  onOpenHistory?: (origin?: DOMRectReadOnly) => void
   onSelectItem?: () => void
   position?: ChatPanePosition
 }

@@ -87,7 +87,7 @@ const logger = loggerService.withContext('Topics')
 
 interface Props {
   activeTopic: Topic
-  onOpenHistory?: () => void
+  onOpenHistory?: (origin?: DOMRectReadOnly) => void
   setActiveTopic: (topic: Topic) => void
   position: 'left' | 'right'
 }
@@ -515,14 +515,17 @@ export function Topics({ activeTopic, onOpenHistory, setActiveTopic, position }:
     (nextGroupIds: string[]) => void setCollapsedTopicGroupIds(nextGroupIds),
     [setCollapsedTopicGroupIds]
   )
-  const handleOpenHistoryOrToggleSidebar = useCallback(() => {
-    if (onOpenHistory) {
-      onOpenHistory()
-      return
-    }
+  const handleOpenHistoryOrToggleSidebar = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      if (onOpenHistory) {
+        onOpenHistory(event.currentTarget.getBoundingClientRect())
+        return
+      }
 
-    void setShowSidebar(!showSidebar)
-  }, [onOpenHistory, setShowSidebar, showSidebar])
+      void setShowSidebar(!showSidebar)
+    },
+    [onOpenHistory, setShowSidebar, showSidebar]
+  )
 
   const canDragTopicItem = useCallback(
     ({ item }: { item: Topic }) => isAssistantDisplayMode && !isManageMode && !item.pinned,

@@ -188,4 +188,61 @@ describe('HistoryPageV2 assistant mode', () => {
     expect(hookMocks.useSessions).not.toHaveBeenCalled()
     expect(hookMocks.useAgents).not.toHaveBeenCalled()
   })
+
+  it('renders the animated overlay shell from the trigger origin', () => {
+    hookMocks.useAllTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+
+    const portalRoot = document.getElementById('home-page')
+    vi.spyOn(portalRoot!, 'getBoundingClientRect').mockReturnValue({
+      left: 0,
+      top: 0,
+      width: 1200,
+      height: 800
+    } as DOMRect)
+
+    render(
+      <HistoryPageV2
+        mode="assistant"
+        open
+        origin={createTestDomRect({ x: 20, y: 30, width: 20, height: 20 })}
+        onClose={vi.fn()}
+        onTopicSelect={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('history-page-v2-motion')).toBeInTheDocument()
+  })
+
+  it('keeps the overlay mounted long enough for the close animation', () => {
+    hookMocks.useAllTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+
+    const props = {
+      mode: 'assistant' as const,
+      origin: createTestDomRect({ x: 20, y: 30, width: 20, height: 20 }),
+      onClose: vi.fn(),
+      onTopicSelect: vi.fn()
+    }
+
+    const { rerender } = render(<HistoryPageV2 {...props} open />)
+    expect(screen.getByTestId('history-page-v2-motion')).toBeInTheDocument()
+
+    rerender(<HistoryPageV2 {...props} open={false} />)
+    expect(screen.getByTestId('history-page-v2-motion')).toBeInTheDocument()
+  })
 })
+
+function createTestDomRect({ height, width, x, y }: { height: number; width: number; x: number; y: number }) {
+  return {
+    bottom: y + height,
+    height,
+    left: x,
+    right: x + width,
+    top: y,
+    width,
+    x,
+    y,
+    toJSON: () => ({ bottom: y + height, height, left: x, right: x + width, top: y, width, x, y })
+  } satisfies DOMRectReadOnly
+}

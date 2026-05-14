@@ -42,6 +42,7 @@ const HomePage: FC = () => {
   const navigate = useNavigate()
   const { isLeftNavbar } = useNavbarPosition()
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyOrigin, setHistoryOrigin] = useState<DOMRectReadOnly>()
 
   const location = useLocation()
   const state = location.state as { topic?: Topic } | undefined
@@ -139,10 +140,19 @@ const HomePage: FC = () => {
     }
   }, [showSidebar])
 
-  const openHistory = useCallback(() => setHistoryOpen(true), [])
+  const openHistory = useCallback((origin?: DOMRectReadOnly) => {
+    setHistoryOrigin(origin)
+    setHistoryOpen(true)
+  }, [])
   const closeHistory = useCallback(() => setHistoryOpen(false), [])
   const historyOverlay = (
-    <HistoryPageV2 mode="assistant" open={historyOpen} onClose={closeHistory} onTopicSelect={setActiveTopic} />
+    <HistoryPageV2
+      mode="assistant"
+      open={historyOpen}
+      origin={historyOrigin}
+      onClose={closeHistory}
+      onTopicSelect={setActiveTopic}
+    />
   )
 
   if (!activeTopic) {

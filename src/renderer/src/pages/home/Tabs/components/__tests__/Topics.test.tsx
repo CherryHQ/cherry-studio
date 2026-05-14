@@ -819,9 +819,18 @@ describe('Topics', () => {
 
     renderTopicList({ onOpenHistory })
 
-    fireEvent.click(screen.getByLabelText('Topic History'))
+    const historyButton = screen.getByLabelText('Topic History')
+    vi.spyOn(historyButton, 'getBoundingClientRect').mockReturnValue({
+      x: 10,
+      y: 20,
+      width: 30,
+      height: 40
+    } as DOMRect)
+
+    fireEvent.click(historyButton)
 
     expect(onOpenHistory).toHaveBeenCalledTimes(1)
+    expect(onOpenHistory).toHaveBeenCalledWith({ x: 10, y: 20, width: 30, height: 40 })
   })
 
   it('adds a new topic from the search-area create bar', () => {

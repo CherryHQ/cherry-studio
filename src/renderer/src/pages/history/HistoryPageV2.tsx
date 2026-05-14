@@ -15,6 +15,7 @@ import type { AgentEntity } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic } from '@shared/data/types/topic'
 import { Bot, History, Wrench, X } from 'lucide-react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
@@ -34,24 +35,51 @@ const DEFAULT_ASSISTANT_SOURCE_ID = '__default_assistant__'
 const UNKNOWN_AGENT_SOURCE_ID = '__unknown_agent__'
 const EMPTY_ASSISTANT_BY_ID: ReadonlyMap<string, Assistant> = new Map()
 const EMPTY_AGENT_BY_ID: ReadonlyMap<string, AgentEntity> = new Map()
+const HISTORY_OVERLAY_OPEN_RADIUS = 12
+const HISTORY_OVERLAY_RADIUS_PADDING = 24
+const HISTORY_OVERLAY_TRANSITION = {
+  duration: 0.28,
+  ease: [0.22, 1, 0.36, 1]
+} as const
 type AgentHistorySessionStatus = Exclude<HistorySourceStatus, 'all'>
 
 interface HistoryPageV2Props {
   mode: HistoryPageV2Mode
   open: boolean
+  origin?: DOMRectReadOnly
   onClose: () => void
   onTopicSelect?: (topic: RendererTopic) => void
 }
 
-const HistoryPageV2 = ({ mode, open, onClose, onTopicSelect }: HistoryPageV2Props) => {
-  if (!open) return null
-
+const HistoryPageV2 = ({ mode, open, origin, onClose, onTopicSelect }: HistoryPageV2Props) => {
+  const prefersReducedMotion = useReducedMotion()
   const portalRootId = mode === 'assistant' ? 'home-page' : 'agent-page'
   const portalRoot = document.getElementById(portalRootId)
+  const overlayMotion = useMemo(
+    () => getHistoryOverlayMotion(portalRoot, origin, prefersReducedMotion === true),
+    [origin, portalRoot, prefersReducedMotion]
+  )
 
   if (!portalRoot) return null
 
-  return createPortal(<HistoryPageV2Content mode={mode} onClose={onClose} onTopicSelect={onTopicSelect} />, portalRoot)
+  return createPortal(
+    <AnimatePresence initial={false}>
+      {open && (
+        <motion.div
+          key="history-page-v2"
+          initial={overlayMotion.initial}
+          animate={overlayMotion.animate}
+          exit={overlayMotion.exit}
+          transition={HISTORY_OVERLAY_TRANSITION}
+          className="absolute inset-0 z-[1000] flex bg-background [-webkit-app-region:none]"
+          data-testid="history-page-v2-motion"
+          style={{ willChange: 'opacity, clip-path' }}>
+          <HistoryPageV2Content mode={mode} onClose={onClose} onTopicSelect={onTopicSelect} />
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    portalRoot
+  )
 }
 
 interface HistoryPageV2ContentProps {
@@ -84,7 +112,12 @@ const AssistantHistoryPageV2Content = ({ onClose, onTopicSelect }: HistoryPageV2
   const topicPinnedIdSet = useMemo(() => new Set(topicPinnedIds), [topicPinnedIds])
   const isTopicPinned = useCallback((topicId: string) => topicPinnedIdSet.has(topicId), [topicPinnedIdSet])
   const topics = useMemo(
-    () => sortHistoryEntries(rawTopics, isTopicPinned, (topic) => topic.updatedAt),
+    () =>
+      sortHistoryEntries(
+        rawTopics,
+        (topic) => isTopicPinned(topic.id),
+        (topic) => topic.updatedAt
+      ),
     [isTopicPinned, rawTopics]
   )
 
@@ -311,55 +344,90 @@ const HistoryPageV2Layout = ({
     mode === 'assistant' ? t('history.v2.title', '话题历史记录') : t('history.v2.agentTitle', '智能体历史记录')
 
   return (
-    <div className="absolute inset-0 z-[1000] flex bg-background [-webkit-app-region:none]">
-      <section
-        className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background text-foreground"
-        aria-label={title}>
-        <header className="flex h-[52px] shrink-0 items-center justify-between bg-background px-5 [border-bottom:0.5px_solid_var(--color-border-subtle)]">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border-subtle bg-background text-foreground-secondary">
-              <History size={16} />
-            </div>
-            <div className="min-w-0">
-              <h2 className="truncate font-semibold text-base text-foreground leading-5">{title}</h2>
-              <p className="mt-0.5 truncate text-foreground-muted text-xs leading-4">{subtitle}</p>
-            </div>
+    <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background text-foreground" aria-label={title}>
+      <header className="flex h-[52px] shrink-0 items-center justify-between bg-background px-5 [border-bottom:0.5px_solid_var(--color-border-subtle)]">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border-subtle bg-background text-foreground-secondary">
+            <History size={16} />
           </div>
-
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="size-7 min-h-7 rounded-md text-foreground-muted shadow-none hover:bg-accent hover:text-foreground"
-            aria-label={t('common.close', '关闭')}
-            onClick={onClose}>
-            <X className="size-4" />
-          </Button>
-        </header>
-
-        <div className="flex min-h-0 flex-1 overflow-hidden">
-          <HistorySourceSidebar
-            mode={mode}
-            sources={sources}
-            selectedSourceId={selectedSourceId}
-            selectedStatus={selectedStatus}
-            statusItems={statusItems}
-            onSourceSelect={onSourceSelect}
-            onStatusSelect={onStatusSelect}
-          />
-
-          <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-            <HistoryQueryForm
-              mode={mode}
-              resultCount={resultCount}
-              searchText={searchText}
-              onSearchTextChange={onSearchTextChange}
-            />
-            {children}
-          </main>
+          <div className="min-w-0">
+            <h2 className="truncate font-semibold text-base text-foreground leading-5">{title}</h2>
+            <p className="mt-0.5 truncate text-foreground-muted text-xs leading-4">{subtitle}</p>
+          </div>
         </div>
-      </section>
-    </div>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="size-7 min-h-7 rounded-md text-foreground-muted shadow-none hover:bg-accent hover:text-foreground"
+          aria-label={t('common.close', '关闭')}
+          onClick={onClose}>
+          <X className="size-4" />
+        </Button>
+      </header>
+
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <HistorySourceSidebar
+          mode={mode}
+          sources={sources}
+          selectedSourceId={selectedSourceId}
+          selectedStatus={selectedStatus}
+          statusItems={statusItems}
+          onSourceSelect={onSourceSelect}
+          onStatusSelect={onStatusSelect}
+        />
+
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <HistoryQueryForm
+            mode={mode}
+            resultCount={resultCount}
+            searchText={searchText}
+            onSearchTextChange={onSearchTextChange}
+          />
+          {children}
+        </main>
+      </div>
+    </section>
+  )
+}
+
+function getHistoryOverlayMotion(
+  portalRoot: HTMLElement | null,
+  origin: DOMRectReadOnly | undefined,
+  prefersReducedMotion: boolean
+) {
+  if (!portalRoot || !origin || prefersReducedMotion) {
+    return {
+      initial: { opacity: 0 },
+      animate: { opacity: 1 },
+      exit: { opacity: 0 }
+    }
+  }
+
+  const rootRect = portalRoot.getBoundingClientRect()
+  const rootWidth = rootRect.width || window.innerWidth
+  const rootHeight = rootRect.height || window.innerHeight
+  const originX = origin.x - rootRect.left + origin.width / 2
+  const originY = origin.y - rootRect.top + origin.height / 2
+  const closedClipPath = `circle(${HISTORY_OVERLAY_OPEN_RADIUS}px at ${originX}px ${originY}px)`
+  const openClipPath = `circle(${getHistoryOverlayRadius(rootWidth, rootHeight, originX, originY)}px at ${originX}px ${originY}px)`
+
+  return {
+    initial: { opacity: 0, clipPath: closedClipPath },
+    animate: { opacity: 1, clipPath: openClipPath },
+    exit: { opacity: 0, clipPath: closedClipPath }
+  }
+}
+
+function getHistoryOverlayRadius(width: number, height: number, originX: number, originY: number) {
+  return Math.ceil(
+    Math.max(
+      Math.hypot(originX, originY),
+      Math.hypot(width - originX, originY),
+      Math.hypot(originX, height - originY),
+      Math.hypot(width - originX, height - originY)
+    ) + HISTORY_OVERLAY_RADIUS_PADDING
   )
 }
 

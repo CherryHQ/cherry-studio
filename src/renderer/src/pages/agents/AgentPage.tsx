@@ -21,6 +21,7 @@ import { AgentEmpty } from './components/status'
 const AgentPage = () => {
   const { isLeftNavbar } = useNavbarPosition()
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyOrigin, setHistoryOrigin] = useState<DOMRectReadOnly>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
   const { topicPosition } = useSettings()
@@ -54,9 +55,12 @@ const AgentPage = () => {
     }
   }, [showSidebar])
 
-  const openHistory = useCallback(() => setHistoryOpen(true), [])
+  const openHistory = useCallback((origin?: DOMRectReadOnly) => {
+    setHistoryOrigin(origin)
+    setHistoryOpen(true)
+  }, [])
   const closeHistory = useCallback(() => setHistoryOpen(false), [])
-  const historyOverlay = <HistoryPageV2 mode="agent" open={historyOpen} onClose={closeHistory} />
+  const historyOverlay = <HistoryPageV2 mode="agent" open={historyOpen} origin={historyOrigin} onClose={closeHistory} />
 
   if (agents && agents.length === 0) {
     return (

@@ -18,7 +18,7 @@ import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { Bot, Check, ChevronDown, ChevronsUpDown, Clock3, Folder, ListFilter, Plus, Sparkles } from 'lucide-react'
-import { memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, type MouseEvent, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import SessionItem from './SessionItem'
@@ -41,7 +41,7 @@ import {
 } from './SessionList.helpers'
 
 interface SessionsProps {
-  onOpenHistory?: () => void
+  onOpenHistory?: (origin?: DOMRectReadOnly) => void
   onSelectItem?: () => void
 }
 
@@ -232,14 +232,17 @@ const Sessions = ({ onOpenHistory, onSelectItem }: SessionsProps) => {
     (nextGroupIds: string[]) => void setCollapsedSessionGroupIds(nextGroupIds),
     [setCollapsedSessionGroupIds]
   )
-  const handleOpenHistoryOrToggleSidebar = useCallback(() => {
-    if (onOpenHistory) {
-      onOpenHistory()
-      return
-    }
+  const handleOpenHistoryOrToggleSidebar = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      if (onOpenHistory) {
+        onOpenHistory(event.currentTarget.getBoundingClientRect())
+        return
+      }
 
-    void setShowSidebar(!showSidebar)
-  }, [onOpenHistory, setShowSidebar, showSidebar])
+      void setShowSidebar(!showSidebar)
+    },
+    [onOpenHistory, setShowSidebar, showSidebar]
+  )
 
   const handleDeleteSession = useCallback(
     async (id: string) => {
