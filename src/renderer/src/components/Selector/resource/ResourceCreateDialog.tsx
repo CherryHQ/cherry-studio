@@ -66,6 +66,7 @@ export function ResourceCreateDialog({
   const [selectedModel, setSelectedModel] = useState<Model | undefined>(undefined)
   const [description, setDescription] = useState('')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
+  const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
@@ -117,6 +118,7 @@ export function ResourceCreateDialog({
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !isSubmitting && onOpenChange(nextOpen)}>
       <DialogContent
+        ref={setDialogContentElement}
         className="sm:max-w-[460px]"
         onPointerDownOutside={(event) => isSubmitting && event.preventDefault()}>
         <DialogHeader>
@@ -184,6 +186,7 @@ export function ResourceCreateDialog({
                   value={selectedModel}
                   filter={modelFilter}
                   listVisibleCount={8}
+                  portalContainer={dialogContentElement}
                   onSelect={setSelectedModel}
                   trigger={
                     <Button

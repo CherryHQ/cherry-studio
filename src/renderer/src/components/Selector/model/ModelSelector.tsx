@@ -250,6 +250,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     align = 'start',
     sideOffset = 4,
     contentClassName,
+    portalContainer,
     listVisibleCount = PAGE_SIZE,
     mountStrategy = 'destroy',
     multiSelectMode: multiSelectModeProp,
@@ -698,6 +699,7 @@ export function ModelSelector(props: ModelSelectorProps) {
         side={side}
         align={align}
         sideOffset={sideOffset}
+        portalContainer={portalContainer}
         contentClassName={contentClassName}
         mountStrategy={mountStrategy}
         data-testid="model-selector-content">

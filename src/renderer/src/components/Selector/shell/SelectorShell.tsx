@@ -67,8 +67,12 @@ export type SelectorShellProps = {
   align?: PopoverContentProps['align']
   sideOffset?: PopoverContentProps['sideOffset']
   maxListHeight?: number | string
+  portalContainer?: PopoverContentProps['portalContainer']
   mountStrategy?: SelectorShellMountStrategy
-  contentProps?: Omit<PopoverContentProps, 'children' | 'className' | 'side' | 'align' | 'sideOffset'>
+  contentProps?: Omit<
+    PopoverContentProps,
+    'children' | 'className' | 'side' | 'align' | 'sideOffset' | 'portalContainer'
+  >
   'data-testid'?: string
 }
 
@@ -109,6 +113,7 @@ export function SelectorShell({
   align = 'start',
   sideOffset = 4,
   maxListHeight,
+  portalContainer,
   mountStrategy = 'destroy',
   contentProps,
   'data-testid': dataTestId
@@ -282,6 +287,7 @@ export function SelectorShell({
           side={side}
           align={align}
           sideOffset={sideOffset}
+          portalContainer={portalContainer}
           forceMount={shouldForceMount}
           hidden={mountStrategy === 'lazy-keep' && !open ? true : hidden}
           {...restContentProps}

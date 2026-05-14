@@ -16,22 +16,25 @@ const MODEL = vi.hoisted(
       isHidden: false
     }) as const
 )
+const modelSelectorPropsMock = vi.hoisted(() => vi.fn())
 
 vi.mock('../model', () => ({
-  ModelSelector: ({
-    trigger,
-    onSelect
-  }: {
+  ModelSelector: (props: {
     trigger: ReactNode
     onSelect: (model: typeof MODEL | undefined) => void
-  }) => (
-    <div>
-      {trigger}
-      <button type="button" onClick={() => onSelect(MODEL)}>
-        Pick model
-      </button>
-    </div>
-  )
+    portalContainer?: HTMLElement | null
+  }) => {
+    modelSelectorPropsMock(props)
+
+    return (
+      <div>
+        {props.trigger}
+        <button type="button" onClick={() => props.onSelect(MODEL)}>
+          Pick model
+        </button>
+      </div>
+    )
+  }
 }))
 
 vi.mock('@renderer/components/EmojiPicker', () => ({
@@ -127,6 +130,20 @@ describe('ResourceCreateDialog', () => {
         description: 'Helps with notes'
       })
     )
+  })
+
+  it('anchors the model selector portal inside the dialog content', async () => {
+    const onSubmit = vi.fn()
+    render(<ResourceCreateDialog kind="assistant" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
+
+    await waitFor(() =>
+      expect(modelSelectorPropsMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ portalContainer: expect.any(HTMLDivElement) })
+      )
+    )
+    const lastCall = modelSelectorPropsMock.mock.calls.at(-1)?.[0]
+
+    expect(lastCall.portalContainer).toContainElement(screen.getByRole('dialog'))
   })
 
   it('disables actions while submitting and shows submit errors', async () => {

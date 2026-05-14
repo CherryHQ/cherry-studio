@@ -86,4 +86,21 @@ describe('PopoverContent', () => {
 
     await waitFor(() => expect(screen.getByTestId('content')).not.toHaveAttribute('hidden'))
   })
+
+  it('renders content into a custom portal container', () => {
+    const portalContainer = document.createElement('div')
+    document.body.appendChild(portalContainer)
+
+    render(
+      <Popover open>
+        <PopoverTrigger>Open</PopoverTrigger>
+        <PopoverContent portalContainer={portalContainer} data-testid="content">
+          Content
+        </PopoverContent>
+      </Popover>
+    )
+
+    expect(portalContainer).toContainElement(screen.getByTestId('content'))
+    portalContainer.remove()
+  })
 })
