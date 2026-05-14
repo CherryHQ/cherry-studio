@@ -1072,7 +1072,7 @@ export class SelectionService {
    */
   private handleKeyDownHide = (data: KeyboardEventData) => {
     //dont hide toolbar when ctrlkey is pressed
-    if (this.triggerMode === TriggerMode.Ctrlkey && this.isCtrlkey(data.vkCode)) {
+    if (this.triggerMode === TriggerMode.Ctrlkey && this.isCtrlkey(data)) {
       return
     }
     //dont hide toolbar when shiftkey or altkey is pressed, because it's used for selection
@@ -1089,7 +1089,7 @@ export class SelectionService {
    * @param data Keyboard event data
    */
   private handleKeyDownCtrlkeyMode = (data: KeyboardEventData) => {
-    if (!this.isCtrlkey(data.vkCode)) {
+    if (!this.isCtrlkey(data)) {
       // reset the lastCtrlkeyDownTime if any other key is pressed
       if (this.lastCtrlkeyDownTime > 0) {
         this.lastCtrlkeyDownTime = -1
@@ -1128,7 +1128,7 @@ export class SelectionService {
    * @param data Keyboard event data
    */
   private handleKeyUpCtrlkeyMode = (data: KeyboardEventData) => {
-    if (!this.isCtrlkey(data.vkCode)) return
+    if (!this.isCtrlkey(data)) return
     //remove the mouse-wheel&mouse-down listener
     this.selectionHook!.off('mouse-wheel', this.handleMouseWheelCtrlkeyMode)
     this.selectionHook!.off('mouse-down', this.handleMouseDownCtrlkeyMode)
@@ -1156,7 +1156,13 @@ export class SelectionService {
   // Check if the key is ctrl key
   // Windows: VK_LCONTROL(162), VK_RCONTROL(163)
   // macOS: kVK_Control(59), kVK_RightControl(62)
-  private isCtrlkey(vkCode: number) {
+  private isCtrlkey(data: KeyboardEventData) {
+    if (data.uniKey === 'Control') {
+      return true
+    }
+
+    const { vkCode } = data
+
     if (isMac) {
       return vkCode === 59 || vkCode === 62
     }
