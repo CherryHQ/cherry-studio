@@ -67,6 +67,7 @@ describe('AgentService', () => {
       instructions: 'You are a helpful assistant.',
       // FK to user_model.id; tests insert NULL since they don't exercise model behavior.
       model: null,
+      orderKey: 'a0',
       ...overrides,
       id
     }

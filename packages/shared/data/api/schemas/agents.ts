@@ -9,6 +9,7 @@
 import * as z from 'zod'
 
 import type { OffsetPaginationResponse } from '../apiTypes'
+import type { OrderEndpoints } from './_endpointHelpers'
 
 // ============================================================================
 // Field atoms (shared validators reused across entity and DTO schemas)
@@ -387,4 +388,4 @@ export type AgentSchemas = {
       response: OffsetPaginationResponse<TaskRunLogEntity>
     }
   }
-}
+} & OrderEndpoints<'/agents'>

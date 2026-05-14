@@ -10,6 +10,7 @@ import * as z from 'zod'
 import { type Assistant, AssistantSchema, AssistantSettingsSchema } from '../../types/assistant'
 import { TagIdSchema } from '../../types/tag'
 import type { OffsetPaginationResponse } from '../apiTypes'
+import type { OrderEndpoints } from './_endpointHelpers'
 
 // ============================================================================
 // DTO Derivation
@@ -163,4 +164,4 @@ export type AssistantSchemas = {
       response: void
     }
   }
-}
+} & OrderEndpoints<'/assistants'>

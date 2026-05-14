@@ -1,12 +1,15 @@
 import { application } from '@application'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
+import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { ListOptions } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
+import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   AGENT_MUTABLE_FIELDS,
   type AgentConfiguration,
@@ -16,7 +19,7 @@ import {
   type UpdateAgentDto
 } from '@shared/data/api/schemas/agents'
 import type { AgentType } from '@shared/data/types/agent'
-import { and, asc, count, desc, eq, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('AgentService')
@@ -49,7 +52,8 @@ export class AgentService {
 
     // Omit fields that are undefined so DB DEFAULTs (e.g. '', '[]', '{}') apply.
     // instructions has no DB DEFAULT — service supplies the product-strategic default.
-    const insertData: InsertAgentRow = {
+    // orderKey is omitted — `insertWithOrderKey` computes the next fractional key.
+    const insertData: Omit<InsertAgentRow, 'orderKey'> = {
       id,
       type: req.type,
       name: req.name || 'New Agent',
@@ -66,7 +70,7 @@ export class AgentService {
     const row = await withSqliteErrors(
       () =>
         database.transaction(async (tx) => {
-          await tx.insert(agentsTable).values(insertData)
+          await insertWithOrderKey(tx, agentsTable, insertData, { pkColumn: agentsTable.id })
           const [joined] = await tx
             .select({ agent: agentsTable, modelName: userModelTable.name })
             .from(agentsTable)
@@ -124,8 +128,8 @@ export class AgentService {
 
     const totalResult = await database.select({ count: count() }).from(agentsTable).where(whereClause)
 
-    // Agents are unordered: no fractional-indexing `orderKey`. Default to
-    // `createdAt desc` so the most recently created agent shows up first.
+    // Default to `createdAt desc` so the most recently created agent shows up
+    // first; callers can opt into `orderKey` to honour user-defined ordering.
     const sortBy = options.sortBy ?? 'createdAt'
     const orderBy = options.orderBy ?? 'desc'
 
@@ -140,12 +144,20 @@ export class AgentService {
     const sortField = sortByToColumn[sortBy] ?? agentsTable.createdAt
     const orderFn = orderBy === 'asc' ? asc : desc
 
+    // Pin-aware ordering: LEFT JOIN with the pin table, push pinned rows to
+    // the top (sorted by pin.orderKey ASC), then unpinned rows by the
+    // caller-specified sortBy/orderBy. Same shape as AssistantService.list.
     const baseQuery = database
-      .select({ agent: agentsTable, modelName: userModelTable.name })
+      .select({ agent: agentsTable, modelName: userModelTable.name, pinOrderKey: pinTable.orderKey })
       .from(agentsTable)
       .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
+      .leftJoin(pinTable, and(eq(pinTable.entityType, 'agent'), eq(pinTable.entityId, agentsTable.id)))
       .where(whereClause)
-      .orderBy(orderFn(sortField))
+      .orderBy(
+        sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`,
+        asc(pinTable.orderKey),
+        orderFn(sortField)
+      )
 
     const result =
       options.limit !== undefined
@@ -216,6 +228,44 @@ export class AgentService {
   async agentExists(id: string): Promise<boolean> {
     const result = await this.findAgentRow(id)
     return !!result
+  }
+
+  /**
+   * Move a single agent to a new position in the ordered list. Agents share a
+   * single global scope, so no scope predicate is passed to `applyMoves`.
+   */
+  async reorder(id: string, anchor: OrderRequest): Promise<void> {
+    const database = application.get('DbService').getDb()
+    await database.transaction(async (tx) => {
+      const [target] = await tx
+        .select({ id: agentsTable.id })
+        .from(agentsTable)
+        .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
+        .limit(1)
+      if (!target) throw DataApiErrorFactory.notFound('Agent', id)
+
+      await applyMoves(tx, agentsTable, [{ id, anchor }], { pkColumn: agentsTable.id })
+    })
+    logger.info('Reordered agent', { id })
+  }
+
+  async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
+    if (moves.length === 0) return
+    const database = application.get('DbService').getDb()
+    await database.transaction(async (tx) => {
+      const ids = moves.map((m) => m.id)
+      const targets = await tx
+        .select({ id: agentsTable.id })
+        .from(agentsTable)
+        .where(and(inArray(agentsTable.id, ids), isNull(agentsTable.deletedAt)))
+      if (targets.length !== ids.length) {
+        const found = new Set(targets.map((t) => t.id))
+        const missing = ids.find((id) => !found.has(id)) ?? ids[0]
+        throw DataApiErrorFactory.notFound('Agent', missing)
+      }
+
+      await applyMoves(tx, agentsTable, moves, { pkColumn: agentsTable.id })
+    })
   }
 }
 

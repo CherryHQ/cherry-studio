@@ -9,10 +9,12 @@
 import { application } from '@application'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateAssistantDto, ListAssistantsQuery, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -22,6 +24,7 @@ import { and, asc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { modelService } from './ModelService'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
+import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:AssistantService')
@@ -232,13 +235,27 @@ export class AssistantDataService {
 
     const whereClause = and(...conditions)
 
+    // Pin-aware ordering: LEFT JOIN with the pin table, push pinned rows to
+    // the top (sorted by pin.orderKey ASC), then unpinned rows sorted by the
+    // assistant's own orderKey. Tests that never pin rows see the same order
+    // as before because the CASE evaluates to 1 for every row and falls
+    // through to the secondary sort untouched.
     const [rows, [{ count }]] = await Promise.all([
       this.db
-        .select({ assistant: assistantTable, modelName: userModelTable.name })
+        .select({ assistant: assistantTable, modelName: userModelTable.name, pinOrderKey: pinTable.orderKey })
         .from(assistantTable)
         .leftJoin(userModelTable, eq(assistantTable.modelId, userModelTable.id))
+        .leftJoin(pinTable, and(eq(pinTable.entityType, 'assistant'), eq(pinTable.entityId, assistantTable.id)))
         .where(whereClause)
-        .orderBy(asc(assistantTable.createdAt))
+        .orderBy(
+          sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`,
+          asc(pinTable.orderKey),
+          asc(assistantTable.orderKey),
+          // Production orderKeys are unique so this tiebreaker is rarely hit;
+          // tests that seed multiple rows with the same default key fall back
+          // to insertion-ordered createdAt instead of SQLite ROWID order.
+          asc(assistantTable.createdAt)
+        )
         .limit(limit)
         .offset(offset),
       this.db.select({ count: sql<number>`count(*)` }).from(assistantTable).where(whereClause)
@@ -278,15 +295,19 @@ export class AssistantDataService {
 
       // Split relation/tag fields from columns. Service owns emoji/settings
       // defaults; prompt/description stay omitted when undefined so DB DEFAULTs apply.
+      // orderKey is omitted — `insertWithOrderKey` computes the next fractional
+      // key from the existing max and injects it before the DB write.
       const { mcpServerIds, knowledgeBaseIds, tagIds, ...columnDto } = dto
-      const insertValues: typeof assistantTable.$inferInsert = {
+      const insertValues: Omit<typeof assistantTable.$inferInsert, 'orderKey'> = {
         ...columnDto,
         modelId,
         emoji: dto.emoji ?? '🌟',
         settings: dto.settings ?? DEFAULT_ASSISTANT_SETTINGS
       }
 
-      const [inserted] = await tx.insert(assistantTable).values(insertValues).returning()
+      const inserted = (await insertWithOrderKey(tx, assistantTable, insertValues, {
+        pkColumn: assistantTable.id
+      })) as AssistantRow
 
       // Insert junction table rows
       await this.syncRelationsTx(tx, inserted.id, { mcpServerIds, knowledgeBaseIds })
@@ -506,6 +527,42 @@ export class AssistantDataService {
     if (!name?.trim()) {
       throw DataApiErrorFactory.validation({ name: ['Name is required'] })
     }
+  }
+
+  /**
+   * Move a single assistant to a new position in the ordered list. Assistants
+   * share a single global scope (no groupId), so no scope predicate is passed.
+   */
+  async reorder(id: string, anchor: OrderRequest): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      const [target] = await tx
+        .select({ id: assistantTable.id })
+        .from(assistantTable)
+        .where(and(eq(assistantTable.id, id), isNull(assistantTable.deletedAt)))
+        .limit(1)
+      if (!target) throw DataApiErrorFactory.notFound('Assistant', id)
+
+      await applyMoves(tx, assistantTable, [{ id, anchor }], { pkColumn: assistantTable.id })
+    })
+    logger.info('Reordered assistant', { id })
+  }
+
+  async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
+    if (moves.length === 0) return
+    await this.db.transaction(async (tx) => {
+      const ids = moves.map((m) => m.id)
+      const targets = await tx
+        .select({ id: assistantTable.id })
+        .from(assistantTable)
+        .where(and(inArray(assistantTable.id, ids), isNull(assistantTable.deletedAt)))
+      if (targets.length !== ids.length) {
+        const found = new Set(targets.map((t) => t.id))
+        const missing = ids.find((id) => !found.has(id)) ?? ids[0]
+        throw DataApiErrorFactory.notFound('Assistant', missing)
+      }
+
+      await applyMoves(tx, assistantTable, moves, { pkColumn: assistantTable.id })
+    })
   }
 }
 

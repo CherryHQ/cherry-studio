@@ -7,6 +7,7 @@ import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { AssistantDataService, assistantDataService } from '@data/services/AssistantService'
+import { pinService } from '@data/services/PinService'
 import { ErrorCode } from '@shared/data/api'
 import { type ListAssistantsQuery, ListAssistantsQuerySchema } from '@shared/data/api/schemas/assistants'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
@@ -93,9 +94,11 @@ describe('AssistantDataService', () => {
     })
   }
 
-  // Raw-insert helper that fills the NOT-NULL columns the DB has no DEFAULT for (emoji / settings).
-  // Tests that exercise read-path semantics on hand-crafted rows go through this helper so they
-  // don't need to repeat boilerplate every call site.
+  // Raw-insert helper that fills the NOT-NULL columns the DB has no DEFAULT for
+  // (emoji / settings / orderKey). Tests that exercise read-path semantics on
+  // hand-crafted rows go through this helper so they don't need to repeat
+  // boilerplate every call site. `orderKey` defaults to 'a0' since most tests
+  // don't care about ordering; tests that assert ordering should pass explicit keys.
   type SeedAssistantValues = Partial<typeof assistantTable.$inferInsert>
   async function seedAssistantRow(values: SeedAssistantValues | SeedAssistantValues[]) {
     const rows = Array.isArray(values) ? values : [values]
@@ -104,6 +107,7 @@ describe('AssistantDataService', () => {
         emoji: '🌟',
         settings: DEFAULT_ASSISTANT_SETTINGS,
         name: 'test',
+        orderKey: 'a0',
         ...v
       }))
     )
@@ -382,6 +386,37 @@ describe('AssistantDataService', () => {
 
       const result = await assistantDataService.list(listQuery())
       expect(result.items.map((a) => a.id)).toEqual(['ast-old', 'ast-mid', 'ast-new'])
+    })
+
+    it('surfaces pinned assistants ahead of unpinned ones, sorted by pin.orderKey', async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'a1', createdAt: 100 },
+        { id: 'ast-2', name: 'a2', createdAt: 200 },
+        { id: 'ast-3', name: 'a3', createdAt: 300 },
+        { id: 'ast-4', name: 'a4', createdAt: 400 }
+      ])
+      // Pin ast-3 then ast-1 — pin.orderKey is assigned by `insertWithOrderKey`,
+      // so the second pin gets a larger key and appears AFTER ast-3 in the
+      // pinned section.
+      await pinService.pin({ entityType: 'assistant', entityId: 'ast-3' })
+      await pinService.pin({ entityType: 'assistant', entityId: 'ast-1' })
+
+      const result = await assistantDataService.list(listQuery())
+      expect(result.items.map((a) => a.id)).toEqual(['ast-3', 'ast-1', 'ast-2', 'ast-4'])
+    })
+
+    it('keeps unpinned assistants in createdAt order when no pins exist', async () => {
+      // Regression: the pin LEFT JOIN must not change ordering for the
+      // pin-free path. Pin column is NULL for every row → CASE evaluates to 1
+      // uniformly → secondary sort applies as before.
+      await seedAssistantRow([
+        { id: 'ast-z', name: 'z', createdAt: 300 },
+        { id: 'ast-a', name: 'a', createdAt: 100 },
+        { id: 'ast-m', name: 'm', createdAt: 200 }
+      ])
+
+      const result = await assistantDataService.list(listQuery())
+      expect(result.items.map((a) => a.id)).toEqual(['ast-a', 'ast-m', 'ast-z'])
     })
 
     it('should embed tags per assistant via inline JOIN', async () => {

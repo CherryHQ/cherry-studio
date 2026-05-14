@@ -10,6 +10,7 @@
 
 import { assistantDataService } from '@data/services/AssistantService'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
+import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AssistantSchemas } from '@shared/data/api/schemas/assistants'
 import {
   CreateAssistantSchema,
@@ -48,6 +49,22 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
 
     DELETE: async ({ params }) => {
       await assistantDataService.delete(params.id)
+      return undefined
+    }
+  },
+
+  '/assistants/:id/order': {
+    PATCH: async ({ params, body }) => {
+      const parsed = OrderRequestSchema.parse(body)
+      await assistantDataService.reorder(params.id, parsed)
+      return undefined
+    }
+  },
+
+  '/assistants/order:batch': {
+    PATCH: async ({ body }) => {
+      const parsed = OrderBatchRequestSchema.parse(body)
+      await assistantDataService.reorderBatch(parsed.moves)
       return undefined
     }
   }

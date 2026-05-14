@@ -7,13 +7,13 @@ import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { userModelTable } from '@data/db/schemas/userModel'
-import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
+import { assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import { type AssistantTransformResult, type OldAssistant, transformAssistant } from './mappings/AssistantMappings'
 import { resolveModelReference } from './transformers/ModelTransformers'
@@ -237,8 +237,10 @@ export class AssistantMigrator extends BaseMigrator {
         return { ...row, modelId: null }
       })
 
-      const orderKeys = generateOrderKeySequence(sanitizedAssistantRows.length)
-      const orderedAssistantRows = sanitizedAssistantRows.map((row, i) => ({ ...row, orderKey: orderKeys[i] }))
+      // Replace transformAssistant's `''` orderKey placeholders with real
+      // fractional-indexing keys, ordered by transform/insert sequence.
+      // Uses the migrator-side helper per data-ordering-guide.md §5.
+      const orderedAssistantRows = assignOrderKeysInSequence(sanitizedAssistantRows)
 
       await ctx.db.transaction(async (tx) => {
         for (let i = 0; i < orderedAssistantRows.length; i += BATCH_SIZE) {
