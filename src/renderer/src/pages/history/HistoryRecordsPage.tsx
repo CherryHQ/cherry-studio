@@ -574,7 +574,9 @@ const HistoryRecordsLayout = ({
       : t('history.records.agentTitle', '智能体历史记录')
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background text-foreground" aria-label={title}>
+    <section
+      className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background pb-3 text-foreground"
+      aria-label={title}>
       <header className="flex h-[52px] shrink-0 items-center justify-between bg-background px-5 [border-bottom:0.5px_solid_var(--color-border-subtle)]">
         <div className="flex min-w-0 items-center gap-2.5">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border-subtle bg-background text-foreground-secondary">
