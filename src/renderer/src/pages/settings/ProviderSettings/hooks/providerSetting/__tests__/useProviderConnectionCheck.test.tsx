@@ -141,7 +141,9 @@ describe('useProviderConnectionCheck', () => {
         apiKey: 'sk-b',
         apiHost: 'https://anthropic.cherryin.cc'
       }),
-      result.current.checkableModels[0]
+      result.current.checkableModels[0],
+      undefined,
+      expect.any(AbortSignal)
     )
     expect(result.current.connectionCheckOpen).toBe(false)
     expect(setTimeoutTimer).toHaveBeenCalled()

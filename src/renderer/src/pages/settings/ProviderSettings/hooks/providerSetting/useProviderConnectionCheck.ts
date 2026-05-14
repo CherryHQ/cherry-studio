@@ -11,7 +11,7 @@ import { serializeHealthCheckError } from '@renderer/utils/error'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import { isRerankModel } from '@shared/utils/model'
 import { isEmpty } from 'lodash'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from './constants'
@@ -40,6 +40,20 @@ export function useProviderConnectionCheck(providerId: string) {
 
   const checkableModels = useMemo(() => models.filter((model) => !isRerankModel(model)), [models])
   const checkableApiKeys = useMemo(() => splitApiKeyString(formatApiKeys(inputApiKey)).filter(Boolean), [inputApiKey])
+
+  // AbortController + runId pair guards against stale callbacks landing on the
+  // new mount/credentials. When provider/apiHost/inputApiKey changes mid-flight
+  // we abort the in-flight request and bump runId so any late then/catch from
+  // the aborted run is dropped before touching state.
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const runIdRef = useRef(0)
+  const abortInFlightCheck = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+    runIdRef.current += 1
+  }, [])
 
   const resetApiKeyConnectivity = useCallback(() => {
     setApiKeyConnectivity({ kind: 'idle', status: HealthStatus.NOT_CHECKED, checking: false })
@@ -85,6 +99,11 @@ export function useProviderConnectionCheck(providerId: string) {
         return
       }
 
+      abortInFlightCheck()
+      const controller = new AbortController()
+      abortControllerRef.current = controller
+      const runId = ++runIdRef.current
+
       try {
         setApiKeyConnectivity({ kind: 'checking', checking: true, status: HealthStatus.NOT_CHECKED, model })
 
@@ -98,7 +117,9 @@ export function useProviderConnectionCheck(providerId: string) {
           apiHost: resolveApiHostForModel(model)
         })
 
-        await runCheckApi(v1Provider, toV1ModelForCheckApi(model))
+        await runCheckApi(v1Provider, toV1ModelForCheckApi(model), undefined, controller.signal)
+
+        if (runId !== runIdRef.current) return
 
         window.toast.success({
           timeout: 2000,
@@ -113,6 +134,8 @@ export function useProviderConnectionCheck(providerId: string) {
           3000
         )
       } catch (error) {
+        if (runId !== runIdRef.current || controller.signal.aborted) return
+
         logger.error('Provider connection check failed', { providerId: provider.id, modelId: model.id, error })
         window.toast.error({
           timeout: 8000,
@@ -129,7 +152,7 @@ export function useProviderConnectionCheck(providerId: string) {
         setConnectionCheckOpen(false)
       }
     },
-    [i18n, models, provider, resolveApiHostForModel, setTimeoutTimer]
+    [abortInFlightCheck, i18n, models, provider, resolveApiHostForModel, setTimeoutTimer]
   )
 
   const checkApi = useCallback(async () => {
@@ -160,9 +183,14 @@ export function useProviderConnectionCheck(providerId: string) {
   }, [apiKeyConnectivity.error])
 
   useEffect(() => {
+    // Provider / host / apiKey changed mid-flight: abort the in-flight check so
+    // its late then/catch doesn't land on the new credentials.
+    abortInFlightCheck()
     setApiKeyConnectivity({ kind: 'idle', status: HealthStatus.NOT_CHECKED, checking: false })
     setConnectionCheckOpen(false)
-  }, [anthropicApiHost, apiHost, inputApiKey, provider?.id])
+  }, [abortInFlightCheck, anthropicApiHost, apiHost, inputApiKey, provider?.id])
+
+  useEffect(() => () => abortInFlightCheck(), [abortInFlightCheck])
 
   return {
     apiKeyConnectivity,

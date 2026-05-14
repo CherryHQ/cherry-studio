@@ -175,7 +175,7 @@ export function useProviderApiKey(providerId: string) {
     setValue((previousValue) => (isSameApiKeyValue(previousValue, nextValue) ? previousValue : nextValue))
   }, [providerId, saveLater, serverApiKey])
 
-  useEffect(() => () => saveLater.cancel(), [saveLater])
+  useEffect(() => () => saveLater.flush(), [saveLater])
 
   const setInputApiKey = useCallback(
     (nextInputApiKey: string) => {
