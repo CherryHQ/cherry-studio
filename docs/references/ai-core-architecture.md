@@ -612,17 +612,7 @@ public async completions(
     )
   }
 
-  // 2. Claude Code OAuth special handling
-  if (this.actualProvider.id === 'anthropic' &&
-      this.actualProvider.authType === 'oauth') {
-    const claudeCodeSystemMessage = buildClaudeCodeSystemModelMessage(
-      params.system
-    )
-    params.system = undefined
-    params.messages = [...claudeCodeSystemMessage, ...(params.messages || [])]
-  }
-
-  // 3. Routing selection
+  // 2. Routing selection
   if (providerConfig.topicId && getEnableDeveloperMode()) {
     return await this._completionsForTrace(modelId, params, {
       ...providerConfig,
