@@ -607,6 +607,31 @@ $$
         expect(processLatexBrackets(complexInput)).toBe(expectedOutput)
       })
     })
+
+    describe('citation tag protection', () => {
+      it('should protect citation tags with empty URL', () => {
+        const input = "[<sup data-citation='{&quot;id&quot;:1,&quot;url&quot;:&quot;&quot;}'>1</sup>]() and \\(x+1\\)"
+        expect(processLatexBrackets(input)).toBe(
+          "[<sup data-citation='{&quot;id&quot;:1,&quot;url&quot;:&quot;&quot;}'>1</sup>]() and $x+1$"
+        )
+      })
+
+      it('should protect citation data-citation with LaTeX-like content', () => {
+        const input =
+          "[<sup data-citation='{&quot;content&quot;:&quot;\\\\frac{1}{2}&quot;}'>1</sup>](https://example.com) and \\(y+2\\)"
+        expect(processLatexBrackets(input)).toBe(
+          "[<sup data-citation='{&quot;content&quot;:&quot;\\\\frac{1}{2}&quot;}'>1</sup>](https://example.com) and $y+2$"
+        )
+      })
+
+      it('should keep ordinary Markdown links near math intact', () => {
+        const input = 'Read [docs](https://example.com/path_(1)) and \\(x+1\\)'
+        // processLatexBrackets protects the link and converts LaTeX
+        const result = processLatexBrackets(input)
+        expect(result).toContain('[docs](https://example.com/path_(1))')
+        expect(result).toContain('$x+1$')
+      })
+    })
   })
 
   describe('isHtmlCode', () => {
