@@ -11,7 +11,7 @@ CREATE TABLE `__new_agent_session` (
 	FOREIGN KEY (`agent_id`) REFERENCES `agent`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
-INSERT INTO `__new_agent_session`("id", "agent_id", "name", "description", "accessible_paths", "order_key", "created_at", "updated_at") SELECT "id", "agent_id", "name", "description", "accessible_paths", "order_key", "created_at", "updated_at" FROM `agent_session`;--> statement-breakpoint
+INSERT INTO `__new_agent_session`("id", "agent_id", "name", "description", "accessible_paths", "order_key", "created_at", "updated_at") SELECT "id", "agent_id", "name", "description", "accessible_paths", 'a0' AS "order_key", "created_at", "updated_at" FROM `agent_session`;--> statement-breakpoint
 DROP TABLE `agent_session`;--> statement-breakpoint
 ALTER TABLE `__new_agent_session` RENAME TO `agent_session`;--> statement-breakpoint
 PRAGMA foreign_keys=ON;--> statement-breakpoint
