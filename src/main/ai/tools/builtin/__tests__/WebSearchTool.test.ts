@@ -1,126 +1,91 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { webSearchSearch, getResolvedConfig } = vi.hoisted(() => ({
-  webSearchSearch: vi.fn(),
-  getResolvedConfig: vi.fn()
-}))
-
-vi.mock('@main/services/webSearch/WebSearchService', () => ({
-  webSearchService: { search: webSearchSearch }
-}))
-
-vi.mock('@main/services/webSearch/utils/config', () => ({
-  getResolvedConfig
+const { fetchUrls, searchKeywords } = vi.hoisted(() => ({
+  fetchUrls: vi.fn(),
+  searchKeywords: vi.fn()
 }))
 
 vi.mock('@main/core/application', () => ({
   application: {
     get: (name: string) => {
-      if (name === 'PreferenceService') return { get: () => null }
+      if (name === 'WebSearchService') return { fetchUrls, searchKeywords }
       throw new Error(`unexpected service: ${name}`)
     }
   }
 }))
 
-import { createWebSearchToolEntry, WEB_SEARCH_TOOL_NAME } from '../WebSearchTool'
+import {
+  createWebFetchToolEntry,
+  createWebSearchToolEntry,
+  WEB_FETCH_TOOL_NAME,
+  WEB_SEARCH_TOOL_NAME
+} from '../WebSearchTool'
 
-const entry = createWebSearchToolEntry()
+const searchEntry = createWebSearchToolEntry()
+const fetchEntry = createWebFetchToolEntry()
 
-const usableProvider = {
-  id: 'tavily',
-  name: 'Tavily',
-  type: 'tavily',
-  apiKeys: ['key-1'],
-  apiHost: '',
-  engines: [],
-  basicAuthUsername: '',
-  basicAuthPassword: ''
-}
-
-const localProvider = {
-  id: 'local-google',
-  name: 'Local Google',
-  type: 'local',
-  apiKeys: [],
-  apiHost: '',
-  engines: [],
-  basicAuthUsername: '',
-  basicAuthPassword: ''
-}
-
-const unusableProvider = {
-  id: 'exa',
-  name: 'Exa',
-  type: 'exa',
-  apiKeys: [],
-  apiHost: '',
-  engines: [],
-  basicAuthUsername: '',
-  basicAuthPassword: ''
-}
-
-function callExecute(args: { query: string }): Promise<unknown> {
-  const execute = entry.tool.execute as (args: { query: string }, options: ToolExecutionOptions) => Promise<unknown>
-  return execute(args, {
+function makeOptions(abortSignal = new AbortController().signal): ToolExecutionOptions {
+  return {
     toolCallId: 'tc-1',
     messages: [],
-    experimental_context: { requestId: 'req-1', abortSignal: new AbortController().signal }
-  } as ToolExecutionOptions)
+    experimental_context: { requestId: 'req-1', abortSignal }
+  } as ToolExecutionOptions
+}
+
+function response() {
+  return {
+    providerId: 'tavily',
+    capability: 'searchKeywords',
+    inputs: ['q'],
+    results: [
+      { title: 'A', url: 'https://a.com', content: 'about A', sourceInput: 'q' },
+      { title: 'B', url: 'https://b.com', content: 'about B', sourceInput: 'q' }
+    ]
+  }
+}
+
+function callSearchExecute(args: { query: string }, abortSignal?: AbortSignal): Promise<unknown> {
+  const execute = searchEntry.tool.execute as (
+    args: { query: string },
+    options: ToolExecutionOptions
+  ) => Promise<unknown>
+  return execute(args, makeOptions(abortSignal))
+}
+
+function callFetchExecute(args: { urls: string[] }, abortSignal?: AbortSignal): Promise<unknown> {
+  const execute = fetchEntry.tool.execute as (
+    args: { urls: string[] },
+    options: ToolExecutionOptions
+  ) => Promise<unknown>
+  return execute(args, makeOptions(abortSignal))
 }
 
 describe('web__search', () => {
   beforeEach(() => {
-    webSearchSearch.mockReset()
-    getResolvedConfig.mockReset()
+    fetchUrls.mockReset()
+    searchKeywords.mockReset()
   })
 
   it('builds an entry with the agreed namespace + defer policy', () => {
-    expect(entry.name).toBe(WEB_SEARCH_TOOL_NAME)
-    expect(entry.namespace).toBe('web')
-    expect(entry.defer).toBe('auto')
+    expect(searchEntry.name).toBe(WEB_SEARCH_TOOL_NAME)
+    expect(searchEntry.namespace).toBe('web')
+    expect(searchEntry.defer).toBe('auto')
   })
 
-  it('returns [] when no provider is configured', async () => {
-    getResolvedConfig.mockResolvedValue({ providers: [unusableProvider], runtime: {}, providerOverrides: {} })
-    const result = await callExecute({ query: 'hello' })
-    expect(result).toEqual([])
-    expect(webSearchSearch).not.toHaveBeenCalled()
-  })
+  it('calls WebSearchService.searchKeywords with the request abort signal', async () => {
+    const abortSignal = new AbortController().signal
+    searchKeywords.mockResolvedValue(response())
 
-  it('picks the first provider with API keys', async () => {
-    webSearchSearch.mockResolvedValue({ query: 'hello', results: [] })
-    getResolvedConfig.mockResolvedValue({
-      providers: [unusableProvider, usableProvider],
-      runtime: {},
-      providerOverrides: {}
-    })
-    await callExecute({ query: 'hello' })
-    expect(webSearchSearch).toHaveBeenCalledWith({ providerId: 'tavily', questions: ['hello'], requestId: 'req-1' })
-  })
+    await callSearchExecute({ query: 'hello' }, abortSignal)
 
-  it('treats local-* providers as usable without API keys', async () => {
-    webSearchSearch.mockResolvedValue({ query: 'hello', results: [] })
-    getResolvedConfig.mockResolvedValue({
-      providers: [localProvider],
-      runtime: {},
-      providerOverrides: {}
-    })
-    await callExecute({ query: 'hello' })
-    expect(webSearchSearch).toHaveBeenCalledWith(expect.objectContaining({ providerId: 'local-google' }))
+    expect(searchKeywords).toHaveBeenCalledWith({ keywords: ['hello'] }, { signal: abortSignal })
   })
 
   it('maps WebSearchResponse to indexed output items', async () => {
-    webSearchSearch.mockResolvedValue({
-      query: 'q',
-      results: [
-        { title: 'A', url: 'https://a.com', content: 'about A' },
-        { title: 'B', url: 'https://b.com', content: 'about B' }
-      ]
-    })
-    getResolvedConfig.mockResolvedValue({ providers: [usableProvider], runtime: {}, providerOverrides: {} })
+    searchKeywords.mockResolvedValue(response())
 
-    const result = await callExecute({ query: 'q' })
+    const result = await callSearchExecute({ query: 'q' })
     expect(result).toEqual([
       { id: 1, title: 'A', url: 'https://a.com', content: 'about A' },
       { id: 2, title: 'B', url: 'https://b.com', content: 'about B' }
@@ -128,14 +93,70 @@ describe('web__search', () => {
   })
 
   it('returns [] when webSearchService throws', async () => {
-    webSearchSearch.mockRejectedValue(new Error('upstream 503'))
-    getResolvedConfig.mockResolvedValue({ providers: [usableProvider], runtime: {}, providerOverrides: {} })
-    expect(await callExecute({ query: 'q' })).toEqual([])
+    searchKeywords.mockRejectedValue(new Error('upstream 503'))
+    expect(await callSearchExecute({ query: 'q' })).toEqual([])
   })
 
   describe('applies', () => {
     it('returns true only when assistant.settings.enableWebSearch is set', () => {
-      const applies = entry.applies!
+      const applies = searchEntry.applies!
+      expect(applies({ assistant: undefined, mcpToolIds: new Set() })).toBe(false)
+      expect(
+        applies({
+          assistant: { id: 'a', settings: {} } as never,
+          mcpToolIds: new Set()
+        })
+      ).toBe(false)
+      expect(
+        applies({
+          assistant: { id: 'a', settings: { enableWebSearch: true } } as never,
+          mcpToolIds: new Set()
+        })
+      ).toBe(true)
+    })
+  })
+})
+
+describe('web__fetch', () => {
+  beforeEach(() => {
+    fetchUrls.mockReset()
+    searchKeywords.mockReset()
+  })
+
+  it('builds an entry with the agreed namespace + defer policy', () => {
+    expect(fetchEntry.name).toBe(WEB_FETCH_TOOL_NAME)
+    expect(fetchEntry.namespace).toBe('web')
+    expect(fetchEntry.defer).toBe('auto')
+  })
+
+  it('calls WebSearchService.fetchUrls with the request abort signal', async () => {
+    const abortSignal = new AbortController().signal
+    fetchUrls.mockResolvedValue(response())
+
+    await callFetchExecute({ urls: ['https://example.com'] }, abortSignal)
+
+    expect(fetchUrls).toHaveBeenCalledWith({ urls: ['https://example.com'] }, { signal: abortSignal })
+  })
+
+  it('maps WebSearchResponse to indexed output items', async () => {
+    fetchUrls.mockResolvedValue(response())
+
+    const result = await callFetchExecute({ urls: ['https://a.com', 'https://b.com'] })
+
+    expect(result).toEqual([
+      { id: 1, title: 'A', url: 'https://a.com', content: 'about A' },
+      { id: 2, title: 'B', url: 'https://b.com', content: 'about B' }
+    ])
+  })
+
+  it('returns [] when webSearchService throws', async () => {
+    fetchUrls.mockRejectedValue(new Error('upstream 503'))
+    expect(await callFetchExecute({ urls: ['https://example.com'] })).toEqual([])
+  })
+
+  describe('applies', () => {
+    it('returns true only when assistant.settings.enableWebSearch is set', () => {
+      const applies = fetchEntry.applies!
       expect(applies({ assistant: undefined, mcpToolIds: new Set() })).toBe(false)
       expect(
         applies({
