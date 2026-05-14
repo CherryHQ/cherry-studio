@@ -14,7 +14,7 @@ import React, { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { isModelInProvider, isValidNewApiModel } from './utils'
+import { isValidNewApiModel } from './utils'
 
 const logger = loggerService.withContext('ManageModelsList')
 
@@ -53,14 +53,20 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
   const [selectedModels, setSelectedModels] = useState<Set<string>>(new Set())
 
   // 使用稳定的键来检测 modelGroups 内容变化，包含组内所有模型ID以避免选中已不存在的模型
+  // 使用 JSON.stringify 避免逗号分隔符可能导致的冲突
   const modelGroupsKey = useMemo(() => {
     const keys: string[] = []
     Object.entries(modelGroups).forEach(([groupName, models]) => {
       keys.push(groupName)
       models.forEach((model) => keys.push(model.id))
     })
-    return keys.sort().join(',')
+    return JSON.stringify(keys.sort())
   }, [modelGroups])
+
+  // 缓存已添加的模型ID集合，用于O(1)时间复杂度的查找
+  const addedModelIds = useMemo(() => {
+    return new Set((provider.models || []).map((m) => m.id))
+  }, [provider.models])
 
   useEffect(() => {
     setSelectedModels(new Set())
@@ -73,15 +79,14 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
       let changed = false
       for (const modelId of prev) {
         // 如果模型已经被添加到 provider，从选中状态中移除
-        if (isModelInProvider(provider, modelId)) {
+        if (addedModelIds.has(modelId)) {
           newSelected.delete(modelId)
           changed = true
         }
       }
       return changed ? newSelected : prev
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [provider.models])
+  }, [addedModelIds])
 
   const handleGroupToggle = useCallback((groupName: string) => {
     setCollapsedGroups((prev) => {
@@ -166,15 +171,15 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
 
   const renderGroupTools = useCallback(
     (models: Model[]) => {
-      const isAllInProvider = models.every((model) => isModelInProvider(provider, model.id))
+      const isAllInProvider = models.every((model) => addedModelIds.has(model.id))
 
       const handleGroupAction = () => {
         if (isAllInProvider) {
           // 移除整组
-          models.filter((model) => isModelInProvider(provider, model.id)).forEach(onRemoveModel)
+          models.filter((model) => addedModelIds.has(model.id)).forEach(onRemoveModel)
         } else {
           // 添加整组
-          const wouldAddModels = models.filter((model) => !isModelInProvider(provider, model.id))
+          const wouldAddModels = models.filter((model) => !addedModelIds.has(model.id))
 
           if (isNewApiProvider(provider)) {
             if (wouldAddModels.every(isValidNewApiModel)) {
@@ -213,7 +218,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
         </Tooltip>
       )
     },
-    [provider, onRemoveModel, onAddModel, t]
+    [addedModelIds, provider, onRemoveModel, onAddModel, t]
   )
 
   return (
@@ -229,7 +234,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
       {(row) => {
         if (row.type === 'group') {
           const isCollapsed = collapsedGroups.has(row.groupName)
-          const modelsNotInProvider = row.models.filter((model) => !isModelInProvider(provider, model.id))
+          const modelsNotInProvider = row.models.filter((model) => !addedModelIds.has(model.id))
           const groupSelectedCount = modelsNotInProvider.filter((m) => selectedModels.has(m.id)).length
           const isGroupAllSelected = modelsNotInProvider.length > 0 && groupSelectedCount === modelsNotInProvider.length
           const isGroupIndeterminate = groupSelectedCount > 0 && !isGroupAllSelected
@@ -306,12 +311,11 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
             last={row.last}
             model={row.model}
             showIdentifier={duplicateModelNames.has(row.model.name)}
-            provider={provider}
             onAddModel={onAddModel}
             onRemoveModel={onRemoveModel}
             isSelected={selectedModels.has(row.model.id)}
             onSelectChange={handleSelectModel}
-            isAlreadyAdded={isModelInProvider(provider, row.model.id)}
+            isAlreadyAdded={addedModelIds.has(row.model.id)}
             selectAriaLabel={t('settings.models.manage.select_model', { modelName: row.model.name })}
           />
         )
@@ -324,7 +328,6 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
 interface ModelListItemProps {
   model: Model
   showIdentifier: boolean
-  provider: Provider
   onAddModel: (model: Model) => void
   onRemoveModel: (model: Model) => void
   last?: boolean
@@ -338,7 +341,6 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(
   ({
     model,
     showIdentifier,
-    provider,
     onAddModel,
     onRemoveModel,
     last,
@@ -347,7 +349,8 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(
     isAlreadyAdded,
     selectAriaLabel
   }) => {
-    const isAdded = isAlreadyAdded ?? isModelInProvider(provider, model.id)
+    // isAlreadyAdded 由父组件通过 addedModelIds Set 计算传入，性能更优
+    const isAdded = isAlreadyAdded ?? false
     return (
       <ModelListItemContainer last={last}>
         <FileItem
