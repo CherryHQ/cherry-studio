@@ -9,7 +9,16 @@ import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/ty
 import { useNavigate } from '@tanstack/react-router'
 import { first } from 'lodash'
 import { Pin, Settings2 } from 'lucide-react'
-import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type KeyboardEvent,
+  startTransition,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SelectorShell } from '../shell/SelectorShell'
@@ -18,7 +27,7 @@ import { FreeTrialModelTag } from './FreeTrialModelTag'
 import { MODEL_SELECTOR_ROW_CHECKBOX_CLASS, ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
 import { ModelTagChip } from './ModelTagChip'
 import { computeCollapsedSelection, computeToggledSelection } from './selection'
-import type { FlatListItem, ModelSelectorModelItem, ModelSelectorProps } from './types'
+import type { FlatListItem, ModelSelectorModelItem, ModelSelectorProps, ModelSelectorSelectionType } from './types'
 import { useModelListKeyboardNav } from './useModelListKeyboardNav'
 import { useModelSelectorData } from './useModelSelectorData'
 import { getProviderDisplayName } from './utils'
@@ -29,6 +38,17 @@ const PAGE_SIZE = 12
 const ITEM_HEIGHT = 36
 const ROW_TAG_SIZE = 8
 const FILTER_TAG_SIZE = 10
+const DEFAULT_PRIORITIZED_PROVIDER_IDS: string[] = []
+const MODEL_SELECTOR_NAVIGATION_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter'])
+
+const estimateModelSelectorItemSize = () => ITEM_HEIGHT
+
+type ModelSelectorValue = Model | UniqueModelId | Model[] | UniqueModelId[] | undefined
+type ModelSelectorSelectionSnapshot = {
+  multiple: boolean
+  selectionType?: ModelSelectorSelectionType
+  value: ModelSelectorValue
+}
 
 function dedupeSelectedIds(ids: readonly UniqueModelId[]): UniqueModelId[] {
   const nextSelectedIds: UniqueModelId[] = []
@@ -46,12 +66,13 @@ function dedupeSelectedIds(ids: readonly UniqueModelId[]): UniqueModelId[] {
   return nextSelectedIds
 }
 
-function getMalformedSelectionWarning(
-  props: ModelSelectorProps
-): { message: string; context: Record<string, unknown> } | null {
-  if (props.multiple) {
-    if (props.selectionType === 'id') {
-      const value = props.value
+function getMalformedSelectionWarning({
+  multiple,
+  selectionType,
+  value
+}: ModelSelectorSelectionSnapshot): { message: string; context: Record<string, unknown> } | null {
+  if (multiple) {
+    if (selectionType === 'id') {
       return value !== undefined && !Array.isArray(value)
         ? {
             message: 'normalizeSelectedIdsFromValue: multiple=true but value is not an array; coercing to []',
@@ -60,7 +81,6 @@ function getMalformedSelectionWarning(
         : null
     }
 
-    const value = props.value
     return value !== undefined && !Array.isArray(value)
       ? {
           message: 'normalizeSelectedIdsFromValue: multiple=true but value is not an array; coercing to []',
@@ -69,8 +89,7 @@ function getMalformedSelectionWarning(
       : null
   }
 
-  if (props.selectionType === 'id') {
-    const value = props.value
+  if (selectionType === 'id') {
     return value !== undefined && Array.isArray(value)
       ? {
           message: 'normalizeSelectedIdsFromValue: multiple=false but value is an array; coercing to []',
@@ -79,7 +98,6 @@ function getMalformedSelectionWarning(
       : null
   }
 
-  const value = props.value
   return value !== undefined && Array.isArray(value)
     ? {
         message: 'normalizeSelectedIdsFromValue: multiple=false but value is an array; coercing to []',
@@ -88,31 +106,31 @@ function getMalformedSelectionWarning(
     : null
 }
 
-function normalizeSelectedIdsFromValue(props: ModelSelectorProps): UniqueModelId[] {
-  // Narrow on the discriminator pair directly so each branch operates on the
-  // variant-specific `value` type — no wide `ModelSelectorValue` needed.
-  if (props.multiple) {
-    if (props.selectionType === 'id') {
-      const value = props.value
+function normalizeSelectedIdsFromValue({
+  multiple,
+  selectionType,
+  value
+}: ModelSelectorSelectionSnapshot): UniqueModelId[] {
+  if (multiple) {
+    if (selectionType === 'id') {
       const ids = Array.isArray(value)
         ? value.filter((modelId): modelId is UniqueModelId => typeof modelId === 'string' && isUniqueModelId(modelId))
         : []
       return dedupeSelectedIds(ids)
     }
 
-    const value = props.value
     const modelValues = Array.isArray(value) ? value : []
-    const ids = modelValues.flatMap((candidate) => (candidate?.id ? [candidate.id] : []))
+    const ids = modelValues.flatMap((candidate) =>
+      typeof candidate === 'object' && candidate?.id ? [candidate.id] : []
+    )
     return dedupeSelectedIds(ids)
   }
 
-  if (props.selectionType === 'id') {
-    const value = props.value
+  if (selectionType === 'id') {
     return typeof value === 'string' && isUniqueModelId(value) ? dedupeSelectedIds([value]) : []
   }
 
-  const value = props.value
-  return value?.id ? dedupeSelectedIds([value.id]) : []
+  return typeof value === 'object' && !Array.isArray(value) && value?.id ? dedupeSelectedIds([value.id]) : []
 }
 
 function modelsFromSelectedIds(
@@ -133,6 +151,7 @@ function ModelRow({
   onNavigateBeforeTrial,
   showCheckbox,
   isPinActionDisabled,
+  isSelected,
   t
 }: {
   item: ModelSelectorModelItem
@@ -142,6 +161,7 @@ function ModelRow({
   onNavigateBeforeTrial: () => void
   showCheckbox: boolean
   isPinActionDisabled: boolean
+  isSelected: boolean
   t: (key: string) => string
 }) {
   const icon = resolveIcon(item.modelIdentifier, item.provider.id)
@@ -159,7 +179,7 @@ function ModelRow({
 
   const checkbox = showCheckbox ? (
     <Checkbox
-      checked={item.isSelected}
+      checked={isSelected}
       tabIndex={-1}
       aria-hidden="true"
       className={cn('pointer-events-none', MODEL_SELECTOR_ROW_CHECKBOX_CLASS)}
@@ -185,9 +205,9 @@ function ModelRow({
 
   return (
     <ModelSelectorRow
-      selected={item.isSelected}
+      selected={isSelected}
       focused={isFocused}
-      showSelectedIndicator={!showCheckbox && item.isSelected}
+      showSelectedIndicator={!showCheckbox && isSelected}
       checkbox={checkbox}
       leading={leading}
       trailing={trailing}
@@ -196,7 +216,7 @@ function ModelRow({
           disabled={isPinActionDisabled}
           aria-label={t(item.isPinned ? 'models.action.unpin' : 'models.action.pin')}
           pinned={item.isPinned}
-          selected={item.isSelected}
+          selected={isSelected}
           onClick={() => onPin(item.modelId)}>
           <Pin className="size-3" />
         </ModelSelectorRowActionButton>
@@ -225,12 +245,13 @@ export function ModelSelector(props: ModelSelectorProps) {
     filter,
     showTagFilter = true,
     showPinnedModels = true,
-    prioritizedProviderIds = [],
+    prioritizedProviderIds = DEFAULT_PRIORITIZED_PROVIDER_IDS,
     side = 'bottom',
     align = 'start',
     sideOffset = 4,
     contentClassName,
     listVisibleCount = PAGE_SIZE,
+    mountStrategy = 'destroy',
     multiSelectMode: multiSelectModeProp,
     defaultMultiSelectMode = false,
     onMultiSelectModeChange,
@@ -243,6 +264,8 @@ export function ModelSelector(props: ModelSelectorProps) {
   // variant happens at the `onSelect` / `value` touchpoints below (see
   // `emitSelection` / `normalizeSelectedIdsFromValue`).
   const multiple = props.multiple
+  const selectionType = props.selectionType
+  const selectedValue = props.value
   const [internalOpen, setInternalOpen] = useState(false)
   const [internalMultiSelectMode, setInternalMultiSelectMode] = useState(defaultMultiSelectMode)
   const [searchText, setSearchText] = useState('')
@@ -310,10 +333,8 @@ export function ModelSelector(props: ModelSelectorProps) {
   )
 
   const rawSelectedModelIds = useMemo(
-    () => normalizeSelectedIdsFromValue(props),
-    // Narrowing is driven by the three discriminators — any of them changing
-    // means `props.value` may be typed differently too.
-    [props.multiple, props.selectionType, props.value]
+    () => normalizeSelectedIdsFromValue({ multiple, selectionType, value: selectedValue }),
+    [multiple, selectionType, selectedValue]
   )
 
   const {
@@ -329,7 +350,8 @@ export function ModelSelector(props: ModelSelectorProps) {
     selectedTags,
     tagSelection,
     togglePin,
-    toggleTag
+    toggleTag,
+    visibleSelectedModelIdSet
   } = useModelSelectorData({
     selectedModelIds: rawSelectedModelIds,
     maxSelectedCount: multiple && multiSelectMode ? undefined : 1,
@@ -341,8 +363,10 @@ export function ModelSelector(props: ModelSelectorProps) {
   })
   const listItemsRef = useRef(listItems)
   const modelItemsRef = useRef(modelItems)
+  const visibleSelectedModelIdSetRef = useRef(visibleSelectedModelIdSet)
   listItemsRef.current = listItems
   modelItemsRef.current = modelItems
+  visibleSelectedModelIdSetRef.current = visibleSelectedModelIdSet
 
   const normalizedListVisibleCount = useMemo(() => Math.max(1, Math.floor(listVisibleCount)), [listVisibleCount])
   const listHeight = useMemo(
@@ -350,6 +374,8 @@ export function ModelSelector(props: ModelSelectorProps) {
     [listItems.length, normalizedListVisibleCount]
   )
   const selectedTagsKey = useMemo(() => selectedTags.join('|'), [selectedTags])
+  const getListItemKey = useCallback((index: number) => listItems[index].key, [listItems])
+  const isStickyListItem = useCallback((index: number) => listItems[index].type === 'group', [listItems])
 
   const emitSelection = useCallback(
     (nextSelectedIds: UniqueModelId[]) => {
@@ -478,7 +504,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       return
     }
 
-    const warning = getMalformedSelectionWarning(props)
+    const warning = getMalformedSelectionWarning({ multiple, selectionType, value: selectedValue })
     if (!warning) {
       return
     }
@@ -490,7 +516,7 @@ export function ModelSelector(props: ModelSelectorProps) {
 
     malformedSelectionWarningKeyRef.current = warningKey
     logger.warn(warning.message, warning.context)
-  }, [props.multiple, props.selectionType, props.value])
+  }, [multiple, selectionType, selectedValue])
 
   useEffect(() => {
     if (!open) {
@@ -508,6 +534,7 @@ export function ModelSelector(props: ModelSelectorProps) {
 
   useEffect(() => {
     if (!open) {
+      skipNextFocusScroll.current = false
       setSearchText('')
       setFocusedItemKey('')
       resetTags()
@@ -528,7 +555,8 @@ export function ModelSelector(props: ModelSelectorProps) {
     const targetKey =
       deferredSearchText || selectedTagsKey.length > 0
         ? currentModelItems[0]?.key
-        : (currentModelItems.find((item) => item.isSelected)?.key ?? currentModelItems[0]?.key)
+        : (currentModelItems.find((item) => visibleSelectedModelIdSetRef.current.has(item.modelId))?.key ??
+          currentModelItems[0]?.key)
 
     if (targetKey) {
       focusItem(targetKey)
@@ -577,6 +605,7 @@ export function ModelSelector(props: ModelSelectorProps) {
             item={item}
             isFocused={focusedItemKey === item.key}
             isPinActionDisabled={isPinActionDisabled}
+            isSelected={visibleSelectedModelIdSet.has(item.modelId)}
             onPin={handleTogglePin}
             onSelect={handleSelectItem}
             onNavigateBeforeTrial={handleClose}
@@ -596,8 +625,64 @@ export function ModelSelector(props: ModelSelectorProps) {
       multiple,
       multiSelectMode,
       setFocusedItemKey,
-      t
+      t,
+      visibleSelectedModelIdSet
     ]
+  )
+
+  const handleSearchKeyDown = useCallback((event: KeyboardEvent<HTMLInputElement>) => {
+    if (MODEL_SELECTOR_NAVIGATION_KEYS.has(event.key)) {
+      event.preventDefault()
+    }
+  }, [])
+
+  const searchConfig = useMemo(
+    () => ({
+      inputRef,
+      value: searchText,
+      onChange: setSearchText,
+      placeholder: t('models.search.placeholder'),
+      dataTestId: 'model-selector-search',
+      onKeyDown: handleSearchKeyDown
+    }),
+    [handleSearchKeyDown, searchText, t]
+  )
+
+  const filterContent = useMemo(() => {
+    if (!showTagFilter || availableTags.length === 0) {
+      return undefined
+    }
+
+    return (
+      <>
+        <span className="mr-1 text-[10px] text-muted-foreground">{t('models.filter.by_tag')}</span>
+        {availableTags.map((tag) => (
+          <ModelTagChip
+            key={`filter-${tag}`}
+            tag={tag}
+            size={FILTER_TAG_SIZE}
+            showLabel
+            inactive={!tagSelection[tag]}
+            onClick={() => toggleTag(tag)}
+            className="transition-colors"
+          />
+        ))}
+      </>
+    )
+  }, [availableTags, showTagFilter, t, tagSelection, toggleTag])
+
+  const multiSelectConfig = useMemo(
+    () =>
+      multiple
+        ? {
+            label: t('models.multi_select.label'),
+            checked: multiSelectMode,
+            onCheckedChange: handleMultiSelectModeChange,
+            dataTestId: 'model-selector-multi-select-switch',
+            rowTestId: 'model-selector-multi-select-row'
+          }
+        : undefined,
+    [handleMultiSelectModeChange, multiSelectMode, multiple, t]
   )
 
   return (
@@ -607,51 +692,14 @@ export function ModelSelector(props: ModelSelectorProps) {
         trigger={trigger}
         open={open}
         onOpenChange={setOpen}
-        search={{
-          inputRef,
-          value: searchText,
-          onChange: setSearchText,
-          placeholder: t('models.search.placeholder'),
-          dataTestId: 'model-selector-search',
-          onKeyDown: (event) => {
-            if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter'].includes(event.key)) {
-              event.preventDefault()
-            }
-          }
-        }}
-        filterContent={
-          showTagFilter && availableTags.length > 0 ? (
-            <>
-              <span className="mr-1 text-[10px] text-muted-foreground">{t('models.filter.by_tag')}</span>
-              {availableTags.map((tag) => (
-                <ModelTagChip
-                  key={`filter-${tag}`}
-                  tag={tag}
-                  size={FILTER_TAG_SIZE}
-                  showLabel
-                  inactive={!tagSelection[tag]}
-                  onClick={() => toggleTag(tag)}
-                  className="transition-colors"
-                />
-              ))}
-            </>
-          ) : undefined
-        }
-        multiSelect={
-          multiple
-            ? {
-                label: t('models.multi_select.label'),
-                checked: multiSelectMode,
-                onCheckedChange: handleMultiSelectModeChange,
-                dataTestId: 'model-selector-multi-select-switch',
-                rowTestId: 'model-selector-multi-select-row'
-              }
-            : undefined
-        }
+        search={searchConfig}
+        filterContent={filterContent}
+        multiSelect={multiSelectConfig}
         side={side}
         align={align}
         sideOffset={sideOffset}
         contentClassName={contentClassName}
+        mountStrategy={mountStrategy}
         data-testid="model-selector-content">
         {({ availableListHeight }) => {
           const visibleListHeight =
@@ -663,9 +711,9 @@ export function ModelSelector(props: ModelSelectorProps) {
                 ref={listRef}
                 list={listItems}
                 size={visibleListHeight}
-                estimateSize={() => ITEM_HEIGHT}
-                getItemKey={(index) => listItems[index].key}
-                isSticky={(index) => listItems[index].type === 'group'}
+                estimateSize={estimateModelSelectorItemSize}
+                getItemKey={getListItemKey}
+                isSticky={isStickyListItem}
                 scrollPaddingStart={ITEM_HEIGHT}
                 onScroll={handleListScroll}
                 overscan={6}>

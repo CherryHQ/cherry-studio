@@ -1,4 +1,4 @@
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -263,9 +263,35 @@ describe('useModelSelectorData', () => {
     // resolved list keeps both ids — business data is never truncated by the UI cap
     expect(result.current.resolvedSelectedModelIds).toEqual(['openai::gpt-4', 'openai::gpt-3.5'])
 
-    // but only the first one is rendered as `isSelected`
-    const selectedRows = result.current.modelItems.filter((m) => m.isSelected).map((m) => m.modelId)
-    expect(selectedRows).toEqual(['openai::gpt-4'])
+    // but only the first one is exposed as visible-selected for row rendering
+    expect([...result.current.visibleSelectedModelIdSet]).toEqual(['openai::gpt-4'])
+  })
+
+  it('keeps filtered model groups stable when only the selected ids change', () => {
+    const filter = vi.fn(() => true)
+    wireDeps({
+      providers: [makeProvider('openai')],
+      models: [makeModel('gpt-4', 'openai'), makeModel('gpt-3.5', 'openai')],
+      pinnedIds: ['openai::gpt-4']
+    })
+
+    const { result, rerender } = renderHook(
+      ({ selectedModelIds }: { selectedModelIds: UniqueModelId[] }) =>
+        useModelSelectorData({ searchText: '', selectedModelIds, filter }),
+      { initialProps: { selectedModelIds: [] } }
+    )
+    const listItemsBeforeSelection = result.current.listItems
+    const modelItemsBeforeSelection = result.current.modelItems
+
+    expect(filter).toHaveBeenCalled()
+    filter.mockClear()
+
+    rerender({ selectedModelIds: ['openai::gpt-4'] })
+
+    expect(filter).not.toHaveBeenCalled()
+    expect(result.current.listItems).toBe(listItemsBeforeSelection)
+    expect(result.current.modelItems).toBe(modelItemsBeforeSelection)
+    expect(result.current.visibleSelectedModelIdSet.has('openai::gpt-4')).toBe(true)
   })
 
   it('applies caller-provided filter predicate', () => {

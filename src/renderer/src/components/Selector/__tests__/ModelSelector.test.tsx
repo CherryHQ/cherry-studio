@@ -92,10 +92,11 @@ vi.mock('@cherrystudio/ui', () => {
       side?: string
       align?: string
       sideOffset?: number
+      forceMount?: boolean
       onInteractOutside?: unknown
       onOpenAutoFocus?: unknown
     }) => {
-      const { side, align, sideOffset, onInteractOutside, onOpenAutoFocus, ...contentProps } = props
+      const { side, align, sideOffset, forceMount, onInteractOutside, onOpenAutoFocus, ...contentProps } = props
       void side
       void align
       void sideOffset
@@ -105,6 +106,7 @@ vi.mock('@cherrystudio/ui', () => {
       return (
         <div
           {...contentProps}
+          data-force-mount={forceMount ? 'true' : undefined}
           style={{
             ...(mockAvailablePopoverHeight.value
               ? ({
@@ -206,10 +208,13 @@ function makeModelItem(
     modelId,
     modelIdentifier: model.name,
     isPinned: false,
-    isSelected: false,
     showIdentifier: false,
     ...overrides
   }
+}
+
+function makeSelectedSet(ids: UniqueModelId[]): ReadonlySet<UniqueModelId> {
+  return new Set(ids)
 }
 
 function makeData(overrides: Partial<UseModelSelectorDataResult> = {}): UseModelSelectorDataResult {
@@ -247,6 +252,7 @@ function makeData(overrides: Partial<UseModelSelectorDataResult> = {}): UseModel
     tagSelection: {} as UseModelSelectorDataResult['tagSelection'],
     togglePin: vi.fn(async () => undefined),
     toggleTag: vi.fn(),
+    visibleSelectedModelIdSet: makeSelectedSet([]),
     ...overrides
   }
 }
@@ -307,12 +313,13 @@ describe('ModelSelector', () => {
   })
 
   it('uses neutral row styling and pinned action color', () => {
-    const pinnedItem = makeModelItem('openai::gpt-4' as UniqueModelId, { isPinned: true, isSelected: true })
+    const pinnedItem = makeModelItem('openai::gpt-4' as UniqueModelId, { isPinned: true })
     mockUseModelSelectorData.mockReturnValue(
       makeData({
         listItems: [pinnedItem],
         modelItems: [pinnedItem],
-        resolvedSelectedModelIds: ['openai::gpt-4' as UniqueModelId]
+        resolvedSelectedModelIds: ['openai::gpt-4' as UniqueModelId],
+        visibleSelectedModelIdSet: makeSelectedSet(['openai::gpt-4' as UniqueModelId])
       })
     )
 
@@ -327,12 +334,13 @@ describe('ModelSelector', () => {
   })
 
   it('uses neutral color on the row action when the model row is selected', () => {
-    const selectedItem = makeModelItem('openai::gpt-4' as UniqueModelId, { isSelected: true })
+    const selectedItem = makeModelItem('openai::gpt-4' as UniqueModelId)
     mockUseModelSelectorData.mockReturnValue(
       makeData({
         listItems: [selectedItem],
         modelItems: [selectedItem],
-        resolvedSelectedModelIds: ['openai::gpt-4' as UniqueModelId]
+        resolvedSelectedModelIds: ['openai::gpt-4' as UniqueModelId],
+        visibleSelectedModelIdSet: makeSelectedSet(['openai::gpt-4' as UniqueModelId])
       })
     )
 
@@ -343,18 +351,20 @@ describe('ModelSelector', () => {
   })
 
   it('keeps keyboard focus stable when multi-select value changes while open', async () => {
-    const selectedSecond = makeModelItem('openai::gpt-3.5' as UniqueModelId, { isSelected: true })
-    const selectedFirst = makeModelItem('openai::gpt-4' as UniqueModelId, { isSelected: true })
+    const selectedSecond = makeModelItem('openai::gpt-3.5' as UniqueModelId)
+    const selectedFirst = makeModelItem('openai::gpt-4' as UniqueModelId)
     const unselectedFirst = makeModelItem('openai::gpt-4' as UniqueModelId)
     const firstData = makeData({
       listItems: [unselectedFirst, selectedSecond],
       modelItems: [unselectedFirst, selectedSecond],
-      resolvedSelectedModelIds: ['openai::gpt-3.5' as UniqueModelId]
+      resolvedSelectedModelIds: ['openai::gpt-3.5' as UniqueModelId],
+      visibleSelectedModelIdSet: makeSelectedSet(['openai::gpt-3.5' as UniqueModelId])
     })
     const secondData = makeData({
       listItems: [selectedFirst, selectedSecond],
       modelItems: [selectedFirst, selectedSecond],
-      resolvedSelectedModelIds: ['openai::gpt-4' as UniqueModelId, 'openai::gpt-3.5' as UniqueModelId]
+      resolvedSelectedModelIds: ['openai::gpt-4' as UniqueModelId, 'openai::gpt-3.5' as UniqueModelId],
+      visibleSelectedModelIdSet: makeSelectedSet(['openai::gpt-4' as UniqueModelId, 'openai::gpt-3.5' as UniqueModelId])
     })
     let currentData = firstData
     mockUseModelSelectorData.mockImplementation(() => currentData)
@@ -389,6 +399,68 @@ describe('ModelSelector', () => {
     )
 
     expect(mockScrollToIndex).not.toHaveBeenCalled()
+  })
+
+  it('scrolls to the selected model when reopened after a single-select change', async () => {
+    const firstData = makeData()
+    const secondData = makeData({
+      resolvedSelectedModelIds: ['openai::gpt-3.5' as UniqueModelId],
+      visibleSelectedModelIdSet: makeSelectedSet(['openai::gpt-3.5' as UniqueModelId])
+    })
+    let currentData = firstData
+    mockUseModelSelectorData.mockImplementation(() => currentData)
+
+    const onSelect = vi.fn()
+    const { rerender } = render(
+      <ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={onSelect} />
+    )
+
+    await waitFor(() => expect(mockScrollToIndex).toHaveBeenCalled())
+    mockScrollToIndex.mockClear()
+
+    fireEvent.click(screen.getByTestId('model-selector-item-openai::gpt-3.5'))
+    currentData = secondData
+    rerender(
+      <ModelSelector open={false} multiple={false} trigger={<button type="button">open</button>} onSelect={onSelect} />
+    )
+    mockScrollToIndex.mockClear()
+
+    rerender(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={onSelect} />)
+
+    await waitFor(() => expect(mockScrollToIndex).toHaveBeenCalledWith(2, { align: 'auto' }))
+  })
+
+  it('lazy keeps the popover content mounted only after the first open', () => {
+    mockUseModelSelectorData.mockReturnValue(makeData())
+
+    const selector = (
+      <ModelSelector
+        open={false}
+        mountStrategy="lazy-keep"
+        multiple={false}
+        trigger={<button type="button">open</button>}
+        onSelect={vi.fn()}
+      />
+    )
+    const { rerender } = render(selector)
+
+    expect(screen.queryByTestId('model-selector-content')).toBeNull()
+
+    rerender(
+      <ModelSelector
+        open
+        mountStrategy="lazy-keep"
+        multiple={false}
+        trigger={<button type="button">open</button>}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('model-selector-content')).toHaveAttribute('data-force-mount', 'true')
+
+    rerender(selector)
+
+    expect(screen.getByTestId('model-selector-content')).toHaveAttribute('hidden')
   })
 
   it('navigates from provider settings without selecting a model', async () => {

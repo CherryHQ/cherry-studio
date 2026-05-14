@@ -116,6 +116,7 @@ const AgentContent = ({ activeAgent, onOpenSettings }: AgentContentProps) => {
                   value={currentSharedModel}
                   onSelect={handleModelSelect}
                   filter={modelFilter}
+                  mountStrategy="lazy-keep"
                   trigger={
                     <Button variant="ghost" size="sm" className="h-7 gap-1.5 rounded-full px-2 text-xs">
                       <ModelAvatar model={currentRendererModel} size={20} />

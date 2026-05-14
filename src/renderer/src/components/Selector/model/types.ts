@@ -8,6 +8,7 @@ import type { ModelSelectorTag } from './filters'
 export type ModelSelectorSide = 'top' | 'right' | 'bottom' | 'left'
 export type ModelSelectorAlign = 'start' | 'center' | 'end'
 export type ModelSelectorSelectionType = 'model' | 'id'
+export type ModelSelectorMountStrategy = 'destroy' | 'lazy-keep'
 
 interface ModelSelectorCommonProps {
   trigger: ReactNode
@@ -22,6 +23,7 @@ interface ModelSelectorCommonProps {
   sideOffset?: number
   contentClassName?: string
   listVisibleCount?: number
+  mountStrategy?: ModelSelectorMountStrategy
   multiSelectMode?: boolean
   defaultMultiSelectMode?: boolean
   onMultiSelectModeChange?: (enabled: boolean) => void
@@ -82,7 +84,6 @@ export interface ModelSelectorModelItem {
   modelId: UniqueModelId
   modelIdentifier: string
   isPinned: boolean
-  isSelected: boolean
   showIdentifier: boolean
 }
 
@@ -114,4 +115,5 @@ export interface UseModelSelectorDataResult {
   tagSelection: Record<ModelSelectorTag, boolean>
   togglePin: (modelId: UniqueModelId) => Promise<void>
   toggleTag: (tag: ModelSelectorTag) => void
+  visibleSelectedModelIdSet: ReadonlySet<UniqueModelId>
 }
