@@ -6,8 +6,7 @@ import {
   ENDPOINT_TYPE,
   type EndpointType,
   MODEL_CAPABILITY,
-  type ModelCapability,
-  normalizeModelId
+  type ModelCapability
 } from '@cherrystudio/provider-registry'
 import type { NewUserModel } from '@data/db/schemas/userModel'
 import type { NewUserProvider } from '@data/db/schemas/userProvider'
@@ -422,7 +421,11 @@ export function transformModel(legacy: LegacyModel, providerId: string): Omit<Ne
     id: createUniqueModelId(providerId, legacy.id),
     providerId,
     modelId: legacy.id,
-    presetModelId: normalizeModelId(legacy.id),
+    // Leave presetModelId null here. enrichModelRow looks up the registry and
+    // sets presetModelId only when a real preset matches; setting it here
+    // unconditionally would mark fully-custom v1 models as preset overrides
+    // (symmetric to the v1 default-name bug fixed in db3e1f76).
+    presetModelId: null,
     name: legacy.name ?? legacy.id,
     description: legacy.description ?? null,
     group: legacy.group ?? null,

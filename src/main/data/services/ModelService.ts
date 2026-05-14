@@ -592,6 +592,7 @@ class ModelService {
     const db = application.get('DbService').getDb()
     const values = payload.toAdd.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
 
+    let actuallyDeleted = 0
     const rows = await withSqliteErrors(
       () =>
         db.transaction(async (tx) => {
@@ -600,6 +601,7 @@ class ModelService {
               .delete(userModelTable)
               .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, payload.toRemove)))
               .returning({ id: userModelTable.id })
+            actuallyDeleted = deletedRows.length
 
             if (deletedRows.length > 0) {
               await pinService.purgeForEntitiesTx(
@@ -630,10 +632,23 @@ class ModelService {
       createModelsSqliteHandlers(values)
     )
 
+    if (actuallyDeleted < payload.toRemove.length) {
+      // Stale renderer state — caller's toRemove referenced IDs that no longer
+      // exist (concurrent edit, second window, race with another sync). The
+      // transaction still succeeded but the renderer's diff was based on a
+      // stale snapshot. Warn so debugging can correlate; the next /models
+      // refetch will reconcile what the user actually sees.
+      logger.warn('Reconcile toRemove count mismatch', {
+        providerId,
+        requestedRemove: payload.toRemove.length,
+        actuallyDeleted
+      })
+    }
+
     logger.info('Reconciled provider models', {
       providerId,
       added: values.length,
-      removed: payload.toRemove.length
+      removed: actuallyDeleted
     })
 
     return rows.map(rowToRuntimeModel)
