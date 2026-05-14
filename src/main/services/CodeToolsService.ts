@@ -27,9 +27,6 @@ import { promisify } from 'util'
 const execAsync = promisify(require('child_process').exec)
 const logger = loggerService.withContext('CodeToolsService')
 
-// Codex CLI reserved built-in provider IDs that cannot be overridden in model_providers
-const CODEX_RESERVED_PROVIDER_IDS = ['openai', 'ollama', 'lmstudio']
-
 interface VersionInfo {
   installed: string | null
   latest: string | null
@@ -1018,28 +1015,16 @@ class CodeToolsService {
       const providerName = env.OPENAI_MODEL_PROVIDER_NAME || providerId
       const normalizedBaseUrl = env.OPENAI_BASE_URL.replace(/\/$/, '')
       const model = _model
-
-      let configParams: string[]
-      if (CODEX_RESERVED_PROVIDER_IDS.includes(providerId)) {
-        // Reserved providers: use built-in config mechanism, don't create model_providers entry
-        configParams = [
-          `--config openai_base_url="${normalizedBaseUrl}"`,
-          `--config model_provider="${providerId}"`,
-          `--config model="${model}"`
-        ]
-      } else {
-        // Third-party providers: use Cherry- prefix to avoid conflicts with reserved IDs
-        // Strip dots from providerName to prevent Codex CLI from parsing them as nested config keys
-        const cherryProviderKey = `Cherry-${providerName.replace(/\./g, '-')}`
-        configParams = [
-          `--config model_provider="${cherryProviderKey}"`,
-          `--config model_providers.${cherryProviderKey}.name="${providerName}"`,
-          `--config model_providers.${cherryProviderKey}.base_url="${normalizedBaseUrl}"`,
-          `--config model_providers.${cherryProviderKey}.env_key="OPENAI_API_KEY"`,
-          `--config model_providers.${cherryProviderKey}.wire_api="responses"`,
-          `--config model="${model}"`
-        ]
-      }
+      // All Codex providers use Cherry- prefix to avoid conflicts with built-in provider IDs
+      const cherryProviderKey = `Cherry-${providerName.replace(/\./g, '-')}`
+      const configParams = [
+        `--config model_provider="${cherryProviderKey}"`,
+        `--config model_providers.${cherryProviderKey}.name="${providerName}"`,
+        `--config model_providers.${cherryProviderKey}.base_url="${normalizedBaseUrl}"`,
+        `--config model_providers.${cherryProviderKey}.env_key="OPENAI_API_KEY"`,
+        `--config model_providers.${cherryProviderKey}.wire_api="responses"`,
+        `--config model="${model}"`
+      ]
       baseCommand = `${baseCommand} ${configParams.join(' ')}`
     }
 
