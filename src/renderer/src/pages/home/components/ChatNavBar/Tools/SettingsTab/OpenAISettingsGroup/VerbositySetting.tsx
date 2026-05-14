@@ -1,11 +1,12 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { getModelSupportedVerbosity } from '@renderer/config/models'
+import { SettingRowTitleSmall } from '@renderer/pages/chat-settings/settingsPanelPrimitives'
 import { SettingRow } from '@renderer/pages/settings'
 import type { Model } from '@renderer/types'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'
 import type { OpenAIVerbosity } from '@shared/types/aiSdk'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type VerbosityOption = {
@@ -18,18 +19,10 @@ interface Props {
   verbosity: OpenAIVerbosity
   disabled?: boolean
   onVerbosityChange: (value: OpenAIVerbosity) => void
-  SettingRowTitleSmall: FC<{ children: React.ReactNode; hint?: string }>
 }
 
-const VerbositySetting: FC<Props> = ({ model, verbosity, disabled, onVerbosityChange, SettingRowTitleSmall }) => {
+const VerbositySetting: FC<Props> = ({ model, verbosity, disabled, onVerbosityChange }) => {
   const { t } = useTranslation()
-
-  const setVerbosity = useCallback(
-    (value: OpenAIVerbosity) => {
-      onVerbosityChange(value)
-    },
-    [onVerbosityChange]
-  )
 
   const verbosityOptions = useMemo(() => {
     const allOptions = [
@@ -58,14 +51,19 @@ const VerbositySetting: FC<Props> = ({ model, verbosity, disabled, onVerbosityCh
     return allOptions.filter((option) => supportedVerbosityLevels.includes(option.value))
   }, [model, t])
 
-  useEffect(() => {
-    if (verbosity !== undefined && !verbosityOptions.some((option) => option.value === toOptionValue(verbosity))) {
-      const supportedVerbosityLevels = getModelSupportedVerbosity(model)
-      // Default to the highest supported verbosity level
-      const defaultVerbosity = supportedVerbosityLevels[supportedVerbosityLevels.length - 1]
-      setVerbosity(defaultVerbosity)
+  // Derive the displayed value at render time. Auto-correcting an unsupported
+  // saved value via useEffect would persist a DB write on every model switch
+  // (no debounce, no rollback, alert with the wrong intent). Render-deriving
+  // here keeps the UI showing a legal value; the store is only updated when
+  // the user actually picks a new verbosity below.
+  const effectiveVerbosity = useMemo<OpenAIVerbosity>(() => {
+    if (verbosity === undefined) return verbosity
+    if (verbosityOptions.some((option) => option.value === toOptionValue(verbosity))) {
+      return verbosity
     }
-  }, [model, verbosity, verbosityOptions, setVerbosity])
+    const supported = getModelSupportedVerbosity(model)
+    return supported[supported.length - 1]
+  }, [verbosity, verbosityOptions, model])
 
   return (
     <SettingRow>
@@ -74,9 +72,9 @@ const VerbositySetting: FC<Props> = ({ model, verbosity, disabled, onVerbosityCh
       </SettingRowTitleSmall>
       <Select
         disabled={disabled}
-        value={toOptionValue(verbosity)}
+        value={toOptionValue(effectiveVerbosity)}
         onValueChange={(value) => {
-          setVerbosity(toRealValue(value as VerbosityOption['value']))
+          onVerbosityChange(toRealValue(value as VerbosityOption['value']))
         }}>
         <SelectTrigger disabled={disabled} size="sm" className="w-45 text-xs">
           <SelectValue />
