@@ -11,7 +11,8 @@ import type { MouseEvent } from 'react'
 import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { executeSessionMenuAction, resolveSessionMenuActions, type SessionActionContext } from './sessionItemActions'
+import type { SessionActionContext } from './sessionItemActions'
+import { useSessionMenuActions } from './useSessionMenuActions'
 
 interface SessionItemProps {
   channelType?: string
@@ -70,7 +71,7 @@ const SessionItem = ({
     [handleDelete, handleTogglePin, onTogglePin, pinned, session.name, startEdit, t]
   )
 
-  const menuActions = useMemo(() => resolveSessionMenuActions(actionContext), [actionContext])
+  const { menuActions, handleMenuAction } = useSessionMenuActions(actionContext)
 
   const clearDeleteConfirmationTimeout = useCallback(() => {
     if (deleteConfirmationTimeoutRef.current === null) return
@@ -79,13 +80,6 @@ const SessionItem = ({
   }, [])
 
   useEffect(() => clearDeleteConfirmationTimeout, [clearDeleteConfirmationTimeout])
-
-  const handleMenuAction = useCallback(
-    async (action: (typeof menuActions)[number]) => {
-      await executeSessionMenuAction(action, actionContext)
-    },
-    [actionContext]
-  )
 
   const handleDeleteClick = useCallback(
     (event: MouseEvent) => {

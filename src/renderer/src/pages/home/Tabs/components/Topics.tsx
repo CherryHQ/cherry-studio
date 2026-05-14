@@ -13,9 +13,7 @@ import {
   useResourceListPinnedState
 } from '@renderer/components/chat/resources'
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
-import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { isMac } from '@renderer/config/constant'
 import { prefetch } from '@renderer/data/hooks/useDataApi'
 import { useAssistantsApi } from '@renderer/hooks/useAssistantDataApi'
@@ -27,17 +25,6 @@ import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
-import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/utils/copy'
-import {
-  exportMarkdownToJoplin,
-  exportMarkdownToSiyuan,
-  exportMarkdownToYuque,
-  exportTopicAsMarkdown,
-  exportTopicToNotes,
-  exportTopicToNotion,
-  topicToMarkdown
-} from '@renderer/utils/export'
-import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { getLeadingEmoji } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
 import dayjs from 'dayjs'
@@ -61,12 +48,7 @@ import type { MouseEvent, RefObject } from 'react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  executeTopicMenuAction,
-  resolveTopicMenuActions,
-  type TopicActionContext,
-  type TopicExportMenuOptions
-} from './topicContextMenuActions'
+import type { TopicExportMenuOptions } from './topicContextMenuActions'
 import { TopicManagePanel, useTopicManageMode } from './TopicManageMode'
 import {
   applyOptimisticTopicDisplayMove,
@@ -82,6 +64,7 @@ import {
   TOPIC_UNKNOWN_ASSISTANT_GROUP_ID,
   type TopicDisplayMode
 } from './Topics.helpers'
+import { useTopicMenuActions } from './useTopicMenuActions'
 
 const logger = loggerService.withContext('Topics')
 
@@ -904,75 +887,19 @@ function TopicRow({
       : ''
   const { isFulfilled: isTopicStreamFulfilled, isPending: isTopicStreamPending } = streamStatus
   const hasTopicStreamIndicator = !isActive && (isTopicStreamPending || isTopicStreamFulfilled)
-  const actionContext = useMemo<TopicActionContext>(
-    () => ({
-      exportMenuOptions,
-      isRenaming: isRenaming(topic.id),
-      onAutoRename,
-      onClearMessages,
-      onCopyImage: (topic) => void EventEmitter.emit(EVENT_NAMES.COPY_TOPIC_IMAGE, topic),
-      onCopyMarkdown: copyTopicAsMarkdown,
-      onCopyPlainText: copyTopicAsPlainText,
-      onDelete: onDeleteFromMenu,
-      onExportImage: (topic) => void EventEmitter.emit(EVENT_NAMES.EXPORT_TOPIC_IMAGE, topic),
-      onExportJoplin: async (topic) => {
-        const topicMessages = await getTopicMessages(topic.id)
-        void exportMarkdownToJoplin(topic.name, topicMessages)
-      },
-      onExportMarkdown: exportTopicAsMarkdown,
-      onExportMarkdownReason: (topic) => exportTopicAsMarkdown(topic, true),
-      onExportNotion: exportTopicToNotion,
-      onExportObsidian: (topic) => ObsidianExportPopup.show({ title: topic.name, topic, processingMethod: '3' }),
-      onExportSiyuan: async (topic) => {
-        const markdown = await topicToMarkdown(topic)
-        void exportMarkdownToSiyuan(topic.name, markdown)
-      },
-      onExportWord: async (topic) => {
-        const markdown = await topicToMarkdown(topic)
-        void window.api.export.toWord(markdown, removeSpecialCharactersForFileName(topic.name))
-      },
-      onExportYuque: async (topic) => {
-        const markdown = await topicToMarkdown(topic)
-        void exportMarkdownToYuque(topic.name, markdown)
-      },
-      onPinTopic,
-      onPromptRename,
-      onSaveToKnowledge: async (topic) => {
-        try {
-          const result = await SaveToKnowledgePopup.showForTopic(topic)
-          if (result?.success) {
-            window.toast.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
-          }
-        } catch {
-          window.toast.error(t('chat.save.topic.knowledge.error.save_failed'))
-        }
-      },
-      onSaveToNotes: (topic) => exportTopicToNotes(topic, notesPath),
-      t,
-      topic,
-      topicsLength
-    }),
-    [
-      exportMenuOptions,
-      isRenaming,
-      notesPath,
-      onAutoRename,
-      onClearMessages,
-      onDeleteFromMenu,
-      onPinTopic,
-      onPromptRename,
-      t,
-      topic,
-      topicsLength
-    ]
-  )
-  const menuActions = useMemo(() => resolveTopicMenuActions(actionContext), [actionContext])
-  const handleMenuAction = useCallback(
-    async (action: (typeof menuActions)[number]) => {
-      await executeTopicMenuAction(action, actionContext)
-    },
-    [actionContext]
-  )
+  const { menuActions, handleMenuAction } = useTopicMenuActions({
+    exportMenuOptions,
+    isRenaming: isRenaming(topic.id),
+    notesPath,
+    onAutoRename,
+    onClearMessages,
+    onDelete: onDeleteFromMenu,
+    onPinTopic,
+    onPromptRename,
+    t,
+    topic,
+    topicsLength
+  })
 
   const row = (
     <ResourceList.Item
