@@ -6348,7 +6348,6 @@
       "api_host_placeholder": "未配置",
       "api_host_preview": "预览：{{url}}",
       "api_host_tooltip": "仅在服务商需要自定义的 OpenAI 兼容地址时覆盖。",
-      "api_host_with_endpoint_label": "API 地址 (Endpoint URL)",
       "api_key": {
         "copy": "复制",
         "enabled_suffix": "已启用",

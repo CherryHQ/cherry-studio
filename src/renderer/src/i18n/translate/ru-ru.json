@@ -6348,7 +6348,6 @@
       "api_host_placeholder": "[to be translated]:Not configured",
       "api_host_preview": "Предпросмотр: {{url}}",
       "api_host_tooltip": "Переопределяйте только когда провайдер требует пользовательский адрес, совместимый с OpenAI.",
-      "api_host_with_endpoint_label": "[to be translated]:API Host (Endpoint URL)",
       "api_key": {
         "copy": "[to be translated]:Copy",
         "enabled_suffix": "[to be translated]:enabled",

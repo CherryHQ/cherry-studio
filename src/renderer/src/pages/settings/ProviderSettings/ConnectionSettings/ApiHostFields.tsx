@@ -72,7 +72,7 @@ export function ApiHostField({
 
   return (
     <ProviderField
-      title={t('settings.provider.api_host_with_endpoint_label')}
+      title={t('settings.provider.api_host')}
       help={
         <div className="space-y-1 pt-1">
           {isVertexAI && (
