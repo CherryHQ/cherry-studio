@@ -264,11 +264,19 @@ export class ProviderModelMigrator extends BaseMigrator {
         }
       }
 
-      // Deduplicate providers by ID (corrupted Redux state may contain duplicates)
+      // Filter out corrupted v1 rows before dedup. Missing/empty providerId
+      // would otherwise land in userProvider as an empty-string PK (SQLite
+      // text PK accepts '') and shadow lookups across the v2 data layer.
       const seenIds = new Set<string>()
       const dedupedProviders: LegacyProvider[] = []
       let skippedProviders = 0
+      let skippedInvalidId = 0
       for (const provider of llmState.providers) {
+        if (typeof provider?.id !== 'string' || provider.id.length === 0) {
+          skippedInvalidId++
+          logger.warn('Provider with missing or empty id skipped', { name: provider?.name })
+          continue
+        }
         if (seenIds.has(provider.id)) {
           skippedProviders++
           logger.warn('Duplicate provider ID skipped', { providerId: provider.id })
@@ -295,6 +303,9 @@ export class ProviderModelMigrator extends BaseMigrator {
 
       if (skippedProviders > 0) {
         warnings.push(`Skipped ${skippedProviders} duplicate provider(s)`)
+      }
+      if (skippedInvalidId > 0) {
+        warnings.push(`Skipped ${skippedInvalidId} provider(s) with missing or empty id`)
       }
 
       logger.info('Preparation completed', {

@@ -372,6 +372,34 @@ describe('ProviderModelMigrator', () => {
       expect(models).toEqual([])
     })
 
+    it('filters providers with missing or empty id and reports a warning', async () => {
+      // SQLite's text PK accepts '' so an unfiltered empty-id row would land
+      // in userProvider and shadow lookups across the v2 data layer.
+      // prepare() must drop these and surface a warning; execute() then
+      // processes only the remaining valid rows.
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            { id: '', name: 'Empty ID', type: 'openai', enabled: true, models: [] },
+            makeProvider('openai', [{ id: 'gpt-4o' }])
+          ]
+        }
+      })
+
+      const prepareResult = await migrator.prepare(migrationContext)
+      expect(prepareResult.success).toBe(true)
+      expect(prepareResult.itemCount).toBe(1)
+      expect(prepareResult.warnings?.some((w) => w.includes('missing or empty id'))).toBe(true)
+
+      const result = await migrator.execute(migrationContext)
+      expect(result.success).toBe(true)
+
+      const providers = await dbh.db.select().from(userProviderTable)
+      expect(providers.map((p) => p.providerId)).toEqual(['openai'])
+      const emptyIdRows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, ''))
+      expect(emptyIdRows).toEqual([])
+    })
+
     it('rolls back provider inserts when a later model insert fails', async () => {
       await dbh.db.insert(userProviderTable).values({
         providerId: 'other',
