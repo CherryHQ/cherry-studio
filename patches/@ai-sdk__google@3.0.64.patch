@@ -42,11 +42,59 @@ index ba71d04..8596000 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
 @@ -470,7 +470,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
- 
+
  // src/get-model-path.ts
  function getModelPath(modelId) {
 -  return modelId.includes("/") ? modelId : `models/${modelId}`;
 +  return modelId.includes("models/") ? modelId : `models/${modelId}`;
  }
- 
+
  // src/google-error.ts
+diff --git a/dist/index.js b/dist/index.js
+index d257090..e9cd53e 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -984,7 +984,6 @@
+       }
+       const combinedToolConfig = {
+         functionCallingConfig: { mode: "VALIDATED" },
+-        includeServerSideToolInvocations: true
+       };
+       if (toolChoice != null) {
+         switch (toolChoice.type) {
+diff --git a/dist/index.mjs b/dist/index.mjs
+index b5f41bc..c75255d 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -992,7 +992,6 @@
+       }
+       const combinedToolConfig = {
+         functionCallingConfig: { mode: "VALIDATED" },
+-        includeServerSideToolInvocations: true
+       };
+       if (toolChoice != null) {
+         switch (toolChoice.type) {
+diff --git a/dist/internal/index.js b/dist/internal/index.js
+index bfc039b..e239776 100644
+--- a/dist/internal/index.js
++++ b/dist/internal/index.js
+@@ -792,7 +792,6 @@
+       }
+       const combinedToolConfig = {
+         functionCallingConfig: { mode: "VALIDATED" },
+-        includeServerSideToolInvocations: true
+       };
+       if (toolChoice != null) {
+         switch (toolChoice.type) {
+diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
+index ba71d04..8596000 100644
+--- a/dist/internal/index.mjs
++++ b/dist/internal/index.mjs
+@@ -781,7 +781,6 @@
+       }
+       const combinedToolConfig = {
+         functionCallingConfig: { mode: "VALIDATED" },
+-        includeServerSideToolInvocations: true
+       };
+       if (toolChoice != null) {
+         switch (toolChoice.type) {
