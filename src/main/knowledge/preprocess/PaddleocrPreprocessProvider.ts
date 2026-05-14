@@ -237,9 +237,12 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
       })
 
       if (!response.ok) {
-        const errorText = await response.text()
-        logger.error(`PaddleOCR API error: HTTP ${response.status} - ${errorText}`)
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        const errorText = (await response.text()).trim()
+        const httpErrorMessage = errorText
+          ? `HTTP ${response.status}: ${response.statusText} - ${errorText}`
+          : `HTTP ${response.status}: ${response.statusText}`
+        logger.error(`PaddleOCR API error: ${httpErrorMessage}`)
+        throw new Error(httpErrorMessage)
       }
 
       const rawData = await response.json()
