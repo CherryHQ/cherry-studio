@@ -8,7 +8,6 @@ import type { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 import type { Assistant, EditImageParams, GenerateImageParams, Model, Provider } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { getLowerBaseModelName } from '@renderer/utils'
-import { buildClaudeCodeSystemModelMessage } from '@shared/anthropic'
 
 import AiSdkToChunkAdapter from './chunk/AiSdkToChunkAdapter'
 import { buildPlugins } from './plugins/PluginBuilder'
@@ -109,22 +108,6 @@ export default class AiProvider {
     logger.debug('Using provider config for completions', this.config)
 
     // 注意：模型对象将由 createExecutor 内部处理，不再需要预先创建
-
-    if (this.actualProvider.id === 'anthropic' && this.actualProvider.authType === 'oauth') {
-      // 类型守卫：确保 system 是 string、Array 或 undefined
-      const system = params.system
-      let systemParam: string | Array<any> | undefined
-      if (typeof system === 'string' || Array.isArray(system) || system === undefined) {
-        systemParam = system
-      } else {
-        // SystemModelMessage 类型，转换为 string
-        systemParam = undefined
-      }
-
-      const claudeCodeSystemMessage = buildClaudeCodeSystemModelMessage(systemParam)
-      params.system = undefined // 清除原有system，避免重复
-      params.messages = [...claudeCodeSystemMessage, ...(params.messages || [])]
-    }
 
     if (middlewareConfig.topicId && (await preferenceService.get('app.developer_mode.enabled'))) {
       // TypeScript类型窄化：确保topicId是string类型

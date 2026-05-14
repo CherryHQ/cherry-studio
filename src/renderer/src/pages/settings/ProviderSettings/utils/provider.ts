@@ -39,10 +39,15 @@ export function isVertexProvider(provider: Provider): boolean {
 }
 
 export function isAwsBedrockProvider(provider: Provider): boolean {
-  return provider.authType === 'iam-aws'
+  return provider.authType === 'iam-aws' || provider.authType === 'api-key-aws'
 }
 
 // ─── ID-level: direct comparison ─────────────────────────────────────────────
+
+/** True when the provider is the canonical preset row or any user-cloned variant of it. */
+export function matchesPreset(provider: Provider, presetId: string): boolean {
+  return provider.id === presetId || provider.presetProviderId === presetId
+}
 
 export function isCherryAIProvider(provider: Provider): boolean {
   return provider.id === 'cherryai'
@@ -144,9 +149,10 @@ export function getProviderSearchString(provider: Provider): string {
   return `${provider.id} ${provider.name}`
 }
 
-export function matchKeywordsInProvider(keywords: string[], provider: Provider): boolean {
+export function matchKeywordsInProvider(keywords: string[], provider: Provider, extraSearchString?: string): boolean {
   if (keywords.length === 0) return true
-  const searchStr = getProviderSearchString(provider).toLowerCase()
+  const base = getProviderSearchString(provider)
+  const searchStr = (extraSearchString ? `${base} ${extraSearchString}` : base).toLowerCase()
   return keywords.every((kw) => searchStr.includes(kw))
 }
 

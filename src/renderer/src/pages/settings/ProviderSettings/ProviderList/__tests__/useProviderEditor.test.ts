@@ -71,13 +71,25 @@ describe('useProviderEditor', () => {
   })
 
   describe('state transitions', () => {
-    it('startAdd opens the editor in add mode', () => {
+    it('startAdd opens the editor in create-custom mode', () => {
       const { result } = renderHook(() => useProviderEditor(makeParams()))
 
       act(() => result.current.startAdd())
 
       expect(result.current.isOpen).toBe(true)
       expect(result.current.editingProvider).toBeNull()
+      expect(result.current.mode).toEqual({ kind: 'create-custom' })
+    })
+
+    it('startAddFrom opens the editor in duplicate mode with the source provider', () => {
+      const { result } = renderHook(() => useProviderEditor(makeParams()))
+      const source = { ...provider, presetProviderId: 'openai', authType: 'api-key' }
+
+      act(() => result.current.startAddFrom(source))
+
+      expect(result.current.isOpen).toBe(true)
+      expect(result.current.editingProvider).toBeNull()
+      expect(result.current.mode).toEqual({ kind: 'duplicate', source })
     })
 
     it('startEdit opens the editor in edit mode with the given provider', () => {
@@ -189,6 +201,51 @@ describe('useProviderEditor', () => {
 
       expect(createProviderMock).not.toHaveBeenCalled()
       expect(result.current.isOpen).toBe(true)
+    })
+
+    it('forwards endpointConfigs and authConfig to createProvider', async () => {
+      const { result } = renderHook(() => useProviderEditor(makeParams()))
+
+      act(() => result.current.startAdd())
+      await act(async () => {
+        await result.current.submit({
+          name: 'Custom OpenAI Proxy',
+          defaultChatEndpoint: endpoint,
+          endpointConfigs: { [endpoint]: { baseUrl: 'https://proxy.example.com' } },
+          authConfig: { type: 'api-key' }
+        })
+      })
+
+      expect(createProviderMock).toHaveBeenCalledWith({
+        providerId: 'new-provider-id',
+        name: 'Custom OpenAI Proxy',
+        defaultChatEndpoint: endpoint,
+        endpointConfigs: { [endpoint]: { baseUrl: 'https://proxy.example.com' } },
+        authConfig: { type: 'api-key' }
+      })
+    })
+
+    it('forwards presetProviderId on duplicate-mode submit', async () => {
+      const { result } = renderHook(() => useProviderEditor(makeParams()))
+      const source = { ...provider, presetProviderId: 'azure-openai', authType: 'iam-azure' }
+
+      act(() => result.current.startAddFrom(source))
+      await act(async () => {
+        await result.current.submit({
+          name: 'azure-2',
+          defaultChatEndpoint: endpoint,
+          presetProviderId: 'azure-openai',
+          authConfig: { type: 'iam-azure', apiVersion: '' }
+        })
+      })
+
+      expect(createProviderMock).toHaveBeenCalledWith({
+        providerId: 'new-provider-id',
+        name: 'azure-2',
+        defaultChatEndpoint: endpoint,
+        presetProviderId: 'azure-openai',
+        authConfig: { type: 'iam-azure', apiVersion: '' }
+      })
     })
   })
 

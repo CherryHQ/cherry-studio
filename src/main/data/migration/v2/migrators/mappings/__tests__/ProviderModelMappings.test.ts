@@ -199,7 +199,7 @@ describe('ProviderModelMappings', () => {
       )
 
       expect(result.defaultChatEndpoint).toBeNull()
-      expect(result.authConfig).toEqual({ type: 'api-key' })
+      expect(result.authConfig).toEqual({ type: 'api-key-aws', region: 'us-west-2' })
       expect(result.apiKeys).toBeDefined()
       const apiKeys = result.apiKeys!
       expect(apiKeys).toHaveLength(1)
@@ -207,6 +207,44 @@ describe('ProviderModelMappings', () => {
         key: 'bedrock-api-key',
         isEnabled: true
       })
+    })
+
+    it('re-seats legacy Anthropic OAuth as api-key (web OAuth removed; tokens are gone)', () => {
+      const result = transformProvider(
+        {
+          id: 'anthropic',
+          name: 'Anthropic',
+          type: 'anthropic',
+          authType: 'oauth',
+          apiKey: '',
+          apiHost: 'https://api.anthropic.com',
+          models: [],
+          enabled: true,
+          isSystem: true
+        } as never,
+        {}
+      )
+
+      expect(result.authConfig).toEqual({ type: 'api-key' })
+    })
+
+    it('preserves OAuth for non-anthropic legacy providers (e.g. cherryin)', () => {
+      const result = transformProvider(
+        {
+          id: 'someoauth',
+          name: 'Some OAuth',
+          type: 'openai',
+          authType: 'oauth',
+          apiKey: '',
+          apiHost: 'https://example.com',
+          models: [],
+          enabled: true,
+          isSystem: false
+        } as never,
+        {}
+      )
+
+      expect(result.authConfig).toEqual({ type: 'oauth', clientId: '' })
     })
 
     it('splits comma-separated API keys and drops empty entries', () => {

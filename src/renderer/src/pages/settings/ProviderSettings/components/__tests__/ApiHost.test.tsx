@@ -30,30 +30,8 @@ vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/CherryINSett
 }))
 
 vi.mock('../../ConnectionSettings/ProviderCustomHeaderDrawer', () => ({
-  default: ({
-    providerId,
-    open,
-    hostEditMode,
-    commitApiHost,
-    commitAnthropicApiHost,
-    anthropicApiHost,
-    apiHost
-  }: any) =>
-    open ? (
-      <div data-testid="request-config-drawer" data-provider={providerId} data-mode={hostEditMode}>
-        <span>{`host-edit:${hostEditMode}:${hostEditMode === 'anthropic' ? anthropicApiHost : apiHost}`}</span>
-        <button
-          type="button"
-          onClick={() =>
-            hostEditMode === 'anthropic'
-              ? commitAnthropicApiHost('https://anthropic-drawer.example')
-              : commitApiHost('https://drawer-commit.example')
-          }
-          data-testid="drawer-commit-host">
-          commit-host
-        </button>
-      </div>
-    ) : null
+  default: ({ providerId, open }: any) =>
+    open ? <div data-testid="request-config-drawer" data-provider={providerId} /> : null
 }))
 
 vi.mock('@renderer/hooks/useProviders', () => ({
@@ -162,8 +140,7 @@ describe('ApiHost', () => {
     })
   })
 
-  it('commits host from the request-configuration drawer and resets the primary API host from the connection row', () => {
-    const commitApiHost = vi.fn()
+  it('opens the request-configuration drawer and resets the primary API host from the connection row', () => {
     const resetApiHost = vi.fn()
 
     useProviderHostPreviewMock.mockReturnValue({
@@ -172,7 +149,7 @@ describe('ApiHost', () => {
       isApiHostResettable: true
     })
     useProviderEndpointActionsMock.mockReturnValue({
-      commitApiHost,
+      commitApiHost: vi.fn(),
       commitAnthropicApiHost: vi.fn(),
       commitApiVersion: vi.fn(),
       resetApiHost
@@ -187,15 +164,10 @@ describe('ApiHost', () => {
     /** `settings.provider.request_configuration_tooltip`: bilingual label on the config trigger */
     fireEvent.click(screen.getByRole('button', { name: /Configure API Host|配置 API Host/i }))
 
-    expect(screen.getByTestId('request-config-drawer')).toHaveAttribute('data-mode', 'primary')
-
-    fireEvent.click(screen.getByTestId('drawer-commit-host'))
-    expect(commitApiHost).toHaveBeenCalledWith('https://drawer-commit.example')
+    expect(screen.getByTestId('request-config-drawer')).toHaveAttribute('data-provider', 'openai')
   })
 
-  it('uses anthropic drawer mode when anthropic messaging is the primary endpoint', () => {
-    const anthropicCommit = vi.fn()
-
+  it('opens the drawer when anthropic messaging is the primary endpoint', () => {
     useProviderHostPreviewMock.mockReturnValue({
       hostPreview: 'https://api.example.com/chat/completions',
       anthropicHostPreview: 'https://anthropic.example.com/messages',
@@ -203,7 +175,7 @@ describe('ApiHost', () => {
     })
     useProviderEndpointActionsMock.mockReturnValue({
       commitApiHost: vi.fn(),
-      commitAnthropicApiHost: anthropicCommit,
+      commitAnthropicApiHost: vi.fn(),
       commitApiVersion: vi.fn(),
       resetApiHost: vi.fn()
     })
@@ -217,12 +189,7 @@ describe('ApiHost', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Configure API Host|配置 API Host/i }))
 
-    const drawer = screen.getByTestId('request-config-drawer')
-    expect(drawer).toHaveAttribute('data-mode', 'anthropic')
-    expect(drawer.textContent).toContain(endpointState.anthropicApiHost)
-
-    fireEvent.click(screen.getByTestId('drawer-commit-host'))
-    expect(anthropicCommit).toHaveBeenCalledWith('https://anthropic-drawer.example')
+    expect(screen.getByTestId('request-config-drawer')).toHaveAttribute('data-provider', 'openai')
   })
 
   it('returns no connection field when the provider hides connection settings', () => {

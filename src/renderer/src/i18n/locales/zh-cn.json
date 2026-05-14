@@ -6156,9 +6156,10 @@
         "tooltip": "建议选择轻量模型，不建议选择思考模型"
       },
       "toolbar": {
+        "custom_add": "自定义",
         "filter_close": "关闭筛选",
         "filter_open": "按能力筛选",
-        "pull_short": "拉取"
+        "pull_short": "添加"
       },
       "topic_naming": {
         "auto": "话题自动重命名",
@@ -6258,28 +6259,6 @@
         },
         "title": "添加提供商",
         "type": "提供商类型"
-      },
-      "anthropic": {
-        "apikey": "API 密钥",
-        "auth_failed": "Anthropic 身份认证失败",
-        "auth_method": "认证方式",
-        "auth_success": "Anthropic OAuth 认证成功",
-        "authenticated": "已认证",
-        "authenticating": "正在认证",
-        "cancel": "取消",
-        "code_error": "无效的授权码，请重试",
-        "code_placeholder": "请输入浏览器中显示的授权码",
-        "code_required": "授权码不能为空",
-        "description": "OAuth 身份认证",
-        "description_detail": "你需要订阅 Claude Pro 或以上版本才能使用此认证方式",
-        "enter_auth_code": "授权码",
-        "logout": "退出登录",
-        "logout_failed": "退出登录失败，请重试",
-        "logout_success": "成功退出 Anthropic 登录",
-        "oauth": "网页 OAuth",
-        "oauth_disabled_warning": "Anthropic 目前已暂停通过 OAuth 使用 Claude，此认证方式暂时不可用，请先使用 API 密钥。",
-        "start_auth": "开始授权",
-        "submit_code": "完成登录"
       },
       "anthropic_api_host": "Anthropic API 地址",
       "anthropic_api_host_preview": "Anthropic 预览：{{url}}",
@@ -6385,6 +6364,10 @@
         }
       },
       "balance": "余额",
+      "base_url": {
+        "label": "Base URL",
+        "placeholder": "https://api.example.com"
+      },
       "basic_auth": {
         "label": "HTTP 认证",
         "password": {
@@ -6453,6 +6436,9 @@
         "toggle_headers_editor_json": "切换为 JSON 编辑",
         "toggle_headers_editor_list": "切换为键值列表"
       },
+      "create_custom": {
+        "title": "添加自定义提供商"
+      },
       "delete": {
         "content": "确定要删除此模型提供商吗？",
         "title": "删除提供商"
@@ -6465,13 +6451,29 @@
       },
       "docs_check": "查看",
       "docs_more_details": "获取更多详情",
+      "duplicate": {
+        "add_another": "添加 {{name}} 实例",
+        "drawer_title": "添加 {{name}} 实例",
+        "fill_after_create": "创建后请在详情页填写认证字段",
+        "menu_label": "添加实例"
+      },
       "filter": {
         "agent": "支持 Agent",
-        "all": "全部服务商"
+        "all": "全部服务商",
+        "disabled": "仅已禁用",
+        "enabled": "仅已启用"
       },
       "filter_agent": "筛选支持 Agent 的服务商",
       "get_api_key": "点击这里获取密钥",
       "misc": "其他",
+      "more_endpoints": {
+        "add": "添加端点",
+        "anthropic": "Anthropic Messages",
+        "gemini": "Google Gemini",
+        "openai_chat": "OpenAI Chat Completions",
+        "openai_responses": "OpenAI Responses",
+        "toggle": "更多端点"
+      },
       "no_models_for_check": "没有可以被检测的模型（例如对话模型）",
       "not_checked": "未检测",
       "notes": {

@@ -1,4 +1,5 @@
 import { useReorder } from '@data/hooks/useReorder'
+import { useModels } from '@renderer/hooks/useModels'
 import { useProviders } from '@renderer/hooks/useProviders'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import {
@@ -8,15 +9,16 @@ import {
   matchKeywordsInProvider
 } from '@renderer/pages/settings/ProviderSettings/utils/provider'
 import type { Provider } from '@shared/data/types/provider'
+import { Plus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useOvmsSupport } from '../hooks/useOvmsSupport'
 import ProviderEditorDrawer from './ProviderEditorDrawer'
-import ProviderListAddButton from './ProviderListAddButton'
 import ProviderListContent, { type ProviderListContentItemState } from './ProviderListContent'
 import type { ProviderFilterMode } from './ProviderListHeaderBar'
 import ProviderListHeaderBar from './ProviderListHeaderBar'
+import ProviderListHeaderFilterMenu from './ProviderListHeaderFilterMenu'
 import ProviderListItemWithContextMenu from './ProviderListItemWithContextMenu'
 import ProviderListSearchField from './ProviderListSearchField'
 import { useProviderDelete } from './useProviderDelete'
@@ -31,19 +33,27 @@ export interface ProviderListProps {
 export default function ProviderList({ selectedProviderId, filterModeHint, onSelectProvider }: ProviderListProps) {
   const { t } = useTranslation()
   const { providers } = useProviders()
+  const { models: allModels } = useModels()
   const { applyReorderedList } = useReorder('/providers')
   const { isSupported: isOvmsSupported } = useOvmsSupport()
 
-  const [filterMode, setFilterMode] = useState<ProviderFilterMode>(filterModeHint ?? 'all')
+  const [filterMode, setFilterMode] = useState<ProviderFilterMode>(filterModeHint ?? 'enabled')
   const [searchText, setSearchText] = useState('')
   const [dragging, setDragging] = useState(false)
   const [contextProviderId, setContextProviderId] = useState<string | null>(null)
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
+  const autoDefaultedFilterRef = useRef(false)
+
+  const handleToggleGroup = useCallback((presetProviderId: string) => {
+    setExpandedGroups((prev) => ({ ...prev, [presetProviderId]: !prev[presetProviderId] }))
+  }, [])
 
   const {
     isOpen: editorOpen,
-    editingProvider,
+    mode: editorMode,
     initialLogo,
     startAdd,
+    startAddFrom,
     startEdit,
     cancel: cancelEditor,
     submit: submitEditor
@@ -62,6 +72,40 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
     setFilterMode(filterModeHint)
   }, [filterModeHint])
 
+  useEffect(() => {
+    if (autoDefaultedFilterRef.current) return
+    if (filterModeHint || providers.length === 0) return
+    autoDefaultedFilterRef.current = true
+    if (!providers.some((p) => p.isEnabled)) {
+      setFilterMode('all')
+    }
+  }, [filterModeHint, providers])
+
+  useEffect(() => {
+    if (!selectedProviderId) return
+    const selected = providers.find((p) => p.id === selectedProviderId)
+    const preset = selected?.presetProviderId
+    if (!preset) return
+    setExpandedGroups((prev) => (prev[preset] ? prev : { ...prev, [preset]: true }))
+  }, [providers, selectedProviderId])
+
+  /**
+   * Per-provider concatenated model-name/id haystack — folded into the
+   * sidebar keyword search so a user can jump to a provider by typing a
+   * model name (parity with v1, where models lived inline on the row).
+   * Skipped when there's no search input to avoid the work on every render.
+   */
+  const providerModelsIndex = useMemo(() => {
+    if (!searchText.trim()) return null
+    const map = new Map<string, string>()
+    for (const m of allModels) {
+      const prev = map.get(m.providerId)
+      const next = `${m.name} ${m.apiModelId ?? ''}`
+      map.set(m.providerId, prev ? `${prev} ${next}` : next)
+    }
+    return map
+  }, [allModels, searchText])
+
   const filteredProviders = useMemo(() => {
     return providers.filter((provider) => {
       if (!isProviderSettingsListVisibleProvider(provider)) {
@@ -70,23 +114,19 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
       if (provider.id === 'ovms' && !isOvmsSupported) {
         return false
       }
+      if (filterMode === 'enabled' && !provider.isEnabled) {
+        return false
+      }
+      if (filterMode === 'disabled' && provider.isEnabled) {
+        return false
+      }
       if (filterMode === 'agent' && !isAnthropicSupportedProvider(provider)) {
         return false
       }
       const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
-      return matchKeywordsInProvider(keywords, provider)
+      return matchKeywordsInProvider(keywords, provider, providerModelsIndex?.get(provider.id))
     })
-  }, [filterMode, isOvmsSupported, providers, searchText])
-
-  const enabledProviders = useMemo(
-    () => filteredProviders.filter((provider) => provider.isEnabled),
-    [filteredProviders]
-  )
-
-  const disabledProviders = useMemo(
-    () => filteredProviders.filter((provider) => !provider.isEnabled),
-    [filteredProviders]
-  )
+  }, [filterMode, isOvmsSupported, providers, providerModelsIndex, searchText])
 
   const providerCounts = useMemo(
     () =>
@@ -96,6 +136,16 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
       }, new Map()),
     [providers]
   )
+
+  const groupedPresetIds = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const p of filteredProviders) {
+      if (p.presetProviderId) counts.set(p.presetProviderId, (counts.get(p.presetProviderId) ?? 0) + 1)
+    }
+    const ids = new Set<string>()
+    for (const [presetId, count] of counts) if (count >= 2) ids.add(presetId)
+    return ids
+  }, [filteredProviders])
 
   const setProviderItemRef = useCallback((providerId: string, element: HTMLDivElement | null) => {
     if (element) {
@@ -199,6 +249,11 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
         onSelect={() => onSelectProvider(provider.id)}
         onEdit={() => startEdit(provider)}
         onDelete={() => handleDeleteProvider(provider.id)}
+        onDuplicate={
+          provider.presetProviderId && !groupedPresetIds.has(provider.presetProviderId)
+            ? () => startAddFrom(provider)
+            : undefined
+        }
         showManagementActions={showManagementActions}
         listState={state}
         onSetListItemRef={setProviderItemRef}
@@ -206,24 +261,47 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
     )
   }
 
+  const handleAddAnother = useCallback((template: Provider) => startAddFrom(template), [startAddFrom])
+
   return (
     <aside className={`provider-settings-default-scope ${providerListClasses.shell}`}>
-      <ProviderListHeaderBar filterMode={filterMode} disabled={dragging} onFilterChange={setFilterMode} />
-      <ProviderListSearchField value={searchText} disabled={dragging} onValueChange={setSearchText} />
+      <ProviderListHeaderBar
+        action={
+          <button
+            type="button"
+            aria-label={t('settings.provider.add.title')}
+            disabled={dragging}
+            onClick={startAdd}
+            className={providerListClasses.addIconButton}>
+            <Plus size={14} />
+          </button>
+        }
+      />
+      <ProviderListSearchField
+        value={searchText}
+        disabled={dragging}
+        onValueChange={setSearchText}
+        trailing={
+          <ProviderListHeaderFilterMenu filterMode={filterMode} disabled={dragging} onFilterChange={setFilterMode} />
+        }
+      />
       <ProviderListContent
         providers={providers}
-        enabledProviders={enabledProviders}
-        disabledProviders={disabledProviders}
+        visibleProviders={filteredProviders}
+        selectedProviderId={selectedProviderId}
+        searchActive={Boolean(searchText)}
+        expandedGroups={expandedGroups}
+        onToggleGroup={handleToggleGroup}
+        onAddAnotherInGroup={handleAddAnother}
         scrollerRef={setScrollerRef}
         onDragStateChange={handleDragStateChange}
         onReorder={applyReorderedList}
         onReorderError={handleReorderError}
         renderItem={renderProviderItem}
       />
-      <ProviderListAddButton label={t('settings.provider.add.title')} disabled={dragging} onAdd={startAdd} />
       <ProviderEditorDrawer
         open={editorOpen}
-        provider={editingProvider}
+        mode={editorMode}
         initialLogo={initialLogo}
         onClose={cancelEditor}
         onSubmit={handleSubmitEditor}

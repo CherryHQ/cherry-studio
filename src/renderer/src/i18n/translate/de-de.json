@@ -6156,9 +6156,10 @@
         "tooltip": "Leichtes Modell empfohlen, Denkmodell nicht empfohlen"
       },
       "toolbar": {
+        "custom_add": "Benutzerdefiniert",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Pull"
+        "pull_short": "Hinzufügen"
       },
       "topic_naming": {
         "auto": "Thema automatisch umbenennen",
@@ -6258,28 +6259,6 @@
         },
         "title": "Anbieter hinzufügen",
         "type": "Anbietertyp"
-      },
-      "anthropic": {
-        "apikey": "API-Schlüssel",
-        "auth_failed": "Anthropic-Authentifizierung fehlgeschlagen",
-        "auth_method": "Authentifizierungsmethode",
-        "auth_success": "Anthropic OAuth-Authentifizierung erfolgreich",
-        "authenticated": "Authentifiziert",
-        "authenticating": "Authentifizierung läuft",
-        "cancel": "Abbrechen",
-        "code_error": "Ungültiger Autorisierungscode, bitte erneut versuchen",
-        "code_placeholder": "Bitte Autorisierungscode im Browser eingeben",
-        "code_required": "Autorisierungscode darf nicht leer sein",
-        "description": "OAuth-Authentifizierung",
-        "description_detail": "Sie müssen Claude Pro oder eine höhere Version abonnieren, um diese Authentifizierungsmethode zu verwenden",
-        "enter_auth_code": "Autorisierungscode",
-        "logout": "Abmelden",
-        "logout_failed": "Abmeldung fehlgeschlagen, bitte erneut versuchen",
-        "logout_success": "Erfolgreich abgemeldet von Anthropic",
-        "oauth": "Web OAuth",
-        "oauth_disabled_warning": "Anthropic hat die Nutzung von Claude über OAuth vorübergehend eingestellt. Diese Authentifizierungsmethode ist derzeit nicht verfügbar. Bitte verwenden Sie vorerst einen API-Schlüssel.",
-        "start_auth": "Autorisierung starten",
-        "submit_code": "Anmeldung abschließen"
       },
       "anthropic_api_host": "Anthropic API-Adresse",
       "anthropic_api_host_preview": "Anthropic-Vorschau: {{url}}",
@@ -6385,6 +6364,10 @@
         }
       },
       "balance": "Guthaben",
+      "base_url": {
+        "label": "[to be translated]:Base URL",
+        "placeholder": "[to be translated]:https://api.example.com"
+      },
       "basic_auth": {
         "label": "HTTP-Authentifizierung",
         "password": {
@@ -6453,6 +6436,9 @@
         "toggle_headers_editor_json": "[to be translated]:Switch to JSON editor",
         "toggle_headers_editor_list": "[to be translated]:Switch to header list"
       },
+      "create_custom": {
+        "title": "[to be translated]:Add Custom Provider"
+      },
       "delete": {
         "content": "Diesen Modellanbieter wirklich löschen?",
         "title": "Anbieter löschen"
@@ -6465,13 +6451,29 @@
       },
       "docs_check": "Anzeigen",
       "docs_more_details": "Weitere Details anzeigen",
+      "duplicate": {
+        "add_another": "[to be translated]:Add {{name}} instance",
+        "drawer_title": "[to be translated]:Add {{name}} instance",
+        "fill_after_create": "[to be translated]:Authentication fields can be filled after create",
+        "menu_label": "[to be translated]:Add instance"
+      },
       "filter": {
         "agent": "Vom Agenten unterstützt",
-        "all": "Alle Anbieter"
+        "all": "Alle Anbieter",
+        "disabled": "[to be translated]:Disabled Only",
+        "enabled": "[to be translated]:Enabled Only"
       },
       "filter_agent": "Von Filter-Agent unterstützte Anbieter",
       "get_api_key": "Hier klicken um Schlüssel zu erhalten",
       "misc": "Sonstige",
+      "more_endpoints": {
+        "add": "[to be translated]:Add Endpoint",
+        "anthropic": "[to be translated]:Anthropic Messages",
+        "gemini": "[to be translated]:Google Gemini",
+        "openai_chat": "[to be translated]:OpenAI Chat Completions",
+        "openai_responses": "[to be translated]:OpenAI Responses",
+        "toggle": "[to be translated]:More Endpoints"
+      },
       "no_models_for_check": "Keine testbaren Modelle (z.B. Chat-Modelle)",
       "not_checked": "Nicht getestet",
       "notes": {

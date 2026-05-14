@@ -7,7 +7,6 @@ import { agentSessionMessageService as sessionMessageService } from '@data/servi
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/constant'
 import { generateSignature } from '@main/integration/cherryai'
-import { anthropicService } from '@main/services/AnthropicService'
 import { getIpCountry } from '@main/utils/ipService'
 import {
   autoDiscoverGitBash,
@@ -585,15 +584,6 @@ export async function registerIpc() {
       return null
     }
   })
-  // Anthropic OAuth
-  ipcMain.handle(IpcChannel.Anthropic_StartOAuthFlow, () => anthropicService.startOAuthFlow())
-  ipcMain.handle(IpcChannel.Anthropic_CompleteOAuthWithCode, (_, code: string) =>
-    anthropicService.completeOAuthWithCode(code)
-  )
-  ipcMain.handle(IpcChannel.Anthropic_CancelOAuthFlow, () => anthropicService.cancelOAuthFlow())
-  ipcMain.handle(IpcChannel.Anthropic_GetAccessToken, () => anthropicService.getValidAccessToken())
-  ipcMain.handle(IpcChannel.Anthropic_HasCredentials, () => anthropicService.hasCredentials())
-  ipcMain.handle(IpcChannel.Anthropic_ClearCredentials, () => anthropicService.clearCredentials())
 
   // ExternalApps
   ipcMain.handle(IpcChannel.ExternalApps_DetectInstalled, () => externalAppsService.detectInstalledApps())

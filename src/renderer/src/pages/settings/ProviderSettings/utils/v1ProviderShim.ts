@@ -10,6 +10,8 @@ import type { Model as V2Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider as V2Provider } from '@shared/data/types/provider'
 
+import { matchesPreset } from './provider'
+
 export interface V1ShimOptions {
   /** From useModels(); v2 Model and v1 Model are runtime-compatible here. */
   models?: V2Model[]
@@ -31,17 +33,17 @@ function v1ProviderTypeFromV2(v2: V2Provider): ProviderType {
   if (v2.authType === 'iam-gcp') {
     return 'vertexai'
   }
-  if (v2.authType === 'iam-aws') {
+  if (v2.authType === 'iam-aws' || v2.authType === 'api-key-aws') {
     return 'aws-bedrock'
   }
 
-  if (v2.id === 'new-api' || v2.presetProviderId === 'new-api') {
+  if (matchesPreset(v2, 'new-api')) {
     return 'new-api'
   }
   if (v2.id === 'gateway') {
     return 'gateway'
   }
-  if (v2.id === 'mistral' || v2.presetProviderId === 'mistral') {
+  if (matchesPreset(v2, 'mistral')) {
     return 'mistral'
   }
 

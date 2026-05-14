@@ -1,22 +1,20 @@
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
+import type { ReactNode } from 'react'
 
-import type { ProviderFilterMode } from './providerFilterMode'
-import ProviderListHeaderFilterMenu from './ProviderListHeaderFilterMenu'
 import ProviderListHeaderTitle from './ProviderListHeaderTitle'
 
 export type { ProviderFilterMode } from './providerFilterMode'
 
 interface ProviderListHeaderBarProps {
-  filterMode: ProviderFilterMode
-  disabled: boolean
-  onFilterChange: (mode: ProviderFilterMode) => void
+  /** Right-side slot — currently houses the icon-only "+ add provider" trigger. */
+  action?: ReactNode
 }
 
-export default function ProviderListHeaderBar({ filterMode, disabled, onFilterChange }: ProviderListHeaderBarProps) {
+export default function ProviderListHeaderBar({ action }: ProviderListHeaderBarProps) {
   return (
     <div className={providerListClasses.header}>
       <ProviderListHeaderTitle />
-      <ProviderListHeaderFilterMenu filterMode={filterMode} disabled={disabled} onFilterChange={onFilterChange} />
+      {action}
     </div>
   )
 }

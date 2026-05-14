@@ -6156,9 +6156,10 @@
         "tooltip": "軽量モデルの選択を推奨し、思考モデルの選択は推奨しません"
       },
       "toolbar": {
+        "custom_add": "カスタム",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Pull"
+        "pull_short": "追加"
       },
       "topic_naming": {
         "auto": "トピックの自動命名",
@@ -6258,28 +6259,6 @@
         },
         "title": "プロバイダーを追加",
         "type": "プロバイダータイプ"
-      },
-      "anthropic": {
-        "apikey": "API キー",
-        "auth_failed": "Anthropic 身份验证に失敗しました",
-        "auth_method": "認証方法",
-        "auth_success": "Anthropic OAuth 認証が成功しました",
-        "authenticated": "認証済み",
-        "authenticating": "認証中です",
-        "cancel": "取消",
-        "code_error": "無効な認証コードです。もう一度お試しください",
-        "code_placeholder": "ブラウザに表示されている認証コードを入力してください",
-        "code_required": "認証コードは空にできません",
-        "description": "OAuth 認証",
-        "description_detail": "Claude Pro 以上にサブスクライブする必要があります。この認証方法を使用するには。",
-        "enter_auth_code": "認証コード",
-        "logout": "ログアウト",
-        "logout_failed": "ログアウトに失敗しました。もう一度お試しください",
-        "logout_success": "Anthropic からログアウトしました",
-        "oauth": "WebページOAuth",
-        "oauth_disabled_warning": "Anthropicは、OAuth経由でのClaudeの利用を一時的に停止しました。この認証方法は現在ご利用いただけません。今のところはAPIキーをご利用ください。",
-        "start_auth": "開始承認",
-        "submit_code": "ログインを完了する"
       },
       "anthropic_api_host": "Anthropic APIアドレス",
       "anthropic_api_host_preview": "Anthropic プレビュー：{{url}}",
@@ -6385,6 +6364,10 @@
         }
       },
       "balance": "バランス",
+      "base_url": {
+        "label": "[to be translated]:Base URL",
+        "placeholder": "[to be translated]:https://api.example.com"
+      },
       "basic_auth": {
         "label": "HTTP 認証",
         "password": {
@@ -6453,6 +6436,9 @@
         "toggle_headers_editor_json": "[to be translated]:Switch to JSON editor",
         "toggle_headers_editor_list": "[to be translated]:Switch to header list"
       },
+      "create_custom": {
+        "title": "[to be translated]:Add Custom Provider"
+      },
       "delete": {
         "content": "このプロバイダーを削除してもよろしいですか？",
         "title": "プロバイダーを削除"
@@ -6465,13 +6451,29 @@
       },
       "docs_check": "チェック",
       "docs_more_details": "詳細を確認",
+      "duplicate": {
+        "add_another": "[to be translated]:Add {{name}} instance",
+        "drawer_title": "[to be translated]:Add {{name}} instance",
+        "fill_after_create": "[to be translated]:Authentication fields can be filled after create",
+        "menu_label": "[to be translated]:Add instance"
+      },
       "filter": {
         "agent": "エージェントサポート",
-        "all": "すべてのプロバイダー"
+        "all": "すべてのプロバイダー",
+        "disabled": "[to be translated]:Disabled Only",
+        "enabled": "[to be translated]:Enabled Only"
       },
       "filter_agent": "フィルターエージェント対応プロバイダー",
       "get_api_key": "APIキーを取得",
       "misc": "その他",
+      "more_endpoints": {
+        "add": "[to be translated]:Add Endpoint",
+        "anthropic": "[to be translated]:Anthropic Messages",
+        "gemini": "[to be translated]:Google Gemini",
+        "openai_chat": "[to be translated]:OpenAI Chat Completions",
+        "openai_responses": "[to be translated]:OpenAI Responses",
+        "toggle": "[to be translated]:More Endpoints"
+      },
       "no_models_for_check": "チェックするモデルがありません（例：会話モデル）",
       "not_checked": "未チェック",
       "notes": {

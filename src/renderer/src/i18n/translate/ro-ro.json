@@ -6156,9 +6156,10 @@
         "tooltip": "Se recomandă alegerea unui model ușor, nu a unui model de raționament complex."
       },
       "toolbar": {
+        "custom_add": "Personalizat",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Pull"
+        "pull_short": "Adăugare"
       },
       "topic_naming": {
         "auto": "Numire automată subiect",
@@ -6258,28 +6259,6 @@
         },
         "title": "Adaugă furnizor",
         "type": "Tip furnizor"
-      },
-      "anthropic": {
-        "apikey": "Cheie API",
-        "auth_failed": "Autentificarea Anthropic a eșuat",
-        "auth_method": "Metodă de autentificare",
-        "auth_success": "Autentificare OAuth Anthropic reușită",
-        "authenticated": "Verificat",
-        "authenticating": "Se autentifică",
-        "cancel": "Anulează",
-        "code_error": "Cod de autorizare invalid, te rugăm să încerci din nou",
-        "code_placeholder": "Te rugăm să introduci codul de autorizare afișat în browser",
-        "code_required": "Codul de autorizare nu poate fi gol",
-        "description": "Autentificare OAuth",
-        "description_detail": "Trebuie să te abonezi la Claude Pro sau o versiune superioară pentru a folosi această metodă de autentificare",
-        "enter_auth_code": "Cod de autorizare",
-        "logout": "Deconectare",
-        "logout_failed": "Deconectarea a eșuat, te rugăm să încerci din nou",
-        "logout_success": "Te-ai deconectat cu succes de la Anthropic",
-        "oauth": "Web OAuth",
-        "oauth_disabled_warning": "Anthropic a suspendat temporar utilizarea Claude prin OAuth. Această metodă de autentificare este momentan indisponibilă. Vă rugăm să utilizați o cheie API deocamdată.",
-        "start_auth": "Începe autorizarea",
-        "submit_code": "Finalizează conectarea"
       },
       "anthropic_api_host": "Gazdă API Anthropic",
       "anthropic_api_host_preview": "Previzualizare Anthropic: {{url}}",
@@ -6385,6 +6364,10 @@
         }
       },
       "balance": "Echilibru",
+      "base_url": {
+        "label": "[to be translated]:Base URL",
+        "placeholder": "[to be translated]:https://api.example.com"
+      },
       "basic_auth": {
         "label": "Autentificare HTTP",
         "password": {
@@ -6453,6 +6436,9 @@
         "toggle_headers_editor_json": "[to be translated]:Switch to JSON editor",
         "toggle_headers_editor_list": "[to be translated]:Switch to header list"
       },
+      "create_custom": {
+        "title": "[to be translated]:Add Custom Provider"
+      },
       "delete": {
         "content": "Ești sigur că vrei să ștergi acest furnizor?",
         "title": "Șterge furnizor"
@@ -6465,13 +6451,29 @@
       },
       "docs_check": "Verifică",
       "docs_more_details": "pentru mai multe detalii",
+      "duplicate": {
+        "add_another": "[to be translated]:Add {{name}} instance",
+        "drawer_title": "[to be translated]:Add {{name}} instance",
+        "fill_after_create": "[to be translated]:Authentication fields can be filled after create",
+        "menu_label": "[to be translated]:Add instance"
+      },
       "filter": {
         "agent": "Asistat de agent",
-        "all": "Toți furnizorii"
+        "all": "Toți furnizorii",
+        "disabled": "[to be translated]:Disabled Only",
+        "enabled": "[to be translated]:Enabled Only"
       },
       "filter_agent": "Furnizori acceptați de agentul de filtrare",
       "get_api_key": "Obține cheie API",
       "misc": "Altele",
+      "more_endpoints": {
+        "add": "[to be translated]:Add Endpoint",
+        "anthropic": "[to be translated]:Anthropic Messages",
+        "gemini": "[to be translated]:Google Gemini",
+        "openai_chat": "[to be translated]:OpenAI Chat Completions",
+        "openai_responses": "[to be translated]:OpenAI Responses",
+        "toggle": "[to be translated]:More Endpoints"
+      },
       "no_models_for_check": "Nu există modele disponibile pentru verificare (de ex. modele chat)",
       "not_checked": "Neverificat",
       "notes": {

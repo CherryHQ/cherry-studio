@@ -85,6 +85,11 @@ export const providerListClasses = {
     'min-w-0 flex-1 truncate text-sm leading-[1.3] font-[weight:var(--font-weight-semibold)] text-foreground',
   filterTrigger:
     'flex size-5 items-center justify-center rounded-md text-foreground/40 transition-colors hover:bg-[var(--color-surface-hover-soft)] hover:text-foreground/70 disabled:pointer-events-none disabled:opacity-30',
+  searchRowFilterTrigger:
+    'flex size-7 shrink-0 items-center justify-center rounded-lg border border-[color:var(--section-border)] bg-transparent text-foreground/45 transition-colors hover:bg-[var(--color-surface-hover-soft)] hover:text-foreground/75 disabled:pointer-events-none disabled:opacity-30',
+  addIconButton:
+    'flex size-6 shrink-0 items-center justify-center rounded-md text-foreground/45 transition-colors hover:bg-[var(--color-surface-hover-soft)] hover:text-foreground/75 disabled:pointer-events-none disabled:opacity-30',
+  searchRow: 'flex items-center gap-1.5 px-3 pb-1.5',
   searchWrap:
     'flex items-center gap-1.5 rounded-lg border border-[color:var(--section-border)] bg-muted/50 px-2 py-[4px]',
   searchIcon: 'size-[9px] shrink-0 text-muted-foreground/60',
@@ -108,7 +113,23 @@ export const providerListClasses = {
   itemLabel: 'truncate text-sm leading-[1.35]',
   itemMenuContent:
     'provider-settings-default-scope rounded-2xl border-[color:var(--color-border-fg-muted)] bg-popover p-1.5 shadow-2xl',
-  itemMenuEntry: 'rounded-xl px-3 py-[6px] text-sm hover:bg-[var(--color-surface-hover-soft)]'
+  itemMenuEntry: 'rounded-xl px-3 py-[6px] text-sm hover:bg-[var(--color-surface-hover-soft)]',
+  groupHeader:
+    'relative flex w-full items-center justify-between rounded-xl border border-transparent pl-2 pr-1.5 py-2 text-left shadow-none outline-none transition-colors hover:bg-accent/50 focus-visible:ring-0',
+  groupHeaderHasSelected: 'bg-muted/30 dark:bg-muted/25',
+  groupChevron: 'shrink-0 text-muted-foreground/60 transition-transform duration-150',
+  groupChevronOpen: 'rotate-90',
+  groupCount: 'shrink-0 text-[length:var(--font-size-body-xs)] leading-none text-muted-foreground/60 tabular-nums',
+  groupBody: 'mt-1 flex flex-col gap-[var(--provider-list-row-gap)] pl-3.5',
+  itemMoreActions:
+    'absolute right-1.5 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-[color,opacity,background-color] hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground group-hover/row:opacity-100 focus-visible:opacity-100 data-[active=true]:opacity-100',
+  groupAddRow:
+    'flex w-full items-center gap-2 rounded-xl border border-dashed border-[color:var(--section-border)] bg-transparent px-2 py-[6px] text-[length:var(--font-size-body-xs)] leading-[1.35] text-muted-foreground/70 shadow-none transition-colors hover:border-[color:var(--color-border)] hover:bg-accent/40 hover:text-foreground',
+  disclosureToggle:
+    'flex w-full items-center gap-1.5 rounded-md bg-transparent px-1 py-1 text-left text-[length:var(--font-size-body-xs)] leading-none text-muted-foreground/80 shadow-none outline-none transition-colors hover:text-foreground focus-visible:ring-0',
+  disclosureChevron: 'size-3 shrink-0 text-muted-foreground/60 transition-transform duration-150',
+  disclosureChevronOpen: 'rotate-90',
+  disclosureBody: 'mt-2 flex flex-col gap-3 pl-1'
 } as const
 
 /**

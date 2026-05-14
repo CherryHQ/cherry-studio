@@ -6156,9 +6156,10 @@
         "tooltip": "Sugere-se escolher um modelo leve e não se recomenda escolher um modelo de raciocínio"
       },
       "toolbar": {
+        "custom_add": "Personalizado",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Pull"
+        "pull_short": "Adicionar"
       },
       "topic_naming": {
         "auto": "Renomeação automática de tópicos",
@@ -6258,28 +6259,6 @@
         },
         "title": "Adicionar Fornecedor",
         "type": "Tipo de Fornecedor"
-      },
-      "anthropic": {
-        "apikey": "Chave da API",
-        "auth_failed": "Falha na autenticação da Anthropic",
-        "auth_method": "Método de autenticação",
-        "auth_success": "Autenticação OAuth da Anthropic bem-sucedida",
-        "authenticated": "[retranslating]: Verificado",
-        "authenticating": "A autenticar",
-        "cancel": "Cancelar",
-        "code_error": "Código de autorização inválido, tente novamente",
-        "code_placeholder": "Introduza o código de autorização exibido no browser",
-        "code_required": "O código de autorização não pode estar vazio",
-        "description": "Autenticação OAuth",
-        "description_detail": "Precisa de uma subscrição Claude Pro ou superior para utilizar este método de autenticação",
-        "enter_auth_code": "Código de autorização",
-        "logout": "Sair da sessão",
-        "logout_failed": "Falha ao sair da conta, tente novamente",
-        "logout_success": "Logout bem-sucedido do login Anthropic",
-        "oauth": "OAuth da Página Web",
-        "oauth_disabled_warning": "A Anthropic suspendeu temporariamente o uso do Claude via OAuth. Este método de autenticação está atualmente indisponível. Por favor, use uma chave de API por enquanto.",
-        "start_auth": "Iniciar autorização",
-        "submit_code": "Concluir login"
       },
       "anthropic_api_host": "Endereço da API Anthropic",
       "anthropic_api_host_preview": "Pré-visualização Anthropic: {{url}}",
@@ -6385,6 +6364,10 @@
         }
       },
       "balance": "Saldo",
+      "base_url": {
+        "label": "[to be translated]:Base URL",
+        "placeholder": "[to be translated]:https://api.example.com"
+      },
       "basic_auth": {
         "label": "Autenticação HTTP",
         "password": {
@@ -6453,6 +6436,9 @@
         "toggle_headers_editor_json": "[to be translated]:Switch to JSON editor",
         "toggle_headers_editor_list": "[to be translated]:Switch to header list"
       },
+      "create_custom": {
+        "title": "[to be translated]:Add Custom Provider"
+      },
       "delete": {
         "content": "Tem certeza de que deseja excluir este fornecedor de modelo?",
         "title": "Excluir Fornecedor"
@@ -6465,13 +6451,29 @@
       },
       "docs_check": "Verificar",
       "docs_more_details": "Obter mais detalhes",
+      "duplicate": {
+        "add_another": "[to be translated]:Add {{name}} instance",
+        "drawer_title": "[to be translated]:Add {{name}} instance",
+        "fill_after_create": "[to be translated]:Authentication fields can be filled after create",
+        "menu_label": "[to be translated]:Add instance"
+      },
       "filter": {
         "agent": "Suportado por Agente",
-        "all": "Todos os Provedores"
+        "all": "Todos os Provedores",
+        "disabled": "[to be translated]:Disabled Only",
+        "enabled": "[to be translated]:Enabled Only"
       },
       "filter_agent": "Agente de Filtro - Provedores Suportados",
       "get_api_key": "Clique aqui para obter a chave",
       "misc": "outro",
+      "more_endpoints": {
+        "add": "[to be translated]:Add Endpoint",
+        "anthropic": "[to be translated]:Anthropic Messages",
+        "gemini": "[to be translated]:Google Gemini",
+        "openai_chat": "[to be translated]:OpenAI Chat Completions",
+        "openai_responses": "[to be translated]:OpenAI Responses",
+        "toggle": "[to be translated]:More Endpoints"
+      },
       "no_models_for_check": "Não há modelos disponíveis para verificação (por exemplo, modelos de conversa)",
       "not_checked": "Não verificado",
       "notes": {

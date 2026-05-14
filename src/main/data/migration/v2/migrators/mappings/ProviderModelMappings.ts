@@ -163,9 +163,14 @@ const TYPE_TO_PRESET_PROVIDER_ID: Partial<Record<LegacyProvider['type'], string>
   ollama: 'ollama'
 }
 
+const PRESET_PROVIDER_ID_ALIASES: Record<string, string> = {
+  zai: 'zhipu',
+  'minimax-global': 'minimax'
+}
+
 function resolvePresetProviderId(legacy: LegacyProvider): string | null {
   if (SYSTEM_PROVIDER_IDS.has(legacy.id)) {
-    return legacy.id
+    return PRESET_PROVIDER_ID_ALIASES[legacy.id] ?? legacy.id
   }
   return TYPE_TO_PRESET_PROVIDER_ID[legacy.type] ?? null
 }
@@ -267,7 +272,7 @@ function buildAuthConfig(legacy: LegacyProvider, settings: OldLlmSettings): Auth
   if (isAwsBedrockProvider(legacy)) {
     const aws = settings.awsBedrock
     if (aws?.authType === 'apiKey') {
-      return { type: 'api-key' }
+      return { type: 'api-key-aws', region: aws.region ?? '' }
     }
 
     return {
@@ -299,6 +304,14 @@ function buildAuthConfig(legacy: LegacyProvider, settings: OldLlmSettings): Auth
   }
 
   if (legacy.authType === 'oauth') {
+    // Legacy Anthropic web OAuth was removed end-to-end. Tokens lived in a
+    // separate credentials file that's no longer read; carrying authType
+    // 'oauth' forward would leave the v2 row in an unrecoverable state.
+    // Re-seat as api-key so the user can paste a key and the renderer's
+    // api-key UI is the canonical path.
+    if (legacy.id === 'anthropic' || legacy.type === 'anthropic') {
+      return { type: 'api-key' }
+    }
     return {
       type: 'oauth',
       clientId: ''

@@ -2,8 +2,11 @@ import { useProvider } from '@renderer/hooks/useProviders'
 import {
   getFancyProviderName,
   isAnthropicSupportedProvider,
+  isAwsBedrockProvider,
   isAzureOpenAIProvider,
-  isSystemProvider
+  isSystemProvider,
+  isVertexProvider,
+  matchesPreset
 } from '@renderer/pages/settings/ProviderSettings/utils/provider'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,9 +17,9 @@ export function useProviderMeta(providerId: string) {
   const { i18n } = useTranslation()
 
   return useMemo(() => {
-    const hideApiInput = provider ? provider.id === 'aws-bedrock' : false
-    const hideApiKeyInput = provider ? provider.id === 'copilot' || provider.id === 'vertexai' : false
-    const isAnthropicOAuth = provider?.id === 'anthropic' && provider.authType === 'oauth'
+    const hideApiInput = provider ? isAwsBedrockProvider(provider) : false
+    const hideApiKeyInput = provider ? matchesPreset(provider, 'copilot') || isVertexProvider(provider) : false
+    const isDmxapi = provider ? matchesPreset(provider, 'dmxapi') : false
 
     return {
       fancyProviderName: provider ? getFancyProviderName(provider) : '',
@@ -25,13 +28,12 @@ export function useProviderMeta(providerId: string) {
       docsWebsite: provider?.websites?.docs,
       modelsWebsite: provider?.websites?.models,
       isAzureOpenAI: provider ? isAzureOpenAIProvider(provider) : false,
-      isCherryIN: provider?.id === 'cherryin',
-      isDmxapi: provider?.id === 'dmxapi',
+      isCherryIN: provider ? matchesPreset(provider, 'cherryin') : false,
+      isDmxapi,
       isChineseUser: i18n.language.startsWith('zh'),
-      isAnthropicOAuth,
       showApiOptionsButton: provider ? !isSystemProvider(provider) || isAnthropicSupportedProvider(provider) : false,
-      isApiKeyFieldVisible: !hideApiInput && !isAnthropicOAuth && !hideApiKeyInput,
-      isConnectionFieldVisible: !hideApiInput && !isAnthropicOAuth && provider?.id !== 'dmxapi'
+      isApiKeyFieldVisible: !hideApiInput && !hideApiKeyInput,
+      isConnectionFieldVisible: !hideApiInput && !isDmxapi
     }
   }, [i18n.language, provider])
 }

@@ -6156,9 +6156,10 @@
         "tooltip": "Il est recommandé de choisir un modèle léger et déconseillé de choisir un modèle de réflexion."
       },
       "toolbar": {
+        "custom_add": "Personnalisé",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Pull"
+        "pull_short": "Ajouter"
       },
       "topic_naming": {
         "auto": "Renommage automatique des sujets",
@@ -6258,28 +6259,6 @@
         },
         "title": "Ajouter un fournisseur",
         "type": "Type de fournisseur"
-      },
-      "anthropic": {
-        "apikey": "Clé API",
-        "auth_failed": "Échec de l'authentification Anthropic",
-        "auth_method": "Mode d'authentification",
-        "auth_success": "Authentification OAuth Anthropic réussie",
-        "authenticated": "Certifié",
-        "authenticating": "Authentification en cours",
-        "cancel": "Annuler",
-        "code_error": "Code d'autorisation invalide, veuillez réessayer",
-        "code_placeholder": "Veuillez saisir le code d'autorisation affiché dans le navigateur",
-        "code_required": "Le code d'autorisation ne peut pas être vide",
-        "description": "Authentification OAuth",
-        "description_detail": "Vous devez souscrire à Claude Pro ou à une version supérieure pour pouvoir utiliser cette méthode d'authentification.",
-        "enter_auth_code": "code d'autorisation",
-        "logout": "Déconnexion",
-        "logout_failed": "Échec de la déconnexion, veuillez réessayer",
-        "logout_success": "Déconnexion réussie d'Anthropic",
-        "oauth": "Authentification OAuth web",
-        "oauth_disabled_warning": "Anthropic a temporairement suspendu l'utilisation de Claude via OAuth. Cette méthode d'authentification est actuellement indisponible. Veuillez utiliser une clé API pour le moment.",
-        "start_auth": "Commencer l'autorisation",
-        "submit_code": "Terminer la connexion"
       },
       "anthropic_api_host": "Adresse API Anthropic",
       "anthropic_api_host_preview": "Aperçu Anthropic : {{url}}",
@@ -6385,6 +6364,10 @@
         }
       },
       "balance": "Équilibre",
+      "base_url": {
+        "label": "[to be translated]:Base URL",
+        "placeholder": "[to be translated]:https://api.example.com"
+      },
       "basic_auth": {
         "label": "Authentification HTTP",
         "password": {
@@ -6453,6 +6436,9 @@
         "toggle_headers_editor_json": "[to be translated]:Switch to JSON editor",
         "toggle_headers_editor_list": "[to be translated]:Switch to header list"
       },
+      "create_custom": {
+        "title": "[to be translated]:Add Custom Provider"
+      },
       "delete": {
         "content": "Êtes-vous sûr de vouloir supprimer ce fournisseur de modèles ?",
         "title": "Supprimer le fournisseur"
@@ -6465,13 +6451,29 @@
       },
       "docs_check": "Voir",
       "docs_more_details": "Obtenir plus de détails",
+      "duplicate": {
+        "add_another": "[to be translated]:Add {{name}} instance",
+        "drawer_title": "[to be translated]:Add {{name}} instance",
+        "fill_after_create": "[to be translated]:Authentication fields can be filled after create",
+        "menu_label": "[to be translated]:Add instance"
+      },
       "filter": {
         "agent": "Prise en charge par un agent",
-        "all": "Tous les fournisseurs"
+        "all": "Tous les fournisseurs",
+        "disabled": "[to be translated]:Disabled Only",
+        "enabled": "[to be translated]:Enabled Only"
       },
       "filter_agent": "Fournisseurs pris en charge par l'agent de filtrage",
       "get_api_key": "Cliquez ici pour obtenir une clé",
       "misc": "autre",
+      "more_endpoints": {
+        "add": "[to be translated]:Add Endpoint",
+        "anthropic": "[to be translated]:Anthropic Messages",
+        "gemini": "[to be translated]:Google Gemini",
+        "openai_chat": "[to be translated]:OpenAI Chat Completions",
+        "openai_responses": "[to be translated]:OpenAI Responses",
+        "toggle": "[to be translated]:More Endpoints"
+      },
       "no_models_for_check": "Aucun modèle détectable (par exemple, modèle de chat)",
       "not_checked": "Non vérifié",
       "notes": {

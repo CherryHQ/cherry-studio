@@ -6156,9 +6156,10 @@
         "tooltip": "Khuyến nghị chọn mô hình nhẹ và không nên chọn mô hình suy nghĩ."
       },
       "toolbar": {
+        "custom_add": "Tùy chỉnh",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Pull"
+        "pull_short": "Thêm"
       },
       "topic_naming": {
         "auto": "Tự động đặt tên chủ đề",
@@ -6258,28 +6259,6 @@
         },
         "title": "Thêm Nhà cung cấp",
         "type": "Loại nhà cung cấp"
-      },
-      "anthropic": {
-        "apikey": "Khóa API",
-        "auth_failed": "Authentification Anthropic échouée",
-        "auth_method": "Phương thức xác thực",
-        "auth_success": "Xác thực OAuth của Anthropic thành công",
-        "authenticated": "Đã xác minh",
-        "authenticating": "Xác thực",
-        "cancel": "Hủy",
-        "code_error": "Mã ủy quyền không hợp lệ, vui lòng thử lại",
-        "code_placeholder": "Vui lòng nhập mã xác thực hiện thị trong trình duyệt của bạn",
-        "code_required": "Mã ủy quyền không được để trống",
-        "description": "OAuth-autentisering",
-        "description_detail": "Bạn cần đăng ký Claude Pro hoặc phiên bản cao hơn để sử dụng phương thức xác thực này.",
-        "enter_auth_code": "Mã ủy quyền",
-        "logout": "Đăng xuất",
-        "logout_failed": "Đăng xuất thất bại, vui lòng thử lại",
-        "logout_success": "Đã đăng xuất khỏi Anthropic thành công",
-        "oauth": "OAuth Web",
-        "oauth_disabled_warning": "Anthropic đã tạm thời ngừng sử dụng Claude qua OAuth. Phương thức xác thực này hiện không khả dụng. Vui lòng sử dụng khóa API trong thời gian này.",
-        "start_auth": "Bắt đầu ủy quyền",
-        "submit_code": "Hoàn tất đăng nhập"
       },
       "anthropic_api_host": "Máy chủ API của Anthropic",
       "anthropic_api_host_preview": "Xem trước Anthropic: {{url}}",
@@ -6385,6 +6364,10 @@
         }
       },
       "balance": "Cân bằng",
+      "base_url": {
+        "label": "[to be translated]:Base URL",
+        "placeholder": "[to be translated]:https://api.example.com"
+      },
       "basic_auth": {
         "label": "Xác thực HTTP",
         "password": {
@@ -6453,6 +6436,9 @@
         "toggle_headers_editor_json": "[to be translated]:Switch to JSON editor",
         "toggle_headers_editor_list": "[to be translated]:Switch to header list"
       },
+      "create_custom": {
+        "title": "[to be translated]:Add Custom Provider"
+      },
       "delete": {
         "content": "Bạn có chắc chắn muốn xóa nhà cung cấp này không?",
         "title": "Xóa Nhà Cung Cấp"
@@ -6465,13 +6451,29 @@
       },
       "docs_check": "Kiểm tra",
       "docs_more_details": "để biết thêm chi tiết",
+      "duplicate": {
+        "add_another": "[to be translated]:Add {{name}} instance",
+        "drawer_title": "[to be translated]:Add {{name}} instance",
+        "fill_after_create": "[to be translated]:Authentication fields can be filled after create",
+        "menu_label": "[to be translated]:Add instance"
+      },
       "filter": {
         "agent": "Được hỗ trợ bởi đại lý",
-        "all": "Tất cả nhà cung cấp"
+        "all": "Tất cả nhà cung cấp",
+        "disabled": "[to be translated]:Disabled Only",
+        "enabled": "[to be translated]:Enabled Only"
       },
       "filter_agent": "Các nhà cung cấp được Hỗ trợ bởi Agent Lọc",
       "get_api_key": "Lấy Khóa API",
       "misc": "Khác",
+      "more_endpoints": {
+        "add": "[to be translated]:Add Endpoint",
+        "anthropic": "[to be translated]:Anthropic Messages",
+        "gemini": "[to be translated]:Google Gemini",
+        "openai_chat": "[to be translated]:OpenAI Chat Completions",
+        "openai_responses": "[to be translated]:OpenAI Responses",
+        "toggle": "[to be translated]:More Endpoints"
+      },
       "no_models_for_check": "Không có mô hình nào khả dụng để kiểm tra (ví dụ: mô hình chat)",
       "not_checked": "Chưa kiểm tra",
       "notes": {
