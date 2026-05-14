@@ -6,7 +6,7 @@ import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import { MenuIcon, PinIcon, Trash2, XIcon } from 'lucide-react'
 import type { MouseEvent, ReactNode } from 'react'
-import { memo, startTransition, useCallback, useMemo, useState } from 'react'
+import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { executeSessionMenuAction, resolveSessionMenuActions, type SessionActionContext } from './sessionItemActions'
@@ -44,6 +44,7 @@ const SessionItem = ({
   const { t } = useTranslation()
   const context = useResourceList<AgentSessionEntity>()
   const [isConfirmingDeletion, setIsConfirmingDeletion] = useState(false)
+  const deleteConfirmationTimeoutRef = useRef<number | null>(null)
   const channelIcon = getChannelTypeIcon(channelType)
   const isActive = context.state.selectedId === session.id
   const sessionName = session.name ?? session.id
@@ -66,6 +67,14 @@ const SessionItem = ({
 
   const menuActions = useMemo(() => resolveSessionMenuActions(actionContext), [actionContext])
 
+  const clearDeleteConfirmationTimeout = useCallback(() => {
+    if (deleteConfirmationTimeoutRef.current === null) return
+    window.clearTimeout(deleteConfirmationTimeoutRef.current)
+    deleteConfirmationTimeoutRef.current = null
+  }, [])
+
+  useEffect(() => clearDeleteConfirmationTimeout, [clearDeleteConfirmationTimeout])
+
   const handleMenuAction = useCallback(
     async (action: (typeof menuActions)[number]) => {
       await executeSessionMenuAction(action, actionContext)
@@ -83,11 +92,15 @@ const SessionItem = ({
       }
 
       startTransition(() => {
+        clearDeleteConfirmationTimeout()
         setIsConfirmingDeletion(true)
-        window.setTimeout(() => setIsConfirmingDeletion(false), DELETE_CONFIRMATION_TIMEOUT)
+        deleteConfirmationTimeoutRef.current = window.setTimeout(() => {
+          deleteConfirmationTimeoutRef.current = null
+          setIsConfirmingDeletion(false)
+        }, DELETE_CONFIRMATION_TIMEOUT)
       })
     },
-    [isConfirmingDeletion, onDelete]
+    [clearDeleteConfirmationTimeout, isConfirmingDeletion, onDelete]
   )
 
   const row = (

@@ -266,6 +266,29 @@ describe('GroupedSortableVirtualList', () => {
     )
   })
 
+  it('does not mark the active group as blocked during group dragging', () => {
+    renderList(vi.fn(), {
+      dragCapabilities: { groups: true },
+      canDragGroup: () => true,
+      renderGroupFooter: (footer: unknown) => <div>Footer {String(footer)}</div>
+    })
+
+    act(() => {
+      dndMocks.onDragStart?.(dragStartEvent('group:first'))
+    })
+
+    const activeHeader = screen.getAllByText('Header First')[0].parentElement
+    const activeItem = screen.getByText('Item Alpha').parentElement
+    const activeFooter = screen.getByText('Footer First').parentElement
+
+    for (const row of [activeHeader, activeItem, activeFooter]) {
+      expect(row).not.toHaveAttribute('data-drop-blocked')
+      expect(row).not.toHaveAttribute('data-drop-invalid')
+      expect(row).not.toHaveClass('cursor-not-allowed')
+    }
+    expect(dndMocks.sortableDisabled.get('group:first')).toBe(false)
+  })
+
   it('does not emit group drag payloads when group dragging is disabled', () => {
     const onDragEnd = renderList(vi.fn(), { canDragGroup: () => true })
 

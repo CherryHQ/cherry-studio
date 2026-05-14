@@ -15,7 +15,7 @@ import { useCache } from '@renderer/data/hooks/useCache'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agents/useAgentDataApi'
-import { useSessions } from '@renderer/hooks/agents/useSessionDataApi'
+import { useSessions, useUpdateSession } from '@renderer/hooks/agents/useSessionDataApi'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
@@ -167,6 +167,7 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
     () => resolveCreateSessionAgentId(sessionItems, activeSessionId, agents),
     [sessionItems, activeSessionId, agents]
   )
+  const { updateSession } = useUpdateSession(fallbackAgentId)
 
   const agentById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents])
   const agentRankById = useMemo(() => new Map(agents.map((agent, index) => [agent.id, index])), [agents])
@@ -251,15 +252,16 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
       if (!session || !trimmedName || trimmedName === session.name) return
 
       try {
-        await dataApiService.patch(`/sessions/${id}`, { body: { name: trimmedName } })
-        await reload()
-        window.toast.success(t('common.saved'))
+        const updatedSession = await updateSession({ id, name: trimmedName }, { showSuccessToast: false })
+        if (updatedSession) {
+          window.toast.success(t('common.saved'))
+        }
       } catch (err) {
         logger.error('Failed to rename session', { err, sessionId: id })
         window.toast.error(t('agent.session.update.error.failed'))
       }
     },
-    [reload, sessionItems, t]
+    [sessionItems, t, updateSession]
   )
 
   const createSessionForGroup = useCallback(
@@ -619,7 +621,10 @@ function SessionListBody({
   const context = useResourceList<SessionListItem>()
   const [renamingTopics] = useCache('topic.renaming')
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
-  const visibleSessionIds = useMemo(() => context.view.items.map((session) => session.id), [context.view.items])
+  const visibleSessionIds = useMemo(
+    () => context.view.visibleItems.map((session) => session.id),
+    [context.view.visibleItems]
+  )
   const streamStatusBySessionId = useSessionListStreamStatuses(visibleSessionIds)
   const renamingTopicIds = useMemo(() => new Set(renamingTopics), [renamingTopics])
   const newlyRenamedTopicIds = useMemo(() => new Set(newlyRenamedTopics), [newlyRenamedTopics])

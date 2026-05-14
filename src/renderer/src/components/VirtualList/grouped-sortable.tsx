@@ -773,6 +773,8 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
 
       const blockedGroupIds = new Set<UniqueIdentifier>()
       for (const groupId of groupIds) {
+        if (!isItemDragData(active) && groupId === active.groupId) continue
+
         const isAllowed = (candidateDataByGroupId.get(groupId) ?? []).some((over) => {
           const payload = buildDragEndPayload(active, over, 'before')
           if (!payload) return false

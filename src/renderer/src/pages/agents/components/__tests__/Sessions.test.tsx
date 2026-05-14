@@ -114,6 +114,8 @@ const sessionDataMocks = vi.hoisted(() => ({
   deleteSession: vi.fn().mockResolvedValue(true),
   reload: vi.fn().mockResolvedValue(undefined),
   togglePin: vi.fn().mockResolvedValue(undefined),
+  updateSession: vi.fn().mockResolvedValue(undefined),
+  useUpdateSession: vi.fn(),
   useSessions: vi.fn()
 }))
 
@@ -132,7 +134,8 @@ const cacheMocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/hooks/agents/useSessionDataApi', () => ({
-  useSessions: sessionDataMocks.useSessions
+  useSessions: sessionDataMocks.useSessions,
+  useUpdateSession: sessionDataMocks.useUpdateSession
 }))
 
 vi.mock('@renderer/hooks/agents/useAgentDataApi', () => ({
@@ -279,9 +282,12 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 
 import Sessions from '../Sessions'
+
+const CURRENT_SESSION_ISO = new Date().toISOString()
 
 function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessionEntity {
   return {
@@ -292,7 +298,7 @@ function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessio
     accessiblePaths: ['/Users/jd/project-a'],
     orderKey: 'a',
     createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-05-13T00:00:00.000Z',
+    updatedAt: CURRENT_SESSION_ISO,
     ...overrides
   }
 }
@@ -352,6 +358,7 @@ describe('Sessions', () => {
     preferenceMocks.values.set('topic.tab.show', true)
     cacheMocks.state.activeSessionId = 'session-a'
     setupSessions()
+    sessionDataMocks.useUpdateSession.mockReturnValue({ updateSession: sessionDataMocks.updateSession })
     agentDataMocks.useAgents.mockReturnValue({
       agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
       isLoading: false,
@@ -363,6 +370,7 @@ describe('Sessions', () => {
   afterEach(() => {
     dndMocks.droppableData.clear()
     dndMocks.sortableData.clear()
+    vi.useRealTimers()
   })
 
   it('loads all sessions and renders time groups without drag', () => {
@@ -393,7 +401,7 @@ describe('Sessions', () => {
     expect(screen.getByRole('button', { name: 'Alpha agent' }).closest('div')).toHaveTextContent('🧠')
   })
 
-  it('creates sessions from the header after selecting an agent', async () => {
+  it('clears the active session from the header without creating inline', () => {
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
         { id: 'agent-a', model: 'model-a', name: 'Alpha agent' },
@@ -410,14 +418,7 @@ describe('Sessions', () => {
 
     fireEvent.click(addButtons[0])
     expect(dataApiService.post).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByText('Beta agent'))
-
-    await vi.waitFor(() =>
-      expect(dataApiService.post).toHaveBeenCalledWith('/sessions', {
-        body: { agentId: 'agent-b', name: 'Untitled' }
-      })
-    )
-    expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith('created-session')
+    expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith(null)
   })
 
   it('creates sessions from the time group action', async () => {
@@ -439,6 +440,53 @@ describe('Sessions', () => {
     fireEvent.click(screen.getByLabelText('Toggle sidebar'))
 
     expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.tab.show', false)
+  })
+
+  it('renames sessions through the shared update session hook', async () => {
+    render(<Sessions />)
+
+    fireEvent.doubleClick(screen.getByText('Alpha session'))
+    const input = screen.getByLabelText('Edit session')
+    fireEvent.change(input, { target: { value: 'Renamed session' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await vi.waitFor(() =>
+      expect(sessionDataMocks.updateSession).toHaveBeenCalledWith(
+        { id: 'session-a', name: 'Renamed session' },
+        { showSuccessToast: false }
+      )
+    )
+    expect(dataApiService.patch).not.toHaveBeenCalledWith('/sessions/session-a', expect.anything())
+  })
+
+  it('clears pending delete confirmation timers on unmount', () => {
+    vi.useFakeTimers()
+    const clearTimeoutSpy = vi.spyOn(window, 'clearTimeout')
+    const { unmount } = render(<Sessions />)
+
+    fireEvent.click(screen.getAllByLabelText('Delete')[0])
+    unmount()
+
+    expect(clearTimeoutSpy).toHaveBeenCalled()
+    clearTimeoutSpy.mockRestore()
+  })
+
+  it('subscribes stream status only for visible session rows', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    preferenceMocks.values.set('agent.session.collapsed_group_ids', ['session:agent:agent-a'])
+
+    render(<Sessions />)
+
+    expect(screen.getByRole('button', { name: 'Alpha agent' })).toBeInTheDocument()
+    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
+    expect(cacheService.subscribe).not.toHaveBeenCalledWith(
+      'topic.stream.statuses.agent-session:session-a',
+      expect.any(Function)
+    )
+    expect(cacheService.subscribe).not.toHaveBeenCalledWith(
+      'topic.stream.statuses.agent-session:session-b',
+      expect.any(Function)
+    )
   })
 
   it('persists display mode selection from the header menu', () => {
