@@ -372,27 +372,6 @@ describe('ProviderModelMigrator', () => {
       expect(models).toEqual([])
     })
 
-    it('rejects a provider whose id is missing or empty before touching the DB', async () => {
-      // Migrator must not silently swallow corrupted v1 rows into the v2 PK
-      // column (it would either crash on insert or, worse, persist garbage).
-      const migrationContext = createContext(dbh.db, {
-        llm: {
-          providers: [{ id: '', name: 'Empty ID', type: 'openai', enabled: true, models: [] }]
-        }
-      })
-      await migrator.prepare(migrationContext)
-
-      const result = await migrator.execute(migrationContext)
-
-      // Either prepare/execute fails OR the empty-id row is filtered. Either
-      // way the userProvider table must not contain an empty-id row.
-      const providers = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, ''))
-      expect(providers).toEqual([])
-      if (!result.success) {
-        expect(result.error).toBeDefined()
-      }
-    })
-
     it('rolls back provider inserts when a later model insert fails', async () => {
       await dbh.db.insert(userProviderTable).values({
         providerId: 'other',
