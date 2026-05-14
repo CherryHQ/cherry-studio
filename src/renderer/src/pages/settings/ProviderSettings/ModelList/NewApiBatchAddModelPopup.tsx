@@ -6,7 +6,7 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import type { EndpointType, Model, Provider } from '@renderer/types'
 import type { FormProps } from 'antd'
 import { Button, Flex, Form, Modal, Select } from 'antd'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface ShowParams {
@@ -33,9 +33,13 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
   const { addModel } = useProvider(provider.id)
   const { t } = useTranslation()
   const labelWidth = useDynamicLabelWidth([t('settings.models.add.endpoint_type.label')])
+  const didResolve = useRef(false)
 
   const onClose = () => {
-    resolve(null)
+    if (!didResolve.current) {
+      didResolve.current = true
+      resolve(null)
+    }
   }
 
   const onCancel = () => {
@@ -55,6 +59,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
 
   const onFinish: FormProps<FieldType>['onFinish'] = (values) => {
     if (onAddModel(values)) {
+      didResolve.current = true
       setOpen(false)
       resolve({ success: true })
     }

@@ -118,12 +118,11 @@ export default defineConfig({
       ]
     },
     testTimeout: 20000,
-    // Windows 稳定性优化：使用 forks 替代 threads 避免内存访问冲突
+    // 使用 forks 替代 threads 避免内存访问冲突，提升稳定性
     pool: 'forks',
     poolOptions: {
       forks: {
-        singleFork: false,
-        isolate: true
+        singleFork: false
       }
     },
     // 增加清理超时时间，给原生模块更多清理时间

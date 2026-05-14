@@ -153,12 +153,12 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   }, [list, onRemoveModel, provider])
 
   const onAddAll = useCallback(() => {
-    const wouldAddModel = list.filter((model) => !isModelInProvider(provider, model.id))
     window.modal.confirm({
       title: t('settings.models.manage.add_listed.label'),
       content: t('settings.models.manage.add_listed.confirm'),
       centered: true,
       onOk: async () => {
+        const wouldAddModel = list.filter((model) => !isModelInProvider(provider, model.id))
         try {
           if (isNewApiProvider(provider)) {
             if (wouldAddModel.every(isValidNewApiModel)) {
