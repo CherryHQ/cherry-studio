@@ -245,6 +245,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
                   <Checkbox
                     checked={isGroupAllSelected}
                     indeterminate={isGroupIndeterminate}
+                    disabled={modelsNotInProvider.length === 0}
                     aria-label={t('settings.models.manage.select_all_group', { groupName: row.groupName })}
                     onChange={(e) => {
                       e.stopPropagation()
@@ -366,7 +367,7 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(
                 {!isAdded && onSelectChange && (
                   <Checkbox
                     checked={!!isSelected}
-                    aria-label={selectAriaLabel || `Select model ${model.name}`}
+                    aria-label={selectAriaLabel || model.id}
                     onChange={(e) => {
                       e.stopPropagation()
                       onSelectChange(model.id, e.target.checked)

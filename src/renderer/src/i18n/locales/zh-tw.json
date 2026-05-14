@@ -5154,6 +5154,7 @@
         },
         "add_success": "成功新增 {{count}} 個模型",
         "add_whole_group": "新增整個分組",
+        "no_models_to_add": "沒有需要新增的模型",
         "batch_add_selected": "新增選中的模型",
         "fetch_list": "取得模型列表",
         "refetch_list": "重新取得模型列表",

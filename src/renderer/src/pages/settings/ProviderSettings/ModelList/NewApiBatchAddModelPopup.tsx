@@ -24,7 +24,7 @@ interface Props extends ShowParams {
 }
 
 type FieldType = {
-  endpointType?: EndpointType
+  endpointType: EndpointType
 }
 
 const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels }) => {
@@ -58,11 +58,11 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
   }
 
   const onFinish: FormProps<FieldType>['onFinish'] = (values) => {
-    if (onAddModel(values)) {
-      didResolve.current = true
-      setOpen(false)
-      resolve({ success: true })
-    }
+    if (didResolve.current) return
+    onAddModel(values)
+    didResolve.current = true
+    setOpen(false)
+    resolve({ success: true })
   }
 
   return (

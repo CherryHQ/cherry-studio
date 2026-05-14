@@ -159,6 +159,10 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
       centered: true,
       onOk: async () => {
         const wouldAddModel = list.filter((model) => !isModelInProvider(provider, model.id))
+        if (wouldAddModel.length === 0) {
+          window.toast.info(t('settings.models.manage.no_models_to_add'))
+          return
+        }
         try {
           if (isNewApiProvider(provider)) {
             if (wouldAddModel.every(isValidNewApiModel)) {

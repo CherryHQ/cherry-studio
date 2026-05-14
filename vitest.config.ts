@@ -118,13 +118,17 @@ export default defineConfig({
       ]
     },
     testTimeout: 20000,
-    // 使用 forks 替代 threads 避免内存访问冲突，提升稳定性
-    pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: false
-      }
-    },
+    // Windows 平台使用 forks 替代 threads 避免内存访问冲突，提升稳定性
+    ...(process.platform === 'win32'
+      ? {
+          pool: 'forks' as const,
+          poolOptions: {
+            forks: {
+              singleFork: false
+            }
+          }
+        }
+      : {}),
     // 增加清理超时时间，给原生模块更多清理时间
     teardownTimeout: 10000
   }
