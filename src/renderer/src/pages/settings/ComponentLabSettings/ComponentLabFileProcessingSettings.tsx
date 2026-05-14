@@ -110,7 +110,7 @@ function getDurationSeconds(durationMs: number | undefined): string {
 
 function getArtifactPreview(artifact: FileProcessingArtifact): string {
   if (artifact.kind === 'file') {
-    return artifact.path
+    return artifact.fileEntryId
   }
 
   return artifact.text.length > TEXT_PREVIEW_LIMIT ? `${artifact.text.slice(0, TEXT_PREVIEW_LIMIT)}...` : artifact.text
@@ -340,13 +340,13 @@ const ComponentLabFileProcessingSettings: FC = () => {
   )
 
   const runProcessor = useCallback(
-    async (feature: LabFeature, file: FileMetadata, processorId: FileProcessorId, runId: number) => {
+    async (feature: LabFeature, path: string, processorId: FileProcessorId, runId: number) => {
       const startedAt = Date.now()
 
       try {
         const startResult = await window.api.fileProcessing.startTask({
           feature,
-          file,
+          path,
           processorId
         })
 
@@ -430,6 +430,7 @@ const ComponentLabFileProcessingSettings: FC = () => {
 
       setSectionErrors((current) => ({ ...current, [section.feature]: undefined }))
       setRunningFeatures((current) => ({ ...current, [section.feature]: true }))
+
       setRunStates((current) => ({
         ...current,
         [section.feature]: Object.fromEntries(
@@ -438,7 +439,7 @@ const ComponentLabFileProcessingSettings: FC = () => {
       }))
 
       await Promise.allSettled(
-        processorsForFeature.map((processor) => runProcessor(section.feature, file, processor.id, runId))
+        processorsForFeature.map((processor) => runProcessor(section.feature, file.path, processor.id, runId))
       )
 
       if (isCurrentRun(section.feature, runId)) {

@@ -6,6 +6,7 @@ import { pipeline } from 'node:stream/promises'
 
 import { loggerService } from '@logger'
 import { pathExists } from '@main/utils/file'
+import type { FilePath } from '@shared/file/types'
 import StreamZip from 'node-stream-zip'
 
 export const OUTPUT_MARKDOWN_FILE = 'output.md'
@@ -45,8 +46,8 @@ function normalizeEntryPath(entryName: string): string {
   return normalizedPath
 }
 
-function getPersistedMarkdownPath(resultsDir: string): string {
-  return path.join(resultsDir, OUTPUT_MARKDOWN_FILE)
+function getPersistedMarkdownPath(resultsDir: string): FilePath {
+  return path.join(resultsDir, OUTPUT_MARKDOWN_FILE) as FilePath
 }
 
 function stripMarkdownBaseDir(relativePath: string, markdownBaseDir: string): string {
@@ -153,7 +154,7 @@ async function replaceResultsDirAtomically(
   }
 }
 
-export async function persistZipResult(options: { zipFilePath: string; resultsDir: string }): Promise<string> {
+export async function persistZipResult(options: { zipFilePath: string; resultsDir: string }): Promise<FilePath> {
   const zip = new StreamZip.async({ file: options.zipFilePath })
   try {
     const entries = Object.values(await zip.entries())
@@ -208,7 +209,7 @@ export async function persistResponseZipResult(options: {
   response: Response
   resultsDir: string
   signal?: AbortSignal
-}): Promise<string> {
+}): Promise<FilePath> {
   const parentDir = path.dirname(options.resultsDir)
   const resultsDirName = path.basename(options.resultsDir)
 
@@ -239,7 +240,10 @@ export async function persistResponseZipResult(options: {
   }
 }
 
-export async function persistMarkdownResult(options: { resultsDir: string; markdownContent: string }): Promise<string> {
+export async function persistMarkdownResult(options: {
+  resultsDir: string
+  markdownContent: string
+}): Promise<FilePath> {
   await replaceResultsDirAtomically(options.resultsDir, async (tempDir) => {
     await fs.writeFile(path.join(tempDir, OUTPUT_MARKDOWN_FILE), options.markdownContent, 'utf-8')
   })

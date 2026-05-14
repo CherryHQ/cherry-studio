@@ -2,9 +2,11 @@ import { createReadStream } from 'node:fs'
 import fs from 'node:fs/promises'
 
 import { MB } from '@shared/config/constant'
-import type { FileMetadata } from '@types'
+import type { FileInfo } from '@shared/file/types'
 import { net } from 'electron'
+import { v4 as uuidv4 } from 'uuid'
 
+import { getFileNameWithExt } from '../../utils/file'
 import { sanitizeFileProcessingRemoteUrl } from '../../utils/url'
 import {
   MineruApiResponseSchema,
@@ -35,8 +37,8 @@ export async function createUploadTask(context: PreparedMineruStartContext): Pro
     body: JSON.stringify({
       files: [
         {
-          name: context.file.origin_name,
-          data_id: context.file.id
+          name: getFileNameWithExt(context.file),
+          data_id: uuidv4()
         }
       ],
       model_version: context.modelVersion
@@ -55,6 +57,10 @@ export async function createUploadTask(context: PreparedMineruStartContext): Pro
     throw new Error(payload.msg || 'Mineru batch upload URL request failed')
   }
 
+  if (!payload.data) {
+    throw new Error('Mineru batch upload URL response is missing data')
+  }
+
   return {
     batchId: payload.data.batch_id,
     uploadUrl: payload.data.file_urls[0],
@@ -63,7 +69,7 @@ export async function createUploadTask(context: PreparedMineruStartContext): Pro
 }
 
 export async function uploadFile(
-  file: FileMetadata,
+  file: FileInfo,
   uploadUrl: string,
   configuredApiHost: string,
   uploadHeaders?: Record<string, string>,
@@ -120,6 +126,10 @@ export async function getBatchResult(
 
   if (payload.code !== 0) {
     throw new Error(payload.msg || 'Mineru batch result request failed')
+  }
+
+  if (!payload.data) {
+    throw new Error(`Mineru batch result response is missing data for task ${providerTaskId}`)
   }
 
   return payload.data

@@ -5,6 +5,7 @@ import { MB } from '@shared/config/constant'
 import { net } from 'electron'
 import FormData from 'form-data'
 
+import { getFileNameWithExt } from '../../utils/file'
 import type { PreparedOpenMineruContext } from './types'
 
 const OPEN_MINERU_MAX_FILE_SIZE = 200 * MB
@@ -23,7 +24,7 @@ export async function executeTask(context: PreparedOpenMineruContext): Promise<R
   formData.append('return_md', 'true')
   formData.append('response_format_zip', 'true')
   formData.append('files', fileStream, {
-    filename: context.file.name
+    filename: getFileNameWithExt(context.file)
   })
 
   try {

@@ -2,8 +2,9 @@ import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { FILE_PROCESSOR_FEATURES, FILE_PROCESSOR_IDS } from '@shared/data/preference/preferenceTypes'
+import { AbsolutePathSchema } from '@shared/data/types/file'
 import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/fileProcessing'
-import { FileMetadataSchema } from '@shared/data/types/knowledge'
+import type { FilePath } from '@shared/file/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import * as z from 'zod'
 
@@ -26,7 +27,7 @@ const FileProcessorIdSchema = z.enum(FILE_PROCESSOR_IDS)
 const StartTaskPayloadSchema = z
   .object({
     feature: FileProcessorFeatureSchema,
-    file: FileMetadataSchema,
+    path: AbsolutePathSchema.transform((path) => path as FilePath),
     processorId: FileProcessorIdSchema.optional()
   })
   .strict()
@@ -45,7 +46,7 @@ const CancelTaskPayloadSchema = z
 
 @Injectable('FileProcessingOrchestrationService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['FileProcessingTaskService'])
+@DependsOn(['FileManager', 'FileProcessingTaskService'])
 export class FileProcessingOrchestrationService extends BaseService {
   protected onInit(): void {
     this.registerIpcHandlers()
@@ -59,10 +60,23 @@ export class FileProcessingOrchestrationService extends BaseService {
     logger.debug('Dispatching file processing task start request', {
       feature: input.feature,
       requestedProcessorId: input.processorId,
-      fileId: input.file.id
+      path: input.path
     })
 
-    return application.get('FileProcessingTaskService').startTask(input, options)
+    options?.signal?.throwIfAborted()
+
+    const fileEntry = await application.get('FileManager').ensureExternalEntry({
+      externalPath: input.path
+    })
+
+    return application.get('FileProcessingTaskService').startTask(
+      {
+        feature: input.feature,
+        fileEntryId: fileEntry.id,
+        processorId: input.processorId
+      },
+      options
+    )
   }
 
   async getTask(

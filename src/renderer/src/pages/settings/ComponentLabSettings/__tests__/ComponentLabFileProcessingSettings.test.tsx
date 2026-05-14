@@ -215,7 +215,9 @@ describe('ComponentLabFileProcessingSettings', () => {
       'tesseract'
     ])
     expect(startTaskMock.mock.calls.every(([payload]) => payload.feature === 'image_to_text')).toBe(true)
-    expect(startTaskMock.mock.calls.every(([payload]) => payload.file === imageFile)).toBe(true)
+    expect(startTaskMock.mock.calls.every(([payload]) => payload.path === '/tmp/sample.png')).toBe(true)
+    expect(startTaskMock.mock.calls.every(([payload]) => !('fileEntryId' in payload))).toBe(true)
+    expect(startTaskMock.mock.calls.every(([payload]) => !('file' in payload))).toBe(true)
   })
 
   it('continues updating processor results after StrictMode remount', async () => {
@@ -418,7 +420,7 @@ describe('ComponentLabFileProcessingSettings', () => {
         processorId: taskId.replace('markdown-', ''),
         progress: 100,
         status: 'completed',
-        artifacts: [{ kind: 'file', format: 'markdown', path: `/tmp/${taskId}/output.md` }]
+        artifacts: [{ kind: 'file', format: 'markdown', fileEntryId: `${taskId}-artifact` }]
       })
     )
 
@@ -444,7 +446,9 @@ describe('ComponentLabFileProcessingSettings', () => {
       'paddleocr'
     ])
     expect(startTaskMock.mock.calls.every(([payload]) => payload.feature === 'document_to_markdown')).toBe(true)
-    expect(startTaskMock.mock.calls.every(([payload]) => payload.file === documentFile)).toBe(true)
+    expect(startTaskMock.mock.calls.every(([payload]) => payload.path === '/tmp/sample.pdf')).toBe(true)
+    expect(startTaskMock.mock.calls.every(([payload]) => !('fileEntryId' in payload))).toBe(true)
+    expect(startTaskMock.mock.calls.every(([payload]) => !('file' in payload))).toBe(true)
   })
 
   it('renders completed and failed processor results independently', async () => {

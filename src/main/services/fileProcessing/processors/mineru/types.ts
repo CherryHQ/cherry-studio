@@ -1,10 +1,10 @@
-import type { FileMetadata } from '@types'
+import type { FileInfo } from '@shared/file/types'
 import * as z from 'zod'
 
 export const MineruApiResponseSchema = <T extends z.ZodTypeAny>(data: T) =>
   z.object({
     code: z.number(),
-    data,
+    data: data.optional(),
     msg: z.string().optional(),
     trace_id: z.string().optional()
   })
@@ -44,7 +44,7 @@ export type PreparedMineruContext = {
 }
 
 export type PreparedMineruStartContext = PreparedMineruContext & {
-  file: FileMetadata
+  file: FileInfo
   modelVersion?: string
 }
 

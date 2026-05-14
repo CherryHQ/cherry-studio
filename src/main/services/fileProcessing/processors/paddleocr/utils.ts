@@ -5,6 +5,7 @@ import { MB } from '@shared/config/constant'
 import { net } from 'electron'
 import FormData from 'form-data'
 
+import { getFileNameWithExt } from '../../utils/file'
 import { sanitizeFileProcessingRemoteUrl } from '../../utils/url'
 import {
   PaddleCreateJobResponseSchema,
@@ -42,7 +43,7 @@ export async function createJob(context: PreparedPaddleStartContext): Promise<{
     formData.append('model', context.model)
   }
   formData.append('file', fileBuffer, {
-    filename: context.file.origin_name
+    filename: getFileNameWithExt(context.file)
   })
   const requestBody = formData.getBuffer()
   const requestHeaders = {
@@ -63,8 +64,8 @@ export async function createJob(context: PreparedPaddleStartContext): Promise<{
     logger.warn('PaddleOCR job creation fetch threw before receiving a response', error as Error, {
       processorId: 'paddleocr',
       feature: context.feature,
-      fileId: context.file.id,
-      fileName: context.file.origin_name,
+      filePath: context.file.path,
+      fileName: getFileNameWithExt(context.file),
       apiHost: context.apiHost,
       model: context.model
     })
@@ -76,8 +77,8 @@ export async function createJob(context: PreparedPaddleStartContext): Promise<{
     logger.warn('PaddleOCR job creation request failed', {
       processorId: 'paddleocr',
       feature: context.feature,
-      fileId: context.file.id,
-      fileName: context.file.origin_name,
+      filePath: context.file.path,
+      fileName: getFileNameWithExt(context.file),
       apiHost: context.apiHost,
       model: context.model,
       status: response.status,
@@ -93,8 +94,8 @@ export async function createJob(context: PreparedPaddleStartContext): Promise<{
     logger.warn('PaddleOCR job creation returned business error', {
       processorId: 'paddleocr',
       feature: context.feature,
-      fileId: context.file.id,
-      fileName: context.file.origin_name,
+      filePath: context.file.path,
+      fileName: getFileNameWithExt(context.file),
       apiHost: context.apiHost,
       model: context.model,
       code: payload.code,

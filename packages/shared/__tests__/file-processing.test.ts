@@ -186,10 +186,16 @@ describe('FileProcessingArtifactSchema', () => {
       text: 'hello'
     })
 
-    expect(FileProcessingArtifactSchema.parse({ kind: 'file', format: 'markdown', path: '/tmp/output.md' })).toEqual({
+    expect(
+      FileProcessingArtifactSchema.parse({
+        kind: 'file',
+        format: 'markdown',
+        fileEntryId: '019606a0-0000-7000-8000-000000000001'
+      })
+    ).toEqual({
       kind: 'file',
       format: 'markdown',
-      path: '/tmp/output.md'
+      fileEntryId: '019606a0-0000-7000-8000-000000000001'
     })
   })
 })
@@ -227,7 +233,7 @@ describe('FileProcessingTaskResultSchema', () => {
         status: 'processing',
         progress: 50,
         processorId: 'mineru',
-        artifacts: [{ kind: 'file', format: 'markdown', path: '/tmp/output.md' }]
+        artifacts: [{ kind: 'file', format: 'markdown', fileEntryId: '019606a0-0000-7000-8000-000000000001' }]
       })
     ).toThrow()
   })
@@ -239,7 +245,7 @@ describe('FileProcessingTaskResultSchema', () => {
       status: 'completed',
       progress: 100,
       processorId: 'mineru',
-      artifacts: [{ kind: 'file', format: 'markdown', path: '/tmp/output.md' }]
+      artifacts: [{ kind: 'file', format: 'markdown', fileEntryId: '019606a0-0000-7000-8000-000000000001' }]
     })
 
     expect(completed.status).toBe('completed')

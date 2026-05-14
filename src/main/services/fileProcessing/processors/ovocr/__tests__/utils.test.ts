@@ -5,6 +5,7 @@ import type * as NodeOs from 'node:os'
 import os from 'node:os'
 
 import { application } from '@application'
+import { FILE_TYPE } from '@shared/file/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { existsSyncMock, cpusMock, execMock } = vi.hoisted(() => ({
@@ -83,8 +84,8 @@ describe('OvOcr prepareContext', () => {
       capabilities: [
         {
           feature: 'image_to_text',
-          inputs: ['image'],
-          output: 'text'
+          inputs: [FILE_TYPE.IMAGE],
+          output: FILE_TYPE.TEXT
         }
       ]
     }

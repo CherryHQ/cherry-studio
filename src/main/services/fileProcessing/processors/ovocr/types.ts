@@ -1,7 +1,7 @@
-import type { ImageFileMetadata } from '@types'
+import type { FileInfo } from '@shared/file/types'
 
 export type PreparedOvOcrContext = {
-  file: ImageFileMetadata
+  file: FileInfo
   signal?: AbortSignal
   workingDirectoryPrefix: string
 }

@@ -836,7 +836,7 @@ const api = {
   fileProcessing: {
     startTask: (payload: {
       feature: FileProcessorFeature
-      file: FileMetadata
+      path: string
       processorId?: FileProcessorId
     }): Promise<FileProcessingTaskStartResult> => ipcRenderer.invoke(IpcChannel.FileProcessing_StartTask, payload),
     getTask: (payload: { taskId: string }): Promise<FileProcessingTaskResult> =>

@@ -1,3 +1,4 @@
+import { FILE_TYPE } from '@shared/file/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', async () => {
@@ -37,7 +38,7 @@ describe('resolveProcessorConfig', () => {
       capabilities: [
         {
           feature: 'document_to_markdown',
-          inputs: ['document'],
+          inputs: [FILE_TYPE.DOCUMENT],
           output: 'markdown',
           apiHost: 'http://127.0.0.1:9000'
         }

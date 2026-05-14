@@ -1,5 +1,6 @@
 import * as z from 'zod'
 
+import { FILE_TYPE } from '../../file/types'
 import {
   FILE_PROCESSOR_FEATURES,
   FILE_PROCESSOR_IDS,
@@ -29,8 +30,8 @@ export const FileProcessorIdSchema = z.enum(FILE_PROCESSOR_IDS)
 export const ImageToTextCapabilitySchema = z
   .object({
     feature: z.literal('image_to_text'),
-    inputs: z.array(z.literal('image')).min(1),
-    output: z.literal('text'),
+    inputs: z.array(z.literal(FILE_TYPE.IMAGE)).min(1),
+    output: z.literal(FILE_TYPE.TEXT),
     apiHost: z.string().optional(),
     modelId: z.string().min(1).optional()
   })
@@ -40,7 +41,7 @@ export type ImageToTextCapability = z.infer<typeof ImageToTextCapabilitySchema>
 export const DocumentToMarkdownCapabilitySchema = z
   .object({
     feature: z.literal('document_to_markdown'),
-    inputs: z.array(z.literal('document')).min(1),
+    inputs: z.array(z.literal(FILE_TYPE.DOCUMENT)).min(1),
     output: z.literal('markdown'),
     apiHost: z.string().optional(),
     modelId: z.string().min(1).optional()
@@ -176,28 +177,28 @@ export const FILE_PROCESSOR_PRESET_MAP = {
     capabilities: [
       {
         feature: 'image_to_text',
-        inputs: ['image'],
-        output: 'text'
+        inputs: [FILE_TYPE.IMAGE],
+        output: FILE_TYPE.TEXT
       }
     ]
   },
   system: {
     type: 'builtin',
-    capabilities: [{ feature: 'image_to_text', inputs: ['image'], output: 'text' }]
+    capabilities: [{ feature: 'image_to_text', inputs: [FILE_TYPE.IMAGE], output: FILE_TYPE.TEXT }]
   },
   paddleocr: {
     type: 'api',
     capabilities: [
       {
         feature: 'image_to_text',
-        inputs: ['image'],
-        output: 'text',
+        inputs: [FILE_TYPE.IMAGE],
+        output: FILE_TYPE.TEXT,
         apiHost: 'https://paddleocr.aistudio-app.com/',
         modelId: 'PaddleOCR-VL-1.5'
       },
       {
         feature: 'document_to_markdown',
-        inputs: ['document'],
+        inputs: [FILE_TYPE.DOCUMENT],
         output: 'markdown',
         apiHost: 'https://paddleocr.aistudio-app.com/',
         modelId: 'PaddleOCR-VL-1.5'
@@ -206,7 +207,7 @@ export const FILE_PROCESSOR_PRESET_MAP = {
   },
   ovocr: {
     type: 'builtin',
-    capabilities: [{ feature: 'image_to_text', inputs: ['image'], output: 'text' }]
+    capabilities: [{ feature: 'image_to_text', inputs: [FILE_TYPE.IMAGE], output: FILE_TYPE.TEXT }]
   },
 
   mineru: {
@@ -214,7 +215,7 @@ export const FILE_PROCESSOR_PRESET_MAP = {
     capabilities: [
       {
         feature: 'document_to_markdown',
-        inputs: ['document'],
+        inputs: [FILE_TYPE.DOCUMENT],
         output: 'markdown',
         apiHost: 'https://mineru.net',
         modelId: 'pipeline'
@@ -226,7 +227,7 @@ export const FILE_PROCESSOR_PRESET_MAP = {
     capabilities: [
       {
         feature: 'document_to_markdown',
-        inputs: ['document'],
+        inputs: [FILE_TYPE.DOCUMENT],
         output: 'markdown',
         apiHost: 'https://v2.doc2x.noedgeai.com',
         modelId: 'v3-2026'
@@ -238,15 +239,15 @@ export const FILE_PROCESSOR_PRESET_MAP = {
     capabilities: [
       {
         feature: 'document_to_markdown',
-        inputs: ['document'],
+        inputs: [FILE_TYPE.DOCUMENT],
         output: 'markdown',
         apiHost: 'https://api.mistral.ai',
         modelId: 'mistral-ocr-latest'
       },
       {
         feature: 'image_to_text',
-        inputs: ['image'],
-        output: 'text',
+        inputs: [FILE_TYPE.IMAGE],
+        output: FILE_TYPE.TEXT,
         apiHost: 'https://api.mistral.ai',
         modelId: 'mistral-ocr-latest'
       }
@@ -257,7 +258,7 @@ export const FILE_PROCESSOR_PRESET_MAP = {
     capabilities: [
       {
         feature: 'document_to_markdown',
-        inputs: ['document'],
+        inputs: [FILE_TYPE.DOCUMENT],
         output: 'markdown',
         apiHost: 'http://127.0.0.1:8000'
       }

@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 
+import type { FileInfo } from '@shared/file/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -22,9 +23,15 @@ describe('mistral utils', () => {
     await expect(
       uploadDocument({
         file: {
-          path: '/tmp/input.pdf',
-          origin_name: 'input.pdf'
-        },
+          path: '/tmp/input.pdf' as FileInfo['path'],
+          name: 'input',
+          ext: 'pdf',
+          size: 1024,
+          mime: 'application/pdf',
+          type: 'document',
+          createdAt: Date.parse('2026-05-05T00:00:00.000Z'),
+          modifiedAt: Date.parse('2026-05-05T00:00:00.000Z')
+        } as FileInfo,
         client: {
           files: {
             upload

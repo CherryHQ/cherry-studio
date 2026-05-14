@@ -4,13 +4,13 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getIpCountry } from '@main/utils/ipService'
-import { loadOcrImage } from '@main/utils/ocr'
 import { MB } from '@shared/config/constant'
 import PQueue from 'p-queue'
 import type { LanguageCode } from 'tesseract.js'
 import type Tesseract from 'tesseract.js'
 import { createWorker } from 'tesseract.js'
 
+import { loadFileProcessingOcrImage } from '../../../utils/ocr'
 import type { ImageToTextHandlerOutput } from '../../types'
 import type { PreparedTesseractContext } from '../types'
 
@@ -71,7 +71,7 @@ export class TesseractRuntimeService extends BaseService {
           throw new Error(`This image is too large (max ${MB_SIZE_THRESHOLD}MB)`)
         }
 
-        const buffer = await loadOcrImage(context.file)
+        const buffer = await loadFileProcessingOcrImage(context.file)
         this.throwIfStopped()
         const result = await this.recognizeWithAbort(worker, buffer, context.signal)
         this.throwIfStopped()

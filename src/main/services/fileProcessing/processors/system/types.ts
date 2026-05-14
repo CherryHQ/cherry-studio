@@ -1,4 +1,4 @@
-import type { ImageFileMetadata } from '@types'
+import type { FileInfo } from '@shared/file/types'
 import * as z from 'zod'
 
 export const SystemOcrOptionsSchema = z.looseObject({
@@ -6,7 +6,7 @@ export const SystemOcrOptionsSchema = z.looseObject({
 })
 
 export type PreparedSystemOcrContext = {
-  file: ImageFileMetadata
+  file: FileInfo
   signal?: AbortSignal
   langs?: string[]
 }

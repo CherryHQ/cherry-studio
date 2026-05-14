@@ -3,12 +3,14 @@ import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { startTaskMock, getTaskMock, cancelTaskMock, listAvailableProcessorIdsMock } = vi.hoisted(() => ({
-  startTaskMock: vi.fn(),
-  getTaskMock: vi.fn(),
-  cancelTaskMock: vi.fn(),
-  listAvailableProcessorIdsMock: vi.fn()
-}))
+const { startTaskMock, getTaskMock, cancelTaskMock, listAvailableProcessorIdsMock, ensureExternalEntryMock } =
+  vi.hoisted(() => ({
+    startTaskMock: vi.fn(),
+    getTaskMock: vi.fn(),
+    cancelTaskMock: vi.fn(),
+    listAvailableProcessorIdsMock: vi.fn(),
+    ensureExternalEntryMock: vi.fn()
+  }))
 
 vi.mock('@main/core/application', async () => {
   const { createMockApplication } = await import('@test-mocks/main/application')
@@ -19,6 +21,9 @@ vi.mock('@main/core/application', async () => {
         getTask: getTaskMock,
         cancelTask: cancelTaskMock,
         listAvailableProcessorIds: listAvailableProcessorIdsMock
+      },
+      FileManager: {
+        ensureExternalEntry: ensureExternalEntryMock
       }
     } as any)
   }
@@ -26,17 +31,7 @@ vi.mock('@main/core/application', async () => {
 
 const { FileProcessingOrchestrationService } = await import('../FileProcessingOrchestrationService')
 
-const imageFile = {
-  id: 'file-1',
-  name: 'scan.png',
-  origin_name: 'scan.png',
-  path: '/tmp/scan.png',
-  size: 128,
-  ext: '.png',
-  type: 'image',
-  created_at: '2026-03-31T00:00:00.000Z',
-  count: 1
-} as const
+const imageFileEntryId = '019606a0-0000-7000-8000-000000000001'
 
 type RegisteredIpcHandler = (event: unknown, payload: unknown) => Promise<unknown>
 
@@ -48,7 +43,7 @@ describe('FileProcessingOrchestrationService', () => {
 
   it('uses WhenReady phase and waits for the task service', () => {
     expect(getPhase(FileProcessingOrchestrationService)).toBe(Phase.WhenReady)
-    expect(getDependencies(FileProcessingOrchestrationService)).toEqual(['FileProcessingTaskService'])
+    expect(getDependencies(FileProcessingOrchestrationService)).toEqual(['FileManager', 'FileProcessingTaskService'])
   })
 
   it('registers the unified file processing IPC handlers', () => {
@@ -82,9 +77,7 @@ describe('FileProcessingOrchestrationService', () => {
         {},
         {
           feature: 'image_to_text',
-          file: {
-            id: 'file-1'
-          },
+          path: 'not-an-absolute-path',
           processorId: 'tesseract'
         }
       )
@@ -123,9 +116,31 @@ describe('FileProcessingOrchestrationService', () => {
     expect(cancelTaskMock).not.toHaveBeenCalled()
   })
 
+  it('does not create a file entry when start is already aborted', async () => {
+    const service = new FileProcessingOrchestrationService()
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(
+      service.startTask(
+        {
+          feature: 'image_to_text',
+          path: '/tmp/sample.png'
+        },
+        { signal: controller.signal }
+      )
+    ).rejects.toThrow()
+
+    expect(ensureExternalEntryMock).not.toHaveBeenCalled()
+    expect(startTaskMock).not.toHaveBeenCalled()
+  })
+
   it('delegates start/get/cancel requests to FileProcessingTaskService', async () => {
     const service = new FileProcessingOrchestrationService()
 
+    ensureExternalEntryMock.mockResolvedValueOnce({
+      id: imageFileEntryId
+    })
     startTaskMock.mockResolvedValueOnce({
       taskId: 'task-1',
       feature: 'image_to_text',
@@ -152,7 +167,7 @@ describe('FileProcessingOrchestrationService', () => {
     await expect(
       service.startTask({
         feature: 'image_to_text',
-        file: imageFile as never
+        path: '/tmp/sample.png'
       })
     ).resolves.toEqual({
       taskId: 'task-1',
@@ -182,10 +197,11 @@ describe('FileProcessingOrchestrationService', () => {
     expect(startTaskMock).toHaveBeenCalledWith(
       {
         feature: 'image_to_text',
-        file: imageFile
+        fileEntryId: imageFileEntryId
       },
       undefined
     )
+    expect(ensureExternalEntryMock).toHaveBeenCalledWith({ externalPath: '/tmp/sample.png' })
     expect(getTaskMock).toHaveBeenCalledWith({ taskId: 'task-1' }, undefined)
     expect(cancelTaskMock).toHaveBeenCalledWith({ taskId: 'task-1' })
   })

@@ -27,7 +27,7 @@ vi.mock('node:fs', async () => {
 })
 
 import { buildPollResult } from '../document-to-markdown/handler'
-import { uploadFile } from '../utils'
+import { createUploadTask, getBatchResult, uploadFile } from '../utils'
 
 describe('mineru utils', () => {
   beforeEach(() => {
@@ -135,6 +135,122 @@ describe('mineru utils', () => {
         signal: undefined
       })
     )
+  })
+
+  it('uses a temporary UUID as MinerU data_id instead of the local file path', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          code: 0,
+          data: {
+            batch_id: 'batch-1',
+            file_urls: ['https://mineru.oss-cn-shanghai.aliyuncs.com/api-upload/task-1.pdf'],
+            headers: [{ Authorization: 'Bearer upload-token' }]
+          }
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
+    )
+
+    await expect(
+      createUploadTask({
+        apiHost: 'https://mineru.net',
+        apiKey: 'api-key',
+        file: {
+          name: 'sample',
+          ext: 'pdf',
+          path: '/tmp/中文 sample.pdf'
+        } as never
+      })
+    ).resolves.toEqual({
+      batchId: 'batch-1',
+      uploadUrl: 'https://mineru.oss-cn-shanghai.aliyuncs.com/api-upload/task-1.pdf',
+      uploadHeaders: { Authorization: 'Bearer upload-token' }
+    })
+
+    const request = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)
+    const dataId = request.files[0].data_id
+
+    expect(dataId).not.toBe('/tmp/中文 sample.pdf')
+    expect(dataId).toMatch(/^[0-9a-f-]{36}$/)
+  })
+
+  it('surfaces MinerU upload error messages when the response has no data', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          code: 10001,
+          msg: 'invalid data_id'
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
+    )
+
+    await expect(
+      createUploadTask({
+        apiHost: 'https://mineru.net',
+        apiKey: 'api-key',
+        file: {
+          name: 'sample',
+          ext: 'pdf',
+          path: '/tmp/file.pdf'
+        } as never
+      })
+    ).rejects.toThrow('invalid data_id')
+  })
+
+  it('reports missing MinerU upload data when a successful response is malformed', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          code: 0
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
+    )
+
+    await expect(
+      createUploadTask({
+        apiHost: 'https://mineru.net',
+        apiKey: 'api-key',
+        file: {
+          name: 'sample',
+          ext: 'pdf',
+          path: '/tmp/file.pdf'
+        } as never
+      })
+    ).rejects.toThrow('Mineru batch upload URL response is missing data')
+  })
+
+  it('surfaces MinerU batch result error messages when the response has no data', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          code: 10002,
+          msg: 'batch not found'
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
+    )
+
+    await expect(
+      getBatchResult('batch-1', {
+        apiHost: 'https://mineru.net',
+        apiKey: 'api-key'
+      })
+    ).rejects.toThrow('batch not found')
   })
 
   it('maps batch poll results and rejects completed results without full_zip_url', () => {

@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 
+import type { FileInfo } from '@shared/file/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appendSpy, fetchMock } = vi.hoisted(() => ({
@@ -166,9 +167,15 @@ describe('paddle utils', () => {
         apiKey: 'secret',
         feature: 'image_to_text',
         file: {
-          path: '/tmp/large.pdf',
-          origin_name: 'large.pdf'
-        }
+          path: '/tmp/large.pdf' as FileInfo['path'],
+          name: 'large',
+          ext: 'pdf',
+          size: 50 * 1024 * 1024,
+          mime: 'application/pdf',
+          type: 'document',
+          createdAt: Date.parse('2026-05-05T00:00:00.000Z'),
+          modifiedAt: Date.parse('2026-05-05T00:00:00.000Z')
+        } as FileInfo
       } as never)
     ).rejects.toThrow('PaddleOCR file is too large (must be smaller than 50MB)')
   })
@@ -197,10 +204,15 @@ describe('paddle utils', () => {
         feature: 'image_to_text',
         model: 'PaddleOCR-VL-1.5',
         file: {
-          id: 'file-1',
-          path: '/tmp/file.pdf',
-          origin_name: 'file.pdf'
-        }
+          path: '/tmp/file.pdf' as FileInfo['path'],
+          name: 'file',
+          ext: 'pdf',
+          size: 1024,
+          mime: 'application/pdf',
+          type: 'document',
+          createdAt: Date.parse('2026-05-05T00:00:00.000Z'),
+          modifiedAt: Date.parse('2026-05-05T00:00:00.000Z')
+        } as FileInfo
       } as never)
     ).resolves.toEqual({
       jobId: 'job-1'

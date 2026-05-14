@@ -2,10 +2,14 @@ import { BaseService } from '@main/core/lifecycle'
 import { getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
-import type { FileProcessorFeatureCapability, FileProcessorMerged } from '@shared/data/presets/file-processing'
-import { FILE_TYPE } from '@shared/data/types/file'
+import type {
+  FileProcessorFeatureCapability,
+  FileProcessorInput,
+  FileProcessorMerged
+} from '@shared/data/presets/file-processing'
+import type { FileEntryId } from '@shared/data/types/file'
 import type { FileProcessingTaskResult } from '@shared/data/types/fileProcessing'
-import type { FileMetadata } from '@types'
+import { FILE_TYPE, type FileInfo } from '@shared/file/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../tests/__mocks__/MainLoggerService'
@@ -15,13 +19,43 @@ type ProcessorRegistryMockEntry = {
   isAvailable: () => boolean
 }
 
-const { processorRegistryMock, resolveProcessorConfigByFeatureMock, persistResultMock, cleanupResultsDirMock } =
-  vi.hoisted(() => ({
-    processorRegistryMock: {} as Record<string, ProcessorRegistryMockEntry>,
-    resolveProcessorConfigByFeatureMock: vi.fn(),
-    persistResultMock: vi.fn(),
-    cleanupResultsDirMock: vi.fn()
-  }))
+const {
+  processorRegistryMock,
+  resolveProcessorConfigByFeatureMock,
+  persistResultMock,
+  cleanupResultsDirMock,
+  createInternalEntryMock,
+  getByIdMock,
+  permanentDeleteMock
+} = vi.hoisted(() => ({
+  processorRegistryMock: {} as Record<string, ProcessorRegistryMockEntry>,
+  resolveProcessorConfigByFeatureMock: vi.fn(),
+  persistResultMock: vi.fn(),
+  cleanupResultsDirMock: vi.fn(),
+  createInternalEntryMock: vi.fn(),
+  getByIdMock: vi.fn(),
+  permanentDeleteMock: vi.fn()
+}))
+
+vi.mock('@application', () => ({
+  application: {
+    get: vi.fn((name: string) => {
+      if (name === 'FileManager') {
+        return {
+          createInternalEntry: createInternalEntryMock,
+          getById: getByIdMock,
+          permanentDelete: permanentDeleteMock
+        }
+      }
+
+      throw new Error(`[FileProcessingTaskService.test] Unknown service: ${name}`)
+    })
+  }
+}))
+
+vi.mock('@main/services/file', () => ({
+  toFileInfo: vi.fn(async (entry: FileInfo) => entry)
+}))
 
 vi.mock('../../config/resolveProcessorConfig', () => ({
   resolveProcessorConfigByFeature: resolveProcessorConfigByFeatureMock
@@ -54,29 +88,44 @@ type TestRemoteFailedSnapshot = {
   error: string
 }
 
-const imageFile: FileMetadata = {
-  id: 'image-file-1',
-  name: 'scan.png',
-  origin_name: 'scan.png',
-  path: '/tmp/scan.png',
-  size: 128,
-  ext: '.png',
-  type: FILE_TYPE.IMAGE,
-  created_at: '2026-03-31T00:00:00.000Z',
-  count: 1
-}
+const imageFileEntryId = '019606a0-0000-7000-8000-000000000011' as FileEntryId
+const documentFileEntryId = '019606a0-0000-7000-8000-000000000012' as FileEntryId
+const wordFileEntryId = '019606a0-0000-7000-8000-000000000013' as FileEntryId
 
-const documentFile: FileMetadata = {
-  id: 'document-file-1',
-  name: 'report.pdf',
-  origin_name: 'report.pdf',
-  path: '/tmp/report.pdf',
+const artifactMarkdownEntryId = '019606a0-0000-7000-8000-000000000101'
+
+const imageFileInfo: FileInfo = {
+  path: '/tmp/scan.png' as FileInfo['path'],
+  name: 'scan',
+  ext: 'png',
+  size: 128,
+  mime: 'image/png',
+  type: FILE_TYPE.IMAGE,
+  createdAt: Date.parse('2026-03-31T00:00:00.000Z'),
+  modifiedAt: Date.parse('2026-03-31T00:00:00.000Z')
+} as FileInfo
+
+const documentFileInfo: FileInfo = {
+  path: '/tmp/report.pdf' as FileInfo['path'],
+  name: 'report',
+  ext: 'pdf',
   size: 512,
-  ext: '.pdf',
+  mime: 'application/pdf',
   type: FILE_TYPE.DOCUMENT,
-  created_at: '2026-03-31T00:00:00.000Z',
-  count: 1
-}
+  createdAt: Date.parse('2026-03-31T00:00:00.000Z'),
+  modifiedAt: Date.parse('2026-03-31T00:00:00.000Z')
+} as FileInfo
+
+const wordFileInfo: FileInfo = {
+  path: '/tmp/report.docx' as FileInfo['path'],
+  name: 'report',
+  ext: 'docx',
+  size: 256,
+  mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  type: FILE_TYPE.DOCUMENT,
+  createdAt: Date.parse('2026-03-31T00:00:00.000Z'),
+  modifiedAt: Date.parse('2026-03-31T00:00:00.000Z')
+} as FileInfo
 
 function resetProcessorRegistryMock(): void {
   for (const key of Object.keys(processorRegistryMock)) {
@@ -84,15 +133,12 @@ function resetProcessorRegistryMock(): void {
   }
 }
 
-function createCapability(
-  feature: FileProcessorFeature,
-  inputs: Array<'image' | 'document'>
-): FileProcessorFeatureCapability {
+function createCapability(feature: FileProcessorFeature, inputs: FileProcessorInput[]): FileProcessorFeatureCapability {
   if (feature === 'image_to_text') {
     return {
       feature,
       inputs,
-      output: 'text'
+      output: FILE_TYPE.TEXT
     } as FileProcessorFeatureCapability
   }
 
@@ -106,7 +152,7 @@ function createCapability(
 function createConfig(
   processorId: FileProcessorId,
   feature: FileProcessorFeature,
-  inputs: Array<'image' | 'document'>
+  inputs: FileProcessorInput[]
 ): FileProcessorMerged {
   return {
     id: processorId,
@@ -197,7 +243,38 @@ describe('FileProcessingTaskService', () => {
     vi.clearAllMocks()
     BaseService.resetInstances()
     resetProcessorRegistryMock()
+    resolveProcessorConfigByFeatureMock.mockReset()
+    persistResultMock.mockReset()
+    cleanupResultsDirMock.mockReset()
+    createInternalEntryMock.mockReset()
+    getByIdMock.mockReset()
+    permanentDeleteMock.mockReset()
     cleanupResultsDirMock.mockResolvedValue(true)
+    permanentDeleteMock.mockResolvedValue(undefined)
+    createInternalEntryMock.mockImplementation(async ({ path }) => ({
+      id: artifactMarkdownEntryId,
+      origin: 'internal',
+      name: path.split('/').pop()?.replace(/\.md$/u, '') ?? 'output',
+      ext: 'md',
+      size: 12,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }))
+    getByIdMock.mockImplementation(async (id: string) => {
+      if (id === imageFileEntryId) {
+        return imageFileInfo
+      }
+
+      if (id === documentFileEntryId) {
+        return documentFileInfo
+      }
+
+      if (id === wordFileEntryId) {
+        return wordFileInfo
+      }
+
+      throw new Error(`Unknown file entry id: ${id}`)
+    })
   })
 
   it('uses WhenReady phase', () => {
@@ -243,7 +320,7 @@ describe('FileProcessingTaskService', () => {
         image_to_text: handler
       }
     }
-    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('tesseract', 'image_to_text', ['image']))
+    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('tesseract', 'image_to_text', [FILE_TYPE.IMAGE]))
 
     const service = new FileProcessingTaskService()
     await service._doInit()
@@ -252,7 +329,7 @@ describe('FileProcessingTaskService', () => {
 
     const started = await service.startTask({
       feature: 'image_to_text',
-      file: imageFile
+      fileEntryId: imageFileEntryId
     })
 
     expect(resolveProcessorConfigByFeatureMock).toHaveBeenCalledWith('image_to_text', undefined)
@@ -314,7 +391,7 @@ describe('FileProcessingTaskService', () => {
       }
     }
     resolveProcessorConfigByFeatureMock.mockReturnValue(
-      createConfig('open-mineru', 'document_to_markdown', ['document'])
+      createConfig('open-mineru', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
     )
     persistResultMock.mockResolvedValue('/tmp/file-processing/output.md')
 
@@ -323,7 +400,7 @@ describe('FileProcessingTaskService', () => {
 
     const started = await service.startTask({
       feature: 'document_to_markdown',
-      file: documentFile,
+      fileEntryId: documentFileEntryId,
       processorId: 'open-mineru'
     })
 
@@ -338,7 +415,7 @@ describe('FileProcessingTaskService', () => {
           {
             kind: 'file',
             format: 'markdown',
-            path: '/tmp/file-processing/output.md'
+            fileEntryId: artifactMarkdownEntryId
           }
         ]
       })
@@ -352,6 +429,11 @@ describe('FileProcessingTaskService', () => {
       },
       signal: expect.any(AbortSignal)
     })
+    expect(createInternalEntryMock).toHaveBeenCalledWith({
+      source: 'path',
+      path: '/tmp/file-processing/output.md'
+    })
+    expect(cleanupResultsDirMock).toHaveBeenCalledWith(started.taskId)
 
     await service._doStop()
   })
@@ -374,7 +456,7 @@ describe('FileProcessingTaskService', () => {
       }
     }
     resolveProcessorConfigByFeatureMock.mockReturnValue(
-      createConfig('open-mineru', 'document_to_markdown', ['document'])
+      createConfig('open-mineru', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
     )
     persistResultMock.mockResolvedValue('/tmp/file-processing/output.md')
 
@@ -383,10 +465,7 @@ describe('FileProcessingTaskService', () => {
 
     const started = await service.startTask({
       feature: 'document_to_markdown',
-      file: {
-        ...documentFile,
-        id: '../escape'
-      },
+      fileEntryId: documentFileEntryId,
       processorId: 'open-mineru'
     })
 
@@ -413,6 +492,51 @@ describe('FileProcessingTaskService', () => {
     await service._doStop()
   })
 
+  it('cleans up persisted markdown results when managed artifact creation fails', async () => {
+    const execute = vi.fn().mockResolvedValue({
+      kind: 'markdown',
+      markdownContent: '# failed artifact'
+    })
+    const handler = {
+      prepare: vi.fn().mockReturnValue({
+        mode: 'background' as const,
+        execute
+      })
+    }
+    processorRegistryMock['open-mineru'] = {
+      isAvailable: () => true,
+      capabilities: {
+        document_to_markdown: handler
+      }
+    }
+    resolveProcessorConfigByFeatureMock.mockReturnValue(
+      createConfig('open-mineru', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
+    )
+    persistResultMock.mockResolvedValue('/tmp/file-processing/output.md')
+    createInternalEntryMock.mockRejectedValueOnce(new Error('internal create failed'))
+
+    const service = new FileProcessingTaskService()
+    await service._doInit()
+
+    const started = await service.startTask({
+      feature: 'document_to_markdown',
+      fileEntryId: documentFileEntryId,
+      processorId: 'open-mineru'
+    })
+
+    await vi.waitFor(async () => {
+      await expect(service.getTask({ taskId: started.taskId })).resolves.toMatchObject({
+        status: 'failed',
+        error: 'internal create failed'
+      })
+    })
+
+    expect(cleanupResultsDirMock).toHaveBeenCalledWith(started.taskId)
+    expect(permanentDeleteMock).not.toHaveBeenCalled()
+
+    await service._doStop()
+  })
+
   it('fails fast for unsupported processors, missing registry handlers, and mismatched file types', async () => {
     const service = new FileProcessingTaskService()
     await service._doInit()
@@ -424,12 +548,14 @@ describe('FileProcessingTaskService', () => {
     await expect(
       service.startTask({
         feature: 'document_to_markdown',
-        file: documentFile,
+        fileEntryId: documentFileEntryId,
         processorId: 'tesseract'
       })
     ).rejects.toThrow('File processor tesseract does not support document_to_markdown')
 
-    resolveProcessorConfigByFeatureMock.mockReturnValueOnce(createConfig('doc2x', 'document_to_markdown', ['document']))
+    resolveProcessorConfigByFeatureMock.mockReturnValueOnce(
+      createConfig('doc2x', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
+    )
     processorRegistryMock.doc2x = {
       isAvailable: () => true,
       capabilities: {}
@@ -438,7 +564,7 @@ describe('FileProcessingTaskService', () => {
     await expect(
       service.startTask({
         feature: 'document_to_markdown',
-        file: documentFile,
+        fileEntryId: documentFileEntryId,
         processorId: 'doc2x'
       })
     ).rejects.toThrow('File processor doc2x does not support document_to_markdown')
@@ -455,15 +581,48 @@ describe('FileProcessingTaskService', () => {
         }
       }
     }
-    resolveProcessorConfigByFeatureMock.mockReturnValueOnce(createConfig('doc2x', 'document_to_markdown', ['document']))
+    resolveProcessorConfigByFeatureMock.mockReturnValueOnce(
+      createConfig('doc2x', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
+    )
 
     await expect(
       service.startTask({
         feature: 'document_to_markdown',
-        file: imageFile,
+        fileEntryId: imageFileEntryId,
         processorId: 'doc2x'
       })
-    ).rejects.toThrow('File processor doc2x document_to_markdown does not support image files')
+    ).rejects.toThrow('File processing document_to_markdown only supports PDF files')
+
+    await service._doStop()
+  })
+
+  it('rejects non-PDF document file entries for document_to_markdown', async () => {
+    const service = new FileProcessingTaskService()
+    await service._doInit()
+
+    processorRegistryMock.doc2x = {
+      isAvailable: () => true,
+      capabilities: {
+        document_to_markdown: {
+          prepare: vi.fn().mockReturnValue({
+            mode: 'remote-poll',
+            startRemote: vi.fn(),
+            pollRemote: vi.fn()
+          })
+        }
+      }
+    }
+    resolveProcessorConfigByFeatureMock.mockReturnValueOnce(
+      createConfig('doc2x', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
+    )
+
+    await expect(
+      service.startTask({
+        feature: 'document_to_markdown',
+        fileEntryId: wordFileEntryId,
+        processorId: 'doc2x'
+      })
+    ).rejects.toThrow('File processing document_to_markdown only supports PDF files')
 
     await service._doStop()
   })
@@ -493,14 +652,14 @@ describe('FileProcessingTaskService', () => {
         image_to_text: handler
       }
     }
-    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('tesseract', 'image_to_text', ['image']))
+    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('tesseract', 'image_to_text', [FILE_TYPE.IMAGE]))
 
     const service = new FileProcessingTaskService()
     await service._doInit()
 
     const failedTask = await service.startTask({
       feature: 'image_to_text',
-      file: imageFile,
+      fileEntryId: imageFileEntryId,
       processorId: 'tesseract'
     })
 
@@ -517,7 +676,7 @@ describe('FileProcessingTaskService', () => {
 
     const cancellableTask = await service.startTask({
       feature: 'image_to_text',
-      file: imageFile,
+      fileEntryId: imageFileEntryId,
       processorId: 'tesseract'
     })
 
@@ -571,7 +730,7 @@ describe('FileProcessingTaskService', () => {
       }
     }
     resolveProcessorConfigByFeatureMock.mockReturnValue(
-      createConfig('open-mineru', 'document_to_markdown', ['document'])
+      createConfig('open-mineru', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
     )
     persistResultMock.mockReturnValueOnce(successPersistence.promise).mockReturnValueOnce(failedPersistence.promise)
 
@@ -581,7 +740,7 @@ describe('FileProcessingTaskService', () => {
 
     const successTask = await service.startTask({
       feature: 'document_to_markdown',
-      file: documentFile,
+      fileEntryId: documentFileEntryId,
       processorId: 'open-mineru'
     })
 
@@ -602,6 +761,9 @@ describe('FileProcessingTaskService', () => {
         reason: 'cancelled'
       })
     })
+    await vi.waitFor(() => {
+      expect(permanentDeleteMock).toHaveBeenCalledWith(artifactMarkdownEntryId)
+    })
     await expect(service.getTask({ taskId: successTask.taskId })).resolves.toMatchObject({
       taskId: successTask.taskId,
       status: 'cancelled',
@@ -610,7 +772,7 @@ describe('FileProcessingTaskService', () => {
 
     const failedTask = await service.startTask({
       feature: 'document_to_markdown',
-      file: documentFile,
+      fileEntryId: documentFileEntryId,
       processorId: 'open-mineru'
     })
 
@@ -662,7 +824,7 @@ describe('FileProcessingTaskService', () => {
       }
     }
     resolveProcessorConfigByFeatureMock.mockReturnValue(
-      createConfig('open-mineru', 'document_to_markdown', ['document'])
+      createConfig('open-mineru', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
     )
     persistResultMock.mockReturnValueOnce(persistence.promise)
 
@@ -674,7 +836,7 @@ describe('FileProcessingTaskService', () => {
 
       const started = await service.startTask({
         feature: 'document_to_markdown',
-        file: documentFile,
+        fileEntryId: documentFileEntryId,
         processorId: 'open-mineru'
       })
 
@@ -696,6 +858,7 @@ describe('FileProcessingTaskService', () => {
       await vi.waitFor(() => {
         expect(cleanupResultsDirMock).toHaveBeenCalledWith(started.taskId)
       })
+      expect(permanentDeleteMock).toHaveBeenCalledWith(artifactMarkdownEntryId)
 
       await expect(service.getTask({ taskId: started.taskId })).rejects.toThrow(
         `File processing task not found: ${started.taskId}`
@@ -739,14 +902,14 @@ describe('FileProcessingTaskService', () => {
         image_to_text: handler
       }
     }
-    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('tesseract', 'image_to_text', ['image']))
+    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('tesseract', 'image_to_text', [FILE_TYPE.IMAGE]))
 
     const service = new FileProcessingTaskService()
     await service._doInit()
 
     const failAfterCancelTask = await service.startTask({
       feature: 'image_to_text',
-      file: imageFile,
+      fileEntryId: imageFileEntryId,
       processorId: 'tesseract'
     })
     const firstSignal = await firstExecuteSignal.promise
@@ -775,7 +938,7 @@ describe('FileProcessingTaskService', () => {
 
     const cancelledTask = await service.startTask({
       feature: 'image_to_text',
-      file: imageFile,
+      fileEntryId: imageFileEntryId,
       processorId: 'tesseract'
     })
     await secondExecuteSignal.promise
@@ -817,7 +980,7 @@ describe('FileProcessingTaskService', () => {
         image_to_text: handler
       }
     }
-    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('tesseract', 'image_to_text', ['image']))
+    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('tesseract', 'image_to_text', [FILE_TYPE.IMAGE]))
 
     const service = new FileProcessingTaskService()
     await service._doInit()
@@ -826,7 +989,7 @@ describe('FileProcessingTaskService', () => {
     const started = await service.startTask(
       {
         feature: 'image_to_text',
-        file: imageFile,
+        fileEntryId: imageFileEntryId,
         processorId: 'tesseract'
       },
       {
@@ -882,7 +1045,9 @@ describe('FileProcessingTaskService', () => {
         document_to_markdown: handler
       }
     }
-    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('doc2x', 'document_to_markdown', ['document']))
+    resolveProcessorConfigByFeatureMock.mockReturnValue(
+      createConfig('doc2x', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
+    )
 
     const callerController = new AbortController()
     const removeListenerSpy = vi.spyOn(callerController.signal, 'removeEventListener')
@@ -893,7 +1058,7 @@ describe('FileProcessingTaskService', () => {
     const started = await service.startTask(
       {
         feature: 'document_to_markdown',
-        file: documentFile,
+        fileEntryId: documentFileEntryId,
         processorId: 'doc2x'
       },
       {
@@ -950,7 +1115,7 @@ describe('FileProcessingTaskService', () => {
         image_to_text: handler
       }
     }
-    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('tesseract', 'image_to_text', ['image']))
+    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('tesseract', 'image_to_text', [FILE_TYPE.IMAGE]))
 
     const debugSpy = vi.spyOn(mockMainLoggerService, 'debug').mockImplementation(() => {})
     const service = new FileProcessingTaskService()
@@ -958,7 +1123,7 @@ describe('FileProcessingTaskService', () => {
 
     const completedTask = await service.startTask({
       feature: 'image_to_text',
-      file: imageFile,
+      fileEntryId: imageFileEntryId,
       processorId: 'tesseract'
     })
     await vi.waitFor(async () => {
@@ -969,7 +1134,7 @@ describe('FileProcessingTaskService', () => {
 
     const failedTask = await service.startTask({
       feature: 'image_to_text',
-      file: imageFile,
+      fileEntryId: imageFileEntryId,
       processorId: 'tesseract'
     })
     await vi.waitFor(async () => {
@@ -980,7 +1145,7 @@ describe('FileProcessingTaskService', () => {
 
     const cancelledTask = await service.startTask({
       feature: 'image_to_text',
-      file: imageFile,
+      fileEntryId: imageFileEntryId,
       processorId: 'tesseract'
     })
     await expect(service.cancelTask({ taskId: cancelledTask.taskId })).resolves.toMatchObject({
@@ -1064,7 +1229,9 @@ describe('FileProcessingTaskService', () => {
         document_to_markdown: handler
       }
     }
-    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('doc2x', 'document_to_markdown', ['document']))
+    resolveProcessorConfigByFeatureMock.mockReturnValue(
+      createConfig('doc2x', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
+    )
     persistResultMock.mockResolvedValue('/tmp/file-processing/remote-log.md')
 
     const debugSpy = vi.spyOn(mockMainLoggerService, 'debug').mockImplementation(() => {})
@@ -1077,7 +1244,7 @@ describe('FileProcessingTaskService', () => {
 
       const completedTask = await service.startTask({
         feature: 'document_to_markdown',
-        file: documentFile,
+        fileEntryId: documentFileEntryId,
         processorId: 'doc2x'
       })
       await flushMicrotasks()
@@ -1115,7 +1282,7 @@ describe('FileProcessingTaskService', () => {
 
       const failedTask = await service.startTask({
         feature: 'document_to_markdown',
-        file: documentFile,
+        fileEntryId: documentFileEntryId,
         processorId: 'doc2x'
       })
       await flushMicrotasks()
@@ -1132,7 +1299,7 @@ describe('FileProcessingTaskService', () => {
 
       const prunedTask = await service.startTask({
         feature: 'document_to_markdown',
-        file: documentFile,
+        fileEntryId: documentFileEntryId,
         processorId: 'doc2x'
       })
       await flushMicrotasks()
@@ -1232,7 +1399,9 @@ describe('FileProcessingTaskService', () => {
         document_to_markdown: handler
       }
     }
-    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('doc2x', 'document_to_markdown', ['document']))
+    resolveProcessorConfigByFeatureMock.mockReturnValue(
+      createConfig('doc2x', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
+    )
 
     const service = new FileProcessingTaskService()
     await service._doInit()
@@ -1240,7 +1409,7 @@ describe('FileProcessingTaskService', () => {
 
     const started = await service.startTask({
       feature: 'document_to_markdown',
-      file: documentFile,
+      fileEntryId: documentFileEntryId,
       processorId: 'doc2x'
     })
 
@@ -1299,7 +1468,9 @@ describe('FileProcessingTaskService', () => {
         document_to_markdown: handler
       }
     }
-    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('doc2x', 'document_to_markdown', ['document']))
+    resolveProcessorConfigByFeatureMock.mockReturnValue(
+      createConfig('doc2x', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
+    )
 
     const service = new FileProcessingTaskService()
     await service._doInit()
@@ -1307,7 +1478,7 @@ describe('FileProcessingTaskService', () => {
 
     const started = await service.startTask({
       feature: 'document_to_markdown',
-      file: documentFile,
+      fileEntryId: documentFileEntryId,
       processorId: 'doc2x'
     })
 
@@ -1381,7 +1552,9 @@ describe('FileProcessingTaskService', () => {
         document_to_markdown: handler
       }
     }
-    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('doc2x', 'document_to_markdown', ['document']))
+    resolveProcessorConfigByFeatureMock.mockReturnValue(
+      createConfig('doc2x', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
+    )
     const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
 
     const service = new FileProcessingTaskService()
@@ -1392,7 +1565,7 @@ describe('FileProcessingTaskService', () => {
 
       const started = await service.startTask({
         feature: 'document_to_markdown',
-        file: documentFile,
+        fileEntryId: documentFileEntryId,
         processorId: 'doc2x'
       })
 
@@ -1449,7 +1622,9 @@ describe('FileProcessingTaskService', () => {
         document_to_markdown: handler
       }
     }
-    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('doc2x', 'document_to_markdown', ['document']))
+    resolveProcessorConfigByFeatureMock.mockReturnValue(
+      createConfig('doc2x', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
+    )
     persistResultMock.mockResolvedValue('/tmp/file-processing/terminal.md')
 
     const service = new FileProcessingTaskService()
@@ -1457,7 +1632,7 @@ describe('FileProcessingTaskService', () => {
 
     const started = await service.startTask({
       feature: 'document_to_markdown',
-      file: documentFile,
+      fileEntryId: documentFileEntryId,
       processorId: 'doc2x'
     })
 
@@ -1475,7 +1650,7 @@ describe('FileProcessingTaskService', () => {
         {
           kind: 'file',
           format: 'markdown',
-          path: '/tmp/file-processing/terminal.md'
+          fileEntryId: artifactMarkdownEntryId
         }
       ]
     })
@@ -1546,7 +1721,9 @@ describe('FileProcessingTaskService', () => {
         document_to_markdown: handler
       }
     }
-    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('doc2x', 'document_to_markdown', ['document']))
+    resolveProcessorConfigByFeatureMock.mockReturnValue(
+      createConfig('doc2x', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
+    )
     persistResultMock.mockResolvedValue('/tmp/remote/output.md')
 
     const service = new FileProcessingTaskService()
@@ -1554,7 +1731,7 @@ describe('FileProcessingTaskService', () => {
 
     const started = await service.startTask({
       feature: 'document_to_markdown',
-      file: documentFile,
+      fileEntryId: documentFileEntryId,
       processorId: 'doc2x'
     })
 
@@ -1630,7 +1807,7 @@ describe('FileProcessingTaskService', () => {
         {
           kind: 'file',
           format: 'markdown',
-          path: '/tmp/remote/output.md'
+          fileEntryId: artifactMarkdownEntryId
         }
       ]
     })
@@ -1661,7 +1838,7 @@ describe('FileProcessingTaskService', () => {
 
     const failedTask = await service.startTask({
       feature: 'document_to_markdown',
-      file: documentFile,
+      fileEntryId: documentFileEntryId,
       processorId: 'doc2x'
     })
 
@@ -1703,7 +1880,9 @@ describe('FileProcessingTaskService', () => {
         document_to_markdown: handler
       }
     }
-    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('doc2x', 'document_to_markdown', ['document']))
+    resolveProcessorConfigByFeatureMock.mockReturnValue(
+      createConfig('doc2x', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
+    )
 
     const service = new FileProcessingTaskService()
     await service._doInit()
@@ -1721,7 +1900,7 @@ describe('FileProcessingTaskService', () => {
 
     const processingTask = await service.startTask({
       feature: 'document_to_markdown',
-      file: documentFile,
+      fileEntryId: documentFileEntryId,
       processorId: 'doc2x'
     })
 
@@ -1757,7 +1936,7 @@ describe('FileProcessingTaskService', () => {
 
     const failedTask = await service.startTask({
       feature: 'document_to_markdown',
-      file: documentFile,
+      fileEntryId: documentFileEntryId,
       processorId: 'doc2x'
     })
 
@@ -1815,7 +1994,9 @@ describe('FileProcessingTaskService', () => {
         document_to_markdown: handler
       }
     }
-    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('doc2x', 'document_to_markdown', ['document']))
+    resolveProcessorConfigByFeatureMock.mockReturnValue(
+      createConfig('doc2x', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
+    )
 
     const service = new FileProcessingTaskService()
     await service._doInit()
@@ -1833,7 +2014,7 @@ describe('FileProcessingTaskService', () => {
 
     const started = await service.startTask({
       feature: 'document_to_markdown',
-      file: documentFile,
+      fileEntryId: documentFileEntryId,
       processorId: 'doc2x'
     })
 
@@ -1904,7 +2085,9 @@ describe('FileProcessingTaskService', () => {
         document_to_markdown: handler
       }
     }
-    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('doc2x', 'document_to_markdown', ['document']))
+    resolveProcessorConfigByFeatureMock.mockReturnValue(
+      createConfig('doc2x', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
+    )
     persistResultMock.mockReturnValueOnce(successPersistence.promise).mockReturnValueOnce(failedPersistence.promise)
 
     const service = new FileProcessingTaskService()
@@ -1913,7 +2096,7 @@ describe('FileProcessingTaskService', () => {
 
     const successTask = await service.startTask({
       feature: 'document_to_markdown',
-      file: documentFile,
+      fileEntryId: documentFileEntryId,
       processorId: 'doc2x'
     })
 
@@ -1936,6 +2119,7 @@ describe('FileProcessingTaskService', () => {
       status: 'cancelled',
       reason: 'cancelled'
     })
+    expect(permanentDeleteMock).toHaveBeenCalledWith(artifactMarkdownEntryId)
     await expect(service.getTask({ taskId: successTask.taskId })).resolves.toMatchObject({
       taskId: successTask.taskId,
       status: 'cancelled',
@@ -1944,7 +2128,7 @@ describe('FileProcessingTaskService', () => {
 
     const failedTask = await service.startTask({
       feature: 'document_to_markdown',
-      file: documentFile,
+      fileEntryId: documentFileEntryId,
       processorId: 'doc2x'
     })
 
@@ -2010,7 +2194,9 @@ describe('FileProcessingTaskService', () => {
         document_to_markdown: handler
       }
     }
-    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('doc2x', 'document_to_markdown', ['document']))
+    resolveProcessorConfigByFeatureMock.mockReturnValue(
+      createConfig('doc2x', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
+    )
     persistResultMock.mockReturnValueOnce(persistence.promise)
 
     const service = new FileProcessingTaskService()
@@ -2021,7 +2207,7 @@ describe('FileProcessingTaskService', () => {
 
       const started = await service.startTask({
         feature: 'document_to_markdown',
-        file: documentFile,
+        fileEntryId: documentFileEntryId,
         processorId: 'doc2x'
       })
 
@@ -2054,6 +2240,7 @@ describe('FileProcessingTaskService', () => {
         message: 'File processing task expired'
       })
       expect(cleanupResultsDirMock).toHaveBeenCalledWith(started.taskId)
+      expect(permanentDeleteMock).toHaveBeenCalledWith(artifactMarkdownEntryId)
       expect(taskEvents.events).not.toContainEqual(
         expect.objectContaining({
           taskId: started.taskId,
@@ -2097,7 +2284,9 @@ describe('FileProcessingTaskService', () => {
         document_to_markdown: handler
       }
     }
-    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('doc2x', 'document_to_markdown', ['document']))
+    resolveProcessorConfigByFeatureMock.mockReturnValue(
+      createConfig('doc2x', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
+    )
 
     const service = new FileProcessingTaskService()
     await service._doInit()
@@ -2106,7 +2295,7 @@ describe('FileProcessingTaskService', () => {
 
     const started = await service.startTask({
       feature: 'document_to_markdown',
-      file: documentFile,
+      fileEntryId: documentFileEntryId,
       processorId: 'doc2x'
     })
 
@@ -2152,7 +2341,9 @@ describe('FileProcessingTaskService', () => {
         document_to_markdown: prepareHandler
       }
     }
-    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('doc2x', 'document_to_markdown', ['document']))
+    resolveProcessorConfigByFeatureMock.mockReturnValue(
+      createConfig('doc2x', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
+    )
 
     const service = new FileProcessingTaskService()
     await service._doInit()
@@ -2162,7 +2353,7 @@ describe('FileProcessingTaskService', () => {
     await expect(
       service.startTask({
         feature: 'document_to_markdown',
-        file: documentFile,
+        fileEntryId: documentFileEntryId,
         processorId: 'doc2x'
       })
     ).rejects.toThrow('missing api key')
@@ -2185,7 +2376,7 @@ describe('FileProcessingTaskService', () => {
 
     const failedStart = await service.startTask({
       feature: 'document_to_markdown',
-      file: documentFile,
+      fileEntryId: documentFileEntryId,
       processorId: 'doc2x'
     })
 
@@ -2293,10 +2484,10 @@ describe('FileProcessingTaskService', () => {
     resolveProcessorConfigByFeatureMock.mockImplementation(
       (feature: FileProcessorFeature, processorId: FileProcessorId) => {
         if (processorId === 'doc2x') {
-          return createConfig('doc2x', feature, ['document'])
+          return createConfig('doc2x', feature, [FILE_TYPE.DOCUMENT])
         }
 
-        return createConfig('tesseract', feature, ['image'])
+        return createConfig('tesseract', feature, [FILE_TYPE.IMAGE])
       }
     )
 
@@ -2307,7 +2498,7 @@ describe('FileProcessingTaskService', () => {
 
       const remoteTask = await service.startTask({
         feature: 'document_to_markdown',
-        file: documentFile,
+        fileEntryId: documentFileEntryId,
         processorId: 'doc2x'
       })
       const remoteQuery = service.getTask({ taskId: remoteTask.taskId })
@@ -2330,12 +2521,12 @@ describe('FileProcessingTaskService', () => {
 
       const staleRemoteTask = await service.startTask({
         feature: 'document_to_markdown',
-        file: documentFile,
+        fileEntryId: documentFileEntryId,
         processorId: 'doc2x'
       })
       const staleBackgroundTask = await service.startTask({
         feature: 'image_to_text',
-        file: imageFile,
+        fileEntryId: imageFileEntryId,
         processorId: 'tesseract'
       })
       const staleRemoteQuery = service.getTask({ taskId: staleRemoteTask.taskId })

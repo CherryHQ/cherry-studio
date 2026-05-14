@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
-import type { FileMetadata } from '@types'
+import { FILE_TYPE, type FileInfo } from '@shared/file/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { MistralMock, deleteMock, getSignedUrlMock, ocrProcessMock, uploadMock } = vi.hoisted(() => {
@@ -175,7 +175,7 @@ function createConfig(): FileProcessorMerged {
     capabilities: [
       {
         feature: 'document_to_markdown',
-        inputs: ['document'],
+        inputs: [FILE_TYPE.DOCUMENT],
         output: 'markdown',
         apiHost: 'https://api.mistral.ai',
         modelId: 'mistral-ocr-latest'
@@ -184,16 +184,15 @@ function createConfig(): FileProcessorMerged {
   }
 }
 
-function createFile(): FileMetadata {
+function createFile(): FileInfo {
   return {
-    id: 'file-1',
-    name: 'input.pdf',
-    origin_name: 'input.pdf',
-    path: '/tmp/input.pdf',
+    path: '/tmp/input.pdf' as FileInfo['path'],
+    name: 'input',
+    ext: 'pdf',
     size: 1024,
-    ext: '.pdf',
+    mime: 'application/pdf',
     type: 'document',
-    created_at: '2026-05-05T00:00:00.000Z',
-    count: 1
-  }
+    createdAt: Date.parse('2026-05-05T00:00:00.000Z'),
+    modifiedAt: Date.parse('2026-05-05T00:00:00.000Z')
+  } as FileInfo
 }

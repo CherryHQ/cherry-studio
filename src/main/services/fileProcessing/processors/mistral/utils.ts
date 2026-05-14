@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
 
-import type { FileMetadata } from '@types'
+import type { FileInfo } from '@shared/file/types'
 
+import { getFileNameWithExt } from '../../utils/file'
 import type { DocumentToMarkdownHandlerOutput, ImageToTextHandlerOutput } from '../types'
 import {
   type MistralDocumentUrlDocument,
@@ -11,18 +11,6 @@ import {
   MistralOcrResponseSchema,
   type PreparedMistralContext
 } from './types'
-
-// TODO: Move file-type / mime resolution into the unified file management layer when file handling is consolidated.
-const IMAGE_MIME_BY_EXTENSION: Record<string, string> = {
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.png': 'image/png',
-  '.webp': 'image/webp',
-  '.gif': 'image/gif',
-  '.bmp': 'image/bmp',
-  '.tif': 'image/tiff',
-  '.tiff': 'image/tiff'
-}
 
 export async function prepareDocumentPayload(context: PreparedMistralContext): Promise<MistralImageDocument> {
   return {
@@ -94,7 +82,7 @@ export async function uploadDocument(context: PreparedMistralContext): Promise<s
   const uploadedFile = await context.client.files.upload(
     {
       file: {
-        fileName: context.file.origin_name || context.file.name,
+        fileName: getFileNameWithExt(context.file),
         content: new Uint8Array(fileBuffer)
       },
       purpose: 'ocr'
@@ -131,15 +119,11 @@ export async function deleteUploadedDocument(context: PreparedMistralContext, fi
   )
 }
 
-async function createImageDataUrl(file: FileMetadata): Promise<string> {
-  const filePath = file.path
-  const extension = (path.extname(filePath) || file.ext).toLowerCase()
-  const mime = IMAGE_MIME_BY_EXTENSION[extension]
-
-  if (!mime) {
-    throw new Error(`Unsupported image type for Mistral OCR: ${extension || file.ext}`)
+async function createImageDataUrl(file: FileInfo): Promise<string> {
+  if (!file.mime.startsWith('image/')) {
+    throw new Error(`Unsupported image type for Mistral OCR: ${file.mime}`)
   }
 
-  const buffer = await fs.readFile(filePath)
-  return `data:${mime};base64,${buffer.toString('base64')}`
+  const buffer = await fs.readFile(file.path)
+  return `data:${file.mime};base64,${buffer.toString('base64')}`
 }

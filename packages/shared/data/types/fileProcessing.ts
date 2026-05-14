@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
 import { FILE_PROCESSOR_FEATURES, FILE_PROCESSOR_IDS } from '../preference/preferenceTypes'
+import { FileEntryIdSchema } from './file'
 
 export const FileProcessingTaskStatusSchema = z.enum(['pending', 'processing', 'completed', 'failed', 'cancelled'])
 export type FileProcessingTaskStatus = z.infer<typeof FileProcessingTaskStatusSchema>
@@ -17,7 +18,7 @@ export const FileProcessingFileArtifactSchema = z
   .object({
     kind: z.literal('file'),
     format: z.literal('markdown'),
-    path: z.string().min(1)
+    fileEntryId: FileEntryIdSchema
   })
   .strict()
 

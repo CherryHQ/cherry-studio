@@ -5,6 +5,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { sanitizeFileProcessingRemoteUrl } from '@main/services/fileProcessing/utils/url'
 import { pathExists } from '@main/utils/file'
+import type { FilePath } from '@shared/file/types'
 import { net } from 'electron'
 
 import { persistMarkdownResult, persistResponseZipResult } from './resultPersistence'
@@ -68,7 +69,7 @@ class MarkdownResultStore {
     taskId: string
     result: MarkdownPersistencePayload
     signal?: AbortSignal
-  }): Promise<string> {
+  }): Promise<FilePath> {
     const resultsDir = getFileProcessingResultsDir(options.taskId)
 
     try {
