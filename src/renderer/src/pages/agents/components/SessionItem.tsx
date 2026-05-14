@@ -1,7 +1,9 @@
 import { ContextMenuSub, Tooltip } from '@cherrystudio/ui'
 import { ResourceList, useResourceList } from '@renderer/components/chat/resources'
 import { isMac } from '@renderer/config/constant'
-import { getChannelTypeIcon } from '@renderer/utils/agentSession'
+import { useCache } from '@renderer/data/hooks/useCache'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import { MenuIcon, PinIcon, Trash2, XIcon } from 'lucide-react'
@@ -11,58 +13,61 @@ import { useTranslation } from 'react-i18next'
 
 import { executeSessionMenuAction, resolveSessionMenuActions, type SessionActionContext } from './sessionItemActions'
 
-export type SessionStreamState = {
-  isFulfilled: boolean
-  isPending: boolean
-}
-
 interface SessionItemProps {
   channelType?: string
-  isNewlyRenamed?: boolean
-  isRenaming?: boolean
-  onDelete: () => void
-  onPress: () => void
-  onTogglePin?: () => void
+  onDelete: (id: string) => void | Promise<void>
+  onPress: (id: string) => void
+  onSelectItem?: () => void
+  onTogglePin?: (id: string) => void | Promise<void>
   pinned?: boolean
   session: AgentSessionEntity
-  streamStatus?: SessionStreamState
 }
 
 const DELETE_CONFIRMATION_TIMEOUT = 3000
 
 const SessionItem = ({
   channelType,
-  isNewlyRenamed = false,
-  isRenaming = false,
   onDelete,
   onPress,
+  onSelectItem,
   onTogglePin,
   pinned = false,
-  session,
-  streamStatus
+  session
 }: SessionItemProps) => {
   const { t } = useTranslation()
   const context = useResourceList<AgentSessionEntity>()
+  const topicId = useMemo(() => buildAgentSessionTopicId(session.id), [session.id])
+  const [renamingTopics] = useCache('topic.renaming')
+  const [newlyRenamedTopics] = useCache('topic.newly_renamed')
+  const { isFulfilled: isStreamFulfilled, isPending: isStreamPending, markSeen } = useTopicStreamStatus(topicId)
   const [isConfirmingDeletion, setIsConfirmingDeletion] = useState(false)
   const deleteConfirmationTimeoutRef = useRef<number | null>(null)
   const channelIcon = getChannelTypeIcon(channelType)
   const isActive = context.state.selectedId === session.id
   const sessionName = session.name ?? session.id
+  const isRenaming = renamingTopics?.includes(topicId) === true
+  const isNewlyRenamed = newlyRenamedTopics?.includes(topicId) === true
   const nameAnimationClassName = isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''
-  const hasStreamIndicator = !isActive && (streamStatus?.isPending === true || streamStatus?.isFulfilled === true)
+  const hasStreamIndicator = !isActive && (isStreamPending || isStreamFulfilled)
 
   const startEdit = useCallback(() => context.actions.startRename(session.id), [context.actions, session.id])
+  const handleDelete = useCallback(() => {
+    void onDelete(session.id)
+  }, [onDelete, session.id])
+  const handleTogglePin = useCallback(() => {
+    void onTogglePin?.(session.id)
+  }, [onTogglePin, session.id])
 
   const actionContext = useMemo<SessionActionContext>(
     () => ({
-      onDelete,
-      onTogglePin,
+      onDelete: handleDelete,
+      onTogglePin: onTogglePin ? handleTogglePin : undefined,
       pinned,
       sessionName: session.name ?? '',
       startEdit,
       t
     }),
-    [onDelete, onTogglePin, pinned, session.name, startEdit, t]
+    [handleDelete, handleTogglePin, onTogglePin, pinned, session.name, startEdit, t]
   )
 
   const menuActions = useMemo(() => resolveSessionMenuActions(actionContext), [actionContext])
@@ -87,7 +92,7 @@ const SessionItem = ({
       event.stopPropagation()
 
       if (isConfirmingDeletion || event.ctrlKey || event.metaKey) {
-        onDelete()
+        handleDelete()
         return
       }
 
@@ -100,8 +105,26 @@ const SessionItem = ({
         }, DELETE_CONFIRMATION_TIMEOUT)
       })
     },
-    [clearDeleteConfirmationTimeout, isConfirmingDeletion, onDelete]
+    [clearDeleteConfirmationTimeout, handleDelete, isConfirmingDeletion]
   )
+
+  const handlePress = useCallback(() => {
+    onPress(session.id)
+    onSelectItem?.()
+  }, [onPress, onSelectItem, session.id])
+
+  const handleTogglePinClick = useCallback(
+    (event: MouseEvent) => {
+      event.stopPropagation()
+      handleTogglePin()
+    },
+    [handleTogglePin]
+  )
+
+  useEffect(() => {
+    if (!isActive || !isStreamFulfilled) return
+    markSeen()
+  }, [isActive, isStreamFulfilled, markSeen])
 
   const row = (
     <ResourceList.Item
@@ -109,16 +132,13 @@ const SessionItem = ({
       data-testid="agent-session-row"
       className={cn('relative', isActive && 'bg-sidebar-accent')}
       style={{ cursor: 'pointer' }}
-      onClick={onPress}
+      onClick={handlePress}
       title={sessionName}>
       <Tooltip title={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
         <ResourceList.ItemLeadingAction
           aria-label={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
           className={cn(pinned && 'text-muted-foreground/55 hover:text-muted-foreground/75')}
-          onClick={(event) => {
-            event.stopPropagation()
-            onTogglePin?.()
-          }}>
+          onClick={handleTogglePinClick}>
           {pinned ? <PinIcon size={13} className="-rotate-45" /> : <PinIcon size={13} />}
         </ResourceList.ItemLeadingAction>
       </Tooltip>
@@ -149,10 +169,7 @@ const SessionItem = ({
       )}
 
       {hasStreamIndicator ? (
-        <SessionStreamIndicator
-          isFulfilled={streamStatus?.isFulfilled === true}
-          isPending={streamStatus?.isPending === true}
-        />
+        <SessionStreamIndicator isFulfilled={isStreamFulfilled} isPending={isStreamPending} />
       ) : (
         <Tooltip
           placement="bottom"

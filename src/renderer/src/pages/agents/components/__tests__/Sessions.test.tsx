@@ -133,6 +133,16 @@ const cacheMocks = vi.hoisted(() => ({
   setActiveSessionId: vi.fn()
 }))
 
+const topicStreamStatusMocks = vi.hoisted(() => ({
+  useTopicStreamStatus: vi.fn(() => ({
+    activeExecutions: [],
+    isFulfilled: false,
+    isPending: false,
+    markSeen: vi.fn(),
+    status: undefined
+  }))
+}))
+
 vi.mock('@renderer/hooks/agents/useSessionDataApi', () => ({
   useSessions: sessionDataMocks.useSessions,
   useUpdateSession: sessionDataMocks.useUpdateSession
@@ -165,6 +175,10 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
     }
     return [undefined, vi.fn()]
   }
+}))
+
+vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
+  useTopicStreamStatus: topicStreamStatusMocks.useTopicStreamStatus
 }))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
@@ -211,15 +225,6 @@ vi.mock('@data/DataApiService', () => ({
   dataApiService: {
     patch: vi.fn().mockResolvedValue(undefined),
     post: vi.fn().mockResolvedValue({ id: 'created-session' })
-  }
-}))
-
-vi.mock('@data/CacheService', () => ({
-  cacheService: {
-    get: vi.fn(),
-    getShared: vi.fn(),
-    set: vi.fn(),
-    subscribe: vi.fn(() => vi.fn())
   }
 }))
 
@@ -282,7 +287,6 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 
 import Sessions from '../Sessions'
@@ -479,14 +483,8 @@ describe('Sessions', () => {
 
     expect(screen.getByRole('button', { name: 'Alpha agent' })).toBeInTheDocument()
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
-    expect(cacheService.subscribe).not.toHaveBeenCalledWith(
-      'topic.stream.statuses.agent-session:session-a',
-      expect.any(Function)
-    )
-    expect(cacheService.subscribe).not.toHaveBeenCalledWith(
-      'topic.stream.statuses.agent-session:session-b',
-      expect.any(Function)
-    )
+    expect(topicStreamStatusMocks.useTopicStreamStatus).not.toHaveBeenCalledWith('agent-session:session-a')
+    expect(topicStreamStatusMocks.useTopicStreamStatus).not.toHaveBeenCalledWith('agent-session:session-b')
   })
 
   it('persists display mode selection from the header menu', () => {

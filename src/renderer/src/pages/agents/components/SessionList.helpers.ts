@@ -6,8 +6,7 @@ import {
   type ResourceListGroup,
   type ResourceListGroupResolver,
   type ResourceListItemReorderPayload,
-  type ResourceListTimeBucket,
-  sortByResourceGroupRank
+  type ResourceListTimeBucket
 } from '@renderer/components/chat/resources'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
@@ -73,17 +72,9 @@ function withSessionGroupIdPrefix<T>(resolver: ResourceListGroupResolver<T>): Re
   }
 }
 
-export function getSessionAgentGroupId(agentId: string) {
-  return `${SESSION_AGENT_GROUP_ID_PREFIX}${agentId}`
-}
-
 export function getAgentIdFromSessionGroupId(groupId: string): string | undefined {
   if (groupId === SESSION_UNKNOWN_AGENT_GROUP_ID || !groupId.startsWith(SESSION_AGENT_GROUP_ID_PREFIX)) return undefined
   return groupId.slice(SESSION_AGENT_GROUP_ID_PREFIX.length)
-}
-
-export function getSessionWorkdirGroupId(path: string) {
-  return `${SESSION_WORKDIR_GROUP_ID_PREFIX}${encodeURIComponent(path)}`
 }
 
 export function getWorkdirPathFromSessionGroupId(groupId: string): string | undefined {
@@ -212,17 +203,6 @@ function compareOrderKey(a?: string, b?: string) {
   return 0
 }
 
-function compareUpdatedAtDesc(a: string, b: string) {
-  const aTime = Date.parse(a)
-  const bTime = Date.parse(b)
-
-  if (Number.isFinite(aTime) && Number.isFinite(bTime)) {
-    return bTime - aTime
-  }
-
-  return 0
-}
-
 function getAgentGroupRank(session: Pick<AgentSessionEntity, 'agentId'>, agentRankById?: ReadonlyMap<string, number>) {
   if (!session.agentId) return UNKNOWN_GROUP_RANK
   return agentRankById?.get(session.agentId) ?? UNKNOWN_GROUP_RANK
@@ -247,37 +227,41 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
         session,
         index,
         rank:
-          session.pinned === true ? 0 : SESSION_TIME_BUCKET_RANK[getResourceTimeBucket(session.updatedAt, options.now)]
+          session.pinned === true ? 0 : SESSION_TIME_BUCKET_RANK[getResourceTimeBucket(session.updatedAt, options.now)],
+        updatedAtMs: Date.parse(session.updatedAt)
       }))
       .sort((a, b) => {
         const rankDelta = a.rank - b.rank
         if (rankDelta !== 0) return rankDelta
         if (a.session.pinned === true || b.session.pinned === true) return a.index - b.index
-        return compareUpdatedAtDesc(a.session.updatedAt, b.session.updatedAt) || a.index - b.index
+        if (Number.isFinite(a.updatedAtMs) && Number.isFinite(b.updatedAtMs)) {
+          return b.updatedAtMs - a.updatedAtMs || a.index - b.index
+        }
+        return a.index - b.index
       })
       .map(({ session }) => session)
   }
 
-  return sortByResourceGroupRank(sessions, (session) => {
-    if (session.pinned === true) return 0
-    if (options.mode === 'agent') return getAgentGroupRank(session, options.agentRankById) + 1
-    return getWorkdirGroupRank(session, options.workdirRankByPath) + 1
-  }).sort((a, b) => {
-    if (a.pinned === true || b.pinned === true) return 0
+  return sessions
+    .map((session, index) => {
+      const displayRank =
+        options.mode === 'agent'
+          ? getAgentGroupRank(session, options.agentRankById)
+          : getWorkdirGroupRank(session, options.workdirRankByPath)
 
-    const aRank =
-      options.mode === 'agent'
-        ? getAgentGroupRank(a, options.agentRankById)
-        : getWorkdirGroupRank(a, options.workdirRankByPath)
-    const bRank =
-      options.mode === 'agent'
-        ? getAgentGroupRank(b, options.agentRankById)
-        : getWorkdirGroupRank(b, options.workdirRankByPath)
-    const rankDelta = aRank - bRank
-    if (rankDelta !== 0) return rankDelta
-
-    return compareOrderKey(a.orderKey, b.orderKey)
-  })
+      return {
+        session,
+        index,
+        rank: session.pinned === true ? 0 : displayRank + 1
+      }
+    })
+    .sort((a, b) => {
+      const rankDelta = a.rank - b.rank
+      if (rankDelta !== 0) return rankDelta
+      if (a.session.pinned === true || b.session.pinned === true) return a.index - b.index
+      return compareOrderKey(a.session.orderKey, b.session.orderKey) || a.index - b.index
+    })
+    .map(({ session }) => session)
 }
 
 export function normalizeSessionDropPayload(payload: ResourceListItemReorderPayload): ResourceListItemReorderPayload {

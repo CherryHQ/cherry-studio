@@ -1,5 +1,4 @@
 import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
-import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { ErrorState } from '@renderer/components/chat'
@@ -16,16 +15,15 @@ import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agents/useAgentDataApi'
 import { useSessions, useUpdateSession } from '@renderer/hooks/agents/useSessionDataApi'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { Bot, Check, ChevronDown, ChevronsUpDown, Clock3, Folder, ListFilter, Plus, Sparkles } from 'lucide-react'
-import { memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import SessionItem, { type SessionStreamState } from './SessionItem'
+import SessionItem from './SessionItem'
 import {
   type AgentSessionDisplayMode,
   applyOptimisticSessionDisplayMove,
@@ -80,7 +78,7 @@ function SessionDisplayModeMenu({
           type="button"
           variant="ghost"
           aria-label={t('agent.session.display.title')}
-          className="inline-flex size-5 shrink-0 items-center justify-center p-0 leading-none text-muted-foreground/55 shadow-none hover:bg-transparent hover:text-muted-foreground/75 [&_svg]:block [&_svg]:shrink-0">
+          className="inline-flex size-5 shrink-0 items-center justify-center p-0 text-muted-foreground/55 leading-none shadow-none hover:bg-transparent hover:text-muted-foreground/75 [&_svg]:block [&_svg]:shrink-0">
           <ListFilter size={12} className="block" />
         </Button>
       </PopoverTrigger>
@@ -99,7 +97,7 @@ function SessionDisplayModeMenu({
               label={t(SESSION_DISPLAY_LABEL_KEYS[option])}
               active={mode === option}
               suffix={mode === option ? <Check size={11} /> : null}
-              className="h-6 gap-1.5 rounded-md px-1.5 py-0 text-[11px] font-normal text-muted-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-foreground [&_svg]:size-3"
+              className="h-6 gap-1.5 rounded-md px-1.5 py-0 font-normal text-[11px] text-muted-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-foreground [&_svg]:size-3"
               onClick={() => {
                 onChange(option)
                 setOpen(false)
@@ -481,14 +479,13 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
           variant="ghost"
           aria-label={t('agent.session.add.title')}
           disabled={creatingSession}
-          className="h-7 w-full justify-start gap-1.5 rounded-md px-2.5 text-[12px] font-normal text-muted-foreground/70 shadow-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground"
+          className="h-7 w-full justify-start gap-1.5 rounded-md px-2.5 font-normal text-[12px] text-muted-foreground/70 shadow-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground"
           onClick={handleHeaderCreateSession}>
           <Plus size={13} className="block shrink-0" />
           <span className="truncate">{t('agent.session.add.title')}</span>
         </Button>
       </ResourceList.Header>
       <SessionListBody
-        activeSessionId={activeSessionId}
         channelTypeMap={channelTypeMap}
         isDraggable={dragReady}
         listRef={listRef}
@@ -504,103 +501,7 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
   )
 }
 
-type SessionStreamStatusSnapshot = {
-  signature: string
-  value: ReadonlyMap<string, SessionStreamState>
-}
-
-const EMPTY_SESSION_STREAM_STATE: SessionStreamState = Object.freeze({
-  isFulfilled: false,
-  isPending: false
-})
-
-const EMPTY_SESSION_STREAM_STATUS_MAP: ReadonlyMap<string, SessionStreamState> = new Map()
-
-const getTopicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses.${topicId}` as const
-
-const getTopicStreamSeenCacheKey = (topicId: string) => `topic.stream.seen.${topicId}` as const
-
-const buildSessionStreamStatusSnapshot = (sessionIds: readonly string[]): SessionStreamStatusSnapshot => {
-  if (sessionIds.length === 0) {
-    return {
-      signature: '',
-      value: EMPTY_SESSION_STREAM_STATUS_MAP
-    }
-  }
-
-  const value = new Map<string, SessionStreamState>()
-  const signatureParts: string[] = []
-
-  for (const sessionId of sessionIds) {
-    const topicId = buildAgentSessionTopicId(sessionId)
-    const statusEntry = cacheService.getShared(getTopicStreamStatusCacheKey(topicId))
-    const seen = cacheService.get(getTopicStreamSeenCacheKey(topicId)) ?? false
-    const status = statusEntry?.status
-    const streamStatus = {
-      isFulfilled: status === 'done' && !seen,
-      isPending: status === 'pending' || status === 'streaming'
-    }
-
-    signatureParts.push(`${sessionId}:${streamStatus.isPending ? 1 : 0}:${streamStatus.isFulfilled ? 1 : 0}`)
-
-    if (streamStatus.isPending || streamStatus.isFulfilled) {
-      value.set(sessionId, streamStatus)
-    }
-  }
-
-  return {
-    signature: signatureParts.join('|'),
-    value: value.size > 0 ? value : EMPTY_SESSION_STREAM_STATUS_MAP
-  }
-}
-
-const subscribeSessionStreamStatuses = (sessionIds: readonly string[], onStoreChange: () => void): (() => void) => {
-  if (sessionIds.length === 0) {
-    return () => undefined
-  }
-
-  const unsubscribes: Array<() => void> = []
-
-  for (const sessionId of new Set(sessionIds)) {
-    const topicId = buildAgentSessionTopicId(sessionId)
-    unsubscribes.push(cacheService.subscribe(getTopicStreamStatusCacheKey(topicId), onStoreChange))
-    unsubscribes.push(cacheService.subscribe(getTopicStreamSeenCacheKey(topicId), onStoreChange))
-  }
-
-  return () => {
-    for (const unsubscribe of unsubscribes) {
-      unsubscribe()
-    }
-  }
-}
-
-const useSessionListStreamStatuses = (sessionIds: readonly string[]): ReadonlyMap<string, SessionStreamState> => {
-  const snapshotRef = useRef<SessionStreamStatusSnapshot>({
-    signature: '',
-    value: EMPTY_SESSION_STREAM_STATUS_MAP
-  })
-
-  const getSnapshot = useCallback(() => {
-    const nextSnapshot = buildSessionStreamStatusSnapshot(sessionIds)
-
-    if (snapshotRef.current.signature === nextSnapshot.signature) {
-      return snapshotRef.current.value
-    }
-
-    snapshotRef.current = nextSnapshot
-    return nextSnapshot.value
-  }, [sessionIds])
-
-  const subscribe = useCallback(
-    (onStoreChange: () => void) => subscribeSessionStreamStatuses(sessionIds, onStoreChange),
-    [sessionIds]
-  )
-
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
-}
-
 interface SessionListBodyProps {
-  activeSessionId: string | null
   channelTypeMap: Record<string, string>
   isDraggable: boolean
   listRef: RefObject<HTMLDivElement | null>
@@ -611,7 +512,6 @@ interface SessionListBodyProps {
 }
 
 function SessionListBody({
-  activeSessionId,
   channelTypeMap,
   isDraggable,
   listRef,
@@ -622,22 +522,6 @@ function SessionListBody({
 }: SessionListBodyProps) {
   const { t } = useTranslation()
   const context = useResourceList<SessionListItem>()
-  const [renamingTopics] = useCache('topic.renaming')
-  const [newlyRenamedTopics] = useCache('topic.newly_renamed')
-  const visibleSessionIds = useMemo(
-    () => context.view.visibleItems.map((session) => session.id),
-    [context.view.visibleItems]
-  )
-  const streamStatusBySessionId = useSessionListStreamStatuses(visibleSessionIds)
-  const renamingTopicIds = useMemo(() => new Set(renamingTopics), [renamingTopics])
-  const newlyRenamedTopicIds = useMemo(() => new Set(newlyRenamedTopics), [newlyRenamedTopics])
-
-  useEffect(() => {
-    if (!activeSessionId) return
-    const streamStatus = streamStatusBySessionId.get(activeSessionId)
-    if (streamStatus?.isFulfilled !== true) return
-    cacheService.set(getTopicStreamSeenCacheKey(buildAgentSessionTopicId(activeSessionId)), true)
-  }, [activeSessionId, streamStatusBySessionId])
 
   if (context.state.status === 'loading') {
     return <ResourceList.LoadingState />
@@ -656,16 +540,11 @@ function SessionListBody({
       key={session.id}
       session={session}
       channelType={channelTypeMap[session.id]}
-      isNewlyRenamed={newlyRenamedTopicIds.has(buildAgentSessionTopicId(session.id))}
-      isRenaming={renamingTopicIds.has(buildAgentSessionTopicId(session.id))}
       pinned={session.pinned}
-      streamStatus={streamStatusBySessionId.get(session.id) ?? EMPTY_SESSION_STREAM_STATE}
-      onTogglePin={() => void onTogglePin(session.id)}
-      onDelete={() => void onDeleteSession(session.id)}
-      onPress={() => {
-        setActiveSessionId(session.id)
-        onSelectItem?.()
-      }}
+      onTogglePin={onTogglePin}
+      onDelete={onDeleteSession}
+      onPress={setActiveSessionId}
+      onSelectItem={onSelectItem}
     />
   )
 
