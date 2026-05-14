@@ -181,7 +181,7 @@ export const generateToolEnvironment = ({
       break
     case codeTools.openaiCodex:
       env.OPENAI_API_KEY = apiKey
-      env.OPENAI_BASE_URL = formattedBaseUrl
+      env.CHERRY_CODEX_BASE_URL = formattedBaseUrl
       env.OPENAI_MODEL = model.id
       env.OPENAI_MODEL_PROVIDER = modelProvider.id
       env.OPENAI_MODEL_PROVIDER_NAME = sanitizeProviderName(getFancyProviderName(modelProvider))

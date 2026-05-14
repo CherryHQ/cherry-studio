@@ -1013,7 +1013,7 @@ class CodeToolsService {
     if (cliTool === codeTools.openaiCodex && env.OPENAI_MODEL_PROVIDER) {
       const providerId = env.OPENAI_MODEL_PROVIDER
       const providerName = env.OPENAI_MODEL_PROVIDER_NAME || providerId
-      const normalizedBaseUrl = env.OPENAI_BASE_URL.replace(/\/$/, '')
+      const normalizedBaseUrl = env.CHERRY_CODEX_BASE_URL.replace(/\/$/, '')
       const model = _model
       // All Codex providers use Cherry- prefix to avoid conflicts with built-in provider IDs
       const cherryProviderKey = `Cherry-${providerName.replace(/\./g, '-')}`
