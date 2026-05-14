@@ -167,6 +167,7 @@ const createAssistant = (overrides: AssistantTestOverrides = {}): Assistant => (
   description: '',
   modelId: null,
   modelName: null,
+  orderKey: 'a0',
   mcpServerIds: [],
   knowledgeBaseIds: [],
   tags: [],

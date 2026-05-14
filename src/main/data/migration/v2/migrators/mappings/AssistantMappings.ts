@@ -130,7 +130,7 @@ export interface OldAssistant {
 // ============================================================================
 
 export interface AssistantTransformResult {
-  assistant: AssistantInsert
+  assistant: Omit<AssistantInsert, 'orderKey'>
   mcpServers: (typeof assistantMcpServerTable.$inferInsert)[]
   knowledgeBases: (typeof assistantKnowledgeBaseTable.$inferInsert)[]
   tags: string[]

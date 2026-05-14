@@ -58,6 +58,7 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
       customParameters: []
     },
     modelId: 'openai::gpt-4o',
+    orderKey: 'a0',
     mcpServerIds: ['mcp-1'],
     knowledgeBaseIds: ['kb-1'],
     createdAt: '2026-04-20T00:00:00.000Z',
