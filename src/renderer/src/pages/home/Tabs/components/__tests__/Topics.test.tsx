@@ -224,6 +224,9 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.export.joplin') return 'Export to Joplin'
       if (key === 'chat.topics.export.siyuan') return 'Export to Siyuan'
       if (key === 'common.delete') return 'Delete'
+      if (key === 'common.cancel') return 'Cancel'
+      if (key === 'chat.topics.manage.delete.confirm.title') return 'Delete Topics'
+      if (key === 'chat.topics.manage.delete.confirm.content') return `Delete ${options?.count ?? 0} topic(s)?`
       if (key === 'chat.add.topic.title') return 'New Topic'
       if (key === 'chat.default.name') return 'Default Assistant'
       if (key === 'common.prompt') return 'Prompt'
@@ -600,6 +603,21 @@ describe('Topics', () => {
       'variant',
       'destructive'
     )
+  })
+
+  it('confirms topic deletion from the shared context menu before deleting', async () => {
+    const { getByText } = renderTopicList()
+
+    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Delete Topics')
+    expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
+
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a'))
   })
 
   it('keeps topic rows compact and only renders the title field in the sidebar list', () => {

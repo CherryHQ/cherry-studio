@@ -22,6 +22,8 @@ import { CalendarDays, ChevronsDown, ChevronsUp, SearchIcon } from 'lucide-react
 import type { ComponentProps, ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 
+import { ActionMenu } from '../actions/ActionMenu'
+import type { ResolvedAction } from '../actions/actionTypes'
 import {
   ResourceListContext,
   type ResourceListContextValue,
@@ -1007,24 +1009,40 @@ function VirtualItems<T extends ResourceListItemBase>({ className, ref, renderIt
   )
 }
 
-type ContextMenuProps<T extends ResourceListItemBase> = {
+type ContextMenuProps<T extends ResourceListItemBase, TActionContext = unknown> = {
+  actions?: readonly ResolvedAction<TActionContext>[]
   item: T
   children: ReactNode
-  content: ReactNode
+  content?: ReactNode
   contentClassName?: string
+  menuClassName?: string
+  onAction?: (action: ResolvedAction<TActionContext>) => void | Promise<void>
 }
 
-function ContextMenu<T extends ResourceListItemBase>({
+function ContextMenu<T extends ResourceListItemBase, TActionContext = unknown>({
+  actions: menuActions,
   item,
   children,
   content,
-  contentClassName
-}: ContextMenuProps<T>) {
+  contentClassName,
+  menuClassName,
+  onAction
+}: ContextMenuProps<T, TActionContext>) {
   const { actions, meta } = useResourceList<T>()
+  const contentClass = cn(CONTEXT_MENU_CONTENT_CLASS, contentClassName)
+
   return (
     <UiContextMenu onOpenChange={(open) => open && actions.openContextMenu(meta.getItemId(item))}>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent className={cn(CONTEXT_MENU_CONTENT_CLASS, contentClassName)}>{content}</ContextMenuContent>
+      {menuActions ? (
+        <ActionMenu
+          actions={menuActions}
+          className={cn(contentClass, menuClassName)}
+          onAction={(action) => onAction?.(action)}
+        />
+      ) : (
+        <ContextMenuContent className={contentClass}>{content}</ContextMenuContent>
+      )}
     </UiContextMenu>
   )
 }

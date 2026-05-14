@@ -1,4 +1,4 @@
-import { ContextMenuSub, Tooltip } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { ResourceList, useResourceList } from '@renderer/components/chat/resources'
 import { isMac } from '@renderer/config/constant'
 import { useCache } from '@renderer/data/hooks/useCache'
@@ -6,8 +6,8 @@ import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
-import { MenuIcon, PinIcon, Trash2, XIcon } from 'lucide-react'
-import type { MouseEvent, ReactNode } from 'react'
+import { PinIcon, Trash2, XIcon } from 'lucide-react'
+import type { MouseEvent } from 'react'
 import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -191,64 +191,10 @@ const SessionItem = ({
   )
 
   return (
-    <ResourceList.ContextMenu
-      item={session}
-      content={<SessionContextMenu actions={menuActions} onAction={handleMenuAction} />}>
+    <ResourceList.ContextMenu item={session} actions={menuActions} onAction={handleMenuAction}>
       {row}
     </ResourceList.ContextMenu>
   )
-}
-
-function SessionContextMenu({
-  actions,
-  onAction
-}: {
-  actions: ReturnType<typeof resolveSessionMenuActions>
-  onAction: (action: ReturnType<typeof resolveSessionMenuActions>[number]) => Promise<void>
-}) {
-  const actionItems: ReactNode[] = []
-
-  actions.forEach((action) => {
-    if (action.children.length > 0) {
-      actionItems.push(
-        <ContextMenuSub key={action.id}>
-          <ResourceList.ContextMenuSubAction icon={action.icon ?? <MenuIcon />}>
-            {action.label}
-          </ResourceList.ContextMenuSubAction>
-          <ResourceList.ContextMenuSubContent>
-            {action.children.map((child) => (
-              <ResourceList.ContextMenuAction
-                key={child.id}
-                disabled={!child.availability.enabled}
-                icon={child.icon}
-                variant={child.danger ? 'destructive' : undefined}
-                onSelect={() => void onAction(child)}>
-                {child.label}
-              </ResourceList.ContextMenuAction>
-            ))}
-          </ResourceList.ContextMenuSubContent>
-        </ContextMenuSub>
-      )
-      return
-    }
-
-    if (action.group === 'danger' && actionItems.length > 0) {
-      actionItems.push(<ResourceList.ContextMenuSeparator key={`${action.id}:separator`} />)
-    }
-
-    actionItems.push(
-      <ResourceList.ContextMenuAction
-        key={action.id}
-        disabled={!action.availability.enabled}
-        icon={action.icon}
-        variant={action.danger ? 'destructive' : undefined}
-        onSelect={() => void onAction(action)}>
-        {action.label}
-      </ResourceList.ContextMenuAction>
-    )
-  })
-
-  return <>{actionItems}</>
 }
 
 const SessionStreamIndicator = ({ isFulfilled, isPending }: { isFulfilled: boolean; isPending: boolean }) => {

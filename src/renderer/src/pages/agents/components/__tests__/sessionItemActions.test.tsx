@@ -33,9 +33,16 @@ describe('session item actions', () => {
       startEdit
     })
     const actions = resolveSessionMenuActions(actionContext)
+    const deleteAction = actions.find((action) => action.id === 'session.delete')
 
     expect(actions.map((action) => action.id)).toEqual(['session.rename', 'session.toggle-pin', 'session.delete'])
     expect(actions.find((action) => action.id === 'session.toggle-pin')?.label).toBe('chat.topics.unpin')
+    expect(deleteAction?.confirm).toMatchObject({
+      title: 'agent.session.delete.title',
+      description: 'agent.session.delete.content',
+      confirmText: 'common.delete',
+      destructive: true
+    })
 
     await executeSessionMenuAction(actions[0]!, actionContext)
     await executeSessionMenuAction(actions[1]!, actionContext)

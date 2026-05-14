@@ -57,7 +57,13 @@ sessionActionRegistry.registerAction({
   group: 'danger',
   order: 40,
   surface: 'menu',
-  danger: true
+  danger: true,
+  confirm: ({ t }) => ({
+    title: t('agent.session.delete.title'),
+    description: t('agent.session.delete.content'),
+    confirmText: t('common.delete'),
+    destructive: true
+  })
 })
 
 export function resolveSessionMenuActions(context: SessionActionContext): ResolvedAction<SessionActionContext>[] {

@@ -84,6 +84,7 @@ vi.mock('@dnd-kit/utilities', () => ({
   }
 }))
 
+import type { ResolvedAction } from '../../actions/actionTypes'
 import { ResourceList, useResourceList } from '../ResourceList'
 import type { ResourceListItemBase } from '../ResourceListContext'
 import {
@@ -274,6 +275,48 @@ describe('ResourceList', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Rename' })[0])
     expect(screen.getByLabelText('Rename Alpha')).toBeInTheDocument()
+  })
+
+  it('renders resolved actions through the shared action menu', () => {
+    const onAction = vi.fn()
+    const Provider = ResourceList.Provider<TestItem>
+    const actions: ResolvedAction[] = [
+      {
+        id: 'rename',
+        label: 'Rename',
+        danger: false,
+        availability: { visible: true, enabled: true },
+        children: []
+      },
+      {
+        id: 'delete',
+        label: 'Delete',
+        danger: true,
+        availability: { visible: true, enabled: true },
+        children: []
+      }
+    ]
+
+    function Row({ item }: { item: TestItem }) {
+      return (
+        <ResourceList.ContextMenu item={item} actions={actions} onAction={onAction}>
+          <ResourceList.Item item={item}>
+            <span>{item.name}</span>
+          </ResourceList.Item>
+        </ResourceList.ContextMenu>
+      )
+    }
+
+    render(
+      <Provider items={ITEMS}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem> renderItem={(item) => <Row item={item} />} />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Delete' })[0])
+    expect(onAction).toHaveBeenCalledWith(expect.objectContaining({ id: 'delete' }))
   })
 
   it('combines virtualization and drag reorder for large resource lists', () => {
