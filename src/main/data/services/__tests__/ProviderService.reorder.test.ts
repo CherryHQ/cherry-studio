@@ -62,6 +62,26 @@ describe('ProviderService reorder', () => {
     expect(await readOrder()).toEqual(['anthropic', 'gemini', 'openai'])
   })
 
+  it('moves a provider before an anchor', async () => {
+    // The reorder suite previously covered only `after` and `position`,
+    // leaving the `before` branch of applyMoves uncovered. With the seeded
+    // order [openai, anthropic, gemini], moving openai before gemini should
+    // place it immediately before gemini, between anthropic and gemini.
+    await seedProviders()
+
+    await providerService.move('openai', { before: 'gemini' })
+
+    expect(await readOrder()).toEqual(['anthropic', 'openai', 'gemini'])
+  })
+
+  it('rejects a before-anchor that equals the move target', async () => {
+    await seedProviders()
+
+    await expect(providerService.move('openai', { before: 'openai' })).rejects.toMatchObject({
+      code: ErrorCode.VALIDATION_ERROR
+    })
+  })
+
   it('applies batch moves sequentially', async () => {
     await seedProviders()
 
