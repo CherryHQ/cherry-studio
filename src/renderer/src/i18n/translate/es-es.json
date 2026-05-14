@@ -948,6 +948,10 @@
         },
         "file_filter": "Archivos JSON",
         "select_file": "Seleccionar archivo",
+        "subscribe": {
+          "title": "[to be translated]:Agent Subscription",
+          "url_placeholder": "[to be translated]:Subscription URL"
+        },
         "title": "Importar desde externo",
         "type": {
           "file": "Archivo",
@@ -1614,6 +1618,7 @@
     "env_vars_help": "Introduzca variables de entorno personalizadas (una por línea, formato: CLAVE=valor)",
     "environment_variables": "Variables de entorno",
     "folder_placeholder": "Seleccionar directorio de trabajo",
+    "hero_tagline": "[to be translated]:Pick a CLI tool to configure",
     "install_bun": "Instalar Bun",
     "installing_bun": "Instalando...",
     "launch": {
@@ -1636,10 +1641,6 @@
     "terminal_hint": "Elige qué aplicación de terminal utilizar para ejecutar la CLI",
     "terminal_placeholder": "Seleccionar aplicación de terminal",
     "title": "Herramientas de código",
-    "update_options": "Opciones de actualización",
-    "working_directory": "directorio de trabajo",
-    "working_directory_hint": "El directorio de trabajo en el que se ejecuta la herramienta CLI",
-    "hero_tagline": "[to be translated]:Pick a CLI tool to configure",
     "tool_description": {
       "claude_code": "[to be translated]:Anthropic's official command-line AI coding assistant",
       "gemini_cli": "[to be translated]:Google's official Gemini command-line assistant",
@@ -1649,7 +1650,10 @@
       "openai_codex": "[to be translated]:OpenAI's official code generation CLI",
       "opencode": "[to be translated]:Open-source multi-model coding agent",
       "qwen_code": "[to be translated]:Alibaba Tongyi's open-source CLI coding tool"
-    }
+    },
+    "update_options": "Opciones de actualización",
+    "working_directory": "directorio de trabajo",
+    "working_directory_hint": "El directorio de trabajo en el que se ejecuta la herramienta CLI"
   },
   "code_block": {
     "collapse": "Replegar",
@@ -2100,23 +2104,6 @@
       "submit": "[to be translated]:Create",
       "title": "[to be translated]:New Knowledge Base"
     },
-    "add_directory": "Agregar directorio",
-    "add_file": "Agregar archivo",
-    "add_image": "Añadir imagen",
-    "add_note": "Agregar nota",
-    "add_sitemap": "Mapa del sitio",
-    "add_url": "Agregar URL",
-    "add_video": "Añadir video",
-    "cancel_index": "Cancelar índice",
-    "chunk_overlap": "Superposición de fragmentos",
-    "chunk_overlap_placeholder": "Valor predeterminado (no recomendado para modificar)",
-    "chunk_overlap_tooltip": "La cantidad de contenido repetido entre bloques de texto adyacentes, asegurando que los fragmentos de texto divididos aún mantengan un contexto, mejorando el rendimiento general del modelo en textos largos",
-    "chunk_size": "Tamaño de fragmento",
-    "chunk_size_change_warning": "Las modificaciones del tamaño de fragmento y la superposición solo se aplican al nuevo contenido agregado",
-    "chunk_size_placeholder": "Valor predeterminado (no recomendado para modificar)",
-    "chunk_size_too_large": "El tamaño de fragmento no puede exceder el límite de contexto del modelo ({{max_context}})",
-    "chunk_size_tooltip": "Divide el documento en fragmentos de este tamaño, no debe exceder el límite de contexto del modelo",
-    "clear_selection": "Limpiar selección",
     "context": {
       "delete": "[to be translated]:Delete Knowledge Base",
       "delete_confirm_description": "[to be translated]:This knowledge base cannot be recovered after deletion.",
@@ -2180,6 +2167,7 @@
       "chunks_count": "[to be translated]:{{count}} chunks",
       "delete_confirm_description": "[to be translated]:This data source and its index data cannot be recovered after deletion.",
       "delete_confirm_title": "[to be translated]:Delete Data Source?",
+      "delete_failed": "[to be translated]:Failed to delete data source",
       "empty_description": "[to be translated]:No data sources yet",
       "filters": {
         "all": "[to be translated]:All",
@@ -2194,6 +2182,7 @@
         "unavailable": "[to be translated]:This data source has no source to preview"
       },
       "ready_summary": "[to be translated]:{{ready}}/{{total}} ready",
+      "reindex_failed": "[to be translated]:Failed to reindex data source",
       "status": {
         "chunking": "[to be translated]:Chunking",
         "embedding": "[to be translated]:Embedding",
@@ -2202,38 +2191,22 @@
         "ready": "[to be translated]:Ready"
       }
     },
-    "delete": "Eliminar",
-    "delete_confirm": "¿Está seguro de querer eliminar esta base de conocimientos?",
     "dimensions": "[to be translated]:Embedding Dimensions",
     "dimensions_auto_set": "Configuración automática de dimensiones de incrustación",
-    "dimensions_default": "El modelo utilizará las dimensiones de incrustación predeterminadas",
     "dimensions_error_invalid": "Por favor ingrese el tamaño de dimensión de incrustación",
-    "dimensions_set_right": "⚠️ Asegúrese de que el modelo admita el tamaño de dimensión de incrustación establecido",
     "dimensions_size_placeholder": " Tamaño de dimensión de incrustación, ej. 1024",
-    "dimensions_size_too_large": "La dimensión de incrustación no puede exceder el límite del contexto del modelo ({{max_context}})",
-    "dimensions_size_tooltip": "Tamaño de la dimensión de incrustación, cuanto mayor sea el valor, mayor será la dimensión de incrustación, pero también consumirá más Tokens",
-    "directories": "Directorios",
-    "directory_placeholder": "Ingrese la ruta del directorio",
-    "document_count": "Número de fragmentos de documentos solicitados",
-    "document_count_default": "Predeterminado",
-    "document_count_help": "Más fragmentos de documentos solicitados significa más información adjunta, pero también consume más tokens",
     "drag_file": "Arrastre archivos aquí",
-    "drag_image": "Arrastra la imagen aquí",
-    "edit_remark": "Editar observación",
-    "edit_remark_placeholder": "Ingrese el contenido de la observación",
     "embedding_model": "[to be translated]:Embedding Model",
     "embedding_model_required": "[to be translated]:Knowledge base embedding model is required",
     "empty": "[to be translated]:No knowledge bases",
     "error": {
       "failed_base_unknown": "[to be translated]:This knowledge base failed during migration. Rebuild it and choose a new embedding model.",
       "failed_to_create": "[to be translated]:Failed to create knowledge base",
+      "failed_to_delete": "[to be translated]:Failed to delete knowledge base",
       "failed_to_edit": "[to be translated]:Failed to edit knowledge base",
+      "failed_to_move": "[to be translated]:Failed to move knowledge base",
       "missing_embedding_model": "[to be translated]:The embedding model used by this knowledge base was not found during migration. Rebuild the knowledge base and choose a new embedding model.",
-      "model_invalid": "No se ha seleccionado un modelo o ha sido eliminado",
-      "video": {
-        "local_file_missing": "El archivo de video no existe.",
-        "youtube_url_missing": "El enlace del vídeo de YouTube no existe."
-      }
+      "model_invalid": "No se ha seleccionado un modelo o ha sido eliminado"
     },
     "file_hint": "Formatos soportados: {{file_types}}",
     "groups": {
@@ -2244,6 +2217,7 @@
       "delete_confirm_title": "[to be translated]:Delete Group?",
       "error": {
         "failed_to_create": "[to be translated]:Failed to create group",
+        "failed_to_delete": "[to be translated]:Failed to delete group",
         "failed_to_update": "[to be translated]:Failed to rename group"
       },
       "name_placeholder": "[to be translated]:Enter group name...",
@@ -2252,41 +2226,11 @@
       "rename_title": "[to be translated]:Rename Group",
       "ungrouped": "[to be translated]:Ungrouped"
     },
-    "image_hint": "Soporta formatos {{image_types}}",
-    "images": "Imagen",
-    "index_all": "Indexar todo",
-    "index_cancelled": "Índice cancelado",
-    "index_started": "Índice iniciado",
-    "invalid_url": "URL inválida",
     "meta": {
       "documents_count": "[to be translated]:{{count}} documents"
     },
-    "migrate": {
-      "button": {
-        "text": "Migrar"
-      },
-      "confirm": {
-        "content": "Se detectaron cambios en el modelo de incrustación o las dimensiones, por lo que no se puede guardar la configuración. Puede ejecutar la migración para evitar la pérdida de datos. La migración de la base de conocimientos no elimina la base de conocimientos anterior, sino que crea una copia y procesa todos los elementos de la base de conocimientos, lo que puede consumir muchos tokens. Por favor, tenga cuidado.",
-        "ok": "Iniciar migración",
-        "title": "Migración de base de conocimientos"
-      },
-      "error": {
-        "failed": "Error en la migración"
-      },
-      "source_dimensions": "Dimensiones de origen",
-      "source_model": "Modelo de origen",
-      "target_dimensions": "Dimensiones de destino",
-      "target_model": "Modelo de destino"
-    },
-    "model_info": "Información del modelo",
     "name_required": "[to be translated]:Knowledge base name is required",
-    "no_bases": "Sin bases de conocimientos",
-    "no_match": "No se encontraron coincidencias en la base de conocimientos",
-    "no_provider": "El proveedor del modelo de la base de conocimientos está perdido, esta base de conocimientos ya no es compatible, por favor cree una nueva base de conocimientos",
     "not_set": "[to be translated]:Not Set",
-    "not_support": "El motor de base de datos de la base de conocimientos ha sido actualizado, esta base de conocimientos ya no es compatible, por favor cree una nueva base de conocimientos",
-    "notes": "Notas",
-    "notes_placeholder": "Ingrese información adicional o contexto para esta base de conocimientos...",
     "provider_not_found": "El proveedor del modelo de la base de conocimientos ha sido perdido, esta base de conocimientos ya no es compatible, por favor cree una nueva base de conocimientos",
     "rag": {
       "chunk_overlap": "[to be translated]:Overlap Size",
@@ -2298,7 +2242,10 @@
       "chunk_size_invalid": "[to be translated]:Chunk size must be greater than 0",
       "chunking": "[to be translated]:Chunking",
       "default_separator": "[to be translated]:Auto (recommended)",
+      "dimensions": "[to be translated]:Vector Dimensions",
       "document_count": "[to be translated]:Document Count",
+      "embedding_model": "[to be translated]:Embedding Model",
+      "embedding_model_select": "[to be translated]:Model Selection",
       "file_processing": "[to be translated]:File Processing",
       "file_processing_hint": "[to be translated]:File processing runs automatically during document import. Choosing the right provider can improve document parsing quality.",
       "hints": {
@@ -2317,9 +2264,14 @@
       "hybrid_alpha": "[to be translated]:Hybrid Alpha",
       "hybrid_alpha_hint": "[to be translated]:Only configurable in Hybrid retrieval mode",
       "processor": "[to be translated]:Processing Provider",
+      "refresh_dimensions": "[to be translated]:Refresh vector dimensions",
       "rerank_disabled": "[to be translated]:Disabled",
+      "rerank_model": "[to be translated]:Rerank Model",
+      "reset_action": "[to be translated]:Restore Defaults",
       "reset_defaults": "[to be translated]:Reset Defaults",
       "retrieval": "[to be translated]:Retrieval Settings",
+      "save_action": "[to be translated]:Save",
+      "saved": "[to be translated]:Saved",
       "search_mode": {
         "bm25": "[to be translated]:Full-text Search",
         "default": "[to be translated]:Vector Search",
@@ -2345,11 +2297,11 @@
       "result_count": "[to be translated]:{{count}} results",
       "result_rank": "[to be translated]:Rank #{{rank}}",
       "result_relevance": "[to be translated]:Relevance {{score}}",
+      "search_failed": "[to be translated]:Failed to run recall test",
       "searching": "[to be translated]:Searching...",
       "submit": "[to be translated]:Search",
       "top_score": "[to be translated]:Top: {{score}}"
     },
-    "rename": "Renombrar",
     "rename_title": "[to be translated]:Rename Knowledge Base",
     "restore": {
       "action": "[to be translated]:Rebuild knowledge base",
@@ -2360,48 +2312,20 @@
     },
     "search": "[to be translated]:Search Knowledge Base",
     "search_placeholder": "Ingrese el contenido de la consulta",
-    "settings": {
-      "preprocessing": "Preprocesamiento",
-      "preprocessing_tooltip": "Preprocesar los archivos cargados usando OCR",
-      "title": "Configuración de la Base de Conocimiento"
-    },
-    "sitemap_added": "Agregado con éxito",
-    "sitemap_placeholder": "Ingrese la URL del mapa del sitio",
-    "sitemaps": "Sitios web",
-    "source": "Fuente",
     "status": {
       "completed": "[to be translated]:Ready",
       "failed": "[to be translated]:Failed",
       "processing": "[to be translated]:Processing"
     },
-    "status_completed": "Completado",
-    "status_embedding_completed": "Incrustación completada",
     "status_embedding_failed": "Error en la incrustación",
-    "status_failed": "Fallido",
-    "status_new": "Nuevo",
-    "status_pending": "Pendiente",
-    "status_preprocess_completed": "Preprocesamiento completado",
     "status_preprocess_failed": "Error en el preprocesamiento",
-    "status_processing": "Procesando",
     "subtitle_file": "Archivo de subtítulos",
     "tabs": {
       "data_source": "[to be translated]:Data Sources",
       "rag_config": "[to be translated]:RAG Config",
       "recall_test": "[to be translated]:Recall Test"
     },
-    "threshold": "Umbral de coincidencia",
-    "threshold_placeholder": "No configurado",
-    "threshold_too_large_or_small": "El umbral no puede ser mayor que 1 o menor que 0",
-    "threshold_tooltip": "Se usa para medir la relevancia entre la pregunta del usuario y el contenido de la base de conocimientos (0-1)",
     "title": "[to be translated]:Knowledge Base",
-    "topN": "Número de resultados devueltos",
-    "topN_placeholder": "No configurado",
-    "topN_too_large_or_small": "La cantidad de resultados devueltos no puede ser mayor que 30 ni menor que 1",
-    "topN_tooltip": "Número de resultados coincidentes devueltos, un valor más alto significa más resultados coincidentes, pero también consume más tokens",
-    "url_added": "URL agregada",
-    "url_placeholder": "Ingrese la URL, múltiples URLs separadas por enter",
-    "urls": "URLs",
-    "videos": "vídeo",
     "videos_file": "video file"
   },
   "languages": {
@@ -2443,6 +2367,21 @@
       "manage_tags": "[to be translated]:Manage tags",
       "uninstall": "[to be translated]:Uninstall"
     },
+    "assistant_catalog": {
+      "add": "[to be translated]:Add",
+      "add_failed": "[to be translated]:Failed to add assistant",
+      "browse_label": "[to be translated]:Assistant categories",
+      "empty_description": "[to be translated]:This category has no assistant presets yet.",
+      "empty_title": "[to be translated]:No assistants to add",
+      "mine": "[to be translated]:Mine",
+      "no_match_description": "[to be translated]:Try a different search keyword",
+      "no_match_title": "[to be translated]:No matching assistants",
+      "preview": "[to be translated]:Preview",
+      "preview_description": "[to be translated]:Overview",
+      "preview_prompt": "[to be translated]:Prompt",
+      "scroll_left": "[to be translated]:Scroll categories left",
+      "scroll_right": "[to be translated]:Scroll categories right"
+    },
     "badge": {
       "update": "[to be translated]:Update"
     },
@@ -2454,6 +2393,7 @@
           "accessible_paths": {
             "add": "[to be translated]:Add directory",
             "empty": "[to be translated]:Not set (defaults to the workspace root)",
+            "hint": "[to be translated]:Limits directories the agent can access",
             "label": "[to be translated]:Accessible directories"
           },
           "allowed_tools": {
@@ -2461,7 +2401,11 @@
             "empty": "[to be translated]:Leave empty to use the permission mode default",
             "label": "[to be translated]:Allowed tools"
           },
+          "avatar": {
+            "hint": "[to be translated]:Used to identify it in the library and sessions"
+          },
           "description": {
+            "hint": "[to be translated]:Helps identify what this agent is for",
             "label": "[to be translated]:Description",
             "placeholder": "[to be translated]:What this agent is for…"
           },
@@ -2476,6 +2420,7 @@
             "label": "[to be translated]:Heartbeat interval (minutes)"
           },
           "instructions": {
+            "hint": "[to be translated]:Defines the agent's role and behavior boundaries",
             "label": "[to be translated]:System prompt",
             "placeholder": "[to be translated]:Tell the agent who it is and what it can do…"
           },
@@ -2494,6 +2439,7 @@
             "label": "[to be translated]:Primary model (required)"
           },
           "name": {
+            "hint": "[to be translated]:Shown in the library and session lists",
             "label": "[to be translated]:Agent name",
             "placeholder": "[to be translated]:Give the agent a name"
           },
@@ -2570,6 +2516,49 @@
         "default_value": "[to be translated]:Model default",
         "desc": "[to be translated]:Configure the assistant's identity and model parameters",
         "description_label": "[to be translated]:Description",
+        "field": {
+          "avatar": {
+            "hint": "[to be translated]:Used to identify the assistant in the library and chats"
+          },
+          "context_count": {
+            "hint": "[to be translated]:Number of recent messages kept as context"
+          },
+          "custom_params": {
+            "hint": "[to be translated]:Extra provider parameters sent with requests"
+          },
+          "description": {
+            "hint": "[to be translated]:Helps distinguish what this assistant is for",
+            "placeholder": "[to be translated]:What this assistant is for..."
+          },
+          "max_tokens": {
+            "hint": "[to be translated]:Caps response length when enabled"
+          },
+          "max_tool_calls": {
+            "hint": "[to be translated]:Limits tool-call loops when enabled"
+          },
+          "model": {
+            "hint": "[to be translated]:Overrides the global default model for this assistant"
+          },
+          "name": {
+            "hint": "[to be translated]:Shown in the library and assistant selectors",
+            "placeholder": "[to be translated]:Give the assistant a name"
+          },
+          "stream_output": {
+            "hint": "[to be translated]:Shows responses as they are generated"
+          },
+          "tags": {
+            "hint": "[to be translated]:Used for filtering and organizing assistants"
+          },
+          "temperature": {
+            "hint": "[to be translated]:Controls randomness when enabled"
+          },
+          "tool_use_mode": {
+            "hint": "[to be translated]:Controls how tools are exposed to the model"
+          },
+          "top_p": {
+            "hint": "[to be translated]:Limits token sampling range when enabled"
+          }
+        },
         "json_invalid": "[to be translated]:Invalid JSON format",
         "max_tokens": "[to be translated]:Max tokens",
         "max_tool_calls": "[to be translated]:Max tool calls",
@@ -2602,14 +2591,29 @@
         "empty_title": "[to be translated]:No knowledge bases linked",
         "invalid_suffix": "[to be translated]:... (unavailable)",
         "linked": "[to be translated]:Linked knowledge bases",
+        "linked_hint": "[to be translated]:Controls which knowledge bases this assistant can retrieve from",
         "no_more": "[to be translated]:No more knowledge bases available",
         "remove_aria": "[to be translated]:Remove",
         "search": "[to be translated]:Search knowledge bases...",
         "title": "[to be translated]:Knowledge bases"
       },
       "prompt": {
+        "create_title": "[to be translated]:New Prompt",
         "dblclick_hint": "[to be translated]:Double-click the preview to switch back to edit",
         "desc": "[to be translated]:The system prompt is sent as the opening context of the assistant",
+        "edit_title": "[to be translated]:Edit Prompt",
+        "field": {
+          "content": {
+            "label": "[to be translated]:Content",
+            "too_long": "[to be translated]:Content must be {{max}} characters or fewer"
+          },
+          "name": {
+            "label": "[to be translated]:Name",
+            "too_long": "[to be translated]:Name must be {{max}} characters or fewer"
+          }
+        },
+        "generate": "[to be translated]:Generate prompt",
+        "insert_variable": "[to be translated]:Insert variable",
         "label": "[to be translated]:System prompt",
         "placeholder": "[to be translated]:Enter the system prompt. Variables like {{date}} and {{model_name}} are supported...",
         "title": "[to be translated]:Prompt",
@@ -2637,6 +2641,10 @@
           "desc": "[to be translated]:Linked knowledge bases and retrieval",
           "label": "[to be translated]:Knowledge"
         },
+        "more": {
+          "desc": "[to be translated]:Model, tags, and parameters",
+          "label": "[to be translated]:More settings"
+        },
         "prompt": {
           "desc": "[to be translated]:System prompt and variables",
           "label": "[to be translated]:Prompt"
@@ -2649,6 +2657,7 @@
       "tools": {
         "add_mcp": "[to be translated]:Add MCP server",
         "added": "[to be translated]:Added MCP servers",
+        "added_hint": "[to be translated]:Manual mode exposes only the servers in this list",
         "desc": "[to be translated]:Configure the MCP servers this assistant can call during chat",
         "empty_desc": "[to be translated]:Once added, the assistant can invoke external tools",
         "empty_title": "[to be translated]:No MCP servers added",
@@ -2684,6 +2693,10 @@
       "agent": {
         "content": "[to be translated]:Are you sure you want to delete this agent? This action cannot be undone.",
         "title": "[to be translated]:Delete agent"
+      },
+      "skill": {
+        "content": "[to be translated]:Are you sure you want to uninstall this skill? It will be removed from the global library and all agent workspace symlinks will be cleaned up.",
+        "title": "[to be translated]:Uninstall skill"
       }
     },
     "delete_confirm": {
@@ -2692,6 +2705,7 @@
       "description": "[to be translated]:Delete \"{{name}}\"? This action cannot be undone.",
       "title": "[to be translated]:Delete"
     },
+    "duplicate_assistant_failed": "[to be translated]:Failed to duplicate assistant",
     "duplicate_name": "[to be translated]:{{name}} (copy)",
     "empty_state": {
       "description": "[to be translated]:Click \"New\" to create your first resource.",
@@ -2701,6 +2715,7 @@
       "no_match_title": "[to be translated]:No matching resources",
       "title": "[to be translated]:No resources"
     },
+    "export_assistant_failed": "[to be translated]:Failed to export assistant",
     "import_dialog": {
       "clipboard": {
         "button": "[to be translated]:Parse and import",
@@ -2733,6 +2748,14 @@
         "supports": "[to be translated]:Raw file URLs are supported"
       }
     },
+    "import_skill_dialog": {
+      "local": {
+        "drop_hint": "[to be translated]:Drop a ZIP or directory here, or click to choose a ZIP",
+        "formats": "[to be translated]:Supports .zip files and directories containing SKILL.md"
+      },
+      "subtitle": "[to be translated]:Install a skill from a ZIP file or directory",
+      "title": "[to be translated]:Import skill"
+    },
     "no_match": "[to be translated]:No matching results",
     "pending_backend": {
       "description": "[to be translated]:Write operations for this resource are coming soon. This view is a placeholder.",
@@ -2745,6 +2768,17 @@
       "subtitle": "[to be translated]:Manage your AI resources",
       "tags": "[to be translated]:Tags",
       "title": "[to be translated]:Library"
+    },
+    "skill_detail": {
+      "created_at": "[to be translated]:Created",
+      "delete_description": "[to be translated]:Remove this skill and all of its configuration. This action cannot be undone.",
+      "delete_title": "[to be translated]:Delete skill",
+      "description": "[to be translated]:Description",
+      "file_preview": "[to be translated]:File preview",
+      "installed": "[to be translated]:Installed",
+      "no_description": "[to be translated]:No description",
+      "source_files": "[to be translated]:Source files",
+      "updated_at": "[to be translated]:Recently updated"
     },
     "sort": {
       "created": "[to be translated]:Sort by created",
@@ -2776,8 +2810,11 @@
       "assistant": "[to be translated]:Assistant",
       "new_agent": "[to be translated]:New agent",
       "new_assistant": "[to be translated]:New assistant",
+      "new_prompt": "[to be translated]:New Prompt",
+      "prompt": "[to be translated]:Prompt",
       "skill": "[to be translated]:Skill"
     },
+    "uninstall_failed": "[to be translated]:Failed to uninstall",
     "view": {
       "grid": "[to be translated]:Grid view",
       "list": "[to be translated]:List view"
@@ -3654,6 +3691,12 @@
       "model_task": "Tarea del modelo:",
       "success": "Descarga exitosa",
       "success_desc": "El modelo \"{{modelName}}\"-\"{{modelId}}\" se descargó exitosamente, por favor vaya a la interfaz de administración de OVMS para agregar el modelo",
+      "task": {
+        "embeddings": "[to be translated]:Embeddings",
+        "image_generation": "[to be translated]:Image Generation",
+        "rerank": "[to be translated]:Rerank",
+        "text_generation": "[to be translated]:Text Generation"
+      },
       "tip": "El modelo se está descargando, a veces toma varias horas. Por favor espere pacientemente...",
       "title": "Descargar modelo Intel OpenVINO"
     },
@@ -3670,13 +3713,13 @@
       "run": "Error al ejecutar OVMS:",
       "stop": "Error al detener OVMS:"
     },
+    "guide": "Guía de Intel OVMS:",
     "status": {
       "not_installed": "OVMS no instalado",
       "not_running": "OVMS no está en ejecución",
       "running": "OVMS en ejecución",
       "unknown": "Estado de OVMS desconocido"
     },
-    "guide": "Guía de Intel OVMS:",
     "title": "Intel OVMS"
   },
   "paintings": {
@@ -4009,6 +4052,7 @@
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
+    "cherryai": "[to be translated]:CherryAI",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copiloto",
     "dashscope": "Álibaba Nube BaiLiàn",
@@ -4669,6 +4713,43 @@
         "valueProp": "Valor actual"
       },
       "description": "Visible solo en desarrollo para probar el nuevo selector de modelos directamente dentro de la aplicación.",
+      "fileProcessing": {
+        "artifact": {
+          "file": "[to be translated]:Markdown file",
+          "text": "[to be translated]:Text result"
+        },
+        "description": "[to be translated]:Run every configured file processor through the real file processing IPC and compare results.",
+        "duration": "[to be translated]:{{seconds}}s",
+        "markdown": {
+          "description": "[to be translated]:Select a document and run all document-to-markdown processors.",
+          "fileFilterName": "[to be translated]:Documents",
+          "noFile": "[to be translated]:No document selected",
+          "select": "[to be translated]:Select document",
+          "start": "[to be translated]:Test markdown",
+          "title": "[to be translated]:Markdown"
+        },
+        "noProcessors": "[to be translated]:No processors support this feature.",
+        "ocr": {
+          "description": "[to be translated]:Select an image and run all OCR processors.",
+          "fileFilterName": "[to be translated]:Images",
+          "noFile": "[to be translated]:No image selected",
+          "select": "[to be translated]:Select image",
+          "start": "[to be translated]:Test OCR",
+          "title": "[to be translated]:OCR"
+        },
+        "processorCount": "[to be translated]:{{count}} processors",
+        "status": {
+          "cancelled": "[to be translated]:Cancelled",
+          "completed": "[to be translated]:Completed",
+          "failed": "[to be translated]:Failed",
+          "idle": "[to be translated]:Idle",
+          "pending": "[to be translated]:Pending",
+          "processing": "[to be translated]:Processing",
+          "starting": "[to be translated]:Starting"
+        },
+        "taskId": "[to be translated]:Task ID",
+        "title": "[to be translated]:Document Parsing"
+      },
       "label": "Laboratorio de Componentes",
       "modelSelector": {
         "behaviorConfig": "Configuración de Comportamiento y Visualización",
@@ -4735,15 +4816,6 @@
         "select_success": "El directorio de datos ha sido modificado. La aplicación se reiniciará para aplicar los cambios",
         "select_title": "Cambiar directorio de datos de la aplicación",
         "stop_quit_app_reason": "Actualmente la aplicación está migrando datos y no puede cerrarse"
-      },
-      "app_knowledge": {
-        "button": {
-          "delete": "Eliminar archivo"
-        },
-        "label": "Archivo de base de conocimientos",
-        "remove_all": "Eliminar archivos de la base de conocimientos",
-        "remove_all_confirm": "Eliminar los archivos de la base de conocimientos reducirá el uso del espacio de almacenamiento, pero no eliminará los datos vectorizados de la base de conocimientos. Después de la eliminación, no se podrán abrir los archivos originales. ¿Desea eliminarlos?",
-        "remove_all_success": "Archivos eliminados con éxito"
       },
       "app_logs": {
         "button": "Abrir registros",
@@ -5912,6 +5984,10 @@
       "add": {
         "add_model": "Agregar modelo",
         "batch_add_models": "Agregar modelos por lotes",
+        "context_window": {
+          "label": "[to be translated]:Context window",
+          "placeholder": "[to be translated]:e.g. 128000"
+        },
         "endpoint_type": {
           "label": "Tipo de punto final",
           "placeholder": "Seleccionar tipo de punto final",
@@ -5923,6 +5999,14 @@
           "label": "Nombre del grupo",
           "placeholder": "Por ejemplo, ChatGPT",
           "tooltip": "Por ejemplo, ChatGPT"
+        },
+        "max_input_tokens": {
+          "label": "[to be translated]:Max input tokens",
+          "placeholder": "[to be translated]:e.g. 128000"
+        },
+        "max_output_tokens": {
+          "label": "[to be translated]:Max output tokens",
+          "placeholder": "[to be translated]:e.g. 4096"
         },
         "model_id": {
           "label": "ID del modelo",
@@ -5956,6 +6040,7 @@
         "enable_concurrent": "Verificación concurrente",
         "enabled": "Habilitado",
         "failed": "Fallido",
+        "failed_to_start": "[to be translated]:Failed to start health check",
         "keys_status_count": "Pasados: {{count_passed}} claves, fallidos: {{count_failed}} claves",
         "model_status_failed": "{{count}} modelos no son accesibles en absoluto",
         "model_status_partial": "De ellos, {{count}} modelos no son accesibles con ciertas claves",
@@ -6009,6 +6094,7 @@
         "filter_add_all": "Add all in view",
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
+        "large_group_hidden": "[to be translated]:Show {{count}} more models",
         "operation_failed": "Model operation failed.",
         "refetch_list": "Volver a obtener la lista de modelos",
         "reload_catalog": "Refresh list",
@@ -6262,10 +6348,19 @@
       "api_host_placeholder": "[to be translated]:Not configured",
       "api_host_preview": "Vista previa: {{url}}",
       "api_host_tooltip": "Sobrescribir solo cuando el proveedor necesite una dirección compatible con OpenAI personalizada.",
+      "api_host_with_endpoint_label": "[to be translated]:API Host (Endpoint URL)",
       "api_key": {
+        "copy": "[to be translated]:Copy",
+        "enabled_suffix": "[to be translated]:enabled",
+        "hide_key": "[to be translated]:Hide key",
         "label": "Clave API",
+        "label_placeholder": "[to be translated]:Label",
+        "list_description": "[to be translated]:Manage multiple API keys for this provider",
+        "placeholder": "[to be translated]:Use commas to separate multiple keys",
         "save_failed": "Error al guardar las claves API",
-        "tip": "Separar múltiples claves con comas"
+        "show_key": "[to be translated]:Show key",
+        "tip": "Separar múltiples claves con comas",
+        "unnamed": "[to be translated]:API Key"
       },
       "api_version": "Versión API",
       "auth_connection_section": "Connection & authentication",
@@ -6308,6 +6403,13 @@
       "check": "Verificar",
       "check_all_keys": "Verificar todas las claves",
       "check_multiple_keys": "Verificar múltiples claves API",
+      "cherryin": {
+        "api_host": {
+          "acceleration": "[to be translated]:Acceleration domain",
+          "backup": "[to be translated]:Backup domain",
+          "international": "[to be translated]:International domain"
+        }
+      },
       "copilot": {
         "add_request_header": "Add header",
         "auth_failed": "Autenticación de Github Copilot fallida",
@@ -6380,6 +6482,7 @@
       },
       "oauth": {
         "balance": "Saldo",
+        "balance_error": "[to be translated]:Failed to fetch balance",
         "button": "Iniciar sesión con la cuenta de {{provider}}",
         "cherryIn": {
           "account_title": "Cherry IN account",
@@ -6414,6 +6517,7 @@
       },
       "remove_duplicate_keys": "Eliminar claves duplicadas",
       "remove_invalid_keys": "Eliminar claves inválidas",
+      "reorder_failed": "[to be translated]:Failed to reorder providers",
       "request_configuration": "[to be translated]:Request configuration",
       "request_configuration_tooltip": "[to be translated]:Configure API Host and custom request headers",
       "save_failed": "[to be translated]:Failed to save provider settings",
@@ -6601,64 +6705,82 @@
     },
     "title": "Configuración",
     "tool": {
-      "ocr": {
-        "common": {
-          "langs": "Idiomas compatibles"
+      "file_processing": {
+        "actions": {
+          "set_as_default": "[to be translated]:Set as default"
         },
-        "error": {
-          "not_system": "El OCR del sistema solo admite Windows y MacOS"
+        "errors": {
+          "invalid_api_host": "[to be translated]:Invalid API host",
+          "load_processors_failed": "[to be translated]:Failed to load available processors",
+          "save_failed": "[to be translated]:Save failed"
         },
         "features": {
-          "paddleocr": "Más fuerte para texto chino y más adecuado para recibos, escaneos e imágenes con diseños más complejos.",
-          "system": {
-            "macos": "Utiliza el motor OCR integrado de macOS sin configuración, ideal para capturas de pantalla y extracción ligera de texto.",
-            "windows": "Utiliza el motor OCR nativo de Windows con una fuerte integración en el sistema operativo para tareas básicas de reconocimiento local."
+          "document_to_markdown": {
+            "title": "[to be translated]:Document Processing"
           },
-          "tesseract": "Una opción OCR local clásica con paquetes de idioma personalizables, ideal para flujos de trabajo sin conexión y multilingües."
-        },
-        "image": {
-          "error": {
-            "provider_not_found": "El proveedor no existe"
-          },
-          "system": {
-            "no_need_configure": "MacOS no requiere configuración"
-          },
-          "title": "Imagen"
-        },
-        "image_provider": "Proveedor de servicios OCR",
-        "paddleocr": {
-          "aistudio_access_token": "Token de acceso de la comunidad de AI Studio",
-          "api_url": "URL de la API",
-          "api_url_label": "Obtener el token de acceso y la URL de la API"
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "Dependiendo de Windows para proporcionar servicios, necesita descargar el paquete de idioma en el sistema para admitir los idiomas correspondientes."
+          "image_to_text": {
+            "title": "[to be translated]:OCR"
           }
         },
-        "tesseract": {
-          "langs_tooltip": "Lea la documentación para conocer qué idiomas personalizados son compatibles"
+        "fields": {
+          "api_base_url": "[to be translated]:API Base URL",
+          "api_key": "[to be translated]:API Key",
+          "api_keys_placeholder": "[to be translated]:Separate multiple keys with commas",
+          "languages": "[to be translated]:Languages"
         },
-        "title": "Servicio OCR"
-      },
-      "preprocess": {
-        "features": {
-          "doc2x": "Muy adecuado para convertir archivos PDF en Markdown más limpio o texto editable para su recuperación y edición posteriores.",
-          "mineru": "Optimizado para una recuperación de diseño de mayor fidelidad, especialmente útil para PDFs académicos, tablas y fórmulas.",
-          "mistral": "Potente comprensión de documentos en la nube, adecuada para la extracción estructurada, archivos de varias páginas y diseños complejos.",
-          "open_mineru": "Una opción de implementación abierta que se adapta a equipos que desean alojamiento propio o un control más estricto sobre el flujo de procesamiento.",
-          "paddleocr": "Una opción de integración más ligera que funciona bien con documentos chinos, escaneos y contenido común de estilo recibo."
+        "processors": {
+          "doc2x": {
+            "description": "[to be translated]:Advanced file restoration engine.",
+            "name": "[to be translated]:Doc2x"
+          },
+          "mineru": {
+            "description": "[to be translated]:OpenDataLab's open-source high-quality PDF extraction tool.",
+            "name": "[to be translated]:MinerU"
+          },
+          "mistral": {
+            "description": "[to be translated]:File parsing and understanding service.",
+            "name": "[to be translated]:Mistral"
+          },
+          "open_mineru": {
+            "description": "[to be translated]:Self-hostable MinerU service for teams that want more control over the processing pipeline.",
+            "name": "[to be translated]:Open MinerU"
+          },
+          "ovocr": {
+            "description": "[to be translated]:Intel OpenVINO OCR engine that runs locally with NPU acceleration.",
+            "name": "[to be translated]:Intel OV OCR"
+          },
+          "paddleocr": {
+            "deployment": {
+              "description": "[to be translated]:You can deploy PaddleOCR locally with the officially supported Docker image, then enter the API address here.",
+              "docs": "[to be translated]:View Docker deployment docs"
+            },
+            "description": "[to be translated]:Baidu PaddleOCR recognition system.",
+            "fields": {
+              "parse_model": "[to be translated]:Parse Model"
+            },
+            "name": "[to be translated]:PaddleOCR"
+          },
+          "system": {
+            "description": "[to be translated]:Native operating system OCR engine.",
+            "name": "[to be translated]:System OCR",
+            "status": {
+              "available": "[to be translated]:Detected available macOS Live Text / Windows OCR engine.",
+              "no_configuration": "[to be translated]:System OCR calls the native system engine directly. It is fastest, but accuracy depends on the OS version."
+            }
+          },
+          "tesseract": {
+            "description": "[to be translated]:Google's open-source OCR engine that runs fully locally.",
+            "name": "[to be translated]:Tesseract OCR"
+          }
         },
-        "paddleocr": {
-          "aistudio_access_token": "Token de acceso de la Comunidad AI Studio",
-          "api_url": "URL de la API",
-          "api_url_label": "Obtener el token de acceso y la URL de la API",
-          "paddleocr_url_label": "Sitio web oficial de PaddleOCR"
+        "sections": {
+          "authentication": "[to be translated]:Authentication",
+          "description": "[to be translated]:Description",
+          "language_packs": "[to be translated]:Language Packs",
+          "model_parameters": "[to be translated]:Model Parameters",
+          "status": "[to be translated]:Status"
         },
-        "provider": "Proveedor de servicios de preprocesamiento de documentos",
-        "provider_placeholder": "Seleccionar un proveedor de servicios de preprocesamiento de documentos",
-        "title": "Preprocesamiento de documentos",
-        "tooltip": "Configure un proveedor de preprocesamiento de documentos o OCR en Configuración -> Herramientas. El preprocesamiento de documentos puede mejorar significativamente la eficacia de búsqueda en documentos con formatos complejos o versiones escaneadas. El OCR solo puede reconocer texto en imágenes o en archivos PDF escaneados."
+        "title": "[to be translated]:Document Parsing"
       },
       "title": "Configuración de Herramientas",
       "websearch": {
@@ -6671,6 +6793,7 @@
         "apikey": "Clave API",
         "blacklist": "Lista negra",
         "blacklist_description": "Los resultados de los siguientes sitios web no aparecerán en los resultados de búsqueda",
+        "blacklist_invalid_entries": "[to be translated]:Invalid blacklist entries: {{entries}}",
         "blacklist_tooltip": "Utilice el siguiente formato (separado por líneas nuevas)\nPatrón de coincidencia: *://*.example.com/*\nExpresión regular: /example\\.(net|org)/",
         "check": "Comprobar",
         "check_failed": "Verificación fallida",
@@ -6697,6 +6820,11 @@
         "content_limit": "Límite de longitud del contenido",
         "content_limit_tooltip": "Limita la longitud del contenido en los resultados de búsqueda; el contenido que exceda el límite será truncado",
         "default_provider": "Proveedor Predeterminado",
+        "errors": {
+          "save_failed": "[to be translated]:Save failed",
+          "zhipu_sync_failed": "[to be translated]:Failed to sync Zhipu API key to Web Search. Please re-save the key or check Web Search settings."
+        },
+        "fetch_urls_provider": "[to be translated]:Default URL fetch provider",
         "free": "Gratis",
         "is_default": "Por defecto",
         "local_provider": {
@@ -6708,27 +6836,24 @@
         "no_provider_selected": "Seleccione un proveedor de búsqueda antes de comprobar",
         "overwrite": "Sobrescribir búsqueda del proveedor",
         "overwrite_tooltip": "Forzar el uso del proveedor de búsqueda en lugar del modelo de lenguaje grande",
+        "provider_description": {
+          "bocha": "[to be translated]:Chinese AI search API with real-time web and structured results.",
+          "exa": "[to be translated]:Neural search API for AI apps, tuned for semantic web retrieval.",
+          "exa_mcp": "[to be translated]:Expose Exa search to agents through the Exa MCP Server.",
+          "fetch": "[to be translated]:Built-in URL fetch provider. Fetches web page content from a URL to enrich search results.",
+          "jina": "[to be translated]:Jina Reader search and read APIs for retrieving clean web content.",
+          "querit": "[to be translated]:Search service for AI apps with web retrieval results.",
+          "searxng": "[to be translated]:Self-hostable free internet metasearch engine across many sources.",
+          "tavily": "[to be translated]:Search engine optimized for LLMs.",
+          "zhipu": "[to be translated]:Zhipu GLM Web Search for live web retrieval and current information."
+        },
         "search_max_result": {
           "label": "Número de resultados de búsqueda",
           "tooltip": "Si la compresión de resultados no está activada, un número elevado puede consumir demasiados tokens"
         },
         "search_provider": "Proveedor de búsqueda",
         "search_provider_placeholder": "Seleccione un proveedor de búsqueda",
-        "search_with_time": "Buscar con fecha",
         "set_as_default": "Establecer como predeterminado",
-        "subscribe": "Suscripción a lista negra",
-        "subscribe_add": "Añadir suscripción",
-        "subscribe_add_failed": "Error al agregar la fuente de suscripción",
-        "subscribe_add_success": "¡Fuente de suscripción añadida con éxito!",
-        "subscribe_delete": "Eliminar fuente de suscripción",
-        "subscribe_name": {
-          "label": "Nombre alternativo",
-          "placeholder": "Nombre alternativo utilizado cuando la fuente de suscripción descargada no tiene nombre"
-        },
-        "subscribe_update": "Actualizar ahora",
-        "subscribe_update_failed": "La actualización del feed de suscripción ha fallado",
-        "subscribe_update_success": "La fuente de suscripción se ha actualizado correctamente",
-        "subscribe_url": "Dirección de la fuente de suscripción",
         "tavily": {
           "api_key": {
             "label": "Clave API de Tavily",
@@ -6885,6 +7010,7 @@
         },
         "label": "Método de detección automática",
         "llm": {
+          "label": "[to be translated]:LLM",
           "tip": "Utiliza un modelo rápido para la detección de idioma, consumiendo pocos tokens."
         },
         "placeholder": "Seleccionar método de detección automática",

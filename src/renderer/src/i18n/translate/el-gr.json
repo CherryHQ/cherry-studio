@@ -948,6 +948,10 @@
         },
         "file_filter": "Αρχεία JSON",
         "select_file": "Επιλέξτε αρχείο",
+        "subscribe": {
+          "title": "[to be translated]:Agent Subscription",
+          "url_placeholder": "[to be translated]:Subscription URL"
+        },
         "title": "Εισαγωγή από εξωτερική πηγή",
         "type": {
           "file": "Αρχείο",
@@ -1614,6 +1618,7 @@
     "env_vars_help": "Εισαγάγετε προσαρμοσμένες μεταβλητές περιβάλλοντος (μία ανά γραμμή, με τη μορφή: KEY=value)",
     "environment_variables": "Μεταβλητές περιβάλλοντος",
     "folder_placeholder": "Επιλέξτε κατάλογο εργασίας",
+    "hero_tagline": "[to be translated]:Pick a CLI tool to configure",
     "install_bun": "Εγκατάσταση Bun",
     "installing_bun": "Εγκατάσταση...",
     "launch": {
@@ -1636,10 +1641,6 @@
     "terminal_hint": "Επιλέξτε σε ποιο τερματικό θα εκτελέσετε τη γραμμή εντολών",
     "terminal_placeholder": "Επιλέξτε εφαρμογή τερματικού",
     "title": "Εργαλεία κώδικα",
-    "update_options": "Ενημέρωση επιλογών",
-    "working_directory": "κατάλογος εργασίας",
-    "working_directory_hint": "Ο κατάλογος εργασίας στον οποίο εκκινεί το εργαλείο CLI",
-    "hero_tagline": "[to be translated]:Pick a CLI tool to configure",
     "tool_description": {
       "claude_code": "[to be translated]:Anthropic's official command-line AI coding assistant",
       "gemini_cli": "[to be translated]:Google's official Gemini command-line assistant",
@@ -1649,7 +1650,10 @@
       "openai_codex": "[to be translated]:OpenAI's official code generation CLI",
       "opencode": "[to be translated]:Open-source multi-model coding agent",
       "qwen_code": "[to be translated]:Alibaba Tongyi's open-source CLI coding tool"
-    }
+    },
+    "update_options": "Ενημέρωση επιλογών",
+    "working_directory": "κατάλογος εργασίας",
+    "working_directory_hint": "Ο κατάλογος εργασίας στον οποίο εκκινεί το εργαλείο CLI"
   },
   "code_block": {
     "collapse": "συμπεριληφθείς",
@@ -2100,23 +2104,6 @@
       "submit": "[to be translated]:Create",
       "title": "[to be translated]:New Knowledge Base"
     },
-    "add_directory": "Προσθήκη καταλόγου",
-    "add_file": "Προσθήκη αρχείου",
-    "add_image": "Προσθήκη εικόνας",
-    "add_note": "Προσθήκη σημειώματος",
-    "add_sitemap": "Χάρτης τόπων",
-    "add_url": "Προσθήκη διευθύνσεως",
-    "add_video": "Προσθήκη βίντεο",
-    "cancel_index": "Άκυρη ευρετήριοποίηση",
-    "chunk_overlap": "Μέγεθος επιφάνειας",
-    "chunk_overlap_placeholder": "Προεπιλογή (δεν συνιστάται να το αλλάξετε)",
-    "chunk_overlap_tooltip": "Το ποσοστό επιφάνειας επιφάνειας μεταξύ γειτνιώντων κειμένων μπλοκ, για να εξασφαλίσετε ότι τα κείμενα μπλοκ μετά τη διακοσμηση εξακολουθούν να έχουν σχέση σε προσδιορισμό, βελτιώνοντας την συνολική αποτελεσματικότητα επεξεργασίας με μοντέλα μεγάλου κειμένου",
-    "chunk_size": "Μέγεθος μερισμού",
-    "chunk_size_change_warning": "Η αλλαγή του μεγέθους μερισμού και της επιφάνειας επιφάνειας εφαρμόζεται μόνο για νέα προσθέτομεν αρχεία",
-    "chunk_size_placeholder": "Προεπιλογή (δεν συνιστάται να το αλλάξετε)",
-    "chunk_size_too_large": "Το μέγεθος μερισμού δεν μπορεί να ξεπεράσει το όριο πλάτους επιρροής του μοντέλου ({{max_context}})",
-    "chunk_size_tooltip": "Διαχωρισμός των έγγραφων σε μεριδισμούς, με το μέγεθος κάθε μεριδισμού να μην ξεπεράζει το όριο πλάτους επιρροής του μοντέλου",
-    "clear_selection": "Καθαρισμός επιλογής",
     "context": {
       "delete": "[to be translated]:Delete Knowledge Base",
       "delete_confirm_description": "[to be translated]:This knowledge base cannot be recovered after deletion.",
@@ -2180,6 +2167,7 @@
       "chunks_count": "[to be translated]:{{count}} chunks",
       "delete_confirm_description": "[to be translated]:This data source and its index data cannot be recovered after deletion.",
       "delete_confirm_title": "[to be translated]:Delete Data Source?",
+      "delete_failed": "[to be translated]:Failed to delete data source",
       "empty_description": "[to be translated]:No data sources yet",
       "filters": {
         "all": "[to be translated]:All",
@@ -2194,6 +2182,7 @@
         "unavailable": "[to be translated]:This data source has no source to preview"
       },
       "ready_summary": "[to be translated]:{{ready}}/{{total}} ready",
+      "reindex_failed": "[to be translated]:Failed to reindex data source",
       "status": {
         "chunking": "[to be translated]:Chunking",
         "embedding": "[to be translated]:Embedding",
@@ -2202,38 +2191,22 @@
         "ready": "[to be translated]:Ready"
       }
     },
-    "delete": "Διαγραφή",
-    "delete_confirm": "Είστε σίγουρος ότι θέλετε να διαγράψετε αυτή τη βάση γνώσεων;",
     "dimensions": "[to be translated]:Embedding Dimensions",
     "dimensions_auto_set": "Αυτόματη ρύθμιση διαστάσεων ενσωμάτωσης",
-    "dimensions_default": "Το μοντέλο θα χρησιμοποιήσει τις προεπιλεγμένες διαστάσεις ενσωμάτωσης",
     "dimensions_error_invalid": "Παρακαλώ εισάγετε μέγεθος διαστάσεων ενσωμάτωσης",
-    "dimensions_set_right": "⚠️ Βεβαιωθείτε ότι το μοντέλο υποστηρίζει το καθορισμένο μέγεθος διαστάσεων ενσωμάτωσης",
     "dimensions_size_placeholder": " Μέγεθος διαστάσεων ενσωμάτωσης, π.χ. 1024",
-    "dimensions_size_too_large": "Οι διαστάσεις ενσωμάτωσης δεν μπορούν να υπερβούν το όριο περιεχομένου του μοντέλου ({{max_context}})",
-    "dimensions_size_tooltip": "Το μέγεθος των διαστάσεων ενσωμάτωσης. Όσο μεγαλύτερη η τιμή, τόσο περισσότερες οι διαστάσεις ενσωμάτωσης, αλλά και οι απαιτούμενες μονάδες (Tokens).",
-    "directories": "Κατάλογοι",
-    "directory_placeholder": "Εισάγετε το δρομολόγιο του καταλόγου",
-    "document_count": "Ποσότητα κειμένων που ζητούνται",
-    "document_count_default": "Προεπιλογή",
-    "document_count_help": "Όσο μεγαλύτερη είναι η ποσότητα των κειμένων που ζητούνται, τόσο περισσότερες πληροφορίες παρέχονται, αλλά και οι καταναλωτικοί Token επειδή περισσότερα",
     "drag_file": "Βάλτε το αρχείο εδώ",
-    "drag_image": "Σύρετε την εικόνα εδώ",
-    "edit_remark": "Μεταβολή σημειώματος",
-    "edit_remark_placeholder": "Εισάγετε το σημείωμα",
     "embedding_model": "[to be translated]:Embedding Model",
     "embedding_model_required": "[to be translated]:Knowledge base embedding model is required",
     "empty": "[to be translated]:No knowledge bases",
     "error": {
       "failed_base_unknown": "[to be translated]:This knowledge base failed during migration. Rebuild it and choose a new embedding model.",
       "failed_to_create": "[to be translated]:Failed to create knowledge base",
+      "failed_to_delete": "[to be translated]:Failed to delete knowledge base",
       "failed_to_edit": "[to be translated]:Failed to edit knowledge base",
+      "failed_to_move": "[to be translated]:Failed to move knowledge base",
       "missing_embedding_model": "[to be translated]:The embedding model used by this knowledge base was not found during migration. Rebuild the knowledge base and choose a new embedding model.",
-      "model_invalid": "Δεν έχει επιλεγεί μοντέλο ή έχει διαγραφεί",
-      "video": {
-        "local_file_missing": "Το αρχείο βίντεο δεν υπάρχει",
-        "youtube_url_missing": "Ο σύνδεσμος βίντεο του YouTube δεν υπάρχει"
-      }
+      "model_invalid": "Δεν έχει επιλεγεί μοντέλο ή έχει διαγραφεί"
     },
     "file_hint": "Υποστηρίζεται το {{file_types}} μορφάττων",
     "groups": {
@@ -2244,6 +2217,7 @@
       "delete_confirm_title": "[to be translated]:Delete Group?",
       "error": {
         "failed_to_create": "[to be translated]:Failed to create group",
+        "failed_to_delete": "[to be translated]:Failed to delete group",
         "failed_to_update": "[to be translated]:Failed to rename group"
       },
       "name_placeholder": "[to be translated]:Enter group name...",
@@ -2252,41 +2226,11 @@
       "rename_title": "[to be translated]:Rename Group",
       "ungrouped": "[to be translated]:Ungrouped"
     },
-    "image_hint": "Υποστηρίζει μορφές {{image_types}}",
-    "images": "εικόνα",
-    "index_all": "Ευρετήριοποίηση όλων",
-    "index_cancelled": "Η ευρετήριοποίηση διακόπηκε",
-    "index_started": "Η ευρετήριοποίηση ξεκίνησε",
-    "invalid_url": "Μη έγκυρη διευθύνση",
     "meta": {
       "documents_count": "[to be translated]:{{count}} documents"
     },
-    "migrate": {
-      "button": {
-        "text": "Μεταφορά"
-      },
-      "confirm": {
-        "content": "Εντοπίστηκαν αλλαγές στο μοντέλο ενσωμάτωσης ή τις διαστάσεις, οπότε δεν είναι δυνατή η αποθήκευση των ρυθμίσεων. Μπορείτε να εκτελέσετε μεταφορά για να αποφύγετε την απώλεια δεδομένων. Η μεταφορά της βάσης γνώσεων δεν διαγράφει την παλιά βάση γνώσεων, αλλά δημιουργεί ένα αντίγραφο και επεξεργάζεται όλα τα στοιχεία της βάσης γνώσεων, η οποία μπορεί να καταναλώσει πολλές μονάδες (Tokens). Παρακαλώ είστε προσεκτικοί.",
-        "ok": "Ξεκινήστε τη μεταφορά",
-        "title": "Μεταφορά βάσης γνώσεων"
-      },
-      "error": {
-        "failed": "Αποτυχία μεταφοράς"
-      },
-      "source_dimensions": "Πηγαίες διαστάσεις",
-      "source_model": "Πηγαίο μοντέλο",
-      "target_dimensions": "Προορισμένες διαστάσεις",
-      "target_model": "Προορισμένο μοντέλο"
-    },
-    "model_info": "Πληροφορίες μοντέλου",
     "name_required": "[to be translated]:Knowledge base name is required",
-    "no_bases": "Λεηλασία βάσης γνώσεων",
-    "no_match": "Δεν βρέθηκαν στοιχεία γνώσεων",
-    "no_provider": "Η παροχή υπηρεσιών μοντέλου βάσης γνώσεων χαθηκε, αυτή η βάση γνώσεων δεν θα υποστηρίζεται πλέον, παρακαλείστε να δημιουργήσετε ξανά μια βάση γνώσεων",
     "not_set": "[to be translated]:Not Set",
-    "not_support": "Το μοντέλο βάσης γνώσεων έχει ενημερωθεί, αυτή η βάση γνώσεων δεν θα υποστηρίζεται πλέον, παρακαλείστε να δημιουργήσετε ξανά μια βάση γνώσεων",
-    "notes": "Σημειώματα",
-    "notes_placeholder": "Εισάγετε πρόσθετες πληροφορίες ή πληροφορίες προσδιορισμού για αυτή τη βάση γνώσεων...",
     "provider_not_found": "Η παροχή υπηρεσιών μοντέλου βάσης γνώσεων χαθηκε, αυτή η βάση γνώσεων δεν θα υποστηρίζεται πλέον, παρακαλείστε να δημιουργήσετε ξανά μια βάση γνώσεων",
     "rag": {
       "chunk_overlap": "[to be translated]:Overlap Size",
@@ -2298,7 +2242,10 @@
       "chunk_size_invalid": "[to be translated]:Chunk size must be greater than 0",
       "chunking": "[to be translated]:Chunking",
       "default_separator": "[to be translated]:Auto (recommended)",
+      "dimensions": "[to be translated]:Vector Dimensions",
       "document_count": "[to be translated]:Document Count",
+      "embedding_model": "[to be translated]:Embedding Model",
+      "embedding_model_select": "[to be translated]:Model Selection",
       "file_processing": "[to be translated]:File Processing",
       "file_processing_hint": "[to be translated]:File processing runs automatically during document import. Choosing the right provider can improve document parsing quality.",
       "hints": {
@@ -2317,9 +2264,14 @@
       "hybrid_alpha": "[to be translated]:Hybrid Alpha",
       "hybrid_alpha_hint": "[to be translated]:Only configurable in Hybrid retrieval mode",
       "processor": "[to be translated]:Processing Provider",
+      "refresh_dimensions": "[to be translated]:Refresh vector dimensions",
       "rerank_disabled": "[to be translated]:Disabled",
+      "rerank_model": "[to be translated]:Rerank Model",
+      "reset_action": "[to be translated]:Restore Defaults",
       "reset_defaults": "[to be translated]:Reset Defaults",
       "retrieval": "[to be translated]:Retrieval Settings",
+      "save_action": "[to be translated]:Save",
+      "saved": "[to be translated]:Saved",
       "search_mode": {
         "bm25": "[to be translated]:Full-text Search",
         "default": "[to be translated]:Vector Search",
@@ -2345,11 +2297,11 @@
       "result_count": "[to be translated]:{{count}} results",
       "result_rank": "[to be translated]:Rank #{{rank}}",
       "result_relevance": "[to be translated]:Relevance {{score}}",
+      "search_failed": "[to be translated]:Failed to run recall test",
       "searching": "[to be translated]:Searching...",
       "submit": "[to be translated]:Search",
       "top_score": "[to be translated]:Top: {{score}}"
     },
-    "rename": "Μετονομασία",
     "rename_title": "[to be translated]:Rename Knowledge Base",
     "restore": {
       "action": "[to be translated]:Rebuild knowledge base",
@@ -2360,48 +2312,20 @@
     },
     "search": "[to be translated]:Search Knowledge Base",
     "search_placeholder": "Εισάγετε την αναζήτηση",
-    "settings": {
-      "preprocessing": "Προεπεξεργασία",
-      "preprocessing_tooltip": "Προεπεξεργασία των ανεβασμένων αρχείων με χρήση OCR",
-      "title": "Ρυθμίσεις Γνώσης"
-    },
-    "sitemap_added": "Επιτυχής προσθήκη",
-    "sitemap_placeholder": "Εισάγετε τη διεύθυνση URL του χάρτη τόπων",
-    "sitemaps": "Στοιχεία του δικτύου",
-    "source": "Πηγή",
     "status": {
       "completed": "[to be translated]:Ready",
       "failed": "[to be translated]:Failed",
       "processing": "[to be translated]:Processing"
     },
-    "status_completed": "Ολοκληρώθηκε",
-    "status_embedding_completed": "Η ενσωμάτωση ολοκληρώθηκε",
     "status_embedding_failed": "Η ενσωμάτωση απέτυχε",
-    "status_failed": "Αποτυχία",
-    "status_new": "Προστέθηκε",
-    "status_pending": "Εκκρεμής",
-    "status_preprocess_completed": "Η προεπεξεργασία ολοκληρώθηκε",
     "status_preprocess_failed": "Η προεπεξεργασία απέτυχε",
-    "status_processing": "Επεξεργασία",
     "subtitle_file": "Υποτίτλων",
     "tabs": {
       "data_source": "[to be translated]:Data Sources",
       "rag_config": "[to be translated]:RAG Config",
       "recall_test": "[to be translated]:Recall Test"
     },
-    "threshold": "Περιθώριο συνάφειας",
-    "threshold_placeholder": "Δεν έχει ρυθμιστεί",
-    "threshold_too_large_or_small": "Το περιθώριο δεν μπορεί να είναι μεγαλύτερο από 1 ή μικρότερο από 0",
-    "threshold_tooltip": "Χρησιμοποιείται για τη μετρηση της σχέσης συνάφειας μεταξύ της ερώτησης του χρήστη και των περιεχομένων της βάσης γνώσεων (0-1)",
     "title": "[to be translated]:Knowledge Base",
-    "topN": "Ποσότητα αποτελεσμάτων που επιστρέφονται",
-    "topN_placeholder": "Δεν έχει ρυθμιστεί",
-    "topN_too_large_or_small": "Ο αριθμός των αποτελεσμάτων δεν μπορεί να είναι μεγαλύτερος από 30 ή μικρότερος από 1",
-    "topN_tooltip": "Η ποσότητα των επιστρεφόμενων αποτελεσμάτων που συνάφονται, όσο μεγαλύτερη είναι η τιμή, τόσο περισσότερα αποτελέσματα συνδέονται, αλλά και οι καταναλωτικοί Token επειδή περισσότερα",
-    "url_added": "Η διεύθυνση προστέθηκε",
-    "url_placeholder": "Εισάγετε τη διεύθυνση, χωρίστε πολλαπλές διευθύνσεις με επιστροφή",
-    "urls": "Διευθύνσεις",
-    "videos": "βίντεο",
     "videos_file": "Αρχείο βίντεο"
   },
   "languages": {
@@ -2443,6 +2367,21 @@
       "manage_tags": "[to be translated]:Manage tags",
       "uninstall": "[to be translated]:Uninstall"
     },
+    "assistant_catalog": {
+      "add": "[to be translated]:Add",
+      "add_failed": "[to be translated]:Failed to add assistant",
+      "browse_label": "[to be translated]:Assistant categories",
+      "empty_description": "[to be translated]:This category has no assistant presets yet.",
+      "empty_title": "[to be translated]:No assistants to add",
+      "mine": "[to be translated]:Mine",
+      "no_match_description": "[to be translated]:Try a different search keyword",
+      "no_match_title": "[to be translated]:No matching assistants",
+      "preview": "[to be translated]:Preview",
+      "preview_description": "[to be translated]:Overview",
+      "preview_prompt": "[to be translated]:Prompt",
+      "scroll_left": "[to be translated]:Scroll categories left",
+      "scroll_right": "[to be translated]:Scroll categories right"
+    },
     "badge": {
       "update": "[to be translated]:Update"
     },
@@ -2454,6 +2393,7 @@
           "accessible_paths": {
             "add": "[to be translated]:Add directory",
             "empty": "[to be translated]:Not set (defaults to the workspace root)",
+            "hint": "[to be translated]:Limits directories the agent can access",
             "label": "[to be translated]:Accessible directories"
           },
           "allowed_tools": {
@@ -2461,7 +2401,11 @@
             "empty": "[to be translated]:Leave empty to use the permission mode default",
             "label": "[to be translated]:Allowed tools"
           },
+          "avatar": {
+            "hint": "[to be translated]:Used to identify it in the library and sessions"
+          },
           "description": {
+            "hint": "[to be translated]:Helps identify what this agent is for",
             "label": "[to be translated]:Description",
             "placeholder": "[to be translated]:What this agent is for…"
           },
@@ -2476,6 +2420,7 @@
             "label": "[to be translated]:Heartbeat interval (minutes)"
           },
           "instructions": {
+            "hint": "[to be translated]:Defines the agent's role and behavior boundaries",
             "label": "[to be translated]:System prompt",
             "placeholder": "[to be translated]:Tell the agent who it is and what it can do…"
           },
@@ -2494,6 +2439,7 @@
             "label": "[to be translated]:Primary model (required)"
           },
           "name": {
+            "hint": "[to be translated]:Shown in the library and session lists",
             "label": "[to be translated]:Agent name",
             "placeholder": "[to be translated]:Give the agent a name"
           },
@@ -2570,6 +2516,49 @@
         "default_value": "[to be translated]:Model default",
         "desc": "[to be translated]:Configure the assistant's identity and model parameters",
         "description_label": "[to be translated]:Description",
+        "field": {
+          "avatar": {
+            "hint": "[to be translated]:Used to identify the assistant in the library and chats"
+          },
+          "context_count": {
+            "hint": "[to be translated]:Number of recent messages kept as context"
+          },
+          "custom_params": {
+            "hint": "[to be translated]:Extra provider parameters sent with requests"
+          },
+          "description": {
+            "hint": "[to be translated]:Helps distinguish what this assistant is for",
+            "placeholder": "[to be translated]:What this assistant is for..."
+          },
+          "max_tokens": {
+            "hint": "[to be translated]:Caps response length when enabled"
+          },
+          "max_tool_calls": {
+            "hint": "[to be translated]:Limits tool-call loops when enabled"
+          },
+          "model": {
+            "hint": "[to be translated]:Overrides the global default model for this assistant"
+          },
+          "name": {
+            "hint": "[to be translated]:Shown in the library and assistant selectors",
+            "placeholder": "[to be translated]:Give the assistant a name"
+          },
+          "stream_output": {
+            "hint": "[to be translated]:Shows responses as they are generated"
+          },
+          "tags": {
+            "hint": "[to be translated]:Used for filtering and organizing assistants"
+          },
+          "temperature": {
+            "hint": "[to be translated]:Controls randomness when enabled"
+          },
+          "tool_use_mode": {
+            "hint": "[to be translated]:Controls how tools are exposed to the model"
+          },
+          "top_p": {
+            "hint": "[to be translated]:Limits token sampling range when enabled"
+          }
+        },
         "json_invalid": "[to be translated]:Invalid JSON format",
         "max_tokens": "[to be translated]:Max tokens",
         "max_tool_calls": "[to be translated]:Max tool calls",
@@ -2602,14 +2591,29 @@
         "empty_title": "[to be translated]:No knowledge bases linked",
         "invalid_suffix": "[to be translated]:... (unavailable)",
         "linked": "[to be translated]:Linked knowledge bases",
+        "linked_hint": "[to be translated]:Controls which knowledge bases this assistant can retrieve from",
         "no_more": "[to be translated]:No more knowledge bases available",
         "remove_aria": "[to be translated]:Remove",
         "search": "[to be translated]:Search knowledge bases...",
         "title": "[to be translated]:Knowledge bases"
       },
       "prompt": {
+        "create_title": "[to be translated]:New Prompt",
         "dblclick_hint": "[to be translated]:Double-click the preview to switch back to edit",
         "desc": "[to be translated]:The system prompt is sent as the opening context of the assistant",
+        "edit_title": "[to be translated]:Edit Prompt",
+        "field": {
+          "content": {
+            "label": "[to be translated]:Content",
+            "too_long": "[to be translated]:Content must be {{max}} characters or fewer"
+          },
+          "name": {
+            "label": "[to be translated]:Name",
+            "too_long": "[to be translated]:Name must be {{max}} characters or fewer"
+          }
+        },
+        "generate": "[to be translated]:Generate prompt",
+        "insert_variable": "[to be translated]:Insert variable",
         "label": "[to be translated]:System prompt",
         "placeholder": "[to be translated]:Enter the system prompt. Variables like {{date}} and {{model_name}} are supported...",
         "title": "[to be translated]:Prompt",
@@ -2637,6 +2641,10 @@
           "desc": "[to be translated]:Linked knowledge bases and retrieval",
           "label": "[to be translated]:Knowledge"
         },
+        "more": {
+          "desc": "[to be translated]:Model, tags, and parameters",
+          "label": "[to be translated]:More settings"
+        },
         "prompt": {
           "desc": "[to be translated]:System prompt and variables",
           "label": "[to be translated]:Prompt"
@@ -2649,6 +2657,7 @@
       "tools": {
         "add_mcp": "[to be translated]:Add MCP server",
         "added": "[to be translated]:Added MCP servers",
+        "added_hint": "[to be translated]:Manual mode exposes only the servers in this list",
         "desc": "[to be translated]:Configure the MCP servers this assistant can call during chat",
         "empty_desc": "[to be translated]:Once added, the assistant can invoke external tools",
         "empty_title": "[to be translated]:No MCP servers added",
@@ -2684,6 +2693,10 @@
       "agent": {
         "content": "[to be translated]:Are you sure you want to delete this agent? This action cannot be undone.",
         "title": "[to be translated]:Delete agent"
+      },
+      "skill": {
+        "content": "[to be translated]:Are you sure you want to uninstall this skill? It will be removed from the global library and all agent workspace symlinks will be cleaned up.",
+        "title": "[to be translated]:Uninstall skill"
       }
     },
     "delete_confirm": {
@@ -2692,6 +2705,7 @@
       "description": "[to be translated]:Delete \"{{name}}\"? This action cannot be undone.",
       "title": "[to be translated]:Delete"
     },
+    "duplicate_assistant_failed": "[to be translated]:Failed to duplicate assistant",
     "duplicate_name": "[to be translated]:{{name}} (copy)",
     "empty_state": {
       "description": "[to be translated]:Click \"New\" to create your first resource.",
@@ -2701,6 +2715,7 @@
       "no_match_title": "[to be translated]:No matching resources",
       "title": "[to be translated]:No resources"
     },
+    "export_assistant_failed": "[to be translated]:Failed to export assistant",
     "import_dialog": {
       "clipboard": {
         "button": "[to be translated]:Parse and import",
@@ -2733,6 +2748,14 @@
         "supports": "[to be translated]:Raw file URLs are supported"
       }
     },
+    "import_skill_dialog": {
+      "local": {
+        "drop_hint": "[to be translated]:Drop a ZIP or directory here, or click to choose a ZIP",
+        "formats": "[to be translated]:Supports .zip files and directories containing SKILL.md"
+      },
+      "subtitle": "[to be translated]:Install a skill from a ZIP file or directory",
+      "title": "[to be translated]:Import skill"
+    },
     "no_match": "[to be translated]:No matching results",
     "pending_backend": {
       "description": "[to be translated]:Write operations for this resource are coming soon. This view is a placeholder.",
@@ -2745,6 +2768,17 @@
       "subtitle": "[to be translated]:Manage your AI resources",
       "tags": "[to be translated]:Tags",
       "title": "[to be translated]:Library"
+    },
+    "skill_detail": {
+      "created_at": "[to be translated]:Created",
+      "delete_description": "[to be translated]:Remove this skill and all of its configuration. This action cannot be undone.",
+      "delete_title": "[to be translated]:Delete skill",
+      "description": "[to be translated]:Description",
+      "file_preview": "[to be translated]:File preview",
+      "installed": "[to be translated]:Installed",
+      "no_description": "[to be translated]:No description",
+      "source_files": "[to be translated]:Source files",
+      "updated_at": "[to be translated]:Recently updated"
     },
     "sort": {
       "created": "[to be translated]:Sort by created",
@@ -2776,8 +2810,11 @@
       "assistant": "[to be translated]:Assistant",
       "new_agent": "[to be translated]:New agent",
       "new_assistant": "[to be translated]:New assistant",
+      "new_prompt": "[to be translated]:New Prompt",
+      "prompt": "[to be translated]:Prompt",
       "skill": "[to be translated]:Skill"
     },
+    "uninstall_failed": "[to be translated]:Failed to uninstall",
     "view": {
       "grid": "[to be translated]:Grid view",
       "list": "[to be translated]:List view"
@@ -3654,6 +3691,12 @@
       "model_task": "Εργασία μοντέλου:",
       "success": "Η λήψη ολοκληρώθηκε με επιτυχία",
       "success_desc": "Το μοντέλο \"{{modelName}}\"-\"{{modelId}}\" λήφθηκε επιτυχώς, παρακαλώ μεταβείτε στη διεπαφή διαχείρισης OVMS για να προσθέσετε το μοντέλο",
+      "task": {
+        "embeddings": "[to be translated]:Embeddings",
+        "image_generation": "[to be translated]:Image Generation",
+        "rerank": "[to be translated]:Rerank",
+        "text_generation": "[to be translated]:Text Generation"
+      },
       "tip": "Το μοντέλο κατεβαίνει, μερικές φορές χρειάζονται αρκετές ώρες. Παρακαλώ περιμένετε υπομονετικά...",
       "title": "Λήψη μοντέλου Intel OpenVINO"
     },
@@ -3670,13 +3713,13 @@
       "run": "Η εκτέλεση του OVMS απέτυχε:",
       "stop": "Η διακοπή του OVMS απέτυχε:"
     },
+    "guide": "Οδηγός Intel OVMS:",
     "status": {
       "not_installed": "Το OVMS δεν έχει εγκατασταθεί",
       "not_running": "Το OVMS δεν εκτελείται",
       "running": "Το OVMS εκτελείται",
       "unknown": "Άγνωστη κατάσταση OVMS"
     },
-    "guide": "Οδηγός Intel OVMS:",
     "title": "Intel OVMS"
   },
   "paintings": {
@@ -4009,6 +4052,7 @@
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
+    "cherryai": "[to be translated]:CherryAI",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "AliCloud Bailian",
@@ -4669,6 +4713,43 @@
         "valueProp": "Τρέχουσα τιμή"
       },
       "description": "Ορατό μόνο κατά την ανάπτυξη για τη δοκιμή του νέου επιλογέα μοντέλου απευθείας μέσα στην εφαρμογή.",
+      "fileProcessing": {
+        "artifact": {
+          "file": "[to be translated]:Markdown file",
+          "text": "[to be translated]:Text result"
+        },
+        "description": "[to be translated]:Run every configured file processor through the real file processing IPC and compare results.",
+        "duration": "[to be translated]:{{seconds}}s",
+        "markdown": {
+          "description": "[to be translated]:Select a document and run all document-to-markdown processors.",
+          "fileFilterName": "[to be translated]:Documents",
+          "noFile": "[to be translated]:No document selected",
+          "select": "[to be translated]:Select document",
+          "start": "[to be translated]:Test markdown",
+          "title": "[to be translated]:Markdown"
+        },
+        "noProcessors": "[to be translated]:No processors support this feature.",
+        "ocr": {
+          "description": "[to be translated]:Select an image and run all OCR processors.",
+          "fileFilterName": "[to be translated]:Images",
+          "noFile": "[to be translated]:No image selected",
+          "select": "[to be translated]:Select image",
+          "start": "[to be translated]:Test OCR",
+          "title": "[to be translated]:OCR"
+        },
+        "processorCount": "[to be translated]:{{count}} processors",
+        "status": {
+          "cancelled": "[to be translated]:Cancelled",
+          "completed": "[to be translated]:Completed",
+          "failed": "[to be translated]:Failed",
+          "idle": "[to be translated]:Idle",
+          "pending": "[to be translated]:Pending",
+          "processing": "[to be translated]:Processing",
+          "starting": "[to be translated]:Starting"
+        },
+        "taskId": "[to be translated]:Task ID",
+        "title": "[to be translated]:Document Parsing"
+      },
       "label": "Εργαστήριο Συστατικών",
       "modelSelector": {
         "behaviorConfig": "Ρύθμιση Συμπεριφοράς και Εμφάνισης",
@@ -4735,15 +4816,6 @@
         "select_success": "Ο κατάλογος δεδομένων άλλαξε, η εφαρμογή θα επανεκκινήσει για να εφαρμοστούν οι αλλαγές",
         "select_title": "Αλλαγή καταλόγου δεδομένων εφαρμογής",
         "stop_quit_app_reason": "Η εφαρμογή προς το παρόν μεταφέρει δεδομένα, δεν μπορείτε να βγείτε"
-      },
-      "app_knowledge": {
-        "button": {
-          "delete": "Διαγραφή αρχείου"
-        },
-        "label": "Αρχεία βάσης γνώσεων",
-        "remove_all": "Διαγραφή αρχείων βάσης γνώσεων",
-        "remove_all_confirm": "Η διαγραφή των αρχείων της βάσης γνώσεων μπορεί να μειώσει τη χρήση χώρου αποθήκευσης, αλλά δεν θα διαγράψει τα διανυσματωτικά δεδομένα της βάσης γνώσεων. Μετά τη διαγραφή, δεν θα μπορείτε να ανοίξετε τα αρχεία πηγή. Θέλετε να διαγράψετε;",
-        "remove_all_success": "Τα αρχεία διαγράφηκαν με επιτυχία"
       },
       "app_logs": {
         "button": "Άνοιγμα καταγραφής",
@@ -5912,6 +5984,10 @@
       "add": {
         "add_model": "Προσθήκη μοντέλου",
         "batch_add_models": "Προσθήκη Μοντέλων σε Μαζική Βάση",
+        "context_window": {
+          "label": "[to be translated]:Context window",
+          "placeholder": "[to be translated]:e.g. 128000"
+        },
         "endpoint_type": {
           "label": "Τύπος Endpoint",
           "placeholder": "Επιλέξτε τύπο endpoint",
@@ -5923,6 +5999,14 @@
           "label": "Όνομα ομάδας",
           "placeholder": "Για παράδειγμα ChatGPT",
           "tooltip": "Για παράδειγμα ChatGPT"
+        },
+        "max_input_tokens": {
+          "label": "[to be translated]:Max input tokens",
+          "placeholder": "[to be translated]:e.g. 128000"
+        },
+        "max_output_tokens": {
+          "label": "[to be translated]:Max output tokens",
+          "placeholder": "[to be translated]:e.g. 4096"
         },
         "model_id": {
           "label": "ID μοντέλου",
@@ -5956,6 +6040,7 @@
         "enable_concurrent": "Επιτρέπει τη συγχρονη ελεγχος",
         "enabled": "Ενεργοποίηση",
         "failed": "Αποτυχία",
+        "failed_to_start": "[to be translated]:Failed to start health check",
         "keys_status_count": "Επιτυχημένοι: {{count_passed}} κλειδιά, αποτυχημένοι: {{count_failed}} κλειδιά",
         "model_status_failed": "{{count}} μοντέλα είναι εντελώς απρόσιτα",
         "model_status_partial": "Από αυτά, {{count}} μοντέλα είναι απρόσιτα με ορισμένα κλειδιά",
@@ -6009,6 +6094,7 @@
         "filter_add_all": "Add all in view",
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
+        "large_group_hidden": "[to be translated]:Show {{count}} more models",
         "operation_failed": "Model operation failed.",
         "refetch_list": "Επαναλήψτε τη λήψη της λίστας μοντέλων",
         "reload_catalog": "Refresh list",
@@ -6262,10 +6348,19 @@
       "api_host_placeholder": "[to be translated]:Not configured",
       "api_host_preview": "Προεπισκόπηση: {{url}}",
       "api_host_tooltip": "Αντικατάσταση μόνο όταν ο πάροχος απαιτεί προσαρμοσμένη διεύθυνση συμβατή με OpenAI.",
+      "api_host_with_endpoint_label": "[to be translated]:API Host (Endpoint URL)",
       "api_key": {
+        "copy": "[to be translated]:Copy",
+        "enabled_suffix": "[to be translated]:enabled",
+        "hide_key": "[to be translated]:Hide key",
         "label": "Κλειδί API",
+        "label_placeholder": "[to be translated]:Label",
+        "list_description": "[to be translated]:Manage multiple API keys for this provider",
+        "placeholder": "[to be translated]:Use commas to separate multiple keys",
         "save_failed": "Αποτυχία αποθήκευσης κλειδιών API",
-        "tip": "Χωριστά με κόμμα περισσότερα κλειδιά API"
+        "show_key": "[to be translated]:Show key",
+        "tip": "Χωριστά με κόμμα περισσότερα κλειδιά API",
+        "unnamed": "[to be translated]:API Key"
       },
       "api_version": "Έκδοση API",
       "auth_connection_section": "Connection & authentication",
@@ -6308,6 +6403,13 @@
       "check": "Έλεγχος",
       "check_all_keys": "Έλεγχος όλων των κλειδιών",
       "check_multiple_keys": "Έλεγχος πολλαπλών κλειδιών API",
+      "cherryin": {
+        "api_host": {
+          "acceleration": "[to be translated]:Acceleration domain",
+          "backup": "[to be translated]:Backup domain",
+          "international": "[to be translated]:International domain"
+        }
+      },
       "copilot": {
         "add_request_header": "Add header",
         "auth_failed": "Η επιβεβαίωση του Github Copilot απέτυχε",
@@ -6380,6 +6482,7 @@
       },
       "oauth": {
         "balance": "Υπόλοιπο",
+        "balance_error": "[to be translated]:Failed to fetch balance",
         "button": "Σύνδεση με λογαριασμό {{provider}}",
         "cherryIn": {
           "account_title": "Cherry IN account",
@@ -6414,6 +6517,7 @@
       },
       "remove_duplicate_keys": "Αφαίρεση Επαναλαμβανόμενων Κλειδιών",
       "remove_invalid_keys": "Διαγραφή Ακυρωμένων Κλειδιών",
+      "reorder_failed": "[to be translated]:Failed to reorder providers",
       "request_configuration": "[to be translated]:Request configuration",
       "request_configuration_tooltip": "[to be translated]:Configure API Host and custom request headers",
       "save_failed": "[to be translated]:Failed to save provider settings",
@@ -6601,64 +6705,82 @@
     },
     "title": "Ρυθμίσεις",
     "tool": {
-      "ocr": {
-        "common": {
-          "langs": "Υποστηριζόμενες γλώσσες"
+      "file_processing": {
+        "actions": {
+          "set_as_default": "[to be translated]:Set as default"
         },
-        "error": {
-          "not_system": "Το σύστημα OCR υποστηρίζει μόνο Windows και MacOS"
+        "errors": {
+          "invalid_api_host": "[to be translated]:Invalid API host",
+          "load_processors_failed": "[to be translated]:Failed to load available processors",
+          "save_failed": "[to be translated]:Save failed"
         },
         "features": {
-          "paddleocr": "Ισχυρότερο για κινέζικο κείμενο και πιο κατάλληλο για αποδείξεις, σαρωμένα έγγραφα και εικόνες με πιο πολύπλοκες διατάξεις.",
-          "system": {
-            "macos": "Χρησιμοποιεί την ενσωματωμένη μηχανή OCR του macOS χωρίς καμία ρύθμιση, ιδανική για στιγμιότυπα οθόνης και ελαφριά εξαγωγή κειμένου.",
-            "windows": "Χρησιμοποιεί τη γηγενή μηχανή OCR των Windows με ισχυρή ενσωμάτωση στο λειτουργικό σύστημα για βασικές τοπικές εργασίες αναγνώρισης."
+          "document_to_markdown": {
+            "title": "[to be translated]:Document Processing"
           },
-          "tesseract": "Μια κλασική τοπική επιλογή OCR με προσαρμόσιμα πακέτα γλωσσών, ιδανική για χρήση εκτός σύνδεσης και πολύγλωσσες ροές εργασίας."
-        },
-        "image": {
-          "error": {
-            "provider_not_found": "Ο πάροχος δεν υπάρχει"
-          },
-          "system": {
-            "no_need_configure": "MacOS δεν απαιτεί ρύθμιση"
-          },
-          "title": "Εικόνα"
-        },
-        "image_provider": "Πάροχοι υπηρεσιών OCR",
-        "paddleocr": {
-          "aistudio_access_token": "Διακριτικό πρόσβασης της κοινότητας AI Studio",
-          "api_url": "Διεύθυνση URL API",
-          "api_url_label": "Λήψη Διακριτικού Πρόσβασης και URL του API"
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "Εξαρτάται από τα Windows για την παροχή υπηρεσιών, πρέπει να κατεβάσετε το πακέτο γλώσσας στο σύστημα για να υποστηρίξετε τις σχετικές γλώσσες."
+          "image_to_text": {
+            "title": "[to be translated]:OCR"
           }
         },
-        "tesseract": {
-          "langs_tooltip": "Διαβάστε την τεκμηρίωση για να μάθετε ποιες προσαρμοσμένες γλώσσες υποστηρίζονται"
+        "fields": {
+          "api_base_url": "[to be translated]:API Base URL",
+          "api_key": "[to be translated]:API Key",
+          "api_keys_placeholder": "[to be translated]:Separate multiple keys with commas",
+          "languages": "[to be translated]:Languages"
         },
-        "title": "Υπηρεσία OCR"
-      },
-      "preprocess": {
-        "features": {
-          "doc2x": "Κατάλληλο για τη μετατροπή αρχείων PDF σε καθαρότερη μορφή Markdown ή επεξεργάσιμο κείμενο για περαιτέρω ανάκτηση και επεξεργασία.",
-          "mineru": "Βελτιστοποιημένο για ανάκτηση διάταξης υψηλότερης πιστότητας, ιδιαίτερα χρήσιμο για ακαδημαϊκά PDF, πίνακες και τύπους.",
-          "mistral": "Ισχυρή κατανόηση εγγράφων μέσω cloud, κατάλληλη για δομημένη εξαγωγή, πολυσέλιδα αρχεία και πολύπλοκες διατάξεις.",
-          "open_mineru": "Μια ανοιχτή επιλογή ανάπτυξης που ταιριάζει σε ομάδες που επιθυμούν αυτο-φιλοξενία ή μεγαλύτερο έλεγχο στη διαδικασία επεξεργασίας.",
-          "paddleocr": "Μια ελαφρύτερη επιλογή ενσωμάτωσης που λειτουργεί καλά για κινέζικα έγγραφα, σκαναρίσματα και κοινό περιεχόμενο σε στυλ αποδείξεων."
+        "processors": {
+          "doc2x": {
+            "description": "[to be translated]:Advanced file restoration engine.",
+            "name": "[to be translated]:Doc2x"
+          },
+          "mineru": {
+            "description": "[to be translated]:OpenDataLab's open-source high-quality PDF extraction tool.",
+            "name": "[to be translated]:MinerU"
+          },
+          "mistral": {
+            "description": "[to be translated]:File parsing and understanding service.",
+            "name": "[to be translated]:Mistral"
+          },
+          "open_mineru": {
+            "description": "[to be translated]:Self-hostable MinerU service for teams that want more control over the processing pipeline.",
+            "name": "[to be translated]:Open MinerU"
+          },
+          "ovocr": {
+            "description": "[to be translated]:Intel OpenVINO OCR engine that runs locally with NPU acceleration.",
+            "name": "[to be translated]:Intel OV OCR"
+          },
+          "paddleocr": {
+            "deployment": {
+              "description": "[to be translated]:You can deploy PaddleOCR locally with the officially supported Docker image, then enter the API address here.",
+              "docs": "[to be translated]:View Docker deployment docs"
+            },
+            "description": "[to be translated]:Baidu PaddleOCR recognition system.",
+            "fields": {
+              "parse_model": "[to be translated]:Parse Model"
+            },
+            "name": "[to be translated]:PaddleOCR"
+          },
+          "system": {
+            "description": "[to be translated]:Native operating system OCR engine.",
+            "name": "[to be translated]:System OCR",
+            "status": {
+              "available": "[to be translated]:Detected available macOS Live Text / Windows OCR engine.",
+              "no_configuration": "[to be translated]:System OCR calls the native system engine directly. It is fastest, but accuracy depends on the OS version."
+            }
+          },
+          "tesseract": {
+            "description": "[to be translated]:Google's open-source OCR engine that runs fully locally.",
+            "name": "[to be translated]:Tesseract OCR"
+          }
         },
-        "paddleocr": {
-          "aistudio_access_token": "Δείκτης πρόσβασης της κοινότητας AI Studio",
-          "api_url": "Διεύθυνση URL του API",
-          "api_url_label": "Λήψη Διακριτικού Πρόσβασης και URL API",
-          "paddleocr_url_label": "Επίσημη ιστοσελίδα του PaddleOCR"
+        "sections": {
+          "authentication": "[to be translated]:Authentication",
+          "description": "[to be translated]:Description",
+          "language_packs": "[to be translated]:Language Packs",
+          "model_parameters": "[to be translated]:Model Parameters",
+          "status": "[to be translated]:Status"
         },
-        "provider": "πάροχος υπηρεσιών προεπεξεργασίας εγγράφων",
-        "provider_placeholder": "Επιλέξτε έναν πάροχο υπηρεσιών προεπεξεργασίας εγγράφων",
-        "title": "Προεπεξεργασία εγγράφων",
-        "tooltip": "Ορίστε πάροχο προεπεξεργασίας εγγράφων ή OCR στις Ρυθμίσεις -> Εργαλεία. Η προεπεξεργασία εγγράφων μπορεί να βελτιώσει σημαντικά την απόδοση αναζήτησης για έγγραφα πολύπλοκης μορφής ή εγγράφων σε μορφή σάρωσης. Το OCR μπορεί να αναγνωρίσει μόνο κείμενο μέσα σε εικόνες εγγράφων ή σε PDF σε μορφή σάρωσης."
+        "title": "[to be translated]:Document Parsing"
       },
       "title": "Ρυθμίσεις Εργαλείων",
       "websearch": {
@@ -6671,6 +6793,7 @@
         "apikey": "Κλειδί API",
         "blacklist": "Μαύρη Λίστα",
         "blacklist_description": "Τα αποτελέσματα από τους παρακάτω ιστότοπους δεν θα εμφανίζονται στα αποτελέσματα αναζήτησης",
+        "blacklist_invalid_entries": "[to be translated]:Invalid blacklist entries: {{entries}}",
         "blacklist_tooltip": "Παρακαλώ χρησιμοποιήστε την ακόλουθη μορφή (διαχωρισμός με αλλαγή γραμμής)\nΜοτίβο αντιστοίχισης: *://*.example.com/*\nΚανονική έκφραση: /example\\.(net|org)/",
         "check": "Έλεγχος",
         "check_failed": "Αποτυχία επαλήθευσης",
@@ -6697,6 +6820,11 @@
         "content_limit": "Όριο μήκους περιεχομένου",
         "content_limit_tooltip": "Περιορίζει το μήκος του περιεχομένου των αποτελεσμάτων αναζήτησης, το περιεχόμενο πέραν του ορίου θα περικοπεί",
         "default_provider": "Προεπιλεγμένος Πάροχος",
+        "errors": {
+          "save_failed": "[to be translated]:Save failed",
+          "zhipu_sync_failed": "[to be translated]:Failed to sync Zhipu API key to Web Search. Please re-save the key or check Web Search settings."
+        },
+        "fetch_urls_provider": "[to be translated]:Default URL fetch provider",
         "free": "Δωρεάν",
         "is_default": "Προεπιλογή",
         "local_provider": {
@@ -6708,27 +6836,24 @@
         "no_provider_selected": "Παρακαλώ επιλέξτε πάροχο αναζήτησης πριν τον έλεγχο",
         "overwrite": "Αντικατάσταση αναζήτησης παρόχου",
         "overwrite_tooltip": "Εξαναγκάζει τη χρήση του παρόχου αναζήτησης αντί για μοντέλο μεγάλης γλώσσας για αναζήτηση",
+        "provider_description": {
+          "bocha": "[to be translated]:Chinese AI search API with real-time web and structured results.",
+          "exa": "[to be translated]:Neural search API for AI apps, tuned for semantic web retrieval.",
+          "exa_mcp": "[to be translated]:Expose Exa search to agents through the Exa MCP Server.",
+          "fetch": "[to be translated]:Built-in URL fetch provider. Fetches web page content from a URL to enrich search results.",
+          "jina": "[to be translated]:Jina Reader search and read APIs for retrieving clean web content.",
+          "querit": "[to be translated]:Search service for AI apps with web retrieval results.",
+          "searxng": "[to be translated]:Self-hostable free internet metasearch engine across many sources.",
+          "tavily": "[to be translated]:Search engine optimized for LLMs.",
+          "zhipu": "[to be translated]:Zhipu GLM Web Search for live web retrieval and current information."
+        },
         "search_max_result": {
           "label": "Αριθμός αποτελεσμάτων αναζήτησης",
           "tooltip": "Σε περίπτωση που δεν είναι ενεργοποιημένη η συμπίεση αποτελεσμάτων αναζήτησης, μεγάλος αριθμός μπορεί να καταναλώσει πολλά tokens"
         },
         "search_provider": "Πάροχος αναζήτησης",
         "search_provider_placeholder": "Επιλέξτε έναν πάροχο αναζήτησης",
-        "search_with_time": "Αναζήτηση με ημερομηνία",
         "set_as_default": "Ορισμός ως προεπιλογή",
-        "subscribe": "Εγγραφή σε μαύρη λίστα",
-        "subscribe_add": "Προσθήκη εγγραφής",
-        "subscribe_add_failed": "Η προσθήκη της ροής συνδρομής απέτυχε",
-        "subscribe_add_success": "Η πηγή εγγραφής προστέθηκε επιτυχώς!",
-        "subscribe_delete": "Διαγραφή πηγής εγγραφής",
-        "subscribe_name": {
-          "label": "Εναλλακτικό όνομα",
-          "placeholder": "Εναλλακτικό όνομα που χρησιμοποιείται όταν η ληφθείσα πηγή εγγραφής δεν έχει όνομα"
-        },
-        "subscribe_update": "Άμεση ενημέρωση",
-        "subscribe_update_failed": "Η ενημέρωση της ροής συνδρομής απέτυχε",
-        "subscribe_update_success": "Η ενημέρωση της ροής συνδρομής ολοκληρώθηκε επιτυχώς",
-        "subscribe_url": "Διεύθυνση πηγής εγγραφής",
         "tavily": {
           "api_key": {
             "label": "Κλειδί Tavily API",
@@ -6885,6 +7010,7 @@
         },
         "label": "Αυτόματη μέθοδος ανίχνευσης",
         "llm": {
+          "label": "[to be translated]:LLM",
           "tip": "Χρησιμοποιήστε γρήγορο μοντέλο για την ανίχνευση γλώσσας, με ελάχιστη κατανάλωση token."
         },
         "placeholder": "Επιλέξτε τη μέθοδο αυτόματης ανίχνευσης",

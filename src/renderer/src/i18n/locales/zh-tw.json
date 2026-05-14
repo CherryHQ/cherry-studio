@@ -6343,12 +6343,12 @@
         }
       },
       "api_host": "API 主機位址",
-      "api_host_with_endpoint_label": "API 主機位址 (Endpoint URL)",
       "api_host_drawer_hint": "自訂 API 請求網址；留空則使用目錄預設。",
       "api_host_no_valid": "API 位址不合法",
       "api_host_placeholder": "未設定",
       "api_host_preview": "預覽：{{url}}",
       "api_host_tooltip": "僅在供應商需要自訂的 OpenAI 相容端點時才覆蓋。",
+      "api_host_with_endpoint_label": "API 主機位址 (Endpoint URL)",
       "api_key": {
         "copy": "複製",
         "enabled_suffix": "已啟用",
