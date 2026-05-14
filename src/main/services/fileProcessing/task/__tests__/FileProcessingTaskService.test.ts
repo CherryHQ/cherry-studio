@@ -8,7 +8,7 @@ import type {
   FileProcessorMerged
 } from '@shared/data/presets/file-processing'
 import type { FileEntryId } from '@shared/data/types/file'
-import type { FileProcessingTaskResult } from '@shared/data/types/fileProcessing'
+import type { FileProcessingArtifact, FileProcessingTaskResult } from '@shared/data/types/fileProcessing'
 import { FILE_TYPE, type FileInfo } from '@shared/file/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,19 +22,15 @@ type ProcessorRegistryMockEntry = {
 const {
   processorRegistryMock,
   resolveProcessorConfigByFeatureMock,
-  persistResultMock,
-  cleanupResultsDirMock,
-  createInternalEntryMock,
-  getByIdMock,
-  permanentDeleteMock
+  persistArtifactMock,
+  cleanupArtifactsMock,
+  getByIdMock
 } = vi.hoisted(() => ({
   processorRegistryMock: {} as Record<string, ProcessorRegistryMockEntry>,
   resolveProcessorConfigByFeatureMock: vi.fn(),
-  persistResultMock: vi.fn(),
-  cleanupResultsDirMock: vi.fn(),
-  createInternalEntryMock: vi.fn(),
-  getByIdMock: vi.fn(),
-  permanentDeleteMock: vi.fn()
+  persistArtifactMock: vi.fn(),
+  cleanupArtifactsMock: vi.fn(),
+  getByIdMock: vi.fn()
 }))
 
 vi.mock('@application', () => ({
@@ -42,9 +38,7 @@ vi.mock('@application', () => ({
     get: vi.fn((name: string) => {
       if (name === 'FileManager') {
         return {
-          createInternalEntry: createInternalEntryMock,
-          getById: getByIdMock,
-          permanentDelete: permanentDeleteMock
+          getById: getByIdMock
         }
       }
 
@@ -61,10 +55,10 @@ vi.mock('../../config/resolveProcessorConfig', () => ({
   resolveProcessorConfigByFeature: resolveProcessorConfigByFeatureMock
 }))
 
-vi.mock('../../persistence/MarkdownResultStore', () => ({
-  cleanupFileProcessingResultsDir: cleanupResultsDirMock,
-  markdownResultStore: {
-    persistResult: persistResultMock
+vi.mock('../../persistence/FileProcessingArtifactPersistence', () => ({
+  fileProcessingArtifactPersistence: {
+    persistArtifact: persistArtifactMock,
+    cleanupArtifacts: cleanupArtifactsMock
   }
 }))
 
@@ -93,6 +87,11 @@ const documentFileEntryId = '019606a0-0000-7000-8000-000000000012' as FileEntryI
 const wordFileEntryId = '019606a0-0000-7000-8000-000000000013' as FileEntryId
 
 const artifactMarkdownEntryId = '019606a0-0000-7000-8000-000000000101'
+const markdownFileArtifact: FileProcessingArtifact = {
+  kind: 'file',
+  format: 'markdown',
+  fileEntryId: artifactMarkdownEntryId
+}
 
 const imageFileInfo: FileInfo = {
   path: '/tmp/scan.png' as FileInfo['path'],
@@ -244,22 +243,11 @@ describe('FileProcessingTaskService', () => {
     BaseService.resetInstances()
     resetProcessorRegistryMock()
     resolveProcessorConfigByFeatureMock.mockReset()
-    persistResultMock.mockReset()
-    cleanupResultsDirMock.mockReset()
-    createInternalEntryMock.mockReset()
+    persistArtifactMock.mockReset()
+    cleanupArtifactsMock.mockReset()
     getByIdMock.mockReset()
-    permanentDeleteMock.mockReset()
-    cleanupResultsDirMock.mockResolvedValue(true)
-    permanentDeleteMock.mockResolvedValue(undefined)
-    createInternalEntryMock.mockImplementation(async ({ path }) => ({
-      id: artifactMarkdownEntryId,
-      origin: 'internal',
-      name: path.split('/').pop()?.replace(/\.md$/u, '') ?? 'output',
-      ext: 'md',
-      size: 12,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    }))
+    persistArtifactMock.mockResolvedValue([markdownFileArtifact])
+    cleanupArtifactsMock.mockResolvedValue(undefined)
     getByIdMock.mockImplementation(async (id: string) => {
       if (id === imageFileEntryId) {
         return imageFileInfo
@@ -321,6 +309,13 @@ describe('FileProcessingTaskService', () => {
       }
     }
     resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('tesseract', 'image_to_text', [FILE_TYPE.IMAGE]))
+    persistArtifactMock.mockResolvedValueOnce([
+      {
+        kind: 'text',
+        format: 'plain',
+        text: 'recognized text'
+      }
+    ])
 
     const service = new FileProcessingTaskService()
     await service._doInit()
@@ -358,7 +353,14 @@ describe('FileProcessingTaskService', () => {
       })
     })
 
-    expect(persistResultMock).not.toHaveBeenCalled()
+    expect(persistArtifactMock).toHaveBeenCalledWith({
+      taskId: started.taskId,
+      output: {
+        kind: 'text',
+        text: 'recognized text'
+      },
+      signal: expect.any(AbortSignal)
+    })
     expect(taskEvents.events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ taskId: started.taskId, status: 'processing' }),
@@ -393,7 +395,6 @@ describe('FileProcessingTaskService', () => {
     resolveProcessorConfigByFeatureMock.mockReturnValue(
       createConfig('open-mineru', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
     )
-    persistResultMock.mockResolvedValue('/tmp/file-processing/output.md')
 
     const service = new FileProcessingTaskService()
     await service._doInit()
@@ -421,19 +422,15 @@ describe('FileProcessingTaskService', () => {
       })
     })
 
-    expect(persistResultMock).toHaveBeenCalledWith({
+    expect(persistArtifactMock).toHaveBeenCalledWith({
       taskId: started.taskId,
-      result: {
+      output: {
         kind: 'markdown',
         markdownContent: '# done'
       },
       signal: expect.any(AbortSignal)
     })
-    expect(createInternalEntryMock).toHaveBeenCalledWith({
-      source: 'path',
-      path: '/tmp/file-processing/output.md'
-    })
-    expect(cleanupResultsDirMock).toHaveBeenCalledWith(started.taskId)
+    expect(cleanupArtifactsMock).not.toHaveBeenCalled()
 
     await service._doStop()
   })
@@ -458,7 +455,6 @@ describe('FileProcessingTaskService', () => {
     resolveProcessorConfigByFeatureMock.mockReturnValue(
       createConfig('open-mineru', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
     )
-    persistResultMock.mockResolvedValue('/tmp/file-processing/output.md')
 
     const service = new FileProcessingTaskService()
     await service._doInit()
@@ -470,18 +466,18 @@ describe('FileProcessingTaskService', () => {
     })
 
     await vi.waitFor(() => {
-      expect(persistResultMock).toHaveBeenCalledOnce()
+      expect(persistArtifactMock).toHaveBeenCalledOnce()
     })
 
-    expect(persistResultMock).toHaveBeenCalledWith({
+    expect(persistArtifactMock).toHaveBeenCalledWith({
       taskId: started.taskId,
-      result: {
+      output: {
         kind: 'markdown',
         markdownContent: '# safe'
       },
       signal: expect.any(AbortSignal)
     })
-    expect(persistResultMock.mock.calls[0][0]).not.toHaveProperty('fileId')
+    expect(persistArtifactMock.mock.calls[0][0]).not.toHaveProperty('fileId')
 
     await vi.waitFor(async () => {
       await expect(service.getTask({ taskId: started.taskId })).resolves.toMatchObject({
@@ -492,7 +488,7 @@ describe('FileProcessingTaskService', () => {
     await service._doStop()
   })
 
-  it('cleans up persisted markdown results when managed artifact creation fails', async () => {
+  it('fails when artifact persistence fails', async () => {
     const execute = vi.fn().mockResolvedValue({
       kind: 'markdown',
       markdownContent: '# failed artifact'
@@ -512,8 +508,7 @@ describe('FileProcessingTaskService', () => {
     resolveProcessorConfigByFeatureMock.mockReturnValue(
       createConfig('open-mineru', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
     )
-    persistResultMock.mockResolvedValue('/tmp/file-processing/output.md')
-    createInternalEntryMock.mockRejectedValueOnce(new Error('internal create failed'))
+    persistArtifactMock.mockRejectedValueOnce(new Error('artifact persistence failed'))
 
     const service = new FileProcessingTaskService()
     await service._doInit()
@@ -527,12 +522,11 @@ describe('FileProcessingTaskService', () => {
     await vi.waitFor(async () => {
       await expect(service.getTask({ taskId: started.taskId })).resolves.toMatchObject({
         status: 'failed',
-        error: 'internal create failed'
+        error: 'artifact persistence failed'
       })
     })
 
-    expect(cleanupResultsDirMock).toHaveBeenCalledWith(started.taskId)
-    expect(permanentDeleteMock).not.toHaveBeenCalled()
+    expect(cleanupArtifactsMock).not.toHaveBeenCalled()
 
     await service._doStop()
   })
@@ -697,8 +691,8 @@ describe('FileProcessingTaskService', () => {
   })
 
   it('keeps background tasks cancelled when artifact persistence finishes after cancellation', async () => {
-    const successPersistence = createDeferred<string>()
-    const failedPersistence = createDeferred<string>()
+    const successPersistence = createDeferred<FileProcessingArtifact[]>()
+    const failedPersistence = createDeferred<FileProcessingArtifact[]>()
     const firstExecuteDone = createDeferred<void>()
     const secondExecuteDone = createDeferred<void>()
     const execute = vi
@@ -732,7 +726,7 @@ describe('FileProcessingTaskService', () => {
     resolveProcessorConfigByFeatureMock.mockReturnValue(
       createConfig('open-mineru', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
     )
-    persistResultMock.mockReturnValueOnce(successPersistence.promise).mockReturnValueOnce(failedPersistence.promise)
+    persistArtifactMock.mockReturnValueOnce(successPersistence.promise).mockReturnValueOnce(failedPersistence.promise)
 
     const service = new FileProcessingTaskService()
     await service._doInit()
@@ -745,14 +739,14 @@ describe('FileProcessingTaskService', () => {
     })
 
     await vi.waitFor(() => {
-      expect(persistResultMock).toHaveBeenCalledTimes(1)
+      expect(persistArtifactMock).toHaveBeenCalledTimes(1)
     })
 
     await expect(service.cancelTask({ taskId: successTask.taskId })).resolves.toMatchObject({
       status: 'cancelled',
       reason: 'cancelled'
     })
-    successPersistence.resolve('/tmp/file-processing/cancelled-success.md')
+    successPersistence.resolve([markdownFileArtifact])
     await firstExecuteDone.promise
     await vi.waitFor(() => {
       const successEvents = taskEvents.events.filter((event) => event.taskId === successTask.taskId)
@@ -762,7 +756,10 @@ describe('FileProcessingTaskService', () => {
       })
     })
     await vi.waitFor(() => {
-      expect(permanentDeleteMock).toHaveBeenCalledWith(artifactMarkdownEntryId)
+      expect(cleanupArtifactsMock).toHaveBeenCalledWith({
+        taskId: successTask.taskId,
+        artifacts: [markdownFileArtifact]
+      })
     })
     await expect(service.getTask({ taskId: successTask.taskId })).resolves.toMatchObject({
       taskId: successTask.taskId,
@@ -777,7 +774,7 @@ describe('FileProcessingTaskService', () => {
     })
 
     await vi.waitFor(() => {
-      expect(persistResultMock).toHaveBeenCalledTimes(2)
+      expect(persistArtifactMock).toHaveBeenCalledTimes(2)
     })
 
     await expect(service.cancelTask({ taskId: failedTask.taskId })).resolves.toMatchObject({
@@ -806,7 +803,7 @@ describe('FileProcessingTaskService', () => {
   it('keeps pruned background tasks cancelled and cleans up artifacts when persistence finishes later', async () => {
     vi.useFakeTimers()
 
-    const persistence = createDeferred<string>()
+    const persistence = createDeferred<FileProcessingArtifact[]>()
     const execute = vi.fn().mockResolvedValue({
       kind: 'markdown',
       markdownContent: '# expired'
@@ -826,7 +823,7 @@ describe('FileProcessingTaskService', () => {
     resolveProcessorConfigByFeatureMock.mockReturnValue(
       createConfig('open-mineru', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
     )
-    persistResultMock.mockReturnValueOnce(persistence.promise)
+    persistArtifactMock.mockReturnValueOnce(persistence.promise)
 
     const service = new FileProcessingTaskService()
 
@@ -841,7 +838,7 @@ describe('FileProcessingTaskService', () => {
       })
 
       await vi.waitFor(() => {
-        expect(persistResultMock).toHaveBeenCalledOnce()
+        expect(persistArtifactMock).toHaveBeenCalledOnce()
       })
 
       await vi.advanceTimersByTimeAsync(FILE_PROCESSING_TASK_TTL_MS)
@@ -854,11 +851,13 @@ describe('FileProcessingTaskService', () => {
         })
       )
 
-      persistence.resolve('/tmp/file-processing/expired.md')
+      persistence.resolve([markdownFileArtifact])
       await vi.waitFor(() => {
-        expect(cleanupResultsDirMock).toHaveBeenCalledWith(started.taskId)
+        expect(cleanupArtifactsMock).toHaveBeenCalledWith({
+          taskId: started.taskId,
+          artifacts: [markdownFileArtifact]
+        })
       })
-      expect(permanentDeleteMock).toHaveBeenCalledWith(artifactMarkdownEntryId)
 
       await expect(service.getTask({ taskId: started.taskId })).rejects.toThrow(
         `File processing task not found: ${started.taskId}`
@@ -981,6 +980,13 @@ describe('FileProcessingTaskService', () => {
       }
     }
     resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('tesseract', 'image_to_text', [FILE_TYPE.IMAGE]))
+    persistArtifactMock.mockResolvedValueOnce([
+      {
+        kind: 'text',
+        format: 'plain',
+        text: 'still completed'
+      }
+    ])
 
     const service = new FileProcessingTaskService()
     await service._doInit()
@@ -1232,7 +1238,6 @@ describe('FileProcessingTaskService', () => {
     resolveProcessorConfigByFeatureMock.mockReturnValue(
       createConfig('doc2x', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
     )
-    persistResultMock.mockResolvedValue('/tmp/file-processing/remote-log.md')
 
     const debugSpy = vi.spyOn(mockMainLoggerService, 'debug').mockImplementation(() => {})
     const infoSpy = vi.spyOn(mockMainLoggerService, 'info').mockImplementation(() => {})
@@ -1625,7 +1630,6 @@ describe('FileProcessingTaskService', () => {
     resolveProcessorConfigByFeatureMock.mockReturnValue(
       createConfig('doc2x', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
     )
-    persistResultMock.mockResolvedValue('/tmp/file-processing/terminal.md')
 
     const service = new FileProcessingTaskService()
     await service._doInit()
@@ -1724,7 +1728,6 @@ describe('FileProcessingTaskService', () => {
     resolveProcessorConfigByFeatureMock.mockReturnValue(
       createConfig('doc2x', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
     )
-    persistResultMock.mockResolvedValue('/tmp/remote/output.md')
 
     const service = new FileProcessingTaskService()
     await service._doInit()
@@ -1823,9 +1826,9 @@ describe('FileProcessingTaskService', () => {
       },
       expect.any(AbortSignal)
     )
-    expect(persistResultMock).toHaveBeenCalledWith({
+    expect(persistArtifactMock).toHaveBeenCalledWith({
       taskId: started.taskId,
-      result: {
+      output: {
         kind: 'markdown',
         markdownContent: '# remote done'
       },
@@ -2054,8 +2057,8 @@ describe('FileProcessingTaskService', () => {
   })
 
   it('keeps remote-poll tasks cancelled when artifact persistence finishes after cancellation', async () => {
-    const successPersistence = createDeferred<string>()
-    const failedPersistence = createDeferred<string>()
+    const successPersistence = createDeferred<FileProcessingArtifact[]>()
+    const failedPersistence = createDeferred<FileProcessingArtifact[]>()
     const pollRemote = vi.fn().mockResolvedValue({
       status: 'completed',
       output: {
@@ -2088,7 +2091,7 @@ describe('FileProcessingTaskService', () => {
     resolveProcessorConfigByFeatureMock.mockReturnValue(
       createConfig('doc2x', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
     )
-    persistResultMock.mockReturnValueOnce(successPersistence.promise).mockReturnValueOnce(failedPersistence.promise)
+    persistArtifactMock.mockReturnValueOnce(successPersistence.promise).mockReturnValueOnce(failedPersistence.promise)
 
     const service = new FileProcessingTaskService()
     await service._doInit()
@@ -2106,20 +2109,23 @@ describe('FileProcessingTaskService', () => {
     })
     const successQuery = service.getTask({ taskId: successTask.taskId })
     await vi.waitFor(() => {
-      expect(persistResultMock).toHaveBeenCalledTimes(1)
+      expect(persistArtifactMock).toHaveBeenCalledTimes(1)
     })
 
     await expect(service.cancelTask({ taskId: successTask.taskId })).resolves.toMatchObject({
       status: 'cancelled',
       reason: 'cancelled'
     })
-    successPersistence.resolve('/tmp/file-processing/remote-cancelled-success.md')
+    successPersistence.resolve([markdownFileArtifact])
     await expect(successQuery).resolves.toMatchObject({
       taskId: successTask.taskId,
       status: 'cancelled',
       reason: 'cancelled'
     })
-    expect(permanentDeleteMock).toHaveBeenCalledWith(artifactMarkdownEntryId)
+    expect(cleanupArtifactsMock).toHaveBeenCalledWith({
+      taskId: successTask.taskId,
+      artifacts: [markdownFileArtifact]
+    })
     await expect(service.getTask({ taskId: successTask.taskId })).resolves.toMatchObject({
       taskId: successTask.taskId,
       status: 'cancelled',
@@ -2138,7 +2144,7 @@ describe('FileProcessingTaskService', () => {
     })
     const failedQuery = service.getTask({ taskId: failedTask.taskId })
     await vi.waitFor(() => {
-      expect(persistResultMock).toHaveBeenCalledTimes(2)
+      expect(persistArtifactMock).toHaveBeenCalledTimes(2)
     })
 
     await expect(service.cancelTask({ taskId: failedTask.taskId })).resolves.toMatchObject({
@@ -2164,7 +2170,7 @@ describe('FileProcessingTaskService', () => {
   it('keeps pruned remote-poll tasks cancelled and cleans up artifacts when persistence finishes later', async () => {
     vi.useFakeTimers()
 
-    const persistence = createDeferred<string>()
+    const persistence = createDeferred<FileProcessingArtifact[]>()
     const pollRemote = vi.fn().mockResolvedValue({
       status: 'completed',
       output: {
@@ -2197,7 +2203,7 @@ describe('FileProcessingTaskService', () => {
     resolveProcessorConfigByFeatureMock.mockReturnValue(
       createConfig('doc2x', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
     )
-    persistResultMock.mockReturnValueOnce(persistence.promise)
+    persistArtifactMock.mockReturnValueOnce(persistence.promise)
 
     const service = new FileProcessingTaskService()
 
@@ -2222,7 +2228,7 @@ describe('FileProcessingTaskService', () => {
       const query = service.getTask({ taskId: started.taskId })
 
       await flushMicrotasks()
-      expect(persistResultMock).toHaveBeenCalledOnce()
+      expect(persistArtifactMock).toHaveBeenCalledOnce()
 
       await vi.advanceTimersByTimeAsync(FILE_PROCESSING_TASK_TTL_MS)
 
@@ -2234,13 +2240,15 @@ describe('FileProcessingTaskService', () => {
         })
       )
 
-      persistence.resolve('/tmp/file-processing/remote-expired.md')
+      persistence.resolve([markdownFileArtifact])
       await expect(query).rejects.toMatchObject({
         name: 'AbortError',
         message: 'File processing task expired'
       })
-      expect(cleanupResultsDirMock).toHaveBeenCalledWith(started.taskId)
-      expect(permanentDeleteMock).toHaveBeenCalledWith(artifactMarkdownEntryId)
+      expect(cleanupArtifactsMock).toHaveBeenCalledWith({
+        taskId: started.taskId,
+        artifacts: [markdownFileArtifact]
+      })
       expect(taskEvents.events).not.toContainEqual(
         expect.objectContaining({
           taskId: started.taskId,

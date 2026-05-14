@@ -22,12 +22,10 @@ import type { FileInfo } from '@shared/file/types'
 import { v4 as uuidv4 } from 'uuid'
 
 import { resolveProcessorConfigByFeature } from '../config/resolveProcessorConfig'
-import { markdownArtifactPersistence } from '../persistence/MarkdownArtifactPersistence'
-import { cleanupFileProcessingResultsDir } from '../persistence/MarkdownResultStore'
+import { fileProcessingArtifactPersistence } from '../persistence/FileProcessingArtifactPersistence'
 import { processorRegistry } from '../processors/registry'
 import type {
   FileProcessingCapabilityHandler,
-  FileProcessingHandlerOutput,
   FileProcessingProcessorCapabilities,
   FileProcessingRemoteContext,
   FileProcessingRemotePollResult,
@@ -423,7 +421,6 @@ export class FileProcessingTaskService extends BaseService {
           logger.warn('File processing task vanished after remote poll completed', {
             taskId
           })
-          await this.cleanupOrphanedArtifacts(taskId)
           throw this.createAbortError(signal.reason ?? 'File processing task expired')
         }
 
@@ -431,13 +428,17 @@ export class FileProcessingTaskService extends BaseService {
         let artifacts: FileProcessingArtifact[] = []
 
         try {
-          artifacts = await this.createArtifacts(task, snapshot.output, signal)
+          artifacts = await fileProcessingArtifactPersistence.persistArtifact({
+            taskId: task.taskId,
+            output: snapshot.output,
+            signal
+          })
         } catch (error) {
           const preservedTask = this.preserveTerminalTask(taskId, signal, error)
 
           if (preservedTask) {
-            if (preservedTask.status !== 'completed') {
-              await this.cleanupOrphanedArtifacts(taskId, artifacts)
+            if (artifacts.length > 0 && preservedTask.status !== 'completed') {
+              await fileProcessingArtifactPersistence.cleanupArtifacts({ taskId, artifacts })
             }
             this.logTaskOp(preservedTask, 'cancel-preserved', {
               status: preservedTask.status
@@ -446,11 +447,15 @@ export class FileProcessingTaskService extends BaseService {
           }
 
           if (!this.getTaskRecord(taskId)) {
-            await this.cleanupOrphanedArtifacts(taskId, artifacts)
+            if (artifacts.length > 0) {
+              await fileProcessingArtifactPersistence.cleanupArtifacts({ taskId, artifacts })
+            }
             throw this.createAbortError(signal.reason ?? 'File processing task expired')
           }
 
-          await this.cleanupOrphanedArtifacts(taskId, artifacts)
+          if (artifacts.length > 0) {
+            await fileProcessingArtifactPersistence.cleanupArtifacts({ taskId, artifacts })
+          }
           this.markFailed(taskId, error, {
             error: getFailureMessage(error)
           })
@@ -462,7 +467,7 @@ export class FileProcessingTaskService extends BaseService {
 
         if (preservedTask) {
           if (preservedTask.status !== 'completed') {
-            await this.cleanupOrphanedArtifacts(taskId, artifacts)
+            await fileProcessingArtifactPersistence.cleanupArtifacts({ taskId, artifacts })
           }
           this.logTaskOp(preservedTask, 'cancel-preserved', {
             status: preservedTask.status
@@ -471,7 +476,7 @@ export class FileProcessingTaskService extends BaseService {
         }
 
         if (!this.getTaskRecord(taskId)) {
-          await this.cleanupOrphanedArtifacts(taskId, artifacts)
+          await fileProcessingArtifactPersistence.cleanupArtifacts({ taskId, artifacts })
           throw this.createAbortError(signal.reason ?? 'File processing task expired')
         }
 
@@ -623,7 +628,6 @@ export class FileProcessingTaskService extends BaseService {
         logger.warn('File processing task vanished after background execution finished', {
           taskId
         })
-        await this.cleanupOrphanedArtifacts(taskId)
         return
       }
 
@@ -631,19 +635,23 @@ export class FileProcessingTaskService extends BaseService {
         return
       }
 
-      artifacts = await this.createArtifacts(currentTask, output, signal)
+      artifacts = await fileProcessingArtifactPersistence.persistArtifact({
+        taskId: currentTask.taskId,
+        output,
+        signal
+      })
 
       const preservedTask = this.preserveTerminalTask(taskId, signal)
 
       if (preservedTask) {
         if (preservedTask.status !== 'completed') {
-          await this.cleanupOrphanedArtifacts(taskId, artifacts)
+          await fileProcessingArtifactPersistence.cleanupArtifacts({ taskId, artifacts })
         }
         return
       }
 
       if (!this.getTaskRecord(taskId)) {
-        await this.cleanupOrphanedArtifacts(taskId, artifacts)
+        await fileProcessingArtifactPersistence.cleanupArtifacts({ taskId, artifacts })
         return
       }
 
@@ -655,7 +663,7 @@ export class FileProcessingTaskService extends BaseService {
         const cancelledTask = this.markCancelled(taskId, error)
 
         if (artifacts.length > 0 && (!cancelledTask || cancelledTask.status !== 'completed')) {
-          await this.cleanupOrphanedArtifacts(taskId, artifacts)
+          await fileProcessingArtifactPersistence.cleanupArtifacts({ taskId, artifacts })
         }
         return
       }
@@ -664,18 +672,18 @@ export class FileProcessingTaskService extends BaseService {
 
       if (preservedTask) {
         if (artifacts.length > 0 && preservedTask.status !== 'completed') {
-          await this.cleanupOrphanedArtifacts(taskId, artifacts)
+          await fileProcessingArtifactPersistence.cleanupArtifacts({ taskId, artifacts })
         }
         return
       }
 
       if (artifacts.length > 0 && !this.getTaskRecord(taskId)) {
-        await this.cleanupOrphanedArtifacts(taskId, artifacts)
+        await fileProcessingArtifactPersistence.cleanupArtifacts({ taskId, artifacts })
         return
       }
 
       if (artifacts.length > 0) {
-        await this.cleanupOrphanedArtifacts(taskId, artifacts)
+        await fileProcessingArtifactPersistence.cleanupArtifacts({ taskId, artifacts })
       }
 
       this.markFailed(taskId, error, {
@@ -802,34 +810,6 @@ export class FileProcessingTaskService extends BaseService {
     })
   }
 
-  private async createArtifacts(
-    task: FileProcessingTaskRecord,
-    output: FileProcessingHandlerOutput,
-    signal: AbortSignal
-  ): Promise<FileProcessingArtifact[]> {
-    switch (output.kind) {
-      case 'text':
-        return [
-          {
-            kind: 'text',
-            format: 'plain',
-            text: output.text
-          }
-        ]
-
-      case 'markdown':
-      case 'remote-zip-url':
-      case 'response-zip':
-        return [
-          await markdownArtifactPersistence.persistArtifact({
-            taskId: task.taskId,
-            result: output,
-            signal
-          })
-        ]
-    }
-  }
-
   private pruneExpiredTasks(now = Date.now()): void {
     const tasks = this.tasks
 
@@ -929,38 +909,6 @@ export class FileProcessingTaskService extends BaseService {
 
     this.setTask(next, op, extra)
     return next
-  }
-
-  private async cleanupOrphanedArtifacts(taskId: string, artifacts: FileProcessingArtifact[] = []): Promise<void> {
-    await this.cleanupOrphanedFileEntries(taskId, artifacts)
-    const cleaned = await cleanupFileProcessingResultsDir(taskId)
-
-    if (cleaned) {
-      logger.warn('Cleaned up orphaned file processing artifacts after terminal state changed', {
-        taskId
-      })
-    }
-  }
-
-  private async cleanupOrphanedFileEntries(taskId: string, artifacts: FileProcessingArtifact[]): Promise<void> {
-    const fileEntryIds = artifacts.flatMap((artifact) => (artifact.kind === 'file' ? [artifact.fileEntryId] : []))
-
-    if (fileEntryIds.length === 0) {
-      return
-    }
-
-    const fileManager = application.get('FileManager')
-
-    for (const fileEntryId of fileEntryIds) {
-      try {
-        await fileManager.permanentDelete(fileEntryId)
-      } catch (error) {
-        logger.warn('Failed to cleanup orphaned file processing file entry artifact', error as Error, {
-          taskId,
-          fileEntryId
-        })
-      }
-    }
   }
 
   private touchTask(taskId: string): void {
