@@ -3,12 +3,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ProviderEditorDrawer from '../ProviderEditorDrawer'
 
-const selectDropdownMock = vi.fn()
-
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key
-  })
+  }),
+  initReactI18next: { type: '3rdParty', init: () => {} }
+}))
+
+vi.mock('@renderer/i18n/label', () => ({
+  getProviderLabel: (id: string) => id
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -17,14 +20,19 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
-  Input: ({ onChange, onKeyDown, ...props }: any) => <input onChange={onChange} onKeyDown={onKeyDown} {...props} />,
+  Input: ({ onChange, onKeyDown, value, placeholder, ...props }: any) => (
+    <input
+      value={value ?? ''}
+      placeholder={placeholder}
+      onChange={onChange}
+      onKeyDown={onKeyDown}
+      aria-label={placeholder}
+      {...props}
+    />
+  ),
   Popover: ({ children }: any) => <div>{children}</div>,
   PopoverContent: ({ children }: any) => <div>{children}</div>,
-  PopoverTrigger: ({ children }: any) => <div>{children}</div>,
-  SelectDropdown: (props: any) => {
-    selectDropdownMock(props)
-    return <div data-testid="provider-template-select" />
-  }
+  PopoverTrigger: ({ children }: any) => <div>{children}</div>
 }))
 
 vi.mock('@renderer/components/ProviderAvatar', () => ({
@@ -39,13 +47,15 @@ vi.mock('@renderer/utils', () => ({
   compressImage: vi.fn(),
   convertToBase64: vi.fn(),
   generateColorFromChar: vi.fn(),
-  getForegroundColor: vi.fn()
+  getForegroundColor: vi.fn(),
+  cn: (...args: any[]) => args.filter(Boolean).join(' ')
 }))
 
 vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
-  default: ({ children, footer, open }: any) =>
+  default: ({ children, footer, open, title }: any) =>
     open ? (
       <div>
+        <h2>{title}</h2>
         {children}
         {footer}
       </div>
@@ -60,44 +70,74 @@ describe('ProviderEditorDrawer', () => {
     } as unknown as typeof window.toast
   })
 
-  it('renders the template selector only in create mode', () => {
-    render(<ProviderEditorDrawer open initialLogo={undefined} onClose={vi.fn()} onSubmit={vi.fn()} />)
-
-    expect(screen.getByTestId('provider-template-select')).toBeInTheDocument()
-  })
-
-  it('locks the template when editing so submit cannot switch provider type semantics', async () => {
+  it('submits a create-custom payload with api-key auth and OPENAI_CHAT_COMPLETIONS as the default endpoint', () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
-
     render(
       <ProviderEditorDrawer
         open
-        provider={
-          {
-            id: 'openai-work',
-            name: 'OpenAI Work',
-            presetProviderId: 'openai',
-            defaultChatEndpoint: 'openai-chat-completions'
-          } as any
-        }
+        mode={{ kind: 'create-custom' }}
         initialLogo={undefined}
         onClose={vi.fn()}
         onSubmit={onSubmit}
       />
     )
 
-    expect(screen.queryByTestId('provider-template-select')).not.toBeInTheDocument()
-    expect(screen.getByText('OpenAI')).toBeInTheDocument()
+    expect(screen.getByText('settings.provider.create_custom.title')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
+      target: { value: 'My Custom' }
+    })
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.base_url.placeholder'), {
+      target: { value: 'https://api.example.com' }
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'button.add' }))
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'My Custom',
+        defaultChatEndpoint: 'openai-chat-completions',
+        authConfig: { type: 'api-key' },
+        endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://api.example.com' } }
+      })
+    )
+    const callArg = onSubmit.mock.calls[0]?.[0] as { presetProviderId?: string } | undefined
+    expect(callArg?.presetProviderId).toBeUndefined()
+  })
+
+  it('preserves provider type semantics on edit (defaultChatEndpoint not switched, no presetProviderId leak)', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{
+          kind: 'edit',
+          provider: {
+            id: 'openai-work',
+            name: 'OpenAI Work',
+            presetProviderId: 'openai',
+            defaultChatEndpoint: 'openai-chat-completions'
+          } as any
+        }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    expect(screen.getByText('common.edit')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
 
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'OpenAI Work',
-        defaultChatEndpoint: 'openai-chat-completions',
-        presetProviderId: undefined,
-        authConfig: undefined
+        defaultChatEndpoint: 'openai-chat-completions'
       })
     )
+    const payload = onSubmit.mock.calls[0]?.[0] as { presetProviderId?: string; authConfig?: unknown } | undefined
+    expect(payload?.presetProviderId).toBeUndefined()
+    expect(payload?.authConfig).toBeUndefined()
   })
 })

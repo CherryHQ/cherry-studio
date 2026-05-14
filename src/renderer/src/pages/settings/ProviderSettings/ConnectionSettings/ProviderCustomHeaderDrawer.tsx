@@ -122,7 +122,7 @@ function mergeEndpointConfigs(
   drafts: Record<string, string>,
   primary: EndpointType
 ): Partial<Record<EndpointType, EndpointConfig>> {
-  const out: Partial<Record<EndpointType, EndpointConfig>> = { ...(existing ?? {}) }
+  const out: Partial<Record<EndpointType, EndpointConfig>> = { ...existing }
   for (const [type, raw] of Object.entries(drafts) as [EndpointType, string][]) {
     const value = trim(raw)
     if (value) {

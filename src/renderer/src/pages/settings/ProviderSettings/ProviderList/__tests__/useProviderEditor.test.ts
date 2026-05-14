@@ -83,7 +83,7 @@ describe('useProviderEditor', () => {
 
     it('startAddFrom opens the editor in duplicate mode with the source provider', () => {
       const { result } = renderHook(() => useProviderEditor(makeParams()))
-      const source = { ...provider, presetProviderId: 'openai', authType: 'api-key' } as any
+      const source = { ...provider, presetProviderId: 'openai', authType: 'api-key' }
 
       act(() => result.current.startAddFrom(source))
 
@@ -227,7 +227,7 @@ describe('useProviderEditor', () => {
 
     it('forwards presetProviderId on duplicate-mode submit', async () => {
       const { result } = renderHook(() => useProviderEditor(makeParams()))
-      const source = { ...provider, presetProviderId: 'azure-openai', authType: 'iam-azure' } as any
+      const source = { ...provider, presetProviderId: 'azure-openai', authType: 'iam-azure' }
 
       act(() => result.current.startAddFrom(source))
       await act(async () => {
