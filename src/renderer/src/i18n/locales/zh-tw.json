@@ -2123,6 +2123,7 @@
           "description": "将递归导入文件夹中的支持文件",
           "title": "点击选择文件夹"
         },
+        "file_not_supported": "不支援此檔案類型",
         "footer": {
           "selected_directories": "已选 {{count}} 个目录",
           "selected_files": "已选 {{count}} 个文件",

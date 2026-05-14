@@ -1,11 +1,21 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { getFileType } from '@main/utils/file'
-import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
-import type { KnowledgeItem } from '@shared/data/types/knowledge'
-import type { NotesTreeNode } from '@types'
-import { v4 as uuidv4 } from 'uuid'
+import type { FileEntryId } from '@shared/data/types/file'
+import { isSupportedKnowledgeFileExt, type KnowledgeItem } from '@shared/data/types/knowledge'
+
+import { ensureKnowledgeExternalFileEntry } from './file'
+
+type DirectoryScanNode =
+  | {
+      type: 'directory'
+      path: string
+      children: DirectoryScanNode[]
+    }
+  | {
+      type: 'file'
+      path: string
+    }
 
 export type ExpandedDirectoryNode =
   | {
@@ -20,19 +30,15 @@ export type ExpandedDirectoryNode =
       type: 'file'
       data: {
         source: string
-        file: FileMetadata
+        fileEntryId: FileEntryId
       }
     }
 
-async function readDirectoryTree(
-  dirPath: string,
-  signal: AbortSignal,
-  rootPath: string = dirPath
-): Promise<NotesTreeNode[]> {
+async function readDirectoryTree(dirPath: string, signal: AbortSignal): Promise<DirectoryScanNode[]> {
   signal.throwIfAborted()
   const entries = await fs.readdir(dirPath, { withFileTypes: true })
   signal.throwIfAborted()
-  const nodes: NotesTreeNode[] = []
+  const nodes: DirectoryScanNode[] = []
 
   for (const entry of entries) {
     signal.throwIfAborted()
@@ -42,34 +48,21 @@ async function readDirectoryTree(
     }
 
     const entryPath = path.join(dirPath, entry.name)
-    const stats = await fs.stat(entryPath)
     signal.throwIfAborted()
-    const relativePath = path.relative(rootPath, entryPath)
-    const treePath = `/${relativePath.replace(/\\/g, '/')}`
 
     if (entry.isDirectory()) {
       nodes.push({
-        id: uuidv4(),
-        name: entry.name,
-        type: 'folder',
-        treePath,
-        externalPath: entryPath,
-        createdAt: stats.birthtime.toISOString(),
-        updatedAt: stats.mtime.toISOString(),
-        children: await readDirectoryTree(entryPath, signal, rootPath)
+        type: 'directory',
+        path: entryPath,
+        children: await readDirectoryTree(entryPath, signal)
       })
       continue
     }
 
     if (entry.isFile()) {
       nodes.push({
-        id: uuidv4(),
-        name: entry.name,
         type: 'file',
-        treePath,
-        externalPath: entryPath,
-        createdAt: stats.birthtime.toISOString(),
-        updatedAt: stats.mtime.toISOString()
+        path: entryPath
       })
     }
   }
@@ -77,38 +70,25 @@ async function readDirectoryTree(
   return nodes
 }
 
-async function createExternalFileMetadata(filePath: string, signal: AbortSignal): Promise<FileMetadata> {
-  const stats = await fs.stat(filePath)
-  signal.throwIfAborted()
-  const originName = path.basename(filePath)
-  const ext = path.extname(originName)
-
-  return {
-    id: uuidv4(),
-    origin_name: originName,
-    name: originName,
-    path: filePath,
-    created_at: stats.birthtime.toISOString(),
-    size: stats.size,
-    ext,
-    type: getFileType(ext),
-    count: 1
-  }
-}
-
-async function expandDirectoryNode(node: NotesTreeNode, signal: AbortSignal): Promise<ExpandedDirectoryNode | null> {
+async function expandDirectoryNode(
+  node: DirectoryScanNode,
+  signal: AbortSignal
+): Promise<ExpandedDirectoryNode | null> {
   if (node.type === 'file') {
+    if (!isSupportedKnowledgeFileExt(path.extname(node.path))) {
+      return null
+    }
+
+    const entry = await ensureKnowledgeExternalFileEntry(node.path)
+    signal.throwIfAborted()
+
     return {
       type: 'file',
       data: {
-        source: node.externalPath,
-        file: await createExternalFileMetadata(node.externalPath, signal)
+        source: node.path,
+        fileEntryId: entry.id
       }
     }
-  }
-
-  if (node.type !== 'folder') {
-    return null
   }
 
   const children: ExpandedDirectoryNode[] = []
@@ -127,8 +107,8 @@ async function expandDirectoryNode(node: NotesTreeNode, signal: AbortSignal): Pr
   return {
     type: 'directory',
     data: {
-      source: node.externalPath,
-      path: node.externalPath
+      source: node.path,
+      path: node.path
     },
     children
   }

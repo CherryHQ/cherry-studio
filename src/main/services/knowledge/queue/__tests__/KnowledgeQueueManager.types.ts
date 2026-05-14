@@ -49,17 +49,7 @@ const fileItem: KnowledgeItemOf<'file'> = {
   type: 'file',
   data: {
     source: 'file-1',
-    file: {
-      id: 'file-1',
-      name: 'file.md',
-      origin_name: 'file.md',
-      path: '/tmp/file.md',
-      size: 1,
-      ext: '.md',
-      type: 'text',
-      created_at: '2026-04-08T00:00:00.000Z',
-      count: 1
-    }
+    fileEntryId: '019606a0-0000-7000-8000-000000000001'
   },
   ...lifecycle,
   createdAt: '2026-04-08T00:00:00.000Z',

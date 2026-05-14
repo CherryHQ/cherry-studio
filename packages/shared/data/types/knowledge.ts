@@ -1,7 +1,7 @@
 import * as z from 'zod'
 
-import { FileTypeSchema } from './file'
-import { type FileMetadata } from './file/legacyFileMetadata'
+import { FILE_TYPE, type FileType, getFileTypeByExt } from '../../file/types'
+import { AbsolutePathSchema, FileEntryIdSchema } from './file'
 
 /**
  * Knowledge domain types.
@@ -18,6 +18,19 @@ import { type FileMetadata } from './file/legacyFileMetadata'
 export const KNOWLEDGE_ITEM_TYPES = ['file', 'url', 'note', 'sitemap', 'directory'] as const
 export const KnowledgeItemTypeSchema = z.enum(KNOWLEDGE_ITEM_TYPES)
 export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
+export const KNOWLEDGE_SUPPORTED_FILE_TYPES = [
+  FILE_TYPE.TEXT,
+  FILE_TYPE.DOCUMENT
+] as const satisfies readonly FileType[]
+const KNOWLEDGE_SUPPORTED_FILE_TYPE_SET: ReadonlySet<FileType> = new Set(KNOWLEDGE_SUPPORTED_FILE_TYPES)
+
+export function isSupportedKnowledgeFileType(type: FileType): boolean {
+  return KNOWLEDGE_SUPPORTED_FILE_TYPE_SET.has(type)
+}
+
+export function isSupportedKnowledgeFileExt(ext: string): boolean {
+  return isSupportedKnowledgeFileType(getFileTypeByExt(ext))
+}
 
 export const KNOWLEDGE_ITEM_STATUSES = ['idle', 'processing', 'completed', 'failed'] as const
 export const KnowledgeItemStatusSchema = z.enum(KNOWLEDGE_ITEM_STATUSES)
@@ -146,32 +159,16 @@ export type KnowledgeBase = z.infer<typeof KnowledgeBaseSchema>
 // ============================================================================
 
 const KnowledgeItemSharedSchema = z.strictObject({
+  // Knowledge-domain provenance used for display and chunk metadata.
+  // File access is owned by FileManager through `fileEntryId`; directory roots keep `path`.
   source: z.string().trim().min(1)
-})
-
-/**
- * Temporary schema mirroring the current FileMetadata shape.
- * TODO: Move to `types/file.ts` once the dedicated file domain schema is ready.
- */
-export const FileMetadataSchema: z.ZodType<FileMetadata> = z.object({
-  id: z.string(),
-  name: z.string(),
-  origin_name: z.string(),
-  path: z.string(),
-  size: z.number(),
-  ext: z.string(),
-  type: FileTypeSchema,
-  created_at: z.string(),
-  count: z.number(),
-  tokens: z.number().optional(),
-  purpose: z.custom<FileMetadata['purpose']>((value) => value === undefined || typeof value === 'string').optional()
 })
 
 /**
  * File item data.
  */
 export const FileItemDataSchema = KnowledgeItemSharedSchema.extend({
-  file: FileMetadataSchema
+  fileEntryId: FileEntryIdSchema
 })
 
 /**
@@ -200,7 +197,7 @@ export const SitemapItemDataSchema = KnowledgeItemSharedSchema.extend({
  * Directory item data.
  */
 export const DirectoryItemDataSchema = KnowledgeItemSharedSchema.extend({
-  path: z.string().trim().min(1)
+  path: AbsolutePathSchema
 })
 
 /**
@@ -443,6 +440,10 @@ const CreateKnowledgeItemBaseSchema = z.strictObject({
   groupId: z.string().trim().min(1).nullable().optional()
 })
 
+export const CreateKnowledgeFileItemDataSchema = KnowledgeItemSharedSchema.extend({
+  path: AbsolutePathSchema
+})
+
 export const CreateKnowledgeItemSchema = z.discriminatedUnion('type', [
   CreateKnowledgeItemBaseSchema.extend({
     type: z.literal('file'),
@@ -467,5 +468,26 @@ export const CreateKnowledgeItemSchema = z.discriminatedUnion('type', [
 ])
 export type CreateKnowledgeItemDto = z.infer<typeof CreateKnowledgeItemSchema>
 
-export const KnowledgeRuntimeAddItemInputSchema = CreateKnowledgeItemSchema
-export type KnowledgeRuntimeAddItemInput = CreateKnowledgeItemDto
+export const KnowledgeRuntimeAddItemInputSchema = z.discriminatedUnion('type', [
+  CreateKnowledgeItemBaseSchema.extend({
+    type: z.literal('file'),
+    data: CreateKnowledgeFileItemDataSchema
+  }),
+  CreateKnowledgeItemBaseSchema.extend({
+    type: z.literal('url'),
+    data: UrlItemDataSchema
+  }),
+  CreateKnowledgeItemBaseSchema.extend({
+    type: z.literal('note'),
+    data: NoteItemDataSchema
+  }),
+  CreateKnowledgeItemBaseSchema.extend({
+    type: z.literal('sitemap'),
+    data: SitemapItemDataSchema
+  }),
+  CreateKnowledgeItemBaseSchema.extend({
+    type: z.literal('directory'),
+    data: DirectoryItemDataSchema
+  })
+])
+export type KnowledgeRuntimeAddItemInput = z.infer<typeof KnowledgeRuntimeAddItemInputSchema>

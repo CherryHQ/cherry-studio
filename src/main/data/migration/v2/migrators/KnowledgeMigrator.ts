@@ -4,15 +4,19 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import { fileEntryTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { createClient, type Value as LibsqlValue } from '@libsql/client'
 import { loggerService } from '@logger'
 import { sanitizeFilename } from '@main/utils/file'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
+import type { FileEntryId } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
+import { canonicalizeAbsolutePath } from '@shared/file/canonicalize'
 import { sql } from 'drizzle-orm'
+import { v7 as uuidv7 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
@@ -24,6 +28,7 @@ import {
   type LegacyKnowledgeState,
   type NewKnowledgeBase,
   type NewKnowledgeItem,
+  type PreparedKnowledgeItem,
   transformKnowledgeBase,
   transformKnowledgeItem
 } from './mappings/KnowledgeMappings'
@@ -114,7 +119,7 @@ export class KnowledgeMigrator extends BaseMigrator {
   private sourceCount = 0
   private skippedCount = 0
   private preparedBases: NewKnowledgeBase[] = []
-  private preparedItems: NewKnowledgeItem[] = []
+  private preparedItems: PreparedKnowledgeItem[] = []
   private warnings: string[] = []
   private skippedWarnings = new Map<string, { count: number; samples: string[] }>()
   private seenBaseIds = new Set<string>()
@@ -288,6 +293,68 @@ export class KnowledgeMigrator extends BaseMigrator {
     }
 
     return `Skipped invalid knowledge item in base ${baseId} (itemId=${item.id})`
+  }
+
+  private toExternalFileNameAndExt(filePath: string): { name: string; ext: string | null } {
+    const parsed = path.parse(filePath)
+    const ext = parsed.ext ? parsed.ext.slice(1).toLowerCase() : null
+
+    return {
+      name: parsed.name,
+      ext
+    }
+  }
+
+  private async ensureMigratedExternalFileEntryId(
+    tx: Pick<MigrationContext['db'], 'select' | 'insert'>,
+    filePath: string
+  ): Promise<FileEntryId> {
+    const canonicalPath = canonicalizeAbsolutePath(filePath)
+    const existing = await tx
+      .select({ id: fileEntryTable.id })
+      .from(fileEntryTable)
+      .where(sql`lower(${fileEntryTable.externalPath}) = lower(${canonicalPath})`)
+      .limit(1)
+
+    if (existing[0]?.id) {
+      return existing[0].id
+    }
+
+    const id = uuidv7()
+    const now = Date.now()
+    const { name, ext } = this.toExternalFileNameAndExt(canonicalPath)
+    await tx.insert(fileEntryTable).values({
+      id,
+      origin: 'external',
+      name,
+      ext,
+      size: null,
+      externalPath: canonicalPath,
+      trashedAt: null,
+      createdAt: now,
+      updatedAt: now
+    })
+
+    return id
+  }
+
+  private async resolvePreparedItem(
+    tx: Pick<MigrationContext['db'], 'select' | 'insert'>,
+    item: PreparedKnowledgeItem
+  ): Promise<NewKnowledgeItem> {
+    if (item.type !== 'file') {
+      return item
+    }
+
+    const fileEntryId = await this.ensureMigratedExternalFileEntryId(tx, item.data.path)
+
+    return {
+      ...item,
+      data: {
+        source: item.data.source,
+        fileEntryId
+      }
+    }
   }
 
   private collectLookupIds(bases: LegacyKnowledgeBase[]): {
@@ -559,7 +626,7 @@ export class KnowledgeMigrator extends BaseMigrator {
         baseIdSet.add(base.id)
       }
 
-      const itemsByBaseId = new Map<string, NewKnowledgeItem[]>()
+      const itemsByBaseId = new Map<string, PreparedKnowledgeItem[]>()
       for (const item of this.preparedItems) {
         if (!item.baseId) {
           throw new Error(`Prepared knowledge item '${item.id ?? 'missing-id'}' is missing baseId`)
@@ -592,9 +659,14 @@ export class KnowledgeMigrator extends BaseMigrator {
           transactionProcessed += 1
 
           for (let i = 0; i < baseItems.length; i += ITEM_INSERT_BATCH_SIZE) {
-            const batch = baseItems.slice(i, i + ITEM_INSERT_BATCH_SIZE)
-            await tx.insert(knowledgeItemTable).values(batch)
-            transactionProcessed += batch.length
+            const batch: NewKnowledgeItem[] = []
+            for (const item of baseItems.slice(i, i + ITEM_INSERT_BATCH_SIZE)) {
+              batch.push(await this.resolvePreparedItem(tx, item))
+            }
+            if (batch.length > 0) {
+              await tx.insert(knowledgeItemTable).values(batch)
+              transactionProcessed += batch.length
+            }
           }
         })
 

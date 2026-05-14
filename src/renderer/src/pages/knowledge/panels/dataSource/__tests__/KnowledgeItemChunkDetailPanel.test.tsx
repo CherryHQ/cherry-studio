@@ -97,10 +97,6 @@ vi.mock('@renderer/pages/knowledge/utils', () => ({
   normalizeKnowledgeError: (error: unknown) => (error instanceof Error ? error : new Error(String(error)))
 }))
 
-vi.mock('@renderer/utils', () => ({
-  formatFileSize: () => '2.4 MB'
-}))
-
 vi.mock('react-i18next', () => ({
   initReactI18next: {
     type: '3rdParty',
@@ -169,7 +165,7 @@ describe('KnowledgeItemChunkDetailPanel', () => {
 
   it('renders item metadata and real chunks', async () => {
     mockUseQuery.mockReturnValueOnce({
-      data: createFileItem({ id: 'file-1', originName: 'RAG 技术指南.pdf', ext: 'PDF', size: 2516582 }),
+      data: createFileItem({ id: 'file-1', originName: 'RAG 技术指南.pdf', size: 2516582 }),
       isLoading: false,
       error: undefined
     })
@@ -178,7 +174,6 @@ describe('KnowledgeItemChunkDetailPanel', () => {
 
     expect(screen.getByText('RAG 技术指南.pdf')).toBeInTheDocument()
     expect(screen.getByText('pdf')).toBeInTheDocument()
-    expect(screen.getByText('2.4 MB')).toBeInTheDocument()
     expect(screen.getByText('0 chunks')).toBeInTheDocument()
     expect(screen.getByText('加载中')).toBeInTheDocument()
 

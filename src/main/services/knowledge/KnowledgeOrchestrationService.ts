@@ -6,11 +6,12 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { DataApiErrorFactory } from '@shared/data/api'
 import {
   type CreateKnowledgeBaseDto,
+  type CreateKnowledgeItemDto,
+  CreateKnowledgeItemSchema,
   type KnowledgeBase,
   type KnowledgeItem,
   type KnowledgeItemChunk,
   type KnowledgeRuntimeAddItemInput,
-  KnowledgeRuntimeAddItemInputSchema,
   type KnowledgeSearchResult,
   type RestoreKnowledgeBaseDto
 } from '@shared/data/types/knowledge'
@@ -27,6 +28,7 @@ import {
   KnowledgeRuntimeRestoreBasePayloadSchema,
   KnowledgeRuntimeSearchPayloadSchema
 } from './types/ipc'
+import { normalizeKnowledgeFileData } from './utils/file'
 
 const logger = loggerService.withContext('KnowledgeOrchestrationService')
 
@@ -89,8 +91,21 @@ function assertRestoreBaseCanRebuild(sourceBase: KnowledgeBase, dto: RestoreKnow
   )
 }
 
-function normalizeFailureMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+function toCreateKnowledgeItemInput(item: KnowledgeItem): CreateKnowledgeItemDto {
+  if (item.type === 'file') {
+    return {
+      type: 'file',
+      data: {
+        source: item.data.source,
+        fileEntryId: item.data.fileEntryId
+      }
+    }
+  }
+
+  return CreateKnowledgeItemSchema.parse({
+    type: item.type,
+    data: item.data
+  })
 }
 
 @Injectable('KnowledgeOrchestrationService')
@@ -164,33 +179,28 @@ export class KnowledgeOrchestrationService extends BaseService {
 
     try {
       const failures: KnowledgeRuntimeAddItemsPartialFailure[] = []
-      const inputs: KnowledgeRuntimeAddItemInput[] = []
+      const inputs: CreateKnowledgeItemDto[] = []
 
       for (const item of rootItems) {
         try {
-          const input = KnowledgeRuntimeAddItemInputSchema.parse({
-            type: item.type,
-            data: item.data
-          })
-          inputs.push(input)
+          inputs.push(toCreateKnowledgeItemInput(item))
         } catch (error) {
           failures.push({
             sourceItemId: item.id,
             sourceItemType: item.type,
-            message: normalizeFailureMessage(error)
+            message: error instanceof Error ? error.message : String(error)
           })
         }
       }
 
       if (inputs.length > 0 && failures.length === 0) {
         try {
-          await this.addItems(restoredBase.id, inputs)
+          await this.addPreparedItems(restoredBase.id, inputs)
         } catch (error) {
-          const message = normalizeFailureMessage(error)
           failures.push({
             sourceItemId: null,
             sourceItemType: null,
-            message
+            message: error instanceof Error ? error.message : String(error)
           })
         }
       }
@@ -219,6 +229,11 @@ export class KnowledgeOrchestrationService extends BaseService {
 
   async addItems(baseId: string, items: KnowledgeRuntimeAddItemInput[]): Promise<void> {
     await this.assertBaseCanRunRuntimeOperation(baseId, 'addItems')
+    const normalizedItems = await this.normalizeRuntimeAddItems(items)
+    await this.addPreparedItems(baseId, normalizedItems)
+  }
+
+  private async addPreparedItems(baseId: string, items: CreateKnowledgeItemDto[]): Promise<void> {
     const runtime = application.get('KnowledgeRuntimeService')
     await runtime.addItems(baseId, items)
   }
@@ -230,6 +245,24 @@ export class KnowledgeOrchestrationService extends BaseService {
     for (const item of items) {
       await knowledgeItemService.delete(item.id)
     }
+  }
+
+  private async normalizeRuntimeAddItems(items: KnowledgeRuntimeAddItemInput[]): Promise<CreateKnowledgeItemDto[]> {
+    const normalizedItems: CreateKnowledgeItemDto[] = []
+
+    for (const item of items) {
+      if (item.type === 'file') {
+        normalizedItems.push({
+          ...item,
+          data: await normalizeKnowledgeFileData(item.data)
+        })
+        continue
+      }
+
+      normalizedItems.push(item)
+    }
+
+    return normalizedItems
   }
 
   async reindexItems(baseId: string, itemIds: string[]): Promise<void> {

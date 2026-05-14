@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fetchMock = vi.hoisted(() => vi.fn())
 const loggerWarnMock = vi.hoisted(() => vi.fn())
+const fileManagerGetByIdMock = vi.hoisted(() => vi.fn())
 const customReaderSpies = vi.hoisted(() => ({
   drafts: vi.fn(async (item: KnowledgeItemOf<'file'>) => [{ metadata: { reader: 'drafts', itemId: item.id } }]),
   epub: vi.fn(async (item: KnowledgeItemOf<'file'>) => [{ metadata: { reader: 'epub', itemId: item.id } }])
@@ -14,6 +15,28 @@ const readerSpies = vi.hoisted(() => ({
   markdown: vi.fn(async (filePath: string) => [{ metadata: { reader: 'markdown', filePath } }]),
   pdf: vi.fn(async (filePath: string) => [{ metadata: { reader: 'pdf', filePath } }]),
   text: vi.fn(async (filePath: string) => [{ metadata: { reader: 'text', filePath } }])
+}))
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    FileManager: {
+      getById: fileManagerGetByIdMock
+    }
+  } as Parameters<typeof mockApplicationFactory>[0])
+})
+
+vi.mock('@main/services/file', () => ({
+  toFileInfo: async (entry: { externalPath: string }) => ({
+    path: entry.externalPath,
+    name: 'sample',
+    ext: null,
+    size: 1,
+    mime: 'application/octet-stream',
+    type: 'other',
+    createdAt: 1775114958369,
+    modifiedAt: 1775114958369
+  })
 }))
 
 vi.mock('@logger', () => ({
@@ -78,22 +101,13 @@ vi.mock('../files/DraftsExportReader', () => ({
         groupId: null,
         type: 'file',
         status: 'idle',
+        phase: null,
         error: null,
         createdAt: '2026-04-03T00:00:00.000Z',
         updatedAt: '2026-04-03T00:00:00.000Z',
         data: {
           source: filePath,
-          file: {
-            id: 'file-1',
-            name: filePath.split('/').pop() || filePath,
-            origin_name: filePath.split('/').pop() || filePath,
-            path: filePath,
-            size: 1,
-            ext: '.draftsexport',
-            type: 'document',
-            created_at: '2026-04-03T00:00:00.000Z',
-            count: 1
-          }
+          fileEntryId: '019606a0-0000-7000-8000-000000000001'
         }
       } as KnowledgeItemOf<'file'>)
   }
@@ -108,22 +122,13 @@ vi.mock('../files/EpubReader', () => ({
         groupId: null,
         type: 'file',
         status: 'idle',
+        phase: null,
         error: null,
         createdAt: '2026-04-03T00:00:00.000Z',
         updatedAt: '2026-04-03T00:00:00.000Z',
         data: {
           source: filePath,
-          file: {
-            id: 'file-1',
-            name: filePath.split('/').pop() || filePath,
-            origin_name: filePath.split('/').pop() || filePath,
-            path: filePath,
-            size: 1,
-            ext: '.epub',
-            type: 'document',
-            created_at: '2026-04-03T00:00:00.000Z',
-            count: 1
-          }
+          fileEntryId: '019606a0-0000-7000-8000-000000000001'
         }
       } as KnowledgeItemOf<'file'>)
   }
@@ -144,17 +149,7 @@ function createFileItem(ext: string, filePath?: string): KnowledgeItemOf<'file'>
     updatedAt: '2026-04-03T00:00:00.000Z',
     data: {
       source: filePath ?? `/tmp/sample${ext}`,
-      file: {
-        id: 'file-1',
-        name: `sample${ext}`,
-        origin_name: `sample${ext}`,
-        path: filePath ?? `/tmp/sample${ext}`,
-        size: 1,
-        ext,
-        type: 'document',
-        created_at: '2026-04-03T00:00:00.000Z',
-        count: 1
-      }
+      fileEntryId: '019606a0-0000-7000-8000-000000000001'
     }
   }
 }
@@ -236,6 +231,16 @@ describe('loadKnowledgeItemDocuments', () => {
   beforeEach(() => {
     fetchMock.mockReset()
     loggerWarnMock.mockReset()
+    fileManagerGetByIdMock.mockReset()
+    fileManagerGetByIdMock.mockImplementation(async (fileEntryId: string) => ({
+      id: fileEntryId,
+      origin: 'external',
+      name: 'sample',
+      ext: 'txt',
+      externalPath: '/tmp/sample.txt',
+      createdAt: 1775114958369,
+      updatedAt: 1775114958369
+    }))
   })
 
   it.each([
@@ -246,6 +251,15 @@ describe('loadKnowledgeItemDocuments', () => {
     ['.md', 'markdown']
   ])('maps %s files to the %s reader', async (ext, expectedReader) => {
     const item = createFileItem(ext)
+    fileManagerGetByIdMock.mockResolvedValueOnce({
+      id: item.data.fileEntryId,
+      origin: 'external',
+      name: 'sample',
+      ext: ext.replace(/^\./, ''),
+      externalPath: item.data.source,
+      createdAt: 1775114958369,
+      updatedAt: 1775114958369
+    })
     const docs = await loadKnowledgeItemDocuments(item)
 
     expect(readerSpies[expectedReader as keyof typeof readerSpies]).toHaveBeenCalledWith(`/tmp/sample${ext}`)
@@ -258,6 +272,15 @@ describe('loadKnowledgeItemDocuments', () => {
 
   it('falls back to TextFileReader for unmatched file extensions', async () => {
     const item = createFileItem('.log')
+    fileManagerGetByIdMock.mockResolvedValueOnce({
+      id: item.data.fileEntryId,
+      origin: 'external',
+      name: 'sample',
+      ext: 'log',
+      externalPath: item.data.source,
+      createdAt: 1775114958369,
+      updatedAt: 1775114958369
+    })
     const docs = await loadKnowledgeItemDocuments(item)
 
     expect(docs[0]).toMatchObject({
@@ -269,6 +292,15 @@ describe('loadKnowledgeItemDocuments', () => {
 
   it('uses the drafts export reader for .draftsexport files', async () => {
     const item = createFileItem('.draftsexport')
+    fileManagerGetByIdMock.mockResolvedValueOnce({
+      id: item.data.fileEntryId,
+      origin: 'external',
+      name: 'sample',
+      ext: 'draftsexport',
+      externalPath: item.data.source,
+      createdAt: 1775114958369,
+      updatedAt: 1775114958369
+    })
 
     const docs = await loadKnowledgeItemDocuments(item)
 
@@ -282,6 +314,15 @@ describe('loadKnowledgeItemDocuments', () => {
 
   it('uses the epub reader for .epub files', async () => {
     const item = createFileItem('.epub')
+    fileManagerGetByIdMock.mockResolvedValueOnce({
+      id: item.data.fileEntryId,
+      origin: 'external',
+      name: 'sample',
+      ext: 'epub',
+      externalPath: item.data.source,
+      createdAt: 1775114958369,
+      updatedAt: 1775114958369
+    })
 
     const docs = await loadKnowledgeItemDocuments(item)
 
@@ -293,10 +334,11 @@ describe('loadKnowledgeItemDocuments', () => {
     })
   })
 
-  it('throws when a file item is missing file.path at load time', async () => {
-    const item = createFileItem('.txt', '')
+  it('propagates missing file entries at load time', async () => {
+    const item = createFileItem('.txt')
+    fileManagerGetByIdMock.mockRejectedValueOnce(new Error('FileEntry not found'))
 
-    await expect(loadKnowledgeItemDocuments(item)).rejects.toThrow('Knowledge file file-1 is missing file.path')
+    await expect(loadKnowledgeItemDocuments(item)).rejects.toThrow('FileEntry not found')
   })
 
   it('creates a note reader that returns a single Document', async () => {

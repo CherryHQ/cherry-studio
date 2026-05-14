@@ -1,7 +1,7 @@
 import { Dialog, DialogContent } from '@cherrystudio/ui'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
-import type { FileMetadata } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { isSupportedKnowledgeFileExt } from '@shared/data/types/knowledge'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -24,6 +24,13 @@ const getDirectoryName = (directoryPath: string) => {
   return name || normalizedPath || directoryPath
 }
 
+const getFileNameExt = (fileName: string) => {
+  const dotIndex = fileName.lastIndexOf('.')
+  return dotIndex > 0 && dotIndex < fileName.length - 1 ? fileName.slice(dotIndex + 1) : ''
+}
+
+const isSupportedKnowledgeFile = (file: File) => isSupportedKnowledgeFileExt(getFileNameExt(file.name))
+
 const resolveFilePath = (file: File): string | Error => {
   const filePath = window.api.file.getPathForFile(file)
 
@@ -34,20 +41,14 @@ const resolveFilePath = (file: File): string | Error => {
   return filePath
 }
 
-const resolveFileMetadata = async (file: File): Promise<FileMetadata> => {
+const resolveKnowledgeFilePath = (file: File): string | Error => {
   const filePath = resolveFilePath(file)
 
   if (filePath instanceof Error) {
-    return Promise.reject(filePath)
+    return filePath
   }
 
-  const metadata = await window.api.file.get(filePath)
-
-  if (!metadata) {
-    return Promise.reject(new Error(`Failed to read file metadata for "${file.name}"`))
-  }
-
-  return metadata
+  return filePath
 }
 
 const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogProps) => {
@@ -72,7 +73,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
 
   const handleFileDrop = useCallback<DropzoneOnDrop>((acceptedFiles) => {
     setSubmitErrorMessage('')
-    setSelectedFiles(acceptedFiles)
+    setSelectedFiles((currentFiles) => [...currentFiles, ...acceptedFiles])
   }, [])
 
   const handleDirectorySelect = useCallback(async () => {
@@ -127,6 +128,8 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     [onOpenChange, resetDialogState]
   )
 
+  const supportedSelectedFiles = useMemo(() => selectedFiles.filter(isSupportedKnowledgeFile), [selectedFiles])
+
   const canSubmit = useMemo(() => {
     if (!selectedBaseId) {
       return false
@@ -134,7 +137,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
 
     switch (activeSource) {
       case 'file':
-        return selectedFiles.length > 0
+        return supportedSelectedFiles.length > 0
       case 'directory':
         return selectedDirectories.length > 0
       case 'url':
@@ -144,7 +147,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
       case 'note':
         return false
     }
-  }, [activeSource, selectedBaseId, selectedDirectories.length, selectedFiles.length, sitemapValue, urlValue])
+  }, [activeSource, selectedBaseId, selectedDirectories.length, sitemapValue, supportedSelectedFiles.length, urlValue])
 
   const handleSubmit = useCallback(() => {
     if (!canSubmit) {
@@ -155,16 +158,21 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
 
     const submitPromise = (() => {
       if (activeSource === 'file') {
-        return Promise.all(selectedFiles.map(resolveFileMetadata)).then((files) =>
-          submitKnowledgeItems(
-            files.map((file) => ({
+        return submitKnowledgeItems(
+          supportedSelectedFiles.map((file) => {
+            const filePath = resolveKnowledgeFilePath(file)
+            if (filePath instanceof Error) {
+              throw filePath
+            }
+
+            return {
               type: 'file' as const,
               data: {
-                source: file.path || file.origin_name || file.name,
-                file
+                source: filePath,
+                path: filePath
               }
-            }))
-          )
+            }
+          })
         )
       }
 
@@ -221,9 +229,9 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     canSubmit,
     handleOpenChange,
     selectedDirectories,
-    selectedFiles,
     sitemapValue,
     submitKnowledgeItems,
+    supportedSelectedFiles,
     t,
     urlValue
   ])
@@ -245,6 +253,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
           selectedFiles={selectedFiles}
           sitemapValue={sitemapValue}
           urlValue={urlValue}
+          isFileSupported={isSupportedKnowledgeFile}
           onDirectoryRemove={handleDirectoryRemove}
           onDirectorySelect={handleDirectorySelect}
           onFileDrop={handleFileDrop}

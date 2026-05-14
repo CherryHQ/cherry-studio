@@ -1,9 +1,28 @@
 import { describe, expect, it, vi } from 'vitest'
 
 const loadDataMock = vi.hoisted(() => vi.fn())
+const fileManagerGetByIdMock = vi.hoisted(() => vi.fn())
 
-vi.mock('@main/utils/file', () => ({
-  getFileExt: (path: string) => path.slice(path.lastIndexOf('.'))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    FileManager: {
+      getById: fileManagerGetByIdMock
+    }
+  } as Parameters<typeof mockApplicationFactory>[0])
+})
+
+vi.mock('@main/services/file', () => ({
+  toFileInfo: async (entry: { externalPath: string }) => ({
+    path: entry.externalPath,
+    name: 'original',
+    ext: 'txt',
+    size: 12,
+    mime: 'text/plain',
+    type: 'text',
+    createdAt: 1775114958369,
+    modifiedAt: 1775114958369
+  })
 }))
 
 vi.mock('@vectorstores/readers/text', async () => {
@@ -40,6 +59,15 @@ const { loadUrlDocuments } = await import('../KnowledgeUrlReader')
 
 describe('knowledge reader metadata', () => {
   it('normalizes file source metadata', async () => {
+    fileManagerGetByIdMock.mockResolvedValueOnce({
+      id: '019606a0-0000-7000-8000-000000000001',
+      origin: 'external',
+      name: 'original',
+      ext: 'txt',
+      externalPath: '/tmp/original.txt',
+      createdAt: 1775114958369,
+      updatedAt: 1775114958369
+    })
     const documents = await loadFileDocuments({
       id: 'file-item-1',
       baseId: 'kb-1',
@@ -47,17 +75,7 @@ describe('knowledge reader metadata', () => {
       type: 'file',
       data: {
         source: '/tmp/original.txt',
-        file: {
-          id: 'file-1',
-          name: 'stored.txt',
-          origin_name: 'Original.txt',
-          path: '/tmp/original.txt',
-          size: 12,
-          ext: 'txt',
-          type: 'text',
-          created_at: '2026-04-08T00:00:00.000Z',
-          count: 1
-        }
+        fileEntryId: '019606a0-0000-7000-8000-000000000001'
       },
       status: 'idle',
       phase: null,

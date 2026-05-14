@@ -357,8 +357,8 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
             ...result.files.map((file) => ({
               type: 'file' as const,
               data: {
-                source: file.path || file.origin_name || file.name,
-                file
+                source: file.path,
+                path: file.path
               }
             }))
           )

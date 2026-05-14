@@ -250,7 +250,7 @@ describe('KnowledgeMappings', () => {
         type: 'file',
         data: {
           source: '/tmp/report.pdf',
-          file: fileMetadata
+          path: '/tmp/report.pdf'
         },
         status: 'completed',
         phase: null,

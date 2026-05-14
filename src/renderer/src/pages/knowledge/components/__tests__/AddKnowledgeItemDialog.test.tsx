@@ -10,7 +10,6 @@ const mockUseKnowledgePage = vi.fn()
 const mockUseAddKnowledgeItems = vi.fn()
 const mockSelectFolder = vi.fn()
 const mockGetPathForFile = vi.fn()
-const mockGetFile = vi.fn()
 
 const setMockAcceptedFiles = (files: File[]) => {
   mockAcceptedFiles = files
@@ -18,18 +17,6 @@ const setMockAcceptedFiles = (files: File[]) => {
 
 const createMockFile = (name: string, size: number) =>
   new File([new Uint8Array(size)], name, { type: 'application/octet-stream' })
-
-const createFileMetadata = ({ id, name, path }: { id: string; name: string; path: string }) => ({
-  id,
-  name,
-  origin_name: name,
-  path,
-  size: 1024,
-  ext: '.pdf',
-  type: 'document' as const,
-  created_at: '2026-04-23T10:00:00+08:00',
-  count: 1
-})
 
 vi.mock('../../KnowledgePageProvider', () => ({
   useKnowledgePage: () => mockUseKnowledgePage()
@@ -65,6 +52,12 @@ vi.mock('@cherrystudio/ui', async () => {
     ),
     DropzoneEmptyState: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => (
       <div {...props}>{children}</div>
+    ),
+    Tooltip: ({ children, content }: { children: React.ReactNode; content?: React.ReactNode }) => (
+      <span>
+        {children}
+        {content ? <span role="tooltip">{content}</span> : null}
+      </span>
     ),
     Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
     Dialog: ({
@@ -180,6 +173,7 @@ vi.mock('react-i18next', () => ({
         'common.delete': '删除',
         'knowledge.data_source.add_dialog.directory.description': '将递归导入文件夹中的支持文件',
         'knowledge.data_source.add_dialog.directory.title': '点击选择文件夹',
+        'knowledge.data_source.add_dialog.file_not_supported': '不支持此文件类型',
         'knowledge.data_source.add_dialog.footer.selected_directories': `已选 ${options?.count ?? 0} 个目录`,
         'knowledge.data_source.add_dialog.footer.selected_files': `已选 ${options?.count ?? 0} 个文件`,
         'knowledge.data_source.add_dialog.note.description': '选择已有笔记作为知识库数据源',
@@ -222,7 +216,6 @@ describe('AddKnowledgeItemDialog', () => {
     mockGetPathForFile.mockImplementation((file: File) => `/external/${file.name}`)
     ;(window as any).api = {
       file: {
-        get: mockGetFile,
         getPathForFile: mockGetPathForFile,
         selectFolder: mockSelectFolder
       }
@@ -282,6 +275,75 @@ describe('AddKnowledgeItemDialog', () => {
     expect(screen.queryByText('alpha.pdf')).not.toBeInTheDocument()
     expect(screen.getByText('beta.md')).toBeInTheDocument()
     expect(screen.getByText('已选 1 个文件')).toBeInTheDocument()
+  })
+
+  it('appends files from consecutive selections', () => {
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+    setMockAcceptedFiles([createMockFile('alpha.pdf', 1024)])
+    fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
+
+    setMockAcceptedFiles([createMockFile('beta.md', 2048)])
+    fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
+
+    expect(screen.getByText('alpha.pdf')).toBeInTheDocument()
+    expect(screen.getByText('beta.md')).toBeInTheDocument()
+    expect(screen.getByText('已选 2 个文件')).toBeInTheDocument()
+  })
+
+  it('marks unsupported files and skips them when adding knowledge file sources', async () => {
+    mockSubmitKnowledgeItems.mockResolvedValueOnce(undefined)
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+    setMockAcceptedFiles([
+      createMockFile('alpha.pdf', 1024),
+      createMockFile('photo.png', 2048),
+      createMockFile('.env', 512),
+      createMockFile('notes.md', 256)
+    ])
+    fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
+
+    expect(screen.getByText('alpha.pdf')).toBeInTheDocument()
+    expect(screen.getByText('notes.md')).toBeInTheDocument()
+    expect(screen.getByText('photo.png')).toBeInTheDocument()
+    expect(screen.getByText('.env')).toBeInTheDocument()
+    expect(screen.getAllByRole('tooltip', { name: '不支持此文件类型' })).toHaveLength(2)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByText('已选 4 个文件')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '添加' }))
+
+    await waitFor(() => {
+      expect(mockSubmitKnowledgeItems).toHaveBeenCalledWith([
+        {
+          type: 'file',
+          data: {
+            source: '/external/alpha.pdf',
+            path: '/external/alpha.pdf'
+          }
+        },
+        {
+          type: 'file',
+          data: {
+            source: '/external/notes.md',
+            path: '/external/notes.md'
+          }
+        }
+      ])
+    })
+  })
+
+  it('disables add action when all selected files are unsupported', () => {
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+    setMockAcceptedFiles([createMockFile('photo.png', 2048), createMockFile('.env', 512)])
+    fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
+
+    expect(screen.getByText('photo.png')).toBeInTheDocument()
+    expect(screen.getByText('.env')).toBeInTheDocument()
+    expect(screen.getAllByRole('tooltip', { name: '不支持此文件类型' })).toHaveLength(2)
+    expect(screen.getByText('已选 2 个文件')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
   })
 
   it('keeps note disabled', () => {
@@ -360,8 +422,6 @@ describe('AddKnowledgeItemDialog', () => {
 
   it('submits file source through generic hook with real file paths', async () => {
     const onOpenChange = vi.fn()
-    const fileMetadata = createFileMetadata({ id: 'external-1', name: 'alpha.pdf', path: '/external/alpha.pdf' })
-    mockGetFile.mockResolvedValueOnce(fileMetadata)
     mockSubmitKnowledgeItems.mockResolvedValueOnce(undefined)
     renderControlledDialog(onOpenChange)
 
@@ -376,13 +436,12 @@ describe('AddKnowledgeItemDialog', () => {
           type: 'file',
           data: {
             source: '/external/alpha.pdf',
-            file: fileMetadata
+            path: '/external/alpha.pdf'
           }
         }
       ])
     })
     expect(mockGetPathForFile).toHaveBeenCalledWith(selectedFile)
-    expect(mockGetFile).toHaveBeenCalledWith('/external/alpha.pdf')
     expect(window.toast.success).not.toHaveBeenCalled()
     expect(window.toast.error).not.toHaveBeenCalled()
     expect(onOpenChange).toHaveBeenCalledWith(false)
@@ -446,9 +505,6 @@ describe('AddKnowledgeItemDialog', () => {
 
   it('shows inline error and keeps selected files when create submit fails', async () => {
     const onOpenChange = vi.fn()
-    mockGetFile.mockResolvedValueOnce(
-      createFileMetadata({ id: 'external-1', name: 'alpha.pdf', path: '/external/alpha.pdf' })
-    )
     mockSubmitKnowledgeItems.mockRejectedValueOnce(new Error('create failed'))
     renderControlledDialog(onOpenChange)
 
@@ -477,9 +533,6 @@ describe('AddKnowledgeItemDialog', () => {
         }
       ]
     })}`
-    mockGetFile.mockResolvedValueOnce(
-      createFileMetadata({ id: 'external-1', name: 'alpha.pdf', path: '/external/alpha.pdf' })
-    )
     mockSubmitKnowledgeItems.mockRejectedValueOnce(new Error(longErrorMessage))
     renderControlledDialog(onOpenChange)
 
@@ -505,8 +558,6 @@ describe('AddKnowledgeItemDialog', () => {
 
   it('closes without toast when runtime fails after creating items', async () => {
     const onOpenChange = vi.fn()
-    const fileMetadata = createFileMetadata({ id: 'external-1', name: 'alpha.pdf', path: '/external/alpha.pdf' })
-    mockGetFile.mockResolvedValueOnce(fileMetadata)
     mockSubmitKnowledgeItems.mockResolvedValueOnce(undefined)
     renderControlledDialog(onOpenChange)
 

@@ -2,7 +2,13 @@ import type * as NodeFs from 'node:fs'
 import type * as NodeOs from 'node:os'
 import path from 'node:path'
 
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const ensureKnowledgeExternalFileEntryMock = vi.hoisted(() => vi.fn())
+
+vi.mock('../file', () => ({
+  ensureKnowledgeExternalFileEntry: ensureKnowledgeExternalFileEntryMock
+}))
 
 const { expandDirectoryOwnerToTree } = await import('../directory')
 const realFs = await vi.importActual<typeof NodeFs>('node:fs')
@@ -16,14 +22,32 @@ function createSignal() {
   return new AbortController().signal
 }
 
+function createExternalEntry(filePath: string) {
+  const ext = path.extname(filePath).replace(/^\./, '') || null
+  return {
+    id: `019606a0-0000-7000-8000-${Buffer.from(filePath).toString('hex').slice(-12).padStart(12, '0')}`,
+    origin: 'external' as const,
+    name: path.basename(filePath, path.extname(filePath)),
+    ext,
+    externalPath: filePath,
+    createdAt: 1775114958369,
+    updatedAt: 1775114958369
+  }
+}
+
 describe('expandDirectoryOwnerToTree', () => {
   let tempRoot: string | undefined
+
+  beforeEach(() => {
+    ensureKnowledgeExternalFileEntryMock.mockImplementation(async (filePath: string) => createExternalEntry(filePath))
+  })
 
   afterEach(() => {
     if (tempRoot) {
       realFs.rmSync(tempRoot, { recursive: true, force: true })
       tempRoot = undefined
     }
+    ensureKnowledgeExternalFileEntryMock.mockReset()
   })
 
   it('expands a directory owner into a tree while preserving hierarchy', async () => {
@@ -66,13 +90,7 @@ describe('expandDirectoryOwnerToTree', () => {
                 type: 'file',
                 data: {
                   source: path.join(nestedDir, 'skill.md'),
-                  file: expect.objectContaining({
-                    name: 'skill.md',
-                    origin_name: 'skill.md',
-                    path: path.join(nestedDir, 'skill.md'),
-                    ext: '.md',
-                    count: 1
-                  })
+                  fileEntryId: expect.any(String)
                 }
               }
             ]
@@ -116,7 +134,7 @@ describe('expandDirectoryOwnerToTree', () => {
       expect.objectContaining({
         type: 'file',
         data: expect.objectContaining({
-          file: expect.objectContaining({ path: path.join(rootDir, 'readme.md') })
+          source: path.join(rootDir, 'readme.md')
         })
       })
     )
@@ -132,7 +150,7 @@ describe('expandDirectoryOwnerToTree', () => {
               expect.objectContaining({
                 type: 'file',
                 data: expect.objectContaining({
-                  file: expect.objectContaining({ path: path.join(nestedDir, 'reference.md') })
+                  source: path.join(nestedDir, 'reference.md')
                 })
               })
             ]
@@ -140,6 +158,34 @@ describe('expandDirectoryOwnerToTree', () => {
         ]
       })
     )
+  })
+
+  it('skips unsupported files before creating external file entries', async () => {
+    tempRoot = createTempRoot()
+    realFs.writeFileSync(path.join(tempRoot, 'photo.png'), 'image')
+    realFs.writeFileSync(path.join(tempRoot, 'song.mp3'), 'audio')
+
+    const nodes = await expandDirectoryOwnerToTree(
+      {
+        id: 'dir-owner-1',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'directory',
+        data: {
+          source: tempRoot,
+          path: tempRoot
+        },
+        status: 'idle',
+        phase: null,
+        error: null,
+        createdAt: '2026-04-08T00:00:00.000Z',
+        updatedAt: '2026-04-08T00:00:00.000Z'
+      },
+      createSignal()
+    )
+
+    expect(nodes).toEqual([])
+    expect(ensureKnowledgeExternalFileEntryMock).not.toHaveBeenCalled()
   })
 
   it('stops before reading when the runtime signal is already aborted', async () => {

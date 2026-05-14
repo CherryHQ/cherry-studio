@@ -5,12 +5,12 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api'
 import {
+  type CreateKnowledgeItemDto,
   type KnowledgeBase,
   KnowledgeChunkMetadataSchema,
   type KnowledgeItem,
   type KnowledgeItemChunk,
   type KnowledgeItemOf,
-  type KnowledgeRuntimeAddItemInput,
   type KnowledgeSearchResult
 } from '@shared/data/types/knowledge'
 import { MetadataMode } from '@vectorstores/core'
@@ -104,7 +104,7 @@ export class KnowledgeRuntimeService extends BaseService {
     await vectorStoreService.deleteStore(baseId)
   }
 
-  async addItems(baseId: string, inputs: KnowledgeRuntimeAddItemInput[]): Promise<void> {
+  async addItems(baseId: string, inputs: CreateKnowledgeItemDto[]): Promise<void> {
     if (inputs.length === 0) {
       return
     }

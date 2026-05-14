@@ -97,16 +97,13 @@ export const createFileItem = ({
   originName = 'internal.pdf',
   source = `/tmp/${originName}`,
   status = 'completed',
-  phase = null,
-  ext = 'PDF',
-  size = 1024
+  phase = null
 }: {
   id: string
   originName?: string
   source?: string
   status?: KnowledgeItemOf<'file'>['status']
   phase?: LeafKnowledgeItemPhase
-  ext?: string
   size?: number
 }): KnowledgeItemOf<'file'> => ({
   ...baseFields,
@@ -115,17 +112,7 @@ export const createFileItem = ({
   type: 'file',
   data: {
     source,
-    file: {
-      id: `file-${id}`,
-      name: `internal-${id}.pdf`,
-      origin_name: originName,
-      path: source,
-      size,
-      ext,
-      type: 'document',
-      created_at: '2026-04-21T10:00:00+08:00',
-      count: 1
-    }
+    fileEntryId: '019606a0-0000-7000-8000-000000000001'
   }
 })
 

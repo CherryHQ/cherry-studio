@@ -1,5 +1,4 @@
 import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
-import { formatFileSize } from '@renderer/utils'
 import type { KnowledgeItem, KnowledgeItemOf, KnowledgeItemType } from '@shared/data/types/knowledge'
 import type { LucideIcon } from 'lucide-react'
 import { FileText, Folder, Globe, Link2, StickyNote } from 'lucide-react'
@@ -60,6 +59,17 @@ const getNoteTitle = (content: string) => {
     .find(Boolean)
 
   return firstLine || ''
+}
+
+const getPathName = (filePath: string) => {
+  const normalizedPath = filePath.replace(/[/\\]+$/, '')
+  return normalizedPath.split(/[/\\]/).pop()?.trim() || filePath
+}
+
+const getPathSuffix = (filePath: string) => {
+  const name = getPathName(filePath)
+  const dotIndex = name.lastIndexOf('.')
+  return dotIndex > 0 && dotIndex < name.length - 1 ? name.slice(dotIndex + 1).toLowerCase() : 'file'
 }
 
 export const resolveDataSourceStatusViewModel = (
@@ -134,10 +144,9 @@ export const dataSourceTypeDisplayConfig = {
       icon: FileText,
       iconClassName: 'text-blue-500'
     },
-    getTitle: (item) => item.data.file.origin_name || item.data.file.name,
-    getSuffix: (item) => (item.data.file.ext || 'FILE').toLowerCase(),
-    getMetaParts: (item, { language }) =>
-      getRelativeMetaParts(item.updatedAt, language, [formatFileSize(item.data.file.size)]),
+    getTitle: (item) => getPathName(item.data.source),
+    getSuffix: (item) => getPathSuffix(item.data.source),
+    getMetaParts: (item, { language }) => getRelativeMetaParts(item.updatedAt, language),
     getStatus: resolveDataSourceStatusViewModel
   },
   note: {

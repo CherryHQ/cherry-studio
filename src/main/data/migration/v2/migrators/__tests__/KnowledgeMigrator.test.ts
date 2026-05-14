@@ -599,10 +599,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     })
     expect(fileItem?.data).toEqual({
       source: '/tmp/report.pdf',
-      file: expect.objectContaining({
-        id: 'file-1',
-        name: 'report.pdf'
-      })
+      path: '/tmp/report.pdf'
     })
     expect(noteReader.readInBatches).toHaveBeenCalledTimes(1)
     expect(fileReader.readInBatches).toHaveBeenCalledTimes(1)

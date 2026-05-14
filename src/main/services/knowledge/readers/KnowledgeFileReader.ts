@@ -1,5 +1,6 @@
-import { getFileExt } from '@main/utils/file'
-import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
+import { application } from '@application'
+import { toFileInfo } from '@main/services/file'
+import type { FileEntry } from '@shared/data/types/file'
 import type { KnowledgeItemOf, KnowledgeSourceMetadata } from '@shared/data/types/knowledge'
 import { Document, type FileReader as VectorStoreFileReader } from '@vectorstores/core'
 import { CSVReader } from '@vectorstores/readers/csv'
@@ -12,23 +13,21 @@ import { TextFileReader } from '@vectorstores/readers/text'
 import { DraftsExportReader } from './files/DraftsExportReader'
 import { EpubReader } from './files/EpubReader'
 
-export function createSupportedFileReader(file: FileMetadata): VectorStoreFileReader<Document> {
-  const extension = getFileExt(file.path).toLowerCase()
-
-  switch (extension) {
-    case '.pdf':
+export function createSupportedFileReader(file: Pick<FileEntry, 'ext'>): VectorStoreFileReader<Document> {
+  switch (file.ext) {
+    case 'pdf':
       return new PDFReader()
-    case '.csv':
+    case 'csv':
       return new CSVReader()
-    case '.docx':
+    case 'docx':
       return new DocxReader()
-    case '.epub':
+    case 'epub':
       return new EpubReader()
-    case '.json':
+    case 'json':
       return new JSONReader()
-    case '.md':
+    case 'md':
       return new MarkdownReader()
-    case '.draftsexport':
+    case 'draftsexport':
       return new DraftsExportReader()
     default:
       return new TextFileReader()
@@ -36,13 +35,15 @@ export function createSupportedFileReader(file: FileMetadata): VectorStoreFileRe
 }
 
 export async function loadFileDocuments(item: KnowledgeItemOf<'file'>): Promise<Document[]> {
-  const file = item.data.file
-  if (!file.path) {
-    throw new Error(`Knowledge file ${file.id} is missing file.path`)
-  }
+  const fileManager = application.get('FileManager')
+  const entry = await fileManager.getById(item.data.fileEntryId)
+  const fileInfo = await toFileInfo(entry)
+  const reader = createSupportedFileReader(entry)
+  const documents = await reader.loadData(fileInfo.path)
+  return mapDocumentsToKnowledgeSource(item, documents)
+}
 
-  const reader = createSupportedFileReader(file)
-  const documents = await reader.loadData(file.path)
+function mapDocumentsToKnowledgeSource(item: KnowledgeItemOf<'file'>, documents: Document[]): Document[] {
   const sourceMetadata: KnowledgeSourceMetadata = {
     source: item.data.source
   }

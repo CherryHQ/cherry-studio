@@ -1,4 +1,5 @@
 import type { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import { AbsolutePathSchema } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
@@ -6,6 +7,7 @@ import {
   DEFAULT_KNOWLEDGE_BASE_EMOJI,
   DEFAULT_KNOWLEDGE_BASE_STATUS,
   DEFAULT_KNOWLEDGE_SEARCH_MODE,
+  isSupportedKnowledgeFileExt,
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   type KnowledgeItemData,
   type KnowledgeItemStatus
@@ -81,8 +83,24 @@ export interface LegacyKnowledgeNote {
 
 export type KnowledgeBaseTransformResult = { ok: true; value: NewKnowledgeBase }
 
+export interface PreparedKnowledgeFileItemData {
+  source: string
+  path: string
+}
+
+export type PreparedKnowledgeNonFileItem = Omit<NewKnowledgeItem, 'type'> & {
+  type: Exclude<NewKnowledgeItem['type'], 'file'>
+}
+
+export type PreparedKnowledgeFileItem = Omit<NewKnowledgeItem, 'type' | 'data'> & {
+  type: 'file'
+  data: PreparedKnowledgeFileItemData
+}
+
+export type PreparedKnowledgeItem = PreparedKnowledgeFileItem | PreparedKnowledgeNonFileItem
+
 export type KnowledgeItemTransformResult =
-  | { ok: true; value: NewKnowledgeItem }
+  | { ok: true; value: PreparedKnowledgeItem }
   | {
       ok: false
       reason:
@@ -201,6 +219,14 @@ export const resolveLegacyFileMetadata = (
   return null
 }
 
+const isSupportedLegacyFile = (file: FileMetadata): boolean => {
+  if (!AbsolutePathSchema.safeParse(file.path).success) {
+    return false
+  }
+
+  return isSupportedKnowledgeFileExt(file.ext)
+}
+
 export const transformKnowledgeBase = (
   base: LegacyKnowledgeBaseWithIdentity,
   dimensions: number | null
@@ -249,21 +275,48 @@ export const transformKnowledgeItem = (
     }
   }
 
-  let type: NewKnowledgeItem['type']
-  let data: KnowledgeItemData
+  const sharedItemFields = {
+    // Preserve legacy item IDs during migration for identity stability.
+    // UUID v7 ordering benefits apply only to knowledge items created after migration.
+    id: item.id,
+    baseId,
+    // Official v1 exports are flat, so migrated items do not carry grouping
+    // metadata by default.
+    groupId: null,
+    status: inferKnowledgeItemStatus(item),
+    phase: null,
+    createdAt: toTimestamp(item.created_at),
+    updatedAt: toTimestamp(item.updated_at)
+  } as const
+  const error = normalizeKnowledgeItemError(sharedItemFields.status, item.processingError)
 
   if (item.type === 'file') {
     const file = resolveLegacyFileMetadata(item.content, deps.filesById)
-    if (!file) {
+    if (!file || !isSupportedLegacyFile(file)) {
       return {
         ok: false,
         reason: 'invalid_file'
       }
     }
 
-    type = 'file'
-    data = { source: file.path, file }
-  } else if (item.type === 'url') {
+    return {
+      ok: true,
+      value: {
+        ...sharedItemFields,
+        type: 'file',
+        data: {
+          source: file.path,
+          path: file.path
+        },
+        error
+      }
+    }
+  }
+
+  let type: PreparedKnowledgeNonFileItem['type']
+  let data: KnowledgeItemData
+
+  if (item.type === 'url') {
     if (typeof item.content !== 'string' || item.content.trim() === '') {
       return {
         ok: false,
@@ -290,7 +343,7 @@ export const transformKnowledgeItem = (
       url: item.content
     }
   } else if (item.type === 'directory') {
-    if (typeof item.content !== 'string' || item.content.trim() === '') {
+    if (typeof item.content !== 'string' || !AbsolutePathSchema.safeParse(item.content).success) {
       return {
         ok: false,
         reason: 'invalid_directory'
@@ -319,25 +372,13 @@ export const transformKnowledgeItem = (
     }
   }
 
-  const status = inferKnowledgeItemStatus(item)
-
   return {
     ok: true,
     value: {
-      // Preserve legacy item IDs during migration for identity stability.
-      // UUID v7 ordering benefits apply only to knowledge items created after migration.
-      id: item.id,
-      baseId,
-      // Official v1 exports are flat, so migrated items do not carry grouping
-      // metadata by default.
-      groupId: null,
+      ...sharedItemFields,
       type,
       data,
-      status,
-      phase: null,
-      error: normalizeKnowledgeItemError(status, item.processingError),
-      createdAt: toTimestamp(item.created_at),
-      updatedAt: toTimestamp(item.updated_at)
-    }
+      error
+    } satisfies PreparedKnowledgeNonFileItem
   }
 }

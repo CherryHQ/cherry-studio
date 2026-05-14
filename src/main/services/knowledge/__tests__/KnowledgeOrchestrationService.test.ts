@@ -23,7 +23,9 @@ const {
   knowledgeItemGetDescendantItemsMock,
   knowledgeItemGetByIdMock,
   knowledgeItemGetItemsByBaseIdMock,
-  knowledgeItemGetLeafDescendantItemsMock
+  knowledgeItemGetLeafDescendantItemsMock,
+  fileManagerEnsureExternalEntryMock,
+  fileManagerGetByIdMock
 } = vi.hoisted(() => ({
   runtimeAddItemsMock: vi.fn(),
   runtimeCreateBaseMock: vi.fn(),
@@ -42,7 +44,9 @@ const {
   knowledgeItemGetDescendantItemsMock: vi.fn(),
   knowledgeItemGetByIdMock: vi.fn(),
   knowledgeItemGetItemsByBaseIdMock: vi.fn(),
-  knowledgeItemGetLeafDescendantItemsMock: vi.fn()
+  knowledgeItemGetLeafDescendantItemsMock: vi.fn(),
+  fileManagerEnsureExternalEntryMock: vi.fn(),
+  fileManagerGetByIdMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -58,6 +62,10 @@ vi.mock('@application', async () => {
       listItemChunks: runtimeListItemChunksMock,
       reindexItems: runtimeReindexItemsMock,
       search: runtimeSearchMock
+    },
+    FileManager: {
+      ensureExternalEntry: fileManagerEnsureExternalEntryMock,
+      getById: fileManagerGetByIdMock
     }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
@@ -220,6 +228,27 @@ function createDirectoryItem(
   }
 }
 
+function createFileItem(id = 'file-1', status: KnowledgeItem['status'] = 'idle'): KnowledgeItem {
+  const lifecycle =
+    status === 'failed'
+      ? ({ status, phase: null, error: `failed ${id}` } as const)
+      : ({ status, phase: null, error: null } as const)
+
+  return {
+    id,
+    baseId: 'kb-1',
+    groupId: null,
+    type: 'file',
+    data: {
+      source: `/docs/${id}.md`,
+      fileEntryId: '019606a0-0000-7000-8000-000000000002'
+    },
+    ...lifecycle,
+    createdAt: '2026-04-08T00:00:00.000Z',
+    updatedAt: '2026-04-08T00:00:00.000Z'
+  }
+}
+
 describe('KnowledgeOrchestrationService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -232,6 +261,24 @@ describe('KnowledgeOrchestrationService', () => {
     knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem())
     knowledgeItemGetItemsByBaseIdMock.mockResolvedValue([])
     knowledgeItemGetLeafDescendantItemsMock.mockResolvedValue([createNoteItem()])
+    fileManagerEnsureExternalEntryMock.mockImplementation(async ({ externalPath }: { externalPath: string }) => ({
+      id: '019606a0-0000-7000-8000-000000000001',
+      origin: 'external',
+      name: 'guide',
+      ext: 'md',
+      externalPath,
+      createdAt: 1775114958369,
+      updatedAt: 1775114958369
+    }))
+    fileManagerGetByIdMock.mockImplementation(async (fileEntryId: string) => ({
+      id: fileEntryId,
+      origin: 'external',
+      name: 'guide',
+      ext: 'md',
+      externalPath: '/docs/file-root.md',
+      createdAt: 1775114958369,
+      updatedAt: 1775114958369
+    }))
     runtimeAddItemsMock.mockResolvedValue(undefined)
     runtimeCreateBaseMock.mockResolvedValue(undefined)
     runtimeDeleteBaseMock.mockResolvedValue([])
@@ -563,6 +610,35 @@ describe('KnowledgeOrchestrationService', () => {
     )
   })
 
+  it('restores persisted file root items with existing file entry ids', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const sourceBase = createMissingModelBase()
+    const root = { ...createFileItem('file-root'), baseId: sourceBase.id }
+    knowledgeBaseGetByIdMock.mockResolvedValueOnce(sourceBase)
+    knowledgeItemGetItemsByBaseIdMock.mockResolvedValueOnce([root])
+
+    await expect(
+      service.restoreBase({
+        sourceBaseId: 'source-kb',
+        name: 'Legacy KB_bak',
+        embeddingModelId: 'openai::text-embedding-3-large',
+        dimensions: 3072
+      })
+    ).resolves.toEqual(createBase())
+
+    expect(runtimeAddItemsMock).toHaveBeenCalledWith('kb-1', [
+      {
+        type: 'file',
+        data: {
+          source: '/docs/file-root.md',
+          fileEntryId: '019606a0-0000-7000-8000-000000000002'
+        }
+      }
+    ])
+    expect(fileManagerGetByIdMock).not.toHaveBeenCalled()
+    expect(fileManagerEnsureExternalEntryMock).not.toHaveBeenCalled()
+  })
+
   it('restores a base without adding items when it has no root items', async () => {
     const service = new KnowledgeOrchestrationService()
     knowledgeBaseGetByIdMock.mockResolvedValueOnce(createMissingModelBase())
@@ -694,19 +770,8 @@ describe('KnowledgeOrchestrationService', () => {
     ).rejects.toBe(runtimeError)
   })
 
-  it('passes all add item variants through to runtime without normalizing in orchestration', async () => {
+  it('normalizes file add inputs before delegating to runtime', async () => {
     const service = new KnowledgeOrchestrationService()
-    const file = {
-      id: 'file-meta-1',
-      name: 'guide.md',
-      origin_name: 'guide.md',
-      path: '/docs/guide.md',
-      created_at: '2026-04-08T00:00:00.000Z',
-      size: 12,
-      ext: '.md',
-      type: 'text' as const,
-      count: 1
-    }
     const inputs = [
       {
         type: 'url' as const,
@@ -717,12 +782,36 @@ describe('KnowledgeOrchestrationService', () => {
         data: { source: 'https://example.com/sitemap.xml', url: 'https://example.com/sitemap.xml' }
       },
       { type: 'directory' as const, data: { source: '/docs/reference/', path: '/docs/reference/' } },
-      { type: 'file' as const, data: { source: file.path, file } }
+      { type: 'file' as const, data: { source: '/docs/guide.md', path: '/docs/guide.md' } }
     ]
 
     await expect(service.addItems('kb-1', inputs)).resolves.toBeUndefined()
 
-    expect(runtimeAddItemsMock).toHaveBeenCalledWith('kb-1', inputs)
+    expect(runtimeAddItemsMock).toHaveBeenCalledWith('kb-1', [
+      inputs[0],
+      inputs[1],
+      inputs[2],
+      {
+        type: 'file',
+        data: {
+          source: '/docs/guide.md',
+          fileEntryId: '019606a0-0000-7000-8000-000000000001'
+        }
+      }
+    ])
+  })
+
+  it('rejects unsupported file add inputs before creating external file entries', async () => {
+    const service = new KnowledgeOrchestrationService()
+
+    await expect(
+      service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/song.mp3', path: '/docs/song.mp3' } }])
+    ).rejects.toMatchObject({
+      message: 'Only text and document files are supported in knowledge bases'
+    })
+
+    expect(fileManagerEnsureExternalEntryMock).not.toHaveBeenCalled()
+    expect(runtimeAddItemsMock).not.toHaveBeenCalled()
   })
 
   it('rejects addItems on failed bases before calling runtime', async () => {

@@ -61,17 +61,7 @@ describe('KnowledgeItemService', () => {
   function createFileItemData(id: string) {
     return {
       source: `/docs/${id}.md`,
-      file: {
-        id: `${id}-meta`,
-        name: `${id}.md`,
-        origin_name: `${id}.md`,
-        path: `/docs/${id}.md`,
-        created_at: '2026-04-08T00:00:00.000Z',
-        size: 10,
-        ext: '.md',
-        type: 'text' as const,
-        count: 1
-      }
+      fileEntryId: '019606a0-0000-7000-8000-000000000001'
     }
   }
 

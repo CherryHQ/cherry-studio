@@ -14,10 +14,6 @@ vi.mock('@renderer/utils/error', () => ({
     `${prefix}: ${error instanceof Error ? error.message : String(error)}`
 }))
 
-vi.mock('@renderer/utils', () => ({
-  formatFileSize: () => '1 KB'
-}))
-
 vi.mock('@cherrystudio/ui', async () => {
   const React = await import('react')
   const PopoverContext = React.createContext<{
@@ -137,15 +133,11 @@ describe('KnowledgeItemRow', () => {
 
   it('renders the file suffix and meta parts from the row view model', () => {
     render(
-      <KnowledgeItemRow
-        item={createFileItem({ id: 'file-1', originName: '季度报告.pdf', ext: 'PDF' })}
-        {...defaultHandlers}
-      />
+      <KnowledgeItemRow item={createFileItem({ id: 'file-1', originName: '季度报告.pdf' })} {...defaultHandlers} />
     )
 
     expect(screen.getByText('季度报告.pdf')).toBeInTheDocument()
     expect(screen.getByText('pdf')).toBeInTheDocument()
-    expect(screen.getByText('1 KB')).toBeInTheDocument()
     expect(screen.getByText('刚刚')).toBeInTheDocument()
   })
 

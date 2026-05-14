@@ -2123,6 +2123,7 @@
           "description": "Recursively import supported files from a folder",
           "title": "Click to select a folder"
         },
+        "file_not_supported": "This file type is not supported",
         "footer": {
           "selected_directories": "{{count}} directories selected",
           "selected_files": "{{count}} files selected",

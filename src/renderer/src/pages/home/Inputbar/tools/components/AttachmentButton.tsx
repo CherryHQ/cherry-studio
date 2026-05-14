@@ -1,15 +1,10 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
-import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
-import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBases'
-import { useKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import type { FileMetadata } from '@renderer/types'
-import { filterSupportedFiles, formatFileSize } from '@renderer/utils/file'
-import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
-import dayjs from 'dayjs'
-import { FileSearch, FileText, Paperclip, Upload } from 'lucide-react'
+import { filterSupportedFiles } from '@renderer/utils/file'
+import { Paperclip, Upload } from 'lucide-react'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -25,18 +20,8 @@ interface Props {
 
 const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions, files, setFiles, disabled }) => {
   const { t } = useTranslation()
-  const {
-    open: openQuickPanelPanel,
-    updateList: updateQuickPanelList,
-    isVisible: isQuickPanelVisible,
-    symbol: quickPanelSymbol,
-    multiple: quickPanelMultiple
-  } = useQuickPanel()
-  const { bases: knowledgeBases } = useKnowledgeBases()
+  const { open: openQuickPanelPanel } = useQuickPanel()
   const [selecting, setSelecting] = useState<boolean>(false)
-  const [selectedKnowledgeBaseId, setSelectedKnowledgeBaseId] = useState('')
-  const { items: selectedKnowledgeItems, isLoading: isKnowledgeItemsLoading } =
-    useKnowledgeItems(selectedKnowledgeBaseId)
 
   const openFileSelectDialog = useCallback(async () => {
     if (selecting) {
@@ -77,104 +62,6 @@ const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions
     }
   }, [extensions, files, selecting, setFiles, t])
 
-  const createKnowledgeFileItems = useCallback(
-    (items: KnowledgeItemOf<'file'>[]) =>
-      items.map<QuickPanelListItem>((item) => {
-        const fileContent = item.data.file
-        return {
-          label: fileContent.origin_name || fileContent.name,
-          description:
-            formatFileSize(fileContent.size) + ' · ' + dayjs(fileContent.created_at).format('YYYY-MM-DD HH:mm'),
-          icon: <FileText />,
-          isSelected: files.some((f) => f.path === fileContent.path),
-          action: async ({ item }) => {
-            item.isSelected = !item.isSelected
-            if (fileContent.path) {
-              setFiles((prevFiles) => {
-                const fileExists = prevFiles.some((f) => f.path === fileContent.path)
-                if (fileExists) {
-                  return prevFiles.filter((f) => f.path !== fileContent.path)
-                } else {
-                  return [...prevFiles, fileContent]
-                }
-              })
-            }
-          }
-        }
-      }),
-    [files, setFiles]
-  )
-
-  const openKnowledgeFileList = useCallback(
-    (base: KnowledgeBase) => {
-      setSelectedKnowledgeBaseId(base.id)
-      openQuickPanelPanel({
-        title: base.name,
-        list: [
-          {
-            label: t('common.loading'),
-            description: '',
-            icon: <FileText />,
-            disabled: true
-          }
-        ],
-        symbol: QuickPanelReservedSymbol.File,
-        multiple: true
-      })
-    },
-    [openQuickPanelPanel, t]
-  )
-
-  useEffect(() => {
-    if (
-      !selectedKnowledgeBaseId ||
-      !isQuickPanelVisible ||
-      quickPanelSymbol !== QuickPanelReservedSymbol.File ||
-      !quickPanelMultiple
-    ) {
-      return
-    }
-
-    const fileItems = selectedKnowledgeItems.filter(
-      (item): item is KnowledgeItemOf<'file'> => item.type === 'file' && item.status === 'completed'
-    )
-
-    if (isKnowledgeItemsLoading) {
-      updateQuickPanelList([
-        {
-          label: t('common.loading'),
-          description: '',
-          icon: <FileText />,
-          disabled: true
-        }
-      ])
-      return
-    }
-
-    updateQuickPanelList(
-      fileItems.length > 0
-        ? createKnowledgeFileItems(fileItems)
-        : [
-            {
-              label: t('common.no_results'),
-              description: '',
-              icon: <FileText />,
-              disabled: true
-            }
-          ]
-    )
-  }, [
-    createKnowledgeFileItems,
-    isKnowledgeItemsLoading,
-    isQuickPanelVisible,
-    quickPanelMultiple,
-    quickPanelSymbol,
-    selectedKnowledgeBaseId,
-    selectedKnowledgeItems,
-    t,
-    updateQuickPanelList
-  ])
-
   const items = useMemo(() => {
     return [
       {
@@ -182,19 +69,9 @@ const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions
         description: '',
         icon: <Upload />,
         action: () => openFileSelectDialog()
-      },
-      ...knowledgeBases.map((base) => {
-        return {
-          label: base.name,
-          description: '',
-          icon: <FileSearch />,
-          disabled: base.status !== 'completed',
-          isMenu: true,
-          action: () => openKnowledgeFileList(base)
-        }
-      })
+      }
     ]
-  }, [knowledgeBases, openFileSelectDialog, openKnowledgeFileList, t])
+  }, [openFileSelectDialog, t])
 
   const openQuickPanel = useCallback(() => {
     openQuickPanelPanel({
