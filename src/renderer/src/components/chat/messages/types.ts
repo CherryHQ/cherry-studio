@@ -1,11 +1,16 @@
 import type { FileMetadata, Topic, TranslateLangCode } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
 import type {
   ChatMessageStyle,
   MultiModelGridPopoverTrigger,
   MultiModelMessageStyle
 } from '@shared/data/preference/preferenceTypes'
-import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'
+import type {
+  CherryMessagePart,
+  CherryUIMessage,
+  MessageStats,
+  MessageStatus,
+  ModelSnapshot
+} from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReactNode } from 'react'
 
@@ -47,6 +52,24 @@ export interface MessageActivityState {
   isApprovalAnchor: boolean
 }
 
+export interface MessageListItem {
+  id: string
+  role: CherryUIMessage['role']
+  assistantId?: string
+  topicId: string
+  parentId?: string | null
+  createdAt: string
+  updatedAt?: string
+  status: MessageStatus
+  modelId?: string
+  modelSnapshot?: ModelSnapshot
+  siblingsGroupId?: number
+  stats?: MessageStats
+  traceId?: string | null
+  mentions?: Array<{ id: string; name: string; provider: string; group?: string }>
+  type?: 'clear'
+}
+
 export interface MessageRenderConfig {
   userName: string
   narrowMode: boolean
@@ -77,7 +100,8 @@ export type MessageRenderConfigUpdate = Partial<
 
 export interface MessageListState {
   topic: Topic
-  messages: Message[]
+  messages: MessageListItem[]
+  partsByMessageId: Record<string, CherryMessagePart[]>
   beforeList?: ReactNode
   isInitialLoading?: boolean
   hasOlder?: boolean
@@ -92,7 +116,7 @@ export interface MessageListState {
   selection?: MessageListSelectionState
   getMessageUiState?: (messageId: string) => MessageUiState
   getMessageSiblings?: (messageId: string) => MessageSiblingInfo | null
-  getMessageActivityState?: (message: Message) => MessageActivityState
+  getMessageActivityState?: (message: MessageListItem) => MessageActivityState
 }
 
 export interface MessageListActions {
@@ -113,7 +137,7 @@ export interface MessageListActions {
   deleteMessage?: (messageId: string, traceOptions?: { traceId?: string; modelName?: string }) => void | Promise<void>
   startMessageBranch?: (messageId: string) => void | Promise<void>
   setActiveBranch?: (messageId: string) => void | Promise<void>
-  deleteMessageGroup?: (askId: string) => void | Promise<void>
+  deleteMessageGroup?: (parentId: string) => void | Promise<void>
   regenerateMessage?: (messageId: string) => void | Promise<void>
   regenerateMessageWithModel?: (
     messageId: string,

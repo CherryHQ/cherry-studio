@@ -1,5 +1,4 @@
 import Scrollbar from '@renderer/components/Scrollbar'
-import type { Message } from '@renderer/types/newMessage'
 import { scrollIntoView } from '@renderer/utils/dom'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
@@ -10,9 +9,10 @@ import { visit } from 'unist-util-visit'
 
 import { usePartsMap } from '../blocks'
 import { createSlugger, extractTextFromNode } from '../markdown/plugins/rehypeHeadingIds'
+import type { MessageListItem } from '../types'
 
 interface MessageOutlineProps {
-  message: Message
+  message: MessageListItem
   multiModelMessageStyle: MultiModelMessageStyle
 }
 

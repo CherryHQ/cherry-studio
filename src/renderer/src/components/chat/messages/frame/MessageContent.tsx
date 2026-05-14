@@ -1,13 +1,13 @@
 import { Flex } from '@cherrystudio/ui'
-import type { Message } from '@renderer/types/newMessage'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { isEmpty } from 'lodash'
 import React from 'react'
 
 import MessagePartsRenderer from '../blocks/MessagePartsRenderer'
+import type { MessageListItem } from '../types'
 
 interface Props {
-  message: Message
+  message: MessageListItem
 }
 
 const MessageContent: React.FC<Props> = ({ message }) => {

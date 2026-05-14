@@ -5,6 +5,7 @@ import { loggerService } from '@logger'
 import { PartsProvider } from '@renderer/components/chat/messages/blocks'
 import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
 import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
+import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import CopyButton from '@renderer/components/CopyButton'
 import { useAssistant, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
@@ -13,7 +14,6 @@ import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
-import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -118,16 +118,17 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
   const latestAssistantMessage = useMemo(() => {
     if (!latestAssistantUIMsg) return null
-    return {
-      id: latestAssistantUIMsg.id,
-      role: 'assistant' as const,
-      assistantId: '',
-      topicId: '',
-      createdAt: '',
-      status: isPending ? AssistantMessageStatus.PROCESSING : AssistantMessageStatus.SUCCESS,
-      blocks: []
-    }
-  }, [latestAssistantUIMsg, isPending])
+    return toMessageListItem(
+      {
+        ...latestAssistantUIMsg,
+        metadata: {
+          ...latestAssistantUIMsg.metadata,
+          status: isPending ? 'pending' : 'success'
+        }
+      },
+      { assistantId: activeAssistant?.id, topicId: temporaryTopicId ?? '' }
+    )
+  }, [activeAssistant?.id, latestAssistantUIMsg, isPending, temporaryTopicId])
 
   const content = useMemo(
     () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),

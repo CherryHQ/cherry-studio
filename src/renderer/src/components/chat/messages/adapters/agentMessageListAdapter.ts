@@ -1,38 +1,54 @@
 import { cacheService } from '@data/CacheService'
 import type { Topic } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
-import type { CherryMessagePart } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import { useCallback, useMemo } from 'react'
 
 import type { MessageListProviderValue, MessageUiState } from '../types'
+import { toMessageListItem } from '../utils/messageListItem'
 import { useMessageActivityState } from './useMessageActivityState'
 import { useMessageListRenderConfig } from './useMessageListRenderConfig'
 
 interface AgentMessageListParams {
   topic: Topic
-  messages: Message[]
+  messages: CherryUIMessage[]
+  partsByMessageId: Record<string, CherryMessagePart[]>
   assistantProfile?: {
     name?: string
     avatar?: string
   }
+  assistantId?: string
+  modelFallback?: ModelSnapshot
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
   messageNavigation: string
-  partsMap?: Record<string, CherryMessagePart[]>
 }
 
 export function useAgentMessageListProviderValue({
   topic,
   messages,
+  partsByMessageId,
   assistantProfile,
+  assistantId,
+  modelFallback,
   isLoading,
   hasOlder = false,
   loadOlder,
-  messageNavigation,
-  partsMap
+  messageNavigation
 }: AgentMessageListParams): MessageListProviderValue {
-  const getMessageActivityState = useMessageActivityState(topic.id, partsMap)
+  const messageItems = useMemo(
+    () =>
+      messages.map((message) =>
+        toMessageListItem(message, {
+          assistantId: assistantId ?? topic.assistantId,
+          topicId: topic.id,
+          modelFallback
+        })
+      ),
+    [assistantId, messages, modelFallback, topic.assistantId, topic.id]
+  )
+
+  const getMessageActivityState = useMessageActivityState(topic.id, partsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
   const getMessageUiState = useCallback(
     (messageId: string) => (cacheService.get(`message.ui.${messageId}` as const) || {}) as MessageUiState,
@@ -49,8 +65,9 @@ export function useAgentMessageListProviderValue({
     () => ({
       state: {
         topic,
-        messages,
-        isInitialLoading: isLoading && messages.length === 0,
+        messages: messageItems,
+        partsByMessageId,
+        isInitialLoading: isLoading && messageItems.length === 0,
         hasOlder,
         messageNavigation,
         estimateSize: 400,
@@ -86,7 +103,8 @@ export function useAgentMessageListProviderValue({
       isLoading,
       loadOlder,
       messageNavigation,
-      messages,
+      messageItems,
+      partsByMessageId,
       renderConfig,
       topic,
       updateMessageUiState,

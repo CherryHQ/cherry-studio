@@ -1,8 +1,10 @@
 import type { Topic } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
+import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import { createEvent, fireEvent, render } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { MessageListItem } from '../types'
 
 const mocks = vi.hoisted(() => ({
   editMessage: vi.fn(),
@@ -38,7 +40,8 @@ const mocks = vi.hoisted(() => ({
   MessageErrorBoundary: vi.fn(({ children }: { children: ReactNode }) => <>{children}</>),
   MessageHeader: vi.fn(() => <div className="message-header">header</div>),
   MessageMenuBar: vi.fn(() => <div className="message-menubar">menubar</div>),
-  MessageOutline: vi.fn(() => null)
+  MessageOutline: vi.fn(() => null),
+  messageListActions: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -190,14 +193,10 @@ vi.mock('../MessageListProvider', () => ({
           multiModelMessageStyle: settings.multiModelMessageStyle,
           multiModelGridColumns: settings.gridColumns,
           multiModelGridPopoverTrigger: settings.gridPopoverTrigger
-        }
+        },
+        partsByMessageId: {}
       },
-      actions: {
-        setActiveBranch: vi.fn(),
-        deleteMessageGroup: vi.fn(),
-        regenerateMessage: vi.fn(),
-        updateMessageUiState: vi.fn()
-      },
+      actions: mocks.messageListActions(),
       meta: {}
     }
   }
@@ -217,15 +216,17 @@ vi.mock('../frame/MessageOutline', () => ({
 
 const { default: MessageGroup } = await import('../list/MessageGroup')
 
-const createMessage = (id: string, index: number, multiModelMessageStyle: Message['multiModelMessageStyle']) =>
+const createMessage = (id: string, index: number, multiModelMessageStyle: MultiModelMessageStyle) =>
   ({
     id,
-    askId: 'ask-1',
+    parentId: 'ask-1',
     role: 'assistant',
-    blocks: [],
+    topicId: 'topic-1',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    status: 'success',
     multiModelMessageStyle,
     index
-  }) as unknown as Message & { index: number }
+  }) as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
 
 const setElementSize = (
   element: Element,
@@ -249,6 +250,12 @@ const setElementSize = (
 describe('MessageGroup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.messageListActions.mockReturnValue({
+      setActiveBranch: vi.fn(),
+      deleteMessageGroup: vi.fn(),
+      regenerateMessage: vi.fn(),
+      updateMessageUiState: vi.fn()
+    })
   })
 
   it('keeps vertical scrolling inside the message content area for horizontal layout', () => {
@@ -342,5 +349,27 @@ describe('MessageGroup', () => {
     const contentContainer = container.querySelector('#message-msg-1 .message-content-container')
     expect(contentContainer).not.toBeNull()
     expect(getComputedStyle(contentContainer as HTMLElement).overflowY).toBe('visible')
+  })
+
+  it('shows multi-model group controls even when the provider has no write actions', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'fold',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'plain',
+      showMessageOutline: false
+    })
+    mocks.messageListActions.mockReturnValue({
+      updateMessageUiState: vi.fn()
+    })
+
+    const messages = [createMessage('msg-1', 0, 'fold'), createMessage('msg-2', 1, 'fold')]
+    const topic = { id: 'topic-1' } as Topic
+
+    render(<MessageGroup messages={messages} topic={topic} />)
+
+    expect(mocks.MessageGroupMenuBar).toHaveBeenCalled()
   })
 })

@@ -2,6 +2,8 @@ import { useChat } from '@ai-sdk/react'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
+import { useMessagePartsById } from '@renderer/components/chat/messages/stream/useMessagePartsById'
+import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { isMac } from '@renderer/config/constant'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -13,11 +15,10 @@ import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import i18n from '@renderer/i18n'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
-import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import { defaultLanguage } from '@shared/config/constant'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
 import { isEmpty } from 'lodash'
@@ -149,61 +150,60 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     [completedAssistants, liveAssistants]
   )
 
-  const partsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
-    const map: Record<string, CherryMessagePart[]> = {}
-    for (const m of chatMessages) map[m.id] = m.parts as CherryMessagePart[]
-    for (const m of allAssistants) map[m.id] = m.parts as CherryMessagePart[]
-    return map
-  }, [chatMessages, allAssistants])
+  const partsByMessageId = useMessagePartsById([...chatMessages, ...allAssistants], executionMessagesById)
 
   // Interleave user messages (from state.messages) with assistant turns
   // (accumulated completed + live). The assumption: users and assistants
   // alternate strictly — user[i] precedes assistant[i]. Temporary topics
   // are always a clean linear chat, no branches.
-  const adaptedMessages = useMemo(() => {
+  const displayMessages = useMemo<CherryUIMessage[]>(() => {
     const users = chatMessages.filter((m) => m.role === 'user')
     const latestAssistantId = liveAssistants[liveAssistants.length - 1]?.id
-    const out: {
-      id: string
-      role: 'user' | 'assistant'
-      assistantId: string
-      topicId: string
-      createdAt: string
-      status: UserMessageStatus | AssistantMessageStatus
-      blocks: never[]
-    }[] = []
+    const out: CherryUIMessage[] = []
     const turns = Math.max(users.length, allAssistants.length)
     for (let i = 0; i < turns; i++) {
       const u = users[i]
       if (u) {
-        out.push({
-          id: u.id,
-          role: 'user',
-          assistantId: '',
-          topicId: '',
-          createdAt: '',
-          status: UserMessageStatus.SUCCESS,
-          blocks: []
-        })
+        out.push(u)
       }
       const a = allAssistants[i]
       if (a) {
         out.push({
-          id: a.id,
-          role: 'assistant',
-          assistantId: '',
-          topicId: '',
-          createdAt: '',
-          status:
-            a.id === latestAssistantId && isPending
-              ? AssistantMessageStatus.PROCESSING
-              : AssistantMessageStatus.SUCCESS,
-          blocks: []
+          ...a,
+          metadata: {
+            ...a.metadata,
+            status: a.id === latestAssistantId && isPending ? 'pending' : 'success'
+          }
         })
       }
     }
     return out
   }, [chatMessages, allAssistants, liveAssistants, isPending])
+
+  const quickAssistantModelSnapshot = useMemo<ModelSnapshot | undefined>(
+    () =>
+      currentModel
+        ? {
+            id: currentModel.id,
+            name: currentModel.name,
+            provider: currentModel.provider,
+            ...(currentModel.group && { group: currentModel.group })
+          }
+        : undefined,
+    [currentModel]
+  )
+
+  const messageItems = useMemo(
+    () =>
+      displayMessages.map((message) =>
+        toMessageListItem(message, {
+          assistantId: currentAssistant?.id,
+          topicId: temporaryTopicId ?? '',
+          modelFallback: quickAssistantModelSnapshot
+        })
+      ),
+    [currentAssistant?.id, displayMessages, quickAssistantModelSnapshot, temporaryTopicId]
+  )
 
   const latestAssistantUIMsg = useMemo(() => allAssistants[allAssistants.length - 1], [allAssistants])
 
@@ -224,7 +224,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [stopChat, setMessages, resetExecutionMessages])
 
   const isLoading = isPreparing || isStreaming
-  const isOutputted = adaptedMessages.some((message) => message.role === 'assistant')
+  const isOutputted = messageItems.some((message) => message.role === 'assistant')
 
   useEffect(() => {
     void i18n.changeLanguage(language || navigator.language || defaultLanguage)
@@ -457,8 +457,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
             route={route}
             assistant={currentAssistant ?? null}
             isOutputted={isOutputted}
-            messages={adaptedMessages}
-            partsMap={partsMap}
+            messages={messageItems}
+            partsByMessageId={partsByMessageId}
           />
           {flowError && <ErrorMsg>{flowError}</ErrorMsg>}
 

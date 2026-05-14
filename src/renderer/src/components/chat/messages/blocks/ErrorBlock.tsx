@@ -8,7 +8,6 @@ import { getHttpMessageLabel, getProviderLabel } from '@renderer/i18n/label'
 import type { DiagnosisResult } from '@renderer/services/ErrorDiagnosisService'
 import { classifyErrorByAI } from '@renderer/services/ErrorDiagnosisService'
 import type { SerializedError } from '@renderer/types/error'
-import type { Message } from '@renderer/types/newMessage'
 import { classifyError } from '@renderer/utils/errorClassifier'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { Link, useNavigate } from '@tanstack/react-router'
@@ -16,6 +15,8 @@ import { AlertTriangle, ChevronRight, Settings, X } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
+import type { MessageListItem } from '../types'
+import { getMessageListItemModel } from '../utils/messageListItem'
 import { useRefresh } from './MessagePartsContext'
 
 const logger = loggerService.withContext('ErrorBlock')
@@ -32,7 +33,7 @@ const aiClassifyCacheKey = (message: string, language: string) => `error.classif
 interface Props {
   partId: string
   error: SerializedError | undefined
-  message: Message
+  message: MessageListItem
   cachedDiagnosis?: DiagnosisResult
 }
 
@@ -87,7 +88,7 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
 const MessageErrorInfo: React.FC<{
   partId: string
   error: Props['error']
-  message: Message
+  message: MessageListItem
   cachedDiagnosis?: DiagnosisResult
 }> = ({ partId, error, message, cachedDiagnosis }) => {
   const refresh = useRefresh()
@@ -102,7 +103,7 @@ const MessageErrorInfo: React.FC<{
   const errorProviderId = (error as Record<string, unknown> | undefined)?.providerId as string | undefined
   const errorModelId = (error as Record<string, unknown> | undefined)?.modelId as string | undefined
 
-  const providerId = message.model?.provider ?? errorProviderId
+  const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
   const classification = useMemo(
     () => classifyError(error, providerId),
 

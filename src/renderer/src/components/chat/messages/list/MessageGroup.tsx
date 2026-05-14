@@ -4,7 +4,6 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { Topic } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
@@ -13,12 +12,12 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 
 import MessageItem from '../frame/MessageFrame'
 import { useMessageList } from '../MessageListProvider'
-import { defaultMessageRenderConfig, type MessageUiState } from '../types'
+import { defaultMessageRenderConfig, type MessageListItem, type MessageUiState } from '../types'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
 
 const logger = loggerService.withContext('MessageGroup')
 interface Props {
-  messages: Message[]
+  messages: MessageListItem[]
   topic: Topic
   registerMessageElement?: (id: string, element: HTMLElement | null) => void
 }
@@ -46,7 +45,6 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   )
 
   const isGrouped = isMultiSelectMode ? false : messageLength > 1 && messages.every((m) => m.role === 'assistant')
-  const hasGroupActions = !!(actions.setActiveBranch || actions.deleteMessageGroup || actions.regenerateMessage)
 
   // States — initialize from Cache, then tracked in React state
   const [_multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(
@@ -93,7 +91,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   }, [getMessageUiState, messages, selectedMessageId, usefulMessageId])
 
   const setSelectedMessage = useCallback(
-    (message: Message) => {
+    (message: MessageListItem) => {
       // 前一个
       updateMessageUiState(selectedMessageId, { foldSelected: false })
       // 当前选中的消息
@@ -242,7 +240,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   }, [])
 
   const renderMessage = useCallback(
-    (message: Message, index: number) => {
+    (message: MessageListItem, index: number) => {
       const isGridGroupMessage = isGrid && message.role === 'assistant' && isGrouped
       const messageProps = {
         isGrouped,
@@ -311,7 +309,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   return (
     <MessageEditingProvider>
       <GroupContainer
-        id={messages[0].askId ? `message-group-${messages[0].askId}` : undefined}
+        id={messages[0].parentId ? `message-group-${messages[0].parentId}` : undefined}
         className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
         <GridContainer
           $count={messageLength}
@@ -320,7 +318,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
           onWheelCapture={multiModelMessageStyle === 'horizontal' ? handleHorizontalGroupWheel : undefined}>
           {messages.map(renderMessage)}
         </GridContainer>
-        {isGrouped && hasGroupActions && (
+        {isGrouped && (
           <MessageGroupMenuBar
             multiModelMessageStyle={multiModelMessageStyle}
             setMultiModelMessageStyle={(style) => {

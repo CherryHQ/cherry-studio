@@ -6,11 +6,11 @@ import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/use
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import type { ExecutionFinishEvent } from '@renderer/hooks/useExecutionChats'
 import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
+import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
 import { V2ChatOverridesProvider } from '@renderer/hooks/V2ChatContext'
 import type { FileMetadata, Topic } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { FC, ReactNode } from 'react'
@@ -20,14 +20,14 @@ import { useTranslation } from 'react-i18next'
 const logger = loggerService.withContext('V2ChatContent')
 
 import { useHomeMessageListProviderValue } from '@renderer/components/chat/messages/adapters/homeMessageListAdapter'
-import { PartsProvider, RefreshProvider } from '@renderer/components/chat/messages/blocks'
+import { RefreshProvider } from '@renderer/components/chat/messages/blocks'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
+import { useMessagePartsById } from '@renderer/components/chat/messages/stream/useMessagePartsById'
 
 import { useTopicMessagesCache } from './hooks/useTopicMessagesCache'
 import { useV2ChatOverrides } from './hooks/useV2ChatOverrides'
-import { useV2RenderingPipeline } from './hooks/useV2RenderingPipeline'
 import Inputbar from './Inputbar/Inputbar'
 
 export interface V2ChatContentFrameSlots {
@@ -58,8 +58,8 @@ interface Props {
  * component (useChat seeds `initialMessages` once, at mount).
  *
  * Inner component composes three purpose-built hooks:
- *   - `useV2RenderingPipeline` — projects `uiMessages` into renderer
- *     `Message[]` and overlays per-execution streaming parts.
+ *   - `useMessagePartsById` — overlays per-execution streaming parts
+ *     onto the DB-backed `uiMessages` parts map.
  *   - `useTopicMessagesCache` — optimistic SWR writes + DataApi mutation
  *     triggers for send / delete / edit / fork / setActiveNode.
  *   - `useV2ChatOverrides` — every write-side handler the
@@ -68,8 +68,7 @@ interface Props {
  * `useChatWithHistory` stays trigger-only: `sendMessage` / `regenerate`
  * / `stop` / `setMessages` / `activeExecutions`. Its
  * `state.messages` is not rendered; chunks land in per-execution
- * `ExecutionStreamCollector`s and are overlaid into the partsMap by
- * the rendering pipeline.
+ * `ExecutionStreamCollector`s and are overlaid into `partsByMessageId`.
  */
 const V2ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight, renderFrame, onPersistTemporaryTopic }) => {
   const { t } = useTranslation()
@@ -178,8 +177,8 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
   const respondToToolApproval = useToolApprovalBridge(topic.id, uiMessages)
 
-  const { projectedMessages, mergedPartsMap, handleExecutionMessagesChange, handleExecutionDispose } =
-    useV2RenderingPipeline(uiMessages, topic)
+  const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } = useExecutionMessages()
+  const partsByMessageId = useMessagePartsById(uiMessages, executionMessagesById)
 
   const cache = useTopicMessagesCache({ topicId: topic.id, mutate: messagesCacheMutate })
 
@@ -211,7 +210,6 @@ const V2ChatContentInner: FC<InnerProps> = ({
   const { overrides: v2ChatOverrides, capabilityBody } = useV2ChatOverrides({
     topic,
     uiMessages,
-    projectedMessages,
     regenerate,
     setMessages,
     stop,
@@ -275,87 +273,84 @@ const V2ChatContentInner: FC<InnerProps> = ({
     <V2ChatOverridesProvider value={v2ChatOverrides}>
       <SiblingsProvider value={siblingsContextValue}>
         <RefreshProvider value={refresh}>
-          <PartsProvider value={mergedPartsMap}>
-            <ToolApprovalProvider value={respondToToolApproval}>
-              <ChatContextBridge topic={topic}>
-                {(overlay) => {
-                  const main = (
-                    <>
-                      {/*
-                       * Two coupled guards on the per-execution chunk collector:
-                       *
-                       * 1. Mount only after SWR's `uiMessages` ends with an
-                       *    in-flight assistant. Collector's `useChat` seeds AI
-                       *    SDK's `createStreamingUIMessageState` from
-                       *    `initialMessages.at(-1)`; AI SDK reuses that object as
-                       *    the streaming `state.message` and a `start` chunk only
-                       *    overwrites its `id`, leaving the original `parts`
-                       *    array in place. If we mount while last is still the
-                       *    OLD assistant being replaced, new chunks append onto
-                       *    that array — the bubble renders "old content + new
-                       *    stream" once SWR finally flips active to the new
-                       *    placeholder.
-                       *
-                       * 2. Re-key on the in-flight assistant id so subsequent
-                       *    regenerates for the same model REMOUNT the collector.
-                       *    Without this, React reuses the existing `useChat`
-                       *    instance whose `state.messages` already carries the
-                       *    previous turn's assistant; the next regenerate seeds
-                       *    from THAT, accumulating pollution turn over turn.
-                       *
-                       * The collector cannot self-correct: it sees `resume: true`
-                       * only, never the `regenerate` trigger driving the turn.
-                       */}
-                      {(() => {
-                        const last = uiMessages.at(-1)
-                        if (last?.role !== 'assistant') return null
-                        return activeExecutions.map(({ executionId }) => {
-                          const chat = executionChats.get(executionId)
-                          if (!chat) return null
-                          return (
-                            <ExecutionStreamCollector
-                              key={`${executionId}:${last.id}`}
-                              executionId={executionId}
-                              chat={chat}
-                              onMessagesChange={handleExecutionMessagesChange}
-                              onDispose={handleExecutionDispose}
-                            />
-                          )
-                        })
-                      })()}
+          <ToolApprovalProvider value={respondToToolApproval}>
+            <ChatContextBridge topic={topic}>
+              {(overlay) => {
+                const main = (
+                  <>
+                    {/*
+                     * Two coupled guards on the per-execution chunk collector:
+                     *
+                     * 1. Mount only after SWR's `uiMessages` ends with an
+                     *    in-flight assistant. Collector's `useChat` seeds AI
+                     *    SDK's `createStreamingUIMessageState` from
+                     *    `initialMessages.at(-1)`; AI SDK reuses that object as
+                     *    the streaming `state.message` and a `start` chunk only
+                     *    overwrites its `id`, leaving the original `parts`
+                     *    array in place. If we mount while last is still the
+                     *    OLD assistant being replaced, new chunks append onto
+                     *    that array — the bubble renders "old content + new
+                     *    stream" once SWR finally flips active to the new
+                     *    placeholder.
+                     *
+                     * 2. Re-key on the in-flight assistant id so subsequent
+                     *    regenerates for the same model REMOUNT the collector.
+                     *    Without this, React reuses the existing `useChat`
+                     *    instance whose `state.messages` already carries the
+                     *    previous turn's assistant; the next regenerate seeds
+                     *    from THAT, accumulating pollution turn over turn.
+                     *
+                     * The collector cannot self-correct: it sees `resume: true`
+                     * only, never the `regenerate` trigger driving the turn.
+                     */}
+                    {(() => {
+                      const last = uiMessages.at(-1)
+                      if (last?.role !== 'assistant') return null
+                      return activeExecutions.map(({ executionId }) => {
+                        const chat = executionChats.get(executionId)
+                        if (!chat) return null
+                        return (
+                          <ExecutionStreamCollector
+                            key={`${executionId}:${last.id}`}
+                            executionId={executionId}
+                            chat={chat}
+                            onMessagesChange={handleExecutionMessagesChange}
+                            onDispose={handleExecutionDispose}
+                          />
+                        )
+                      })
+                    })()}
 
-                      <HomeMessageList
-                        key={topic.id}
-                        topic={topic}
-                        messages={projectedMessages}
-                        loadOlder={loadOlder}
-                        hasOlder={hasOlder}
-                      />
-                    </>
-                  )
-                  const bottomComposer = (
-                    <Inputbar topic={topic} setActiveTopic={setActiveTopic} onSend={handleSendV2} />
-                  )
+                    <HomeMessageList
+                      key={topic.id}
+                      topic={topic}
+                      messages={uiMessages}
+                      partsByMessageId={partsByMessageId}
+                      loadOlder={loadOlder}
+                      hasOlder={hasOlder}
+                    />
+                  </>
+                )
+                const bottomComposer = <Inputbar topic={topic} setActiveTopic={setActiveTopic} onSend={handleSendV2} />
 
-                  if (renderFrame) {
-                    return renderFrame({ main, bottomComposer, overlay })
-                  }
+                if (renderFrame) {
+                  return renderFrame({ main, bottomComposer, overlay })
+                }
 
-                  return (
-                    <>
-                      <div
-                        className="flex flex-1 flex-col justify-between"
-                        style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
-                        {main}
-                        {bottomComposer}
-                      </div>
-                      {overlay}
-                    </>
-                  )
-                }}
-              </ChatContextBridge>
-            </ToolApprovalProvider>
-          </PartsProvider>
+                return (
+                  <>
+                    <div
+                      className="flex flex-1 flex-col justify-between"
+                      style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
+                      {main}
+                      {bottomComposer}
+                    </div>
+                    {overlay}
+                  </>
+                )
+              }}
+            </ChatContextBridge>
+          </ToolApprovalProvider>
         </RefreshProvider>
       </SiblingsProvider>
     </V2ChatOverridesProvider>
@@ -363,8 +358,8 @@ const V2ChatContentInner: FC<InnerProps> = ({
 }
 
 /**
- * Bridge rendered inside `V2ChatOverridesProvider` + `PartsProvider` so
- * `useChatContextProvider` can read those contexts. Multi-select
+ * Bridge rendered inside `V2ChatOverridesProvider` so `useChatContextProvider`
+ * can read that context. Multi-select
  * floating popup mounts here because it depends on the chat context.
  */
 const ChatContextBridge: FC<{ topic: Topic; children: (overlay: ReactNode) => ReactNode }> = ({ topic, children }) => {
@@ -380,11 +375,12 @@ export default V2ChatContent
 
 const HomeMessageList: FC<{
   topic: Topic
-  messages: Message[]
+  messages: CherryUIMessage[]
+  partsByMessageId: ReturnType<typeof useMessagePartsById>
   loadOlder: () => void
   hasOlder: boolean
-}> = ({ topic, messages, loadOlder, hasOlder }) => {
-  const value = useHomeMessageListProviderValue({ topic, messages, loadOlder, hasOlder })
+}> = ({ topic, messages, partsByMessageId, loadOlder, hasOlder }) => {
+  const value = useHomeMessageListProviderValue({ topic, messages, partsByMessageId, loadOlder, hasOlder })
   return (
     <MessageListProvider value={value}>
       <MessageList />

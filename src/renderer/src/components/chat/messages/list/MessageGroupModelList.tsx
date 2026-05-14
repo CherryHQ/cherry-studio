@@ -1,39 +1,33 @@
 import { RowFlex, SegmentedControl } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import Scrollbar from '@renderer/components/Scrollbar'
-import type { Model } from '@renderer/types'
-import { AssistantMessageStatus, type Message } from '@renderer/types/newMessage'
 import type { FC } from 'react'
 import { memo, useCallback } from 'react'
 
+import type { MessageListItem } from '../types'
+import { getMessageListItemModel, isMessageListItemProcessing } from '../utils/messageListItem'
+
 interface MessageGroupModelListProps {
-  messages: Message[]
+  messages: MessageListItem[]
   selectMessageId: string
-  setSelectedMessage: (message: Message) => void
+  setSelectedMessage: (message: MessageListItem) => void
 }
 
 const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selectMessageId, setSelectedMessage }) => {
-  const isMessageProcessing = useCallback((message: Message) => {
-    return [
-      AssistantMessageStatus.PENDING,
-      AssistantMessageStatus.PROCESSING,
-      AssistantMessageStatus.SEARCHING
-    ].includes(message.status as AssistantMessageStatus)
-  }, [])
-
   const renderLabel = useCallback(
-    (message: Message) => {
-      const isProcessing = isMessageProcessing(message)
+    (message: MessageListItem) => {
+      const isProcessing = isMessageListItemProcessing(message)
       const isSelected = message.id === selectMessageId
+      const model = getMessageListItemModel(message)
 
       return (
         <SegmentedLabel>
-          <ModelAvatar className={isProcessing ? 'animation-pulse' : ''} model={message.model as Model} size={20} />
-          {isSelected && <ModelName>{message.model?.name}</ModelName>}
+          <ModelAvatar className={isProcessing ? 'animation-pulse' : ''} model={model} size={20} />
+          {isSelected && <ModelName>{model?.name}</ModelName>}
         </SegmentedLabel>
       )
     },
-    [isMessageProcessing, selectMessageId]
+    [selectMessageId]
   )
 
   return (
@@ -42,7 +36,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
         <SegmentedControl
           value={selectMessageId}
           onValueChange={(value) => {
-            const message = messages.find((message) => message.id === value) as Message
+            const message = messages.find((message) => message.id === value) as MessageListItem
             setSelectedMessage(message)
           }}
           options={messages.map((message) => ({

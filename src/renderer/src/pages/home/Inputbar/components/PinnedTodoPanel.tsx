@@ -8,8 +8,7 @@
  */
 
 import type { TodoItem, TodoWriteToolInput } from '@renderer/components/chat/messages/tools/agent/types'
-import type { Message } from '@renderer/types/newMessage'
-import type { CherryMessagePart } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { Typography } from 'antd'
 import { CheckCircle, ChevronDown, ChevronUp, Circle, Loader2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -35,11 +34,11 @@ function extractTodoWriteTodos(part: CherryMessagePart): TodoItem[] | undefined 
 }
 
 function selectActiveTodos(
-  messages: Message[],
-  partsMap: Record<string, CherryMessagePart[]>
+  messages: CherryUIMessage[],
+  partsByMessageId: Record<string, CherryMessagePart[]>
 ): ActiveTodos | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {
-    const parts = partsMap[messages[i].id]
+    const parts = partsByMessageId[messages[i].id]
     if (!parts?.length) continue
     for (let j = parts.length - 1; j >= 0; j--) {
       const todos = extractTodoWriteTodos(parts[j])
@@ -71,15 +70,15 @@ const TodoStatusIcon: FC<{ status: TodoItem['status'] }> = ({ status }) => {
 }
 
 interface PinnedTodoPanelProps {
-  messages: Message[]
-  partsMap: Record<string, CherryMessagePart[]>
+  messages: CherryUIMessage[]
+  partsByMessageId: Record<string, CherryMessagePart[]>
 }
 
-export const PinnedTodoPanel: FC<PinnedTodoPanelProps> = ({ messages, partsMap }) => {
+export const PinnedTodoPanel: FC<PinnedTodoPanelProps> = ({ messages, partsByMessageId }) => {
   const { t } = useTranslation()
   const [isCollapsed, setIsCollapsed] = useState(true)
 
-  const activeTodos = useMemo(() => selectActiveTodos(messages, partsMap), [messages, partsMap])
+  const activeTodos = useMemo(() => selectActiveTodos(messages, partsByMessageId), [messages, partsByMessageId])
 
   if (!activeTodos) return null
 

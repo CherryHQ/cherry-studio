@@ -1,8 +1,5 @@
 import { RowFlex } from '@cherrystudio/ui'
 import { Button, Tooltip } from '@cherrystudio/ui'
-import type { Message } from '@renderer/types/newMessage'
-import { AssistantMessageStatus } from '@renderer/types/newMessage'
-import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import { Columns2, Folder, Grid2X2, RotateCcw, Rows3, Trash2 } from 'lucide-react'
@@ -12,15 +9,16 @@ import { useTranslation } from 'react-i18next'
 
 import { usePartsMap } from '../blocks'
 import { useMessageList } from '../MessageListProvider'
+import type { MessageListItem } from '../types'
 import MessageGroupModelList from './MessageGroupModelList'
 import MessageGroupSettings from './MessageGroupSettings'
 
 interface Props {
   multiModelMessageStyle: MultiModelMessageStyle
   setMultiModelMessageStyle: (style: MultiModelMessageStyle) => void
-  messages: Message[]
+  messages: MessageListItem[]
   selectMessageId: string
-  setSelectedMessage: (message: Message) => void
+  setSelectedMessage: (message: MessageListItem) => void
 }
 
 const MessageGroupMenuBar: FC<Props> = ({
@@ -35,8 +33,8 @@ const MessageGroupMenuBar: FC<Props> = ({
   const { actions } = useMessageList()
 
   const handleDeleteGroup = async () => {
-    const askId = messages[0]?.askId
-    if (!askId || !actions.deleteMessageGroup) return
+    const parentId = messages[0]?.parentId
+    if (!parentId || !actions.deleteMessageGroup) return
 
     window.modal.confirm({
       title: t('message.group.delete.title'),
@@ -46,28 +44,22 @@ const MessageGroupMenuBar: FC<Props> = ({
         danger: true
       },
       okText: t('common.delete'),
-      onOk: () => actions.deleteMessageGroup?.(askId)
+      onOk: () => actions.deleteMessageGroup?.(parentId)
     })
   }
 
-  const isFailedMessage = (m: Message) => {
+  const isFailedMessage = (m: MessageListItem) => {
     if (m.role !== 'assistant') return false
     const isError = (m.status || '').toLowerCase() === 'error'
     const parts = partsMap?.[m.id]
-    const content = parts ? getTextFromParts(parts) : getMainTextContent(m)
+    const content = parts ? getTextFromParts(parts) : ''
     const noContent = !content || content.trim().length === 0
-    const noBlocks = !m.blocks || m.blocks.length === 0
-    return isError || noContent || noBlocks
+    return isError || noContent
   }
 
-  const isTransmittingMessage = (m: Message) => {
+  const isTransmittingMessage = (m: MessageListItem) => {
     if (m.role !== 'assistant') return false
-    const status = m.status as AssistantMessageStatus
-    return (
-      status === AssistantMessageStatus.PROCESSING ||
-      status === AssistantMessageStatus.PENDING ||
-      status === AssistantMessageStatus.SEARCHING
-    )
+    return m.status === 'pending'
   }
 
   const hasFailedMessages =

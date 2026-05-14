@@ -4,8 +4,8 @@
  * `MessageTokens` and friends.
  *
  * Kept as pure functions so both the V1 block-based renderer data source
- * (`getTopicMessages` in `useTopic.ts`) and the V2 chat adapter
- * (`useChatWithHistory.adaptedMessages`) share a single projection path —
+ * (`getTopicMessages` in `useTopic.ts`) and V2 message-list exports
+ * share a single projection path —
  * no inline re-implementation drift when the `MessageStats` schema
  * redesign (see TODO in `packages/shared/data/types/message.ts`) finally
  * lands.

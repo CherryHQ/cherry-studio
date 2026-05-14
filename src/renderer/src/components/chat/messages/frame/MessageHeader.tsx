@@ -5,9 +5,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
-import { getMessageModelId } from '@renderer/services/MessagesService'
 import type { Assistant, Model } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
 import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils'
 import dayjs from 'dayjs'
 import { Sparkle } from 'lucide-react'
@@ -16,7 +14,8 @@ import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useMessageList } from '../MessageListProvider'
-import { defaultMessageRenderConfig } from '../types'
+import { defaultMessageRenderConfig, type MessageListItem } from '../types'
+import { getMessageListItemModel, getMessageListItemModelName } from '../utils/messageListItem'
 import MessageTokens from './MessageTokens'
 
 const MESSAGE_AVATAR_SIZE = 30
@@ -24,7 +23,7 @@ const MESSAGE_EMOJI_AVATAR_FONT_SIZE = 17
 const MESSAGE_AVATAR_CLASS = 'h-[30px] w-[30px] rounded-full'
 
 interface Props {
-  message: Message
+  message: MessageListItem
   assistant?: Assistant
   model?: Model
   isGroupContextMessage?: boolean
@@ -49,7 +48,9 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, isGroupConte
 
   const isSelected = selectedMessageIds?.includes(message.id)
 
-  const ModelIcon = useMemo(() => getModelLogo(message.model ?? model), [message.model, model])
+  const messageModel = useMemo(() => getMessageListItemModel(message), [message])
+  const displayModel = messageModel ?? model
+  const ModelIcon = useMemo(() => getModelLogo(displayModel), [displayModel])
 
   const getUserName = useCallback(() => {
     if (message.role === 'assistant' && assistantProfile?.name) {
@@ -57,7 +58,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, isGroupConte
     }
 
     if (message.role === 'assistant') {
-      return model?.name || model?.id || getMessageModelId(message) || ''
+      return getMessageListItemModelName(message) || model?.name || model?.id || ''
     }
 
     return userName || t('common.you')
@@ -78,10 +79,10 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, isGroupConte
   const username = useMemo(() => removeLeadingEmoji(getUserName()), [getUserName])
 
   const showMiniApp = useCallback(() => {
-    showMiniAppIcon && model?.provider && openMiniAppById(model.provider)
+    showMiniAppIcon && displayModel?.provider && openMiniAppById(displayModel.provider)
     // because don't need openMiniAppById to be a dependency
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model?.provider, showMiniAppIcon])
+  }, [displayModel?.provider, showMiniAppIcon])
 
   return (
     <div className="message-header group/header relative mb-2 flex items-center gap-2.5">
@@ -146,7 +147,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, isGroupConte
         <div
           className={`message-header-info-wrap flex shrink-0 items-center gap-1 text-[10px] text-foreground-muted leading-none opacity-0 transition-opacity duration-150 focus-within:opacity-100 ${hiddenContentHoverClass}`}>
           <span>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
-          {isBubbleStyle && message.usage !== undefined && (
+          {isBubbleStyle && message.stats !== undefined && (
             <>
               |
               <MessageTokens message={message} />

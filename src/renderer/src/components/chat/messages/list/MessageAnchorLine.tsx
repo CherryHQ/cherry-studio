@@ -3,11 +3,8 @@ import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { getMessageModelId } from '@renderer/services/MessagesService'
-import type { Message } from '@renderer/types/newMessage'
 import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
-import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import { CircleChevronDown } from 'lucide-react'
 import { type FC, type Ref, useCallback, useEffect, useRef, useState } from 'react'
@@ -15,10 +12,11 @@ import { useTranslation } from 'react-i18next'
 
 import { usePartsMap } from '../blocks'
 import { useMessageList } from '../MessageListProvider'
-import { defaultMessageRenderConfig } from '../types'
+import { defaultMessageRenderConfig, type MessageListItem } from '../types'
+import { getMessageListItemModel, getMessageListItemModelName } from '../utils/messageListItem'
 
 interface MessageLineProps {
-  messages: Message[]
+  messages: MessageListItem[]
   scrollToMessageId?: (messageId: string) => void
   /** Scroll the message list to its bottom. */
   scrollToBottom?: () => void
@@ -84,18 +82,13 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
   )
 
   const getUserName = useCallback(
-    (message: Message) => {
+    (message: MessageListItem) => {
       if (message.role === 'assistant') {
         if (assistantProfile?.name) {
           return assistantProfile.name
         }
 
-        if (message.model) {
-          return message.model.name || message.model.id || message.modelId || ''
-        }
-
-        const modelId = getMessageModelId(message)
-        return modelId || ''
+        return getMessageListItemModelName(message)
       }
 
       return userName || t('common.you')
@@ -104,8 +97,8 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
   )
 
   const setSelectedMessage = useCallback(
-    (message: Message) => {
-      const groupMessages = messages.filter((m) => m.askId === message.askId)
+    (message: MessageListItem) => {
+      const groupMessages = messages.filter((m) => m.parentId === message.parentId)
       if (groupMessages.length > 1) {
         for (const m of groupMessages) {
           actions.updateMessageUiState?.(m.id, { foldSelected: m.id === message.id })
@@ -127,7 +120,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
   )
 
   const scrollToMessage = useCallback(
-    (message: Message) => {
+    (message: MessageListItem) => {
       // Virtualized message list: prefer the imperative API. Off-screen
       // messages have no DOM, so the legacy `getElementById` lookup
       // would silently no-op. Fall back to it only when the prop isn't
@@ -197,10 +190,11 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
           const scale = 1 + calculateValueByDistance(message.id, 1.2)
           const size = 10 + calculateValueByDistance(message.id, 20)
           // Walk the full resolution chain (model icon → provider-by-model → provider).
-          const ModelIcon = getModelLogo(message.model)
+          const model = getMessageListItemModel(message)
+          const ModelIcon = getModelLogo(model)
           const username = removeLeadingEmoji(getUserName(message))
           const parts = partsMap?.[message.id]
-          const content = parts ? getTextFromParts(parts) : getMainTextContent(message)
+          const content = parts ? getTextFromParts(parts) : ''
 
           if (message.type === 'clear') return null
 

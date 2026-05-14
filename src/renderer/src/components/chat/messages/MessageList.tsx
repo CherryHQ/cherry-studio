@@ -1,8 +1,6 @@
 import { LoadingIcon } from '@renderer/components/Icons'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { getGroupedMessages } from '@renderer/services/MessagesService'
-import type { Message } from '@renderer/types/newMessage'
 import {
   captureScrollableAsBlob,
   captureScrollableAsDataURL,
@@ -11,13 +9,27 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import NarrowLayout from '../layout/NarrowLayout'
+import { PartsProvider } from './blocks'
 import { MessagesContainer } from './layout/shared'
 import MessageAnchorLine from './list/MessageAnchorLine'
 import MessageGroup from './list/MessageGroup'
 import { MessageVirtualList, type MessageVirtualListHandle } from './list/MessageVirtualList'
 import SelectionBox from './list/SelectionBox'
 import { useMessageList } from './MessageListProvider'
-import { defaultMessageRenderConfig } from './types'
+import { defaultMessageRenderConfig, type MessageListItem } from './types'
+
+function groupMessageListItems(messages: MessageListItem[]): Record<string, MessageListItem[]> {
+  const grouped: Record<string, MessageListItem[]> = {}
+
+  for (const message of messages) {
+    const key =
+      message.role === 'assistant' && message.parentId ? `assistant${message.parentId}` : message.role + message.id
+    grouped[key] ??= []
+    grouped[key].push(message)
+  }
+
+  return grouped
+}
 
 const MessageList = () => {
   const { state, actions, meta } = useMessageList()
@@ -31,7 +43,7 @@ const MessageList = () => {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const messageElements = useRef<Map<string, HTMLElement>>(new Map())
 
-  const groupedMessages = useMemo(() => Object.entries(getGroupedMessages(messages)), [messages])
+  const groupedMessages = useMemo(() => Object.entries(groupMessageListItems(messages)), [messages])
 
   const registerMessageElement = useCallback((id: string, element: HTMLElement | null) => {
     if (element) {
@@ -47,10 +59,10 @@ const MessageList = () => {
 
   const scrollToMessageById = useCallback(
     (messageId: string) => {
-      const target = messages.find((m: Message) => m.id === messageId)
+      const target = messages.find((m) => m.id === messageId)
       if (!target) return
       const groupKey =
-        target.role === 'assistant' && target.askId ? 'assistant' + target.askId : target.role + target.id
+        target.role === 'assistant' && target.parentId ? 'assistant' + target.parentId : target.role + target.id
       messageListRef.current?.scrollToKey(groupKey, 'start')
     },
     [messages]
@@ -102,57 +114,59 @@ const MessageList = () => {
   }
 
   return (
-    <MessagesContainer id="messages" className="messages-container" key={state.listKey}>
-      <NarrowLayout
-        narrowMode={renderConfig.narrowMode}
-        style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-        {beforeList}
-        <SelectionContextMenu>
-          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-            <MessageVirtualList
-              handleRef={messageListRef}
-              items={groupedMessages}
-              getItemKey={([key]) => key}
-              estimateSize={state.estimateSize}
-              overscan={state.overscan}
-              hasMoreTop={hasOlder}
-              onReachTop={loadMoreMessages}
-              renderItem={([key, groupMessages]) => (
-                <MessageGroup
-                  key={key}
-                  messages={groupMessages}
-                  topic={topic}
-                  registerMessageElement={registerMessageElement}
-                />
+    <PartsProvider value={state.partsByMessageId}>
+      <MessagesContainer id="messages" className="messages-container" key={state.listKey}>
+        <NarrowLayout
+          narrowMode={renderConfig.narrowMode}
+          style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          {beforeList}
+          <SelectionContextMenu>
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+              <MessageVirtualList
+                handleRef={messageListRef}
+                items={groupedMessages}
+                getItemKey={([key]) => key}
+                estimateSize={state.estimateSize}
+                overscan={state.overscan}
+                hasMoreTop={hasOlder}
+                onReachTop={loadMoreMessages}
+                renderItem={([key, groupMessages]) => (
+                  <MessageGroup
+                    key={key}
+                    messages={groupMessages}
+                    topic={topic}
+                    registerMessageElement={registerMessageElement}
+                  />
+                )}
+                style={{ flex: 1, minHeight: 0 }}
+              />
+              {isLoadingMore && (
+                <div
+                  className="pointer-events-none flex w-full justify-center py-2.5"
+                  style={{ background: 'var(--color-background)' }}>
+                  <LoadingIcon color="var(--color-foreground-secondary)" />
+                </div>
               )}
-              style={{ flex: 1, minHeight: 0 }}
-            />
-            {isLoadingMore && (
-              <div
-                className="pointer-events-none flex w-full justify-center py-2.5"
-                style={{ background: 'var(--color-background)' }}>
-                <LoadingIcon color="var(--color-foreground-secondary)" />
-              </div>
-            )}
-          </div>
-        </SelectionContextMenu>
-      </NarrowLayout>
-      {messageNavigation === 'anchor' && (
-        <MessageAnchorLine
-          messages={messages}
-          scrollToMessageId={scrollToMessageById}
-          scrollToBottom={scrollToBottom}
-        />
-      )}
-      {meta.selectionLayer && (
-        <SelectionBox
-          isMultiSelectMode={isMultiSelectMode}
-          scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
-          messageElements={messageElements.current}
-          handleSelectMessage={(messageId, selected) => actions.selectMessage?.(messageId, selected)}
-        />
-      )}
-    </MessagesContainer>
+            </div>
+          </SelectionContextMenu>
+        </NarrowLayout>
+        {messageNavigation === 'anchor' && (
+          <MessageAnchorLine
+            messages={messages}
+            scrollToMessageId={scrollToMessageById}
+            scrollToBottom={scrollToBottom}
+          />
+        )}
+        {meta.selectionLayer && (
+          <SelectionBox
+            isMultiSelectMode={isMultiSelectMode}
+            scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
+            messageElements={messageElements.current}
+            handleSelectMessage={(messageId, selected) => actions.selectMessage?.(messageId, selected)}
+          />
+        )}
+      </MessagesContainer>
+    </PartsProvider>
   )
 }
 

@@ -9,24 +9,24 @@ import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useV2Chat } from '@renderer/hooks/V2ChatContext'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic, TranslateLangCode } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
 import { filterSupportedFiles } from '@renderer/utils/file'
 import { updateCodeBlock } from '@renderer/utils/markdown'
-import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
-import type { CherryMessagePart } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { last } from 'lodash'
 import { use, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { resolvePartFromParts, usePartsMap } from '../blocks'
+import { resolvePartFromParts } from '../blocks'
 import type {
   MessageGroupRuntime,
+  MessageListItem,
   MessageListProviderValue,
   MessageListRuntime,
   MessageRuntime,
   MessageUiState
 } from '../types'
+import { modelToSnapshot, toMessageListItem } from '../utils/messageListItem'
 import { useMessageActivityState } from './useMessageActivityState'
 import { useMessageListRenderConfig } from './useMessageListRenderConfig'
 
@@ -34,7 +34,8 @@ const logger = loggerService.withContext('HomeMessageListAdapter')
 
 interface HomeMessageListParams {
   topic: Topic
-  messages: Message[]
+  messages: CherryUIMessage[]
+  partsByMessageId: Record<string, CherryMessagePart[]>
   loadOlder?: () => void
   hasOlder?: boolean
   onComponentUpdate?(): void
@@ -44,31 +45,43 @@ interface HomeMessageListParams {
 export function useHomeMessageListProviderValue({
   topic,
   messages,
+  partsByMessageId,
   loadOlder,
   hasOlder = false,
   onComponentUpdate,
   onFirstUpdate
 }: HomeMessageListParams): MessageListProviderValue {
-  const { assistant } = useAssistant(topic.assistantId)
+  const { assistant, model } = useAssistant(topic.assistantId)
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
-  const partsMap = usePartsMap()
   const v2Chat = useV2Chat()
   const siblingsContext = use(SiblingsContext)
   const { isMultiSelectMode, selectedMessageIds, handleSelectMessage, toggleMultiSelectMode } = useChatContext(topic)
-  const getMessageActivityState = useMessageActivityState(topic.id, partsMap)
+  const getMessageActivityState = useMessageActivityState(topic.id, partsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
 
-  const messagesRef = useRef<Message[]>(messages)
-  const partsMapRef = useRef(partsMap)
+  const messageItems = useMemo(
+    () =>
+      messages.map((message) =>
+        toMessageListItem(message, {
+          assistantId: assistant?.id ?? topic.assistantId,
+          topicId: topic.id,
+          modelFallback: modelToSnapshot(model)
+        })
+      ),
+    [assistant?.id, messages, model, topic.assistantId, topic.id]
+  )
+
+  const messagesRef = useRef<MessageListItem[]>(messageItems)
+  const partsByMessageIdRef = useRef(partsByMessageId)
 
   useEffect(() => {
-    messagesRef.current = messages
-  }, [messages])
+    messagesRef.current = messageItems
+  }, [messageItems])
 
   useEffect(() => {
-    partsMapRef.current = partsMap
-  }, [partsMap])
+    partsByMessageIdRef.current = partsByMessageId
+  }, [partsByMessageId])
 
   const clearTopic = useCallback(
     async (data: Topic) => {
@@ -99,17 +112,17 @@ export function useHomeMessageListProviderValue({
   useEffect(() => {
     if (!assistant) return
     onFirstUpdate?.()
-  }, [assistant, messages, onFirstUpdate])
+  }, [assistant, messageItems, onFirstUpdate])
 
   useEffect(() => {
     requestAnimationFrame(() => onComponentUpdate?.())
   }, [onComponentUpdate])
 
   useShortcut('chat.copy_last_message', () => {
-    const lastMessage = last(messages)
+    const lastMessage = last(messageItems)
     if (lastMessage) {
-      const parts = partsMap?.[lastMessage.id]
-      const text = parts ? getTextFromParts(parts) : getMainTextContent(lastMessage)
+      const parts = partsByMessageIdRef.current[lastMessage.id] ?? []
+      const text = getTextFromParts(parts)
       void navigator.clipboard.writeText(text)
       window.toast.success(t('message.copy.success'))
     }
@@ -166,11 +179,11 @@ export function useHomeMessageListProviderValue({
       const { msgBlockId, codeBlockId, newContent } = data
 
       try {
-        const resolved = partsMapRef.current && resolvePartFromParts(partsMapRef.current, msgBlockId)
+        const resolved = resolvePartFromParts(partsByMessageIdRef.current, msgBlockId)
         if (resolved && resolved.part.type === 'text') {
           const textPart = resolved.part as { text?: string }
           const updatedText = updateCodeBlock(textPart.text || '', codeBlockId, newContent)
-          const allParts = [...(partsMapRef.current![resolved.messageId] || [])]
+          const allParts = [...(partsByMessageIdRef.current[resolved.messageId] || [])]
           allParts[resolved.index] = { ...resolved.part, text: updatedText } as CherryMessagePart
           await dataApiService.patch(`/messages/${resolved.messageId}`, {
             body: { data: { parts: allParts } }
@@ -240,7 +253,7 @@ export function useHomeMessageListProviderValue({
     ): Promise<((accumulatedText: string, isComplete?: boolean) => void) | null> => {
       if (!topic.id || !v2Chat) return null
 
-      const currentParts = partsMapRef.current?.[messageId]
+      const currentParts = partsByMessageIdRef.current[messageId]
       if (!currentParts) {
         logger.error(`[getTranslationUpdater] cannot find parts for message: ${messageId}`)
         return null
@@ -284,7 +297,8 @@ export function useHomeMessageListProviderValue({
     () => ({
       state: {
         topic,
-        messages,
+        messages: messageItems,
+        partsByMessageId,
         hasOlder,
         messageNavigation,
         estimateSize: 600,
@@ -321,7 +335,7 @@ export function useHomeMessageListProviderValue({
         deleteMessage: (messageId, traceOptions) => v2Chat?.deleteMessage(messageId, traceOptions),
         startMessageBranch: (messageId) => v2Chat?.setActiveNode(messageId),
         setActiveBranch: (messageId: string) => v2Chat?.setActiveBranch(messageId),
-        deleteMessageGroup: (askId: string) => v2Chat?.deleteMessageGroup(askId),
+        deleteMessageGroup: (parentId: string) => v2Chat?.deleteMessageGroup(parentId),
         regenerateMessage: (messageId: string) => v2Chat?.regenerate(messageId),
         regenerateMessageWithModel: (messageId, modelId, modelSnapshot) =>
           v2Chat?.regenerate(messageId, { modelId, modelSnapshot }),
@@ -347,7 +361,8 @@ export function useHomeMessageListProviderValue({
       loadOlder,
       locateMessage,
       messageNavigation,
-      messages,
+      messageItems,
+      partsByMessageId,
       saveCodeBlock,
       selectedMessageIds,
       selectFiles,

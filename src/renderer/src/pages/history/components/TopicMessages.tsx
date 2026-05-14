@@ -3,7 +3,6 @@ import { RowFlex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
-import { PartsProvider } from '@renderer/components/chat/messages/blocks'
 import MessageGroup from '@renderer/components/chat/messages/list/MessageGroup'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
@@ -23,6 +22,9 @@ import { Forward } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import styled from 'styled-components'
+
+import { HistoryMessageListProvider } from './HistoryMessageListProvider'
+import { legacyMessageToListItem } from './legacyMessageListItem'
 
 interface Props extends React.HTMLAttributes<HTMLDivElement> {
   topic?: Topic
@@ -50,8 +52,11 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
   const isEmpty = (topic?.messages || []).length === 0
   const groupedMessages = useMemo(() => {
     if (!topic?.messages?.length) return []
-    return Object.entries(getGroupedMessages(topic.messages))
+    return Object.entries(getGroupedMessages(topic.messages)).map(
+      ([key, groupMessages]) => [key, groupMessages.map(legacyMessageToListItem)] as const
+    )
   }, [topic?.messages])
+  const messageItems = useMemo(() => groupedMessages.flatMap(([, messages]) => messages), [groupedMessages])
 
   const partsMap = useMemo(() => {
     const map: Record<string, CherryMessagePart[]> = {}
@@ -82,11 +87,13 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
 
   return (
     <MessageEditingProvider>
-      <PartsProvider value={partsMap}>
+      <HistoryMessageListProvider topic={topic} messages={messageItems} partsByMessageId={partsMap}>
         <MessagesContainer {...props} ref={containerRef} onScroll={handleScroll}>
           <ContainerWrapper className={messageStyle}>
             {groupedMessages.map(([key, groupMessages]) => {
-              const locateMessage = groupMessages[0] as Message | undefined
+              const locateMessage = topic.messages.find((message) => message.id === groupMessages[0]?.id) as
+                | Message
+                | undefined
               const wrapperRole = groupMessages[0]?.role
 
               return (
@@ -115,7 +122,7 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
             )}
           </ContainerWrapper>
         </MessagesContainer>
-      </PartsProvider>
+      </HistoryMessageListProvider>
     </MessageEditingProvider>
   )
 }

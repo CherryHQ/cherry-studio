@@ -1,5 +1,4 @@
-import type { Message } from '@renderer/types/newMessage'
-import type { CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { render, screen, waitFor } from '@testing-library/react'
 import { act, type ReactNode, useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -73,8 +72,11 @@ vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
 }))
 
 vi.mock('@renderer/components/chat/messages/adapters/homeMessageListAdapter', () => ({
-  useHomeMessageListProviderValue: (params: { messages: Message[] }) => ({
-    state: { messages: params.messages },
+  useHomeMessageListProviderValue: (params: {
+    messages: CherryUIMessage[]
+    partsByMessageId: Record<string, CherryMessagePart[]>
+  }) => ({
+    state: { messages: params.messages, partsByMessageId: params.partsByMessageId },
     actions: {},
     meta: {}
   })
@@ -83,7 +85,7 @@ vi.mock('@renderer/components/chat/messages/adapters/homeMessageListAdapter', ()
 vi.mock('@renderer/components/chat/messages/MessageList', () => ({
   default: () => (
     <div data-testid="messages">
-      {mockMessageListValue.current?.state.messages.map((message: Message) => message.id).join(',')}
+      {mockMessageListValue.current?.state.messages.map((message: CherryUIMessage) => message.id).join(',')}
     </div>
   )
 }))
@@ -99,7 +101,7 @@ vi.mock('@renderer/components/chat/messages/stream/ExecutionStreamCollector', ()
     useEffect(() => {
       onMessagesChange(executionId, [
         {
-          id: `live-${executionId}`,
+          id: executionId,
           role: 'assistant',
           parts: [{ type: 'text', text: `reply-${executionId}` }],
           metadata: { createdAt: '2026-01-02T00:00:00.000Z' }
@@ -216,7 +218,7 @@ describe('V2ChatContent', () => {
   it('renders only uiMessages in the list (execution overlay affects parts, not the list itself)', async () => {
     // Core architectural contract post-refactor: the rendered list is a
     // projection of `uiMessages` (DB truth). Overlay from an active
-    // ExecutionStreamCollector updates `partsMap` but never adds entries
+    // ExecutionStreamCollector updates `partsByMessageId` but never adds entries
     // to the message list — any streaming bubble must already exist in
     // uiMessages as a pending placeholder (Main reserves before streaming).
     mockUseTopicMessagesV2.mockReturnValue({

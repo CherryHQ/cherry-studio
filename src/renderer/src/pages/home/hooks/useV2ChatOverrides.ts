@@ -17,7 +17,6 @@ import { loggerService } from '@logger'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import type { V2ChatOverrides } from '@renderer/hooks/V2ChatContext'
 import type { Topic } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
 import { DataApiError, ErrorCode } from '@shared/data/api'
 import type {
   BranchMessagesResponse,
@@ -36,7 +35,6 @@ const logger = loggerService.withContext('useV2ChatOverrides')
 interface Params {
   topic: Topic
   uiMessages: CherryUIMessage[]
-  projectedMessages: Message[]
   regenerate: (options?: ChatRequestOptions & { messageId?: string }) => Promise<void>
   setMessages: (messages: CherryUIMessage[] | ((messages: CherryUIMessage[]) => CherryUIMessage[])) => void
   stop: () => Promise<void>
@@ -52,7 +50,7 @@ interface Result {
 }
 
 export function useV2ChatOverrides(params: Params): Result {
-  const { topic, uiMessages, projectedMessages, regenerate, setMessages, stop, refresh, cache } = params
+  const { topic, uiMessages, regenerate, setMessages, stop, refresh, cache } = params
   const { assistant } = useAssistant(topic.assistantId)
   const {
     branchWithoutIds,
@@ -110,7 +108,7 @@ export function useV2ChatOverrides(params: Params): Result {
   )
 
   const handleClearTopicMessages = useCallback(async () => {
-    const rootMsg = projectedMessages.find((m: Message) => !m.askId)
+    const rootMsg = uiMessages.find((m) => m.metadata?.parentId == null) ?? uiMessages[0]
     if (!rootMsg) return
     await clearBranchCache()
     try {
@@ -120,7 +118,7 @@ export function useV2ChatOverrides(params: Params): Result {
       await rollbackBranch()
       throw err
     }
-  }, [projectedMessages, clearBranchCache, deleteMessageTrigger, rollbackBranch, topic.id])
+  }, [uiMessages, clearBranchCache, deleteMessageTrigger, rollbackBranch, topic.id])
 
   const handleEditMessage = useCallback<V2ChatOverrides['editMessage']>(
     async (messageId, editedParts) => {

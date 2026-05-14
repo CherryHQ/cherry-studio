@@ -1,8 +1,8 @@
 import { LoadingOutlined } from '@ant-design/icons'
 import { PartsProvider } from '@renderer/components/chat/messages/blocks'
+import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import Scrollbar from '@renderer/components/Scrollbar'
 import type { Assistant } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { FC } from 'react'
 import styled from 'styled-components'
@@ -13,17 +13,17 @@ interface Props {
   assistant: Assistant
   route: string
   isOutputted: boolean
-  messages: Message[]
-  partsMap: Record<string, CherryMessagePart[]>
+  messages: MessageListItem[]
+  partsByMessageId: Record<string, CherryMessagePart[]>
 }
 
 interface ContainerProps {
   right?: boolean
 }
 
-const Messages: FC<Props> = ({ assistant, route, isOutputted, messages, partsMap }) => {
+const Messages: FC<Props> = ({ assistant, route, isOutputted, messages, partsByMessageId }) => {
   return (
-    <PartsProvider value={partsMap}>
+    <PartsProvider value={partsByMessageId}>
       <Container id="messages" key={assistant.id}>
         {!isOutputted && <LoadingOutlined style={{ fontSize: 16 }} spin />}
         {[...messages].reverse().map((message, index) => (

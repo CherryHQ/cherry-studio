@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
 import { useAgentMessageListProviderValue } from '@renderer/components/chat/messages/adapters/agentMessageListAdapter'
-import { PartsProvider } from '@renderer/components/chat/messages/blocks'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -8,9 +7,8 @@ import { useSession } from '@renderer/hooks/agents/useSessionDataApi'
 import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
 import type { GetAgentResponse, Topic, TopicType as TopicTypeEnum } from '@renderer/types'
 import { TopicType } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import type { CherryMessagePart } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import type { PropsWithChildren } from 'react'
 import { memo, useMemo } from 'react'
 
@@ -19,9 +17,10 @@ const logger = loggerService.withContext('AgentSessionMessages')
 type Props = {
   agentId: string
   sessionId: string
-  adaptedMessages: Message[]
+  messages: CherryUIMessage[]
   activeAgent?: GetAgentResponse
-  partsMap: Record<string, CherryMessagePart[]>
+  partsByMessageId: Record<string, CherryMessagePart[]>
+  modelFallback?: ModelSnapshot
   isLoading: boolean
   /** Whether more older messages remain on the server (cursor pagination). */
   hasOlder?: boolean
@@ -32,9 +31,10 @@ type Props = {
 const AgentSessionMessages = ({
   agentId,
   sessionId,
-  adaptedMessages,
+  messages,
   activeAgent,
-  partsMap,
+  partsByMessageId,
+  modelFallback,
   isLoading,
   hasOlder = false,
   loadOlder
@@ -63,34 +63,34 @@ const AgentSessionMessages = ({
 
   const messageList = useAgentMessageListProviderValue({
     topic: derivedTopic,
-    messages: adaptedMessages,
+    messages,
+    partsByMessageId,
     assistantProfile: activeAgent
       ? {
           name: activeAgent.name,
           avatar: activeAgent.configuration?.avatar
         }
       : undefined,
+    assistantId: agentId,
+    modelFallback,
     isLoading,
     hasOlder,
     loadOlder,
-    messageNavigation,
-    partsMap
+    messageNavigation
   })
 
   logger.silly('Rendering agent session messages', {
     sessionId,
-    messageCount: adaptedMessages.length,
+    messageCount: messages.length,
     hasOlder
   })
 
   return (
-    <PartsProvider value={partsMap}>
-      <AgentSessionChatContextBridge topic={derivedTopic}>
-        <MessageListProvider value={messageList}>
-          <MessageList />
-        </MessageListProvider>
-      </AgentSessionChatContextBridge>
-    </PartsProvider>
+    <AgentSessionChatContextBridge topic={derivedTopic}>
+      <MessageListProvider value={messageList}>
+        <MessageList />
+      </MessageListProvider>
+    </AgentSessionChatContextBridge>
   )
 }
 

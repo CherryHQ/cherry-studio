@@ -10,7 +10,6 @@ import FileManager from '@renderer/services/FileManager'
 import PasteService from '@renderer/services/PasteService'
 import type { FileMetadata } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
 import { getFilesFromDropEvent, isSendMessageKeyPressed } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
@@ -22,10 +21,11 @@ import { useTranslation } from 'react-i18next'
 
 import { useMessageParts } from '../blocks'
 import { useMessageList } from '../MessageListProvider'
+import type { MessageListItem } from '../types'
 import { MessageAttachmentButton, MessageAttachmentPreview } from './MessageAttachmentPreview'
 
 interface Props {
-  message: Message
+  message: MessageListItem
   onSave: (parts: CherryMessagePart[]) => void
   onResend: (parts: CherryMessagePart[]) => void
   onCancel: () => void

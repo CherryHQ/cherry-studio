@@ -15,8 +15,6 @@ import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { FILE_TYPE } from '@renderer/types/file'
-import type { Message } from '@renderer/types/newMessage'
-import { isMessageAwaitingApproval, isMessageProcessing } from '@renderer/utils/messageUtils/is'
 import { convertReferencesToCitations, convertReferencesToLegacyCitations } from '@renderer/utils/partsToBlocks'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ErrorPartData, VideoPartData } from '@shared/data/types/uiParts'
@@ -27,6 +25,8 @@ import MessageAttachments from '../frame/MessageAttachments'
 import MessageVideo from '../frame/MessageVideo'
 import MessageTools from '../tools/MessageTools'
 import { buildToolResponseFromPart, type ToolRenderItem } from '../tools/toolResponse'
+import type { MessageListItem } from '../types'
+import { isMessageListItemAwaitingApproval, isMessageListItemProcessing } from '../utils/messageListItem'
 import BlockErrorFallback from './BlockErrorFallback'
 import CompactBlock from './CompactBlock'
 import ErrorBlock from './ErrorBlock'
@@ -84,7 +84,7 @@ const AnimatedBlockWrapper: React.FC<{ children: React.ReactNode; enableAnimatio
 // ============================================================================
 
 interface Props {
-  message: Message
+  message: MessageListItem
 }
 
 // ============================================================================
@@ -200,7 +200,7 @@ const ErrorPartView = React.memo(function ErrorPartView({
 }: {
   partId: string
   rawData: ErrorPartData
-  message: Message
+  message: MessageListItem
 }) {
   const error = useMemo(
     () => ({
@@ -219,7 +219,12 @@ const ErrorPartView = React.memo(function ErrorPartView({
  *
  * Data extraction happens HERE — leaf components receive pure view props only.
  */
-function renderPart(part: CherryMessagePart, partId: string, message: Message, isStreaming: boolean): React.ReactNode {
+function renderPart(
+  part: CherryMessagePart,
+  partId: string,
+  message: MessageListItem,
+  isStreaming: boolean
+): React.ReactNode {
   const partType = part.type as string
 
   switch (partType) {
@@ -408,7 +413,7 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   // on a tool-approval-request waiting for the user. The latter is
   // semantically "expecting input", which the loader's pulse conveys
   // better than "frozen with no UI cue".
-  const isProcessing = isMessageProcessing(message) || isMessageAwaitingApproval(message)
+  const isProcessing = isMessageListItemProcessing(message) || isMessageListItemAwaitingApproval(message, messageParts)
 
   // No parts to render — normal for user messages (content is in message text, not parts)
   // But if the message is processing (pending/streaming), show the loading placeholder

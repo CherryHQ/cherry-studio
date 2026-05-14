@@ -1,9 +1,9 @@
-import type { Message } from '@renderer/types/newMessage'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { render, screen } from '@testing-library/react'
 import React from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
+import type { MessageListItem } from '../../types'
 import { PartsProvider } from '../MessagePartsContext'
 
 // ============================================================================
@@ -130,20 +130,18 @@ vi.mock('../PlaceholderBlock', () => ({ __esModule: true, default: () => null })
 
 import MessagePartsRenderer from '../MessagePartsRenderer'
 
-const msg = (overrides: Partial<Message> = {}): Message =>
+const msg = (overrides: Partial<MessageListItem> = {}): MessageListItem =>
   ({
     id: 'msg-1',
     role: 'assistant',
     assistantId: 'a',
     topicId: 't',
     createdAt: '2026-01-01T00:00:00Z',
-    type: 'text',
     status: 'success',
-    blocks: [],
     ...overrides
-  }) as Message
+  }) as MessageListItem
 
-const renderParts = (parts: CherryMessagePart[], message?: Message) => {
+const renderParts = (parts: CherryMessagePart[], message?: MessageListItem) => {
   const m = message ?? msg()
   return render(
     <PartsProvider value={{ [m.id]: parts }}>

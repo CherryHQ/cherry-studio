@@ -8,20 +8,20 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { Assistant, Model, Topic } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
 import { classNames, cn, isEmoji } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import dayjs from 'dayjs'
-import type { Dispatch, FC, SetStateAction } from 'react'
+import type { FC } from 'react'
 import React, { memo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import SiblingNavigator from '../list/SiblingNavigator'
 import { useMessageList } from '../MessageListProvider'
-import { defaultMessageRenderConfig } from '../types'
+import { defaultMessageRenderConfig, type MessageListItem } from '../types'
+import { getMessageListItemModel } from '../utils/messageListItem'
 import MessageContent from './MessageContent'
 import MessageEditor from './MessageEditor'
 import MessageErrorBoundary from './MessageErrorBoundary'
@@ -30,7 +30,7 @@ import MessageMenuBar from './MessageMenuBar'
 import MessageOutline from './MessageOutline'
 
 interface Props {
-  message: Message
+  message: MessageListItem
   topic: Topic
   assistant?: Assistant
   index?: number
@@ -39,7 +39,6 @@ interface Props {
   style?: React.CSSProperties
   isGrouped?: boolean
   isStreaming?: boolean
-  onSetMessages?: Dispatch<SetStateAction<Message[]>>
   onUpdateUseful?: (msgId: string) => void
   isGroupContextMessage?: boolean
   isHorizontalMultiModelLayout?: boolean
@@ -77,7 +76,7 @@ const MessageItem: FC<Props> = ({
   const isMultiSelectMode = state.selection?.isMultiSelectMode ?? false
   // Use the message-embedded snapshot rather than re-resolving the live model
   // config: the snapshot is what the message was actually generated with.
-  const model = message.model
+  const model = getMessageListItemModel(message)
 
   const messageFont = renderConfig.messageFont
   const fontSize = renderConfig.fontSize
@@ -324,7 +323,7 @@ const UserBubbleMessage = ({
   messageFont,
   fontSize
 }: {
-  message: Message
+  message: MessageListItem
   model?: Model
   topic: Topic
   isLastMessage: boolean

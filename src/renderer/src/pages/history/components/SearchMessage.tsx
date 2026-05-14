@@ -10,9 +10,12 @@ import type { Message } from '@renderer/types/newMessage'
 import { runAsyncFunction } from '@renderer/utils'
 import { Forward } from 'lucide-react'
 import type { FC } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+import { HistoryMessageListProvider } from './HistoryMessageListProvider'
+import { legacyMessageToListItem } from './legacyMessageListItem'
 
 interface Props extends React.HTMLAttributes<HTMLDivElement> {
   message?: Message
@@ -32,6 +35,9 @@ const SearchMessage: FC<Props> = ({ message, ...props }) => {
     })
   }, [message])
 
+  const messageItem = useMemo(() => (message ? legacyMessageToListItem(message) : null), [message])
+  const partsByMessageId = useMemo(() => (message ? { [message.id]: message.parts ?? [] } : {}), [message])
+
   if (!message) {
     return null
   }
@@ -42,23 +48,28 @@ const SearchMessage: FC<Props> = ({ message, ...props }) => {
 
   return (
     <MessageEditingProvider>
-      <MessagesContainer {...props}>
-        <ContainerWrapper>
-          <MessageItem message={message} topic={topic} hideMenuBar={true} />
-          <Button
-            variant="ghost"
-            className="absolute top-4 right-4 text-[var(--color-text-3)]"
-            onClick={() => locateToMessage(navigate, message)}>
-            <Forward size={16} />
-          </Button>
-          <RowFlex className="mt-[10px] justify-center">
-            <Button onClick={() => locateToMessage(navigate, message)}>
+      <HistoryMessageListProvider
+        topic={topic}
+        messages={messageItem ? [messageItem] : []}
+        partsByMessageId={partsByMessageId}>
+        <MessagesContainer {...props}>
+          <ContainerWrapper>
+            {messageItem && <MessageItem message={messageItem} topic={topic} hideMenuBar={true} />}
+            <Button
+              variant="ghost"
+              className="absolute top-4 right-4 text-[var(--color-text-3)]"
+              onClick={() => locateToMessage(navigate, message)}>
               <Forward size={16} />
-              {t('history.locate.message')}
             </Button>
-          </RowFlex>
-        </ContainerWrapper>
-      </MessagesContainer>
+            <RowFlex className="mt-[10px] justify-center">
+              <Button onClick={() => locateToMessage(navigate, message)}>
+                <Forward size={16} />
+                {t('history.locate.message')}
+              </Button>
+            </RowFlex>
+          </ContainerWrapper>
+        </MessagesContainer>
+      </HistoryMessageListProvider>
     </MessageEditingProvider>
   )
 }

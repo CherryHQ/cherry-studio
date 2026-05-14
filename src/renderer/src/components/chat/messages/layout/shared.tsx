@@ -8,7 +8,7 @@ import type { ComponentPropsWithoutRef } from 'react'
  * handles its own scroll-to-bottom semantics.
  */
 export const ScrollContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex flex-col px-2.5 pt-2.5 pb-5 in-[.multi-select-mode]:pb-15', className)} {...props} />
+  <div className={cn('flex flex-col px-2.5 pt-2.5 in-[.multi-select-mode]:pb-15 pb-5', className)} {...props} />
 )
 
 interface ContainerProps {

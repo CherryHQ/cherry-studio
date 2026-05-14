@@ -1,6 +1,7 @@
 import { ChatAppShell, type ChatPanePosition, LoadingState } from '@renderer/components/chat'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
+import { useMessagePartsById } from '@renderer/components/chat/messages/stream/useMessagePartsById'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -15,17 +16,15 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import ChatNavigation from '@renderer/pages/agents/components/ChatNavigation'
 import type { GetAgentResponse } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'
+import type { ModelSnapshot } from '@shared/data/types/message'
 import type { PropsWithChildren, ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import SettingsPanel from '../chat-settings/SettingsPanel'
 import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
-import { uiToMessage } from '../home/uiToMessage'
 import AgentChatNavbar from './components/AgentChatNavbar'
 import AgentSessionInputbar from './components/AgentSessionInputbar'
 import AgentSessionMessages from './components/AgentSessionMessages'
@@ -141,14 +140,6 @@ const AgentChatInner = ({
   const { messages: uiMessages, isLoading, hasOlder, loadOlder, refresh } = useAgentSessionParts(agentId, sessionId)
   const chat = useChatWithHistory(sessionTopicId, uiMessages, refresh)
 
-  // ── Rendering pipeline ────────────────────────────────────────────
-  //
-  // Mirrors V2ChatContent: uiMessages (agents.db snapshot) projected
-  // into renderer Messages; streaming parts overlaid via per-execution
-  // collectors. Main always tags chunks with the execution's modelId so
-  // the collector's useChat receives them; primary useChat here is a
-  // trigger-only wrapper (sendMessage/stop) and its `state.messages`
-  // does not drive the visible list.
   const fallbackSnapshot = useMemo<ModelSnapshot | undefined>(() => {
     const modelString = activeAgent?.model
     if (!modelString) return undefined
@@ -157,39 +148,10 @@ const AgentChatInner = ({
     return { id, name: id, provider }
   }, [activeAgent?.model])
 
-  const projectedMessages = useMemo<Message[]>(
-    () =>
-      uiMessages.map((m) =>
-        uiToMessage(m, {
-          assistantId: agentId,
-          topicId: sessionTopicId,
-          modelFallback: fallbackSnapshot
-        })
-      ),
-    [uiMessages, agentId, sessionTopicId, fallbackSnapshot]
-  )
-
-  const basePartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
-    const map: Record<string, CherryMessagePart[]> = {}
-    for (const m of uiMessages) map[m.id] = (m.parts ?? []) as CherryMessagePart[]
-    return map
-  }, [uiMessages])
-
   const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } = useExecutionMessages()
+  const partsByMessageId = useMessagePartsById(uiMessages, executionMessagesById)
 
   const executionChats = useExecutionChats(sessionTopicId, chat.activeExecutions)
-
-  const mergedPartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
-    const next = { ...basePartsMap }
-    for (const execMessages of Object.values(executionMessagesById)) {
-      for (const uiMessage of execMessages) {
-        if (uiMessage.role === 'assistant' && uiMessage.parts?.length) {
-          next[uiMessage.id] = uiMessage.parts as CherryMessagePart[]
-        }
-      }
-    }
-    return next
-  }, [basePartsMap, executionMessagesById])
 
   const { isPending } = useTopicStreamStatus(sessionTopicId)
 
@@ -229,16 +191,17 @@ const AgentChatInner = ({
           <AgentSessionMessages
             agentId={agentId}
             sessionId={sessionId}
-            adaptedMessages={projectedMessages}
+            messages={uiMessages}
             activeAgent={activeAgent}
-            partsMap={mergedPartsMap}
+            partsByMessageId={partsByMessageId}
+            modelFallback={fallbackSnapshot}
             isLoading={isLoading}
             hasOlder={hasOlder}
             loadOlder={loadOlder}
           />
           <div className="mt-auto px-4.5 pb-2">
             <NarrowLayout narrowMode={narrowMode}>
-              <PinnedTodoPanel messages={projectedMessages} partsMap={mergedPartsMap} />
+              <PinnedTodoPanel messages={uiMessages} partsByMessageId={partsByMessageId} />
             </NarrowLayout>
           </div>
           {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}

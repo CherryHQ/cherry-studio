@@ -1,16 +1,15 @@
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import type { Message } from '@renderer/types/newMessage'
-import { isMessageAwaitingApproval } from '@renderer/utils/messageUtils/is'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { isToolUIPart } from 'ai'
 import { useCallback, useMemo } from 'react'
 
-import type { MessageActivityState } from '../types'
+import type { MessageActivityState, MessageListItem } from '../types'
+import { isMessageListItemAwaitingApproval } from '../utils/messageListItem'
 
 export function useMessageActivityState(
   topicId: string,
   partsMap?: Record<string, CherryMessagePart[]> | null
-): (message: Message) => MessageActivityState {
+): (message: MessageListItem) => MessageActivityState {
   const { status: topicStreamStatus, activeExecutions } = useTopicStreamStatus(topicId)
   const isTopicStreaming = topicStreamStatus === 'pending' || topicStreamStatus === 'streaming'
 
@@ -27,11 +26,11 @@ export function useMessageActivityState(
   }, [isTopicStreaming, partsMap])
 
   return useCallback(
-    (message: Message) => ({
+    (message: MessageListItem) => ({
       isProcessing: isTopicStreaming || isAwaitingApproval,
       isStreamTarget: activeExecutions.some((execution) => execution.anchorMessageId === message.id),
-      isApprovalAnchor: isMessageAwaitingApproval(message)
+      isApprovalAnchor: isMessageListItemAwaitingApproval(message, partsMap?.[message.id] ?? [])
     }),
-    [activeExecutions, isAwaitingApproval, isTopicStreaming]
+    [activeExecutions, isAwaitingApproval, isTopicStreaming, partsMap]
   )
 }

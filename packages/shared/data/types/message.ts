@@ -130,9 +130,8 @@ export interface CherryUIMessageMetadata {
   // ── DB-backed tree/ownership (populated by `toUIMessage` from the branch
   //    response, or seeded locally when pushing a placeholder before the
   //    first refresh completes). Keeping these on the message itself means
-  //    `adaptedMessages` and every other consumer can read directly from
-  //    `message.metadata` without a parallel `metadataMap` lookup that
-  //    lags behind state.messages.
+  //    shared message-list consumers can read directly from `message.metadata`
+  //    without a parallel `metadataMap` lookup that lags behind state.messages.
   /** `parent_id` of the persisted row; drives `askId` / tree walks. */
   parentId?: string | null
   /** Non-zero for messages that belong to a regenerate/multi-model cohort. */
@@ -162,6 +161,8 @@ export interface CherryUIMessageMetadata {
   thoughtsTokens?: number
   /** Full persisted stats (tokens + durations) when available. */
   stats?: MessageStats
+  /** Trace span id associated with the persisted message row. */
+  traceId?: string | null
 }
 
 /** Cherry Studio's UIMessage with custom metadata and data part types. */

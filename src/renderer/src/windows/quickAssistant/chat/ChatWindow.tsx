@@ -1,6 +1,6 @@
+import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import Scrollbar from '@renderer/components/Scrollbar'
 import type { Assistant } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { FC } from 'react'
 import styled from 'styled-components'
@@ -10,16 +10,22 @@ interface Props {
   route: string
   assistant: Assistant | null
   isOutputted: boolean
-  messages: Message[]
-  partsMap: Record<string, CherryMessagePart[]>
+  messages: MessageListItem[]
+  partsByMessageId: Record<string, CherryMessagePart[]>
 }
 
-const ChatWindow: FC<Props> = ({ route, assistant, isOutputted, messages, partsMap }) => {
+const ChatWindow: FC<Props> = ({ route, assistant, isOutputted, messages, partsByMessageId }) => {
   if (!assistant) return null
 
   return (
     <Main className="bubble">
-      <Messages assistant={assistant} route={route} isOutputted={isOutputted} messages={messages} partsMap={partsMap} />
+      <Messages
+        assistant={assistant}
+        route={route}
+        isOutputted={isOutputted}
+        messages={messages}
+        partsByMessageId={partsByMessageId}
+      />
     </Main>
   )
 }
