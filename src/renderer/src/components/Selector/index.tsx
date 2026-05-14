@@ -1,3 +1,3 @@
-export { default } from './LegacySelector'
+export { default } from './BasicSelector'
 export * from './model'
 export * from './resource'
