@@ -534,20 +534,13 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       </>
     ) : undefined
 
-  const footer = onCreateNew ? (
-    <>
-      <div className="border-border border-t" />
-      <button
-        type="button"
-        onClick={() => {
-          closeBeforeAction(onCreateNew)
-        }}
-        className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-muted-foreground text-xs transition-colors hover:bg-accent/60 hover:text-foreground">
-        <Plus size={14} className="shrink-0" />
-        <span className="flex-1">{labels.createNew}</span>
-      </button>
-    </>
-  ) : undefined
+  const bottomAction = onCreateNew
+    ? {
+        icon: <Plus size={14} className="shrink-0" />,
+        label: labels.createNew,
+        onClick: () => closeBeforeAction(onCreateNew)
+      }
+    : undefined
 
   const renderOptionRow = (item: T, flatIndex: number) => {
     const isSelected = selectedSet.has(item.id)
@@ -654,7 +647,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
             }
           : undefined
       }
-      footer={footer}
+      bottomAction={bottomAction}
       contentProps={{
         onKeyDown: handleKeyDown
       }}>

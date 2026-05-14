@@ -1,12 +1,12 @@
 import { loggerService } from '@logger'
-import { useOptionalTabsContext } from '@renderer/context/TabsContext'
-import { useQuery } from '@renderer/data/hooks/useDataApi'
+import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
 import { usePins } from '@renderer/hooks/usePins'
-import { buildLibraryCreateSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
 import { Bot } from 'lucide-react'
-import { type ReactElement, useCallback, useMemo } from 'react'
+import { type ReactElement, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ResourceCreateDialog, type ResourceCreateDialogValues } from './ResourceCreateDialog'
 import { ResourceSelectorShell, type ResourceSelectorShellItem } from './ResourceSelectorShell'
 
 const logger = loggerService.withContext('AgentSelector')
@@ -37,9 +37,24 @@ export type AgentSelectorProps = AgentSelectorSingleIdProps | AgentSelectorSingl
 export function AgentSelector(props: AgentSelectorProps) {
   const { trigger, open, onOpenChange } = props
   const { t } = useTranslation()
-  const openTab = useOptionalTabsContext()?.openTab
+  const modelFilter = useAgentModelFilter('claude-code')
+  const [internalOpen, setInternalOpen] = useState(false)
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const selectorOpen = open ?? internalOpen
+  const handleSelectorOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (open === undefined) {
+        setInternalOpen(nextOpen)
+      }
+      onOpenChange?.(nextOpen)
+    },
+    [onOpenChange, open]
+  )
 
-  const { data, isLoading } = useQuery('/agents', { query: { limit: 500 } })
+  const { data, isLoading, refetch } = useQuery('/agents', { query: { limit: 500 } })
+  const { trigger: createAgent, isLoading: isCreatingAgent } = useMutation('POST', '/agents', {
+    refresh: ['/agents']
+  })
   const {
     isLoading: isPinnedLoading,
     isRefreshing: isPinsRefreshing,
@@ -50,26 +65,13 @@ export function AgentSelector(props: AgentSelectorProps) {
   } = usePins('agent')
   const isPinActionDisabled = isPinnedLoading || isPinsRefreshing || isPinsMutating
 
-  const openLibraryRoute = useCallback(
-    (search: ReturnType<typeof buildLibraryCreateSearch>) => {
-      const url = buildLibraryRouteUrl(search)
-      if (openTab) {
-        openTab(url, { forceNew: true })
-        return
-      }
-
-      void window.navigate({ to: '/app/library', search })
-    },
-    [openTab]
-  )
-
   const items: AgentSelectorItem[] = useMemo(
     () =>
       (data?.items ?? []).map((agent) => ({
         id: agent.id,
         name: agent.name,
         description: agent.description,
-        emoji: agent.configuration?.avatar
+        ...(agent.configuration?.avatar ? { emoji: agent.configuration.avatar } : {})
       })),
     [data]
   )
@@ -87,10 +89,50 @@ export function AgentSelector(props: AgentSelectorProps) {
     [isPinActionDisabled, togglePin, t]
   )
 
+  const handleSubmitCreate = useCallback(
+    async (values: ResourceCreateDialogValues) => {
+      try {
+        await createAgent({
+          body: {
+            type: 'claude-code',
+            name: values.name,
+            model: values.modelId,
+            description: values.description,
+            configuration: { avatar: values.avatar }
+          }
+        })
+      } catch (error) {
+        logger.error('Failed to create agent from selector', error as Error)
+        window.toast?.error(t('selector.create_dialog.submit_failed'))
+        throw error
+      }
+
+      setCreateDialogOpen(false)
+      try {
+        await refetch()
+      } catch (error) {
+        logger.warn('Failed to refresh agents after selector create', { error })
+      }
+      handleSelectorOpenChange(true)
+    },
+    [createAgent, handleSelectorOpenChange, refetch, t]
+  )
+
+  const createDialog = (
+    <ResourceCreateDialog
+      kind="agent"
+      open={createDialogOpen}
+      isSubmitting={isCreatingAgent}
+      onOpenChange={setCreateDialogOpen}
+      onSubmit={handleSubmitCreate}
+      modelFilter={modelFilter}
+    />
+  )
+
   const shared = {
     trigger,
-    open,
-    onOpenChange,
+    open: selectorOpen,
+    onOpenChange: handleSelectorOpenChange,
     // Refetch on every open transition (uncontrolled trigger click + controlled external opens)
     // — ResourceSelectorShell de-duplicates by routing both paths through one effect.
     onOpen: refetchPins,
@@ -100,9 +142,7 @@ export function AgentSelector(props: AgentSelectorProps) {
     emptyState: { preset: 'no-agent' as const },
     onTogglePin: handleTogglePin,
     isPinActionDisabled,
-    onCreateNew: () => {
-      openLibraryRoute(buildLibraryCreateSearch('agent'))
-    },
+    onCreateNew: () => setCreateDialogOpen(true),
     loading: isLoading || isPinnedLoading,
     labels: {
       searchPlaceholder: t('selector.agent.search_placeholder'),
@@ -115,8 +155,18 @@ export function AgentSelector(props: AgentSelectorProps) {
   }
 
   if (props.selectionType === 'item') {
-    return <ResourceSelectorShell {...shared} selectionType="item" value={props.value} onChange={props.onChange} />
+    return (
+      <>
+        <ResourceSelectorShell {...shared} selectionType="item" value={props.value} onChange={props.onChange} />
+        {createDialog}
+      </>
+    )
   }
 
-  return <ResourceSelectorShell {...shared} value={props.value} onChange={props.onChange} />
+  return (
+    <>
+      <ResourceSelectorShell {...shared} value={props.value} onChange={props.onChange} />
+      {createDialog}
+    </>
+  )
 }

@@ -1,11 +1,11 @@
 import { loggerService } from '@logger'
-import { useOptionalTabsContext } from '@renderer/context/TabsContext'
-import { useQuery } from '@renderer/data/hooks/useDataApi'
+import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePins } from '@renderer/hooks/usePins'
-import { buildLibraryCreateSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
-import { type ReactElement, useCallback, useMemo } from 'react'
+import { isSelectableAssistantModel } from '@renderer/pages/library/editor/assistant/modelFilter'
+import { type ReactElement, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ResourceCreateDialog, type ResourceCreateDialogValues } from './ResourceCreateDialog'
 import {
   ResourceSelectorShell,
   type ResourceSelectorShellItem,
@@ -65,11 +65,25 @@ export type AssistantSelectorProps =
 export function AssistantSelector(props: AssistantSelectorProps) {
   const { trigger, open, onOpenChange } = props
   const { t } = useTranslation()
-  const openTab = useOptionalTabsContext()?.openTab
+  const [internalOpen, setInternalOpen] = useState(false)
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const selectorOpen = open ?? internalOpen
+  const handleSelectorOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (open === undefined) {
+        setInternalOpen(nextOpen)
+      }
+      onOpenChange?.(nextOpen)
+    },
+    [onOpenChange, open]
+  )
 
   // `limit: 500` matches ListAssistantsQuerySchema's max; realistic libraries sit well under it.
   // If a user ever exceeds this we should move to usePaginatedQuery + scroll-load inside the popover.
-  const { data, isLoading } = useQuery('/assistants', { query: { limit: 500 } })
+  const { data, isLoading, refetch } = useQuery('/assistants', { query: { limit: 500 } })
+  const { trigger: createAssistant, isLoading: isCreatingAssistant } = useMutation('POST', '/assistants', {
+    refresh: ['/assistants']
+  })
   const {
     isLoading: isPinnedLoading,
     isRefreshing: isPinsRefreshing,
@@ -79,19 +93,6 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     togglePin
   } = usePins('assistant')
   const isPinActionDisabled = isPinnedLoading || isPinsRefreshing || isPinsMutating
-
-  const openLibraryRoute = useCallback(
-    (search: ReturnType<typeof buildLibraryCreateSearch>) => {
-      const url = buildLibraryRouteUrl(search)
-      if (openTab) {
-        openTab(url, { forceNew: true })
-        return
-      }
-
-      void window.navigate({ to: '/app/library', search })
-    },
-    [openTab]
-  )
 
   const items: AssistantSelectorItem[] = useMemo(
     () =>
@@ -131,10 +132,49 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     [isPinActionDisabled, togglePin, t]
   )
 
+  const handleSubmitCreate = useCallback(
+    async (values: ResourceCreateDialogValues) => {
+      try {
+        await createAssistant({
+          body: {
+            name: values.name,
+            emoji: values.avatar,
+            modelId: values.modelId,
+            description: values.description
+          }
+        })
+      } catch (error) {
+        logger.error('Failed to create assistant from selector', error as Error)
+        window.toast?.error(t('selector.create_dialog.submit_failed'))
+        throw error
+      }
+
+      setCreateDialogOpen(false)
+      try {
+        await refetch()
+      } catch (error) {
+        logger.warn('Failed to refresh assistants after selector create', { error })
+      }
+      handleSelectorOpenChange(true)
+    },
+    [createAssistant, handleSelectorOpenChange, refetch, t]
+  )
+
+  const createDialog = (
+    <ResourceCreateDialog
+      kind="assistant"
+      open={createDialogOpen}
+      isSubmitting={isCreatingAssistant}
+      onOpenChange={setCreateDialogOpen}
+      onSubmit={handleSubmitCreate}
+      modelFilter={isSelectableAssistantModel}
+    />
+  )
+
   const shared = {
     trigger,
-    open,
-    onOpenChange,
+    open: selectorOpen,
+    onOpenChange: handleSelectorOpenChange,
     // Refetch on every open transition (uncontrolled trigger click + controlled external opens)
     // — ResourceSelectorShell de-duplicates by routing both paths through one effect.
     onOpen: refetchPins,
@@ -145,9 +185,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     emptyState: { preset: 'no-assistant' as const },
     onTogglePin: handleTogglePin,
     isPinActionDisabled,
-    onCreateNew: () => {
-      openLibraryRoute(buildLibraryCreateSearch('assistant'))
-    },
+    onCreateNew: () => setCreateDialogOpen(true),
     labels: {
       searchPlaceholder: t('selector.assistant.search_placeholder'),
       pin: t('selector.common.pin'),
@@ -166,31 +204,47 @@ export function AssistantSelector(props: AssistantSelectorProps) {
   // without widening.
   if (props.multi === true && props.selectionType === 'item') {
     return (
-      <ResourceSelectorShell
-        {...shared}
-        multi
-        selectionType="item"
-        value={props.value}
-        onChange={props.onChange}
-        multiToggleLabel={multiToggleLabel}
-        multiToggleHint={multiToggleHint}
-      />
+      <>
+        <ResourceSelectorShell
+          {...shared}
+          multi
+          selectionType="item"
+          value={props.value}
+          onChange={props.onChange}
+          multiToggleLabel={multiToggleLabel}
+          multiToggleHint={multiToggleHint}
+        />
+        {createDialog}
+      </>
     )
   }
   if (props.multi === true) {
     return (
-      <ResourceSelectorShell
-        {...shared}
-        multi
-        value={props.value}
-        onChange={props.onChange}
-        multiToggleLabel={multiToggleLabel}
-        multiToggleHint={multiToggleHint}
-      />
+      <>
+        <ResourceSelectorShell
+          {...shared}
+          multi
+          value={props.value}
+          onChange={props.onChange}
+          multiToggleLabel={multiToggleLabel}
+          multiToggleHint={multiToggleHint}
+        />
+        {createDialog}
+      </>
     )
   }
   if (props.selectionType === 'item') {
-    return <ResourceSelectorShell {...shared} selectionType="item" value={props.value} onChange={props.onChange} />
+    return (
+      <>
+        <ResourceSelectorShell {...shared} selectionType="item" value={props.value} onChange={props.onChange} />
+        {createDialog}
+      </>
+    )
   }
-  return <ResourceSelectorShell {...shared} value={props.value} onChange={props.onChange} />
+  return (
+    <>
+      <ResourceSelectorShell {...shared} value={props.value} onChange={props.onChange} />
+      {createDialog}
+    </>
+  )
 }

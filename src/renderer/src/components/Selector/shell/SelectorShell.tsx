@@ -44,6 +44,13 @@ export type SelectorShellMultiSelect = {
   rowTestId?: string
 }
 
+export type SelectorShellBottomAction = {
+  icon?: ReactNode
+  label: ReactNode
+  onClick: () => void
+  disabled?: boolean
+}
+
 export type SelectorShellProps = {
   trigger: ReactNode
   open: boolean
@@ -51,7 +58,7 @@ export type SelectorShellProps = {
   search?: SelectorShellSearch
   filterContent?: ReactNode
   multiSelect?: SelectorShellMultiSelect
-  footer?: ReactNode
+  bottomAction?: SelectorShellBottomAction
   children: ReactNode | ((layout: SelectorShellLayout) => ReactNode)
   contentClassName?: string
   width?: number | string
@@ -92,7 +99,7 @@ export function SelectorShell({
   search,
   filterContent,
   multiSelect,
-  footer,
+  bottomAction,
   children,
   contentClassName,
   width,
@@ -110,7 +117,7 @@ export function SelectorShell({
   const filterRef = useRef<HTMLDivElement | null>(null)
   const multiSelectRef = useRef<HTMLDivElement | null>(null)
   const listBodyRef = useRef<HTMLDivElement | null>(null)
-  const footerRef = useRef<HTMLDivElement | null>(null)
+  const bottomActionRef = useRef<HTMLDivElement | null>(null)
   const measureFrameRef = useRef<number | null>(null)
   const [availableListHeight, setAvailableListHeight] = useState<number | undefined>(undefined)
 
@@ -130,7 +137,7 @@ export function SelectorShell({
     const contentStyles = window.getComputedStyle(contentElement)
     const verticalPadding =
       (parsePixelValue(contentStyles.paddingTop) ?? 0) + (parsePixelValue(contentStyles.paddingBottom) ?? 0)
-    const chromeHeight = [searchRef.current, filterRef.current, multiSelectRef.current, footerRef.current].reduce(
+    const chromeHeight = [searchRef.current, filterRef.current, multiSelectRef.current, bottomActionRef.current].reduce(
       (height, element) => height + (element?.getBoundingClientRect().height ?? 0),
       0
     )
@@ -197,9 +204,9 @@ export function SelectorShell({
     [scheduleMeasureAvailableListHeight]
   )
 
-  const setFooterElement = useCallback(
+  const setBottomActionElement = useCallback(
     (element: HTMLDivElement | null) => {
-      footerRef.current = element
+      bottomActionRef.current = element
       scheduleMeasureAvailableListHeight()
     },
     [scheduleMeasureAvailableListHeight]
@@ -224,7 +231,7 @@ export function SelectorShell({
       filterRef.current,
       multiSelectRef.current,
       listBodyRef.current,
-      footerRef.current
+      bottomActionRef.current
     ].filter((element): element is HTMLDivElement => Boolean(element))
 
     observedElements.forEach((element) => observer.observe(element))
@@ -238,7 +245,7 @@ export function SelectorShell({
       observer.disconnect()
       window.removeEventListener('resize', measureAvailableListHeight)
     }
-  }, [filterContent, footer, measureAvailableListHeight, multiSelect, open, search])
+  }, [bottomAction, filterContent, measureAvailableListHeight, multiSelect, open, search])
 
   useLayoutEffect(() => {
     return () => {
@@ -346,9 +353,17 @@ export function SelectorShell({
         <div ref={setListBodyElement} className="min-h-0 flex-1" data-selector-shell-body="true">
           {body}
         </div>
-        {footer ? (
-          <div ref={setFooterElement} data-selector-shell-chrome="footer">
-            {footer}
+        {bottomAction ? (
+          <div ref={setBottomActionElement} data-selector-shell-chrome="bottom-action">
+            <div className="border-border border-t" />
+            <button
+              type="button"
+              disabled={bottomAction.disabled}
+              onClick={bottomAction.onClick}
+              className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-muted-foreground text-xs transition-colors hover:bg-accent/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50">
+              {bottomAction.icon}
+              <span className="flex-1">{bottomAction.label}</span>
+            </button>
           </div>
         ) : null}
       </PopoverContent>

@@ -4622,6 +4622,19 @@
       },
       "sort_label": "Sort",
       "unpin": "Unpin"
+    },
+    "create_dialog": {
+      "agent_title": "New Agent",
+      "assistant_title": "New Assistant",
+      "avatar_aria": "Choose avatar",
+      "create": "Create",
+      "description_placeholder": "Describe what it is for...",
+      "dialog_description": "Create a lightweight resource from the selector.",
+      "model_placeholder": "Select a model",
+      "model_required": "Please select a model",
+      "name_placeholder": "Enter a name",
+      "name_required": "Please enter a name",
+      "submit_failed": "Create failed"
     }
   },
   "settings": {
