@@ -180,7 +180,7 @@ export const generateToolEnvironment = ({
       env.OPENAI_MODEL = model.id
       break
     case codeTools.openaiCodex:
-      env.OPENAI_API_KEY = apiKey
+      env.CHERRY_CODEX_API_KEY = apiKey
       env.CHERRY_CODEX_BASE_URL = formattedBaseUrl
       env.CHERRY_CODEX_PROVIDER_ID = modelProvider.id
       env.CHERRY_CODEX_PROVIDER_NAME = sanitizeProviderName(getFancyProviderName(modelProvider))

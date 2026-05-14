@@ -1021,7 +1021,7 @@ class CodeToolsService {
         `--config model_provider="${cherryProviderKey}"`,
         `--config model_providers.${cherryProviderKey}.name="${providerName}"`,
         `--config model_providers.${cherryProviderKey}.base_url="${normalizedBaseUrl}"`,
-        `--config model_providers.${cherryProviderKey}.env_key="OPENAI_API_KEY"`,
+        `--config model_providers.${cherryProviderKey}.env_key="CHERRY_CODEX_API_KEY"`,
         `--config model_providers.${cherryProviderKey}.wire_api="responses"`,
         `--config model="${model}"`
       ]
