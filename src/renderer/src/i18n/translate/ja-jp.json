@@ -948,6 +948,10 @@
         },
         "file_filter": "JSONファイル",
         "select_file": "ファイルを選択",
+        "subscribe": {
+          "title": "[to be translated]:Agent Subscription",
+          "url_placeholder": "[to be translated]:Subscription URL"
+        },
         "title": "外部からインポート",
         "type": {
           "file": "ファイル",
@@ -1611,19 +1615,10 @@
     "custom_path_required": "この端末にはカスタムパスを設定する必要があります",
     "custom_path_set": "カスタムターミナルパスの設定が成功しました",
     "description": "開発効率を向上させるために、複数のコード CLI ツールを迅速に起動します",
-    "empty": {
-      "no_match": {
-        "description": "検索語を調整してみてください",
-        "title": "一致するツールが見つかりません"
-      },
-      "no_tool": {
-        "description": "CLIツールまたはコードアシスタントを追加して始めましょう",
-        "title": "コードツールはまだありません"
-      }
-    },
     "env_vars_help": "環境変数を設定して、CLI ツールの実行時に使用します。各変数は 1 行ごとに設定してください。",
     "environment_variables": "環境変数",
     "folder_placeholder": "作業ディレクトリを選択してください",
+    "hero_tagline": "[to be translated]:Pick a CLI tool to configure",
     "install_bun": "Bun をインストール",
     "installing_bun": "インストール中...",
     "launch": {
@@ -1639,9 +1634,6 @@
     "model_hint": "CLIツールが使用するAIモデルを選択してください",
     "model_placeholder": "使用するモデルを選択してください",
     "model_required": "モデルを選択してください",
-    "official_tag": "公式",
-    "official_tools": "公式",
-    "search_placeholder": "CLIツールを検索…",
     "select_folder": "フォルダを選択",
     "set_custom_path": "カスタムターミナルパスを設定",
     "supported_providers": "サポートされているプロバイダー",
@@ -1649,6 +1641,16 @@
     "terminal_hint": "CLIを実行するターミナルアプリケーションを選択してください",
     "terminal_placeholder": "ターミナルアプリを選択",
     "title": "コードツール",
+    "tool_description": {
+      "claude_code": "[to be translated]:Anthropic's official command-line AI coding assistant",
+      "gemini_cli": "[to be translated]:Google's official Gemini command-line assistant",
+      "github_copilot_cli": "[to be translated]:GitHub's official Copilot command-line companion",
+      "iflow_cli": "[to be translated]:iFlow's multi-model command-line assistant",
+      "kimi_cli": "[to be translated]:Moonshot's Kimi command-line assistant",
+      "openai_codex": "[to be translated]:OpenAI's official code generation CLI",
+      "opencode": "[to be translated]:Open-source multi-model coding agent",
+      "qwen_code": "[to be translated]:Alibaba Tongyi's open-source CLI coding tool"
+    },
     "update_options": "更新オプション",
     "working_directory": "作業ディレクトリ",
     "working_directory_hint": "CLIツールが起動する作業ディレクトリ"
@@ -2102,23 +2104,6 @@
       "submit": "[to be translated]:Create",
       "title": "[to be translated]:New Knowledge Base"
     },
-    "add_directory": "ディレクトリを追加",
-    "add_file": "ファイルを追加",
-    "add_image": "画像を追加",
-    "add_note": "ノートを追加",
-    "add_sitemap": "サイトマップを追加",
-    "add_url": "URLを追加",
-    "add_video": "動画を追加",
-    "cancel_index": "インデックスをキャンセル",
-    "chunk_overlap": "チャンクの重なり",
-    "chunk_overlap_placeholder": "デフォルト（変更しないでください）",
-    "chunk_overlap_tooltip": "隣接するチャンク間の重複内容量。チャンク間のコンテキスト関連性を確保し、長文テキストの処理効果を向上させます。",
-    "chunk_size": "チャンクサイズ",
-    "chunk_size_change_warning": "チャンクサイズと重複サイズの変更は、新しく追加された内容にのみ適用されます",
-    "chunk_size_placeholder": "デフォルト（変更しないでください）",
-    "chunk_size_too_large": "チャンクサイズはモデルのコンテキスト制限を超えることはできません（{{max_context}}）",
-    "chunk_size_tooltip": "ドキュメントを分割し、各チャンクのサイズ。モデルのコンテキスト制限を超えないようにしてください。",
-    "clear_selection": "選択をクリア",
     "context": {
       "delete": "[to be translated]:Delete Knowledge Base",
       "delete_confirm_description": "[to be translated]:This knowledge base cannot be recovered after deletion.",
@@ -2182,6 +2167,7 @@
       "chunks_count": "[to be translated]:{{count}} chunks",
       "delete_confirm_description": "[to be translated]:This data source and its index data cannot be recovered after deletion.",
       "delete_confirm_title": "[to be translated]:Delete Data Source?",
+      "delete_failed": "[to be translated]:Failed to delete data source",
       "empty_description": "[to be translated]:No data sources yet",
       "filters": {
         "all": "[to be translated]:All",
@@ -2196,6 +2182,7 @@
         "unavailable": "[to be translated]:This data source has no source to preview"
       },
       "ready_summary": "[to be translated]:{{ready}}/{{total}} ready",
+      "reindex_failed": "[to be translated]:Failed to reindex data source",
       "status": {
         "chunking": "[to be translated]:Chunking",
         "embedding": "[to be translated]:Embedding",
@@ -2204,38 +2191,22 @@
         "ready": "[to be translated]:Ready"
       }
     },
-    "delete": "削除",
-    "delete_confirm": "このナレッジベースを削除してもよろしいですか？",
     "dimensions": "[to be translated]:Embedding Dimensions",
     "dimensions_auto_set": "埋め込み次元を自動設定",
-    "dimensions_default": "モデルはデフォルトの埋め込み次元を使用します",
     "dimensions_error_invalid": "無効な埋め込み次元",
-    "dimensions_set_right": "⚠️ モデルが設定した埋め込み次元のサイズをサポートしていることを確認してください",
     "dimensions_size_placeholder": "次元数を設定しない場合は空欄のままにしてください",
-    "dimensions_size_too_large": "埋め込み次元はモデルのコンテキスト制限（{{max_context}}）を超えてはなりません。",
-    "dimensions_size_tooltip": "埋め込み次元のサイズは、数値が大きいほど消費するトークンも増えます。空欄の場合はdimensionsパラメータを渡しません。",
-    "directories": "ディレクトリ",
-    "directory_placeholder": "ディレクトリパスを入力",
-    "document_count": "要求されたドキュメント分段数",
-    "document_count_default": "デフォルト",
-    "document_count_help": "要求されたドキュメント分段数が多いほど、付随する情報が多くなりますが、トークンの消費量も増加します",
     "drag_file": "ファイルをここにドラッグ",
-    "drag_image": "画像をここにドラッグ",
-    "edit_remark": "備考を編集",
-    "edit_remark_placeholder": "備考内容を入力してください",
     "embedding_model": "[to be translated]:Embedding Model",
     "embedding_model_required": "[to be translated]:Knowledge base embedding model is required",
     "empty": "[to be translated]:No knowledge bases",
     "error": {
       "failed_base_unknown": "[to be translated]:This knowledge base failed during migration. Rebuild it and choose a new embedding model.",
       "failed_to_create": "[to be translated]:Failed to create knowledge base",
+      "failed_to_delete": "[to be translated]:Failed to delete knowledge base",
       "failed_to_edit": "[to be translated]:Failed to edit knowledge base",
+      "failed_to_move": "[to be translated]:Failed to move knowledge base",
       "missing_embedding_model": "[to be translated]:The embedding model used by this knowledge base was not found during migration. Rebuild the knowledge base and choose a new embedding model.",
-      "model_invalid": "モデルが選択されていません",
-      "video": {
-        "local_file_missing": "動画ファイルが見つかりません",
-        "youtube_url_missing": "YouTube動画のURLが見つかりません"
-      }
+      "model_invalid": "モデルが選択されていません"
     },
     "file_hint": "{{file_types}} 形式をサポート",
     "groups": {
@@ -2246,6 +2217,7 @@
       "delete_confirm_title": "[to be translated]:Delete Group?",
       "error": {
         "failed_to_create": "[to be translated]:Failed to create group",
+        "failed_to_delete": "[to be translated]:Failed to delete group",
         "failed_to_update": "[to be translated]:Failed to rename group"
       },
       "name_placeholder": "[to be translated]:Enter group name...",
@@ -2254,41 +2226,11 @@
       "rename_title": "[to be translated]:Rename Group",
       "ungrouped": "[to be translated]:Ungrouped"
     },
-    "image_hint": "{{image_types}} 形式に対応しています",
-    "images": "画像",
-    "index_all": "すべてをインデックス",
-    "index_cancelled": "インデックスがキャンセルされました",
-    "index_started": "インデックスを開始",
-    "invalid_url": "無効なURL",
     "meta": {
       "documents_count": "[to be translated]:{{count}} documents"
     },
-    "migrate": {
-      "button": {
-        "text": "移行"
-      },
-      "confirm": {
-        "content": "埋め込みモデルまたは次元に変更が検出されました。設定を直接保存することはできませんが、移行を実行できます。ナレッジベースの移行では古いナレッジベースは削除されず、代わりにコピーを作成してすべてのエントリを再処理します。大量のトークンを消費する可能性があるため、慎重に操作してください。",
-        "ok": "移行を開始",
-        "title": "ナレッジベースの移行"
-      },
-      "error": {
-        "failed": "移行が失敗しました"
-      },
-      "source_dimensions": "ソース次元",
-      "source_model": "ソースモデル",
-      "target_dimensions": "ターゲット次元",
-      "target_model": "ターゲットモデル"
-    },
-    "model_info": "モデル情報",
     "name_required": "[to be translated]:Knowledge base name is required",
-    "no_bases": "ナレッジベースがありません",
-    "no_match": "知識ベースの内容が見つかりませんでした。",
-    "no_provider": "ナレッジベースモデルプロバイダーが設定されていません。ナレッジベースはもうサポートされていません。新しいナレッジベースを作成してください",
     "not_set": "[to be translated]:Not Set",
-    "not_support": "ナレッジベースデータベースエンジンが更新されました。このナレッジベースはもうサポートされていません。新しいナレッジベースを作成してください",
-    "notes": "ノート",
-    "notes_placeholder": "このナレッジベースの追加情報やコンテキストを入力...",
     "provider_not_found": "プロバイダーが見つかりません",
     "rag": {
       "chunk_overlap": "[to be translated]:Overlap Size",
@@ -2300,7 +2242,10 @@
       "chunk_size_invalid": "[to be translated]:Chunk size must be greater than 0",
       "chunking": "[to be translated]:Chunking",
       "default_separator": "[to be translated]:Auto (recommended)",
+      "dimensions": "[to be translated]:Vector Dimensions",
       "document_count": "[to be translated]:Document Count",
+      "embedding_model": "[to be translated]:Embedding Model",
+      "embedding_model_select": "[to be translated]:Model Selection",
       "file_processing": "[to be translated]:File Processing",
       "file_processing_hint": "[to be translated]:File processing runs automatically during document import. Choosing the right provider can improve document parsing quality.",
       "hints": {
@@ -2319,9 +2264,14 @@
       "hybrid_alpha": "[to be translated]:Hybrid Alpha",
       "hybrid_alpha_hint": "[to be translated]:Only configurable in Hybrid retrieval mode",
       "processor": "[to be translated]:Processing Provider",
+      "refresh_dimensions": "[to be translated]:Refresh vector dimensions",
       "rerank_disabled": "[to be translated]:Disabled",
+      "rerank_model": "[to be translated]:Rerank Model",
+      "reset_action": "[to be translated]:Restore Defaults",
       "reset_defaults": "[to be translated]:Reset Defaults",
       "retrieval": "[to be translated]:Retrieval Settings",
+      "save_action": "[to be translated]:Save",
+      "saved": "[to be translated]:Saved",
       "search_mode": {
         "bm25": "[to be translated]:Full-text Search",
         "default": "[to be translated]:Vector Search",
@@ -2347,11 +2297,11 @@
       "result_count": "[to be translated]:{{count}} results",
       "result_rank": "[to be translated]:Rank #{{rank}}",
       "result_relevance": "[to be translated]:Relevance {{score}}",
+      "search_failed": "[to be translated]:Failed to run recall test",
       "searching": "[to be translated]:Searching...",
       "submit": "[to be translated]:Search",
       "top_score": "[to be translated]:Top: {{score}}"
     },
-    "rename": "名前を変更",
     "rename_title": "[to be translated]:Rename Knowledge Base",
     "restore": {
       "action": "[to be translated]:Rebuild knowledge base",
@@ -2362,48 +2312,20 @@
     },
     "search": "[to be translated]:Search Knowledge Base",
     "search_placeholder": "検索するテキストを入力",
-    "settings": {
-      "preprocessing": "預処理",
-      "preprocessing_tooltip": "アップロードされたファイルの預処理",
-      "title": "ナレッジベース設定"
-    },
-    "sitemap_added": "追加成功",
-    "sitemap_placeholder": "サイトマップURLを入力",
-    "sitemaps": "サイトマップ",
-    "source": "ソース",
     "status": {
       "completed": "[to be translated]:Ready",
       "failed": "[to be translated]:Failed",
       "processing": "[to be translated]:Processing"
     },
-    "status_completed": "完了",
-    "status_embedding_completed": "埋め込み完了",
     "status_embedding_failed": "埋め込み失敗",
-    "status_failed": "失敗",
-    "status_new": "追加済み",
-    "status_pending": "保留中",
-    "status_preprocess_completed": "前処理完了",
     "status_preprocess_failed": "前処理に失敗しました",
-    "status_processing": "処理中",
     "subtitle_file": "字幕ファイル",
     "tabs": {
       "data_source": "[to be translated]:Data Sources",
       "rag_config": "[to be translated]:RAG Config",
       "recall_test": "[to be translated]:Recall Test"
     },
-    "threshold": "マッチング度閾値",
-    "threshold_placeholder": "未設置",
-    "threshold_too_large_or_small": "しきい値は0より大きく1より小さい必要があります",
-    "threshold_tooltip": "ユーザーの質問と知識ベースの内容の関連性を評価するためのしきい値（0-1）",
     "title": "[to be translated]:Knowledge Base",
-    "topN": "返却される結果の数",
-    "topN_placeholder": "未設定",
-    "topN_too_large_or_small": "結果の数は30より大きくてはならず、1より小さくてはなりません。",
-    "topN_tooltip": "返されるマッチ結果の数は、数値が大きいほどマッチ結果が多くなりますが、消費されるトークンも増えます。",
-    "url_added": "URLが追加されました",
-    "url_placeholder": "URLを入力, 複数のURLはEnterで区切る",
-    "urls": "URL",
-    "videos": "動画",
     "videos_file": "動画ファイル"
   },
   "languages": {
@@ -2445,6 +2367,21 @@
       "manage_tags": "[to be translated]:Manage tags",
       "uninstall": "[to be translated]:Uninstall"
     },
+    "assistant_catalog": {
+      "add": "[to be translated]:Add",
+      "add_failed": "[to be translated]:Failed to add assistant",
+      "browse_label": "[to be translated]:Assistant categories",
+      "empty_description": "[to be translated]:This category has no assistant presets yet.",
+      "empty_title": "[to be translated]:No assistants to add",
+      "mine": "[to be translated]:Mine",
+      "no_match_description": "[to be translated]:Try a different search keyword",
+      "no_match_title": "[to be translated]:No matching assistants",
+      "preview": "[to be translated]:Preview",
+      "preview_description": "[to be translated]:Overview",
+      "preview_prompt": "[to be translated]:Prompt",
+      "scroll_left": "[to be translated]:Scroll categories left",
+      "scroll_right": "[to be translated]:Scroll categories right"
+    },
     "badge": {
       "update": "[to be translated]:Update"
     },
@@ -2456,6 +2393,7 @@
           "accessible_paths": {
             "add": "[to be translated]:Add directory",
             "empty": "[to be translated]:Not set (defaults to the workspace root)",
+            "hint": "[to be translated]:Limits directories the agent can access",
             "label": "[to be translated]:Accessible directories"
           },
           "allowed_tools": {
@@ -2463,7 +2401,11 @@
             "empty": "[to be translated]:Leave empty to use the permission mode default",
             "label": "[to be translated]:Allowed tools"
           },
+          "avatar": {
+            "hint": "[to be translated]:Used to identify it in the library and sessions"
+          },
           "description": {
+            "hint": "[to be translated]:Helps identify what this agent is for",
             "label": "[to be translated]:Description",
             "placeholder": "[to be translated]:What this agent is for…"
           },
@@ -2478,6 +2420,7 @@
             "label": "[to be translated]:Heartbeat interval (minutes)"
           },
           "instructions": {
+            "hint": "[to be translated]:Defines the agent's role and behavior boundaries",
             "label": "[to be translated]:System prompt",
             "placeholder": "[to be translated]:Tell the agent who it is and what it can do…"
           },
@@ -2496,6 +2439,7 @@
             "label": "[to be translated]:Primary model (required)"
           },
           "name": {
+            "hint": "[to be translated]:Shown in the library and session lists",
             "label": "[to be translated]:Agent name",
             "placeholder": "[to be translated]:Give the agent a name"
           },
@@ -2572,6 +2516,49 @@
         "default_value": "[to be translated]:Model default",
         "desc": "[to be translated]:Configure the assistant's identity and model parameters",
         "description_label": "[to be translated]:Description",
+        "field": {
+          "avatar": {
+            "hint": "[to be translated]:Used to identify the assistant in the library and chats"
+          },
+          "context_count": {
+            "hint": "[to be translated]:Number of recent messages kept as context"
+          },
+          "custom_params": {
+            "hint": "[to be translated]:Extra provider parameters sent with requests"
+          },
+          "description": {
+            "hint": "[to be translated]:Helps distinguish what this assistant is for",
+            "placeholder": "[to be translated]:What this assistant is for..."
+          },
+          "max_tokens": {
+            "hint": "[to be translated]:Caps response length when enabled"
+          },
+          "max_tool_calls": {
+            "hint": "[to be translated]:Limits tool-call loops when enabled"
+          },
+          "model": {
+            "hint": "[to be translated]:Overrides the global default model for this assistant"
+          },
+          "name": {
+            "hint": "[to be translated]:Shown in the library and assistant selectors",
+            "placeholder": "[to be translated]:Give the assistant a name"
+          },
+          "stream_output": {
+            "hint": "[to be translated]:Shows responses as they are generated"
+          },
+          "tags": {
+            "hint": "[to be translated]:Used for filtering and organizing assistants"
+          },
+          "temperature": {
+            "hint": "[to be translated]:Controls randomness when enabled"
+          },
+          "tool_use_mode": {
+            "hint": "[to be translated]:Controls how tools are exposed to the model"
+          },
+          "top_p": {
+            "hint": "[to be translated]:Limits token sampling range when enabled"
+          }
+        },
         "json_invalid": "[to be translated]:Invalid JSON format",
         "max_tokens": "[to be translated]:Max tokens",
         "max_tool_calls": "[to be translated]:Max tool calls",
@@ -2604,14 +2591,29 @@
         "empty_title": "[to be translated]:No knowledge bases linked",
         "invalid_suffix": "[to be translated]:... (unavailable)",
         "linked": "[to be translated]:Linked knowledge bases",
+        "linked_hint": "[to be translated]:Controls which knowledge bases this assistant can retrieve from",
         "no_more": "[to be translated]:No more knowledge bases available",
         "remove_aria": "[to be translated]:Remove",
         "search": "[to be translated]:Search knowledge bases...",
         "title": "[to be translated]:Knowledge bases"
       },
       "prompt": {
+        "create_title": "[to be translated]:New Prompt",
         "dblclick_hint": "[to be translated]:Double-click the preview to switch back to edit",
         "desc": "[to be translated]:The system prompt is sent as the opening context of the assistant",
+        "edit_title": "[to be translated]:Edit Prompt",
+        "field": {
+          "content": {
+            "label": "[to be translated]:Content",
+            "too_long": "[to be translated]:Content must be {{max}} characters or fewer"
+          },
+          "name": {
+            "label": "[to be translated]:Name",
+            "too_long": "[to be translated]:Name must be {{max}} characters or fewer"
+          }
+        },
+        "generate": "[to be translated]:Generate prompt",
+        "insert_variable": "[to be translated]:Insert variable",
         "label": "[to be translated]:System prompt",
         "placeholder": "[to be translated]:Enter the system prompt. Variables like {{date}} and {{model_name}} are supported...",
         "title": "[to be translated]:Prompt",
@@ -2639,6 +2641,10 @@
           "desc": "[to be translated]:Linked knowledge bases and retrieval",
           "label": "[to be translated]:Knowledge"
         },
+        "more": {
+          "desc": "[to be translated]:Model, tags, and parameters",
+          "label": "[to be translated]:More settings"
+        },
         "prompt": {
           "desc": "[to be translated]:System prompt and variables",
           "label": "[to be translated]:Prompt"
@@ -2651,6 +2657,7 @@
       "tools": {
         "add_mcp": "[to be translated]:Add MCP server",
         "added": "[to be translated]:Added MCP servers",
+        "added_hint": "[to be translated]:Manual mode exposes only the servers in this list",
         "desc": "[to be translated]:Configure the MCP servers this assistant can call during chat",
         "empty_desc": "[to be translated]:Once added, the assistant can invoke external tools",
         "empty_title": "[to be translated]:No MCP servers added",
@@ -2686,6 +2693,10 @@
       "agent": {
         "content": "[to be translated]:Are you sure you want to delete this agent? This action cannot be undone.",
         "title": "[to be translated]:Delete agent"
+      },
+      "skill": {
+        "content": "[to be translated]:Are you sure you want to uninstall this skill? It will be removed from the global library and all agent workspace symlinks will be cleaned up.",
+        "title": "[to be translated]:Uninstall skill"
       }
     },
     "delete_confirm": {
@@ -2694,6 +2705,7 @@
       "description": "[to be translated]:Delete \"{{name}}\"? This action cannot be undone.",
       "title": "[to be translated]:Delete"
     },
+    "duplicate_assistant_failed": "[to be translated]:Failed to duplicate assistant",
     "duplicate_name": "[to be translated]:{{name}} (copy)",
     "empty_state": {
       "description": "[to be translated]:Click \"New\" to create your first resource.",
@@ -2703,6 +2715,7 @@
       "no_match_title": "[to be translated]:No matching resources",
       "title": "[to be translated]:No resources"
     },
+    "export_assistant_failed": "[to be translated]:Failed to export assistant",
     "import_dialog": {
       "clipboard": {
         "button": "[to be translated]:Parse and import",
@@ -2735,6 +2748,14 @@
         "supports": "[to be translated]:Raw file URLs are supported"
       }
     },
+    "import_skill_dialog": {
+      "local": {
+        "drop_hint": "[to be translated]:Drop a ZIP or directory here, or click to choose a ZIP",
+        "formats": "[to be translated]:Supports .zip files and directories containing SKILL.md"
+      },
+      "subtitle": "[to be translated]:Install a skill from a ZIP file or directory",
+      "title": "[to be translated]:Import skill"
+    },
     "no_match": "[to be translated]:No matching results",
     "pending_backend": {
       "description": "[to be translated]:Write operations for this resource are coming soon. This view is a placeholder.",
@@ -2747,6 +2768,17 @@
       "subtitle": "[to be translated]:Manage your AI resources",
       "tags": "[to be translated]:Tags",
       "title": "[to be translated]:Library"
+    },
+    "skill_detail": {
+      "created_at": "[to be translated]:Created",
+      "delete_description": "[to be translated]:Remove this skill and all of its configuration. This action cannot be undone.",
+      "delete_title": "[to be translated]:Delete skill",
+      "description": "[to be translated]:Description",
+      "file_preview": "[to be translated]:File preview",
+      "installed": "[to be translated]:Installed",
+      "no_description": "[to be translated]:No description",
+      "source_files": "[to be translated]:Source files",
+      "updated_at": "[to be translated]:Recently updated"
     },
     "sort": {
       "created": "[to be translated]:Sort by created",
@@ -2778,8 +2810,11 @@
       "assistant": "[to be translated]:Assistant",
       "new_agent": "[to be translated]:New agent",
       "new_assistant": "[to be translated]:New assistant",
+      "new_prompt": "[to be translated]:New Prompt",
+      "prompt": "[to be translated]:Prompt",
       "skill": "[to be translated]:Skill"
     },
+    "uninstall_failed": "[to be translated]:Failed to uninstall",
     "view": {
       "grid": "[to be translated]:Grid view",
       "list": "[to be translated]:List view"
@@ -3305,8 +3340,6 @@
       "cost": "コスト",
       "currency": "通貨",
       "custom": "カスタム",
-      "custom_currency": "カスタム通貨",
-      "custom_currency_placeholder": "カスタム通貨を入力してください",
       "input": "入力価格",
       "million_tokens": "百万トークン",
       "output": "出力価格",
@@ -3660,6 +3693,12 @@
       "model_task": "モデルタスク:",
       "success": "ダウンロード成功",
       "success_desc": "モデル\"{{modelName}}\"-\"{{modelId}}\"ダウンロード成功、OVMS管理インターフェースに移動してモデルを追加してください",
+      "task": {
+        "embeddings": "[to be translated]:Embeddings",
+        "image_generation": "[to be translated]:Image Generation",
+        "rerank": "[to be translated]:Rerank",
+        "text_generation": "[to be translated]:Text Generation"
+      },
       "tip": "モデルはダウンロードされていますが、時には数時間かかります。我慢してください...",
       "title": "Intel OpenVINOモデルをダウンロード"
     },
@@ -3676,6 +3715,7 @@
       "run": "OVMSの実行に失敗しました:",
       "stop": "OVMSの停止に失敗しました:"
     },
+    "guide": "Intel OVMSガイド:",
     "status": {
       "not_installed": "OVMSはインストールされていません",
       "not_running": "OVMSは実行されていません",
@@ -4014,6 +4054,7 @@
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
+    "cherryai": "[to be translated]:CherryAI",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
@@ -4674,6 +4715,43 @@
         "valueProp": "現在の値"
       },
       "description": "開発環境でのみ表示され、アプリ内で直接新しいモデルセレクタをテストするためのものです。",
+      "fileProcessing": {
+        "artifact": {
+          "file": "[to be translated]:Markdown file",
+          "text": "[to be translated]:Text result"
+        },
+        "description": "[to be translated]:Run every configured file processor through the real file processing IPC and compare results.",
+        "duration": "[to be translated]:{{seconds}}s",
+        "markdown": {
+          "description": "[to be translated]:Select a document and run all document-to-markdown processors.",
+          "fileFilterName": "[to be translated]:Documents",
+          "noFile": "[to be translated]:No document selected",
+          "select": "[to be translated]:Select document",
+          "start": "[to be translated]:Test markdown",
+          "title": "[to be translated]:Markdown"
+        },
+        "noProcessors": "[to be translated]:No processors support this feature.",
+        "ocr": {
+          "description": "[to be translated]:Select an image and run all OCR processors.",
+          "fileFilterName": "[to be translated]:Images",
+          "noFile": "[to be translated]:No image selected",
+          "select": "[to be translated]:Select image",
+          "start": "[to be translated]:Test OCR",
+          "title": "[to be translated]:OCR"
+        },
+        "processorCount": "[to be translated]:{{count}} processors",
+        "status": {
+          "cancelled": "[to be translated]:Cancelled",
+          "completed": "[to be translated]:Completed",
+          "failed": "[to be translated]:Failed",
+          "idle": "[to be translated]:Idle",
+          "pending": "[to be translated]:Pending",
+          "processing": "[to be translated]:Processing",
+          "starting": "[to be translated]:Starting"
+        },
+        "taskId": "[to be translated]:Task ID",
+        "title": "[to be translated]:Document Parsing"
+      },
       "label": "コンポーネントラボ",
       "modelSelector": {
         "behaviorConfig": "動作と表示設定",
@@ -4740,15 +4818,6 @@
         "select_success": "データディレクトリが変更されました。変更を適用するためにアプリが再起動します",
         "select_title": "アプリデータディレクトリの変更",
         "stop_quit_app_reason": "アプリは現在データを移行しているため、終了できません"
-      },
-      "app_knowledge": {
-        "button": {
-          "delete": "ファイルを削除"
-        },
-        "label": "知識ベースファイル",
-        "remove_all": "ナレッジベースファイルを削除",
-        "remove_all_confirm": "ナレッジベースファイルを削除すると、ナレッジベース自体は削除されません。これにより、ストレージ容量を節約できます。続行しますか？",
-        "remove_all_success": "ファイル削除成功"
       },
       "app_logs": {
         "button": "ログを開く",
@@ -5917,9 +5986,14 @@
       "add": {
         "add_model": "モデルを追加",
         "batch_add_models": "モデルを一括追加",
+        "context_window": {
+          "label": "[to be translated]:Context window",
+          "placeholder": "[to be translated]:e.g. 128000"
+        },
         "endpoint_type": {
           "label": "エンドポイントタイプ",
           "placeholder": "エンドポイントタイプを選択",
+          "remove_chip": "[to be translated]:Remove",
           "required": "エンドポイントタイプを選択してください",
           "tooltip": "APIエンドポイントタイプフォーマットを選択"
         },
@@ -5927,6 +6001,14 @@
           "label": "グループ名",
           "placeholder": "例：ChatGPT",
           "tooltip": "例：ChatGPT"
+        },
+        "max_input_tokens": {
+          "label": "[to be translated]:Max input tokens",
+          "placeholder": "[to be translated]:e.g. 128000"
+        },
+        "max_output_tokens": {
+          "label": "[to be translated]:Max output tokens",
+          "placeholder": "[to be translated]:e.g. 4096"
         },
         "model_id": {
           "label": "モデルID",
@@ -5948,15 +6030,19 @@
       },
       "api_key": "API キー",
       "base_url": "ベース URL",
+      "bulk_disable": "Disable all",
+      "bulk_enable": "Enable all",
       "check": {
         "all": "すべて",
         "all_models_passed": "すべてのモデルチェックが成功しました",
         "button_caption": "健康チェック",
         "disabled": "閉じる",
         "disclaimer": "健康チェックはリクエストを送信するため、費用が発生する可能性があります。慎重に使用してください。",
+        "drawer_result_hint": "Results remain here until you close the drawer or run the check again.",
         "enable_concurrent": "並行チェック",
         "enabled": "開く",
         "failed": "失敗",
+        "failed_to_start": "[to be translated]:Failed to start health check",
         "keys_status_count": "合格：{{count_passed}}個のキー、不合格：{{count_failed}}個のキー",
         "model_status_failed": "{{count}} 個のモデルが完全にアクセスできません",
         "model_status_partial": "{{count}} 個のモデルが一部のキーでアクセスできません",
@@ -5964,28 +6050,92 @@
         "model_status_summary": "{{provider}}: {{summary}}",
         "no_api_keys": "APIキーが見つかりません。まずAPIキーを追加してください。",
         "no_results": "結果なし",
+        "outcome_fail_short": "{{count}} failed",
+        "outcome_success_short": "{{count}} passed",
+        "outcome_total": "{{count}} total",
         "passed": "成功",
+        "pipeline_heading": "Detection progress",
+        "progress_count": "{{done}} / {{total}}",
+        "progress_current": "Checking: {{name}}",
+        "progress_hint": "You can close this panel; the check continues in the background.",
+        "progress_title": "Running health check",
+        "retry": "Check again",
         "select_api_key": "使用するAPIキーを選択：",
         "single": "単一",
         "start": "開始",
+        "status_checking": "Checking…",
         "timeout": "タイムアウト",
         "title": "モデル健康チェック",
         "use_all_keys": "キー"
       },
+      "copy_model_id_tooltip": "[to be translated]:Click to copy model ID: {{id}}",
       "default_assistant_model": "デフォルトアシスタントモデル",
       "default_assistant_model_description": "アシスタントにモデルがない場合に使用されます",
       "empty": "モデルが見つかりません",
+      "list_title": "Model list",
       "manage": {
+        "add_custom_model": "Add custom model",
         "add_listed": {
           "confirm": "すべてのモデルをリストに追加しますか？",
           "label": "リストにモデルを追加"
         },
         "add_whole_group": "グループ全体を追加",
+        "drawer_title": "Model management",
+        "fetch_deselect_all_add": "Deselect all",
+        "fetch_deselect_all_remove": "Deselect all",
         "fetch_list": "モデルリストを取得",
+        "fetch_ok": "OK",
+        "fetch_removed_hint": "These models no longer exist on the provider API. Check to remove them from your list.",
+        "fetch_result_title": "Pull result",
+        "fetch_select_all_add": "Select all to add",
+        "fetch_select_all_remove": "Select all to remove",
+        "fetch_summary_add": "Add {{selected}}/{{total}} models",
+        "fetch_summary_remove": "Remove {{selected}}/{{total}} models",
+        "fetch_up_to_date": "Your model list is up to date",
+        "fetch_up_to_date_hint": "No new or removed models were found.",
+        "filter_add_all": "Add all in view",
+        "filter_remove_all": "Remove from provider",
+        "footer_done": "Done",
+        "large_group_hidden": "[to be translated]:Show {{count}} more models",
+        "operation_failed": "Model operation failed.",
         "refetch_list": "モデルリストを再取得",
+        "reload_catalog": "Refresh list",
         "remove_listed": "リストからモデルを削除",
         "remove_model": "モデルを削除",
-        "remove_whole_group": "グループ全体を削除"
+        "remove_whole_group": "グループ全体を削除",
+        "search_models_placeholder": "Search models…",
+        "select_none": "Select none",
+        "status_all": "All",
+        "status_disabled": "Disabled",
+        "status_enabled": "Enabled",
+        "sync_added_description": "New upstream models that can be added to this provider.",
+        "sync_added_metric": "{{count}} new models",
+        "sync_added_section": "New models",
+        "sync_apply_changes": "Apply changes",
+        "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
+        "sync_empty_added": "No new upstream models were found.",
+        "sync_empty_missing": "No unavailable local models were found.",
+        "sync_impact_section": "Reference impact",
+        "sync_impact_summary": "{{models}} impacted models, {{references}} strong references",
+        "sync_missing_description": "Local models that no longer exist in the latest upstream list.",
+        "sync_missing_metric": "{{count}} unavailable models",
+        "sync_missing_section": "Unavailable models",
+        "sync_no_references": "No strong references",
+        "sync_pick_delete": "Delete",
+        "sync_pick_deprecate": "Mark deprecated",
+        "sync_preview_description": "Review upstream model changes before updating your local model list.",
+        "sync_preview_summary": "Pull preview",
+        "sync_pull_failed": "Failed to pull models.",
+        "sync_reference_assistants": "Assistants {{count}}",
+        "sync_reference_knowledge": "Knowledge bases {{count}}",
+        "sync_reference_preferences": "Preferences {{count}}",
+        "sync_references": "Strong references {{count}}",
+        "sync_replacement": "Suggested replacement: {{model}}",
+        "sync_selected_metric": "{{count}} selected",
+        "sync_selected_summary": "{{selected}} / {{total}} selected",
+        "sync_switch_to_delete": "Delete instead",
+        "sync_switch_to_deprecate": "Mark deprecated instead",
+        "sync_will_deprecate": "Will be marked deprecated"
       },
       "provider_id": "プロバイダー ID",
       "provider_key_add_confirm": "{{provider}} の API キーを追加しますか？",
@@ -6006,6 +6156,11 @@
         "label": "高速モデル",
         "setting_title": "高速モデル設定",
         "tooltip": "軽量モデルの選択を推奨し、思考モデルの選択は推奨しません"
+      },
+      "toolbar": {
+        "filter_close": "Close filter",
+        "filter_open": "Filter by capability",
+        "pull_short": "Pull"
       },
       "topic_naming": {
         "auto": "トピックの自動命名",
@@ -6190,14 +6345,26 @@
         }
       },
       "api_host": "APIホスト",
+      "api_host_drawer_hint": "[to be translated]:Custom API request URL; leave empty when the catalog default applies.",
       "api_host_no_valid": "APIアドレスが無効です",
+      "api_host_placeholder": "[to be translated]:Not configured",
       "api_host_preview": "プレビュー：{{url}}",
       "api_host_tooltip": "サービスプロバイダーがカスタムOpenAI互換アドレスを必要とする場合のみ上書きしてください。",
       "api_key": {
+        "copy": "[to be translated]:Copy",
+        "enabled_suffix": "[to be translated]:enabled",
+        "hide_key": "[to be translated]:Hide key",
         "label": "APIキー",
-        "tip": "複数のキーはカンマまたはスペースで区切ります"
+        "label_placeholder": "[to be translated]:Label",
+        "list_description": "[to be translated]:Manage multiple API keys for this provider",
+        "placeholder": "[to be translated]:Use commas to separate multiple keys",
+        "save_failed": "APIキーの保存に失敗しました",
+        "show_key": "[to be translated]:Show key",
+        "tip": "複数のキーはカンマまたはスペースで区切ります",
+        "unnamed": "[to be translated]:API Key"
       },
       "api_version": "APIバージョン",
+      "auth_connection_section": "Connection & authentication",
       "aws-bedrock": {
         "access_key_id": "AWS アクセスキー ID",
         "access_key_id_help": "あなたの AWS アクセスキー ID は、AWS Bedrock サービスへのアクセスに使用されます",
@@ -6237,7 +6404,15 @@
       "check": "チェック",
       "check_all_keys": "すべてのキーをチェック",
       "check_multiple_keys": "複数のAPIキーをチェック",
+      "cherryin": {
+        "api_host": {
+          "acceleration": "[to be translated]:Acceleration domain",
+          "backup": "[to be translated]:Backup domain",
+          "international": "[to be translated]:International domain"
+        }
+      },
       "copilot": {
+        "add_request_header": "Add header",
         "auth_failed": "Github Copilotの認証に失敗しました。",
         "auth_success": "Github Copilotの認証が成功しました",
         "auth_success_title": "認証成功",
@@ -6250,7 +6425,12 @@
         "description": "あなたのGithubアカウントはCopilotを購読する必要があります。",
         "description_detail": "GitHub Copilot は AI ベースのコード補助ツールで、有効な GitHub Copilot サブスクリプションが必要です",
         "expand": "展開",
-        "headers_description": "カスタムリクエストヘッダー（JSONフォーマット）",
+        "header_field_name": "Header",
+        "header_field_value": "Value",
+        "header_name_placeholder": "Header name",
+        "header_value_placeholder": "Header value",
+        "headers_description": "Custom request headers (JSON format)",
+        "headers_json_placeholder": "[to be translated]:{\n  \"X-Custom-Header\": \"value\"\n}",
         "invalid_json": "JSONフォーマットエラー",
         "login": "GitHubにログインする",
         "logout": "GitHubから退出する",
@@ -6271,7 +6451,9 @@
         "step_copy_code_desc": "デバイス認証コードをコピー",
         "step_copy_code_detail": "認証コードは自動的にコピーされましたが、手動でもコピーできます",
         "step_get_code": "認証コードを取得",
-        "step_get_code_desc": "デバイス認証コードを生成"
+        "step_get_code_desc": "デバイス認証コードを生成",
+        "toggle_headers_editor_json": "[to be translated]:Switch to JSON editor",
+        "toggle_headers_editor_list": "[to be translated]:Switch to header list"
       },
       "delete": {
         "content": "このプロバイダーを削除してもよろしいですか？",
@@ -6301,13 +6483,19 @@
       },
       "oauth": {
         "balance": "残高",
+        "balance_error": "[to be translated]:Failed to fetch balance",
         "button": "{{provider}} アカウントでログイン",
         "cherryIn": {
+          "account_title": "Cherry IN account",
           "description": "セルフホストしたNew-APIサーバーでOAuth 2.0（PKCE）を使用してログイン",
           "logged_in": "OAuth経由でログインしました",
           "login_button": "OAuthでログイン",
           "logout_button": "ログアウト",
-          "title": "OAuthログイン"
+          "register_account": "Create account",
+          "service_attribution": "This service is provided by <link>open.cherryin.ai</link>",
+          "tagline": "After you sign in, you can use all model services",
+          "title": "OAuthログイン",
+          "use_api_key": "Use API key instead"
         },
         "connect": "{{provider}}に接続",
         "description": "本サービスは<website>{{provider}}</website>によって提供されます",
@@ -6322,13 +6510,18 @@
         "provided_by_suffix": "I’m ready—please provide the text you’d like translated into Japanese.",
         "requests": "リクエスト",
         "topup": "チャージ",
-        "usage_title": "使用"
+        "usage_title": "使用",
+        "usage_unit": "tokens"
       },
       "openai": {
         "alert": "OpenAIプロバイダーは旧式の呼び出し方法をサポートしなくなりました。サードパーティのAPIを使用している場合は、新しいサービスプロバイダーを作成してください。"
       },
       "remove_duplicate_keys": "重複キーを削除",
       "remove_invalid_keys": "無効なキーを削除",
+      "reorder_failed": "[to be translated]:Failed to reorder providers",
+      "request_configuration": "[to be translated]:Request configuration",
+      "request_configuration_tooltip": "[to be translated]:Configure API Host and custom request headers",
+      "save_failed": "[to be translated]:Failed to save provider settings",
       "search": "プロバイダーを検索...",
       "search_placeholder": "モデルIDまたは名前を検索",
       "title": "モデルプロバイダー",
@@ -6513,64 +6706,82 @@
     },
     "title": "設定",
     "tool": {
-      "ocr": {
-        "common": {
-          "langs": "サポートされている言語"
+      "file_processing": {
+        "actions": {
+          "set_as_default": "[to be translated]:Set as default"
         },
-        "error": {
-          "not_system": "システムOCRはWindowsとMacOSのみをサポートしています"
+        "errors": {
+          "invalid_api_host": "[to be translated]:Invalid API host",
+          "load_processors_failed": "[to be translated]:Failed to load available processors",
+          "save_failed": "[to be translated]:Save failed"
         },
         "features": {
-          "paddleocr": "中国語のテキストに対してより強力で、レシート、スキャン、より複雑なレイアウトの画像に適しています。",
-          "system": {
-            "macos": "macOSに内蔵されたOCRエンジンを使用し、セットアップ不要でスクリーンショットや軽量なテキスト抽出に最適です。",
-            "windows": "ネイティブな Windows OCR エンジンを使用し、OS と強く統合され、基本的なローカル認識タスクに対応します。"
+          "document_to_markdown": {
+            "title": "[to be translated]:Document Processing"
           },
-          "tesseract": "カスタマイズ可能な言語パックを備えたクラシックなローカルOCRオプションで、オフラインおよび多言語ワークフローに最適です。"
-        },
-        "image": {
-          "error": {
-            "provider_not_found": "該提供者は存在しません"
-          },
-          "system": {
-            "no_need_configure": "MacOS は設定不要"
-          },
-          "title": "画像"
-        },
-        "image_provider": "OCRサービスプロバイダー",
-        "paddleocr": {
-          "aistudio_access_token": "AI Studio Community のアクセス・トークン",
-          "api_url": "API URL",
-          "api_url_label": "アクセストークンとAPI URLを取得する"
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "Windows が提供するサービスに依存しており、関連する言語をサポートするには、システムで言語パックをダウンロードする必要があります。"
+          "image_to_text": {
+            "title": "[to be translated]:OCR"
           }
         },
-        "tesseract": {
-          "langs_tooltip": "ドキュメントを読んで、どのカスタム言語がサポートされているかを確認してください。"
+        "fields": {
+          "api_base_url": "[to be translated]:API Base URL",
+          "api_key": "[to be translated]:API Key",
+          "api_keys_placeholder": "[to be translated]:Separate multiple keys with commas",
+          "languages": "[to be translated]:Languages"
         },
-        "title": "OCRサービス"
-      },
-      "preprocess": {
-        "features": {
-          "doc2x": "PDFをよりクリーンなMarkdownや編集可能なテキストに変換し、後続の検索や編集に適した形式にするのに最適です。",
-          "mineru": "より高品位なレイアウト復元に最適化されており、学術PDF、表、数式に特に有用です。",
-          "mistral": "強力なクラウドベースのドキュメント理解機能で、構造化された抽出、複数ページのファイル、複雑なレイアウトに対応します。",
-          "open_mineru": "セルフホスティングや処理パイプラインをより厳密に制御したいチームに適した、オープンな展開オプション。",
-          "paddleocr": "中国語の文書、スキャン、一般的なレシート形式のコンテンツに適した、より軽い統合オプション。"
+        "processors": {
+          "doc2x": {
+            "description": "[to be translated]:Advanced file restoration engine.",
+            "name": "[to be translated]:Doc2x"
+          },
+          "mineru": {
+            "description": "[to be translated]:OpenDataLab's open-source high-quality PDF extraction tool.",
+            "name": "[to be translated]:MinerU"
+          },
+          "mistral": {
+            "description": "[to be translated]:File parsing and understanding service.",
+            "name": "[to be translated]:Mistral"
+          },
+          "open_mineru": {
+            "description": "[to be translated]:Self-hostable MinerU service for teams that want more control over the processing pipeline.",
+            "name": "[to be translated]:Open MinerU"
+          },
+          "ovocr": {
+            "description": "[to be translated]:Intel OpenVINO OCR engine that runs locally with NPU acceleration.",
+            "name": "[to be translated]:Intel OV OCR"
+          },
+          "paddleocr": {
+            "deployment": {
+              "description": "[to be translated]:You can deploy PaddleOCR locally with the officially supported Docker image, then enter the API address here.",
+              "docs": "[to be translated]:View Docker deployment docs"
+            },
+            "description": "[to be translated]:Baidu PaddleOCR recognition system.",
+            "fields": {
+              "parse_model": "[to be translated]:Parse Model"
+            },
+            "name": "[to be translated]:PaddleOCR"
+          },
+          "system": {
+            "description": "[to be translated]:Native operating system OCR engine.",
+            "name": "[to be translated]:System OCR",
+            "status": {
+              "available": "[to be translated]:Detected available macOS Live Text / Windows OCR engine.",
+              "no_configuration": "[to be translated]:System OCR calls the native system engine directly. It is fastest, but accuracy depends on the OS version."
+            }
+          },
+          "tesseract": {
+            "description": "[to be translated]:Google's open-source OCR engine that runs fully locally.",
+            "name": "[to be translated]:Tesseract OCR"
+          }
         },
-        "paddleocr": {
-          "aistudio_access_token": "AI Studioコミュニティのアクセストークン",
-          "api_url": "API URL",
-          "api_url_label": "アクセストークンとAPI URLを取得する",
-          "paddleocr_url_label": "PaddleOCR 公式ウェブサイト"
+        "sections": {
+          "authentication": "[to be translated]:Authentication",
+          "description": "[to be translated]:Description",
+          "language_packs": "[to be translated]:Language Packs",
+          "model_parameters": "[to be translated]:Model Parameters",
+          "status": "[to be translated]:Status"
         },
-        "provider": "プレプロセスプロバイダー",
-        "provider_placeholder": "前処理プロバイダーを選択してください",
-        "title": "前処理",
-        "tooltip": "設定 → ツールで、ドキュメント前処理サービスプロバイダーを設定します。ドキュメント前処理は、複雑な形式のドキュメントやスキャンされたドキュメントの検索性能を効果的に向上させます。"
+        "title": "[to be translated]:Document Parsing"
       },
       "title": "その他の設定",
       "websearch": {
@@ -6583,6 +6794,7 @@
         "apikey": "APIキー",
         "blacklist": "ブラックリスト",
         "blacklist_description": "以下のウェブサイトの結果は検索結果に表示されません",
+        "blacklist_invalid_entries": "[to be translated]:Invalid blacklist entries: {{entries}}",
         "blacklist_tooltip": "以下の形式を使用してください(改行区切り)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "check": "チェック",
         "check_failed": "検証に失敗しました",
@@ -6609,6 +6821,11 @@
         "content_limit": "コンテンツ制限",
         "content_limit_tooltip": "検索結果のコンテンツの長さを制限します。制限を超えるコンテンツは切り捨てられます。",
         "default_provider": "デフォルトプロバイダー",
+        "errors": {
+          "save_failed": "[to be translated]:Save failed",
+          "zhipu_sync_failed": "[to be translated]:Failed to sync Zhipu API key to Web Search. Please re-save the key or check Web Search settings."
+        },
+        "fetch_urls_provider": "[to be translated]:Default URL fetch provider",
         "free": "無料",
         "is_default": "デフォルト",
         "local_provider": {
@@ -6620,27 +6837,24 @@
         "no_provider_selected": "検索サービスプロバイダーを選択してから再確認してください。",
         "overwrite": "検索サービスを上書き",
         "overwrite_tooltip": "LLMの代わりに検索サービスを強制的に使用する",
+        "provider_description": {
+          "bocha": "[to be translated]:Chinese AI search API with real-time web and structured results.",
+          "exa": "[to be translated]:Neural search API for AI apps, tuned for semantic web retrieval.",
+          "exa_mcp": "[to be translated]:Expose Exa search to agents through the Exa MCP Server.",
+          "fetch": "[to be translated]:Built-in URL fetch provider. Fetches web page content from a URL to enrich search results.",
+          "jina": "[to be translated]:Jina Reader search and read APIs for retrieving clean web content.",
+          "querit": "[to be translated]:Search service for AI apps with web retrieval results.",
+          "searxng": "[to be translated]:Self-hostable free internet metasearch engine across many sources.",
+          "tavily": "[to be translated]:Search engine optimized for LLMs.",
+          "zhipu": "[to be translated]:Zhipu GLM Web Search for live web retrieval and current information."
+        },
         "search_max_result": {
           "label": "検索結果の数",
           "tooltip": "検索結果の圧縮が無効な場合、結果の数が多すぎるとトークンが不足する可能性があります"
         },
         "search_provider": "検索サービスプロバイダー",
         "search_provider_placeholder": "検索サービスプロバイダーを選択する",
-        "search_with_time": "日付を含む検索",
         "set_as_default": "既定として設定",
-        "subscribe": "ブラックリスト購読",
-        "subscribe_add": "購読を追加",
-        "subscribe_add_failed": "購読ソースの追加に失敗しました",
-        "subscribe_add_success": "購読フィードが正常に追加されました!",
-        "subscribe_delete": "削除",
-        "subscribe_name": {
-          "label": "代替名",
-          "placeholder": "ダウンロードした購読フィードに名前がない場合に使用される代替名。"
-        },
-        "subscribe_update": "更新",
-        "subscribe_update_failed": "フィードの更新に失敗しました",
-        "subscribe_update_success": "订阅源更新成功",
-        "subscribe_url": "購読URL",
         "tavily": {
           "api_key": {
             "label": "Tavily API キー",
@@ -6797,6 +7011,7 @@
         },
         "label": "自動検出方法",
         "llm": {
+          "label": "[to be translated]:LLM",
           "tip": "高速モデルを使用して言語検出を行い、少量のトークンを消費します。"
         },
         "placeholder": "自動検出方法を選択してください",

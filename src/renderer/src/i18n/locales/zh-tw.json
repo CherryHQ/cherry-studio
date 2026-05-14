@@ -1615,19 +1615,10 @@
     "custom_path_required": "此終端機需要設定自訂路徑",
     "custom_path_set": "自訂終端機路徑設定成功",
     "description": "快速啟動多個程式碼 CLI 工具，提高開發效率",
-    "empty": {
-      "no_match": {
-        "description": "嘗試調整搜尋關鍵字",
-        "title": "未找到符合的工具"
-      },
-      "no_tool": {
-        "description": "新增 CLI 工具或程式碼助理以開始使用",
-        "title": "尚無程式碼工具"
-      }
-    },
     "env_vars_help": "輸入自訂環境變數（每行一個，格式：KEY=value）",
     "environment_variables": "環境變數",
     "folder_placeholder": "選擇工作目錄",
+    "hero_tagline": "選一個 CLI 工具開始設定",
     "install_bun": "安裝 Bun",
     "installing_bun": "安裝中...",
     "launch": {
@@ -1643,9 +1634,6 @@
     "model_hint": "為 CLI 工具選擇要使用的 AI 模型",
     "model_placeholder": "選擇要使用的模型",
     "model_required": "請選擇模型",
-    "official_tag": "官方",
-    "official_tools": "官方工具",
-    "search_placeholder": "搜尋 CLI 工具…",
     "select_folder": "選擇資料夾",
     "set_custom_path": "設定自訂終端機路徑",
     "supported_providers": "支援的供應商",
@@ -1653,6 +1641,16 @@
     "terminal_hint": "選擇執行命令的終端機應用程式",
     "terminal_placeholder": "選擇終端機應用程式",
     "title": "程式碼工具",
+    "tool_description": {
+      "claude_code": "Anthropic 官方 CLI 程式助理",
+      "gemini_cli": "Google Gemini 命令列助理",
+      "github_copilot_cli": "GitHub Copilot 命令列版本",
+      "iflow_cli": "iFlow 推出的多模型 CLI 助理",
+      "kimi_cli": "Moonshot Kimi 命令列助理",
+      "openai_codex": "OpenAI 官方程式碼產生 CLI",
+      "opencode": "開源社群的多模型程式碼 Agent",
+      "qwen_code": "阿里通義出品的開源 CLI 程式設計工具"
+    },
     "update_options": "更新選項",
     "working_directory": "工作目錄",
     "working_directory_hint": "CLI 工具啟動時的工作目錄"
@@ -3342,8 +3340,6 @@
       "cost": "花費",
       "currency": "幣種",
       "custom": "自訂",
-      "custom_currency": "自訂幣種",
-      "custom_currency_placeholder": "請輸入自訂幣種",
       "input": "輸入價格",
       "million_tokens": "M Tokens",
       "output": "輸出價格",
@@ -3697,6 +3693,12 @@
       "model_task": "模型任務：",
       "success": "下載成功",
       "success_desc": "模型\"{{modelName}}\"-\"{{modelId}}\"下載成功，請前往 OVMS 管理介面新增模型",
+      "task": {
+        "embeddings": "嵌入",
+        "image_generation": "圖片生成",
+        "rerank": "重排",
+        "text_generation": "文字生成"
+      },
       "tip": "模型正在下載，有時需要幾個小時。請耐心等候...",
       "title": "下載 Intel OpenVINO 模型"
     },
@@ -3713,6 +3715,7 @@
       "run": "執行 OVMS 失敗：",
       "stop": "停止 OVMS 失敗："
     },
+    "guide": "Intel OVMS 指南：",
     "status": {
       "not_installed": "OVMS 未安裝",
       "not_running": "OVMS 未執行",
@@ -4051,6 +4054,7 @@
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
+    "cherryai": "CherryAI",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "阿里雲百鍊",
@@ -5982,9 +5986,14 @@
       "add": {
         "add_model": "新增模型",
         "batch_add_models": "批次新增模型",
+        "context_window": {
+          "label": "上下文視窗",
+          "placeholder": "例如 128000"
+        },
         "endpoint_type": {
           "label": "端點類型",
           "placeholder": "選擇端點類型",
+          "remove_chip": "移除",
           "required": "請選擇端點類型",
           "tooltip": "選擇 API 的端點類型格式"
         },
@@ -5992,6 +6001,14 @@
           "label": "群組名稱",
           "placeholder": "選填，例如 ChatGPT",
           "tooltip": "選填，例如 ChatGPT"
+        },
+        "max_input_tokens": {
+          "label": "最大輸入 Token",
+          "placeholder": "例如 128000"
+        },
+        "max_output_tokens": {
+          "label": "最大輸出 Token",
+          "placeholder": "例如 4096"
         },
         "model_id": {
           "label": "模型 ID",
@@ -6013,15 +6030,19 @@
       },
       "api_key": "API 金鑰",
       "base_url": "基礎 URL",
+      "bulk_disable": "全不選",
+      "bulk_enable": "全選",
       "check": {
         "all": "所有",
         "all_models_passed": "所有模型檢查皆成功",
         "button_caption": "健康檢查",
-        "disabled": "關閉",
+        "disabled": "未啟用",
         "disclaimer": "健康檢查需要傳送請求，請謹慎使用。按次收費的模型可能產生更多費用，請自行承擔。",
+        "drawer_result_hint": "檢測結果會保留在此面板中，關閉抽屜或點擊「重新檢測」前不會消失。",
         "enable_concurrent": "並行檢查",
-        "enabled": "開啟",
+        "enabled": "已啟用",
         "failed": "失敗",
+        "failed_to_start": "健康檢查啟動失敗",
         "keys_status_count": "成功：{{count_passed}} 個金鑰，失敗：{{count_failed}} 個金鑰",
         "model_status_failed": "{{count}} 個模型完全無法存取",
         "model_status_partial": "其中 {{count}} 個模型用某些金鑰無法存取",
@@ -6029,28 +6050,92 @@
         "model_status_summary": "{{provider}}: {{summary}}",
         "no_api_keys": "未找到 API 金鑰，請先新增 API 金鑰",
         "no_results": "無結果",
+        "outcome_fail_short": "{{count}} 失敗",
+        "outcome_success_short": "{{count}} 成功",
+        "outcome_total": "共 {{count}} 項",
         "passed": "成功",
+        "pipeline_heading": "檢測進度",
+        "progress_count": "{{done}} / {{total}}",
+        "progress_current": "正在檢測：{{name}}",
+        "progress_hint": "檢測過程中請查看下方清單；完成後上方會顯示摘要。",
+        "progress_title": "正在檢測模型",
+        "retry": "重新檢測",
         "select_api_key": "選擇要使用的 API 金鑰：",
         "single": "單個",
         "start": "開始",
+        "status_checking": "檢查中…",
         "timeout": "逾時",
         "title": "模型健康檢查",
         "use_all_keys": "使用金鑰"
       },
+      "copy_model_id_tooltip": "點選複製模型 ID：{{id}}",
       "default_assistant_model": "預設助手模型",
       "default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
       "empty": "找不到模型",
+      "list_title": "模型列表",
       "manage": {
+        "add_custom_model": "添加自訂模型",
         "add_listed": {
           "confirm": "確定要新增所有模型到列表嗎？",
           "label": "新增列表中的模型"
         },
         "add_whole_group": "新增整個分組",
+        "drawer_title": "模型管理",
+        "fetch_deselect_all_add": "取消全選",
+        "fetch_deselect_all_remove": "取消全選",
         "fetch_list": "取得模型列表",
+        "fetch_ok": "好的",
+        "fetch_removed_hint": "以下模型在服務商介面中已不存在，勾選以從列表中移除",
+        "fetch_result_title": "拉取結果",
+        "fetch_select_all_add": "全選新增",
+        "fetch_select_all_remove": "全選刪除",
+        "fetch_summary_add": "新增 {{selected}}/{{total}} 個模型",
+        "fetch_summary_remove": "刪除 {{selected}}/{{total}} 個模型",
+        "fetch_up_to_date": "模型列表已是最新",
+        "fetch_up_to_date_hint": "沒有發現新模型或失效模型",
+        "filter_add_all": "全部新增",
+        "filter_remove_all": "全部移除",
+        "footer_done": "完成",
+        "large_group_hidden": "顯示剩餘 {{count}} 個模型",
+        "operation_failed": "模型操作失敗。",
         "refetch_list": "重新取得模型列表",
+        "reload_catalog": "重新整理列表",
         "remove_listed": "移除列表中的模型",
         "remove_model": "移除模型",
-        "remove_whole_group": "移除整個分組"
+        "remove_whole_group": "移除整個分組",
+        "search_models_placeholder": "搜尋模型…",
+        "select_none": "取消全選",
+        "status_all": "全部",
+        "status_disabled": "未啟用",
+        "status_enabled": "已啟用",
+        "sync_added_description": "可新增到目前服務商的上游模型。",
+        "sync_added_metric": "{{count}} 個新增模型",
+        "sync_added_section": "新增模型",
+        "sync_apply_changes": "確認套用",
+        "sync_apply_result": "已新增 {{added}} 個，標記棄用 {{deprecated}} 個，刪除 {{deleted}} 個。",
+        "sync_empty_added": "沒有發現新增的上游模型。",
+        "sync_empty_missing": "沒有發現已失效的本機模型。",
+        "sync_impact_section": "引用影響",
+        "sync_impact_summary": "{{models}} 個受影響模型，{{references}} 處強引用",
+        "sync_missing_description": "這些本機模型已不在最新的上游模型列表中。",
+        "sync_missing_metric": "{{count}} 個已失效模型",
+        "sync_missing_section": "已失效模型",
+        "sync_no_references": "無強引用",
+        "sync_pick_delete": "刪除",
+        "sync_pick_deprecate": "標記棄用",
+        "sync_preview_description": "先預覽上游模型變化，再決定如何更新本機模型列表。",
+        "sync_preview_summary": "拉取預覽",
+        "sync_pull_failed": "拉取模型失敗。",
+        "sync_reference_assistants": "助手 {{count}}",
+        "sync_reference_knowledge": "知識庫 {{count}}",
+        "sync_reference_preferences": "偏好設定 {{count}}",
+        "sync_references": "強引用 {{count}}",
+        "sync_replacement": "替代建議：{{model}}",
+        "sync_selected_metric": "已選擇 {{count}} 項",
+        "sync_selected_summary": "已選擇 {{selected}} / {{total}} 項",
+        "sync_switch_to_delete": "改為刪除",
+        "sync_switch_to_deprecate": "改為標記棄用",
+        "sync_will_deprecate": "將標記為棄用"
       },
       "provider_id": "提供者 ID",
       "provider_key_add_confirm": "是否要為 {{provider}} 新增 API 金鑰？",
@@ -6071,6 +6156,11 @@
         "label": "快速模型",
         "setting_title": "快速模型設定",
         "tooltip": "建議選擇輕量模型，不建議選擇思考模型"
+      },
+      "toolbar": {
+        "filter_close": "關閉篩選",
+        "filter_open": "依能力篩選",
+        "pull_short": "拉取"
       },
       "topic_naming": {
         "auto": "話題自動重新命名",
@@ -6255,14 +6345,26 @@
         }
       },
       "api_host": "API 主機位址",
+      "api_host_drawer_hint": "自訂 API 請求網址；留空則使用目錄預設。",
       "api_host_no_valid": "API 位址不合法",
+      "api_host_placeholder": "未設定",
       "api_host_preview": "預覽：{{url}}",
       "api_host_tooltip": "僅在供應商需要自訂的 OpenAI 相容端點時才覆蓋。",
       "api_key": {
+        "copy": "複製",
+        "enabled_suffix": "已啟用",
+        "hide_key": "隱藏金鑰",
         "label": "API 金鑰",
-        "tip": "多個金鑰使用逗號分隔"
+        "label_placeholder": "標籤",
+        "list_description": "管理目前供應商的多個 API Key",
+        "placeholder": "多個金鑰使用逗號分隔",
+        "save_failed": "API 金鑰儲存失敗",
+        "show_key": "顯示金鑰",
+        "tip": "多個金鑰使用逗號分隔",
+        "unnamed": "API Key"
       },
       "api_version": "API 版本",
+      "auth_connection_section": "連接認證",
       "aws-bedrock": {
         "access_key_id": "AWS 存取金鑰 ID",
         "access_key_id_help": "您的 AWS 存取金鑰 ID，用於存取 AWS Bedrock 服務",
@@ -6302,7 +6404,15 @@
       "check": "檢查",
       "check_all_keys": "檢查所有金鑰",
       "check_multiple_keys": "檢查多個 API 金鑰",
+      "cherryin": {
+        "api_host": {
+          "acceleration": "加速網域",
+          "backup": "備用網域",
+          "international": "國際網域"
+        }
+      },
       "copilot": {
+        "add_request_header": "新增請求標頭",
         "auth_failed": "GitHub Copilot 認證失敗",
         "auth_success": "GitHub Copilot 認證成功",
         "auth_success_title": "認證成功",
@@ -6315,7 +6425,12 @@
         "description": "GitHub 帳號需要訂閱 Copilot",
         "description_detail": "GitHub Copilot 是一個基於 AI 的程式碼助手，需要有效的 GitHub Copilot 訂閱才能使用",
         "expand": "展開",
-        "headers_description": "自訂請求標頭 (json 格式)",
+        "header_field_name": "名稱",
+        "header_field_value": "值",
+        "header_name_placeholder": "標頭名稱",
+        "header_value_placeholder": "標頭值",
+        "headers_description": "自訂請求標頭（JSON 格式）",
+        "headers_json_placeholder": "{\n  \"X-Custom-Header\": \"value\"\n}",
         "invalid_json": "JSON 格式錯誤",
         "login": "登入 GitHub",
         "logout": "登出 GitHub",
@@ -6336,7 +6451,9 @@
         "step_copy_code_desc": "複製裝置授權碼",
         "step_copy_code_detail": "授權碼已自動複製，您也可以手動複製",
         "step_get_code": "取得授權碼",
-        "step_get_code_desc": "產生裝置授權碼"
+        "step_get_code_desc": "產生裝置授權碼",
+        "toggle_headers_editor_json": "切換到 JSON 編輯器",
+        "toggle_headers_editor_list": "切換到標頭清單"
       },
       "delete": {
         "content": "確定要刪除此提供者嗎？",
@@ -6366,13 +6483,19 @@
       },
       "oauth": {
         "balance": "餘額",
+        "balance_error": "取得餘額失敗",
         "button": "使用 {{provider}} 帳號登入",
         "cherryIn": {
+          "account_title": "Cherry IN 帳戶",
           "description": "使用 OAuth 2.0 登入 CherryIN",
           "logged_in": "已透過 OAuth 登入",
-          "login_button": "OAuth 登入",
+          "login_button": "OAuth 授權登入",
           "logout_button": "登出",
-          "title": "OAuth 登入"
+          "register_account": "註冊帳戶",
+          "service_attribution": "本服務由 <link>open.cherryin.ai</link> 提供",
+          "tagline": "登入後即可使用所有模型服務",
+          "title": "OAuth 登入",
+          "use_api_key": "使用 API 金鑰登入"
         },
         "connect": "關聯 {{provider}} 帳號",
         "description": "本服務由 <website>{{provider}}</website> 提供",
@@ -6387,13 +6510,18 @@
         "provided_by_suffix": " 提供",
         "requests": "請求數",
         "topup": "儲值",
-        "usage_title": "用量"
+        "usage_title": "用量",
+        "usage_unit": "Token"
       },
       "openai": {
         "alert": "OpenAI Provider 不再支援舊的呼叫方法。如果使用第三方 API，請建立新的服務供應商"
       },
       "remove_duplicate_keys": "移除重複金鑰",
       "remove_invalid_keys": "刪除無效金鑰",
+      "reorder_failed": "調整服務商順序失敗",
+      "request_configuration": "請求設定",
+      "request_configuration_tooltip": "設定 API Host 與自訂請求標頭",
+      "save_failed": "服務商設定儲存失敗",
       "search": "搜尋模型平臺...",
       "search_placeholder": "搜尋模型 ID 或名稱",
       "title": "模型提供者",

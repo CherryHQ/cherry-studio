@@ -51,7 +51,7 @@ function getDuplicateModelNames<T extends Pick<Model, 'name'>>(models: T[]): Set
 }
 
 function sortModels(models: Model[]) {
-  return sortBy(models, [(model) => model.sortOrder ?? Number.MAX_SAFE_INTEGER, 'group', 'name'])
+  return sortBy(models, ['group', 'name'])
 }
 
 function getModelIdentifier(model: Model) {

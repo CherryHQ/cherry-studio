@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
-import { type FileMetadata, FileTypeSchema } from './file'
+import { FileTypeSchema } from './file'
+import { type FileMetadata } from './file/legacyFileMetadata'
 
 /**
  * Knowledge domain types.

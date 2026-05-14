@@ -33,7 +33,8 @@ export const isAudioModel = (model: Model): boolean =>
 export const isEmbeddingModel = (model: Model): boolean => model.capabilities.includes(MODEL_CAPABILITY.EMBEDDING)
 
 /** Check if model is a reranking model */
-export const isRerankModel = (model: Model): boolean => model.capabilities.includes(MODEL_CAPABILITY.RERANK)
+export const isRerankModel = (model: { capabilities?: readonly unknown[] | null }): boolean =>
+  model.capabilities?.includes(MODEL_CAPABILITY.RERANK) ?? false
 
 /** Check if model supports function calling / tool use */
 export const isFunctionCallingModel = (model: Model): boolean =>
@@ -45,6 +46,14 @@ export const isWebSearchModel = (model: Model): boolean => model.capabilities.in
 /** Check if model supports image generation */
 export const isGenerateImageModel = (model: Model): boolean =>
   model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION)
+
+export const isFreeModel = (model: Pick<Model, 'id' | 'name' | 'providerId'>): boolean => {
+  if (model.providerId === 'cherryai') {
+    return true
+  }
+
+  return (model.id + model.name).toLowerCase().includes('free')
+}
 
 export const isGenerateVideoModel = (model: Model): boolean =>
   !!model.capabilities.includes(MODEL_CAPABILITY.VIDEO_GENERATION)
@@ -59,7 +68,7 @@ export const isSpeechToTextModel = (model: Model): boolean =>
   !!(model.capabilities.includes(MODEL_CAPABILITY.AUDIO_TRANSCRIPT) || model.inputModalities?.includes(MODALITY.AUDIO))
 
 export const isTextToSpeechModel = (model: Model): boolean =>
-  !!(model.capabilities.includes(MODEL_CAPABILITY.AUDIO_GENERATION) || model.inputModalities?.includes(MODALITY.AUDIO))
+  !!(model.capabilities.includes(MODEL_CAPABILITY.AUDIO_GENERATION) || model.outputModalities?.includes(MODALITY.AUDIO))
 
 /** Check if model is a dedicated text-to-image model (no text chat) */
 export const isTextToImageModel = (model: Model): boolean =>
@@ -146,8 +155,8 @@ export const isMaxTemperatureOneModel = (model: Model): boolean => {
 
 // Vendor identity checks all delegate to `VENDOR_PATTERNS` in
 // `@cherrystudio/provider-registry`. Do NOT inline new regex here —
-// add the vendor to the registry's pattern map instead so icon routing
-// and capability inference stay aligned.
+// add the vendor to the registry's pattern map instead of duplicating
+// regexes in renderer code.
 
 /** Check if model is an Anthropic/Claude model */
 export const isAnthropicModel = (model: Model): boolean =>
@@ -573,6 +582,22 @@ export const getLowerBaseModelName = (id: string, delimiter: string = '/'): stri
   return baseModelName
 }
 
+export const groupQwenModels = <T extends Pick<Model, 'id'> & Partial<Pick<Model, 'group'>>>(
+  models: T[]
+): Record<string, T[]> => {
+  return models.reduce<Record<string, T[]>>((groups, model) => {
+    const modelId = getLowerBaseModelName(model.id)
+    const prefixMatch = modelId.match(/^(qwen(?:\d+\.\d+|2(?:\.\d+)?|-\d+b|-(?:max|coder|vl)))/i)
+    const groupKey = prefixMatch ? prefixMatch[1] : model.group || '其他'
+
+    if (!groups[groupKey]) {
+      groups[groupKey] = []
+    }
+    groups[groupKey].push(model)
+    return groups
+  }, {})
+}
+
 // ---------------------------------------------------------------------------
 // Regex constants (used by inference helpers)
 // ---------------------------------------------------------------------------
@@ -701,7 +726,7 @@ const FUNCTION_CALLING_ALLOWED_MODELS = [
   'gpt-4o-mini',
   'gpt-4',
   'gpt-4.5',
-  'gpt-oss(?:-[\\w-]+)',
+  'gpt-oss(?:-[\\w-]+)?',
   'gpt-5(?:-[0-9-]+)?',
   'o(1|3|4)(?:-[\\w-]+)?',
   'claude',
@@ -925,7 +950,7 @@ const IMAGE_ENHANCEMENT_MODELS = [
   'gpt-image-1',
   'gemini-2.5-flash-image(?:-[\\w-]+)?',
   'gemini-2.0-flash-preview-image-generation',
-  'gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?'
+  'gemini-3(?:\\.\\d+)?-(?:flash|pro)-image(?:-[\\w-]+)?'
 ]
 
 const IMAGE_ENHANCEMENT_REGEX = new RegExp(IMAGE_ENHANCEMENT_MODELS.join('|'), 'i')
@@ -968,7 +993,7 @@ const visionAllowedModels = [
   'o3(?:-[\\w-]+)?',
   'o4(?:-[\\w-]+)?',
   'deepseek-vl(?:[\\w-]+)?',
-  'kimi-k2.5',
+  'kimi-k2\\.[56](?:-[\\w-]+)?',
   'kimi-latest',
   'gemma-?[3-4](?:[-.\\w]+)?',
   'doubao-seed-1[.-][68](?:-[\\w-]+)?',

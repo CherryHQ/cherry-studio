@@ -3,7 +3,12 @@ import { loggerService } from '@logger'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { isSystemProviderId } from '@renderer/types/provider'
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
-import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
+import type {
+  CreateProviderDto,
+  ListProvidersQuery,
+  UpdateApiKeyDto,
+  UpdateProviderDto
+} from '@shared/data/api/schemas/providers'
 import type { ApiKeyEntry, AuthConfig, Provider } from '@shared/data/types/provider'
 import { isUndefined, omitBy } from 'lodash'
 import { useCallback } from 'react'
@@ -11,14 +16,11 @@ import { useCallback } from 'react'
 const EMPTY_PROVIDERS: Provider[] = []
 const logger = loggerService.withContext('useProviders')
 
-// Provider reorder is intentionally omitted here until a transactional batch endpoint exists.
-// Sending N independent PATCH requests can leave persistent partial state on failure.
-
 /**
  * All SWR cache keys that must revalidate after any mutation to a provider:
  * - `/providers` — the list
  * - `/providers/${id}` — the entity (useProvider)
- * - `/providers/${id}/*` — all sub-resources (api-keys, auth-config, registry-models, …)
+ * - `/providers/${id}/*` — all sub-resources (api-keys, auth-config, …)
  *
  * Concrete paths are only needed here for SWR refresh arrays — queries and mutations
  * use schema template paths directly, so no `as ConcreteApiPaths` casts are needed there.
@@ -110,6 +112,14 @@ export function useProviderMutations(providerId: string) {
     error: deleteApiKeyError
   } = useMutation('DELETE', '/providers/:providerId/api-keys/:keyId', { refresh })
 
+  const {
+    trigger: updateApiKeyTrigger,
+    isLoading: isUpdatingApiKey,
+    error: updateApiKeyError
+  } = useMutation('PATCH', '/providers/:providerId/api-keys/:keyId', { refresh })
+
+  const { trigger: replaceApiKeysTrigger } = useMutation('PUT', '/providers/:providerId/api-keys', { refresh })
+
   const updateProvider = useCallback(
     async (updates: UpdateProviderDto) => {
       try {
@@ -170,13 +180,25 @@ export function useProviderMutations(providerId: string) {
   const updateApiKeys = useCallback(
     async (apiKeys: ApiKeyEntry[]) => {
       try {
-        await patchTrigger({ params: { providerId }, body: { apiKeys } })
+        await replaceApiKeysTrigger({ params: { providerId }, body: { keys: apiKeys } })
       } catch (error) {
         logger.error('Failed to update API keys', { providerId, error })
         throw error
       }
     },
-    [patchTrigger, providerId]
+    [providerId, replaceApiKeysTrigger]
+  )
+
+  const updateApiKey = useCallback(
+    async (keyId: string, updates: UpdateApiKeyDto) => {
+      try {
+        await updateApiKeyTrigger({ params: { providerId, keyId }, body: updates })
+      } catch (error) {
+        logger.error('Failed to update API key', { providerId, keyId, error })
+        throw error
+      }
+    },
+    [providerId, updateApiKeyTrigger]
   )
 
   return {
@@ -193,7 +215,10 @@ export function useProviderMutations(providerId: string) {
     deleteApiKey,
     isDeletingApiKey,
     deleteApiKeyError,
-    updateApiKeys
+    updateApiKeys,
+    updateApiKey,
+    isUpdatingApiKey,
+    updateApiKeyError
   }
 }
 

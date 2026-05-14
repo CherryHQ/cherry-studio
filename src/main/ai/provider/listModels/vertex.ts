@@ -67,14 +67,24 @@ const SUPPORTED_VERTEX_PUBLISHER_MODEL_PATTERNS = [
   /^qwen[\w.@-]*$/i
 ] as const
 
-export async function createVertexModelListRequest(provider: Provider): Promise<VertexModelListRequest | undefined> {
+export async function createVertexModelListRequest(
+  provider: Provider,
+  options?: { throwOnError?: boolean }
+): Promise<VertexModelListRequest | undefined> {
+  const failOrSkip = (reason: string, context: Record<string, unknown>): undefined => {
+    if (options?.throwOnError) {
+      throw new Error(`Vertex AI model listing failed: ${reason}`)
+    }
+    logger.warn(`Vertex AI model listing skipped — ${reason}`, context)
+    return undefined
+  }
+
   const authConfig = await providerService.getAuthConfig(provider.id)
   if (authConfig?.type !== 'iam-gcp') {
-    logger.warn('Vertex AI model listing skipped — provider is not configured with iam-gcp auth', {
+    return failOrSkip('provider is not configured with iam-gcp auth', {
       providerId: provider.id,
       authType: authConfig?.type
     })
-    return undefined
   }
 
   const { project, location, credentials } = authConfig
@@ -89,11 +99,10 @@ export async function createVertexModelListRequest(provider: Provider): Promise<
   if (!clientEmail) missing.push('clientEmail')
 
   if (missing.length > 0) {
-    logger.warn('Vertex AI model listing skipped — missing required service-account fields', {
+    return failOrSkip('missing required service-account fields', {
       providerId: provider.id,
       missing
     })
-    return undefined
   }
 
   let authHeaders: Record<string, string>
@@ -103,6 +112,9 @@ export async function createVertexModelListRequest(provider: Provider): Promise<
       serviceAccount: { privateKey: privateKey!, clientEmail: clientEmail! }
     })
   } catch (error) {
+    if (options?.throwOnError) {
+      throw error
+    }
     logger.warn('Vertex AI model listing skipped — authentication failed', {
       providerId: provider.id,
       error: error instanceof Error ? error.message : String(error)

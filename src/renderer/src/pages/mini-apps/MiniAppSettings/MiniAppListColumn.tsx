@@ -42,12 +42,6 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
             itemKey="appId"
             onSortEnd={({ oldIndex, newIndex }) => onReorder(oldIndex, newIndex)}
             gap={2}
-            // Sortable's per-item wrapper has no intrinsic width, so combined
-            // with its `flex items-center flex-col` list wrapper each row
-            // shrink-wraps and centers horizontally. Force full width on the
-            // wrapper itself so the inner `w-full` row can actually span the
-            // column.
-            itemStyle={{ width: '100%' }}
             renderItem={(app) => (
               <div className="group/row flex w-full items-center gap-2 rounded-2xs px-1.5 py-1 hover:bg-accent/40">
                 {/*

@@ -1,61 +1,87 @@
+import { Button } from '@cherrystudio/ui'
 import MarkdownEditor from '@renderer/components/MarkdownEditor'
 import { TopView } from '@renderer/components/TopView'
-import { useProvider } from '@renderer/hooks/useProvider'
-import type { Provider } from '@renderer/types'
-import { Modal } from 'antd'
+import { useProvider } from '@renderer/hooks/useProviders'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import ProviderSettingsDrawer from './primitives/ProviderSettingsDrawer'
+import { drawerClasses } from './primitives/ProviderSettingsPrimitives'
+
 interface ShowParams {
-  provider: Provider
+  providerId: string
 }
 
 interface Props extends ShowParams {
   resolve: (data: any) => void
 }
 
-const PopupContainer: FC<Props> = ({ provider: _provider, resolve }) => {
+const PopupContainer: FC<Props> = ({ providerId, resolve }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(true)
-  const { provider, updateProvider } = useProvider(_provider.id)
-  const [notes, setNotes] = useState<string>(provider.notes || '')
+  const { provider, updateProvider } = useProvider(providerId)
+  const [notes, setNotes] = useState<string>(provider?.settings?.notes || '')
+  const [edited, setEdited] = useState(false)
+  const [saving, setSaving] = useState(false)
 
-  const handleSave = () => {
-    updateProvider({
-      ...provider,
-      notes
-    })
-    setOpen(false)
+  useEffect(() => {
+    if (edited) {
+      return
+    }
+
+    setNotes(provider?.settings?.notes || '')
+  }, [edited, provider?.settings?.notes])
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await updateProvider({ providerSettings: { ...provider?.settings, notes } })
+      setOpen(false)
+      resolve({})
+    } catch {
+      window.toast.error(t('blocks.edit.save.failed.label'))
+    } finally {
+      setSaving(false)
+    }
   }
 
   const onCancel = () => {
     setOpen(false)
-  }
-
-  const onClose = () => {
     resolve({})
   }
 
+  const footer = (
+    <div className={drawerClasses.footer}>
+      <Button variant="outline" onClick={onCancel}>
+        {t('common.cancel')}
+      </Button>
+      <Button loading={saving} disabled={saving} onClick={() => void handleSave()}>
+        {t('common.save')}
+      </Button>
+    </div>
+  )
+
   return (
-    <Modal
+    <ProviderSettingsDrawer
+      size="wide"
       title={t('settings.provider.notes.title')}
       open={open}
-      onOk={handleSave}
-      onCancel={onCancel}
-      afterClose={onClose}
-      width={800}
-      transitionName="animation-move-down"
-      centered>
-      <div className="mt-4 h-[400px]">
+      onClose={onCancel}
+      footer={footer}
+      bodyClassName="flex min-h-0 flex-1 flex-col px-5 py-4">
+      <div className="min-h-0 flex-1">
         <MarkdownEditor
           value={notes}
-          onChange={setNotes}
+          onChange={(value) => {
+            setEdited(true)
+            setNotes(value)
+          }}
           placeholder={t('settings.provider.notes.placeholder')}
           height="400px"
         />
       </div>
-    </Modal>
+    </ProviderSettingsDrawer>
   )
 }
 

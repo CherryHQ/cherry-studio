@@ -1,6 +1,8 @@
 import type { Key } from 'react'
 import { useCallback, useMemo } from 'react'
 
+import { reorderVisibleSubset } from '../components/composites/ReorderableList/reorderVisibleSubset'
+
 interface UseDndReorderParams<T> {
   /** 原始的、完整的数据列表 */
   originalList: T[]
@@ -13,10 +15,15 @@ interface UseDndReorderParams<T> {
 }
 
 /**
- * 增强拖拽排序能力，处理“过滤后列表”与“原始列表”的索引映射问题。
+ * 增强拖拽排序能力，处理"过滤后列表"与"原始列表"的索引映射问题。
+ *
+ * 底层算法委托给 {@link reorderVisibleSubset}（同一个 UI 包里的纯函数实现），
+ * 这里只负责把视图层的 `{ oldIndex, newIndex }` 适配进去 + 通过 `useMemo` /
+ * `useCallback` 给视图侧的 `itemKey(index)` 提供稳定引用。两份算法实现的
+ * 历史复刻在 PR #14631 review #4287764522 (S9) 被指出，由此合并。
  *
  * @template T 列表项的类型
- * @param params - { originalList, filteredList, onUpdate, idKey }
+ * @param params - { originalList, filteredList, onUpdate, itemKey }
  * @returns 返回可以直接传递给 Sortable 的 onSortEnd 回调
  */
 export function useDndReorder<T>({ originalList, filteredList, onUpdate, itemKey }: UseDndReorderParams<T>) {
@@ -34,11 +41,10 @@ export function useDndReorder<T>({ originalList, filteredList, onUpdate, itemKey
     return map
   }, [originalList, getId])
 
-  // 创建一个函数，将 *过滤后列表* 的视图索引转换为 *原始列表* 的数据索引
+  // 将 *过滤后列表* 的视图索引转换为 *原始列表* 的数据索引（itemKey 兜底用）
   const getItemKey = useCallback(
     (index: number): Key => {
       const item = filteredList[index]
-      // 如果找不到item，返回视图索引兜底
       if (!item) return index
 
       const originalIndex = itemIndexMap.get(getId(item))
@@ -47,31 +53,22 @@ export function useDndReorder<T>({ originalList, filteredList, onUpdate, itemKey
     [filteredList, itemIndexMap, getId]
   )
 
-  // 创建 onSortEnd 回调，封装了所有重排逻辑
+  // 重排逻辑委托给 reorderVisibleSubset，保持一份算法实现。
   const onSortEnd = useCallback(
     ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
-      // 使用 getItemKey 将视图索引转换为数据索引
-      const sourceOriginalIndex = getItemKey(oldIndex) as number
-      const destOriginalIndex = getItemKey(newIndex) as number
+      const nextList = reorderVisibleSubset({
+        items: originalList,
+        visibleItems: filteredList,
+        fromIndex: oldIndex,
+        toIndex: newIndex,
+        getId: (item) => getId(item) as string | number
+      })
 
-      // 如果索引转换失败，不进行任何操作
-      if (sourceOriginalIndex === undefined || destOriginalIndex === undefined) {
-        return
+      if (nextList !== originalList) {
+        onUpdate(nextList)
       }
-
-      if (sourceOriginalIndex === destOriginalIndex) {
-        return
-      }
-
-      // 操作原始列表的副本
-      const newList = [...originalList]
-      const [movedItem] = newList.splice(sourceOriginalIndex, 1)
-      newList.splice(destOriginalIndex, 0, movedItem)
-
-      // 调用外部更新函数
-      onUpdate(newList)
     },
-    [getItemKey, originalList, onUpdate]
+    [filteredList, getId, onUpdate, originalList]
   )
 
   return { onSortEnd, itemKey: getItemKey }

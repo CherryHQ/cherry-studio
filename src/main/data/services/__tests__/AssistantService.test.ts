@@ -8,6 +8,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { AssistantDataService, assistantDataService } from '@data/services/AssistantService'
 import { pinService } from '@data/services/PinService'
+import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api'
 import { type ListAssistantsQuery, ListAssistantsQuerySchema } from '@shared/data/api/schemas/assistants'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
@@ -36,9 +37,10 @@ describe('AssistantDataService', () => {
   })
 
   async function seedModelRefs() {
+    const [openaiKey, anthropicKey, gpt4Key, claude3Key, embeddingKey] = generateOrderKeySequence(5)
     await dbh.db.insert(userProviderTable).values([
-      { providerId: 'openai', name: 'OpenAI' },
-      { providerId: 'anthropic', name: 'Anthropic' }
+      { providerId: 'openai', name: 'OpenAI', orderKey: openaiKey },
+      { providerId: 'anthropic', name: 'Anthropic', orderKey: anthropicKey }
     ])
 
     await dbh.db.insert(userModelTable).values([
@@ -50,7 +52,7 @@ describe('AssistantDataService', () => {
         name: 'GPT-4',
         isEnabled: true,
         isHidden: false,
-        sortOrder: 0
+        orderKey: gpt4Key
       },
       {
         id: createUniqueModelId('anthropic', 'claude-3'),
@@ -60,7 +62,7 @@ describe('AssistantDataService', () => {
         name: 'Claude 3',
         isEnabled: true,
         isHidden: false,
-        sortOrder: 0
+        orderKey: claude3Key
       },
       {
         id: createUniqueModelId('openai', 'text-embedding-3-large'),
@@ -70,7 +72,7 @@ describe('AssistantDataService', () => {
         name: 'text-embedding-3-large',
         isEnabled: true,
         isHidden: false,
-        sortOrder: 0
+        orderKey: embeddingKey
       }
     ])
   }

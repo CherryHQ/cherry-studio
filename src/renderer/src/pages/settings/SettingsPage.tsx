@@ -33,7 +33,7 @@ const SettingsPage: FC = () => {
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
 
-  const isActive = (path: string) => pathname.startsWith(path)
+  const isActive = (path: string) => pathname === path || pathname.startsWith(`${path}/`)
   const go = (path: string) => navigate({ to: path })
   const menuItemClassName =
     'h-8 rounded-lg border-transparent px-2.5 font-semibold text-foreground/85 text-sm hover:!bg-muted data-[active=true]:!border-transparent data-[active=true]:!bg-muted data-[active=true]:!text-foreground [&_svg]:size-4 [&_svg]:text-foreground/70'

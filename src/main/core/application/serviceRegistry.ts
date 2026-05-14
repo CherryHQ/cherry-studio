@@ -10,7 +10,9 @@ import { AnalyticsService } from '@main/services/AnalyticsService'
 import { ApiServerService } from '@main/services/ApiServerService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
+import { CherryINOAuthService } from '@main/services/CherryINOAuthService'
 import { CodeCliService } from '@main/services/CodeCliService'
+import { FileManager } from '@main/services/file/FileManager'
 import {
   FileProcessingOrchestrationService,
   FileProcessingTaskService,
@@ -79,6 +81,7 @@ export const services = {
   AppMenuService,
   CodeCliService,
   LanTransferService,
+  FileManager,
   FileProcessingOrchestrationService,
   PowerMonitorService,
   SelectionService,
@@ -95,6 +98,7 @@ export const services = {
   TrayService,
   WebSearchService,
   WebviewService,
+  CherryINOAuthService,
   MainWindowService,
   QuickAssistantService,
   McpService,

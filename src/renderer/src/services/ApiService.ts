@@ -160,10 +160,25 @@ export function checkApiProvider(provider: Provider): void {
  * api key / host / models) and IPC forwarding. Probe dispatch (embedding vs
  * chat), timeout handling, and latency measurement all happen in Main.
  */
-export async function checkApi(provider: Provider, model: Model, timeout = 15000): Promise<{ latency: number }> {
+export async function checkApi(
+  provider: Provider,
+  model: Model,
+  timeout = 15000,
+  signal?: AbortSignal
+): Promise<{ latency: number }> {
   checkApiProvider(provider)
+  signal?.throwIfAborted()
   return await window.api.ai.checkModel({
     uniqueModelId: createUniqueModelId(provider.id, model.id),
     timeout
   })
+}
+
+export async function checkModel(
+  provider: Provider,
+  model: Model,
+  timeout = 15000,
+  signal?: AbortSignal
+): Promise<{ latency: number }> {
+  return checkApi(provider, model, timeout, signal)
 }
