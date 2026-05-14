@@ -2,7 +2,13 @@ import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
 const OllamaDark: IconComponent = (props: SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="1em"
+    height="1em"
+    fill="none"
+    viewBox="26.894 17.641 66.779 84.683"
+    {...props}>
     <path
       fill="#fff"
       fillRule="evenodd"

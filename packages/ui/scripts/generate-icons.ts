@@ -15,7 +15,7 @@ import fs from 'fs/promises'
 import path from 'path'
 
 import { generateMeta } from './codegen'
-import { buildLightDarkSvgMap, ensureViewBox, type LightDarkSvgPair, toCamelCase } from './svg-utils'
+import { buildLightDarkSvgMap, ensureViewBox, type LightDarkSvgPair, tightenSvgViewBox, toCamelCase } from './svg-utils'
 
 type IconType = 'icons' | 'providers' | 'models'
 
@@ -125,7 +125,7 @@ function extractColorPrimary(svgContent: string): string {
  * Run SVGR transform on SVG content, return TSX code.
  */
 async function svgrTransform(svgCode: string, componentName: string): Promise<string> {
-  const processedSvg = ensureViewBox(svgCode)
+  const processedSvg = tightenSvgViewBox(ensureViewBox(svgCode))
 
   let jsCode = await transform(
     processedSvg,

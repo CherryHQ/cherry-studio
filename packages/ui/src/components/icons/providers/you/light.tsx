@@ -8,7 +8,7 @@ const YouLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
     width="1em"
     height="1em"
     fill="none"
-    viewBox="0 0 120 120"
+    viewBox="17 18 85 85"
     {...props}>
     <g clipPath="url(#youlight__a)">
       <path fill="url(#youlight__b)" d="M18 19H101V102H18z" />

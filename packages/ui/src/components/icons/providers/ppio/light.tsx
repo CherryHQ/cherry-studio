@@ -2,7 +2,13 @@ import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
 const PpioLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="1em"
+    height="1em"
+    fill="none"
+    viewBox="17.5 17.799 84.428 84.403"
+    {...props}>
     <g clipPath="url(#ppiolight__a)">
       <mask
         id="ppiolight__b"

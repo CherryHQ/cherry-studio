@@ -2,7 +2,13 @@ import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
 const ModelscopeLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="1em"
+    height="1em"
+    fill="none"
+    viewBox="18.03 39.134 83.618 45.898"
+    {...props}>
     <path
       fill="#624AFF"
       d="M19.0303 57.4415H28.379V66.7211H19.0303V57.4415ZM55.1641 66.7244H64.5129V76.004H55.1641V66.7244ZM83.2099 76.004H73.8612V84.0319H91.2979V66.7244H83.2099V76.004Z"

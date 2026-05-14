@@ -2,7 +2,13 @@ import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
 const SophnetLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="1em"
+    height="1em"
+    fill="none"
+    viewBox="22.792 19.205 73.681 83.432"
+    {...props}>
     <path
       fill="#6200EE"
       d="M24.168 31.1556C24.168 25.3166 28.8398 20.5833 34.603 20.5833H85.0388C90.8018 20.5833 95.4734 25.3166 95.4734 31.1556C95.4734 36.9945 90.8018 41.7278 85.0388 41.7278H34.603C28.8398 41.7278 24.168 36.9945 24.168 31.1556Z"

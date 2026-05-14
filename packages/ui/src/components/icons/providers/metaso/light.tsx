@@ -2,7 +2,13 @@ import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
 const MetasoLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="1em"
+    height="1em"
+    fill="none"
+    viewBox="16.798 32.16 86.01 54.702"
+    {...props}>
     <path
       fill="url(#metasolight__a)"
       d="M44.4678 57.5958C44.7348 57.1374 45.1174 56.7571 45.5773 56.4928C46.0372 56.2285 46.5584 56.0894 47.0888 56.0894C47.6193 56.0894 48.1405 56.2285 48.6004 56.4928C49.0603 56.7571 49.4428 57.1374 49.7099 57.5958L64.0562 82.3442C64.5424 83.176 65.2042 83.8916 65.9954 84.4412C66.7866 84.9908 67.6882 85.3612 68.6373 85.5265C69.5865 85.6917 70.5602 85.6479 71.4906 85.398C72.421 85.1482 73.2858 84.6983 74.0244 84.0799C76.5497 81.9924 76.9015 78.2475 75.287 75.4095L52.7433 36.6704"

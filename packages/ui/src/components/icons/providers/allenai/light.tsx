@@ -2,7 +2,7 @@ import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
 const AllenaiLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
+  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="19.537 17 81.926 85" {...props}>
     <path
       fill="#F8F0E9"
       d="M20.5371 18C46.9127 18 73.2882 18 100.463 18C100.463 45.39 100.463 72.78 100.463 101C74.0875 101 47.7119 101 20.5371 101C20.5371 73.61 20.5371 46.22 20.5371 18Z"

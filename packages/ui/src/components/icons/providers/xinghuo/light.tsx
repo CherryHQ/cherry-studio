@@ -2,7 +2,13 @@ import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
 const XinghuoLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="1em"
+    height="1em"
+    fill="none"
+    viewBox="19.001 11 78.744 94.512"
+    {...props}>
     <path
       fill="#3DC8F9"
       d="M20.001 64.32C20.001 48.728 31.089 37.468 49.281 20.488C46.681 52.02 74.921 53.576 69.373 69.344C65.413 80.604 52.397 77.14 51.013 74.712C51.013 74.712 55.861 76.1 56.553 71.248C57.249 66.396 47.545 63.8 41.313 51.5C30.913 63.452 37.497 87.532 58.113 87.532C77.169 87.532 84.445 67.784 77.689 55.136C77.689 55.136 93.973 57.908 95.361 70.38C96.745 82.856 80.809 104.512 58.981 103.992C37.153 103.472 20.001 87.36 20.001 64.32Z"

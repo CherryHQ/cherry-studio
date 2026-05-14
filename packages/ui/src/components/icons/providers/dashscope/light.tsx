@@ -2,7 +2,13 @@ import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
 const DashscopeLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="1em"
+    height="1em"
+    fill="none"
+    viewBox="19.582 26.62 80.835 69.147"
+    {...props}>
     <path
       fill="url(#dashscopelight__a)"
       d="M59.8105 38.5945L99.4161 61.4107L98.6969 66.1511L59.8475 43.7687L59.8105 38.5945Z"

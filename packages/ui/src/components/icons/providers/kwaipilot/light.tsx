@@ -2,7 +2,13 @@ import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
 const KwaipilotLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="1em"
+    height="1em"
+    fill="none"
+    viewBox="17.785 17.807 85.036 85.035"
+    {...props}>
     <path
       fill="url(#kwaipilotlight__a)"
       d="M60.3031 18.8139C37.3753 18.8139 18.7852 37.4037 18.7852 60.3311C18.7852 72.8483 24.3278 84.071 33.0858 91.6859L53.6245 49.5696H76.6004L51.559 100.919C54.3819 101.525 57.3011 101.842 60.3031 101.842C83.231 101.842 101.821 83.2516 101.821 60.3243C101.821 37.3968 83.231 18.807 60.3031 18.807V18.8139Z"

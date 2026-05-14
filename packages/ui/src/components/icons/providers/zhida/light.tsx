@@ -8,7 +8,7 @@ const ZhidaLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
     width="1em"
     height="1em"
     fill="none"
-    viewBox="0 0 120 120"
+    viewBox="17.5 17.5 85 85"
     {...props}>
     <g clipPath="url(#zhidalight__a)">
       <path fill="url(#zhidalight__b)" d="M18.5 18.5H101.5V101.5H18.5z" />

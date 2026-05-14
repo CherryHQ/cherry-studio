@@ -2,7 +2,13 @@ import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
 const JinaLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="1em"
+    height="1em"
+    fill="none"
+    viewBox="23.168 25.143 73.666 69.715"
+    {...props}>
     <path
       fill="#EB6161"
       d="M40.5099 93.8577C49.5353 93.8577 56.8519 86.5412 56.8519 77.5162C56.8519 68.4913 49.5353 61.1752 40.5099 61.1752C31.4845 61.1752 24.168 68.4913 24.168 77.5162C24.168 86.5412 31.4845 93.8577 40.5099 93.8577Z"

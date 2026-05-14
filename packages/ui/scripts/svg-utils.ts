@@ -40,6 +40,80 @@ export function toCamelCase(filename: string): string {
   )
 }
 
+/**
+ * Tighten the SVG root viewBox to the bounding box of its visible content.
+ *
+ * Many designer-exported SVGs (e.g. from Figma frames) carry ~10-15% of empty
+ * padding inside the viewBox. Combined with the Avatar wrapper's own padding,
+ * the rendered logo ends up only filling ~40% of the visible container.
+ *
+ * This helper unions the bounding boxes of every `<path d="...">` and `<rect>`
+ * element in the file, then rewrites the root viewBox to that union (plus a
+ * tiny 1-unit margin so strokes don't get clipped).
+ *
+ * Returns the original code unchanged if it can't find a viewBox, has no
+ * visible geometry, or the computed bbox is already a good fit (>95% coverage).
+ */
+export function tightenSvgViewBox(svgCode: string): string {
+  const vbMatch = svgCode.match(/<svg[^>]*\bviewBox="([^"]+)"/)
+  if (!vbMatch) return svgCode
+  const [vbX, vbY, vbW, vbH] = vbMatch[1].split(/[\s,]+/).map(Number)
+  if (![vbX, vbY, vbW, vbH].every(isFinite)) return svgCode
+
+  // Strip <defs>, <mask>, <clipPath> — those don't render directly
+  const stripped = svgCode
+    .replace(/<defs[\s\S]*?<\/defs>/gi, '')
+    .replace(/<mask[\s\S]*?<\/mask>/gi, '')
+    .replace(/<clipPath[\s\S]*?<\/clipPath>/gi, '')
+
+  const bounds: BBox = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
+  let foundContent = false
+
+  for (const m of stripped.matchAll(/<path\b[^>]*\bd="([^"]+)"/g)) {
+    const pb = parseSvgPathBounds(m[1])
+    if (isFinite(pb.minX)) {
+      bounds.minX = Math.min(bounds.minX, pb.minX)
+      bounds.minY = Math.min(bounds.minY, pb.minY)
+      bounds.maxX = Math.max(bounds.maxX, pb.maxX)
+      bounds.maxY = Math.max(bounds.maxY, pb.maxY)
+      foundContent = true
+    }
+  }
+
+  for (const m of stripped.matchAll(/<rect\b([^>]*)>/g)) {
+    const a = m[1]
+    const x = parseFloat(a.match(/\bx="([^"]+)"/)?.[1] ?? '0')
+    const y = parseFloat(a.match(/\by="([^"]+)"/)?.[1] ?? '0')
+    const w = parseFloat(a.match(/\bwidth="([^"]+)"/)?.[1] ?? 'NaN')
+    const h = parseFloat(a.match(/\bheight="([^"]+)"/)?.[1] ?? 'NaN')
+    if (isFinite(w) && isFinite(h)) {
+      bounds.minX = Math.min(bounds.minX, x)
+      bounds.minY = Math.min(bounds.minY, y)
+      bounds.maxX = Math.max(bounds.maxX, x + w)
+      bounds.maxY = Math.max(bounds.maxY, y + h)
+      foundContent = true
+    }
+  }
+
+  if (!foundContent) return svgCode
+
+  // If content already fills >95% of the viewBox, leave it alone
+  const coverage = ((bounds.maxX - bounds.minX) * (bounds.maxY - bounds.minY)) / (vbW * vbH)
+  if (coverage > 0.95) return svgCode
+
+  // Add a 1-unit margin so anti-aliased strokes don't clip at the edges
+  const margin = 1
+  const nx = Math.max(vbX, bounds.minX - margin)
+  const ny = Math.max(vbY, bounds.minY - margin)
+  const nw = Math.min(vbX + vbW, bounds.maxX + margin) - nx
+  const nh = Math.min(vbY + vbH, bounds.maxY + margin) - ny
+
+  if (!isFinite(nw) || !isFinite(nh) || nw <= 0 || nh <= 0) return svgCode
+
+  const newViewBox = `viewBox="${nx} ${ny} ${nw} ${nh}"`
+  return svgCode.replace(/(<svg[^>]*\b)viewBox="[^"]+"/, `$1${newViewBox}`)
+}
+
 export function ensureViewBox(svgCode: string): string {
   if (/viewBox\s*=\s*"[^"]*"/.test(svgCode)) return svgCode
 
