@@ -31,8 +31,10 @@ import knowledge from './knowledge'
 import llm from './llm'
 import mcp from './mcp'
 import memory from './memory'
+import messageBlocksReducer from './messageBlock'
 import migrate from './migrate'
 import minapps from './minapps'
+import newMessagesReducer from './newMessage'
 import { setNotesPath } from './note'
 import note from './note'
 import nutstore from './nutstore'
@@ -70,6 +72,8 @@ const rootReducer = combineReducers({
   selectionStore,
   tabs,
   preprocess,
+  messages: newMessagesReducer,
+  messageBlocks: messageBlocksReducer,
   inputTools: inputToolsReducer,
   translate,
   ocr,
@@ -81,7 +85,7 @@ const persistedReducer = persistReducer(
     key: 'cherry-studio',
     storage,
     version: 206,
-    blacklist: ['runtime', 'tabs'],
+    blacklist: ['runtime', 'messages', 'messageBlocks', 'tabs'],
     migrate
   },
   rootReducer
