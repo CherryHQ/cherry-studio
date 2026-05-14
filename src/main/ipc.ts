@@ -543,12 +543,14 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.App_InstallOvmsBinary, () => runInstallScript('install-ovms.js'))
 
   //copilot
-  ipcMain.handle(IpcChannel.Copilot_GetAuthMessage, copilotService.getAuthMessage.bind(copilotService))
-  ipcMain.handle(IpcChannel.Copilot_GetCopilotToken, copilotService.getCopilotToken.bind(copilotService))
-  ipcMain.handle(IpcChannel.Copilot_SaveCopilotToken, copilotService.saveCopilotToken.bind(copilotService))
-  ipcMain.handle(IpcChannel.Copilot_GetToken, copilotService.getToken.bind(copilotService))
-  ipcMain.handle(IpcChannel.Copilot_Logout, copilotService.logout.bind(copilotService))
-  ipcMain.handle(IpcChannel.Copilot_GetUser, copilotService.getUser.bind(copilotService))
+  ipcMain.handle(IpcChannel.Copilot_GetAuthMessage, (_e, headers) => copilotService.getAuthMessage(headers))
+  ipcMain.handle(IpcChannel.Copilot_GetCopilotToken, (_e, code, headers) =>
+    copilotService.getCopilotToken(code, headers)
+  )
+  ipcMain.handle(IpcChannel.Copilot_SaveCopilotToken, (_e, token) => copilotService.saveCopilotToken(token))
+  ipcMain.handle(IpcChannel.Copilot_GetToken, (_e, headers) => copilotService.getToken(headers))
+  ipcMain.handle(IpcChannel.Copilot_Logout, () => copilotService.logout())
+  ipcMain.handle(IpcChannel.Copilot_GetUser, (_e, token) => copilotService.getUser(token))
 
   // CherryIN OAuth
   ipcMain.handle(IpcChannel.CherryIN_SaveToken, cherryINOAuthService.saveToken.bind(cherryINOAuthService))
