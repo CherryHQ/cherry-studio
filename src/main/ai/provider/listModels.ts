@@ -35,6 +35,7 @@ import {
 } from './listModels/vertex'
 import {
   AIHubMixModelsResponseSchema,
+  CopilotModelsResponseSchema,
   GeminiModelsResponseSchema,
   GitHubModelsResponseSchema,
   NewApiModelsResponseSchema,
@@ -272,20 +273,19 @@ const copilotFetcher: ModelFetcher = {
     }
     const { token } = await copilotService.getToken(null as any, headers)
     const response = await getFromApi({
-      url: `${withoutTrailingSlash(provider.defaultChatEndpoint![ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])}/models`,
+      url: `${withoutTrailingSlash(getBaseUrl(provider, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS))}/models`,
       headers: {
         ...headers,
         Authorization: `Bearer ${token}`
       },
-      responseSchema: OpenAIModelsResponseSchema,
+      responseSchema: CopilotModelsResponseSchema,
       abortSignal: signal
     })
 
     const filtered = response.data.filter((m) => {
       const modelId = m.id.toLowerCase()
-      const policyState = (m as { policy?: { state?: string } }).policy?.state
       return (
-        policyState !== 'disabled' &&
+        m.policy?.state !== 'disabled' &&
         !/^accounts\/[^/]+\/routers\//.test(modelId) &&
         !/^(tts|whisper|speech)/.test(modelId.split('/').pop() || '')
       )

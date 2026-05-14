@@ -21,6 +21,30 @@ export const OpenAIModelsResponseSchema = z.object({
   object: z.string().optional()
 })
 
+// === GitHub Copilot (/models) ===
+export const CopilotModelsResponseSchema = z.object({
+  data: z.array(
+    z.looseObject({
+      id: z.string(),
+      object: z.string().optional().default('model'),
+      created: z.number().optional(),
+      owned_by: z.string().optional(),
+      name: z.string().optional(),
+      vendor: z.string().optional(),
+      version: z.string().optional(),
+      preview: z.boolean().optional(),
+      model_picker_enabled: z.boolean().optional(),
+      policy: z
+        .looseObject({
+          state: z.string().optional(),
+          terms: z.string().optional()
+        })
+        .optional()
+    })
+  ),
+  object: z.string().optional()
+})
+
 // === Ollama ===
 
 export const OllamaTagsResponseSchema = z.object({
