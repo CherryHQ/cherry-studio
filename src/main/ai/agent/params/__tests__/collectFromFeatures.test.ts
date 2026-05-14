@@ -14,6 +14,8 @@ function makeScope(): RequestScope {
     provider: { id: 'p1' } as never,
     capabilities: undefined,
     sdkConfig: { providerId: 'p1' as never, providerSettings: {} as never, modelId: 'm1' },
+    endpointType: undefined,
+    aiSdkProviderId: 'openai-compatible' as never,
     requestContext: { requestId: 'req-1', abortSignal: new AbortController().signal },
     mcpToolIds: new Set()
   }

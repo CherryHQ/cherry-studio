@@ -1,52 +1,15 @@
-import type { Assistant } from '@shared/data/types/assistant'
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import type { AssistantSettings } from '@shared/data/types/assistant'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
+import { makeAssistant as makeAssistantBase, makeModel, makeProvider } from '../../__tests__/fixtures'
 import { getMaxTokens, getTemperature, getTopP } from '../modelParameters'
 
-// Minimal fixtures — only the fields each helper actually reads are populated,
-// so the tests don't have to chase the full Assistant / Model / Provider shape.
-function makeAssistant(settings: Partial<Assistant['settings']>): Assistant {
-  return {
-    settings: {
-      temperature: 1.0,
-      enableTemperature: true,
-      topP: 1,
-      enableTopP: false,
-      maxTokens: 4096,
-      enableMaxTokens: false,
-      streamOutput: true,
-      reasoning_effort: 'default',
-      mcpMode: 'auto',
-      toolUseMode: 'function',
-      maxToolCalls: 20,
-      enableMaxToolCalls: true,
-      enableWebSearch: false,
-      customParameters: [],
-      ...settings
-    }
-  } as Assistant
-}
-
-function makeModel(overrides: Partial<Model> = {}): Model {
-  return {
-    id: 'openai::gpt-4',
-    providerId: 'openai',
-    name: 'GPT-4',
-    group: 'openai',
-    capabilities: [],
-    parameterSupport: undefined,
-    ...overrides
-  } as Model
-}
-
-function makeProvider(overrides: Partial<Provider> = {}): Provider {
-  return {
-    id: 'openai',
-    name: 'OpenAI',
-    ...overrides
-  } as Provider
+// modelParameters tests treat `enableTemperature: true` as the baseline,
+// unlike DEFAULT_ASSISTANT_SETTINGS which has it false. Local wrapper keeps
+// per-test settings calls terse.
+function makeAssistant(settings: Partial<AssistantSettings> = {}) {
+  return makeAssistantBase({ settings: { enableTemperature: true, ...settings } })
 }
 
 describe('getTemperature', () => {

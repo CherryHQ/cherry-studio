@@ -10,9 +10,12 @@
 
 import type { LanguageModelV3Message } from '@ai-sdk/provider'
 import { definePlugin } from '@cherrystudio/ai-core'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { estimateTokenCount } from 'tokenx'
+
+import type { RequestFeature } from '../feature'
 
 const cacheProviderOptions = {
   anthropic: { cacheControl: { type: 'ephemeral' } }
@@ -94,12 +97,10 @@ function createAnthropicCachePlugin(provider: Provider) {
   })
 }
 
-import type { RequestFeature } from '../feature'
-
-/** Gated on provider-level cacheControl settings. */
 export const anthropicCacheFeature: RequestFeature = {
   name: 'anthropic-cache',
   applies: (scope) =>
+    scope.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES &&
     Boolean(scope.provider.settings?.cacheControl?.enabled && scope.provider.settings.cacheControl.tokenThreshold),
   contributeModelAdapters: (scope) => [createAnthropicCachePlugin(scope.provider)]
 }

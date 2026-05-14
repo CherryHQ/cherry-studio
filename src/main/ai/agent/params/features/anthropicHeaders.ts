@@ -52,15 +52,18 @@ const createAnthropicHeadersPlugin = ({
     }
   })
 
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { isAnthropicModel } from '@shared/utils/model'
-import { isAwsBedrockProvider } from '@shared/utils/provider'
 
 import type { RequestFeature } from '../feature'
 
 export const anthropicHeadersFeature: RequestFeature = {
   name: 'anthropic-headers',
   applies: (scope) =>
-    Boolean(scope.assistant) && isAnthropicModel(scope.model) && !isAwsBedrockProvider(scope.provider),
+    Boolean(scope.assistant) &&
+    isAnthropicModel(scope.model) &&
+    scope.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES &&
+    scope.aiSdkProviderId !== 'bedrock',
   contributeModelAdapters: (scope) => [
     createAnthropicHeadersPlugin({ assistant: scope.assistant!, model: scope.model, provider: scope.provider })
   ]

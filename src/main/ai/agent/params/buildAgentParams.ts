@@ -7,7 +7,7 @@ import { stepCountIs, type ToolSet } from 'ai'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../../provider/claudeCodeSettingsBuilder'
 import { providerToAiSdkConfig } from '../../provider/config'
-import { getAiSdkProviderId } from '../../provider/factory'
+import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../provider/endpoint'
 import type { RequestContext } from '../../tools/context'
 import { applyDeferExposition } from '../../tools/exposition/applyDeferExposition'
 import { syncMcpToolsToRegistry } from '../../tools/mcp/mcpTools'
@@ -61,6 +61,9 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const { tools, deferredEntries, mcpToolIds } = await resolveTools(request, assistant, model)
   const capabilities = assistant ? resolveCapabilities(model, provider, assistant) : undefined
 
+  const { endpointType } = resolveEffectiveEndpoint(provider, model)
+  const aiSdkProviderId = resolveAiSdkProviderId(provider, endpointType)
+
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
     topicId: request.chatId,
@@ -77,6 +80,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     provider,
     capabilities,
     sdkConfig,
+    endpointType,
+    aiSdkProviderId,
     requestContext,
     mcpToolIds
   }
@@ -146,7 +151,7 @@ async function resolveTools(
  * and the tool-call repair function.
  */
 function buildAgentOptions(scope: RequestScope): AgentOptions {
-  const { assistant, capabilities, model, provider, sdkConfig, requestContext, request } = scope
+  const { assistant, capabilities, model, provider, sdkConfig, requestContext, request, aiSdkProviderId } = scope
 
   let providerOptions =
     assistant && capabilities ? buildCapabilityProviderOptions(assistant, model, provider, capabilities) : {}
@@ -156,11 +161,7 @@ function buildAgentOptions(scope: RequestScope): AgentOptions {
     if (Object.keys(customParams).length > 0) {
       const split = extractAiSdkStandardParams(customParams)
       standardParams = split.standardParams
-      providerOptions = mergeCustomProviderParameters(
-        providerOptions,
-        split.providerParams,
-        getAiSdkProviderId(provider)
-      )
+      providerOptions = mergeCustomProviderParameters(providerOptions, split.providerParams, aiSdkProviderId)
     }
   }
 

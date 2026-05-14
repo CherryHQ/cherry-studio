@@ -57,6 +57,8 @@ function makeScope(overrides: {
   capabilities?: Record<string, unknown>
   mcpToolIds?: string[]
   topicId?: string
+  endpointType?: string
+  aiSdkProviderId?: string
 }): RequestScope {
   return {
     request: { mcpToolIds: [] } as never,
@@ -67,6 +69,8 @@ function makeScope(overrides: {
     provider: { id: 'openai', settings: {}, ...overrides.provider } as Provider,
     capabilities: overrides.capabilities as never,
     sdkConfig: { providerId: 'openai' as never, providerSettings: {} as never, modelId: 'm1' },
+    endpointType: overrides.endpointType as never,
+    aiSdkProviderId: (overrides.aiSdkProviderId ?? 'openai-compatible') as never,
     requestContext: {
       requestId: 'req-1',
       topicId: overrides.topicId,
@@ -82,8 +86,10 @@ function activeNames(scope: RequestScope): string[] {
 }
 
 describe('INTERNAL_FEATURES — decision matrix', () => {
-  it('produces nothing when there is no assistant and no special provider/model traits', () => {
-    expect(activeNames(makeScope({ provider: { id: 'unknown' }, model: {} }))).toEqual(['pdf-compatibility'])
+  it('produces nothing when there is no assistant and the resolver picks an "anthropic" adapter (no inline-tag extraction)', () => {
+    expect(activeNames(makeScope({ provider: { id: 'anthropic' }, model: {}, aiSdkProviderId: 'anthropic' }))).toEqual([
+      'pdf-compatibility'
+    ])
   })
 
   it('model-params activates whenever an assistant is present', () => {
@@ -91,12 +97,14 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     expect(activeNames(makeScope({ provider: {}, model: {} }))).not.toContain('model-params')
   })
 
-  it('reasoning-extraction activates for OpenAI-family providers', () => {
-    expect(activeNames(makeScope({ provider: { id: 'openai', type: 'openai' } as never, model: {} }))).toContain(
+  it('reasoning-extraction activates for OpenAI-family resolved adapters', () => {
+    // Match against `scope.aiSdkProviderId`, not `provider.id` — that's the
+    // resolved adapter the SDK call actually hits.
+    expect(activeNames(makeScope({ provider: { id: 'openai' }, model: {}, aiSdkProviderId: 'openai-chat' }))).toContain(
       'reasoning-extraction'
     )
     expect(
-      activeNames(makeScope({ provider: { id: 'anthropic', type: 'anthropic' } as never, model: {} }))
+      activeNames(makeScope({ provider: { id: 'anthropic' }, model: {}, aiSdkProviderId: 'anthropic' }))
     ).not.toContain('reasoning-extraction')
   })
 
@@ -109,20 +117,40 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     )
   })
 
-  it('anthropic-cache activates only when provider.settings.cacheControl is enabled with a threshold', () => {
+  it('anthropic-cache activates only when endpoint is anthropic-messages AND cacheControl is enabled with a threshold', () => {
+    // Both conditions required after the endpoint-aware refactor: the
+    // request must be heading to an anthropic-messages endpoint, AND
+    // cacheControl must be opted in with a positive threshold.
     expect(
       activeNames(
         makeScope({
           provider: { id: 'anthropic', settings: { cacheControl: { enabled: true, tokenThreshold: 1024 } } } as never,
-          model: {}
+          model: {},
+          endpointType: 'anthropic-messages',
+          aiSdkProviderId: 'anthropic'
         })
       )
     ).toContain('anthropic-cache')
+
+    expect(
+      activeNames(
+        makeScope({
+          provider: { id: 'anthropic', settings: { cacheControl: { enabled: true, tokenThreshold: 1024 } } } as never,
+          model: {},
+          endpointType: 'openai-chat-completions',
+          aiSdkProviderId: 'openai-chat'
+        })
+      )
+    ).not.toContain('anthropic-cache')
+
+    // Threshold of 0 still disables, regardless of endpoint.
     expect(
       activeNames(
         makeScope({
           provider: { settings: { cacheControl: { enabled: true, tokenThreshold: 0 } } } as never,
-          model: {}
+          model: {},
+          endpointType: 'anthropic-messages',
+          aiSdkProviderId: 'anthropic'
         })
       )
     ).not.toContain('anthropic-cache')

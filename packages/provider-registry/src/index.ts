@@ -54,7 +54,12 @@ export { normalizeModelId } from './utils/normalize'
 
 // Pure lookup and transformation utilities (no fs dependency)
 export type { ModelLookupResult, RuntimeEndpointConfig } from './registry-utils'
-export { buildRuntimeEndpointConfigs, lookupRegistryModel, lookupRegistryProvider } from './registry-utils'
+export {
+  buildRuntimeEndpointConfigs,
+  inferAdapterFamily,
+  lookupRegistryModel,
+  lookupRegistryProvider
+} from './registry-utils'
 
 // Shared vendor identity regex — consumed by @shared capability inference
 // and @cherrystudio/ui icon routing. Single source of truth for "which

@@ -218,13 +218,27 @@ export class ProviderModelMigrator extends BaseMigrator {
       await ctx.db.transaction(async (tx) => {
         for (let providerIndex = 0; providerIndex < this.providers.length; providerIndex++) {
           const provider = this.providers[providerIndex]
-          await tx.insert(userProviderTable).values(transformProvider(provider, this.settings, providerIndex))
-          processedProviders++
-
-          const uniqueModels = Array.from(new Map((provider.models ?? []).map((model) => [model.id, model])).values())
           // Registry files may be missing in test/dev environments — swallow load
           // errors so the migration can still proceed with legacy-only data.
           const loader = this.getRegistryLoader()
+          const safeFindProvider = (pid: string) => {
+            try {
+              return loader.findProvider(pid)
+            } catch (error) {
+              if (!this._loaderWarned) {
+                logger.warn('Registry catalog unavailable; skipping preset enrichment', error as Error)
+                this._loaderWarned = true
+              }
+              return null
+            }
+          }
+          const catalogProvider = safeFindProvider(provider.id)
+          await tx
+            .insert(userProviderTable)
+            .values(transformProvider(provider, this.settings, providerIndex, catalogProvider))
+          processedProviders++
+
+          const uniqueModels = Array.from(new Map((provider.models ?? []).map((model) => [model.id, model])).values())
           const safeFindModel = (modelId: string) => {
             try {
               return loader.findModel(modelId)

@@ -1,7 +1,15 @@
 import { providerService } from '@data/services/ProviderService'
-import type { EndpointType } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { defaultAppHeaders } from '@shared/utils'
+
+const ENDPOINT_FALLBACK_ORDER: readonly EndpointType[] = [
+  ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  ENDPOINT_TYPE.OPENAI_RESPONSES,
+  ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  ENDPOINT_TYPE.OLLAMA_CHAT
+]
 
 /**
  * Resolve base URL from provider endpoint configs.
@@ -11,19 +19,25 @@ import { defaultAppHeaders } from '@shared/utils'
  */
 export function getBaseUrl(provider: Provider, preferredEndpoint?: EndpointType | null): string {
   const configs = provider.endpointConfigs
-  if (preferredEndpoint && configs?.[preferredEndpoint]?.baseUrl) {
+  if (!configs) return ''
+
+  if (preferredEndpoint && configs[preferredEndpoint]?.baseUrl) {
     return configs[preferredEndpoint].baseUrl
   }
 
   const ep = provider.defaultChatEndpoint
-  if (ep && configs?.[ep]?.baseUrl) {
+  if (ep && configs[ep]?.baseUrl) {
     return configs[ep].baseUrl
   }
 
-  if (configs) {
-    for (const config of Object.values(configs)) {
-      if (config?.baseUrl) return config.baseUrl
-    }
+  for (const candidate of ENDPOINT_FALLBACK_ORDER) {
+    if (configs[candidate]?.baseUrl) return configs[candidate].baseUrl
+  }
+
+  // Last-resort: any remaining config with a baseUrl (audio / embeddings /
+  // rerank / image / video endpoints).
+  for (const config of Object.values(configs)) {
+    if (config?.baseUrl) return config.baseUrl
   }
   return ''
 }

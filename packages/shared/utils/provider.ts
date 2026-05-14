@@ -31,14 +31,6 @@ export function isAzureOpenAIProvider(provider: Provider): boolean {
   return provider.id === 'azure-openai' || t === 'azure-openai'
 }
 
-/** Check if provider uses Azure responses endpoint */
-export function isAzureResponsesEndpoint(provider: Provider): boolean {
-  // v2: check settings.apiVersion for 'preview' or 'v1'
-  const settings = (provider as unknown as Record<string, unknown>).settings as Record<string, unknown> | undefined
-  const apiVersion = (settings?.apiVersion as string)?.trim()
-  return isAzureOpenAIProvider(provider) && !!apiVersion && ['preview', 'v1'].includes(apiVersion)
-}
-
 /** Check if provider is AWS Bedrock */
 export function isAwsBedrockProvider(provider: Provider): boolean {
   return provider.id === 'aws-bedrock' || getProviderType(provider) === 'aws-bedrock'

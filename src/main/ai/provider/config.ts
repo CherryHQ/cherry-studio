@@ -32,7 +32,7 @@ import {
   resolveClaudeExecutablePath
 } from './claudeCodeSettingsBuilder'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
-import { getAiSdkProviderId } from './factory'
+import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from './endpoint'
 
 interface BaseConfig {
   baseURL: string
@@ -80,53 +80,6 @@ function formatBaseURL(baseURL: string, provider: Provider, endpointType?: Endpo
   return formatApiHost(baseURL, appendApiVersion)
 }
 
-/**
- * Resolve the effective endpoint type and base URL.
- * Priority: model.endpointTypes[0] > provider.defaultChatEndpoint > fallback
- */
-function resolveEffectiveEndpoint(
-  provider: Provider,
-  model: Model
-): {
-  endpointType: EndpointType | undefined
-  baseUrl: string
-} {
-  // 1. Model says (highest priority)
-  const modelEndpoint = model.endpointTypes?.[0]
-
-  // 2. Provider default (middle)
-  const providerDefault = provider.defaultChatEndpoint
-
-  // 3. Effective endpoint
-  const endpointType = modelEndpoint ?? providerDefault
-
-  return { endpointType, baseUrl: getBaseUrl(provider, endpointType) }
-}
-
-/**
- * Select the correct AI SDK provider variant based on endpoint type.
- * Only switches variant when the base provider has a registered variant for that endpoint.
- * E.g. openai + chat-completions → openai-chat (variant exists)
- *      deepseek + chat-completions → deepseek (no variant, stays as-is)
- */
-function resolveProviderVariant(baseProviderId: AppProviderId, endpointType: EndpointType | undefined): AppProviderId {
-  if (!endpointType) return baseProviderId
-
-  // Chat completions → try -chat variant
-  if (endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS || endpointType === ENDPOINT_TYPE.OLLAMA_CHAT) {
-    const chatVariant = `${baseProviderId}-chat`
-    if (chatVariant in appProviderIds) return appProviderIds[chatVariant]
-  }
-
-  // Responses → try -responses variant
-  if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) {
-    const responsesVariant = `${baseProviderId}-responses`
-    if (responsesVariant in appProviderIds) return appProviderIds[responsesVariant]
-  }
-
-  return baseProviderId
-}
-
 // ── SDK Config Building ──
 
 type ConfigBuilderEntry = {
@@ -146,20 +99,12 @@ export async function providerToAiSdkConfig(
   model: Model,
   options?: { agentSessionId?: string }
 ): Promise<ProviderConfig> {
-  // 1. Get base provider ID (from factory.ts)
-  const baseProviderId = getAiSdkProviderId(provider)
-
-  // 2. Resolve effective endpoint (model > provider > fallback)
   const { endpointType, baseUrl } = resolveEffectiveEndpoint(provider, model)
 
-  // 3. Select correct provider variant based on endpoint type
-  // Agent sessions always use Claude Code provider — the session.model's provider
-  // is just the API gateway, Claude Code SDK is the execution engine.
   const aiSdkProviderId = options?.agentSessionId
     ? appProviderIds['claude-code']
-    : (appProviderIds[resolveProviderVariant(baseProviderId, endpointType)] ?? appProviderIds[baseProviderId])
+    : appProviderIds[resolveAiSdkProviderId(provider, endpointType)]
 
-  // 4. Format URL + get API key
   const formattedBaseUrl = formatBaseURL(baseUrl, provider, endpointType)
   const { baseURL, endpoint } = routeToEndpoint(formattedBaseUrl)
   const apiKey = await providerService.getRotatedApiKey(provider.id)

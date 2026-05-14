@@ -15,7 +15,6 @@ import { isAnthropicModel, isGeminiModel, isOpenAILLMModel } from '@shared/utils
 import { extractPdfText } from '@shared/utils/pdf'
 import type { LanguageModelMiddleware } from 'ai'
 
-import { getAiSdkProviderId } from '../../../provider/factory'
 import type { AppProviderId } from '../../../types'
 
 const logger = loggerService.withContext('pdfCompatibilityPlugin')
@@ -45,18 +44,21 @@ function isPdfFilePart(part: ContentPart): part is LanguageModelV3FilePart & { m
   return part.type === 'file' && part.mediaType === 'application/pdf'
 }
 
-function supportsNativePdf(provider: Provider, model: Model): boolean {
+function supportsNativePdf(model: Model, aiSdkProviderId: AppProviderId): boolean {
   // OpenAI, Claude, and Gemini models always support native PDF regardless of provider.
   if (isOpenAILLMModel(model) || isAnthropicModel(model) || isGeminiModel(model)) return true
-  const aiSdkProviderId = getAiSdkProviderId(provider)
   return PDF_NATIVE_PROVIDER_IDS.has(aiSdkProviderId)
 }
 
-function pdfCompatibilityMiddleware(provider: Provider, model: Model): LanguageModelMiddleware {
+function pdfCompatibilityMiddleware(
+  provider: Provider,
+  model: Model,
+  aiSdkProviderId: AppProviderId
+): LanguageModelMiddleware {
   return {
     specificationVersion: 'v3',
     transformParams: async ({ params }) => {
-      if (supportsNativePdf(provider, model)) return params
+      if (supportsNativePdf(model, aiSdkProviderId)) return params
       if (!Array.isArray(params.prompt) || params.prompt.length === 0) return params
 
       const messages: LanguageModelV3Message[] = []
@@ -100,13 +102,13 @@ function pdfCompatibilityMiddleware(provider: Provider, model: Model): LanguageM
   }
 }
 
-const createPdfCompatibilityPlugin = (provider: Provider, model: Model) =>
+const createPdfCompatibilityPlugin = (provider: Provider, model: Model, aiSdkProviderId: AppProviderId) =>
   definePlugin({
     name: 'pdf-compatibility',
     enforce: 'pre',
     configureContext: (context) => {
       context.middlewares = context.middlewares || []
-      context.middlewares.push(pdfCompatibilityMiddleware(provider, model))
+      context.middlewares.push(pdfCompatibilityMiddleware(provider, model, aiSdkProviderId))
     }
   })
 
@@ -119,5 +121,5 @@ import type { RequestFeature } from '../feature'
  */
 export const pdfCompatibilityFeature: RequestFeature = {
   name: 'pdf-compatibility',
-  contributeModelAdapters: (scope) => [createPdfCompatibilityPlugin(scope.provider, scope.model)]
+  contributeModelAdapters: (scope) => [createPdfCompatibilityPlugin(scope.provider, scope.model, scope.aiSdkProviderId)]
 }

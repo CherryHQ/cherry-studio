@@ -10,13 +10,13 @@
  */
 
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
-import type { Model } from '@shared/data/types/model'
+import type { EndpointType, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import type { RequestContext } from '../../tools/context'
 import type { ToolRegistry } from '../../tools/registry'
 import type { ToolApplyScope } from '../../tools/types'
-import type { AppProviderSettingsMap } from '../../types'
+import type { AppProviderId, AppProviderSettingsMap } from '../../types'
 import type { AiBaseRequest } from '../../types/requests'
 import type { ResolvedCapabilities } from './capabilities'
 
@@ -38,5 +38,7 @@ export interface RequestScope extends ToolApplyScope {
   readonly provider: Provider
   readonly capabilities: ResolvedCapabilities | undefined
   readonly sdkConfig: SdkConfig
+  readonly endpointType: EndpointType | undefined
+  readonly aiSdkProviderId: AppProviderId
   readonly requestContext: RequestContext
 }

@@ -5,10 +5,12 @@
 import {
   ENDPOINT_TYPE,
   type EndpointType,
+  inferAdapterFamily,
   MODEL_CAPABILITY,
   type ModelCapability,
   type ModelConfig as ProtoModelConfig,
   normalizeModelId,
+  type ProviderConfig as ProtoProviderConfig,
   type ProviderModelOverride as ProtoProviderModelOverride
 } from '@cherrystudio/provider-registry'
 import type { NewUserModel } from '@data/db/schemas/userModel'
@@ -93,6 +95,21 @@ const REASONING_FORMAT_MAP: Partial<Record<LegacyProvider['type'], ReasoningForm
   ollama: 'openai-chat'
 }
 
+/**
+ * Type-inferred AI SDK adapter family for endpoints the catalog can't supply
+ * (custom-id v1 providers, missing registry, etc.). Lets the resolver trust
+ * `adapterFamily` as the sole routing signal — no runtime heuristics needed.
+ */
+const LEGACY_TYPE_TO_ADAPTER_FAMILY: Partial<Record<LegacyProvider['type'], string>> = {
+  openai: 'openai-compatible',
+  'openai-response': 'openai',
+  anthropic: 'anthropic',
+  gemini: 'google',
+  'new-api': 'newapi',
+  gateway: 'gateway',
+  ollama: 'ollama'
+}
+
 const SYSTEM_PROVIDER_IDS = new Set([
   'cherryin',
   'silicon',
@@ -163,7 +180,8 @@ const SYSTEM_PROVIDER_IDS = new Set([
 export function transformProvider(
   legacy: LegacyProvider,
   settings: OldLlmSettings,
-  sortOrder: number
+  sortOrder: number,
+  catalogProvider?: ProtoProviderConfig | null
 ): NewUserProvider {
   const endpointType = ENDPOINT_MAP[legacy.type]
   if (legacy.type && !endpointType) {
@@ -174,7 +192,7 @@ export function transformProvider(
     providerId: legacy.id,
     presetProviderId: SYSTEM_PROVIDER_IDS.has(legacy.id) ? legacy.id : null,
     name: legacy.name,
-    endpointConfigs: buildEndpointConfigs(legacy, endpointType),
+    endpointConfigs: buildEndpointConfigs(legacy, endpointType, catalogProvider),
     defaultChatEndpoint: endpointType ?? null,
     apiKeys: buildApiKeys(legacy.apiKey),
     authConfig: buildAuthConfig(legacy, settings),
@@ -187,7 +205,8 @@ export function transformProvider(
 
 function buildEndpointConfigs(
   legacy: LegacyProvider,
-  endpointType: EndpointType | undefined
+  endpointType: EndpointType | undefined,
+  catalogProvider: ProtoProviderConfig | null | undefined
 ): NewUserProvider['endpointConfigs'] {
   const configs: Partial<Record<EndpointType, EndpointConfig>> = {}
 
@@ -204,6 +223,16 @@ function buildEndpointConfigs(
   const reasoningFormatType = REASONING_FORMAT_MAP[legacy.type]
   if (endpointType !== undefined && reasoningFormatType) {
     configs[endpointType] = { ...configs[endpointType], reasoningFormatType }
+  }
+
+  const catalogEndpoints = catalogProvider?.endpointConfigs
+  const legacyTypeFamily = LEGACY_TYPE_TO_ADAPTER_FAMILY[legacy.type]
+  for (const key of Object.keys(configs) as EndpointType[]) {
+    if (configs[key]?.adapterFamily) continue
+    const fromCatalog = catalogEndpoints?.[key]?.adapterFamily
+    const legacyHint = key === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ? undefined : legacyTypeFamily
+    const adapterFamily = fromCatalog ?? legacyHint ?? inferAdapterFamily(key)
+    configs[key] = { ...configs[key], adapterFamily }
   }
 
   return Object.keys(configs).length > 0 ? configs : null
@@ -313,11 +342,6 @@ function buildApiFeatures(legacy: LegacyProvider): ApiFeatures | null {
     (legacy.isNotSupportServiceTier != null ? !legacy.isNotSupportServiceTier : undefined)
   if (supportsServiceTier != null) {
     features.serviceTier = supportsServiceTier
-    hasValue = true
-  }
-
-  if (apiOptions?.isNotSupportEnableThinking != null) {
-    features.enableThinking = !apiOptions.isNotSupportEnableThinking
     hasValue = true
   }
 
