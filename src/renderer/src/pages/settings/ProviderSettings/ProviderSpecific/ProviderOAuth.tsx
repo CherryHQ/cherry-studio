@@ -5,6 +5,7 @@ import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProviders'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { hasApiKeys } from '@renderer/pages/settings/ProviderSettings/utils/provider'
+import { toV1ProviderShim } from '@renderer/pages/settings/ProviderSettings/utils/v1ProviderShim'
 import { providerBills, providerCharge } from '@renderer/utils/oauth'
 import { CircleDollarSign, ReceiptText } from 'lucide-react'
 import type { FC } from 'react'
@@ -39,15 +40,15 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
       {Icon ? (
         <Icon.Avatar size={60} />
       ) : (
-        <div className="flex size-[60px] shrink-0 items-center justify-center rounded-full bg-[var(--color-background-soft)] font-bold text-[24px]">
+        <div className="flex size-[60px] shrink-0 items-center justify-center rounded-full bg-(--color-background-soft) font-bold text-[24px]">
           {provider.name[0]}
         </div>
       )}
       {!hasApiKeys(provider) ? (
         <OAuthButton
-          provider={{ id: provider.id } as any}
+          provider={toV1ProviderShim(provider)}
           onSuccess={setApiKey}
-          className="!rounded-lg !px-3 !py-[6px] !text-[13px]">
+          className="rounded-lg! px-3! py-[6px]! text-[13px]!">
           {t('settings.provider.oauth.button', { provider: getProviderLabel(provider.id) })}
         </OAuthButton>
       ) : (
@@ -66,13 +67,13 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
           </Button>
         </RowFlex>
       )}
-      <div className="flex items-center gap-1.5 text-[13px] text-[var(--color-text-2)] leading-[1.35]">
+      <div className="flex items-center gap-1.5 text-(--color-text-2) text-[13px] leading-[1.35]">
         <Trans
           i18nKey="settings.provider.oauth.description"
           components={{
             website: (
               <a
-                className="text-[var(--color-text-2)] no-underline"
+                className="text-(--color-text-2) no-underline"
                 href={officialWebsite ?? ''}
                 rel="noreferrer"
                 target="_blank"

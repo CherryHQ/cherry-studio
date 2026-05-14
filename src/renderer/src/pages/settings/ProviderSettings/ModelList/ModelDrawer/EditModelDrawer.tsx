@@ -16,7 +16,6 @@ import ProviderSection from '../../primitives/ProviderSection'
 import ProviderSettingsDrawer from '../../primitives/ProviderSettingsDrawer'
 import { drawerClasses, fieldClasses } from '../../primitives/ProviderSettingsPrimitives'
 import { isNewApiProvider } from '../../utils/provider'
-import { ModelBasicFields, ModelCapabilityToggles, ModelContextWindowFields } from './content'
 import {
   getInitialSelectedCapabilities,
   getModelApiId,
@@ -24,6 +23,9 @@ import {
   readCurrency,
   toggleSetToCaps
 } from './helpers'
+import { ModelBasicFields } from './ModelBasicFields'
+import { ModelCapabilityToggles } from './ModelCapabilityToggles'
+import { ModelContextWindowFields } from './ModelContextWindowFields'
 import type { ModelCapabilityToggle, ModelDrawerMode } from './types'
 
 interface EditModelDrawerProps {

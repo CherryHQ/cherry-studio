@@ -288,7 +288,7 @@ function ApiKeyDraftRow({ draft, saving, onChange, onSave, onCancel }: ApiKeyDra
         />
       </div>
       <div className={apiKeyListClasses.actionRow}>
-        <label className="flex items-center gap-2 text-[length:var(--font-size-body-xs)] text-muted-foreground">
+        <label className="text-(length:--font-size-body-xs) flex items-center gap-2 text-muted-foreground">
           <Switch
             checked={draft.isEnabled}
             disabled={saving}
@@ -297,12 +297,16 @@ function ApiKeyDraftRow({ draft, saving, onChange, onSave, onCancel }: ApiKeyDra
           {t('common.enabled')}
         </label>
         <div className={apiKeyListClasses.actionCluster}>
-          <Button variant="ghost" size="icon-sm" disabled={saving} onClick={onSave}>
-            <Check size={14} />
-          </Button>
-          <Button variant="ghost" size="icon-sm" disabled={saving} onClick={onCancel}>
-            <X size={14} />
-          </Button>
+          <Tooltip content={t('common.save')}>
+            <Button variant="ghost" size="icon-sm" disabled={saving} onClick={onSave}>
+              <Check size={14} />
+            </Button>
+          </Tooltip>
+          <Tooltip content={t('common.cancel')}>
+            <Button variant="ghost" size="icon-sm" disabled={saving} onClick={onCancel}>
+              <X size={14} />
+            </Button>
+          </Tooltip>
         </div>
       </div>
     </div>

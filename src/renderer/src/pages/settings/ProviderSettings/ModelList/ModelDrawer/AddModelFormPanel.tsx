@@ -12,8 +12,9 @@ import ProviderActions from '../../primitives/ProviderActions'
 import ProviderSection from '../../primitives/ProviderSection'
 import { drawerClasses } from '../../primitives/ProviderSettingsPrimitives'
 import { isNewApiProvider } from '../../utils/provider'
-import { ModelBasicFields, ModelContextWindowFields } from './content'
 import { getInitialAddModelFormState, splitModelIds } from './helpers'
+import { ModelBasicFields } from './ModelBasicFields'
+import { ModelContextWindowFields } from './ModelContextWindowFields'
 import type { AddModelDrawerPrefill, ModelBasicFormState, ModelDrawerMode } from './types'
 
 export interface AddModelDrawerFooterBinding {
