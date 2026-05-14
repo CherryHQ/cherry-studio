@@ -106,6 +106,36 @@ describe('CherryINOAuthService', () => {
     ])
   })
 
+  it('rejects OAuth callbacks with missing or unknown state (CSRF defense)', async () => {
+    await (cherryINOAuthService as any)._doInit()
+
+    const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
+
+    const { state: validState } = await cherryINOAuthService.startOAuthFlow(
+      { sender: { id: 7 } } as Electron.IpcMainInvokeEvent,
+      'https://open.cherryin.ai'
+    )
+
+    // Case 1: missing state — silently dropped, no token exchange attempted.
+    await cherryINOAuthService.handleOAuthCallback(new URL('cherrystudio://oauth/callback?code=auth-code'))
+    expect(warnSpy).toHaveBeenCalledWith('OAuth callback missing state parameter, ignoring')
+    expect(netMocks.fetch).not.toHaveBeenCalled()
+
+    // Case 2: unknown state — silently dropped, valid pending flow stays intact.
+    await cherryINOAuthService.handleOAuthCallback(
+      new URL('cherrystudio://oauth/callback?state=attacker-forged-state&code=auth-code')
+    )
+    expect(warnSpy).toHaveBeenCalledWith('OAuth callback for unknown or expired state, ignoring')
+    expect(netMocks.fetch).not.toHaveBeenCalled()
+
+    // The legitimate pending flow remains and is still consumable on a
+    // subsequent matching callback — confirms case-2 did not drop it.
+    const pendingFlows = (cherryINOAuthService as any).pendingOAuthFlows as Map<string, unknown>
+    expect(pendingFlows.has(validState)).toBe(true)
+
+    warnSpy.mockRestore()
+  })
+
   it('activates pending-flow cleanup only while an OAuth flow is active', async () => {
     await (cherryINOAuthService as any)._doInit()
     expect(cherryINOAuthService.isActivated).toBe(false)

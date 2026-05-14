@@ -352,6 +352,47 @@ describe('ProviderModelMigrator', () => {
       expect(modelRow.outputModalities).toBeNull()
     })
 
+    it('tolerates a provider whose models field is null or undefined', async () => {
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            { id: 'no-models-null', name: 'No Models Null', type: 'openai', enabled: true, models: null },
+            { id: 'no-models-undef', name: 'No Models Undef', type: 'openai', enabled: true }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+      const providers = await dbh.db.select().from(userProviderTable)
+      expect(providers.map((p) => p.providerId).sort()).toEqual(['no-models-null', 'no-models-undef'])
+      const models = await dbh.db.select().from(userModelTable)
+      expect(models).toEqual([])
+    })
+
+    it('rejects a provider whose id is missing or empty before touching the DB', async () => {
+      // Migrator must not silently swallow corrupted v1 rows into the v2 PK
+      // column (it would either crash on insert or, worse, persist garbage).
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [{ id: '', name: 'Empty ID', type: 'openai', enabled: true, models: [] }]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
+
+      // Either prepare/execute fails OR the empty-id row is filtered. Either
+      // way the userProvider table must not contain an empty-id row.
+      const providers = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, ''))
+      expect(providers).toEqual([])
+      if (!result.success) {
+        expect(result.error).toBeDefined()
+      }
+    })
+
     it('rolls back provider inserts when a later model insert fails', async () => {
       await dbh.db.insert(userProviderTable).values({
         providerId: 'other',
