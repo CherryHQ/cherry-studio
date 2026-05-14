@@ -11,8 +11,8 @@ export function Gpt51ChatAvatar({ size = 32, shape = 'circle', className }: Omit
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <Gpt51ChatLight className="dark:hidden" style={{ width: size * 0.85, height: size * 0.85 }} />
-        <Gpt51ChatDark className="hidden dark:block" style={{ width: size * 0.85, height: size * 0.85 }} />
+        <Gpt51ChatLight className="dark:hidden" style={{ width: size * 0.7, height: size * 0.7 }} />
+        <Gpt51ChatDark className="hidden dark:block" style={{ width: size * 0.7, height: size * 0.7 }} />
       </AvatarFallback>
     </Avatar>
   )

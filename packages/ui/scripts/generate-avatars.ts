@@ -200,10 +200,12 @@ function detectHasBackground(svgPath: string): boolean {
  */
 function generateFullBleedAvatar(baseDir: string, dirName: string): void {
   const colorName = getComponentName(baseDir, dirName)
+  const hasDark = fs.existsSync(path.join(baseDir, dirName, 'dark.tsx'))
   codegenAvatar({
     outPath: path.join(baseDir, dirName, 'avatar.tsx'),
     colorName,
-    variant: 'full-bleed'
+    variant: 'full-bleed',
+    hasDark
   })
 }
 
@@ -212,24 +214,28 @@ function generateFullBleedAvatar(baseDir: string, dirName: string): void {
  */
 function generatePaddedAvatar(baseDir: string, dirName: string): void {
   const colorName = getComponentName(baseDir, dirName)
+  const hasDark = fs.existsSync(path.join(baseDir, dirName, 'dark.tsx'))
   codegenAvatar({
     outPath: path.join(baseDir, dirName, 'avatar.tsx'),
     colorName,
-    variant: 'padded'
+    variant: 'padded',
+    hasDark
   })
 }
 
 /**
- * Generate per-icon index.tsx with compound export (Light + Dark + Avatar).
+ * Generate per-icon index.tsx with compound export (variant prop + Avatar).
  */
 function generateIconIndex(baseDir: string, dirName: string): void {
   const colorName = getComponentName(baseDir, dirName)
   const colorPrimary = readColorPrimary(baseDir, dirName)
+  const hasDark = fs.existsSync(path.join(baseDir, dirName, 'dark.tsx'))
 
   codegenIconIndex({
     outPath: path.join(baseDir, dirName, 'index.tsx'),
     colorName,
     hasAvatar: true,
+    hasDark,
     colorPrimary
   })
 }
@@ -245,7 +251,7 @@ function generateBarrelIndex(baseDir: string, iconDirs: string[]): void {
 
   const headerLines = [
     'Auto-generated compound icon exports',
-    'Each icon supports: <Icon /> (auto light/dark), <Icon.Light />, <Icon.Dark />, <Icon.Avatar />, Icon.colorPrimary',
+    'Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary',
     'Do not edit manually',
     '',
     `Generated at: ${new Date().toISOString()}`,

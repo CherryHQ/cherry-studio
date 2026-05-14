@@ -132,20 +132,21 @@ export function isImageBased(content: string): boolean {
 
 export function buildSvgMap(type: LogoType): Map<string, string> {
   const svgDir = SVG_SOURCE_MAP[type]
+  const lightDir = path.join(svgDir, 'light')
   const map = new Map<string, string>()
-  if (!fs.existsSync(svgDir)) return map
+  const sourceDir = fs.existsSync(lightDir) ? lightDir : svgDir
+  if (!fs.existsSync(sourceDir)) return map
 
-  for (const file of fs.readdirSync(svgDir)) {
+  for (const file of fs.readdirSync(sourceDir)) {
     if (!file.endsWith('.svg')) continue
-    map.set(toCamelCase(file), path.join(svgDir, file))
+    map.set(toCamelCase(file), path.join(sourceDir, file))
   }
   return map
 }
 
 export interface LightDarkSvgPair {
   light: string
-  /** null when the logo has no dedicated dark variant (single-source logo).
-   * The generator emits dark.tsx as a reexport of light.tsx in that case. */
+  /** null when the logo has no dedicated dark variant (single-source logo). */
   dark: string | null
 }
 
@@ -154,9 +155,9 @@ export interface LightDarkSvgPair {
  * returning a map keyed by camelCase dirName → { light, dark } SVG paths.
  *
  * The light variant is required. The dark variant is optional — if dark/{name}.svg
- * is missing, the entry has dark=null and the generator produces a reexport stub
- * so the public CompoundIcon API stays uniform (.Light / .Dark / .Avatar always
- * present), without paying the cost of duplicating identical SVG payloads.
+ * is missing, the entry has dark=null and the public CompoundIcon API falls back
+ * to the light SVG for `variant="dark"` without generating a duplicate dark
+ * component.
  */
 export function buildLightDarkSvgMap(type: LogoType): Map<string, LightDarkSvgPair> {
   const svgDir = SVG_SOURCE_MAP[type]

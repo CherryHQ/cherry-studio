@@ -29,30 +29,37 @@ export function generateIconIndex(opts: {
   outPath: string
   colorName: string
   hasAvatar: boolean
+  hasDark: boolean
   colorPrimary: string
 }): void {
-  const { outPath, colorName, hasAvatar, colorPrimary } = opts
+  const { outPath, colorName, hasAvatar, hasDark, colorPrimary } = opts
   const lightName = `${colorName}Light`
   const darkName = `${colorName}Dark`
   const avatarName = `${colorName}Avatar`
 
   const avatarImport = hasAvatar ? `import { ${avatarName} } from './avatar'\n` : ''
   const avatarField = hasAvatar ? `  Avatar: ${avatarName},\n` : ''
-
-  const content = `import { cn } from '../../../../lib/utils'
-import type { CompoundIcon, CompoundIconProps } from '../../types'
-${avatarImport}import { ${darkName} } from './dark'
-import { ${lightName} } from './light'
-
-const ${colorName} = ({ variant, className, ...props }: CompoundIconProps) => {
-  if (variant === 'light') return <${lightName} {...props} className={className} />
-  if (variant === 'dark') return <${darkName} {...props} className={className} />
-  return (
+  const darkImport = hasDark ? `import { ${darkName} } from './dark'\n` : ''
+  const autoRender = hasDark
+    ? `return (
     <>
       <${lightName} className={cn('dark:hidden', className)} {...props} />
       <${darkName} className={cn('hidden dark:block', className)} {...props} />
     </>
-  )
+  )`
+    : `return <${lightName} {...props} className={className} />`
+  const darkVariantRender = hasDark
+    ? `  if (variant === 'dark') return <${darkName} {...props} className={className} />\n`
+    : ''
+  const cnImport = hasDark ? `import { cn } from '../../../../lib/utils'\n` : ''
+
+  const content = `${cnImport}import type { CompoundIcon, CompoundIconProps } from '../../types'
+${avatarImport}${darkImport}
+import { ${lightName} } from './light'
+
+const ${colorName} = ({ variant, className, ...props }: CompoundIconProps) => {
+  if (variant === 'light') return <${lightName} {...props} className={className} />
+${darkVariantRender}  ${autoRender}
 }
 
 export const ${colorName}Icon: CompoundIcon = /*#__PURE__*/ Object.assign(${colorName}, {
@@ -68,8 +75,13 @@ export default ${colorName}Icon
 // generateAvatar
 // ---------------------------------------------------------------------------
 
-export function generateAvatar(opts: { outPath: string; colorName: string; variant: 'full-bleed' | 'padded' }): void {
-  const { outPath, colorName, variant } = opts
+export function generateAvatar(opts: {
+  outPath: string
+  colorName: string
+  variant: 'full-bleed' | 'padded'
+  hasDark: boolean
+}): void {
+  const { outPath, colorName, variant, hasDark } = opts
   const avatarName = `${colorName}Avatar`
 
   const sf = project.createSourceFile('avatar.tsx', '', { overwrite: true })
@@ -89,18 +101,30 @@ export function generateAvatar(opts: { outPath: string; colorName: string; varia
     namedImports: [{ name: 'IconAvatarProps', isTypeOnly: true }]
   })
 
-  sf.addImportDeclaration({
-    moduleSpecifier: './dark',
-    namedImports: [`${colorName}Dark`]
-  })
+  if (hasDark) {
+    sf.addImportDeclaration({
+      moduleSpecifier: './dark',
+      namedImports: [`${colorName}Dark`]
+    })
+  }
 
   sf.addImportDeclaration({
     moduleSpecifier: './light',
     namedImports: [`${colorName}Light`]
   })
 
-  const iconSize = variant === 'full-bleed' ? 'size' : 'size * 0.85'
+  const iconSize = variant === 'full-bleed' ? 'size * 0.82' : 'size * 0.7'
   const fallbackClasses = ['text-foreground', variant === 'padded' ? 'bg-background' : ''].filter(Boolean).join(' ')
+  const iconRender = hasDark
+    ? `<${colorName}Light
+          className="dark:hidden"
+          style={{ width: ${iconSize}, height: ${iconSize} }}
+        />
+        <${colorName}Dark
+          className="hidden dark:block"
+          style={{ width: ${iconSize}, height: ${iconSize} }}
+        />`
+    : `<${colorName}Light style={{ width: ${iconSize}, height: ${iconSize} }} />`
 
   sf.addFunction({
     isExported: true,
@@ -121,14 +145,7 @@ export function generateAvatar(opts: { outPath: string; colorName: string; varia
       style={{ width: size, height: size }}
     >
       <AvatarFallback${fallbackClasses ? ` className="${fallbackClasses}"` : ''}>
-        <${colorName}Light
-          className="dark:hidden"
-          style={{ width: ${iconSize}, height: ${iconSize} }}
-        />
-        <${colorName}Dark
-          className="hidden dark:block"
-          style={{ width: ${iconSize}, height: ${iconSize} }}
-        />
+        ${iconRender}
       </AvatarFallback>
     </Avatar>
   )`

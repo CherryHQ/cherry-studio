@@ -11,8 +11,8 @@ export function CephalonAvatar({ size = 32, shape = 'circle', className }: Omit<
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <CephalonLight className="dark:hidden" style={{ width: size * 0.85, height: size * 0.85 }} />
-        <CephalonDark className="hidden dark:block" style={{ width: size * 0.85, height: size * 0.85 }} />
+        <CephalonLight className="dark:hidden" style={{ width: size * 0.7, height: size * 0.7 }} />
+        <CephalonDark className="hidden dark:block" style={{ width: size * 0.7, height: size * 0.7 }} />
       </AvatarFallback>
     </Avatar>
   )

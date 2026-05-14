@@ -2,7 +2,6 @@ import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/a
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { type IconAvatarProps } from '../../types'
-import { GlmDark } from './dark'
 import { GlmLight } from './light'
 
 export function GlmAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
@@ -10,9 +9,8 @@ export function GlmAvatar({ size = 32, shape = 'circle', className }: Omit<IconA
     <Avatar
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
-      <AvatarFallback className="text-foreground bg-background">
-        <GlmLight className="dark:hidden" style={{ width: size * 0.85, height: size * 0.85 }} />
-        <GlmDark className="hidden dark:block" style={{ width: size * 0.85, height: size * 0.85 }} />
+      <AvatarFallback className="text-foreground">
+        <GlmLight style={{ width: size * 0.82, height: size * 0.82 }} />
       </AvatarFallback>
     </Avatar>
   )

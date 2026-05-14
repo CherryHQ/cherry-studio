@@ -11,8 +11,8 @@ export function ZhipuAvatar({ size = 32, shape = 'circle', className }: Omit<Ico
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <ZhipuLight className="dark:hidden" style={{ width: size * 0.85, height: size * 0.85 }} />
-        <ZhipuDark className="hidden dark:block" style={{ width: size * 0.85, height: size * 0.85 }} />
+        <ZhipuLight className="dark:hidden" style={{ width: size * 0.7, height: size * 0.7 }} />
+        <ZhipuDark className="hidden dark:block" style={{ width: size * 0.7, height: size * 0.7 }} />
       </AvatarFallback>
     </Avatar>
   )

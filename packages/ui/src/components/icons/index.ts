@@ -3,8 +3,8 @@
  *
  * Logo icons are compound components:
  *   <Anthropic />         — auto light/dark (default, follows the `dark:` Tailwind variant)
- *   <Anthropic.Light />   — force light variant
- *   <Anthropic.Dark />    — force dark variant
+ *   <Anthropic variant="light" /> — force light variant
+ *   <Anthropic variant="dark" />  — force dark variant
  *   <Anthropic.Avatar />  — circular avatar wrapper (padded or full-bleed)
  *   Anthropic.colorPrimary — Brand color string
  */

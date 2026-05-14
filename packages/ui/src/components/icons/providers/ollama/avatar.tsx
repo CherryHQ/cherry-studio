@@ -11,8 +11,8 @@ export function OllamaAvatar({ size = 32, shape = 'circle', className }: Omit<Ic
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <OllamaLight className="dark:hidden" style={{ width: size * 0.85, height: size * 0.85 }} />
-        <OllamaDark className="hidden dark:block" style={{ width: size * 0.85, height: size * 0.85 }} />
+        <OllamaLight className="dark:hidden" style={{ width: size * 0.7, height: size * 0.7 }} />
+        <OllamaDark className="hidden dark:block" style={{ width: size * 0.7, height: size * 0.7 }} />
       </AvatarFallback>
     </Avatar>
   )

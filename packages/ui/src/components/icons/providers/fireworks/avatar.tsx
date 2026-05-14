@@ -11,8 +11,8 @@ export function FireworksAvatar({ size = 32, shape = 'circle', className }: Omit
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <FireworksLight className="dark:hidden" style={{ width: size * 0.85, height: size * 0.85 }} />
-        <FireworksDark className="hidden dark:block" style={{ width: size * 0.85, height: size * 0.85 }} />
+        <FireworksLight className="dark:hidden" style={{ width: size * 0.7, height: size * 0.7 }} />
+        <FireworksDark className="hidden dark:block" style={{ width: size * 0.7, height: size * 0.7 }} />
       </AvatarFallback>
     </Avatar>
   )

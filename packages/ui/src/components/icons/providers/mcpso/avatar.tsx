@@ -2,7 +2,6 @@ import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/a
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { type IconAvatarProps } from '../../types'
-import { McpsoDark } from './dark'
 import { McpsoLight } from './light'
 
 export function McpsoAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
@@ -11,8 +10,7 @@ export function McpsoAvatar({ size = 32, shape = 'circle', className }: Omit<Ico
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <McpsoLight className="dark:hidden" style={{ width: size * 0.85, height: size * 0.85 }} />
-        <McpsoDark className="hidden dark:block" style={{ width: size * 0.85, height: size * 0.85 }} />
+        <McpsoLight style={{ width: size * 0.7, height: size * 0.7 }} />
       </AvatarFallback>
     </Avatar>
   )

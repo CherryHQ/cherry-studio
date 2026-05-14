@@ -211,12 +211,11 @@ async function generateFlatIcon(
 }
 
 /**
- * Generate per-logo directory with light.tsx + dark.tsx + meta.ts.
+ * Generate per-logo directory with light.tsx + optional dark.tsx + meta.ts.
  *
- * Both files are always emitted so the downstream codegen + CompoundIcon API
- * stay uniform. When the logo has no dedicated dark variant (pair.dark === null),
- * dark.tsx is emitted as a one-line reexport stub of light.tsx instead of
- * duplicating the entire SVG inline.
+ * When the logo has no dedicated dark variant (pair.dark === null), no dark.tsx
+ * is emitted. The public CompoundIcon API remains uniform through the component
+ * `variant` prop; missing dark assets fall back to the light SVG internally.
  */
 async function generateLogoDirDual(
   pair: LightDarkSvgPair,
@@ -236,10 +235,7 @@ async function generateLogoDirDual(
     const darkTsx = await svgrTransform(darkSvg, `${componentName}Dark`)
     await fs.writeFile(path.join(logoDir, 'dark.tsx'), darkTsx, 'utf-8')
   } else {
-    // Single-source logo — dark variant is identical to light. Emit a tiny
-    // reexport stub so consumers can still address `.Dark` uniformly.
-    const stub = `/**\n * Auto-generated reexport stub.\n * This logo's dark variant is byte-identical to its light variant,\n * so dark.tsx reexports the light component to avoid duplicating SVG payload.\n */\nimport { ${componentName}Light } from './light'\n\nconst ${componentName}Dark = ${componentName}Light\n\nexport { ${componentName}Dark }\nexport default ${componentName}Dark\n`
-    await fs.writeFile(path.join(logoDir, 'dark.tsx'), stub, 'utf-8')
+    await fs.rm(path.join(logoDir, 'dark.tsx'), { force: true })
   }
 
   let colorPrimary = extractColorPrimary(lightSvg)
@@ -251,6 +247,27 @@ async function generateLogoDirDual(
     colorPrimary,
     colorScheme: 'color'
   })
+}
+
+async function removeStaleLogoDirs(outputDir: string, activeDirNames: Set<string>): Promise<number> {
+  const entries = await fs.readdir(outputDir, { withFileTypes: true }).catch(() => [])
+  let removed = 0
+
+  for (const entry of entries) {
+    if (!entry.isDirectory() || activeDirNames.has(entry.name)) continue
+
+    const logoDir = path.join(outputDir, entry.name)
+    const hasGeneratedIcon = await fs
+      .stat(path.join(logoDir, 'light.tsx'))
+      .then(() => true)
+      .catch(() => false)
+
+    if (!hasGeneratedIcon) continue
+    await fs.rm(logoDir, { recursive: true, force: true })
+    removed++
+  }
+
+  return removed
 }
 
 /**
@@ -292,6 +309,9 @@ async function main() {
   if (type === 'providers' || type === 'models') {
     const svgMap = buildLightDarkSvgMap(type)
     console.log(`Found ${svgMap.size} light/dark SVG pairs in ${SOURCE_DIR_MAP[type]}\n`)
+    const removedStale = await removeStaleLogoDirs(outputDir, new Set(svgMap.keys()))
+    if (removedStale > 0)
+      console.log(`Removed ${removedStale} stale generated icon director${removedStale === 1 ? 'y' : 'ies'}\n`)
 
     const hashCache = force ? {} : await loadHashCache()
     const newHashCache: HashCache = { ...hashCache }
@@ -305,21 +325,21 @@ async function main() {
 
       try {
         const lightContent = await fs.readFile(pair.light, 'utf-8')
-        const darkContent = pair.dark ? await fs.readFile(pair.dark, 'utf-8') : '<reexport-light>'
+        const darkContent = pair.dark ? await fs.readFile(pair.dark, 'utf-8') : '<no-dark>'
         const hash = computeHash(`light:${lightContent}\ndark:${darkContent}`)
         const cacheKey = `${type}:${baseFile}`
 
         const lightFile = path.join(outputDir, dirName, 'light.tsx')
         const darkFile = path.join(outputDir, dirName, 'dark.tsx')
-        const outputExists =
-          (await fs
-            .stat(lightFile)
-            .then(() => true)
-            .catch(() => false)) &&
-          (await fs
-            .stat(darkFile)
-            .then(() => true)
-            .catch(() => false))
+        const lightExists = await fs
+          .stat(lightFile)
+          .then(() => true)
+          .catch(() => false)
+        const darkExists = await fs
+          .stat(darkFile)
+          .then(() => true)
+          .catch(() => false)
+        const outputExists = lightExists && (pair.dark ? darkExists : !darkExists)
 
         if (!force && hashCache[cacheKey] === hash && outputExists) {
           skipped++
@@ -329,7 +349,7 @@ async function main() {
         await generateLogoDirDual(pair, outputDir, dirName, componentName)
         newHashCache[cacheKey] = hash
         generated++
-        console.log(`  ${baseFile} -> ${componentName}{Light,Dark}`)
+        console.log(`  ${baseFile} -> ${componentName}{Light${pair.dark ? ',Dark' : ''}}`)
       } catch (error) {
         console.error(`  Failed to process ${dirName}:`, error)
       }

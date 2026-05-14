@@ -2,7 +2,6 @@ import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/a
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { type IconAvatarProps } from '../../types'
-import { CodegeexDark } from './dark'
 import { CodegeexLight } from './light'
 
 export function CodegeexAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
@@ -10,9 +9,8 @@ export function CodegeexAvatar({ size = 32, shape = 'circle', className }: Omit<
     <Avatar
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
-      <AvatarFallback className="text-foreground bg-background">
-        <CodegeexLight className="dark:hidden" style={{ width: size * 0.85, height: size * 0.85 }} />
-        <CodegeexDark className="hidden dark:block" style={{ width: size * 0.85, height: size * 0.85 }} />
+      <AvatarFallback className="text-foreground">
+        <CodegeexLight style={{ width: size * 0.82, height: size * 0.82 }} />
       </AvatarFallback>
     </Avatar>
   )

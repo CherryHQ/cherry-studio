@@ -10,9 +10,9 @@ export function RecraftAvatar({ size = 32, shape = 'circle', className }: Omit<I
     <Avatar
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
-      <AvatarFallback className="text-foreground bg-background">
-        <RecraftLight className="dark:hidden" style={{ width: size * 0.85, height: size * 0.85 }} />
-        <RecraftDark className="hidden dark:block" style={{ width: size * 0.85, height: size * 0.85 }} />
+      <AvatarFallback className="text-foreground">
+        <RecraftLight className="dark:hidden" style={{ width: size * 0.82, height: size * 0.82 }} />
+        <RecraftDark className="hidden dark:block" style={{ width: size * 0.82, height: size * 0.82 }} />
       </AvatarFallback>
     </Avatar>
   )

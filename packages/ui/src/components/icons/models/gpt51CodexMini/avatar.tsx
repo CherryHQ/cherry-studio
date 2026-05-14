@@ -11,8 +11,8 @@ export function Gpt51CodexMiniAvatar({ size = 32, shape = 'circle', className }:
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <Gpt51CodexMiniLight className="dark:hidden" style={{ width: size * 0.85, height: size * 0.85 }} />
-        <Gpt51CodexMiniDark className="hidden dark:block" style={{ width: size * 0.85, height: size * 0.85 }} />
+        <Gpt51CodexMiniLight className="dark:hidden" style={{ width: size * 0.7, height: size * 0.7 }} />
+        <Gpt51CodexMiniDark className="hidden dark:block" style={{ width: size * 0.7, height: size * 0.7 }} />
       </AvatarFallback>
     </Avatar>
   )

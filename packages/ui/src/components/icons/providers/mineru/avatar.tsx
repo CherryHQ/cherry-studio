@@ -11,8 +11,8 @@ export function MineruAvatar({ size = 32, shape = 'circle', className }: Omit<Ic
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <MineruLight className="dark:hidden" style={{ width: size * 0.85, height: size * 0.85 }} />
-        <MineruDark className="hidden dark:block" style={{ width: size * 0.85, height: size * 0.85 }} />
+        <MineruLight className="dark:hidden" style={{ width: size * 0.7, height: size * 0.7 }} />
+        <MineruDark className="hidden dark:block" style={{ width: size * 0.7, height: size * 0.7 }} />
       </AvatarFallback>
     </Avatar>
   )
