@@ -463,17 +463,10 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
         icon={<Clock3 size={12} />}
         title={t('agent.session.list.title')}
         count={sessionItems.length}
+        className="gap-1 pb-0"
         actions={
           <>
             <SessionDisplayModeMenu mode={displayMode} onChange={(nextMode) => void setSessionDisplayMode(nextMode)} />
-            <ResourceList.HeaderActionButton
-              type="button"
-              aria-label={t('agent.session.add.title')}
-              title={t('agent.session.add.title')}
-              disabled={creatingSession}
-              onClick={handleHeaderCreateSession}>
-              <Plus size={12} className="block" />
-            </ResourceList.HeaderActionButton>
             <ResourceList.HeaderActionButton
               type="button"
               aria-label={t('shortcut.general.toggle_sidebar')}
@@ -483,6 +476,16 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
           </>
         }>
         <ResourceList.Search placeholder={t('agent.session.search.placeholder')} />
+        <Button
+          type="button"
+          variant="ghost"
+          aria-label={t('agent.session.add.title')}
+          disabled={creatingSession}
+          className="h-7 w-full justify-start gap-1.5 rounded-md px-2.5 text-[12px] font-normal text-muted-foreground/70 shadow-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground"
+          onClick={handleHeaderCreateSession}>
+          <Plus size={13} className="block shrink-0" />
+          <span className="truncate">{t('agent.session.add.title')}</span>
+        </Button>
       </ResourceList.Header>
       <SessionListBody
         activeSessionId={activeSessionId}
