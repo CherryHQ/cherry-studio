@@ -1,7 +1,8 @@
 import {
   isAwsBedrockProvider,
   isProviderSupportAuth,
-  isVertexProvider
+  isVertexProvider,
+  matchesPreset
 } from '@renderer/pages/settings/ProviderSettings/utils/provider'
 import type { Provider } from '@shared/data/types/provider'
 import type { ReactNode } from 'react'
@@ -17,11 +18,6 @@ import LMStudioSettings from './LMStudioSettings'
 import OVMSSettings from './OVMSSettings'
 import ProviderOAuth from './ProviderOAuth'
 import VertexAISettings from './VertexAISettings'
-
-/** True when the provider is the canonical preset or any user-cloned variant of it. */
-function matchesPreset(provider: Provider, presetId: string): boolean {
-  return provider.id === presetId || provider.presetProviderId === presetId
-}
 
 export type ProviderSpecificPlacement = 'beforeAuth' | 'afterAuth'
 

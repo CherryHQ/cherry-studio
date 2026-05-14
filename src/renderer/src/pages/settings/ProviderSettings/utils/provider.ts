@@ -44,6 +44,11 @@ export function isAwsBedrockProvider(provider: Provider): boolean {
 
 // ─── ID-level: direct comparison ─────────────────────────────────────────────
 
+/** True when the provider is the canonical preset row or any user-cloned variant of it. */
+export function matchesPreset(provider: Provider, presetId: string): boolean {
+  return provider.id === presetId || provider.presetProviderId === presetId
+}
+
 export function isCherryAIProvider(provider: Provider): boolean {
   return provider.id === 'cherryai'
 }

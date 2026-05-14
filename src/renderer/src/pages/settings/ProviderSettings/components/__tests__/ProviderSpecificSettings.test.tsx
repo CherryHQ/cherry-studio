@@ -18,7 +18,9 @@ vi.mock('../../hooks/providerSetting/useProviderMeta', () => ({
 vi.mock('@renderer/pages/settings/ProviderSettings/utils/provider', () => ({
   isProviderSupportAuth: (...args: any[]) => isProviderSupportAuthMock(...args),
   isAwsBedrockProvider: (provider: any) => provider?.authType === 'iam-aws',
-  isVertexProvider: (provider: any) => provider?.authType === 'iam-gcp'
+  isVertexProvider: (provider: any) => provider?.authType === 'iam-gcp',
+  matchesPreset: (provider: any, presetId: string) =>
+    provider?.id === presetId || provider?.presetProviderId === presetId
 }))
 
 vi.mock('../OpenAIAlert', () => ({

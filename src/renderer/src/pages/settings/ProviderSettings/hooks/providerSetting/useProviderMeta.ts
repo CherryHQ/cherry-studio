@@ -5,16 +5,11 @@ import {
   isAwsBedrockProvider,
   isAzureOpenAIProvider,
   isSystemProvider,
-  isVertexProvider
+  isVertexProvider,
+  matchesPreset
 } from '@renderer/pages/settings/ProviderSettings/utils/provider'
-import type { Provider } from '@shared/data/types/provider'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-
-/** Match either the canonical preset row or any user-cloned variant of it. */
-function matchesPreset(provider: Provider, presetId: string): boolean {
-  return provider.id === presetId || provider.presetProviderId === presetId
-}
 
 /** Exposes read-only provider presentation metadata used across provider settings. */
 export function useProviderMeta(providerId: string) {
