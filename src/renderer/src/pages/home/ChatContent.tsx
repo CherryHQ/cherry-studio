@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
+import { ChatWriteProvider } from '@renderer/hooks/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { ToolApprovalProvider } from '@renderer/hooks/ToolApprovalContext'
 import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
@@ -8,8 +9,7 @@ import type { ExecutionFinishEvent } from '@renderer/hooks/useExecutionChats'
 import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
 import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
-import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
-import { V2ChatOverridesProvider } from '@renderer/hooks/V2ChatContext'
+import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
 import type { FileMetadata, Topic } from '@renderer/types'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -17,7 +17,7 @@ import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const logger = loggerService.withContext('V2ChatContent')
+const logger = loggerService.withContext('ChatContent')
 
 import { useHomeMessageListProviderValue } from '@renderer/components/chat/messages/adapters/homeMessageListAdapter'
 import { RefreshProvider } from '@renderer/components/chat/messages/blocks'
@@ -26,11 +26,11 @@ import { MessageListProvider } from '@renderer/components/chat/messages/MessageL
 import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
 import { useMessagePartsById } from '@renderer/components/chat/messages/stream/useMessagePartsById'
 
+import { useChatWriteActions } from './hooks/useChatWriteActions'
 import { useTopicMessagesCache } from './hooks/useTopicMessagesCache'
-import { useV2ChatOverrides } from './hooks/useV2ChatOverrides'
 import Inputbar from './Inputbar/Inputbar'
 
-export interface V2ChatContentFrameSlots {
+export interface ChatContentFrameSlots {
   main: ReactNode
   bottomComposer?: ReactNode
   overlay?: ReactNode
@@ -40,7 +40,7 @@ interface Props {
   topic: Topic
   setActiveTopic: (topic: Topic) => void
   mainHeight: string
-  renderFrame?: (slots: V2ChatContentFrameSlots) => ReactNode
+  renderFrame?: (slots: ChatContentFrameSlots) => ReactNode
   /**
    * If the active topic is a freshly-leased temporary one, this callback
    * migrates it into SQLite (with the same id) before the first message
@@ -52,7 +52,7 @@ interface Props {
 }
 
 /**
- * V2 chat content.
+ * Home chat content.
  *
  * Outer shell — waits on history to be loaded before mounting the inner
  * component (useChat seeds `initialMessages` once, at mount).
@@ -62,15 +62,15 @@ interface Props {
  *     onto the DB-backed `uiMessages` parts map.
  *   - `useTopicMessagesCache` — optimistic SWR writes + DataApi mutation
  *     triggers for send / delete / edit / fork / setActiveNode.
- *   - `useV2ChatOverrides` — every write-side handler the
- *     `V2ChatContext` provides to downstream components.
+ *   - `useChatWriteActions` — every write-side handler the
+ *     `ChatWriteContext` provides to downstream components.
  *
  * `useChatWithHistory` stays trigger-only: `sendMessage` / `regenerate`
  * / `stop` / `setMessages` / `activeExecutions`. Its
  * `state.messages` is not rendered; chunks land in per-execution
  * `ExecutionStreamCollector`s and are overlaid into `partsByMessageId`.
  */
-const V2ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight, renderFrame, onPersistTemporaryTopic }) => {
+const ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight, renderFrame, onPersistTemporaryTopic }) => {
   const { t } = useTranslation()
   const [hasPersistedTemporaryTopic, setHasPersistedTemporaryTopic] = useState(false)
   useEffect(() => setHasPersistedTemporaryTopic(false), [topic.id])
@@ -84,7 +84,7 @@ const V2ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight, renderFra
     loadOlder,
     hasOlder,
     mutate: messagesCacheMutate
-  } = useTopicMessagesV2(topic.id, { enabled: !isFreshTemporaryTopic })
+  } = useTopicMessages(topic.id, { enabled: !isFreshTemporaryTopic })
 
   if (isHistoryLoading) {
     const main = (
@@ -107,7 +107,7 @@ const V2ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight, renderFra
   }
 
   return (
-    <V2ChatContentInner
+    <ChatContentInner
       topic={topic}
       setActiveTopic={setActiveTopic}
       mainHeight={mainHeight}
@@ -138,15 +138,15 @@ interface InnerProps extends Props {
   initialMessages: CherryUIMessage[]
   /** Live DB-backed message list; reactive to SWR refreshes. */
   uiMessages: CherryUIMessage[]
-  siblingsMap: ReturnType<typeof useTopicMessagesV2>['siblingsMap']
+  siblingsMap: ReturnType<typeof useTopicMessages>['siblingsMap']
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
   loadOlder: () => void
   hasOlder: boolean
-  messagesCacheMutate: ReturnType<typeof useTopicMessagesV2>['mutate']
+  messagesCacheMutate: ReturnType<typeof useTopicMessages>['mutate']
 }
 
-const V2ChatContentInner: FC<InnerProps> = ({
+const ChatContentInner: FC<InnerProps> = ({
   topic,
   setActiveTopic,
   mainHeight,
@@ -204,10 +204,10 @@ const V2ChatContentInner: FC<InnerProps> = ({
     onFinish: handleExecutionFinish
   })
 
-  // V2Chat write-side handlers (delete / edit / regenerate / resend /
-  // fork / setActiveNode / clearTopic). Also exposes `capabilityBody` so
-  // the send path below mirrors the same shape.
-  const { overrides: v2ChatOverrides, capabilityBody } = useV2ChatOverrides({
+  // Chat write-side handlers (delete / edit / regenerate / resend / fork /
+  // setActiveNode / clearTopic). Also exposes `capabilityBody` so the send
+  // path below mirrors the same shape.
+  const { actions: chatWriteActions, capabilityBody } = useChatWriteActions({
     topic,
     uiMessages,
     regenerate,
@@ -217,7 +217,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
     cache
   })
 
-  const handleSendV2 = useCallback(
+  const handleSend = useCallback(
     async (text: string, options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[] }) => {
       if (isFreshTemporaryTopic && onPersistTemporaryTopic) {
         try {
@@ -270,7 +270,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])
 
   return (
-    <V2ChatOverridesProvider value={v2ChatOverrides}>
+    <ChatWriteProvider value={chatWriteActions}>
       <SiblingsProvider value={siblingsContextValue}>
         <RefreshProvider value={refresh}>
           <ToolApprovalProvider value={respondToToolApproval}>
@@ -331,7 +331,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
                     />
                   </>
                 )
-                const bottomComposer = <Inputbar topic={topic} setActiveTopic={setActiveTopic} onSend={handleSendV2} />
+                const bottomComposer = <Inputbar topic={topic} setActiveTopic={setActiveTopic} onSend={handleSend} />
 
                 if (renderFrame) {
                   return renderFrame({ main, bottomComposer, overlay })
@@ -353,12 +353,12 @@ const V2ChatContentInner: FC<InnerProps> = ({
           </ToolApprovalProvider>
         </RefreshProvider>
       </SiblingsProvider>
-    </V2ChatOverridesProvider>
+    </ChatWriteProvider>
   )
 }
 
 /**
- * Bridge rendered inside `V2ChatOverridesProvider` so `useChatContextProvider`
+ * Bridge rendered inside `ChatWriteProvider` so `useChatContextProvider`
  * can read that context. Multi-select
  * floating popup mounts here because it depends on the chat context.
  */
@@ -371,7 +371,7 @@ const ChatContextBridge: FC<{ topic: Topic; children: (overlay: ReactNode) => Re
   )
 }
 
-export default V2ChatContent
+export default ChatContent
 
 const HomeMessageList: FC<{
   topic: Topic

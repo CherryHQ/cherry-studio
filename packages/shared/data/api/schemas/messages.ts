@@ -157,6 +157,20 @@ export const PathThroughQuerySchema = z.strictObject({
 })
 export type PathThroughQueryParams = z.infer<typeof PathThroughQuerySchema>
 
+export const SearchMessagesQuerySchema = z.strictObject({
+  q: z.string(),
+  matchMode: z.enum(['whole-word', 'substring']).optional(),
+  limit: z.number().int().positive().max(1000).optional()
+})
+export type SearchMessagesQueryParams = z.infer<typeof SearchMessagesQuerySchema>
+
+export interface SearchMessageResult {
+  messageId: string
+  topicId: string
+  snippet: string
+  createdAt: string
+}
+
 // ============================================================================
 // API Schema Definitions
 // ============================================================================
@@ -170,6 +184,13 @@ export type PathThroughQueryParams = z.infer<typeof PathThroughQuerySchema>
  * - /messages/:id - Individual message operations
  */
 export type MessageSchemas = {
+  '/messages/search': {
+    GET: {
+      query: SearchMessagesQueryParams
+      response: SearchMessageResult[]
+    }
+  }
+
   /**
    * Tree query endpoint for visualization
    * @example GET /topics/abc123/tree?depth=1

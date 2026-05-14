@@ -1,20 +1,21 @@
 import { MessageOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Button, RowFlex, Scrollbar } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import MessageGroup from '@renderer/components/chat/messages/list/MessageGroup'
+import type { MessageListItem } from '@renderer/components/chat/messages/types'
+import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { getTopicById } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { getGroupedMessages, locateToMessage } from '@renderer/services/MessagesService'
+import { locateToMessage } from '@renderer/services/MessagesService'
 import type { Topic } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
-import { classNames, runAsyncFunction } from '@renderer/utils'
-import type { CherryMessagePart } from '@shared/data/types/message'
+import { classNames } from '@renderer/utils'
+import { branchMessagesToFullUIMessages, uiMessagesToPartsMap } from '@renderer/utils/messageUtils/messageProjection'
+import type { BranchMessage, BranchMessagesResponse, CherryUIMessage } from '@shared/data/types/message'
 import { useNavigate } from '@tanstack/react-router'
 import { Divider, Empty } from 'antd'
 import { t } from 'i18next'
@@ -24,10 +25,44 @@ import { useEffect, useMemo, useState } from 'react'
 import styled from 'styled-components'
 
 import { HistoryMessageListProvider } from './HistoryMessageListProvider'
-import { legacyMessageToListItem } from './legacyMessageListItem'
 
-interface Props extends React.HTMLAttributes<HTMLDivElement> {
+interface Props extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onScroll'> {
   topic?: Topic
+}
+
+const logger = loggerService.withContext('HistoryTopicMessages')
+const HISTORY_MESSAGES_PAGE_SIZE = 200
+
+async function loadHistoryTopicMessages(topicId: string): Promise<CherryUIMessage[]> {
+  const pages: BranchMessage[][] = []
+  let cursor: string | undefined
+
+  do {
+    const response = (await dataApiService.get(`/topics/${topicId}/messages`, {
+      query: {
+        limit: HISTORY_MESSAGES_PAGE_SIZE,
+        includeSiblings: true,
+        ...(cursor ? { cursor } : {})
+      }
+    })) as BranchMessagesResponse
+    pages.push(response.items)
+    cursor = response.nextCursor
+  } while (cursor)
+
+  return branchMessagesToFullUIMessages(pages.reverse().flat())
+}
+
+function groupMessageListItems(messages: MessageListItem[]): Record<string, MessageListItem[]> {
+  const grouped: Record<string, MessageListItem[]> = {}
+
+  for (const message of messages) {
+    const key =
+      message.role === 'assistant' && message.parentId ? `assistant${message.parentId}` : message.role + message.id
+    grouped[key] ??= []
+    grouped[key].push(message)
+  }
+
+  return grouped
 }
 
 const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
@@ -37,35 +72,42 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
   const [messageStyle] = usePreference('chat.message.style')
   const { setTimeoutTimer } = useTimer()
 
-  const [topic, setTopic] = useState<Topic | undefined>(_topic)
+  const topic = _topic
+  const topicId = topic?.id ?? ''
+  const [uiMessages, setUiMessages] = useState<CherryUIMessage[]>([])
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false)
 
   useEffect(() => {
-    setTopic(_topic ? { ..._topic, messages: [] } : undefined)
-    if (!_topic) return
+    let cancelled = false
+    setUiMessages([])
+    setIsLoadingMessages(!!topicId)
 
-    void runAsyncFunction(async () => {
-      const topic = await getTopicById(_topic.id)
-      setTopic(topic)
-    })
-  }, [_topic])
+    if (!topicId) return
 
-  const isEmpty = (topic?.messages || []).length === 0
-  const groupedMessages = useMemo(() => {
-    if (!topic?.messages?.length) return []
-    return Object.entries(getGroupedMessages(topic.messages)).map(
-      ([key, groupMessages]) => [key, groupMessages.map(legacyMessageToListItem)] as const
-    )
-  }, [topic?.messages])
-  const messageItems = useMemo(() => groupedMessages.flatMap(([, messages]) => messages), [groupedMessages])
+    void loadHistoryTopicMessages(topicId)
+      .then((messages) => {
+        if (!cancelled) setUiMessages(messages)
+      })
+      .catch((error) => {
+        if (!cancelled) logger.error('Failed to load history topic messages', error as Error)
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingMessages(false)
+      })
 
-  const partsMap = useMemo(() => {
-    const map: Record<string, CherryMessagePart[]> = {}
-    for (const message of topic?.messages || []) {
-      const parts = message.parts ?? []
-      if (parts.length > 0) map[message.id] = parts
+    return () => {
+      cancelled = true
     }
-    return map
-  }, [topic?.messages])
+  }, [topicId])
+
+  const messageItems = useMemo(() => {
+    if (!topic || !topicId) return []
+    return uiMessages.map((message) => toMessageListItem(message, { topicId, assistantId: topic.assistantId }))
+  }, [topic, topicId, uiMessages])
+  const groupedMessages = useMemo(() => Object.entries(groupMessageListItems(messageItems)), [messageItems])
+  const partsMap = useMemo(() => uiMessagesToPartsMap(uiMessages), [uiMessages])
+  const hasMessages = messageItems.length > 0
+  const isEmpty = !isLoadingMessages && !hasMessages
 
   if (!topic) {
     return null
@@ -73,8 +115,6 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
 
   const onContinueChat = async (topic: Topic) => {
     SearchPopup.hide()
-    // Validate `topic.assistantId` against DataApi so a deleted assistant
-    // doesn't leak a dangling id into the route. Falls back to undefined.
     const assistantId = topic.assistantId
       ? await dataApiService
           .get(`/assistants/${topic.assistantId}`)
@@ -91,10 +131,8 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
         <MessagesContainer {...props} ref={containerRef} onScroll={handleScroll}>
           <ContainerWrapper className={messageStyle}>
             {groupedMessages.map(([key, groupMessages]) => {
-              const locateMessage = topic.messages.find((message) => message.id === groupMessages[0]?.id) as
-                | Message
-                | undefined
-              const wrapperRole = groupMessages[0]?.role
+              const locateMessage = groupMessages[0]
+              const wrapperRole = locateMessage?.role
 
               return (
                 <MessageWrapper key={key} className={classNames([messageStyle, wrapperRole])}>
@@ -112,7 +150,7 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
               )
             })}
             {isEmpty && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />}
-            {!isEmpty && (
+            {hasMessages && (
               <RowFlex className="justify-center">
                 <Button onClick={() => onContinueChat(topic)}>
                   <MessageOutlined />
@@ -127,12 +165,13 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
   )
 }
 
-const MessagesContainer = styled.div`
+const MessagesContainer = styled(Scrollbar)`
   width: 100%;
   display: flex;
+  flex: 1;
+  min-height: 0;
   flex-direction: column;
   align-items: center;
-  overflow-y: scroll;
 `
 
 const ContainerWrapper = styled.div`

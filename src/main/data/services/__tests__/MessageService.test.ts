@@ -14,6 +14,14 @@ function mainText(content: string): MessageData {
   return { blocks: [{ type: BlockType.MAIN_TEXT, content, createdAt: 0 }] }
 }
 
+function partsText(content: string): MessageData {
+  return { parts: [{ type: 'text', text: content }] as MessageData['parts'] }
+}
+
+function partsCode(content: string): MessageData {
+  return { parts: [{ type: 'data-code', data: { content, language: 'ts' } }] as MessageData['parts'] }
+}
+
 describe('MessageService', () => {
   const dbh = setupTestDatabase()
 
@@ -142,6 +150,168 @@ describe('MessageService', () => {
           expect(item.message.parentId).toEqual(expect.any(String))
         }
       }
+    })
+  })
+
+  describe('search', () => {
+    it('searches v2 parts text and returns message snippets', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-search', activeNodeId: 'm-search-1', orderKey: 's0' })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'm-search-1',
+          parentId: null,
+          topicId: 'topic-search',
+          role: 'assistant',
+          data: partsText('The v2 parts payload contains a unique needle.'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'm-search-2',
+          parentId: 'm-search-1',
+          topicId: 'topic-search',
+          role: 'assistant',
+          data: partsText('No matching term here.'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 200,
+          updatedAt: 200
+        }
+      ])
+
+      const result = await messageService.search({ q: 'needle', matchMode: 'substring' })
+
+      expect(result).toHaveLength(1)
+      expect(result[0]).toMatchObject({
+        messageId: 'm-search-1',
+        topicId: 'topic-search'
+      })
+      expect(result[0].snippet).toContain('unique needle')
+      expect(result[0].createdAt).toBe('1970-01-01T00:00:00.100Z')
+
+      const stored = await dbh.db
+        .select({ searchableText: messageTable.searchableText })
+        .from(messageTable)
+        .where(eq(messageTable.id, 'm-search-1'))
+      expect(stored[0].searchableText).toContain('unique needle')
+    })
+
+    it('honors whole-word matching', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-word', activeNodeId: 'm-word-1', orderKey: 's1' })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'm-word-1',
+          parentId: null,
+          topicId: 'topic-word',
+          role: 'assistant',
+          data: partsText('The mechanism should not match.'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'm-word-2',
+          parentId: 'm-word-1',
+          topicId: 'topic-word',
+          role: 'assistant',
+          data: partsText('This mechanism mentions sms as a token.'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 200,
+          updatedAt: 200
+        }
+      ])
+
+      const result = await messageService.search({ q: 'sms', matchMode: 'whole-word' })
+
+      expect(result.map((item) => item.messageId)).toEqual(['m-word-2'])
+    })
+
+    it('orders matches by newest message before applying limit', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-order', activeNodeId: 'm-order-new', orderKey: 's2' })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'm-order-old',
+          parentId: null,
+          topicId: 'topic-order',
+          role: 'assistant',
+          data: partsText('needle in an older answer'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'm-order-new',
+          parentId: null,
+          topicId: 'topic-order',
+          role: 'assistant',
+          data: partsText('needle in a newer answer'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 300,
+          updatedAt: 300
+        }
+      ])
+
+      const result = await messageService.search({ q: 'needle', matchMode: 'substring', limit: 1 })
+
+      expect(result.map((item) => item.messageId)).toEqual(['m-order-new'])
+    })
+
+    it('searches visible code parts', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-code', activeNodeId: 'm-code-1', orderKey: 's4' })
+      await dbh.db.insert(messageTable).values({
+        id: 'm-code-1',
+        parentId: null,
+        topicId: 'topic-code',
+        role: 'assistant',
+        data: partsCode('const searchableCodeNeedle = true'),
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 100,
+        updatedAt: 100
+      })
+
+      const result = await messageService.search({ q: 'searchableCodeNeedle', matchMode: 'substring' })
+
+      expect(result.map((item) => item.messageId)).toEqual(['m-code-1'])
+      expect(result[0].snippet).toContain('searchableCodeNeedle')
+    })
+
+    it('applies limit after whole-word filtering', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-filter', activeNodeId: 'm-filter-valid', orderKey: 's3' })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'm-filter-false-positive',
+          parentId: null,
+          topicId: 'topic-filter',
+          role: 'assistant',
+          data: partsText('A newer concatenate result is only a substring match.'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 300,
+          updatedAt: 300
+        },
+        {
+          id: 'm-filter-valid',
+          parentId: null,
+          topicId: 'topic-filter',
+          role: 'assistant',
+          data: partsText('An older cat result is a whole word.'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        }
+      ])
+
+      const result = await messageService.search({ q: 'cat', matchMode: 'whole-word', limit: 1 })
+
+      expect(result.map((item) => item.messageId)).toEqual(['m-filter-valid'])
     })
   })
 

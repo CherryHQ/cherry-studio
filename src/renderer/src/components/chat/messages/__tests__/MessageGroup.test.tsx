@@ -150,11 +150,6 @@ vi.mock('@renderer/utils/dom', () => ({
   scrollIntoView: mocks.scrollIntoView
 }))
 
-vi.mock('@renderer/utils/messageUtils/is', () => ({
-  isMessageAwaitingApproval: () => false,
-  isMessageProcessing: () => false
-}))
-
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key

@@ -28,7 +28,7 @@ const EMPTY_TOPICS: readonly Topic[] = Object.freeze([])
 
 /**
  * Map a DataApi topic entity into the renderer {@link RendererTopic} shape.
- * Message history is not loaded here — use `useTopicMessagesV2` or `getTopicMessages`.
+ * Message history is not loaded here — use `useTopicMessages` or `getTopicMessages`.
  *
  * Pin state is no longer a topic column; consumers that need "is this pinned?"
  * read the `pin` collection (`useQuery('/pins', { query: { entityType: 'topic' } })`)

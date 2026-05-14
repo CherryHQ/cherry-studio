@@ -3,10 +3,10 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { act, type ReactNode, useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import V2ChatContent from '../V2ChatContent'
+import ChatContent from '../ChatContent'
 
 const mockUseChatWithHistory = vi.fn()
-const mockUseTopicMessagesV2 = vi.fn()
+const mockUseTopicMessages = vi.fn()
 const mockMessageListValue = vi.hoisted(() => ({ current: null as any }))
 let capturedOnSend: ((text: string) => Promise<void> | void) | undefined
 
@@ -19,12 +19,12 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
   useChatWithHistory: (...args: unknown[]) => mockUseChatWithHistory(...args)
 }))
 
-vi.mock('@renderer/hooks/V2ChatContext', () => ({
-  V2ChatOverridesProvider: ({ children }: { children: ReactNode }) => children
+vi.mock('@renderer/hooks/ChatWriteContext', () => ({
+  ChatWriteProvider: ({ children }: { children: ReactNode }) => children
 }))
 
-vi.mock('@renderer/hooks/useTopicMessagesV2', () => ({
-  useTopicMessagesV2: (...args: unknown[]) => mockUseTopicMessagesV2(...args)
+vi.mock('@renderer/hooks/useTopicMessages', () => ({
+  useTopicMessages: (...args: unknown[]) => mockUseTopicMessages(...args)
 }))
 
 vi.mock('@renderer/services/ApiService', () => ({
@@ -126,7 +126,7 @@ function createUiMessage(id: string, role: CherryUIMessage['role']): CherryUIMes
   } as CherryUIMessage
 }
 
-describe('V2ChatContent', () => {
+describe('ChatContent', () => {
   const topic = {
     id: 'topic-1',
     assistantId: 'assistant-1',
@@ -139,7 +139,7 @@ describe('V2ChatContent', () => {
   const originalApi = window.api as any
 
   beforeEach(() => {
-    mockUseTopicMessagesV2.mockReturnValue({
+    mockUseTopicMessages.mockReturnValue({
       uiMessages: [createUiMessage('history-user', 'user'), createUiMessage('history-assistant', 'assistant')],
       siblingsMap: {},
       isLoading: false,
@@ -188,7 +188,7 @@ describe('V2ChatContent', () => {
       activeExecutions: []
     })
 
-    render(<V2ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
+    render(<ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
 
     await act(async () => {
       await capturedOnSend?.('hello')
@@ -208,11 +208,9 @@ describe('V2ChatContent', () => {
   })
 
   it('disables persistent history loading for freshly leased temporary topics', () => {
-    render(
-      <V2ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" onPersistTemporaryTopic={vi.fn()} />
-    )
+    render(<ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" onPersistTemporaryTopic={vi.fn()} />)
 
-    expect(mockUseTopicMessagesV2).toHaveBeenCalledWith('topic-1', { enabled: false })
+    expect(mockUseTopicMessages).toHaveBeenCalledWith('topic-1', { enabled: false })
   })
 
   it('renders only uiMessages in the list (execution overlay affects parts, not the list itself)', async () => {
@@ -221,7 +219,7 @@ describe('V2ChatContent', () => {
     // ExecutionStreamCollector updates `partsByMessageId` but never adds entries
     // to the message list — any streaming bubble must already exist in
     // uiMessages as a pending placeholder (Main reserves before streaming).
-    mockUseTopicMessagesV2.mockReturnValue({
+    mockUseTopicMessages.mockReturnValue({
       uiMessages: [
         createUiMessage('history-user', 'user'),
         createUiMessage('history-assistant', 'assistant'),
@@ -244,7 +242,7 @@ describe('V2ChatContent', () => {
       activeExecutions: [{ executionId: 'pending-placeholder', anchorMessageId: 'pending-placeholder' }] as never
     })
 
-    render(<V2ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
+    render(<ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
 
     // List reflects uiMessages exactly — no extra `live-*` entry appended.
     await waitFor(() => {
@@ -257,7 +255,7 @@ describe('V2ChatContent', () => {
     // parent user; one (gemini) is being regenerated (status=pending,
     // new DB placeholder). The other three (kimi, claude, original gemini)
     // stay SUCCESS. The list must contain all four.
-    mockUseTopicMessagesV2.mockReturnValue({
+    mockUseTopicMessages.mockReturnValue({
       uiMessages: [
         createUiMessage('u-1', 'user'),
         createUiMessage('gemini-old', 'assistant'),
@@ -279,7 +277,7 @@ describe('V2ChatContent', () => {
       activeExecutions: [{ executionId: 'gemini-new-pending', anchorMessageId: 'gemini-new-pending' }] as never
     })
 
-    render(<V2ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
+    render(<ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
 
     await waitFor(() => {
       expect(screen.getByTestId('messages')).toHaveTextContent('u-1,gemini-old,kimi,claude,gemini-new-pending')

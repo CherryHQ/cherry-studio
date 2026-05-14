@@ -1,4 +1,3 @@
-import { MessageBlockStatus } from '@renderer/types/newMessage'
 import React, { useMemo } from 'react'
 
 import type { MarkdownSource } from '../markdown/Markdown'
@@ -18,7 +17,7 @@ const TranslationBlock: React.FC<Props> = ({ id, content, isStreaming }) => {
     () => ({
       id,
       content,
-      status: isStreaming ? MessageBlockStatus.STREAMING : MessageBlockStatus.SUCCESS
+      status: isStreaming ? 'streaming' : 'success'
     }),
     [id, content, isStreaming]
   )

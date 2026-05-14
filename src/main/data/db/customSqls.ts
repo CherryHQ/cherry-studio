@@ -7,7 +7,7 @@
  * - Custom indexes with expressions
  *
  * These are executed after every migration via DbService.runCustomMigrations()
- * All statements must be idempotent (use IF NOT EXISTS, etc.)
+ * All statements must be idempotent (use IF NOT EXISTS / DROP IF EXISTS / rebuild-safe operations).
  *
  * To add new custom SQL:
  * 1. Create statements in the relevant schema file (e.g., messageFts.ts)

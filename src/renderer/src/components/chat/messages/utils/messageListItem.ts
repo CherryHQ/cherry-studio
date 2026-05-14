@@ -1,5 +1,5 @@
 import type { Model } from '@renderer/types'
-import { statsToMetrics, statsToUsage } from '@renderer/utils/messageStats'
+import type { MessageExportView } from '@renderer/types/messageExport'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import {
   createUniqueModelId,
@@ -102,7 +102,7 @@ export function isMessageListItemAwaitingApproval(message: MessageListItem, part
   return parts.some((part) => isToolUIPart(part) && part.state === 'approval-requested')
 }
 
-export function createMessageExportView(message: MessageListItem, parts: CherryMessagePart[]) {
+export function createMessageExportView(message: MessageListItem, parts: CherryMessagePart[]): MessageExportView {
   const model = getMessageListItemModel(message)
   return {
     id: message.id,
@@ -114,10 +114,9 @@ export function createMessageExportView(message: MessageListItem, parts: CherryM
     status: message.status,
     modelId: message.modelId,
     model,
-    askId: message.parentId ?? undefined,
+    parentId: message.parentId,
     siblingsGroupId: message.siblingsGroupId,
-    ...(message.stats && { usage: statsToUsage(message.stats), metrics: statsToMetrics(message.stats) }),
-    blocks: [],
+    stats: message.stats,
     parts,
     traceId: message.traceId ?? undefined
   }

@@ -17,7 +17,7 @@ import { TopView } from '@renderer/components/TopView'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBases'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import type { Topic } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
+import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { NotesTreeNode } from '@renderer/types/note'
 import type { ContentType, MessageContentStats, TopicContentStats } from '@renderer/utils/knowledge'
 import {
@@ -89,7 +89,7 @@ interface ContentTypeOption {
 }
 
 type ContentSource =
-  | { type: 'message'; data: Message }
+  | { type: 'message'; data: ExportableMessage }
   | { type: 'topic'; data: Topic }
   | { type: 'note'; data: NotesTreeNode }
 
@@ -538,7 +538,7 @@ export default class SaveToKnowledgePopup {
     })
   }
 
-  static showForMessage(message: Message, title?: string): Promise<SaveResult | null> {
+  static showForMessage(message: ExportableMessage, title?: string): Promise<SaveResult | null> {
     return this.show({ source: { type: 'message', data: message }, title })
   }
 

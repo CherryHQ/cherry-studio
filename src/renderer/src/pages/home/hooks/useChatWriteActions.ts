@@ -1,5 +1,5 @@
 /**
- * Build the `V2ChatOverrides` bag passed down through context.
+ * Build the `ChatWriteActions` bag passed down through context.
  *
  * Everything here is a write-side handler (delete / edit / regenerate /
  * resend / fork / setActiveNode / clearTopic) that:
@@ -8,14 +8,14 @@
  *   2. fires the DataApi mutation trigger (from `useBranchCacheOps`),
  *   3. rolls back on error.
  *
- * Shape / semantics match `V2ChatContext.V2ChatOverrides` one-to-one —
+ * Shape / semantics match `ChatWriteContext.ChatWriteActions` one-to-one —
  * this file exists to get the ~300 lines of handler code out of
- * `V2ChatContent.tsx`, not to change behaviour.
+ * `ChatContent.tsx`, not to change behaviour.
  */
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
+import type { ChatWriteActions } from '@renderer/hooks/ChatWriteContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import type { V2ChatOverrides } from '@renderer/hooks/V2ChatContext'
 import type { Topic } from '@renderer/types'
 import { DataApiError, ErrorCode } from '@shared/data/api'
 import type {
@@ -30,7 +30,7 @@ import { useCallback, useMemo } from 'react'
 
 import type { useTopicMessagesCache } from './useTopicMessagesCache'
 
-const logger = loggerService.withContext('useV2ChatOverrides')
+const logger = loggerService.withContext('useChatWriteActions')
 
 interface Params {
   topic: Topic
@@ -43,13 +43,13 @@ interface Params {
 }
 
 interface Result {
-  overrides: V2ChatOverrides
+  actions: ChatWriteActions
   /** Capability flags the send path needs to mirror — exposed so
-   *  `handleSendV2` builds the same body shape. */
+   *  `handleSend` builds the same body shape. */
   capabilityBody: Record<string, unknown>
 }
 
-export function useV2ChatOverrides(params: Params): Result {
+export function useChatWriteActions(params: Params): Result {
   const { topic, uiMessages, regenerate, setMessages, stop, refresh, cache } = params
   const { assistant } = useAssistant(topic.assistantId)
   const {
@@ -63,7 +63,7 @@ export function useV2ChatOverrides(params: Params): Result {
     setActiveNodeTrigger
   } = cache
 
-  const handleDeleteMessage = useCallback<V2ChatOverrides['deleteMessage']>(
+  const handleDeleteMessage = useCallback<ChatWriteActions['deleteMessage']>(
     async (id, traceOptions) => {
       const optimisticIds = new Set([id])
       await seedOptimisticBranch((prev) => branchWithoutIds(prev, optimisticIds))
@@ -91,7 +91,7 @@ export function useV2ChatOverrides(params: Params): Result {
     [branchWithoutIds, deleteMessageTrigger, rollbackBranch, seedOptimisticBranch, topic.id]
   )
 
-  const handleDeleteMessageGroup = useCallback<V2ChatOverrides['deleteMessageGroup']>(
+  const handleDeleteMessageGroup = useCallback<ChatWriteActions['deleteMessageGroup']>(
     async (id: string) => {
       await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set([id])))
       try {
@@ -120,7 +120,7 @@ export function useV2ChatOverrides(params: Params): Result {
     }
   }, [uiMessages, clearBranchCache, deleteMessageTrigger, rollbackBranch, topic.id])
 
-  const handleEditMessage = useCallback<V2ChatOverrides['editMessage']>(
+  const handleEditMessage = useCallback<ChatWriteActions['editMessage']>(
     async (messageId, editedParts) => {
       await seedOptimisticBranch((items) => {
         const patch = (msg: BranchMessagesResponse['items'][number]['message']) =>
@@ -182,7 +182,7 @@ export function useV2ChatOverrides(params: Params): Result {
     [regenerate, capabilityBody, uiMessages]
   )
 
-  const handleForkAndResend = useCallback<V2ChatOverrides['forkAndResend']>(
+  const handleForkAndResend = useCallback<ChatWriteActions['forkAndResend']>(
     async (messageId, editedParts) => {
       const newMessage = await createSiblingTrigger({
         params: { id: messageId },
@@ -196,7 +196,7 @@ export function useV2ChatOverrides(params: Params): Result {
 
       // Bypass `regenerateWithCapabilities` here: its `uiMessages`
       // closure is still the pre-fork snapshot in this microtask (the
-      // outer V2ChatContent hasn't re-rendered with the refreshed SWR
+      // outer ChatContent hasn't re-rendered with the refreshed SWR
       // data yet), so the anchor lookup would miss the new user. We
       // already know the anchor is the new user's own id.
       await regenerate({
@@ -207,7 +207,7 @@ export function useV2ChatOverrides(params: Params): Result {
     [createSiblingTrigger, refresh, setMessages, regenerate, capabilityBody]
   )
 
-  const handleSetActiveNode = useCallback<V2ChatOverrides['setActiveNode']>(
+  const handleSetActiveNode = useCallback<ChatWriteActions['setActiveNode']>(
     async (messageId) => {
       try {
         await setActiveNodeTrigger({
@@ -226,7 +226,7 @@ export function useV2ChatOverrides(params: Params): Result {
     [setActiveNodeTrigger, topic.id]
   )
 
-  const handleSetActiveBranch = useCallback<V2ChatOverrides['setActiveBranch']>(
+  const handleSetActiveBranch = useCallback<ChatWriteActions['setActiveBranch']>(
     async (throughNodeId) => {
       let leafId = throughNodeId
       try {
@@ -257,7 +257,7 @@ export function useV2ChatOverrides(params: Params): Result {
     [setActiveNodeTrigger, topic.id]
   )
 
-  const overrides = useMemo<V2ChatOverrides>(
+  const actions = useMemo<ChatWriteActions>(
     () => ({
       regenerate: async (messageId, options) => regenerateWithCapabilities(messageId, options),
       resend: async (messageId) => regenerateWithCapabilities(messageId),
@@ -285,5 +285,5 @@ export function useV2ChatOverrides(params: Params): Result {
     ]
   )
 
-  return { overrides, capabilityBody }
+  return { actions, capabilityBody }
 }

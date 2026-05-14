@@ -17,8 +17,8 @@ import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 
 import SettingsPanel from '../chat-settings/SettingsPanel'
+import ChatContent from './ChatContent'
 import ChatNavbar from './components/ChatNavBar'
-import V2ChatContent from './V2ChatContent'
 
 const logger = loggerService.withContext('Chat')
 
@@ -29,7 +29,7 @@ interface Props {
   paneOpen?: boolean
   panePosition?: ChatPanePosition
   /**
-   * Called by V2ChatContent before the first message of a freshly-leased
+   * Called by ChatContent before the first message of a freshly-leased
    * temporary topic is sent. HomePage owns the lease so it also owns the
    * persist trigger. `initialName` becomes a placeholder topic title so
    * the sidebar isn't blank in the gap before auto-naming runs.
@@ -120,7 +120,7 @@ const Chat: FC<Props> = (props) => {
         '[navbar-position=top]_&:rounded-tl-[10px] [navbar-position=top]_&:rounded-bl-[10px]'
       ])}>
       <QuickPanelProvider>
-        <V2ChatContent
+        <ChatContent
           key={props.activeTopic.id}
           topic={props.activeTopic}
           setActiveTopic={props.setActiveTopic}

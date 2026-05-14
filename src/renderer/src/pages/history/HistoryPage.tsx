@@ -1,6 +1,5 @@
 import { RowFlex } from '@cherrystudio/ui'
 import type { Topic } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
 import type { InputRef } from 'antd'
 import { Divider, Input } from 'antd'
 import { last } from 'lodash'
@@ -16,11 +15,15 @@ import TopicMessages from './components/TopicMessages'
 import TopicsHistory from './components/TopicsHistory'
 
 type Route = 'topics' | 'topic' | 'search' | 'message'
+type SearchMessageTarget = {
+  messageId: string
+  topicId: string
+}
 
 let _search = ''
 let _stack: Route[] = ['topics']
 let _topic: Topic | undefined
-let _message: Message | undefined
+let _message: SearchMessageTarget | undefined
 
 const HistoryPage: FC = () => {
   const { t } = useTranslation()
@@ -28,7 +31,7 @@ const HistoryPage: FC = () => {
   const [searchKeywords, setSearchKeywords] = useState(_search)
   const [stack, setStack] = useState<Route[]>(_stack)
   const [topic, setTopic] = useState<Topic | undefined>(_topic)
-  const [message, setMessage] = useState<Message | undefined>(_message)
+  const [message, setMessage] = useState<SearchMessageTarget | undefined>(_message)
   const inputRef = useRef<InputRef>(null)
 
   _search = search
@@ -61,7 +64,7 @@ const HistoryPage: FC = () => {
     setTopic(topic)
   }
 
-  const onMessageClick = (message: Message) => {
+  const onMessageClick = (message: SearchMessageTarget) => {
     setStack(['topics', 'search', 'message'])
     setMessage(message)
   }
@@ -126,8 +129,10 @@ const HistoryPage: FC = () => {
 const Container = styled.div`
   display: flex;
   flex: 1;
+  min-height: 0;
   flex-direction: column;
   height: 100%;
+  overflow: hidden;
 `
 
 const SearchIcon = styled.div`

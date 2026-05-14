@@ -1,5 +1,3 @@
-import type { ThinkingMessageBlock } from '@renderer/types/newMessage'
-import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,6 +6,13 @@ import ThinkingBlock from '../ThinkingBlock'
 // Mock dependencies
 const mockUseTranslation = vi.fn()
 let mockUsePreference: any
+
+type ThinkingBlockFixture = {
+  id: string
+  content: string
+  status: 'success' | 'streaming'
+  thinkingMs: number
+}
 
 // Mock hooks
 vi.mock('@data/hooks/usePreference', () => ({
@@ -173,25 +178,21 @@ describe('ThinkingBlock', () => {
   })
 
   // Test data factory functions
-  const createThinkingBlock = (overrides: Partial<ThinkingMessageBlock> = {}): ThinkingMessageBlock => ({
+  const createThinkingBlock = (overrides: Partial<ThinkingBlockFixture> = {}): ThinkingBlockFixture => ({
     id: 'test-thinking-block-1',
-    messageId: 'test-message-1',
-    type: MessageBlockType.THINKING,
-    status: MessageBlockStatus.SUCCESS,
-    createdAt: new Date().toISOString(),
+    status: 'success',
     content: 'I need to think about this carefully...',
-    thinking_millsec: 5000,
+    thinkingMs: 5000,
     ...overrides
   })
 
-  // Helper: convert legacy block to pure view props for ThinkingBlock
-  const renderThinkingBlock = (block: ThinkingMessageBlock) => {
+  const renderThinkingBlock = (block: ThinkingBlockFixture) => {
     return render(
       <ThinkingBlock
         id={block.id}
         content={block.content}
-        isStreaming={block.status === MessageBlockStatus.STREAMING}
-        thinkingMs={block.thinking_millsec}
+        isStreaming={block.status === 'streaming'}
+        thinkingMs={block.thinkingMs}
       />
     )
   }
@@ -223,19 +224,19 @@ describe('ThinkingBlock', () => {
 
     it('should show copy button only when thinking is complete', () => {
       // When thinking (streaming)
-      const thinkingBlock = createThinkingBlock({ status: MessageBlockStatus.STREAMING })
+      const thinkingBlock = createThinkingBlock({ status: 'streaming' })
       const { rerender } = renderThinkingBlock(thinkingBlock)
 
       expect(getCopyButton()).not.toBeInTheDocument()
 
       // When thinking is complete
-      const completedBlock = createThinkingBlock({ status: MessageBlockStatus.SUCCESS })
+      const completedBlock = createThinkingBlock({ status: 'success' })
       rerender(
         <ThinkingBlock
           id={completedBlock.id}
           content={completedBlock.content}
-          isStreaming={completedBlock.status === MessageBlockStatus.STREAMING}
-          thinkingMs={completedBlock.thinking_millsec}
+          isStreaming={completedBlock.status === 'streaming'}
+          thinkingMs={completedBlock.thinkingMs}
         />
       )
 
@@ -247,8 +248,8 @@ describe('ThinkingBlock', () => {
     it('should display appropriate time messages based on status', () => {
       // Completed thinking
       const completedBlock = createThinkingBlock({
-        thinking_millsec: 3500,
-        status: MessageBlockStatus.SUCCESS
+        thinkingMs: 3500,
+        status: 'success'
       })
       const { unmount } = renderThinkingBlock(completedBlock)
 
@@ -259,8 +260,8 @@ describe('ThinkingBlock', () => {
 
       // Active thinking
       const thinkingBlock = createThinkingBlock({
-        thinking_millsec: 1000,
-        status: MessageBlockStatus.STREAMING
+        thinkingMs: 1000,
+        status: 'streaming'
       })
       renderThinkingBlock(thinkingBlock)
 
@@ -270,15 +271,15 @@ describe('ThinkingBlock', () => {
 
     it('should handle extreme thinking times correctly', () => {
       const testCases = [
-        { thinking_millsec: 0, expectedTime: '0.1s' },
-        { thinking_millsec: 86400000, expectedTime: '86400.0s' },
-        { thinking_millsec: 259200000, expectedTime: '259200.0s' }
+        { thinkingMs: 0, expectedTime: '0.1s' },
+        { thinkingMs: 86400000, expectedTime: '86400.0s' },
+        { thinkingMs: 259200000, expectedTime: '259200.0s' }
       ]
 
-      testCases.forEach(({ thinking_millsec, expectedTime }) => {
+      testCases.forEach(({ thinkingMs, expectedTime }) => {
         const block = createThinkingBlock({
-          thinking_millsec,
-          status: MessageBlockStatus.SUCCESS
+          thinkingMs,
+          status: 'success'
         })
         const { unmount } = renderThinkingBlock(block)
         expect(getThinkingTimeText()).toHaveTextContent(expectedTime)
@@ -289,10 +290,10 @@ describe('ThinkingBlock', () => {
     it('should clamp invalid thinking times to a safe default', () => {
       const testCases = [undefined, Number.NaN, Number.POSITIVE_INFINITY]
 
-      testCases.forEach((thinking_millsec) => {
+      testCases.forEach((thinkingMs) => {
         const block = createThinkingBlock({
-          thinking_millsec: thinking_millsec as any,
-          status: MessageBlockStatus.SUCCESS
+          thinkingMs: thinkingMs as any,
+          status: 'success'
         })
         const { unmount } = renderThinkingBlock(block)
         expect(getThinkingTimeText()).toHaveTextContent('0.1s')
@@ -344,20 +345,20 @@ describe('ThinkingBlock', () => {
         }
       })
 
-      const streamingBlock = createThinkingBlock({ status: MessageBlockStatus.STREAMING })
+      const streamingBlock = createThinkingBlock({ status: 'streaming' })
       const { rerender } = renderThinkingBlock(streamingBlock)
 
       // With auto-collapse enabled, accordion value should be empty
       expect(screen.getByTestId('accordion-root')).toHaveAttribute('data-value', '')
 
       // Stop thinking
-      const completedBlock = createThinkingBlock({ status: MessageBlockStatus.SUCCESS })
+      const completedBlock = createThinkingBlock({ status: 'success' })
       rerender(
         <ThinkingBlock
           id={completedBlock.id}
           content={completedBlock.content}
-          isStreaming={completedBlock.status === MessageBlockStatus.STREAMING}
-          thinkingMs={completedBlock.thinking_millsec}
+          isStreaming={completedBlock.status === 'streaming'}
+          thinkingMs={completedBlock.thinkingMs}
         />
       )
 
@@ -425,8 +426,8 @@ describe('ThinkingBlock', () => {
         <ThinkingBlock
           id={block2.id}
           content={block2.content}
-          isStreaming={block2.status === MessageBlockStatus.STREAMING}
-          thinkingMs={block2.thinking_millsec}
+          isStreaming={block2.status === 'streaming'}
+          thinkingMs={block2.thinkingMs}
         />
       )
 
@@ -435,27 +436,27 @@ describe('ThinkingBlock', () => {
     })
 
     it('should handle rapid status changes gracefully', () => {
-      const block = createThinkingBlock({ status: MessageBlockStatus.STREAMING })
+      const block = createThinkingBlock({ status: 'streaming' })
       const { rerender } = renderThinkingBlock(block)
 
       // Rapidly toggle between states
       for (let i = 0; i < 3; i++) {
-        const streamingBlock = createThinkingBlock({ status: MessageBlockStatus.STREAMING })
+        const streamingBlock = createThinkingBlock({ status: 'streaming' })
         rerender(
           <ThinkingBlock
             id={streamingBlock.id}
             content={streamingBlock.content}
             isStreaming={true}
-            thinkingMs={streamingBlock.thinking_millsec}
+            thinkingMs={streamingBlock.thinkingMs}
           />
         )
-        const successBlock = createThinkingBlock({ status: MessageBlockStatus.SUCCESS })
+        const successBlock = createThinkingBlock({ status: 'success' })
         rerender(
           <ThinkingBlock
             id={successBlock.id}
             content={successBlock.content}
             isStreaming={false}
-            thinkingMs={successBlock.thinking_millsec}
+            thinkingMs={successBlock.thinkingMs}
           />
         )
       }

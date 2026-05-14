@@ -25,14 +25,9 @@ function containsCJK(text: string): boolean {
 }
 
 function buildWholeWordPattern(escapedTerm: string): string {
-  // CJK text has no word boundaries — degrade to substring matching
   if (containsCJK(escapedTerm)) {
     return escapedTerm
   }
-  // "Whole word" here means: do not match inside a larger alphanumeric token.
-  // This avoids false positives like:
-  // - API keys: "IMr4WSMS5dwa52"
-  // - suffixes: "mechanis[m][s]" when searching "sms"
   return `(?<![\\p{L}\\p{N}])${escapedTerm}(?![\\p{L}\\p{N}])`
 }
 

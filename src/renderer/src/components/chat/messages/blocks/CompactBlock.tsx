@@ -1,5 +1,4 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
-import { MessageBlockStatus } from '@renderer/types/newMessage'
 import { ChevronDown } from 'lucide-react'
 import React, { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,10 +21,7 @@ const CompactBlock: React.FC<Props> = ({ id, content, compactedContent }) => {
   const [activeKey, setActiveKey] = useState<string>('')
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
 
-  const markdownSource = useMemo<MarkdownSource>(
-    () => ({ id, content, status: MessageBlockStatus.SUCCESS }),
-    [id, content]
-  )
+  const markdownSource = useMemo<MarkdownSource>(() => ({ id, content, status: 'success' }), [id, content])
 
   return (
     <div className="my-2 flex flex-col gap-3">

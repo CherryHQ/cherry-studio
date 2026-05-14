@@ -3,7 +3,7 @@ import { createContext, use } from 'react'
 
 /**
  * Provided by `useChatWithHistory`, consumed by approval cards. `null`
- * outside a V2 chat subtree (legacy path is gone — cards then no-op).
+ * outside a chat write subtree (legacy path is gone — cards then no-op).
  */
 export type ToolApprovalRespondFn = (args: {
   match: ToolApprovalMatch

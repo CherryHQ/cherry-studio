@@ -1,7 +1,8 @@
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
 import type { FileMetadata, Topic } from '@renderer/types'
-import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import type { ExportableMessage } from '@renderer/types/messageExport'
+import type { MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
 
 import { findAllBlocks } from './messageUtils/find'
@@ -70,7 +71,7 @@ export interface TopicPreprocessResult {
 /**
  * 分析消息内容，统计各类型内容数量
  */
-export function analyzeMessageContent(message: Message): MessageContentStats {
+export function analyzeMessageContent(message: ExportableMessage): MessageContentStats {
   const blocks = findAllBlocks(message)
 
   const stats: MessageContentStats = {
@@ -135,7 +136,10 @@ export function analyzeMessageContent(message: Message): MessageContentStats {
  * 根据选择的内容类型，处理消息内容
  * 将选中的文本类型合并为字符串，提取文件列表
  */
-export function processMessageContent(message: Message, selectedTypes: ContentType[]): MessagePreprocessResult {
+export function processMessageContent(
+  message: ExportableMessage,
+  selectedTypes: ContentType[]
+): MessagePreprocessResult {
   const blocks = findAllBlocks(message)
   const textParts: string[] = []
   const files: FileMetadata[] = []

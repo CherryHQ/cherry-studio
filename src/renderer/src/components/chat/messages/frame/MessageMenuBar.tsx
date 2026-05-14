@@ -33,6 +33,7 @@ import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
 import { TraceIcon } from '@renderer/trace/pages/Component'
 import type { Model, Topic, TranslateLanguage } from '@renderer/types'
+import type { MessageExportView } from '@renderer/types/messageExport'
 import { captureScrollableAsBlob, captureScrollableAsDataURL, classNames } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { copyMessageAsPlainText } from '@renderer/utils/copy'
@@ -129,7 +130,7 @@ type MessageMenuBarButtonContext = {
   isUserMessage: boolean
   isUseful: boolean
   message: MessageListItem
-  exportMessage: Parameters<typeof getMessageTitle>[0]
+  exportMessage: MessageExportView
   notesPath: string
   onCopy: (e: React.MouseEvent) => void
   onEdit: () => void | Promise<void>
@@ -225,7 +226,6 @@ const MessageMenuBar: FC<Props> = (props) => {
   const partsMap = usePartsMap()
   const messageParts = useMemo(() => partsMap?.[message.id] ?? [], [partsMap, message.id])
   const messageForExport = useMemo(() => createMessageExportView(message, messageParts), [message, messageParts])
-  const legacyExportMessage = messageForExport as Parameters<typeof getMessageTitle>[0]
 
   const mainTextContent = useMemo(() => getTextFromParts(messageParts), [messageParts])
 
@@ -396,7 +396,7 @@ const MessageMenuBar: FC<Props> = (props) => {
             label: t('chat.save.knowledge.title'),
             key: 'knowledge',
             onClick: () => {
-              void SaveToKnowledgePopup.showForMessage(legacyExportMessage)
+              void SaveToKnowledgePopup.showForMessage(messageForExport)
             }
           }
         ]
@@ -409,7 +409,7 @@ const MessageMenuBar: FC<Props> = (props) => {
           exportMenuOptions.plain_text && {
             label: t('chat.topics.copy.plain_text'),
             key: 'copy_message_plain_text',
-            onClick: () => copyMessageAsPlainText(legacyExportMessage)
+            onClick: () => copyMessageAsPlainText(messageForExport)
           },
           exportMenuOptions.image && {
             label: t('chat.topics.copy.image'),
@@ -427,7 +427,7 @@ const MessageMenuBar: FC<Props> = (props) => {
             key: 'image',
             onClick: async () => {
               const imageData = await captureScrollableAsDataURL(messageContainerRef)
-              const title = await getMessageTitle(legacyExportMessage)
+              const title = await getMessageTitle(messageForExport)
               if (title && imageData) {
                 const success = await window.api.file.saveImage(title, imageData)
                 if (success) window.toast.success(t('chat.topics.export.image_saved'))
@@ -437,19 +437,19 @@ const MessageMenuBar: FC<Props> = (props) => {
           exportMenuOptions.markdown && {
             label: t('chat.topics.export.md.label'),
             key: 'markdown',
-            onClick: () => exportMessageAsMarkdown(legacyExportMessage)
+            onClick: () => exportMessageAsMarkdown(messageForExport)
           },
           exportMenuOptions.markdown_reason && {
             label: t('chat.topics.export.md.reason'),
             key: 'markdown_reason',
-            onClick: () => exportMessageAsMarkdown(legacyExportMessage, true)
+            onClick: () => exportMessageAsMarkdown(messageForExport, true)
           },
           exportMenuOptions.docx && {
             label: t('chat.topics.export.word'),
             key: 'word',
             onClick: async () => {
-              const markdown = await messageToMarkdown(legacyExportMessage)
-              const title = await getMessageTitle(legacyExportMessage)
+              const markdown = await messageToMarkdown(messageForExport)
+              const title = await getMessageTitle(messageForExport)
               void window.api.export.toWord(markdown, title)
             }
           },
@@ -457,17 +457,17 @@ const MessageMenuBar: FC<Props> = (props) => {
             label: t('chat.topics.export.notion'),
             key: 'notion',
             onClick: async () => {
-              const title = await getMessageTitle(legacyExportMessage)
-              const markdown = await messageToMarkdown(legacyExportMessage)
-              void exportMessageToNotion(title, markdown, legacyExportMessage)
+              const title = await getMessageTitle(messageForExport)
+              const markdown = await messageToMarkdown(messageForExport)
+              void exportMessageToNotion(title, markdown, messageForExport)
             }
           },
           exportMenuOptions.yuque && {
             label: t('chat.topics.export.yuque'),
             key: 'yuque',
             onClick: async () => {
-              const title = await getMessageTitle(legacyExportMessage)
-              const markdown = await messageToMarkdown(legacyExportMessage)
+              const title = await getMessageTitle(messageForExport)
+              const markdown = await messageToMarkdown(messageForExport)
               void exportMarkdownToYuque(title, markdown)
             }
           },
@@ -476,23 +476,23 @@ const MessageMenuBar: FC<Props> = (props) => {
             key: 'obsidian',
             onClick: async () => {
               const title = topic.name?.replace(/\\/g, '_') || 'Untitled'
-              await ObsidianExportPopup.show({ title, message: legacyExportMessage, processingMethod: '1' })
+              await ObsidianExportPopup.show({ title, message: messageForExport, processingMethod: '1' })
             }
           },
           exportMenuOptions.joplin && {
             label: t('chat.topics.export.joplin'),
             key: 'joplin',
             onClick: async () => {
-              const title = await getMessageTitle(legacyExportMessage)
-              void exportMarkdownToJoplin(title, legacyExportMessage)
+              const title = await getMessageTitle(messageForExport)
+              void exportMarkdownToJoplin(title, messageForExport)
             }
           },
           exportMenuOptions.siyuan && {
             label: t('chat.topics.export.siyuan'),
             key: 'siyuan',
             onClick: async () => {
-              const title = await getMessageTitle(legacyExportMessage)
-              const markdown = await messageToMarkdown(legacyExportMessage)
+              const title = await getMessageTitle(messageForExport)
+              const markdown = await messageToMarkdown(messageForExport)
               void exportMarkdownToSiyuan(title, markdown)
             }
           }
@@ -534,7 +534,7 @@ const MessageMenuBar: FC<Props> = (props) => {
     isUserMessage,
     mainTextContent,
     message,
-    legacyExportMessage,
+    messageForExport,
     messageContainerRef,
     onEdit,
     onNewBranch,
@@ -592,7 +592,7 @@ const MessageMenuBar: FC<Props> = (props) => {
     isUserMessage,
     isUseful,
     message,
-    exportMessage: legacyExportMessage,
+    exportMessage: messageForExport,
     notesPath,
     onCopy,
     onEdit,

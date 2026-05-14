@@ -1,6 +1,5 @@
-import { RowFlex, SegmentedControl } from '@cherrystudio/ui'
+import { RowFlex, Scrollbar, SegmentedControl } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import Scrollbar from '@renderer/components/Scrollbar'
 import type { FC } from 'react'
 import { memo, useCallback } from 'react'
 

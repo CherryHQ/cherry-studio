@@ -1,6 +1,5 @@
-import { Button, Popover, PopoverContent, PopoverTrigger, Skeleton } from '@cherrystudio/ui'
+import { Button, Popover, PopoverContent, PopoverTrigger, Scrollbar, Skeleton } from '@cherrystudio/ui'
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
-import Scrollbar from '@renderer/components/Scrollbar'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import type { Citation } from '@renderer/types'

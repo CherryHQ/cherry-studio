@@ -7,7 +7,7 @@ import { getProviderLabel } from '@renderer/i18n/label'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { addNote } from '@renderer/services/NotesService'
 import type { Topic } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
+import type { ExportableMessage } from '@renderer/types/messageExport'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { captureScrollableAsBlob, captureScrollableAsDataURL } from '@renderer/utils/image'
 import { convertMathFormula, markdownToPlainText } from '@renderer/utils/markdown'
@@ -254,7 +254,7 @@ const formatCitationsAsFootnotes = (citations: string): string => {
 }
 
 const createBaseMarkdown = async (
-  message: Message,
+  message: ExportableMessage,
   includeReasoning: boolean = false,
   excludeCitations: boolean = false,
   normalizeCitations: boolean = true
@@ -303,7 +303,7 @@ const createBaseMarkdown = async (
   return { titleSection, reasoningSection, contentSection: processedContent, citation }
 }
 
-export const messageToMarkdown = async (message: Message, excludeCitations?: boolean): Promise<string> => {
+export const messageToMarkdown = async (message: ExportableMessage, excludeCitations?: boolean): Promise<string> => {
   const { excludeCitationsInExport, standardizeCitationsInExport } = await preferenceService.getMultiple({
     excludeCitationsInExport: 'data.export.markdown.exclude_citations',
     standardizeCitationsInExport: 'data.export.markdown.standardize_citations'
@@ -318,7 +318,10 @@ export const messageToMarkdown = async (message: Message, excludeCitations?: boo
   return [titleSection, '', contentSection, citation].join('\n')
 }
 
-export const messageToMarkdownWithReasoning = async (message: Message, excludeCitations?: boolean): Promise<string> => {
+export const messageToMarkdownWithReasoning = async (
+  message: ExportableMessage,
+  excludeCitations?: boolean
+): Promise<string> => {
   const { excludeCitationsInExport, standardizeCitationsInExport } = await preferenceService.getMultiple({
     excludeCitationsInExport: 'data.export.markdown.exclude_citations',
     standardizeCitationsInExport: 'data.export.markdown.standardize_citations'
@@ -334,7 +337,7 @@ export const messageToMarkdownWithReasoning = async (message: Message, excludeCi
 }
 
 export const messagesToMarkdown = async (
-  messages: Message[],
+  messages: ExportableMessage[],
   exportReasoning?: boolean,
   excludeCitations?: boolean
 ): Promise<string> => {
@@ -343,19 +346,19 @@ export const messagesToMarkdown = async (
   return markdowns.join('\n---\n')
 }
 
-const formatMessageAsPlainText = (message: Message): string => {
+const formatMessageAsPlainText = (message: ExportableMessage): string => {
   const roleText = message.role === 'user' ? 'User:' : 'Assistant:'
   const content = getMainTextContent(message)
   const plainTextContent = markdownToPlainText(content).trim()
   return `${roleText}\n${plainTextContent}`
 }
 
-export const messageToPlainText = (message: Message): string => {
+export const messageToPlainText = (message: ExportableMessage): string => {
   const content = getMainTextContent(message)
   return markdownToPlainText(content).trim()
 }
 
-const messagesToPlainText = (messages: Message[]): string => {
+const messagesToPlainText = (messages: ExportableMessage[]): string => {
   return messages.map(formatMessageAsPlainText).join('\n\n')
 }
 
@@ -431,7 +434,7 @@ export const exportTopicAsMarkdown = async (
 }
 
 export const exportMessageAsMarkdown = async (
-  message: Message,
+  message: ExportableMessage,
   exportReasoning?: boolean,
   excludeCitations?: boolean
 ): Promise<void> => {
@@ -621,7 +624,11 @@ const executeNotionExport = async (title: string, allBlocks: any[]): Promise<boo
   }
 }
 
-export const exportMessageToNotion = async (title: string, content: string, message?: Message): Promise<boolean> => {
+export const exportMessageToNotion = async (
+  title: string,
+  content: string,
+  message?: ExportableMessage
+): Promise<boolean> => {
   const notionExportReasoning = await preferenceService.get('data.integration.notion.export_reasoning')
 
   const notionBlocks = await convertMarkdownToNotionBlocks(content)
@@ -872,7 +879,7 @@ function transformObsidianFileName(fileName: string): string {
 
 export const exportMarkdownToJoplin = async (
   title: string,
-  contentOrMessages: string | Message | Message[]
+  contentOrMessages: string | ExportableMessage | ExportableMessage[]
 ): Promise<any | null> => {
   const { joplinUrl, joplinToken, joplinExportReasoning, excludeCitationsInExport } =
     await preferenceService.getMultiple({

@@ -3,7 +3,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CopyIcon } from '@renderer/components/Icons'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
-import { MessageBlockStatus } from '@renderer/types/newMessage'
 import { Check } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -31,7 +30,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs }
     () => ({
       id,
       content,
-      status: isStreaming ? MessageBlockStatus.STREAMING : MessageBlockStatus.SUCCESS
+      status: isStreaming ? 'streaming' : 'success'
     }),
     [id, content, isStreaming]
   )

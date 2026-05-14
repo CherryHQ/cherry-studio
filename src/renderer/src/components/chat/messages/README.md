@@ -159,7 +159,7 @@ For changes in this directory, prefer focused tests around the affected componen
 ```bash
 pnpm exec vitest run \
   src/renderer/src/components/chat/messages/__tests__/MessageGroup.test.tsx \
-  src/renderer/src/pages/home/__tests__/V2ChatContent.test.tsx
+  src/renderer/src/pages/home/__tests__/ChatContent.test.tsx
 ```
 
 When touching blocks, markdown, stream collectors, or tool renderers, include their local tests as well.

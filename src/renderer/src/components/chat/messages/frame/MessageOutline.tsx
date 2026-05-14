@@ -1,4 +1,4 @@
-import Scrollbar from '@renderer/components/Scrollbar'
+import { Scrollbar } from '@cherrystudio/ui'
 import { scrollIntoView } from '@renderer/utils/dom'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'

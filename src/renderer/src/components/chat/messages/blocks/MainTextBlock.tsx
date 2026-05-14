@@ -1,7 +1,8 @@
 import { Flex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import type { Citation, Model, WebSearchSource } from '@renderer/types'
+import type { Citation, Model } from '@renderer/types'
 import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
+import type { CitationReferenceView } from '@renderer/utils/partsToBlocks'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import React, { useCallback } from 'react'
@@ -15,7 +16,7 @@ interface Props {
   content: string
   isStreaming: boolean
   citations?: Citation[]
-  citationReferences?: { citationBlockId?: string; citationBlockSource?: WebSearchSource }[]
+  citationReferences?: CitationReferenceView[]
   mentions?: Model[]
   role: CherryUIMessage['role']
 }

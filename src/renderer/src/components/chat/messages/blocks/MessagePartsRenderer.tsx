@@ -15,7 +15,7 @@ import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { FILE_TYPE } from '@renderer/types/file'
-import { convertReferencesToCitations, convertReferencesToLegacyCitations } from '@renderer/utils/partsToBlocks'
+import { convertReferencesToCitationReferences, convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ErrorPartData, VideoPartData } from '@shared/data/types/uiParts'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
@@ -273,7 +273,7 @@ function renderPart(
         ? convertReferencesToCitations(cherryMeta.references as ContentReference[])
         : []
       const citationReferences = cherryMeta?.references
-        ? convertReferencesToLegacyCitations(cherryMeta.references as ContentReference[], partId)
+        ? convertReferencesToCitationReferences(cherryMeta.references as ContentReference[], partId)
         : undefined
       return (
         <MainTextBlock

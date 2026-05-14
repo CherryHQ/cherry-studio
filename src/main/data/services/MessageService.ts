@@ -17,6 +17,8 @@ import type {
   ActiveNodeStrategy,
   CreateMessageDto,
   DeleteMessageResponse,
+  SearchMessageResult,
+  SearchMessagesQueryParams,
   UpdateMessageDto
 } from '@shared/data/api/schemas/messages'
 import type {
@@ -29,6 +31,8 @@ import type {
   TreeResponse
 } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { buildKeywordRegexes, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
+import { buildSearchSnippet, stripMarkdownFormatting } from '@shared/utils/messageSearch'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 
 import { topicService } from './TopicService'
@@ -77,6 +81,8 @@ const PREVIEW_LENGTH = 50
  * Default pagination limit
  */
 const DEFAULT_LIMIT = 20
+const SEARCH_CHUNK_SIZE = 200
+const MIN_FTS_TERM_LENGTH = 3
 
 /**
  * Convert database row to Message entity.
@@ -147,6 +153,25 @@ function messageToTreeNode(message: Message, hasChildren: boolean): TreeNode {
     createdAt: message.createdAt,
     hasChildren
   }
+}
+
+function escapeLikeTerm(term: string): string {
+  return term.replace(/[\\%_]/g, '\\$&')
+}
+
+function quoteFtsTerm(term: string): string {
+  return `"${term.replace(/"/g, '""')}"`
+}
+
+function canUseFts(terms: string[]): boolean {
+  return terms.every((term) => term.length >= MIN_FTS_TERM_LENGTH)
+}
+
+type MessageSearchRow = {
+  id: string
+  topicId: string
+  searchableText: string
+  createdAt: number
 }
 
 export class MessageService {
@@ -557,6 +582,81 @@ export class MessageService {
     }
 
     return rowToMessage(row)
+  }
+
+  async search(query: SearchMessagesQueryParams): Promise<SearchMessageResult[]> {
+    const terms = splitKeywordsToTerms(query.q)
+    if (terms.length === 0) return []
+
+    const db = application.get('DbService').getDb()
+    const matchMode = query.matchMode ?? 'whole-word'
+    const limit = query.limit ?? 500
+    const regexes = buildKeywordRegexes(terms, { matchMode, flags: 'i' })
+    const useFts = canUseFts(terms)
+    const ftsQuery = terms.map(quoteFtsTerm).join(' AND ')
+    const likeConditions = terms.map((term) => {
+      const pattern = `%${escapeLikeTerm(term.toLowerCase())}%`
+      return sql`lower(searchable_text) LIKE ${pattern} ESCAPE '\\'`
+    })
+    const results: SearchMessageResult[] = []
+    let offset = 0
+
+    while (results.length < limit) {
+      const rows = useFts
+        ? await db.all<MessageSearchRow>(sql`
+            SELECT
+              m.id,
+              m.topic_id AS "topicId",
+              m.searchable_text AS "searchableText",
+              m.created_at AS "createdAt"
+            FROM message_fts
+            JOIN message m ON m.rowid = message_fts.rowid
+            WHERE message_fts MATCH ${ftsQuery}
+              AND m.deleted_at IS NULL
+              AND m.searchable_text != ''
+            ORDER BY m.created_at DESC, m.id DESC
+            LIMIT ${SEARCH_CHUNK_SIZE}
+            OFFSET ${offset}
+          `)
+        : await db.all<MessageSearchRow>(sql`
+            SELECT
+              id,
+              topic_id AS "topicId",
+              searchable_text AS "searchableText",
+              created_at AS "createdAt"
+            FROM message
+            WHERE deleted_at IS NULL
+              AND searchable_text != ''
+              AND ${sql.join(likeConditions, sql` AND `)}
+            ORDER BY created_at DESC, id DESC
+            LIMIT ${SEARCH_CHUNK_SIZE}
+            OFFSET ${offset}
+          `)
+
+      if (rows.length === 0) break
+      offset += rows.length
+
+      for (const row of rows) {
+        const searchableText = row.searchableText
+        const plainText = stripMarkdownFormatting(searchableText)
+        const matches = regexes.every((regex) => {
+          regex.lastIndex = 0
+          return regex.test(plainText)
+        })
+        if (!matches) continue
+
+        results.push({
+          messageId: row.id,
+          topicId: row.topicId,
+          snippet: buildSearchSnippet(searchableText, terms, matchMode),
+          createdAt: timestampToISO(Number(row.createdAt))
+        })
+
+        if (results.length >= limit) break
+      }
+    }
+
+    return results
   }
 
   /** Get all children of a message (messages whose parentId = given id). */

@@ -148,7 +148,7 @@ const MESSAGES_PAGE_SIZE = 200
  * concat in reverse fetch order (oldest page first, newest last).
  *
  * Used by one-off consumers (export, knowledge analysis, topic rename
- * pre-check). The main chat UI reads messages via `useTopicMessagesV2`.
+ * pre-check). The main chat UI reads messages via `useTopicMessages`.
  */
 export async function getTopicMessages(id: string): Promise<Message[]> {
   try {

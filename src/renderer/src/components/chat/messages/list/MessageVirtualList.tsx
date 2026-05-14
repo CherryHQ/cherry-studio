@@ -25,6 +25,7 @@
  * programmatically (e.g. `MessageAnchorLine`'s click-to-scroll).
  */
 
+import { Scrollbar } from '@cherrystudio/ui'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { type ReactNode, type Ref, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef } from 'react'
 
@@ -314,7 +315,7 @@ export function MessageVirtualList<T>({
   )
 
   return (
-    <div
+    <Scrollbar
       ref={scrollerRef}
       className={className}
       style={{ overflowY: 'auto', overflowX: 'hidden', position: 'relative', ...style }}>
@@ -335,6 +336,6 @@ export function MessageVirtualList<T>({
           </div>
         ))}
       </div>
-    </div>
+    </Scrollbar>
   )
 }

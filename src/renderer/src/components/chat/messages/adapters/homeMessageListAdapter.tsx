@@ -2,11 +2,11 @@ import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useV2Chat } from '@renderer/hooks/V2ChatContext'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic, TranslateLangCode } from '@renderer/types'
 import { filterSupportedFiles } from '@renderer/utils/file'
@@ -54,7 +54,7 @@ export function useHomeMessageListProviderValue({
   const { assistant, model } = useAssistant(topic.assistantId)
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
-  const v2Chat = useV2Chat()
+  const chatWrite = useChatWrite()
   const siblingsContext = use(SiblingsContext)
   const { isMultiSelectMode, selectedMessageIds, handleSelectMessage, toggleMultiSelectMode } = useChatContext(topic)
   const getMessageActivityState = useMessageActivityState(topic.id, partsByMessageId)
@@ -86,9 +86,9 @@ export function useHomeMessageListProviderValue({
   const clearTopic = useCallback(
     async (data: Topic) => {
       if (data && data.id !== topic.id) return
-      await v2Chat?.clearTopicMessages()
+      await chatWrite?.clearTopicMessages()
     },
-    [v2Chat, topic.id]
+    [chatWrite, topic.id]
   )
 
   useEffect(() => {
@@ -251,7 +251,7 @@ export function useHomeMessageListProviderValue({
       targetLanguage: TranslateLangCode,
       sourceLanguage?: TranslateLangCode
     ): Promise<((accumulatedText: string, isComplete?: boolean) => void) | null> => {
-      if (!topic.id || !v2Chat) return null
+      if (!topic.id || !chatWrite) return null
 
       const currentParts = partsByMessageIdRef.current[messageId]
       if (!currentParts) {
@@ -264,7 +264,7 @@ export function useHomeMessageListProviderValue({
         type: 'data-translation' as const,
         data: { content: '', targetLanguage, ...(sourceLanguage && { sourceLanguage }) }
       }
-      await v2Chat.editMessage(messageId, [...baseParts, loadingPart as CherryMessagePart])
+      await chatWrite.editMessage(messageId, [...baseParts, loadingPart as CherryMessagePart])
 
       return (accumulatedText: string) => {
         const translationPart = {
@@ -276,10 +276,10 @@ export function useHomeMessageListProviderValue({
           }
         }
 
-        void v2Chat.editMessage(messageId, [...baseParts, translationPart as CherryMessagePart])
+        void chatWrite.editMessage(messageId, [...baseParts, translationPart as CherryMessagePart])
       }
     },
-    [topic.id, v2Chat]
+    [topic.id, chatWrite]
   )
 
   const getMessageSiblings = useCallback(
@@ -330,15 +330,15 @@ export function useHomeMessageListProviderValue({
         toggleMultiSelectMode,
         updateMessageUiState,
         updateRenderConfig,
-        editMessage: (messageId, parts) => v2Chat?.editMessage(messageId, parts),
-        forkAndResendMessage: (messageId, parts) => v2Chat?.forkAndResend(messageId, parts),
-        deleteMessage: (messageId, traceOptions) => v2Chat?.deleteMessage(messageId, traceOptions),
-        startMessageBranch: (messageId) => v2Chat?.setActiveNode(messageId),
-        setActiveBranch: (messageId: string) => v2Chat?.setActiveBranch(messageId),
-        deleteMessageGroup: (parentId: string) => v2Chat?.deleteMessageGroup(parentId),
-        regenerateMessage: (messageId: string) => v2Chat?.regenerate(messageId),
+        editMessage: (messageId, parts) => chatWrite?.editMessage(messageId, parts),
+        forkAndResendMessage: (messageId, parts) => chatWrite?.forkAndResend(messageId, parts),
+        deleteMessage: (messageId, traceOptions) => chatWrite?.deleteMessage(messageId, traceOptions),
+        startMessageBranch: (messageId) => chatWrite?.setActiveNode(messageId),
+        setActiveBranch: (messageId: string) => chatWrite?.setActiveBranch(messageId),
+        deleteMessageGroup: (parentId: string) => chatWrite?.deleteMessageGroup(parentId),
+        regenerateMessage: (messageId: string) => chatWrite?.regenerate(messageId),
         regenerateMessageWithModel: (messageId, modelId, modelSnapshot) =>
-          v2Chat?.regenerate(messageId, { modelId, modelSnapshot }),
+          chatWrite?.regenerate(messageId, { modelId, modelSnapshot }),
         getTranslationUpdater
       },
       meta: {
@@ -372,7 +372,7 @@ export function useHomeMessageListProviderValue({
       updateMessageUiState,
       updateRenderConfig,
       renderConfig,
-      v2Chat
+      chatWrite
     ]
   )
 }

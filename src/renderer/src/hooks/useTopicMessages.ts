@@ -1,5 +1,5 @@
 /**
- * V2 hook for loading topic messages from DataApi as CherryUIMessage[].
+ * Hook for loading topic messages from DataApi as CherryUIMessage[].
  *
  * Uses `useInfiniteQuery` + `useInfiniteFlatItems` with `reversePages: true` —
  * the branch endpoint paginates newest-page-first but keeps within-page items
@@ -14,33 +14,13 @@
  */
 
 import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
+import { sharedMessageToUIMessage } from '@renderer/utils/messageUtils/messageProjection'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { BranchMessage, BranchMessagesResponse, Message as SharedMessage } from '@shared/data/types/message'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
 const PAGE_SIZE = 50
-
-// ── Converters ──
-
-function toUIMessage(shared: SharedMessage): CherryUIMessage {
-  return {
-    id: shared.id,
-    role: shared.role,
-    parts: (shared.data?.parts ?? []) as CherryUIMessage['parts'],
-    metadata: {
-      parentId: shared.parentId,
-      siblingsGroupId: shared.siblingsGroupId || undefined,
-      modelId: shared.modelId ?? undefined,
-      modelSnapshot: shared.modelSnapshot ?? undefined,
-      status: shared.status,
-      createdAt: shared.createdAt,
-      traceId: shared.traceId ?? undefined,
-      stats: shared.stats ?? undefined,
-      ...(shared.stats?.totalTokens ? { totalTokens: shared.stats.totalTokens } : {})
-    }
-  }
-}
 
 /**
  * Bucket an assistant siblings-group (on-path `active` + off-path `siblings`)
@@ -158,7 +138,7 @@ function buildSiblingsMap(items: BranchMessage[]): Record<string, SharedMessage[
 
 // ── Hook ──
 
-export interface UseTopicMessagesV2Result {
+export interface UseTopicMessagesResult {
   uiMessages: CherryUIMessage[]
   /**
    * Map from any sibling member's id to the full ordered sibling group
@@ -182,7 +162,7 @@ export interface UseTopicMessagesV2Result {
   mutate: SWRInfiniteKeyedMutator<BranchMessagesResponse[]>
 }
 
-export function useTopicMessagesV2(topicId: string, options?: { enabled?: boolean }): UseTopicMessagesV2Result {
+export function useTopicMessages(topicId: string, options?: { enabled?: boolean }): UseTopicMessagesResult {
   const enabled = options?.enabled !== false
   const { pages, isLoading, mutate, loadNext, hasNext } = useInfiniteQuery('/topics/:topicId/messages', {
     params: { topicId },
@@ -257,7 +237,7 @@ function projectPagesToUI(
   return flattenBranchMessages(branchItems).map((shared) => {
     const cached = cache.get(shared)
     if (cached) return cached
-    const projected = toUIMessage(shared)
+    const projected = sharedMessageToUIMessage(shared)
     cache.set(shared, projected)
     return projected
   })

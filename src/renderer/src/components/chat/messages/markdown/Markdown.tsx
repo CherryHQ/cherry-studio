@@ -7,9 +7,9 @@ import { usePreference } from '@data/hooks/usePreference'
 import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
-import type { MessageBlockStatus } from '@renderer/types/newMessage'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { processLatexBrackets } from '@renderer/utils/markdown'
+import type { MessageStatus } from '@shared/data/types/message'
 import { isEmpty } from 'lodash'
 import { createContext, type FC, memo, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -43,7 +43,7 @@ const DISALLOWED_ELEMENTS = ['iframe', 'script']
 export interface MarkdownSource {
   id: string
   content: string
-  status: MessageBlockStatus | string
+  status: MessageStatus | 'streaming'
 }
 
 /**
