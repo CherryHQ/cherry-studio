@@ -202,7 +202,7 @@ const AgentChatInner = ({
             <AgentChatNavbar
               className="min-w-0"
               activeAgent={activeAgent}
-              onOpenSettings={() => setSettingsOpen((open) => !open)}
+              onOpenSettings={() => setSettingsOpen(true)}
             />
           </div>
         )

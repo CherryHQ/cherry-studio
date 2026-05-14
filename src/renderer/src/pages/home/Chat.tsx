@@ -135,7 +135,7 @@ const Chat: FC<Props> = (props) => {
                 <ChatNavbar
                   assistantId={props.activeTopic.assistantId}
                   topicId={props.activeTopic.id}
-                  onOpenSettings={() => setSettingsOpen((open) => !open)}
+                  onOpenSettings={() => setSettingsOpen(true)}
                 />
               }
               main={main}

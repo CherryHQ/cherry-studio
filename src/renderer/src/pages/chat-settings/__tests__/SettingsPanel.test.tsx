@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
+import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import SettingsPanel from '../SettingsPanel'
@@ -36,6 +37,7 @@ vi.mock('@cherrystudio/ui', () => ({
   Skeleton: ({ className }: { className?: string }) => <div className={className} data-testid="skeleton" />,
   PageSidePanel: ({
     open,
+    onClose,
     children,
     header,
     backdropClassName,
@@ -44,6 +46,7 @@ vi.mock('@cherrystudio/ui', () => ({
     bodyClassName
   }: React.PropsWithChildren<{
     open: boolean
+    onClose: () => void
     header?: React.ReactNode
     backdropClassName?: string
     contentClassName?: string
@@ -52,7 +55,7 @@ vi.mock('@cherrystudio/ui', () => ({
   }>) =>
     open ? (
       <>
-        <div className={backdropClassName} data-testid="settings-panel-backdrop" />
+        <div className={backdropClassName} data-testid="settings-panel-backdrop" onClick={onClose} />
         <div className={contentClassName} data-testid="settings-panel">
           <div className={headerClassName} data-testid="settings-panel-header">
             {header}
@@ -65,7 +68,8 @@ vi.mock('@cherrystudio/ui', () => ({
     ) : null
 }))
 
-vi.mock('react-i18next', () => ({
+vi.mock('react-i18next', async (importOriginal) => ({
+  ...(await importOriginal<typeof ReactI18next>()),
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
@@ -94,22 +98,31 @@ describe('SettingsPanel', () => {
 
     expect(screen.getByText('settings.parameter_settings')).toBeInTheDocument()
     expect(screen.getByTestId('settings-panel').getAttribute('class')).toContain('w-[340px]')
-    expect(screen.getByTestId('settings-panel').getAttribute('class')).toContain(
-      'top-[calc(var(--navbar-height)+0.5rem)]'
-    )
+    expect(screen.getByTestId('settings-panel').getAttribute('class')).toContain('top-2')
     expect(screen.getByTestId('settings-panel').getAttribute('class')).toContain('right-2')
-    expect(screen.getByTestId('settings-panel').getAttribute('class')).toContain('bottom-2')
+    expect(screen.getByTestId('settings-panel').getAttribute('class')).toContain('bottom-4')
     expect(screen.getByTestId('settings-panel').getAttribute('class')).toContain('rounded-2xl')
     expect(screen.getByTestId('settings-panel').getAttribute('class')).toContain(
       '[border:0.5px_solid_var(--color-border)]'
     )
     expect(screen.getByTestId('settings-panel').getAttribute('class')).toContain('bg-popover')
-    expect(screen.getByTestId('settings-panel-backdrop').getAttribute('class')).toContain('hidden')
+    expect(screen.getByTestId('settings-panel-backdrop').getAttribute('class')).toContain('bg-transparent')
+    expect(screen.getByTestId('settings-panel-backdrop').getAttribute('class')).toContain('dark:bg-transparent')
     expect(screen.getByTestId('settings-panel-header').getAttribute('class')).toContain('h-[38px]')
     expect(screen.getByTestId('settings-panel-header').getAttribute('class')).toContain(
       '[border-bottom:0.5px_solid_var(--color-border)]'
     )
     expect(screen.getByTestId('settings-panel-body').getAttribute('class')).toContain('text-xs')
+  })
+
+  it('calls onClose when the backdrop is clicked', () => {
+    const onClose = vi.fn()
+
+    render(<SettingsPanel open={true} onClose={onClose} mode="agent" />)
+
+    fireEvent.click(screen.getByTestId('settings-panel-backdrop'))
+
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   it('renders the default assistant settings body when a topic has no assistant', () => {
