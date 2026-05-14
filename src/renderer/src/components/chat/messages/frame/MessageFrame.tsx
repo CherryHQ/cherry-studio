@@ -3,10 +3,9 @@ import { loggerService } from '@logger'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import UserPopup from '@renderer/components/Popups/UserPopup'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
-import { useAssistant } from '@renderer/hooks/useAssistant'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useTimer } from '@renderer/hooks/useTimer'
-import type { Assistant, Model, Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types'
 import { classNames, cn, isEmoji } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
@@ -18,7 +17,12 @@ import React, { memo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import SiblingNavigator from '../list/SiblingNavigator'
-import { useMessageList } from '../MessageListProvider'
+import {
+  useMessageListActions,
+  useMessageListSelection,
+  useMessageListUi,
+  useMessageRenderConfig
+} from '../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
 import MessageContent from './MessageContent'
@@ -31,7 +35,6 @@ import MessageOutline from './MessageOutline'
 interface Props {
   message: MessageListItem
   topic: Topic
-  assistant?: Assistant
   index?: number
   total?: number
   hideMenuBar?: boolean
@@ -69,10 +72,11 @@ const MessageItem: FC<Props> = ({
   multiModelMessageStyle = 'fold'
 }) => {
   const { t } = useTranslation()
-  const { assistant, setModel } = useAssistant(message.assistantId)
-  const { state, actions } = useMessageList()
-  const renderConfig = state.renderConfig ?? defaultMessageRenderConfig
-  const isMultiSelectMode = state.selection?.isMultiSelectMode ?? false
+  const actions = useMessageListActions()
+  const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
+  const selection = useMessageListSelection()
+  const messageUi = useMessageListUi()
+  const isMultiSelectMode = selection?.isMultiSelectMode ?? false
   // Use the message-embedded snapshot rather than re-resolving the live model
   // config: the snapshot is what the message was actually generated with.
   const model = getMessageListItemModel(message)
@@ -131,7 +135,7 @@ const MessageItem: FC<Props> = ({
   const isLastMessage = index === 0 || !!isGrouped
   const isAssistantMessage = message.role === 'assistant'
 
-  const activityState = state.getMessageActivityState?.(message)
+  const activityState = messageUi.getMessageActivityState?.(message)
   const isProcessing = activityState?.isProcessing ?? false
   const isStreamTarget = activityState?.isStreamTarget ?? false
   const isApprovalAnchor = activityState?.isApprovalAnchor ?? false
@@ -209,7 +213,6 @@ const MessageItem: FC<Props> = ({
         {!isUserBubbleMessage && (
           <MessageHeader
             message={message}
-            assistant={assistant}
             model={model}
             key={model ? createUniqueModelId(model.provider, model.id) : ''}
             isGroupContextMessage={isGroupContextMessage}
@@ -218,14 +221,12 @@ const MessageItem: FC<Props> = ({
                 <>
                   <MessageMenuBar
                     message={message}
-                    model={model}
                     topic={topic}
                     isLastMessage={isLastMessage}
                     isAssistantMessage={isAssistantMessage}
                     isGrouped={isGrouped}
                     isProcessing={isProcessing}
                     messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-                    setModel={setModel}
                     onUpdateUseful={onUpdateUseful}
                     variant="header"
                   />
@@ -251,13 +252,11 @@ const MessageItem: FC<Props> = ({
             {isUserBubbleMessage ? (
               <UserBubbleMessage
                 message={message}
-                model={model}
                 topic={topic}
                 isLastMessage={isLastMessage}
                 isGrouped={isGrouped}
                 isProcessing={isProcessing}
                 messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-                setModel={setModel}
                 onUpdateUseful={onUpdateUseful}
                 messageFont={messageFont}
                 fontSize={fontSize}
@@ -286,14 +285,12 @@ const MessageItem: FC<Props> = ({
                   }}>
                   <MessageMenuBar
                     message={message}
-                    model={model}
                     topic={topic}
                     isLastMessage={isLastMessage}
                     isAssistantMessage={isAssistantMessage}
                     isGrouped={isGrouped}
                     isProcessing={isProcessing}
                     messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-                    setModel={setModel}
                     onUpdateUseful={onUpdateUseful}
                   />
                 </HorizontalScrollContainer>
@@ -311,25 +308,21 @@ export default memo(MessageItem)
 
 const UserBubbleMessage = ({
   message,
-  model,
   topic,
   isLastMessage,
   isGrouped,
   isProcessing,
   messageContainerRef,
-  setModel,
   onUpdateUseful,
   messageFont,
   fontSize
 }: {
   message: MessageListItem
-  model?: Model
   topic: Topic
   isLastMessage: boolean
   isGrouped?: boolean
   isProcessing: boolean
   messageContainerRef: React.RefObject<HTMLDivElement>
-  setModel: (model: Model) => void
   onUpdateUseful?: (msgId: string) => void
   messageFont: string
   fontSize: number
@@ -366,14 +359,12 @@ const UserBubbleMessage = ({
         <span className="shrink-0">{dayjs(message.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
         <MessageMenuBar
           message={message}
-          model={model}
           topic={topic}
           isLastMessage={isLastMessage}
           isAssistantMessage={false}
           isGrouped={isGrouped}
           isProcessing={isProcessing}
           messageContainerRef={messageContainerRef}
-          setModel={setModel}
           onUpdateUseful={onUpdateUseful}
           variant="header"
         />

@@ -6,7 +6,7 @@ import { getCodeBlockId, isOpenFenceBlock } from '@renderer/utils/markdown'
 import type { Node } from 'mdast'
 import React, { memo, useCallback, useMemo } from 'react'
 
-import { useOptionalMessageList } from '../MessageListProvider'
+import { useOptionalMessageListActions } from '../MessageListProvider'
 import { useMarkdownBlockContext } from './Markdown'
 
 interface Props {
@@ -35,7 +35,7 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
 
   const mdCtx = useMarkdownBlockContext()
   const isStreaming = mdCtx?.isStreaming ?? false
-  const actions = useOptionalMessageList()?.actions
+  const actions = useOptionalMessageListActions()
 
   const handleSave = useCallback(
     (newContent: string) => {

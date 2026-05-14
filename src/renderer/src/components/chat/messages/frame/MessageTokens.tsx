@@ -4,7 +4,7 @@ import { statsToMetrics, statsToUsage } from '@renderer/utils/messageStats'
 import { t } from 'i18next'
 import { useMemo } from 'react'
 
-import { useMessageList } from '../MessageListProvider'
+import { useMessageListActions } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
 
@@ -15,7 +15,7 @@ interface MessageTokensProps {
 
 const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
   // const { generating } = useRuntime()
-  const { actions } = useMessageList()
+  const actions = useMessageListActions()
   const locateMessage = () => {
     actions.locateMessage?.(message.id, false)
   }

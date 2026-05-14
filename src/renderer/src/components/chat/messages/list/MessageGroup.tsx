@@ -10,7 +10,12 @@ import type { ComponentProps, ReactNode, WheelEvent as ReactWheelEvent } from 'r
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 
 import MessageItem from '../frame/MessageFrame'
-import { useMessageList } from '../MessageListProvider'
+import {
+  useMessageListActions,
+  useMessageListSelection,
+  useMessageListUi,
+  useMessageRenderConfig
+} from '../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem, type MessageUiState } from '../types'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
 
@@ -25,16 +30,18 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const messageLength = messages.length
 
   // Hooks
-  const { state, actions } = useMessageList()
-  const renderConfig = state.renderConfig ?? defaultMessageRenderConfig
+  const actions = useMessageListActions()
+  const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
+  const selection = useMessageListSelection()
+  const messageUi = useMessageListUi()
   const multiModelMessageStyleSetting = renderConfig.multiModelMessageStyle
   const gridColumns = renderConfig.multiModelGridColumns
   const gridPopoverTrigger = renderConfig.multiModelGridPopoverTrigger
   const { setTimeoutTimer } = useTimer()
-  const isMultiSelectMode = state.selection?.isMultiSelectMode ?? false
+  const isMultiSelectMode = selection?.isMultiSelectMode ?? false
   const getMessageUiState = useCallback(
-    (messageId: string) => state.getMessageUiState?.(messageId) ?? {},
-    [state.getMessageUiState]
+    (messageId: string) => messageUi.getMessageUiState?.(messageId) ?? {},
+    [messageUi.getMessageUiState]
   )
   const updateMessageUiState = useCallback(
     (messageId: string, updates: MessageUiState) => {

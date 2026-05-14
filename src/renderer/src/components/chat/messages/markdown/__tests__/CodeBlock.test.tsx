@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => {
 
   return {
     saveCodeBlock,
-    messageListValue: { actions: { saveCodeBlock } } as any,
+    messageListActions: { saveCodeBlock } as any,
     getCodeBlockId: vi.fn(),
     isOpenFenceBlock: vi.fn(),
     usePreference: vi.fn().mockReturnValue([true]),
@@ -34,7 +34,7 @@ const mocks = vi.hoisted(() => {
 })
 
 vi.mock('../../MessageListProvider', () => ({
-  useOptionalMessageList: () => mocks.messageListValue
+  useOptionalMessageListActions: () => mocks.messageListActions
 }))
 
 vi.mock('@renderer/config/constant', () => ({
@@ -88,7 +88,7 @@ describe('CodeBlock', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.isWin = false
-    mocks.messageListValue = { actions: { saveCodeBlock: mocks.saveCodeBlock } }
+    mocks.messageListActions = { saveCodeBlock: mocks.saveCodeBlock }
     // Default mock return values
     mocks.getCodeBlockId.mockReturnValue('test-code-block-id')
     mocks.isOpenFenceBlock.mockReturnValue(false)
@@ -114,7 +114,7 @@ describe('CodeBlock', () => {
     })
 
     it('should render without a message list provider', () => {
-      mocks.messageListValue = null
+      mocks.messageListActions = undefined
 
       expect(() => render(<CodeBlock {...defaultProps} />)).not.toThrow()
       fireEvent.click(screen.getByText('Save'))

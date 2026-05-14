@@ -4,14 +4,18 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
+import { isVisionModel } from '@renderer/config/models'
+import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
+import { useLanguages } from '@renderer/hooks/translate'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
+import { translateInputText } from '@renderer/services/TranslateCommandService'
 import type { Topic, TranslateLangCode } from '@renderer/types'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import {
@@ -34,13 +38,16 @@ import { useTranslation } from 'react-i18next'
 import { resolvePartFromParts } from '../blocks'
 import type {
   MessageGroupRuntime,
+  MessageListActions,
   MessageListItem,
+  MessageListMeta,
   MessageListProviderValue,
   MessageListRuntime,
+  MessageListState,
   MessageRuntime,
   MessageUiState
 } from '../types'
-import { modelToSnapshot, toMessageListItem } from '../utils/messageListItem'
+import { getMessageListItemModel, modelToSnapshot, toMessageListItem } from '../utils/messageListItem'
 import { useMessageActivityState } from './useMessageActivityState'
 import { useMessageListRenderConfig } from './useMessageListRenderConfig'
 
@@ -67,7 +74,10 @@ export function useHomeMessageListProviderValue({
 }: HomeMessageListParams): MessageListProviderValue {
   const { assistant, model } = useAssistant(topic.assistantId)
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
+  const [editorTranslationTargetLanguage] = usePreference('chat.input.translate.target_language')
+  const [showEditorTranslationConfirm] = usePreference('chat.input.translate.show_confirm')
   const { t } = useTranslation()
+  const { languages: translationLanguages, getLabel: getTranslationLanguageLabel } = useLanguages()
   const chatWrite = useChatWrite()
   const siblingsContext = use(SiblingsContext)
   const { isMultiSelectMode, selectedMessageIds, handleSelectMessage, toggleMultiSelectMode } = useChatContext(topic)
@@ -249,6 +259,33 @@ export function useHomeMessageListProviderValue({
     [t]
   )
 
+  const getMessageEditorCapabilities = useCallback(
+    (message: MessageListItem) => {
+      const messageModel = getMessageListItemModel(message)
+      const fallbackModel = model ? fromSharedModel(model) : undefined
+      const editorModel = messageModel ?? fallbackModel
+
+      return {
+        canAddImageFile: editorModel ? isVisionModel(editorModel) : false,
+        canAddTextFile: true
+      }
+    },
+    [model]
+  )
+
+  const translateEditorText = useCallback(
+    async (text: string) => {
+      return translateInputText({
+        text,
+        targetLanguage: editorTranslationTargetLanguage,
+        languages: translationLanguages,
+        showConfirm: showEditorTranslationConfirm,
+        t
+      })
+    },
+    [editorTranslationTargetLanguage, showEditorTranslationConfirm, t, translationLanguages]
+  )
+
   const saveTextFile = useCallback((fileName: string, content: string) => {
     return window.api.file.save(fileName, content)
   }, [])
@@ -385,80 +422,141 @@ export function useHomeMessageListProviderValue({
     [siblingsContext]
   )
 
-  return useMemo(
+  const editMessage = useCallback<NonNullable<MessageListActions['editMessage']>>(
+    (messageId, parts) => chatWrite?.editMessage(messageId, parts),
+    [chatWrite]
+  )
+
+  const forkAndResendMessage = useCallback<NonNullable<MessageListActions['forkAndResendMessage']>>(
+    (messageId, parts) => chatWrite?.forkAndResend(messageId, parts),
+    [chatWrite]
+  )
+
+  const deleteMessage = useCallback<NonNullable<MessageListActions['deleteMessage']>>(
+    (messageId, traceOptions) => chatWrite?.deleteMessage(messageId, traceOptions),
+    [chatWrite]
+  )
+
+  const startMessageBranch = useCallback<NonNullable<MessageListActions['startMessageBranch']>>(
+    (messageId) => chatWrite?.setActiveNode(messageId),
+    [chatWrite]
+  )
+
+  const setActiveBranch = useCallback<NonNullable<MessageListActions['setActiveBranch']>>(
+    (messageId) => chatWrite?.setActiveBranch(messageId),
+    [chatWrite]
+  )
+
+  const deleteMessageGroup = useCallback<NonNullable<MessageListActions['deleteMessageGroup']>>(
+    (parentId) => chatWrite?.deleteMessageGroup(parentId),
+    [chatWrite]
+  )
+
+  const regenerateMessage = useCallback<NonNullable<MessageListActions['regenerateMessage']>>(
+    (messageId) => chatWrite?.regenerate(messageId),
+    [chatWrite]
+  )
+
+  const regenerateMessageWithModel = useCallback<NonNullable<MessageListActions['regenerateMessageWithModel']>>(
+    (messageId, modelId, modelSnapshot) => chatWrite?.regenerate(messageId, { modelId, modelSnapshot }),
+    [chatWrite]
+  )
+
+  const state = useMemo<MessageListState>(
     () => ({
-      state: {
-        topic,
-        messages: messageItems,
-        partsByMessageId,
-        hasOlder,
-        messageNavigation,
-        estimateSize: 600,
-        overscan: 8,
-        loadOlderDelayMs: 300,
-        loadingResetDelayMs: 300,
-        listKey: assistant?.id ?? topic.assistantId,
-        readonly: false,
-        renderConfig,
-        selection: {
-          enabled: true,
-          isMultiSelectMode,
-          selectedMessageIds
-        },
-        getMessageUiState,
-        getMessageSiblings,
-        getMessageActivityState
+      topic,
+      messages: messageItems,
+      partsByMessageId,
+      hasOlder,
+      messageNavigation,
+      estimateSize: 600,
+      overscan: 8,
+      loadOlderDelayMs: 300,
+      loadingResetDelayMs: 300,
+      listKey: assistant?.id ?? topic.assistantId,
+      readonly: false,
+      renderConfig,
+      selection: {
+        enabled: true,
+        isMultiSelectMode,
+        selectedMessageIds
       },
-      actions: {
-        loadOlder,
-        bindRuntime,
-        bindMessageRuntime,
-        bindMessageGroupRuntime,
-        locateMessage,
-        startNewContext,
-        saveCodeBlock,
-        saveTextFile,
-        saveImage,
-        saveToKnowledge,
-        exportMessageAsMarkdown,
-        exportToNotes,
-        exportToWord,
-        exportToNotion,
-        exportToYuque,
-        exportToObsidian,
-        exportToJoplin,
-        exportToSiyuan,
-        openTrace,
-        openPath,
-        showInFolder,
-        abortTool,
-        selectFiles,
-        selectMessage: handleSelectMessage,
-        toggleMultiSelectMode,
-        updateMessageUiState,
-        updateRenderConfig,
-        editMessage: (messageId, parts) => chatWrite?.editMessage(messageId, parts),
-        forkAndResendMessage: (messageId, parts) => chatWrite?.forkAndResend(messageId, parts),
-        deleteMessage: (messageId, traceOptions) => chatWrite?.deleteMessage(messageId, traceOptions),
-        startMessageBranch: (messageId) => chatWrite?.setActiveNode(messageId),
-        setActiveBranch: (messageId: string) => chatWrite?.setActiveBranch(messageId),
-        deleteMessageGroup: (parentId: string) => chatWrite?.deleteMessageGroup(parentId),
-        regenerateMessage: (messageId: string) => chatWrite?.regenerate(messageId),
-        regenerateMessageWithModel: (messageId, modelId, modelSnapshot) =>
-          chatWrite?.regenerate(messageId, { modelId, modelSnapshot }),
-        getTranslationUpdater
-      },
-      meta: {
-        selectionLayer: true,
-        imageExportFileName: topic.name
-      }
+      translationLanguages: translationLanguages ?? [],
+      editorTranslationTargetLabel: getTranslationLanguageLabel(editorTranslationTargetLanguage, false),
+      getMessageUiState,
+      getMessageSiblings,
+      getMessageActivityState,
+      getMessageEditorCapabilities,
+      getTranslationLanguageLabel
     }),
     [
       assistant?.id,
+      editorTranslationTargetLanguage,
+      getMessageActivityState,
+      getMessageEditorCapabilities,
+      getMessageSiblings,
+      getMessageUiState,
+      getTranslationLanguageLabel,
+      hasOlder,
+      isMultiSelectMode,
+      messageItems,
+      messageNavigation,
+      partsByMessageId,
+      renderConfig,
+      selectedMessageIds,
+      topic,
+      translationLanguages
+    ]
+  )
+
+  const actions = useMemo<MessageListActions>(
+    () => ({
+      loadOlder,
+      bindRuntime,
+      bindMessageRuntime,
+      bindMessageGroupRuntime,
+      locateMessage,
+      startNewContext,
+      saveCodeBlock,
+      saveTextFile,
+      saveImage,
+      saveToKnowledge,
+      exportMessageAsMarkdown,
+      exportToNotes,
+      exportToWord,
+      exportToNotion,
+      exportToYuque,
+      exportToObsidian,
+      exportToJoplin,
+      exportToSiyuan,
+      openTrace,
+      openPath,
+      showInFolder,
+      abortTool,
+      selectFiles,
+      translateEditorText,
+      selectMessage: handleSelectMessage,
+      toggleMultiSelectMode,
+      updateMessageUiState,
+      updateRenderConfig,
+      editMessage,
+      forkAndResendMessage,
+      deleteMessage,
+      startMessageBranch,
+      setActiveBranch,
+      deleteMessageGroup,
+      regenerateMessage,
+      regenerateMessageWithModel,
+      getTranslationUpdater
+    }),
+    [
       abortTool,
       bindMessageGroupRuntime,
       bindMessageRuntime,
       bindRuntime,
+      deleteMessage,
+      deleteMessageGroup,
+      editMessage,
       exportMessageAsMarkdown,
       exportToJoplin,
       exportToNotes,
@@ -467,34 +565,45 @@ export function useHomeMessageListProviderValue({
       exportToSiyuan,
       exportToYuque,
       exportToWord,
-      getMessageActivityState,
-      getMessageSiblings,
-      getMessageUiState,
+      forkAndResendMessage,
       getTranslationUpdater,
       handleSelectMessage,
-      hasOlder,
-      isMultiSelectMode,
       loadOlder,
       locateMessage,
-      messageNavigation,
-      messageItems,
       openPath,
       openTrace,
-      partsByMessageId,
+      regenerateMessage,
+      regenerateMessageWithModel,
       saveCodeBlock,
       saveImage,
       saveToKnowledge,
       saveTextFile,
-      selectedMessageIds,
       selectFiles,
+      setActiveBranch,
       showInFolder,
+      startMessageBranch,
       startNewContext,
       toggleMultiSelectMode,
-      topic,
+      translateEditorText,
       updateMessageUiState,
-      updateRenderConfig,
-      renderConfig,
-      chatWrite
+      updateRenderConfig
     ]
+  )
+
+  const meta = useMemo<MessageListMeta>(
+    () => ({
+      selectionLayer: true,
+      imageExportFileName: topic.name
+    }),
+    [topic.name]
+  )
+
+  return useMemo(
+    () => ({
+      state,
+      actions,
+      meta
+    }),
+    [actions, meta, state]
   )
 }

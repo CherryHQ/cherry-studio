@@ -10,7 +10,7 @@ import { Check, Copy, FileSearch } from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useOptionalMessageList } from '../MessageListProvider'
+import { useOptionalMessageListActions } from '../MessageListProvider'
 
 interface CitationsListProps {
   citations: Citation[]
@@ -137,7 +137,7 @@ const CopyButton: React.FC<{ content: string }> = ({ content }) => {
 
 const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
   const isXPost = Boolean(citation.url && isXPostUrl(citation.url))
-  const openPath = useOptionalMessageList()?.actions.openPath
+  const openPath = useOptionalMessageListActions()?.openPath
 
   const { data: fetchedContent, isLoading } = useQuery({
     queryKey: ['webContent', citation.url],
@@ -201,7 +201,7 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
 }
 
 const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
-  const openPath = useOptionalMessageList()?.actions.openPath
+  const openPath = useOptionalMessageListActions()?.openPath
 
   return (
     <SelectionContextMenu>

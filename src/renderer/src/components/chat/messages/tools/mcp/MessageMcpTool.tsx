@@ -15,7 +15,7 @@ import type { ComponentPropsWithoutRef, FC } from 'react'
 import { memo, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useOptionalMessageList } from '../../MessageListProvider'
+import { useOptionalMessageListActions } from '../../MessageListProvider'
 import { getEffectiveStatus, SkeletonSpan, ToolStatusIndicator, TruncatedIndicator } from '../agent/GenericTools'
 import { useToolApproval } from '../hooks/useToolApproval'
 import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, ResponseSection } from '../shared/ArgsTable'
@@ -44,7 +44,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
   const [fontSize] = usePreference('chat.message.font_size')
   const [progress, setProgress] = useState<number>(0)
   const { setTimeoutTimer } = useTimer()
-  const abortTool = useOptionalMessageList()?.actions.abortTool
+  const abortTool = useOptionalMessageListActions()?.abortTool
 
   // Use the unified approval hook
   const approval = useToolApproval(toolResponse)

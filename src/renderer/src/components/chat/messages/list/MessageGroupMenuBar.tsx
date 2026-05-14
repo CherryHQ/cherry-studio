@@ -8,7 +8,7 @@ import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { usePartsMap } from '../blocks'
-import { useMessageList } from '../MessageListProvider'
+import { useMessageListActions } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
 import MessageGroupModelList from './MessageGroupModelList'
 import MessageGroupSettings from './MessageGroupSettings'
@@ -30,7 +30,7 @@ const MessageGroupMenuBar: FC<Props> = ({
 }) => {
   const { t } = useTranslation()
   const partsMap = usePartsMap()
-  const { actions } = useMessageList()
+  const actions = useMessageListActions()
 
   const handleDeleteGroup = async () => {
     const parentId = messages[0]?.parentId

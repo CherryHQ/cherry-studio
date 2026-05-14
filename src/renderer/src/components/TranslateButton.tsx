@@ -2,7 +2,7 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useLanguages } from '@renderer/hooks/translate/useTranslateLanguages'
-import { translateText } from '@renderer/services/TranslateService'
+import { translateInputText } from '@renderer/services/TranslateCommandService'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { Languages, Loader2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -26,32 +26,21 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
   const [showTranslateConfirm] = usePreference('chat.input.translate.show_confirm')
   const { getLabel, languages } = useLanguages()
 
-  const translateConfirm = () => {
-    if (!showTranslateConfirm) {
-      return Promise.resolve(true)
-    }
-    return window?.modal?.confirm({
-      title: t('translate.confirm.title'),
-      content: t('translate.confirm.content'),
-      centered: true
-    })
-  }
-
   const handleTranslate = async () => {
     if (!text?.trim()) return
 
-    if (!(await translateConfirm())) {
-      return
-    }
-
-    // 先复制原文到剪贴板
-    await navigator.clipboard.writeText(text)
-
-    setIsTranslating(true)
     try {
-      const targetVo = languages?.find((l) => l.langCode === targetLanguage)
-      const translatedText = await translateText(text, targetVo ?? targetLanguage)
-      onTranslated(translatedText)
+      const translatedText = await translateInputText({
+        text,
+        targetLanguage,
+        languages,
+        showConfirm: showTranslateConfirm,
+        t,
+        onConfirmed: () => setIsTranslating(true)
+      })
+      if (translatedText) {
+        onTranslated(translatedText)
+      }
     } catch (error) {
       logger.error('Translation failed:', error as Error)
       window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))

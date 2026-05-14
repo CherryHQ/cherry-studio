@@ -2,25 +2,22 @@ import { Textarea, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
-import TranslateButton from '@renderer/components/TranslateButton'
-import { isVisionModel } from '@renderer/config/models'
-import { fromSharedModel } from '@renderer/config/models/_bridge'
-import { useAssistant } from '@renderer/hooks/useAssistant'
 import FileManager from '@renderer/services/FileManager'
 import PasteService from '@renderer/services/PasteService'
 import type { FileMetadata } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
 import { classNames } from '@renderer/utils'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFilesFromDropEvent, isSendMessageKeyPressed } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { Save, Send, X } from 'lucide-react'
+import { Languages, Loader2, Save, Send, X } from 'lucide-react'
 import type { ComponentPropsWithoutRef, FC } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useMessageParts } from '../blocks'
-import { useMessageList } from '../MessageListProvider'
+import { useMessageListActions, useMessageListUi } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
 import { MessageAttachmentButton, MessageAttachmentPreview } from './MessageAttachmentPreview'
 
@@ -38,11 +35,11 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
   const [editedParts, setEditedParts] = useState<CherryMessagePart[]>(messageParts)
   const [files, setFiles] = useState<FileMetadata[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
+  const [isTranslating, setIsTranslating] = useState(false)
   const [isFileDragging, setIsFileDragging] = useState(false)
   const [isSelectingFiles, setIsSelectingFiles] = useState(false)
-  const { model: v2Model } = useAssistant(message.assistantId)
-  const { actions } = useMessageList()
-  const model = useMemo(() => (v2Model ? fromSharedModel(v2Model) : undefined), [v2Model])
+  const actions = useMessageListActions()
+  const messageUi = useMessageListUi()
   const [pasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
   const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
   const [fontSize] = usePreference('chat.message.font_size')
@@ -60,8 +57,12 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
     [editedParts]
   )
 
-  const couldAddImageFile = useMemo(() => (model ? isVisionModel(model) : false), [model])
-  const couldAddTextFile = useMemo(() => true, [])
+  const editorCapabilities = messageUi.getMessageEditorCapabilities?.(message) ?? {
+    canAddImageFile: false,
+    canAddTextFile: true
+  }
+  const couldAddImageFile = editorCapabilities.canAddImageFile
+  const couldAddTextFile = editorCapabilities.canAddTextFile
 
   const extensions = useMemo(() => {
     if (couldAddImageFile && couldAddTextFile) {
@@ -132,12 +133,32 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
     )
   }
 
-  const onTranslated = (translatedText: string) => {
-    const textIndex = editedParts.findIndex((p) => p.type === 'text')
-    if (textIndex >= 0) {
-      handleTextChange(textIndex, translatedText)
+  const onTranslated = useCallback((translatedText: string) => {
+    setEditedParts((prev) => {
+      const textIndex = prev.findIndex((part) => part.type === 'text')
+      if (textIndex < 0) return prev
+      return prev.map((part, index) =>
+        index === textIndex && part.type === 'text' ? { ...part, text: translatedText } : part
+      )
+    })
+  }, [])
+
+  const handleTranslate = useCallback(async () => {
+    if (!actions.translateEditorText || isTranslating || !editableText.trim()) return
+
+    setIsTranslating(true)
+    try {
+      const translatedText = await actions.translateEditorText(editableText)
+      if (translatedText) {
+        onTranslated(translatedText)
+      }
+    } catch (error) {
+      logger.error('Translation failed:', error as Error)
+      window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
+    } finally {
+      setIsTranslating(false)
     }
-  }
+  }, [actions.translateEditorText, editableText, isTranslating, onTranslated, t])
 
   const handlePartRemove = (index: number) => {
     setEditedParts((prev) => prev.filter((_, i) => i !== index))
@@ -161,7 +182,7 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
     } finally {
       setIsSelectingFiles(false)
     }
-  }, [actions, extensions, isSelectingFiles])
+  }, [actions.selectFiles, extensions, isSelectingFiles])
 
   const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -292,7 +313,20 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
       />
       <ActionBar>
         <ActionBarLeft>
-          <TranslateButton text={editableText} onTranslated={onTranslated} disabled={!editableText.trim()} />
+          {actions.translateEditorText && (
+            <Tooltip
+              content={
+                messageUi.editorTranslationTargetLabel
+                  ? t('chat.input.translate', { target_language: messageUi.editorTranslationTargetLabel })
+                  : t('chat.translate')
+              }>
+              <ActionIconButton
+                onClick={handleTranslate}
+                icon={isTranslating ? <Loader2 size={18} className="animate-spin" /> : <Languages size={18} />}
+                disabled={!editableText.trim() || isTranslating}
+              />
+            </Tooltip>
+          )}
           {isUserMessage && actions.selectFiles && (
             <MessageAttachmentButton
               active={files.length > 0}

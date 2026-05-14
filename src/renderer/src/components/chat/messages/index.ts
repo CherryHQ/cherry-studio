@@ -1,4 +1,15 @@
 export { MessageVirtualList, type MessageVirtualListHandle } from './list/MessageVirtualList'
 export { default as MessageList } from './MessageList'
-export { MessageListProvider, useMessageList } from './MessageListProvider'
+export {
+  MessageListProvider,
+  useMessageList,
+  useMessageListActions,
+  useMessageListData,
+  useMessageListMeta,
+  useMessageListParts,
+  useMessageListSelection,
+  useMessageListUi,
+  useMessageRenderConfig,
+  useOptionalMessageListActions
+} from './MessageListProvider'
 export type { MessageListProviderValue } from './types'

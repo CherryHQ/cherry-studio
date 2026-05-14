@@ -194,7 +194,25 @@ vi.mock('../MessageListProvider', () => ({
       actions: mocks.messageListActions(),
       meta: {}
     }
-  }
+  },
+  useMessageListActions: () => mocks.messageListActions(),
+  useMessageRenderConfig: () => {
+    const settings = mocks.settings()
+
+    return {
+      userName: '',
+      narrowMode: false,
+      messageStyle: settings.messageStyle,
+      messageFont: settings.messageFont,
+      fontSize: settings.fontSize,
+      showMessageOutline: settings.showMessageOutline,
+      multiModelMessageStyle: settings.multiModelMessageStyle,
+      multiModelGridColumns: settings.gridColumns,
+      multiModelGridPopoverTrigger: settings.gridPopoverTrigger
+    }
+  },
+  useMessageListSelection: () => undefined,
+  useMessageListUi: () => ({})
 }))
 
 vi.mock('../frame/MessageHeader', () => ({

@@ -6,12 +6,12 @@ import type { ComponentPropsWithoutRef, FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useMessageList } from '../MessageListProvider'
+import { useMessageListActions, useMessageRenderConfig } from '../MessageListProvider'
 import { defaultMessageRenderConfig } from '../types'
 
 const MessageGroupSettings: FC = () => {
-  const { state, actions } = useMessageList()
-  const renderConfig = state.renderConfig ?? defaultMessageRenderConfig
+  const actions = useMessageListActions()
+  const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
   const gridPopoverTrigger = renderConfig.multiModelGridPopoverTrigger
   const gridColumns = renderConfig.multiModelGridColumns
   const { t } = useTranslation()

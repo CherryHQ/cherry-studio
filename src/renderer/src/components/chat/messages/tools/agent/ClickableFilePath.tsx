@@ -8,7 +8,7 @@ import { FolderOpen, MoreHorizontal } from 'lucide-react'
 import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useOptionalMessageList } from '../../MessageListProvider'
+import { useOptionalMessageListActions } from '../../MessageListProvider'
 
 interface ClickableFilePathProps {
   path: string
@@ -19,9 +19,9 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
   const { t } = useTranslation()
   const { data: externalApps } = useExternalApps()
   const iconName = useMemo(() => getFileIconName(path), [path])
-  const messageList = useOptionalMessageList()
-  const openPath = messageList?.actions.openPath
-  const showInFolder = messageList?.actions.showInFolder
+  const actions = useOptionalMessageListActions()
+  const openPath = actions?.openPath
+  const showInFolder = actions?.showInFolder
 
   const availableEditors = useMemo(
     () => externalApps?.filter((app) => app.tags.includes('code-editor')) ?? [],

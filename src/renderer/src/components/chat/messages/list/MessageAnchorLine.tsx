@@ -11,7 +11,7 @@ import { type FC, type Ref, useCallback, useEffect, useRef, useState } from 'rea
 import { useTranslation } from 'react-i18next'
 
 import { usePartsMap } from '../blocks'
-import { useMessageList } from '../MessageListProvider'
+import { useMessageListActions, useMessageListMeta, useMessageRenderConfig } from '../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem } from '../types'
 import { getMessageListItemModel, getMessageListItemModelName } from '../utils/messageListItem'
 
@@ -31,8 +31,9 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
   const partsMap = usePartsMap()
   const avatar = useAvatar()
   const { theme } = useTheme()
-  const { state, actions, meta } = useMessageList()
-  const renderConfig = state.renderConfig ?? defaultMessageRenderConfig
+  const actions = useMessageListActions()
+  const meta = useMessageListMeta()
+  const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
   const userName = renderConfig.userName
   const assistantProfile = meta.assistantProfile
   const { setTimeoutTimer } = useTimer()

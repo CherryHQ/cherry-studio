@@ -16,7 +16,14 @@ import MessageAnchorLine from './list/MessageAnchorLine'
 import MessageGroup from './list/MessageGroup'
 import { MessageVirtualList, type MessageVirtualListHandle } from './list/MessageVirtualList'
 import SelectionBox from './list/SelectionBox'
-import { useMessageList } from './MessageListProvider'
+import {
+  useMessageListActions,
+  useMessageListData,
+  useMessageListMeta,
+  useMessageListParts,
+  useMessageListSelection,
+  useMessageRenderConfig
+} from './MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem } from './types'
 
 function groupMessageListItems(messages: MessageListItem[]): Record<string, MessageListItem[]> {
@@ -33,12 +40,16 @@ function groupMessageListItems(messages: MessageListItem[]): Record<string, Mess
 }
 
 const MessageList = () => {
-  const { state, actions, meta } = useMessageList()
-  const { topic, messages, beforeList, hasOlder = false, messageNavigation } = state
+  const data = useMessageListData()
+  const partsByMessageId = useMessageListParts()
+  const actions = useMessageListActions()
+  const meta = useMessageListMeta()
+  const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
+  const selection = useMessageListSelection()
+  const { topic, messages, beforeList, hasOlder = false, messageNavigation } = data
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const { setTimeoutTimer } = useTimer()
-  const isMultiSelectMode = state.selection?.isMultiSelectMode ?? false
-  const renderConfig = state.renderConfig ?? defaultMessageRenderConfig
+  const isMultiSelectMode = selection?.isMultiSelectMode ?? false
 
   const messageListRef = useRef<MessageVirtualListHandle | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
@@ -76,11 +87,11 @@ const MessageList = () => {
       'message-list-load-older',
       () => {
         actions.loadOlder?.()
-        setTimeoutTimer('message-list-load-older-spinner', () => setIsLoadingMore(false), state.loadingResetDelayMs)
+        setTimeoutTimer('message-list-load-older-spinner', () => setIsLoadingMore(false), data.loadingResetDelayMs)
       },
-      state.loadOlderDelayMs
+      data.loadOlderDelayMs
     )
-  }, [actions, hasOlder, isLoadingMore, setTimeoutTimer, state.loadOlderDelayMs, state.loadingResetDelayMs])
+  }, [actions, data.loadOlderDelayMs, data.loadingResetDelayMs, hasOlder, isLoadingMore, setTimeoutTimer])
 
   useEffect(() => {
     scrollContainerRef.current = (messageListRef.current?.getScrollElement() as HTMLDivElement | null) ?? null
@@ -106,13 +117,13 @@ const MessageList = () => {
     })
   }, [actions, meta.imageExportFileName, scrollToBottom])
 
-  if (state.isInitialLoading) {
+  if (data.isInitialLoading) {
     return <MessageListInitialLoading />
   }
 
   return (
-    <PartsProvider value={state.partsByMessageId}>
-      <MessagesContainer id="messages" className="messages-container" key={state.listKey}>
+    <PartsProvider value={partsByMessageId}>
+      <MessagesContainer id="messages" className="messages-container" key={data.listKey}>
         <NarrowLayout
           narrowMode={renderConfig.narrowMode}
           style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
@@ -123,8 +134,8 @@ const MessageList = () => {
                 handleRef={messageListRef}
                 items={groupedMessages}
                 getItemKey={([key]) => key}
-                estimateSize={state.estimateSize}
-                overscan={state.overscan}
+                estimateSize={data.estimateSize}
+                overscan={data.overscan}
                 hasMoreTop={hasOlder}
                 onReachTop={loadMoreMessages}
                 renderItem={([key, groupMessages]) => (

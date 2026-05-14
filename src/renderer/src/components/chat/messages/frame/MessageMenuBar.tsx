@@ -23,13 +23,11 @@ import {
   STREAMING_DISABLED_BUTTON_IDS
 } from '@renderer/config/registry/messageMenuBar'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
-import { useLanguages } from '@renderer/hooks/translate'
-import { useModelById } from '@renderer/hooks/useModels'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
 import { TraceIcon } from '@renderer/trace/pages/Component'
-import type { Model, Topic, TranslateLanguage } from '@renderer/types'
+import type { Topic, TranslateLanguage } from '@renderer/types'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { captureScrollableAsBlob, captureScrollableAsDataURL, classNames } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
@@ -44,12 +42,7 @@ import {
   hasTranslationParts
 } from '@renderer/utils/messageUtils/partsHelpers'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import {
-  createUniqueModelId,
-  type Model as SharedModel,
-  parseUniqueModelId,
-  type UniqueModelId
-} from '@shared/data/types/model'
+import { createUniqueModelId, type Model as SharedModel, parseUniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel, isVisionModel as isSharedVisionModel } from '@shared/utils/model'
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
@@ -73,7 +66,7 @@ import { Fragment, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { usePartsMap } from '../blocks'
-import { useMessageList } from '../MessageListProvider'
+import { useMessageListActions, useMessageListSelection, useMessageListUi } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
 import { createMessageExportView, getMessageListItemModel, getMessageListItemModelName } from '../utils/messageListItem'
 import MessageTokens from './MessageTokens'
@@ -87,13 +80,11 @@ const abortTranslation = (messageId: string) => {
 interface Props {
   message: MessageListItem
   topic: Topic
-  model?: Model
   isGrouped?: boolean
   isLastMessage: boolean
   isAssistantMessage: boolean
   isProcessing: boolean
   messageContainerRef: React.RefObject<HTMLDivElement>
-  setModel: (model: Model) => void
   onUpdateUseful?: (msgId: string) => void
   variant?: 'footer' | 'header'
 }
@@ -144,7 +135,7 @@ type MessageMenuBarButtonContext = {
   canTranslateMessage: boolean
   t: TFunction
   translateLanguages: TranslateLanguage[]
-  getLanguageLabel: ReturnType<typeof useLanguages>['getLabel']
+  getLanguageLabel: (language: TranslateLanguage, withEmoji?: boolean) => string | undefined
 }
 
 type MessageMenuBarButtonRenderer = (ctx: MessageMenuBarButtonContext, disabled: boolean) => ReactNode | null
@@ -173,23 +164,34 @@ const MessageMenuBar: FC<Props> = (props) => {
     isLastMessage,
     isAssistantMessage,
     isProcessing,
-    model,
     topic,
     messageContainerRef,
     onUpdateUseful,
     variant = 'footer'
   } = props
   const { t } = useTranslation()
-  const { state, actions } = useMessageList()
+  const actions = useMessageListActions()
+  const selection = useMessageListSelection()
+  const messageUi = useMessageListUi()
   const messageModel = useMemo(() => getMessageListItemModel(message), [message])
-  const displayModel = messageModel ?? model
-  const currentMentionModelId = displayModel ? createUniqueModelId(displayModel.provider, displayModel.id) : undefined
-  const { model: currentMentionModel } = useModelById(currentMentionModelId ?? ('' as UniqueModelId))
+  const currentMentionModel = useMemo<SharedModel | undefined>(() => {
+    if (!messageModel) return undefined
+    return {
+      id: createUniqueModelId(messageModel.provider, messageModel.id),
+      providerId: messageModel.provider,
+      name: messageModel.name,
+      group: messageModel.group
+    } as SharedModel
+  }, [messageModel])
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const translationAbortKey = createTranslationAbortKey(message.id)
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
-  const { languages, getLabel: getLanguageLabel } = useLanguages()
-  const translateLanguages = useMemo(() => languages ?? [], [languages])
+  const translateLanguages = messageUi.translationLanguages ?? []
+  const getLanguageLabel = useCallback(
+    (language: TranslateLanguage, withEmoji?: boolean) =>
+      messageUi.getTranslationLanguageLabel?.(language, withEmoji) ?? language.langCode,
+    [messageUi.getTranslationLanguageLabel]
+  )
 
   const [messageStyle] = usePreference('chat.message.style')
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
@@ -319,13 +321,13 @@ const MessageMenuBar: FC<Props> = (props) => {
   const isEditable = useMemo(() => hasTextParts(messageParts), [messageParts])
   // Shared UI only exposes write affordances when the active adapter provides
   // the corresponding capability.
-  const supportsWrites = !state.readonly
+  const supportsWrites = !messageUi.readonly
   const canEditMessage = supportsWrites && !!actions.editMessage
   const canDeleteMessage = supportsWrites && !!actions.deleteMessage
   const canRegenerateMessage = supportsWrites && !!actions.regenerateMessage
   const canRegenerateWithModel = supportsWrites && !!actions.regenerateMessageWithModel
   const canStartBranch = supportsWrites && !!actions.startMessageBranch
-  const canToggleMultiSelect = state.selection?.enabled && !!actions.toggleMultiSelectMode
+  const canToggleMultiSelect = selection?.enabled && !!actions.toggleMultiSelectMode
   const canSaveTextFile = !!actions.saveTextFile
   const canSaveImage = !!actions.saveImage
   const canSaveToKnowledge = !!actions.saveToKnowledge
@@ -579,7 +581,7 @@ const MessageMenuBar: FC<Props> = (props) => {
   )
 
   const hasTranslationBlocks = useMemo(() => hasTranslationParts(messageParts), [messageParts])
-  const isUseful = !!state.getMessageUiState?.(message.id).useful
+  const isUseful = !!messageUi.getMessageUiState?.(message.id).useful
 
   const softHoverBg = isBubbleStyle && !isLastMessage
   const showMessageTokens = variant === 'footer' && !isBubbleStyle

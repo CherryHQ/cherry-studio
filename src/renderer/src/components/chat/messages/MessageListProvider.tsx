@@ -1,16 +1,139 @@
-import type { ReactNode } from 'react'
-import { createContext, use } from 'react'
+import type { Context, ReactNode } from 'react'
+import { createContext, use, useMemo } from 'react'
 
-import type { MessageListProviderValue } from './types'
+import type {
+  MessageListActions,
+  MessageListMeta,
+  MessageListProviderValue,
+  MessageListSelectionState,
+  MessageListState,
+  MessageRenderConfig
+} from './types'
+
+type MessageListDataValue = Pick<
+  MessageListState,
+  | 'topic'
+  | 'messages'
+  | 'beforeList'
+  | 'isInitialLoading'
+  | 'hasOlder'
+  | 'messageNavigation'
+  | 'estimateSize'
+  | 'overscan'
+  | 'loadOlderDelayMs'
+  | 'loadingResetDelayMs'
+  | 'listKey'
+>
+
+type MessageListUiValue = Pick<
+  MessageListState,
+  | 'readonly'
+  | 'translationLanguages'
+  | 'editorTranslationTargetLabel'
+  | 'getMessageUiState'
+  | 'getMessageSiblings'
+  | 'getMessageActivityState'
+  | 'getMessageEditorCapabilities'
+  | 'getTranslationLanguageLabel'
+>
 
 const MessageListContext = createContext<MessageListProviderValue | null>(null)
+const MessageListDataContext = createContext<MessageListDataValue | null>(null)
+const MessageListPartsContext = createContext<MessageListState['partsByMessageId'] | null>(null)
+const MessageListActionsContext = createContext<MessageListActions | null>(null)
+const MessageListMetaContext = createContext<MessageListMeta | null>(null)
+const MessageListRenderConfigContext = createContext<MessageRenderConfig | null>(null)
+const MessageListSelectionContext = createContext<MessageListSelectionState | undefined | null>(null)
+const MessageListUiContext = createContext<MessageListUiValue | null>(null)
 
-export const MessageListProvider = ({ value, children }: { value: MessageListProviderValue; children: ReactNode }) => (
-  <MessageListContext value={value}>{children}</MessageListContext>
-)
+export const MessageListProvider = ({ value, children }: { value: MessageListProviderValue; children: ReactNode }) => {
+  const { state, actions, meta } = value
+
+  const data = useMemo<MessageListDataValue>(
+    () => ({
+      topic: state.topic,
+      messages: state.messages,
+      beforeList: state.beforeList,
+      isInitialLoading: state.isInitialLoading,
+      hasOlder: state.hasOlder,
+      messageNavigation: state.messageNavigation,
+      estimateSize: state.estimateSize,
+      overscan: state.overscan,
+      loadOlderDelayMs: state.loadOlderDelayMs,
+      loadingResetDelayMs: state.loadingResetDelayMs,
+      listKey: state.listKey
+    }),
+    [
+      state.topic,
+      state.messages,
+      state.beforeList,
+      state.isInitialLoading,
+      state.hasOlder,
+      state.messageNavigation,
+      state.estimateSize,
+      state.overscan,
+      state.loadOlderDelayMs,
+      state.loadingResetDelayMs,
+      state.listKey
+    ]
+  )
+
+  const ui = useMemo<MessageListUiValue>(
+    () => ({
+      readonly: state.readonly,
+      translationLanguages: state.translationLanguages,
+      editorTranslationTargetLabel: state.editorTranslationTargetLabel,
+      getMessageUiState: state.getMessageUiState,
+      getMessageSiblings: state.getMessageSiblings,
+      getMessageActivityState: state.getMessageActivityState,
+      getMessageEditorCapabilities: state.getMessageEditorCapabilities,
+      getTranslationLanguageLabel: state.getTranslationLanguageLabel
+    }),
+    [
+      state.readonly,
+      state.translationLanguages,
+      state.editorTranslationTargetLabel,
+      state.getMessageUiState,
+      state.getMessageSiblings,
+      state.getMessageActivityState,
+      state.getMessageEditorCapabilities,
+      state.getTranslationLanguageLabel
+    ]
+  )
+
+  return (
+    <MessageListContext value={value}>
+      <MessageListDataContext value={data}>
+        <MessageListPartsContext value={state.partsByMessageId}>
+          <MessageListActionsContext value={actions}>
+            <MessageListMetaContext value={meta}>
+              <MessageListRenderConfigContext value={state.renderConfig}>
+                <MessageListSelectionContext value={state.selection}>
+                  <MessageListUiContext value={ui}>{children}</MessageListUiContext>
+                </MessageListSelectionContext>
+              </MessageListRenderConfigContext>
+            </MessageListMetaContext>
+          </MessageListActionsContext>
+        </MessageListPartsContext>
+      </MessageListDataContext>
+    </MessageListContext>
+  )
+}
+
+const useRequiredContext = <T,>(context: Context<T | null>, name: string): T => {
+  const value = use(context)
+  if (value === null) {
+    throw new Error(`${name} must be used within MessageListProvider`)
+  }
+  return value
+}
 
 export const useOptionalMessageList = (): MessageListProviderValue | null => {
   return use(MessageListContext)
+}
+
+export const useOptionalMessageListActions = (): MessageListActions | undefined => {
+  return use(MessageListActionsContext) ?? undefined
 }
 
 export const useMessageList = (): MessageListProviderValue => {
@@ -19,4 +142,36 @@ export const useMessageList = (): MessageListProviderValue => {
     throw new Error('useMessageList must be used within MessageListProvider')
   }
   return value
+}
+
+export const useMessageListData = (): MessageListDataValue => {
+  return useRequiredContext(MessageListDataContext, 'useMessageListData')
+}
+
+export const useMessageListParts = (): MessageListState['partsByMessageId'] => {
+  return useRequiredContext(MessageListPartsContext, 'useMessageListParts')
+}
+
+export const useMessageListActions = (): MessageListActions => {
+  return useRequiredContext(MessageListActionsContext, 'useMessageListActions')
+}
+
+export const useMessageListMeta = (): MessageListMeta => {
+  return useRequiredContext(MessageListMetaContext, 'useMessageListMeta')
+}
+
+export const useMessageRenderConfig = (): MessageRenderConfig => {
+  return useRequiredContext(MessageListRenderConfigContext, 'useMessageRenderConfig')
+}
+
+export const useMessageListSelection = (): MessageListSelectionState | undefined => {
+  const value = use(MessageListSelectionContext)
+  if (value === null) {
+    throw new Error('useMessageListSelection must be used within MessageListProvider')
+  }
+  return value
+}
+
+export const useMessageListUi = (): MessageListUiValue => {
+  return useRequiredContext(MessageListUiContext, 'useMessageListUi')
 }

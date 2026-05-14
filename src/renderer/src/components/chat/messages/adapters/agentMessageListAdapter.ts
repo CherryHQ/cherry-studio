@@ -3,7 +3,13 @@ import type { Topic } from '@renderer/types'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import { useCallback, useMemo } from 'react'
 
-import type { MessageListProviderValue, MessageUiState } from '../types'
+import type {
+  MessageListActions,
+  MessageListMeta,
+  MessageListProviderValue,
+  MessageListState,
+  MessageUiState
+} from '../types'
 import { toMessageListItem } from '../utils/messageListItem'
 import { useMessageActivityState } from './useMessageActivityState'
 import { useMessageListRenderConfig } from './useMessageListRenderConfig'
@@ -73,60 +79,61 @@ export function useAgentMessageListProviderValue({
     return window.api.mcp.abortTool(toolId)
   }, [])
 
-  return useMemo(
+  const state = useMemo<MessageListState>(
     () => ({
-      state: {
-        topic,
-        messages: messageItems,
-        partsByMessageId,
-        isInitialLoading: isLoading && messageItems.length === 0,
-        hasOlder,
-        messageNavigation,
-        estimateSize: 400,
-        overscan: 6,
-        loadOlderDelayMs: 0,
-        loadingResetDelayMs: 600,
-        listKey: topic.id,
-        readonly: true,
-        renderConfig,
-        selection: {
-          enabled: false,
-          isMultiSelectMode: false,
-          selectedMessageIds: []
-        },
-        getMessageUiState,
-        getMessageActivityState
+      topic,
+      messages: messageItems,
+      partsByMessageId,
+      isInitialLoading: isLoading && messageItems.length === 0,
+      hasOlder,
+      messageNavigation,
+      estimateSize: 400,
+      overscan: 6,
+      loadOlderDelayMs: 0,
+      loadingResetDelayMs: 600,
+      listKey: topic.id,
+      readonly: true,
+      renderConfig,
+      selection: {
+        enabled: false,
+        isMultiSelectMode: false,
+        selectedMessageIds: []
       },
-      actions: {
-        loadOlder,
-        openPath,
-        showInFolder,
-        abortTool,
-        updateMessageUiState,
-        updateRenderConfig
-      },
-      meta: {
-        selectionLayer: false,
-        assistantProfile
-      }
+      getMessageUiState,
+      getMessageActivityState
     }),
     [
-      assistantProfile,
-      abortTool,
       getMessageActivityState,
       getMessageUiState,
       hasOlder,
       isLoading,
-      loadOlder,
       messageNavigation,
       messageItems,
-      openPath,
       partsByMessageId,
       renderConfig,
-      showInFolder,
-      topic,
-      updateMessageUiState,
-      updateRenderConfig
+      topic
     ]
   )
+
+  const actions = useMemo<MessageListActions>(
+    () => ({
+      loadOlder,
+      openPath,
+      showInFolder,
+      abortTool,
+      updateMessageUiState,
+      updateRenderConfig
+    }),
+    [abortTool, loadOlder, openPath, showInFolder, updateMessageUiState, updateRenderConfig]
+  )
+
+  const meta = useMemo<MessageListMeta>(
+    () => ({
+      selectionLayer: false,
+      assistantProfile
+    }),
+    [assistantProfile]
+  )
+
+  return useMemo(() => ({ state, actions, meta }), [actions, meta, state])
 }

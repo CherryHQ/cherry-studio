@@ -10,7 +10,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { type FC, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useMessageList } from '../MessageListProvider'
+import { useMessageListActions, useMessageListUi } from '../MessageListProvider'
 
 const logger = loggerService.withContext('SiblingNavigator')
 
@@ -20,8 +20,9 @@ interface Props {
 
 const SiblingNavigator: FC<Props> = ({ messageId }) => {
   const { t } = useTranslation()
-  const { state, actions } = useMessageList()
-  const siblings = state.getMessageSiblings?.(messageId)
+  const actions = useMessageListActions()
+  const messageUi = useMessageListUi()
+  const siblings = messageUi.getMessageSiblings?.(messageId)
 
   const handleSwitch = useCallback(
     async (direction: -1 | 1) => {

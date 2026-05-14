@@ -1,4 +1,4 @@
-import type { FileMetadata, Topic, TranslateLangCode } from '@renderer/types'
+import type { FileMetadata, Topic, TranslateLangCode, TranslateLanguage } from '@renderer/types'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type {
   ChatMessageStyle,
@@ -51,6 +51,11 @@ export interface MessageActivityState {
   isProcessing: boolean
   isStreamTarget: boolean
   isApprovalAnchor: boolean
+}
+
+export interface MessageEditorCapabilities {
+  canAddImageFile: boolean
+  canAddTextFile: boolean
 }
 
 export interface MessageListItem {
@@ -115,9 +120,16 @@ export interface MessageListState {
   readonly?: boolean
   renderConfig: MessageRenderConfig
   selection?: MessageListSelectionState
+  translationLanguages?: TranslateLanguage[]
+  editorTranslationTargetLabel?: string
   getMessageUiState?: (messageId: string) => MessageUiState
   getMessageSiblings?: (messageId: string) => MessageSiblingInfo | null
   getMessageActivityState?: (message: MessageListItem) => MessageActivityState
+  getMessageEditorCapabilities?: (message: MessageListItem) => MessageEditorCapabilities
+  getTranslationLanguageLabel?: (
+    language: TranslateLangCode | TranslateLanguage | null,
+    withEmoji?: boolean
+  ) => string | undefined
 }
 
 export interface MessageListActions {
@@ -144,6 +156,7 @@ export interface MessageListActions {
   showInFolder?: (path: string) => void | Promise<void>
   abortTool?: (toolId: string) => boolean | Promise<boolean>
   selectFiles?: (options: { extensions: string[] }) => Promise<FileMetadata[] | null | undefined>
+  translateEditorText?: (text: string) => Promise<string | null | undefined>
   selectMessage?: (messageId: string, selected: boolean) => void
   toggleMultiSelectMode?: (enabled: boolean) => void
   updateMessageUiState?: (messageId: string, updates: MessageUiState) => void

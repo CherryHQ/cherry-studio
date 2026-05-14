@@ -5,7 +5,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
-import type { Assistant, Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils'
 import dayjs from 'dayjs'
 import { Sparkle } from 'lucide-react'
@@ -13,7 +13,12 @@ import type { FC, ReactNode } from 'react'
 import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useMessageList } from '../MessageListProvider'
+import {
+  useMessageListActions,
+  useMessageListMeta,
+  useMessageListSelection,
+  useMessageRenderConfig
+} from '../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem } from '../types'
 import { getMessageListItemModel, getMessageListItemModelName } from '../utils/messageListItem'
 import MessageTokens from './MessageTokens'
@@ -24,18 +29,19 @@ const MESSAGE_AVATAR_CLASS = 'h-[30px] w-[30px] rounded-full'
 
 interface Props {
   message: MessageListItem
-  assistant?: Assistant
   model?: Model
   isGroupContextMessage?: boolean
   actionsSlot?: ReactNode
 }
 
-const MessageHeader: FC<Props> = memo(({ assistant, model, message, isGroupContextMessage, actionsSlot }) => {
+const MessageHeader: FC<Props> = memo(({ model, message, isGroupContextMessage, actionsSlot }) => {
   const avatar = useAvatar()
   const { theme } = useTheme()
   const showMiniAppIcon = useSidebarIconShow('mini_app')
-  const { state, actions, meta } = useMessageList()
-  const renderConfig = state.renderConfig ?? defaultMessageRenderConfig
+  const actions = useMessageListActions()
+  const meta = useMessageListMeta()
+  const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
+  const selection = useMessageListSelection()
   const userName = renderConfig.userName
   const assistantProfile = meta.assistantProfile
   const { t } = useTranslation()
@@ -43,8 +49,8 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, isGroupConte
   const isBubbleStyle = messageStyle === 'bubble'
   const { openMiniAppById } = useMiniAppPopup()
 
-  const isMultiSelectMode = state.selection?.isMultiSelectMode ?? false
-  const selectedMessageIds = state.selection?.selectedMessageIds
+  const isMultiSelectMode = selection?.isMultiSelectMode ?? false
+  const selectedMessageIds = selection?.selectedMessageIds
 
   const isSelected = selectedMessageIds?.includes(message.id)
 
@@ -72,11 +78,11 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, isGroupConte
     ? 'group-hover/header:pointer-events-auto group-hover/header:opacity-100'
     : 'group-hover/message:pointer-events-auto group-hover/message:opacity-100'
 
-  const avatarName = useMemo(
-    () => firstLetter(assistantProfile?.name ?? assistant?.name ?? '').toUpperCase(),
-    [assistant?.name, assistantProfile?.name]
-  )
   const username = useMemo(() => removeLeadingEmoji(getUserName()), [getUserName])
+  const avatarName = useMemo(
+    () => firstLetter(assistantProfile?.name ?? username ?? '').toUpperCase(),
+    [assistantProfile?.name, username]
+  )
 
   const showMiniApp = useCallback(() => {
     showMiniAppIcon && displayModel?.provider && openMiniAppById(displayModel.provider)
