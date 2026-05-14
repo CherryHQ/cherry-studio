@@ -1,9 +1,14 @@
+import type { PermissionMode } from '@anthropic-ai/claude-agent-sdk'
+import { loggerService } from '@logger'
 import { IpcChannel } from '@shared/IpcChannel'
 import { ipcMain } from 'electron'
 
 import { windowService } from '../../../WindowService'
+import { setActiveSessionPermissionMode } from '../claudecode/active-queries'
 import { channelMessageHandler } from './ChannelMessageHandler'
 import { sessionStreamBus, type SessionStreamChunk } from './SessionStreamBus'
+
+const logger = loggerService.withContext('SessionStreamIpc')
 
 const activeSubscriptions = new Map<string, () => void>()
 
@@ -35,6 +40,23 @@ export function registerSessionStreamIpc(): void {
     const aborted = channelMessageHandler.abortSession(sessionId)
     return { success: aborted }
   })
+
+  ipcMain.handle(
+    IpcChannel.AgentSessionStream_SetPermissionMode,
+    async (_event, { sessionId, mode }: { sessionId: string; mode: PermissionMode }) => {
+      try {
+        const switched = await setActiveSessionPermissionMode(sessionId, mode)
+        return { success: switched }
+      } catch (error) {
+        logger.warn('Failed to set permission mode on active query', {
+          sessionId,
+          mode,
+          error: error instanceof Error ? error.message : String(error)
+        })
+        return { success: false }
+      }
+    }
+  )
 }
 
 export function broadcastSessionChanged(agentId: string, sessionId: string, headless?: boolean): void {
