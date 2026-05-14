@@ -80,6 +80,7 @@ export type KbSearchOutput = z.infer<typeof kbSearchOutputSchema>
 // ── web__search ───────────────────────────────────────────────────
 
 export const WEB_SEARCH_TOOL_NAME = 'web__search'
+export const WEB_FETCH_TOOL_NAME = 'web__fetch'
 
 export const webSearchInputSchema = z.object({
   query: z
@@ -103,6 +104,18 @@ export const webSearchOutputItemSchema = z.object({
 
 export const webSearchOutputSchema = z.array(webSearchOutputItemSchema)
 
+export const webFetchInputSchema = z.object({
+  urls: z
+    .array(z.string().trim().url('URL must be valid'))
+    .min(1)
+    .max(20, 'Fetch at most 20 URLs per call')
+    .describe('Absolute web page URLs to fetch and summarize. Use web__search first when you do not know the URL.')
+})
+
+export const webFetchOutputSchema = webSearchOutputSchema
+
 export type WebSearchInput = z.infer<typeof webSearchInputSchema>
 export type WebSearchOutputItem = z.infer<typeof webSearchOutputItemSchema>
 export type WebSearchOutput = z.infer<typeof webSearchOutputSchema>
+export type WebFetchInput = z.infer<typeof webFetchInputSchema>
+export type WebFetchOutput = z.infer<typeof webFetchOutputSchema>

@@ -12,10 +12,11 @@
 import { registry, type ToolRegistry } from '../registry'
 import { createKbListToolEntry } from './KnowledgeListTool'
 import { createKbSearchToolEntry } from './KnowledgeSearchTool'
-import { createWebSearchToolEntry } from './WebSearchTool'
+import { createWebFetchToolEntry, createWebSearchToolEntry } from './WebSearchTool'
 
 export function registerBuiltinTools(reg: ToolRegistry = registry): void {
   reg.register(createKbListToolEntry())
   reg.register(createKbSearchToolEntry())
+  reg.register(createWebFetchToolEntry())
   reg.register(createWebSearchToolEntry())
 }

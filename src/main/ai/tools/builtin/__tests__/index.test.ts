@@ -8,7 +8,7 @@ import { ToolRegistry } from '../../registry'
 import { registerBuiltinTools } from '../index'
 import { KB_LIST_TOOL_NAME } from '../KnowledgeListTool'
 import { KB_SEARCH_TOOL_NAME } from '../KnowledgeSearchTool'
-import { WEB_SEARCH_TOOL_NAME } from '../WebSearchTool'
+import { WEB_FETCH_TOOL_NAME, WEB_SEARCH_TOOL_NAME } from '../WebSearchTool'
 
 describe('registerBuiltinTools', () => {
   it('populates the given registry with every builtin entry', () => {
@@ -16,6 +16,7 @@ describe('registerBuiltinTools', () => {
     registerBuiltinTools(reg)
     expect(reg.has(KB_LIST_TOOL_NAME)).toBe(true)
     expect(reg.has(KB_SEARCH_TOOL_NAME)).toBe(true)
+    expect(reg.has(WEB_FETCH_TOOL_NAME)).toBe(true)
     expect(reg.has(WEB_SEARCH_TOOL_NAME)).toBe(true)
   })
 })

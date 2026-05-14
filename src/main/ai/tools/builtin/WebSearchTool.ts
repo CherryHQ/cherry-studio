@@ -1,12 +1,9 @@
 /**
  * Web search tool — agentic.
  *
- * The model picks the query and may call multiple times with refined terms.
- * Provider id is resolved at execute time by picking the first configured-and-
- * usable web search provider (matching Cherry's renderer UX where any
- * configured provider works). If the user has none configured, the tool
- * returns an empty array — the model sees that and can fall back to its
- * own knowledge.
+ * The model picks search queries or URLs and may call multiple times with
+ * refined terms. Provider ids are resolved inside WebSearchService from the
+ * user's configured default provider for each capability.
  *
  * Replaces the deleted workflow-style `webSearchToolWithPreExtractedKeywords`
  * factory whose intent analyzer pre-baked queries into the tool itself.
@@ -14,14 +11,17 @@
 
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
-import { getResolvedConfig } from '@main/services/webSearch/utils/config'
 import {
+  WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME,
+  webFetchInputSchema,
+  type WebFetchOutput,
+  webFetchOutputSchema,
   webSearchInputSchema,
   type WebSearchOutput,
   webSearchOutputSchema
 } from '@shared/ai/builtinTools'
-import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
+import type { WebSearchResponse } from '@shared/data/types/webSearch'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 
 import { getToolCallContext } from '../context'
@@ -29,7 +29,16 @@ import type { ToolEntry } from '../types'
 
 const logger = loggerService.withContext('WebSearchTool')
 
-export { WEB_SEARCH_TOOL_NAME }
+export { WEB_FETCH_TOOL_NAME, WEB_SEARCH_TOOL_NAME }
+
+function mapWebSearchOutput(response: WebSearchResponse): WebSearchOutput {
+  return response.results.map((result, index) => ({
+    id: index + 1,
+    title: result.title,
+    url: result.url,
+    content: result.content
+  }))
+}
 
 const webSearchTool = tool({
   description: `Search the web for current information, news, and real-time data.
@@ -57,29 +66,19 @@ Cite sources by [id] in your final answer.`,
   // (in AiService) handles providers that don't honour `strict`.
   strict: true,
   execute: async ({ query }, options): Promise<WebSearchOutput> => {
-    getToolCallContext(options)
-
-    const provider = await pickFirstUsableProvider()
-    if (!provider) {
-      logger.warn('No usable web search provider configured', { query })
-      return []
-    }
+    const { request } = getToolCallContext(options)
 
     try {
       const webSearchService = application.get('WebSearchService')
-      const response = await webSearchService.searchKeywords({
-        providerId: provider.id,
-        keywords: [query]
-      })
-      return response.results.map((r, index) => ({
-        id: index + 1,
-        title: r.title,
-        url: r.url,
-        content: r.content
-      }))
+      const response = await webSearchService.searchKeywords(
+        {
+          keywords: [query]
+        },
+        { signal: request.abortSignal }
+      )
+      return mapWebSearchOutput(response)
     } catch (error) {
-      logger.error('webSearchService.search failed', error as Error, {
-        providerId: provider.id,
+      logger.error('webSearchService.searchKeywords failed', error as Error, {
         query
       })
       return []
@@ -87,22 +86,40 @@ Cite sources by [id] in your final answer.`,
   }
 })
 
-/**
- * Pick the first provider that's usable: either an API-key-free "local-*"
- * provider, or one with at least one non-empty API key, or one with a
- * configured apiHost (e.g. self-hosted SearXNG). Mirrors the renderer's
- * `webSearchService.isWebSearchEnabled` selection logic.
- */
-async function pickFirstUsableProvider(): Promise<ResolvedWebSearchProvider | undefined> {
-  const prefs = application.get('PreferenceService')
-  const config = await getResolvedConfig(prefs)
-  return config.providers.find(
-    (p) =>
-      p.id.startsWith('local-') ||
-      p.apiKeys.length > 0 ||
-      p.capabilities.some((cap) => cap.apiHost !== undefined && cap.apiHost.length > 0)
-  )
-}
+const webFetchTool = tool({
+  description: `Fetch the readable content from one or more known web page URLs.
+
+Use this when:
+- You already have specific URLs from the user, prior context, or web__search
+- You need page content from an article, documentation page, or reference URL
+- Search snippets are not enough and you need the source page text
+
+Don't use this when you only have a topic or question; call web__search first.
+
+Cite sources by [id] in your final answer.`,
+  inputSchema: webFetchInputSchema,
+  outputSchema: webFetchOutputSchema,
+  strict: true,
+  execute: async ({ urls }, options): Promise<WebFetchOutput> => {
+    const { request } = getToolCallContext(options)
+
+    try {
+      const webSearchService = application.get('WebSearchService')
+      const response = await webSearchService.fetchUrls(
+        {
+          urls
+        },
+        { signal: request.abortSignal }
+      )
+      return mapWebSearchOutput(response)
+    } catch (error) {
+      logger.error('webSearchService.fetchUrls failed', error as Error, {
+        urls
+      })
+      return []
+    }
+  }
+})
 
 export function createWebSearchToolEntry(): ToolEntry {
   return {
@@ -115,5 +132,18 @@ export function createWebSearchToolEntry(): ToolEntry {
   }
 }
 
+export function createWebFetchToolEntry(): ToolEntry {
+  return {
+    name: WEB_FETCH_TOOL_NAME,
+    namespace: 'web',
+    description: 'Fetch readable content from known web page URLs',
+    defer: 'auto',
+    tool: webFetchTool,
+    applies: (scope) => Boolean(scope.assistant?.settings?.enableWebSearch)
+  }
+}
+
 export type WebSearchToolInput = InferToolInput<typeof webSearchTool>
 export type WebSearchToolOutput = InferToolOutput<typeof webSearchTool>
+export type WebFetchToolInput = InferToolInput<typeof webFetchTool>
+export type WebFetchToolOutput = InferToolOutput<typeof webFetchTool>
