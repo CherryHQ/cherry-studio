@@ -132,6 +132,7 @@ const DEDICATED_IMAGE_MODEL_REGEX = new RegExp(DEDICATED_IMAGE_MODELS.join('|'),
 const AUTO_ENABLE_IMAGE_MODELS = [
   'gemini-2.5-flash-image(?:-[\\w-]+)?',
   'gemini-3(?:\\.\\d+)?-(?:flash|pro)-image(?:-[\\w-]+)?',
+  'gpt-image-2(?:-[\\w-]+)?',
   ...DEDICATED_IMAGE_MODELS
 ]
 
@@ -144,12 +145,13 @@ const OPENAI_TOOL_USE_IMAGE_GENERATION_MODELS = [
   'gpt-4.1',
   'gpt-4.1-mini',
   'gpt-4.1-nano',
-  'gpt-5'
+  'gpt-5',
+  'gpt-image-2'
 ]
 
 const OPENAI_IMAGE_GENERATION_MODELS = [...OPENAI_TOOL_USE_IMAGE_GENERATION_MODELS, 'gpt-image-1']
 
-const MODERN_IMAGE_MODELS = ['gemini-3(?:\\.\\d+)?-(?:flash|pro)-image(?:-[\\w-]+)?']
+const MODERN_IMAGE_MODELS = ['gemini-3(?:\\.\\d+)?-(?:flash|pro)-image(?:-[\\w-]+)?', 'gpt-image-2(?:-[\\w-]+)?']
 
 const GENERATE_IMAGE_MODELS = [
   'gemini-2.0-flash-exp(?:-[\\w-]+)?',
@@ -176,6 +178,9 @@ const MODERN_GENERATE_IMAGE_MODELS_REGEX = new RegExp(MODERN_IMAGE_MODELS.join('
 export function isDedicatedImageModel(model: Model): boolean {
   if (!model) return false
   const modelId = getLowerBaseModelName(model.id)
+  // gpt-image-2 is a chat-capable image model (can return text + images),
+  // so it should use the chat completion path, not the dedicated image generation API
+  if (modelId.startsWith('gpt-image-2')) return false
   return DEDICATED_IMAGE_MODEL_REGEX.test(modelId)
 }
 
