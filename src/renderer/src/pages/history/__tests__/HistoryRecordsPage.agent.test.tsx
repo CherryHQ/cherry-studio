@@ -35,7 +35,7 @@ vi.mock('@cherrystudio/ui', async () => {
   })
 
   return {
-    Button: ({ children, ...props }: { children?: ReactNode }) => (
+    Button: ({ children, loading: _loading, ...props }: { children?: ReactNode; loading?: boolean }) => (
       <button type="button" {...props}>
         {children}
       </button>
@@ -78,13 +78,24 @@ vi.mock('@cherrystudio/ui', async () => {
       </button>
     ),
     ContextMenuTrigger: ({ children }: { children?: ReactNode }) => <>{children}</>,
+    Dialog: ({ children, open }: { children?: ReactNode; open?: boolean }) => (open ? <>{children}</> : null),
+    DialogContent: ({ children, showCloseButton: _showCloseButton, ...props }: any) => (
+      <div role="dialog" {...props}>
+        {children}
+      </div>
+    ),
+    DialogFooter: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
+    DialogHeader: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
+    DialogTitle: ({ children, ...props }: { children?: ReactNode }) => <h2 {...props}>{children}</h2>,
     EmptyState: ({ description, title }: { description?: string; title: string }) => (
       <div>
         <h2>{title}</h2>
         {description && <p>{description}</p>}
       </div>
     ),
+    FieldError: ({ children, ...props }: { children?: ReactNode }) => <p {...props}>{children}</p>,
     Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+    Label: ({ children, ...props }: { children?: ReactNode }) => <label {...props}>{children}</label>,
     Skeleton: (props: Record<string, unknown>) => <div {...props} />
   }
 })
@@ -214,7 +225,10 @@ vi.mock('react-i18next', () => ({
         'common.cancel': 'Cancel',
         'common.close': 'Close',
         'common.delete': 'Delete',
+        'common.name': 'Name',
         'common.rename': 'Rename',
+        'common.required_field': 'Required field',
+        'common.save': 'Save',
         'common.saved': 'Saved',
         'common.unnamed': 'Untitled',
         'history.records.agentSubtitle': '{{count}} sessions',
@@ -441,7 +455,7 @@ describe('HistoryRecordsPage agent mode', () => {
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
 
     expect(menuContent ?? null).toBeInTheDocument()
-    expect(menuContent).toHaveClass('z-[1001]')
+    expect(menuContent).toHaveClass('z-50')
     expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual([
       'Rename',
       'Pin',
@@ -460,11 +474,12 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(hookMocks.promptShow).not.toHaveBeenCalled()
     expect(hookMocks.setActiveSessionId).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
+    expect(hookMocks.updateSession).not.toHaveBeenCalled()
 
-    const input = screen.getByLabelText('Edit session')
-    fireEvent.blur(input)
-    await vi.waitFor(() => expect(input).toHaveFocus())
-    expect(input.closest('[data-testid="history-session-rename-field"]')).toHaveClass('focus-within:ring-2')
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('Edit session')
+    const input = within(dialog).getByLabelText('Name')
+    expect(hookMocks.updateSession).not.toHaveBeenCalled()
     fireEvent.change(input, { target: { value: 'Renamed session' } })
     fireEvent.keyDown(input, { key: 'Enter' })
 
@@ -496,8 +511,8 @@ describe('HistoryRecordsPage agent mode', () => {
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
 
     expect(screen.getByRole('dialog')).toHaveTextContent('Delete session')
-    expect(screen.getByRole('dialog')).toHaveClass('z-[1002]')
-    expect(screen.getByRole('dialog')).toHaveAttribute('data-overlay-class', 'z-[1001]')
+    expect(screen.getByRole('dialog')).toHaveClass('z-50')
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-overlay-class', 'z-40')
     expect(hookMocks.deleteSession).not.toHaveBeenCalled()
 
     await act(async () => {

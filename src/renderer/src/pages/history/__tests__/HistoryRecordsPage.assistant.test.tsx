@@ -34,7 +34,7 @@ vi.mock('@cherrystudio/ui', async () => {
   })
 
   return {
-    Button: ({ children, ...props }: { children?: ReactNode }) => (
+    Button: ({ children, loading: _loading, ...props }: { children?: ReactNode; loading?: boolean }) => (
       <button type="button" {...props}>
         {children}
       </button>
@@ -77,13 +77,24 @@ vi.mock('@cherrystudio/ui', async () => {
       </button>
     ),
     ContextMenuTrigger: ({ children }: { children?: ReactNode }) => <>{children}</>,
+    Dialog: ({ children, open }: { children?: ReactNode; open?: boolean }) => (open ? <>{children}</> : null),
+    DialogContent: ({ children, showCloseButton: _showCloseButton, ...props }: any) => (
+      <div role="dialog" {...props}>
+        {children}
+      </div>
+    ),
+    DialogFooter: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
+    DialogHeader: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
+    DialogTitle: ({ children, ...props }: { children?: ReactNode }) => <h2 {...props}>{children}</h2>,
     EmptyState: ({ description, title }: { description?: string; title: string }) => (
       <div>
         <h2>{title}</h2>
         {description && <p>{description}</p>}
       </div>
     ),
+    FieldError: ({ children, ...props }: { children?: ReactNode }) => <p {...props}>{children}</p>,
     Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+    Label: ({ children, ...props }: { children?: ReactNode }) => <label {...props}>{children}</label>,
     Skeleton: (props: Record<string, unknown>) => <div {...props} />
   }
 })
@@ -234,6 +245,9 @@ vi.mock('react-i18next', () => ({
         'common.cancel': 'Cancel',
         'common.close': 'Close',
         'common.delete': 'Delete',
+        'common.name': 'Name',
+        'common.required_field': 'Required field',
+        'common.save': 'Save',
         'history.records.assistantSubtitle': '{{count}} topics',
         'history.records.resultCount': '{{count}} results',
         'history.records.searchTopic': 'Search topics...',
@@ -396,7 +410,7 @@ describe('HistoryRecordsPage assistant mode', () => {
       />
     )
 
-    expect(screen.getByTestId('history-records-page-motion')).toBeInTheDocument()
+    expect(screen.getByTestId('history-records-page-motion')).toHaveClass('z-40')
   })
 
   it('keeps the overlay mounted long enough for the close animation', () => {
@@ -431,7 +445,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
 
     expect(menuContent ?? null).toBeInTheDocument()
-    expect(menuContent).toHaveClass('z-[1001]')
+    expect(menuContent).toHaveClass('z-50')
     expect(Array.from(menuContent?.querySelectorAll('[data-testid="context-menu-separator"]') ?? [])).toHaveLength(2)
     expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual([
       'Generate topic name',
@@ -465,7 +479,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
-  it('renames a topic from the history row context menu inline without selecting the row', async () => {
+  it('renames a topic from the history row context menu dialog without selecting the row', async () => {
     hookMocks.useAllTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
     const onClose = vi.fn()
@@ -480,11 +494,12 @@ describe('HistoryRecordsPage assistant mode', () => {
     expect(hookMocks.promptShow).not.toHaveBeenCalled()
     expect(onTopicSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
+    expect(hookMocks.updateTopic).not.toHaveBeenCalled()
 
-    const input = screen.getByLabelText('Edit topic name')
-    fireEvent.blur(input)
-    await vi.waitFor(() => expect(input).toHaveFocus())
-    expect(input.closest('[data-testid="history-topic-rename-field"]')).toHaveClass('focus-within:ring-2')
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('Edit topic name')
+    const input = within(dialog).getByLabelText('Name')
+    expect(hookMocks.updateTopic).not.toHaveBeenCalled()
     fireEvent.change(input, { target: { value: 'Renamed topic' } })
     fireEvent.keyDown(input, { key: 'Enter' })
 
@@ -496,7 +511,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     )
   })
 
-  it('does not persist empty or unchanged topic names from history inline rename', () => {
+  it('does not persist empty or unchanged topic names from history rename dialog', () => {
     hookMocks.useAllTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
 
@@ -505,8 +520,10 @@ describe('HistoryRecordsPage assistant mode', () => {
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit topic name' }))
-    fireEvent.change(screen.getByLabelText('Edit topic name'), { target: { value: '   ' } })
-    fireEvent.blur(screen.getByLabelText('Edit topic name'))
+    const emptyDialog = screen.getByRole('dialog')
+    const emptyInput = within(emptyDialog).getByLabelText('Name')
+    fireEvent.change(emptyInput, { target: { value: '   ' } })
+    fireEvent.click(within(emptyDialog).getByRole('button', { name: 'Save' }))
 
     expect(hookMocks.updateTopic).not.toHaveBeenCalled()
 
@@ -517,8 +534,10 @@ describe('HistoryRecordsPage assistant mode', () => {
     const nextAlphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const nextMenuContent = nextAlphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(nextMenuContent as HTMLElement).getByRole('button', { name: 'Edit topic name' }))
-    fireEvent.change(screen.getByLabelText('Edit topic name'), { target: { value: 'Alpha topic' } })
-    fireEvent.keyDown(screen.getByLabelText('Edit topic name'), { key: 'Enter' })
+    const unchangedDialog = screen.getByRole('dialog')
+    const unchangedInput = within(unchangedDialog).getByLabelText('Name')
+    fireEvent.change(unchangedInput, { target: { value: 'Alpha topic' } })
+    fireEvent.keyDown(unchangedInput, { key: 'Enter' })
 
     expect(hookMocks.updateTopic).not.toHaveBeenCalled()
   })
@@ -538,8 +557,8 @@ describe('HistoryRecordsPage assistant mode', () => {
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
 
     expect(screen.getByRole('dialog')).toHaveTextContent('Delete Topics')
-    expect(screen.getByRole('dialog')).toHaveClass('z-[1002]')
-    expect(screen.getByRole('dialog')).toHaveAttribute('data-overlay-class', 'z-[1001]')
+    expect(screen.getByRole('dialog')).toHaveClass('z-50')
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-overlay-class', 'z-40')
     expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
 
     await act(async () => {

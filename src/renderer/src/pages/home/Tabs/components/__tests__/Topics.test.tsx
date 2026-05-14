@@ -225,6 +225,9 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.export.siyuan') return 'Export to Siyuan'
       if (key === 'common.delete') return 'Delete'
       if (key === 'common.cancel') return 'Cancel'
+      if (key === 'common.name') return 'Name'
+      if (key === 'common.required_field') return 'Required field'
+      if (key === 'common.save') return 'Save'
       if (key === 'chat.topics.manage.delete.confirm.title') return 'Delete Topics'
       if (key === 'chat.topics.manage.delete.confirm.content') return `Delete ${options?.count ?? 0} topic(s)?`
       if (key === 'chat.add.topic.title') return 'New Topic'
@@ -618,16 +621,20 @@ describe('Topics', () => {
     )
   })
 
-  it('renames a topic inline from the shared context menu', async () => {
+  it('renames a topic from the shared context menu dialog', async () => {
     const { getByText } = renderTopicList()
 
     const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit topic name' }))
 
-    const input = screen.getByLabelText('Edit topic name')
-    fireEvent.blur(input)
-    await vi.waitFor(() => expect(input).toHaveFocus())
+    expect(topicDataMocks.updateTopic).not.toHaveBeenCalled()
+
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('Edit topic name')
+    const input = within(dialog).getByLabelText('Name')
+    expect(topicDataMocks.updateTopic).not.toHaveBeenCalled()
+
     fireEvent.change(input, { target: { value: 'Renamed topic' } })
     fireEvent.keyDown(input, { key: 'Enter' })
 
@@ -637,6 +644,16 @@ describe('Topics', () => {
         isNameManuallyEdited: true
       })
     )
+  })
+
+  it('autofocuses inline rename when double-clicking a topic title', () => {
+    const { getByText } = renderTopicList()
+
+    fireEvent.doubleClick(getByText('Alpha topic'))
+
+    const input = screen.getByLabelText('Edit topic name')
+    expect(input).toHaveFocus()
+    expect(topicDataMocks.updateTopic).not.toHaveBeenCalled()
   })
 
   it('confirms topic deletion from the shared context menu before deleting', async () => {

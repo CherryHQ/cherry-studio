@@ -1,5 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { ResourceList, useResourceList } from '@renderer/components/chat/resources'
+import EditNameDialog from '@renderer/components/EditNameDialog'
 import { isMac } from '@renderer/config/constant'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -50,8 +51,14 @@ const SessionItem = ({
   const isNewlyRenamed = newlyRenamedTopics?.includes(topicId) === true
   const nameAnimationClassName = isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''
   const hasStreamIndicator = !isActive && (isStreamPending || isStreamFulfilled)
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false)
 
-  const startEdit = useCallback(() => context.actions.startRename(session.id), [context.actions, session.id])
+  const startInlineEdit = useCallback(() => context.actions.startRename(session.id), [context.actions, session.id])
+  const startMenuEdit = useCallback((_: string) => setRenameDialogOpen(true), [])
+  const submitRenameDialog = useCallback(
+    (name: string) => context.actions.commitRename(session.id, name),
+    [context.actions, session.id]
+  )
   const handleDelete = useCallback(() => {
     void onDelete(session.id)
   }, [onDelete, session.id])
@@ -65,10 +72,10 @@ const SessionItem = ({
       onTogglePin: onTogglePin ? handleTogglePin : undefined,
       pinned,
       sessionName: session.name ?? '',
-      startEdit,
+      startEdit: startMenuEdit,
       t
     }),
-    [handleDelete, handleTogglePin, onTogglePin, pinned, session.name, startEdit, t]
+    [handleDelete, handleTogglePin, onTogglePin, pinned, session.name, startMenuEdit, t]
   )
 
   const { menuActions, handleMenuAction } = useSessionMenuActions(actionContext)
@@ -140,6 +147,7 @@ const SessionItem = ({
       <ResourceList.RenameField
         item={session}
         aria-label={t('agent.session.edit.title')}
+        autoFocus
         onClick={(event) => event.stopPropagation()}
       />
 
@@ -155,7 +163,7 @@ const SessionItem = ({
             className={nameAnimationClassName}
             onDoubleClick={(event) => {
               event.stopPropagation()
-              startEdit()
+              startInlineEdit()
             }}>
             {sessionName}
           </ResourceList.ItemTitle>
@@ -185,9 +193,18 @@ const SessionItem = ({
   )
 
   return (
-    <ResourceList.ContextMenu item={session} actions={menuActions} onAction={handleMenuAction}>
-      {row}
-    </ResourceList.ContextMenu>
+    <>
+      <ResourceList.ContextMenu item={session} actions={menuActions} onAction={handleMenuAction}>
+        {row}
+      </ResourceList.ContextMenu>
+      <EditNameDialog
+        open={renameDialogOpen}
+        title={t('agent.session.edit.title')}
+        initialName={session.name ?? ''}
+        onSubmit={submitRenameDialog}
+        onOpenChange={setRenameDialogOpen}
+      />
+    </>
   )
 }
 

@@ -88,7 +88,7 @@ const HistoryRecordsPage = ({ mode, open, origin, onClose, onTopicSelect }: Hist
           animate={overlayMotion.animate}
           exit={overlayMotion.exit}
           transition={HISTORY_OVERLAY_TRANSITION}
-          className="absolute inset-0 z-[1000] flex bg-background [-webkit-app-region:none]"
+          className="absolute inset-0 z-40 flex bg-background [-webkit-app-region:none]"
           data-testid="history-records-page-motion"
           style={{ willChange: 'opacity, clip-path' }}>
           <HistoryRecordsContent mode={mode} onClose={onClose} onTopicSelect={onTopicSelect} />

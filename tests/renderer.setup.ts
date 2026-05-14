@@ -153,10 +153,10 @@ vi.mock('@cherrystudio/ui', () => {
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
   return {
-    Button: ({ children, onPress, disabled, isDisabled, startContent, ...props }) =>
+    Button: ({ children, onPress, disabled, isDisabled, loading, startContent, ...props }) =>
       React.createElement(
         'button',
-        { ...props, onClick: onPress ?? props.onClick, disabled: disabled || isDisabled },
+        { ...props, onClick: onPress ?? props.onClick, disabled: disabled || isDisabled || loading },
         startContent,
         children
       ),
@@ -330,7 +330,7 @@ vi.mock('@cherrystudio/ui', () => {
     ImagePreviewTrigger: ({ alt, item, ...props }) =>
       React.createElement('img', { ...props, alt: alt ?? item?.alt, src: item?.src }),
     Dialog: ({ children, open, ...props }) =>
-      open ? React.createElement('div', { ...props, 'data-testid': 'dialog' }, children) : null,
+      open ? React.createElement('div', { ...props, role: 'dialog', 'data-testid': 'dialog' }, children) : null,
     DialogContent: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-content' }, children),
     DialogHeader: ({ children, ...props }) =>
@@ -339,6 +339,11 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('h2', { ...props, 'data-testid': 'dialog-title' }, children),
     DialogFooter: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-footer' }, children),
+    Label: ({ children, ...props }) => React.createElement('label', props, children),
+    FieldError: ({ children, errors, ...props }) => {
+      const errorMessage = children ?? errors?.find((error) => error?.message)?.message
+      return errorMessage ? React.createElement('div', { ...props, role: 'alert' }, errorMessage) : null
+    },
     Popover: ({ children, open = false, onOpenChange, ...props }) =>
       React.createElement(
         PopoverContext.Provider,

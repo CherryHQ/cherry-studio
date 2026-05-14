@@ -12,6 +12,7 @@ import {
   useResourceList,
   useResourceListPinnedState
 } from '@renderer/components/chat/resources'
+import EditNameDialog from '@renderer/components/EditNameDialog'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { isMac } from '@renderer/config/constant'
 import { prefetch } from '@renderer/data/hooks/useDataApi'
@@ -867,7 +868,13 @@ function TopicRow({
       : ''
   const { isFulfilled: isTopicStreamFulfilled, isPending: isTopicStreamPending } = streamStatus
   const hasTopicStreamIndicator = !isActive && (isTopicStreamPending || isTopicStreamFulfilled)
-  const startRename = useCallback(() => context.actions.startRename(topic.id), [context.actions, topic.id])
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false)
+  const startInlineRename = useCallback(() => context.actions.startRename(topic.id), [context.actions, topic.id])
+  const startMenuRename = useCallback(() => setRenameDialogOpen(true), [])
+  const submitRenameDialog = useCallback(
+    (name: string) => context.actions.commitRename(topic.id, name),
+    [context.actions, topic.id]
+  )
   const { menuActions, handleMenuAction } = useTopicMenuActions({
     exportMenuOptions,
     isRenaming: isRenaming(topic.id),
@@ -876,7 +883,7 @@ function TopicRow({
     onClearMessages,
     onDelete: onDeleteFromMenu,
     onPinTopic,
-    onStartRename: startRename,
+    onStartRename: startMenuRename,
     t,
     topic,
     topicsLength
@@ -935,6 +942,7 @@ function TopicRow({
       <ResourceList.RenameField
         item={topic}
         aria-label={t('chat.topics.edit.title')}
+        autoFocus
         onClick={(event) => event.stopPropagation()}
       />
       {context.state.renamingId !== topic.id && (
@@ -944,7 +952,7 @@ function TopicRow({
           onDoubleClick={(event) => {
             if (isManageMode) return
             event.stopPropagation()
-            context.actions.startRename(topic.id)
+            startInlineRename()
           }}>
           {topicName}
         </ResourceList.ItemTitle>
@@ -982,9 +990,19 @@ function TopicRow({
   }
 
   return (
-    <ResourceList.ContextMenu item={topic} actions={menuActions} onAction={handleMenuAction}>
-      {row}
-    </ResourceList.ContextMenu>
+    <>
+      <ResourceList.ContextMenu item={topic} actions={menuActions} onAction={handleMenuAction}>
+        {row}
+      </ResourceList.ContextMenu>
+      <EditNameDialog
+        open={renameDialogOpen}
+        title={t('chat.topics.edit.title')}
+        initialName={topic.name}
+        placeholder={t('chat.topics.edit.placeholder')}
+        onSubmit={submitRenameDialog}
+        onOpenChange={setRenameDialogOpen}
+      />
+    </>
   )
 }
 

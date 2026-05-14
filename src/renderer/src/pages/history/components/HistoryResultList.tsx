@@ -1,5 +1,6 @@
 import { EmptyState } from '@cherrystudio/ui'
 import { ResourceList, useResourceList } from '@renderer/components/chat/resources'
+import EditNameDialog from '@renderer/components/EditNameDialog'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import type {
   SessionMenuActionContextOverride,
@@ -17,18 +18,16 @@ import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic } from '@shared/data/types/topic'
 import dayjs from 'dayjs'
 import { Bot, MessageSquareText, Wrench } from 'lucide-react'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const HISTORY_HEADER_GRID_CLASS =
   'grid min-w-[760px] grid-cols-[minmax(320px,1fr)_160px_92px] gap-3 px-5 py-2.5 font-medium text-foreground-muted text-xs leading-4'
 const HISTORY_ROW_GRID_CLASS =
   'grid w-full min-w-[736px] grid-cols-[minmax(320px,1fr)_160px_92px] items-center gap-3 rounded-md px-3 text-sm leading-5'
-const HISTORY_CONTEXT_MENU_CLASS = 'z-[1001]'
-const HISTORY_CONFIRM_DIALOG_OVERLAY_CLASS = 'z-[1001]'
-const HISTORY_CONFIRM_DIALOG_CONTENT_CLASS = 'z-[1002]'
-const HISTORY_RENAME_FIELD_CLASS =
-  'rounded-md border border-border-subtle bg-background px-2 shadow-sm transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20'
+const HISTORY_CONTEXT_MENU_CLASS = 'z-50'
+const HISTORY_CONFIRM_DIALOG_OVERLAY_CLASS = 'z-40'
+const HISTORY_CONFIRM_DIALOG_CONTENT_CLASS = 'z-50'
 const TopicHistoryResourceProvider = ResourceList.Provider<Topic>
 const SessionHistoryResourceProvider = ResourceList.Provider<AgentSessionEntity>
 
@@ -205,8 +204,12 @@ const HistoryTopicRow = ({
 }: HistoryTopicRowProps) => {
   const { t } = useTranslation()
   const context = useResourceList<Topic>()
-  const isRenaming = context.state.renamingId === topic.id
-  const startRename = useCallback(() => context.actions.startRename(topic.id), [context.actions, topic.id])
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false)
+  const startRename = useCallback(() => setRenameDialogOpen(true), [])
+  const submitRenameDialog = useCallback(
+    (name: string) => context.actions.commitRename(topic.id, name),
+    [context.actions, topic.id]
+  )
   const menuContextOverride = useMemo<TopicMenuActionContextOverride>(
     () => ({ onStartRename: startRename }),
     [startRename]
@@ -225,18 +228,8 @@ const HistoryTopicRow = ({
         <span className="flex size-5 shrink-0 items-center justify-center text-foreground-muted text-sm leading-none">
           {assistant?.emoji ? <span aria-hidden>{assistant.emoji}</span> : <Bot size={14} />}
         </span>
-        <span
-          className={cn('min-w-0 flex-1', isRenaming && HISTORY_RENAME_FIELD_CLASS)}
-          data-testid="history-topic-rename-field">
-          <ResourceList.RenameField
-            item={topic}
-            aria-label={t('chat.topics.edit.title')}
-            className="h-7 min-w-0 text-sm font-medium text-foreground-secondary"
-            onClick={(event) => event.stopPropagation()}
-          />
-          {!isRenaming && (
-            <span className="block truncate font-medium text-foreground-secondary">{topic.name || fallbackTitle}</span>
-          )}
+        <span className="min-w-0 flex-1" data-testid="history-topic-rename-field">
+          <span className="block truncate font-medium text-foreground-secondary">{topic.name || fallbackTitle}</span>
         </span>
       </div>
       <div className="truncate text-foreground-secondary text-xs">{sourceName}</div>
@@ -247,15 +240,24 @@ const HistoryTopicRow = ({
   if (!menuPreset || !menuActions) return row
 
   return (
-    <ResourceList.ContextMenu
-      item={topic}
-      actions={menuActions}
-      menuClassName={HISTORY_CONTEXT_MENU_CLASS}
-      confirmDialogOverlayClassName={HISTORY_CONFIRM_DIALOG_OVERLAY_CLASS}
-      confirmDialogContentClassName={HISTORY_CONFIRM_DIALOG_CONTENT_CLASS}
-      onAction={(action) => menuPreset.onAction(topic, action, menuContextOverride)}>
-      {row}
-    </ResourceList.ContextMenu>
+    <>
+      <ResourceList.ContextMenu
+        item={topic}
+        actions={menuActions}
+        menuClassName={HISTORY_CONTEXT_MENU_CLASS}
+        confirmDialogOverlayClassName={HISTORY_CONFIRM_DIALOG_OVERLAY_CLASS}
+        confirmDialogContentClassName={HISTORY_CONFIRM_DIALOG_CONTENT_CLASS}
+        onAction={(action) => menuPreset.onAction(topic, action, menuContextOverride)}>
+        {row}
+      </ResourceList.ContextMenu>
+      <EditNameDialog
+        open={renameDialogOpen}
+        title={t('chat.topics.edit.title')}
+        initialName={topic.name}
+        onSubmit={submitRenameDialog}
+        onOpenChange={setRenameDialogOpen}
+      />
+    </>
   )
 }
 
@@ -281,8 +283,12 @@ const HistorySessionRow = ({
   const { t } = useTranslation()
   const context = useResourceList<AgentSessionEntity>()
   const avatar = agent?.configuration?.avatar?.trim()
-  const isRenaming = context.state.renamingId === session.id
-  const startEdit = useCallback((_: string) => context.actions.startRename(session.id), [context.actions, session.id])
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false)
+  const startEdit = useCallback((_: string) => setRenameDialogOpen(true), [])
+  const submitRenameDialog = useCallback(
+    (name: string) => context.actions.commitRename(session.id, name),
+    [context.actions, session.id]
+  )
   const menuContextOverride = useMemo<SessionMenuActionContextOverride>(() => ({ startEdit }), [startEdit])
   const menuActions = menuPreset?.getActions(session, menuContextOverride)
 
@@ -299,26 +305,10 @@ const HistorySessionRow = ({
         <span className="flex size-5 shrink-0 items-center justify-center text-foreground-muted text-sm leading-none">
           {avatar ? <span aria-hidden>{avatar}</span> : <Wrench size={14} />}
         </span>
-        <span
-          className={cn('min-w-0 flex-1', isRenaming && HISTORY_RENAME_FIELD_CLASS)}
-          data-testid="history-session-rename-field">
-          <ResourceList.RenameField
-            item={session}
-            aria-label={t('agent.session.edit.title')}
-            className="h-7 min-w-0 text-sm font-medium text-foreground-secondary"
-            onClick={(event) => event.stopPropagation()}
-          />
-          {!isRenaming && (
-            <>
-              <span className="block truncate font-medium text-foreground-secondary">
-                {session.name || fallbackTitle}
-              </span>
-              {session.description && (
-                <span className="mt-0.5 block truncate text-foreground-muted text-xs leading-4">
-                  {session.description}
-                </span>
-              )}
-            </>
+        <span className="min-w-0 flex-1" data-testid="history-session-rename-field">
+          <span className="block truncate font-medium text-foreground-secondary">{session.name || fallbackTitle}</span>
+          {session.description && (
+            <span className="mt-0.5 block truncate text-foreground-muted text-xs leading-4">{session.description}</span>
           )}
         </span>
       </div>
@@ -330,15 +320,24 @@ const HistorySessionRow = ({
   if (!menuPreset || !menuActions) return row
 
   return (
-    <ResourceList.ContextMenu
-      item={session}
-      actions={menuActions}
-      menuClassName={HISTORY_CONTEXT_MENU_CLASS}
-      confirmDialogOverlayClassName={HISTORY_CONFIRM_DIALOG_OVERLAY_CLASS}
-      confirmDialogContentClassName={HISTORY_CONFIRM_DIALOG_CONTENT_CLASS}
-      onAction={(action) => menuPreset.onAction(session, action, menuContextOverride)}>
-      {row}
-    </ResourceList.ContextMenu>
+    <>
+      <ResourceList.ContextMenu
+        item={session}
+        actions={menuActions}
+        menuClassName={HISTORY_CONTEXT_MENU_CLASS}
+        confirmDialogOverlayClassName={HISTORY_CONFIRM_DIALOG_OVERLAY_CLASS}
+        confirmDialogContentClassName={HISTORY_CONFIRM_DIALOG_CONTENT_CLASS}
+        onAction={(action) => menuPreset.onAction(session, action, menuContextOverride)}>
+        {row}
+      </ResourceList.ContextMenu>
+      <EditNameDialog
+        open={renameDialogOpen}
+        title={t('agent.session.edit.title')}
+        initialName={session.name ?? ''}
+        onSubmit={submitRenameDialog}
+        onOpenChange={setRenameDialogOpen}
+      />
+    </>
   )
 }
 
