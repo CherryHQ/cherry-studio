@@ -6343,6 +6343,7 @@
         }
       },
       "api_host": "API Host",
+      "api_host_with_endpoint_label": "API Host (Endpoint URL)",
       "api_host_drawer_hint": "Custom API request URL; leave empty when the catalog default applies.",
       "api_host_no_valid": "API address is invalid",
       "api_host_placeholder": "Not configured",

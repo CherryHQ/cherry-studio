@@ -222,7 +222,7 @@ export default function ProviderCustomHeaderDrawer({
   const hostLabel =
     hostEditMode === 'anthropic'
       ? t('settings.provider.anthropic_api_host')
-      : `${t('settings.provider.api_host')} (Endpoint URL)`
+      : t('settings.provider.api_host_with_endpoint_label')
 
   const toggleLabel =
     headersUiMode === 'list'

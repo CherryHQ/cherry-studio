@@ -713,7 +713,14 @@ export class CherryINOAuthService extends BaseService implements Activatable {
       const response = await this.authenticatedFetch(apiHost, '/api/user/self')
 
       if (!response.ok) {
-        logger.warn(`Failed to fetch CherryIN profile: ${response.status} ${response.statusText}`)
+        // Enrich the diagnostic payload so a misconfigured backend is not
+        // reduced to a stringless warn — caller (getBalance) silently goes on
+        // with profile: null, so this log is the only signal.
+        logger.warn('Failed to fetch CherryIN profile', {
+          status: response.status,
+          statusText: response.statusText,
+          body: await this.readResponseBodyForDiagnostics(response)
+        })
         return null
       }
 

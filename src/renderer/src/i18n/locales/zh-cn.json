@@ -6343,6 +6343,7 @@
         }
       },
       "api_host": "API 地址",
+      "api_host_with_endpoint_label": "API 地址 (Endpoint URL)",
       "api_host_drawer_hint": "自定义 API 请求地址；留空则使用目录默认地址。",
       "api_host_no_valid": "API 地址不合法",
       "api_host_placeholder": "未配置",

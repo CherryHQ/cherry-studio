@@ -6343,6 +6343,7 @@
         }
       },
       "api_host": "API 主機位址",
+      "api_host_with_endpoint_label": "API 主機位址 (Endpoint URL)",
       "api_host_drawer_hint": "自訂 API 請求網址；留空則使用目錄預設。",
       "api_host_no_valid": "API 位址不合法",
       "api_host_placeholder": "未設定",

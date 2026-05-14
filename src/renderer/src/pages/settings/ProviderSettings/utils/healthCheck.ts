@@ -86,7 +86,7 @@ export function summarizeHealthResults(results: ModelWithStatus[], providerName?
 
   const summary = summaryParts.join(', ')
   return t('settings.models.check.model_status_summary', {
-    provider: providerName ?? 'Unknown Provider',
+    provider: providerName ?? t('common.unknown'),
     summary
   })
 }
