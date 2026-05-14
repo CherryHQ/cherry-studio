@@ -1,7 +1,6 @@
 import { ChatAppShell, type ChatPanePosition, LoadingState } from '@renderer/components/chat'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useCache } from '@renderer/data/hooks/useCache'
-import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgent, useAgents } from '@renderer/hooks/agents/useAgentDataApi'
 import { useActiveSession } from '@renderer/hooks/agents/useSessionDataApi'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
@@ -9,6 +8,7 @@ import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
 import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import type { GetAgentResponse } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
@@ -37,8 +37,7 @@ interface AgentChatProps {
 
 const AgentChat = ({ pane, paneOpen, panePosition }: AgentChatProps) => {
   const { t } = useTranslation()
-  const [messageNavigation] = usePreference('chat.message.navigation_mode')
-  const [messageStyle] = usePreference('chat.message.style')
+  const { messageNavigation, messageStyle } = useSettings()
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
 
   const { session: activeSession, isLoading: isSessionLoading } = useActiveSession()

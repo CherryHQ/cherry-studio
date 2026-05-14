@@ -3,6 +3,7 @@ import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { useAgents } from '@renderer/hooks/agents/useAgentDataApi'
 import { useAgentSessionInitializer } from '@renderer/hooks/agents/useAgentSessionInitializer'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
@@ -20,7 +21,7 @@ const AgentPage = () => {
   const { isLeftNavbar } = useNavbarPosition()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
-  const [topicPosition] = usePreference('topic.position')
+  const { topicPosition } = useSettings()
   const { agents } = useAgents()
   const { t } = useTranslation()
 

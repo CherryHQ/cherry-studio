@@ -8,6 +8,7 @@ import { useActiveSession } from '@renderer/hooks/agents/useSessionDataApi'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
+import { useMessageStyle } from '@renderer/hooks/useSettings'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import type { Assistant, Model, Topic } from '@renderer/types'
@@ -38,8 +39,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   const { agent } = useAgent(activeSession?.agentId ?? null)
   const isAgentView = window.location.hash.startsWith('#/agents')
   const { t } = useTranslation()
-  const [messageStyle] = usePreference('chat.message.style')
-  const isBubbleStyle = messageStyle === 'bubble'
+  const { isBubbleStyle } = useMessageStyle()
   const { openMiniAppById } = useMiniAppPopup()
 
   const { isMultiSelectMode, selectedMessageIds, handleSelectMessage } = useChatContext(topic)

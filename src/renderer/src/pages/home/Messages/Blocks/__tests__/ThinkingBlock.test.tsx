@@ -6,10 +6,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ThinkingBlock from '../ThinkingBlock'
 
 // Mock dependencies
+const mockUseSettings = vi.fn()
 const mockUseTranslation = vi.fn()
 let mockUsePreference: any
 
 // Mock hooks
+vi.mock('@renderer/hooks/useSettings', () => ({
+  useSettings: () => mockUseSettings()
+}))
+
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: vi.fn()
 }))
@@ -132,6 +137,13 @@ describe('ThinkingBlock', () => {
     // Get the mocked functions
     const { usePreference } = await import('@data/hooks/usePreference')
     mockUsePreference = usePreference as any
+
+    // Default mock implementations
+    mockUseSettings.mockReturnValue({
+      messageFont: 'sans-serif',
+      fontSize: 14,
+      thoughtAutoCollapse: false
+    })
 
     // Mock usePreference calls
     mockUsePreference.mockImplementation((key: string) => {
@@ -302,6 +314,12 @@ describe('ThinkingBlock', () => {
   describe('collapse behavior', () => {
     it('should respect auto-collapse setting for initial state', () => {
       // Test expanded by default (auto-collapse disabled)
+      mockUseSettings.mockReturnValue({
+        messageFont: 'sans-serif',
+        fontSize: 14,
+        thoughtAutoCollapse: false
+      })
+
       const block = createThinkingBlock()
       const { unmount } = renderThinkingBlock(block)
 
