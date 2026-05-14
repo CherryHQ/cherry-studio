@@ -304,6 +304,14 @@ function buildAuthConfig(legacy: LegacyProvider, settings: OldLlmSettings): Auth
   }
 
   if (legacy.authType === 'oauth') {
+    // Legacy Anthropic web OAuth was removed end-to-end. Tokens lived in a
+    // separate credentials file that's no longer read; carrying authType
+    // 'oauth' forward would leave the v2 row in an unrecoverable state.
+    // Re-seat as api-key so the user can paste a key and the renderer's
+    // api-key UI is the canonical path.
+    if (legacy.id === 'anthropic' || legacy.type === 'anthropic') {
+      return { type: 'api-key' }
+    }
     return {
       type: 'oauth',
       clientId: ''
