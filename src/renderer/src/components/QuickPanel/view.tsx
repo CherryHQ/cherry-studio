@@ -268,7 +268,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         }
       } else if (
         action &&
-        !['outsideclick', 'esc', 'enter_empty', 'no_result'].includes(action) &&
+        !['outsideclick', 'esc', 'enter', 'enter_empty', 'no_result'].includes(action) &&
         ctx.triggerInfo?.type === 'input'
       ) {
         setTimeoutTimer(
@@ -598,10 +598,9 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           const isCollapsed = hasSearch && nonPinnedCount === 0
           if (isCollapsed) return
 
-          // 面板可见且未折叠时：拦截所有 Enter 变体；
-          // 纯 Enter 选择项，带修饰键仅拦截不处理
+          // 面板可见且未折叠时：纯 Enter 键让输入框处理（用于发送消息），
+          // 带修饰键（Ctrl/Cmd/Alt）仅拦截不处理，带 Shift 则换行
           if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            // Don't prevent default or stop propagation - let it create a newline
             setIsMouseOver(false)
             break
           }
@@ -613,15 +612,11 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
             break
           }
 
-          if (list?.[index]) {
-            e.preventDefault()
-            e.stopPropagation()
-            setIsMouseOver(false)
-
-            handleItemAction(list[index], 'enter')
-          } else {
-            handleClose('enter_empty')
-          }
+          // 纯 Enter: 让输入框处理，直接关闭面板，不拦截
+          // 不调用 handleItemAction 或 handleClose，避免干扰消息发送
+          e.preventDefault()
+          e.stopPropagation()
+          handleClose('enter')
           break
         }
         case 'Escape':
