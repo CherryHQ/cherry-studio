@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { type Activatable, BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { CHERRYIN_CONFIG } from '@shared/config/constant'
 import type { AuthConfig } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -132,7 +132,7 @@ interface TokenRefreshResult {
 export class CherryINOAuthService extends BaseService implements Activatable {
   private readonly pendingOAuthFlows = new Map<string, PendingOAuthFlow>()
   private refreshAccessTokenPromise: Promise<TokenRefreshResult> | null = null
-  private cleanupTimer: NodeJS.Timeout | null = null
+  private cleanupTimerDisposable: Disposable | null = null
 
   protected onInit(): void {
     this.registerIpcHandlers()
@@ -144,14 +144,16 @@ export class CherryINOAuthService extends BaseService implements Activatable {
   }
 
   onActivate(): void {
-    this.cleanupTimer = setInterval(() => this.cleanupExpiredFlows(), OAUTH_FLOW_CLEANUP_INTERVAL_MS)
-    this.cleanupTimer.unref?.()
+    this.cleanupTimerDisposable = this.registerInterval(
+      () => this.cleanupExpiredFlows(),
+      OAUTH_FLOW_CLEANUP_INTERVAL_MS
+    )
   }
 
   onDeactivate(): void {
-    if (this.cleanupTimer) {
-      clearInterval(this.cleanupTimer)
-      this.cleanupTimer = null
+    if (this.cleanupTimerDisposable) {
+      this.cleanupTimerDisposable.dispose()
+      this.cleanupTimerDisposable = null
     }
   }
 
