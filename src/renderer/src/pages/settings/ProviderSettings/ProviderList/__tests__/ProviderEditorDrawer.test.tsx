@@ -105,6 +105,29 @@ describe('ProviderEditorDrawer', () => {
     expect(callArg?.presetProviderId).toBeUndefined()
   })
 
+  it('uses a duplicate-specific submit label when mode is duplicate', () => {
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{
+          kind: 'duplicate',
+          source: {
+            id: 'openai-2',
+            name: 'OpenAI Personal',
+            presetProviderId: 'openai',
+            defaultChatEndpoint: 'openai-chat-completions',
+            authType: 'api-key'
+          } as any
+        }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'settings.provider.duplicate.menu_label' })).toBeInTheDocument()
+  })
+
   it('preserves provider type semantics on edit (defaultChatEndpoint not switched, no presetProviderId leak)', async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
 
