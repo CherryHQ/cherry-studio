@@ -164,7 +164,7 @@ export interface UseTopicMessagesResult {
 
 export function useTopicMessages(topicId: string, options?: { enabled?: boolean }): UseTopicMessagesResult {
   const enabled = options?.enabled !== false
-  const { pages, isLoading, mutate, loadNext, hasNext } = useInfiniteQuery('/topics/:topicId/messages', {
+  const { pages, isLoading, isRefreshing, mutate, loadNext, hasNext } = useInfiniteQuery('/topics/:topicId/messages', {
     params: { topicId },
     query: { includeSiblings: true },
     limit: PAGE_SIZE,
@@ -176,19 +176,36 @@ export function useTopicMessages(topicId: string, options?: { enabled?: boolean 
   // chronological root → activeNode list. `activeNodeId` lives on each page
   // response — page 0 is the freshest fetch, so its value is authoritative.
   const branchItems = useInfiniteFlatItems(pages, { reversePages: true })
+  const pagesBelongToTopic = useMemo(
+    () =>
+      pages.every((page) =>
+        page.items.every(
+          (item) =>
+            item.message.topicId === topicId &&
+            (item.siblingsGroup ?? []).every((sibling) => sibling.topicId === topicId)
+        )
+      ),
+    [pages, topicId]
+  )
   const activeNodeId = pages[0]?.activeNodeId ?? null
 
-  // On remount with stale SWR cache, isLoading=false but data is stale.
-  // Force a fresh fetch and track readiness so the loading gate blocks until fresh.
-  const [isReady, setIsReady] = useState(false)
+  // On remount with stale SWR cache, SWR may expose cached data while it
+  // revalidates. Track freshness per topic so the loading gate blocks stale
+  // cached rows without issuing an extra mutate() on top of SWR's own fetch.
+  const [readyTopicId, setReadyTopicId] = useState<string | null>(null)
   useEffect(() => {
     if (!enabled) {
-      setIsReady(true)
+      setReadyTopicId(topicId)
       return
     }
-    setIsReady(false)
-    void mutate().then(() => setIsReady(true))
-  }, [topicId, mutate, enabled])
+
+    setReadyTopicId((current) => (current === topicId ? current : null))
+  }, [topicId, enabled])
+
+  useEffect(() => {
+    if (!enabled || isLoading || isRefreshing || !pagesBelongToTopic) return
+    setReadyTopicId(topicId)
+  }, [enabled, isLoading, isRefreshing, pagesBelongToTopic, topicId])
 
   const projectionCacheRef = useRef<WeakMap<SharedMessage, CherryUIMessage>>(new WeakMap())
   const uiMessages = useMemo<CherryUIMessage[]>(
@@ -216,7 +233,7 @@ export function useTopicMessages(topicId: string, options?: { enabled?: boolean 
   return {
     uiMessages,
     siblingsMap,
-    isLoading: enabled && (isLoading || !isReady),
+    isLoading: enabled && (isLoading || readyTopicId !== topicId || !pagesBelongToTopic),
     refresh,
     activeNodeId,
     loadOlder: loadNext,

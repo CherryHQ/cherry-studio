@@ -650,7 +650,7 @@ export function Topics({ activeTopic, setActiveTopic, position }: Props) {
               </Tooltip>
               <ResourceList.HeaderActionButton
                 type="button"
-                aria-label={t('shortcut.general.toggle_sidebar')}
+                aria-label={t('settings.shortcuts.toggle_sidebar')}
                 onClick={() => void setShowSidebar(!showSidebar)}>
                 <ChevronsUpDown size={12} className="block rotate-45" />
               </ResourceList.HeaderActionButton>

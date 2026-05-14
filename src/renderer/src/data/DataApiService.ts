@@ -210,8 +210,6 @@ export class DataApiService implements ApiClient {
       }
     }
 
-    logger.debug(`Making ${method} request to ${path}`, { request })
-
     return this.sendRequest<T>(request).catch((error) => {
       logger.error(`Request failed: ${method} ${path}`, error)
       throw toDataApiError(error, `${method} ${path}`)
