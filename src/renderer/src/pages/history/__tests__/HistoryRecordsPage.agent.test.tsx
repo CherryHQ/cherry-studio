@@ -83,21 +83,21 @@ vi.mock('react-i18next', () => ({
         'common.all': 'All',
         'common.close': 'Close',
         'common.unnamed': 'Untitled',
-        'history.v2.agentSubtitle': '{{count}} sessions',
-        'history.v2.agentTitle': 'Agent history',
-        'history.v2.empty.sessionsDescription': 'No sessions for the current filters.',
-        'history.v2.empty.sessionsTitle': 'No sessions',
-        'history.v2.loading.sessionsDescription': 'Loading sessions.',
-        'history.v2.loading.sessionsTitle': 'Loading sessions',
-        'history.v2.resultCount': '{{count}} results',
-        'history.v2.searchSession': 'Search sessions...',
-        'history.v2.sidebar.status': 'Status',
-        'history.v2.status.completed': 'Completed',
-        'history.v2.status.failed': 'Failed',
-        'history.v2.status.running': 'Running',
-        'history.v2.table.messages': 'Messages',
-        'history.v2.table.session': 'Session',
-        'history.v2.table.time': 'Time'
+        'history.records.agentSubtitle': '{{count}} sessions',
+        'history.records.agentTitle': 'Agent history',
+        'history.records.empty.sessionsDescription': 'No sessions for the current filters.',
+        'history.records.empty.sessionsTitle': 'No sessions',
+        'history.records.loading.sessionsDescription': 'Loading sessions.',
+        'history.records.loading.sessionsTitle': 'Loading sessions',
+        'history.records.resultCount': '{{count}} results',
+        'history.records.searchSession': 'Search sessions...',
+        'history.records.sidebar.status': 'Status',
+        'history.records.status.completed': 'Completed',
+        'history.records.status.failed': 'Failed',
+        'history.records.status.running': 'Running',
+        'history.records.table.messages': 'Messages',
+        'history.records.table.session': 'Session',
+        'history.records.table.time': 'Time'
       }
       const template = labels[key] ?? fallback ?? key
       return template.replace('{{count}}', String(options?.count ?? ''))
@@ -105,7 +105,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-import HistoryPageV2 from '../HistoryPageV2'
+import HistoryRecordsPage from '../HistoryRecordsPage'
 
 function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessionEntity {
   return {
@@ -165,12 +165,12 @@ function setupAgentHistory({
   hookMocks.useCache.mockReturnValue([null, hookMocks.setActiveSessionId])
 
   const onClose = vi.fn()
-  render(<HistoryPageV2 mode="agent" open onClose={onClose} />)
+  render(<HistoryRecordsPage mode="agent" open onClose={onClose} />)
 
   return { onClose }
 }
 
-describe('HistoryPageV2 agent mode', () => {
+describe('HistoryRecordsPage agent mode', () => {
   beforeEach(() => {
     document.body.innerHTML = '<div id="agent-page"></div><div id="home-page"></div>'
     hookMocks.cacheGet.mockReset()

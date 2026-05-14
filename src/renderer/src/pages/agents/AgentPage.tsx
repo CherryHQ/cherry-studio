@@ -5,7 +5,7 @@ import { useAgentSessionInitializer } from '@renderer/hooks/agents/useAgentSessi
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import HistoryPageV2 from '@renderer/pages/history/HistoryPageV2'
+import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
@@ -60,7 +60,9 @@ const AgentPage = () => {
     setHistoryOpen(true)
   }, [])
   const closeHistory = useCallback(() => setHistoryOpen(false), [])
-  const historyOverlay = <HistoryPageV2 mode="agent" open={historyOpen} origin={historyOrigin} onClose={closeHistory} />
+  const historyOverlay = (
+    <HistoryRecordsPage mode="agent" open={historyOpen} origin={historyOrigin} onClose={closeHistory} />
+  )
 
   if (agents && agents.length === 0) {
     return (

@@ -28,7 +28,7 @@ import HistorySourceSidebar, {
   type HistoryStatusItem
 } from './components/HistorySourceSidebar'
 
-export type HistoryPageV2Mode = 'assistant' | 'agent'
+export type HistoryRecordsMode = 'assistant' | 'agent'
 
 const ALL_SOURCE_ID = 'all'
 const DEFAULT_ASSISTANT_SOURCE_ID = '__default_assistant__'
@@ -43,15 +43,15 @@ const HISTORY_OVERLAY_TRANSITION = {
 } as const
 type AgentHistorySessionStatus = Exclude<HistorySourceStatus, 'all'>
 
-interface HistoryPageV2Props {
-  mode: HistoryPageV2Mode
+interface HistoryRecordsPageProps {
+  mode: HistoryRecordsMode
   open: boolean
   origin?: DOMRectReadOnly
   onClose: () => void
   onTopicSelect?: (topic: RendererTopic) => void
 }
 
-const HistoryPageV2 = ({ mode, open, origin, onClose, onTopicSelect }: HistoryPageV2Props) => {
+const HistoryRecordsPage = ({ mode, open, origin, onClose, onTopicSelect }: HistoryRecordsPageProps) => {
   const prefersReducedMotion = useReducedMotion()
   const portalRootId = mode === 'assistant' ? 'home-page' : 'agent-page'
   const portalRoot = document.getElementById(portalRootId)
@@ -66,15 +66,15 @@ const HistoryPageV2 = ({ mode, open, origin, onClose, onTopicSelect }: HistoryPa
     <AnimatePresence initial={false}>
       {open && (
         <motion.div
-          key="history-page-v2"
+          key="history-records-page"
           initial={overlayMotion.initial}
           animate={overlayMotion.animate}
           exit={overlayMotion.exit}
           transition={HISTORY_OVERLAY_TRANSITION}
           className="absolute inset-0 z-[1000] flex bg-background [-webkit-app-region:none]"
-          data-testid="history-page-v2-motion"
+          data-testid="history-records-page-motion"
           style={{ willChange: 'opacity, clip-path' }}>
-          <HistoryPageV2Content mode={mode} onClose={onClose} onTopicSelect={onTopicSelect} />
+          <HistoryRecordsContent mode={mode} onClose={onClose} onTopicSelect={onTopicSelect} />
         </motion.div>
       )}
     </AnimatePresence>,
@@ -82,26 +82,26 @@ const HistoryPageV2 = ({ mode, open, origin, onClose, onTopicSelect }: HistoryPa
   )
 }
 
-interface HistoryPageV2ContentProps {
-  mode: HistoryPageV2Mode
+interface HistoryRecordsContentProps {
+  mode: HistoryRecordsMode
   onClose: () => void
   onTopicSelect?: (topic: RendererTopic) => void
 }
 
-const HistoryPageV2Content = ({ mode, onClose, onTopicSelect }: HistoryPageV2ContentProps) => {
+const HistoryRecordsContent = ({ mode, onClose, onTopicSelect }: HistoryRecordsContentProps) => {
   if (mode === 'assistant') {
-    return <AssistantHistoryPageV2Content onClose={onClose} onTopicSelect={onTopicSelect} />
+    return <AssistantHistoryRecordsContent onClose={onClose} onTopicSelect={onTopicSelect} />
   }
 
-  return <AgentHistoryPageV2Content onClose={onClose} />
+  return <AgentHistoryRecordsContent onClose={onClose} />
 }
 
-interface HistoryPageV2ModeContentProps {
+interface HistoryRecordsModeContentProps {
   onClose: () => void
   onTopicSelect?: (topic: RendererTopic) => void
 }
 
-const AssistantHistoryPageV2Content = ({ onClose, onTopicSelect }: HistoryPageV2ModeContentProps) => {
+const AssistantHistoryRecordsContent = ({ onClose, onTopicSelect }: HistoryRecordsModeContentProps) => {
   const { t } = useTranslation()
   const [selectedSourceId, setSelectedSourceId] = useState(ALL_SOURCE_ID)
   const [searchText, setSearchText] = useState('')
@@ -174,12 +174,12 @@ const AssistantHistoryPageV2Content = ({ onClose, onTopicSelect }: HistoryPageV2
   )
 
   return (
-    <HistoryPageV2Layout
+    <HistoryRecordsLayout
       mode="assistant"
       onClose={onClose}
       sources={assistantSources}
       selectedSourceId={selectedSourceId}
-      subtitle={t('history.v2.assistantSubtitle', '{{count}} 个话题', { count: topics.length })}
+      subtitle={t('history.records.assistantSubtitle', '{{count}} 个话题', { count: topics.length })}
       resultCount={searchedTopics.length}
       searchText={searchText}
       onSearchTextChange={setSearchText}
@@ -195,11 +195,11 @@ const AssistantHistoryPageV2Content = ({ onClose, onTopicSelect }: HistoryPageV2
         isLoading={isTopicsLoading}
         onTopicSelect={handleTopicSelect}
       />
-    </HistoryPageV2Layout>
+    </HistoryRecordsLayout>
   )
 }
 
-const AgentHistoryPageV2Content = ({ onClose }: HistoryPageV2ModeContentProps) => {
+const AgentHistoryRecordsContent = ({ onClose }: HistoryRecordsModeContentProps) => {
   const { t } = useTranslation()
   const [selectedSourceId, setSelectedSourceId] = useState(ALL_SOURCE_ID)
   const [selectedStatus, setSelectedStatus] = useState<HistorySourceStatus>(ALL_SOURCE_ID)
@@ -280,14 +280,14 @@ const AgentHistoryPageV2Content = ({ onClose }: HistoryPageV2ModeContentProps) =
   )
 
   return (
-    <HistoryPageV2Layout
+    <HistoryRecordsLayout
       mode="agent"
       onClose={onClose}
       sources={agentSources}
       selectedSourceId={selectedSourceId}
       selectedStatus={selectedStatus}
       statusItems={statusItems}
-      subtitle={t('history.v2.agentSubtitle', '{{count}} 个会话', { count: sessions.length })}
+      subtitle={t('history.records.agentSubtitle', '{{count}} 个会话', { count: sessions.length })}
       resultCount={searchedSessions.length}
       searchText={searchText}
       onSearchTextChange={setSearchText}
@@ -304,12 +304,12 @@ const AgentHistoryPageV2Content = ({ onClose }: HistoryPageV2ModeContentProps) =
         isLoading={isSessionsLoading || isAgentsLoading}
         onSessionSelect={handleSessionSelect}
       />
-    </HistoryPageV2Layout>
+    </HistoryRecordsLayout>
   )
 }
 
-interface HistoryPageV2LayoutProps {
-  mode: HistoryPageV2Mode
+interface HistoryRecordsLayoutProps {
+  mode: HistoryRecordsMode
   onClose: () => void
   sources: HistorySourceItem[]
   selectedSourceId: string
@@ -324,7 +324,7 @@ interface HistoryPageV2LayoutProps {
   onStatusSelect?: (status: HistorySourceStatus) => void
 }
 
-const HistoryPageV2Layout = ({
+const HistoryRecordsLayout = ({
   mode,
   onClose,
   sources,
@@ -338,10 +338,12 @@ const HistoryPageV2Layout = ({
   onSearchTextChange,
   onSourceSelect,
   onStatusSelect
-}: HistoryPageV2LayoutProps) => {
+}: HistoryRecordsLayoutProps) => {
   const { t } = useTranslation()
   const title =
-    mode === 'assistant' ? t('history.v2.title', '话题历史记录') : t('history.v2.agentTitle', '智能体历史记录')
+    mode === 'assistant'
+      ? t('history.records.title', '话题历史记录')
+      : t('history.records.agentTitle', '智能体历史记录')
 
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background text-foreground" aria-label={title}>
@@ -487,19 +489,19 @@ function buildAgentStatusItems(
     },
     {
       id: 'running',
-      label: t('history.v2.status.running', '运行中'),
+      label: t('history.records.status.running', '运行中'),
       count: counts.running,
       dotClassName: 'text-warning'
     },
     {
       id: 'completed',
-      label: t('history.v2.status.completed', '已完成'),
+      label: t('history.records.status.completed', '已完成'),
       count: counts.completed,
       dotClassName: 'text-success'
     },
     {
       id: 'failed',
-      label: t('history.v2.status.failed', '失败'),
+      label: t('history.records.status.failed', '失败'),
       count: counts.failed,
       dotClassName: 'text-destructive'
     }
@@ -534,7 +536,7 @@ function buildAssistantSources(
         label:
           sourceId === DEFAULT_ASSISTANT_SOURCE_ID
             ? defaultAssistantLabel
-            : (assistant?.name ?? t('history.v2.sidebar.unknownAssistant', '未知助手')),
+            : (assistant?.name ?? t('history.records.sidebar.unknownAssistant', '未知助手')),
         count,
         icon: assistant?.emoji ? <span className="text-sm leading-none">{assistant.emoji}</span> : <Bot size={15} />
       }
@@ -584,4 +586,4 @@ function buildAgentSources(
   ]
 }
 
-export default HistoryPageV2
+export default HistoryRecordsPage

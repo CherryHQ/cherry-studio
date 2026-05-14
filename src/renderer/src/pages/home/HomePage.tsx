@@ -5,7 +5,7 @@ import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
 import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
-import HistoryPageV2 from '@renderer/pages/history/HistoryPageV2'
+import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
 import type { Topic } from '@renderer/types'
@@ -146,7 +146,7 @@ const HomePage: FC = () => {
   }, [])
   const closeHistory = useCallback(() => setHistoryOpen(false), [])
   const historyOverlay = (
-    <HistoryPageV2
+    <HistoryRecordsPage
       mode="assistant"
       open={historyOpen}
       origin={historyOrigin}

@@ -230,7 +230,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.add.topic.title') return 'New Topic'
       if (key === 'chat.default.name') return 'Default Assistant'
       if (key === 'common.prompt') return 'Prompt'
-      if (key === 'history.v2.title') return 'Topic History'
+      if (key === 'history.records.title') return 'Topic History'
       if (key === 'settings.topic.position.label') return 'Topic position'
       if (key === 'chat.topics.delete.shortcut') return `Hold ${options?.key ?? 'Ctrl'} to delete directly`
       return key

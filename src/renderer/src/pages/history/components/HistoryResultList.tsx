@@ -1,6 +1,6 @@
 import { EmptyState } from '@cherrystudio/ui'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import type { HistoryPageV2Mode } from '@renderer/pages/history/HistoryPageV2'
+import type { HistoryRecordsMode } from '@renderer/pages/history/HistoryRecordsPage'
 import { cn } from '@renderer/utils'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -17,7 +17,7 @@ const HISTORY_ROW_GRID_CLASS =
   'grid w-full min-w-[736px] grid-cols-[minmax(320px,1fr)_160px_72px_92px] items-center gap-3 rounded-md px-3 text-sm leading-5'
 
 interface HistoryResultListProps {
-  mode: HistoryPageV2Mode
+  mode: HistoryRecordsMode
   topics: readonly Topic[]
   sessions: readonly AgentSessionEntity[]
   assistantById: ReadonlyMap<string, Assistant>
@@ -47,26 +47,28 @@ const HistoryResultList = ({
   const itemCount = mode === 'assistant' ? topicList.length : sessionList.length
   const emptyTitle = isLoading
     ? mode === 'assistant'
-      ? t('history.v2.loading.title', '正在加载话题')
-      : t('history.v2.loading.sessionsTitle', '正在加载会话')
+      ? t('history.records.loading.title', '正在加载话题')
+      : t('history.records.loading.sessionsTitle', '正在加载会话')
     : mode === 'assistant'
-      ? t('history.v2.empty.title', '暂无话题')
-      : t('history.v2.empty.sessionsTitle', '暂无会话')
+      ? t('history.records.empty.title', '暂无话题')
+      : t('history.records.empty.sessionsTitle', '暂无会话')
   const emptyDescription = isLoading
     ? mode === 'assistant'
-      ? t('history.v2.loading.description', '正在读取话题列表。')
-      : t('history.v2.loading.sessionsDescription', '正在读取会话列表。')
+      ? t('history.records.loading.description', '正在读取话题列表。')
+      : t('history.records.loading.sessionsDescription', '正在读取会话列表。')
     : mode === 'assistant'
-      ? t('history.v2.empty.description', '当前筛选下没有可展示的话题。')
-      : t('history.v2.empty.sessionsDescription', '当前筛选下没有可展示的会话。')
+      ? t('history.records.empty.description', '当前筛选下没有可展示的话题。')
+      : t('history.records.empty.sessionsDescription', '当前筛选下没有可展示的会话。')
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
       <HistoryListHeader
-        titleLabel={mode === 'assistant' ? t('history.v2.table.title', '标题') : t('history.v2.table.session', '会话')}
+        titleLabel={
+          mode === 'assistant' ? t('history.records.table.title', '标题') : t('history.records.table.session', '会话')
+        }
         sourceLabel={mode === 'assistant' ? t('common.assistant', '助手') : t('common.agent', '智能体')}
-        metadataLabel={t('history.v2.table.messages', '消息')}
-        timeLabel={t('history.v2.table.time', '时间')}
+        metadataLabel={t('history.records.table.messages', '消息')}
+        timeLabel={t('history.records.table.time', '时间')}
       />
 
       {itemCount > 0 && mode === 'assistant' ? (
@@ -79,7 +81,7 @@ const HistoryResultList = ({
           {(topic) => {
             const assistant = topic.assistantId ? assistantById.get(topic.assistantId) : undefined
             const sourceName = topic.assistantId
-              ? (assistant?.name ?? t('history.v2.sidebar.unknownAssistant', '未知助手'))
+              ? (assistant?.name ?? t('history.records.sidebar.unknownAssistant', '未知助手'))
               : defaultAssistantLabel
 
             return (
@@ -87,7 +89,7 @@ const HistoryResultList = ({
                 topic={topic}
                 assistant={assistant}
                 sourceName={sourceName}
-                emptyValue={t('history.v2.table.emptyValue', '—')}
+                emptyValue={t('history.records.table.emptyValue', '—')}
                 fallbackTitle={t('chat.default.topic.name', '新话题')}
                 timeLabel={formatHistoryTime(topic.updatedAt, t)}
                 onPress={onTopicSelect}
@@ -111,7 +113,7 @@ const HistoryResultList = ({
                 session={session}
                 agent={agent}
                 sourceName={sourceName}
-                emptyValue={t('history.v2.table.emptyValue', '—')}
+                emptyValue={t('history.records.table.emptyValue', '—')}
                 fallbackTitle={t('common.unnamed', '未命名')}
                 timeLabel={formatHistoryTime(session.updatedAt, t)}
                 onPress={onSessionSelect}
@@ -239,7 +241,7 @@ function formatHistoryTime(value: string, t: ReturnType<typeof useTranslation>['
   const date = dayjs(value)
   const now = dayjs()
 
-  if (!date.isValid()) return t('history.v2.table.emptyValue', '—')
+  if (!date.isValid()) return t('history.records.table.emptyValue', '—')
   if (date.isSame(now, 'day')) return date.format('HH:mm')
   if (date.isSame(now.subtract(1, 'day'), 'day')) return t('common.yesterday', '昨天')
   if (date.isSame(now, 'year')) return date.format('MM/DD')

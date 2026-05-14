@@ -1,5 +1,5 @@
 import { Input } from '@cherrystudio/ui'
-import type { HistoryPageV2Mode } from '@renderer/pages/history/HistoryPageV2'
+import type { HistoryRecordsMode } from '@renderer/pages/history/HistoryRecordsPage'
 import { cn } from '@renderer/utils'
 import { Circle, Search } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next'
 export type HistorySourceStatus = 'all' | 'running' | 'completed' | 'failed'
 
 interface HistorySourceSidebarProps {
-  mode: HistoryPageV2Mode
+  mode: HistoryRecordsMode
   selectedSourceId: string
   selectedStatus?: HistorySourceStatus
   sources: HistorySourceItem[]
@@ -54,7 +54,7 @@ const HistorySourceSidebar = ({
   return (
     <aside className="flex w-[284px] shrink-0 flex-col overflow-y-auto bg-background px-3 py-3.5 [border-right:0.5px_solid_var(--color-border-subtle)]">
       {mode === 'agent' && statusItems.length > 0 && selectedStatus && onStatusSelect && (
-        <SidebarSection title={t('history.v2.sidebar.status', '状态')}>
+        <SidebarSection title={t('history.records.sidebar.status', '状态')}>
           <div className="space-y-1">
             {statusItems.map((item) => (
               <SidebarRow
@@ -86,8 +86,8 @@ const HistorySourceSidebar = ({
             <Input
               value={assistantSearchText}
               className="h-8 rounded-md border-border-subtle bg-background pl-8 text-xs shadow-none"
-              placeholder={t('history.v2.sidebar.searchAssistant', '搜索助手...')}
-              aria-label={t('history.v2.sidebar.searchAssistant', '搜索助手...')}
+              placeholder={t('history.records.sidebar.searchAssistant', '搜索助手...')}
+              aria-label={t('history.records.sidebar.searchAssistant', '搜索助手...')}
               onChange={(event) => setAssistantSearchText(event.target.value)}
             />
           </div>

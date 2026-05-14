@@ -265,7 +265,7 @@ vi.mock('react-i18next', () => ({
         'common.saved': 'Saved',
         'common.unnamed': 'Untitled',
         'error.model.not_exists': 'Model does not exist',
-        'history.v2.agentTitle': 'Agent History',
+        'history.records.agentTitle': 'Agent History',
         'selector.agent.create_new': 'Create agent',
         'selector.agent.empty_text': 'No agents',
         'selector.agent.search_placeholder': 'Search agents',

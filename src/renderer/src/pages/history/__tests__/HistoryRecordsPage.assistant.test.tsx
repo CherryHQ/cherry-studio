@@ -88,14 +88,14 @@ vi.mock('react-i18next', () => ({
         'chat.default.topic.name': 'New topic',
         'common.assistant': 'Assistant',
         'common.close': 'Close',
-        'history.v2.assistantSubtitle': '{{count}} topics',
-        'history.v2.resultCount': '{{count}} results',
-        'history.v2.searchTopic': 'Search topics...',
-        'history.v2.table.emptyValue': '-',
-        'history.v2.table.messages': 'Messages',
-        'history.v2.table.time': 'Time',
-        'history.v2.table.title': 'Title',
-        'history.v2.title': 'Topic history'
+        'history.records.assistantSubtitle': '{{count}} topics',
+        'history.records.resultCount': '{{count}} results',
+        'history.records.searchTopic': 'Search topics...',
+        'history.records.table.emptyValue': '-',
+        'history.records.table.messages': 'Messages',
+        'history.records.table.time': 'Time',
+        'history.records.table.title': 'Title',
+        'history.records.title': 'Topic history'
       }
       const template = labels[key] ?? fallback ?? key
       return template.replace('{{count}}', String(options?.count ?? ''))
@@ -103,7 +103,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-import HistoryPageV2 from '../HistoryPageV2'
+import HistoryRecordsPage from '../HistoryRecordsPage'
 
 function createTopic(overrides: Partial<Topic> = {}): Topic {
   return {
@@ -152,7 +152,7 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
   }
 }
 
-describe('HistoryPageV2 assistant mode', () => {
+describe('HistoryRecordsPage assistant mode', () => {
   beforeEach(() => {
     document.body.innerHTML = '<div id="home-page"></div><div id="agent-page"></div>'
     hookMocks.useAgents.mockReset()
@@ -172,7 +172,7 @@ describe('HistoryPageV2 assistant mode', () => {
     const onClose = vi.fn()
     const onTopicSelect = vi.fn()
 
-    render(<HistoryPageV2 mode="assistant" open onClose={onClose} onTopicSelect={onTopicSelect} />)
+    render(<HistoryRecordsPage mode="assistant" open onClose={onClose} onTopicSelect={onTopicSelect} />)
 
     fireEvent.click(screen.getByRole('button', { name: /Alpha topic/ }))
 
@@ -202,7 +202,7 @@ describe('HistoryPageV2 assistant mode', () => {
     } as DOMRect)
 
     render(
-      <HistoryPageV2
+      <HistoryRecordsPage
         mode="assistant"
         open
         origin={createTestDomRect({ x: 20, y: 30, width: 20, height: 20 })}
@@ -211,7 +211,7 @@ describe('HistoryPageV2 assistant mode', () => {
       />
     )
 
-    expect(screen.getByTestId('history-page-v2-motion')).toBeInTheDocument()
+    expect(screen.getByTestId('history-records-page-motion')).toBeInTheDocument()
   })
 
   it('keeps the overlay mounted long enough for the close animation', () => {
@@ -225,11 +225,11 @@ describe('HistoryPageV2 assistant mode', () => {
       onTopicSelect: vi.fn()
     }
 
-    const { rerender } = render(<HistoryPageV2 {...props} open />)
-    expect(screen.getByTestId('history-page-v2-motion')).toBeInTheDocument()
+    const { rerender } = render(<HistoryRecordsPage {...props} open />)
+    expect(screen.getByTestId('history-records-page-motion')).toBeInTheDocument()
 
-    rerender(<HistoryPageV2 {...props} open={false} />)
-    expect(screen.getByTestId('history-page-v2-motion')).toBeInTheDocument()
+    rerender(<HistoryRecordsPage {...props} open={false} />)
+    expect(screen.getByTestId('history-records-page-motion')).toBeInTheDocument()
   })
 })
 

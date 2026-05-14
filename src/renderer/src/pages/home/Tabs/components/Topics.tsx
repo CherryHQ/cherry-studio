@@ -635,7 +635,7 @@ export function Topics({ activeTopic, onOpenHistory, setActiveTopic, position }:
               </Tooltip>
               <ResourceList.HeaderActionButton
                 type="button"
-                aria-label={onOpenHistory ? t('history.v2.title') : t('shortcut.general.toggle_sidebar')}
+                aria-label={onOpenHistory ? t('history.records.title') : t('shortcut.general.toggle_sidebar')}
                 onClick={handleOpenHistoryOrToggleSidebar}>
                 <ChevronsUpDown size={12} className="block rotate-45" />
               </ResourceList.HeaderActionButton>

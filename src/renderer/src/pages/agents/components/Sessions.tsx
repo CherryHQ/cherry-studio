@@ -459,7 +459,7 @@ const Sessions = ({ onOpenHistory, onSelectItem }: SessionsProps) => {
             <SessionDisplayModeMenu mode={displayMode} onChange={(nextMode) => void setSessionDisplayMode(nextMode)} />
             <ResourceList.HeaderActionButton
               type="button"
-              aria-label={onOpenHistory ? t('history.v2.agentTitle') : t('shortcut.general.toggle_sidebar')}
+              aria-label={onOpenHistory ? t('history.records.agentTitle') : t('shortcut.general.toggle_sidebar')}
               onClick={handleOpenHistoryOrToggleSidebar}>
               <ChevronsUpDown size={12} className="block rotate-45" />
             </ResourceList.HeaderActionButton>
