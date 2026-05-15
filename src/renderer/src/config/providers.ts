@@ -40,6 +40,7 @@ import NewAPIProviderLogo from '@renderer/assets/images/providers/newapi.png'
 import NvidiaProviderLogo from '@renderer/assets/images/providers/nvidia.png'
 import O3ProviderLogo from '@renderer/assets/images/providers/o3.png'
 import OcoolAiProviderLogo from '@renderer/assets/images/providers/ocoolai.png'
+import OfoxAiProviderLogo from '@renderer/assets/images/providers/ofoxai.png'
 import OllamaProviderLogo from '@renderer/assets/images/providers/ollama.png'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png'
 import OpenRouterProviderLogo from '@renderer/assets/images/providers/openrouter.png'
@@ -109,6 +110,17 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiHost: 'https://aihubmix.com',
     anthropicApiHost: 'https://aihubmix.com',
     models: SYSTEM_MODELS.aihubmix,
+    isSystem: true,
+    enabled: false
+  },
+  ofoxai: {
+    id: 'ofoxai',
+    name: 'OfoxAI',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.ofox.ai/v1',
+    anthropicApiHost: 'https://api.ofox.ai/anthropic',
+    models: SYSTEM_MODELS.ofoxai,
     isSystem: true,
     enabled: false
   },
@@ -764,6 +776,7 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   xirang: XirangProviderLogo,
   anthropic: AnthropicProviderLogo,
   aihubmix: AiHubMixProviderLogo,
+  ofoxai: OfoxAiProviderLogo,
   burncloud: BurnCloudProviderLogo,
   gemini: GoogleProviderLogo,
   stepfun: StepProviderLogo,
@@ -1271,6 +1284,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://aihubmix.com?aff=SJyh',
       docs: 'https://doc.aihubmix.com/',
       models: 'https://aihubmix.com/models'
+    }
+  },
+  ofoxai: {
+    api: {
+      url: 'https://api.ofox.ai/v1'
+    },
+    websites: {
+      official: 'https://ofox.ai',
+      apiKey: 'https://app.ofox.ai',
+      docs: 'https://docs.ofox.ai',
+      models: 'https://docs.ofox.ai'
     }
   },
   fireworks: {
