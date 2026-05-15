@@ -17,7 +17,7 @@ export interface ToolApprovalActionsProps extends ToolApprovalState, ToolApprova
 
 /**
  * Unified tool approval action buttons
- * Used in both MessageMcpTool and ToolPermissionRequestCard
+ * Used in both MessageMcpTool and Agent tool permission cards
  */
 export const ToolApprovalActionsComponent: FC<ToolApprovalActionsProps> = ({
   isWaiting,

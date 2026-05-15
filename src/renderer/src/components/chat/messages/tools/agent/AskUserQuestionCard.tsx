@@ -8,10 +8,10 @@ import type { ReactNode } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useOptionalMessageListActions } from '../MessageListProvider'
-import { SkeletonValue } from './agent/GenericTools'
-import { type AskUserQuestionItem, parseAskUserQuestionToolInput } from './agent/types'
-import { APPROVAL_REQUESTED, findToolPartByCallId } from './toolResponse'
+import { useOptionalMessageListActions } from '../../MessageListProvider'
+import { APPROVAL_REQUESTED, findToolPartByCallId } from '../toolResponse'
+import { SkeletonValue } from './GenericTools'
+import { type AskUserQuestionItem, parseAskUserQuestionToolInput } from './types'
 
 const logger = loggerService.withContext('AskUserQuestionCard')
 

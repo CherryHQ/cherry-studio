@@ -3,12 +3,12 @@ import type { NormalToolResponse } from '@renderer/types'
 import { parse as parsePartialJson } from 'partial-json'
 import { useDeferredValue, useMemo } from 'react'
 
-import { AskUserQuestionCard } from '../AskUserQuestionCard'
-import ToolPermissionRequestCard from '../ToolPermissionRequestCard'
 import { isToolPartAwaitingApproval } from '../toolResponse'
 import { AgentToolCallCard } from './AgentToolCallCard'
+import { AskUserQuestionCard } from './AskUserQuestionCard'
 import { getEffectiveStatus, StreamingContext } from './GenericTools'
 import { NavigateToolInline } from './NavigateTool'
+import ToolPermissionCard from './ToolPermissionCard'
 import { AgentToolsType } from './types'
 
 export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalToolResponse }) {
@@ -47,7 +47,7 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
   const effectiveStatus = getEffectiveStatus(status, awaitingApproval)
 
   if (effectiveStatus === 'waiting') {
-    return <ToolPermissionRequestCard toolResponse={toolResponse} />
+    return <ToolPermissionCard toolResponse={toolResponse} />
   }
 
   const isLoading = effectiveStatus === 'streaming' || effectiveStatus === 'invoking'

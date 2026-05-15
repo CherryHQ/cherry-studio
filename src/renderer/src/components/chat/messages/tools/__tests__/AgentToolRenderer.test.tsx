@@ -83,8 +83,8 @@ vi.mock('@renderer/components/Icons', () => ({
   LoadingIcon: () => <span data-testid="loading-icon" />
 }))
 
-// Mock ToolPermissionRequestCard
-vi.mock('../ToolPermissionRequestCard', () => ({
+// Mock ToolPermissionCard
+vi.mock('../agent/ToolPermissionCard', () => ({
   default: () => <div data-testid="permission-card">Permission Required</div>
 }))
 
