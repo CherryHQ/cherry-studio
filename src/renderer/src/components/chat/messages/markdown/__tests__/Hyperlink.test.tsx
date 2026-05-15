@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import Hyperlink from '../Hyperlink'
 
@@ -24,6 +24,30 @@ vi.mock('@renderer/hooks/useMetaDataParser', () => ({
   useMetaDataParser: mocks.useMetaDataParser
 }))
 
+vi.mock('@cherrystudio/ui', () => {
+  const React = require('react')
+  const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
+
+  return {
+    Popover: ({ children, open = false, onOpenChange, ...props }) =>
+      React.createElement(
+        PopoverContext.Provider,
+        { value: { open, onOpenChange } },
+        React.createElement('div', { ...props, 'data-testid': 'popover' }, children)
+      ),
+    PopoverTrigger: ({ children, asChild, ...props }) => {
+      if (asChild && React.isValidElement(children)) {
+        return React.cloneElement(children, { ...props, 'data-testid': 'popover-trigger' })
+      }
+      return React.createElement('div', { ...props, 'data-testid': 'popover-trigger' }, children)
+    },
+    PopoverContent: ({ children, ...props }) => {
+      const context = React.use(PopoverContext)
+      return context.open ? React.createElement('div', { ...props, 'data-testid': 'popover-content' }, children) : null
+    }
+  }
+})
+
 // Mock the OGCard component
 vi.mock('@renderer/components/OGCard', () => ({
   OGCard: ({ link }: { link: string; show: boolean }) => {
@@ -47,6 +71,11 @@ vi.mock('@renderer/components/OGCard', () => ({
 describe('Hyperlink', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.useRealTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('should match snapshot for normal url', () => {
@@ -78,6 +107,7 @@ describe('Hyperlink', () => {
     // Popover wrapper exists
     const popover = screen.getByTestId('popover')
     expect(popover).toBeInTheDocument()
+    fireEvent.mouseEnter(screen.getByTestId('popover-trigger'))
     expect(screen.getByTestId('popover-content')).toHaveClass('overflow-hidden rounded-lg p-0')
 
     // Content includes decoded url text and favicon with hostname
@@ -95,6 +125,8 @@ describe('Hyperlink', () => {
       </Hyperlink>
     )
 
+    fireEvent.mouseEnter(screen.getByTestId('popover-trigger'))
+
     // decodeURIComponent succeeds => "not/url" is displayed
     expect(screen.queryByTestId('favicon')).toBeNull()
     // Since there's no hostname and no og:title, title shows empty, but text shows the URL
@@ -109,10 +141,56 @@ describe('Hyperlink', () => {
       </Hyperlink>
     )
 
+    fireEvent.mouseEnter(screen.getByTestId('popover-trigger'))
+
     // Decoded to mailto:test@example.com, hostname is empty => no favicon
     expect(screen.queryByTestId('favicon')).toBeNull()
     // Since there's no hostname and no og:title, title shows empty, but text shows the decoded URL
     expect(screen.getByTestId('title')).toBeEmptyDOMElement()
     expect(screen.getByTestId('text')).toHaveTextContent('mailto:test@example.com')
+  })
+
+  it('should open the popover when hovering the link trigger', () => {
+    render(
+      <Hyperlink href="https://domain.com/a%20b">
+        <span>child</span>
+      </Hyperlink>
+    )
+
+    expect(screen.queryByTestId('popover-content')).toBeNull()
+
+    fireEvent.mouseEnter(screen.getByTestId('popover-trigger'))
+
+    expect(screen.getByTestId('popover-content')).toBeInTheDocument()
+  })
+
+  it('should stay open when moving from the trigger to the popover content and close after leaving content', () => {
+    vi.useFakeTimers()
+
+    render(
+      <Hyperlink href="https://domain.com/a%20b">
+        <span>child</span>
+      </Hyperlink>
+    )
+
+    fireEvent.mouseEnter(screen.getByTestId('popover-trigger'))
+    const content = screen.getByTestId('popover-content')
+
+    fireEvent.mouseLeave(screen.getByTestId('popover-trigger'))
+    fireEvent.mouseEnter(content)
+
+    act(() => {
+      vi.advanceTimersByTime(120)
+    })
+
+    expect(screen.getByTestId('popover-content')).toBeInTheDocument()
+
+    fireEvent.mouseLeave(screen.getByTestId('popover-content'))
+
+    act(() => {
+      vi.advanceTimersByTime(120)
+    })
+
+    expect(screen.queryByTestId('popover-content')).toBeNull()
   })
 })
