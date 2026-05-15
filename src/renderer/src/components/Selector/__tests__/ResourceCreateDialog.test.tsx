@@ -146,7 +146,7 @@ describe('ResourceCreateDialog', () => {
     expect(lastCall.portalContainer).toContainElement(screen.getByRole('dialog'))
   })
 
-  it('disables actions while submitting and shows submit errors', async () => {
+  it('disables actions while submitting and shows localized submit errors', async () => {
     const onSubmit = vi.fn().mockRejectedValue(new Error('Network down'))
     const { rerender } = render(
       <ResourceCreateDialog kind="agent" open isSubmitting onOpenChange={vi.fn()} onSubmit={onSubmit} />
@@ -160,6 +160,7 @@ describe('ResourceCreateDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
 
-    expect(await screen.findByText('Network down')).toBeInTheDocument()
+    expect(await screen.findByText('Create failed')).toBeInTheDocument()
+    expect(screen.queryByText('Network down')).not.toBeInTheDocument()
   })
 })

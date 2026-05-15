@@ -106,10 +106,8 @@ export function ResourceCreateDialog({
           modelId: selectedModel.id,
           description: description.trim()
         })
-      } catch (error) {
-        setSubmitError(
-          error instanceof Error && error.message ? error.message : t('selector.create_dialog.submit_failed')
-        )
+      } catch {
+        setSubmitError(t('selector.create_dialog.submit_failed'))
       }
     },
     [avatar, description, onSubmit, selectedModel?.id, t, trimmedName]

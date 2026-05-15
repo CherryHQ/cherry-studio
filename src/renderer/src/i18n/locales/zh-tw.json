@@ -4634,6 +4634,7 @@
       "model_required": "請選擇模型",
       "name_placeholder": "輸入名稱",
       "name_required": "請輸入名稱",
+      "refresh_failed": "已新建，但列表刷新失敗",
       "submit_failed": "新建失敗"
     }
   },

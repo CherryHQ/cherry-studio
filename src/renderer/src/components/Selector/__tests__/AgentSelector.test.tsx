@@ -99,6 +99,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'selector.create_dialog.model_required': 'Please select a model',
           'selector.create_dialog.name_placeholder': 'Name this resource',
           'selector.create_dialog.name_required': 'Please enter a name',
+          'selector.create_dialog.refresh_failed': 'Created, but refresh failed',
           'selector.create_dialog.submit_failed': 'Create failed'
         })[key] ?? key
     })
@@ -135,6 +136,8 @@ const AGENTS_RESPONSE = {
   page: 1
 } as const
 
+const toastErrorMock = vi.fn()
+
 beforeAll(() => {
   globalThis.ResizeObserver = class {
     observe() {}
@@ -151,6 +154,7 @@ beforeAll(() => {
     HTMLElement.prototype.setPointerCapture = () => {}
   }
   HTMLElement.prototype.scrollIntoView = () => {}
+  window.toast = { error: toastErrorMock } as typeof window.toast
 })
 
 beforeEach(() => {
@@ -308,6 +312,21 @@ describe('AgentSelector', () => {
     )
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
     expect(onChange).not.toHaveBeenCalled()
+    await waitFor(() => expect(screen.getByPlaceholderText('Search agents')).toBeInTheDocument())
+  })
+
+  it('notifies when created agent cannot be refreshed into the selector', async () => {
+    refetchAgentsMock.mockRejectedValueOnce(new Error('Refresh failed'))
+    renderSelector()
+    await openCreateDialog()
+
+    fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Agent' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
+
+    expect(toastErrorMock).toHaveBeenCalledWith('Created, but refresh failed')
     await waitFor(() => expect(screen.getByPlaceholderText('Search agents')).toBeInTheDocument())
   })
 

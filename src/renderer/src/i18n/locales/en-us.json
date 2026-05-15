@@ -4634,6 +4634,7 @@
       "model_required": "Please select a model",
       "name_placeholder": "Enter a name",
       "name_required": "Please enter a name",
+      "refresh_failed": "Created, but failed to refresh the list",
       "submit_failed": "Create failed"
     }
   },

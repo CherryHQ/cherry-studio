@@ -147,7 +147,6 @@ export function AssistantSelector(props: AssistantSelectorProps) {
         })
       } catch (error) {
         logger.error('Failed to create assistant from selector', error as Error)
-        window.toast?.error(t('selector.create_dialog.submit_failed'))
         throw error
       }
 
@@ -156,6 +155,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
         await refetch()
       } catch (error) {
         logger.warn('Failed to refresh assistants after selector create', { error })
+        window.toast?.error(t('selector.create_dialog.refresh_failed'))
       }
       handleSelectorOpenChange(true)
     },

@@ -105,7 +105,6 @@ export function AgentSelector(props: AgentSelectorProps) {
         })
       } catch (error) {
         logger.error('Failed to create agent from selector', error as Error)
-        window.toast?.error(t('selector.create_dialog.submit_failed'))
         throw error
       }
 
@@ -114,6 +113,7 @@ export function AgentSelector(props: AgentSelectorProps) {
         await refetch()
       } catch (error) {
         logger.warn('Failed to refresh agents after selector create', { error })
+        window.toast?.error(t('selector.create_dialog.refresh_failed'))
       }
       handleSelectorOpenChange(true)
     },
