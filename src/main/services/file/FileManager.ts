@@ -647,7 +647,13 @@ export class FileManager extends BaseService implements IFileManager {
   protected override async onInit(): Promise<void> {
     await this.deps.danglingCache.initFromDb()
     this.registerIpcHandlers()
-    void this.runStartupSweeps()
+    // Fire-and-forget: both branches catch their own errors, but a synchronous
+    // throw in dep wiring (e.g. registry access racing with shutdown, or
+    // `application.get(...)` before a dep is registered) would otherwise become
+    // an unhandled rejection at this `void` site.
+    void this.runStartupSweeps().catch((err) => {
+      fileManagerLogger.error('runStartupSweeps unhandled rejection', err)
+    })
   }
 
   /**
