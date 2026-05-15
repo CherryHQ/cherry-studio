@@ -31,6 +31,7 @@ import {
 import { normalizeKnowledgeFileData } from './utils/file'
 
 const logger = loggerService.withContext('KnowledgeOrchestrationService')
+const SOURCE_FILE_MISSING_REINDEX_ERROR = 'Source file is missing'
 
 export interface KnowledgeRuntimeAddItemsPartialFailure {
   sourceItemId: string | null
@@ -268,9 +269,15 @@ export class KnowledgeOrchestrationService extends BaseService {
   async reindexItems(baseId: string, itemIds: string[]): Promise<void> {
     await this.assertBaseCanRunRuntimeOperation(baseId, 'reindexItems')
     const items = await this.getTopLevelItemsInBase(baseId, itemIds)
+    const reindexableItems = await this.filterMissingFileRootsForReindex(items)
+
+    if (reindexableItems.length === 0) {
+      return
+    }
+
     const runtime = application.get('KnowledgeRuntimeService')
 
-    await runtime.reindexItems(baseId, items)
+    await runtime.reindexItems(baseId, reindexableItems)
   }
 
   async search(baseId: string, query: string): Promise<KnowledgeSearchResult[]> {
@@ -336,6 +343,29 @@ export class KnowledgeOrchestrationService extends BaseService {
 
     return items.filter((item) => !descendantSelectedIds.has(item.id))
   }
+
+  private async filterMissingFileRootsForReindex(items: KnowledgeItem[]): Promise<KnowledgeItem[]> {
+    const fileItems = items.filter((item) => item.type === 'file')
+    if (fileItems.length === 0) {
+      return items
+    }
+
+    const fileManager = application.get('FileManager')
+    const missingFileIds = await Promise.all(
+      fileItems.map(async (item) => {
+        const danglingState = await fileManager.getDanglingState({ id: item.data.fileEntryId })
+        return danglingState === 'missing' ? item.id : null
+      })
+    ).then((ids) => ids.filter((id): id is string => id !== null))
+
+    if (missingFileIds.length > 0) {
+      await failItems(missingFileIds, SOURCE_FILE_MISSING_REINDEX_ERROR)
+    }
+
+    const missingFileIdSet = new Set(missingFileIds)
+    return items.filter((item) => !missingFileIdSet.has(item.id))
+  }
+
   private registerIpcHandlers(): void {
     this.ipcHandle(IpcChannel.KnowledgeRuntime_CreateBase, async (_, payload: unknown) => {
       const { base } = KnowledgeRuntimeCreateBasePayloadSchema.parse(payload)

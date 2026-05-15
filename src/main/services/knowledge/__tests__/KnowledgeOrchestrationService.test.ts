@@ -2,7 +2,11 @@ import type * as LifecycleModule from '@main/core/lifecycle'
 import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
 import { ErrorCode, isDataApiError } from '@shared/data/api'
-import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL, type KnowledgeItem } from '@shared/data/types/knowledge'
+import {
+  KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
+  type KnowledgeItem,
+  type KnowledgeItemOf
+} from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -25,7 +29,8 @@ const {
   knowledgeItemGetItemsByBaseIdMock,
   knowledgeItemGetLeafDescendantItemsMock,
   fileManagerEnsureExternalEntryMock,
-  fileManagerGetByIdMock
+  fileManagerGetByIdMock,
+  fileManagerGetDanglingStateMock
 } = vi.hoisted(() => ({
   runtimeAddItemsMock: vi.fn(),
   runtimeCreateBaseMock: vi.fn(),
@@ -46,7 +51,8 @@ const {
   knowledgeItemGetItemsByBaseIdMock: vi.fn(),
   knowledgeItemGetLeafDescendantItemsMock: vi.fn(),
   fileManagerEnsureExternalEntryMock: vi.fn(),
-  fileManagerGetByIdMock: vi.fn()
+  fileManagerGetByIdMock: vi.fn(),
+  fileManagerGetDanglingStateMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -65,7 +71,8 @@ vi.mock('@application', async () => {
     },
     FileManager: {
       ensureExternalEntry: fileManagerEnsureExternalEntryMock,
-      getById: fileManagerGetByIdMock
+      getById: fileManagerGetByIdMock,
+      getDanglingState: fileManagerGetDanglingStateMock
     }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
@@ -228,7 +235,7 @@ function createDirectoryItem(
   }
 }
 
-function createFileItem(id = 'file-1', status: KnowledgeItem['status'] = 'idle'): KnowledgeItem {
+function createFileItem(id = 'file-1', status: KnowledgeItem['status'] = 'idle'): KnowledgeItemOf<'file'> {
   const lifecycle =
     status === 'failed'
       ? ({ status, phase: null, error: `failed ${id}` } as const)
@@ -279,6 +286,7 @@ describe('KnowledgeOrchestrationService', () => {
       createdAt: 1775114958369,
       updatedAt: 1775114958369
     }))
+    fileManagerGetDanglingStateMock.mockResolvedValue('present')
     runtimeAddItemsMock.mockResolvedValue(undefined)
     runtimeCreateBaseMock.mockResolvedValue(undefined)
     runtimeDeleteBaseMock.mockResolvedValue([])
@@ -907,6 +915,48 @@ describe('KnowledgeOrchestrationService', () => {
 
     expect(runtimeReindexItemsMock).toHaveBeenCalledWith('kb-1', [root])
     expect(knowledgeItemDeleteMock).not.toHaveBeenCalled()
+  })
+
+  it('marks directly reindexed missing file roots failed without calling runtime', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const root = createFileItem('file-missing')
+    knowledgeItemGetByIdMock.mockResolvedValueOnce(root)
+    fileManagerGetDanglingStateMock.mockResolvedValueOnce('missing')
+
+    await expect(service.reindexItems('kb-1', [root.id])).resolves.toBeUndefined()
+
+    expect(fileManagerGetDanglingStateMock).toHaveBeenCalledWith({ id: root.data.fileEntryId })
+    expect(failItemsMock).toHaveBeenCalledWith([root.id], 'Source file is missing')
+    expect(runtimeReindexItemsMock).not.toHaveBeenCalled()
+  })
+
+  it('continues reindexing non-missing roots when one selected file root is missing', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const missingFile = createFileItem('file-missing')
+    const presentFile = createFileItem('file-present')
+    const note = createNoteItem('note-root')
+    knowledgeItemGetByIdMock
+      .mockResolvedValueOnce(missingFile)
+      .mockResolvedValueOnce(presentFile)
+      .mockResolvedValueOnce(note)
+    fileManagerGetDanglingStateMock.mockResolvedValueOnce('missing').mockResolvedValueOnce('present')
+
+    await expect(service.reindexItems('kb-1', [missingFile.id, presentFile.id, note.id])).resolves.toBeUndefined()
+
+    expect(failItemsMock).toHaveBeenCalledWith([missingFile.id], 'Source file is missing')
+    expect(runtimeReindexItemsMock).toHaveBeenCalledWith('kb-1', [presentFile, note])
+  })
+
+  it('does not preflight missing file descendants when reindexing a directory root', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const root = createDirectoryItem('dir-root')
+    knowledgeItemGetByIdMock.mockResolvedValueOnce(root)
+
+    await expect(service.reindexItems('kb-1', [root.id])).resolves.toBeUndefined()
+
+    expect(fileManagerGetDanglingStateMock).not.toHaveBeenCalled()
+    expect(failItemsMock).not.toHaveBeenCalled()
+    expect(runtimeReindexItemsMock).toHaveBeenCalledWith('kb-1', [root])
   })
 
   it('rejects reindexItems on failed bases before resolving item roots or calling runtime', async () => {
