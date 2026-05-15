@@ -3,10 +3,10 @@ import path from 'node:path'
 import { application } from '@application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { ExternalFileEntry } from '@shared/data/types/file'
-import { isSupportedKnowledgeFileExt } from '@shared/data/types/knowledge'
+import { isUnsupportedKnowledgeFileExt } from '@shared/data/types/knowledge'
 import type { FilePath } from '@shared/file/types'
 
-export const KNOWLEDGE_UNSUPPORTED_FILE_TYPE_ERROR = 'Only text and document files are supported in knowledge bases'
+export const KNOWLEDGE_UNSUPPORTED_FILE_TYPE_ERROR = 'This file type is not supported in knowledge bases'
 
 export async function ensureKnowledgeExternalFileEntry(path: string): Promise<ExternalFileEntry> {
   const fileManager = application.get('FileManager')
@@ -18,7 +18,7 @@ export async function ensureKnowledgeExternalFileEntry(path: string): Promise<Ex
 }
 
 export async function normalizeKnowledgeFileData(data: { source: string; path: string }) {
-  if (!isSupportedKnowledgeFileExt(path.extname(data.path))) {
+  if (isUnsupportedKnowledgeFileExt(path.extname(data.path))) {
     throw DataApiErrorFactory.validation(
       { path: [KNOWLEDGE_UNSUPPORTED_FILE_TYPE_ERROR] },
       KNOWLEDGE_UNSUPPORTED_FILE_TYPE_ERROR

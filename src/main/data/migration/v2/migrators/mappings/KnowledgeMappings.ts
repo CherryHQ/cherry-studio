@@ -7,7 +7,7 @@ import {
   DEFAULT_KNOWLEDGE_BASE_EMOJI,
   DEFAULT_KNOWLEDGE_BASE_STATUS,
   DEFAULT_KNOWLEDGE_SEARCH_MODE,
-  isSupportedKnowledgeFileExt,
+  isUnsupportedKnowledgeFileExt,
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   type KnowledgeItemData,
   type KnowledgeItemStatus
@@ -219,12 +219,12 @@ export const resolveLegacyFileMetadata = (
   return null
 }
 
-const isSupportedLegacyFile = (file: FileMetadata): boolean => {
+const isUnsupportedLegacyFile = (file: FileMetadata): boolean => {
   if (!AbsolutePathSchema.safeParse(file.path).success) {
-    return false
+    return true
   }
 
-  return isSupportedKnowledgeFileExt(file.ext)
+  return isUnsupportedKnowledgeFileExt(file.ext)
 }
 
 export const transformKnowledgeBase = (
@@ -292,7 +292,7 @@ export const transformKnowledgeItem = (
 
   if (item.type === 'file') {
     const file = resolveLegacyFileMetadata(item.content, deps.filesById)
-    if (!file || !isSupportedLegacyFile(file)) {
+    if (!file || isUnsupportedLegacyFile(file)) {
       return {
         ok: false,
         reason: 'invalid_file'

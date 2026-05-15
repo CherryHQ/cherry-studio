@@ -1,6 +1,6 @@
 import * as z from 'zod'
 
-import { FILE_TYPE, type FileType, getFileTypeByExt } from '../../file/types'
+import { archiveExts, audioExts, imageExts, videoExts } from '../../config/constant'
 import { AbsolutePathSchema, FileEntryIdSchema } from './file'
 
 /**
@@ -18,18 +18,17 @@ import { AbsolutePathSchema, FileEntryIdSchema } from './file'
 export const KNOWLEDGE_ITEM_TYPES = ['file', 'url', 'note', 'sitemap', 'directory'] as const
 export const KnowledgeItemTypeSchema = z.enum(KNOWLEDGE_ITEM_TYPES)
 export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
-export const KNOWLEDGE_SUPPORTED_FILE_TYPES = [
-  FILE_TYPE.TEXT,
-  FILE_TYPE.DOCUMENT
-] as const satisfies readonly FileType[]
-const KNOWLEDGE_SUPPORTED_FILE_TYPE_SET: ReadonlySet<FileType> = new Set(KNOWLEDGE_SUPPORTED_FILE_TYPES)
+export const KNOWLEDGE_UNSUPPORTED_FILE_EXTS: readonly string[] = Object.freeze([
+  ...new Set([...imageExts, ...videoExts, ...audioExts, ...archiveExts])
+])
+const KNOWLEDGE_UNSUPPORTED_FILE_EXT_SET: ReadonlySet<string> = new Set(KNOWLEDGE_UNSUPPORTED_FILE_EXTS)
 
-export function isSupportedKnowledgeFileType(type: FileType): boolean {
-  return KNOWLEDGE_SUPPORTED_FILE_TYPE_SET.has(type)
-}
-
-export function isSupportedKnowledgeFileExt(ext: string): boolean {
-  return isSupportedKnowledgeFileType(getFileTypeByExt(ext))
+export function isUnsupportedKnowledgeFileExt(ext: string): boolean {
+  const normalized = ext.trim().replace(/^\./, '').toLowerCase()
+  if (!normalized) {
+    return true
+  }
+  return KNOWLEDGE_UNSUPPORTED_FILE_EXT_SET.has(`.${normalized}`)
 }
 
 export const KNOWLEDGE_ITEM_STATUSES = ['idle', 'processing', 'completed', 'failed'] as const

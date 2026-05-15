@@ -27,7 +27,7 @@ import {
   processMessageContent,
   processTopicContent
 } from '@renderer/utils/knowledge'
-import { isSupportedKnowledgeFileExt, type KnowledgeRuntimeAddItemInput } from '@shared/data/types/knowledge'
+import { isUnsupportedKnowledgeFileExt, type KnowledgeRuntimeAddItemInput } from '@shared/data/types/knowledge'
 import { Check } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -129,10 +129,10 @@ const getPathExt = (filePath: string) => {
   const fileName = filePath.split(/[\\/]/).pop() ?? filePath
   const dotIndex = fileName.lastIndexOf('.')
 
-  return dotIndex > 0 && dotIndex < fileName.length - 1 ? fileName.slice(dotIndex + 1) : ''
+  return dotIndex > 0 && dotIndex < fileName.length - 1 ? fileName.slice(dotIndex) : ''
 }
 
-const isSupportedKnowledgeFilePath = (filePath: string) => isSupportedKnowledgeFileExt(getPathExt(filePath))
+const isUnsupportedKnowledgeFilePath = (filePath: string) => isUnsupportedKnowledgeFileExt(getPathExt(filePath))
 
 const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
   const [open, setOpen] = useState(true)
@@ -363,11 +363,19 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
         }
 
         if (result.files.length > 0 && selectedTypes.includes(CONTENT_TYPES.FILE)) {
-          const supportedFiles = result.files.filter((file) => isSupportedKnowledgeFilePath(file.path))
-          unsupportedFileCount = result.files.length - supportedFiles.length
+          const processableFiles: typeof result.files = []
+
+          for (const file of result.files) {
+            if (isUnsupportedKnowledgeFilePath(file.path)) {
+              unsupportedFileCount++
+              continue
+            }
+
+            processableFiles.push(file)
+          }
 
           items.push(
-            ...supportedFiles.map((file) => ({
+            ...processableFiles.map((file) => ({
               type: 'file' as const,
               data: {
                 source: file.path,
@@ -375,12 +383,12 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
               }
             }))
           )
-          savedCount += supportedFiles.length
+          savedCount += processableFiles.length
         }
       }
 
       if (selectedTypes.includes(CONTENT_TYPES.FILE) && savedCount === 0 && items.length === 0) {
-        throw new Error('No supported content to save')
+        throw new Error('No processable content to save')
       }
 
       if (items.length > 0) {
@@ -407,7 +415,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
           errorMessage = error.message
         } else if (error.message.includes('read note content')) {
           errorMessage = error.message
-        } else if (error.message.includes('No supported content to save') && unsupportedFileCount > 0) {
+        } else if (error.message.includes('No processable content to save') && unsupportedFileCount > 0) {
           errorMessage = t('chat.input.file_not_supported_count', { count: unsupportedFileCount })
         }
       }

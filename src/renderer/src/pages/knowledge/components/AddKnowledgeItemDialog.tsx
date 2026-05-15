@@ -1,7 +1,7 @@
 import { Dialog, DialogContent } from '@cherrystudio/ui'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { isSupportedKnowledgeFileExt } from '@shared/data/types/knowledge'
+import { isUnsupportedKnowledgeFileExt } from '@shared/data/types/knowledge'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -26,10 +26,10 @@ const getDirectoryName = (directoryPath: string) => {
 
 const getFileNameExt = (fileName: string) => {
   const dotIndex = fileName.lastIndexOf('.')
-  return dotIndex > 0 && dotIndex < fileName.length - 1 ? fileName.slice(dotIndex + 1) : ''
+  return dotIndex > 0 && dotIndex < fileName.length - 1 ? fileName.slice(dotIndex) : ''
 }
 
-const isSupportedKnowledgeFile = (file: File) => isSupportedKnowledgeFileExt(getFileNameExt(file.name))
+const isUnsupportedKnowledgeFile = (file: File) => isUnsupportedKnowledgeFileExt(getFileNameExt(file.name))
 
 const resolveFilePath = (file: File): string | Error => {
   const filePath = window.api.file.getPathForFile(file)
@@ -128,7 +128,19 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     [onOpenChange, resetDialogState]
   )
 
-  const supportedSelectedFiles = useMemo(() => selectedFiles.filter(isSupportedKnowledgeFile), [selectedFiles])
+  const processableSelectedFiles = useMemo(() => {
+    const files: File[] = []
+
+    for (const file of selectedFiles) {
+      if (isUnsupportedKnowledgeFile(file)) {
+        continue
+      }
+
+      files.push(file)
+    }
+
+    return files
+  }, [selectedFiles])
 
   const canSubmit = useMemo(() => {
     if (!selectedBaseId) {
@@ -137,7 +149,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
 
     switch (activeSource) {
       case 'file':
-        return supportedSelectedFiles.length > 0
+        return processableSelectedFiles.length > 0
       case 'directory':
         return selectedDirectories.length > 0
       case 'url':
@@ -147,7 +159,14 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
       case 'note':
         return false
     }
-  }, [activeSource, selectedBaseId, selectedDirectories.length, sitemapValue, supportedSelectedFiles.length, urlValue])
+  }, [
+    activeSource,
+    processableSelectedFiles.length,
+    selectedBaseId,
+    selectedDirectories.length,
+    sitemapValue,
+    urlValue
+  ])
 
   const handleSubmit = useCallback(() => {
     if (!canSubmit) {
@@ -156,10 +175,10 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
 
     setSubmitErrorMessage('')
 
-    const submitPromise = (() => {
+    const submitPromise = Promise.resolve().then(() => {
       if (activeSource === 'file') {
         return submitKnowledgeItems(
-          supportedSelectedFiles.map((file) => {
+          processableSelectedFiles.map((file) => {
             const filePath = resolveKnowledgeFilePath(file)
             if (filePath instanceof Error) {
               throw filePath
@@ -215,7 +234,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
       }
 
       return Promise.resolve()
-    })()
+    })
 
     void submitPromise
       .then(() => {
@@ -228,10 +247,10 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     activeSource,
     canSubmit,
     handleOpenChange,
+    processableSelectedFiles,
     selectedDirectories,
     sitemapValue,
     submitKnowledgeItems,
-    supportedSelectedFiles,
     t,
     urlValue
   ])
@@ -253,7 +272,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
           selectedFiles={selectedFiles}
           sitemapValue={sitemapValue}
           urlValue={urlValue}
-          isFileSupported={isSupportedKnowledgeFile}
+          isFileUnsupported={isUnsupportedKnowledgeFile}
           onDirectoryRemove={handleDirectoryRemove}
           onDirectorySelect={handleDirectorySelect}
           onFileDrop={handleFileDrop}

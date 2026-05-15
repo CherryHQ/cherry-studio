@@ -16,7 +16,7 @@ interface AddKnowledgeItemDialogSourceTabsProps {
   selectedFiles: File[]
   sitemapValue: string
   urlValue: string
-  isFileSupported: (file: File) => boolean
+  isFileUnsupported: (file: File) => boolean
   onDirectoryRemove: (directoryPath: string) => void
   onDirectorySelect: () => void | Promise<void>
   onFileDrop: DropzoneOnDrop
@@ -32,7 +32,7 @@ const AddKnowledgeItemDialogSourceTabs = ({
   selectedFiles,
   sitemapValue,
   urlValue,
-  isFileSupported,
+  isFileUnsupported,
   onDirectoryRemove,
   onDirectorySelect,
   onFileDrop,
@@ -49,7 +49,7 @@ const AddKnowledgeItemDialogSourceTabs = ({
         return (
           <FileSourceContent
             files={selectedFiles}
-            isFileSupported={isFileSupported}
+            isFileUnsupported={isFileUnsupported}
             onDrop={onFileDrop}
             onRemove={onFileRemove}
           />

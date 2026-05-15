@@ -8,12 +8,12 @@ import type { DropzoneOnDrop } from '../types'
 
 interface FileSourceContentProps {
   files: File[]
-  isFileSupported: (file: File) => boolean
+  isFileUnsupported: (file: File) => boolean
   onDrop: DropzoneOnDrop
   onRemove: (fileIndex: number) => void
 }
 
-const FileSourceContent = ({ files, isFileSupported, onDrop, onRemove }: FileSourceContentProps) => {
+const FileSourceContent = ({ files, isFileUnsupported, onDrop, onRemove }: FileSourceContentProps) => {
   const { t } = useTranslation()
 
   return (
@@ -34,7 +34,7 @@ const FileSourceContent = ({ files, isFileSupported, onDrop, onRemove }: FileSou
                 icon={FileText}
                 iconClassName="size-2.5 shrink-0 text-blue-500"
                 name={file.name}
-                warning={isFileSupported(file) ? undefined : t('knowledge.data_source.add_dialog.file_not_supported')}
+                warning={isFileUnsupported(file) ? t('knowledge.data_source.add_dialog.file_not_supported') : undefined}
                 meta={formatFileSize(file.size)}
                 onRemove={() => onRemove(index)}
                 removeLabel={t('common.delete')}

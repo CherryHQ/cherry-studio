@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { isSupportedKnowledgeFileExt, isSupportedKnowledgeFileType, KnowledgeSearchResultSchema } from '../knowledge'
+import {
+  isUnsupportedKnowledgeFileExt,
+  KNOWLEDGE_UNSUPPORTED_FILE_EXTS,
+  KnowledgeSearchResultSchema
+} from '../knowledge'
 
 describe('KnowledgeSearchResultSchema', () => {
   const result = {
@@ -38,23 +42,31 @@ describe('KnowledgeSearchResultSchema', () => {
   })
 })
 
-describe('knowledge supported file helpers', () => {
-  it('allows text and document file types', () => {
-    expect(isSupportedKnowledgeFileType('text')).toBe(true)
-    expect(isSupportedKnowledgeFileType('document')).toBe(true)
+describe('knowledge unsupported file helpers', () => {
+  it('exposes the explicit knowledge unsupported extension list', () => {
+    expect(KNOWLEDGE_UNSUPPORTED_FILE_EXTS).toContain('.png')
+    expect(KNOWLEDGE_UNSUPPORTED_FILE_EXTS).toContain('.mp3')
+    expect(KNOWLEDGE_UNSUPPORTED_FILE_EXTS).toContain('.mp4')
+    expect(KNOWLEDGE_UNSUPPORTED_FILE_EXTS).toContain('.zip')
+    expect(KNOWLEDGE_UNSUPPORTED_FILE_EXTS).toContain('.rar')
+    expect(KNOWLEDGE_UNSUPPORTED_FILE_EXTS).toContain('.7z')
+    expect(KNOWLEDGE_UNSUPPORTED_FILE_EXTS).toContain('.tar')
+    expect(KNOWLEDGE_UNSUPPORTED_FILE_EXTS).toContain('.gz')
   })
 
-  it('rejects non-text and non-document file types', () => {
-    expect(isSupportedKnowledgeFileType('image')).toBe(false)
-    expect(isSupportedKnowledgeFileType('audio')).toBe(false)
-    expect(isSupportedKnowledgeFileType('video')).toBe(false)
-    expect(isSupportedKnowledgeFileType('other')).toBe(false)
-  })
-
-  it('classifies extensions with the shared file type map', () => {
-    expect(isSupportedKnowledgeFileExt('.md')).toBe(true)
-    expect(isSupportedKnowledgeFileExt('pdf')).toBe(true)
-    expect(isSupportedKnowledgeFileExt('.png')).toBe(false)
-    expect(isSupportedKnowledgeFileExt('mp3')).toBe(false)
+  it('classifies extensions with the knowledge blocklist', () => {
+    expect(isUnsupportedKnowledgeFileExt('.md')).toBe(false)
+    expect(isUnsupportedKnowledgeFileExt('pdf')).toBe(false)
+    expect(isUnsupportedKnowledgeFileExt('.EPUB')).toBe(false)
+    expect(isUnsupportedKnowledgeFileExt(' .EPUB ')).toBe(false)
+    expect(isUnsupportedKnowledgeFileExt('.draftsExport')).toBe(false)
+    expect(isUnsupportedKnowledgeFileExt('draftsExport')).toBe(false)
+    expect(isUnsupportedKnowledgeFileExt('.png')).toBe(true)
+    expect(isUnsupportedKnowledgeFileExt('mp3')).toBe(true)
+    expect(isUnsupportedKnowledgeFileExt('.mp3')).toBe(true)
+    expect(isUnsupportedKnowledgeFileExt('.zip')).toBe(true)
+    expect(isUnsupportedKnowledgeFileExt(' RAR ')).toBe(true)
+    expect(isUnsupportedKnowledgeFileExt(' .RAR ')).toBe(true)
+    expect(isUnsupportedKnowledgeFileExt('')).toBe(true)
   })
 })

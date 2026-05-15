@@ -815,7 +815,7 @@ describe('KnowledgeOrchestrationService', () => {
     await expect(
       service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/song.mp3', path: '/docs/song.mp3' } }])
     ).rejects.toMatchObject({
-      message: 'Only text and document files are supported in knowledge bases'
+      message: 'This file type is not supported in knowledge bases'
     })
 
     expect(fileManagerEnsureExternalEntryMock).not.toHaveBeenCalled()

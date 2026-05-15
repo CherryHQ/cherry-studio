@@ -522,6 +522,23 @@ describe('AddKnowledgeItemDialog', () => {
     expect(screen.getByText('alpha.pdf')).toBeInTheDocument()
   })
 
+  it('shows inline error when a selected file path cannot be resolved', async () => {
+    const onOpenChange = vi.fn()
+    mockGetPathForFile.mockReturnValueOnce('')
+    renderControlledDialog(onOpenChange)
+
+    setMockAcceptedFiles([createMockFile('alpha.pdf', 1024)])
+    fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
+    fireEvent.click(screen.getByRole('button', { name: '添加' }))
+
+    const alert = await screen.findByRole('alert')
+
+    expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
+    expect(alert).toHaveTextContent('添加数据源失败: Failed to resolve a local path for "alpha.pdf"')
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    expect(screen.getByText('alpha.pdf')).toBeInTheDocument()
+  })
+
   it('wraps long submit errors inside a bounded inline alert', async () => {
     const onOpenChange = vi.fn()
     const longErrorMessage = `Error invoking remote method 'knowledge-runtime:add-items': ${JSON.stringify({
