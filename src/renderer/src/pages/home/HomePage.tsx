@@ -5,6 +5,7 @@ import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
 import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
+import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
 import type { Topic } from '@renderer/types'
@@ -40,6 +41,8 @@ function buildPendingTemporaryTopic(id: string): Topic {
 const HomePage: FC = () => {
   const navigate = useNavigate()
   const { isLeftNavbar } = useNavbarPosition()
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyOrigin, setHistoryOrigin] = useState<DOMRectReadOnly>()
 
   const location = useLocation()
   const state = location.state as { topic?: Topic } | undefined
@@ -137,8 +140,24 @@ const HomePage: FC = () => {
     }
   }, [showSidebar])
 
+  const openHistory = useCallback((origin?: DOMRectReadOnly) => {
+    setHistoryOrigin(origin)
+    setHistoryOpen(true)
+  }, [])
+  const closeHistory = useCallback(() => setHistoryOpen(false), [])
+  const historyOverlay = (
+    <HistoryRecordsPage
+      mode="assistant"
+      open={historyOpen}
+      activeRecordId={activeTopic?.id}
+      origin={historyOrigin}
+      onClose={closeHistory}
+      onRecordSelect={setActiveTopic}
+    />
+  )
+
   if (!activeTopic) {
-    return <Container id="home-page" />
+    return <Container id="home-page">{historyOverlay}</Container>
   }
 
   const panePosition = topicPosition === 'right' ? 'right' : 'left'
@@ -150,7 +169,14 @@ const HomePage: FC = () => {
         <Chat
           activeTopic={activeTopic}
           setActiveTopic={setActiveTopic}
-          pane={<HomeTabs activeTopic={activeTopic} setActiveTopic={setActiveTopic} position={panePosition} />}
+          pane={
+            <HomeTabs
+              activeTopic={activeTopic}
+              setActiveTopic={setActiveTopic}
+              position={panePosition}
+              onOpenHistory={openHistory}
+            />
+          }
           paneOpen={showSidebar}
           panePosition={panePosition}
           // Wire the persist callback only while the temp lease is the
@@ -162,6 +188,7 @@ const HomePage: FC = () => {
           }
         />
       </ContentContainer>
+      {historyOverlay}
     </Container>
   )
 }
@@ -170,6 +197,8 @@ const Container = styled.div`
   display: flex;
   flex: 1;
   flex-direction: column;
+  position: relative;
+  overflow: hidden;
   [navbar-position='left'] & {
     max-width: calc(100vw - var(--sidebar-width));
   }

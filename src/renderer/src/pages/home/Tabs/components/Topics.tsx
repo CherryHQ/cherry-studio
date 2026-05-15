@@ -12,10 +12,8 @@ import {
   useResourceList,
   useResourceListPinnedState
 } from '@renderer/components/chat/resources'
+import EditNameDialog from '@renderer/components/EditNameDialog'
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
-import PromptPopup from '@renderer/components/Popups/PromptPopup'
-import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { isMac } from '@renderer/config/constant'
 import { prefetch } from '@renderer/data/hooks/useDataApi'
 import { useAssistantsApi } from '@renderer/hooks/useAssistantDataApi'
@@ -27,17 +25,6 @@ import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
-import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/utils/copy'
-import {
-  exportMarkdownToJoplin,
-  exportMarkdownToSiyuan,
-  exportMarkdownToYuque,
-  exportTopicAsMarkdown,
-  exportTopicToNotes,
-  exportTopicToNotion,
-  topicToMarkdown
-} from '@renderer/utils/export'
-import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { getLeadingEmoji } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
 import dayjs from 'dayjs'
@@ -61,12 +48,7 @@ import type { MouseEvent, RefObject } from 'react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  executeTopicMenuAction,
-  resolveTopicMenuActions,
-  type TopicActionContext,
-  type TopicExportMenuOptions
-} from './topicContextMenuActions'
+import type { TopicExportMenuOptions } from './topicContextMenuActions'
 import { TopicManagePanel, useTopicManageMode } from './TopicManageMode'
 import {
   applyOptimisticTopicDisplayMove,
@@ -82,11 +64,13 @@ import {
   TOPIC_UNKNOWN_ASSISTANT_GROUP_ID,
   type TopicDisplayMode
 } from './Topics.helpers'
+import { useTopicMenuActions } from './useTopicMenuActions'
 
 const logger = loggerService.withContext('Topics')
 
 interface Props {
   activeTopic: Topic
+  onOpenHistory?: (origin?: DOMRectReadOnly) => void
   setActiveTopic: (topic: Topic) => void
   position: 'left' | 'right'
 }
@@ -155,7 +139,7 @@ function TopicDisplayModeMenu({
   )
 }
 
-export function Topics({ activeTopic, setActiveTopic, position }: Props) {
+export function Topics({ activeTopic, onOpenHistory, setActiveTopic, position }: Props) {
   const { t } = useTranslation()
   const [groupNow] = useState(() => dayjs())
   const { notesPath } = useNotesSettings()
@@ -369,22 +353,6 @@ export function Topics({ activeTopic, setActiveTopic, position }: Props) {
     [t, updateTopic, finishTopicRenaming]
   )
 
-  const handlePromptRename = useCallback(
-    async (topic: Topic) => {
-      const name = await PromptPopup.show({
-        title: t('chat.topics.edit.title'),
-        message: '',
-        defaultValue: topic.name || '',
-        extraNode: <div className="mt-2 text-(--color-text-3)">{t('chat.topics.edit.title_tip')}</div>
-      })
-
-      if (name && topic.name !== name) {
-        void updateTopic({ ...topic, name, isNameManuallyEdited: true })
-      }
-    },
-    [t, updateTopic]
-  )
-
   const topicGroupBy = useMemo(
     () =>
       createTopicDisplayGroupResolver<Topic>({
@@ -514,6 +482,17 @@ export function Topics({ activeTopic, setActiveTopic, position }: Props) {
     (nextGroupIds: string[]) => void setCollapsedTopicGroupIds(nextGroupIds),
     [setCollapsedTopicGroupIds]
   )
+  const handleOpenHistoryOrToggleSidebar = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      if (onOpenHistory) {
+        onOpenHistory(event.currentTarget.getBoundingClientRect())
+        return
+      }
+
+      void setShowSidebar(!showSidebar)
+    },
+    [onOpenHistory, setShowSidebar, showSidebar]
+  )
 
   const canDragTopicItem = useCallback(
     ({ item }: { item: Topic }) => isAssistantDisplayMode && !isManageMode && !item.pinned,
@@ -623,8 +602,8 @@ export function Topics({ activeTopic, setActiveTopic, position }: Props) {
               </Tooltip>
               <ResourceList.HeaderActionButton
                 type="button"
-                aria-label={t('shortcut.general.toggle_sidebar')}
-                onClick={() => void setShowSidebar(!showSidebar)}>
+                aria-label={onOpenHistory ? t('history.records.title') : t('shortcut.general.toggle_sidebar')}
+                onClick={handleOpenHistoryOrToggleSidebar}>
                 <ChevronsUpDown size={12} className="block rotate-45" />
               </ResourceList.HeaderActionButton>
             </>
@@ -655,7 +634,6 @@ export function Topics({ activeTopic, setActiveTopic, position }: Props) {
           onDeleteClick={handleDeleteClick}
           onDeleteFromMenu={handleDeleteTopicFromMenu}
           onPinTopic={handlePinTopic}
-          onPromptRename={handlePromptRename}
           onSwitchTopic={setActiveTopic}
           rowLayout={singlealone ? 'single' : 'grouped'}
           selectedIds={selectedIds}
@@ -791,7 +769,6 @@ interface TopicListBodyProps {
   onDeleteClick: (topicId: string, event: MouseEvent) => void
   onDeleteFromMenu: (topic: Topic) => Promise<void>
   onPinTopic: (topic: Topic) => Promise<void>
-  onPromptRename: (topic: Topic) => Promise<void>
   onSwitchTopic: (topic: Topic) => void
   rowLayout: TopicRowLayout
   selectedIds: Set<string>
@@ -870,7 +847,6 @@ function TopicRow({
   onDeleteClick,
   onDeleteFromMenu,
   onPinTopic,
-  onPromptRename,
   onSwitchTopic,
   selectedIds,
   streamStatus,
@@ -892,75 +868,26 @@ function TopicRow({
       : ''
   const { isFulfilled: isTopicStreamFulfilled, isPending: isTopicStreamPending } = streamStatus
   const hasTopicStreamIndicator = !isActive && (isTopicStreamPending || isTopicStreamFulfilled)
-  const actionContext = useMemo<TopicActionContext>(
-    () => ({
-      exportMenuOptions,
-      isRenaming: isRenaming(topic.id),
-      onAutoRename,
-      onClearMessages,
-      onCopyImage: (topic) => void EventEmitter.emit(EVENT_NAMES.COPY_TOPIC_IMAGE, topic),
-      onCopyMarkdown: copyTopicAsMarkdown,
-      onCopyPlainText: copyTopicAsPlainText,
-      onDelete: onDeleteFromMenu,
-      onExportImage: (topic) => void EventEmitter.emit(EVENT_NAMES.EXPORT_TOPIC_IMAGE, topic),
-      onExportJoplin: async (topic) => {
-        const topicMessages = await getTopicMessages(topic.id)
-        void exportMarkdownToJoplin(topic.name, topicMessages)
-      },
-      onExportMarkdown: exportTopicAsMarkdown,
-      onExportMarkdownReason: (topic) => exportTopicAsMarkdown(topic, true),
-      onExportNotion: exportTopicToNotion,
-      onExportObsidian: (topic) => ObsidianExportPopup.show({ title: topic.name, topic, processingMethod: '3' }),
-      onExportSiyuan: async (topic) => {
-        const markdown = await topicToMarkdown(topic)
-        void exportMarkdownToSiyuan(topic.name, markdown)
-      },
-      onExportWord: async (topic) => {
-        const markdown = await topicToMarkdown(topic)
-        void window.api.export.toWord(markdown, removeSpecialCharactersForFileName(topic.name))
-      },
-      onExportYuque: async (topic) => {
-        const markdown = await topicToMarkdown(topic)
-        void exportMarkdownToYuque(topic.name, markdown)
-      },
-      onPinTopic,
-      onPromptRename,
-      onSaveToKnowledge: async (topic) => {
-        try {
-          const result = await SaveToKnowledgePopup.showForTopic(topic)
-          if (result?.success) {
-            window.toast.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
-          }
-        } catch {
-          window.toast.error(t('chat.save.topic.knowledge.error.save_failed'))
-        }
-      },
-      onSaveToNotes: (topic) => exportTopicToNotes(topic, notesPath),
-      t,
-      topic,
-      topicsLength
-    }),
-    [
-      exportMenuOptions,
-      isRenaming,
-      notesPath,
-      onAutoRename,
-      onClearMessages,
-      onDeleteFromMenu,
-      onPinTopic,
-      onPromptRename,
-      t,
-      topic,
-      topicsLength
-    ]
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false)
+  const startInlineRename = useCallback(() => context.actions.startRename(topic.id), [context.actions, topic.id])
+  const startMenuRename = useCallback(() => setRenameDialogOpen(true), [])
+  const submitRenameDialog = useCallback(
+    (name: string) => context.actions.commitRename(topic.id, name),
+    [context.actions, topic.id]
   )
-  const menuActions = useMemo(() => resolveTopicMenuActions(actionContext), [actionContext])
-  const handleMenuAction = useCallback(
-    async (action: (typeof menuActions)[number]) => {
-      await executeTopicMenuAction(action, actionContext)
-    },
-    [actionContext]
-  )
+  const { menuActions, handleMenuAction } = useTopicMenuActions({
+    exportMenuOptions,
+    isRenaming: isRenaming(topic.id),
+    notesPath,
+    onAutoRename,
+    onClearMessages,
+    onDelete: onDeleteFromMenu,
+    onPinTopic,
+    onStartRename: startMenuRename,
+    t,
+    topic,
+    topicsLength
+  })
 
   const row = (
     <ResourceList.Item
@@ -1015,6 +942,7 @@ function TopicRow({
       <ResourceList.RenameField
         item={topic}
         aria-label={t('chat.topics.edit.title')}
+        autoFocus
         onClick={(event) => event.stopPropagation()}
       />
       {context.state.renamingId !== topic.id && (
@@ -1024,7 +952,7 @@ function TopicRow({
           onDoubleClick={(event) => {
             if (isManageMode) return
             event.stopPropagation()
-            context.actions.startRename(topic.id)
+            startInlineRename()
           }}>
           {topicName}
         </ResourceList.ItemTitle>
@@ -1062,9 +990,19 @@ function TopicRow({
   }
 
   return (
-    <ResourceList.ContextMenu item={topic} actions={menuActions} onAction={handleMenuAction}>
-      {row}
-    </ResourceList.ContextMenu>
+    <>
+      <ResourceList.ContextMenu item={topic} actions={menuActions} onAction={handleMenuAction}>
+        {row}
+      </ResourceList.ContextMenu>
+      <EditNameDialog
+        open={renameDialogOpen}
+        title={t('chat.topics.edit.title')}
+        initialName={topic.name}
+        placeholder={t('chat.topics.edit.placeholder')}
+        onSubmit={submitRenameDialog}
+        onOpenChange={setRenameDialogOpen}
+      />
+    </>
   )
 }
 

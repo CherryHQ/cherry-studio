@@ -806,6 +806,16 @@ function RenameField<T extends ResourceListItemBase>({ item, className, ref, ...
   const { actions, meta, state } = useResourceList<T>()
   const id = meta.getItemId(item)
   const didCommitRef = useRef(false)
+  const setInputRef = useCallback(
+    (node: HTMLInputElement | null) => {
+      if (typeof ref === 'function') {
+        ref(node)
+      } else if (ref) {
+        ;(ref as { current: HTMLInputElement | null }).current = node
+      }
+    },
+    [ref]
+  )
 
   useEffect(() => {
     if (state.renamingId !== id) {
@@ -823,8 +833,7 @@ function RenameField<T extends ResourceListItemBase>({ item, className, ref, ...
 
   return (
     <Input
-      ref={ref}
-      autoFocus
+      ref={setInputRef}
       defaultValue={meta.getItemLabel(item)}
       className={cn(
         'h-6 flex-1 border-none bg-transparent px-0 text-[12px] text-sidebar-foreground/70 shadow-none focus-visible:ring-0',
@@ -1015,6 +1024,8 @@ type ContextMenuProps<T extends ResourceListItemBase, TActionContext = unknown> 
   children: ReactNode
   content?: ReactNode
   contentClassName?: string
+  confirmDialogContentClassName?: string
+  confirmDialogOverlayClassName?: string
   menuClassName?: string
   onAction?: (action: ResolvedAction<TActionContext>) => void | Promise<void>
 }
@@ -1025,20 +1036,32 @@ function ContextMenu<T extends ResourceListItemBase, TActionContext = unknown>({
   children,
   content,
   contentClassName,
+  confirmDialogContentClassName,
+  confirmDialogOverlayClassName,
   menuClassName,
   onAction
 }: ContextMenuProps<T, TActionContext>) {
   const { actions, meta } = useResourceList<T>()
   const contentClass = cn(CONTEXT_MENU_CONTENT_CLASS, contentClassName)
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (open) actions.openContextMenu(meta.getItemId(item))
+    },
+    [actions, item, meta]
+  )
+  const [contextMenuKey, setContextMenuKey] = useState(0)
 
   return (
-    <UiContextMenu onOpenChange={(open) => open && actions.openContextMenu(meta.getItemId(item))}>
+    <UiContextMenu key={contextMenuKey} onOpenChange={handleOpenChange}>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
       {menuActions ? (
         <ActionMenu
           actions={menuActions}
           className={cn(contentClass, menuClassName)}
+          confirmDialogContentClassName={confirmDialogContentClassName}
+          confirmDialogOverlayClassName={confirmDialogOverlayClassName}
           onAction={(action) => onAction?.(action)}
+          onConfirmActionComplete={() => setContextMenuKey((key) => key + 1)}
         />
       ) : (
         <ContextMenuContent className={contentClass}>{content}</ContextMenuContent>

@@ -1,12 +1,40 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const React = await import('react')
   const actual = await importOriginal<typeof CherryStudioUi>()
-  return actual
+  const itemHandler = (onSelect: ((event: Event) => void) | undefined, props: Record<string, unknown>) => ({
+    ...props,
+    disabled: props.disabled as boolean | undefined,
+    onClick: (event: Event) => onSelect?.(event),
+    role: 'menuitem',
+    type: 'button'
+  })
+
+  return {
+    ...actual,
+    ContextMenu: ({ children }: { children?: ReactNode }) => <div data-testid="context-menu">{children}</div>,
+    ContextMenuContent: ({ children, ...props }: { children?: ReactNode }) => (
+      <div data-testid="context-menu-content" {...props}>
+        {children}
+      </div>
+    ),
+    ContextMenuItem: ({ children, onSelect, ...props }: any) =>
+      React.createElement('button', itemHandler(onSelect, props), children),
+    ContextMenuSeparator: (props: any) => <hr data-testid="context-menu-separator" {...props} />,
+    ContextMenuSub: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    ContextMenuSubContent: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
+    ContextMenuSubTrigger: ({ children, ...props }: { children?: ReactNode }) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
+    ContextMenuTrigger: ({ children }: { children?: ReactNode }) => <>{children}</>
+  }
 })
 
 beforeAll(() => {
@@ -261,10 +289,15 @@ vi.mock('react-i18next', () => ({
         'common.delete': 'Delete',
         'common.error': 'Error',
         'common.loading': 'Loading...',
+        'common.name': 'Name',
+        'common.rename': 'Rename',
+        'common.required_field': 'Required field',
         'common.retry': 'Retry',
+        'common.save': 'Save',
         'common.saved': 'Saved',
         'common.unnamed': 'Untitled',
         'error.model.not_exists': 'Model does not exist',
+        'history.records.agentTitle': 'Agent History',
         'selector.agent.create_new': 'Create agent',
         'selector.agent.empty_text': 'No agents',
         'selector.agent.search_placeholder': 'Search agents',
@@ -454,11 +487,32 @@ describe('Sessions', () => {
     expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.tab.show', false)
   })
 
+  it('opens agent history from the trailing header action when provided', () => {
+    const onOpenHistory = vi.fn()
+
+    render(<Sessions onOpenHistory={onOpenHistory} />)
+
+    const historyButton = screen.getByLabelText('Agent History')
+    vi.spyOn(historyButton, 'getBoundingClientRect').mockReturnValue({
+      x: 14,
+      y: 24,
+      width: 34,
+      height: 44
+    } as DOMRect)
+
+    fireEvent.click(historyButton)
+
+    expect(onOpenHistory).toHaveBeenCalledTimes(1)
+    expect(onOpenHistory).toHaveBeenCalledWith({ x: 14, y: 24, width: 34, height: 44 })
+    expect(preferenceMocks.setPreference).not.toHaveBeenCalledWith('topic.tab.show', false)
+  })
+
   it('renames sessions through the shared update session hook', async () => {
     render(<Sessions />)
 
     fireEvent.doubleClick(screen.getByText('Alpha session'))
     const input = screen.getByLabelText('Edit session')
+    expect(input).toHaveFocus()
     fireEvent.change(input, { target: { value: 'Renamed session' } })
     fireEvent.keyDown(input, { key: 'Enter' })
 
@@ -469,6 +523,31 @@ describe('Sessions', () => {
       )
     )
     expect(sessionDataMocks.reorderSession).not.toHaveBeenCalled()
+  })
+
+  it('renames sessions from the context menu dialog', async () => {
+    render(<Sessions />)
+
+    const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('menuitem', { name: 'Rename' }))
+
+    expect(sessionDataMocks.updateSession).not.toHaveBeenCalled()
+
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('Edit session')
+    const input = within(dialog).getByLabelText('Name')
+    expect(sessionDataMocks.updateSession).not.toHaveBeenCalled()
+
+    fireEvent.change(input, { target: { value: 'Renamed from menu' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await vi.waitFor(() =>
+      expect(sessionDataMocks.updateSession).toHaveBeenCalledWith(
+        { id: 'session-a', name: 'Renamed from menu' },
+        { showSuccessToast: false }
+      )
+    )
   })
 
   it('clears pending delete confirmation timers on unmount', () => {

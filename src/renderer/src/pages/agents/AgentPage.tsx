@@ -1,15 +1,17 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useAgents } from '@renderer/hooks/agents/useAgentDataApi'
 import { useAgentSessionInitializer } from '@renderer/hooks/agents/useAgentSessionInitializer'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
+import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import type { PropsWithChildren } from 'react'
-import { useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AgentChat from './AgentChat'
@@ -19,10 +21,13 @@ import { AgentEmpty } from './components/status'
 
 const AgentPage = () => {
   const { isLeftNavbar } = useNavbarPosition()
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyOrigin, setHistoryOrigin] = useState<DOMRectReadOnly>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
   const { topicPosition } = useSettings()
   const { agents } = useAgents()
+  const [activeSessionId, setActiveSessionId] = useCache('agent.active_session_id')
   const { t } = useTranslation()
 
   // Seed `agent.active_session_id` to the most-recent session when nothing is set.
@@ -52,6 +57,22 @@ const AgentPage = () => {
     }
   }, [showSidebar])
 
+  const openHistory = useCallback((origin?: DOMRectReadOnly) => {
+    setHistoryOrigin(origin)
+    setHistoryOpen(true)
+  }, [])
+  const closeHistory = useCallback(() => setHistoryOpen(false), [])
+  const historyOverlay = (
+    <HistoryRecordsPage
+      mode="agent"
+      open={historyOpen}
+      activeRecordId={activeSessionId}
+      origin={historyOrigin}
+      onClose={closeHistory}
+      onRecordSelect={setActiveSessionId}
+    />
+  )
+
   if (agents && agents.length === 0) {
     return (
       <Container>
@@ -59,6 +80,7 @@ const AgentPage = () => {
           <NavbarCenter style={{ borderRight: 'none' }}>{t('common.agent_one')}</NavbarCenter>
         </Navbar>
         <AgentEmpty />
+        {historyOverlay}
       </Container>
     )
   }
@@ -72,18 +94,19 @@ const AgentPage = () => {
         id={isLeftNavbar ? 'content-container' : undefined}
         className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
         <AgentChat
-          pane={<AgentSidePanel position={panePosition} />}
+          pane={<AgentSidePanel position={panePosition} onOpenHistory={openHistory} />}
           paneOpen={showSidebar}
           panePosition={panePosition}
         />
       </div>
+      {historyOverlay}
     </Container>
   )
 }
 
 const Container = ({ children, className }: PropsWithChildren<{ className?: string }>) => {
   return (
-    <div id="agent-page" className={cn('flex flex-1 flex-col overflow-hidden', className)}>
+    <div id="agent-page" className={cn('relative flex flex-1 flex-col overflow-hidden', className)}>
       {children}
     </div>
   )
