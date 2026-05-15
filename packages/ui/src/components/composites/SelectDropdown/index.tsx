@@ -146,7 +146,7 @@ export function SelectDropdown<T extends { id: string }>({
         <div
           className={cn(
             'flex items-center gap-1 rounded-md pr-1 transition-colors',
-            isSelected && 'bg-primary/10 text-primary'
+            isSelected && 'bg-accent text-foreground'
           )}>
           <button
             type="button"
@@ -176,7 +176,7 @@ export function SelectDropdown<T extends { id: string }>({
         }}
         className={cn(
           'w-full rounded-md px-2.5 py-1.5 text-left text-sm transition-colors',
-          isSelected ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-muted'
+          isSelected ? 'bg-accent text-foreground' : 'text-foreground hover:bg-muted'
         )}>
         {renderItem(item, isSelected)}
       </button>
