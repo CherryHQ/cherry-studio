@@ -5,6 +5,7 @@
 
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
@@ -276,9 +277,27 @@ export class AssistantMigrator extends BaseMigrator {
           logger.info(`Filtered ${droppedAssistantModelRefs} dangling assistant model references`)
         }
 
-        const knowledgeBaseRows = this.preparedResults.flatMap((r) => r.knowledgeBases)
+        // Filter dangling knowledge_base references: v1 may carry assistant.knowledge_bases[] entries
+        // pointing to knowledge bases that were deleted or skipped by KnowledgeMigrator. Inserting
+        // them violates the FK on assistant_knowledge_base.knowledge_base_id.
+        const allKnowledgeBaseRows = this.preparedResults.flatMap((r) => r.knowledgeBases)
+        const existingKnowledgeBaseIds = new Set(
+          (await tx.select({ id: knowledgeBaseTable.id }).from(knowledgeBaseTable)).map((r) => r.id)
+        )
+        const knowledgeBaseRows = allKnowledgeBaseRows.filter((row) => {
+          if (existingKnowledgeBaseIds.has(row.knowledgeBaseId)) return true
+          logger.warn(
+            `Dropping dangling assistant_knowledge_base ref: assistant=${row.assistantId}, knowledgeBase=${row.knowledgeBaseId}`
+          )
+          return false
+        })
         for (let i = 0; i < knowledgeBaseRows.length; i += BATCH_SIZE) {
           await tx.insert(assistantKnowledgeBaseTable).values(knowledgeBaseRows.slice(i, i + BATCH_SIZE))
+        }
+        if (allKnowledgeBaseRows.length !== knowledgeBaseRows.length) {
+          logger.info(
+            `Filtered ${allKnowledgeBaseRows.length - knowledgeBaseRows.length} dangling knowledge_base references`
+          )
         }
 
         // --- Tag migration: assistant.tags[] → tag + entity_tag tables ---
