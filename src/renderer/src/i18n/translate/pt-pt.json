@@ -5147,16 +5147,23 @@
       "default_assistant_model_description": "Modelo usado ao criar um novo assistente, se o assistente não tiver um modelo definido, este será usado",
       "empty": "Sem modelos",
       "manage": {
+        "add_error": "[to be translated]:Failed to add models",
         "add_listed": {
           "confirm": "Tem a certeza de que deseja adicionar todos os modelos à lista?",
           "label": "Adicionar modelo da lista"
         },
+        "add_success": "[to be translated]:Successfully added {{count}} models",
         "add_whole_group": "Adicionar todo o grupo",
+        "batch_add_selected": "[to be translated]:Add selected models",
         "fetch_list": "Buscar lista de modelos",
+        "no_models_to_add": "[to be translated]:No models to add",
         "refetch_list": "Obter novamente a lista de modelos",
         "remove_listed": "Remover modelo da lista",
         "remove_model": "Remover Modelo",
-        "remove_whole_group": "Remover todo o grupo"
+        "remove_whole_group": "Remover todo o grupo",
+        "select_all": "[to be translated]:Select all",
+        "select_all_group": "[to be translated]:Select all models in group {{groupName}}",
+        "select_model": "[to be translated]:Select model {{modelName}}"
       },
       "provider_id": "ID do Provedor",
       "provider_key_add_confirm": "Deseja adicionar uma chave API para {{provider}}?",
