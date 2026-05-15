@@ -1371,8 +1371,9 @@ describe('KnowledgeMigrator file_ref creation', () => {
     expect(typeof (insertedOutsideTx[0] as any).id).toBe('string')
   })
 
-  it('skips file_ref creation for a knowledge item without a fileId', async () => {
+  it('skips file_ref creation for a knowledge item without a fileId and records a bucketed warning', async () => {
     const { sharedData, db, logger, insertedOutsideTx } = makeExecCtx()
+    loggerWarnMock.mockClear()
 
     const migrator = new KnowledgeMigrator() as any
     migrator.preparedBases = [{ id: 'kb-1', name: 'KB 1', dimensions: 512, embeddingModelId: 'openai::emb' }]
@@ -1391,6 +1392,12 @@ describe('KnowledgeMigrator file_ref creation', () => {
 
     expect(result.success).toBe(true)
     expect(insertedOutsideTx).toHaveLength(0)
+    const summaryCall = loggerWarnMock.mock.calls.find(
+      ([msg]) => typeof msg === 'string' && msg.includes('knowledge_item_missing_file_id')
+    )
+    expect(summaryCall).toBeDefined()
+    expect(summaryCall![0]).toContain('count=1')
+    expect(summaryCall![0]).toContain('item-file-missing')
   })
 
   it('creates one file_ref per file item; skips non-file types', async () => {

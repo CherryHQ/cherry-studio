@@ -612,14 +612,21 @@ export class KnowledgeMigrator extends BaseMigrator {
       // Create file_ref rows for file-type knowledge items. The v1 file id is
       // preserved verbatim by FileMigrator (per migration-plan §2.9), so each
       // legacyFileId is already the v2 fileEntryId. Items without a fileId are
-      // silently skipped — missing refs do not block the migration.
+      // bucketed via `recordSkippedWarning` so the user / postmortem sees the
+      // count + a few example item ids instead of a silent drop.
       const now = Date.now()
       const fileRefRows: Array<typeof fileRefTable.$inferInsert> = []
       for (const item of this.preparedItems) {
         if (item.type !== 'file') continue
         const fileData = item.data as { file?: { id?: string } } | undefined
         const legacyFileId = fileData?.file?.id
-        if (!legacyFileId) continue
+        if (!legacyFileId) {
+          this.recordSkippedWarning(
+            'knowledge_item_missing_file_id',
+            `Knowledge item id=${item.id} (type=file) has no data.file.id; file_ref row will not be created`
+          )
+          continue
+        }
 
         fileRefRows.push({
           id: uuidv4(),
@@ -631,6 +638,7 @@ export class KnowledgeMigrator extends BaseMigrator {
           updatedAt: now
         })
       }
+      this.flushSkippedWarnings()
       if (fileRefRows.length > 0) {
         await ctx.db.insert(fileRefTable).values(fileRefRows)
       }
