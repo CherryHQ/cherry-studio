@@ -1,5 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useAgents } from '@renderer/hooks/agents/useAgentDataApi'
 import { useAgentSessionInitializer } from '@renderer/hooks/agents/useAgentSessionInitializer'
@@ -11,7 +12,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import type { PropsWithChildren } from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AgentChat from './AgentChat'
@@ -28,6 +29,8 @@ const AgentPage = () => {
   const { topicPosition } = useSettings()
   const { agents } = useAgents()
   const [activeSessionId, setActiveSessionId] = useCache('agent.active_session_id')
+  const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
+  const sessionRevealRequestIdRef = useRef(0)
   const { t } = useTranslation()
 
   // Seed `agent.active_session_id` to the most-recent session when nothing is set.
@@ -62,6 +65,23 @@ const AgentPage = () => {
     setHistoryOpen(true)
   }, [])
   const closeHistory = useCallback(() => setHistoryOpen(false), [])
+  const handleHistorySessionSelect = useCallback(
+    (sessionId: string | null) => {
+      void setShowSidebar(true)
+      setActiveSessionId(sessionId)
+
+      if (!sessionId) return
+
+      sessionRevealRequestIdRef.current += 1
+      setSessionRevealRequest({
+        clearFilters: true,
+        clearQuery: true,
+        itemId: sessionId,
+        requestId: sessionRevealRequestIdRef.current
+      })
+    },
+    [setActiveSessionId, setShowSidebar]
+  )
   const historyOverlay = (
     <HistoryRecordsPage
       mode="agent"
@@ -69,7 +89,7 @@ const AgentPage = () => {
       activeRecordId={activeSessionId}
       origin={historyOrigin}
       onClose={closeHistory}
-      onRecordSelect={setActiveSessionId}
+      onRecordSelect={handleHistorySessionSelect}
     />
   )
 
@@ -94,7 +114,9 @@ const AgentPage = () => {
         id={isLeftNavbar ? 'content-container' : undefined}
         className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
         <AgentChat
-          pane={<AgentSidePanel position={panePosition} onOpenHistory={openHistory} />}
+          pane={
+            <AgentSidePanel position={panePosition} onOpenHistory={openHistory} revealRequest={sessionRevealRequest} />
+          }
           paneOpen={showSidebar}
           panePosition={panePosition}
         />

@@ -52,8 +52,10 @@ const virtualMocks = vi.hoisted(() => ({
       })),
     getTotalSize: () => options.count * 40,
     measureElement: vi.fn(),
-    scrollElement: null
-  }))
+    scrollElement: null,
+    scrollToIndex: virtualMocks.scrollToIndex
+  })),
+  scrollToIndex: vi.fn()
 }))
 
 const dndMocks = vi.hoisted(() => ({
@@ -402,6 +404,7 @@ describe('Sessions', () => {
   afterEach(() => {
     dndMocks.droppableData.clear()
     dndMocks.sortableData.clear()
+    virtualMocks.scrollToIndex.mockClear()
     vi.useRealTimers()
   })
 
@@ -505,6 +508,45 @@ describe('Sessions', () => {
     expect(onOpenHistory).toHaveBeenCalledTimes(1)
     expect(onOpenHistory).toHaveBeenCalledWith({ x: 14, y: 24, width: 34, height: 44 })
     expect(preferenceMocks.setPreference).not.toHaveBeenCalledWith('topic.tab.show', false)
+  })
+
+  it('reveals a history-selected session hidden by search and show-more with row focus', async () => {
+    setupSessions({
+      sessions: Array.from({ length: 6 }, (_, index) =>
+        createSession({
+          id: `session-${index + 1}`,
+          name: `Session ${index + 1}`,
+          orderKey: `${index + 1}`
+        })
+      )
+    })
+
+    const { rerender } = render(<Sessions />)
+
+    fireEvent.change(screen.getByPlaceholderText('Search sessions'), { target: { value: 'missing' } })
+    expect(screen.getByPlaceholderText('Search sessions')).toHaveValue('missing')
+    expect(screen.queryByText('Session 6')).not.toBeInTheDocument()
+
+    vi.useFakeTimers()
+    rerender(<Sessions revealRequest={{ itemId: 'session-6', requestId: 1, clearFilters: true, clearQuery: true }} />)
+
+    expect(screen.getByText('Session 6')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Search sessions')).toHaveValue('')
+    const revealedRow = screen.getByText('Session 6').closest('[role="option"]')
+    expect(revealedRow).not.toBeNull()
+    expect(revealedRow!).toHaveAttribute('data-reveal-focus', 'true')
+    expect(revealedRow!).toHaveClass('animation-resource-list-reveal-focus')
+    expect(virtualMocks.scrollToIndex).toHaveBeenCalledWith(expect.any(Number), { align: 'center' })
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(999)
+    })
+    expect(revealedRow!).toHaveAttribute('data-reveal-focus', 'true')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(revealedRow!).not.toHaveAttribute('data-reveal-focus')
   })
 
   it('renames sessions through the shared update session hook', async () => {

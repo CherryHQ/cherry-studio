@@ -4,6 +4,7 @@ import {
   ResourceList,
   type ResourceListItemReorderPayload,
   type ResourceListReorderPayload,
+  type ResourceListRevealRequest,
   SessionResourceList,
   useResourceList
 } from '@renderer/components/chat/resources'
@@ -43,6 +44,7 @@ import {
 interface SessionsProps {
   onOpenHistory?: (origin?: DOMRectReadOnly) => void
   onSelectItem?: () => void
+  revealRequest?: ResourceListRevealRequest
 }
 
 const logger = loggerService.withContext('AgentSessions')
@@ -118,7 +120,7 @@ export function resolveCreateSessionAgentId(
   return activeAgentId ?? sessions[0]?.agentId ?? agents[0]?.id ?? null
 }
 
-const Sessions = ({ onOpenHistory, onSelectItem }: SessionsProps) => {
+const Sessions = ({ onOpenHistory, onSelectItem, revealRequest }: SessionsProps) => {
   const { t } = useTranslation()
   const [groupNow] = useState(() => new Date())
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
@@ -432,6 +434,7 @@ const Sessions = ({ onOpenHistory, onSelectItem }: SessionsProps) => {
       estimateItemSize={() => 34}
       groupBy={sessionGroupBy}
       collapsedGroupIds={collapsedSessionGroupIds}
+      revealRequest={revealRequest}
       defaultGroupVisibleCount={5}
       groupLoadStep={5}
       getGroupHeaderAction={getGroupHeaderAction}
