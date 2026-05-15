@@ -3,7 +3,7 @@ import App from '@renderer/components/MinApp/MinApp'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { Code, FileSearch, Folder, Languages, LayoutGrid, NotepadText, Palette, Sparkle } from 'lucide-react'
+import { Code, FileSearch, Folder, Languages, LayoutGrid, NotepadText, Palette, Sparkle, Wand2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -47,6 +47,12 @@ const LaunchpadPage: FC = () => {
       text: t('title.translate'),
       path: '/translate',
       bgColor: 'linear-gradient(135deg, #06B6D4, #0EA5E9)' // 翻译：明亮的青蓝色，代表沟通和流畅
+    },
+    {
+      icon: <Wand2 size={32} className="icon" />,
+      text: t('title.prompt'),
+      path: '/prompt',
+      bgColor: 'linear-gradient(135deg, #9333EA, #C084FC)' // 提示词：紫罗兰渐变，代表创意和魔法
     },
     {
       icon: <Folder size={32} className="icon" />,
