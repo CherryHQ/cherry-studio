@@ -36,6 +36,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
   const didResolve = useRef(false)
 
   const onClose = () => {
+    // 清理工作：确保Promise已被resolve，如果还没有则resolve(null)
     if (!didResolve.current) {
       didResolve.current = true
       resolve(null)
@@ -43,6 +44,10 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
   }
 
   const onCancel = () => {
+    if (!didResolve.current) {
+      didResolve.current = true
+      resolve(null)
+    }
     setOpen(false)
   }
 

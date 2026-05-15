@@ -5,16 +5,12 @@ import CustomTag from '@renderer/components/Tags/CustomTag'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { getModelLogoById } from '@renderer/config/models'
 import FileItem from '@renderer/pages/files/FileItem'
-import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import type { Model, Provider } from '@renderer/types'
-import { isNewApiProvider } from '@renderer/utils/provider'
 import { Avatar, Button, Checkbox, Flex, Tooltip } from 'antd'
 import { ChevronRight, Minus, Plus } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-
-import { isValidNewApiModel } from './utils'
 
 const logger = loggerService.withContext('ManageModelsList')
 
@@ -173,26 +169,16 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
     (models: Model[]) => {
       const isAllInProvider = models.every((model) => addedModelIds.has(model.id))
 
-      const handleGroupAction = () => {
+      const handleGroupAction = async () => {
         if (isAllInProvider) {
           // 移除整组
           models.filter((model) => addedModelIds.has(model.id)).forEach(onRemoveModel)
         } else {
-          // 添加整组
+          // 添加整组，复用 addModelsWithValidation 统一处理验证和弹窗
           const wouldAddModels = models.filter((model) => !addedModelIds.has(model.id))
-
-          if (isNewApiProvider(provider)) {
-            if (wouldAddModels.every(isValidNewApiModel)) {
-              wouldAddModels.forEach(onAddModel)
-            } else {
-              void NewApiBatchAddModelPopup.show({
-                title: t('settings.models.add.batch_add_models'),
-                batchModels: wouldAddModels,
-                provider
-              })
-            }
-          } else {
-            wouldAddModels.forEach(onAddModel)
+          const success = await addModelsWithValidation(wouldAddModels)
+          if (success) {
+            window.toast.success(t('settings.models.manage.add_success', { count: wouldAddModels.length }))
           }
         }
       }
@@ -212,13 +198,13 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
             icon={isAllInProvider ? <Minus size={16} /> : <Plus size={16} />}
             onClick={(e) => {
               e.stopPropagation()
-              handleGroupAction()
+              void handleGroupAction()
             }}
           />
         </Tooltip>
       )
     },
-    [addedModelIds, provider, onRemoveModel, onAddModel, t]
+    [addedModelIds, onRemoveModel, t, addModelsWithValidation]
   )
 
   return (
