@@ -4405,6 +4405,7 @@
       },
       "window": {
         "c_copy": "C 复制",
+        "diff_view": "差异视图",
         "esc_close": "Esc 关闭",
         "esc_stop": "Esc 停止",
         "opacity": "窗口透明度",
@@ -4413,7 +4414,8 @@
         "original_show": "显示原文",
         "pin": "置顶",
         "pinned": "已置顶",
-        "r_regenerate": "R 重新生成"
+        "r_regenerate": "R 重新生成",
+        "result_view": "结果视图"
       }
     },
     "name": "划词助手",

@@ -4405,6 +4405,7 @@
       },
       "window": {
         "c_copy": "C 複製",
+        "diff_view": "差異檢視",
         "esc_close": "Esc 關閉",
         "esc_stop": "Esc 停止",
         "opacity": "視窗透明度",
@@ -4413,7 +4414,8 @@
         "original_show": "顯示原文",
         "pin": "置頂",
         "pinned": "已置頂",
-        "r_regenerate": "R 重新產生"
+        "r_regenerate": "R 重新產生",
+        "result_view": "結果檢視"
       }
     },
     "name": "劃詞助手",

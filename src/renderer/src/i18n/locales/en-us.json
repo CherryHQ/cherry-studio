@@ -4405,6 +4405,7 @@
       },
       "window": {
         "c_copy": "C: Copy",
+        "diff_view": "Diff View",
         "esc_close": "Esc: Close",
         "esc_stop": "Esc: Stop",
         "opacity": "Window Opacity",
@@ -4413,7 +4414,8 @@
         "original_show": "Show Original",
         "pin": "Pin",
         "pinned": "Pinned",
-        "r_regenerate": "R: Regenerate"
+        "r_regenerate": "R: Regenerate",
+        "result_view": "Result View"
       }
     },
     "name": "Selection Assistant",
