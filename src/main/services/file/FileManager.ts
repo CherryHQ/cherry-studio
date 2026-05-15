@@ -39,12 +39,17 @@
  * legitimate responsibility (translating request shape), not business
  * orchestration.
  *
- * **Phase 1 status — deferred**: `dispatchHandle` lives in
- * `internal/dispatch.ts` and is referenced only by its own unit tests; no
- * shipped IPC handler imports it yet. The two wired Phase 1 channels
- * (`File_GetDanglingState` / `File_BatchGetDanglingStates`) accept
- * `FileEntryId` directly. When Phase 2 channels that take `FileHandle`
- * land, they will route through `dispatchHandle`:
+ * **Current status (through Batch 0)**: `dispatchHandle` lives in
+ * `internal/dispatch.ts` and is wired by exactly one IPC handler today —
+ * `File_PermanentDelete`, which accepts a `FileHandle` and routes
+ * `{ kind: 'entry' }` to `FileManager.permanentDelete` and `{ kind: 'path' }`
+ * to `@main/utils/file/fs.remove`. The Phase 1 dangling channels
+ * (`File_GetDanglingState` / `File_BatchGetDanglingStates`) and the Phase 2
+ * entry-shaped channels (`File_CreateInternalEntry`, `File_EnsureExternalEntry`,
+ * `File_GetPhysicalPath`) take typed params directly and bypass the dispatcher
+ * because their semantics are entry-only by design. When `FileHandle`-accepting
+ * read/write/metadata channels land in later batches, they will follow the
+ * same pattern as `File_PermanentDelete`:
  *
  * - `{ kind: 'entry', entryId }` → the corresponding FileManager public
  *   method (e.g. `this.read(entryId, opts)`)
@@ -124,14 +129,18 @@ import { createReadStream as nodeCreateReadStream } from 'node:fs'
 import type { Readable, Writable } from 'node:stream'
 import { pathToFileURL } from 'node:url'
 
+import { application } from '@application'
+import { appStateTable } from '@data/db/schemas/appState'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { orphanCheckerRegistry } from '@data/services/orphan/FileRefCheckerRegistry'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { stat as fsStat } from '@main/utils/file/fs'
+import { bootConfigService } from '@main/data/bootConfig'
+import { remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
-import { FileEntryIdSchema } from '@shared/data/types/file'
+import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
+import { SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
 import type {
   BatchCreateResult,
   BatchMutationResult,
@@ -141,7 +150,10 @@ import type {
   FileURLString,
   PhysicalFileMetadata
 } from '@shared/file/types'
+import type { FileHandle } from '@shared/file/types/handle'
+import { FileHandleSchema } from '@shared/file/types/handle'
 import { IpcChannel } from '@shared/IpcChannel'
+import { eq } from 'drizzle-orm'
 import mime from 'mime'
 import * as z from 'zod'
 
@@ -154,6 +166,7 @@ import {
   writeIfUnchanged as internalWriteIfUnchanged
 } from './internal/content/write'
 import type { FileManagerDeps } from './internal/deps'
+import { dispatchHandle } from './internal/dispatch'
 import { copy as internalCopy } from './internal/entry/copy'
 import {
   createInternal as internalCreateInternal,
@@ -185,7 +198,7 @@ const fileManagerLogger = loggerService.withContext('FileManager')
 export type CreateInternalEntryParams = CreateInternalEntryIpcParams
 export type EnsureExternalEntryParams = EnsureExternalEntryIpcParams
 
-// ─── File IPC input schemas (Phase 1 wired channels only) ───
+// ─── File IPC input schemas ───
 
 /**
  * Maximum number of entry ids a single `File_BatchGetDanglingStates` call may
@@ -199,6 +212,29 @@ export const GetDanglingStateIpcSchema = z.strictObject({ id: FileEntryIdSchema 
 export const BatchGetDanglingStatesIpcSchema = z.strictObject({
   ids: z.array(FileEntryIdSchema).max(FILE_BATCH_DANGLING_MAX_IDS)
 })
+
+// Phase 2 schemas — reuse the canonical essential.ts validators so the IPC
+// boundary is the gate (path-traversal / null bytes / whitespace-only names
+// rejected here, before downstream factories see them).
+const SafeExtNullableSchema = SafeExtSchema.nullable()
+
+export const CreateInternalEntryIpcSchema = z.discriminatedUnion('source', [
+  z.strictObject({ source: z.literal('path'), path: AbsolutePathSchema }),
+  z.strictObject({ source: z.literal('url'), url: z.url() }),
+  z.strictObject({ source: z.literal('base64'), data: z.string().min(1), name: SafeNameSchema.optional() }),
+  z.strictObject({
+    source: z.literal('bytes'),
+    data: z.instanceof(Uint8Array),
+    name: SafeNameSchema,
+    ext: SafeExtNullableSchema
+  })
+])
+
+export const EnsureExternalEntryIpcSchema = z.strictObject({ externalPath: AbsolutePathSchema })
+
+export const GetPhysicalPathIpcSchema = z.strictObject({ id: FileEntryIdSchema })
+
+export const PermanentDeleteIpcSchema = FileHandleSchema
 
 // ─── Version types ───
 
@@ -614,7 +650,13 @@ export class FileManager extends BaseService implements IFileManager {
   protected override async onInit(): Promise<void> {
     await this.deps.danglingCache.initFromDb()
     this.registerIpcHandlers()
-    void this.runStartupSweeps()
+    // Fire-and-forget: both branches catch their own errors, but a synchronous
+    // throw in dep wiring (e.g. registry access racing with shutdown, or
+    // `application.get(...)` before a dep is registered) would otherwise become
+    // an unhandled rejection at this `void` site.
+    void this.runStartupSweeps().catch((err) => {
+      fileManagerLogger.error('runStartupSweeps unhandled rejection', err)
+    })
   }
 
   /**
@@ -629,12 +671,41 @@ export class FileManager extends BaseService implements IFileManager {
    * would saturate the event loop and the DB connection pool.
    */
   private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.File_GetDanglingState, (_e, params: unknown) =>
+    // Handlers are async so a synchronous `Schema.parse` throw becomes a
+    // Promise rejection at the IPC boundary (matching Electron's contract
+    // for `ipcMain.handle` listeners).
+    this.ipcHandle(IpcChannel.File_GetDanglingState, async (_e, params: unknown) =>
       this.getDanglingState(GetDanglingStateIpcSchema.parse(params))
     )
-    this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, (_e, params: unknown) =>
+    this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, async (_e, params: unknown) =>
       this.batchGetDanglingStates(BatchGetDanglingStatesIpcSchema.parse(params))
     )
+    // Phase 2 channels.
+    //
+    // Zod outputs the structural shapes (`{ path: string }`, `{ kind: 'path';
+    // path: string }`, etc.). The TS-side param types use template literal
+    // brands (`FilePath`, `FileHandle`) that Zod can't reproduce without a
+    // `.transform()` per field. The cast at this single boundary keeps the
+    // brand-as-doc convention intact while letting runtime validation (Zod)
+    // remain the actual gate — same pattern used by every other IPC handler
+    // in this file.
+    this.ipcHandle(IpcChannel.File_CreateInternalEntry, async (_e, params: unknown) =>
+      this.createInternalEntry(CreateInternalEntryIpcSchema.parse(params) as CreateInternalEntryIpcParams)
+    )
+    this.ipcHandle(IpcChannel.File_EnsureExternalEntry, async (_e, params: unknown) =>
+      this.ensureExternalEntry(EnsureExternalEntryIpcSchema.parse(params) as EnsureExternalEntryIpcParams)
+    )
+    this.ipcHandle(IpcChannel.File_GetPhysicalPath, async (_e, params: unknown) =>
+      this.getPhysicalPath(GetPhysicalPathIpcSchema.parse(params).id)
+    )
+    this.ipcHandle(IpcChannel.File_PermanentDelete, async (_e, params: unknown) => {
+      const handle = PermanentDeleteIpcSchema.parse(params) as FileHandle
+      return dispatchHandle(
+        handle,
+        (entryId) => this.permanentDelete(entryId),
+        (path) => fsRemove(path)
+      )
+    })
   }
 
   /**
@@ -652,10 +723,29 @@ export class FileManager extends BaseService implements IFileManager {
    * access racing with service shutdown).
    */
   async runStartupSweeps(): Promise<void> {
+    // FS sweep is independent of migration state — always run it.
+    const fsSweepPromise = runStartupFileSweep({ fileEntryService: this.deps.fileEntryService }).catch((err) => {
+      fileManagerLogger.error('Startup file sweep failed', err)
+    })
+
+    // Skip DB sweep once when migration marker mismatches current completedAt.
+    // This provides a grace window after first-boot post-migration and after a
+    // v2 backup restore (see file-manager-architecture §migration-skip-once).
+    const completedAt = await this.getMigrationCompletedAt()
+    const marker = bootConfigService.get('file.lastProcessedMigrationCompletedAt')
+
+    if (completedAt !== null && completedAt !== marker) {
+      bootConfigService.set('file.lastProcessedMigrationCompletedAt', completedAt)
+      fileManagerLogger.info('runStartupSweeps: skipping DB sweep once (post-migration grace window)', {
+        previousMarker: marker,
+        currentCompletedAt: completedAt
+      })
+      await fsSweepPromise
+      return
+    }
+
     await Promise.all([
-      runStartupFileSweep({ fileEntryService: this.deps.fileEntryService }).catch((err) => {
-        fileManagerLogger.error('Startup file sweep failed', err)
-      }),
+      fsSweepPromise,
       runDbSweep({
         fileEntryService: this.deps.fileEntryService,
         fileRefService: this.deps.fileRefService,
@@ -687,6 +777,28 @@ export class FileManager extends BaseService implements IFileManager {
           this.lastDbSweepRanAt = Date.now()
         })
     ])
+  }
+
+  /**
+   * Read the `completedAt` ms-epoch from `app_state.migration_v2_status`.
+   * Returns null if the row is absent, if `completedAt` is not a number
+   * (fresh install, in-progress, failed run), or if the DB read throws.
+   *
+   * The error path treats failure as "no migration record" so callers fall
+   * through to running the orphan sweep normally — a sweep is always more
+   * useful than silently no-op'ing on a transient DB hiccup.
+   */
+  private async getMigrationCompletedAt(): Promise<number | null> {
+    try {
+      const db = application.get('DbService').getDb()
+      const row = await db.select().from(appStateTable).where(eq(appStateTable.key, 'migration_v2_status')).get()
+      if (!row) return null
+      const value = row.value as { completedAt?: unknown }
+      return typeof value.completedAt === 'number' ? value.completedAt : null
+    } catch (error) {
+      fileManagerLogger.error('Failed to read migration_v2_status; treating as no migration', error as Error)
+      return null
+    }
   }
 
   /**

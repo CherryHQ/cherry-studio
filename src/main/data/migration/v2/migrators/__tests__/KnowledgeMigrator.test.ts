@@ -1301,3 +1301,184 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     expect(result.errors.some((error) => error.key === 'knowledge_base_count_mismatch')).toBe(true)
   })
 })
+
+describe('KnowledgeMigrator file_ref creation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  /**
+   * Build a minimal ctx mock that captures insert calls made outside the
+   * knowledge-base transaction (i.e. the file_ref inserts).
+   *
+   * Per migration-plan §2.9 the v1 file id is preserved verbatim into v2, so
+   * file_ref.fileEntryId is just the legacyFileId — no idRemap lookup.
+   */
+  function makeExecCtx() {
+    const sharedData = new Map<string, unknown>()
+
+    // file_ref rows are uniquely identifiable by their `fileEntryId` field —
+    // knowledge_base / knowledge_item rows never carry it.
+    const insertedInsideTx: unknown[] = []
+    const insertedOutsideTx: unknown[] = []
+    const isFileRefRow = (r: unknown): r is Record<string, unknown> =>
+      !!r && typeof r === 'object' && 'fileEntryId' in r
+
+    const makeInsertFn = (bucket: unknown[]) =>
+      vi.fn((/* _table */) => ({
+        values: vi.fn(async (rows: unknown) => {
+          const arr = Array.isArray(rows) ? rows : [rows]
+          bucket.push(...arr)
+        })
+      }))
+
+    const outerInsert = makeInsertFn(insertedOutsideTx)
+    const txInsert = makeInsertFn(insertedInsideTx)
+
+    const transaction = vi.fn(async (callback: (tx: any) => Promise<void>) => {
+      await callback({ insert: txInsert })
+    })
+
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
+
+    return {
+      sharedData,
+      db: { transaction, insert: outerInsert },
+      logger,
+      insertedInsideTx,
+      insertedOutsideTx,
+      get fileRefInserts() {
+        return [...insertedInsideTx, ...insertedOutsideTx].filter(isFileRefRow)
+      },
+      get fileRefInsertsInsideTx() {
+        return insertedInsideTx.filter(isFileRefRow)
+      }
+    }
+  }
+
+  it('creates one file_ref row for a knowledge item with a fileId (id preserved verbatim)', async () => {
+    const legacyFileId = 'legacy-file-001'
+    const ctx = makeExecCtx()
+
+    const migrator = new KnowledgeMigrator() as any
+    migrator.preparedBases = [{ id: 'kb-1', name: 'KB 1', dimensions: 512, embeddingModelId: 'openai::emb' }]
+    migrator.preparedItems = [
+      {
+        id: 'item-file-1',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'file',
+        data: { source: '/tmp/foo.pdf', file: { id: legacyFileId, name: 'foo.pdf' } },
+        status: 'idle'
+      }
+    ]
+
+    const result = await migrator.execute({ db: ctx.db, sharedData: ctx.sharedData, logger: ctx.logger } as any)
+
+    expect(result.success).toBe(true)
+    expect(ctx.fileRefInserts).toHaveLength(1)
+    expect(ctx.fileRefInserts[0]).toMatchObject({
+      fileEntryId: legacyFileId,
+      sourceType: 'knowledge_item',
+      sourceId: 'item-file-1',
+      role: 'source'
+    })
+    expect(typeof ctx.fileRefInserts[0].id).toBe('string')
+  })
+
+  it('skips file_ref creation for a knowledge item without a fileId and records a bucketed warning', async () => {
+    const ctx = makeExecCtx()
+    loggerWarnMock.mockClear()
+
+    const migrator = new KnowledgeMigrator() as any
+    migrator.preparedBases = [{ id: 'kb-1', name: 'KB 1', dimensions: 512, embeddingModelId: 'openai::emb' }]
+    migrator.preparedItems = [
+      {
+        id: 'item-file-missing',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'file',
+        data: { source: '/tmp/bar.pdf' },
+        status: 'idle'
+      }
+    ]
+
+    const result = await migrator.execute({ db: ctx.db, sharedData: ctx.sharedData, logger: ctx.logger } as any)
+
+    expect(result.success).toBe(true)
+    expect(ctx.fileRefInserts).toHaveLength(0)
+    const summaryCall = loggerWarnMock.mock.calls.find(
+      ([msg]) => typeof msg === 'string' && msg.includes('knowledge_item_missing_file_id')
+    )
+    expect(summaryCall).toBeDefined()
+    expect(summaryCall![0]).toContain('count=1')
+    expect(summaryCall![0]).toContain('item-file-missing')
+  })
+
+  it('creates one file_ref per file item; skips non-file types', async () => {
+    const ctx = makeExecCtx()
+
+    const migrator = new KnowledgeMigrator() as any
+    migrator.preparedBases = [{ id: 'kb-1', name: 'KB 1', dimensions: 512, embeddingModelId: 'openai::emb' }]
+    migrator.preparedItems = [
+      {
+        id: 'item-a',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'file',
+        data: { source: '/tmp/a.pdf', file: { id: 'legacy-a', name: 'a.pdf' } },
+        status: 'idle'
+      },
+      {
+        id: 'item-b',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'file',
+        data: { source: '/tmp/b.pdf', file: { id: 'legacy-b', name: 'b.pdf' } },
+        status: 'idle'
+      },
+      {
+        id: 'item-note',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'note',
+        data: { source: 'some note', content: 'some note' },
+        status: 'idle'
+      }
+    ]
+
+    const result = await migrator.execute({ db: ctx.db, sharedData: ctx.sharedData, logger: ctx.logger } as any)
+
+    expect(result.success).toBe(true)
+    expect(ctx.fileRefInserts).toHaveLength(2)
+    const refSourceIds = ctx.fileRefInserts.map((r) => r.sourceId).sort()
+    expect(refSourceIds).toEqual(['item-a', 'item-b'])
+    const refFileEntryIds = ctx.fileRefInserts.map((r) => r.fileEntryId).sort()
+    expect(refFileEntryIds).toEqual(['legacy-a', 'legacy-b'])
+  })
+
+  it('inserts file_ref rows inside the per-base transaction (atomic with base + items)', async () => {
+    const ctx = makeExecCtx()
+
+    const migrator = new KnowledgeMigrator() as any
+    migrator.preparedBases = [{ id: 'kb-1', name: 'KB 1', dimensions: 512, embeddingModelId: 'openai::emb' }]
+    migrator.preparedItems = [
+      {
+        id: 'item-a',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'file',
+        data: { source: '/tmp/a.pdf', file: { id: 'legacy-a', name: 'a.pdf' } },
+        status: 'idle'
+      }
+    ]
+
+    await migrator.execute({ db: ctx.db, sharedData: ctx.sharedData, logger: ctx.logger } as any)
+
+    // file_ref must appear in the per-base transaction, not via outer db.insert,
+    // so base + items + refs commit atomically (if file_ref fails, base is rolled
+    // back and the next run retries everything cleanly).
+    expect(ctx.fileRefInsertsInsideTx).toHaveLength(1)
+    expect(ctx.insertedOutsideTx).toHaveLength(0)
+  })
+})

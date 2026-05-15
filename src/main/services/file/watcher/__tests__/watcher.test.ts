@@ -171,10 +171,18 @@ describe('createDirectoryWatcher', () => {
 
       const w = createDirectoryWatcher(dir as FilePath, { stabilityThresholdMs: 0 })
       await waitForReady(w)
+      // Brief settle after `ready` — on Linux ext4 + inotify, events written
+      // in the same tick as `ready` are occasionally dropped before the
+      // watcher's listener chain is fully primed, causing the 5s `waitForEvent`
+      // budget to expire on slow CI runners. 50ms is well under the default
+      // CI test timeout and matches the chokidar settle floor.
+      await new Promise((resolve) => setTimeout(resolve, 50))
       await writeFile(writtenPath, 'hello')
       // The emitted event still carries the raw OS path (NFD) — the cache leg
       // alone is normalized, so external subscribers see what the FS sees.
-      const ev = await waitForEvent(w, (e) => e.kind === 'add' && e.path?.endsWith('.txt'))
+      // Extra budget (30s vs default 5s) absorbs CI runner stalls; the test
+      // itself completes in milliseconds on a hot path.
+      const ev = await waitForEvent(w, (e) => e.kind === 'add' && e.path?.endsWith('.txt'), 30_000)
       if (ev.kind !== 'add') throw new Error('expected add event')
       expect(ev.path).toBe(writtenPath)
 

@@ -111,7 +111,11 @@ export class DbService extends BaseService {
       this.pragmasConfigured = true
       logger.info('Database PRAGMAs configured (WAL, synchronous, foreign_keys)')
     } catch (error) {
-      logger.warn('Failed to configure database PRAGMAs', error as Error)
+      // DbService is `@ErrorHandling('fail-fast')` — a PRAGMA failure here means
+      // subsequent migrations would run with foreign_keys off / synchronous=FULL
+      // / no WAL, which is unsafe. Rethrow so the lifecycle container halts boot.
+      logger.error('Failed to configure database PRAGMAs', error as Error)
+      throw error
     }
   }
 

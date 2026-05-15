@@ -181,7 +181,7 @@ export class DexieMessageDataSource implements MessageDataSource {
 
   async deleteMessage(topicId: string, messageId: string): Promise<void> {
     try {
-      await db.transaction('rw', db.topics, db.message_blocks, db.files, async () => {
+      await db.transaction('rw', db.topics, db.message_blocks, async () => {
         const topic = await db.topics.get(topicId)
         if (!topic) return
 
@@ -221,7 +221,7 @@ export class DexieMessageDataSource implements MessageDataSource {
 
   async deleteMessages(topicId: string, messageIds: string[]): Promise<void> {
     try {
-      await db.transaction('rw', db.topics, db.message_blocks, db.files, async () => {
+      await db.transaction('rw', db.topics, db.message_blocks, async () => {
         const topic = await db.topics.get(topicId)
         if (!topic) return
 
@@ -395,28 +395,25 @@ export class DexieMessageDataSource implements MessageDataSource {
   // ============ File Operations ============
 
   async updateFileCount(fileId: string, delta: number, deleteIfZero: boolean = false): Promise<void> {
+    // Dexie writes are frozen — count updates and row deletion are deferred to
+    // Batch A-E migration. Physical file deletion still goes through FileManager.
     try {
-      await db.transaction('rw', db.files, async () => {
-        const file = await db.files.get(fileId)
+      const file = await db.files.get(fileId)
 
-        if (!file) {
-          logger.warn(`File ${fileId} not found for count update`)
-          return
-        }
+      if (!file) {
+        logger.warn(`File ${fileId} not found for count update`)
+        return
+      }
 
-        const newCount = (file.count || 0) + delta
+      const newCount = (file.count || 0) + delta
 
-        if (newCount <= 0 && deleteIfZero) {
-          // Delete the file when count reaches 0 or below
-          await FileManager.deleteFile(fileId, false)
-          await db.files.delete(fileId)
-          logger.info(`Deleted file ${fileId} as reference count reached ${newCount}`)
-        } else {
-          // Update the count
-          await db.files.update(fileId, { count: Math.max(0, newCount) })
-          logger.debug(`Updated file ${fileId} count to ${Math.max(0, newCount)}`)
-        }
-      })
+      if (newCount <= 0 && deleteIfZero) {
+        // Delete physical file; Dexie row removal deferred to Batch A-E migration.
+        await FileManager.deleteFile(fileId, false)
+        logger.info(`Deleted physical file ${fileId} (Dexie row frozen; count was ${newCount})`)
+      } else {
+        logger.debug(`updateFileCount: Dexie write frozen; skipping count update for ${fileId}`)
+      }
     } catch (error) {
       logger.error(`Failed to update file count for ${fileId}:`, error as Error)
       throw error

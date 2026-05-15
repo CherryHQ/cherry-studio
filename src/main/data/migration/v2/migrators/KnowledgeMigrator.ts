@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import { fileRefTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { createClient, type Value as LibsqlValue } from '@libsql/client'
@@ -11,8 +12,10 @@ import { loggerService } from '@logger'
 import { sanitizeFilename } from '@main/utils/file'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
+import { knowledgeItemSourceType } from '@shared/data/types/file/ref'
 import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
 import { sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
@@ -579,6 +582,14 @@ export class KnowledgeMigrator extends BaseMigrator {
         }
       }
 
+      // file_ref construction is folded into the per-base transaction so that
+      // base + items + refs commit atomically. The v1 file id is preserved
+      // verbatim by FileMigrator (per migration-plan §2.9), so each
+      // legacyFileId is already the v2 fileEntryId. Items without a fileId
+      // are bucketed via `recordSkippedWarning` so the user / postmortem sees
+      // the count + a few example item ids instead of a silent drop.
+      const now = Date.now()
+
       for (const base of this.preparedBases) {
         if (!base.id) {
           throw new Error('Prepared knowledge base is missing id')
@@ -586,6 +597,29 @@ export class KnowledgeMigrator extends BaseMigrator {
 
         const baseItems = itemsByBaseId.get(base.id) ?? []
         let transactionProcessed = 0
+
+        const fileRefRows: Array<typeof fileRefTable.$inferInsert> = []
+        for (const item of baseItems) {
+          if (item.type !== 'file') continue
+          const fileData = item.data as { file?: { id?: string } } | undefined
+          const legacyFileId = fileData?.file?.id
+          if (!legacyFileId) {
+            this.recordSkippedWarning(
+              'knowledge_item_missing_file_id',
+              `Knowledge item id=${item.id} (type=file) has no data.file.id; file_ref row will not be created`
+            )
+            continue
+          }
+          fileRefRows.push({
+            id: uuidv4(),
+            fileEntryId: legacyFileId,
+            sourceType: knowledgeItemSourceType,
+            sourceId: item.id!,
+            role: 'source',
+            createdAt: now,
+            updatedAt: now
+          })
+        }
 
         await ctx.db.transaction(async (tx) => {
           await tx.insert(knowledgeBaseTable).values(base)
@@ -596,6 +630,10 @@ export class KnowledgeMigrator extends BaseMigrator {
             await tx.insert(knowledgeItemTable).values(batch)
             transactionProcessed += batch.length
           }
+
+          if (fileRefRows.length > 0) {
+            await tx.insert(fileRefTable).values(fileRefRows)
+          }
         })
 
         processed += transactionProcessed
@@ -605,6 +643,8 @@ export class KnowledgeMigrator extends BaseMigrator {
           params: { processed, total }
         })
       }
+
+      this.flushSkippedWarnings()
 
       logger.info('KnowledgeMigrator.execute completed', {
         processed,

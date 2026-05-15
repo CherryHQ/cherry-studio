@@ -42,7 +42,8 @@ const { mockLogger } = vi.hoisted(() => ({
   mockLogger: {
     info: vi.fn(),
     warn: vi.fn(),
-    error: vi.fn()
+    error: vi.fn(),
+    debug: vi.fn()
   }
 }))
 
@@ -58,7 +59,8 @@ vi.mock('electron', () => ({
       if (key === 'temp') return '/tmp'
       if (key === 'userData') return '/mock/userData'
       return '/mock/unknown'
-    })
+    }),
+    getVersion: vi.fn(() => '1.0.0')
   }
 }))
 
@@ -74,8 +76,16 @@ vi.mock('fs-extra', () => ({
     realpath: vi.fn(),
     readFile: vi.fn(),
     writeFile: vi.fn(),
+    writeJson: vi.fn().mockResolvedValue(undefined),
+    readJson: vi.fn(),
+    renameSync: vi.fn(),
     createWriteStream: vi.fn(),
-    createReadStream: vi.fn()
+    createReadStream: vi.fn(),
+    existsSync: vi.fn(),
+    promises: {
+      mkdir: vi.fn().mockResolvedValue(undefined),
+      readFile: vi.fn()
+    }
   },
   pathExists: vi.fn(),
   remove: vi.fn(),
@@ -87,8 +97,16 @@ vi.mock('fs-extra', () => ({
   realpath: vi.fn(),
   readFile: vi.fn(),
   writeFile: vi.fn(),
+  writeJson: vi.fn().mockResolvedValue(undefined),
+  readJson: vi.fn(),
+  renameSync: vi.fn(),
   createWriteStream: vi.fn(),
-  createReadStream: vi.fn()
+  createReadStream: vi.fn(),
+  existsSync: vi.fn(),
+  promises: {
+    mkdir: vi.fn().mockResolvedValue(undefined),
+    readFile: vi.fn()
+  }
 }))
 
 vi.mock('@application', () => ({
@@ -105,7 +123,8 @@ vi.mock('@application', () => ({
     // Mirrors tests/__mocks__/main/application.ts so that BackupManager methods
     // calling application.getPath('app.userdata.data') still work in this test
     // (this file overrides the global application mock from main.setup.ts).
-    getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`))
+    getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`)),
+    relaunch: vi.fn()
   }
 }))
 
@@ -122,7 +141,12 @@ vi.mock('archiver', () => ({
 }))
 
 vi.mock('node-stream-zip', () => ({
-  default: vi.fn()
+  default: {
+    async: vi.fn(() => ({
+      extract: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn()
+    }))
+  }
 }))
 
 // Import after mocks

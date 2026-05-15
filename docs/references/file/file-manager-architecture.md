@@ -27,7 +27,7 @@ Each FileEntry corresponds to a file the user uploaded/saved. FileEntry is a **f
 
 ```
 FileEntry
-├── id: UUID v7
+├── id: UUID (v7 for v2-native entries; v4 preserved from v1 Dexie migration)
 ├── origin: 'internal' | 'external'
 ├── name: filename (without extension)
 ├── ext: extension (without leading dot), nullable
