@@ -170,22 +170,6 @@ vi.mock('../../home/Inputbar/components/PinnedTodoPanel', () => ({
   PinnedTodoPanel: () => <div data-testid="pinned-todo-panel" />
 }))
 
-vi.mock('../../home/Messages/ChatNavigation', () => ({
-  default: () => <div data-testid="chat-navigation" />
-}))
-
-vi.mock('../../home/Messages/ExecutionStreamCollector', () => ({
-  default: () => <div data-testid="execution-stream-collector" />
-}))
-
-vi.mock('../../home/Messages/NarrowLayout', () => ({
-  default: ({ children }: PropsWithChildren) => <>{children}</>
-}))
-
-vi.mock('../../home/uiToMessage', () => ({
-  uiToMessage: vi.fn()
-}))
-
 describe('AgentChat settings panel', () => {
   beforeEach(() => {
     partsByMessageIdMock.value = {}

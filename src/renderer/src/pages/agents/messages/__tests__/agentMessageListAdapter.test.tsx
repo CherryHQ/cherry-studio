@@ -32,11 +32,6 @@ const leafCapabilitiesMock = vi.hoisted(() => ({
   subscribeToolProgress: vi.fn(),
   openExternalUrl: vi.fn(),
   openInExternalApp: vi.fn(),
-  uploadEditorFiles: vi.fn(),
-  handleEditorPaste: vi.fn(),
-  bindEditorPasteHandler: vi.fn(),
-  focusEditorPasteTarget: vi.fn(),
-  getDroppedEditorFiles: vi.fn(),
   copyText: vi.fn(),
   copyRichContent: vi.fn(),
   copyImage: vi.fn(),
@@ -48,6 +43,13 @@ const leafCapabilitiesMock = vi.hoisted(() => ({
   getFileView: vi.fn(),
   isToolAutoApproved: vi.fn(() => false),
   externalCodeEditors: []
+}))
+const editorCapabilitiesMock = vi.hoisted(() => ({
+  uploadEditorFiles: vi.fn(),
+  handleEditorPaste: vi.fn(),
+  bindEditorPasteHandler: vi.fn(),
+  focusEditorPasteTarget: vi.fn(),
+  getDroppedEditorFiles: vi.fn()
 }))
 const headerCapabilitiesMock = vi.hoisted(() => ({
   userProfile: { avatar: '🙂' },
@@ -108,6 +110,10 @@ vi.mock('@renderer/pages/shared/messages/hooks/useMessageEditorConfig', () => ({
     sendMessageShortcut: 'Enter',
     enableSpellCheck: false
   })
+}))
+
+vi.mock('@renderer/pages/shared/messages/hooks/useMessageEditorCapabilities', () => ({
+  useMessageEditorCapabilities: () => editorCapabilitiesMock
 }))
 
 vi.mock('@renderer/pages/shared/messages/hooks/useMessageMenuConfig', () => ({
@@ -265,11 +271,11 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.navigateToRoute).toEqual(expect.any(Function))
     expect(value?.actions.openUserProfile).toBe(headerCapabilitiesMock.openUserProfile)
     expect(value?.actions.openProviderApp).toBe(headerCapabilitiesMock.openProviderApp)
-    expect(value?.actions.uploadEditorFiles).toBe(leafCapabilitiesMock.uploadEditorFiles)
-    expect(value?.actions.handleEditorPaste).toBe(leafCapabilitiesMock.handleEditorPaste)
-    expect(value?.actions.bindEditorPasteHandler).toBe(leafCapabilitiesMock.bindEditorPasteHandler)
-    expect(value?.actions.focusEditorPasteTarget).toBe(leafCapabilitiesMock.focusEditorPasteTarget)
-    expect(value?.actions.getDroppedEditorFiles).toBe(leafCapabilitiesMock.getDroppedEditorFiles)
+    expect(value?.actions.uploadEditorFiles).toBe(editorCapabilitiesMock.uploadEditorFiles)
+    expect(value?.actions.handleEditorPaste).toBe(editorCapabilitiesMock.handleEditorPaste)
+    expect(value?.actions.bindEditorPasteHandler).toBe(editorCapabilitiesMock.bindEditorPasteHandler)
+    expect(value?.actions.focusEditorPasteTarget).toBe(editorCapabilitiesMock.focusEditorPasteTarget)
+    expect(value?.actions.getDroppedEditorFiles).toBe(editorCapabilitiesMock.getDroppedEditorFiles)
     expect(value?.actions.copyText).toBe(leafCapabilitiesMock.copyText)
     expect(value?.actions.copyRichContent).toBe(leafCapabilitiesMock.copyRichContent)
     expect(value?.actions.copyImage).toBe(leafCapabilitiesMock.copyImage)

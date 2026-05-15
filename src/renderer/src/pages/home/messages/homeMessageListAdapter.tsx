@@ -26,6 +26,7 @@ import { useLanguages } from '@renderer/hooks/translate'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useMessageActivityState } from '@renderer/pages/shared/messages/hooks/useMessageActivityState'
+import { useMessageEditorCapabilities } from '@renderer/pages/shared/messages/hooks/useMessageEditorCapabilities'
 import { useMessageEditorConfig } from '@renderer/pages/shared/messages/hooks/useMessageEditorConfig'
 import { useMessageErrorActions } from '@renderer/pages/shared/messages/hooks/useMessageErrorActions'
 import { useMessageExportActions } from '@renderer/pages/shared/messages/hooks/useMessageExportActions'
@@ -36,7 +37,6 @@ import { useMessageMenuConfig } from '@renderer/pages/shared/messages/hooks/useM
 import { useMessageSelectionController } from '@renderer/pages/shared/messages/hooks/useMessageSelectionController'
 import { useMessageUiStateCache } from '@renderer/pages/shared/messages/hooks/useMessageUiStateCache'
 import {
-  createMessageListProviderValue,
   pickMessageHeaderActions,
   pickMessageLeafActions,
   pickMessageLeafState
@@ -106,6 +106,7 @@ export function useHomeMessageListProviderValue({
   const exportActions = useMessageExportActions({ topicName: topic.name })
   const errorActions = useMessageErrorActions()
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId })
+  const editorCapabilities = useMessageEditorCapabilities()
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
 
@@ -601,6 +602,7 @@ export function useHomeMessageListProviderValue({
       ...exportActions,
       ...errorActions,
       ...pickMessageLeafActions(leafCapabilities),
+      ...editorCapabilities,
       navigateToRoute,
       ...pickMessageHeaderActions(headerCapabilities),
       respondToolApproval,
@@ -639,6 +641,7 @@ export function useHomeMessageListProviderValue({
       editMessage,
       exportActions,
       errorActions,
+      editorCapabilities,
       forkAndResendMessage,
       headerCapabilities,
       leafCapabilities,
@@ -675,5 +678,5 @@ export function useHomeMessageListProviderValue({
     [headerCapabilities.userProfile, topic.name]
   )
 
-  return useMemo(() => createMessageListProviderValue({ state, actions, meta }), [actions, meta, state])
+  return useMemo(() => ({ state, actions, meta }), [actions, meta, state])
 }

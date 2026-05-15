@@ -68,10 +68,7 @@ const MainTextBlock: React.FC<Props> = ({
       ) : (
         <Markdown block={block} postProcess={processContent} />
       )}
-      {/* Source list rendered under each text part with citations. V1's
-          `CitationBlock` did the same thing once per message; parts data stores
-          citation refs per text part (`providerMetadata.cherry.references`)
-          so the list ends up scoped to the text segment that produced it. */}
+      {/* Parts data stores citation refs per text part, so the list is scoped to the text segment that produced it. */}
       {citations.length > 0 && <CitationsList citations={citations} />}
     </>
   )

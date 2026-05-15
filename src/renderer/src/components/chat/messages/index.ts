@@ -6,7 +6,6 @@ export {
   useMessageListActions,
   useMessageListData,
   useMessageListMeta,
-  useMessageListParts,
   useMessageListSelection,
   useMessageListUi,
   useMessageRenderConfig

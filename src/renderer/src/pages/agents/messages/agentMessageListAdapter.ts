@@ -6,6 +6,7 @@ import type {
 } from '@renderer/components/chat/messages/types'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { useMessageActivityState } from '@renderer/pages/shared/messages/hooks/useMessageActivityState'
+import { useMessageEditorCapabilities } from '@renderer/pages/shared/messages/hooks/useMessageEditorCapabilities'
 import { useMessageEditorConfig } from '@renderer/pages/shared/messages/hooks/useMessageEditorConfig'
 import { useMessageErrorActions } from '@renderer/pages/shared/messages/hooks/useMessageErrorActions'
 import { useMessageExportActions } from '@renderer/pages/shared/messages/hooks/useMessageExportActions'
@@ -16,7 +17,6 @@ import { useMessageMenuConfig } from '@renderer/pages/shared/messages/hooks/useM
 import { useMessageSelectionController } from '@renderer/pages/shared/messages/hooks/useMessageSelectionController'
 import { useMessageUiStateCache } from '@renderer/pages/shared/messages/hooks/useMessageUiStateCache'
 import {
-  createMessageListProviderValue,
   pickMessageHeaderActions,
   pickMessageLeafActions,
   pickMessageLeafState
@@ -80,6 +80,7 @@ export function useAgentMessageListProviderValue({
   const exportActions = useMessageExportActions({ topicName: topic.name })
   const errorActions = useMessageErrorActions()
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId })
+  const editorCapabilities = useMessageEditorCapabilities()
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
   const selectionController = useMessageSelectionController({
@@ -153,6 +154,7 @@ export function useAgentMessageListProviderValue({
       ...exportActions,
       ...errorActions,
       ...pickMessageLeafActions(leafCapabilities),
+      ...editorCapabilities,
       navigateToRoute,
       ...pickMessageHeaderActions(headerCapabilities),
       respondToolApproval,
@@ -167,6 +169,7 @@ export function useAgentMessageListProviderValue({
     [
       abortTool,
       deleteMessage,
+      editorCapabilities,
       errorActions,
       exportActions,
       headerCapabilities,
@@ -192,5 +195,5 @@ export function useAgentMessageListProviderValue({
     [assistantProfile, headerCapabilities.userProfile]
   )
 
-  return useMemo(() => createMessageListProviderValue({ state, actions, meta }), [actions, meta, state])
+  return useMemo(() => ({ state, actions, meta }), [actions, meta, state])
 }

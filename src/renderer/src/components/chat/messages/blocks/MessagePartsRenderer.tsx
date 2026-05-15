@@ -1,9 +1,8 @@
 /**
  * MessagePartsRenderer — message parts renderer.
  *
- * Routes CherryMessagePart[] directly to leaf components, bypassing
- * the legacy MessageBlock type system entirely. No intermediate
- * MessageBlock conversion — each part type is rendered from its raw data.
+ * Routes CherryMessagePart[] directly to leaf components. No intermediate
+ * block conversion — each part type is rendered from its raw data.
  *
  * Grouping logic:
  * - Consecutive file parts with image mediaType → ImageGroup

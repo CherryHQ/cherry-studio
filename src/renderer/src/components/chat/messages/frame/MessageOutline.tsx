@@ -7,7 +7,7 @@ import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
 
-import { usePartsMap } from '../blocks'
+import { useMessageParts } from '../blocks'
 import { createSlugger, extractTextFromNode } from '../markdown/plugins/rehypeHeadingIds'
 import type { MessageListItem } from '../types'
 
@@ -23,14 +23,11 @@ interface HeadingItem {
 }
 
 const MessageOutline: FC<MessageOutlineProps> = ({ message, multiModelMessageStyle }) => {
-  const partsMap = usePartsMap()
+  const messageParts = useMessageParts(message.id)
 
   const headings: HeadingItem[] = useMemo(() => {
     // Collect text contents from parts only
     const textEntries: { id: string; content: string }[] = []
-    const messageParts = partsMap?.[message.id]
-
-    if (!messageParts) return []
 
     let idx = 0
     for (const part of messageParts) {
@@ -72,7 +69,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message, multiModelMessageSty
     }
 
     return result
-  }, [partsMap, message.id])
+  }, [message.id, messageParts])
 
   const miniLevel = useMemo(() => {
     return headings.length ? Math.min(...headings.map((heading) => heading.level)) : 1

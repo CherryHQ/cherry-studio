@@ -8,7 +8,7 @@ import type { FC } from 'react'
 import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { usePartsMap } from '../blocks'
+import { useMessageParts } from '../blocks'
 import {
   useMessageListActions,
   useMessageListSelection,
@@ -66,8 +66,7 @@ const MessageMenuBar: FC<Props> = (props) => {
 
   const isUserMessage = message.role === 'user'
 
-  const partsMap = usePartsMap()
-  const messageParts = useMemo(() => partsMap?.[message.id] ?? [], [partsMap, message.id])
+  const messageParts = useMessageParts(message.id)
   const messageForExport = useMemo(() => createMessageExportView(message, messageParts), [message, messageParts])
 
   const mainTextContent = useMemo(() => getTextFromParts(messageParts), [messageParts])

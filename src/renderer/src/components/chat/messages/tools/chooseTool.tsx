@@ -38,7 +38,7 @@ export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | 
     return toolType === 'provider' ? null : <MessageWebSearchToolTitle toolResponse={toolResponse} />
   }
 
-  // Legacy `builtin_*` prefix — kept for historical messages still in DB.
+  // Historical `builtin_*` prefix kept for messages already stored in DB.
   if (toolName.startsWith(builtinToolsPrefix)) {
     const suffix = toolName.slice(builtinToolsPrefix.length)
     switch (suffix) {

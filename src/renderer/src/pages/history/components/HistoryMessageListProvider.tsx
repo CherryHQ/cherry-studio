@@ -13,7 +13,6 @@ import { useMessageLeafCapabilities } from '@renderer/pages/shared/messages/hook
 import { useMessageListRenderConfig } from '@renderer/pages/shared/messages/hooks/useMessageListRenderConfig'
 import { useMessageUiStateCache } from '@renderer/pages/shared/messages/hooks/useMessageUiStateCache'
 import {
-  createMessageListProviderValue,
   pickMessageHeaderActions,
   pickMessageLeafActions,
   pickMessageLeafState
@@ -123,10 +122,7 @@ export function HistoryMessageListProvider({ topic, messages, partsByMessageId, 
     [headerCapabilities.userProfile]
   )
 
-  const value = useMemo<MessageListProviderValue>(
-    () => createMessageListProviderValue({ state, actions, meta }),
-    [actions, meta, state]
-  )
+  const value = useMemo<MessageListProviderValue>(() => ({ state, actions, meta }), [actions, meta, state])
 
   return <MessageListProvider value={value}>{children}</MessageListProvider>
 }

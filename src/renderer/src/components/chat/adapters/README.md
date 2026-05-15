@@ -5,7 +5,7 @@ PR-03 establishes the contract layer used by the next chat UI slices. These adap
 Import from the chat package entry unless you are working inside this folder:
 
 ```ts
-import { ComposerAdapter, MessageListAdapter, ResourceListAdapter } from '@renderer/components/chat'
+import { ComposerAdapter, ResourceListAdapter } from '@renderer/components/chat'
 import { createMessageActionRegistry, createRightPaneRegistry } from '@renderer/components/chat'
 ```
 
@@ -22,17 +22,6 @@ const item = ResourceListAdapter.fromTopic(topic, {
 ```
 
 Callers still own active state, pin state, streaming state, and persistence. The adapter should not call DataApi, Cache, Preference, Redux, or service hooks.
-
-## Message List
-
-Use `MessageListAdapter` before passing renderer messages or agent session message rows into future message-list components. The output is `ChatMessageItem`, which exposes render fields only: `id`, `role`, `status`, `createdAt`, `updatedAt`, `modelId`, `parts`, and `blocks`.
-
-```ts
-const messages = rendererMessages.map(MessageListAdapter.fromRendererMessage)
-const sessionMessages = sessionRows.map(MessageListAdapter.fromAgentSessionMessage)
-```
-
-The adapter preserves message parts and legacy block ids. It does not run stream collectors, load history, or mutate message state.
 
 ## Composer
 
@@ -106,7 +95,7 @@ Do not map resources inline in JSX:
 <ResourceList items={topics.map((topic) => ResourceListAdapter.fromTopic(topic))} />
 ```
 
-For messages, project once at the message-list data boundary. Do not call `MessageListAdapter` inside an item renderer; virtualized lists rely on stable item identity and measurement caches.
+For messages, use the `MessageListItem` contract from `components/chat/messages`. Project once at the message-list data boundary; virtualized lists rely on stable item identity and measurement caches.
 
 For composer contracts, wrap `ComposerAdapter.createChat()` and `ComposerAdapter.createSession()` in `useMemo`, and keep `send` / `stop` callbacks stable with the existing business hook output or `useCallback`.
 

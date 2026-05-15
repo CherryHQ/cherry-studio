@@ -1,9 +1,4 @@
-import type {
-  MessageListActions,
-  MessageListMeta,
-  MessageListProviderValue,
-  MessageListState
-} from '@renderer/components/chat/messages/types'
+import type { MessageListActions, MessageListState } from '@renderer/components/chat/messages/types'
 
 type MessageLeafStateCapabilities = Pick<MessageListState, 'getFileView' | 'isToolAutoApproved' | 'externalCodeEditors'>
 
@@ -13,11 +8,6 @@ type MessageLeafActionCapabilities = Pick<
   | 'subscribeToolProgress'
   | 'openExternalUrl'
   | 'openInExternalApp'
-  | 'uploadEditorFiles'
-  | 'handleEditorPaste'
-  | 'bindEditorPasteHandler'
-  | 'focusEditorPasteTarget'
-  | 'getDroppedEditorFiles'
   | 'copyText'
   | 'copyRichContent'
   | 'copyImage'
@@ -29,20 +19,6 @@ type MessageLeafActionCapabilities = Pick<
 >
 
 type MessageHeaderActionCapabilities = Pick<MessageListActions, 'openUserProfile' | 'openProviderApp'>
-
-interface MessageProviderValueInput {
-  state: MessageListState
-  actions: MessageListActions
-  meta: MessageListMeta
-}
-
-export function createMessageListProviderValue({
-  state,
-  actions,
-  meta
-}: MessageProviderValueInput): MessageListProviderValue {
-  return { state, actions, meta }
-}
 
 export function pickMessageLeafState(
   capabilities: Partial<MessageLeafStateCapabilities>
@@ -73,11 +49,6 @@ export function pickMessageLeafActions(
   if (capabilities.subscribeToolProgress) actions.subscribeToolProgress = capabilities.subscribeToolProgress
   if (capabilities.openExternalUrl) actions.openExternalUrl = capabilities.openExternalUrl
   if (capabilities.openInExternalApp) actions.openInExternalApp = capabilities.openInExternalApp
-  if (capabilities.uploadEditorFiles) actions.uploadEditorFiles = capabilities.uploadEditorFiles
-  if (capabilities.handleEditorPaste) actions.handleEditorPaste = capabilities.handleEditorPaste
-  if (capabilities.bindEditorPasteHandler) actions.bindEditorPasteHandler = capabilities.bindEditorPasteHandler
-  if (capabilities.focusEditorPasteTarget) actions.focusEditorPasteTarget = capabilities.focusEditorPasteTarget
-  if (capabilities.getDroppedEditorFiles) actions.getDroppedEditorFiles = capabilities.getDroppedEditorFiles
   if (capabilities.copyText) actions.copyText = capabilities.copyText
   if (capabilities.copyRichContent) actions.copyRichContent = capabilities.copyRichContent
   if (capabilities.copyImage) actions.copyImage = capabilities.copyImage
