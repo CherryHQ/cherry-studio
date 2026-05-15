@@ -260,12 +260,8 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
   if (!currentQuestion) return null
 
   return (
-    <div
-      className={cn(
-        'relative z-[2] flex flex-col px-[18px] pt-0 pb-[18px] [[navbar-position=top]_&]:pb-2.5',
-        className
-      )}>
-      <div className="rounded-[17px] border-(--color-border) border-[0.5px] bg-(--color-background-opacity) p-2.5 backdrop-blur">
+    <div className={cn('relative z-2 flex flex-col px-4.5 pt-0 pb-4.5 in-[[navbar-position=top]]:pb-2.5', className)}>
+      <div className="rounded-[17px] border-border border-[0.5px] bg-(--color-background-opacity) p-2.5 backdrop-blur">
         <div className="flex items-center justify-between gap-3 px-1">
           <h2 className="line-clamp-1 min-w-0 flex-1 font-semibold text-foreground text-sm leading-5">
             {currentQuestion.question}
