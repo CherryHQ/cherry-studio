@@ -334,7 +334,7 @@ const UserBubbleMessage = ({
       <div className="flex max-w-full items-center justify-end gap-2.5">
         <div className="flex min-w-0 flex-1 flex-col items-end">
           <Scrollbar
-            className="message-content-container mt-0 max-w-full overflow-y-auto rounded-[10px] bg-(--chat-background-user) px-4 py-2.5 [&_.block-wrapper:last-child>*:last-child]:mb-0! [&_.markdown>p:last-child]:mb-0!"
+            className="message-content-container mt-0 max-w-full overflow-y-auto rounded-[10px] bg-muted px-4 py-2.5 [&_.block-wrapper:last-child>*:last-child]:mb-0! [&_.markdown>p:last-child]:mb-0!"
             style={{
               fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
               fontSize,

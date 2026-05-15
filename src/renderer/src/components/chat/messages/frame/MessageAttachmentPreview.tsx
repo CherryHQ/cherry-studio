@@ -104,7 +104,7 @@ const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
         <ColFlex className="items-center gap-0.5">
           {isImage(file.ext) && (
             <ImageViewer
-              className="max-h-[200px] w-20"
+              className="max-h-50 w-20"
               src={`file://${FileManager.getSafePath(file)}`}
               preview={{
                 visible,
