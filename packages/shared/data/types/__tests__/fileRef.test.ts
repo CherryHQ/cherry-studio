@@ -12,6 +12,7 @@ import {
 const REF_ID = '11111111-2222-4333-8444-000000000001' // UUIDv4
 const ENTRY_ID = '019606a0-0000-7000-8000-000000000001' // UUIDv7
 const KB_ITEM_ID = '019606a1-0000-7000-8000-000000000abc' // UUIDv7
+const LEGACY_KB_ITEM_ID = '11111111-2222-4333-8444-000000000002' // UUIDv4
 const TS = 1700000000000
 
 describe('FileRefSourceType', () => {
@@ -30,7 +31,7 @@ describe('knowledgeItemFileRefSchema', () => {
       fileEntryId: ENTRY_ID,
       sourceType: knowledgeItemSourceType,
       sourceId: KB_ITEM_ID,
-      role: 'attachment',
+      role: 'source',
       createdAt: TS,
       updatedAt: TS,
       ...overrides
@@ -41,14 +42,14 @@ describe('knowledgeItemFileRefSchema', () => {
     const parsed = knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef())
     expect(parsed.sourceType).toBe('knowledge_item')
     expect(parsed.sourceId).toBe(KB_ITEM_ID)
-    expect(parsed.role).toBe('attachment')
+    expect(parsed.role).toBe('source')
   })
 
   it('accepts every role in the placeholder enum (Phase 1b: single value)', () => {
     // Phase 2 will extend the enum with the rest of KnowledgeService's
     // vocabulary; this test pins the current set so a future extension is
     // an explicit `knowledgeItemRoles` edit, not an accidental widening.
-    for (const role of ['attachment']) {
+    for (const role of ['source']) {
       const parsed = knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef({ role }))
       expect(parsed.role).toBe(role)
     }
@@ -59,12 +60,19 @@ describe('knowledgeItemFileRefSchema', () => {
     // They must reject today — when Phase 2 lands, this test should be
     // updated alongside the `knowledgeItemRoles` extension to assert the new
     // vocabulary explicitly.
-    for (const role of ['source', 'preview', 'thumbnail', '']) {
+    for (const role of ['attachment', 'preview', 'thumbnail', '']) {
       expect(() => knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef({ role }))).toThrow()
     }
   })
 
-  it('rejects a non-UUIDv7 sourceId (knowledge_item.id is v2-native)', () => {
+  it('accepts migrated v1 UUIDv4 and v2 UUIDv7 sourceIds', () => {
+    expect(knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef({ sourceId: LEGACY_KB_ITEM_ID })).sourceId).toBe(
+      LEGACY_KB_ITEM_ID
+    )
+    expect(knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef({ sourceId: KB_ITEM_ID })).sourceId).toBe(KB_ITEM_ID)
+  })
+
+  it('rejects a non-UUID sourceId', () => {
     expect(() => knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef({ sourceId: 'not-a-uuid' }))).toThrow()
   })
 
@@ -93,7 +101,7 @@ describe('FileRefSchema discriminated union', () => {
       fileEntryId: ENTRY_ID,
       sourceType: knowledgeItemSourceType,
       sourceId: KB_ITEM_ID,
-      role: 'attachment',
+      role: 'source',
       createdAt: TS,
       updatedAt: TS
     })
@@ -111,7 +119,7 @@ describe('FileRefSchema discriminated union', () => {
           fileEntryId: ENTRY_ID,
           sourceType,
           sourceId: KB_ITEM_ID,
-          role: 'attachment',
+          role: 'source',
           createdAt: TS,
           updatedAt: TS
         })

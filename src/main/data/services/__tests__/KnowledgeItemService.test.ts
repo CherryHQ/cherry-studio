@@ -227,7 +227,7 @@ describe('KnowledgeItemService', () => {
         fileEntryId,
         sourceType: 'knowledge_item',
         sourceId: result.id,
-        role: 'attachment'
+        role: 'source'
       })
     })
 
@@ -709,7 +709,7 @@ describe('KnowledgeItemService', () => {
         fileEntryId,
         sourceType: 'knowledge_item',
         sourceId: fileItemId,
-        role: 'attachment'
+        role: 'source'
       })
       await seedItem({
         id: 'other',

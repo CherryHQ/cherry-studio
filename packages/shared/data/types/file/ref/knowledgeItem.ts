@@ -10,12 +10,13 @@
  *
  * ## Role placeholder
  *
- * `sourceId` is strict (`z.uuidv7()`) — `knowledge_item.id` is v2-native, so
- * there is no legacy format risk.
+ * `sourceId` accepts any UUID. New v2 `knowledge_item.id` values are UUIDv7,
+ * but v1 migration preserves legacy UUIDv4 item ids so vector/source
+ * references can be rebuilt without remapping.
  *
  * `BusinessRefShape` requires `role` to be a `z.ZodEnum`, so this variant
- * ships with a single-element enum `['attachment']` as a placeholder until
- * KnowledgeService finalises its full vocabulary. Extending the enum later
+ * ships with a single-element enum `['source']` until KnowledgeService
+ * finalises its full vocabulary. Extending the enum later
  * is additive: rows whose role falls outside the new set surface as
  * `ZodError`, which is the desired clean-up signal.
  */
@@ -26,12 +27,12 @@ import { createRefSchema } from './essential'
 
 export const knowledgeItemSourceType = 'knowledge_item' as const
 
-export const knowledgeItemRoles = ['attachment'] as const
+export const knowledgeItemRoles = ['source'] as const
 export const knowledgeItemRoleSchema = z.enum(knowledgeItemRoles)
 
 export const knowledgeItemRefFields = {
   sourceType: z.literal(knowledgeItemSourceType),
-  sourceId: z.uuidv7(),
+  sourceId: z.uuid(),
   role: knowledgeItemRoleSchema
 }
 

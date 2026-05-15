@@ -416,7 +416,7 @@ describe('KnowledgeBaseService', () => {
         fileEntryId,
         sourceType: 'knowledge_item',
         sourceId: itemId,
-        role: 'attachment'
+        role: 'source'
       })
 
       await service.delete('kb-1')

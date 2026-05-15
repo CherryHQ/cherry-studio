@@ -1,5 +1,7 @@
 import fs from 'node:fs'
 
+import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { createClient } from '@libsql/client'
 import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -1165,6 +1167,204 @@ describe('KnowledgeMigrator execute/validate paths', () => {
           baseId: 'kb-missing-model',
           status: 'idle'
         })
+      ]
+    ])
+  })
+
+  it('execute creates dangling external file entries and refs for migrated file items', async () => {
+    const migrator = new KnowledgeMigrator() as any
+    const itemId = '11111111-2222-4333-8444-000000000001'
+    const filePath = '/Users/test/Documents/../Documents/manual.pdf'
+    const canonicalPath = '/Users/test/Documents/manual.pdf'
+    migrator.preparedBases = [
+      {
+        id: 'kb-file-ref',
+        name: 'KB file ref',
+        dimensions: 1024,
+        embeddingModelId: 'silicon::BAAI/bge-m3'
+      }
+    ]
+    migrator.preparedItems = [
+      {
+        id: itemId,
+        baseId: 'kb-file-ref',
+        groupId: null,
+        type: 'file',
+        data: { source: filePath, path: filePath },
+        status: 'completed',
+        phase: null,
+        error: null
+      }
+    ]
+
+    const insertedEntries: unknown[] = []
+    const insertedItems: unknown[] = []
+    const insertedRefs: unknown[] = []
+
+    const select = vi.fn().mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue([])
+        })
+      })
+    })
+    const insert = vi.fn((table: unknown) => ({
+      values: vi.fn((value: unknown) => {
+        if (table === fileEntryTable) {
+          insertedEntries.push(value)
+          return Promise.resolve()
+        }
+        if (table === knowledgeBaseTable) {
+          return Promise.resolve()
+        }
+        if (table === knowledgeItemTable) {
+          insertedItems.push(value)
+          return Promise.resolve()
+        }
+        if (table === fileRefTable) {
+          insertedRefs.push(value)
+          return {
+            onConflictDoNothing: vi.fn().mockResolvedValue(undefined)
+          }
+        }
+        return Promise.resolve()
+      })
+    }))
+    const transaction = vi.fn(async (callback: (tx: any) => Promise<void>) => {
+      await callback({ select, insert })
+    })
+
+    const result = await migrator.execute({
+      db: { transaction }
+    } as any)
+
+    expect(result.success).toBe(true)
+    expect(result.processedCount).toBe(2)
+    expect(fs.promises.stat).not.toHaveBeenCalled()
+    expect(insertedEntries).toEqual([
+      expect.objectContaining({
+        origin: 'external',
+        name: 'manual',
+        ext: 'pdf',
+        externalPath: canonicalPath
+      })
+    ])
+    const insertedFileEntry = insertedEntries[0] as { id: string }
+    expect(insertedItems).toEqual([
+      [
+        expect.objectContaining({
+          id: itemId,
+          type: 'file',
+          status: 'completed',
+          data: {
+            source: filePath,
+            fileEntryId: insertedFileEntry.id
+          }
+        })
+      ]
+    ])
+    expect(insertedRefs).toEqual([
+      [
+        {
+          fileEntryId: insertedFileEntry.id,
+          sourceType: 'knowledge_item',
+          sourceId: itemId,
+          role: 'source'
+        }
+      ]
+    ])
+  })
+
+  it('execute reuses existing external file entries by lower-case path during migration', async () => {
+    const migrator = new KnowledgeMigrator() as any
+    const itemId = '11111111-2222-4333-8444-000000000002'
+    const existingFileEntryId = '019606a0-0000-7000-8000-000000000010'
+    const filePath = '/Users/test/Documents/Manual.pdf'
+    migrator.preparedBases = [
+      {
+        id: 'kb-file-ref-reuse',
+        name: 'KB file ref reuse',
+        dimensions: 1024,
+        embeddingModelId: 'silicon::BAAI/bge-m3'
+      }
+    ]
+    migrator.preparedItems = [
+      {
+        id: itemId,
+        baseId: 'kb-file-ref-reuse',
+        groupId: null,
+        type: 'file',
+        data: { source: filePath, path: filePath },
+        status: 'completed',
+        phase: null,
+        error: null
+      }
+    ]
+
+    const insertedEntries: unknown[] = []
+    const insertedItems: unknown[] = []
+    const insertedRefs: unknown[] = []
+
+    const select = vi.fn().mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue([{ id: existingFileEntryId }])
+        })
+      })
+    })
+    const insert = vi.fn((table: unknown) => ({
+      values: vi.fn((value: unknown) => {
+        if (table === fileEntryTable) {
+          insertedEntries.push(value)
+          return Promise.resolve()
+        }
+        if (table === knowledgeBaseTable) {
+          return Promise.resolve()
+        }
+        if (table === knowledgeItemTable) {
+          insertedItems.push(value)
+          return Promise.resolve()
+        }
+        if (table === fileRefTable) {
+          insertedRefs.push(value)
+          return {
+            onConflictDoNothing: vi.fn().mockResolvedValue(undefined)
+          }
+        }
+        return Promise.resolve()
+      })
+    }))
+    const transaction = vi.fn(async (callback: (tx: any) => Promise<void>) => {
+      await callback({ select, insert })
+    })
+
+    const result = await migrator.execute({
+      db: { transaction }
+    } as any)
+
+    expect(result.success).toBe(true)
+    expect(insertedEntries).toEqual([])
+    expect(insertedItems).toEqual([
+      [
+        expect.objectContaining({
+          id: itemId,
+          type: 'file',
+          status: 'completed',
+          data: {
+            source: filePath,
+            fileEntryId: existingFileEntryId
+          }
+        })
+      ]
+    ])
+    expect(insertedRefs).toEqual([
+      [
+        {
+          fileEntryId: existingFileEntryId,
+          sourceType: 'knowledge_item',
+          sourceId: itemId,
+          role: 'source'
+        }
       ]
     ])
   })

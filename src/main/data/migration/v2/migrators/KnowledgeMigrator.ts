@@ -4,17 +4,17 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { fileEntryTable } from '@data/db/schemas/file'
+import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { createClient, type Value as LibsqlValue } from '@libsql/client'
 import { loggerService } from '@logger'
+import { canonicalizeExternalPath } from '@main/services/file/utils/pathResolver'
 import { sanitizeFilename } from '@main/utils/file'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
-import type { FileEntryId } from '@shared/data/types/file'
+import { type FileEntryId, knowledgeItemRoles, knowledgeItemSourceType } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
-import { canonicalizeAbsolutePath } from '@shared/file/canonicalize'
 import { sql } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -40,6 +40,7 @@ const ITEM_INSERT_BATCH_SIZE = 200
 const LOOKUP_STREAM_BATCH_SIZE = 200
 const LEGACY_VECTOR_TABLE_NAME = 'vectors'
 const SKIP_WARNING_SAMPLE_LIMIT = 3
+const KNOWLEDGE_ITEM_FILE_REF_ROLE = knowledgeItemRoles[0]
 
 type DimensionResolutionReason =
   | 'ok'
@@ -49,6 +50,14 @@ type DimensionResolutionReason =
   | 'invalid_vector_dimensions'
   | 'vector_db_invalid_path'
   | 'vector_db_error'
+
+type ResolvedKnowledgeFileItem = NewKnowledgeItem & {
+  type: 'file'
+  data: {
+    source: string
+    fileEntryId: FileEntryId
+  }
+}
 
 const hasKnowledgeBaseIdentity = (base: LegacyKnowledgeBase): base is LegacyKnowledgeBaseWithIdentity =>
   typeof base.id === 'string' && base.id !== '' && typeof base.name === 'string' && base.name !== ''
@@ -85,6 +94,14 @@ const getRequiredFileLookupId = (content: LegacyKnowledgeItem['content']): strin
 
   return null
 }
+
+const isResolvedKnowledgeFileItem = (item: NewKnowledgeItem): item is ResolvedKnowledgeFileItem =>
+  item.type === 'file' &&
+  typeof item.data === 'object' &&
+  item.data !== null &&
+  !Array.isArray(item.data) &&
+  'fileEntryId' in item.data &&
+  typeof item.data.fileEntryId === 'string'
 
 const getInvalidKnowledgeBaseConfigWarning = (
   base: LegacyKnowledgeBaseWithIdentity,
@@ -309,7 +326,11 @@ export class KnowledgeMigrator extends BaseMigrator {
     tx: Pick<MigrationContext['db'], 'select' | 'insert'>,
     filePath: string
   ): Promise<FileEntryId> {
-    const canonicalPath = canonicalizeAbsolutePath(filePath)
+    // Migration intentionally differs from runtime FileManager.ensureExternalEntry:
+    // v1 knowledge items may point at files the user has since moved/deleted,
+    // while their vectors can still be migrated and shown in the UI. Preserve
+    // those dangling historical sources instead of fs.stat-gating the row.
+    const canonicalPath = canonicalizeExternalPath(filePath)
     const existing = await tx
       .select({ id: fileEntryTable.id })
       .from(fileEntryTable)
@@ -355,6 +376,41 @@ export class KnowledgeMigrator extends BaseMigrator {
         fileEntryId
       }
     }
+  }
+
+  private async createMigratedKnowledgeItemFileRefs(
+    tx: Pick<MigrationContext['db'], 'insert'>,
+    items: readonly NewKnowledgeItem[]
+  ): Promise<void> {
+    const refs: Array<{
+      fileEntryId: FileEntryId
+      sourceType: typeof knowledgeItemSourceType
+      sourceId: string
+      role: typeof KNOWLEDGE_ITEM_FILE_REF_ROLE
+    }> = []
+
+    for (const item of items) {
+      if (!isResolvedKnowledgeFileItem(item)) {
+        continue
+      }
+
+      if (!item.id) {
+        throw new Error('Resolved file knowledge item is missing id')
+      }
+
+      refs.push({
+        fileEntryId: item.data.fileEntryId,
+        sourceType: knowledgeItemSourceType,
+        sourceId: item.id,
+        role: KNOWLEDGE_ITEM_FILE_REF_ROLE
+      })
+    }
+
+    if (refs.length === 0) {
+      return
+    }
+
+    await tx.insert(fileRefTable).values(refs).onConflictDoNothing()
   }
 
   private collectLookupIds(bases: LegacyKnowledgeBase[]): {
@@ -665,6 +721,7 @@ export class KnowledgeMigrator extends BaseMigrator {
             }
             if (batch.length > 0) {
               await tx.insert(knowledgeItemTable).values(batch)
+              await this.createMigratedKnowledgeItemFileRefs(tx, batch)
               transactionProcessed += batch.length
             }
           }

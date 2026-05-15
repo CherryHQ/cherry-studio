@@ -159,7 +159,7 @@ describe('fileRefTable — CASCADE FK', () => {
       fileEntryId: entry.id,
       sourceType: 'knowledge_item',
       sourceId: 'msg-1',
-      role: 'attachment',
+      role: 'source',
       createdAt: TS,
       updatedAt: TS
     })
@@ -180,7 +180,7 @@ describe('fileRefTable — CASCADE FK', () => {
         fileEntryId: uuidv7(),
         sourceType: 'knowledge_item',
         sourceId: 'msg-orphan',
-        role: 'attachment',
+        role: 'source',
         createdAt: TS,
         updatedAt: TS
       })
@@ -199,7 +199,7 @@ describe('fileRefTable — unique constraint', () => {
       fileEntryId: entry.id,
       sourceType: 'knowledge_item',
       sourceId: 'msg-dup',
-      role: 'attachment',
+      role: 'source',
       createdAt: TS,
       updatedAt: TS
     }
