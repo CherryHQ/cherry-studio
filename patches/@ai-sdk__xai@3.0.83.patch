@@ -1,0 +1,52 @@
+diff --git a/dist/index.d.mts b/dist/index.d.mts
+index 7bec666ef62dc271f75278ea521ad3b05fe2a551..44c8bc76f0713ca17fe7aaf7aefb11431dbfe1bd 100644
+--- a/dist/index.d.mts
++++ b/dist/index.d.mts
+@@ -65,6 +65,7 @@ type XaiResponsesModelId = 'grok-4-1-fast-reasoning' | 'grok-4-1-fast-non-reaso
+  */
+ declare const xaiLanguageModelResponsesOptions: z.ZodObject<{
+     reasoningEffort: z.ZodOptional<z.ZodEnum<{
++        none: "none";
+         low: "low";
+         high: "high";
+         medium: "medium";
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 7bec666ef62dc271f75278ea521ad3b05fe2a551..44c8bc76f0713ca17fe7aaf7aefb11431dbfe1bd 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -65,6 +65,7 @@ type XaiResponsesModelId = 'grok-4-1-fast-reasoning' | 'grok-4-1-fast-non-reaso
+  */
+ declare const xaiLanguageModelResponsesOptions: z.ZodObject<{
+     reasoningEffort: z.ZodOptional<z.ZodEnum<{
++        none: "none";
+         low: "low";
+         high: "high";
+         medium: "medium";
+diff --git a/dist/index.js b/dist/index.js
+index 7622fbe4b180c68f1c792cf4c8e0c4ef9774562f..3e6412ee96d404d9c462cce3f71a746c2175f5ae 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1702,7 +1702,7 @@ var xaiLanguageModelResponsesOptions = import_v47.z.object({
+   /**
+    * Constrains how hard a reasoning model thinks before responding.
+    * Possible values are `low` (uses fewer reasoning tokens), `medium` and `high` (uses more reasoning tokens).
+    */
+-  reasoningEffort: import_v47.z.enum(["low", "medium", "high"]).optional(),
++  reasoningEffort: import_v47.z.enum(["none", "low", "medium", "high"]).optional(),
+   logprobs: import_v47.z.boolean().optional(),
+   topLogprobs: import_v47.z.number().int().min(0).max(8).optional(),
+   /**
+diff --git a/dist/index.mjs b/dist/index.mjs
+index da9822b90d571c3b3462c5d387376f6666fdf33b..d8445e6460a4c4a6ea154b356cf98e7fe1533dc3 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -1705,7 +1705,7 @@ var xaiLanguageModelResponsesOptions = z7.object({
+   /**
+    * Constrains how hard a reasoning model thinks before responding.
+    * Possible values are `low` (uses fewer reasoning tokens), `medium` and `high` (uses more reasoning tokens).
+    */
+-  reasoningEffort: z7.enum(["low", "medium", "high"]).optional(),
++  reasoningEffort: z7.enum(["none", "low", "medium", "high"]).optional(),
+   logprobs: z7.boolean().optional(),
+   topLogprobs: z7.number().int().min(0).max(8).optional(),
+   /**
