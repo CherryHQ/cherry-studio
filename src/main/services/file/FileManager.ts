@@ -670,23 +670,26 @@ export class FileManager extends BaseService implements IFileManager {
    * would saturate the event loop and the DB connection pool.
    */
   private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.File_GetDanglingState, (_e, params: unknown) =>
+    // Handlers are async so a synchronous `Schema.parse` throw becomes a
+    // Promise rejection at the IPC boundary (matching Electron's contract
+    // for `ipcMain.handle` listeners).
+    this.ipcHandle(IpcChannel.File_GetDanglingState, async (_e, params: unknown) =>
       this.getDanglingState(GetDanglingStateIpcSchema.parse(params))
     )
-    this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, (_e, params: unknown) =>
+    this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, async (_e, params: unknown) =>
       this.batchGetDanglingStates(BatchGetDanglingStatesIpcSchema.parse(params))
     )
     // Phase 2 channels
-    this.ipcHandle(IpcChannel.File_CreateInternalEntry, (_e, params: unknown) =>
+    this.ipcHandle(IpcChannel.File_CreateInternalEntry, async (_e, params: unknown) =>
       this.createInternalEntry(CreateInternalEntryIpcSchema.parse(params))
     )
-    this.ipcHandle(IpcChannel.File_EnsureExternalEntry, (_e, params: unknown) =>
+    this.ipcHandle(IpcChannel.File_EnsureExternalEntry, async (_e, params: unknown) =>
       this.ensureExternalEntry(EnsureExternalEntryIpcSchema.parse(params))
     )
-    this.ipcHandle(IpcChannel.File_GetPhysicalPath, (_e, params: unknown) =>
+    this.ipcHandle(IpcChannel.File_GetPhysicalPath, async (_e, params: unknown) =>
       this.getPhysicalPath(GetPhysicalPathIpcSchema.parse(params).id)
     )
-    this.ipcHandle(IpcChannel.File_PermanentDelete, (_e, params: unknown) => {
+    this.ipcHandle(IpcChannel.File_PermanentDelete, async (_e, params: unknown) => {
       const handle = PermanentDeleteIpcSchema.parse(params)
       return dispatchHandle(
         handle,

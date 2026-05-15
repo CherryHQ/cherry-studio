@@ -133,7 +133,7 @@ function toFileEntry(
         ? path.basename(row.origin_name, row.origin_name.includes('.') ? path.extname(row.origin_name) : '')
         : row.name,
       ext,
-      size: validSize ? (row.size as number) : 0,
+      size: validSize ? row.size : 0,
       externalPath: null,
       trashedAt: null,
       createdAt,
