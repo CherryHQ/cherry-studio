@@ -31,6 +31,7 @@ export type NewApiEndpointType =
   | 'gemini'
   | 'image-generation'
   | 'jina-rerank'
+  | 'embedding'
 
 export interface NewApiProviderSettings {
   apiKey?: string
@@ -121,6 +122,8 @@ export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvid
       case 'openai':
       case 'image-generation':
         return createCompatibleModel(modelId)
+      case 'embedding':
+        throw new Error('Use embeddingModel() for embedding endpoint type')
       default:
         return createCompatibleModel(modelId)
     }

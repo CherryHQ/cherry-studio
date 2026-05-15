@@ -91,9 +91,12 @@ export function useProvider(id: string) {
       if (isNewApiProvider(provider)) {
         const endpointTypes = model.supported_endpoint_types
         if (endpointTypes && endpointTypes.length > 0) {
-          processedModel = {
-            ...processedModel,
-            endpoint_type: endpointTypes.includes('image-generation') ? 'image-generation' : endpointTypes[0]
+          const chatEndpointTypes = endpointTypes.filter((type) => type !== 'embedding')
+          if (chatEndpointTypes.length > 0) {
+            processedModel = {
+              ...processedModel,
+              endpoint_type: chatEndpointTypes.includes('image-generation') ? 'image-generation' : chatEndpointTypes[0]
+            }
           }
         }
       }
