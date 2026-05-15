@@ -1,9 +1,13 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AgentChat from '../AgentChat'
+
+const partsByMessageIdMock = vi.hoisted(() => ({
+  value: {}
+}))
 
 vi.mock('@renderer/components/chat', () => ({
   ChatAppShell: ({
@@ -28,6 +32,16 @@ vi.mock('@renderer/components/chat', () => ({
     </div>
   ),
   LoadingState: () => <div data-testid="loading-state" />
+}))
+
+vi.mock('@renderer/components/chat/composer/variants/AskUserQuestionComposer', () => ({
+  default: ({ request }: { request: { approvalId: string } }) => (
+    <div data-testid="ask-user-question-composer" data-approval-id={request.approvalId} />
+  )
+}))
+
+vi.mock('@renderer/components/chat/messages/stream/useMessagePartsById', () => ({
+  useMessagePartsById: () => partsByMessageIdMock.value
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({
@@ -177,6 +191,10 @@ vi.mock('../../home/uiToMessage', () => ({
 }))
 
 describe('AgentChat settings panel', () => {
+  beforeEach(() => {
+    partsByMessageIdMock.value = {}
+  })
+
   it('keeps the settings panel open when the settings button is clicked repeatedly', () => {
     render(<AgentChat />)
 
@@ -207,5 +225,36 @@ describe('AgentChat settings panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open settings' }))
     expect(screen.getByTestId('settings-panel')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('replaces the agent inputbar with AskUserQuestionComposer for pending requests', () => {
+    partsByMessageIdMock.value = {
+      'message-1': [
+        {
+          type: 'dynamic-tool',
+          toolName: 'AskUserQuestion',
+          toolCallId: 'call-1',
+          state: 'approval-requested',
+          input: {
+            questions: [
+              {
+                question: 'Choose logger',
+                header: 'Logger',
+                options: [{ label: 'Winston' }],
+                multiSelect: false
+              }
+            ]
+          },
+          providerExecuted: true,
+          callProviderMetadata: { 'claude-code': { parentToolCallId: null } },
+          approval: { id: 'approval-1' }
+        }
+      ]
+    }
+
+    render(<AgentChat />)
+
+    expect(screen.getByTestId('ask-user-question-composer')).toHaveAttribute('data-approval-id', 'approval-1')
+    expect(screen.queryByTestId('agent-inputbar')).not.toBeInTheDocument()
   })
 })

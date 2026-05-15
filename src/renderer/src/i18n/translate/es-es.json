@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "respondido",
+      "close": "Cerrar",
       "customPlaceholder": "Introduce tu respuesta...",
       "loading": "Cargando preguntas...",
       "multiSelect": "Selección múltiple",
@@ -25,6 +26,8 @@
       "noQuestions": "No hay preguntas disponibles",
       "other": "Otro",
       "previous": "Anterior",
+      "progress": "{{current}} de {{total}}",
+      "skip": "Omitir",
       "submit": "Enviar",
       "title": "Preguntas del Agente"
     },
@@ -4658,6 +4661,14 @@
       },
       "agentTodoList": {
         "title": "[to be translated]:Agent Todo List"
+      },
+      "askUserQuestion": {
+        "currentRequest": "Solicitud actual",
+        "description": "Previsualiza el composer inferior AskUserQuestion con preguntas de ejemplo.",
+        "latestResponse": "Última respuesta",
+        "noResponse": "Aún no se ha enviado ninguna respuesta",
+        "resetPreview": "Restablecer vista previa",
+        "title": "Ask User Question"
       },
       "assistantSelector": {
         "clearSelection": "Claro",

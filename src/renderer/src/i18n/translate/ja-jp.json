@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "回答済み",
+      "close": "閉じる",
       "customPlaceholder": "答えを入力してください...",
       "loading": "質問を読み込んでいます…",
       "multiSelect": "複数選択",
@@ -25,6 +26,8 @@
       "noQuestions": "利用可能な質問はありません",
       "other": "その他",
       "previous": "前",
+      "progress": "{{current}} / {{total}}",
+      "skip": "スキップ",
       "submit": "送信",
       "title": "エージェントからの質問"
     },
@@ -4658,6 +4661,14 @@
       },
       "agentTodoList": {
         "title": "[to be translated]:Agent Todo List"
+      },
+      "askUserQuestion": {
+        "currentRequest": "現在のリクエスト",
+        "description": "サンプルの pending questions で下部 AskUserQuestion composer をプレビューします。",
+        "latestResponse": "最新のレスポンス",
+        "noResponse": "まだレスポンスは送信されていません",
+        "resetPreview": "プレビューをリセット",
+        "title": "Ask User Question"
       },
       "assistantSelector": {
         "clearSelection": "クリア",

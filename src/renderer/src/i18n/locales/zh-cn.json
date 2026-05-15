@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "已回答",
+      "close": "关闭",
       "customPlaceholder": "输入您的回答...",
       "loading": "正在加载问题...",
       "multiSelect": "多选",
@@ -25,6 +26,8 @@
       "noQuestions": "暂无问题",
       "other": "其他",
       "previous": "上一个",
+      "progress": "{{current}} / {{total}}",
+      "skip": "跳过",
       "submit": "提交",
       "title": "来自 Agent 的问题"
     },
@@ -4789,6 +4792,14 @@
       },
       "agentTodoList": {
         "title": "Agent 任务列表"
+      },
+      "askUserQuestion": {
+        "currentRequest": "当前请求",
+        "description": "用示例 pending questions 预览底部 AskUserQuestion composer。",
+        "latestResponse": "最近一次提交",
+        "noResponse": "尚未提交",
+        "resetPreview": "重置预览",
+        "title": "AskUserQuestion 提问组件"
       },
       "assistantSelector": {
         "clearSelection": "清空",

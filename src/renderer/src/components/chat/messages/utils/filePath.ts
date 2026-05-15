@@ -1,6 +1,6 @@
 const INLINE_ABSOLUTE_FILE_PATH_PATTERN = /^\/[\w.-]+(?:\/[\w.-]+)+$/
 
-const trimInlinePathToken = (value: string) => value.replace(/^[`("'\[]+|[`)"'\],.;:!?]+$/g, '')
+const trimInlinePathToken = (value: string) => value.replace(/^[`("'[]+|[`)"'\],.;:!?]+$/g, '')
 
 export function isInlineAbsoluteFilePath(value: string): boolean {
   return INLINE_ABSOLUTE_FILE_PATH_PATTERN.test(value)

@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "απαντήθηκε",
+      "close": "Κλείσιμο",
       "customPlaceholder": "Εισάγετε την απάντησή σας...",
       "loading": "Φόρτωση ερωτήσεων...",
       "multiSelect": "Πολλαπλή επιλογή",
@@ -25,6 +26,8 @@
       "noQuestions": "Δεν υπάρχουν διαθέσιμες ερωτήσεις",
       "other": "Άλλο",
       "previous": "Προηγούμενο",
+      "progress": "{{current}} από {{total}}",
+      "skip": "Παράλειψη",
       "submit": "Υποβολή",
       "title": "Ερωτήσεις από τον πράκτορα"
     },
@@ -4658,6 +4661,14 @@
       },
       "agentTodoList": {
         "title": "[to be translated]:Agent Todo List"
+      },
+      "askUserQuestion": {
+        "currentRequest": "Τρέχον αίτημα",
+        "description": "Προεπισκόπηση του κάτω AskUserQuestion composer με ενδεικτικές ερωτήσεις.",
+        "latestResponse": "Τελευταία απάντηση",
+        "noResponse": "Δεν έχει υποβληθεί απάντηση ακόμη",
+        "resetPreview": "Επαναφορά προεπισκόπησης",
+        "title": "Ask User Question"
       },
       "assistantSelector": {
         "clearSelection": "Καθαρό",

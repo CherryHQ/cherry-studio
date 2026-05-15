@@ -1,8 +1,11 @@
 import { ChatAppShell, type ChatPanePosition } from '@renderer/components/chat'
+import { findLatestPendingAskUserQuestionRequest } from '@renderer/components/chat/composer/askUserQuestion'
+import AskUserQuestionComposer from '@renderer/components/chat/composer/variants/AskUserQuestionComposer'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import { MessageListInitialLoading } from '@renderer/components/chat/messages/layout/MessageListLoading'
 import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
 import { useMessagePartsById } from '@renderer/components/chat/messages/stream/useMessagePartsById'
+import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
@@ -203,6 +206,10 @@ const AgentChatInner = ({
 
   const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } = useExecutionMessages()
   const partsByMessageId = useMessagePartsById(uiMessages, executionMessagesById)
+  const askUserQuestionRequest = useMemo(
+    () => findLatestPendingAskUserQuestionRequest(partsByMessageId),
+    [partsByMessageId]
+  )
 
   const executionChats = useExecutionChats(sessionTopicId, chat.activeExecutions)
 
@@ -218,6 +225,58 @@ const AgentChatInner = ({
     setSettingsOpen(false)
     setCitationPanelCitations(citations)
   }, [])
+
+  const handleAskUserQuestionRespond = useCallback(
+    async ({ match, approved, reason, updatedInput }: MessageToolApprovalInput) => {
+      const approvalId = match.approvalId
+      if (!approvalId) throw new Error('Missing tool approval id')
+
+      const result = await window.api.ai.toolApproval.respond({
+        approvalId,
+        approved,
+        reason,
+        updatedInput,
+        topicId: sessionTopicId,
+        anchorId: match.messageId
+      })
+
+      if (!result.ok) throw new Error('Tool approval response was not accepted')
+    },
+    [sessionTopicId]
+  )
+
+  const bottomComposer = useMemo(() => {
+    if (isMultiSelectMode) return undefined
+
+    if (askUserQuestionRequest) {
+      return (
+        <AskUserQuestionComposer
+          key={askUserQuestionRequest.approvalId}
+          request={askUserQuestionRequest}
+          onRespond={handleAskUserQuestionRespond}
+        />
+      )
+    }
+
+    return (
+      <AgentSessionInputbar
+        agentId={agentId}
+        sessionId={sessionId}
+        sendMessage={chat.sendMessage}
+        stop={chat.stop}
+        isStreaming={isPending}
+      />
+    )
+  }, [
+    agentId,
+    askUserQuestionRequest,
+    chat.sendMessage,
+    chat.stop,
+    handleAskUserQuestionRespond,
+    isMultiSelectMode,
+    isPending,
+    sessionId
+  ])
 
   return (
     <AgentChatFrame
@@ -269,17 +328,7 @@ const AgentChatInner = ({
           {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
         </div>
       }
-      bottomComposer={
-        isMultiSelectMode ? undefined : (
-          <AgentSessionInputbar
-            agentId={agentId}
-            sessionId={sessionId}
-            sendMessage={chat.sendMessage}
-            stop={chat.stop}
-            isStreaming={isPending}
-          />
-        )
-      }
+      bottomComposer={bottomComposer}
       sidePanel={
         <>
           <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} mode="agent" />

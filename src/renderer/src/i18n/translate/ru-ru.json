@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "ответил",
+      "close": "Закрыть",
       "customPlaceholder": "Введите ваш ответ...",
       "loading": "Загрузка вопросов...",
       "multiSelect": "Множественный выбор",
@@ -25,6 +26,8 @@
       "noQuestions": "Нет доступных вопросов",
       "other": "Другое",
       "previous": "Предыдущий",
+      "progress": "{{current}} из {{total}}",
+      "skip": "Пропустить",
       "submit": "Отправить",
       "title": "Вопросы от агента"
     },
@@ -4658,6 +4661,14 @@
       },
       "agentTodoList": {
         "title": "[to be translated]:Agent Todo List"
+      },
+      "askUserQuestion": {
+        "currentRequest": "Текущий запрос",
+        "description": "Предпросмотр нижнего AskUserQuestion composer с примером вопросов.",
+        "latestResponse": "Последний ответ",
+        "noResponse": "Ответ еще не отправлен",
+        "resetPreview": "Сбросить предпросмотр",
+        "title": "Ask User Question"
       },
       "assistantSelector": {
         "clearSelection": "Прозрачный",

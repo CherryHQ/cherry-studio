@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "已回答",
+      "close": "關閉",
       "customPlaceholder": "輸入你的答案...",
       "loading": "載入問題中...",
       "multiSelect": "多重選擇",
@@ -25,6 +26,8 @@
       "noQuestions": "沒有可用的問題",
       "other": "其他",
       "previous": "之前",
+      "progress": "{{current}} / {{total}}",
+      "skip": "略過",
       "submit": "提交",
       "title": "來自Agent的提問"
     },
@@ -4789,6 +4792,14 @@
       },
       "agentTodoList": {
         "title": "Agent 任務列表"
+      },
+      "askUserQuestion": {
+        "currentRequest": "目前請求",
+        "description": "使用範例 pending questions 預覽底部 AskUserQuestion composer。",
+        "latestResponse": "最近一次提交",
+        "noResponse": "尚未提交",
+        "resetPreview": "重設預覽",
+        "title": "AskUserQuestion 提問元件"
       },
       "assistantSelector": {
         "clearSelection": "清空",

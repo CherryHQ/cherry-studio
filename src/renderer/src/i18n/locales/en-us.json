@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "answered",
+      "close": "Close",
       "customPlaceholder": "Enter your answer...",
       "loading": "Loading questions...",
       "multiSelect": "Multi-select",
@@ -25,6 +26,8 @@
       "noQuestions": "No questions available",
       "other": "Other",
       "previous": "Previous",
+      "progress": "{{current}} of {{total}}",
+      "skip": "Skip",
       "submit": "Submit",
       "title": "Questions from Agent"
     },
@@ -4789,6 +4792,14 @@
       },
       "agentTodoList": {
         "title": "Agent Todo List"
+      },
+      "askUserQuestion": {
+        "currentRequest": "Current request",
+        "description": "Preview the bottom AskUserQuestion composer with sample pending questions.",
+        "latestResponse": "Latest response",
+        "noResponse": "No response submitted yet",
+        "resetPreview": "Reset preview",
+        "title": "Ask User Question"
       },
       "assistantSelector": {
         "clearSelection": "Clear",

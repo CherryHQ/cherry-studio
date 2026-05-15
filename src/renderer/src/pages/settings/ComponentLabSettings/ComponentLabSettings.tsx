@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '..'
 import ComponentLabAgentSelectorSettings from './ComponentLabAgentSelectorSettings'
+import ComponentLabAskUserQuestionSettings from './ComponentLabAskUserQuestionSettings'
 import ComponentLabAssistantSelectorSettings from './ComponentLabAssistantSelectorSettings'
 import ComponentLabFileProcessingSettings from './ComponentLabFileProcessingSettings'
 import ComponentLabModelSelectorSettings from './ComponentLabModelSelectorSettings'
@@ -27,6 +28,7 @@ const ComponentLabSettings: FC = () => {
             <TabsTrigger value="agent-selector">{t('settings.componentLab.agentSelector.title')}</TabsTrigger>
             <TabsTrigger value="model-selector">{t('settings.componentLab.modelSelector.title')}</TabsTrigger>
             <TabsTrigger value="agent-todo-list">{t('settings.componentLab.agentTodoList.title')}</TabsTrigger>
+            <TabsTrigger value="ask-user-question">{t('settings.componentLab.askUserQuestion.title')}</TabsTrigger>
             <TabsTrigger value="file-processing">{t('settings.componentLab.fileProcessing.title')}</TabsTrigger>
           </TabsList>
 
@@ -41,6 +43,9 @@ const ComponentLabSettings: FC = () => {
           </TabsContent>
           <TabsContent value="agent-todo-list" className="mt-0 max-w-3xl">
             <AgentTodoListPanel />
+          </TabsContent>
+          <TabsContent value="ask-user-question" className="mt-0">
+            <ComponentLabAskUserQuestionSettings />
           </TabsContent>
           <TabsContent value="file-processing" className="mt-0">
             <ComponentLabFileProcessingSettings />

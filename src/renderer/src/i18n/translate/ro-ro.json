@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "răspuns",
+      "close": "Închide",
       "customPlaceholder": "Introdu răspunsul tău...",
       "loading": "Se încarcă întrebările...",
       "multiSelect": "Selecție multiplă",
@@ -25,6 +26,8 @@
       "noQuestions": "Nu sunt disponibile întrebări",
       "other": "Altele",
       "previous": "Anterior",
+      "progress": "{{current}} din {{total}}",
+      "skip": "Omite",
       "submit": "Trimite",
       "title": "Întrebări de la Agent"
     },
@@ -4658,6 +4661,14 @@
       },
       "agentTodoList": {
         "title": "[to be translated]:Agent Todo List"
+      },
+      "askUserQuestion": {
+        "currentRequest": "Cererea curentă",
+        "description": "Previzualizează composerul AskUserQuestion de jos cu întrebări exemplu.",
+        "latestResponse": "Cel mai recent răspuns",
+        "noResponse": "Niciun răspuns trimis încă",
+        "resetPreview": "Resetează previzualizarea",
+        "title": "Ask User Question"
       },
       "assistantSelector": {
         "clearSelection": "Clar",

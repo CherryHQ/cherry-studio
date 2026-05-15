@@ -105,6 +105,10 @@ vi.mock('../ComponentLabAssistantSelectorSettings', () => ({
   default: () => <div data-testid="assistant-selector-panel" />
 }))
 
+vi.mock('../ComponentLabAskUserQuestionSettings', () => ({
+  default: () => <div data-testid="ask-user-question-panel" />
+}))
+
 vi.mock('../ComponentLabModelSelectorSettings', () => ({
   default: () => <div data-testid="model-selector-panel" />
 }))
@@ -166,10 +170,15 @@ describe('ComponentLabFileProcessingSettings', () => {
     })
   })
 
-  it('adds the file processing tab to Component Lab', () => {
+  it('adds the file processing tab to Component Lab', async () => {
     render(<ComponentLabSettings />)
 
     expect(screen.getByRole('button', { name: 'settings.componentLab.fileProcessing.title' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.componentLab.askUserQuestion.title' })).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(listAvailableProcessorsMock).toHaveBeenCalled()
+    })
   })
 
   it('starts every image-to-text processor after selecting an OCR file', async () => {
