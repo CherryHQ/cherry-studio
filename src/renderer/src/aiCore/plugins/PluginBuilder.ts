@@ -5,6 +5,7 @@ import {
   isDeepSeekModel,
   isGemini3Model,
   isQwen35to39Model,
+  isReasoningModel,
   isSupportedThinkingTokenQwenModel
 } from '@renderer/config/models'
 import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
@@ -69,9 +70,13 @@ export function buildPlugins({ provider, model, config }: BuildPluginsContext): 
   // 这样反转后 extractReasoning 在外层，其 wrapStream（状态机）
   // 能处理 simulateStreaming 生成的模拟流中的未闭合 <think> 标签。
 
-  // 0.1 Reasoning extraction for OpenAI/Azure providers
+  // 0.1 Reasoning extraction for providers that stream raw reasoning tags.
   const providerType = provider.type
-  if (providerType === 'openai' || providerType === 'azure-openai') {
+  if (
+    providerType === 'openai' ||
+    providerType === 'azure-openai' ||
+    (isOllamaProvider(provider) && isReasoningModel(model))
+  ) {
     const tagName = getReasoningTagName(model.id.toLowerCase())
     plugins.push(createReasoningExtractionPlugin({ tagName }))
   }
