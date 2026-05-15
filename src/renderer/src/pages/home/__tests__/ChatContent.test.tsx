@@ -10,11 +10,6 @@ const mockUseTopicMessages = vi.fn()
 const mockMessageListValue = vi.hoisted(() => ({ current: null as any }))
 let capturedOnSend: ((text: string) => Promise<void> | void) | undefined
 
-vi.mock('@renderer/hooks/useChatContext', () => ({
-  useChatContextProvider: vi.fn(() => ({ isMultiSelectMode: false })),
-  ChatContextProvider: ({ children }: { children: ReactNode }) => children
-}))
-
 vi.mock('@renderer/hooks/useChatWithHistory', () => ({
   useChatWithHistory: (...args: unknown[]) => mockUseChatWithHistory(...args)
 }))
@@ -111,10 +106,6 @@ vi.mock('@renderer/components/chat/messages/stream/ExecutionStreamCollector', ()
 
     return null
   }
-}))
-
-vi.mock('@renderer/components/Popups/MultiSelectionPopup', () => ({
-  default: () => null
 }))
 
 function createUiMessage(id: string, role: CherryUIMessage['role']): CherryUIMessage {

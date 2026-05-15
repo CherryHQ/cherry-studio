@@ -8,7 +8,6 @@ import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
 import { useLanguages } from '@renderer/hooks/translate'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { translateInputText } from '@renderer/services/TranslateCommandService'
@@ -37,6 +36,7 @@ import { getMessageListItemModel, modelToSnapshot, toMessageListItem } from '../
 import { useMessageActivityState } from './useMessageActivityState'
 import { useMessageExportActions } from './useMessageExportActions'
 import { useMessageListRenderConfig } from './useMessageListRenderConfig'
+import { useMessageSelectionController } from './useMessageSelectionController'
 
 const logger = loggerService.withContext('HomeMessageListAdapter')
 
@@ -67,7 +67,6 @@ export function useHomeMessageListProviderValue({
   const { languages: translationLanguages, getLabel: getTranslationLanguageLabel } = useLanguages()
   const chatWrite = useChatWrite()
   const siblingsContext = use(SiblingsContext)
-  const { isMultiSelectMode, selectedMessageIds, handleSelectMessage, toggleMultiSelectMode } = useChatContext(topic)
   const getMessageActivityState = useMessageActivityState(topic.id, partsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
   const exportActions = useMessageExportActions({ topicName: topic.name })
@@ -389,6 +388,14 @@ export function useHomeMessageListProviderValue({
     [chatWrite]
   )
 
+  const selectionController = useMessageSelectionController({
+    topicId: topic.id,
+    messages: messageItems,
+    partsByMessageId,
+    deleteMessage,
+    saveTextFile: exportActions.saveTextFile
+  })
+
   const state = useMemo<MessageListState>(
     () => ({
       topic,
@@ -403,11 +410,7 @@ export function useHomeMessageListProviderValue({
       listKey: assistant?.id ?? topic.assistantId,
       readonly: false,
       renderConfig,
-      selection: {
-        enabled: true,
-        isMultiSelectMode,
-        selectedMessageIds
-      },
+      selection: selectionController.selection,
       translationLanguages: translationLanguages ?? [],
       editorTranslationTargetLabel: getTranslationLanguageLabel(editorTranslationTargetLanguage, false),
       getMessageUiState,
@@ -425,12 +428,11 @@ export function useHomeMessageListProviderValue({
       getMessageUiState,
       getTranslationLanguageLabel,
       hasOlder,
-      isMultiSelectMode,
       messageItems,
       messageNavigation,
       partsByMessageId,
       renderConfig,
-      selectedMessageIds,
+      selectionController.selection,
       topic,
       translationLanguages
     ]
@@ -452,8 +454,7 @@ export function useHomeMessageListProviderValue({
       abortTool,
       selectFiles,
       translateEditorText,
-      selectMessage: handleSelectMessage,
-      toggleMultiSelectMode,
+      ...selectionController.actions,
       updateMessageUiState,
       updateRenderConfig,
       editMessage,
@@ -477,7 +478,6 @@ export function useHomeMessageListProviderValue({
       exportActions,
       forkAndResendMessage,
       getTranslationUpdater,
-      handleSelectMessage,
       loadOlder,
       locateMessage,
       openPath,
@@ -490,7 +490,7 @@ export function useHomeMessageListProviderValue({
       showInFolder,
       startMessageBranch,
       startNewContext,
-      toggleMultiSelectMode,
+      selectionController.actions,
       translateEditorText,
       updateMessageUiState,
       updateRenderConfig

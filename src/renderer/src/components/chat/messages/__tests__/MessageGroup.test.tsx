@@ -12,7 +12,6 @@ const mocks = vi.hoisted(() => ({
   resendUserMessageWithEdit: vi.fn(),
   scrollIntoView: vi.fn(),
   setTimeoutTimer: vi.fn(),
-  useChatContext: vi.fn().mockReturnValue({ isMultiSelectMode: false }),
   settings: vi.fn().mockReturnValue({
     multiModelMessageStyle: 'horizontal',
     gridColumns: 2,
@@ -105,10 +104,6 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
     assistant: null,
     setModel: vi.fn()
   })
-}))
-
-vi.mock('@renderer/hooks/useChatContext', () => ({
-  useChatContext: () => mocks.useChatContext()
 }))
 
 vi.mock('@renderer/hooks/useMessageOperations', () => ({

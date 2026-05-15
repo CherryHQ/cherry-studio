@@ -19,6 +19,18 @@ const exportActionsMock = vi.hoisted(() => ({
   exportToSiyuan: vi.fn()
 }))
 const useMessageExportActionsMock = vi.hoisted(() => vi.fn(() => exportActionsMock))
+const cacheHookMocks = vi.hoisted(() => ({
+  setMultiSelectMode: vi.fn(),
+  setSelectedMessageIds: vi.fn()
+}))
+
+vi.mock('@data/hooks/useCache', () => ({
+  useCache: (key: string) => {
+    if (key === 'chat.multi_select_mode') return [true, cacheHookMocks.setMultiSelectMode]
+    if (key === 'chat.selected_message_ids') return [['user-1'], cacheHookMocks.setSelectedMessageIds]
+    return [undefined, vi.fn()]
+  }
+}))
 
 vi.mock('@data/CacheService', () => ({
   cacheService: {
@@ -87,8 +99,6 @@ describe('useAgentMessageListProviderValue', () => {
     ] as CherryUIMessage[]
     const partsByMessageId = Object.fromEntries(messages.map((message) => [message.id, message.parts ?? []]))
     const deleteMessage = vi.fn()
-    const selectMessage = vi.fn()
-    const toggleMultiSelectMode = vi.fn()
     let value: MessageListProviderValue | undefined
 
     const Probe = () => {
@@ -100,12 +110,6 @@ describe('useAgentMessageListProviderValue', () => {
         modelFallback: { id: 'claude-4', name: 'Claude 4', provider: 'anthropic' },
         isLoading: false,
         deleteMessage,
-        selectMessage,
-        toggleMultiSelectMode,
-        selection: {
-          isMultiSelectMode: true,
-          selectedMessageIds: ['user-1']
-        },
         messageNavigation: 'anchor'
       })
       return null
@@ -129,8 +133,11 @@ describe('useAgentMessageListProviderValue', () => {
     })
     expect(useMessageExportActionsMock).toHaveBeenCalledWith({ topicName: 'Agent session' })
     expect(value?.actions.deleteMessage).toBe(deleteMessage)
-    expect(value?.actions.selectMessage).toBe(selectMessage)
-    expect(value?.actions.toggleMultiSelectMode).toBe(toggleMultiSelectMode)
+    expect(value?.actions.selectMessage).toEqual(expect.any(Function))
+    expect(value?.actions.toggleMultiSelectMode).toEqual(expect.any(Function))
+    expect(value?.actions.copySelectedMessages).toEqual(expect.any(Function))
+    expect(value?.actions.saveSelectedMessages).toEqual(expect.any(Function))
+    expect(value?.actions.deleteSelectedMessages).toEqual(expect.any(Function))
     expect(value?.actions.regenerateMessage).toBeUndefined()
     expect(value?.actions.editMessage).toBeUndefined()
     expect(value?.actions.saveTextFile).toBe(exportActionsMock.saveTextFile)
@@ -148,5 +155,45 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.openPath).toEqual(expect.any(Function))
     expect(value?.actions.showInFolder).toEqual(expect.any(Function))
     expect(value?.actions.abortTool).toEqual(expect.any(Function))
+  })
+
+  it('does not expose selected delete action without delete capability', () => {
+    const topic = {
+      id: 'agent-session-topic',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    const messages = [
+      {
+        id: 'user-1',
+        role: 'user',
+        parts: [{ type: 'text', text: 'hello' }],
+        metadata: { createdAt: '2026-01-01T00:00:00.000Z' }
+      }
+    ] as CherryUIMessage[]
+    let value: MessageListProviderValue | undefined
+
+    const Probe = () => {
+      value = useAgentMessageListProviderValue({
+        topic,
+        messages,
+        partsByMessageId: { 'user-1': messages[0].parts ?? [] },
+        assistantId: 'agent-1',
+        modelFallback: undefined,
+        isLoading: false,
+        messageNavigation: 'anchor'
+      })
+      return null
+    }
+
+    render(<Probe />)
+
+    expect(value?.actions.deleteMessage).toBeUndefined()
+    expect(value?.actions.deleteSelectedMessages).toBeUndefined()
+    expect(value?.actions.copySelectedMessages).toEqual(expect.any(Function))
+    expect(value?.actions.saveSelectedMessages).toEqual(expect.any(Function))
   })
 })

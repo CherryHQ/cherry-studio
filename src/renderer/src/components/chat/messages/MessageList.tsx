@@ -1,4 +1,5 @@
 import { LoadingIcon } from '@renderer/components/Icons'
+import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTimer } from '@renderer/hooks/useTimer'
 import {
@@ -52,6 +53,7 @@ const MessageList = () => {
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const { setTimeoutTimer } = useTimer()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
+  const selectedMessageIds = selection?.selectedMessageIds ?? []
 
   const messageListRef = useRef<MessageVirtualListHandle | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
@@ -176,6 +178,20 @@ const MessageList = () => {
             handleSelectMessage={(messageId, selected) => actions.selectMessage?.(messageId, selected)}
           />
         )}
+        <MultiSelectActionPopup
+          selectedMessageIds={selectedMessageIds}
+          isMultiSelectMode={isMultiSelectMode}
+          onSave={
+            actions.saveSelectedMessages ? () => void actions.saveSelectedMessages?.(selectedMessageIds) : undefined
+          }
+          onCopy={
+            actions.copySelectedMessages ? () => void actions.copySelectedMessages?.(selectedMessageIds) : undefined
+          }
+          onDelete={
+            actions.deleteSelectedMessages ? () => void actions.deleteSelectedMessages?.(selectedMessageIds) : undefined
+          }
+          onClose={() => actions.toggleMultiSelectMode?.(false)}
+        />
       </MessagesContainer>
     </PartsProvider>
   )

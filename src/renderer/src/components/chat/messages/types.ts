@@ -159,6 +159,9 @@ export interface MessageListActions {
   translateEditorText?: (text: string) => Promise<string | null | undefined>
   selectMessage?: (messageId: string, selected: boolean) => void
   toggleMultiSelectMode?: (enabled: boolean) => void
+  copySelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
+  saveSelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
+  deleteSelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
   updateMessageUiState?: (messageId: string, updates: MessageUiState) => void
   updateRenderConfig?: (updates: MessageRenderConfigUpdate) => void
   editMessage?: (messageId: string, parts: CherryMessagePart[]) => void | Promise<void>

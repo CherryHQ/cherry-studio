@@ -3,15 +3,13 @@ import { useAgentMessageListProviderValue } from '@renderer/components/chat/mess
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
-import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useSession } from '@renderer/hooks/agents/useSessionDataApi'
-import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
 import type { GetAgentResponse, Topic, TopicType as TopicTypeEnum } from '@renderer/types'
 import { TopicType } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
-import { memo, useEffect, useMemo } from 'react'
+import { memo, useMemo } from 'react'
 
 const logger = loggerService.withContext('AgentSessionMessages')
 
@@ -64,22 +62,6 @@ const AgentSessionMessages = ({
     [sessionTopicId, sessionAssistantId, sessionName, sessionCreatedAt, sessionUpdatedAt]
   )
 
-  const chatContextValue = useChatContextProvider(derivedTopic, { messages, partsByMessageId, deleteMessage })
-
-  const { toggleMultiSelectMode } = chatContextValue
-
-  useEffect(() => {
-    toggleMultiSelectMode(false)
-  }, [sessionTopicId, toggleMultiSelectMode])
-
-  const selection = useMemo(
-    () => ({
-      isMultiSelectMode: chatContextValue.isMultiSelectMode,
-      selectedMessageIds: chatContextValue.selectedMessageIds
-    }),
-    [chatContextValue.isMultiSelectMode, chatContextValue.selectedMessageIds]
-  )
-
   const messageList = useAgentMessageListProviderValue({
     topic: derivedTopic,
     messages,
@@ -96,9 +78,6 @@ const AgentSessionMessages = ({
     hasOlder,
     loadOlder,
     deleteMessage,
-    selectMessage: chatContextValue.handleSelectMessage,
-    toggleMultiSelectMode: chatContextValue.toggleMultiSelectMode,
-    selection,
     messageNavigation
   })
 
@@ -109,12 +88,9 @@ const AgentSessionMessages = ({
   })
 
   return (
-    <ChatContextProvider value={chatContextValue}>
-      <MessageListProvider value={messageList}>
-        <MessageList />
-      </MessageListProvider>
-      {chatContextValue.isMultiSelectMode && <MultiSelectActionPopup topic={derivedTopic} />}
-    </ChatContextProvider>
+    <MessageListProvider value={messageList}>
+      <MessageList />
+    </MessageListProvider>
   )
 }
 

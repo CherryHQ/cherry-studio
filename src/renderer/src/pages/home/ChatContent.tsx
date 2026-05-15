@@ -1,9 +1,7 @@
 import { loggerService } from '@logger'
-import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import { ChatWriteProvider } from '@renderer/hooks/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { ToolApprovalProvider } from '@renderer/hooks/ToolApprovalContext'
-import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import type { ExecutionFinishEvent } from '@renderer/hooks/useExecutionChats'
 import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
@@ -11,7 +9,7 @@ import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
 import type { FileMetadata, Topic } from '@renderer/types'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -269,105 +267,83 @@ const ChatContentInner: FC<InnerProps> = ({
       <SiblingsProvider value={siblingsContextValue}>
         <RefreshProvider value={refresh}>
           <ToolApprovalProvider value={respondToToolApproval}>
-            <ChatContextBridge topic={topic} messages={uiMessages} partsByMessageId={partsByMessageId}>
-              {(overlay) => {
-                const main = (
-                  <>
-                    {/*
-                     * Two coupled guards on the per-execution chunk collector:
-                     *
-                     * 1. Mount only after SWR's `uiMessages` ends with an
-                     *    in-flight assistant. Collector's `useChat` seeds AI
-                     *    SDK's `createStreamingUIMessageState` from
-                     *    `initialMessages.at(-1)`; AI SDK reuses that object as
-                     *    the streaming `state.message` and a `start` chunk only
-                     *    overwrites its `id`, leaving the original `parts`
-                     *    array in place. If we mount while last is still the
-                     *    OLD assistant being replaced, new chunks append onto
-                     *    that array — the bubble renders "old content + new
-                     *    stream" once SWR finally flips active to the new
-                     *    placeholder.
-                     *
-                     * 2. Re-key on the in-flight assistant id so subsequent
-                     *    regenerates for the same model REMOUNT the collector.
-                     *    Without this, React reuses the existing `useChat`
-                     *    instance whose `state.messages` already carries the
-                     *    previous turn's assistant; the next regenerate seeds
-                     *    from THAT, accumulating pollution turn over turn.
-                     *
-                     * The collector cannot self-correct: it sees `resume: true`
-                     * only, never the `regenerate` trigger driving the turn.
-                     */}
-                    {(() => {
-                      const last = uiMessages.at(-1)
-                      if (last?.role !== 'assistant') return null
-                      return activeExecutions.map(({ executionId }) => {
-                        const chat = executionChats.get(executionId)
-                        if (!chat) return null
-                        return (
-                          <ExecutionStreamCollector
-                            key={`${executionId}:${last.id}`}
-                            executionId={executionId}
-                            chat={chat}
-                            onMessagesChange={handleExecutionMessagesChange}
-                            onDispose={handleExecutionDispose}
-                          />
-                        )
-                      })
-                    })()}
+            {(() => {
+              const main = (
+                <>
+                  {/*
+                   * Two coupled guards on the per-execution chunk collector:
+                   *
+                   * 1. Mount only after SWR's `uiMessages` ends with an
+                   *    in-flight assistant. Collector's `useChat` seeds AI
+                   *    SDK's `createStreamingUIMessageState` from
+                   *    `initialMessages.at(-1)`; AI SDK reuses that object as
+                   *    the streaming `state.message` and a `start` chunk only
+                   *    overwrites its `id`, leaving the original `parts`
+                   *    array in place. If we mount while last is still the
+                   *    OLD assistant being replaced, new chunks append onto
+                   *    that array — the bubble renders "old content + new
+                   *    stream" once SWR finally flips active to the new
+                   *    placeholder.
+                   *
+                   * 2. Re-key on the in-flight assistant id so subsequent
+                   *    regenerates for the same model REMOUNT the collector.
+                   *    Without this, React reuses the existing `useChat`
+                   *    instance whose `state.messages` already carries the
+                   *    previous turn's assistant; the next regenerate seeds
+                   *    from THAT, accumulating pollution turn over turn.
+                   *
+                   * The collector cannot self-correct: it sees `resume: true`
+                   * only, never the `regenerate` trigger driving the turn.
+                   */}
+                  {(() => {
+                    const last = uiMessages.at(-1)
+                    if (last?.role !== 'assistant') return null
+                    return activeExecutions.map(({ executionId }) => {
+                      const chat = executionChats.get(executionId)
+                      if (!chat) return null
+                      return (
+                        <ExecutionStreamCollector
+                          key={`${executionId}:${last.id}`}
+                          executionId={executionId}
+                          chat={chat}
+                          onMessagesChange={handleExecutionMessagesChange}
+                          onDispose={handleExecutionDispose}
+                        />
+                      )
+                    })
+                  })()}
 
-                    <HomeMessageList
-                      key={topic.id}
-                      topic={topic}
-                      messages={uiMessages}
-                      partsByMessageId={partsByMessageId}
-                      loadOlder={loadOlder}
-                      hasOlder={hasOlder}
-                    />
-                  </>
-                )
-                const bottomComposer = <Inputbar topic={topic} setActiveTopic={setActiveTopic} onSend={handleSend} />
+                  <HomeMessageList
+                    key={topic.id}
+                    topic={topic}
+                    messages={uiMessages}
+                    partsByMessageId={partsByMessageId}
+                    loadOlder={loadOlder}
+                    hasOlder={hasOlder}
+                  />
+                </>
+              )
+              const bottomComposer = <Inputbar topic={topic} setActiveTopic={setActiveTopic} onSend={handleSend} />
 
-                if (renderFrame) {
-                  return renderFrame({ main, bottomComposer, overlay })
-                }
+              if (renderFrame) {
+                return renderFrame({ main, bottomComposer })
+              }
 
-                return (
-                  <>
-                    <div
-                      className="flex flex-1 flex-col justify-between"
-                      style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
-                      {main}
-                      {bottomComposer}
-                    </div>
-                    {overlay}
-                  </>
-                )
-              }}
-            </ChatContextBridge>
+              return (
+                <>
+                  <div
+                    className="flex flex-1 flex-col justify-between"
+                    style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
+                    {main}
+                    {bottomComposer}
+                  </div>
+                </>
+              )
+            })()}
           </ToolApprovalProvider>
         </RefreshProvider>
       </SiblingsProvider>
     </ChatWriteProvider>
-  )
-}
-
-/**
- * Bridge rendered inside `ChatWriteProvider` so `useChatContextProvider`
- * can read that context. Multi-select
- * floating popup mounts here because it depends on the chat context.
- */
-const ChatContextBridge: FC<{
-  topic: Topic
-  messages: CherryUIMessage[]
-  partsByMessageId: Record<string, CherryMessagePart[]>
-  children: (overlay: ReactNode) => ReactNode
-}> = ({ topic, messages, partsByMessageId, children }) => {
-  const chatContextValue = useChatContextProvider(topic, { messages, partsByMessageId })
-  return (
-    <ChatContextProvider value={chatContextValue}>
-      {children(chatContextValue.isMultiSelectMode ? <MultiSelectActionPopup topic={topic} /> : null)}
-    </ChatContextProvider>
   )
 }
 
