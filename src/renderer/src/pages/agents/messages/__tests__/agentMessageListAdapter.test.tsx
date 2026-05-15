@@ -33,6 +33,10 @@ const leafCapabilitiesMock = vi.hoisted(() => ({
   openExternalUrl: vi.fn(),
   openInExternalApp: vi.fn(),
   uploadEditorFiles: vi.fn(),
+  handleEditorPaste: vi.fn(),
+  bindEditorPasteHandler: vi.fn(),
+  focusEditorPasteTarget: vi.fn(),
+  getDroppedEditorFiles: vi.fn(),
   copyText: vi.fn(),
   copyRichContent: vi.fn(),
   copyImage: vi.fn(),
@@ -41,8 +45,14 @@ const leafCapabilitiesMock = vi.hoisted(() => ({
   notifySuccess: vi.fn(),
   notifyWarning: vi.fn(),
   notifyError: vi.fn(),
+  getFileView: vi.fn(),
   isToolAutoApproved: vi.fn(() => false),
   externalCodeEditors: []
+}))
+const headerCapabilitiesMock = vi.hoisted(() => ({
+  userProfile: { avatar: '🙂' },
+  openUserProfile: vi.fn(),
+  openProviderApp: vi.fn()
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
@@ -129,6 +139,10 @@ vi.mock('@renderer/hooks/messages/useMessageErrorActions', () => ({
 
 vi.mock('@renderer/hooks/messages/useMessageLeafCapabilities', () => ({
   useMessageLeafCapabilities: () => leafCapabilitiesMock
+}))
+
+vi.mock('@renderer/hooks/messages/useMessageHeaderCapabilities', () => ({
+  useMessageHeaderCapabilities: () => headerCapabilitiesMock
 }))
 
 const { useAgentMessageListProviderValue } = await import('../agentMessageListAdapter')
@@ -240,7 +254,13 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.subscribeToolProgress).toBe(leafCapabilitiesMock.subscribeToolProgress)
     expect(value?.actions.openExternalUrl).toBe(leafCapabilitiesMock.openExternalUrl)
     expect(value?.actions.openInExternalApp).toBe(leafCapabilitiesMock.openInExternalApp)
+    expect(value?.actions.openUserProfile).toBe(headerCapabilitiesMock.openUserProfile)
+    expect(value?.actions.openProviderApp).toBe(headerCapabilitiesMock.openProviderApp)
     expect(value?.actions.uploadEditorFiles).toBe(leafCapabilitiesMock.uploadEditorFiles)
+    expect(value?.actions.handleEditorPaste).toBe(leafCapabilitiesMock.handleEditorPaste)
+    expect(value?.actions.bindEditorPasteHandler).toBe(leafCapabilitiesMock.bindEditorPasteHandler)
+    expect(value?.actions.focusEditorPasteTarget).toBe(leafCapabilitiesMock.focusEditorPasteTarget)
+    expect(value?.actions.getDroppedEditorFiles).toBe(leafCapabilitiesMock.getDroppedEditorFiles)
     expect(value?.actions.copyText).toBe(leafCapabilitiesMock.copyText)
     expect(value?.actions.copyRichContent).toBe(leafCapabilitiesMock.copyRichContent)
     expect(value?.actions.copyImage).toBe(leafCapabilitiesMock.copyImage)
@@ -251,6 +271,8 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.notifyError).toBe(leafCapabilitiesMock.notifyError)
     expect(value?.state.isToolAutoApproved).toBe(leafCapabilitiesMock.isToolAutoApproved)
     expect(value?.state.externalCodeEditors).toBe(leafCapabilitiesMock.externalCodeEditors)
+    expect(value?.state.getFileView).toBe(leafCapabilitiesMock.getFileView)
+    expect(value?.meta.userProfile).toBe(headerCapabilitiesMock.userProfile)
     expect(value?.actions.openTrace).toBeUndefined()
     expect(value?.actions.openPath).toEqual(expect.any(Function))
     expect(value?.actions.showInFolder).toEqual(expect.any(Function))

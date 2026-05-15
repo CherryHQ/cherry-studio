@@ -1,12 +1,11 @@
 import { Textarea, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
-import PasteService from '@renderer/services/PasteService'
 import type { FileMetadata } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { getFilesFromDropEvent, isSendMessageKeyPressed } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
+import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { Languages, Loader2, Save, Send, X } from 'lucide-react'
 import type { ComponentPropsWithoutRef, FC } from 'react'
@@ -37,6 +36,10 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
   const [isSelectingFiles, setIsSelectingFiles] = useState(false)
   const actions = useMessageListActions()
   const messageUi = useMessageListUi()
+  const handleEditorPasteAction = actions.handleEditorPaste
+  const bindEditorPasteHandler = actions.bindEditorPasteHandler
+  const focusEditorPasteTarget = actions.focusEditorPasteTarget
+  const getDroppedEditorFiles = actions.getDroppedEditorFiles
   const { pasteLongTextAsFile, pasteLongTextThreshold, fontSize, sendMessageShortcut, enableSpellCheck } =
     messageUi.editorConfig ?? defaultMessageEditorConfig
   const { t } = useTranslation()
@@ -71,6 +74,12 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
     }
   }, [couldAddImageFile, couldAddTextFile])
 
+  const addFiles = useCallback((nextFiles: FileMetadata[]) => {
+    if (nextFiles.length) {
+      setFiles((prevFiles) => [...prevFiles, ...nextFiles])
+    }
+  }, [])
+
   useEffect(() => {
     const timer = setTimeout(() => {
       if (textareaRef.current) {
@@ -95,29 +104,22 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
 
   const onPaste = useCallback(
     async (event: ClipboardEvent) => {
-      return await PasteService.handlePaste(
+      if (!handleEditorPasteAction) return false
+
+      return handleEditorPasteAction({
         event,
         extensions,
-        setFiles,
-        undefined,
+        addFiles,
         pasteLongTextAsFile,
-        pasteLongTextThreshold,
-        undefined,
-        undefined,
-        t
-      )
+        pasteLongTextThreshold
+      })
     },
-    [extensions, pasteLongTextThreshold, t, pasteLongTextAsFile]
+    [addFiles, extensions, handleEditorPasteAction, pasteLongTextAsFile, pasteLongTextThreshold]
   )
 
   useEffect(() => {
-    PasteService.registerHandler('messageEditor', onPaste)
-    PasteService.setLastFocusedComponent('messageEditor')
-
-    return () => {
-      PasteService.unregisterHandler('messageEditor')
-    }
-  }, [onPaste])
+    return bindEditorPasteHandler?.(onPaste)
+  }, [bindEditorPasteHandler, onPaste])
 
   const handleTextChange = (index: number, text: string) => {
     setEditedParts((prev) =>
@@ -184,7 +186,9 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
     e.stopPropagation()
     setIsFileDragging(false)
 
-    const droppedFiles = await getFilesFromDropEvent(e).catch((err) => {
+    if (!getDroppedEditorFiles) return
+
+    const droppedFiles = await getDroppedEditorFiles(e).catch((err) => {
       logger.error('handleDrop error:', err)
       return null
     })
@@ -192,7 +196,7 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
       let supportedFiles = 0
       droppedFiles.forEach((file) => {
         if (extensions.includes(file.ext.toLowerCase())) {
-          setFiles((prevFiles) => [...prevFiles, file])
+          addFiles([file])
           supportedFiles++
         }
       })
@@ -220,6 +224,7 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
       onSave(finalParts)
     } catch (error) {
       logger.error('Failed to save:', error as Error)
+    } finally {
       setIsProcessing(false)
     }
   }
@@ -232,6 +237,7 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
       onResend(finalParts)
     } catch (error) {
       logger.error('Failed to resend:', error as Error)
+    } finally {
       setIsProcessing(false)
     }
   }
@@ -249,7 +255,7 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
 
     const isEnterPressed = event.key === 'Enter' && !event.nativeEvent.isComposing
     if (isEnterPressed) {
-      if (isSendMessageKeyPressed(event, sendMessageShortcut)) {
+      if (isEditorSendShortcutPressed(event, sendMessageShortcut)) {
         void handleResend()
         return event.preventDefault()
       }
@@ -285,7 +291,7 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
               autoFocus
               spellCheck={enableSpellCheck}
               onPaste={(e) => onPaste(e.nativeEvent)}
-              onFocus={() => PasteService.setLastFocusedComponent('messageEditor')}
+              onFocus={() => focusEditorPasteTarget?.()}
               onContextMenu={(e) => e.stopPropagation()}
               rows={1}
               style={{ fontSize }}
@@ -373,5 +379,25 @@ const ActionBarLeft = ({ className, ...props }: ComponentPropsWithoutRef<'div'>)
 const ActionBarRight = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div className={['ml-auto flex items-center gap-1', className].filter(Boolean).join(' ')} {...props} />
 )
+
+function isEditorSendShortcutPressed(
+  event: React.KeyboardEvent<HTMLTextAreaElement>,
+  shortcut: SendMessageShortcut
+): boolean {
+  switch (shortcut) {
+    case 'Enter':
+      return !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
+    case 'Ctrl+Enter':
+      return event.ctrlKey && !event.shiftKey && !event.metaKey && !event.altKey
+    case 'Command+Enter':
+      return event.metaKey && !event.shiftKey && !event.ctrlKey && !event.altKey
+    case 'Alt+Enter':
+      return event.altKey && !event.shiftKey && !event.ctrlKey && !event.metaKey
+    case 'Shift+Enter':
+      return event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
+  }
+
+  return false
+}
 
 export default memo(MessageEditor)

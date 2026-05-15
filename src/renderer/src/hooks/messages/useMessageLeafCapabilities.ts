@@ -4,9 +4,11 @@ import { containsInlineAbsoluteFilePath } from '@renderer/components/chat/messag
 import { useAttachment } from '@renderer/hooks/useAttachment'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import FileManager from '@renderer/services/FileManager'
+import PasteService from '@renderer/services/PasteService'
 import { FILE_TYPE, type FileMetadata, type MCPTool } from '@renderer/types'
 import { parseFileTypes } from '@renderer/utils'
 import { buildEditorUrl } from '@renderer/utils/editorUtils'
+import { getFilesFromDropEvent } from '@renderer/utils/input'
 import type { MCPProgressEvent } from '@shared/config/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -17,10 +19,18 @@ import { type MessagePlatformActions, useMessagePlatformActions } from './useMes
 
 type MessageLeafActions = Pick<
   MessageListActions,
-  'previewFile' | 'subscribeToolProgress' | 'openExternalUrl' | 'openInExternalApp' | 'uploadEditorFiles'
+  | 'previewFile'
+  | 'subscribeToolProgress'
+  | 'openExternalUrl'
+  | 'openInExternalApp'
+  | 'uploadEditorFiles'
+  | 'handleEditorPaste'
+  | 'bindEditorPasteHandler'
+  | 'focusEditorPasteTarget'
+  | 'getDroppedEditorFiles'
 > &
   MessagePlatformActions
-type MessageLeafState = Pick<MessageListState, 'isToolAutoApproved' | 'externalCodeEditors'>
+type MessageLeafState = Pick<MessageListState, 'getFileView' | 'isToolAutoApproved' | 'externalCodeEditors'>
 
 interface MessageLeafCapabilitiesParams {
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -89,6 +99,15 @@ export function useMessageLeafCapabilities({
     [preview, t]
   )
 
+  const getFileView = useCallback<NonNullable<MessageListState['getFileView']>>((file) => {
+    const safePath = FileManager.getSafePath(file)
+    return {
+      displayName: FileManager.formatFileName(file),
+      safePath,
+      previewUrl: `file://${safePath}`
+    }
+  }, [])
+
   const subscribeToolProgress = useCallback<NonNullable<MessageListActions['subscribeToolProgress']>>(
     (toolId, onProgress) => {
       const removeListener = window.electron.ipcRenderer.on(
@@ -129,6 +148,53 @@ export function useMessageLeafCapabilities({
     []
   )
 
+  const handleEditorPaste = useCallback<NonNullable<MessageListActions['handleEditorPaste']>>(
+    async ({ event, extensions, addFiles, pasteLongTextAsFile, pasteLongTextThreshold }) => {
+      let pastedFiles: FileMetadata[] = []
+
+      const isSameFile = (left: FileMetadata, right: FileMetadata) =>
+        left.id ? left.id === right.id : left.path === right.path && left.name === right.name && left.ext === right.ext
+
+      return PasteService.handlePaste(
+        event,
+        extensions,
+        (updater) => {
+          const nextFiles = updater(pastedFiles)
+          const newFiles = nextFiles.filter((file) => !pastedFiles.some((pastedFile) => isSameFile(pastedFile, file)))
+          if (newFiles.length) {
+            addFiles(newFiles)
+          }
+
+          pastedFiles = nextFiles
+        },
+        undefined,
+        pasteLongTextAsFile,
+        pasteLongTextThreshold,
+        undefined,
+        undefined,
+        t
+      )
+    },
+    [t]
+  )
+
+  const bindEditorPasteHandler = useCallback<NonNullable<MessageListActions['bindEditorPasteHandler']>>((handler) => {
+    PasteService.registerHandler('messageEditor', handler)
+    PasteService.setLastFocusedComponent('messageEditor')
+
+    return () => {
+      PasteService.unregisterHandler('messageEditor')
+    }
+  }, [])
+
+  const focusEditorPasteTarget = useCallback<NonNullable<MessageListActions['focusEditorPasteTarget']>>(() => {
+    PasteService.setLastFocusedComponent('messageEditor')
+  }, [])
+
+  const getDroppedEditorFiles = useCallback<NonNullable<MessageListActions['getDroppedEditorFiles']>>((event) => {
+    return getFilesFromDropEvent(event)
+  }, [])
+
   const isToolAutoApproved = useCallback<NonNullable<MessageListState['isToolAutoApproved']>>(
     (tool: MCPTool, allowedTools?: string[]) => {
       if (allowedTools?.includes(tool.id)) return true
@@ -146,12 +212,22 @@ export function useMessageLeafCapabilities({
       openExternalUrl,
       openInExternalApp,
       uploadEditorFiles,
+      handleEditorPaste,
+      bindEditorPasteHandler,
+      focusEditorPasteTarget,
+      getDroppedEditorFiles,
       ...platformActions,
+      getFileView,
       isToolAutoApproved,
       externalCodeEditors
     }),
     [
       externalCodeEditors,
+      bindEditorPasteHandler,
+      focusEditorPasteTarget,
+      getFileView,
+      getDroppedEditorFiles,
+      handleEditorPaste,
       isToolAutoApproved,
       openExternalUrl,
       openInExternalApp,

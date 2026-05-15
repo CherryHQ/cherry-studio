@@ -2,7 +2,6 @@ import { ColFlex, Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import ImageViewer from '@renderer/components/ImageViewer'
 import CustomTag from '@renderer/components/Tags/CustomTag'
-import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -25,7 +24,7 @@ import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useOptionalMessageListActions } from '../MessageListProvider'
+import { useOptionalMessageListActions, useOptionalMessageListUi } from '../MessageListProvider'
 
 const MAX_FILENAME_DISPLAY_LENGTH = 20
 const FILE_ICON_SIZE = 12
@@ -92,24 +91,26 @@ const getFilenameExtension = (filename?: string) => {
 
 const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
   const previewFile = useOptionalMessageListActions()?.previewFile
+  const fileView = useOptionalMessageListUi()?.getFileView?.(file)
   const [visible, setVisible] = useState(false)
 
   const isImage = (ext: string) => ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'].includes(ext.toLowerCase())
-  const fullName = FileManager.formatFileName(file)
+  const fullName = fileView?.displayName || file.origin_name || file.name || file.path || ''
   const displayName = truncateFileName(fullName)
+  const imagePreviewUrl = isImage(file.ext) ? fileView?.previewUrl : undefined
 
   return (
     <Tooltip
       classNames={{ content: 'p-1' }}
       content={
         <ColFlex className="items-center gap-0.5">
-          {isImage(file.ext) && (
+          {imagePreviewUrl && (
             <ImageViewer
               className="max-h-50 w-20"
-              src={`file://${FileManager.getSafePath(file)}`}
+              src={imagePreviewUrl}
               preview={{
                 visible,
-                src: `file://${FileManager.getSafePath(file)}`,
+                src: imagePreviewUrl,
                 onVisibleChange: setVisible
               }}
             />
@@ -121,7 +122,7 @@ const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
       <span
         className="cursor-pointer hover:underline"
         onClick={() => {
-          if (isImage(file.ext)) {
+          if (imagePreviewUrl) {
             setVisible(true)
             return
           }

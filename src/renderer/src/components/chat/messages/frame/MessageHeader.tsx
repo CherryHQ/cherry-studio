@@ -1,10 +1,6 @@
 import { Avatar, AvatarFallback, AvatarImage, Checkbox, EmojiAvatar, Tooltip } from '@cherrystudio/ui'
-import UserPopup from '@renderer/components/Popups/UserPopup'
 import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import useAvatar from '@renderer/hooks/useAvatar'
-import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
-import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import type { Model } from '@renderer/types'
 import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils'
 import dayjs from 'dayjs'
@@ -35,9 +31,7 @@ interface Props {
 }
 
 const MessageHeader: FC<Props> = memo(({ model, message, isGroupContextMessage, actionsSlot }) => {
-  const avatar = useAvatar()
   const { theme } = useTheme()
-  const showMiniAppIcon = useSidebarIconShow('mini_app')
   const actions = useMessageListActions()
   const meta = useMessageListMeta()
   const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
@@ -47,7 +41,7 @@ const MessageHeader: FC<Props> = memo(({ model, message, isGroupContextMessage, 
   const { t } = useTranslation()
   const messageStyle = renderConfig.messageStyle
   const isBubbleStyle = messageStyle === 'bubble'
-  const { openMiniAppById } = useMiniAppPopup()
+  const userAvatar = meta.userProfile?.avatar ?? ''
 
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
   const selectedMessageIds = selection?.selectedMessageIds
@@ -85,10 +79,17 @@ const MessageHeader: FC<Props> = memo(({ model, message, isGroupContextMessage, 
   )
 
   const showMiniApp = useCallback(() => {
-    showMiniAppIcon && displayModel?.provider && openMiniAppById(displayModel.provider)
-    // because don't need openMiniAppById to be a dependency
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayModel?.provider, showMiniAppIcon])
+    if (displayModel?.provider) {
+      void actions.openProviderApp?.(displayModel.provider)
+    }
+  }, [actions, displayModel?.provider])
+
+  const openUserProfile = useCallback(() => {
+    void actions.openUserProfile?.()
+  }, [actions])
+
+  const canOpenProviderApp = !!actions.openProviderApp && !!displayModel?.provider
+  const canOpenUserProfile = !!actions.openUserProfile
 
   return (
     <div className="message-header group/header relative mb-2 flex items-center gap-2.5">
@@ -105,34 +106,38 @@ const MessageHeader: FC<Props> = memo(({ model, message, isGroupContextMessage, 
             </Avatar>
           )
         ) : ModelIcon ? (
-          <div onClick={showMiniApp} className="cursor-pointer">
+          <div
+            onClick={canOpenProviderApp ? showMiniApp : undefined}
+            className={canOpenProviderApp ? 'cursor-pointer' : undefined}>
             <ModelIcon.Avatar size={MESSAGE_AVATAR_SIZE} shape="circle" className="rounded-full" />
           </div>
         ) : (
           <Avatar
-            className={`${MESSAGE_AVATAR_CLASS} cursor-pointer`}
+            className={`${MESSAGE_AVATAR_CLASS} ${canOpenProviderApp ? 'cursor-pointer' : ''}`}
             style={{
-              cursor: showMiniAppIcon ? 'pointer' : 'default',
+              cursor: canOpenProviderApp ? 'pointer' : 'default',
               border: 'none',
               filter: theme === 'dark' ? 'invert(0.05)' : undefined
             }}
-            onClick={showMiniApp}>
+            onClick={canOpenProviderApp ? showMiniApp : undefined}>
             <AvatarFallback className="rounded-full">{avatarName}</AvatarFallback>
           </Avatar>
         )
       ) : (
         <>
-          {isEmoji(avatar) ? (
+          {isEmoji(userAvatar) ? (
             <EmojiAvatar
-              className="rounded-full"
-              onClick={() => UserPopup.show()}
+              className={`rounded-full ${canOpenUserProfile ? 'cursor-pointer' : ''}`}
+              onClick={canOpenUserProfile ? openUserProfile : undefined}
               size={MESSAGE_AVATAR_SIZE}
               fontSize={MESSAGE_EMOJI_AVATAR_FONT_SIZE}>
-              {avatar}
+              {userAvatar}
             </EmojiAvatar>
           ) : (
-            <Avatar className={`${MESSAGE_AVATAR_CLASS} cursor-pointer`} onClick={() => UserPopup.show()}>
-              <AvatarImage src={avatar} />
+            <Avatar
+              className={`${MESSAGE_AVATAR_CLASS} ${canOpenUserProfile ? 'cursor-pointer' : ''}`}
+              onClick={canOpenUserProfile ? openUserProfile : undefined}>
+              <AvatarImage src={userAvatar} />
             </Avatar>
           )}
         </>

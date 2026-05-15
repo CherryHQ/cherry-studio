@@ -27,6 +27,7 @@ import { useMessageActivityState } from '@renderer/hooks/messages/useMessageActi
 import { useMessageEditorConfig } from '@renderer/hooks/messages/useMessageEditorConfig'
 import { useMessageErrorActions } from '@renderer/hooks/messages/useMessageErrorActions'
 import { useMessageExportActions } from '@renderer/hooks/messages/useMessageExportActions'
+import { useMessageHeaderCapabilities } from '@renderer/hooks/messages/useMessageHeaderCapabilities'
 import { useMessageLeafCapabilities } from '@renderer/hooks/messages/useMessageLeafCapabilities'
 import { useMessageListRenderConfig } from '@renderer/hooks/messages/useMessageListRenderConfig'
 import { useMessageMenuConfig } from '@renderer/hooks/messages/useMessageMenuConfig'
@@ -97,6 +98,7 @@ export function useHomeMessageListProviderValue({
   const exportActions = useMessageExportActions({ topicName: topic.name })
   const errorActions = useMessageErrorActions()
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId })
+  const headerCapabilities = useMessageHeaderCapabilities()
   const respondToolApproval = useToolApprovalBridge(topic.id, messages)
 
   const messageItems = useMemo(
@@ -544,6 +546,7 @@ export function useHomeMessageListProviderValue({
       getMessageSiblings,
       getMessageActivityState,
       getMessageEditorCapabilities,
+      getFileView: leafCapabilities.getFileView,
       isToolAutoApproved: leafCapabilities.isToolAutoApproved,
       externalCodeEditors: leafCapabilities.externalCodeEditors,
       getTranslationLanguageLabel
@@ -559,6 +562,7 @@ export function useHomeMessageListProviderValue({
       getTranslationLanguageLabel,
       hasOlder,
       leafCapabilities.externalCodeEditors,
+      leafCapabilities.getFileView,
       leafCapabilities.isToolAutoApproved,
       menuConfig,
       messageItems,
@@ -586,7 +590,13 @@ export function useHomeMessageListProviderValue({
       subscribeToolProgress: leafCapabilities.subscribeToolProgress,
       openExternalUrl: leafCapabilities.openExternalUrl,
       openInExternalApp: leafCapabilities.openInExternalApp,
+      openUserProfile: headerCapabilities.openUserProfile,
+      openProviderApp: headerCapabilities.openProviderApp,
       uploadEditorFiles: leafCapabilities.uploadEditorFiles,
+      handleEditorPaste: leafCapabilities.handleEditorPaste,
+      bindEditorPasteHandler: leafCapabilities.bindEditorPasteHandler,
+      focusEditorPasteTarget: leafCapabilities.focusEditorPasteTarget,
+      getDroppedEditorFiles: leafCapabilities.getDroppedEditorFiles,
       copyText: leafCapabilities.copyText,
       copyRichContent: leafCapabilities.copyRichContent,
       copyImage: leafCapabilities.copyImage,
@@ -630,11 +640,17 @@ export function useHomeMessageListProviderValue({
       exportActions,
       errorActions,
       forkAndResendMessage,
+      headerCapabilities.openProviderApp,
+      headerCapabilities.openUserProfile,
       leafCapabilities.previewFile,
       leafCapabilities.subscribeToolProgress,
       leafCapabilities.openExternalUrl,
       leafCapabilities.openInExternalApp,
       leafCapabilities.uploadEditorFiles,
+      leafCapabilities.handleEditorPaste,
+      leafCapabilities.bindEditorPasteHandler,
+      leafCapabilities.focusEditorPasteTarget,
+      leafCapabilities.getDroppedEditorFiles,
       leafCapabilities.copyText,
       leafCapabilities.copyRichContent,
       leafCapabilities.copyImage,
@@ -669,9 +685,10 @@ export function useHomeMessageListProviderValue({
   const meta = useMemo<MessageListMeta>(
     () => ({
       selectionLayer: true,
+      userProfile: headerCapabilities.userProfile,
       imageExportFileName: topic.name
     }),
-    [topic.name]
+    [headerCapabilities.userProfile, topic.name]
   )
 
   return useMemo(

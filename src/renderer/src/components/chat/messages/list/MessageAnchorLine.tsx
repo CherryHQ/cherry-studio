@@ -1,7 +1,6 @@
 import { Avatar, AvatarFallback, AvatarImage, EmojiAvatar } from '@cherrystudio/ui'
 import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import useAvatar from '@renderer/hooks/useAvatar'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
@@ -29,13 +28,13 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
 }) => {
   const { t } = useTranslation()
   const partsMap = usePartsMap()
-  const avatar = useAvatar()
   const { theme } = useTheme()
   const actions = useMessageListActions()
   const meta = useMessageListMeta()
   const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
   const userName = renderConfig.userName
   const assistantProfile = meta.assistantProfile
+  const avatar = meta.userProfile?.avatar ?? ''
   const { setTimeoutTimer } = useTimer()
 
   const messagesListRef = useRef<HTMLDivElement>(null)

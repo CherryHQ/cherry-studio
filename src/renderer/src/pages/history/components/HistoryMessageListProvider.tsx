@@ -8,6 +8,7 @@ import type {
 } from '@renderer/components/chat/messages/types'
 import { useMessageEditorConfig } from '@renderer/hooks/messages/useMessageEditorConfig'
 import { useMessageErrorActions } from '@renderer/hooks/messages/useMessageErrorActions'
+import { useMessageHeaderCapabilities } from '@renderer/hooks/messages/useMessageHeaderCapabilities'
 import { useMessageLeafCapabilities } from '@renderer/hooks/messages/useMessageLeafCapabilities'
 import { useMessageListRenderConfig } from '@renderer/hooks/messages/useMessageListRenderConfig'
 import type { Topic } from '@renderer/types'
@@ -27,6 +28,7 @@ export function HistoryMessageListProvider({ topic, messages, partsByMessageId, 
   const editorConfig = useMessageEditorConfig(renderConfig.fontSize)
   const errorActions = useMessageErrorActions()
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId })
+  const headerCapabilities = useMessageHeaderCapabilities()
   const getMessageUiState = useCallback(
     (messageId: string) => (cacheService.get(`message.ui.${messageId}` as const) || {}) as MessageUiState,
     []
@@ -73,6 +75,7 @@ export function HistoryMessageListProvider({ topic, messages, partsByMessageId, 
           isStreamTarget: false,
           isApprovalAnchor: false
         }),
+        getFileView: leafCapabilities.getFileView,
         isToolAutoApproved: leafCapabilities.isToolAutoApproved,
         externalCodeEditors: leafCapabilities.externalCodeEditors
       },
@@ -84,7 +87,13 @@ export function HistoryMessageListProvider({ topic, messages, partsByMessageId, 
         subscribeToolProgress: leafCapabilities.subscribeToolProgress,
         openExternalUrl: leafCapabilities.openExternalUrl,
         openInExternalApp: leafCapabilities.openInExternalApp,
+        openUserProfile: headerCapabilities.openUserProfile,
+        openProviderApp: headerCapabilities.openProviderApp,
         uploadEditorFiles: leafCapabilities.uploadEditorFiles,
+        handleEditorPaste: leafCapabilities.handleEditorPaste,
+        bindEditorPasteHandler: leafCapabilities.bindEditorPasteHandler,
+        focusEditorPasteTarget: leafCapabilities.focusEditorPasteTarget,
+        getDroppedEditorFiles: leafCapabilities.getDroppedEditorFiles,
         copyText: leafCapabilities.copyText,
         copyRichContent: leafCapabilities.copyRichContent,
         copyImage: leafCapabilities.copyImage,
@@ -97,17 +106,26 @@ export function HistoryMessageListProvider({ topic, messages, partsByMessageId, 
         updateRenderConfig
       },
       meta: {
-        selectionLayer: false
+        selectionLayer: false,
+        userProfile: headerCapabilities.userProfile
       }
     }),
     [
       getMessageUiState,
+      headerCapabilities.openProviderApp,
+      headerCapabilities.openUserProfile,
+      headerCapabilities.userProfile,
       messages,
       leafCapabilities.externalCodeEditors,
+      leafCapabilities.getFileView,
       leafCapabilities.isToolAutoApproved,
       leafCapabilities.openExternalUrl,
       leafCapabilities.openInExternalApp,
       leafCapabilities.uploadEditorFiles,
+      leafCapabilities.handleEditorPaste,
+      leafCapabilities.bindEditorPasteHandler,
+      leafCapabilities.focusEditorPasteTarget,
+      leafCapabilities.getDroppedEditorFiles,
       leafCapabilities.copyText,
       leafCapabilities.copyRichContent,
       leafCapabilities.copyImage,

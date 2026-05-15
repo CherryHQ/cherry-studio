@@ -16,7 +16,7 @@ import type {
   ModelSnapshot
 } from '@shared/data/types/message'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
-import type { ReactNode } from 'react'
+import type { DragEvent, ReactNode } from 'react'
 
 export interface MessageUiState {
   foldSelected?: boolean
@@ -59,6 +59,22 @@ export interface MessageActivityState {
 export interface MessageEditorCapabilities {
   canAddImageFile: boolean
   canAddTextFile: boolean
+}
+
+export interface MessageEditorPasteInput {
+  event: ClipboardEvent
+  extensions: string[]
+  addFiles: (files: FileMetadata[]) => void
+  pasteLongTextAsFile?: boolean
+  pasteLongTextThreshold?: number
+}
+
+export type MessageEditorPasteHandler = (event: ClipboardEvent) => Promise<boolean>
+
+export interface MessageFileView {
+  displayName: string
+  safePath?: string
+  previewUrl?: string
 }
 
 export interface MessageEditorConfig {
@@ -137,6 +153,11 @@ export interface MessageErrorDiagnosisInput {
   partId: string
   error: SerializedError
   language: string
+}
+
+export interface MessageUserProfile {
+  name?: string
+  avatar?: string
 }
 
 export interface MessageToolApprovalMatch {
@@ -262,6 +283,7 @@ export interface MessageListState {
   getMessageSiblings?: (messageId: string) => MessageSiblingInfo | null
   getMessageActivityState?: (message: MessageListItem) => MessageActivityState
   getMessageEditorCapabilities?: (message: MessageListItem) => MessageEditorCapabilities
+  getFileView?: (file: FileMetadata) => MessageFileView
   isToolAutoApproved?: (tool: MCPTool, allowedTools?: string[]) => boolean
   externalCodeEditors?: ExternalAppInfo[]
   getTranslationLanguageLabel?: (
@@ -295,6 +317,8 @@ export interface MessageListActions {
   showInFolder?: (path: string) => void | Promise<void>
   openExternalUrl?: (url: string) => void | Promise<void>
   openInExternalApp?: (app: ExternalAppInfo, path: string) => void | Promise<void>
+  openUserProfile?: () => void | Promise<void>
+  openProviderApp?: (providerId: string) => void | Promise<void>
   copyText?: (text: string, options?: { successMessage?: string; emptyMessage?: string }) => void | Promise<void>
   copyRichContent?: (
     content: { plainText: string; html: string },
@@ -318,6 +342,10 @@ export interface MessageListActions {
   navigateErrorTarget?: (target: string) => void | Promise<void>
   selectFiles?: (options: { extensions: string[] }) => Promise<FileMetadata[] | null | undefined>
   uploadEditorFiles?: (files: FileMetadata[]) => Promise<CherryMessagePart[]>
+  handleEditorPaste?: (input: MessageEditorPasteInput) => Promise<boolean>
+  bindEditorPasteHandler?: (handler: MessageEditorPasteHandler) => void | (() => void)
+  focusEditorPasteTarget?: () => void
+  getDroppedEditorFiles?: (event: DragEvent<HTMLDivElement>) => Promise<FileMetadata[] | null | undefined>
   translateEditorText?: (text: string) => Promise<string | null | undefined>
   translateMessage?: (messageId: string, language: TranslateLanguage, sourceText: string) => void | Promise<void>
   abortMessageTranslation?: (messageId: string) => void | Promise<void>
@@ -340,10 +368,8 @@ export interface MessageListActions {
 
 export interface MessageListMeta {
   selectionLayer: boolean
-  assistantProfile?: {
-    name?: string
-    avatar?: string
-  }
+  userProfile?: MessageUserProfile
+  assistantProfile?: MessageUserProfile
   imageExportFileName?: string
 }
 

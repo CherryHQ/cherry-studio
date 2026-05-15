@@ -1,9 +1,7 @@
 import { Avatar, AvatarImage, EmojiAvatar, Scrollbar } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
-import UserPopup from '@renderer/components/Popups/UserPopup'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
-import useAvatar from '@renderer/hooks/useAvatar'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { Topic } from '@renderer/types'
 import { classNames, cn, isEmoji } from '@renderer/utils'
@@ -19,6 +17,7 @@ import { useTranslation } from 'react-i18next'
 import SiblingNavigator from '../list/SiblingNavigator'
 import {
   useMessageListActions,
+  useMessageListMeta,
   useMessageListSelection,
   useMessageListUi,
   useMessageRenderConfig
@@ -338,7 +337,13 @@ const UserBubbleMessage = ({
   messageFont: string
   fontSize: number
 }) => {
-  const avatar = useAvatar()
+  const actions = useMessageListActions()
+  const meta = useMessageListMeta()
+  const avatar = meta.userProfile?.avatar ?? ''
+  const canOpenUserProfile = !!actions.openUserProfile
+  const openUserProfile = useCallback(() => {
+    void actions.openUserProfile?.()
+  }, [actions])
 
   return (
     <div className="flex w-full flex-col items-end">
@@ -357,11 +362,17 @@ const UserBubbleMessage = ({
           </Scrollbar>
         </div>
         {isEmoji(avatar) ? (
-          <EmojiAvatar className="shrink-0 rounded-full" onClick={() => UserPopup.show()} size={30} fontSize={17}>
+          <EmojiAvatar
+            className={`shrink-0 rounded-full ${canOpenUserProfile ? 'cursor-pointer' : ''}`}
+            onClick={canOpenUserProfile ? openUserProfile : undefined}
+            size={30}
+            fontSize={17}>
             {avatar}
           </EmojiAvatar>
         ) : (
-          <Avatar className="size-7.5 shrink-0 cursor-pointer rounded-full" onClick={() => UserPopup.show()}>
+          <Avatar
+            className={`size-7.5 shrink-0 rounded-full ${canOpenUserProfile ? 'cursor-pointer' : ''}`}
+            onClick={canOpenUserProfile ? openUserProfile : undefined}>
             <AvatarImage src={avatar} />
           </Avatar>
         )}

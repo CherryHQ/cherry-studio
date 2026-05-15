@@ -69,12 +69,6 @@ vi.mock('@renderer/components/HorizontalScrollContainer', () => ({
   default: mocks.HorizontalScrollContainer
 }))
 
-vi.mock('@renderer/components/Popups/UserPopup', () => ({
-  default: {
-    show: vi.fn()
-  }
-}))
-
 vi.mock('@renderer/context/MessageEditingContext', () => ({
   MessageEditingProvider: mocks.MessageEditingProvider,
   useMessageEditing: () => mocks.useMessageEditing()

@@ -1,12 +1,11 @@
 import { Button } from '@cherrystudio/ui'
-import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types/file'
 import { formatFileSize } from '@renderer/utils'
 import { t } from 'i18next'
 import { Paperclip } from 'lucide-react'
 import type { FC } from 'react'
 
-import { useOptionalMessageListActions } from '../MessageListProvider'
+import { useOptionalMessageListActions, useOptionalMessageListUi } from '../MessageListProvider'
 
 interface Props {
   file: FileMetadata
@@ -14,13 +13,15 @@ interface Props {
 
 const MessageAttachments: FC<Props> = ({ file }) => {
   const actions = useOptionalMessageListActions()
+  const messageUi = useOptionalMessageListUi()
 
   if (!file) {
     return null
   }
 
-  const safePath = FileManager.getSafePath(file)
-  const fileName = FileManager.formatFileName(file)
+  const fileView = messageUi?.getFileView?.(file)
+  const safePath = fileView?.safePath
+  const fileName = fileView?.displayName || file.origin_name || file.name || file.path || ''
   const fileSuffix = file.ext ? file.ext.replace('.', '').toUpperCase() : file.type.toUpperCase()
   const openPath = actions?.openPath
   const previewFile = actions?.previewFile
@@ -50,7 +51,11 @@ const MessageAttachments: FC<Props> = ({ file }) => {
           <Button size="sm" variant="secondary" disabled={!previewFile} onClick={handlePreview}>
             {t('common.preview')}
           </Button>
-          <Button size="sm" variant="outline" disabled={!openPath} onClick={() => void openPath?.(safePath)}>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!openPath || !safePath}
+            onClick={() => safePath && void openPath?.(safePath)}>
             {t('files.open')}
           </Button>
         </div>

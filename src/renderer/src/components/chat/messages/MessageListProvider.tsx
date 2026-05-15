@@ -36,6 +36,7 @@ type MessageListUiValue = Pick<
   | 'getMessageSiblings'
   | 'getMessageActivityState'
   | 'getMessageEditorCapabilities'
+  | 'getFileView'
   | 'isToolAutoApproved'
   | 'externalCodeEditors'
   | 'getTranslationLanguageLabel'
@@ -92,6 +93,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       getMessageSiblings: state.getMessageSiblings,
       getMessageActivityState: state.getMessageActivityState,
       getMessageEditorCapabilities: state.getMessageEditorCapabilities,
+      getFileView: state.getFileView,
       isToolAutoApproved: state.isToolAutoApproved,
       externalCodeEditors: state.externalCodeEditors,
       getTranslationLanguageLabel: state.getTranslationLanguageLabel
@@ -106,6 +108,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       state.getMessageSiblings,
       state.getMessageActivityState,
       state.getMessageEditorCapabilities,
+      state.getFileView,
       state.isToolAutoApproved,
       state.externalCodeEditors,
       state.getTranslationLanguageLabel
