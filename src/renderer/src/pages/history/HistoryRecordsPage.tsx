@@ -31,7 +31,6 @@ import type { AgentEntity } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic } from '@shared/data/types/topic'
 import { Bot, History, Wrench, X } from 'lucide-react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
@@ -52,12 +51,6 @@ const UNKNOWN_AGENT_SOURCE_ID = '__unknown_agent__'
 const EMPTY_ASSISTANT_BY_ID: ReadonlyMap<string, Assistant> = new Map()
 const EMPTY_AGENT_BY_ID: ReadonlyMap<string, AgentEntity> = new Map()
 const logger = loggerService.withContext('HistoryRecordsPage')
-const HISTORY_OVERLAY_OPEN_RADIUS = 12
-const HISTORY_OVERLAY_RADIUS_PADDING = 24
-const HISTORY_OVERLAY_TRANSITION = {
-  duration: 0.28,
-  ease: [0.22, 1, 0.36, 1]
-} as const
 type AgentHistorySessionStatus = Exclude<HistorySourceStatus, 'all'>
 
 interface HistoryRecordsPageBaseProps {
@@ -79,47 +72,30 @@ type HistoryRecordsPageProps =
     })
 
 const HistoryRecordsPage = (props: HistoryRecordsPageProps) => {
-  const { mode, open, origin } = props
-  const prefersReducedMotion = useReducedMotion()
+  const { mode, open } = props
   const portalRootId = mode === 'assistant' ? 'home-page' : 'agent-page'
   const portalRoot = document.getElementById(portalRootId)
-  const overlayMotion = useMemo(
-    () => getHistoryOverlayMotion(portalRoot, origin, prefersReducedMotion === true),
-    [origin, portalRoot, prefersReducedMotion]
-  )
 
-  if (!portalRoot) return null
+  if (!portalRoot || !open) return null
 
   return createPortal(
-    <AnimatePresence initial={false}>
-      {open && (
-        <motion.div
-          key="history-records-page"
-          initial={overlayMotion.initial}
-          animate={overlayMotion.animate}
-          exit={overlayMotion.exit}
-          transition={HISTORY_OVERLAY_TRANSITION}
-          className="absolute inset-0 z-40 flex bg-background [-webkit-app-region:none]"
-          data-testid="history-records-page-motion"
-          style={{ willChange: 'opacity, clip-path' }}>
-          {props.mode === 'assistant' ? (
-            <HistoryRecordsContent
-              mode="assistant"
-              activeRecordId={props.activeRecordId}
-              onClose={props.onClose}
-              onRecordSelect={props.onRecordSelect}
-            />
-          ) : (
-            <HistoryRecordsContent
-              mode="agent"
-              activeRecordId={props.activeRecordId}
-              onClose={props.onClose}
-              onRecordSelect={props.onRecordSelect}
-            />
-          )}
-        </motion.div>
+    <div className="absolute inset-0 z-40 flex bg-card [-webkit-app-region:none]" data-testid="history-records-page">
+      {props.mode === 'assistant' ? (
+        <HistoryRecordsContent
+          mode="assistant"
+          activeRecordId={props.activeRecordId}
+          onClose={props.onClose}
+          onRecordSelect={props.onRecordSelect}
+        />
+      ) : (
+        <HistoryRecordsContent
+          mode="agent"
+          activeRecordId={props.activeRecordId}
+          onClose={props.onClose}
+          onRecordSelect={props.onRecordSelect}
+        />
       )}
-    </AnimatePresence>,
+    </div>,
     portalRoot
   )
 }
@@ -622,12 +598,10 @@ const HistoryRecordsLayout = ({
       : t('history.records.agentTitle', '智能体历史记录')
 
   return (
-    <section
-      className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background pb-3 text-foreground"
-      aria-label={title}>
-      <header className="flex h-[52px] shrink-0 items-center justify-between bg-background px-5 [border-bottom:0.5px_solid_var(--color-border-subtle)]">
+    <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card pb-3 text-foreground" aria-label={title}>
+      <header className="flex h-[52px] shrink-0 items-center justify-between bg-card px-5 [border-bottom:0.5px_solid_var(--color-border-subtle)]">
         <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border-subtle bg-background text-foreground-secondary">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border-subtle bg-card text-foreground-secondary">
             <History size={16} />
           </div>
           <div className="min-w-0">
@@ -669,45 +643,6 @@ const HistoryRecordsLayout = ({
         </main>
       </div>
     </section>
-  )
-}
-
-function getHistoryOverlayMotion(
-  portalRoot: HTMLElement | null,
-  origin: DOMRectReadOnly | undefined,
-  prefersReducedMotion: boolean
-) {
-  if (!portalRoot || !origin || prefersReducedMotion) {
-    return {
-      initial: { opacity: 0 },
-      animate: { opacity: 1 },
-      exit: { opacity: 0 }
-    }
-  }
-
-  const rootRect = portalRoot.getBoundingClientRect()
-  const rootWidth = rootRect.width || window.innerWidth
-  const rootHeight = rootRect.height || window.innerHeight
-  const originX = origin.x - rootRect.left + origin.width / 2
-  const originY = origin.y - rootRect.top + origin.height / 2
-  const closedClipPath = `circle(${HISTORY_OVERLAY_OPEN_RADIUS}px at ${originX}px ${originY}px)`
-  const openClipPath = `circle(${getHistoryOverlayRadius(rootWidth, rootHeight, originX, originY)}px at ${originX}px ${originY}px)`
-
-  return {
-    initial: { opacity: 0, clipPath: closedClipPath },
-    animate: { opacity: 1, clipPath: openClipPath },
-    exit: { opacity: 0, clipPath: closedClipPath }
-  }
-}
-
-function getHistoryOverlayRadius(width: number, height: number, originX: number, originY: number) {
-  return Math.ceil(
-    Math.max(
-      Math.hypot(originX, originY),
-      Math.hypot(width - originX, originY),
-      Math.hypot(originX, height - originY),
-      Math.hypot(width - originX, height - originY)
-    ) + HISTORY_OVERLAY_RADIUS_PADDING
   )
 }
 

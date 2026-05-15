@@ -89,7 +89,7 @@ const HistoryResultList = ({
       : t('history.records.empty.sessionsDescription', '当前筛选下没有可展示的会话。')
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card">
       <div className="flex min-h-0 flex-1 overflow-x-auto overflow-y-hidden [scrollbar-gutter:stable] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:h-1.5">
         <div className="flex min-h-0 min-w-[760px] flex-1 flex-col">
           <HistoryListHeader
@@ -108,7 +108,7 @@ const HistoryResultList = ({
                 list={topicList}
                 estimateSize={() => 44}
                 overscan={6}
-                className="min-h-0 flex-1 bg-background"
+                className="min-h-0 flex-1 bg-card"
                 scrollerStyle={{ overflowX: 'hidden', padding: '4px 12px' }}>
                 {(topic) => {
                   const assistant = topic.assistantId ? assistantById.get(topic.assistantId) : undefined
@@ -136,7 +136,7 @@ const HistoryResultList = ({
                 list={sessionList}
                 estimateSize={() => 52}
                 overscan={6}
-                className="min-h-0 flex-1 bg-background"
+                className="min-h-0 flex-1 bg-card"
                 scrollerStyle={{ overflowX: 'hidden', padding: '4px 12px' }}>
                 {(session) => {
                   const agent = session.agentId ? agentById.get(session.agentId) : undefined
@@ -174,7 +174,7 @@ interface HistoryListHeaderProps {
 }
 
 const HistoryListHeader = ({ titleLabel, sourceLabel, timeLabel }: HistoryListHeaderProps) => (
-  <div className="shrink-0 overflow-hidden bg-background [border-bottom:0.5px_solid_var(--color-border-subtle)]">
+  <div className="shrink-0 overflow-hidden bg-card [border-bottom:0.5px_solid_var(--color-border-subtle)]">
     <div className={HISTORY_HEADER_GRID_CLASS}>
       <div>{titleLabel}</div>
       <div>{sourceLabel}</div>
@@ -221,7 +221,7 @@ const HistoryTopicRow = ({
       className={cn(
         HISTORY_ROW_GRID_CLASS,
         'min-h-11 text-left',
-        'bg-background text-foreground-secondary transition-colors hover:bg-muted/45'
+        'bg-card text-foreground-secondary transition-colors hover:bg-muted/45'
       )}
       onClick={() => onPress?.(topic)}>
       <div className="flex min-w-0 items-center gap-2.5">
@@ -298,7 +298,7 @@ const HistorySessionRow = ({
       className={cn(
         HISTORY_ROW_GRID_CLASS,
         'min-h-13 text-left',
-        'bg-background text-foreground-secondary transition-colors hover:bg-muted/45'
+        'bg-card text-foreground-secondary transition-colors hover:bg-muted/45'
       )}
       onClick={() => onPress?.(session.id)}>
       <div className="flex min-w-0 items-center gap-2.5">
