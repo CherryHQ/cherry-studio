@@ -1,7 +1,16 @@
 import type { Model, ModelTag } from '@renderer/types'
 import { describe, expect, it, vi } from 'vitest'
 
-import { getDuplicateModelNames, getModelTags, isFreeModel } from '../model'
+vi.mock('@renderer/i18n/label', () => ({
+  getProviderLabel: (id: string) => {
+    if (id === 'openai') return 'OpenAI'
+    if (id === 'minimax-global') return 'MiniMax Global'
+    return id
+  },
+  hasProviderLabel: (id: string) => id === 'openai' || id === 'minimax-global'
+}))
+
+import { getDuplicateModelNames, getModelGroupDisplayName, getModelTags, isFreeModel } from '../model'
 
 // Mock the model checking functions from @renderer/config/models
 vi.mock('@renderer/config/models', () => ({
@@ -117,6 +126,39 @@ describe('model', () => {
           { name: 'claude-3-7-sonnet' }
         ])
       ).toStrictEqual(new Set(['gpt-4o', 'claude-3-7-sonnet']))
+    })
+  })
+
+  describe('getModelGroupDisplayName', () => {
+    it('should use localized provider labels when available', () => {
+      expect(getModelGroupDisplayName('openai')).toBe('OpenAI')
+      expect(getModelGroupDisplayName('minimax-global')).toBe('MiniMax Global')
+    })
+
+    it('should humanize known provider-style aliases', () => {
+      expect(getModelGroupDisplayName('black-forest-labs')).toBe('Black Forest Labs')
+      expect(getModelGroupDisplayName('qwen')).toBe('Qwen')
+      expect(getModelGroupDisplayName('google')).toBe('Google')
+      expect(getModelGroupDisplayName('cartesia')).toBe('Cartesia')
+      expect(getModelGroupDisplayName('hexgrad')).toBe('Hexgrad')
+      expect(getModelGroupDisplayName('deepseek-ai')).toBe('DeepSeek')
+      expect(getModelGroupDisplayName('mistralai')).toBe('Mistral AI')
+      expect(getModelGroupDisplayName('MISTRALAI')).toBe('Mistral AI')
+      expect(getModelGroupDisplayName('x-ai')).toBe('xAI')
+      expect(getModelGroupDisplayName('X-AI')).toBe('xAI')
+    })
+
+    it('should preserve canonical family identifiers and other raw labels', () => {
+      expect(getModelGroupDisplayName('Pro')).toBe('Pro')
+      expect(getModelGroupDisplayName('gpt-5')).toBe('gpt-5')
+      expect(getModelGroupDisplayName('gpt-image')).toBe('gpt-image')
+      expect(getModelGroupDisplayName('gpt-4.1-mini')).toBe('gpt-4.1-mini')
+      expect(getModelGroupDisplayName('GPT4')).toBe('GPT4')
+      expect(getModelGroupDisplayName('APIKey')).toBe('APIKey')
+      expect(getModelGroupDisplayName('MyModel')).toBe('MyModel')
+      expect(getModelGroupDisplayName('moonshot-v1')).toBe('moonshot-v1')
+      expect(getModelGroupDisplayName('GLM-4.5')).toBe('GLM-4.5')
+      expect(getModelGroupDisplayName('DeepSeek-AI')).toBe('DeepSeek')
     })
   })
 })

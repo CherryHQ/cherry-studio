@@ -2,6 +2,7 @@ import CustomCollapse from '@renderer/components/CustomCollapse'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import type { Model } from '@renderer/types'
 import type { ModelWithStatus } from '@renderer/types/healthCheck'
+import { getModelGroupDisplayName } from '@renderer/utils/model'
 import { Button, Flex, Tooltip } from 'antd'
 import { Minus } from 'lucide-react'
 import React, { memo, useCallback, useRef } from 'react'
@@ -54,7 +55,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
         onChange={handleCollapseChange}
         label={
           <Flex align="center" gap={10}>
-            <span style={{ fontWeight: 'bold' }}>{groupName}</span>
+            <span style={{ fontWeight: 'bold' }}>{getModelGroupDisplayName(groupName)}</span>
           </Flex>
         }
         extra={
