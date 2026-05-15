@@ -7,6 +7,7 @@ import type { ComponentPropsWithoutRef, FC } from 'react'
 import { memo, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useOptionalMessageListActions } from '../../MessageListProvider'
 import { getEffectiveStatus, ToolStatusIndicator } from '../agent/GenericTools'
 import { chooseTool } from '../chooseTool'
 import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, formatArgValue } from '../shared/ArgsTable'
@@ -29,6 +30,9 @@ const MessageMetaTool: FC<Props> = ({ toolResponse }) => {
   const [copied, setCopied] = useState(false)
   const { setTimeoutTimer } = useTimer()
   const { t } = useTranslation()
+  const actions = useOptionalMessageListActions()
+  const copyText = actions?.copyText
+  const notifyError = actions?.notifyError
 
   const isStreaming = status === 'streaming'
   const isDone = status === 'done'
@@ -47,10 +51,15 @@ const MessageMetaTool: FC<Props> = ({ toolResponse }) => {
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation()
     const payload = JSON.stringify({ args: toolResponse.arguments, response: toolResponse.response }, null, 2)
-    void navigator.clipboard.writeText(payload)
-    window.toast.success({ title: t('message.copied'), key: 'copy-meta-tool' })
-    setCopied(true)
-    setTimeoutTimer('copyMetaTool', () => setCopied(false), 2000)
+    if (!copyText) return
+    Promise.resolve(copyText(payload, { successMessage: t('message.copied') }))
+      .then(() => {
+        setCopied(true)
+        setTimeoutTimer('copyMetaTool', () => setCopied(false), 2000)
+      })
+      .catch(() => {
+        notifyError?.(t('message.copy.failed'))
+      })
   }
 
   const titleLabel = useTitleLabel(toolResponse)
@@ -68,7 +77,7 @@ const MessageMetaTool: FC<Props> = ({ toolResponse }) => {
                 <TitleText>{titleLabel}</TitleText>
                 <Trailing>
                   <ToolStatusIndicator status={getEffectiveStatus(status, false)} hasError={hasError} />
-                  {(isDone || isError) && (
+                  {(isDone || isError) && copyText && (
                     <CopyButton onClick={handleCopy} aria-label={t('common.copy')}>
                       {copied ? <Check size={14} color="var(--status-color-success)" /> : <CopyIcon size={14} />}
                     </CopyButton>

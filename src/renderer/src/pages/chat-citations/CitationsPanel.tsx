@@ -1,4 +1,5 @@
 import { PageSidePanel } from '@cherrystudio/ui'
+import { useMessagePlatformActions } from '@renderer/components/chat/messages/adapters/useMessagePlatformActions'
 import { CitationsPanelContent } from '@renderer/components/chat/messages/blocks/CitationsList'
 import type { Citation } from '@renderer/types'
 import { useCallback } from 'react'
@@ -16,6 +17,7 @@ const CitationsPanel = ({ open, onClose, citations }: Props) => {
   const openExternalUrl = useCallback((url: string) => {
     window.open(url, '_blank', 'noopener,noreferrer')
   }, [])
+  const { copyText, notifyError } = useMessagePlatformActions()
 
   return (
     <PageSidePanel
@@ -25,7 +27,7 @@ const CitationsPanel = ({ open, onClose, citations }: Props) => {
       closeLabel={t('common.close')}
       backdropClassName="bg-transparent dark:bg-transparent"
       bodyClassName="flex min-h-0 flex-col space-y-0 overflow-hidden p-0 pb-2">
-      <CitationsPanelContent citations={citations} openPath={openPath} openExternalUrl={openExternalUrl} />
+      <CitationsPanelContent citations={citations} actions={{ openPath, openExternalUrl, copyText, notifyError }} />
     </PageSidePanel>
   )
 }

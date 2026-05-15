@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { MarkdownSource } from '../markdown/Markdown'
 import Markdown from '../markdown/Markdown'
-import { useMessageRenderConfig } from '../MessageListProvider'
+import { useMessageListActions, useMessageRenderConfig } from '../MessageListProvider'
 import ThinkingEffect from './ThinkingEffect'
 import { useScrollAnchor } from './useScrollAnchor'
 
@@ -36,6 +36,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs }
   )
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const { t } = useTranslation()
+  const { copyText, notifyError } = useMessageListActions()
   const { messageFont, fontSize, thoughtAutoCollapse } = useMessageRenderConfig()
   const [activeKey, setActiveKey] = useState<string>('')
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
@@ -49,19 +50,14 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs }
   }, [thoughtAutoCollapse])
 
   const copyThought = useCallback(() => {
-    if (content) {
-      navigator.clipboard
-        .writeText(content)
-        .then(() => {
-          window.toast.success({ title: t('message.copied'), key: 'copy-message' })
-          setCopied(true)
-        })
-        .catch((error) => {
-          logger.error('Failed to copy text:', error)
-          window.toast.error({ title: t('message.copy.failed'), key: 'copy-message-error' })
-        })
-    }
-  }, [content, setCopied, t])
+    if (!content || !copyText) return
+    Promise.resolve(copyText(content, { successMessage: t('message.copied') }))
+      .then(() => setCopied(true))
+      .catch((error) => {
+        logger.error('Failed to copy text:', error)
+        notifyError?.(t('message.copy.failed'))
+      })
+  }, [content, copyText, notifyError, setCopied, t])
 
   if (!content) {
     return null
@@ -82,7 +78,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs }
             isThinking={isThinking}
             thinkingTimeText={<ThinkingTimeSeconds blockThinkingTime={thinkingMs} isThinking={isThinking} />}
             copyButton={
-              !isThinking ? (
+              !isThinking && copyText ? (
                 <Tooltip content={t('common.copy')} delay={800}>
                   <button
                     type="button"

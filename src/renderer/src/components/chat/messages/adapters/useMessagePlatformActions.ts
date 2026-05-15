@@ -1,0 +1,52 @@
+import { useCallback, useMemo } from 'react'
+
+import type { MessageListActions } from '../types'
+
+export type MessagePlatformActions = Pick<
+  MessageListActions,
+  'copyText' | 'copyImage' | 'notifySuccess' | 'notifyWarning' | 'notifyError'
+>
+
+export function useMessagePlatformActions(): MessagePlatformActions {
+  const copyText = useCallback<NonNullable<MessageListActions['copyText']>>(async (text, options) => {
+    if (!text && options?.emptyMessage) {
+      window.toast.warning(options.emptyMessage)
+      return
+    }
+
+    await navigator.clipboard.writeText(text)
+    if (options?.successMessage) {
+      window.toast.success(options.successMessage)
+    }
+  }, [])
+
+  const copyImage = useCallback<NonNullable<MessageListActions['copyImage']>>(async (blob, options) => {
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+    if (options?.successMessage) {
+      window.toast.success(options.successMessage)
+    }
+  }, [])
+
+  const notifySuccess = useCallback<NonNullable<MessageListActions['notifySuccess']>>((message) => {
+    window.toast.success(message)
+  }, [])
+
+  const notifyWarning = useCallback<NonNullable<MessageListActions['notifyWarning']>>((message) => {
+    window.toast.warning(message)
+  }, [])
+
+  const notifyError = useCallback<NonNullable<MessageListActions['notifyError']>>((message) => {
+    window.toast.error(message)
+  }, [])
+
+  return useMemo(
+    () => ({
+      copyText,
+      copyImage,
+      notifySuccess,
+      notifyWarning,
+      notifyError
+    }),
+    [copyImage, copyText, notifyError, notifySuccess, notifyWarning]
+  )
+}

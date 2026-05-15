@@ -45,6 +45,9 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
   const { setTimeoutTimer } = useTimer()
   const actions = useOptionalMessageListActions()
   const abortTool = actions?.abortTool
+  const copyText = actions?.copyText
+  const notifySuccess = actions?.notifySuccess
+  const notifyError = actions?.notifyError
   const subscribeToolProgress = actions?.subscribeToolProgress
   const { isToolAutoApproved } = useOptionalMessageListUi() ?? {}
 
@@ -79,10 +82,16 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
   }, [isStreaming, isDone, isError, id])
 
   const copyContent = (content: string, toolId: string) => {
-    void navigator.clipboard.writeText(content)
-    window.toast.success({ title: t('message.copied'), key: 'copy-message' })
-    setCopiedMap((prev) => ({ ...prev, [toolId]: true }))
-    setTimeoutTimer('copyContent', () => setCopiedMap((prev) => ({ ...prev, [toolId]: false })), 2000)
+    if (!copyText) return
+    Promise.resolve(copyText(content, { successMessage: t('message.copied') }))
+      .then(() => {
+        setCopiedMap((prev) => ({ ...prev, [toolId]: true }))
+        setTimeoutTimer('copyContent', () => setCopiedMap((prev) => ({ ...prev, [toolId]: false })), 2000)
+      })
+      .catch((error) => {
+        logger.error('Failed to copy tool response:', error as Error)
+        notifyError?.(t('message.copy.failed'))
+      })
   }
 
   const handleCollapseChange = (keys: string | string[]) => {
@@ -94,13 +103,13 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
       try {
         const success = await abortTool(toolResponse.id)
         if (success) {
-          window.toast.success(t('message.tools.aborted'))
+          notifySuccess?.(t('message.tools.aborted'))
         } else {
-          window.toast.error(t('message.tools.abort_failed'))
+          notifyError?.(t('message.tools.abort_failed'))
         }
       } catch (error) {
         logger.error('Failed to abort tool:', error as Error)
-        window.toast.error(t('message.tools.abort_failed'))
+        notifyError?.(t('message.tools.abort_failed'))
       }
     }
   }
@@ -137,7 +146,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
                   <ShieldCheck size={13} color="var(--status-color-success)" />
                 </Tooltip>
               )}
-              {!isPending && (
+              {!isPending && copyText && (
                 <Tooltip content={t('common.copy')} delay={500}>
                   <ActionButton
                     className="message-action-button invisible opacity-0 transition-opacity duration-150 focus-visible:visible focus-visible:opacity-100 group-hover/tool:visible group-hover/tool:opacity-100"

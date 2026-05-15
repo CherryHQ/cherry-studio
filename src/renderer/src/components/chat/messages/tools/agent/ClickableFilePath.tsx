@@ -22,6 +22,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
   const openPath = actions?.openPath
   const showInFolder = actions?.showInFolder
   const openInExternalApp = actions?.openInExternalApp
+  const notifyError = actions?.notifyError
   const availableEditors = ui?.externalCodeEditors ?? []
   const hasEditorActions = Boolean(openInExternalApp && availableEditors.length > 0)
   const hasMoreActions = Boolean(showInFolder) || hasEditorActions
@@ -29,10 +30,10 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
   const openInEditor = useCallback(
     (app: ExternalAppInfo) => {
       Promise.resolve(openInExternalApp?.(app, path)).catch(() => {
-        window.toast.error(t('chat.input.tools.open_file_error', { path }))
+        notifyError?.(t('chat.input.tools.open_file_error', { path }))
       })
     },
-    [openInExternalApp, path, t]
+    [notifyError, openInExternalApp, path, t]
   )
 
   const handleOpen = useCallback(
@@ -40,10 +41,10 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
       if (!openPath) return
       e.stopPropagation()
       Promise.resolve(openPath(path)).catch(() => {
-        window.toast.error(t('chat.input.tools.open_file_error', { path }))
+        notifyError?.(t('chat.input.tools.open_file_error', { path }))
       })
     },
-    [openPath, path, t]
+    [notifyError, openPath, path, t]
   )
 
   const handleKeyDown = useCallback(
@@ -92,7 +93,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
                   onClick={(e) => {
                     e.stopPropagation()
                     Promise.resolve(showInFolder(path)).catch(() => {
-                      window.toast.error(t('chat.input.tools.file_not_found', { path }))
+                      notifyError?.(t('chat.input.tools.file_not_found', { path }))
                     })
                   }}
                 />

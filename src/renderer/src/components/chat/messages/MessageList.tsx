@@ -107,7 +107,7 @@ const MessageList = () => {
       copyTopicImage: async () => {
         await captureScrollableAsBlob(scrollContainerRef, async (blob) => {
           if (blob) {
-            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+            await actions.copyImage?.(blob)
           }
         })
       },

@@ -37,6 +37,7 @@ const leafCapabilitiesMock = vi.hoisted(() => ({
   copyImage: vi.fn(),
   notifySuccess: vi.fn(),
   notifyWarning: vi.fn(),
+  notifyError: vi.fn(),
   isToolAutoApproved: vi.fn(() => false),
   externalCodeEditors: []
 }))
@@ -223,6 +224,7 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.copyImage).toBe(leafCapabilitiesMock.copyImage)
     expect(value?.actions.notifySuccess).toBe(leafCapabilitiesMock.notifySuccess)
     expect(value?.actions.notifyWarning).toBe(leafCapabilitiesMock.notifyWarning)
+    expect(value?.actions.notifyError).toBe(leafCapabilitiesMock.notifyError)
     expect(value?.state.isToolAutoApproved).toBe(leafCapabilitiesMock.isToolAutoApproved)
     expect(value?.state.externalCodeEditors).toBe(leafCapabilitiesMock.externalCodeEditors)
     expect(value?.actions.openTrace).toBeUndefined()

@@ -37,7 +37,8 @@ function createContext(overrides: Partial<MessageMenuBarActionContext> = {}): Me
     copyText: vi.fn(),
     copyImage: vi.fn(),
     notifySuccess: vi.fn(),
-    notifyWarning: vi.fn()
+    notifyWarning: vi.fn(),
+    notifyError: vi.fn()
   } as MessageListActions
 
   return {

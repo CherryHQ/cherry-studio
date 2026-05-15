@@ -264,7 +264,9 @@ function PendingContent({
 export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const { t } = useTranslation()
   const partsMap = usePartsMap()
-  const respondToolApproval = useOptionalMessageListActions()?.respondToolApproval
+  const actions = useOptionalMessageListActions()
+  const respondToolApproval = actions?.respondToolApproval
+  const notifyError = actions?.notifyError
   const match = useMemo(
     () => findToolPartByCallId(partsMap, toolResponse.toolCallId),
     [partsMap, toolResponse.toolCallId]
@@ -388,11 +390,21 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
       })
     } catch (error) {
       logger.error('AskUserQuestion submit failed', error as Error)
-      window.toast?.error?.(t('agent.toolPermission.error.sendFailed'))
+      notifyError?.(t('agent.toolPermission.error.sendFailed'))
     } finally {
       setIsSubmitting(false)
     }
-  }, [match, pendingInput, respondToolApproval, questions, selectedAnswers, customInputs, showCustomInput, t])
+  }, [
+    match,
+    notifyError,
+    pendingInput,
+    respondToolApproval,
+    questions,
+    selectedAnswers,
+    customInputs,
+    showCustomInput,
+    t
+  ])
 
   if (isPending && (questions.length === 0 || !currentQuestion)) {
     return (

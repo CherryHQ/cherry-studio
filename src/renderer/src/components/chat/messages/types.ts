@@ -281,6 +281,7 @@ export interface MessageListActions {
   copyImage?: (blob: Blob, options?: { successMessage?: string }) => void | Promise<void>
   notifySuccess?: (message: string) => void
   notifyWarning?: (message: string) => void
+  notifyError?: (message: string) => void
   previewFile?: (file: FileMetadata) => void | Promise<void>
   abortTool?: (toolId: string) => boolean | Promise<boolean>
   subscribeToolProgress?: (toolId: string, onProgress: (progress: number) => void) => void | (() => void)

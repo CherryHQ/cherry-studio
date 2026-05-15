@@ -3,6 +3,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ReactNode } from 'react'
 import { useMemo } from 'react'
 
+import { useMessagePlatformActions } from './adapters/useMessagePlatformActions'
 import { PartsProvider } from './blocks'
 import { MessageListProvider } from './MessageListProvider'
 import type { MessageListActions, MessageListItem, MessageListProviderValue, MessageRenderConfig } from './types'
@@ -39,6 +40,12 @@ export function MessageContentProvider({
   renderConfig,
   actions
 }: MessageContentProviderProps) {
+  const platformActions = useMessagePlatformActions()
+  const mergedActions = useMemo<MessageListActions>(
+    () => ({ ...platformActions, ...actions }),
+    [actions, platformActions]
+  )
+
   const value = useMemo<MessageListProviderValue>(
     () => ({
       state: {
@@ -66,12 +73,12 @@ export function MessageContentProvider({
           isApprovalAnchor: false
         })
       },
-      actions: actions ?? {},
+      actions: mergedActions,
       meta: {
         selectionLayer: false
       }
     }),
-    [actions, messages, partsByMessageId, renderConfig, topic]
+    [mergedActions, messages, partsByMessageId, renderConfig, topic]
   )
 
   return (

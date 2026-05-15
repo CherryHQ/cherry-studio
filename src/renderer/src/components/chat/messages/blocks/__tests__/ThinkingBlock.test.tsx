@@ -10,6 +10,10 @@ const mockRenderConfig = vi.hoisted(() => ({
   fontSize: 14,
   thoughtAutoCollapse: false
 }))
+const mockActions = vi.hoisted(() => ({
+  copyText: vi.fn(),
+  notifyError: vi.fn()
+}))
 
 type ThinkingBlockFixture = {
   id: string
@@ -19,6 +23,7 @@ type ThinkingBlockFixture = {
 }
 
 vi.mock('../../MessageListProvider', () => ({
+  useMessageListActions: () => mockActions,
   useMessageRenderConfig: () => mockRenderConfig
 }))
 
@@ -141,6 +146,7 @@ describe('ThinkingBlock', () => {
     mockRenderConfig.messageFont = 'sans-serif'
     mockRenderConfig.fontSize = 14
     mockRenderConfig.thoughtAutoCollapse = false
+    mockActions.copyText.mockResolvedValue(undefined)
 
     mockUseTranslation.mockReturnValue({
       t: (key: string, params?: any) => {

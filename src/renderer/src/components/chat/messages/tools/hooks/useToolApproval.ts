@@ -48,7 +48,9 @@ const IDLE: ToolApprovalState & ToolApprovalActions = {
 export function useToolApproval(target: ToolApprovalTarget): ToolApprovalState & ToolApprovalActions {
   const { t } = useTranslation()
   const partsMap = usePartsMap()
-  const respondToolApproval = useOptionalMessageListActions()?.respondToolApproval
+  const actions = useOptionalMessageListActions()
+  const respondToolApproval = actions?.respondToolApproval
+  const notifyError = actions?.notifyError
 
   const toolCallId = target.toolCallId ?? target.id ?? ''
   const match = useMemo(() => findToolPartByCallId(partsMap, toolCallId), [partsMap, toolCallId])
@@ -78,10 +80,10 @@ export function useToolApproval(target: ToolApprovalTarget): ToolApprovalState &
       } catch (error) {
         setOptimisticSubmitted(false)
         logger.error('Tool approval response failed', error as Error)
-        window.toast?.error?.(t('message.tools.approvalError', 'Failed to send approval'))
+        notifyError?.(t('message.tools.approvalError', 'Failed to send approval'))
       }
     },
-    [match, respondToolApproval, t]
+    [match, notifyError, respondToolApproval, t]
   )
 
   if (!match?.approvalId) return IDLE

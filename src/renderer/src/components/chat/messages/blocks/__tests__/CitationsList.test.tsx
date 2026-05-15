@@ -6,13 +6,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import CitationsList, { CitationsPanelContent } from '../CitationsList'
 
 const mocks = vi.hoisted(() => ({
-  openCitationsPanel: vi.fn()
+  openCitationsPanel: vi.fn(),
+  copyText: vi.fn(),
+  notifyError: vi.fn(),
+  messageListActions: undefined as
+    | {
+        openCitationsPanel?: ReturnType<typeof vi.fn>
+        copyText?: ReturnType<typeof vi.fn>
+        notifyError?: ReturnType<typeof vi.fn>
+      }
+    | undefined
 }))
 
 vi.mock('../../MessageListProvider', () => ({
-  useOptionalMessageListActions: () => ({
-    openCitationsPanel: mocks.openCitationsPanel
-  })
+  useOptionalMessageListActions: () => mocks.messageListActions
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -58,6 +65,11 @@ vi.mock('react-i18next', () => ({
 describe('CitationsList', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.messageListActions = {
+      openCitationsPanel: mocks.openCitationsPanel,
+      copyText: mocks.copyText,
+      notifyError: mocks.notifyError
+    }
   })
 
   it('opens the page side panel with the current citations', () => {
@@ -77,7 +89,7 @@ describe('CitationsList', () => {
   it('lets the panel content fill the side panel body', () => {
     const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Example', type: 'websearch' }]
 
-    render(<CitationsPanelContent citations={citations} openPath={vi.fn()} />)
+    render(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn() }} />)
 
     expect(screen.getByTestId('citations-scrollbar')).toHaveClass('min-h-0', 'flex-1')
   })
@@ -86,11 +98,34 @@ describe('CitationsList', () => {
     const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Example', type: 'websearch' }]
     const openExternalUrl = vi.fn()
 
-    render(<CitationsPanelContent citations={citations} openPath={vi.fn()} openExternalUrl={openExternalUrl} />)
+    render(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn(), openExternalUrl }} />)
 
     fireEvent.click(screen.getByRole('link', { name: 'Example' }))
 
     expect(openExternalUrl).toHaveBeenCalledTimes(1)
     expect(openExternalUrl).toHaveBeenCalledWith('https://example.com')
+  })
+
+  it('uses injected copy actions when rendered without a message list provider', async () => {
+    mocks.messageListActions = undefined
+    const copyText = vi.fn().mockResolvedValue(undefined)
+    const notifyError = vi.fn()
+    const citations: Citation[] = [
+      {
+        number: 1,
+        url: '/tmp/doc.md',
+        title: 'doc.md',
+        type: 'knowledge',
+        content: 'citation content'
+      }
+    ]
+
+    render(<CitationsPanelContent citations={citations} actions={{ copyText, notifyError }} />)
+
+    fireEvent.click(screen.getByText('copy'))
+
+    expect(copyText).toHaveBeenCalledTimes(1)
+    expect(copyText).toHaveBeenCalledWith('citation content', { successMessage: 'common.copied' })
+    expect(await screen.findByText('check')).toBeInTheDocument()
   })
 })

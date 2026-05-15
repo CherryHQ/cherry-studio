@@ -11,6 +11,13 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListActions } from '../MessageListProvider'
+import type { MessageListActions } from '../types'
+
+type CitationCopyActions = Pick<MessageListActions, 'copyText' | 'notifyError'>
+type CitationPanelActions = CitationCopyActions & {
+  openPath?: (path: string) => void | Promise<void>
+  openExternalUrl?: (url: string) => void | Promise<void>
+}
 
 interface CitationsListProps {
   citations: Citation[]
@@ -18,8 +25,7 @@ interface CitationsListProps {
 
 interface CitationsPanelContentProps {
   citations: Citation[]
-  openPath?: (path: string) => void | Promise<void>
-  openExternalUrl?: (url: string) => void | Promise<void>
+  actions?: CitationPanelActions
 }
 
 const queryClient = new QueryClient({
@@ -80,11 +86,7 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
   )
 }
 
-export const CitationsPanelContent: React.FC<CitationsPanelContentProps> = ({
-  citations,
-  openPath,
-  openExternalUrl
-}) => {
+export const CitationsPanelContent: React.FC<CitationsPanelContentProps> = ({ citations, actions }) => {
   return (
     <QueryClientProvider client={queryClient}>
       <Scrollbar className="min-h-0 flex-1">
@@ -94,17 +96,17 @@ export const CitationsPanelContent: React.FC<CitationsPanelContentProps> = ({
             className="border-border border-b-[0.5px] last:border-b-0">
             {citation.type === 'websearch' && (
               <div className="max-w-[min(400px,60vw)] px-3">
-                <WebSearchCitation citation={citation} openPath={openPath} openExternalUrl={openExternalUrl} />
+                <WebSearchCitation citation={citation} actions={actions} />
               </div>
             )}
             {citation.type === 'memory' && (
               <div className="max-w-150 px-3">
-                <KnowledgeCitation citation={{ ...citation }} openPath={openPath} openExternalUrl={openExternalUrl} />
+                <KnowledgeCitation citation={{ ...citation }} actions={actions} />
               </div>
             )}
             {citation.type === 'knowledge' && (
               <div className="max-w-150 px-3">
-                <KnowledgeCitation citation={{ ...citation }} openPath={openPath} openExternalUrl={openExternalUrl} />
+                <KnowledgeCitation citation={{ ...citation }} actions={actions} />
               </div>
             )}
           </div>
@@ -134,22 +136,26 @@ const handleLinkClick = (
   void actions.openPath(url)
 }
 
-const CopyButton: React.FC<{ content: string }> = ({ content }) => {
+const CopyButton: React.FC<{ content: string; actions?: CitationCopyActions }> = ({
+  content,
+  actions: injectedActions
+}) => {
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const { t } = useTranslation()
+  const actions = useOptionalMessageListActions()
+  const copyText = injectedActions?.copyText ?? actions?.copyText
+  const notifyError = injectedActions?.notifyError ?? actions?.notifyError
 
   const handleCopy = () => {
-    if (!content) return
-    navigator.clipboard
-      .writeText(content)
-      .then(() => {
-        setCopied(true)
-        window.toast.success(t('common.copied'))
-      })
+    if (!content || !copyText) return
+    Promise.resolve(copyText(content, { successMessage: t('common.copied') }))
+      .then(() => setCopied(true))
       .catch(() => {
-        window.toast.error(t('message.copy.failed'))
+        notifyError?.(t('message.copy.failed'))
       })
   }
+
+  if (!copyText) return null
 
   return (
     <div
@@ -160,16 +166,12 @@ const CopyButton: React.FC<{ content: string }> = ({ content }) => {
   )
 }
 
-const WebSearchCitation: React.FC<{
-  citation: Citation
-  openPath?: (path: string) => void | Promise<void>
-  openExternalUrl?: (url: string) => void | Promise<void>
-}> = ({ citation, openPath, openExternalUrl }) => {
+const WebSearchCitation: React.FC<{ citation: Citation; actions?: CitationPanelActions }> = ({ citation, actions }) => {
   const isXPost = Boolean(citation.url && isXPostUrl(citation.url))
-  const actions = useOptionalMessageListActions()
+  const providerActions = useOptionalMessageListActions()
   const linkActions = {
-    openPath: openPath ?? actions?.openPath,
-    openExternalUrl: openExternalUrl ?? actions?.openExternalUrl
+    openPath: actions?.openPath ?? providerActions?.openPath,
+    openExternalUrl: actions?.openExternalUrl ?? providerActions?.openExternalUrl
   }
 
   const { data: fetchedContent, isLoading } = useQuery({
@@ -216,7 +218,7 @@ const WebSearchCitation: React.FC<{
           <div className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] text-primary leading-[1.6] opacity-100 transition-opacity duration-300 group-hover:opacity-0">
             {citation.number}
           </div>
-          {fetchedContent && <CopyButton content={fetchedContent} />}
+          {fetchedContent && <CopyButton content={fetchedContent} actions={actions} />}
         </div>
         {isLoading ? (
           <div className="space-y-1">
@@ -233,15 +235,11 @@ const WebSearchCitation: React.FC<{
   )
 }
 
-const KnowledgeCitation: React.FC<{
-  citation: Citation
-  openPath?: (path: string) => void | Promise<void>
-  openExternalUrl?: (url: string) => void | Promise<void>
-}> = ({ citation, openPath, openExternalUrl }) => {
-  const actions = useOptionalMessageListActions()
+const KnowledgeCitation: React.FC<{ citation: Citation; actions?: CitationPanelActions }> = ({ citation, actions }) => {
+  const providerActions = useOptionalMessageListActions()
   const linkActions = {
-    openPath: openPath ?? actions?.openPath,
-    openExternalUrl: openExternalUrl ?? actions?.openExternalUrl
+    openPath: actions?.openPath ?? providerActions?.openPath,
+    openExternalUrl: actions?.openExternalUrl ?? providerActions?.openExternalUrl
   }
 
   return (
@@ -259,7 +257,7 @@ const KnowledgeCitation: React.FC<{
           <div className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] text-primary leading-[1.6] opacity-100 transition-opacity duration-300 group-hover:opacity-0">
             {citation.number}
           </div>
-          {citation.content && <CopyButton content={citation.content} />}
+          {citation.content && <CopyButton content={citation.content} actions={actions} />}
         </div>
         <div className="selectable-text cursor-text select-text break-all text-[13px] text-foreground-secondary leading-[1.6]">
           {citation.content ?? ''}
