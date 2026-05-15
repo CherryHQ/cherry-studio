@@ -7,7 +7,7 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
-import { inArray, sql } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
@@ -206,32 +206,8 @@ export class FileMigrator extends BaseMigrator {
     let processed = 0
 
     try {
-      // Idempotency belt-and-braces: MigrationEngine.verifyAndClearNewTables
-      // clears file_entry before each run, but if a partial migration somehow
-      // left rows behind, skip them rather than crash on UNIQUE constraint.
-      const candidateIds = this.preparedEntries.map((e) => e.id)
-      const existingIds = new Set<string>()
-      for (let i = 0; i < candidateIds.length; i += BATCH_SIZE) {
-        const chunk = candidateIds.slice(i, i + BATCH_SIZE)
-        const rows = await ctx.db
-          .select({ id: fileEntryTable.id })
-          .from(fileEntryTable)
-          .where(inArray(fileEntryTable.id, chunk))
-          .all()
-        for (const row of rows) existingIds.add(row.id)
-      }
-
-      const entriesToInsert: PreparedFileEntry[] = []
-      for (const entry of this.preparedEntries) {
-        if (existingIds.has(entry.id)) {
-          processed += 1
-        } else {
-          entriesToInsert.push(entry)
-        }
-      }
-
-      for (let i = 0; i < entriesToInsert.length; i += BATCH_SIZE) {
-        const batch = entriesToInsert.slice(i, i + BATCH_SIZE)
+      for (let i = 0; i < this.preparedEntries.length; i += BATCH_SIZE) {
+        const batch = this.preparedEntries.slice(i, i + BATCH_SIZE)
 
         await ctx.db.transaction(async (tx) => {
           await tx.insert(fileEntryTable).values(batch)

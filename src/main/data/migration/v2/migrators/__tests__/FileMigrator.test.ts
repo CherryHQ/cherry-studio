@@ -397,16 +397,7 @@ describe('FileMigrator batched insert', () => {
   it('returns error result when transaction throws', async () => {
     const row = makeInternalRow()
     const { ctx } = createMockContext([row])
-    // Override transaction to throw
     ;(ctx.db as any).transaction = vi.fn().mockRejectedValue(new Error('insert failed'))
-    // Override select so idempotency check finds nothing
-    ;(ctx.db as any).select = vi.fn().mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          all: vi.fn().mockResolvedValue([])
-        })
-      })
-    })
 
     const m = new FileMigrator()
     await m.prepare(ctx as never)
@@ -414,52 +405,6 @@ describe('FileMigrator batched insert', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('insert failed')
-  })
-})
-
-// ─── Idempotency (Task 2.8) ──────────────────────────────────────────────────
-
-describe('FileMigrator idempotency', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('second execute is a no-op when rows already exist', async () => {
-    const row = makeInternalRow()
-    const { ctx, txFn } = createMockContext([row])
-
-    const m = new FileMigrator()
-    await m.prepare(ctx as never)
-
-    // First execute: row doesn't exist yet
-    ;(ctx.db as any).select = vi.fn().mockReturnValueOnce({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          all: vi.fn().mockResolvedValue([])
-        })
-      })
-    })
-    await m.execute(ctx as never)
-
-    // Reset transaction tracking
-    txFn.mockClear()
-
-    // Second execute: row already exists (idempotent) — id is preserved verbatim
-    ;(ctx.db as any).select = vi.fn().mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          all: vi.fn().mockResolvedValue([{ id: row.id }])
-        })
-      })
-    })
-
-    m.reset()
-    await m.prepare(ctx as never)
-    const result = await m.execute(ctx as never)
-
-    expect(result.success).toBe(true)
-    // No new transactions needed — rows already in DB
-    expect(txFn).not.toHaveBeenCalled()
   })
 })
 
