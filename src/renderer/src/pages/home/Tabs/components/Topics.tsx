@@ -8,6 +8,7 @@ import {
   ResourceList,
   type ResourceListItemReorderPayload,
   type ResourceListReorderPayload,
+  type ResourceListRevealRequest,
   TopicResourceList,
   useResourceList,
   useResourceListPinnedState
@@ -71,6 +72,7 @@ const logger = loggerService.withContext('Topics')
 interface Props {
   activeTopic: Topic
   onOpenHistory?: (origin?: DOMRectReadOnly) => void
+  revealRequest?: ResourceListRevealRequest
   setActiveTopic: (topic: Topic) => void
   position: 'left' | 'right'
 }
@@ -139,7 +141,7 @@ function TopicDisplayModeMenu({
   )
 }
 
-export function Topics({ activeTopic, onOpenHistory, setActiveTopic, position }: Props) {
+export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTopic, position }: Props) {
   const { t } = useTranslation()
   const [groupNow] = useState(() => dayjs())
   const { notesPath } = useNotesSettings()
@@ -221,6 +223,7 @@ export function Topics({ activeTopic, onOpenHistory, setActiveTopic, position }:
 
   const manageState = useTopicManageMode()
   const { isManageMode, selectedIds, searchText, enterManageMode, exitManageMode, toggleSelectTopic } = manageState
+  const handledRevealModeExitRef = useRef<string | null>(null)
   const deferredSearchText = useDeferredValue(searchText)
   const { isFulfilled: isActiveTopicStreamFulfilled, markSeen: markActiveTopicStreamSeen } = useTopicStreamStatus(
     activeTopic.id
@@ -231,6 +234,18 @@ export function Topics({ activeTopic, onOpenHistory, setActiveTopic, position }:
       markActiveTopicStreamSeen()
     }
   }, [isActiveTopicStreamFulfilled, markActiveTopicStreamSeen])
+
+  useEffect(() => {
+    if (!revealRequest) return
+
+    const requestKey = `${revealRequest.requestId}:${revealRequest.itemId}`
+    if (handledRevealModeExitRef.current === requestKey) return
+
+    handledRevealModeExitRef.current = requestKey
+    if (isManageMode) {
+      exitManageMode()
+    }
+  }, [exitManageMode, isManageMode, revealRequest])
 
   const updateTopic = useCallback(
     (topic: Topic) =>
@@ -565,6 +580,7 @@ export function Topics({ activeTopic, onOpenHistory, setActiveTopic, position }:
         estimateItemSize={() => 34}
         groupBy={topicGroupBy}
         collapsedGroupIds={collapsedTopicGroupIds}
+        revealRequest={revealRequest}
         defaultGroupVisibleCount={5}
         groupLoadStep={5}
         getGroupHeaderAction={getGroupHeaderAction}

@@ -1,4 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import type { Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
@@ -12,10 +13,11 @@ interface Props {
   onOpenHistory?: (origin?: DOMRectReadOnly) => void
   setActiveTopic: (topic: Topic) => void
   position: 'left' | 'right'
+  revealRequest?: ResourceListRevealRequest
   style?: React.CSSProperties
 }
 
-const HomeTabs: FC<Props> = ({ activeTopic, onOpenHistory, setActiveTopic, position, style }) => {
+const HomeTabs: FC<Props> = ({ activeTopic, onOpenHistory, setActiveTopic, position, revealRequest, style }) => {
   const [topicPosition] = usePreference('topic.position')
   const { isLeftNavbar } = useNavbarPosition()
 
@@ -35,6 +37,7 @@ const HomeTabs: FC<Props> = ({ activeTopic, onOpenHistory, setActiveTopic, posit
           setActiveTopic={setActiveTopic}
           position={position}
           onOpenHistory={onOpenHistory}
+          revealRequest={revealRequest}
         />
       </TabContent>
     </Container>

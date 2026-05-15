@@ -1,5 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
@@ -12,7 +13,7 @@ import type { Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 import Chat from './Chat'
@@ -43,6 +44,8 @@ const HomePage: FC = () => {
   const { isLeftNavbar } = useNavbarPosition()
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyOrigin, setHistoryOrigin] = useState<DOMRectReadOnly>()
+  const [topicRevealRequest, setTopicRevealRequest] = useState<ResourceListRevealRequest>()
+  const topicRevealRequestIdRef = useRef(0)
 
   const location = useLocation()
   const state = location.state as { topic?: Topic } | undefined
@@ -145,6 +148,20 @@ const HomePage: FC = () => {
     setHistoryOpen(true)
   }, [])
   const closeHistory = useCallback(() => setHistoryOpen(false), [])
+  const handleHistoryTopicSelect = useCallback(
+    (topic: Topic) => {
+      void setShowSidebar(true)
+      setActiveTopic(topic)
+      topicRevealRequestIdRef.current += 1
+      setTopicRevealRequest({
+        clearFilters: true,
+        clearQuery: true,
+        itemId: topic.id,
+        requestId: topicRevealRequestIdRef.current
+      })
+    },
+    [setActiveTopic, setShowSidebar]
+  )
   const historyOverlay = (
     <HistoryRecordsPage
       mode="assistant"
@@ -152,7 +169,7 @@ const HomePage: FC = () => {
       activeRecordId={activeTopic?.id}
       origin={historyOrigin}
       onClose={closeHistory}
-      onRecordSelect={setActiveTopic}
+      onRecordSelect={handleHistoryTopicSelect}
     />
   )
 
@@ -175,6 +192,7 @@ const HomePage: FC = () => {
               setActiveTopic={setActiveTopic}
               position={panePosition}
               onOpenHistory={openHistory}
+              revealRequest={topicRevealRequest}
             />
           }
           paneOpen={showSidebar}

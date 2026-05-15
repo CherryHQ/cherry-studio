@@ -13,8 +13,10 @@ const virtualMocks = vi.hoisted(() => ({
       })),
     getTotalSize: () => options.count * 56,
     measureElement: vi.fn(),
-    scrollElement: null
-  }))
+    scrollElement: null,
+    scrollToIndex: virtualMocks.scrollToIndex
+  })),
+  scrollToIndex: vi.fn()
 }))
 
 const dndMocks = vi.hoisted(() => ({
@@ -245,6 +247,7 @@ vi.mock('react-i18next', () => ({
 
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type * as TopicDataApiModule from '@renderer/hooks/useTopicDataApi'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
@@ -312,18 +315,29 @@ function createTopicPin(overrides: Partial<Pin> = {}): Pin {
   }
 }
 
-function renderTopicList({ onOpenHistory }: { onOpenHistory?: () => void } = {}) {
+function renderTopicList({
+  onOpenHistory,
+  revealRequest
+}: {
+  onOpenHistory?: () => void
+  revealRequest?: ResourceListRevealRequest
+} = {}) {
   const setActiveTopic = vi.fn()
-  const renderNode = () => (
+  const renderNode = (nextRevealRequest = revealRequest) => (
     <Topics
       activeTopic={createRendererTopic()}
       setActiveTopic={setActiveTopic}
       position="left"
       onOpenHistory={onOpenHistory}
+      revealRequest={nextRevealRequest}
     />
   )
   const view = render(renderNode())
-  return { ...view, rerenderTopicList: () => view.rerender(renderNode()), setActiveTopic }
+  return {
+    ...view,
+    rerenderTopicList: (nextRevealRequest = revealRequest) => view.rerender(renderNode(nextRevealRequest)),
+    setActiveTopic
+  }
 }
 
 function getTopicRow(topicName: string) {
@@ -879,6 +893,51 @@ describe('Topics', () => {
 
     expect(onOpenHistory).toHaveBeenCalledTimes(1)
     expect(onOpenHistory).toHaveBeenCalledWith({ x: 10, y: 20, width: 30, height: 40 })
+  })
+
+  it('reveals a history-selected topic hidden by manage search, a collapsed group, and show-more', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.collapsed_group_ids' as never, ['topic:time:today'])
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: createTopicPageItems(6)
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    const { rerenderTopicList } = renderTopicList()
+
+    expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Topic 6')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText('Manage topics'))
+    const manageSearchButton = document.querySelector('[data-title="Search topics"] button')
+    expect(manageSearchButton).toBeInTheDocument()
+    fireEvent.click(manageSearchButton as HTMLElement)
+    const manageSearch = screen.getAllByPlaceholderText('Search topics').at(-1)
+    expect(manageSearch).toBeInTheDocument()
+    fireEvent.change(manageSearch as HTMLElement, { target: { value: 'missing' } })
+    expect(screen.queryByText('Topic 6')).not.toBeInTheDocument()
+
+    rerenderTopicList({ itemId: 'topic-6', requestId: 1, clearFilters: true, clearQuery: true })
+
+    expect(await screen.findByText('Topic 6')).toBeInTheDocument()
+    const revealedRow = screen.getByText('Topic 6').closest('[role="option"]')
+    expect(revealedRow).not.toBeNull()
+    expect(revealedRow!).toHaveAttribute('data-reveal-focus', 'true')
+    expect(revealedRow!).toHaveClass('animation-resource-list-reveal-focus')
+    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'true')
+    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toEqual([])
+    expect(virtualMocks.scrollToIndex).toHaveBeenCalledWith(expect.any(Number), { align: 'center' })
   })
 
   it('adds a new topic from the search-area create bar', () => {
