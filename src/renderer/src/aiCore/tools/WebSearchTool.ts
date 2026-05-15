@@ -44,7 +44,7 @@ export const webSearchToolWithPreExtractedKeywords = (
   requestId: string
 ) => {
   const webSearchProvider = WebSearchService.getWebSearchProvider(webSearchProviderId)
-  let cachedSearchResultsPromise: Promise<WebSearchProviderResponse> | undefined
+  const cachedSearchResultsPromises = new Map<string, Promise<WebSearchProviderResponse>>()
 
   return tool({
     description: `Web search tool for finding current information, news, and real-time data from the internet.
@@ -73,14 +73,9 @@ You can use this tool as-is to search with the prepared queries, or provide addi
     }),
 
     execute: async ({ additionalContext, fullContent }) => {
-      if (cachedSearchResultsPromise) {
-        return cachedSearchResultsPromise
-      }
-
       let finalQueries = normalizeWebSearchQueries(extractedKeywords.question)
 
       if (additionalContext?.trim()) {
-        // 如果大模型提供了额外上下文，使用更具体的描述
         const cleanContext = additionalContext.trim()
         if (cleanContext) {
           finalQueries = normalizeWebSearchQueries([cleanContext])
@@ -92,6 +87,17 @@ You can use this tool as-is to search with the prepared queries, or provide addi
         return { query: '', results: [] }
       }
 
+      const cacheKey = JSON.stringify({
+        question: finalQueries,
+        links: extractedKeywords.links ?? [],
+        fullContent: fullContent === true
+      })
+
+      const cached = cachedSearchResultsPromises.get(cacheKey)
+      if (cached) {
+        return cached
+      }
+
       // 构建 ExtractResults 结构用于 processWebsearch
       const extractResults: ExtractResults = {
         websearch: {
@@ -99,16 +105,17 @@ You can use this tool as-is to search with the prepared queries, or provide addi
           links: extractedKeywords.links
         }
       }
-      cachedSearchResultsPromise = WebSearchService.processWebsearch(
+      const searchPromise = WebSearchService.processWebsearch(
         webSearchProvider!,
         extractResults,
         requestId,
         fullContent
       )
+      cachedSearchResultsPromises.set(cacheKey, searchPromise)
       try {
-        return await cachedSearchResultsPromise
+        return await searchPromise
       } catch (error) {
-        cachedSearchResultsPromise = undefined
+        cachedSearchResultsPromises.delete(cacheKey)
         throw error
       }
     },

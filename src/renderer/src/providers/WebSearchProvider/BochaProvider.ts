@@ -1,9 +1,8 @@
 import { loggerService } from '@logger'
-import type { WebSearchState } from '@renderer/store/websearch'
 import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 import type { BochaSearchParams, BochaSearchResponse } from '@renderer/utils/bocha'
 
-import BaseWebSearchProvider from './BaseWebSearchProvider'
+import BaseWebSearchProvider, { type WebSearchRuntimeConfig } from './BaseWebSearchProvider'
 
 const logger = loggerService.withContext('BochaProvider')
 
@@ -18,7 +17,7 @@ export default class BochaProvider extends BaseWebSearchProvider {
     }
   }
 
-  public async search(query: string, websearch: WebSearchState): Promise<WebSearchProviderResponse> {
+  public async search(query: string, websearch: WebSearchRuntimeConfig): Promise<WebSearchProviderResponse> {
     try {
       if (!query.trim()) {
         throw new Error('Search query cannot be empty')

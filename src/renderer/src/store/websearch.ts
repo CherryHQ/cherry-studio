@@ -56,8 +56,6 @@ export interface WebSearchState {
   compressionConfig?: CompressionConfig
   // 具体供应商的配置
   providerConfig: Record<string, any>
-  // Whether to request full page content (Gate 2, default false)
-  fullContent?: boolean
 }
 
 export type CherryWebSearchConfig = Pick<WebSearchState, 'searchWithTime' | 'maxResults' | 'excludeDomains'>

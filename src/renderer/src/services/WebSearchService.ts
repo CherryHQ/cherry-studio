@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT } from '@renderer/config/constant'
 import i18n from '@renderer/i18n'
 import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
+import type { WebSearchRuntimeConfig } from '@renderer/providers/WebSearchProvider/BaseWebSearchProvider'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
 import { setWebSearchStatus } from '@renderer/store/runtime'
@@ -159,7 +160,7 @@ class WebSearchService {
     spanId?: string,
     fullContent?: boolean
   ): Promise<WebSearchProviderResponse> {
-    const websearch = { ...this.getWebSearchState(), fullContent }
+    const websearch: WebSearchRuntimeConfig = { ...this.getWebSearchState(), fullContent }
     const webSearchEngine = new WebSearchEngineProvider(provider, spanId)
 
     let formattedQuery = query

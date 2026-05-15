@@ -1,6 +1,8 @@
 import type { WebSearchState } from '@renderer/store/websearch'
 import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 
+export type WebSearchRuntimeConfig = WebSearchState & { fullContent?: boolean }
+
 export default abstract class BaseWebSearchProvider {
   // @ts-ignore this
   protected provider: WebSearchProvider
@@ -15,7 +17,7 @@ export default abstract class BaseWebSearchProvider {
 
   abstract search(
     query: string,
-    websearch: WebSearchState,
+    websearch: WebSearchRuntimeConfig,
     httpOptions?: RequestInit
   ): Promise<WebSearchProviderResponse>
 

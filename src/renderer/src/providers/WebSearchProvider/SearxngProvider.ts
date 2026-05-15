@@ -1,12 +1,11 @@
 import { SearxngClient } from '@agentic/searxng'
 import { loggerService } from '@logger'
-import type { WebSearchState } from '@renderer/store/websearch'
 import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 import { fetchWebContent, noContent } from '@renderer/utils/fetch'
 import axios from 'axios'
 import ky from 'ky'
 
-import BaseWebSearchProvider from './BaseWebSearchProvider'
+import BaseWebSearchProvider, { type WebSearchRuntimeConfig } from './BaseWebSearchProvider'
 
 const logger = loggerService.withContext('SearxngProvider')
 
@@ -95,7 +94,7 @@ export default class SearxngProvider extends BaseWebSearchProvider {
     }
   }
 
-  public async search(query: string, websearch: WebSearchState): Promise<WebSearchProviderResponse> {
+  public async search(query: string, websearch: WebSearchRuntimeConfig): Promise<WebSearchProviderResponse> {
     try {
       if (!query) {
         throw new Error('Search query cannot be empty')
