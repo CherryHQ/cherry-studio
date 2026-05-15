@@ -3,7 +3,7 @@ import type { DbType } from '@data/db/types'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
-import { asc, eq, sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
@@ -349,7 +349,8 @@ export async function transformAgentBlocksToParts(db: DbType): Promise<BlocksToP
     errors: []
   }
 
-  const rows = await db.select().from(agentSessionMessageTable).orderBy(asc(agentSessionMessageTable.createdAt))
+  const selectedRows = await db.select().from(agentSessionMessageTable)
+  const rows = (Array.isArray(selectedRows) ? selectedRows : []).sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))
   result.totalMessages = rows.length
   logger.info(`Blocks→Parts: scanning ${rows.length} agent_session_message rows`)
 

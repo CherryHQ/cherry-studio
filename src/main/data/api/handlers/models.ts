@@ -9,13 +9,17 @@
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
+import { SuccessStatus } from '@shared/data/api/apiTypes'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import {
+  BulkUpdateModelsSchema,
   CreateModelsSchema,
   ListModelsQuerySchema,
   type ModelSchemas,
+  ReconcileProviderModelsSchema,
+  ResolveProviderModelsQuerySchema,
   UpdateModelSchema
 } from '@shared/data/api/schemas/models'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
@@ -25,6 +29,12 @@ const logger = loggerService.withContext('DataApi:ModelHandlers')
 /**
  * Parse a UniqueModelId from the transport layer, raising a 422 validation
  * error (instead of a bare Error → 500) when the shape is malformed.
+ *
+ * Uses the permissive `isUniqueModelId` predicate intentionally: only "no
+ * separator at all" is a transport-level error. Empty `providerId` / `modelId`
+ * parts pass through to the service — this contract is pinned by handler
+ * tests so callers that legitimately need that shape (delete-by-prefix
+ * probes, etc.) keep working.
  */
 const parseOrValidationError = (uniqueModelId: string) => {
   if (!isUniqueModelId(uniqueModelId)) {
@@ -44,10 +54,19 @@ async function enrichCreateItems(dtos: CreateModelDto[]) {
           registryData: await providerRegistryService.lookupModel(dto.providerId, dto.modelId)
         }
       } catch (error) {
+        if (!(isDataApiError(error) && error.code === ErrorCode.NOT_FOUND)) {
+          logger.error('Registry lookup failed during create', {
+            providerId: dto.providerId,
+            modelId: dto.modelId,
+            error
+          })
+          throw error
+        }
+
         logger.warn(
           dtos.length === 1
-            ? 'Registry lookup failed during create, falling back to custom'
-            : 'Registry lookup failed during batch create, falling back to custom',
+            ? 'Registry lookup missed during create, falling back to custom'
+            : 'Registry lookup missed during batch create, falling back to custom',
           {
             providerId: dto.providerId,
             modelId: dto.modelId,
@@ -77,6 +96,18 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
       const parsed = CreateModelsSchema.parse(body)
       const items = await enrichCreateItems(parsed)
       return await modelService.create(items)
+    },
+
+    PATCH: async ({ body }) => {
+      // Transport is array-only, matching POST /models. Each item's
+      // uniqueModelId is validated up-front so a malformed entry surfaces as a
+      // 422 instead of bubbling up from the service as a 500.
+      const parsed = BulkUpdateModelsSchema.parse(body)
+      const items = parsed.map((item) => ({
+        ...parseOrValidationError(item.uniqueModelId),
+        patch: item.patch
+      }))
+      return await modelService.bulkUpdate(items)
     }
   },
 
@@ -96,6 +127,47 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
       const { providerId, modelId } = parseOrValidationError(params.uniqueModelId)
       await modelService.delete(providerId, modelId)
       return undefined
+    }
+  },
+
+  '/providers/:providerId/models:reconcile': {
+    POST: async ({ params, body }) => {
+      const parsed = ReconcileProviderModelsSchema.parse(body)
+
+      for (const dto of parsed.toAdd) {
+        if (dto.providerId !== params.providerId) {
+          throw DataApiErrorFactory.validation({
+            providerId: [
+              `toAdd item providerId '${dto.providerId}' does not match URL providerId '${params.providerId}'`
+            ]
+          })
+        }
+      }
+      for (const uniqueModelId of parsed.toRemove) {
+        const { providerId } = parseOrValidationError(uniqueModelId)
+        if (providerId !== params.providerId) {
+          throw DataApiErrorFactory.validation({
+            toRemove: [`'${uniqueModelId}' providerId does not match URL providerId '${params.providerId}'`]
+          })
+        }
+      }
+
+      const items = await enrichCreateItems(parsed.toAdd)
+      const models = await modelService.reconcileForProvider(params.providerId, {
+        toAdd: items,
+        toRemove: parsed.toRemove
+      })
+      // Override the default POST → 201: the response is the resulting
+      // collection state for the provider, not a newly-created single resource.
+      return { data: models, status: SuccessStatus.OK }
+    }
+  },
+
+  '/providers/:providerId/models:resolve': {
+    GET: async ({ params, query }) => {
+      const parsed = ResolveProviderModelsQuerySchema.parse(query)
+      const ids = Array.isArray(parsed.ids) ? parsed.ids : [parsed.ids]
+      return await providerRegistryService.resolveModels(params.providerId, ids)
     }
   }
 }

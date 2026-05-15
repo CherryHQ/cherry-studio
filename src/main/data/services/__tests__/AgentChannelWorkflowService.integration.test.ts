@@ -45,7 +45,7 @@ describe('AgentChannelWorkflowService.updateChannel — DB rollback integration'
       name: `Agent ${id}`,
       instructions: 'test',
       model: null
-    })
+    } as any)
   }
 
   it('restores the SQLite row byte-for-byte when syncChannel throws', async () => {

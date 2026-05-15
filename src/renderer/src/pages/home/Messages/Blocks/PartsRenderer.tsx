@@ -18,8 +18,8 @@ import { FILE_TYPE } from '@renderer/types/file'
 import type { Message } from '@renderer/types/newMessage'
 import { isMessageAwaitingApproval, isMessageProcessing } from '@renderer/utils/messageUtils/is'
 import { convertReferencesToCitations, convertReferencesToLegacyCitations } from '@renderer/utils/partsToBlocks'
-import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
-import type { CherryProviderMetadata, ErrorPartData, VideoPartData } from '@shared/data/types/uiParts'
+import type { CherryMessagePart, ContentReference } from '@shared/data/types/message'
+import type { CherryProviderMetadata, ErrorPartData } from '@shared/data/types/uiParts'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
 
@@ -230,7 +230,7 @@ function renderPart(
 
   switch (partType) {
     case 'reasoning': {
-      const reasoningPart = part as ReasoningUIPart
+      const reasoningPart = part
       const cherryMeta = getCherryMeta(part)
       const metadataBlock =
         'providerMetadata' in part && part.providerMetadata
@@ -297,13 +297,13 @@ function renderPart(
     }
 
     case 'data-error': {
-      const rawData = 'data' in part ? (part.data as ErrorPartData) : undefined
+      const rawData = 'data' in part ? part.data : undefined
       if (!rawData) return null
       return <ErrorPartView key={partId} partId={partId} rawData={rawData} message={message} />
     }
 
     case 'data-video': {
-      const rawData = 'data' in part ? (part.data as VideoPartData) : undefined
+      const rawData = 'data' in part ? part.data : undefined
       if (!rawData) return null
       return <MessageVideo key={partId} url={rawData.url} filePath={rawData.filePath} />
     }

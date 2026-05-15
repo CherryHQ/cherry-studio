@@ -6,14 +6,17 @@
  * - Listing with filters
  */
 
-import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
+import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   AddProviderApiKeySchema,
   CreateProviderSchema,
+  ListProviderApiKeysQuerySchema,
   ListProvidersQuerySchema,
   type ProviderSchemas,
+  ReplaceProviderApiKeysSchema,
+  UpdateApiKeySchema,
   UpdateProviderSchema
 } from '@shared/data/api/schemas/providers'
 
@@ -46,35 +49,21 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
     }
   },
 
-  '/providers/:providerId/rotated-key': {
-    GET: async ({ params }) => {
-      const apiKey = await providerService.getRotatedApiKey(params.providerId)
-      return { apiKey }
-    }
-  },
-
   '/providers/:providerId/api-keys': {
-    GET: async ({ params }) => {
-      const keys = await providerService.getEnabledApiKeys(params.providerId)
+    GET: async ({ params, query }) => {
+      const parsed = ListProviderApiKeysQuerySchema.parse(query ?? {})
+      const keys = await providerService.getApiKeys(params.providerId, parsed)
       return { keys }
     },
 
     POST: async ({ params, body }) => {
       const parsed = AddProviderApiKeySchema.parse(body)
       return await providerService.addApiKey(params.providerId, parsed.key, parsed.label)
-    }
-  },
-
-  '/providers/:providerId/registry-models': {
-    GET: async ({ params }) => {
-      return providerRegistryService.getRegistryModelsByProvider(params.providerId)
     },
 
-    POST: async ({ params, body }) => {
-      return await providerRegistryService.resolveModels(
-        params.providerId,
-        body.models.map((m) => m.modelId)
-      )
+    PUT: async ({ params, body }) => {
+      const parsed = ReplaceProviderApiKeysSchema.parse(body)
+      return await providerService.replaceApiKeys(params.providerId, parsed.keys)
     }
   },
 
@@ -85,8 +74,29 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
   },
 
   '/providers/:providerId/api-keys/:keyId': {
+    PATCH: async ({ params, body }) => {
+      const parsed = UpdateApiKeySchema.parse(body)
+      return providerService.updateApiKey(params.providerId, params.keyId, parsed)
+    },
+
     DELETE: async ({ params }) => {
       return providerService.deleteApiKey(params.providerId, params.keyId)
+    }
+  },
+
+  '/providers/:id/order': {
+    PATCH: async ({ params, body }) => {
+      const parsed = OrderRequestSchema.parse(body)
+      await providerService.move(params.id, parsed)
+      return undefined
+    }
+  },
+
+  '/providers/order:batch': {
+    PATCH: async ({ body }) => {
+      const parsed = OrderBatchRequestSchema.parse(body)
+      await providerService.reorder(parsed.moves)
+      return undefined
     }
   }
 }

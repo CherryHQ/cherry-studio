@@ -14,6 +14,8 @@ import { isRegistryEnrichableField, userModelTable } from '@data/db/schemas/user
 import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
+import { mergePresetModel } from '@data/services/ProviderRegistryService'
+import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateModelDto, ListModelsQuery, UpdateModelDto } from '@shared/data/api/schemas/models'
@@ -27,8 +29,7 @@ import type {
 } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { ReasoningFormatType } from '@shared/data/types/provider'
-import { mergeModelWithUser } from '@shared/data/utils/modelMerger'
-import { and, eq, inArray, type SQL } from 'drizzle-orm'
+import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:ModelService')
 
@@ -42,12 +43,91 @@ type CreateModelRegistryData = ModelLookupResult & {
   defaultChatEndpoint?: EndpointType
 }
 
+/**
+ * Subset of user-row fields that can override registry-derived baseline values.
+ *
+ * Status fields (`isEnabled`, `isHidden`) are intentionally excluded: they are
+ * user state managed via `PATCH /models/:id`, not preset baseline overrides.
+ * They flow through `...row` spread in the migrator and through the
+ * `mergedModelToNewUserModel` projection in `ModelService.buildCreateValues`.
+ */
+export interface UserModelOverlay {
+  name?: string | null
+  description?: string | null
+  group?: string | null
+  capabilities?: ModelCapability[] | null
+  inputModalities?: Modality[] | null
+  outputModalities?: Modality[] | null
+  endpointTypes?: EndpointType[] | null
+  contextWindow?: number | null
+  maxInputTokens?: number | null
+  maxOutputTokens?: number | null
+  supportsStreaming?: boolean | null
+  // Persisted reasoning rows may have optional fields the runtime type requires;
+  // applyUserOverlay narrows it via cast on copy.
+  reasoning?: Partial<RuntimeReasoning> | null
+}
+
+/**
+ * Apply user-row values on top of a registry-derived baseline Model.
+ *
+ * Composed with `providerRegistryService.mergePresetModel` to produce the
+ * final merged Model that gets persisted: the registry service handles
+ * preset → override resolution, and this overlay handles user precedence.
+ * Truthy/non-null user values win. Empty arrays and null are treated as
+ * "not set" so the registry baseline shows through.
+ */
+export function applyUserOverlay(baseline: Model, overlay: UserModelOverlay): Model {
+  const result: Model = { ...baseline }
+
+  if (overlay.capabilities && overlay.capabilities.length > 0) {
+    result.capabilities = [...overlay.capabilities]
+  }
+  if (overlay.endpointTypes && overlay.endpointTypes.length > 0) {
+    result.endpointTypes = [...overlay.endpointTypes]
+  }
+  if (overlay.inputModalities && overlay.inputModalities.length > 0) {
+    result.inputModalities = [...overlay.inputModalities]
+  }
+  if (overlay.outputModalities && overlay.outputModalities.length > 0) {
+    result.outputModalities = [...overlay.outputModalities]
+  }
+  if (overlay.name) {
+    result.name = overlay.name
+  }
+  if (overlay.description) {
+    result.description = overlay.description
+  }
+  if (overlay.contextWindow != null) {
+    result.contextWindow = overlay.contextWindow
+  }
+  if (overlay.maxInputTokens != null) {
+    result.maxInputTokens = overlay.maxInputTokens
+  }
+  if (overlay.maxOutputTokens != null) {
+    result.maxOutputTokens = overlay.maxOutputTokens
+  }
+  if (overlay.reasoning) {
+    result.reasoning = overlay.reasoning as RuntimeReasoning
+  }
+  if (overlay.supportsStreaming != null) {
+    result.supportsStreaming = overlay.supportsStreaming
+  }
+  if (overlay.group) {
+    result.group = overlay.group
+  }
+
+  return result
+}
+
 export interface CreateModelInput {
   dto: CreateModelDto
   registryData?: CreateModelRegistryData
 }
 
-function createModelsSqliteHandlers(values: NewUserModel[]): SqliteErrorHandlers {
+type NewUserModelInput = Omit<NewUserModel, 'orderKey'>
+
+function createModelsSqliteHandlers(values: NewUserModelInput[]): SqliteErrorHandlers {
   const providerIds = [...new Set(values.map((value) => value.providerId))]
   const identifier =
     values.length === 1 ? `${values[0].providerId}/${values[0].modelId}` : `batch(${values.length} items)`
@@ -78,38 +158,40 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   ['parameterSupport', 'parameters'],
   'supportsStreaming',
   'contextWindow',
+  'maxInputTokens',
   'maxOutputTokens',
   'reasoning',
   'pricing',
   'isEnabled',
   'isHidden',
-  'sortOrder',
+  'isDeprecated',
   'notes'
 ]
 
 /** Convert CreateModelDto to a NewUserModel row (shared by preset and custom paths). */
-function dtoToNewUserModel(dto: CreateModelDto) {
+function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
   return {
     id: createUniqueModelId(dto.providerId, dto.modelId),
     providerId: dto.providerId,
     modelId: dto.modelId,
     presetModelId: null,
-    name: dto.name ?? null,
+    name: dto.name ?? dto.modelId,
     description: dto.description ?? null,
     group: dto.group ?? null,
-    capabilities: (dto.capabilities ?? null) as ModelCapability[] | null,
+    capabilities: (dto.capabilities ?? []) as ModelCapability[],
     inputModalities: (dto.inputModalities ?? null) as Modality[] | null,
     outputModalities: (dto.outputModalities ?? null) as Modality[] | null,
     endpointTypes: (dto.endpointTypes ?? null) as EndpointType[] | null,
     contextWindow: dto.contextWindow ?? null,
+    maxInputTokens: dto.maxInputTokens ?? null,
     maxOutputTokens: dto.maxOutputTokens ?? null,
-    supportsStreaming: dto.supportsStreaming ?? null,
+    supportsStreaming: dto.supportsStreaming ?? true,
     reasoning: dto.reasoning ?? null,
     parameters: dto.parameterSupport ?? null,
     pricing: dto.pricing ?? null,
     isEnabled: true,
     isHidden: false
-  } satisfies NewUserModel
+  }
 }
 
 /** Convert a merged Model back to a NewUserModel row for DB insert. */
@@ -118,7 +200,7 @@ function mergedModelToNewUserModel(
   modelId: string,
   presetModelId: string,
   merged: Model
-): NewUserModel {
+): NewUserModelInput {
   return {
     id: createUniqueModelId(providerId, modelId),
     providerId,
@@ -132,6 +214,7 @@ function mergedModelToNewUserModel(
     outputModalities: merged.outputModalities ?? null,
     endpointTypes: merged.endpointTypes ?? null,
     contextWindow: merged.contextWindow ?? null,
+    maxInputTokens: merged.maxInputTokens ?? null,
     maxOutputTokens: merged.maxOutputTokens ?? null,
     supportsStreaming: merged.supportsStreaming,
     reasoning: merged.reasoning ?? null,
@@ -153,44 +236,42 @@ function rowToRuntimeModel(row: UserModel): Model {
     id: createUniqueModelId(row.providerId, row.modelId),
     providerId: row.providerId,
     apiModelId: row.modelId,
-    name: row.name ?? row.modelId,
+    presetModelId: row.presetModelId,
+    name: row.name,
     description: row.description ?? undefined,
     group: row.group ?? undefined,
-    capabilities: row.capabilities ?? [],
+    capabilities: row.capabilities,
     inputModalities: row.inputModalities ?? undefined,
     outputModalities: row.outputModalities ?? undefined,
     contextWindow: row.contextWindow ?? undefined,
+    maxInputTokens: row.maxInputTokens ?? undefined,
     maxOutputTokens: row.maxOutputTokens ?? undefined,
     endpointTypes: row.endpointTypes ?? undefined,
-    supportsStreaming: row.supportsStreaming ?? true,
+    supportsStreaming: row.supportsStreaming,
     reasoning: (row.reasoning ?? undefined) as RuntimeReasoning | undefined,
     parameterSupport: (row.parameters ?? undefined) as RuntimeParameterSupport | undefined,
     pricing: row.pricing ?? undefined,
     isEnabled: row.isEnabled,
     isHidden: row.isHidden,
-    sortOrder: row.sortOrder ?? undefined,
+    isDeprecated: row.isDeprecated,
     notes: row.notes ?? undefined
   }
 }
 
 class ModelService {
-  private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModel {
+  private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModelInput {
     const presetModel = registryData?.presetModel ?? null
-    const registryOverride = registryData?.registryOverride ?? null
-    const reasoningFormatTypes = registryData?.reasoningFormatTypes
-    const defaultChatEndpoint = registryData?.defaultChatEndpoint
-
     const dtoValues = dtoToNewUserModel(dto)
 
     if (presetModel) {
-      const merged = mergeModelWithUser(
-        { ...dtoValues, presetModelId: presetModel.id },
-        registryOverride,
+      const baseline = mergePresetModel(
         presetModel,
+        registryData?.registryOverride ?? null,
         dto.providerId,
-        reasoningFormatTypes,
-        defaultChatEndpoint
+        registryData?.reasoningFormatTypes,
+        registryData?.defaultChatEndpoint
       )
+      const merged = applyUserOverlay(baseline, { ...dtoValues, name: dto.name ?? null })
 
       return mergedModelToNewUserModel(dto.providerId, dto.modelId, presetModel.id, merged)
     }
@@ -218,7 +299,7 @@ class ModelService {
       .select()
       .from(userModelTable)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(userModelTable.sortOrder)
+      .orderBy(asc(userModelTable.providerId), asc(userModelTable.orderKey))
 
     let models = rows.map(rowToRuntimeModel)
 
@@ -327,7 +408,16 @@ class ModelService {
     const rows = await withSqliteErrors(
       () =>
         db.transaction(async (tx) => {
-          return await tx.insert(userModelTable).values(values).returning()
+          const results: UserModel[] = []
+          for (const providerId of new Set(values.map((value) => value.providerId))) {
+            const scopedValues = values.filter((value) => value.providerId === providerId)
+            const inserted = (await insertManyWithOrderKey(tx, userModelTable, scopedValues, {
+              pkColumn: userModelTable.id,
+              scope: eq(userModelTable.providerId, providerId)
+            })) as UserModel[]
+            results.push(...inserted)
+          }
+          return results
         }),
       createModelsSqliteHandlers(values)
     )
@@ -411,6 +501,160 @@ class ModelService {
   }
 
   /**
+   * Update many models atomically in a single transaction.
+   *
+   * Per-item semantics — field mapping via {@link UPDATE_MODEL_FIELD_MAP},
+   * `userOverrides` tracking, and the empty-patch short-circuit — exactly
+   * mirror the row-level {@link ModelService.update} path; only the I/O shape
+   * differs. Any not-found rolls the whole batch back so callers don't have
+   * to reason about partial failure.
+   *
+   * @param items handler-parsed (providerId, modelId, patch) tuples
+   */
+  async bulkUpdate(items: Array<{ providerId: string; modelId: string; patch: UpdateModelDto }>): Promise<Model[]> {
+    if (items.length === 0) return []
+
+    const db = application.get('DbService').getDb()
+
+    const dtoToDbKey = (key: string): string => {
+      const mapping = UPDATE_MODEL_FIELD_MAP.find((entry) => (Array.isArray(entry) ? entry[0] === key : false))
+      return mapping && Array.isArray(mapping) ? mapping[1] : key
+    }
+
+    return await db.transaction(async (tx) => {
+      const results: Model[] = []
+
+      for (const { providerId, modelId, patch } of items) {
+        const [existing] = await tx
+          .select()
+          .from(userModelTable)
+          .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
+          .limit(1)
+
+        if (!existing) {
+          throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
+        }
+
+        const updates: Partial<NewUserModel> = {}
+        for (const entry of UPDATE_MODEL_FIELD_MAP) {
+          const [dtoKey, dbKey] = Array.isArray(entry) ? entry : [entry, entry as keyof NewUserModel]
+          if (patch[dtoKey] !== undefined) {
+            ;(updates as Record<string, unknown>)[dbKey] = patch[dtoKey]
+          }
+        }
+
+        const changedEnrichableFields = Object.keys(patch).map(dtoToDbKey).filter(isRegistryEnrichableField)
+        if (changedEnrichableFields.length > 0) {
+          const existingOverrides = existing.userOverrides ?? []
+          updates.userOverrides = [...new Set([...existingOverrides, ...changedEnrichableFields])]
+        }
+
+        if (Object.keys(updates).length === 0) {
+          results.push(rowToRuntimeModel(existing))
+          continue
+        }
+
+        const [row] = await tx
+          .update(userModelTable)
+          .set(updates)
+          .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
+          .returning()
+
+        results.push(rowToRuntimeModel(row))
+      }
+
+      logger.info('Bulk updated models', {
+        count: results.length,
+        providers: [...new Set(items.map((item) => item.providerId))]
+      })
+
+      return results
+    })
+  }
+
+  /**
+   * Apply a pull-reconcile diff atomically: remove the listed rows and insert
+   * the new ones inside one transaction, then return the full model list for
+   * the provider so the caller revalidates with the post-reconcile state.
+   *
+   * Removals are scoped by `providerId` so a caller cannot delete rows owned
+   * by a different provider even if it passes a `UniqueModelId` that mentions
+   * one. Pins for removed models are purged in the same transaction.
+   */
+  async reconcileForProvider(
+    providerId: string,
+    payload: { toAdd: CreateModelInput[]; toRemove: string[] }
+  ): Promise<Model[]> {
+    if (payload.toAdd.length === 0 && payload.toRemove.length === 0) {
+      return this.list({ providerId })
+    }
+
+    const db = application.get('DbService').getDb()
+    const values = payload.toAdd.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
+
+    let actuallyDeleted = 0
+    const rows = await withSqliteErrors(
+      () =>
+        db.transaction(async (tx) => {
+          if (payload.toRemove.length > 0) {
+            const deletedRows = await tx
+              .delete(userModelTable)
+              .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, payload.toRemove)))
+              .returning({ id: userModelTable.id })
+            actuallyDeleted = deletedRows.length
+
+            if (deletedRows.length > 0) {
+              await pinService.purgeForEntitiesTx(
+                tx,
+                'model',
+                deletedRows.map((row) => row.id)
+              )
+            }
+          }
+
+          if (values.length > 0) {
+            // Chunk per-INSERT to stay under SQLite's compound-statement parameter limit.
+            const INSERT_CHUNK_SIZE = 500
+            for (let offset = 0; offset < values.length; offset += INSERT_CHUNK_SIZE) {
+              await insertManyWithOrderKey(tx, userModelTable, values.slice(offset, offset + INSERT_CHUNK_SIZE), {
+                pkColumn: userModelTable.id,
+                scope: eq(userModelTable.providerId, providerId)
+              })
+            }
+          }
+
+          return (await tx
+            .select()
+            .from(userModelTable)
+            .where(eq(userModelTable.providerId, providerId))
+            .orderBy(asc(userModelTable.orderKey))) as UserModel[]
+        }),
+      createModelsSqliteHandlers(values)
+    )
+
+    if (actuallyDeleted < payload.toRemove.length) {
+      // Stale renderer state — caller's toRemove referenced IDs that no longer
+      // exist (concurrent edit, second window, race with another sync). The
+      // transaction still succeeded but the renderer's diff was based on a
+      // stale snapshot. Warn so debugging can correlate; the next /models
+      // refetch will reconcile what the user actually sees.
+      logger.warn('Reconcile toRemove count mismatch', {
+        providerId,
+        requestedRemove: payload.toRemove.length,
+        actuallyDeleted
+      })
+    }
+
+    logger.info('Reconciled provider models', {
+      providerId,
+      added: values.length,
+      removed: actuallyDeleted
+    })
+
+    return rows.map(rowToRuntimeModel)
+  }
+
+  /**
    * Delete a model
    */
   async delete(providerId: string, modelId: string): Promise<void> {
@@ -477,6 +721,7 @@ class ModelService {
           outputModalities: model.outputModalities,
           endpointTypes: model.endpointTypes,
           contextWindow: model.contextWindow,
+          maxInputTokens: model.maxInputTokens,
           maxOutputTokens: model.maxOutputTokens,
           supportsStreaming: model.supportsStreaming,
           reasoning: model.reasoning,

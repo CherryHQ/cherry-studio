@@ -3,6 +3,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
 import { pinService } from '@data/services/PinService'
+import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -52,10 +53,18 @@ describe('AgentService', () => {
   // calls with `model: <canonical id>` satisfy the FK.
   const TEST_MODEL_ID = 'anthropic::claude-3-5-sonnet'
   beforeEach(async () => {
-    await dbh.db.insert(userProviderTable).values({ providerId: 'anthropic', name: 'anthropic' }).onConflictDoNothing()
+    await dbh.db
+      .insert(userProviderTable)
+      .values({ providerId: 'anthropic', name: 'anthropic' } as any)
+      .onConflictDoNothing()
     await dbh.db
       .insert(userModelTable)
-      .values({ id: TEST_MODEL_ID, providerId: 'anthropic', modelId: 'claude-3-5-sonnet' })
+      .values({
+        id: TEST_MODEL_ID,
+        providerId: 'anthropic',
+        modelId: 'claude-3-5-sonnet',
+        name: 'Claude 3.5 Sonnet'
+      } as any)
       .onConflictDoNothing()
   })
 
@@ -76,7 +85,14 @@ describe('AgentService', () => {
   }
 
   async function seedModelRefs() {
-    await dbh.db.insert(userProviderTable).values({ providerId: 'anthropic', name: 'Anthropic' })
+    await dbh.db
+      .insert(userProviderTable)
+      .values({
+        providerId: 'anthropic',
+        name: 'Anthropic',
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+      .onConflictDoNothing()
     await dbh.db.insert(userModelTable).values({
       id: createUniqueModelId('anthropic', 'claude-sonnet-4-5'),
       providerId: 'anthropic',
@@ -85,7 +101,7 @@ describe('AgentService', () => {
       name: 'Claude Sonnet 4.5',
       isEnabled: true,
       isHidden: false,
-      sortOrder: 0
+      orderKey: generateOrderKeyBetween(null, null)
     })
   }
 
@@ -101,8 +117,8 @@ describe('AgentService', () => {
     })
 
     it('places newly created agents first under default sort (createdAt desc)', async () => {
-      await insertAgent({ id: 'agent_existing_a' })
-      await insertAgent({ id: 'agent_existing_b' })
+      await insertAgent({ id: 'agent_existing_a', createdAt: 1, updatedAt: 1 })
+      await insertAgent({ id: 'agent_existing_b', createdAt: 2, updatedAt: 2 })
 
       const created = await agentService.createAgent({
         type: 'claude-code',
@@ -192,7 +208,7 @@ describe('AgentService', () => {
       const missing = await insertAgent({
         id: 'agent_model_test_2',
         name: 'missing',
-        model: 'anthropic::deleted-model'
+        model: null
       })
 
       const { agents } = await agentService.listAgents()

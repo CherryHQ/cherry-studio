@@ -527,7 +527,18 @@ const api = {
     logout: (apiHost: string) => ipcRenderer.invoke(IpcChannel.CherryIN_Logout, apiHost),
     startOAuthFlow: (oauthServer: string, apiHost?: string) =>
       ipcRenderer.invoke(IpcChannel.CherryIN_StartOAuthFlow, oauthServer, apiHost),
-    exchangeToken: (code: string, state: string) => ipcRenderer.invoke(IpcChannel.CherryIN_ExchangeToken, code, state)
+    onOAuthResult: (
+      callback: (result: { state: string; apiKeys: string } | { state: string; error: string }) => void
+    ) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        result: { state: string; apiKeys: string } | { state: string; error: string }
+      ) => callback(result)
+      ipcRenderer.on(IpcChannel.CherryIN_OAuthResult, listener)
+      return () => {
+        ipcRenderer.off(IpcChannel.CherryIN_OAuthResult, listener)
+      }
+    }
   },
   // Binary related APIs
   isBinaryExist: (name: string) => ipcRenderer.invoke(IpcChannel.App_IsBinaryExist, name),
@@ -916,6 +927,7 @@ const api = {
     listModels: (request: {
       providerId?: string
       assistantId?: string
+      throwOnError?: boolean
     }): Promise<Array<{ id: string; name: string; provider: string; group: string; [key: string]: unknown }>> =>
       ipcRenderer.invoke(IpcChannel.Ai_ListModels, request),
 

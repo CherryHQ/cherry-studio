@@ -479,9 +479,9 @@ export class AiService extends BaseService {
 
   // ── Model listing ──
 
-  async listModels(request: AiBaseRequest): Promise<Partial<Model>[]> {
+  async listModels(request: AiBaseRequest & { throwOnError?: boolean }): Promise<Partial<Model>[]> {
     const { provider } = await this.getProviderAndModel(request)
-    return listModelsFromProvider(provider)
+    return listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
   }
 
   // ── API validation ──

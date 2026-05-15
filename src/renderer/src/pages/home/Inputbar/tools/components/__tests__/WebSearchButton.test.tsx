@@ -55,7 +55,14 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
       mcpMode: 'disabled',
       mcpServers: []
     },
-    updateAssistant: updateAssistantMock
+    updateAssistant: updateAssistantMock,
+    model: {
+      id: 'anthropic::claude-3-5-sonnet',
+      providerId: 'anthropic',
+      name: 'Claude 3.5 Sonnet',
+      group: 'anthropic',
+      capabilities: []
+    }
   })
 }))
 

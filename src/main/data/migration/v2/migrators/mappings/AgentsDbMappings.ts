@@ -113,7 +113,7 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'type',
       'name',
       notNullCol('description', "''"),
-      'instructions',
+      notNullCol('instructions', "''"),
       { name: 'model', expr: buildUserModelLookupExpr('model'), sourceColumn: 'model' },
       { name: 'plan_model', expr: buildUserModelLookupExpr('plan_model'), sourceColumn: 'plan_model' },
       { name: 'small_model', expr: buildUserModelLookupExpr('small_model'), sourceColumn: 'small_model' },

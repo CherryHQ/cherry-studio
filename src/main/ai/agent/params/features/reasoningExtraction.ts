@@ -1,5 +1,5 @@
 import { definePlugin } from '@cherrystudio/ai-core'
-import { AppProviderId } from '@main/ai/types'
+import type { AppProviderId } from '@main/ai/types'
 import { extractReasoningMiddleware } from 'ai'
 
 import { getReasoningTagName } from '../../../utils/reasoning'

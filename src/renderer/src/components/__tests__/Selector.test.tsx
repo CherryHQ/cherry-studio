@@ -82,11 +82,10 @@ describe('Selector', () => {
 
     expect(screen.getByRole('combobox', { name: /plain/i })).toHaveAttribute('aria-disabled', 'true')
 
-    expect(screen.queryByRole('option', { name: /bubble/i })).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('combobox', { name: /plain/i }))
 
     expect(onChange).not.toHaveBeenCalled()
-    expect(screen.queryByRole('option', { name: /bubble/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /bubble/i })).toBeDisabled()
   })
 
   it('supports ReactNode labels in the trigger', () => {

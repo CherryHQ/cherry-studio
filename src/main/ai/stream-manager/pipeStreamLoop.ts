@@ -15,13 +15,9 @@
  * stream just forwards to a single WebContents).
  *
  * Behaviour contract:
- *  - Caller-owned `signal` cancels the broadcast reader. The accumulator
- *    reader is not cancelled directly — `Agent.stream` honours the same
- *    signal upstream and propagates `done` through `tee()`, so the
- *    accumulator drains naturally. Cancelling its reader directly would
- *    race AI SDK's internal `controller.close()` and produce an
- *    `ERR_INVALID_STATE` unhandledRejection. Idle-timeout, if desired,
- *    is the caller's job (wrap the input stream with `withIdleTimeout`).
+ *  - Caller-owned `signal` cancels both tee readers. Providers should honour
+ *    the same signal upstream and close naturally, but cancelling both readers
+ *    keeps abort deterministic when a stream does not close by itself.
  *  - In-stream error chunks (`chunk.type === 'error'`) are captured into
  *    `streamErrorText` for the caller to act on; they are NOT thrown.
  *  - The function never throws: a thrown error from the broadcast read or
@@ -81,7 +77,7 @@ export async function pipeStreamLoop(
   // Accumulator runs concurrently. Errors are swallowed (best-effort), the
   // last successful snapshot stays in `finalMessage`.
   let finalMessage: CherryUIMessage | undefined
-  const accumulator = runAccumulator(forAccum, options.accumulatorSeed, (msg: CherryUIMessage) => {
+  const accumulator = runAccumulator(forAccum, signal, options.accumulatorSeed, (msg: CherryUIMessage) => {
     finalMessage = msg
     options.onAccumulatedSnapshot?.(msg)
   }).catch(() => {
@@ -124,11 +120,17 @@ export async function pipeStreamLoop(
 
 async function runAccumulator(
   chunkStream: ReadableStream<UIMessageChunk>,
+  signal: AbortSignal,
   seed: CherryUIMessage | undefined,
   onSnapshot: (msg: CherryUIMessage) => void
 ): Promise<void> {
   const uiStream = readUIMessageStream<CherryUIMessage>({ stream: chunkStream, message: seed })
   const reader = uiStream.getReader()
+  const onAbort = () => {
+    void reader.cancel(signal.reason).catch(() => {})
+  }
+  if (signal.aborted) onAbort()
+  else signal.addEventListener('abort', onAbort, { once: true })
   try {
     while (true) {
       const { done, value } = await reader.read()
@@ -136,6 +138,7 @@ async function runAccumulator(
       onSnapshot(value)
     }
   } finally {
+    signal.removeEventListener('abort', onAbort)
     reader.releaseLock()
   }
 }

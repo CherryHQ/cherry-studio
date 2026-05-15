@@ -16,7 +16,7 @@ describe('AgentChannelService', () => {
       name: `Agent ${id}`,
       instructions: 'test',
       model: null
-    })
+    } as any)
   }
 
   describe('createChannel', () => {

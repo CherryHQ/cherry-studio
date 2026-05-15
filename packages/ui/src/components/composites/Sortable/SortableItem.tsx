@@ -8,6 +8,7 @@ interface SortableItemProps<T> {
   id: string | number
   index: number
   renderItem: RenderItemType<T>
+  disabled?: boolean
   useDragOverlay?: boolean
   showGhost?: boolean
   itemStyle?: React.CSSProperties
@@ -18,12 +19,14 @@ export function SortableItem<T>({
   id,
   index,
   renderItem,
+  disabled = false,
   useDragOverlay = true,
   showGhost = true,
   itemStyle
 }: SortableItemProps<T>) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id
+    id,
+    disabled
   })
 
   return (

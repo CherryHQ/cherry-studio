@@ -30,17 +30,6 @@ import type {
   SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
 import { type Options, query } from '@anthropic-ai/claude-agent-sdk'
-import type {
-  BetaContentBlock,
-  BetaContentBlockParam,
-  BetaRawContentBlockDeltaEvent,
-  BetaRawContentBlockStartEvent,
-  BetaRawContentBlockStopEvent,
-  BetaRawMessageDeltaEvent,
-  BetaToolResultBlockParam,
-  BetaToolUseBlock,
-  BetaUsage
-} from '@anthropic-ai/sdk/resources/beta/messages/messages'
 import { loggerService } from '@logger'
 
 import type { ClaudeCodeSettings } from './types'
@@ -57,6 +46,16 @@ const MIN_TRUNCATION_LENGTH = 512
 const MAX_TOOL_RESULT_SIZE = 10000
 
 // ── Internal types ──────────────────────────────────────────────────
+
+type BetaContentBlock = SDKAssistantMessage['message']['content'][number]
+type BetaContentBlockParam = Exclude<SDKUserMessage['message']['content'], string>[number]
+type BetaRawContentBlockDeltaEvent = Extract<SDKPartialAssistantMessage['event'], { type: 'content_block_delta' }>
+type BetaRawContentBlockStartEvent = Extract<SDKPartialAssistantMessage['event'], { type: 'content_block_start' }>
+type BetaRawContentBlockStopEvent = Extract<SDKPartialAssistantMessage['event'], { type: 'content_block_stop' }>
+type BetaRawMessageDeltaEvent = Extract<SDKPartialAssistantMessage['event'], { type: 'message_delta' }>
+type BetaToolResultBlockParam = Extract<BetaContentBlockParam, { type: 'tool_result' }>
+type BetaToolUseBlock = Extract<BetaContentBlock, { type: 'tool_use' }>
+type BetaUsage = SDKResultMessage['usage']
 
 /** Tool use with parent tracking (for subagent hierarchy) */
 type ToolUseWithParent = BetaToolUseBlock & { parent_tool_use_id?: string | null }

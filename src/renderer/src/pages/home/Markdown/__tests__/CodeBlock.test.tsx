@@ -6,6 +6,7 @@ import CodeBlock from '../CodeBlock'
 // Hoisted mocks
 const mocks = vi.hoisted(() => ({
   EventEmitter: {
+    on: vi.fn(),
     emit: vi.fn()
   },
   getCodeBlockId: vi.fn(),
@@ -35,6 +36,16 @@ vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: { EDIT_CODE_BLOCK: 'EDIT_CODE_BLOCK' },
   EventEmitter: mocks.EventEmitter
 }))
+
+vi.mock('@renderer/config/constant', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>()
+  return {
+    ...actual,
+    get isWin() {
+      return mocks.isWin
+    }
+  }
+})
 
 vi.mock('@renderer/utils/markdown', () => ({
   getCodeBlockId: mocks.getCodeBlockId,

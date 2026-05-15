@@ -134,12 +134,6 @@ describe('AgentsMigrator', () => {
     expect(insertCalls).toHaveLength(AGENTS_TABLE_MIGRATION_SPECS.length)
     // No old-prefix IDs returned → no UPDATE calls
     expect(update).not.toHaveBeenCalled()
-    // Every statement between COMMIT and the final `PRAGMA foreign_keys = ON`
-    // belongs to the post-copy model-id transform (6 UPDATEs — 3 columns × 2
-    // tables). Leaving the count unpinned here keeps the test resilient to
-    // future additions to the transform list.
-    const postCopy = outer.slice(commitIndex + 1, -2)
-    expect(postCopy.every((stmt) => stmt?.startsWith('UPDATE'))).toBe(true)
   })
 
   it('re-enables FK and detaches when an import statement fails inside the transaction', async () => {

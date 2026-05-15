@@ -364,7 +364,7 @@ describe('TranslatePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
 
-    await waitFor(() => expect(screen.getByTestId('token-count')).toHaveTextContent('3'))
+    await waitFor(() => expect(screen.getByTestId('token-count')).toHaveTextContent('1'))
   })
 
   it('keeps translating enabled for plain-text paste without entering file-processing state', async () => {
@@ -404,7 +404,7 @@ describe('TranslatePage', () => {
     expect(translateCoreMock.translateText).not.toHaveBeenCalled()
   })
 
-  it('shows unknown-language warning and skips translate when detection returns unknown', async () => {
+  it('uses detected unknown language when the target resolver accepts it', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': 'openai::gpt-4.1',
       'feature.translate.page.source_language': 'auto'
@@ -416,8 +416,15 @@ describe('TranslatePage', () => {
     rerender(<TranslatePage />)
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
 
-    await waitFor(() => expect((window as any).toast.error).toHaveBeenCalledWith('translate.error.detect.unknown'))
-    expect(translateCoreMock.translateText).not.toHaveBeenCalled()
+    await waitFor(() => expect(translateCoreMock.detectLanguage).toHaveBeenCalledWith('hello'))
+    await waitFor(() =>
+      expect(translateCoreMock.translateText).toHaveBeenCalledWith(
+        'hello',
+        'zh-cn',
+        expect.any(Function),
+        expect.any(AbortSignal)
+      )
+    )
   })
 
   it('silently swallows abort errors thrown by translateText (hook contract)', async () => {

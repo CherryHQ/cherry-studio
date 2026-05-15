@@ -1,15 +1,22 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import type { CreateModelDto, CreateModelsDto, ListModelsQuery, UpdateModelDto } from '@shared/data/api/schemas/models'
+import type {
+  BulkUpdateModelsDto,
+  CreateModelDto,
+  CreateModelsDto,
+  ListModelsQuery,
+  UpdateModelDto
+} from '@shared/data/api/schemas/models'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { isUndefined, omitBy } from 'lodash'
 import { useCallback } from 'react'
+import type { SWRConfiguration } from 'swr'
 
 const logger = loggerService.withContext('useModels')
 
-const EMPTY_MODELS: readonly Model[] = Object.freeze([])
+const EMPTY_MODELS: Model[] = []
 
 /**
  * Reactive read of the user's default / quick / translate models. Each id
@@ -39,7 +46,10 @@ export function useDefaultModel() {
 }
 
 // ─── Layer 1: List ────────────────────────────────────────────────────
-export function useModels(query?: ListModelsQuery, options?: { fetchEnabled?: boolean }) {
+export function useModels(
+  query?: ListModelsQuery,
+  options?: { fetchEnabled?: boolean; swrOptions?: SWRConfiguration }
+) {
   const filtered = query ? (omitBy(query, isUndefined) as ListModelsQuery) : undefined
   const hasQuery = filtered && Object.keys(filtered).length > 0
   const fetchEnabledFlag = options?.fetchEnabled
@@ -50,9 +60,12 @@ export function useModels(query?: ListModelsQuery, options?: { fetchEnabled?: bo
     hasQuery || hasEnabled
       ? {
           ...(hasQuery && { query: filtered }),
-          ...(hasEnabled && { enabled: fetchEnabledFlag })
+          ...(hasEnabled && { enabled: fetchEnabledFlag }),
+          ...(options?.swrOptions && { swrOptions: options.swrOptions })
         }
-      : undefined
+      : options?.swrOptions
+        ? { swrOptions: options.swrOptions }
+        : undefined
   )
 
   const models = data ?? EMPTY_MODELS
@@ -81,6 +94,12 @@ export function useModelMutations() {
     isLoading: isUpdating,
     error: updateError
   } = useMutation('PATCH', '/models/:uniqueModelId*', { refresh: ['/models'] })
+
+  const {
+    trigger: bulkUpdateTrigger,
+    isLoading: isBulkUpdating,
+    error: bulkUpdateError
+  } = useMutation('PATCH', '/models', { refresh: ['/models'] })
 
   const createModel = useCallback(
     async (dto: CreateModelDto) => {
@@ -135,6 +154,27 @@ export function useModelMutations() {
     [updateTrigger]
   )
 
+  /**
+   * Atomic batch update via `PATCH /models`.
+   *
+   * One IPC + one DB transaction + one `/models` revalidation. Per-item field
+   * semantics match `updateModel` (only fields present in `patch` are written;
+   * other columns and `userOverrides` tracking are preserved). On any failure
+   * the whole batch rolls back — there is no partial-success state for
+   * callers to reason about.
+   */
+  const updateModels = useCallback(
+    async (items: BulkUpdateModelsDto) => {
+      try {
+        return await bulkUpdateTrigger({ body: items })
+      } catch (error) {
+        logger.error('Failed to bulk update models', { count: items.length, error })
+        throw error
+      }
+    },
+    [bulkUpdateTrigger]
+  )
+
   return {
     createModel,
     createModels,
@@ -145,7 +185,10 @@ export function useModelMutations() {
     deleteError,
     updateModel,
     isUpdating,
-    updateError
+    updateError,
+    updateModels,
+    isBulkUpdating,
+    bulkUpdateError
   }
 }
 

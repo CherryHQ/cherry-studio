@@ -67,9 +67,15 @@ const SUPPORTED_VERTEX_PUBLISHER_MODEL_PATTERNS = [
   /^qwen[\w.@-]*$/i
 ] as const
 
-export async function createVertexModelListRequest(provider: Provider): Promise<VertexModelListRequest | undefined> {
+export async function createVertexModelListRequest(
+  provider: Provider,
+  options?: { throwOnError?: boolean }
+): Promise<VertexModelListRequest | undefined> {
   const authConfig = await providerService.getAuthConfig(provider.id)
   if (authConfig?.type !== 'iam-gcp') {
+    if (options?.throwOnError) {
+      throw new Error(`Vertex AI provider is not configured with iam-gcp auth: ${provider.id}`)
+    }
     logger.warn('Vertex AI model listing skipped — provider is not configured with iam-gcp auth', {
       providerId: provider.id,
       authType: authConfig?.type

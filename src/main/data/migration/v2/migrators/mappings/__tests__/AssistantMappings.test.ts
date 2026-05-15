@@ -30,6 +30,7 @@ describe('AssistantMappings', () => {
         emoji: '🤖',
         description: 'A test assistant',
         modelId: 'openai::gpt-4',
+        orderKey: '',
         // Migrator merges legacy fields onto DEFAULT_ASSISTANT_SETTINGS so the new
         // NOT NULL settings column always sees a complete object. Per-field
         // sanitiser keeps only legacy values that validate against the v2 schema.
@@ -54,6 +55,7 @@ describe('AssistantMappings', () => {
         emoji: '🌟',
         description: '',
         modelId: null,
+        orderKey: '',
         settings: DEFAULT_ASSISTANT_SETTINGS
       })
       expect(result.mcpServers).toStrictEqual([])

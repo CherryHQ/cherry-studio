@@ -47,6 +47,7 @@ async function setupDb() {
         assistant_id TEXT,
         active_node_id TEXT,
         group_id TEXT,
+        order_key TEXT DEFAULT 'a0' NOT NULL,
         sort_order INTEGER DEFAULT 0,
         is_pinned INTEGER DEFAULT 0,
         pinned_order INTEGER DEFAULT 0,

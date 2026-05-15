@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "2c985d40-0b87-4f28-87d9-2c7a8e00a451",
+  "id": "610862f0-c521-44d9-8605-322c9e8df50a",
   "prevId": "73a57fc7-c92c-48b3-a151-04bb07faf9f3",
   "tables": {
     "agent": {
@@ -36,6 +36,14 @@
           "autoincrement": false,
           "default": "''"
         },
+        "accessible_paths": {
+          "name": "accessible_paths",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
         "instructions": {
           "name": "instructions",
           "type": "text",
@@ -47,7 +55,7 @@
           "name": "model",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "plan_model": {
@@ -88,12 +96,13 @@
           "autoincrement": false,
           "default": "'{}'"
         },
-        "order_key": {
-          "name": "order_key",
-          "type": "text",
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": 0
         },
         "created_at": {
           "name": "created_at",
@@ -128,41 +137,13 @@
           "columns": ["type"],
           "isUnique": false
         },
-        "agent_order_key_idx": {
-          "name": "agent_order_key_idx",
-          "columns": ["order_key"],
+        "agent_sort_order_idx": {
+          "name": "agent_sort_order_idx",
+          "columns": ["sort_order"],
           "isUnique": false
         }
       },
-      "foreignKeys": {
-        "agent_model_user_model_id_fk": {
-          "name": "agent_model_user_model_id_fk",
-          "tableFrom": "agent",
-          "tableTo": "user_model",
-          "columnsFrom": ["model"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_plan_model_user_model_id_fk": {
-          "name": "agent_plan_model_user_model_id_fk",
-          "tableFrom": "agent",
-          "tableTo": "user_model",
-          "columnsFrom": ["plan_model"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_small_model_user_model_id_fk": {
-          "name": "agent_small_model_user_model_id_fk",
-          "tableFrom": "agent",
-          "tableTo": "user_model",
-          "columnsFrom": ["small_model"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -488,11 +469,18 @@
           "notNull": true,
           "autoincrement": false
         },
+        "agent_type": {
+          "name": "agent_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "agent_id": {
           "name": "agent_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "name": {
@@ -518,12 +506,73 @@
           "autoincrement": false,
           "default": "'[]'"
         },
-        "order_key": {
-          "name": "order_key",
+        "instructions": {
+          "name": "instructions",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "plan_model": {
+          "name": "plan_model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "small_model": {
+          "name": "small_model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "mcps": {
+          "name": "mcps",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
+        "allowed_tools": {
+          "name": "allowed_tools",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
+        "slash_commands": {
+          "name": "slash_commands",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
+        "configuration": {
+          "name": "configuration",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
         },
         "created_at": {
           "name": "created_at",
@@ -541,9 +590,19 @@
         }
       },
       "indexes": {
-        "agent_session_order_key_idx": {
-          "name": "agent_session_order_key_idx",
-          "columns": ["order_key"],
+        "agent_session_agent_id_idx": {
+          "name": "agent_session_agent_id_idx",
+          "columns": ["agent_id"],
+          "isUnique": false
+        },
+        "agent_session_model_idx": {
+          "name": "agent_session_model_idx",
+          "columns": ["model"],
+          "isUnique": false
+        },
+        "agent_session_sort_order_idx": {
+          "name": "agent_session_sort_order_idx",
+          "columns": ["sort_order"],
           "isUnique": false
         }
       },
@@ -554,7 +613,7 @@
           "tableTo": "agent",
           "columnsFrom": ["agent_id"],
           "columnsTo": ["id"],
-          "onDelete": "set null",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -1062,13 +1121,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "order_key": {
-          "name": "order_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -1095,11 +1147,6 @@
         "assistant_created_at_idx": {
           "name": "assistant_created_at_idx",
           "columns": ["created_at"],
-          "isUnique": false
-        },
-        "assistant_order_key_idx": {
-          "name": "assistant_order_key_idx",
-          "columns": ["order_key"],
           "isUnique": false
         }
       },
@@ -1239,6 +1286,202 @@
           "name": "assistant_mcp_server_assistant_id_mcp_server_id_pk"
         }
       },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "file_entry": {
+      "name": "file_entry",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "origin": {
+          "name": "origin",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ext": {
+          "name": "ext",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "size": {
+          "name": "size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "external_path": {
+          "name": "external_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "trashed_at": {
+          "name": "trashed_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "fe_trashed_at_idx": {
+          "name": "fe_trashed_at_idx",
+          "columns": ["trashed_at"],
+          "isUnique": false
+        },
+        "fe_created_at_idx": {
+          "name": "fe_created_at_idx",
+          "columns": ["created_at"],
+          "isUnique": false
+        },
+        "fe_external_path_lower_unique_idx": {
+          "name": "fe_external_path_lower_unique_idx",
+          "columns": ["lower(\"external_path\")"],
+          "isUnique": true
+        },
+        "fe_external_path_idx": {
+          "name": "fe_external_path_idx",
+          "columns": ["external_path"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "fe_origin_check": {
+          "name": "fe_origin_check",
+          "value": "\"file_entry\".\"origin\" IN ('internal', 'external')"
+        },
+        "fe_origin_consistency": {
+          "name": "fe_origin_consistency",
+          "value": "(\"file_entry\".\"origin\" = 'internal' AND \"file_entry\".\"external_path\" IS NULL) OR (\"file_entry\".\"origin\" = 'external' AND \"file_entry\".\"external_path\" IS NOT NULL)"
+        },
+        "fe_external_no_trash": {
+          "name": "fe_external_no_trash",
+          "value": "\"file_entry\".\"origin\" != 'external' OR \"file_entry\".\"trashed_at\" IS NULL"
+        },
+        "fe_size_internal_only": {
+          "name": "fe_size_internal_only",
+          "value": "(\"file_entry\".\"origin\" = 'internal' AND \"file_entry\".\"size\" IS NOT NULL AND \"file_entry\".\"size\" >= 0) OR (\"file_entry\".\"origin\" = 'external' AND \"file_entry\".\"size\" IS NULL)"
+        }
+      }
+    },
+    "file_ref": {
+      "name": "file_ref",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "file_entry_id": {
+          "name": "file_entry_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source_type": {
+          "name": "source_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "file_ref_entry_id_idx": {
+          "name": "file_ref_entry_id_idx",
+          "columns": ["file_entry_id"],
+          "isUnique": false
+        },
+        "file_ref_source_idx": {
+          "name": "file_ref_source_idx",
+          "columns": ["source_type", "source_id"],
+          "isUnique": false
+        },
+        "file_ref_unique_idx": {
+          "name": "file_ref_unique_idx",
+          "columns": ["file_entry_id", "source_type", "source_id", "role"],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "file_ref_file_entry_id_file_entry_id_fk": {
+          "name": "file_ref_file_entry_id_file_entry_id_fk",
+          "tableFrom": "file_ref",
+          "tableTo": "file_entry",
+          "columnsFrom": ["file_entry_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
@@ -3070,6 +3313,14 @@
     "columns": {}
   },
   "internal": {
-    "indexes": {}
+    "indexes": {
+      "fe_external_path_lower_unique_idx": {
+        "columns": {
+          "lower(\"external_path\")": {
+            "isExpression": true
+          }
+        }
+      }
+    }
   }
 }

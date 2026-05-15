@@ -57,6 +57,7 @@ export function createToolSearchTool(registry: ToolRegistry, deferredNames: Read
 
 async function serializeSchema(schema: unknown): Promise<unknown> {
   if (!schema) return undefined
+  if (typeof schema === 'object' && schema !== null && 'type' in schema) return schema
   // Tools can carry Zod, jsonSchema wrappers, or raw JSONSchema. AI SDK's
   // `asSchema` normalises all three into the canonical `Schema<T>` shape
   // whose `.jsonSchema` is what the model actually sees inline. Stringifying

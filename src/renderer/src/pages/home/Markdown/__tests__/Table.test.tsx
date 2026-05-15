@@ -24,7 +24,8 @@ const mocks = vi.hoisted(() => {
       info: vi.fn(),
       warn: vi.fn()
     },
-    exportTableToExcel: vi.fn()
+    exportTableToExcel: vi.fn(),
+    markdownContent: ''
   }
 })
 
@@ -38,12 +39,16 @@ vi.mock('@renderer/components/Icons', () => ({
   CopyIcon: ({ size }: { size: number }) => <div data-testid="copy-icon" style={{ width: size, height: size }} />
 }))
 
-vi.mock('lucide-react', () => ({
-  Check: ({ size }: { size: number }) => <div data-testid="check-icon" style={{ width: size, height: size }} />,
-  FileSpreadsheet: ({ size }: { size: number }) => (
-    <div data-testid="excel-icon" style={{ width: size, height: size }} />
-  )
-}))
+vi.mock('lucide-react', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>()
+  return {
+    ...actual,
+    Check: ({ size }: { size: number }) => <div data-testid="check-icon" style={{ width: size, height: size }} />,
+    FileSpreadsheet: ({ size }: { size: number }) => (
+      <div data-testid="excel-icon" style={{ width: size, height: size }} />
+    )
+  }
+})
 
 vi.mock('@renderer/utils/exportExcel', () => ({
   exportTableToExcel: mocks.exportTableToExcel
@@ -55,7 +60,18 @@ vi.mock('@logger', () => ({
   }
 }))
 
+vi.mock('../Markdown', () => ({
+  useMarkdownBlockContext: () => ({
+    content: mocks.markdownContent,
+    isStreaming: false
+  })
+}))
+
 vi.mock('react-i18next', () => ({
+  initReactI18next: {
+    type: '3rdParty',
+    init: vi.fn()
+  },
   useTranslation: () => ({
     t: (key: string) => key
   })
@@ -89,6 +105,7 @@ describe('Table', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.useFakeTimers()
+    mocks.markdownContent = defaultTableContent
   })
 
   afterEach(() => {
@@ -191,10 +208,9 @@ describe('Table', () => {
       const position = createTablePosition(1, 3)
       mocks.messageBlocksSelectors.selectById.mockReturnValue(block)
 
-      const result = extractTableMarkdown('test-block-1', position)
+      const result = extractTableMarkdown('test-block-1', position, block.content)
 
       expect(result).toBe(defaultTableContent)
-      expect(mocks.messageBlocksSelectors.selectById).toHaveBeenCalledWith({}, 'test-block-1')
     })
 
     it('should handle line range extraction correctly', () => {
@@ -207,7 +223,7 @@ Line 4`
       const position = createTablePosition(2, 4) // Extract lines 2-4 (table part)
       mocks.messageBlocksSelectors.selectById.mockReturnValue(block)
 
-      const result = extractTableMarkdown('test-block-1', position)
+      const result = extractTableMarkdown('test-block-1', position, block.content)
 
       expect(result).toBe(`| Header 1 | Header 2 |
 |----------|----------|
@@ -263,7 +279,7 @@ Line 4`
       const position = createTablePosition(1, 3)
       mocks.messageBlocksSelectors.selectById.mockReturnValue(block)
 
-      const result = extractTableMarkdown('test-block-1', position)
+      const result = extractTableMarkdown('test-block-1', position, block.content)
 
       expect(result).toBe('Line 1\nLine 2\nLine 3')
     })
@@ -333,7 +349,7 @@ Line 4`
     })
 
     it('should show error toast when extractTableMarkdown returns empty string', async () => {
-      mocks.messageBlocksSelectors.selectById.mockReturnValue(null)
+      mocks.markdownContent = ''
 
       render(<Table {...defaultProps} />)
 
@@ -393,7 +409,7 @@ Line 4`
     })
 
     it('should show error toast when extractTableMarkdown returns empty string', async () => {
-      mocks.messageBlocksSelectors.selectById.mockReturnValue(null)
+      mocks.markdownContent = ''
 
       render(<Table {...defaultProps} />)
 

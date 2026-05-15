@@ -61,7 +61,9 @@ vi.mock('../Inputbar/Inputbar', () => ({
 
 vi.mock('../Messages/Blocks', () => ({
   PartsProvider: ({ children }: { children: ReactNode }) => children,
-  RefreshProvider: ({ children }: { children: ReactNode }) => children
+  RefreshProvider: ({ children }: { children: ReactNode }) => children,
+  TranslationOverlayProvider: ({ children }: { children: ReactNode }) => children,
+  TranslationOverlaySetterProvider: ({ children }: { children: ReactNode }) => children
 }))
 
 vi.mock('../Messages/Messages', () => ({

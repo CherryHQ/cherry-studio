@@ -117,10 +117,13 @@ export async function fetchGenerate({
   }
 }
 
-export async function fetchModels(provider: Provider): Promise<Model[]> {
+export async function fetchModels(provider: Provider, options?: { throwOnError?: boolean }): Promise<Model[]> {
   try {
-    return await window.api.ai.listModels({ providerId: provider.id })
+    return await window.api.ai.listModels({ providerId: provider.id, throwOnError: options?.throwOnError })
   } catch (error) {
+    if (options?.throwOnError) {
+      throw error
+    }
     logger.error('Failed to fetch models from provider', {
       providerId: provider.id,
       providerName: provider.name,
@@ -160,10 +163,24 @@ export function checkApiProvider(provider: Provider): void {
  * api key / host / models) and IPC forwarding. Probe dispatch (embedding vs
  * chat), timeout handling, and latency measurement all happen in Main.
  */
-export async function checkApi(provider: Provider, model: Model, timeout = 15000): Promise<{ latency: number }> {
+export async function checkApi(
+  provider: Provider,
+  model: Model,
+  timeout = 15000,
+  _signal?: AbortSignal
+): Promise<{ latency: number }> {
   checkApiProvider(provider)
   return await window.api.ai.checkModel({
     uniqueModelId: createUniqueModelId(provider.id, model.id),
     timeout
   })
+}
+
+export async function checkModel(
+  provider: Provider,
+  model: Model,
+  timeout = 15000,
+  signal?: AbortSignal
+): Promise<{ latency: number }> {
+  return checkApi(provider, model, timeout, signal)
 }

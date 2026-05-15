@@ -20,7 +20,7 @@ describe('TaskService', () => {
       configuration: { soul_enabled: true },
       ...overrides,
       id
-    })
+    } as any)
     return { id }
   }
 

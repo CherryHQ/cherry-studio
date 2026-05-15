@@ -2,6 +2,7 @@ import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowled
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { KnowledgeItemService } from '@data/services/KnowledgeItemService'
+import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api'
 import type { CreateKnowledgeItemDto } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -17,7 +18,8 @@ describe('KnowledgeItemService', () => {
     service = new KnowledgeItemService()
     await dbh.db.insert(userProviderTable).values({
       providerId: 'openai',
-      name: 'OpenAI'
+      name: 'OpenAI',
+      orderKey: generateOrderKeyBetween(null, null)
     })
     await dbh.db.insert(userModelTable).values({
       id: createUniqueModelId('openai', 'text-embedding-3-large'),
@@ -27,7 +29,7 @@ describe('KnowledgeItemService', () => {
       name: 'text-embedding-3-large',
       isEnabled: true,
       isHidden: false,
-      sortOrder: 0
+      orderKey: generateOrderKeyBetween(null, null)
     })
     await dbh.db.insert(knowledgeBaseTable).values({
       id: 'kb-1',

@@ -100,15 +100,17 @@ describe('assistantHandlers', () => {
       expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, {})
     })
 
-    it('should reject partial settings updates before calling the service', async () => {
+    it('should forward partial settings updates to the service', async () => {
+      updateMock.mockResolvedValueOnce({ id: ASSISTANT_ID, name: 'Existing Assistant' })
+
       await expect(
         assistantHandlers['/assistants/:id'].PATCH({
           params: { id: ASSISTANT_ID },
           body: { settings: { maxTokens: 8192 } }
         } as never)
-      ).rejects.toHaveProperty('name', 'ZodError')
+      ).resolves.toMatchObject({ id: ASSISTANT_ID })
 
-      expect(updateMock).not.toHaveBeenCalled()
+      expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, { settings: { maxTokens: 8192 } })
     })
 
     it('should reject invalid tag ids before calling the service', async () => {

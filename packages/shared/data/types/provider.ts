@@ -25,6 +25,7 @@ const CatalogApiFeaturesSchema = z.object({
   streamOptions: z.boolean().optional(),
   developerRole: z.boolean().optional(),
   serviceTier: z.boolean().optional(),
+  enableThinking: z.boolean().optional(),
   verbosity: z.boolean().optional()
 })
 
@@ -69,9 +70,9 @@ export function isServiceTier(tier: string | null | undefined): tier is ServiceT
 
 export const ApiKeyEntrySchema = z.object({
   /** UUID for referencing this key */
-  id: z.string(),
-  /** Actual key value (encrypted in storage) */
-  key: z.string(),
+  id: z.string().min(1),
+  /** Actual key value (trimmed; empty values are rejected) */
+  key: z.string().trim().min(1),
   /** User-friendly label */
   label: z.string().optional(),
   /** Whether this key is enabled */
@@ -232,6 +233,8 @@ export const ProviderSchema = z.object({
   name: z.string(),
   /** Description */
   description: z.string().optional(),
+  /** Preset provider website links */
+  websites: ProviderWebsitesSchema.optional(),
   /** Per-endpoint-type configuration (baseUrl, reasoningFormatType, modelsApiUrls) */
   endpointConfigs: z.record(EndpointTypeSchema, EndpointConfigSchema).optional() as z.ZodOptional<
     z.ZodType<Partial<Record<EndpointType, EndpointConfig>>>
@@ -257,6 +260,7 @@ export const DEFAULT_API_FEATURES: RuntimeApiFeatures = {
   streamOptions: true,
   developerRole: false,
   serviceTier: false,
+  enableThinking: true,
   verbosity: false
 }
 

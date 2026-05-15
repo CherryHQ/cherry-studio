@@ -17,7 +17,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { isLlmProvider, isWebSearchProvider, useApiKeys } from './hook'
+import { isLlmProvider, useApiKeys } from './hook'
 import ApiKeyItem from './item'
 import type { ApiProvider, UpdateApiProviderFunc } from './types'
 
@@ -75,11 +75,7 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, show
   }
 
   const shouldAutoFocus = () => {
-    const hasKey = isLlmProvider(provider)
-      ? Boolean(provider.apiKey)
-      : isWebSearchProvider(provider)
-        ? provider.apiKeys.length > 0
-        : Boolean(provider.apiKey)
+    const hasKey = Boolean(provider.apiKey)
     if (hasKey) return false
     return isLlmProvider(provider) && provider.enabled && !isProviderSupportAuth(provider)
   }

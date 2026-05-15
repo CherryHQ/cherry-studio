@@ -7,21 +7,12 @@ import {
   type EndpointType,
   inferAdapterFamily,
   MODEL_CAPABILITY,
-  type ModelCapability,
-  type ModelConfig as ProtoModelConfig,
-  normalizeModelId,
-  type ProviderConfig as ProtoProviderConfig,
-  type ProviderModelOverride as ProtoProviderModelOverride
+  type ModelCapability
 } from '@cherrystudio/provider-registry'
 import type { NewUserModel } from '@data/db/schemas/userModel'
 import type { NewUserProvider } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
-import {
-  createUniqueModelId,
-  type ParameterSupport,
-  type ReasoningConfig,
-  type RuntimeModelPricing
-} from '@shared/data/types/model'
+import { createUniqueModelId, type RuntimeModelPricing } from '@shared/data/types/model'
 import type {
   ApiFeatures,
   ApiKeyEntry,
@@ -30,7 +21,6 @@ import type {
   ProviderSettings,
   ReasoningFormatType
 } from '@shared/data/types/provider'
-import { mergePresetModel } from '@shared/data/utils/modelMerger'
 import type { Model as LegacyModel, ModelType, Provider as LegacyProvider } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -78,12 +68,16 @@ const ENDPOINT_MAP: Partial<Record<string, EndpointType>> = {
   'openai-response': ENDPOINT_TYPE.OPENAI_RESPONSES,
   anthropic: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
   gemini: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  'azure-openai': ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  vertexai: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
   'image-generation': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
   'jina-rerank': ENDPOINT_TYPE.JINA_RERANK,
   'new-api': ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
   gateway: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
   ollama: ENDPOINT_TYPE.OLLAMA_CHAT
 }
+
+const PROVIDER_TYPES_WITHOUT_DEFAULT_ENDPOINT = new Set(['aws-bedrock'])
 
 const REASONING_FORMAT_MAP: Partial<Record<LegacyProvider['type'], ReasoningFormatType>> = {
   openai: 'openai-chat',
@@ -97,14 +91,15 @@ const REASONING_FORMAT_MAP: Partial<Record<LegacyProvider['type'], ReasoningForm
 
 /**
  * Type-inferred AI SDK adapter family for endpoints the catalog can't supply
- * (custom-id v1 providers, missing registry, etc.). Lets the resolver trust
- * `adapterFamily` as the sole routing signal — no runtime heuristics needed.
+ * (custom-id v1 providers, missing registry, etc.).
  */
 const LEGACY_TYPE_TO_ADAPTER_FAMILY: Partial<Record<LegacyProvider['type'], string>> = {
   openai: 'openai-compatible',
   'openai-response': 'openai',
   anthropic: 'anthropic',
   gemini: 'google',
+  'azure-openai': 'openai',
+  vertexai: 'google',
   'new-api': 'newapi',
   gateway: 'gateway',
   ollama: 'ollama'
@@ -177,36 +172,46 @@ const SYSTEM_PROVIDER_IDS = new Set([
   'zai'
 ])
 
-export function transformProvider(
-  legacy: LegacyProvider,
-  settings: OldLlmSettings,
-  sortOrder: number,
-  catalogProvider?: ProtoProviderConfig | null
-): NewUserProvider {
+const TYPE_TO_PRESET_PROVIDER_ID: Partial<Record<LegacyProvider['type'], string>> = {
+  'azure-openai': 'azure-openai',
+  'aws-bedrock': 'aws-bedrock',
+  vertexai: 'vertexai',
+  'vertex-anthropic': 'vertexai',
+  ollama: 'ollama'
+}
+
+function resolvePresetProviderId(legacy: LegacyProvider): string | null {
+  if (SYSTEM_PROVIDER_IDS.has(legacy.id)) {
+    return legacy.id
+  }
+  return TYPE_TO_PRESET_PROVIDER_ID[legacy.type] ?? null
+}
+
+type NewUserProviderInput = Omit<NewUserProvider, 'orderKey'>
+
+export function transformProvider(legacy: LegacyProvider, settings: OldLlmSettings): NewUserProviderInput {
   const endpointType = ENDPOINT_MAP[legacy.type]
-  if (legacy.type && !endpointType) {
+  if (legacy.type && !endpointType && !PROVIDER_TYPES_WITHOUT_DEFAULT_ENDPOINT.has(legacy.type)) {
     logger.warn('Unknown provider type dropped during migration', { providerId: legacy.id, legacyType: legacy.type })
   }
 
   return {
     providerId: legacy.id,
-    presetProviderId: SYSTEM_PROVIDER_IDS.has(legacy.id) ? legacy.id : null,
+    presetProviderId: resolvePresetProviderId(legacy),
     name: legacy.name,
-    endpointConfigs: buildEndpointConfigs(legacy, endpointType, catalogProvider),
+    endpointConfigs: buildEndpointConfigs(legacy, endpointType),
     defaultChatEndpoint: endpointType ?? null,
-    apiKeys: buildApiKeys(legacy.apiKey),
+    apiKeys: buildProviderApiKeys(legacy, settings),
     authConfig: buildAuthConfig(legacy, settings),
     apiFeatures: buildApiFeatures(legacy),
     providerSettings: buildProviderSettings(legacy, settings),
-    isEnabled: legacy.enabled ?? true,
-    sortOrder
+    isEnabled: legacy.enabled ?? true
   }
 }
 
 function buildEndpointConfigs(
   legacy: LegacyProvider,
-  endpointType: EndpointType | undefined,
-  catalogProvider: ProtoProviderConfig | null | undefined
+  endpointType: EndpointType | undefined
 ): NewUserProvider['endpointConfigs'] {
   const configs: Partial<Record<EndpointType, EndpointConfig>> = {}
 
@@ -225,14 +230,11 @@ function buildEndpointConfigs(
     configs[endpointType] = { ...configs[endpointType], reasoningFormatType }
   }
 
-  const catalogEndpoints = catalogProvider?.endpointConfigs
   const legacyTypeFamily = LEGACY_TYPE_TO_ADAPTER_FAMILY[legacy.type]
   for (const key of Object.keys(configs) as EndpointType[]) {
     if (configs[key]?.adapterFamily) continue
-    const fromCatalog = catalogEndpoints?.[key]?.adapterFamily
     const legacyHint = key === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ? undefined : legacyTypeFamily
-    const adapterFamily = fromCatalog ?? legacyHint ?? inferAdapterFamily(key)
-    configs[key] = { ...configs[key], adapterFamily }
+    configs[key] = { ...configs[key], adapterFamily: legacyHint ?? inferAdapterFamily(key) }
   }
 
   return Object.keys(configs).length > 0 ? configs : null
@@ -254,14 +256,30 @@ function buildApiKeys(apiKey: string): ApiKeyEntry[] {
     }))
 }
 
+function isAwsBedrockProvider(legacy: LegacyProvider): boolean {
+  return legacy.id === 'aws-bedrock' || legacy.type === 'aws-bedrock'
+}
+
+function isAzureOpenAIProvider(legacy: LegacyProvider): boolean {
+  return legacy.id === 'azure-openai' || legacy.type === 'azure-openai'
+}
+
+function buildProviderApiKeys(legacy: LegacyProvider, settings: OldLlmSettings): ApiKeyEntry[] {
+  if (isAwsBedrockProvider(legacy) && settings.awsBedrock?.authType === 'apiKey') {
+    return buildApiKeys(settings.awsBedrock.apiKey ?? '')
+  }
+
+  return buildApiKeys(legacy.apiKey)
+}
+
 function buildAuthConfig(legacy: LegacyProvider, settings: OldLlmSettings): AuthConfig | null {
-  if (legacy.isVertex && settings.vertexai) {
+  if (legacy.isVertex) {
     const vertex = settings.vertexai
     return {
       type: 'iam-gcp',
-      project: vertex.projectId ?? '',
-      location: vertex.location ?? '',
-      credentials: vertex.serviceAccount
+      project: vertex?.projectId ?? '',
+      location: vertex?.location ?? '',
+      credentials: vertex?.serviceAccount
         ? {
             privateKey: vertex.serviceAccount.privateKey,
             clientEmail: vertex.serviceAccount.clientEmail
@@ -270,20 +288,24 @@ function buildAuthConfig(legacy: LegacyProvider, settings: OldLlmSettings): Auth
     }
   }
 
-  if (legacy.id === 'aws-bedrock' && settings.awsBedrock) {
+  if (isAwsBedrockProvider(legacy)) {
     const aws = settings.awsBedrock
+    if (aws?.authType === 'apiKey') {
+      return { type: 'api-key' }
+    }
+
     return {
       type: 'iam-aws',
-      region: aws.region ?? '',
-      accessKeyId: aws.accessKeyId,
-      secretAccessKey: aws.secretAccessKey
+      region: aws?.region ?? '',
+      accessKeyId: aws?.accessKeyId,
+      secretAccessKey: aws?.secretAccessKey
     }
   }
 
-  if (legacy.id === 'azure-openai' && legacy.apiVersion) {
+  if (isAzureOpenAIProvider(legacy)) {
     return {
       type: 'iam-azure',
-      apiVersion: legacy.apiVersion
+      apiVersion: legacy.apiVersion ?? ''
     }
   }
 
@@ -342,6 +364,11 @@ function buildApiFeatures(legacy: LegacyProvider): ApiFeatures | null {
     (legacy.isNotSupportServiceTier != null ? !legacy.isNotSupportServiceTier : undefined)
   if (supportsServiceTier != null) {
     features.serviceTier = supportsServiceTier
+    hasValue = true
+  }
+
+  if (apiOptions?.isNotSupportEnableThinking != null) {
+    features.enableThinking = !apiOptions.isNotSupportEnableThinking
     hasValue = true
   }
 
@@ -410,100 +437,41 @@ function buildProviderSettings(legacy: LegacyProvider, llmSettings: OldLlmSettin
   return hasValue ? settings : null
 }
 
-/** Lookups passed by the migrator so transformModel can enrich legacy v1
- *  rows with catalog data. v1 stored only the fields the user explicitly
- *  edited (capabilities, sometimes pricing); contextWindow / maxOutputTokens /
- *  reasoning / parameters / modalities were inferred at runtime. Filling them
- *  in at migration time avoids a runtime merge — `rowToRuntimeModel` reads
- *  user_model directly with no preset fallback. */
-export interface RegistryLookups {
-  preset?: (modelId: string) => ProtoModelConfig | null
-  override?: (providerId: string, modelId: string) => ProtoProviderModelOverride | null
-  defaultChatEndpoint?: EndpointType
-  reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
-}
-
-/** Resolve registry context (default chat endpoint + reasoning format) for a
- *  legacy provider. Used by the migrator to feed `transformModel`. */
-export function getProviderRegistryContext(
-  legacy: LegacyProvider
-): Pick<RegistryLookups, 'defaultChatEndpoint' | 'reasoningFormatTypes'> {
-  const defaultChatEndpoint = ENDPOINT_MAP[legacy.type]
-  if (!defaultChatEndpoint) return {}
-
-  const reasoningFormatType = REASONING_FORMAT_MAP[legacy.type]
-  const reasoningFormatTypes = reasoningFormatType
-    ? ({ [defaultChatEndpoint]: reasoningFormatType } as Partial<Record<EndpointType, ReasoningFormatType>>)
-    : undefined
-
-  return { defaultChatEndpoint, reasoningFormatTypes }
-}
-
-export function transformModel(
-  legacy: LegacyModel,
-  providerId: string,
-  sortOrder: number,
-  registry?: RegistryLookups
-): NewUserModel {
+export function transformModel(legacy: LegacyModel, providerId: string): Omit<NewUserModel, 'orderKey'> {
   const hasCustomizedCapabilities =
     legacy.capabilities?.some((capability) => capability.isUserSelected !== undefined) ?? false
-
-  const preset = registry?.preset?.(legacy.id) ?? null
-  const override = preset && registry?.override ? registry.override(providerId, preset.id) : null
-  const merged = preset
-    ? mergePresetModel(preset, override, providerId, registry?.reasoningFormatTypes, registry?.defaultChatEndpoint)
-    : null
-
-  // Capabilities: legacy user toggle wins; otherwise fall back to merged catalog.
-  const userCaps = mapCapabilities(legacy.capabilities)
-  const capabilities = userCaps ?? merged?.capabilities ?? null
-
-  const legacyEndpointTypes = mapEndpointTypes(legacy.endpoint_type, legacy.supported_endpoint_types)
-  const legacyPricing = mapPricing(legacy.pricing)
-
-  // parameterSupport lives on the preset, with optional partial override.
-  // mergePresetModel doesn't surface it in the runtime Model, so read it here.
-  const parameters = mergeParameterSupport(preset?.parameterSupport, override?.parameterSupport)
 
   return {
     id: createUniqueModelId(providerId, legacy.id),
     providerId,
     modelId: legacy.id,
-    presetModelId: preset?.id ?? normalizeModelId(legacy.id),
-    name: legacy.name ?? merged?.name ?? null,
-    description: legacy.description ?? merged?.description ?? null,
+    // Leave presetModelId null here. enrichModelRow looks up the registry and
+    // sets presetModelId only when a real preset matches; setting it here
+    // unconditionally would mark fully-custom v1 models as preset overrides
+    // (symmetric to the v1 default-name bug fixed in db3e1f76).
+    presetModelId: null,
+    name: legacy.name ?? legacy.id,
+    description: legacy.description ?? null,
     group: legacy.group ?? null,
-    capabilities,
-    inputModalities: merged?.inputModalities ?? null,
-    outputModalities: merged?.outputModalities ?? null,
-    endpointTypes: legacyEndpointTypes ?? merged?.endpointTypes ?? null,
-    contextWindow: merged?.contextWindow ?? null,
-    maxOutputTokens: merged?.maxOutputTokens ?? null,
-    supportsStreaming: legacy.supported_text_delta ?? null,
-    reasoning: (merged?.reasoning ?? null) as ReasoningConfig | null,
-    parameters,
-    pricing: legacyPricing ?? merged?.pricing ?? null,
+    capabilities: mapCapabilities(legacy.capabilities),
+    inputModalities: null,
+    outputModalities: null,
+    endpointTypes: mapEndpointTypes(legacy.endpoint_type, legacy.supported_endpoint_types),
+    contextWindow: null,
+    maxOutputTokens: null,
+    supportsStreaming: legacy.supported_text_delta ?? true,
+    reasoning: null,
+    parameters: null,
+    pricing: mapPricing(legacy.pricing),
     isEnabled: true,
     isHidden: false,
-    sortOrder,
     userOverrides: hasCustomizedCapabilities ? ['capabilities'] : null
   }
 }
 
-/** Merge preset.parameterSupport (full) with override.parameterSupport (partial).
- *  Override wins per-field. Result conforms to the DB ParameterSupport shape
- *  (all fields optional). */
-function mergeParameterSupport(
-  preset: ProtoModelConfig['parameterSupport'] | undefined,
-  override: ProtoProviderModelOverride['parameterSupport'] | undefined
-): ParameterSupport | null {
-  if (!preset && !override) return null
-  return { ...preset, ...override } as ParameterSupport
-}
-
-function mapCapabilities(capabilities?: LegacyModel['capabilities']): ModelCapability[] | null {
+function mapCapabilities(capabilities?: LegacyModel['capabilities']): ModelCapability[] {
   if (!capabilities || capabilities.length === 0) {
-    return null
+    return []
   }
 
   const mapped: ModelCapability[] = []
@@ -516,7 +484,7 @@ function mapCapabilities(capabilities?: LegacyModel['capabilities']): ModelCapab
     }
   }
 
-  return mapped.length > 0 ? Array.from(new Set(mapped)) : null
+  return mapped.length > 0 ? Array.from(new Set(mapped)) : []
 }
 
 function mapEndpointTypes(

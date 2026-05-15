@@ -249,8 +249,8 @@ describe('BasicSection model settings', () => {
       />
     )
 
-    const contextSlider = screen.getAllByRole('slider').find((slider) => slider.getAttribute('aria-valuemax') === '20')
+    const contextSlider = screen.getAllByRole('spinbutton').find((input) => input.getAttribute('value') === '20')
 
-    expect(contextSlider).toHaveAttribute('aria-valuemin', '1')
+    expect(contextSlider).toHaveAttribute('min', '1')
   })
 })

@@ -46,7 +46,7 @@ describe('SkillService', () => {
       name: 'Test Agent',
       instructions: 'You are a helpful assistant.',
       model: null
-    })
+    } as any)
   }
 
   async function seedSkills() {
@@ -311,8 +311,8 @@ describe('SkillService', () => {
     it('rolls back DB and throws AggregateError when symlink + rollback both fail', async () => {
       await seedAgent()
       await seedSkills()
-      // Patch getAgentWorkspace to return a fake workspace so linkSkill is attempted
-      vi.spyOn(skillService as never, 'getAgentWorkspace').mockResolvedValue('/fake/workspace')
+      // Patch workspace discovery to return a fake workspace so linkSkill is attempted
+      vi.spyOn(skillService as never, 'getAgentSessionWorkspaces').mockResolvedValue(['/fake/workspace'])
       vi.spyOn(skillService, 'linkSkill').mockRejectedValue(new Error('symlink failed'))
       // First call (enable) succeeds; second call (rollback) fails → AggregateError
       vi.spyOn(skillService as never, 'upsertAgentSkill')
@@ -385,7 +385,7 @@ describe('SkillService', () => {
       await seedSkills()
       await dbh.db.insert(agentSkillTable).values({ agentId: AGENT_ID, skillId: SKILL_ID_1, isEnabled: true })
       vi.spyOn(skillService['installer'], 'uninstall').mockResolvedValue(undefined)
-      vi.spyOn(skillService as never, 'getAgentWorkspace').mockResolvedValue('/fake/workspace')
+      vi.spyOn(skillService as never, 'getAgentSessionWorkspaces').mockResolvedValue(['/fake/workspace'])
       const unlinkSpy = vi.spyOn(skillService, 'unlinkSkill').mockResolvedValue(undefined)
 
       await skillService.uninstall(SKILL_ID_1)

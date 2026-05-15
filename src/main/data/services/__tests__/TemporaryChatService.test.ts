@@ -100,7 +100,7 @@ describe('TemporaryChatService', () => {
       const topic = await service.createTopic({ name: 'hello' })
       expect(topic.id).toMatch(/^[0-9a-f-]{36}$/)
       expect(topic.name).toBe('hello')
-      expect(topic.activeNodeId).toBeNull()
+      expect(topic.activeNodeId).toBeUndefined()
       expect(topic.orderKey).toBe('')
       expect(typeof topic.createdAt).toBe('string')
       expect(new Date(topic.createdAt).getTime()).toBeGreaterThan(0)

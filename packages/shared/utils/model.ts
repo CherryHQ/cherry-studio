@@ -33,7 +33,8 @@ export const isAudioModel = (model: Model): boolean =>
 export const isEmbeddingModel = (model: Model): boolean => model.capabilities.includes(MODEL_CAPABILITY.EMBEDDING)
 
 /** Check if model is a reranking model */
-export const isRerankModel = (model: Model): boolean => model.capabilities.includes(MODEL_CAPABILITY.RERANK)
+export const isRerankModel = (model: { capabilities?: readonly unknown[] | null }): boolean =>
+  model.capabilities?.includes(MODEL_CAPABILITY.RERANK) ?? false
 
 /** Check if model supports function calling / tool use */
 export const isFunctionCallingModel = (model: Model): boolean =>
@@ -45,6 +46,14 @@ export const isWebSearchModel = (model: Model): boolean => model.capabilities.in
 /** Check if model supports image generation */
 export const isGenerateImageModel = (model: Model): boolean =>
   model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION)
+
+export const isFreeModel = (model: Pick<Model, 'id' | 'name' | 'providerId'>): boolean => {
+  if (model.providerId === 'cherryai') {
+    return true
+  }
+
+  return (model.id + model.name).toLowerCase().includes('free')
+}
 
 export const isGenerateVideoModel = (model: Model): boolean =>
   !!model.capabilities.includes(MODEL_CAPABILITY.VIDEO_GENERATION)
@@ -59,7 +68,7 @@ export const isSpeechToTextModel = (model: Model): boolean =>
   !!(model.capabilities.includes(MODEL_CAPABILITY.AUDIO_TRANSCRIPT) || model.inputModalities?.includes(MODALITY.AUDIO))
 
 export const isTextToSpeechModel = (model: Model): boolean =>
-  !!(model.capabilities.includes(MODEL_CAPABILITY.AUDIO_GENERATION) || model.inputModalities?.includes(MODALITY.AUDIO))
+  !!(model.capabilities.includes(MODEL_CAPABILITY.AUDIO_GENERATION) || model.outputModalities?.includes(MODALITY.AUDIO))
 
 /** Check if model is a dedicated text-to-image model (no text chat) */
 export const isTextToImageModel = (model: Model): boolean =>
@@ -155,7 +164,7 @@ export const isAnthropicModel = (model: Model): boolean =>
 
 /** Check if model is a Gemini model */
 export const isGeminiModel = (model: Model): boolean =>
-  VENDOR_PATTERNS.gemini.test(getLowerBaseModelName(getRawModelId(model)))
+  VENDOR_PATTERNS.gemini.test(getLowerBaseModelName(getRawModelId(model))) || model.providerId === 'gemini'
 
 /** Check if model is Gemini 3 series (sub-family of Gemini, ID-specific). */
 export const isGemini3Model = (model: Model): boolean =>
@@ -233,7 +242,10 @@ export const isMistralModel = vendorCheck(VENDOR_PATTERNS.mistral)
 export const isOpenAIReasoningModel = (model: Model): boolean => isOpenAIModel(model) && isReasoningModel(model)
 
 /** Check if model only supports chat completion (no responses API) */
-export const isOpenAIChatCompletionOnlyModel = (m: Model) => isOpenAIWebSearchChatCompletionOnlyModel(m)
+export const isOpenAIChatCompletionOnlyModel = (m: Model) => {
+  const id = getLowerBaseModelName(getRawModelId(m))
+  return isOpenAIWebSearchChatCompletionOnlyModel(m) || id.includes('o1-mini') || id.includes('o1-preview')
+}
 
 /** Check if model supports web search in chat completion mode only */
 export const isOpenAIWebSearchChatCompletionOnlyModel = (model: Model): boolean => {
@@ -467,20 +479,24 @@ export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean =>
 
 /**
  * MiMo thinking-token support = MiMo vendor + `thinkingTokenLimits`.
- * Covers `mimo-v2-flash / pro / omni` via THINKING_TOKEN_MAP.
+ * Covers `mimo-v2.5` and `mimo-v2-flash / pro / omni` via THINKING_TOKEN_MAP.
  */
 export const isSupportedThinkingTokenMiMoModel = (model: Model): boolean =>
-  isMiMoModel(model) && isSupportedThinkingTokenModel(model)
+  isMiMoModel(model) &&
+  isSupportedThinkingTokenModel(model) &&
+  !/(?:^|-)tts(?:-|$)|(?:^|-)asr(?:-|$)/i.test(getLowerBaseModelName(getRawModelId(model)))
 
 /**
  * Kimi thinking-token support = Kimi vendor + `thinkingTokenLimits`.
- * Only `kimi-k2.5` currently ships the knob.
+ * Kimi K2.5 and newer currently ship the knob.
  */
 export const isSupportedThinkingTokenKimiModel = (model: Model): boolean =>
   isKimiModel(model) && isSupportedThinkingTokenModel(model)
 
-export const isDeepSeekV4PlusModel = (model: Model): boolean =>
-  /(\w+-)?deepseek-v3(?:\.\d|-\d)(?:(\.|-)(?!speciale$)\w+)?$/.test(model.id)
+export const isDeepSeekV4PlusModel = (model: Model): boolean => {
+  const id = getLowerBaseModelName(getRawModelId(model))
+  return /(?:^|[/:_-])deepseek-v(?:[4-9]|\d{2,})(?:[.\w:-]*)?$/.test(id)
+}
 
 /** DeepSeek model that does runtime hybrid inference (thinking / non-thinking at same endpoint). */
 export const isDeepSeekHybridInferenceModel = (model: Model): boolean => {
@@ -573,6 +589,22 @@ export const getLowerBaseModelName = (id: string, delimiter: string = '/'): stri
   return baseModelName
 }
 
+export const groupQwenModels = <T extends Pick<Model, 'id'> & Partial<Pick<Model, 'group'>>>(
+  models: T[]
+): Record<string, T[]> => {
+  return models.reduce<Record<string, T[]>>((groups, model) => {
+    const modelId = getLowerBaseModelName(model.id)
+    const prefixMatch = modelId.match(/^(qwen(?:\d+\.\d+|2(?:\.\d+)?|-\d+b|-(?:max|coder|vl)))/i)
+    const groupKey = prefixMatch ? prefixMatch[1] : model.group || '其他'
+
+    if (!groups[groupKey]) {
+      groups[groupKey] = []
+    }
+    groups[groupKey].push(model)
+    return groups
+  }, {})
+}
+
 // ---------------------------------------------------------------------------
 // Regex constants (used by inference helpers)
 // ---------------------------------------------------------------------------
@@ -608,8 +640,9 @@ export function inferReasoningFromModelId(rawModelId: string): boolean {
     id.includes('hunyuan-t1') ||
     id.includes('hunyuan-a13b') ||
     /glm-?5|glm-4\.[567]|glm-z1/.test(id) ||
-    ['mimo-v2-flash', 'mimo-v2-pro', 'mimo-v2-omni'].some((m) => id.includes(m)) ||
-    /^kimi-k2-thinking(?:-turbo)?$|^kimi-k2\.5(?:-[\w-]+)?$/.test(id) ||
+    ['mimo-v2.5', 'mimo-v2-flash', 'mimo-v2-pro', 'mimo-v2-omni'].some((m) => id.includes(m)) ||
+    /(?:^|[/_-])kimi-k(?:2\.[5-9]\d*|[3-9]\d*(?:\.\d+)?|2-thinking(?:-turbo)?)(?:-[\w-]+)?$/.test(id) ||
+    id.includes('mistral-small-2603') ||
     id.includes('magistral') ||
     id.includes('pangu-pro-moe') ||
     id.includes('seed-oss') ||
@@ -701,7 +734,7 @@ const FUNCTION_CALLING_ALLOWED_MODELS = [
   'gpt-4o-mini',
   'gpt-4',
   'gpt-4.5',
-  'gpt-oss(?:-[\\w-]+)',
+  'gpt-oss(?:-[\\w-]+)?',
   'gpt-5(?:-[0-9-]+)?',
   'o(1|3|4)(?:-[\\w-]+)?',
   'claude',
@@ -725,6 +758,7 @@ const FUNCTION_CALLING_ALLOWED_MODELS = [
   'ling-\\w+(?:-[\\w-]+)?',
   'ring-\\w+(?:-[\\w-]+)?',
   'minimax-m2(?:\\.\\d+)?(?:-[\\w-]+)?',
+  'mimo-v2\\.5(?:-[\\w-]+)?',
   'mimo-v2-flash',
   'mimo-v2-pro',
   'mimo-v2-omni',
@@ -744,6 +778,7 @@ const FUNCTION_CALLING_EXCLUDED_MODELS = [
   'gemini-2.5-flash-image(?:-[\\w-]+)?',
   'gemini-2.0-flash-preview-image-generation',
   'gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?',
+  'mimo-v2\\.5-tts(?:-[\\w-]+)?',
   'deepseek-v3.2-speciale'
 ]
 
@@ -793,6 +828,10 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
     min: 1024,
     max: 32_000
   },
+  '(?:anthropic\\.)?claude-opus-4[.-]7(?:[@-](?:\\d{4,}|[a-z][\\w-]*))?(?:-v\\d+:\\d+)?$': {
+    min: 1024,
+    max: 128_000
+  },
   '(?:anthropic\\.)?claude-3[.-]7.*sonnet.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 64_000 },
   'baichuan-m2$': { min: 0, max: 30_000 },
   'baichuan-m3$': { min: 0, max: 30_000 },
@@ -805,9 +844,10 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   // provider-prefixed ids (zhipu/glm-4.6, fireworks normalized form).
   'glm-?5|glm-4\\.[567]': { min: 0, max: 30_720 },
   // MiMo v2 family.
+  'mimo-v2\\.5(?:-[\\w-]+)?': { min: 0, max: 30_720 },
   'mimo-v2-(?:flash|pro|omni)': { min: 0, max: 30_720 },
-  // Kimi K2.5.
-  'kimi-k2\\.5': { min: 0, max: 30_720 },
+  // Kimi K2.5 and newer.
+  'kimi-k(?:2\\.[5-9]\\d*|[3-9]\\d*(?:\\.\\d+)?)': { min: 0, max: 30_720 },
   // Doubao thinking SKUs (mirrors DOUBAO_THINKING_MODEL_REGEX scope).
   // The `(?!-thinking(?:-|$))` lookahead excludes always-thinking seed variants.
   'doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-][68](?:-flash)?(?!-thinking(?:-|$))|seed-code(?:-preview)?(?:-\\d+)?|seed-2[.-]0(?:-[\\w-]+)?)(?:-[\\w-]+)*':
@@ -925,7 +965,7 @@ const IMAGE_ENHANCEMENT_MODELS = [
   'gpt-image-1',
   'gemini-2.5-flash-image(?:-[\\w-]+)?',
   'gemini-2.0-flash-preview-image-generation',
-  'gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?'
+  'gemini-3(?:\\.\\d+)?-(?:flash|pro)-image(?:-[\\w-]+)?'
 ]
 
 const IMAGE_ENHANCEMENT_REGEX = new RegExp(IMAGE_ENHANCEMENT_MODELS.join('|'), 'i')
@@ -968,7 +1008,7 @@ const visionAllowedModels = [
   'o3(?:-[\\w-]+)?',
   'o4(?:-[\\w-]+)?',
   'deepseek-vl(?:[\\w-]+)?',
-  'kimi-k2.5',
+  'kimi-k2\\.[56](?:-[\\w-]+)?',
   'kimi-latest',
   'gemma-?[3-4](?:[-.\\w]+)?',
   'doubao-seed-1[.-][68](?:-[\\w-]+)?',
@@ -984,7 +1024,8 @@ const visionAllowedModels = [
   'qwen-omni(?:-[\\w-]+)?',
   'mistral-large-(2512|latest)',
   'mistral-medium-(2508|latest)',
-  'mistral-small-(2506|latest)',
+  'mistral-small-(2603|2506|latest)',
+  'mimo-v2\\.5$',
   'mimo-v2-omni(?:-[\\w-]+)?',
   'glm-5v-turbo'
 ]
@@ -1058,7 +1099,7 @@ export const isZhipuReasoningModel = (model: Model): boolean => isZhipuModel(mod
  */
 export const isKimiReasoningModel = (model: Model): boolean => {
   const id = getLowerBaseModelName(getRawModelId(model), '/')
-  return /^kimi-k2-thinking(?:-turbo)?$|^kimi-k2\.5(?:-[\w-]+)?$/.test(id)
+  return /^kimi-k2-thinking(?:-turbo)?$|^kimi-k(?:2\.[5-9]\d*|[3-9]\d*(?:\.\d+)?)(?:-[\w-]+)?$/.test(id)
 }
 
 export const isBaichuanReasoningModel = (model: Model): boolean => isBaichuanModel(model) && isReasoningModel(model)

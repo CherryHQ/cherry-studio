@@ -15,7 +15,6 @@ describe('AgentEntitySchema', () => {
     type: 'claude-code',
     name: 'Agent',
     description: '',
-    accessiblePaths: ['/tmp/workspace'],
     instructions: 'You are helpful.',
     model: 'openai::gpt-4',
     createdAt: '2026-01-01T00:00:00.000Z',

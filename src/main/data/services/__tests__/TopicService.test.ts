@@ -19,9 +19,25 @@ describe('TopicService', () => {
       const service = new TopicService()
       // FK: topic.assistantId → assistant.id — seed both assistants first.
       await dbh.db.insert(assistantTable).values([
-        { id: 'asst-1', name: 'A', emoji: '🌟', settings: DEFAULT_ASSISTANT_SETTINGS, createdAt: 1, updatedAt: 1 },
-        { id: 'asst-2', name: 'B', emoji: '🌟', settings: DEFAULT_ASSISTANT_SETTINGS, createdAt: 1, updatedAt: 1 }
-      ])
+        {
+          id: 'asst-1',
+          name: 'A',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: 'asst-2',
+          name: 'B',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a1',
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ] as any)
       await dbh.db.insert(topicTable).values({
         id: 't1',
         name: 'A',
@@ -349,9 +365,10 @@ describe('TopicService', () => {
         name: 'A',
         emoji: '🌟',
         settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0',
         createdAt: 1,
         updatedAt: 1
-      })
+      } as any)
       await dbh.db
         .insert(groupTable)
         .values({ id: 'grp', entityType: 'topic', name: 'grp', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
@@ -399,7 +416,7 @@ describe('TopicService', () => {
   describe('create', () => {
     it('without sourceNodeId: inserts topic with activeNodeId=null and a fresh orderKey', async () => {
       const result = await topicService.create({ name: 'fresh' })
-      expect(result.activeNodeId).toBeNull()
+      expect(result.activeNodeId).toBeUndefined()
       expect(result.name).toBe('fresh')
       const [row] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, result.id))
       expect(row?.orderKey).toBeDefined()

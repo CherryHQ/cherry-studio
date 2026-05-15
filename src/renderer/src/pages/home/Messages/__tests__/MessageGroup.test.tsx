@@ -90,6 +90,16 @@ vi.mock('@renderer/hooks/useChatContext', () => ({
   useChatContext: () => mocks.useChatContext()
 }))
 
+vi.mock('@data/hooks/usePreference', () => ({
+  usePreference: (key: string) => {
+    const settings = mocks.useSettings()
+    if (key === 'chat.message.multi_model.style') return [settings.multiModelMessageStyle]
+    if (key === 'chat.message.multi_model.grid_columns') return [settings.gridColumns]
+    if (key === 'chat.message.multi_model.grid_popover_trigger') return [settings.gridPopoverTrigger]
+    return [undefined]
+  }
+}))
+
 vi.mock('@renderer/hooks/useMessageOperations', () => ({
   useMessageOperations: () => ({
     editMessage: mocks.editMessage,
@@ -134,6 +144,7 @@ vi.mock('@renderer/utils/dom', () => ({
 }))
 
 vi.mock('@renderer/utils/messageUtils/is', () => ({
+  isMessageAwaitingApproval: () => false,
   isMessageProcessing: () => false
 }))
 

@@ -27,7 +27,7 @@ describe('transformAgentBlocksToParts', () => {
       name: 'a1',
       instructions: '',
       model: null
-    })
+    } as any)
   })
 
   async function seedSession(id: string): Promise<void> {
