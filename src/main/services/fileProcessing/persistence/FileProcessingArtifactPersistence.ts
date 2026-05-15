@@ -72,6 +72,8 @@ class FileProcessingArtifactPersistence {
         signal
       })
 
+      // Current artifact contract is markdown-only. ZIP sibling assets remain
+      // staging-only and are discarded by the cleanup below.
       const entry = await application.get('FileManager').createInternalEntry({
         source: 'path',
         path: markdownPath
