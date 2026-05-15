@@ -12,6 +12,7 @@ import type {
 } from '../types'
 import { toMessageListItem } from '../utils/messageListItem'
 import { useMessageActivityState } from './useMessageActivityState'
+import { useMessageExportActions } from './useMessageExportActions'
 import { useMessageListRenderConfig } from './useMessageListRenderConfig'
 
 interface AgentMessageListParams {
@@ -27,6 +28,13 @@ interface AgentMessageListParams {
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
+  deleteMessage?: MessageListActions['deleteMessage']
+  selectMessage?: MessageListActions['selectMessage']
+  toggleMultiSelectMode?: MessageListActions['toggleMultiSelectMode']
+  selection?: {
+    isMultiSelectMode: boolean
+    selectedMessageIds: string[]
+  }
   messageNavigation: string
 }
 
@@ -40,6 +48,10 @@ export function useAgentMessageListProviderValue({
   isLoading,
   hasOlder = false,
   loadOlder,
+  deleteMessage,
+  selectMessage,
+  toggleMultiSelectMode,
+  selection,
   messageNavigation
 }: AgentMessageListParams): MessageListProviderValue {
   const messageItems = useMemo(
@@ -56,6 +68,7 @@ export function useAgentMessageListProviderValue({
 
   const getMessageActivityState = useMessageActivityState(topic.id, partsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
+  const exportActions = useMessageExportActions({ topicName: topic.name })
   const getMessageUiState = useCallback(
     (messageId: string) => (cacheService.get(`message.ui.${messageId}` as const) || {}) as MessageUiState,
     []
@@ -95,9 +108,9 @@ export function useAgentMessageListProviderValue({
       readonly: true,
       renderConfig,
       selection: {
-        enabled: false,
-        isMultiSelectMode: false,
-        selectedMessageIds: []
+        enabled: !!toggleMultiSelectMode,
+        isMultiSelectMode: selection?.isMultiSelectMode ?? false,
+        selectedMessageIds: selection?.selectedMessageIds ?? []
       },
       getMessageUiState,
       getMessageActivityState
@@ -111,6 +124,8 @@ export function useAgentMessageListProviderValue({
       messageItems,
       partsByMessageId,
       renderConfig,
+      selection,
+      toggleMultiSelectMode,
       topic
     ]
   )
@@ -118,21 +133,36 @@ export function useAgentMessageListProviderValue({
   const actions = useMemo<MessageListActions>(
     () => ({
       loadOlder,
+      deleteMessage,
+      ...exportActions,
       openPath,
       showInFolder,
       abortTool,
+      selectMessage,
+      toggleMultiSelectMode,
       updateMessageUiState,
       updateRenderConfig
     }),
-    [abortTool, loadOlder, openPath, showInFolder, updateMessageUiState, updateRenderConfig]
+    [
+      abortTool,
+      deleteMessage,
+      exportActions,
+      loadOlder,
+      openPath,
+      selectMessage,
+      showInFolder,
+      toggleMultiSelectMode,
+      updateMessageUiState,
+      updateRenderConfig
+    ]
   )
 
   const meta = useMemo<MessageListMeta>(
     () => ({
-      selectionLayer: false,
+      selectionLayer: !!toggleMultiSelectMode,
       assistantProfile
     }),
-    [assistantProfile]
+    [assistantProfile, toggleMultiSelectMode]
   )
 
   return useMemo(() => ({ state, actions, meta }), [actions, meta, state])

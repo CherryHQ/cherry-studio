@@ -18,7 +18,6 @@ export type MessageMenuBarButtonId =
 
 export type MessageMenuBarScopeConfig = {
   buttonIds: MessageMenuBarButtonId[]
-  dropdownRootAllowKeys?: string[]
 }
 
 export const DEFAULT_MESSAGE_MENUBAR_SCOPE: MessageMenuBarScope = TopicType.Chat
@@ -37,14 +36,6 @@ export const DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS: MessageMenuBarButtonId[] = [
   'more-menu'
 ]
 
-export const SESSION_MESSAGE_MENUBAR_BUTTON_IDS: MessageMenuBarButtonId[] = [
-  'copy',
-  'translate',
-  'notes',
-  'delete',
-  'more-menu'
-]
-
 export const STREAMING_DISABLED_BUTTON_IDS: ReadonlySet<MessageMenuBarButtonId> = new Set([
   'user-edit',
   'delete',
@@ -52,15 +43,13 @@ export const STREAMING_DISABLED_BUTTON_IDS: ReadonlySet<MessageMenuBarButtonId> 
 ])
 
 const messageMenuBarRegistry = new Map<MessageMenuBarScope, MessageMenuBarScopeConfig>([
-  [DEFAULT_MESSAGE_MENUBAR_SCOPE, { buttonIds: [...DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS] }],
   [TopicType.Chat, { buttonIds: [...DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS] }],
-  [TopicType.Session, { buttonIds: [...SESSION_MESSAGE_MENUBAR_BUTTON_IDS], dropdownRootAllowKeys: ['save', 'export'] }]
+  [TopicType.Session, { buttonIds: [...DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS] }]
 ])
 
 export const registerMessageMenuBarConfig = (scope: MessageMenuBarScope, config: MessageMenuBarScopeConfig) => {
   const clonedConfig: MessageMenuBarScopeConfig = {
-    buttonIds: [...config.buttonIds],
-    dropdownRootAllowKeys: config.dropdownRootAllowKeys ? [...config.dropdownRootAllowKeys] : undefined
+    buttonIds: [...config.buttonIds]
   }
   messageMenuBarRegistry.set(scope, clonedConfig)
 }

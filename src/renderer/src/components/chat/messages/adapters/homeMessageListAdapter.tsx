@@ -2,8 +2,6 @@ import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
-import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { isVisionModel } from '@renderer/config/models'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
@@ -11,22 +9,10 @@ import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
 import { useLanguages } from '@renderer/hooks/translate'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateInputText } from '@renderer/services/TranslateCommandService'
 import type { Topic, TranslateLangCode } from '@renderer/types'
-import type { MessageExportView } from '@renderer/types/messageExport'
-import {
-  exportMarkdownToJoplin,
-  exportMarkdownToSiyuan,
-  exportMarkdownToYuque,
-  exportMessageAsMarkdown as exportMessageAsMarkdownFile,
-  exportMessageToNotes,
-  exportMessageToNotion,
-  messageToMarkdown
-} from '@renderer/utils/export'
 import { filterSupportedFiles } from '@renderer/utils/file'
 import { updateCodeBlock } from '@renderer/utils/markdown'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
@@ -49,6 +35,7 @@ import type {
 } from '../types'
 import { getMessageListItemModel, modelToSnapshot, toMessageListItem } from '../utils/messageListItem'
 import { useMessageActivityState } from './useMessageActivityState'
+import { useMessageExportActions } from './useMessageExportActions'
 import { useMessageListRenderConfig } from './useMessageListRenderConfig'
 
 const logger = loggerService.withContext('HomeMessageListAdapter')
@@ -83,7 +70,7 @@ export function useHomeMessageListProviderValue({
   const { isMultiSelectMode, selectedMessageIds, handleSelectMessage, toggleMultiSelectMode } = useChatContext(topic)
   const getMessageActivityState = useMessageActivityState(topic.id, partsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
-  const { notesPath } = useNotesSettings()
+  const exportActions = useMessageExportActions({ topicName: topic.name })
 
   const messageItems = useMemo(
     () =>
@@ -286,66 +273,6 @@ export function useHomeMessageListProviderValue({
     [editorTranslationTargetLanguage, showEditorTranslationConfirm, t, translationLanguages]
   )
 
-  const saveTextFile = useCallback((fileName: string, content: string) => {
-    return window.api.file.save(fileName, content)
-  }, [])
-
-  const saveImage = useCallback((fileName: string, dataUrl: string) => {
-    return window.api.file.saveImage(fileName, dataUrl)
-  }, [])
-
-  const exportToWord = useCallback((markdown: string, title: string) => {
-    return window.api.export.toWord(markdown, title)
-  }, [])
-
-  const saveToKnowledge = useCallback((message: MessageExportView) => {
-    SaveToKnowledgePopup.showForMessage(message)
-  }, [])
-
-  const exportMessageAsMarkdown = useCallback((message: MessageExportView, includeReasoning?: boolean) => {
-    return exportMessageAsMarkdownFile(message, includeReasoning)
-  }, [])
-
-  const exportToNotes = useCallback(
-    async (message: MessageExportView) => {
-      const title = await getMessageTitle(message)
-      const markdown = await messageToMarkdown(message)
-      return exportMessageToNotes(title, markdown, notesPath)
-    },
-    [notesPath]
-  )
-
-  const exportToNotion = useCallback(async (message: MessageExportView) => {
-    const title = await getMessageTitle(message)
-    const markdown = await messageToMarkdown(message)
-    await exportMessageToNotion(title, markdown, message)
-  }, [])
-
-  const exportToYuque = useCallback(async (message: MessageExportView) => {
-    const title = await getMessageTitle(message)
-    const markdown = await messageToMarkdown(message)
-    await exportMarkdownToYuque(title, markdown)
-  }, [])
-
-  const exportToObsidian = useCallback(
-    async (message: MessageExportView) => {
-      const title = topic.name?.replace(/\\/g, '_') || 'Untitled'
-      await ObsidianExportPopup.show({ title, message, processingMethod: '1' })
-    },
-    [topic.name]
-  )
-
-  const exportToJoplin = useCallback(async (message: MessageExportView) => {
-    const title = await getMessageTitle(message)
-    await exportMarkdownToJoplin(title, message)
-  }, [])
-
-  const exportToSiyuan = useCallback(async (message: MessageExportView) => {
-    const title = await getMessageTitle(message)
-    const markdown = await messageToMarkdown(message)
-    return exportMarkdownToSiyuan(title, markdown)
-  }, [])
-
   const openTrace = useCallback((message: MessageListItem, options?: { modelName?: string }) => {
     if (!message.traceId) return
     return window.api.trace.openWindow(message.topicId, message.traceId, true, options?.modelName)
@@ -518,17 +445,7 @@ export function useHomeMessageListProviderValue({
       locateMessage,
       startNewContext,
       saveCodeBlock,
-      saveTextFile,
-      saveImage,
-      saveToKnowledge,
-      exportMessageAsMarkdown,
-      exportToNotes,
-      exportToWord,
-      exportToNotion,
-      exportToYuque,
-      exportToObsidian,
-      exportToJoplin,
-      exportToSiyuan,
+      ...exportActions,
       openTrace,
       openPath,
       showInFolder,
@@ -557,14 +474,7 @@ export function useHomeMessageListProviderValue({
       deleteMessage,
       deleteMessageGroup,
       editMessage,
-      exportMessageAsMarkdown,
-      exportToJoplin,
-      exportToNotes,
-      exportToNotion,
-      exportToObsidian,
-      exportToSiyuan,
-      exportToYuque,
-      exportToWord,
+      exportActions,
       forkAndResendMessage,
       getTranslationUpdater,
       handleSelectMessage,
@@ -575,9 +485,6 @@ export function useHomeMessageListProviderValue({
       regenerateMessage,
       regenerateMessageWithModel,
       saveCodeBlock,
-      saveImage,
-      saveToKnowledge,
-      saveTextFile,
       selectFiles,
       setActiveBranch,
       showInFolder,

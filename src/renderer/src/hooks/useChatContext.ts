@@ -1,14 +1,61 @@
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { usePartsMap } from '@renderer/components/chat/messages/blocks'
-import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
+import { type DeleteMessageTraceOptions, useChatWrite } from '@renderer/hooks/ChatWriteContext'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Topic } from '@renderer/types'
+import type { Model, Topic } from '@renderer/types'
+import type { MessageExportView } from '@renderer/types/messageExport'
+import { messagesToMarkdown } from '@renderer/utils/export'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
-import { createContext, use, useCallback, useEffect, useState } from 'react'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { createContext, use, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useChatContext')
+
+type DeleteMessageAction = (id: string, traceOptions?: DeleteMessageTraceOptions) => void | Promise<void>
+
+function getOrderedSelectedMessageIds(messageIds: string[], orderedMessages: CherryUIMessage[]): string[] {
+  if (orderedMessages.length === 0) return messageIds
+
+  const selected = new Set(messageIds)
+  const orderedIds = orderedMessages.filter((message) => selected.has(message.id)).map((message) => message.id)
+  const orderedIdSet = new Set(orderedIds)
+
+  return [...orderedIds, ...messageIds.filter((messageId) => !orderedIdSet.has(messageId))]
+}
+
+function createMessageExportView(
+  message: CherryUIMessage,
+  topic: Topic,
+  parts: CherryMessagePart[]
+): MessageExportView {
+  const metadata = message.metadata ?? {}
+  const model = metadata.modelSnapshot
+    ? ({
+        id: metadata.modelSnapshot.id,
+        name: metadata.modelSnapshot.name,
+        provider: metadata.modelSnapshot.provider,
+        group: metadata.modelSnapshot.group ?? ''
+      } as Model)
+    : undefined
+
+  return {
+    id: message.id,
+    role: message.role,
+    assistantId: topic.assistantId,
+    topicId: topic.id,
+    createdAt: metadata.createdAt ?? '',
+    status: message.role === 'assistant' ? (metadata.status ?? 'pending') : 'success',
+    modelId: metadata.modelId,
+    model,
+    parentId: metadata.parentId ?? null,
+    siblingsGroupId: metadata.siblingsGroupId,
+    stats: metadata.stats,
+    parts,
+    traceId: metadata.traceId ?? undefined
+  }
+}
 
 export interface ChatContextValue {
   isMultiSelectMode: boolean
@@ -41,13 +88,24 @@ export const useChatContext = (_topic?: Topic): ChatContextValue => {
 /**
  * Provider-level hook — creates the ChatContext value.
  *
- * IMPORTANT: This hook reads the chat write context and PartsContext internally,
- * so it must be called inside ChatWriteProvider + PartsProvider.
+ * Home reads write actions from ChatWriteProvider. Adapters without ChatWriteProvider
+ * can inject equivalent actions and parts explicitly.
  */
-export const useChatContextProvider = (activeTopic: Topic): ChatContextValue => {
+export const useChatContextProvider = (
+  activeTopic: Topic,
+  options: {
+    messages?: CherryUIMessage[]
+    partsByMessageId?: Record<string, CherryMessagePart[]>
+    deleteMessage?: DeleteMessageAction
+  } = {}
+): ChatContextValue => {
   const { t } = useTranslation()
   const chatWrite = useChatWrite()
-  const partsMap = usePartsMap()
+  const partsContextMap = usePartsMap()
+  const messages = options.messages
+  const partsMap = options.partsByMessageId ?? partsContextMap
+  const deleteMessage = options.deleteMessage ?? chatWrite?.deleteMessage
+  const messageById = useMemo(() => new Map((messages ?? []).map((message) => [message.id, message])), [messages])
 
   const [isMultiSelectMode, setIsMultiSelectMode] = useCache('chat.multi_select_mode')
   const [selectedMessageIds, setSelectedMessageIds] = useCache('chat.selected_message_ids')
@@ -121,6 +179,10 @@ export const useChatContextProvider = (activeTopic: Topic): ChatContextValue => 
 
       switch (actionType) {
         case 'delete':
+          if (!deleteMessage) {
+            window.toast.error(t('message.delete.failed'))
+            return
+          }
           window.modal.confirm({
             title: t('message.delete.confirm.title'),
             content: t('message.delete.confirm.content', { count: messageIds.length }),
@@ -128,7 +190,9 @@ export const useChatContextProvider = (activeTopic: Topic): ChatContextValue => 
             centered: true,
             onOk: async () => {
               try {
-                await Promise.all(messageIds.map((messageId) => chatWrite?.deleteMessage(messageId)))
+                for (const messageId of messageIds) {
+                  await deleteMessage(messageId)
+                }
                 window.toast.success(t('message.delete.success'))
                 handleToggleMultiSelectMode(false)
               } catch (error) {
@@ -139,10 +203,21 @@ export const useChatContextProvider = (activeTopic: Topic): ChatContextValue => 
           })
           break
         case 'save': {
-          const contentToSave = messageIds
-            .map((id) => extractContent(id))
-            .filter(Boolean)
-            .join('\n\n---\n\n')
+          const orderedMessageIds = getOrderedSelectedMessageIds(messageIds, messages ?? [])
+          const exportMessages = orderedMessageIds
+            .map((id) => {
+              const message = messageById.get(id)
+              if (!message) return null
+              return createMessageExportView(message, activeTopic, partsMap?.[id] ?? message.parts ?? [])
+            })
+            .filter((message): message is MessageExportView => message !== null)
+          const contentToSave =
+            exportMessages.length > 0
+              ? await messagesToMarkdown(exportMessages)
+              : orderedMessageIds
+                  .map((id) => extractContent(id))
+                  .filter(Boolean)
+                  .join('\n\n---\n\n')
           if (contentToSave) {
             const fileName = `chat_export_${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.md`
             await window.api.file.save(fileName, contentToSave)
@@ -152,7 +227,8 @@ export const useChatContextProvider = (activeTopic: Topic): ChatContextValue => 
           break
         }
         case 'copy': {
-          const contentToCopy = messageIds
+          const orderedMessageIds = getOrderedSelectedMessageIds(messageIds, messages ?? [])
+          const contentToCopy = orderedMessageIds
             .map((id) => extractContent(id))
             .filter(Boolean)
             .join('\n\n---\n\n')
@@ -167,7 +243,7 @@ export const useChatContextProvider = (activeTopic: Topic): ChatContextValue => 
           break
       }
     },
-    [t, chatWrite, handleToggleMultiSelectMode, partsMap]
+    [t, activeTopic, deleteMessage, handleToggleMultiSelectMode, messageById, messages, partsMap]
   )
 
   return {

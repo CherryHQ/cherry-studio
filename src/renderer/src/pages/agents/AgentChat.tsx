@@ -21,7 +21,7 @@ import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { ModelSnapshot } from '@shared/data/types/message'
 import type { PropsWithChildren, ReactNode } from 'react'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import SettingsPanel from '../chat-settings/SettingsPanel'
@@ -134,8 +134,22 @@ const AgentChatInner = ({
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [narrowMode] = usePreference('chat.narrow_mode')
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
-  const { messages: uiMessages, isLoading, hasOlder, loadOlder, refresh } = useAgentSessionParts(agentId, sessionId)
+  const {
+    messages: uiMessages,
+    isLoading,
+    hasOlder,
+    loadOlder,
+    refresh,
+    deleteMessage: deleteSessionMessage
+  } = useAgentSessionParts(agentId, sessionId)
   const chat = useChatWithHistory(sessionTopicId, uiMessages, refresh)
+  const deleteMessage = useCallback(
+    async (messageId: string) => {
+      await deleteSessionMessage(messageId)
+      chat.setMessages((current) => current.filter((message) => message.id !== messageId))
+    },
+    [chat, deleteSessionMessage]
+  )
 
   const fallbackSnapshot = useMemo<ModelSnapshot | undefined>(() => {
     const modelString = activeAgent?.model
@@ -195,6 +209,7 @@ const AgentChatInner = ({
             isLoading={isLoading}
             hasOlder={hasOlder}
             loadOlder={loadOlder}
+            deleteMessage={deleteMessage}
           />
           <div className="mt-auto px-4.5 pb-2">
             <NarrowLayout narrowMode={narrowMode}>
@@ -205,13 +220,15 @@ const AgentChatInner = ({
         </div>
       }
       bottomComposer={
-        <AgentSessionInputbar
-          agentId={agentId}
-          sessionId={sessionId}
-          sendMessage={chat.sendMessage}
-          stop={chat.stop}
-          isStreaming={isPending}
-        />
+        isMultiSelectMode ? undefined : (
+          <AgentSessionInputbar
+            agentId={agentId}
+            sessionId={sessionId}
+            sendMessage={chat.sendMessage}
+            stop={chat.stop}
+            isStreaming={isPending}
+          />
+        )
       }
       sidePanel={<SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} mode="agent" />}
     />

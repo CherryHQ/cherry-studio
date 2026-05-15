@@ -11,7 +11,7 @@ import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
 import type { FileMetadata, Topic } from '@renderer/types'
-import type { CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -269,7 +269,7 @@ const ChatContentInner: FC<InnerProps> = ({
       <SiblingsProvider value={siblingsContextValue}>
         <RefreshProvider value={refresh}>
           <ToolApprovalProvider value={respondToToolApproval}>
-            <ChatContextBridge topic={topic}>
+            <ChatContextBridge topic={topic} messages={uiMessages} partsByMessageId={partsByMessageId}>
               {(overlay) => {
                 const main = (
                   <>
@@ -357,8 +357,13 @@ const ChatContentInner: FC<InnerProps> = ({
  * can read that context. Multi-select
  * floating popup mounts here because it depends on the chat context.
  */
-const ChatContextBridge: FC<{ topic: Topic; children: (overlay: ReactNode) => ReactNode }> = ({ topic, children }) => {
-  const chatContextValue = useChatContextProvider(topic)
+const ChatContextBridge: FC<{
+  topic: Topic
+  messages: CherryUIMessage[]
+  partsByMessageId: Record<string, CherryMessagePart[]>
+  children: (overlay: ReactNode) => ReactNode
+}> = ({ topic, messages, partsByMessageId, children }) => {
+  const chatContextValue = useChatContextProvider(topic, { messages, partsByMessageId })
   return (
     <ChatContextProvider value={chatContextValue}>
       {children(chatContextValue.isMultiSelectMode ? <MultiSelectActionPopup topic={topic} /> : null)}

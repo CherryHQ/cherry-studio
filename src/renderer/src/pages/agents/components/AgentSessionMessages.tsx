@@ -2,6 +2,8 @@ import { loggerService } from '@logger'
 import { useAgentMessageListProviderValue } from '@renderer/components/chat/messages/adapters/agentMessageListAdapter'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
+import type { MessageListActions } from '@renderer/components/chat/messages/types'
+import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useSession } from '@renderer/hooks/agents/useSessionDataApi'
 import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
@@ -9,8 +11,7 @@ import type { GetAgentResponse, Topic, TopicType as TopicTypeEnum } from '@rende
 import { TopicType } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
-import type { PropsWithChildren } from 'react'
-import { memo, useMemo } from 'react'
+import { memo, useEffect, useMemo } from 'react'
 
 const logger = loggerService.withContext('AgentSessionMessages')
 
@@ -26,6 +27,7 @@ type Props = {
   hasOlder?: boolean
   /** Trigger fetching the next older page. */
   loadOlder?: () => void
+  deleteMessage?: MessageListActions['deleteMessage']
 }
 
 const AgentSessionMessages = ({
@@ -37,7 +39,8 @@ const AgentSessionMessages = ({
   modelFallback,
   isLoading,
   hasOlder = false,
-  loadOlder
+  loadOlder,
+  deleteMessage
 }: Props) => {
   const { session } = useSession(sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
@@ -61,6 +64,22 @@ const AgentSessionMessages = ({
     [sessionTopicId, sessionAssistantId, sessionName, sessionCreatedAt, sessionUpdatedAt]
   )
 
+  const chatContextValue = useChatContextProvider(derivedTopic, { messages, partsByMessageId, deleteMessage })
+
+  const { toggleMultiSelectMode } = chatContextValue
+
+  useEffect(() => {
+    toggleMultiSelectMode(false)
+  }, [sessionTopicId, toggleMultiSelectMode])
+
+  const selection = useMemo(
+    () => ({
+      isMultiSelectMode: chatContextValue.isMultiSelectMode,
+      selectedMessageIds: chatContextValue.selectedMessageIds
+    }),
+    [chatContextValue.isMultiSelectMode, chatContextValue.selectedMessageIds]
+  )
+
   const messageList = useAgentMessageListProviderValue({
     topic: derivedTopic,
     messages,
@@ -76,6 +95,10 @@ const AgentSessionMessages = ({
     isLoading,
     hasOlder,
     loadOlder,
+    deleteMessage,
+    selectMessage: chatContextValue.handleSelectMessage,
+    toggleMultiSelectMode: chatContextValue.toggleMultiSelectMode,
+    selection,
     messageNavigation
   })
 
@@ -86,17 +109,13 @@ const AgentSessionMessages = ({
   })
 
   return (
-    <AgentSessionChatContextBridge topic={derivedTopic}>
+    <ChatContextProvider value={chatContextValue}>
       <MessageListProvider value={messageList}>
         <MessageList />
       </MessageListProvider>
-    </AgentSessionChatContextBridge>
+      {chatContextValue.isMultiSelectMode && <MultiSelectActionPopup topic={derivedTopic} />}
+    </ChatContextProvider>
   )
-}
-
-const AgentSessionChatContextBridge = ({ topic, children }: PropsWithChildren<{ topic: Topic }>) => {
-  const chatContextValue = useChatContextProvider(topic)
-  return <ChatContextProvider value={chatContextValue}>{children}</ChatContextProvider>
 }
 
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'

@@ -5,6 +5,21 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { MessageListProviderValue } from '../types'
 
+const exportActionsMock = vi.hoisted(() => ({
+  saveTextFile: vi.fn(),
+  saveImage: vi.fn(),
+  saveToKnowledge: vi.fn(),
+  exportMessageAsMarkdown: vi.fn(),
+  exportToNotes: vi.fn(),
+  exportToWord: vi.fn(),
+  exportToNotion: vi.fn(),
+  exportToYuque: vi.fn(),
+  exportToObsidian: vi.fn(),
+  exportToJoplin: vi.fn(),
+  exportToSiyuan: vi.fn()
+}))
+const useMessageExportActionsMock = vi.hoisted(() => vi.fn(() => exportActionsMock))
+
 vi.mock('@data/CacheService', () => ({
   cacheService: {
     get: vi.fn(() => undefined),
@@ -36,10 +51,14 @@ vi.mock('../adapters/useMessageListRenderConfig', () => ({
   })
 }))
 
+vi.mock('../adapters/useMessageExportActions', () => ({
+  useMessageExportActions: useMessageExportActionsMock
+}))
+
 const { useAgentMessageListProviderValue } = await import('../adapters/agentMessageListAdapter')
 
 describe('useAgentMessageListProviderValue', () => {
-  it('adapts CherryUIMessage input into read-only message-list state', () => {
+  it('adapts CherryUIMessage input and injects supported agent capabilities', () => {
     const topic = {
       id: 'agent-session-topic',
       assistantId: 'agent-1',
@@ -67,6 +86,9 @@ describe('useAgentMessageListProviderValue', () => {
       }
     ] as CherryUIMessage[]
     const partsByMessageId = Object.fromEntries(messages.map((message) => [message.id, message.parts ?? []]))
+    const deleteMessage = vi.fn()
+    const selectMessage = vi.fn()
+    const toggleMultiSelectMode = vi.fn()
     let value: MessageListProviderValue | undefined
 
     const Probe = () => {
@@ -77,6 +99,13 @@ describe('useAgentMessageListProviderValue', () => {
         assistantId: 'agent-1',
         modelFallback: { id: 'claude-4', name: 'Claude 4', provider: 'anthropic' },
         isLoading: false,
+        deleteMessage,
+        selectMessage,
+        toggleMultiSelectMode,
+        selection: {
+          isMultiSelectMode: true,
+          selectedMessageIds: ['user-1']
+        },
         messageNavigation: 'anchor'
       })
       return null
@@ -93,20 +122,28 @@ describe('useAgentMessageListProviderValue', () => {
       status: 'pending',
       modelSnapshot: { id: 'claude-4', name: 'Claude 4', provider: 'anthropic' }
     })
-    expect(value?.actions.deleteMessage).toBeUndefined()
+    expect(value?.state.selection).toEqual({
+      enabled: true,
+      isMultiSelectMode: true,
+      selectedMessageIds: ['user-1']
+    })
+    expect(useMessageExportActionsMock).toHaveBeenCalledWith({ topicName: 'Agent session' })
+    expect(value?.actions.deleteMessage).toBe(deleteMessage)
+    expect(value?.actions.selectMessage).toBe(selectMessage)
+    expect(value?.actions.toggleMultiSelectMode).toBe(toggleMultiSelectMode)
     expect(value?.actions.regenerateMessage).toBeUndefined()
     expect(value?.actions.editMessage).toBeUndefined()
-    expect(value?.actions.saveTextFile).toBeUndefined()
-    expect(value?.actions.saveImage).toBeUndefined()
-    expect(value?.actions.saveToKnowledge).toBeUndefined()
-    expect(value?.actions.exportMessageAsMarkdown).toBeUndefined()
-    expect(value?.actions.exportToNotes).toBeUndefined()
-    expect(value?.actions.exportToWord).toBeUndefined()
-    expect(value?.actions.exportToNotion).toBeUndefined()
-    expect(value?.actions.exportToYuque).toBeUndefined()
-    expect(value?.actions.exportToObsidian).toBeUndefined()
-    expect(value?.actions.exportToJoplin).toBeUndefined()
-    expect(value?.actions.exportToSiyuan).toBeUndefined()
+    expect(value?.actions.saveTextFile).toBe(exportActionsMock.saveTextFile)
+    expect(value?.actions.saveImage).toBe(exportActionsMock.saveImage)
+    expect(value?.actions.saveToKnowledge).toBe(exportActionsMock.saveToKnowledge)
+    expect(value?.actions.exportMessageAsMarkdown).toBe(exportActionsMock.exportMessageAsMarkdown)
+    expect(value?.actions.exportToNotes).toBe(exportActionsMock.exportToNotes)
+    expect(value?.actions.exportToWord).toBe(exportActionsMock.exportToWord)
+    expect(value?.actions.exportToNotion).toBe(exportActionsMock.exportToNotion)
+    expect(value?.actions.exportToYuque).toBe(exportActionsMock.exportToYuque)
+    expect(value?.actions.exportToObsidian).toBe(exportActionsMock.exportToObsidian)
+    expect(value?.actions.exportToJoplin).toBe(exportActionsMock.exportToJoplin)
+    expect(value?.actions.exportToSiyuan).toBe(exportActionsMock.exportToSiyuan)
     expect(value?.actions.openTrace).toBeUndefined()
     expect(value?.actions.openPath).toEqual(expect.any(Function))
     expect(value?.actions.showInFolder).toEqual(expect.any(Function))

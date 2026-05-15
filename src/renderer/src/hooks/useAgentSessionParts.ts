@@ -11,7 +11,7 @@
  * we unwrap that shape and project to `CherryUIMessage`.
  */
 
-import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
+import { useInfiniteFlatItems, useInfiniteQuery, useMutation } from '@renderer/data/hooks/useDataApi'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageStatus } from '@shared/data/types/message'
 import { useCallback, useMemo } from 'react'
@@ -50,10 +50,14 @@ function toUIMessage(row: AgentSessionMessageEntity): CherryUIMessage | null {
 }
 
 export function useAgentSessionParts(_agentId: string, sessionId: string) {
+  const sessionMessagesCachePath = `/sessions/${sessionId}/messages` as const
   const { pages, isLoading, hasNext, loadNext, mutate } = useInfiniteQuery('/sessions/:sessionId/messages', {
     params: { sessionId },
     limit: PAGE_SIZE,
     enabled: !!sessionId
+  })
+  const { trigger: deleteMessageTrigger } = useMutation('DELETE', '/sessions/:sessionId/messages/:messageId', {
+    refresh: [sessionMessagesCachePath]
   })
 
   // Server returns each page newest-first (DESC) and the cursor walks older.
@@ -87,11 +91,19 @@ export function useAgentSessionParts(_agentId: string, sessionId: string) {
     return out
   }, [mutate])
 
+  const deleteMessage = useCallback(
+    async (messageId: string): Promise<void> => {
+      await deleteMessageTrigger({ params: { sessionId, messageId } })
+    },
+    [deleteMessageTrigger, sessionId]
+  )
+
   return {
     messages,
     isLoading,
     hasOlder: hasNext,
     loadOlder: loadNext,
-    refresh: refreshMessages
+    refresh: refreshMessages,
+    deleteMessage
   }
 }

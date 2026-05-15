@@ -108,6 +108,7 @@ export function MessageVirtualList<T>({
 
   const totalSize = virtualizer.getTotalSize()
   const scrollHeight = topPadding + totalSize + bottomPadding
+  const prevBottomPaddingRef = useRef(bottomPadding)
 
   // ── atBottom tracking ────────────────────────────────────────
   // Updated on every scroll event; read in the data-change effect to
@@ -222,6 +223,20 @@ export function MessageVirtualList<T>({
     prevTotalSizeRef.current = totalSize
     prevItemCountRef.current = items.length
   }, [items, getItemKey, totalSize])
+
+  useLayoutEffect(() => {
+    if (prevBottomPaddingRef.current === bottomPadding) return
+    const shouldStickToBottom = wasAtBottomRef.current
+    prevBottomPaddingRef.current = bottomPadding
+    if (!shouldStickToBottom) return
+
+    requestAnimationFrame(() => {
+      const node = scrollerRef.current
+      if (!node) return
+      node.scrollTop = node.scrollHeight
+      wasAtBottomRef.current = true
+    })
+  }, [bottomPadding])
 
   const stickyObserverRef = useRef<ResizeObserver | null>(null)
   const observedItemsRef = useRef<Set<HTMLElement>>(new Set())

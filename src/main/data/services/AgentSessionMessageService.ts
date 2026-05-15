@@ -113,7 +113,15 @@ export class AgentSessionMessageService {
       () =>
         database
           .delete(sessionMessagesTable)
-          .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId))),
+          .where(
+            and(
+              eq(sessionMessagesTable.sessionId, sessionId),
+              or(
+                eq(sessionMessagesTable.id, messageId),
+                sql`json_extract(${sessionMessagesTable.content}, '$.message.id') = ${messageId}`
+              )!
+            )
+          ),
       defaultHandlersFor('Message', messageId)
     )
     if (result.rowsAffected === 0) {

@@ -1,0 +1,503 @@
+import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/components/Icons'
+import InspectMessagePopup from '@renderer/components/Popups/InspectMessagePopup'
+import {
+  DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS,
+  type MessageMenuBarButtonId,
+  STREAMING_DISABLED_BUTTON_IDS
+} from '@renderer/config/registry/messageMenuBar'
+import { getMessageTitle } from '@renderer/services/MessagesService'
+import { TraceIcon } from '@renderer/trace/pages/Component'
+import type { MessageExportView } from '@renderer/types/messageExport'
+import { copyMessageAsPlainText } from '@renderer/utils/copy'
+import { messageToMarkdown } from '@renderer/utils/export'
+import { captureScrollableAsBlob, captureScrollableAsDataURL } from '@renderer/utils/image'
+import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
+import type { CherryMessagePart } from '@shared/data/types/message'
+import dayjs from 'dayjs'
+import type { TFunction } from 'i18next'
+import {
+  AtSign,
+  Bug,
+  Check,
+  FilePenLine,
+  Languages,
+  ListChecks,
+  Menu,
+  NotebookPen,
+  Save,
+  Split,
+  ThumbsUp,
+  Upload
+} from 'lucide-react'
+import type { RefObject } from 'react'
+
+import { createActionRegistry } from '../../actions/actionRegistry'
+import type { ActionAvailabilityInput, ActionDescriptor, ResolvedAction } from '../../actions/actionTypes'
+import type { MessageListActions, MessageListItem, MessageListSelectionState } from '../types'
+import { getMessageListItemModelName } from '../utils/messageListItem'
+
+export interface MessageMenuBarExportOptions {
+  image: boolean
+  markdown: boolean
+  markdown_reason: boolean
+  notion: boolean
+  yuque: boolean
+  joplin: boolean
+  obsidian: boolean
+  siyuan: boolean
+  docx: boolean
+  plain_text: boolean
+}
+
+export interface MessageMenuBarActionContext {
+  actions: MessageListActions
+  message: MessageListItem
+  messageParts: CherryMessagePart[]
+  messageForExport: MessageExportView
+  messageContainerRef: RefObject<HTMLDivElement>
+  mainTextContent: string
+  toolbarButtonIds: ReadonlySet<MessageMenuBarButtonId>
+  selection?: MessageListSelectionState
+  exportMenuOptions: MessageMenuBarExportOptions
+  confirmDeleteMessage: boolean
+  confirmRegenerateMessage: boolean
+  copied: boolean
+  setCopied: (value: boolean) => void
+  enableDeveloperMode: boolean
+  isAssistantMessage: boolean
+  isGrouped?: boolean
+  isProcessing: boolean
+  isUserMessage: boolean
+  isUseful: boolean
+  isEditable: boolean
+  startEditing: (messageId: string) => void
+  onUpdateUseful?: (messageId: string) => void
+  abortTranslation: () => void
+  t: TFunction
+}
+
+export type MessageMenuBarResolvedAction = ResolvedAction<MessageMenuBarActionContext>
+
+const toolbarOrder = new Map(DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS.map((id, index) => [id, index * 10]))
+
+const messageMenuBarActionRegistry = createActionRegistry<MessageMenuBarActionContext>()
+
+function toolbarAvailability(
+  id: MessageMenuBarButtonId,
+  isVisible: (context: MessageMenuBarActionContext) => boolean = () => true
+) {
+  return (context: MessageMenuBarActionContext): ActionAvailabilityInput => {
+    const visible = context.toolbarButtonIds.has(id) && isVisible(context)
+    return {
+      visible,
+      enabled: visible && !(context.isProcessing && STREAMING_DISABLED_BUTTON_IDS.has(id))
+    }
+  }
+}
+
+function registerCommand(id: string, run: (context: MessageMenuBarActionContext) => void | Promise<void>) {
+  messageMenuBarActionRegistry.registerCommand({ id, run })
+}
+
+function registerAction(descriptor: ActionDescriptor<MessageMenuBarActionContext>) {
+  messageMenuBarActionRegistry.registerAction(descriptor)
+}
+
+function registerToolbarAction(
+  descriptor: Omit<ActionDescriptor<MessageMenuBarActionContext>, 'order' | 'surface'> & {
+    id: MessageMenuBarButtonId
+  }
+) {
+  registerAction({
+    ...descriptor,
+    order: toolbarOrder.get(descriptor.id) ?? 0,
+    surface: 'toolbar'
+  })
+}
+
+registerCommand('message.copy', ({ mainTextContent, setCopied, t }) => {
+  void navigator.clipboard.writeText(removeTrailingDoubleSpaces(mainTextContent.trimStart()))
+  window.toast.success(t('message.copied'))
+  setCopied(true)
+})
+
+registerCommand('message.edit', ({ message, startEditing }) => {
+  startEditing(message.id)
+})
+
+registerCommand('message.regenerate', async ({ actions, message }) => {
+  await actions.regenerateMessage?.(message.id)
+})
+
+registerCommand('message.delete', async ({ abortTranslation, actions, message }) => {
+  abortTranslation()
+  await actions.deleteMessage?.(message.id, {
+    traceId: message.traceId ?? undefined,
+    modelName: getMessageListItemModelName(message) || undefined
+  })
+})
+
+registerCommand('message.trace', async ({ actions, message }) => {
+  if (!message.traceId || !actions.openTrace) return
+  await actions.openTrace(message, {
+    modelName: message.role === 'user' ? undefined : getMessageListItemModelName(message)
+  })
+})
+
+registerCommand('message.inspect', ({ message, messageForExport, messageParts }) => {
+  void InspectMessagePopup.show({
+    title: `Message: ${message.id}`,
+    message: messageForExport,
+    parts: messageParts
+  })
+})
+
+registerCommand('message.newBranch', async ({ actions, message, t }) => {
+  await actions.startMessageBranch?.(message.id)
+  window.toast.success(t('chat.message.new.branch.created'))
+})
+
+registerCommand('message.multiSelect', ({ actions }) => {
+  actions.toggleMultiSelectMode?.(true)
+})
+
+registerCommand('message.saveFile', ({ actions, mainTextContent, message }) => {
+  const fileName = dayjs(message.createdAt).format('YYYYMMDDHHmm') + '.md'
+  void actions.saveTextFile?.(fileName, mainTextContent)
+})
+
+registerCommand('message.saveKnowledge', ({ actions, messageForExport }) => {
+  void actions.saveToKnowledge?.(messageForExport)
+})
+
+registerCommand('message.exportNotes', async ({ actions, messageForExport }) => {
+  await actions.exportToNotes?.(messageForExport)
+})
+
+registerCommand('message.copyPlainText', ({ messageForExport }) => {
+  void copyMessageAsPlainText(messageForExport)
+})
+
+registerCommand('message.copyImage', async ({ messageContainerRef }) => {
+  await captureScrollableAsBlob(messageContainerRef, async (blob) => {
+    if (blob) {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+    }
+  })
+})
+
+registerCommand('message.exportImage', async ({ actions, messageContainerRef, messageForExport, t }) => {
+  const imageData = await captureScrollableAsDataURL(messageContainerRef)
+  const title = await getMessageTitle(messageForExport)
+  if (title && imageData) {
+    const success = await actions.saveImage?.(title, imageData)
+    if (success) window.toast.success(t('chat.topics.export.image_saved'))
+  }
+})
+
+registerCommand('message.exportMarkdown', ({ actions, messageForExport }) => {
+  void actions.exportMessageAsMarkdown?.(messageForExport)
+})
+
+registerCommand('message.exportMarkdownReason', ({ actions, messageForExport }) => {
+  void actions.exportMessageAsMarkdown?.(messageForExport, true)
+})
+
+registerCommand('message.exportWord', async ({ actions, messageForExport }) => {
+  const markdown = await messageToMarkdown(messageForExport)
+  const title = await getMessageTitle(messageForExport)
+  void actions.exportToWord?.(markdown, title)
+})
+
+registerCommand('message.exportNotion', ({ actions, messageForExport }) => {
+  void actions.exportToNotion?.(messageForExport)
+})
+
+registerCommand('message.exportYuque', ({ actions, messageForExport }) => {
+  void actions.exportToYuque?.(messageForExport)
+})
+
+registerCommand('message.exportObsidian', ({ actions, messageForExport }) => {
+  void actions.exportToObsidian?.(messageForExport)
+})
+
+registerCommand('message.exportJoplin', ({ actions, messageForExport }) => {
+  void actions.exportToJoplin?.(messageForExport)
+})
+
+registerCommand('message.exportSiyuan', ({ actions, messageForExport }) => {
+  void actions.exportToSiyuan?.(messageForExport)
+})
+
+registerCommand('message.useful', ({ message, onUpdateUseful }) => {
+  onUpdateUseful?.(message.id)
+})
+
+registerToolbarAction({
+  id: 'user-edit',
+  commandId: 'message.edit',
+  label: ({ t }) => t('common.edit'),
+  icon: <EditIcon size={15} />,
+  availability: toolbarAvailability('user-edit', ({ actions, isUserMessage }) => isUserMessage && !!actions.editMessage)
+})
+
+registerToolbarAction({
+  id: 'copy',
+  commandId: 'message.copy',
+  label: ({ t }) => t('common.copy'),
+  icon: ({ copied }) => (copied ? <Check size={15} color="var(--color-primary)" /> : <CopyIcon size={15} />),
+  availability: toolbarAvailability('copy')
+})
+
+registerToolbarAction({
+  id: 'assistant-regenerate',
+  commandId: 'message.regenerate',
+  label: ({ t }) => t('common.regenerate'),
+  icon: <RefreshIcon size={15} />,
+  confirm: ({ confirmRegenerateMessage, t }) =>
+    confirmRegenerateMessage
+      ? {
+          title: t('message.regenerate.confirm'),
+          destructive: true
+        }
+      : undefined,
+  availability: toolbarAvailability(
+    'assistant-regenerate',
+    ({ actions, isAssistantMessage }) => isAssistantMessage && !!actions.regenerateMessage
+  )
+})
+
+registerToolbarAction({
+  id: 'assistant-mention-model',
+  label: ({ t }) => t('message.mention.title'),
+  icon: <AtSign size={15} />,
+  availability: toolbarAvailability(
+    'assistant-mention-model',
+    ({ actions, isAssistantMessage }) => isAssistantMessage && !!actions.regenerateMessageWithModel
+  )
+})
+
+registerToolbarAction({
+  id: 'translate',
+  label: ({ t }) => t('chat.translate'),
+  icon: <Languages size={15} />,
+  availability: toolbarAvailability(
+    'translate',
+    ({ actions, isUserMessage }) => !isUserMessage && !!actions.getTranslationUpdater
+  )
+})
+
+registerToolbarAction({
+  id: 'useful',
+  commandId: 'message.useful',
+  label: ({ t }) => t('chat.message.useful.label'),
+  icon: ({ isUseful }) =>
+    isUseful ? <ThumbsUp size={17.5} fill="var(--color-primary)" strokeWidth={0} /> : <ThumbsUp size={15} />,
+  availability: toolbarAvailability('useful', ({ isAssistantMessage, isGrouped }) => isAssistantMessage && !!isGrouped)
+})
+
+registerToolbarAction({
+  id: 'notes',
+  commandId: 'message.exportNotes',
+  label: ({ t }) => t('notes.save'),
+  icon: <NotebookPen size={15} />,
+  availability: toolbarAvailability(
+    'notes',
+    ({ actions, isAssistantMessage }) => isAssistantMessage && !!actions.exportToNotes
+  )
+})
+
+registerToolbarAction({
+  id: 'delete',
+  commandId: 'message.delete',
+  label: ({ t }) => t('common.delete'),
+  icon: <DeleteIcon size={15} />,
+  confirm: ({ confirmDeleteMessage, t }) =>
+    confirmDeleteMessage
+      ? {
+          title: t('message.message.delete.content'),
+          confirmText: t('common.delete'),
+          destructive: true
+        }
+      : undefined,
+  availability: toolbarAvailability('delete', ({ actions }) => !!actions.deleteMessage)
+})
+
+registerToolbarAction({
+  id: 'trace',
+  commandId: 'message.trace',
+  label: ({ t }) => t('trace.label'),
+  icon: <TraceIcon size={16} className="lucide lucide-trash" />,
+  availability: toolbarAvailability(
+    'trace',
+    ({ actions, enableDeveloperMode, message }) => enableDeveloperMode && !!message.traceId && !!actions.openTrace
+  )
+})
+
+registerToolbarAction({
+  id: 'inspect-data',
+  commandId: 'message.inspect',
+  label: 'Inspect Data (Dev)',
+  icon: <Bug size={15} />,
+  availability: toolbarAvailability('inspect-data', ({ enableDeveloperMode }) => enableDeveloperMode)
+})
+
+registerToolbarAction({
+  id: 'more-menu',
+  label: 'More',
+  icon: <Menu size={19} />,
+  availability: toolbarAvailability('more-menu', ({ isUserMessage }) => !isUserMessage)
+})
+
+registerAction({
+  id: 'edit',
+  commandId: 'message.edit',
+  label: ({ t }) => t('common.edit'),
+  icon: <FilePenLine size={15} />,
+  group: 'write',
+  order: 10,
+  surface: 'menu',
+  availability: ({ actions, isEditable, isUserMessage }) => isEditable && !!actions.editMessage && isUserMessage
+})
+
+registerAction({
+  id: 'new-branch',
+  commandId: 'message.newBranch',
+  label: ({ t }) => t('chat.message.new.branch.label'),
+  icon: <Split size={15} />,
+  group: 'write',
+  order: 20,
+  surface: 'menu',
+  availability: ({ actions }) => !!actions.startMessageBranch
+})
+
+registerAction({
+  id: 'multi-select',
+  commandId: 'message.multiSelect',
+  label: ({ t }) => t('chat.multiple.select.label'),
+  icon: <ListChecks size={15} />,
+  group: 'write',
+  order: 30,
+  surface: 'menu',
+  availability: ({ actions, isProcessing, selection }) => ({
+    visible: !!selection?.enabled && !!actions.toggleMultiSelectMode,
+    enabled: !isProcessing
+  })
+})
+
+registerAction({
+  id: 'save',
+  label: ({ t }) => t('chat.save.label'),
+  icon: <Save size={15} />,
+  group: 'save',
+  order: 100,
+  surface: 'menu',
+  children: [
+    {
+      id: 'save.file',
+      commandId: 'message.saveFile',
+      label: ({ t }) => t('chat.save.file.title'),
+      availability: ({ actions }) => !!actions.saveTextFile
+    },
+    {
+      id: 'save.knowledge',
+      commandId: 'message.saveKnowledge',
+      label: ({ t }) => t('chat.save.knowledge.title'),
+      availability: ({ actions }) => !!actions.saveToKnowledge
+    }
+  ]
+})
+
+registerAction({
+  id: 'export',
+  label: ({ t }) => t('chat.topics.export.title'),
+  icon: <Upload size={15} />,
+  group: 'export',
+  order: 200,
+  surface: 'menu',
+  children: [
+    {
+      id: 'export.copy-plain-text',
+      commandId: 'message.copyPlainText',
+      label: ({ t }) => t('chat.topics.copy.plain_text'),
+      availability: ({ exportMenuOptions }) => exportMenuOptions.plain_text
+    },
+    {
+      id: 'export.copy-image',
+      commandId: 'message.copyImage',
+      label: ({ t }) => t('chat.topics.copy.image'),
+      availability: ({ exportMenuOptions }) => exportMenuOptions.image
+    },
+    {
+      id: 'export.image',
+      commandId: 'message.exportImage',
+      label: ({ t }) => t('chat.topics.export.image'),
+      availability: ({ actions, exportMenuOptions }) => exportMenuOptions.image && !!actions.saveImage
+    },
+    {
+      id: 'export.markdown',
+      commandId: 'message.exportMarkdown',
+      label: ({ t }) => t('chat.topics.export.md.label'),
+      availability: ({ actions, exportMenuOptions }) => exportMenuOptions.markdown && !!actions.exportMessageAsMarkdown
+    },
+    {
+      id: 'export.markdown-reason',
+      commandId: 'message.exportMarkdownReason',
+      label: ({ t }) => t('chat.topics.export.md.reason'),
+      availability: ({ actions, exportMenuOptions }) =>
+        exportMenuOptions.markdown_reason && !!actions.exportMessageAsMarkdown
+    },
+    {
+      id: 'export.word',
+      commandId: 'message.exportWord',
+      label: ({ t }) => t('chat.topics.export.word'),
+      availability: ({ actions, exportMenuOptions }) => exportMenuOptions.docx && !!actions.exportToWord
+    },
+    {
+      id: 'export.notion',
+      commandId: 'message.exportNotion',
+      label: ({ t }) => t('chat.topics.export.notion'),
+      availability: ({ actions, exportMenuOptions }) => exportMenuOptions.notion && !!actions.exportToNotion
+    },
+    {
+      id: 'export.yuque',
+      commandId: 'message.exportYuque',
+      label: ({ t }) => t('chat.topics.export.yuque'),
+      availability: ({ actions, exportMenuOptions }) => exportMenuOptions.yuque && !!actions.exportToYuque
+    },
+    {
+      id: 'export.obsidian',
+      commandId: 'message.exportObsidian',
+      label: ({ t }) => t('chat.topics.export.obsidian'),
+      availability: ({ actions, exportMenuOptions }) => exportMenuOptions.obsidian && !!actions.exportToObsidian
+    },
+    {
+      id: 'export.joplin',
+      commandId: 'message.exportJoplin',
+      label: ({ t }) => t('chat.topics.export.joplin'),
+      availability: ({ actions, exportMenuOptions }) => exportMenuOptions.joplin && !!actions.exportToJoplin
+    },
+    {
+      id: 'export.siyuan',
+      commandId: 'message.exportSiyuan',
+      label: ({ t }) => t('chat.topics.export.siyuan'),
+      availability: ({ actions, exportMenuOptions }) => exportMenuOptions.siyuan && !!actions.exportToSiyuan
+    }
+  ]
+})
+
+export function resolveMessageMenuBarToolbarActions(
+  context: MessageMenuBarActionContext
+): MessageMenuBarResolvedAction[] {
+  return messageMenuBarActionRegistry.resolve(context, 'toolbar')
+}
+
+export function resolveMessageMenuBarMenuActions(context: MessageMenuBarActionContext): MessageMenuBarResolvedAction[] {
+  return messageMenuBarActionRegistry
+    .resolve(context, 'menu')
+    .filter((action) => !!action.commandId || action.children.length > 0)
+}
+
+export function executeMessageMenuBarAction(actionId: string, context: MessageMenuBarActionContext): Promise<boolean> {
+  return messageMenuBarActionRegistry.execute(actionId, context)
+}

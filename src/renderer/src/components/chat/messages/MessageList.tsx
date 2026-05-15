@@ -26,6 +26,8 @@ import {
 } from './MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem } from './types'
 
+const MULTI_SELECT_BOTTOM_PADDING_PX = 96
+
 function groupMessageListItems(messages: MessageListItem[]): Record<string, MessageListItem[]> {
   const grouped: Record<string, MessageListItem[]> = {}
 
@@ -136,6 +138,7 @@ const MessageList = () => {
                 getItemKey={([key]) => key}
                 estimateSize={data.estimateSize}
                 overscan={data.overscan}
+                bottomPadding={isMultiSelectMode ? MULTI_SELECT_BOTTOM_PADDING_PX : undefined}
                 hasMoreTop={hasOlder}
                 onReachTop={loadMoreMessages}
                 renderItem={([key, groupMessages]) => (
