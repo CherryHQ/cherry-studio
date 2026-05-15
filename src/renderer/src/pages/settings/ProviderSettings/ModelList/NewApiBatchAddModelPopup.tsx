@@ -35,19 +35,19 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
   const labelWidth = useDynamicLabelWidth([t('settings.models.add.endpoint_type.label')])
   const didResolve = useRef(false)
 
-  const onClose = () => {
-    // 清理工作：确保Promise已被resolve，如果还没有则resolve(null)
+  const resolveOnce = (data: ResolveData | null) => {
     if (!didResolve.current) {
       didResolve.current = true
-      resolve(null)
+      resolve(data)
     }
   }
 
+  const onClose = () => {
+    resolveOnce(null)
+  }
+
   const onCancel = () => {
-    if (!didResolve.current) {
-      didResolve.current = true
-      resolve(null)
-    }
+    resolveOnce(null)
     setOpen(false)
   }
 
@@ -65,9 +65,8 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
   const onFinish: FormProps<FieldType>['onFinish'] = (values) => {
     if (didResolve.current) return
     onAddModel(values)
-    didResolve.current = true
     setOpen(false)
-    resolve({ success: true })
+    resolveOnce({ success: true })
   }
 
   return (

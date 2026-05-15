@@ -6,11 +6,15 @@ import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { getModelLogoById } from '@renderer/config/models'
 import FileItem from '@renderer/pages/files/FileItem'
 import type { Model, Provider } from '@renderer/types'
+import { isNewApiProvider } from '@renderer/utils/provider'
 import { Avatar, Button, Checkbox, Flex, Tooltip } from 'antd'
 import { ChevronRight, Minus, Plus } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+import NewApiBatchAddModelPopup from './NewApiBatchAddModelPopup'
+import { isValidNewApiModel } from './utils'
 
 const logger = loggerService.withContext('ManageModelsList')
 
