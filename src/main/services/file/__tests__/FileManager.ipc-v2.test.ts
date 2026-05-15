@@ -49,7 +49,10 @@ describe('FileManager v2 IPC handler registration', () => {
     danglingCache.clear()
     vi.mocked(ipcMain.handle).mockClear()
     fm = new FileManager()
-    await fm.onInit()
+    // `onInit` is `protected` (lifecycle contract); bracket access is the
+    // canonical test-only escape hatch to drive the init sequence without
+    // requiring a public wrapper just for tests.
+    await (fm as unknown as { onInit(): Promise<void> }).onInit()
   })
 
   afterEach(async () => {

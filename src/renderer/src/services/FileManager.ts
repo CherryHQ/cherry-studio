@@ -5,6 +5,7 @@ import i18n from '@renderer/i18n'
 import type { FileMetadata } from '@renderer/types'
 import { getFileDirectory } from '@renderer/utils'
 import { toFileMetadata } from '@shared/file/legacy/toFileMetadata'
+import type { FilePath } from '@shared/file/types'
 import dayjs from 'dayjs'
 
 const logger = loggerService.withContext('FileManager')
@@ -15,7 +16,7 @@ class FileManager {
   }
 
   static async addFile(file: FileMetadata): Promise<FileMetadata> {
-    const entry = await window.api.file.createInternalEntry({ source: 'path', path: file.path })
+    const entry = await window.api.file.createInternalEntry({ source: 'path', path: file.path as FilePath })
     const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })
     return toFileMetadata(entry, physicalPath)
   }
@@ -50,7 +51,7 @@ class FileManager {
 
   static async uploadFile(file: FileMetadata): Promise<FileMetadata> {
     logger.info(`Uploading file: ${JSON.stringify(file)}`)
-    const entry = await window.api.file.createInternalEntry({ source: 'path', path: file.path })
+    const entry = await window.api.file.createInternalEntry({ source: 'path', path: file.path as FilePath })
     const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })
     return toFileMetadata(entry, physicalPath)
   }

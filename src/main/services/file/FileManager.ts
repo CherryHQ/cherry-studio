@@ -150,6 +150,7 @@ import type {
   FileURLString,
   PhysicalFileMetadata
 } from '@shared/file/types'
+import type { FileHandle } from '@shared/file/types/handle'
 import { FileHandleSchema } from '@shared/file/types/handle'
 import { IpcChannel } from '@shared/IpcChannel'
 import { eq } from 'drizzle-orm'
@@ -679,18 +680,26 @@ export class FileManager extends BaseService implements IFileManager {
     this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, async (_e, params: unknown) =>
       this.batchGetDanglingStates(BatchGetDanglingStatesIpcSchema.parse(params))
     )
-    // Phase 2 channels
+    // Phase 2 channels.
+    //
+    // Zod outputs the structural shapes (`{ path: string }`, `{ kind: 'path';
+    // path: string }`, etc.). The TS-side param types use template literal
+    // brands (`FilePath`, `FileHandle`) that Zod can't reproduce without a
+    // `.transform()` per field. The cast at this single boundary keeps the
+    // brand-as-doc convention intact while letting runtime validation (Zod)
+    // remain the actual gate — same pattern used by every other IPC handler
+    // in this file.
     this.ipcHandle(IpcChannel.File_CreateInternalEntry, async (_e, params: unknown) =>
-      this.createInternalEntry(CreateInternalEntryIpcSchema.parse(params))
+      this.createInternalEntry(CreateInternalEntryIpcSchema.parse(params) as CreateInternalEntryIpcParams)
     )
     this.ipcHandle(IpcChannel.File_EnsureExternalEntry, async (_e, params: unknown) =>
-      this.ensureExternalEntry(EnsureExternalEntryIpcSchema.parse(params))
+      this.ensureExternalEntry(EnsureExternalEntryIpcSchema.parse(params) as EnsureExternalEntryIpcParams)
     )
     this.ipcHandle(IpcChannel.File_GetPhysicalPath, async (_e, params: unknown) =>
       this.getPhysicalPath(GetPhysicalPathIpcSchema.parse(params).id)
     )
     this.ipcHandle(IpcChannel.File_PermanentDelete, async (_e, params: unknown) => {
-      const handle = PermanentDeleteIpcSchema.parse(params)
+      const handle = PermanentDeleteIpcSchema.parse(params) as FileHandle
       return dispatchHandle(
         handle,
         (entryId) => this.permanentDelete(entryId),
