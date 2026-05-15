@@ -74,3 +74,72 @@ export function isSupportEnableThinkingProvider(_provider: Provider): boolean {
   // TODO: derive from provider-registry capabilities
   return false
 }
+
+// ── Additional v2 predicates (T1.2: single source of truth) ───────────────
+// Keyed on presetProviderId / id / defaultChatEndpoint — never v1 `provider.type`.
+
+/** Check if provider is Anthropic/Claude. */
+export function isAnthropicProvider(provider: Provider): boolean {
+  return (
+    provider.presetProviderId === 'anthropic' ||
+    provider.id === 'anthropic' ||
+    provider.defaultChatEndpoint === 'anthropic-messages'
+  )
+}
+
+/** Check if provider is OpenAI (responses endpoint). */
+export function isOpenAIProvider(provider: Provider): boolean {
+  return provider.defaultChatEndpoint === 'openai-responses'
+}
+
+/** Check if provider is Perplexity. */
+export function isPerplexityProvider(provider: Provider): boolean {
+  return provider.id === 'perplexity' || provider.presetProviderId === 'perplexity'
+}
+
+/** Check if provider is the Cherry-hosted aggregator. */
+export function isCherryAIProvider(provider: Provider): boolean {
+  return provider.id === 'cherryai' || provider.presetProviderId === 'cherryai'
+}
+
+/** Check if provider routes through a new-api compatible gateway. */
+export function isNewApiProvider(provider: Provider): boolean {
+  return ['new-api', 'cherryin', 'aionly'].includes(provider.id) || provider.presetProviderId === 'new-api'
+}
+
+/** Check if provider speaks the OpenAI Chat Completions wire format. */
+export function isOpenAICompatibleProvider(provider: Provider): boolean {
+  return (
+    provider.defaultChatEndpoint === 'openai-chat-completions' ||
+    provider.presetProviderId === 'new-api' ||
+    provider.presetProviderId === 'mistral'
+  )
+}
+
+/** Gemini providers that use the native Google web-search tool. */
+export function isGeminiWebSearchProvider(provider: Provider): boolean {
+  return isGeminiProvider(provider) || isVertexProvider(provider)
+}
+
+/** Filter to providers that can serve Claude models (native or compatible host). */
+export function getClaudeSupportedProviders<T extends Provider>(providers: T[]): T[] {
+  return providers.filter(
+    (p) =>
+      isAnthropicProvider(p) ||
+      isNewApiProvider(p) ||
+      p.id === 'aihubmix' ||
+      p.id === 'openrouter' ||
+      isAzureOpenAIProvider(p)
+  )
+}
+
+/** Anthropic prompt-cache (1h) support. */
+export function isSupportAnthropicPromptCacheProvider(provider: Provider): boolean {
+  return (
+    isAnthropicProvider(provider) ||
+    isNewApiProvider(provider) ||
+    provider.id === 'aihubmix' ||
+    provider.id === 'openrouter' ||
+    isAzureOpenAIProvider(provider)
+  )
+}
