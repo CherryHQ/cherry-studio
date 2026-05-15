@@ -113,9 +113,34 @@ describe('pdfCompatibilityPlugin', () => {
     expect(mockExtractPdfText).not.toHaveBeenCalled()
   })
 
-  it('should pass through for Gemini model on any provider type', async () => {
+  it('should convert PDF for Gemini model accessed through non-Gemini provider (e.g., GitHub Copilot)', async () => {
+    // A Gemini-named model through GitHub Copilot (type: 'openai') uses OpenAI-compatible
+    // format which does NOT support native PDF file parts (would cause 400 "type has to be
+    // either 'image_url' or 'text'" errors). PDF must be converted to text.
+    // Mocking isGeminiModel(true) ensures this test would fail under the old
+    // `isGeminiModel(model)` branch — i.e. it now actually guards the regression.
     vi.mocked(isGeminiModel).mockReturnValue(true)
-    const provider = makeProvider('my-aggregator', 'new-api')
+    const provider = makeProvider('copilot', 'openai')
+    const geminiModel = { ...makeModel(), id: 'gemini-3.1-pro-preview' }
+    mockExtractPdfText.mockResolvedValue('Extracted PDF content')
+
+    const params = {
+      prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), makePdfFilePart('report.pdf')] }]
+    } as unknown as LanguageModelV3CallOptions
+
+    const result = await runMiddleware(provider, params, geminiModel)
+    expect(mockExtractPdfText).toHaveBeenCalledWith('base64pdfdata')
+    expect(result.prompt[0]).toMatchObject({
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Hello' },
+        { type: 'text', text: 'report.pdf\nExtracted PDF content' }
+      ]
+    })
+  })
+
+  it('should pass through for Gemini model on native Gemini provider', async () => {
+    const provider = makeProvider('gemini', 'gemini')
 
     const params = {
       prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), makePdfFilePart()] }]
