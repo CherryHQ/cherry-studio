@@ -378,6 +378,12 @@
         },
         "title": "刪除工作階段"
       },
+      "display": {
+        "agent": "[to be translated]:Agent",
+        "time": "[to be translated]:Time",
+        "title": "[to be translated]:Display mode",
+        "workdir": "[to be translated]:Workspace"
+      },
       "edit": {
         "title": "編輯工作階段"
       },
@@ -387,12 +393,28 @@
           "null_id": "工作階段 ID 為空"
         }
       },
+      "group": {
+        "collapse": "[to be translated]:Collapse sessions",
+        "earlier": "[to be translated]:Earlier",
+        "no_workdir": "[to be translated]:No workspace",
+        "show_more": "[to be translated]:Show more sessions",
+        "this_week": "[to be translated]:This week",
+        "today": "[to be translated]:Today",
+        "unknown_agent": "[to be translated]:Unknown agent",
+        "yesterday": "[to be translated]:Yesterday"
+      },
       "label_one": "工作階段",
       "label_other": "工作階段",
+      "list": {
+        "title": "[to be translated]:Sessions"
+      },
       "reorder": {
         "error": {
           "failed": "無法重新排序工作階段"
         }
+      },
+      "search": {
+        "placeholder": "搜尋工作階段"
       },
       "update": {
         "error": {

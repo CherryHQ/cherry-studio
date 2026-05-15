@@ -22,6 +22,8 @@ import { CalendarDays, ChevronsDown, ChevronsUp, SearchIcon } from 'lucide-react
 import type { ComponentProps, ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 
+import { ActionMenu } from '../actions/ActionMenu'
+import type { ResolvedAction } from '../actions/actionTypes'
 import {
   ResourceListContext,
   type ResourceListContextValue,
@@ -29,6 +31,7 @@ import {
   type ResourceListFilterOption,
   type ResourceListGroup,
   type ResourceListItemBase,
+  type ResourceListMeta,
   type ResourceListReorderPayload,
   type ResourceListSortOption,
   type ResourceListState,
@@ -539,12 +542,12 @@ function Header({ actions, children, className, count, icon, ref, title, ...prop
           {icon && (
             <span className="flex size-3.5 shrink-0 items-center justify-center text-muted-foreground/50">{icon}</span>
           )}
-          <div className="min-w-0 flex flex-1 items-baseline gap-1">
+          <div className="flex min-w-0 flex-1 items-baseline gap-1">
             {title && (
               <span className="truncate font-medium text-[12px] text-muted-foreground/60 leading-4">{title}</span>
             )}
             {count !== undefined && (
-              <span className="shrink-0 font-medium text-[12px] text-muted-foreground/40 leading-4 tabular-nums">
+              <span className="shrink-0 font-medium text-[12px] text-muted-foreground/40 tabular-nums leading-4">
                 {count}
               </span>
             )}
@@ -568,7 +571,7 @@ function HeaderActionButton({ className, ref, size, variant = 'ghost', ...props 
       size={size}
       variant={variant}
       className={cn(
-        'inline-flex size-5 shrink-0 items-center justify-center p-0 leading-none text-muted-foreground/55 shadow-none hover:bg-transparent hover:text-muted-foreground/75 [&_svg]:block [&_svg]:shrink-0',
+        'inline-flex size-5 shrink-0 items-center justify-center p-0 text-muted-foreground/55 leading-none shadow-none hover:bg-transparent hover:text-muted-foreground/75 [&_svg]:block [&_svg]:shrink-0',
         className
       )}
       {...props}
@@ -674,7 +677,7 @@ function GroupHeader({ group, className, ref, ...props }: GroupHeaderProps) {
     <div
       ref={ref}
       className={cn(
-        'group/resource-list-group flex h-7 items-center gap-1.5 px-1.5 pt-2 pb-1 font-medium text-muted-foreground/70 text-[11px]',
+        'group/resource-list-group flex h-7 items-center gap-1.5 px-1.5 pt-2 pb-1 font-medium text-[11px] text-muted-foreground/70',
         className
       )}
       {...props}>
@@ -691,7 +694,7 @@ function GroupHeader({ group, className, ref, ...props }: GroupHeaderProps) {
         <span className="truncate">{group.label}</span>
       </button>
       {groupHeaderAction && (
-        <div className="pointer-events-none ml-auto flex shrink-0 items-center opacity-0 transition-opacity group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100">
+        <div className="pointer-events-none ml-auto flex shrink-0 items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:opacity-100">
           {groupHeaderAction}
         </div>
       )}
@@ -1006,24 +1009,40 @@ function VirtualItems<T extends ResourceListItemBase>({ className, ref, renderIt
   )
 }
 
-type ContextMenuProps<T extends ResourceListItemBase> = {
+type ContextMenuProps<T extends ResourceListItemBase, TActionContext = unknown> = {
+  actions?: readonly ResolvedAction<TActionContext>[]
   item: T
   children: ReactNode
-  content: ReactNode
+  content?: ReactNode
   contentClassName?: string
+  menuClassName?: string
+  onAction?: (action: ResolvedAction<TActionContext>) => void | Promise<void>
 }
 
-function ContextMenu<T extends ResourceListItemBase>({
+function ContextMenu<T extends ResourceListItemBase, TActionContext = unknown>({
+  actions: menuActions,
   item,
   children,
   content,
-  contentClassName
-}: ContextMenuProps<T>) {
+  contentClassName,
+  menuClassName,
+  onAction
+}: ContextMenuProps<T, TActionContext>) {
   const { actions, meta } = useResourceList<T>()
+  const contentClass = cn(CONTEXT_MENU_CONTENT_CLASS, contentClassName)
+
   return (
     <UiContextMenu onOpenChange={(open) => open && actions.openContextMenu(meta.getItemId(item))}>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent className={cn(CONTEXT_MENU_CONTENT_CLASS, contentClassName)}>{content}</ContextMenuContent>
+      {menuActions ? (
+        <ActionMenu
+          actions={menuActions}
+          className={cn(contentClass, menuClassName)}
+          onAction={(action) => onAction?.(action)}
+        />
+      ) : (
+        <ContextMenuContent className={contentClass}>{content}</ContextMenuContent>
+      )}
     </UiContextMenu>
   )
 }

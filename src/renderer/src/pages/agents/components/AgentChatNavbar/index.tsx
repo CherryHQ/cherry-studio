@@ -7,12 +7,14 @@ import type { AgentEntity } from '@shared/data/types/agent'
 import AgentContent from './AgentContent'
 
 interface Props {
-  activeAgent: AgentEntity
+  activeAgent: AgentEntity | null
   onOpenSettings: () => void
+  onDraftAgentChange?: (agentId: string | null) => void | Promise<void>
+  creatingSession?: boolean
   className?: string
 }
 
-const AgentChatNavbar = ({ activeAgent, onOpenSettings, className }: Props) => {
+const AgentChatNavbar = ({ activeAgent, onOpenSettings, onDraftAgentChange, creatingSession, className }: Props) => {
   useShortcut('general.search', () => {
     void SearchPopup.show()
   })
@@ -20,7 +22,12 @@ const AgentChatNavbar = ({ activeAgent, onOpenSettings, className }: Props) => {
   return (
     <NavbarHeader className={cn('agent-navbar h-(--navbar-height)', className)}>
       <div className="flex h-full min-w-0 flex-1 shrink items-center overflow-auto">
-        <AgentContent activeAgent={activeAgent} onOpenSettings={onOpenSettings} />
+        <AgentContent
+          activeAgent={activeAgent}
+          onOpenSettings={onOpenSettings}
+          onDraftAgentChange={onDraftAgentChange}
+          creatingSession={creatingSession}
+        />
       </div>
     </NavbarHeader>
   )

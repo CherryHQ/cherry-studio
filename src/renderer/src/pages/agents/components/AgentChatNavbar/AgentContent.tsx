@@ -27,21 +27,23 @@ import SessionWorkspaceMeta from './SessionWorkspaceMeta'
 import Tools from './Tools'
 
 type AgentContentProps = {
-  activeAgent: AgentEntity
+  activeAgent: AgentEntity | null
   onOpenSettings: () => void
+  onDraftAgentChange?: (agentId: string | null) => void | Promise<void>
+  creatingSession?: boolean
 }
 
-const AgentContent = ({ activeAgent, onOpenSettings }: AgentContentProps) => {
+const AgentContent = ({ activeAgent, onOpenSettings, onDraftAgentChange, creatingSession }: AgentContentProps) => {
   const { t } = useTranslation()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
   const { isTopNavbar } = useNavbarPosition()
   const { session: activeSession } = useActiveSession()
   const { updateModel } = useUpdateAgent()
-  const { updateSession } = useUpdateSession(activeAgent.id)
-  const modelFilter = useAgentModelFilter(activeAgent.type)
+  const { updateSession } = useUpdateSession(activeAgent?.id ?? null)
+  const modelFilter = useAgentModelFilter(activeAgent?.type)
 
-  const { model: currentSharedModel } = useModelById((activeAgent.model ?? '') as UniqueModelId)
+  const { model: currentSharedModel } = useModelById((activeAgent?.model ?? '') as UniqueModelId)
   const currentRendererModel = useMemo(
     () => (currentSharedModel ? fromSharedModel(currentSharedModel) : undefined),
     [currentSharedModel]
@@ -50,18 +52,25 @@ const AgentContent = ({ activeAgent, onOpenSettings }: AgentContentProps) => {
 
   const handleAgentChange = useCallback(
     async (nextAgentId: string | null) => {
-      if (!nextAgentId || !activeSession || nextAgentId === activeAgent.id) return
+      if (!nextAgentId) return
+
+      if (!activeAgent) {
+        await onDraftAgentChange?.(nextAgentId)
+        return
+      }
+
+      if (!activeSession || nextAgentId === activeAgent.id) return
       await updateSession({ id: activeSession.id, agentId: nextAgentId }, { showSuccessToast: false })
     },
-    [activeAgent.id, activeSession, updateSession]
+    [activeAgent, activeSession, onDraftAgentChange, updateSession]
   )
 
   const handleModelSelect = useCallback(
     (model: SharedModel | undefined) => {
-      if (!model) return
+      if (!activeAgent || !model) return
       void updateModel(activeAgent.id, model.id, { showSuccessToast: false })
     },
-    [activeAgent.id, updateModel]
+    [activeAgent, updateModel]
   )
 
   return (
@@ -97,20 +106,28 @@ const AgentContent = ({ activeAgent, onOpenSettings }: AgentContentProps) => {
         <HorizontalScrollContainer className="ml-2 min-w-0 flex-initial shrink">
           <div className="flex flex-nowrap items-center gap-2">
             <AgentSelector
-              value={activeAgent.id}
+              value={activeAgent?.id ?? null}
               onChange={handleAgentChange}
               trigger={
-                <Button variant="ghost" size="sm" className="h-7 gap-1.5 rounded-full px-2 text-xs">
-                  <AgentLabel
-                    agent={activeAgent}
-                    classNames={{ name: 'max-w-40 text-xs', avatar: 'h-4.5 w-4.5', container: 'gap-1.5' }}
-                  />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1.5 rounded-full px-2 text-xs"
+                  disabled={creatingSession}>
+                  {activeAgent ? (
+                    <AgentLabel
+                      agent={activeAgent}
+                      classNames={{ name: 'max-w-40 text-xs', avatar: 'h-4.5 w-4.5', container: 'gap-1.5' }}
+                    />
+                  ) : (
+                    <span className="max-w-40 truncate text-muted-foreground">{t('chat.alerts.select_agent')}</span>
+                  )}
                   <ChevronDown size={14} className="text-muted-foreground" />
                 </Button>
               }
             />
 
-            {activeSession && (
+            {activeAgent ? (
               <>
                 <ModelSelector
                   multiple={false}
@@ -129,17 +146,22 @@ const AgentContent = ({ activeAgent, onOpenSettings }: AgentContentProps) => {
                   }
                 />
 
-                <SessionWorkspaceMeta session={activeSession} />
+                {activeSession && <SessionWorkspaceMeta session={activeSession} />}
               </>
+            ) : (
+              <Button variant="ghost" size="sm" className="h-7 gap-1.5 rounded-full px-2 text-xs" disabled>
+                <span className="max-w-60 truncate text-muted-foreground">{t('button.select_model')}</span>
+                <ChevronDown size={14} className="text-muted-foreground" />
+              </Button>
             )}
           </div>
         </HorizontalScrollContainer>
       </div>
       <div className="flex items-center">
-        {activeSession && activeSession.accessiblePaths?.[0] && (
+        {activeAgent && activeSession && activeSession.accessiblePaths?.[0] && (
           <OpenExternalAppButton workdir={activeSession.accessiblePaths[0]} className="mr-2" />
         )}
-        <Tools onOpenSettings={onOpenSettings} />
+        {activeAgent && <Tools onOpenSettings={onOpenSettings} />}
       </div>
     </div>
   )

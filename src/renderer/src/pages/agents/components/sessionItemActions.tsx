@@ -2,14 +2,13 @@ import { createActionRegistry } from '@renderer/components/chat/actions/actionRe
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import type { TFunction } from 'i18next'
-import { MenuIcon, PinIcon, PinOffIcon } from 'lucide-react'
+import { PinIcon, PinOffIcon } from 'lucide-react'
 
 export interface SessionActionContext {
   onDelete: () => void
   onTogglePin?: () => void
   pinned?: boolean
   sessionName: string
-  setTopicPosition: (position: 'left' | 'right') => void
   startEdit: (value: string) => void
   t: TFunction
 }
@@ -25,16 +24,6 @@ sessionActionRegistry.registerCommand({
   id: 'session.toggle-pin',
   availability: ({ onTogglePin }) => ({ visible: !!onTogglePin, enabled: !!onTogglePin }),
   run: ({ onTogglePin }) => onTogglePin?.()
-})
-
-sessionActionRegistry.registerCommand({
-  id: 'session.position-left',
-  run: ({ setTopicPosition }) => setTopicPosition('left')
-})
-
-sessionActionRegistry.registerCommand({
-  id: 'session.position-right',
-  run: ({ setTopicPosition }) => setTopicPosition('right')
 })
 
 sessionActionRegistry.registerCommand({
@@ -61,30 +50,6 @@ sessionActionRegistry.registerAction({
 })
 
 sessionActionRegistry.registerAction({
-  id: 'session.position',
-  label: ({ t }) => t('settings.topic.position.label'),
-  icon: () => <MenuIcon size={14} />,
-  order: 30,
-  surface: 'menu',
-  children: [
-    {
-      id: 'session.position-left',
-      commandId: 'session.position-left',
-      label: ({ t }) => t('settings.topic.position.left'),
-      order: 10,
-      surface: 'menu'
-    },
-    {
-      id: 'session.position-right',
-      commandId: 'session.position-right',
-      label: ({ t }) => t('settings.topic.position.right'),
-      order: 20,
-      surface: 'menu'
-    }
-  ]
-})
-
-sessionActionRegistry.registerAction({
   id: 'session.delete',
   commandId: 'session.delete',
   label: ({ t }) => t('common.delete'),
@@ -92,7 +57,13 @@ sessionActionRegistry.registerAction({
   group: 'danger',
   order: 40,
   surface: 'menu',
-  danger: true
+  danger: true,
+  confirm: ({ t }) => ({
+    title: t('agent.session.delete.title'),
+    description: t('agent.session.delete.content'),
+    confirmText: t('common.delete'),
+    destructive: true
+  })
 })
 
 export function resolveSessionMenuActions(context: SessionActionContext): ResolvedAction<SessionActionContext>[] {
