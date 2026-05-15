@@ -142,64 +142,40 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.9.5 - Bug Fixes & Improvements
+    Cherry Studio 1.9.6 - Bug Fixes
 
     🐛 Bug Fixes
-    - [Search] Fixed built-in web search truncating assistant responses when web search was the only active tool
-    - [Messages] Fixed outer scrolling issue in horizontal multi-model layout
-    - [Backup] Fixed app hanging during restore when selection helper was enabled
-    - [Backup] Fixed silent data loss when restoring v6 .zip backups on macOS/Linux
-    - [Models] Fixed CherryIN OpenAI-protocol models not appearing in Agent model picker
-    - [Models] Fixed DeepSeek V4 model slugs not being detected for reasoning effort
-    - [Models] Fixed Tongyi model icon matching
-    - [Models] Fixed Claude Opus 4.7 support
-    - [Image] Fixed generated image re-editing in NewApiPage
-    - [Code Tools] Disabled opencode built-in auto-update check
-    - [API Server] Fixed trailing /v1 stripping from Anthropic SDK baseURL
-    - [Gateway] Fixed Vercel AI Gateway model list fetch
-
-    💄 Improvements
-    - [Agents] Show all sessions and agents in sidebar instead of capping at 20
-    - [Agents] Removed stale mcp__browser__* references from agent prompt
-    - [Models] Updated DeepSeek provider defaults to use V4 model IDs
-    - [Models] Added support for hosted Gemma 4 thinking mode
-    - [Feishu] Use emoji reaction as typing indicator
-    - [i18n] Fixed default assistant and topic names not updating on language switch
-    - [Vertex] Improved model list fetch and service account setup
-    - [Reasoning] Added enable_thinking param for SiliconFlow DeepSeek/Zhipu models
-    - [Claw] Added timeout_minutes parameter to cron tool
-
-    ✨ New Features
-    - [Painting] Added gpt-image-2 support to AiHubMix provider
+    - [AI] Fixed crash when chat model's stored provider no longer exists
+    - [AI] Fixed streaming requests aborted after 30 minutes during active data transfer (affected models with extended thinking)
+    - [Agents] Fixed agent session creation failures when provider settings change
+    - [Agents] Fixed deepseek-r1 models incorrectly showing function_calling label causing errors in Agent mode
+    - [Agents] Use task name instead of agent name for cron task sessions
+    - [MCP] Fixed approval card not auto-expanding to show Run/Cancel buttons
+    - [MCP] Clean up OAuth tokens when deleting servers
+    - [Code Tools] Fixed Codex CLI launch failure when using OpenAI or other reserved providers
+    - [Claude Code] Fixed launch failures caused by auth conflicts with provider environment variables
+    - [Image] Fixed gpt-image-2 multi-turn editing crash
+    - [Knowledge] Fixed HTTP/HTTPS/FTP URLs being stripped from Markdown documents
+    - [OpenMinerU] Fixed preprocessing ENOENT errors due to ZIP structure change
+    - [Qiniu] Fixed PDF upload regression for GPT-5.4 models
+    - [Settings] Minor alignment fix for provider model list actions
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.9.5 - 错误修复与改进
+    Cherry Studio 1.9.6 - 错误修复
 
     🐛 问题修复
-    - [搜索] 修复内置网页搜索作为唯一活动工具时截断助手回复的问题
-    - [消息] 修复水平多模型布局中的外部滚动问题
-    - [备份] 修复启用选择助手时恢复期间应用挂起的问题
-    - [备份] 修复在 macOS/Linux 上恢复 v6 .zip 备份时的静默数据丢失问题
-    - [模型] 修复 CherryIN OpenAI 协议模型未显示在智能体模型选择器中的问题
-    - [模型] 修复 DeepSeek V4 模型标识符未检测推理强度的问题
-    - [模型] 修复通义模型图标匹配问题
-    - [模型] 修复 Claude Opus 4.7 支持
-    - [图像] 修复 NewApiPage 中的生成图像重新编辑功能
-    - [代码工具] 禁用 opencode 内置自动更新检查
-    - [API 服务器] 修复 Anthropic SDK baseURL 的尾部 /v1 去除问题
-    - [网关] 修复 Vercel AI Gateway 模型列表获取问题
-
-    💄 改进
-    - [智能体] 侧边栏显示所有会话和智能体，而不是限制为 20 个
-    - [智能体] 移除智能体提示词中过时的 mcp__browser__* 引用
-    - [模型] 更新 DeepSeek 提供商默认设置以使用 V4 模型 ID
-    - [模型] 添加对托管的 Gemma 4 推理模式的支持
-    - [飞书] 使用表情符号反应作为输入指示器
-    - [国际化] 修复切换语言时默认助手和主题名称不更新的问题
-    - [Vertex] 改进模型列表获取和服务账户设置
-    - [推理] 为 SiliconFlow DeepSeek/智谱模型添加 enable_thinking 参数
-    - [Claw] 为 cron 工具添加 timeout_minutes 参数
-
-    ✨ 新功能
-    - [绘画] 为 AiHubMix 提供商添加 gpt-image-2 支持
+    - [AI] 修复聊天模型的存储提供商不存在时导致的崩溃
+    - [AI] 修复活跃数据传输期间流式请求在 30 分钟后被中断的问题（影响具有扩展思考的模型）
+    - [智能体] 修复提供商设置更改时智能体会话创建失败的问题
+    - [智能体] 修复 deepseek-r1 模型错误显示 function_calling 标签导致智能体模式出错
+    - [智能体] 定时任务会话现在使用任务名称而非智能体名称
+    - [MCP] 修复批准卡片未自动展开以显示运行/取消按钮的问题
+    - [MCP] 删除服务器时清理 OAuth 令牌
+    - [代码工具] 修复使用 OpenAI 或其他保留提供商时 Codex CLI 启动失败的问题
+    - [Claude Code] 修复提供商环境变量导致身份验证冲突从而无法启动的问题
+    - [图像] 修复 gpt-image-2 多轮编辑崩溃问题
+    - [知识库] 修复 Markdown 文档中的 HTTP/HTTPS/FTP URL 被移除的问题
+    - [OpenMinerU] 修复 ZIP 结构变更导致的预处理 ENOENT 错误
+    - [七牛云] 修复 GPT-5.4 模型的 PDF 上传回归问题
+    - [设置] 提供商模型列表操作的微小对齐修复
     <!--LANG:END-->
