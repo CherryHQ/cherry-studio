@@ -351,7 +351,14 @@ describe('GroupedSortableVirtualList', () => {
     const overlay = screen.getByTestId('drag-overlay')
     expect(within(overlay).getByText('Item Alpha')).toBeInTheDocument()
     expect(overlay.firstElementChild).toHaveStyle({ height: '32px', width: '180px' })
-    expect(screen.getAllByText('Item Alpha')[0].parentElement).toHaveStyle({ opacity: '0' })
+    expect(overlay.firstElementChild).toHaveClass('pointer-events-none')
+    expect(overlay.firstElementChild).not.toHaveClass('opacity-85', 'shadow-sm', 'ring-1')
+    expect(screen.getAllByText('Item Alpha')[0].parentElement).toHaveStyle({ opacity: '0.5' })
+    expect(screen.getAllByText('Item Alpha')[0].parentElement).not.toHaveClass(
+      'border-dashed',
+      'border-sidebar-border',
+      'bg-sidebar-accent/30'
+    )
 
     act(() => {
       dndMocks.onDragCancel?.({})
@@ -373,10 +380,14 @@ describe('GroupedSortableVirtualList', () => {
     const sameGroupRow = screen.getByText('Item Beta').parentElement
     const targetRow = screen.getByText('Item Gamma').parentElement
 
-    expect(sourceRow).toHaveStyle({ opacity: '0', transform: '', transition: '' })
+    expect(sourceRow).toHaveStyle({ opacity: '0.5', transform: '', transition: '' })
+    expect(sourceRow).not.toHaveClass('border-dashed', 'border-sidebar-border', 'bg-sidebar-accent/30')
     expect(sameGroupRow).toHaveStyle({ transform: '', transition: '' })
     expect(targetRow).toHaveStyle({ transform: '', transition: '' })
-    expect(targetRow?.querySelector('[data-drop-indicator="after"]')).toBeInTheDocument()
+    const indicator = targetRow?.querySelector('[data-drop-indicator="after"]')
+    expect(indicator).toBeInTheDocument()
+    expect(indicator).toHaveClass('right-2', 'left-2', 'h-0.5', 'bg-sidebar-ring')
+    expect(indicator).not.toHaveClass('bg-sidebar-primary', 'bg-sidebar-border')
     expect(within(screen.getByTestId('drag-overlay')).getByText('Item Alpha')).toBeInTheDocument()
   })
 
@@ -393,10 +404,14 @@ describe('GroupedSortableVirtualList', () => {
     const targetRow = screen.getByText('Item Beta').parentElement
     const otherGroupRow = screen.getByText('Item Gamma').parentElement
 
-    expect(sourceRow).toHaveStyle({ opacity: '0', transform: '', transition: '' })
+    expect(sourceRow).toHaveStyle({ opacity: '0.5', transform: '', transition: '' })
+    expect(sourceRow).not.toHaveClass('border-dashed', 'border-sidebar-border', 'bg-sidebar-accent/30')
     expect(targetRow).toHaveStyle({ transform: '', transition: '' })
     expect(otherGroupRow).toHaveStyle({ transform: '', transition: '' })
-    expect(targetRow?.querySelector('[data-drop-indicator="after"]')).toBeInTheDocument()
+    const indicator = targetRow?.querySelector('[data-drop-indicator="after"]')
+    expect(indicator).toBeInTheDocument()
+    expect(indicator).toHaveClass('right-2', 'left-2', 'h-0.5', 'bg-sidebar-ring')
+    expect(indicator).not.toHaveClass('bg-sidebar-primary', 'bg-sidebar-border')
     expect(within(screen.getByTestId('drag-overlay')).getByText('Item Alpha')).toBeInTheDocument()
   })
 
@@ -439,7 +454,10 @@ describe('GroupedSortableVirtualList', () => {
     expect(targetHeader).toHaveAttribute('data-drop-target', 'true')
     expect(targetHeader?.querySelector('[data-drop-indicator]')).not.toBeInTheDocument()
     expect(targetItem?.querySelector('[data-drop-indicator]')).not.toBeInTheDocument()
-    expect(targetFooter?.querySelector('[data-drop-indicator="before"]')).toBeInTheDocument()
+    const indicator = targetFooter?.querySelector('[data-drop-indicator="before"]')
+    expect(indicator).toBeInTheDocument()
+    expect(indicator).toHaveClass('right-2', 'left-2', 'h-0.5', 'bg-sidebar-ring')
+    expect(indicator).not.toHaveClass('bg-sidebar-primary', 'bg-sidebar-border')
   })
 
   it('disables sortable projection for item drags while preserving group sorting', () => {

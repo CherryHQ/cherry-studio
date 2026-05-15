@@ -234,7 +234,7 @@ function DropIndicator({ position }: { position: DropIndicatorPosition }) {
     <div
       aria-hidden="true"
       className={joinClassNames(
-        'pointer-events-none absolute right-1.5 left-1.5 z-10 h-0.5 rounded-full bg-sidebar-primary',
+        'pointer-events-none absolute right-2 left-2 z-10 h-0.5 rounded-full bg-sidebar-ring',
         position === 'before' ? 'top-0' : 'bottom-0'
       )}
       data-drop-indicator={position}
@@ -556,7 +556,7 @@ function SortableItemRow<TGroup, TItem>({
       {...dropTargetRowState.props}
       className={joinClassNames(dropTargetRowState.props.className, dropIndicatorPosition && 'relative')}
       style={{
-        opacity: isDragging ? 0 : undefined,
+        opacity: isDragging ? 0.5 : undefined,
         transform: dropTargetRowState.isBlocked || freezeTransform ? undefined : CSS.Transform.toString(transform),
         transition: dropTargetRowState.isBlocked || freezeTransform ? undefined : transition
       }}
