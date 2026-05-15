@@ -9,13 +9,14 @@ import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Topic } from '@renderer/types'
+import type { Citation, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import type { FC, ReactNode } from 'react'
-import React, { useRef, useState } from 'react'
+import React, { useCallback, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 
+import CitationsPanel from '../chat-citations/CitationsPanel'
 import SettingsPanel from '../chat-settings/SettingsPanel'
 import ChatContent from './ChatContent'
 import ChatNavbar from './components/ChatNavBar'
@@ -43,6 +44,7 @@ const Chat: FC<Props> = (props) => {
   const [messageStyle] = usePreference('chat.message.style')
   const [isTopNavbar] = usePreference('ui.navbar.position')
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const contentSearchRef = useRef<ContentSearchRef>(null)
@@ -108,6 +110,17 @@ const Chat: FC<Props> = (props) => {
   }
 
   const mainHeight = isTopNavbar ? 'calc(100vh - var(--navbar-height) - 6px)' : 'calc(100vh - var(--navbar-height))'
+  const citationsPanelOpen = citationPanelCitations !== null
+
+  const handleOpenSettings = useCallback(() => {
+    setCitationPanelCitations(null)
+    setSettingsOpen(true)
+  }, [])
+
+  const handleOpenCitationsPanel = useCallback(({ citations }: { citations: Citation[] }) => {
+    setSettingsOpen(false)
+    setCitationPanelCitations(citations)
+  }, [])
 
   return (
     <div
@@ -128,16 +141,23 @@ const Chat: FC<Props> = (props) => {
             <ChatNavbar
               assistantId={props.activeTopic.assistantId}
               topicId={props.activeTopic.id}
-              onOpenSettings={() => setSettingsOpen(true)}
+              onOpenSettings={handleOpenSettings}
             />
           }
           sidePanel={
-            <SettingsPanel
-              open={settingsOpen}
-              onClose={() => setSettingsOpen(false)}
-              mode="assistant"
-              assistantId={props.activeTopic.assistantId}
-            />
+            <>
+              <SettingsPanel
+                open={settingsOpen}
+                onClose={() => setSettingsOpen(false)}
+                mode="assistant"
+                assistantId={props.activeTopic.assistantId}
+              />
+              <CitationsPanel
+                open={citationsPanelOpen}
+                onClose={() => setCitationPanelCitations(null)}
+                citations={citationPanelCitations ?? []}
+              />
+            </>
           }
           centerContent={
             <ChatContent
@@ -145,6 +165,7 @@ const Chat: FC<Props> = (props) => {
               topic={props.activeTopic}
               setActiveTopic={props.setActiveTopic}
               mainHeight={mainHeight}
+              onOpenCitationsPanel={handleOpenCitationsPanel}
               onPersistTemporaryTopic={props.onPersistTemporaryTopic}
               renderFrame={({ main, bottomComposer, overlay }) => (
                 <>

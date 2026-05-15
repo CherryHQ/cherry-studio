@@ -1,4 +1,4 @@
-import type { FileMetadata, Topic, TranslateLangCode, TranslateLanguage } from '@renderer/types'
+import type { Citation, FileMetadata, Topic, TranslateLangCode, TranslateLanguage } from '@renderer/types'
 import type { SerializedError } from '@renderer/types/error'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type {
@@ -242,6 +242,7 @@ export interface MessageListActions {
   exportToSiyuan?: (message: MessageExportView) => void | Promise<void>
   openTrace?: (message: MessageListItem, options?: { modelName?: string }) => void | Promise<void>
   openPath?: (path: string) => void | Promise<void>
+  openCitationsPanel?: (data: { citations: Citation[] }) => void
   showInFolder?: (path: string) => void | Promise<void>
   abortTool?: (toolId: string) => boolean | Promise<boolean>
   diagnoseMessageError?: (

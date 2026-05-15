@@ -17,7 +17,7 @@ import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import ChatNavigation from '@renderer/pages/agents/components/ChatNavigation'
-import type { GetAgentResponse } from '@renderer/types'
+import type { Citation, GetAgentResponse } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -27,6 +27,7 @@ import type { PropsWithChildren, ReactNode } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import CitationsPanel from '../chat-citations/CitationsPanel'
 import SettingsPanel from '../chat-settings/SettingsPanel'
 import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
 import AgentChatNavbar from './components/AgentChatNavbar'
@@ -172,6 +173,7 @@ const AgentChatInner = ({
   isMultiSelectMode
 }: InnerProps) => {
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
   const [narrowMode] = usePreference('chat.narrow_mode')
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
   const {
@@ -205,6 +207,17 @@ const AgentChatInner = ({
   const executionChats = useExecutionChats(sessionTopicId, chat.activeExecutions)
 
   const { isPending } = useTopicStreamStatus(sessionTopicId)
+  const citationsPanelOpen = citationPanelCitations !== null
+
+  const handleOpenSettings = useCallback(() => {
+    setCitationPanelCitations(null)
+    setSettingsOpen(true)
+  }, [])
+
+  const handleOpenCitationsPanel = useCallback(({ citations }: { citations: Citation[] }) => {
+    setSettingsOpen(false)
+    setCitationPanelCitations(citations)
+  }, [])
 
   return (
     <AgentChatFrame
@@ -215,11 +228,7 @@ const AgentChatInner = ({
       topBar={
         activeAgent && (
           <div className="flex h-fit w-full min-w-0">
-            <AgentChatNavbar
-              className="min-w-0"
-              activeAgent={activeAgent}
-              onOpenSettings={() => setSettingsOpen(true)}
-            />
+            <AgentChatNavbar className="min-w-0" activeAgent={activeAgent} onOpenSettings={handleOpenSettings} />
           </div>
         )
       }
@@ -249,6 +258,7 @@ const AgentChatInner = ({
             isLoading={isLoading}
             hasOlder={hasOlder}
             loadOlder={loadOlder}
+            onOpenCitationsPanel={handleOpenCitationsPanel}
             deleteMessage={deleteMessage}
           />
           <div className="mt-auto px-4.5 pb-2">
@@ -270,7 +280,16 @@ const AgentChatInner = ({
           />
         )
       }
-      sidePanel={<SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} mode="agent" />}
+      sidePanel={
+        <>
+          <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} mode="agent" />
+          <CitationsPanel
+            open={citationsPanelOpen}
+            onClose={() => setCitationPanelCitations(null)}
+            citations={citationPanelCitations ?? []}
+          />
+        </>
+      }
     />
   )
 }

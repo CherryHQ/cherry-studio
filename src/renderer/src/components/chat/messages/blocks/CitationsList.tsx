@@ -1,4 +1,4 @@
-import { Button, Popover, PopoverContent, PopoverTrigger, Scrollbar, Skeleton } from '@cherrystudio/ui'
+import { Button, Scrollbar, Skeleton } from '@cherrystudio/ui'
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
@@ -14,6 +14,11 @@ import { useOptionalMessageListActions } from '../MessageListProvider'
 
 interface CitationsListProps {
   citations: Citation[]
+}
+
+interface CitationsPanelContentProps {
+  citations: Citation[]
+  openPath?: (path: string) => void | Promise<void>
 }
 
 const queryClient = new QueryClient({
@@ -39,66 +44,67 @@ const truncateText = (text: string, maxLength = 100) => {
 
 const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
   const { t } = useTranslation()
+  const openCitationsPanel = useOptionalMessageListActions()?.openCitationsPanel
 
   const previewItems = citations.slice(0, 3)
   const count = citations.length
   if (!count) return null
 
-  const popoverContent = (
-    <Scrollbar className="max-h-[70vh]">
-      {citations.map((citation) => (
-        <div
-          key={citation.url || citation.number || citation.title}
-          className="border-border border-b-[0.5px] last:border-b-0">
-          {citation.type === 'websearch' && (
-            <div className="max-w-[min(400px,60vw)] px-3">
-              <WebSearchCitation citation={citation} />
-            </div>
-          )}
-          {citation.type === 'memory' && (
-            <div className="max-w-150 px-3">
-              <KnowledgeCitation citation={{ ...citation }} />
-            </div>
-          )}
-          {citation.type === 'knowledge' && (
-            <div className="max-w-150 px-3">
-              <KnowledgeCitation citation={{ ...citation }} />
-            </div>
-          )}
-        </div>
-      ))}
-    </Scrollbar>
-  )
+  const handleOpenCitationsPanel = () => {
+    openCitationsPanel?.({ citations })
+  }
 
   return (
+    <Button
+      variant="ghost"
+      disabled={!openCitationsPanel}
+      onClick={handleOpenCitationsPanel}
+      className="mb-2 flex items-center self-start rounded-lg bg-muted px-2 py-0.75 text-xs">
+      <div className="flex items-center">
+        {previewItems.map((c, i) => (
+          <div
+            key={i}
+            className="-ml-2 flex h-6 w-6 items-center justify-center overflow-hidden rounded-full border border-border bg-muted text-foreground-secondary first:ml-0"
+            style={{ zIndex: previewItems.length - i }}>
+            {c.type === 'websearch' && c.url ? (
+              <Favicon hostname={new URL(c.url).hostname} alt={c.title || ''} />
+            ) : (
+              <FileSearch width={16} />
+            )}
+          </div>
+        ))}
+      </div>
+      {t('message.citation', { count })}
+    </Button>
+  )
+}
+
+export const CitationsPanelContent: React.FC<CitationsPanelContentProps> = ({ citations, openPath }) => {
+  return (
     <QueryClientProvider client={queryClient}>
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant="ghost"
-            className="mb-2 flex items-center self-start rounded-lg bg-muted px-2 py-0.75 text-xs">
-            <div className="flex items-center">
-              {previewItems.map((c, i) => (
-                <div
-                  key={i}
-                  className="-ml-2 flex h-6 w-6 items-center justify-center overflow-hidden rounded-full border border-border bg-muted text-foreground-secondary first:ml-0"
-                  style={{ zIndex: previewItems.length - i }}>
-                  {c.type === 'websearch' && c.url ? (
-                    <Favicon hostname={new URL(c.url).hostname} alt={c.title || ''} />
-                  ) : (
-                    <FileSearch width={16} />
-                  )}
-                </div>
-              ))}
-            </div>
-            {t('message.citation', { count })}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0 pb-2" side="right" align="start">
-          <div className="mb-0 border-border border-b-[0.5px] px-3 pt-2 pb-2 font-bold">{t('message.citations')}</div>
-          {popoverContent}
-        </PopoverContent>
-      </Popover>
+      <Scrollbar className="min-h-0 flex-1">
+        {citations.map((citation) => (
+          <div
+            key={citation.url || citation.number || citation.title}
+            className="border-border border-b-[0.5px] last:border-b-0">
+            {citation.type === 'websearch' && (
+              <div className="max-w-[min(400px,60vw)] px-3">
+                <WebSearchCitation citation={citation} openPath={openPath} />
+              </div>
+            )}
+            {citation.type === 'memory' && (
+              <div className="max-w-150 px-3">
+                <KnowledgeCitation citation={{ ...citation }} openPath={openPath} />
+              </div>
+            )}
+            {citation.type === 'knowledge' && (
+              <div className="max-w-150 px-3">
+                <KnowledgeCitation citation={{ ...citation }} openPath={openPath} />
+              </div>
+            )}
+          </div>
+        ))}
+      </Scrollbar>
     </QueryClientProvider>
   )
 }
@@ -135,9 +141,13 @@ const CopyButton: React.FC<{ content: string }> = ({ content }) => {
   )
 }
 
-const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
+const WebSearchCitation: React.FC<{ citation: Citation; openPath?: (path: string) => void | Promise<void> }> = ({
+  citation,
+  openPath
+}) => {
   const isXPost = Boolean(citation.url && isXPostUrl(citation.url))
-  const openPath = useOptionalMessageListActions()?.openPath
+  const fallbackOpenPath = useOptionalMessageListActions()?.openPath
+  const resolvedOpenPath = openPath ?? fallbackOpenPath
 
   const { data: fetchedContent, isLoading } = useQuery({
     queryKey: ['webContent', citation.url],
@@ -176,7 +186,7 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
           <a
             className="flex-1 text-nowrap text-foreground text-sm leading-[1.6] no-underline"
             href={citation.url}
-            onClick={(e) => handleLinkClick(citation.url, e, openPath)}>
+            onClick={(e) => handleLinkClick(citation.url, e, resolvedOpenPath)}>
             {displayTitle || <span className="text-primary">{citation.hostname}</span>}
           </a>
 
@@ -200,8 +210,12 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
   )
 }
 
-const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
-  const openPath = useOptionalMessageListActions()?.openPath
+const KnowledgeCitation: React.FC<{ citation: Citation; openPath?: (path: string) => void | Promise<void> }> = ({
+  citation,
+  openPath
+}) => {
+  const fallbackOpenPath = useOptionalMessageListActions()?.openPath
+  const resolvedOpenPath = openPath ?? fallbackOpenPath
 
   return (
     <SelectionContextMenu>
@@ -211,7 +225,7 @@ const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
           <a
             className="flex-1 text-nowrap text-foreground text-sm leading-[1.6] no-underline"
             href={citation.url}
-            onClick={(e) => handleLinkClick(citation.url, e, openPath)}>
+            onClick={(e) => handleLinkClick(citation.url, e, resolvedOpenPath)}>
             {/* example title: User/path/example.pdf */}
             {citation.title?.split('/').pop()}
           </a>

@@ -23,6 +23,7 @@ import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
 import { useMessagePartsById } from '@renderer/components/chat/messages/stream/useMessagePartsById'
+import type { MessageListActions } from '@renderer/components/chat/messages/types'
 
 import { useChatWriteActions } from './hooks/useChatWriteActions'
 import { useTopicMessagesCache } from './hooks/useTopicMessagesCache'
@@ -39,6 +40,7 @@ interface Props {
   setActiveTopic: (topic: Topic) => void
   mainHeight: string
   renderFrame?: (slots: ChatContentFrameSlots) => ReactNode
+  onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
   /**
    * If the active topic is a freshly-leased temporary one, this callback
    * migrates it into SQLite (with the same id) before the first message
@@ -68,7 +70,14 @@ interface Props {
  * `state.messages` is not rendered; chunks land in per-execution
  * `ExecutionStreamCollector`s and are overlaid into `partsByMessageId`.
  */
-const ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight, renderFrame, onPersistTemporaryTopic }) => {
+const ChatContent: FC<Props> = ({
+  topic,
+  setActiveTopic,
+  mainHeight,
+  renderFrame,
+  onOpenCitationsPanel,
+  onPersistTemporaryTopic
+}) => {
   const [hasPersistedTemporaryTopic, setHasPersistedTemporaryTopic] = useState(false)
   useEffect(() => setHasPersistedTemporaryTopic(false), [topic.id])
   const isFreshTemporaryTopic = !!onPersistTemporaryTopic && !hasPersistedTemporaryTopic
@@ -105,6 +114,7 @@ const ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight, renderFrame
       setActiveTopic={setActiveTopic}
       mainHeight={mainHeight}
       renderFrame={renderFrame}
+      onOpenCitationsPanel={onOpenCitationsPanel}
       onPersistTemporaryTopic={onPersistTemporaryTopic}
       isFreshTemporaryTopic={isFreshTemporaryTopic}
       onTemporaryTopicPersisted={() => setHasPersistedTemporaryTopic(true)}
@@ -144,6 +154,7 @@ const ChatContentInner: FC<InnerProps> = ({
   setActiveTopic,
   mainHeight,
   renderFrame,
+  onOpenCitationsPanel,
   onPersistTemporaryTopic,
   isFreshTemporaryTopic,
   onTemporaryTopicPersisted,
@@ -320,6 +331,7 @@ const ChatContentInner: FC<InnerProps> = ({
                     partsByMessageId={partsByMessageId}
                     loadOlder={loadOlder}
                     hasOlder={hasOlder}
+                    openCitationsPanel={onOpenCitationsPanel}
                   />
                 </>
               )
@@ -355,8 +367,16 @@ const HomeMessageList: FC<{
   partsByMessageId: ReturnType<typeof useMessagePartsById>
   loadOlder: () => void
   hasOlder: boolean
-}> = ({ topic, messages, partsByMessageId, loadOlder, hasOlder }) => {
-  const value = useHomeMessageListProviderValue({ topic, messages, partsByMessageId, loadOlder, hasOlder })
+  openCitationsPanel?: MessageListActions['openCitationsPanel']
+}> = ({ topic, messages, partsByMessageId, loadOlder, hasOlder, openCitationsPanel }) => {
+  const value = useHomeMessageListProviderValue({
+    topic,
+    messages,
+    partsByMessageId,
+    loadOlder,
+    hasOlder,
+    openCitationsPanel
+  })
   return (
     <MessageListProvider value={value}>
       <MessageList />

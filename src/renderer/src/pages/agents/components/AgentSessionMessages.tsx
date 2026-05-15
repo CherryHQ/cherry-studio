@@ -25,6 +25,7 @@ type Props = {
   hasOlder?: boolean
   /** Trigger fetching the next older page. */
   loadOlder?: () => void
+  onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
   deleteMessage?: MessageListActions['deleteMessage']
 }
 
@@ -38,6 +39,7 @@ const AgentSessionMessages = ({
   isLoading,
   hasOlder = false,
   loadOlder,
+  onOpenCitationsPanel,
   deleteMessage
 }: Props) => {
   const { session } = useSession(sessionId)
@@ -77,6 +79,7 @@ const AgentSessionMessages = ({
     isLoading,
     hasOlder,
     loadOlder,
+    openCitationsPanel: onOpenCitationsPanel,
     deleteMessage,
     messageNavigation
   })

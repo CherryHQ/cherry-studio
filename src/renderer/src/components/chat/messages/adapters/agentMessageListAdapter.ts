@@ -31,6 +31,7 @@ interface AgentMessageListParams {
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
+  openCitationsPanel?: MessageListActions['openCitationsPanel']
   deleteMessage?: MessageListActions['deleteMessage']
   messageNavigation: string
 }
@@ -45,6 +46,7 @@ export function useAgentMessageListProviderValue({
   isLoading,
   hasOlder = false,
   loadOlder,
+  openCitationsPanel,
   deleteMessage,
   messageNavigation
 }: AgentMessageListParams): MessageListProviderValue {
@@ -137,6 +139,7 @@ export function useAgentMessageListProviderValue({
       ...exportActions,
       ...errorActions,
       openPath,
+      openCitationsPanel,
       showInFolder,
       abortTool,
       ...selectionController.actions,
@@ -149,6 +152,7 @@ export function useAgentMessageListProviderValue({
       errorActions,
       exportActions,
       loadOlder,
+      openCitationsPanel,
       openPath,
       selectionController.actions,
       showInFolder,

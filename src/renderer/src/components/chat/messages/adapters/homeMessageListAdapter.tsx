@@ -19,7 +19,7 @@ import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/erro
 import { filterSupportedFiles } from '@renderer/utils/file'
 import { updateCodeBlock } from '@renderer/utils/markdown'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
-import type { CherryMessagePart, CherryUIMessage, Message, ModelSnapshot } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import {
   createUniqueModelId,
   type Model as SharedModel,
@@ -61,6 +61,7 @@ interface HomeMessageListParams {
   partsByMessageId: Record<string, CherryMessagePart[]>
   loadOlder?: () => void
   hasOlder?: boolean
+  openCitationsPanel?: MessageListActions['openCitationsPanel']
   onComponentUpdate?(): void
   onFirstUpdate?(): void
 }
@@ -71,6 +72,7 @@ export function useHomeMessageListProviderValue({
   partsByMessageId,
   loadOlder,
   hasOlder = false,
+  openCitationsPanel,
   onComponentUpdate,
   onFirstUpdate
 }: HomeMessageListParams): MessageListProviderValue {
@@ -312,7 +314,7 @@ export function useHomeMessageListProviderValue({
   const removeMessageErrorPart = useCallback<NonNullable<MessageListActions['removeMessageErrorPart']>>(
     async ({ messageId, partId }) => {
       try {
-        const persistedMessage = (await dataApiService.get(`/messages/${messageId}`)) as Message
+        const persistedMessage = await dataApiService.get(`/messages/${messageId}`)
         const persistedParts = persistedMessage.data.parts ?? []
         const resolved = resolvePartFromParts({ [messageId]: persistedParts }, partId)
         if (!resolved || resolved.messageId !== messageId || (resolved.part.type as string) !== 'data-error') return
@@ -568,6 +570,7 @@ export function useHomeMessageListProviderValue({
       removeMessageErrorPart,
       openTrace,
       openPath,
+      openCitationsPanel,
       showInFolder,
       abortTool,
       selectFiles,
@@ -600,6 +603,7 @@ export function useHomeMessageListProviderValue({
       forkAndResendMessage,
       loadOlder,
       locateMessage,
+      openCitationsPanel,
       openPath,
       openTrace,
       regenerateMessage,
