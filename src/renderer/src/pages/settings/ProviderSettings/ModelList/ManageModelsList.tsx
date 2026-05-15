@@ -163,6 +163,24 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
     return rows
   }, [modelGroups, collapsedGroups])
 
+  const handleBatchAddSelected = useCallback(
+    async (models: Model[]) => {
+      const modelsToAdd = models.filter((m) => selectedModels.has(m.id))
+      if (modelsToAdd.length === 0) return
+
+      const success = await addModelsWithValidation(modelsToAdd)
+      if (success) {
+        setSelectedModels((prev) => {
+          const newSelected = new Set(prev)
+          modelsToAdd.forEach((m) => newSelected.delete(m.id))
+          return newSelected
+        })
+        window.toast.success(t('settings.models.manage.add_success', { count: modelsToAdd.length }))
+      }
+    },
+    [selectedModels, addModelsWithValidation, t]
+  )
+
   const renderGroupTools = useCallback(
     (models: Model[]) => {
       const isAllInProvider = models.every((model) => addedModelIds.has(model.id))
@@ -269,21 +287,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
                         aria-label={t('settings.models.manage.batch_add_selected')}
                         onClick={(e) => {
                           e.stopPropagation()
-                          void (async () => {
-                            const modelsToAdd = modelsNotInProvider.filter((m) => selectedModels.has(m.id))
-                            const success = await addModelsWithValidation(modelsToAdd)
-                            // 只有在模型实际被添加后才清除选择状态
-                            if (success) {
-                              setSelectedModels((prev) => {
-                                const newSelected = new Set(prev)
-                                modelsToAdd.forEach((m) => newSelected.delete(m.id))
-                                return newSelected
-                              })
-                              window.toast.success(
-                                t('settings.models.manage.add_success', { count: modelsToAdd.length })
-                              )
-                            }
-                          })()
+                          void handleBatchAddSelected(modelsNotInProvider)
                         }}>
                         +{groupSelectedCount}
                       </Button>
