@@ -40,6 +40,7 @@ export async function createNodeFsMock() {
       writeFile: vi.fn(),
       mkdir: vi.fn(),
       readdir: vi.fn(),
+      realpath: vi.fn(),
       stat: vi.fn(),
       unlink: vi.fn(),
       rmdir: vi.fn()

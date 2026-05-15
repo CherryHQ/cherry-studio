@@ -1275,11 +1275,12 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     ])
   })
 
-  it('execute reuses existing external file entries by lower-case path during migration', async () => {
+  it('execute reuses case-insensitive external file peers only when realpath confirms the same file', async () => {
     const migrator = new KnowledgeMigrator() as any
     const itemId = '11111111-2222-4333-8444-000000000002'
     const existingFileEntryId = '019606a0-0000-7000-8000-000000000010'
     const filePath = '/Users/test/Documents/Manual.pdf'
+    const existingFilePath = '/Users/test/Documents/manual.pdf'
     migrator.preparedBases = [
       {
         id: 'kb-file-ref-reuse',
@@ -1305,13 +1306,28 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     const insertedItems: unknown[] = []
     const insertedRefs: unknown[] = []
 
-    const select = vi.fn().mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue([{ id: existingFileEntryId }])
+    const realpathMock = fs.promises.realpath as unknown as ReturnType<typeof vi.fn>
+    realpathMock.mockImplementation(async (targetPath: string) => {
+      if (targetPath === filePath || targetPath === existingFilePath) {
+        return '/Users/test/Documents/manual.pdf'
+      }
+      return targetPath
+    })
+
+    const select = vi
+      .fn()
+      .mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([])
+          })
         })
       })
-    })
+      .mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([{ id: existingFileEntryId, externalPath: existingFilePath }])
+        })
+      })
     const insert = vi.fn((table: unknown) => ({
       values: vi.fn((value: unknown) => {
         if (table === fileEntryTable) {
@@ -1343,6 +1359,8 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     } as any)
 
     expect(result.success).toBe(true)
+    expect(fs.promises.realpath).toHaveBeenCalledWith(filePath)
+    expect(fs.promises.realpath).toHaveBeenCalledWith(existingFilePath)
     expect(insertedEntries).toEqual([])
     expect(insertedItems).toEqual([
       [
@@ -1367,6 +1385,95 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         }
       ]
     ])
+  })
+
+  it('execute skips case-insensitive external file peers when realpath proves different files', async () => {
+    const migrator = new KnowledgeMigrator() as any
+    const itemId = '11111111-2222-4333-8444-000000000003'
+    const existingFileEntryId = '019606a0-0000-7000-8000-000000000011'
+    const filePath = '/Users/test/Documents/Manual.pdf'
+    const existingFilePath = '/Users/test/Documents/manual.pdf'
+    migrator.preparedBases = [
+      {
+        id: 'kb-file-ref-collision',
+        name: 'KB file ref collision',
+        dimensions: 1024,
+        embeddingModelId: 'silicon::BAAI/bge-m3'
+      }
+    ]
+    migrator.preparedItems = [
+      {
+        id: itemId,
+        baseId: 'kb-file-ref-collision',
+        groupId: null,
+        type: 'file',
+        data: { source: filePath, path: filePath },
+        status: 'completed',
+        phase: null,
+        error: null
+      }
+    ]
+
+    const insertedEntries: unknown[] = []
+    const insertedItems: unknown[] = []
+    const insertedRefs: unknown[] = []
+
+    const realpathMock = fs.promises.realpath as unknown as ReturnType<typeof vi.fn>
+    realpathMock.mockImplementation(async (targetPath: string) => targetPath)
+
+    const select = vi
+      .fn()
+      .mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([])
+          })
+        })
+      })
+      .mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([{ id: existingFileEntryId, externalPath: existingFilePath }])
+        })
+      })
+    const insert = vi.fn((table: unknown) => ({
+      values: vi.fn((value: unknown) => {
+        if (table === fileEntryTable) {
+          insertedEntries.push(value)
+          return Promise.resolve()
+        }
+        if (table === knowledgeBaseTable) {
+          return Promise.resolve()
+        }
+        if (table === knowledgeItemTable) {
+          insertedItems.push(value)
+          return Promise.resolve()
+        }
+        if (table === fileRefTable) {
+          insertedRefs.push(value)
+          return {
+            onConflictDoNothing: vi.fn().mockResolvedValue(undefined)
+          }
+        }
+        return Promise.resolve()
+      })
+    }))
+    const transaction = vi.fn(async (callback: (tx: any) => Promise<void>) => {
+      await callback({ select, insert })
+    })
+
+    const result = await migrator.execute({
+      db: { transaction }
+    } as any)
+
+    expect(result.success).toBe(true)
+    expect(result.processedCount).toBe(1)
+    expect(migrator.skippedCount).toBe(1)
+    expect(migrator.warnings).toContain(
+      `Skipped knowledge records (knowledge_item_file_case_collision): count=1; examples: Skipped knowledge file item ${itemId}: external path case collision could not be safely resolved (${filePath})`
+    )
+    expect(insertedEntries).toEqual([])
+    expect(insertedItems).toEqual([])
+    expect(insertedRefs).toEqual([])
   })
 
   it('execute failure keeps processedCount to already committed base groups only', async () => {

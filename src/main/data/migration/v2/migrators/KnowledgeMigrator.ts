@@ -59,6 +59,11 @@ type ResolvedKnowledgeFileItem = NewKnowledgeItem & {
   }
 }
 
+type MigratedExternalFilePeer = {
+  id: FileEntryId
+  externalPath: string | null
+}
+
 const hasKnowledgeBaseIdentity = (base: LegacyKnowledgeBase): base is LegacyKnowledgeBaseWithIdentity =>
   typeof base.id === 'string' && base.id !== '' && typeof base.name === 'string' && base.name !== ''
 
@@ -141,6 +146,7 @@ export class KnowledgeMigrator extends BaseMigrator {
   private skippedWarnings = new Map<string, { count: number; samples: string[] }>()
   private seenBaseIds = new Set<string>()
   private seenItemIds = new Set<string>()
+  private executeSkippedItemIds = new Set<string>()
 
   override reset(): void {
     this.sourceCount = 0
@@ -151,6 +157,7 @@ export class KnowledgeMigrator extends BaseMigrator {
     this.skippedWarnings = new Map<string, { count: number; samples: string[] }>()
     this.seenBaseIds = new Set<string>()
     this.seenItemIds = new Set<string>()
+    this.executeSkippedItemIds = new Set<string>()
   }
 
   private recordWarning(message: string): void {
@@ -322,10 +329,46 @@ export class KnowledgeMigrator extends BaseMigrator {
     }
   }
 
+  private async resolveMigratedCaseCollisionPeer(
+    canonicalPath: string,
+    peers: readonly MigratedExternalFilePeer[]
+  ): Promise<FileEntryId | null> {
+    let canonicalRealPath: string
+    try {
+      canonicalRealPath = await fs.promises.realpath(canonicalPath)
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code
+      if (code === 'ENOENT' || code === 'ENOTDIR') {
+        return null
+      }
+      throw err
+    }
+
+    for (const peer of peers) {
+      if (!peer.externalPath) {
+        continue
+      }
+
+      try {
+        if ((await fs.promises.realpath(peer.externalPath)) === canonicalRealPath) {
+          return peer.id
+        }
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code
+        if (code === 'ENOENT' || code === 'ENOTDIR') {
+          continue
+        }
+        throw err
+      }
+    }
+
+    return null
+  }
+
   private async ensureMigratedExternalFileEntryId(
     tx: Pick<MigrationContext['db'], 'select' | 'insert'>,
     filePath: string
-  ): Promise<FileEntryId> {
+  ): Promise<{ ok: true; id: FileEntryId } | { ok: false; reason: 'case_collision'; canonicalPath: string }> {
     // Migration intentionally differs from runtime FileManager.ensureExternalEntry:
     // v1 knowledge items may point at files the user has since moved/deleted,
     // while their vectors can still be migrated and shown in the UI. Preserve
@@ -334,11 +377,30 @@ export class KnowledgeMigrator extends BaseMigrator {
     const existing = await tx
       .select({ id: fileEntryTable.id })
       .from(fileEntryTable)
-      .where(sql`lower(${fileEntryTable.externalPath}) = lower(${canonicalPath})`)
+      .where(sql`${fileEntryTable.externalPath} = ${canonicalPath}`)
       .limit(1)
 
     if (existing[0]?.id) {
-      return existing[0].id
+      return { ok: true, id: existing[0].id }
+    }
+
+    const caseInsensitivePeers = await tx
+      .select({
+        id: fileEntryTable.id,
+        externalPath: fileEntryTable.externalPath
+      })
+      .from(fileEntryTable)
+      .where(
+        sql`${fileEntryTable.externalPath} IS NOT NULL AND lower(${fileEntryTable.externalPath}) = lower(${canonicalPath})`
+      )
+
+    if (caseInsensitivePeers.length > 0) {
+      const reusableId = await this.resolveMigratedCaseCollisionPeer(canonicalPath, caseInsensitivePeers)
+      if (reusableId) {
+        return { ok: true, id: reusableId }
+      }
+
+      return { ok: false, reason: 'case_collision', canonicalPath }
     }
 
     const id = uuidv7()
@@ -356,24 +418,31 @@ export class KnowledgeMigrator extends BaseMigrator {
       updatedAt: now
     })
 
-    return id
+    return { ok: true, id }
   }
 
   private async resolvePreparedItem(
     tx: Pick<MigrationContext['db'], 'select' | 'insert'>,
     item: PreparedKnowledgeItem
-  ): Promise<NewKnowledgeItem> {
+  ): Promise<NewKnowledgeItem | null> {
     if (item.type !== 'file') {
       return item
     }
 
-    const fileEntryId = await this.ensureMigratedExternalFileEntryId(tx, item.data.path)
+    const result = await this.ensureMigratedExternalFileEntryId(tx, item.data.path)
+    if (!result.ok) {
+      this.executeSkippedItemIds.add(item.id!)
+      this.skippedCount += 1
+      const warningMessage = `Skipped knowledge file item ${item.id}: external path case collision could not be safely resolved (${result.canonicalPath})`
+      this.recordSkippedWarning(`knowledge_item_file_${result.reason}`, warningMessage)
+      return null
+    }
 
     return {
       ...item,
       data: {
         source: item.data.source,
-        fileEntryId
+        fileEntryId: result.id
       }
     }
   }
@@ -717,7 +786,10 @@ export class KnowledgeMigrator extends BaseMigrator {
           for (let i = 0; i < baseItems.length; i += ITEM_INSERT_BATCH_SIZE) {
             const batch: NewKnowledgeItem[] = []
             for (const item of baseItems.slice(i, i + ITEM_INSERT_BATCH_SIZE)) {
-              batch.push(await this.resolvePreparedItem(tx, item))
+              const resolvedItem = await this.resolvePreparedItem(tx, item)
+              if (resolvedItem) {
+                batch.push(resolvedItem)
+              }
             }
             if (batch.length > 0) {
               await tx.insert(knowledgeItemTable).values(batch)
@@ -734,6 +806,8 @@ export class KnowledgeMigrator extends BaseMigrator {
           params: { processed, total }
         })
       }
+
+      this.flushSkippedWarnings()
 
       logger.info('KnowledgeMigrator.execute completed', {
         processed,
@@ -766,7 +840,7 @@ export class KnowledgeMigrator extends BaseMigrator {
       const targetItemCount = itemResult?.count ?? 0
       const targetCount = targetBaseCount + targetItemCount
       const expectedBaseCount = this.preparedBases.length
-      const expectedItemCount = this.preparedItems.length
+      const expectedItemCount = this.preparedItems.length - this.executeSkippedItemIds.size
 
       if (targetBaseCount < expectedBaseCount) {
         errors.push({
