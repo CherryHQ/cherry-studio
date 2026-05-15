@@ -117,7 +117,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
       }
 
       if (assistant.id === activeAssistant?.id) {
-        const newActive = remaining[remaining.length - 1]
+        const newActive = remaining[0]
         setActiveAssistant(newActive)
       }
       removeAssistant(assistant.id)

@@ -3412,6 +3412,16 @@ const migrateConfig = {
       logger.error('migrate 206 error', error as Error)
       return state
     }
+  },
+  '207': (state: RootState) => {
+    try {
+      state.assistants.lastActiveAssistantId = ''
+      logger.info('migrate 207 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 207 error', error as Error)
+      return state
+    }
   }
 }
 
