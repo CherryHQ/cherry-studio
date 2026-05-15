@@ -1,4 +1,4 @@
-import type { MessageListActions } from '@renderer/components/chat/messages/types'
+import { defaultMessageMenuConfig, type MessageListActions } from '@renderer/components/chat/messages/types'
 import { DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS, getMessageMenuBarConfig } from '@renderer/config/registry/messageMenuBar'
 import { TopicType } from '@renderer/types'
 import { describe, expect, it, vi } from 'vitest'
@@ -26,7 +26,11 @@ vi.mock('@renderer/utils/export', () => ({
 }))
 
 import type { MessageMenuBarActionContext } from '../messageMenuBarActions'
-import { resolveMessageMenuBarMenuActions, resolveMessageMenuBarToolbarActions } from '../messageMenuBarActions'
+import {
+  resolveMessageMenuBarMenuActions,
+  resolveMessageMenuBarToolbarActions,
+  resolveMessageMenuBarTranslationItems
+} from '../messageMenuBarActions'
 
 const t = ((key: string) => key) as any
 
@@ -55,30 +59,18 @@ function createContext(overrides: Partial<MessageMenuBarActionContext> = {}): Me
     messageContainerRef: { current: null } as any,
     mainTextContent: 'hello',
     toolbarButtonIds: new Set(DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS),
-    exportMenuOptions: {
-      image: false,
-      markdown: false,
-      markdown_reason: false,
-      notion: false,
-      yuque: false,
-      joplin: false,
-      obsidian: false,
-      siyuan: false,
-      docx: false,
-      plain_text: false
-    },
-    confirmDeleteMessage: false,
-    confirmRegenerateMessage: false,
+    menuConfig: defaultMessageMenuConfig,
     copied: false,
     setCopied: vi.fn(),
-    enableDeveloperMode: false,
     isAssistantMessage: true,
     isProcessing: false,
+    isTranslating: false,
+    hasTranslationBlocks: false,
     isUserMessage: false,
     isUseful: false,
     isEditable: true,
+    translateLanguages: [],
     startEditing: vi.fn(),
-    abortTranslation: vi.fn(),
     t,
     ...overrides
   }
@@ -111,9 +103,10 @@ describe('messageMenuBarActions', () => {
           deleteMessage: vi.fn(),
           exportToNotes: vi.fn(),
           regenerateMessage: vi.fn(),
-          regenerateMessageWithModel: vi.fn(),
-          getTranslationUpdater: vi.fn()
+          renderRegenerateModelPicker: vi.fn(),
+          translateMessage: vi.fn()
         } as MessageListActions,
+        translateLanguages: [{ langCode: 'en', emoji: '🇺🇸', label: 'English' } as any],
         isGrouped: true
       })
     )
@@ -138,9 +131,10 @@ describe('messageMenuBarActions', () => {
           deleteMessage: vi.fn(),
           exportToNotes: vi.fn(),
           regenerateMessage: vi.fn(),
-          regenerateMessageWithModel: vi.fn(),
-          getTranslationUpdater: vi.fn()
+          renderRegenerateModelPicker: vi.fn(),
+          translateMessage: vi.fn()
         } as MessageListActions,
+        translateLanguages: [{ langCode: 'en', emoji: '🇺🇸', label: 'English' } as any],
         toolbarButtonIds: new Set(sessionConfig.buttonIds)
       })
     )
@@ -170,17 +164,12 @@ describe('messageMenuBarActions', () => {
           isMultiSelectMode: false,
           selectedMessageIds: []
         },
-        exportMenuOptions: {
-          image: false,
-          markdown: true,
-          markdown_reason: false,
-          notion: false,
-          yuque: false,
-          joplin: false,
-          obsidian: false,
-          siyuan: false,
-          docx: false,
-          plain_text: false
+        menuConfig: {
+          ...defaultMessageMenuConfig,
+          exportMenuOptions: {
+            ...defaultMessageMenuConfig.exportMenuOptions,
+            markdown: true
+          }
         }
       })
     )
@@ -204,5 +193,51 @@ describe('messageMenuBarActions', () => {
     expect(toolbarActions.find((action) => action.id === 'copy')?.availability.enabled).toBe(true)
     expect(toolbarActions.find((action) => action.id === 'assistant-regenerate')?.availability.enabled).toBe(false)
     expect(toolbarActions.find((action) => action.id === 'delete')?.availability.enabled).toBe(false)
+  })
+
+  it('resolves translation language items through the injected translate action', async () => {
+    const translateMessage = vi.fn()
+    const language = { langCode: 'fr', label: 'French' } as any
+    const translationItems = resolveMessageMenuBarTranslationItems(
+      createContext({
+        actions: { translateMessage } as MessageListActions,
+        translateLanguages: [language],
+        getTranslationLanguageLabel: () => 'French'
+      })
+    )
+
+    expect(translationItems).toHaveLength(1)
+    expect(translationItems[0]).toMatchObject({ key: 'fr', label: 'French' })
+
+    const item = translationItems[0]
+    if (!item || 'type' in item) {
+      throw new Error('Expected a translation action item')
+    }
+
+    await item.onSelect()
+
+    expect(translateMessage).toHaveBeenCalledWith('message-1', language, 'hello')
+  })
+
+  it('keeps copy-translation item available without translate capability', () => {
+    const translationItems = resolveMessageMenuBarTranslationItems(
+      createContext({
+        hasTranslationBlocks: true,
+        messageParts: [{ type: 'data-translation', data: { content: 'translated text' } }] as any
+      })
+    )
+
+    expect(translationItems.map((item) => item.key)).toEqual(['translate-copy'])
+  })
+
+  it('enables the translate toolbar action as abort while translation is running', () => {
+    const toolbarActions = resolveMessageMenuBarToolbarActions(
+      createContext({
+        actions: { abortMessageTranslation: vi.fn() } as MessageListActions,
+        isTranslating: true
+      })
+    )
+
+    expect(toolbarActions.find((action) => action.id === 'translate')?.availability.enabled).toBe(true)
   })
 })

@@ -7,11 +7,13 @@ import {
 } from '@renderer/config/registry/messageMenuBar'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { TraceIcon } from '@renderer/trace/pages/Component'
+import type { TranslateLanguage } from '@renderer/types'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { copyMessageAsPlainText } from '@renderer/utils/copy'
 import { messageToMarkdown } from '@renderer/utils/export'
 import { captureScrollableAsBlob, captureScrollableAsDataURL } from '@renderer/utils/image'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
+import { getTranslationFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
@@ -19,6 +21,7 @@ import {
   AtSign,
   Bug,
   Check,
+  CirclePause,
   FilePenLine,
   Languages,
   ListChecks,
@@ -34,20 +37,8 @@ import type { RefObject } from 'react'
 import { createActionRegistry } from '../../actions/actionRegistry'
 import type { ActionAvailabilityInput, ActionDescriptor, ResolvedAction } from '../../actions/actionTypes'
 import type { MessageListActions, MessageListItem, MessageListSelectionState } from '../types'
+import type { MessageMenuConfig } from '../types'
 import { getMessageListItemModelName } from '../utils/messageListItem'
-
-export interface MessageMenuBarExportOptions {
-  image: boolean
-  markdown: boolean
-  markdown_reason: boolean
-  notion: boolean
-  yuque: boolean
-  joplin: boolean
-  obsidian: boolean
-  siyuan: boolean
-  docx: boolean
-  plain_text: boolean
-}
 
 export interface MessageMenuBarActionContext {
   actions: MessageListActions
@@ -58,25 +49,40 @@ export interface MessageMenuBarActionContext {
   mainTextContent: string
   toolbarButtonIds: ReadonlySet<MessageMenuBarButtonId>
   selection?: MessageListSelectionState
-  exportMenuOptions: MessageMenuBarExportOptions
-  confirmDeleteMessage: boolean
-  confirmRegenerateMessage: boolean
+  menuConfig: MessageMenuConfig
   copied: boolean
   setCopied: (value: boolean) => void
-  enableDeveloperMode: boolean
   isAssistantMessage: boolean
   isGrouped?: boolean
   isProcessing: boolean
+  isTranslating: boolean
+  hasTranslationBlocks: boolean
   isUserMessage: boolean
   isUseful: boolean
   isEditable: boolean
+  translateLanguages: TranslateLanguage[]
+  getTranslationLanguageLabel?: (language: TranslateLanguage, withEmoji?: boolean) => string | undefined
   startEditing: (messageId: string) => void
   onUpdateUseful?: (messageId: string) => void
-  abortTranslation: () => void
   t: TFunction
 }
 
 export type MessageMenuBarResolvedAction = ResolvedAction<MessageMenuBarActionContext>
+
+export type MessageMenuBarTranslationItem =
+  | {
+      key: string
+      label: string
+      onSelect: () => void | Promise<void>
+    }
+  | {
+      key: string
+      type: 'divider'
+    }
+
+export const isMessageMenuBarTranslationDivider = (
+  item: MessageMenuBarTranslationItem
+): item is Extract<MessageMenuBarTranslationItem, { type: 'divider' }> => 'type' in item && item.type === 'divider'
 
 const toolbarOrder = new Map(DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS.map((id, index) => [id, index * 10]))
 
@@ -129,8 +135,8 @@ registerCommand('message.regenerate', async ({ actions, message }) => {
   await actions.regenerateMessage?.(message.id)
 })
 
-registerCommand('message.delete', async ({ abortTranslation, actions, message }) => {
-  abortTranslation()
+registerCommand('message.delete', async ({ actions, message }) => {
+  await actions.abortMessageTranslation?.(message.id)
   await actions.deleteMessage?.(message.id, {
     traceId: message.traceId ?? undefined,
     modelName: getMessageListItemModelName(message) || undefined
@@ -150,6 +156,10 @@ registerCommand('message.inspect', ({ message, messageForExport, messageParts })
     message: messageForExport,
     parts: messageParts
   })
+})
+
+registerCommand('message.abortTranslation', async ({ actions, message }) => {
+  await actions.abortMessageTranslation?.(message.id)
 })
 
 registerCommand('message.newBranch', async ({ actions, message, t }) => {
@@ -254,8 +264,8 @@ registerToolbarAction({
   commandId: 'message.regenerate',
   label: ({ t }) => t('common.regenerate'),
   icon: <RefreshIcon size={15} />,
-  confirm: ({ confirmRegenerateMessage, t }) =>
-    confirmRegenerateMessage
+  confirm: ({ menuConfig, t }) =>
+    menuConfig.confirmRegenerateMessage
       ? {
           title: t('message.regenerate.confirm'),
           destructive: true
@@ -273,18 +283,28 @@ registerToolbarAction({
   icon: <AtSign size={15} />,
   availability: toolbarAvailability(
     'assistant-mention-model',
-    ({ actions, isAssistantMessage }) => isAssistantMessage && !!actions.regenerateMessageWithModel
+    ({ actions, isAssistantMessage }) => isAssistantMessage && !!actions.renderRegenerateModelPicker
   )
 })
 
 registerToolbarAction({
   id: 'translate',
+  commandId: 'message.abortTranslation',
   label: ({ t }) => t('chat.translate'),
-  icon: <Languages size={15} />,
-  availability: toolbarAvailability(
-    'translate',
-    ({ actions, isUserMessage }) => !isUserMessage && !!actions.getTranslationUpdater
-  )
+  icon: ({ isTranslating }) => (isTranslating ? <CirclePause size={15} /> : <Languages size={15} />),
+  availability: (context) => {
+    const visibleInToolbar = context.toolbarButtonIds.has('translate')
+    const canTranslate = !!context.actions.translateMessage && context.translateLanguages.length > 0
+    const canCopyTranslation = context.hasTranslationBlocks
+    const canAbortTranslation = context.isTranslating && !!context.actions.abortMessageTranslation
+    const visible =
+      visibleInToolbar && !context.isUserMessage && (canTranslate || canCopyTranslation || canAbortTranslation)
+
+    return {
+      visible,
+      enabled: visible && (context.isTranslating ? canAbortTranslation : canTranslate || canCopyTranslation)
+    }
+  }
 })
 
 registerToolbarAction({
@@ -312,8 +332,8 @@ registerToolbarAction({
   commandId: 'message.delete',
   label: ({ t }) => t('common.delete'),
   icon: <DeleteIcon size={15} />,
-  confirm: ({ confirmDeleteMessage, t }) =>
-    confirmDeleteMessage
+  confirm: ({ menuConfig, t }) =>
+    menuConfig.confirmDeleteMessage
       ? {
           title: t('message.message.delete.content'),
           confirmText: t('common.delete'),
@@ -330,7 +350,7 @@ registerToolbarAction({
   icon: <TraceIcon size={16} className="lucide lucide-trash" />,
   availability: toolbarAvailability(
     'trace',
-    ({ actions, enableDeveloperMode, message }) => enableDeveloperMode && !!message.traceId && !!actions.openTrace
+    ({ actions, menuConfig, message }) => menuConfig.enableDeveloperMode && !!message.traceId && !!actions.openTrace
   )
 })
 
@@ -339,7 +359,7 @@ registerToolbarAction({
   commandId: 'message.inspect',
   label: 'Inspect Data (Dev)',
   icon: <Bug size={15} />,
-  availability: toolbarAvailability('inspect-data', ({ enableDeveloperMode }) => enableDeveloperMode)
+  availability: toolbarAvailability('inspect-data', ({ menuConfig }) => menuConfig.enableDeveloperMode)
 })
 
 registerToolbarAction({
@@ -420,71 +440,111 @@ registerAction({
       id: 'export.copy-plain-text',
       commandId: 'message.copyPlainText',
       label: ({ t }) => t('chat.topics.copy.plain_text'),
-      availability: ({ exportMenuOptions }) => exportMenuOptions.plain_text
+      availability: ({ menuConfig }) => menuConfig.exportMenuOptions.plain_text
     },
     {
       id: 'export.copy-image',
       commandId: 'message.copyImage',
       label: ({ t }) => t('chat.topics.copy.image'),
-      availability: ({ exportMenuOptions }) => exportMenuOptions.image
+      availability: ({ menuConfig }) => menuConfig.exportMenuOptions.image
     },
     {
       id: 'export.image',
       commandId: 'message.exportImage',
       label: ({ t }) => t('chat.topics.export.image'),
-      availability: ({ actions, exportMenuOptions }) => exportMenuOptions.image && !!actions.saveImage
+      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.image && !!actions.saveImage
     },
     {
       id: 'export.markdown',
       commandId: 'message.exportMarkdown',
       label: ({ t }) => t('chat.topics.export.md.label'),
-      availability: ({ actions, exportMenuOptions }) => exportMenuOptions.markdown && !!actions.exportMessageAsMarkdown
+      availability: ({ actions, menuConfig }) =>
+        menuConfig.exportMenuOptions.markdown && !!actions.exportMessageAsMarkdown
     },
     {
       id: 'export.markdown-reason',
       commandId: 'message.exportMarkdownReason',
       label: ({ t }) => t('chat.topics.export.md.reason'),
-      availability: ({ actions, exportMenuOptions }) =>
-        exportMenuOptions.markdown_reason && !!actions.exportMessageAsMarkdown
+      availability: ({ actions, menuConfig }) =>
+        menuConfig.exportMenuOptions.markdown_reason && !!actions.exportMessageAsMarkdown
     },
     {
       id: 'export.word',
       commandId: 'message.exportWord',
       label: ({ t }) => t('chat.topics.export.word'),
-      availability: ({ actions, exportMenuOptions }) => exportMenuOptions.docx && !!actions.exportToWord
+      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.docx && !!actions.exportToWord
     },
     {
       id: 'export.notion',
       commandId: 'message.exportNotion',
       label: ({ t }) => t('chat.topics.export.notion'),
-      availability: ({ actions, exportMenuOptions }) => exportMenuOptions.notion && !!actions.exportToNotion
+      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.notion && !!actions.exportToNotion
     },
     {
       id: 'export.yuque',
       commandId: 'message.exportYuque',
       label: ({ t }) => t('chat.topics.export.yuque'),
-      availability: ({ actions, exportMenuOptions }) => exportMenuOptions.yuque && !!actions.exportToYuque
+      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.yuque && !!actions.exportToYuque
     },
     {
       id: 'export.obsidian',
       commandId: 'message.exportObsidian',
       label: ({ t }) => t('chat.topics.export.obsidian'),
-      availability: ({ actions, exportMenuOptions }) => exportMenuOptions.obsidian && !!actions.exportToObsidian
+      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.obsidian && !!actions.exportToObsidian
     },
     {
       id: 'export.joplin',
       commandId: 'message.exportJoplin',
       label: ({ t }) => t('chat.topics.export.joplin'),
-      availability: ({ actions, exportMenuOptions }) => exportMenuOptions.joplin && !!actions.exportToJoplin
+      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.joplin && !!actions.exportToJoplin
     },
     {
       id: 'export.siyuan',
       commandId: 'message.exportSiyuan',
       label: ({ t }) => t('chat.topics.export.siyuan'),
-      availability: ({ actions, exportMenuOptions }) => exportMenuOptions.siyuan && !!actions.exportToSiyuan
+      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.siyuan && !!actions.exportToSiyuan
     }
   ]
 })
+
+export function resolveMessageMenuBarTranslationItems(
+  context: MessageMenuBarActionContext
+): MessageMenuBarTranslationItem[] {
+  const { actions, getTranslationLanguageLabel, hasTranslationBlocks, mainTextContent, message, messageParts, t } =
+    context
+
+  const items: MessageMenuBarTranslationItem[] = actions.translateMessage
+    ? context.translateLanguages.map((language) => ({
+        label: getTranslationLanguageLabel?.(language) ?? language.langCode,
+        key: language.langCode,
+        onSelect: () => actions.translateMessage?.(message.id, language, mainTextContent)
+      }))
+    : []
+
+  if (!hasTranslationBlocks) return items
+
+  return [
+    ...items,
+    ...(items.length > 0 ? [{ type: 'divider' as const, key: 'translate-divider' }] : []),
+    {
+      label: '📋 ' + t('common.copy'),
+      key: 'translate-copy',
+      onSelect: () => {
+        const translationContent = getTranslationFromParts(messageParts)
+          .map((item) => item.content || '')
+          .join('\n\n')
+          .trim()
+
+        if (translationContent) {
+          void navigator.clipboard.writeText(translationContent)
+          window.toast.success(t('translate.copied'))
+        } else {
+          window.toast.warning(t('translate.empty'))
+        }
+      }
+    }
+  ]
+}
 
 export function resolveMessageMenuBarToolbarActions(
   context: MessageMenuBarActionContext

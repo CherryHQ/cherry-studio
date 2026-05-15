@@ -28,6 +28,7 @@ type MessageListDataValue = Pick<
 type MessageListUiValue = Pick<
   MessageListState,
   | 'readonly'
+  | 'menuConfig'
   | 'translationLanguages'
   | 'editorTranslationTargetLabel'
   | 'getMessageUiState'
@@ -81,6 +82,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
   const ui = useMemo<MessageListUiValue>(
     () => ({
       readonly: state.readonly,
+      menuConfig: state.menuConfig,
       translationLanguages: state.translationLanguages,
       editorTranslationTargetLabel: state.editorTranslationTargetLabel,
       getMessageUiState: state.getMessageUiState,
@@ -91,6 +93,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
     }),
     [
       state.readonly,
+      state.menuConfig,
       state.translationLanguages,
       state.editorTranslationTargetLabel,
       state.getMessageUiState,

@@ -10,51 +10,37 @@ import {
   DropdownMenuTrigger,
   Tooltip
 } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
-import { useMultiplePreferences } from '@data/hooks/usePreference'
-import { loggerService } from '@logger'
-import { ModelSelector } from '@renderer/components/Selector'
 import type { MessageMenuBarScope } from '@renderer/config/registry/messageMenuBar'
 import { DEFAULT_MESSAGE_MENUBAR_SCOPE, getMessageMenuBarConfig } from '@renderer/config/registry/messageMenuBar'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
-import { translateText } from '@renderer/services/TranslateService'
-import type { Topic, TranslateLanguage } from '@renderer/types'
+import type { Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
-import { abortCompletion } from '@renderer/utils/abortController'
-import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
-import {
-  getTextFromParts,
-  getTranslationFromParts,
-  hasTextParts,
-  hasTranslationParts
-} from '@renderer/utils/messageUtils/partsHelpers'
-import type { CherryMessagePart } from '@shared/data/types/message'
-import { createUniqueModelId, type Model as SharedModel, parseUniqueModelId } from '@shared/data/types/model'
-import { isNonChatModel, isVisionModel as isSharedVisionModel } from '@shared/utils/model'
-import { CirclePause } from 'lucide-react'
+import { getTextFromParts, hasTextParts, hasTranslationParts } from '@renderer/utils/messageUtils/partsHelpers'
 import type { ComponentProps, FC, ReactNode } from 'react'
 import { Fragment, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { usePartsMap } from '../blocks'
-import { useMessageListActions, useMessageListSelection, useMessageListUi } from '../MessageListProvider'
-import type { MessageListItem } from '../types'
-import { createMessageExportView, getMessageListItemModel } from '../utils/messageListItem'
+import {
+  useMessageListActions,
+  useMessageListSelection,
+  useMessageListUi,
+  useMessageRenderConfig
+} from '../MessageListProvider'
+import { defaultMessageMenuConfig, type MessageListItem } from '../types'
+import { createMessageExportView } from '../utils/messageListItem'
 import {
   executeMessageMenuBarAction,
+  isMessageMenuBarTranslationDivider,
   type MessageMenuBarActionContext,
   type MessageMenuBarResolvedAction,
+  type MessageMenuBarTranslationItem,
   resolveMessageMenuBarMenuActions,
-  resolveMessageMenuBarToolbarActions
+  resolveMessageMenuBarToolbarActions,
+  resolveMessageMenuBarTranslationItems
 } from './messageMenuBarActions'
 import MessageTokens from './MessageTokens'
-
-const createTranslationAbortKey = (messageId: string) => `translation-abort-key:${messageId}`
-
-const abortTranslation = (messageId: string) => {
-  abortCompletion(createTranslationAbortKey(messageId))
-}
 
 interface Props {
   message: MessageListItem
@@ -67,22 +53,6 @@ interface Props {
   onUpdateUseful?: (msgId: string) => void
   variant?: 'footer' | 'header'
 }
-
-const logger = loggerService.withContext('MessageMenuBar')
-
-type TranslateMenuItem =
-  | {
-      key: string
-      label: string
-      onClick: () => void | Promise<void>
-    }
-  | {
-      key: string
-      type: 'divider'
-    }
-
-const isTranslateMenuDivider = (item: TranslateMenuItem): item is Extract<TranslateMenuItem, { type: 'divider' }> =>
-  'type' in item && item.type === 'divider'
 
 const MessageMenuBar: FC<Props> = (props) => {
   const {
@@ -100,84 +70,20 @@ const MessageMenuBar: FC<Props> = (props) => {
   const actions = useMessageListActions()
   const selection = useMessageListSelection()
   const messageUi = useMessageListUi()
-  const messageModel = useMemo(() => getMessageListItemModel(message), [message])
-  const currentMentionModel = useMemo<SharedModel | undefined>(() => {
-    if (!messageModel) return undefined
-    return {
-      id: createUniqueModelId(messageModel.provider, messageModel.id),
-      providerId: messageModel.provider,
-      name: messageModel.name,
-      group: messageModel.group
-    } as SharedModel
-  }, [messageModel])
+  const renderConfig = useMessageRenderConfig()
+  const menuConfig = messageUi.menuConfig ?? defaultMessageMenuConfig
   const [copied, setCopied] = useTemporaryValue(false, 2000)
-  const translationAbortKey = createTranslationAbortKey(message.id)
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
   const translateLanguages = messageUi.translationLanguages ?? []
-  const getLanguageLabel = useCallback(
-    (language: TranslateLanguage, withEmoji?: boolean) =>
-      messageUi.getTranslationLanguageLabel?.(language, withEmoji) ?? language.langCode,
-    [messageUi.getTranslationLanguageLabel]
-  )
-
-  const [messageStyle] = usePreference('chat.message.style')
-  const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
-  const [confirmDeleteMessage] = usePreference('chat.message.confirm_delete')
-  const [confirmRegenerateMessage] = usePreference('chat.message.confirm_regenerate')
-
-  const isBubbleStyle = messageStyle === 'bubble'
+  const isBubbleStyle = renderConfig.messageStyle === 'bubble'
 
   const isUserMessage = message.role === 'user'
-
-  const [exportMenuOptions] = useMultiplePreferences({
-    image: 'data.export.menus.image',
-    markdown: 'data.export.menus.markdown',
-    markdown_reason: 'data.export.menus.markdown_reason',
-    notion: 'data.export.menus.notion',
-    yuque: 'data.export.menus.yuque',
-    joplin: 'data.export.menus.joplin',
-    obsidian: 'data.export.menus.obsidian',
-    siyuan: 'data.export.menus.siyuan',
-    docx: 'data.export.menus.docx',
-    plain_text: 'data.export.menus.plain_text'
-  })
 
   const partsMap = usePartsMap()
   const messageParts = useMemo(() => partsMap?.[message.id] ?? [], [partsMap, message.id])
   const messageForExport = useMemo(() => createMessageExportView(message, messageParts), [message, messageParts])
 
   const mainTextContent = useMemo(() => getTextFromParts(messageParts), [messageParts])
-
-  /**
-   * Mention a specific model to regenerate this assistant turn — produces a
-   * new sibling in the same group (parent user message, shared
-   * `siblingsGroupId`) using the chosen model. Filters out non-chat models
-   * (embedding/rerank/image-gen/audio/etc.) and text-only models when the
-   * upstream turn carries images.
-   */
-  const mentionModelFilter = useCallback(
-    (m: SharedModel) => {
-      if (isNonChatModel(m)) return false
-      const needsVision = messageParts.some((part) => part.type === 'file' && part.mediaType?.startsWith('image/'))
-      if (needsVision && !isSharedVisionModel(m)) return false
-      return true
-    },
-    [messageParts]
-  )
-
-  const onSelectMentionModel = useCallback(
-    async (selected: SharedModel | undefined) => {
-      if (!selected) return
-      const { providerId, modelId } = parseUniqueModelId(selected.id)
-      await actions.regenerateMessageWithModel?.(message.id, selected.id, {
-        id: modelId,
-        name: selected.name,
-        provider: providerId,
-        ...(selected.group && { group: selected.group })
-      })
-    },
-    [actions, message.id]
-  )
 
   const { startEditing } = useMessageEditing()
 
@@ -191,25 +97,6 @@ const MessageMenuBar: FC<Props> = (props) => {
     [messageParts]
   )
 
-  const handleTranslate = useCallback(
-    async (language: TranslateLanguage) => {
-      if (isTranslating) return
-
-      const translationUpdater = await actions.getTranslationUpdater?.(message.id, language.langCode)
-      if (!translationUpdater) return
-
-      try {
-        await translateText(mainTextContent, language, translationUpdater, translationAbortKey)
-      } catch (error) {
-        if (!isAbortError(error)) {
-          logger.error('Message translation failed', error as Error)
-          window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
-        }
-      }
-    },
-    [actions, isTranslating, mainTextContent, message.id, translationAbortKey, t]
-  )
-
   const menubarScope: MessageMenuBarScope = topic?.type ?? DEFAULT_MESSAGE_MENUBAR_SCOPE
   const { buttonIds } = getMessageMenuBarConfig(menubarScope)
   const toolbarButtonIds = useMemo(() => new Set(buttonIds), [buttonIds])
@@ -218,7 +105,6 @@ const MessageMenuBar: FC<Props> = (props) => {
 
   const hasTranslationBlocks = useMemo(() => hasTranslationParts(messageParts), [messageParts])
   const isUseful = !!messageUi.getMessageUiState?.(message.id).useful
-  const abortCurrentTranslation = useCallback(() => abortTranslation(message.id), [message.id])
 
   const softHoverBg = isBubbleStyle && !isLastMessage
   const showMessageTokens = variant === 'footer' && !isBubbleStyle
@@ -234,40 +120,39 @@ const MessageMenuBar: FC<Props> = (props) => {
       mainTextContent,
       toolbarButtonIds,
       selection,
-      exportMenuOptions,
-      confirmDeleteMessage,
-      confirmRegenerateMessage,
+      menuConfig,
       copied,
       setCopied,
-      enableDeveloperMode,
       isAssistantMessage,
       isGrouped,
       isProcessing,
+      isTranslating,
+      hasTranslationBlocks,
       isUserMessage,
       isUseful,
       isEditable,
+      translateLanguages,
+      getTranslationLanguageLabel: messageUi.getTranslationLanguageLabel,
       startEditing,
       onUpdateUseful,
-      abortTranslation: abortCurrentTranslation,
       t
     }),
     [
-      abortCurrentTranslation,
       actions,
-      confirmDeleteMessage,
-      confirmRegenerateMessage,
       copied,
-      enableDeveloperMode,
-      exportMenuOptions,
+      hasTranslationBlocks,
       isAssistantMessage,
       isEditable,
       isGrouped,
       isProcessing,
+      isTranslating,
       isUseful,
       isUserMessage,
       mainTextContent,
+      menuConfig,
       message,
       messageContainerRef,
+      messageUi.getTranslationLanguageLabel,
       messageForExport,
       messageParts,
       onUpdateUseful,
@@ -275,12 +160,14 @@ const MessageMenuBar: FC<Props> = (props) => {
       setCopied,
       startEditing,
       t,
+      translateLanguages,
       toolbarButtonIds
     ]
   )
 
   const menuActions = useMemo(() => resolveMessageMenuBarMenuActions(actionContext), [actionContext])
   const toolbarActions = useMemo(() => resolveMessageMenuBarToolbarActions(actionContext), [actionContext])
+  const translationItems = useMemo(() => resolveMessageMenuBarTranslationItems(actionContext), [actionContext])
 
   const executeAction = useCallback(
     async (action: MessageMenuBarResolvedAction) => {
@@ -302,22 +189,15 @@ const MessageMenuBar: FC<Props> = (props) => {
             {renderToolbarAction({
               action,
               actionContext,
-              currentMentionModel,
               executeAction,
-              getLanguageLabel,
-              handleTranslate,
-              hasTranslationBlocks,
               isTranslating,
-              mentionModelFilter,
               menuActions,
-              message,
               messageParts,
-              onSelectMentionModel,
               setShowDeleteTooltip,
               showDeleteTooltip,
               softHoverBg,
               t,
-              translateLanguages
+              translationItems
             })}
           </Fragment>
         ))}
@@ -393,73 +273,54 @@ const ConfirmActionButton = ({
 interface RenderToolbarActionOptions {
   action: MessageMenuBarResolvedAction
   actionContext: MessageMenuBarActionContext
-  currentMentionModel?: SharedModel
   executeAction: (action: MessageMenuBarResolvedAction) => void | Promise<void>
-  getLanguageLabel: (language: TranslateLanguage, withEmoji?: boolean) => string | undefined
-  handleTranslate: (language: TranslateLanguage) => Promise<void>
-  hasTranslationBlocks: boolean
   isTranslating: boolean
-  mentionModelFilter: (m: SharedModel) => boolean
   menuActions: MessageMenuBarResolvedAction[]
-  message: MessageListItem
-  messageParts: CherryMessagePart[]
-  onSelectMentionModel: (m: SharedModel | undefined) => void | Promise<void>
+  messageParts: MessageMenuBarActionContext['messageParts']
   setShowDeleteTooltip: (open: boolean) => void
   showDeleteTooltip: boolean
   softHoverBg: boolean
   t: (key: string) => string
-  translateLanguages: TranslateLanguage[]
+  translationItems: MessageMenuBarTranslationItem[]
 }
 
 const renderToolbarAction = ({
   action,
-  currentMentionModel,
+  actionContext,
   executeAction,
-  getLanguageLabel,
-  handleTranslate,
-  hasTranslationBlocks,
   isTranslating,
-  mentionModelFilter,
   menuActions,
-  message,
   messageParts,
-  onSelectMentionModel,
   setShowDeleteTooltip,
   showDeleteTooltip,
   softHoverBg,
   t,
-  translateLanguages
+  translationItems
 }: RenderToolbarActionOptions) => {
   if (action.id === 'assistant-mention-model') {
     return (
-      <ModelSelector
-        multiple={false}
-        value={currentMentionModel}
-        filter={mentionModelFilter}
-        onSelect={onSelectMentionModel}
-        trigger={
+      actionContext.actions.renderRegenerateModelPicker?.({
+        message: actionContext.message,
+        messageParts,
+        trigger: (
           <Tooltip content={action.label} delay={800}>
             <ActionButton className="message-action-button" $softHoverBg={softHoverBg}>
               {action.icon}
             </ActionButton>
           </Tooltip>
-        }
-      />
+        )
+      }) ?? null
     )
   }
 
   if (action.id === 'translate') {
     return renderTranslateAction({
       action,
-      getLanguageLabel,
-      handleTranslate,
-      hasTranslationBlocks,
+      executeAction,
       isTranslating,
-      message,
-      messageParts,
       softHoverBg,
       t,
-      translateLanguages
+      translationItems
     })
   }
 
@@ -552,26 +413,18 @@ const renderActionButton = ({
 
 const renderTranslateAction = ({
   action,
-  getLanguageLabel,
-  handleTranslate,
-  hasTranslationBlocks,
+  executeAction,
   isTranslating,
-  message,
-  messageParts,
   softHoverBg,
   t,
-  translateLanguages
+  translationItems
 }: {
   action: MessageMenuBarResolvedAction
-  getLanguageLabel: (language: TranslateLanguage, withEmoji?: boolean) => string | undefined
-  handleTranslate: (language: TranslateLanguage) => Promise<void>
-  hasTranslationBlocks: boolean
+  executeAction: (action: MessageMenuBarResolvedAction) => void | Promise<void>
   isTranslating: boolean
-  message: MessageListItem
-  messageParts: CherryMessagePart[]
   softHoverBg: boolean
   t: (key: string) => string
-  translateLanguages: TranslateLanguage[]
+  translationItems: MessageMenuBarTranslationItem[]
 }) => {
   if (isTranslating) {
     return (
@@ -580,48 +433,20 @@ const renderTranslateAction = ({
           className="message-action-button"
           onClick={(e) => {
             e.stopPropagation()
-            abortTranslation(message.id)
+            void executeAction(action)
           }}
           $softHoverBg={softHoverBg}>
-          <CirclePause size={15} />
+          {action.icon}
         </ActionButton>
       </Tooltip>
     )
   }
 
-  const items: TranslateMenuItem[] = [
-    ...translateLanguages.map((item) => ({
-      label: getLanguageLabel(item) ?? item.langCode,
-      key: item.langCode,
-      onClick: () => handleTranslate(item)
-    })),
-    ...(hasTranslationBlocks
-      ? [
-          { type: 'divider' as const, key: 'translate-divider' },
-          {
-            label: '📋 ' + t('common.copy'),
-            key: 'translate-copy',
-            onClick: () => {
-              const translationContent = getTranslationFromParts(messageParts)
-                .map((item) => item.content || '')
-                .join('\n\n')
-                .trim()
-
-              if (translationContent) {
-                void navigator.clipboard.writeText(translationContent)
-                window.toast.success(t('translate.copied'))
-              } else {
-                window.toast.warning(t('translate.empty'))
-              }
-            }
-          }
-        ]
-      : [])
-  ]
+  if (translationItems.length === 0) return null
 
   return (
     <Tooltip content={action.label} delay={1200}>
-      <TranslateMenuPopover items={items} align="center" contentClassName="max-h-[250px] overflow-y-auto">
+      <TranslateMenuPopover items={translationItems} align="center" contentClassName="max-h-[250px] overflow-y-auto">
         <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()} $softHoverBg={softHoverBg}>
           {action.icon}
         </ActionButton>
@@ -721,14 +546,14 @@ const TranslateMenuPopover = ({
 }: {
   children: ReactNode
   contentClassName?: string
-  items: TranslateMenuItem[]
+  items: MessageMenuBarTranslationItem[]
   align?: 'start' | 'center' | 'end'
 }) => (
   <DropdownMenu>
     <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
     <DropdownMenuContent className={classNames('min-w-36', contentClassName)} align={align} side="top">
       {items.map((item) => {
-        if (isTranslateMenuDivider(item)) {
+        if (isMessageMenuBarTranslationDivider(item)) {
           return <DropdownMenuSeparator key={item.key} />
         }
         return (
@@ -736,7 +561,7 @@ const TranslateMenuPopover = ({
             key={item.key}
             onSelect={(event) => {
               event.stopPropagation()
-              void item.onClick()
+              void item.onSelect()
             }}>
             <span>{item.label}</span>
           </DropdownMenuItem>

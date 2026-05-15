@@ -63,6 +63,26 @@ vi.mock('../adapters/useMessageListRenderConfig', () => ({
   })
 }))
 
+vi.mock('../adapters/useMessageMenuConfig', () => ({
+  useMessageMenuConfig: () => ({
+    confirmDeleteMessage: false,
+    confirmRegenerateMessage: false,
+    enableDeveloperMode: false,
+    exportMenuOptions: {
+      image: false,
+      markdown: false,
+      markdown_reason: false,
+      notion: false,
+      yuque: false,
+      joplin: false,
+      obsidian: false,
+      siyuan: false,
+      docx: false,
+      plain_text: false
+    }
+  })
+}))
+
 vi.mock('../adapters/useMessageExportActions', () => ({
   useMessageExportActions: useMessageExportActionsMock
 }))
@@ -107,7 +127,11 @@ describe('useAgentMessageListProviderValue', () => {
         messages,
         partsByMessageId,
         assistantId: 'agent-1',
-        modelFallback: { id: 'claude-4', name: 'Claude 4', provider: 'anthropic' },
+        modelFallback: {
+          id: 'claude-4',
+          name: 'Claude 4',
+          provider: 'anthropic'
+        },
         isLoading: false,
         deleteMessage,
         messageNavigation: 'anchor'
@@ -124,14 +148,20 @@ describe('useAgentMessageListProviderValue', () => {
       role: 'assistant',
       parentId: 'user-1',
       status: 'pending',
-      modelSnapshot: { id: 'claude-4', name: 'Claude 4', provider: 'anthropic' }
+      modelSnapshot: {
+        id: 'claude-4',
+        name: 'Claude 4',
+        provider: 'anthropic'
+      }
     })
     expect(value?.state.selection).toEqual({
       enabled: true,
       isMultiSelectMode: true,
       selectedMessageIds: ['user-1']
     })
-    expect(useMessageExportActionsMock).toHaveBeenCalledWith({ topicName: 'Agent session' })
+    expect(useMessageExportActionsMock).toHaveBeenCalledWith({
+      topicName: 'Agent session'
+    })
     expect(value?.actions.deleteMessage).toBe(deleteMessage)
     expect(value?.actions.selectMessage).toEqual(expect.any(Function))
     expect(value?.actions.toggleMultiSelectMode).toEqual(expect.any(Function))

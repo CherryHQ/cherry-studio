@@ -14,6 +14,7 @@ import { toMessageListItem } from '../utils/messageListItem'
 import { useMessageActivityState } from './useMessageActivityState'
 import { useMessageExportActions } from './useMessageExportActions'
 import { useMessageListRenderConfig } from './useMessageListRenderConfig'
+import { useMessageMenuConfig } from './useMessageMenuConfig'
 import { useMessageSelectionController } from './useMessageSelectionController'
 
 interface AgentMessageListParams {
@@ -60,6 +61,7 @@ export function useAgentMessageListProviderValue({
 
   const getMessageActivityState = useMessageActivityState(topic.id, partsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
+  const menuConfig = useMessageMenuConfig()
   const exportActions = useMessageExportActions({ topicName: topic.name })
   const selectionController = useMessageSelectionController({
     topicId: topic.id,
@@ -106,6 +108,7 @@ export function useAgentMessageListProviderValue({
       listKey: topic.id,
       readonly: true,
       renderConfig,
+      menuConfig,
       selection: selectionController.selection,
       getMessageUiState,
       getMessageActivityState
@@ -115,6 +118,7 @@ export function useAgentMessageListProviderValue({
       getMessageUiState,
       hasOlder,
       isLoading,
+      menuConfig,
       messageNavigation,
       messageItems,
       partsByMessageId,

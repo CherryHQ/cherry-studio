@@ -12,7 +12,6 @@ import type {
   MessageStatus,
   ModelSnapshot
 } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReactNode } from 'react'
 
 export interface MessageUiState {
@@ -58,6 +57,52 @@ export interface MessageEditorCapabilities {
   canAddTextFile: boolean
 }
 
+export interface MessageMenuExportOptions {
+  image: boolean
+  markdown: boolean
+  markdown_reason: boolean
+  notion: boolean
+  yuque: boolean
+  joplin: boolean
+  obsidian: boolean
+  siyuan: boolean
+  docx: boolean
+  plain_text: boolean
+}
+
+export interface MessageMenuConfig {
+  confirmDeleteMessage: boolean
+  confirmRegenerateMessage: boolean
+  enableDeveloperMode: boolean
+  exportMenuOptions: MessageMenuExportOptions
+}
+
+export const defaultMessageMenuExportOptions: MessageMenuExportOptions = {
+  image: false,
+  markdown: false,
+  markdown_reason: false,
+  notion: false,
+  yuque: false,
+  joplin: false,
+  obsidian: false,
+  siyuan: false,
+  docx: false,
+  plain_text: false
+}
+
+export const defaultMessageMenuConfig: MessageMenuConfig = {
+  confirmDeleteMessage: false,
+  confirmRegenerateMessage: false,
+  enableDeveloperMode: false,
+  exportMenuOptions: defaultMessageMenuExportOptions
+}
+
+export interface MessageModelPickerRenderOptions {
+  message: MessageListItem
+  messageParts: CherryMessagePart[]
+  trigger: ReactNode
+}
+
 export interface MessageListItem {
   id: string
   role: CherryUIMessage['role']
@@ -72,7 +117,12 @@ export interface MessageListItem {
   siblingsGroupId?: number
   stats?: MessageStats
   traceId?: string | null
-  mentions?: Array<{ id: string; name: string; provider: string; group?: string }>
+  mentions?: Array<{
+    id: string
+    name: string
+    provider: string
+    group?: string
+  }>
   type?: 'clear'
 }
 
@@ -119,6 +169,7 @@ export interface MessageListState {
   listKey?: string
   readonly?: boolean
   renderConfig: MessageRenderConfig
+  menuConfig?: MessageMenuConfig
   selection?: MessageListSelectionState
   translationLanguages?: TranslateLanguage[]
   editorTranslationTargetLabel?: string
@@ -157,6 +208,9 @@ export interface MessageListActions {
   abortTool?: (toolId: string) => boolean | Promise<boolean>
   selectFiles?: (options: { extensions: string[] }) => Promise<FileMetadata[] | null | undefined>
   translateEditorText?: (text: string) => Promise<string | null | undefined>
+  translateMessage?: (messageId: string, language: TranslateLanguage, sourceText: string) => void | Promise<void>
+  abortMessageTranslation?: (messageId: string) => void | Promise<void>
+  renderRegenerateModelPicker?: (options: MessageModelPickerRenderOptions) => ReactNode
   selectMessage?: (messageId: string, selected: boolean) => void
   toggleMultiSelectMode?: (enabled: boolean) => void
   copySelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
@@ -171,16 +225,6 @@ export interface MessageListActions {
   setActiveBranch?: (messageId: string) => void | Promise<void>
   deleteMessageGroup?: (parentId: string) => void | Promise<void>
   regenerateMessage?: (messageId: string) => void | Promise<void>
-  regenerateMessageWithModel?: (
-    messageId: string,
-    modelId: UniqueModelId,
-    modelSnapshot?: ModelSnapshot
-  ) => void | Promise<void>
-  getTranslationUpdater?: (
-    messageId: string,
-    targetLanguage: TranslateLangCode,
-    sourceLanguage?: TranslateLangCode
-  ) => Promise<((accumulatedText: string, isComplete?: boolean) => void) | null>
 }
 
 export interface MessageListMeta {

@@ -2,6 +2,7 @@ import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { ModelSelector } from '@renderer/components/ModelSelector'
 import { isVisionModel } from '@renderer/config/models'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
@@ -11,11 +12,21 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { translateInputText } from '@renderer/services/TranslateCommandService'
+import { translateText } from '@renderer/services/TranslateService'
 import type { Topic, TranslateLangCode } from '@renderer/types'
+import { abortCompletion } from '@renderer/utils/abortController'
+import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { filterSupportedFiles } from '@renderer/utils/file'
 import { updateCodeBlock } from '@renderer/utils/markdown'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
+import {
+  createUniqueModelId,
+  type Model as SharedModel,
+  parseUniqueModelId,
+  type UniqueModelId
+} from '@shared/data/types/model'
+import { isNonChatModel, isVisionModel as isSharedVisionModel } from '@shared/utils/model'
 import { last } from 'lodash'
 import { use, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -36,9 +47,12 @@ import { getMessageListItemModel, modelToSnapshot, toMessageListItem } from '../
 import { useMessageActivityState } from './useMessageActivityState'
 import { useMessageExportActions } from './useMessageExportActions'
 import { useMessageListRenderConfig } from './useMessageListRenderConfig'
+import { useMessageMenuConfig } from './useMessageMenuConfig'
 import { useMessageSelectionController } from './useMessageSelectionController'
 
 const logger = loggerService.withContext('HomeMessageListAdapter')
+
+const createTranslationAbortKey = (messageId: string) => `translation-abort-key:${messageId}`
 
 interface HomeMessageListParams {
   topic: Topic
@@ -69,6 +83,7 @@ export function useHomeMessageListProviderValue({
   const siblingsContext = use(SiblingsContext)
   const getMessageActivityState = useMessageActivityState(topic.id, partsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
+  const menuConfig = useMessageMenuConfig()
   const exportActions = useMessageExportActions({ topicName: topic.name })
 
   const messageItems = useMemo(
@@ -195,7 +210,10 @@ export function useHomeMessageListProviderValue({
           const textPart = resolved.part as { text?: string }
           const updatedText = updateCodeBlock(textPart.text || '', codeBlockId, newContent)
           const allParts = [...(partsByMessageIdRef.current[resolved.messageId] || [])]
-          allParts[resolved.index] = { ...resolved.part, text: updatedText } as CherryMessagePart
+          allParts[resolved.index] = {
+            ...resolved.part,
+            text: updatedText
+          } as CherryMessagePart
           await dataApiService.patch(`/messages/${resolved.messageId}`, {
             body: { data: { parts: allParts } }
           })
@@ -300,7 +318,7 @@ export function useHomeMessageListProviderValue({
     cacheService.set(cacheKey, { ...current, ...updates })
   }, [])
 
-  const getTranslationUpdater = useCallback(
+  const createTranslationUpdater = useCallback(
     async (
       messageId: string,
       targetLanguage: TranslateLangCode,
@@ -310,14 +328,18 @@ export function useHomeMessageListProviderValue({
 
       const currentParts = partsByMessageIdRef.current[messageId]
       if (!currentParts) {
-        logger.error(`[getTranslationUpdater] cannot find parts for message: ${messageId}`)
+        logger.error(`[createTranslationUpdater] cannot find parts for message: ${messageId}`)
         return null
       }
 
       const baseParts = currentParts.filter((part) => part.type !== 'data-translation')
       const loadingPart = {
         type: 'data-translation' as const,
-        data: { content: '', targetLanguage, ...(sourceLanguage && { sourceLanguage }) }
+        data: {
+          content: '',
+          targetLanguage,
+          ...(sourceLanguage && { sourceLanguage })
+        }
       }
       await chatWrite.editMessage(messageId, [...baseParts, loadingPart as CherryMessagePart])
 
@@ -335,6 +357,32 @@ export function useHomeMessageListProviderValue({
       }
     },
     [topic.id, chatWrite]
+  )
+
+  const translateMessage = useCallback<NonNullable<MessageListActions['translateMessage']>>(
+    async (messageId, language, sourceText) => {
+      if (!sourceText.trim()) return
+
+      const translationUpdater = await createTranslationUpdater(messageId, language.langCode)
+      if (!translationUpdater) return
+
+      try {
+        await translateText(sourceText, language, translationUpdater, createTranslationAbortKey(messageId))
+      } catch (error) {
+        if (!isAbortError(error)) {
+          logger.error('Message translation failed', error as Error)
+          window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
+        }
+      }
+    },
+    [createTranslationUpdater, t]
+  )
+
+  const abortMessageTranslation = useCallback<NonNullable<MessageListActions['abortMessageTranslation']>>(
+    (messageId) => {
+      abortCompletion(createTranslationAbortKey(messageId))
+    },
+    []
   )
 
   const getMessageSiblings = useCallback(
@@ -383,9 +431,53 @@ export function useHomeMessageListProviderValue({
     [chatWrite]
   )
 
-  const regenerateMessageWithModel = useCallback<NonNullable<MessageListActions['regenerateMessageWithModel']>>(
-    (messageId, modelId, modelSnapshot) => chatWrite?.regenerate(messageId, { modelId, modelSnapshot }),
+  const regenerateMessageUsingModel = useCallback(
+    (messageId: string, modelId: UniqueModelId, modelSnapshot?: ModelSnapshot) =>
+      chatWrite?.regenerate(messageId, { modelId, modelSnapshot }),
     [chatWrite]
+  )
+
+  const renderRegenerateModelPicker = useCallback<NonNullable<MessageListActions['renderRegenerateModelPicker']>>(
+    ({ message, messageParts, trigger }) => {
+      const messageModel = getMessageListItemModel(message)
+      const currentMentionModel = messageModel
+        ? ({
+            id: createUniqueModelId(messageModel.provider, messageModel.id),
+            providerId: messageModel.provider,
+            name: messageModel.name,
+            group: messageModel.group
+          } as SharedModel)
+        : undefined
+
+      const mentionModelFilter = (model: SharedModel) => {
+        if (isNonChatModel(model)) return false
+        const needsVision = messageParts.some((part) => part.type === 'file' && part.mediaType?.startsWith('image/'))
+        if (needsVision && !isSharedVisionModel(model)) return false
+        return true
+      }
+
+      const onSelectMentionModel = async (selected: SharedModel | undefined) => {
+        if (!selected) return
+        const { providerId, modelId } = parseUniqueModelId(selected.id)
+        await regenerateMessageUsingModel?.(message.id, selected.id, {
+          id: modelId,
+          name: selected.name,
+          provider: providerId,
+          ...(selected.group && { group: selected.group })
+        })
+      }
+
+      return (
+        <ModelSelector
+          multiple={false}
+          value={currentMentionModel}
+          filter={mentionModelFilter}
+          onSelect={onSelectMentionModel}
+          trigger={trigger}
+        />
+      )
+    },
+    [regenerateMessageUsingModel]
   )
 
   const selectionController = useMessageSelectionController({
@@ -410,6 +502,7 @@ export function useHomeMessageListProviderValue({
       listKey: assistant?.id ?? topic.assistantId,
       readonly: false,
       renderConfig,
+      menuConfig,
       selection: selectionController.selection,
       translationLanguages: translationLanguages ?? [],
       editorTranslationTargetLabel: getTranslationLanguageLabel(editorTranslationTargetLanguage, false),
@@ -428,6 +521,7 @@ export function useHomeMessageListProviderValue({
       getMessageUiState,
       getTranslationLanguageLabel,
       hasOlder,
+      menuConfig,
       messageItems,
       messageNavigation,
       partsByMessageId,
@@ -464,11 +558,13 @@ export function useHomeMessageListProviderValue({
       setActiveBranch,
       deleteMessageGroup,
       regenerateMessage,
-      regenerateMessageWithModel,
-      getTranslationUpdater
+      translateMessage,
+      abortMessageTranslation,
+      renderRegenerateModelPicker
     }),
     [
       abortTool,
+      abortMessageTranslation,
       bindMessageGroupRuntime,
       bindMessageRuntime,
       bindRuntime,
@@ -477,13 +573,12 @@ export function useHomeMessageListProviderValue({
       editMessage,
       exportActions,
       forkAndResendMessage,
-      getTranslationUpdater,
       loadOlder,
       locateMessage,
       openPath,
       openTrace,
       regenerateMessage,
-      regenerateMessageWithModel,
+      renderRegenerateModelPicker,
       saveCodeBlock,
       selectFiles,
       setActiveBranch,
@@ -492,6 +587,7 @@ export function useHomeMessageListProviderValue({
       startNewContext,
       selectionController.actions,
       translateEditorText,
+      translateMessage,
       updateMessageUiState,
       updateRenderConfig
     ]
