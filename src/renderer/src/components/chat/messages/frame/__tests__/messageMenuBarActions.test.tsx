@@ -137,6 +137,11 @@ describe('messageMenuBarActions', () => {
       'delete',
       'more-menu'
     ])
+    expect(toolbarActions.find((action) => action.id === 'assistant-mention-model')?.toolbarRenderKind).toBe(
+      'model-picker'
+    )
+    expect(toolbarActions.find((action) => action.id === 'translate')?.toolbarRenderKind).toBe('translate')
+    expect(toolbarActions.find((action) => action.id === 'more-menu')?.toolbarRenderKind).toBe('more-menu')
   })
 
   it('keeps session scope capability-driven for toolbar actions', () => {

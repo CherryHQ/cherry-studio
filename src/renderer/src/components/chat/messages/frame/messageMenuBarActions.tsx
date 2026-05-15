@@ -70,6 +70,10 @@ export type MessageMenuBarResolvedAction = ResolvedAction<MessageMenuBarActionCo
 
 export type MessageMenuBarToolbarRenderKind = 'button' | 'delete' | 'model-picker' | 'more-menu' | 'translate'
 
+export type MessageMenuBarResolvedToolbarAction = MessageMenuBarResolvedAction & {
+  toolbarRenderKind: MessageMenuBarToolbarRenderKind
+}
+
 export type MessageMenuBarTranslationItem =
   | {
       key: string
@@ -86,12 +90,7 @@ export const isMessageMenuBarTranslationDivider = (
 ): item is Extract<MessageMenuBarTranslationItem, { type: 'divider' }> => 'type' in item && item.type === 'divider'
 
 const toolbarOrder = new Map(DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS.map((id, index) => [id, index * 10]))
-const toolbarRenderKinds: Partial<Record<MessageMenuBarButtonId, MessageMenuBarToolbarRenderKind>> = {
-  'assistant-mention-model': 'model-picker',
-  delete: 'delete',
-  'more-menu': 'more-menu',
-  translate: 'translate'
-}
+const toolbarRenderKinds = new Map<string, MessageMenuBarToolbarRenderKind>()
 
 const messageMenuBarActionRegistry = createActionRegistry<MessageMenuBarActionContext>()
 
@@ -119,11 +118,14 @@ function registerAction(descriptor: ActionDescriptor<MessageMenuBarActionContext
 function registerToolbarAction(
   descriptor: Omit<ActionDescriptor<MessageMenuBarActionContext>, 'order' | 'surface'> & {
     id: MessageMenuBarButtonId
+    toolbarRenderKind?: MessageMenuBarToolbarRenderKind
   }
 ) {
+  const { toolbarRenderKind = 'button', ...actionDescriptor } = descriptor
+  toolbarRenderKinds.set(actionDescriptor.id, toolbarRenderKind)
   registerAction({
-    ...descriptor,
-    order: toolbarOrder.get(descriptor.id) ?? 0,
+    ...actionDescriptor,
+    order: toolbarOrder.get(actionDescriptor.id) ?? 0,
     surface: 'toolbar'
   })
 }
@@ -292,6 +294,7 @@ registerToolbarAction({
 
 registerToolbarAction({
   id: 'assistant-mention-model',
+  toolbarRenderKind: 'model-picker',
   label: ({ t }) => t('message.mention.title'),
   icon: <AtSign size={15} />,
   availability: toolbarAvailability(
@@ -302,6 +305,7 @@ registerToolbarAction({
 
 registerToolbarAction({
   id: 'translate',
+  toolbarRenderKind: 'translate',
   commandId: 'message.abortTranslation',
   label: ({ t }) => t('chat.translate'),
   icon: ({ isTranslating }) => (isTranslating ? <CirclePause size={15} /> : <Languages size={15} />),
@@ -342,6 +346,7 @@ registerToolbarAction({
 
 registerToolbarAction({
   id: 'delete',
+  toolbarRenderKind: 'delete',
   commandId: 'message.delete',
   label: ({ t }) => t('common.delete'),
   icon: <DeleteIcon size={15} />,
@@ -377,6 +382,7 @@ registerToolbarAction({
 
 registerToolbarAction({
   id: 'more-menu',
+  toolbarRenderKind: 'more-menu',
   label: 'More',
   icon: <Menu size={19} />,
   availability: toolbarAvailability('more-menu', ({ isUserMessage }) => !isUserMessage)
@@ -565,8 +571,11 @@ export function resolveMessageMenuBarTranslationItems(
 
 export function resolveMessageMenuBarToolbarActions(
   context: MessageMenuBarActionContext
-): MessageMenuBarResolvedAction[] {
-  return messageMenuBarActionRegistry.resolve(context, 'toolbar')
+): MessageMenuBarResolvedToolbarAction[] {
+  return messageMenuBarActionRegistry.resolve(context, 'toolbar').map((action) => ({
+    ...action,
+    toolbarRenderKind: getMessageMenuBarToolbarRenderKind(action.id)
+  }))
 }
 
 export function resolveMessageMenuBarMenuActions(context: MessageMenuBarActionContext): MessageMenuBarResolvedAction[] {
@@ -576,7 +585,7 @@ export function resolveMessageMenuBarMenuActions(context: MessageMenuBarActionCo
 }
 
 export function getMessageMenuBarToolbarRenderKind(actionId: string): MessageMenuBarToolbarRenderKind {
-  return toolbarRenderKinds[actionId as MessageMenuBarButtonId] ?? 'button'
+  return toolbarRenderKinds.get(actionId) ?? 'button'
 }
 
 export function executeMessageMenuBarAction(actionId: string, context: MessageMenuBarActionContext): Promise<boolean> {

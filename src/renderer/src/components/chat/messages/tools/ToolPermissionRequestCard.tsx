@@ -4,7 +4,7 @@ import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { type StatusColor, StatusIndicatorContainer, StreamingContext } from './agent/GenericTools'
-import { isValidAgentToolsType, renderTool } from './agent/index'
+import { isValidAgentToolsType, renderTool } from './agent/toolRendererRegistry'
 import { UnknownToolRenderer } from './agent/UnknownToolRenderer'
 import { useToolApproval } from './hooks/useToolApproval'
 import { ToolDisclosure, type ToolDisclosureItem } from './shared/ToolDisclosure'
