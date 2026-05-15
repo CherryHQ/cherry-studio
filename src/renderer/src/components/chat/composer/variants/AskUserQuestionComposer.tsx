@@ -27,11 +27,10 @@ export type AskUserQuestionComposerRequest = {
 type AskUserQuestionToolPart = CherryMessagePart & {
   type: string
   toolName?: string
-  toolCallId?: string
+  toolCallId: string
   state?: string
   input?: unknown
   approval?: { id?: string }
-  providerMetadata?: { cherry?: { transport?: string } }
 }
 
 type AskUserQuestionComposerProps = {
@@ -54,10 +53,8 @@ function getToolName(part: AskUserQuestionToolPart): string {
 }
 
 export function findLatestPendingAskUserQuestionRequest(
-  partsByMessageId: Record<string, CherryMessagePart[]> | null | undefined
+  partsByMessageId: Record<string, CherryMessagePart[]>
 ): AskUserQuestionComposerRequest | null {
-  if (!partsByMessageId) return null
-
   let latest: AskUserQuestionComposerRequest | null = null
 
   for (const [messageId, parts] of Object.entries(partsByMessageId)) {
@@ -69,7 +66,6 @@ export function findLatestPendingAskUserQuestionRequest(
       if (
         getToolName(toolPart) !== AgentToolsType.AskUserQuestion ||
         toolPart.state !== APPROVAL_REQUESTED ||
-        !toolPart.toolCallId ||
         !approvalId
       ) {
         continue
@@ -89,7 +85,6 @@ export function findLatestPendingAskUserQuestionRequest(
           toolCallId: toolPart.toolCallId,
           messageId,
           approvalId,
-          transport: toolPart.providerMetadata?.cherry?.transport,
           input: toolPart.input
         }
       }

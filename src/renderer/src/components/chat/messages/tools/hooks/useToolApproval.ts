@@ -41,9 +41,9 @@ const IDLE: ToolApprovalState & ToolApprovalActions = {
  * Read approval state off the active `ToolUIPart` for a given tool call
  * and expose confirm/cancel that route through the shared bridge.
  *
- * The bridge internally branches on `providerMetadata.cherry.transport`:
- * Claude-Agent approvals also fire `Ai_ToolApproval_Respond` IPC to
- * unblock the blocking server-side `canUseTool` on the same stream.
+ * The active message-list adapter supplies the right bridge for its context:
+ * persistent chat patches topic message parts, while agent sessions unblock
+ * the live approval registry and refresh session parts.
  */
 export function useToolApproval(target: ToolApprovalTarget): ToolApprovalState & ToolApprovalActions {
   const { t } = useTranslation()
@@ -69,7 +69,7 @@ export function useToolApproval(target: ToolApprovalTarget): ToolApprovalState &
 
   const respond = useCallback(
     async (approved: boolean) => {
-      if (!match?.approvalId || !respondToolApproval) return
+      if (!match || !respondToolApproval) return
       setOptimisticSubmitted(true)
       try {
         await respondToolApproval({
@@ -86,7 +86,7 @@ export function useToolApproval(target: ToolApprovalTarget): ToolApprovalState &
     [match, notifyError, respondToolApproval, t]
   )
 
-  if (!match?.approvalId) return IDLE
+  if (!match) return IDLE
 
   const remoteExecuting = match.state === APPROVAL_RESPONDED || match.state === 'input-available'
   return {

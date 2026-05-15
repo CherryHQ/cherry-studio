@@ -692,8 +692,10 @@
         "showDetails": "Mostrar detalles de la herramienta"
       },
       "button": {
+        "allow": "Permitir",
         "allowAll": "Permitir siempre",
         "cancel": "Cancelar",
+        "deny": "Deny",
         "run": "Correr"
       },
       "confirmation": "¿Estás seguro de que quieres ejecutar esta herramienta de Claude?",
@@ -4722,7 +4724,17 @@
         "triggerSelectedCount": "{{count}} modelos seleccionados",
         "valueProp": "Propuesta de Valor Actual"
       },
-      "title": "Componente de Desarrollo Lab"
+      "title": "Componente de Desarrollo Lab",
+      "toolPermission": {
+        "builtinMode": "Built-in",
+        "currentRequest": "Current request",
+        "description": "Preview the bottom tool permission composer with built-in and MCP tool requests.",
+        "latestResponse": "Latest response",
+        "mcpMode": "MCP",
+        "noResponse": "No response submitted yet",
+        "resetPreview": "Reset preview",
+        "title": "Tool Permission"
+      }
     },
     "data": {
       "app_data": {

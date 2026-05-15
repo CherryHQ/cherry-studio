@@ -10,6 +10,7 @@ import ComponentLabAskUserQuestionSettings from './ComponentLabAskUserQuestionSe
 import ComponentLabAssistantSelectorSettings from './ComponentLabAssistantSelectorSettings'
 import ComponentLabFileProcessingSettings from './ComponentLabFileProcessingSettings'
 import ComponentLabModelSelectorSettings from './ComponentLabModelSelectorSettings'
+import ComponentLabToolPermissionSettings from './ComponentLabToolPermissionSettings'
 
 const ComponentLabSettings: FC = () => {
   const { t } = useTranslation()
@@ -29,6 +30,7 @@ const ComponentLabSettings: FC = () => {
             <TabsTrigger value="model-selector">{t('settings.componentLab.modelSelector.title')}</TabsTrigger>
             <TabsTrigger value="agent-todo-list">{t('settings.componentLab.agentTodoList.title')}</TabsTrigger>
             <TabsTrigger value="ask-user-question">{t('settings.componentLab.askUserQuestion.title')}</TabsTrigger>
+            <TabsTrigger value="tool-permission">{t('settings.componentLab.toolPermission.title')}</TabsTrigger>
             <TabsTrigger value="file-processing">{t('settings.componentLab.fileProcessing.title')}</TabsTrigger>
           </TabsList>
 
@@ -46,6 +48,9 @@ const ComponentLabSettings: FC = () => {
           </TabsContent>
           <TabsContent value="ask-user-question" className="mt-0">
             <ComponentLabAskUserQuestionSettings />
+          </TabsContent>
+          <TabsContent value="tool-permission" className="mt-0">
+            <ComponentLabToolPermissionSettings />
           </TabsContent>
           <TabsContent value="file-processing" className="mt-0">
             <ComponentLabFileProcessingSettings />

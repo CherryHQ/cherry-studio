@@ -36,7 +36,6 @@ import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
 import { useLanguages } from '@renderer/hooks/translate'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { translateInputText } from '@renderer/services/TranslateCommandService'
 import { translateText } from '@renderer/services/TranslateService'
@@ -70,6 +69,7 @@ interface HomeMessageListParams {
   loadOlder?: () => void
   hasOlder?: boolean
   openCitationsPanel?: MessageListActions['openCitationsPanel']
+  respondToolApproval: NonNullable<MessageListActions['respondToolApproval']>
   onComponentUpdate?(): void
   onFirstUpdate?(): void
 }
@@ -81,6 +81,7 @@ export function useHomeMessageListProviderValue({
   loadOlder,
   hasOlder = false,
   openCitationsPanel,
+  respondToolApproval,
   onComponentUpdate,
   onFirstUpdate
 }: HomeMessageListParams): MessageListProviderValue {
@@ -101,7 +102,6 @@ export function useHomeMessageListProviderValue({
   const errorActions = useMessageErrorActions()
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId })
   const headerCapabilities = useMessageHeaderCapabilities()
-  const respondToolApproval = useToolApprovalBridge(topic.id, messages)
 
   const messageItems = useMemo(
     () =>

@@ -1,19 +1,7 @@
 import { loggerService } from '@logger'
-import { ChatWriteProvider } from '@renderer/hooks/ChatWriteContext'
-import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
-import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
-import type { ExecutionFinishEvent } from '@renderer/hooks/useExecutionChats'
-import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
-import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
-import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
-import type { FileMetadata, Topic } from '@renderer/types'
-import type { CherryUIMessage } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
-import type { FC, ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-
-const logger = loggerService.withContext('ChatContent')
-
+import { ComposerContextProvider } from '@renderer/components/chat/composer/ComposerContext'
+import ComposerCore from '@renderer/components/chat/composer/ComposerCore'
+import { useToolApprovalComposerOverrides } from '@renderer/components/chat/composer/useToolApprovalComposerOverrides'
 import { RefreshProvider } from '@renderer/components/chat/messages/blocks'
 import { MessageListInitialLoading } from '@renderer/components/chat/messages/layout/MessageListLoading'
 import MessageList from '@renderer/components/chat/messages/MessageList'
@@ -21,11 +9,26 @@ import { MessageListProvider } from '@renderer/components/chat/messages/MessageL
 import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
 import { useMessagePartsById } from '@renderer/components/chat/messages/stream/useMessagePartsById'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
+import { ChatWriteProvider } from '@renderer/hooks/ChatWriteContext'
+import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
+import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
+import type { ExecutionFinishEvent } from '@renderer/hooks/useExecutionChats'
+import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
+import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
+import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
+import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
+import type { FileMetadata, Topic } from '@renderer/types'
+import type { CherryUIMessage } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
+import type { FC, ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { useChatWriteActions } from './hooks/useChatWriteActions'
 import { useTopicMessagesCache } from './hooks/useTopicMessagesCache'
 import Inputbar from './Inputbar/Inputbar'
 import { useHomeMessageListProviderValue } from './messages/homeMessageListAdapter'
+
+const logger = loggerService.withContext('ChatContent')
 
 export interface ChatContentFrameSlots {
   main: ReactNode
@@ -179,6 +182,17 @@ const ChatContentInner: FC<InnerProps> = ({
 
   const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } = useExecutionMessages()
   const partsByMessageId = useMessagePartsById(uiMessages, executionMessagesById)
+  const respondToolApproval = useToolApprovalBridge(topic.id, partsByMessageId)
+  const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
+    partsByMessageId,
+    onRespond: respondToolApproval
+  })
+  const composerContext = useMemo(
+    () => ({
+      overrides: toolApprovalComposerOverrides
+    }),
+    [toolApprovalComposerOverrides]
+  )
 
   const cache = useTopicMessagesCache({ topicId: topic.id, mutate: messagesCacheMutate })
 
@@ -327,10 +341,17 @@ const ChatContentInner: FC<InnerProps> = ({
                   loadOlder={loadOlder}
                   hasOlder={hasOlder}
                   openCitationsPanel={onOpenCitationsPanel}
+                  respondToolApproval={respondToolApproval}
                 />
               </>
             )
-            const bottomComposer = <Inputbar topic={topic} setActiveTopic={setActiveTopic} onSend={handleSend} />
+            const bottomComposer = (
+              <ComposerContextProvider value={composerContext}>
+                <ComposerCore
+                  fallback={<Inputbar topic={topic} setActiveTopic={setActiveTopic} onSend={handleSend} />}
+                />
+              </ComposerContextProvider>
+            )
 
             if (renderFrame) {
               return renderFrame({ main, bottomComposer })
@@ -362,14 +383,16 @@ const HomeMessageList: FC<{
   loadOlder: () => void
   hasOlder: boolean
   openCitationsPanel?: MessageListActions['openCitationsPanel']
-}> = ({ topic, messages, partsByMessageId, loadOlder, hasOlder, openCitationsPanel }) => {
+  respondToolApproval: NonNullable<MessageListActions['respondToolApproval']>
+}> = ({ topic, messages, partsByMessageId, loadOlder, hasOlder, openCitationsPanel, respondToolApproval }) => {
   const value = useHomeMessageListProviderValue({
     topic,
     messages,
     partsByMessageId,
     loadOlder,
     hasOlder,
-    openCitationsPanel
+    openCitationsPanel,
+    respondToolApproval
   })
   return (
     <MessageListProvider value={value}>

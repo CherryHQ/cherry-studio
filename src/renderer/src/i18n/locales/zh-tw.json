@@ -714,8 +714,10 @@
         "showDetails": "顯示工具詳細資訊"
       },
       "button": {
+        "allow": "允許",
         "allowAll": "總是允許",
         "cancel": "取消",
+        "deny": "拒絕",
         "run": "執行"
       },
       "confirmation": "確定要執行此 Claude 工具嗎？",
@@ -4890,7 +4892,17 @@
         "triggerSelectedCount": "已選 {{count}} 個模型",
         "valueProp": "目前傳入 value"
       },
-      "title": "開發環境元件測試"
+      "title": "開發環境元件測試",
+      "toolPermission": {
+        "builtinMode": "內建工具",
+        "currentRequest": "目前請求",
+        "description": "使用內建工具與 MCP 工具請求預覽底部權限審批 composer。",
+        "latestResponse": "最近一次提交",
+        "mcpMode": "MCP",
+        "noResponse": "尚未提交",
+        "resetPreview": "重設預覽",
+        "title": "工具權限審批"
+      }
     },
     "data": {
       "app_data": {

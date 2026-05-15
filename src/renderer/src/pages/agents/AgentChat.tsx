@@ -1,10 +1,7 @@
 import { ChatAppShell, type ChatPanePosition } from '@renderer/components/chat'
 import { ComposerContextProvider } from '@renderer/components/chat/composer/ComposerContext'
 import ComposerCore from '@renderer/components/chat/composer/ComposerCore'
-import {
-  createAskUserQuestionComposerOverride,
-  findLatestPendingAskUserQuestionRequest
-} from '@renderer/components/chat/composer/variants/AskUserQuestionComposer'
+import { useToolApprovalComposerOverrides } from '@renderer/components/chat/composer/useToolApprovalComposerOverrides'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import { MessageListInitialLoading } from '@renderer/components/chat/messages/layout/MessageListLoading'
 import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
@@ -210,10 +207,26 @@ const AgentChatInner = ({
 
   const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } = useExecutionMessages()
   const partsByMessageId = useMessagePartsById(uiMessages, executionMessagesById)
-  const askUserQuestionRequest = useMemo(
-    () => findLatestPendingAskUserQuestionRequest(partsByMessageId),
-    [partsByMessageId]
+  const handleToolApprovalRespond = useCallback(
+    async ({ match, approved, reason, updatedInput }: MessageToolApprovalInput) => {
+      const approvalId = match.approvalId
+
+      const result = await window.api.ai.toolApproval.respond({
+        approvalId,
+        approved,
+        reason,
+        updatedInput
+      })
+
+      if (!result.ok) throw new Error('Tool approval response was not accepted')
+      await refresh()
+    },
+    [refresh]
   )
+  const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
+    partsByMessageId,
+    onRespond: handleToolApprovalRespond
+  })
 
   const executionChats = useExecutionChats(sessionTopicId, chat.activeExecutions)
 
@@ -230,37 +243,11 @@ const AgentChatInner = ({
     setCitationPanelCitations(citations)
   }, [])
 
-  const handleAskUserQuestionRespond = useCallback(
-    async ({ match, approved, reason, updatedInput }: MessageToolApprovalInput) => {
-      const approvalId = match.approvalId
-      if (!approvalId) throw new Error('Missing tool approval id')
-
-      const result = await window.api.ai.toolApproval.respond({
-        approvalId,
-        approved,
-        reason,
-        updatedInput,
-        topicId: sessionTopicId,
-        anchorId: match.messageId
-      })
-
-      if (!result.ok) throw new Error('Tool approval response was not accepted')
-    },
-    [sessionTopicId]
-  )
-
   const composerContext = useMemo(
     () => ({
-      overrides: askUserQuestionRequest
-        ? [
-            createAskUserQuestionComposerOverride({
-              request: askUserQuestionRequest,
-              onRespond: handleAskUserQuestionRespond
-            })
-          ]
-        : []
+      overrides: toolApprovalComposerOverrides
     }),
-    [askUserQuestionRequest, handleAskUserQuestionRespond]
+    [toolApprovalComposerOverrides]
   )
 
   const bottomComposer = useMemo(() => {
@@ -324,6 +311,7 @@ const AgentChatInner = ({
             loadOlder={loadOlder}
             onOpenCitationsPanel={handleOpenCitationsPanel}
             deleteMessage={deleteMessage}
+            respondToolApproval={handleToolApprovalRespond}
           />
           <div className="mt-auto px-4.5 pb-2">
             <NarrowLayout narrowMode={narrowMode}>

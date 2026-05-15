@@ -63,10 +63,11 @@ vi.mock('../../tools/MessageTools', () => ({
 }))
 
 vi.mock('../../tools/toolResponse', () => ({
-  buildToolResponseFromPart: (part: any, fallbackId: string) => {
+  buildToolResponseFromPart: (part: any) => {
     const t = part.type as string
     if (!t.startsWith('tool-') && t !== 'dynamic-tool') return null
-    const id = part.toolCallId || fallbackId
+    const id = part.toolCallId
+    if (!id) return null
     const name = part.toolName || t.replace(/^tool-/, '') || 'unknown'
     const out = part.output
     const meta = out && typeof out === 'object' && out.metadata ? out.metadata : undefined

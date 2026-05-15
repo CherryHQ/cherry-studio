@@ -7,9 +7,6 @@ import { isToolUIPart } from 'ai'
 export const APPROVAL_REQUESTED = 'approval-requested'
 export const APPROVAL_RESPONDED = 'approval-responded'
 
-/** Cherry provider-metadata tag identifying Claude-Agent-sourced approvals. */
-export const CLAUDE_AGENT_TRANSPORT = 'claude-agent'
-
 type ToolType = 'mcp' | 'builtin' | 'provider'
 
 type ToolMetadata = {
@@ -26,7 +23,7 @@ type ToolPart = {
   input?: unknown
   output?: unknown
   errorText?: string
-  providerMetadata?: Record<string, unknown>
+  callProviderMetadata?: Record<string, unknown>
 }
 
 export type ToolResponseLike = MCPToolResponse | NormalToolResponse
@@ -90,22 +87,15 @@ function extractOutputMetadata(part: ToolPart): { response: unknown; metadata?: 
   return { response: output }
 }
 
-function extractCherryToolMetadata(part: ToolPart): ToolMetadata | undefined {
-  if (!isRecord(part.providerMetadata)) return undefined
-  const cherry = isRecord(part.providerMetadata.cherry) ? part.providerMetadata.cherry : undefined
-  const tool = cherry && isRecord(cherry.tool) ? cherry.tool : undefined
-  if (!tool) return undefined
-  return {
-    serverId: typeof tool.serverId === 'string' ? tool.serverId : undefined,
-    serverName: typeof tool.serverName === 'string' ? tool.serverName : undefined,
-    type: isToolType(tool.type) ? tool.type : undefined
-  }
+function hasProviderMetadata(part: ToolPart, provider: string): boolean {
+  return isRecord(part.callProviderMetadata) && provider in part.callProviderMetadata
 }
 
 function resolveToolType(part: ToolPart, toolName: string, metadata?: ToolMetadata): ToolType {
   if (metadata?.type) return metadata.type
-  if (part.type === 'dynamic-tool') return 'mcp'
   if (toolName.startsWith('builtin_')) return 'builtin'
+  if (hasProviderMetadata(part, 'claude-code')) return 'provider'
+  if (part.type === 'dynamic-tool') return 'provider'
   return 'builtin'
 }
 
@@ -139,18 +129,18 @@ function normalizeErrorOutput(part: ToolPart): unknown {
   }
 }
 
-export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId: string): ToolResponseLike | null {
+export function buildToolResponseFromPart(part: CherryMessagePart): ToolResponseLike | null {
   const partType = part.type as string
   if (!partType.startsWith('tool-') && partType !== 'dynamic-tool') return null
 
   const toolPart = part as unknown as ToolPart
-  const toolCallId = toolPart.toolCallId || fallbackId
+  const toolCallId = toolPart.toolCallId
+  if (!toolCallId) return null
   const toolName = normalizeToolName(toolPart)
   const status = mapPartStateToStatus(toolPart.state)
 
   const { response: rawResponse, metadata: outputMetadata } = extractOutputMetadata(toolPart)
-  const cherryMetadata = extractCherryToolMetadata(toolPart)
-  const metadata = outputMetadata ?? cherryMetadata
+  const metadata = outputMetadata
   const toolType = resolveToolType(toolPart, toolName, metadata)
   const response = status === 'error' ? normalizeErrorOutput(toolPart) : rawResponse
 
@@ -185,7 +175,7 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId: s
 }
 
 export function buildToolRenderItemFromPart(part: CherryMessagePart, id: string): ToolRenderItem | null {
-  const toolResponse = buildToolResponseFromPart(part, id)
+  const toolResponse = buildToolResponseFromPart(part)
   if (!toolResponse) return null
   return { id, toolResponse }
 }
@@ -196,8 +186,7 @@ export type ToolApprovalMatch = {
   state: string
   toolCallId: string
   messageId: string
-  approvalId?: string
-  transport?: string
+  approvalId: string
   input?: unknown
 }
 
@@ -219,16 +208,16 @@ export function findToolPartByCallId(
         state?: string
         input?: unknown
         approval?: { id?: string }
-        providerMetadata?: { cherry?: { transport?: string } }
       }
       if (p.toolCallId !== toolCallId) continue
+      const approvalId = p.approval?.id
+      if (!approvalId) continue
       return {
         part,
         state: p.state ?? '',
         toolCallId,
         messageId,
-        approvalId: p.approval?.id,
-        transport: p.providerMetadata?.cherry?.transport,
+        approvalId,
         input: p.input
       }
     }

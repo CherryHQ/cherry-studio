@@ -28,6 +28,7 @@ type Props = {
   loadOlder?: () => void
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
   deleteMessage?: MessageListActions['deleteMessage']
+  respondToolApproval?: MessageListActions['respondToolApproval']
 }
 
 const AgentSessionMessages = ({
@@ -41,7 +42,8 @@ const AgentSessionMessages = ({
   hasOlder = false,
   loadOlder,
   onOpenCitationsPanel,
-  deleteMessage
+  deleteMessage,
+  respondToolApproval
 }: Props) => {
   const { session } = useSession(sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
@@ -82,6 +84,7 @@ const AgentSessionMessages = ({
     loadOlder,
     openCitationsPanel: onOpenCitationsPanel,
     deleteMessage,
+    respondToolApproval,
     messageNavigation
   })
 

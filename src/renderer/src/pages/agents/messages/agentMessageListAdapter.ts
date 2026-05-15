@@ -36,6 +36,7 @@ interface AgentMessageListParams {
   loadOlder?: () => void
   openCitationsPanel?: MessageListActions['openCitationsPanel']
   deleteMessage?: MessageListActions['deleteMessage']
+  respondToolApproval?: MessageListActions['respondToolApproval']
   messageNavigation: string
 }
 
@@ -51,6 +52,7 @@ export function useAgentMessageListProviderValue({
   loadOlder,
   openCitationsPanel,
   deleteMessage,
+  respondToolApproval,
   messageNavigation
 }: AgentMessageListParams): MessageListProviderValue {
   const navigate = useNavigate()
@@ -178,6 +180,7 @@ export function useAgentMessageListProviderValue({
       notifyWarning: leafCapabilities.notifyWarning,
       notifyInfo: leafCapabilities.notifyInfo,
       notifyError: leafCapabilities.notifyError,
+      respondToolApproval,
       openPath,
       openCitationsPanel,
       showInFolder,
@@ -214,6 +217,7 @@ export function useAgentMessageListProviderValue({
       loadOlder,
       openCitationsPanel,
       openPath,
+      respondToolApproval,
       selectionController.actions,
       showInFolder,
       updateMessageUiState,

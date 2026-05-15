@@ -109,6 +109,10 @@ vi.mock('../ComponentLabAskUserQuestionSettings', () => ({
   default: () => <div data-testid="ask-user-question-panel" />
 }))
 
+vi.mock('../ComponentLabToolPermissionSettings', () => ({
+  default: () => <div data-testid="tool-permission-panel" />
+}))
+
 vi.mock('../ComponentLabModelSelectorSettings', () => ({
   default: () => <div data-testid="model-selector-panel" />
 }))
@@ -175,6 +179,7 @@ describe('ComponentLabFileProcessingSettings', () => {
 
     expect(screen.getByRole('button', { name: 'settings.componentLab.fileProcessing.title' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'settings.componentLab.askUserQuestion.title' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.componentLab.toolPermission.title' })).toBeInTheDocument()
 
     await waitFor(() => {
       expect(listAvailableProcessorsMock).toHaveBeenCalled()

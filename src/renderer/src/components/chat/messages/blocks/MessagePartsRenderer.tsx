@@ -357,14 +357,14 @@ function renderPart(
   }
 }
 
-const ToolPartView = React.memo(function ToolPartView({ part, partId }: { part: CherryMessagePart; partId: string }) {
-  const toolResponse = useMemo(() => buildToolResponseFromPart(part, partId), [part, partId])
+const ToolPartView = React.memo(function ToolPartView({ part }: { part: CherryMessagePart }) {
+  const toolResponse = useMemo(() => buildToolResponseFromPart(part), [part])
   if (!toolResponse) return null
   return <MessageTools toolResponse={toolResponse} />
 })
 
 function renderToolPart(part: CherryMessagePart, partId: string): React.ReactNode {
-  return <ToolPartView key={partId} part={part} partId={partId} />
+  return <ToolPartView key={partId} part={part} />
 }
 
 interface ToolGroupEntryShape {
@@ -375,7 +375,7 @@ const ToolGroupView = React.memo(
   function ToolGroupView({ entries, messageId }: { entries: readonly ToolGroupEntryShape[]; messageId: string }) {
     const toolItems = entries.flatMap((e): ToolRenderItem[] => {
       const id = `${messageId}-part-${e.index}`
-      const toolResponse = buildToolResponseFromPart(e.part, id)
+      const toolResponse = buildToolResponseFromPart(e.part)
       return toolResponse ? [{ id, toolResponse }] : []
     })
     if (toolItems.length === 0) return null

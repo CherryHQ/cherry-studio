@@ -182,6 +182,7 @@ describe('useAgentMessageListProviderValue', () => {
     ] as CherryUIMessage[]
     const partsByMessageId = Object.fromEntries(messages.map((message) => [message.id, message.parts ?? []]))
     const deleteMessage = vi.fn()
+    const respondToolApproval = vi.fn()
     let value: MessageListProviderValue | undefined
 
     const Probe = () => {
@@ -197,6 +198,7 @@ describe('useAgentMessageListProviderValue', () => {
         },
         isLoading: false,
         deleteMessage,
+        respondToolApproval,
         messageNavigation: 'anchor'
       })
       return null
@@ -233,6 +235,7 @@ describe('useAgentMessageListProviderValue', () => {
       topicName: 'Agent session'
     })
     expect(value?.actions.deleteMessage).toBe(deleteMessage)
+    expect(value?.actions.respondToolApproval).toBe(respondToolApproval)
     expect(value?.actions.selectMessage).toEqual(expect.any(Function))
     expect(value?.actions.toggleMultiSelectMode).toEqual(expect.any(Function))
     expect(value?.actions.copySelectedMessages).toEqual(expect.any(Function))

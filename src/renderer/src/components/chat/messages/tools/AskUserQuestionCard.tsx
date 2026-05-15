@@ -361,7 +361,7 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
   }, [isLastQuestion])
 
   const handleSubmit = useCallback(async () => {
-    if (!match?.approvalId || !respondToolApproval) return
+    if (!match || !respondToolApproval) return
     const collectedAnswers: Record<string, string> = {}
     questions.forEach((q, idx) => {
       const selected = selectedAnswers[idx] ?? []

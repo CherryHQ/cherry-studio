@@ -165,8 +165,7 @@ export interface MessageToolApprovalMatch {
   state: string
   toolCallId: string
   messageId: string
-  approvalId?: string
-  transport?: string
+  approvalId: string
   input?: unknown
 }
 

@@ -21,7 +21,7 @@ describe('toolResponse adapter', () => {
       }
     } as unknown as CherryMessagePart
 
-    const response = buildToolResponseFromPart(part, 'fallback-1')
+    const response = buildToolResponseFromPart(part)
     expect(response).toBeTruthy()
     if (!response) throw new Error('Expected tool response')
     expect(response.status).toBe('done')
@@ -41,7 +41,7 @@ describe('toolResponse adapter', () => {
       errorText: 'failed'
     } as unknown as CherryMessagePart
 
-    const response = buildToolResponseFromPart(part, 'fallback-2')
+    const response = buildToolResponseFromPart(part)
     expect(response?.status).toBe('error')
     expect(response?.response).toMatchObject({
       isError: true
@@ -56,9 +56,43 @@ describe('toolResponse adapter', () => {
       input: { file_path: '/tmp/a.ts' }
     } as unknown as CherryMessagePart
 
-    const response = buildToolResponseFromPart(part, 'fallback-3')
+    const response = buildToolResponseFromPart(part)
     expect(response?.status).toBe('invoking')
     expect(response?.toolCallId).toBe('call-3')
     expect(response?.tool.name).toBe('mcp__assistant__read')
+  })
+
+  it('keeps real Claude Code dynamic tool calls on the provider renderer path', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolName: 'CustomTool',
+      toolCallId: 'call-4',
+      state: 'approval-requested',
+      input: { command: 'pnpm test' },
+      approval: { id: 'approval-4' },
+      callProviderMetadata: {
+        'claude-code': {
+          rawInput: { command: 'pnpm test' },
+          parentToolCallId: null
+        }
+      }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response?.status).toBe('pending')
+    expect(response?.tool.type).toBe('provider')
+    expect(response?.tool.name).toBe('CustomTool')
+  })
+
+  it('does not synthesize a tool response without an AI SDK toolCallId', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolName: 'CustomTool',
+      state: 'approval-requested',
+      input: { command: 'pnpm test' },
+      approval: { id: 'approval-missing-call' }
+    } as unknown as CherryMessagePart
+
+    expect(buildToolResponseFromPart(part)).toBeNull()
   })
 })

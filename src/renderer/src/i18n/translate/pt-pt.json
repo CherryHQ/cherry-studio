@@ -692,8 +692,10 @@
         "showDetails": "Mostrar detalhes da ferramenta"
       },
       "button": {
+        "allow": "Permitir",
         "allowAll": "Sempre Permitir",
         "cancel": "Cancelar",
+        "deny": "Deny",
         "run": "Correr"
       },
       "confirmation": "Tem certeza de que quer executar esta ferramenta Claude?",
@@ -4722,7 +4724,17 @@
         "triggerSelectedCount": "{{count}} modelos selecionados",
         "valueProp": "Proposta de Valor Atual"
       },
-      "title": "Laboratório de Componentes de Desenvolvimento"
+      "title": "Laboratório de Componentes de Desenvolvimento",
+      "toolPermission": {
+        "builtinMode": "Built-in",
+        "currentRequest": "Current request",
+        "description": "Preview the bottom tool permission composer with built-in and MCP tool requests.",
+        "latestResponse": "Latest response",
+        "mcpMode": "MCP",
+        "noResponse": "No response submitted yet",
+        "resetPreview": "Reset preview",
+        "title": "Tool Permission"
+      }
     },
     "data": {
       "app_data": {
