@@ -33,6 +33,7 @@ export interface AssistantsState {
   presets: AssistantPreset[]
   /** @deprecated should be removed in v2 */
   unifiedListOrder: Array<{ type: 'agent' | 'assistant'; id: string }>
+  lastActiveAssistantId: string
 }
 
 const initialState: AssistantsState = {
@@ -41,7 +42,8 @@ const initialState: AssistantsState = {
   tagsOrder: [],
   collapsedTags: {},
   presets: [],
-  unifiedListOrder: []
+  unifiedListOrder: [],
+  lastActiveAssistantId: ''
 }
 
 const normalizeTopics = (topics: unknown): Topic[] => (Array.isArray(topics) ? topics : [])
@@ -71,6 +73,9 @@ const assistantsSlice = createSlice({
     },
     removeAssistant: (state, action: PayloadAction<{ id: string }>) => {
       state.assistants = state.assistants.filter((c) => c.id !== action.payload.id)
+      if (state.lastActiveAssistantId === action.payload.id) {
+        state.lastActiveAssistantId = ''
+      }
     },
     updateAssistant: (state, action: PayloadAction<Partial<Assistant> & { id: string }>) => {
       const { id, ...update } = action.payload
@@ -118,6 +123,9 @@ const assistantsSlice = createSlice({
         ...prev,
         [tag]: !prev[tag]
       }
+    },
+    setLastActiveAssistantId: (state, action: PayloadAction<string>) => {
+      state.lastActiveAssistantId = action.payload
     },
     setUnifiedListOrder: (state, action: PayloadAction<Array<{ type: 'agent' | 'assistant'; id: string }>>) => {
       state.unifiedListOrder = action.payload
@@ -263,6 +271,7 @@ export const {
   updateAssistantSettings,
   updateTagCollapse,
   setUnifiedListOrder,
+  setLastActiveAssistantId,
   setAssistantPresets,
   addAssistantPreset,
   removeAssistantPreset,
