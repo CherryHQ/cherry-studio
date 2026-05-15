@@ -1,4 +1,3 @@
-import { loggerService } from '@logger'
 import ExpandableText from '@renderer/components/ExpandableText'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import CustomTag from '@renderer/components/Tags/CustomTag'
@@ -6,17 +5,13 @@ import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { getModelLogoById } from '@renderer/config/models'
 import FileItem from '@renderer/pages/files/FileItem'
 import type { Model, Provider } from '@renderer/types'
-import { isNewApiProvider } from '@renderer/utils/provider'
 import { Avatar, Button, Checkbox, Flex, Tooltip } from 'antd'
 import { ChevronRight, Minus, Plus } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import NewApiBatchAddModelPopup from './NewApiBatchAddModelPopup'
-import { isValidNewApiModel } from './utils'
-
-const logger = loggerService.withContext('ManageModelsList')
+import { addModelsWithValidation } from './utils'
 
 // 列表项类型定义
 interface GroupRowData {
@@ -106,33 +101,9 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
     })
   }, [])
 
-  const addModelsWithValidation = useCallback(
+  const handleAddModelsWithValidation = useCallback(
     async (modelsToAdd: Model[]): Promise<boolean> => {
-      if (modelsToAdd.length === 0) return false
-
-      try {
-        if (isNewApiProvider(provider)) {
-          if (modelsToAdd.every(isValidNewApiModel)) {
-            modelsToAdd.forEach(onAddModel)
-            return true
-          } else {
-            const result = await NewApiBatchAddModelPopup.show({
-              title: t('settings.models.add.batch_add_models'),
-              batchModels: modelsToAdd,
-              provider
-            })
-            // 用户确认添加时 resolve { success: true }，取消时 resolve null
-            return result !== null && result?.success === true
-          }
-        } else {
-          modelsToAdd.forEach(onAddModel)
-          return true
-        }
-      } catch (error) {
-        logger.error('Failed to add models', { error, count: modelsToAdd.length })
-        window.toast.error(t('settings.models.manage.add_error'))
-        return false
-      }
+      return addModelsWithValidation(provider, modelsToAdd, onAddModel, t)
     },
     [provider, onAddModel, t]
   )
@@ -168,7 +139,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
       const modelsToAdd = models.filter((m) => selectedModels.has(m.id))
       if (modelsToAdd.length === 0) return
 
-      const success = await addModelsWithValidation(modelsToAdd)
+      const success = await handleAddModelsWithValidation(modelsToAdd)
       if (success) {
         setSelectedModels((prev) => {
           const newSelected = new Set(prev)
@@ -178,7 +149,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
         window.toast.success(t('settings.models.manage.add_success', { count: modelsToAdd.length }))
       }
     },
-    [selectedModels, addModelsWithValidation, t]
+    [selectedModels, handleAddModelsWithValidation, t]
   )
 
   const renderGroupTools = useCallback(
@@ -192,7 +163,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
         } else {
           // 添加整组，复用 addModelsWithValidation 统一处理验证和弹窗
           const wouldAddModels = models.filter((model) => !addedModelIds.has(model.id))
-          const success = await addModelsWithValidation(wouldAddModels)
+          const success = await handleAddModelsWithValidation(wouldAddModels)
           if (success) {
             window.toast.success(t('settings.models.manage.add_success', { count: wouldAddModels.length }))
           }
@@ -220,7 +191,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
         </Tooltip>
       )
     },
-    [addedModelIds, onRemoveModel, t, addModelsWithValidation]
+    [addedModelIds, onRemoveModel, t, handleAddModelsWithValidation]
   )
 
   return (

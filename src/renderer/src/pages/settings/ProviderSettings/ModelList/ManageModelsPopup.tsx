@@ -14,7 +14,6 @@ import {
 } from '@renderer/config/models'
 import { useProvider } from '@renderer/hooks/useProvider'
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
-import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import { fetchModels } from '@renderer/services/ApiService'
 import type { Model, Provider } from '@renderer/types'
 import { filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
@@ -30,7 +29,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import ManageModelsList from './ManageModelsList'
-import { isModelInProvider, isValidNewApiModel } from './utils'
+import { addModelsWithValidation, isModelInProvider } from './utils'
 
 const logger = loggerService.withContext('ManageModelsPopup')
 
@@ -163,28 +162,9 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
           window.toast.info(t('settings.models.manage.no_models_to_add'))
           return
         }
-        try {
-          if (isNewApiProvider(provider)) {
-            if (wouldAddModel.every(isValidNewApiModel)) {
-              wouldAddModel.forEach(onAddModel)
-              window.toast.success(t('settings.models.manage.add_success', { count: wouldAddModel.length }))
-            } else {
-              const result = await NewApiBatchAddModelPopup.show({
-                title: t('settings.models.add.batch_add_models'),
-                batchModels: wouldAddModel,
-                provider
-              })
-              if (result?.success) {
-                window.toast.success(t('settings.models.manage.add_success', { count: wouldAddModel.length }))
-              }
-            }
-          } else {
-            wouldAddModel.forEach(onAddModel)
-            window.toast.success(t('settings.models.manage.add_success', { count: wouldAddModel.length }))
-          }
-        } catch (error) {
-          logger.error('Failed to add all models', { error, count: wouldAddModel.length })
-          window.toast.error(t('settings.models.manage.add_error'))
+        const success = await addModelsWithValidation(provider, wouldAddModel, onAddModel, t)
+        if (success) {
+          window.toast.success(t('settings.models.manage.add_success', { count: wouldAddModel.length }))
         }
       }
     })
