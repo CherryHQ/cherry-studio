@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { DEFAULT_SESSION_PAGE_SIZE } from '@renderer/api/agent'
 import type { AgentSessionEntity, ListAgentSessionsResponse, UpdateSessionForm } from '@renderer/types'
 import type { UpdateAgentBaseOptions, UpdateAgentSessionFunction } from '@renderer/types/agent'
@@ -8,6 +9,8 @@ import { mutate } from 'swr'
 import { unstable_serialize } from 'swr/infinite'
 
 import { useAgentClient } from './useAgentClient'
+
+const logger = loggerService.withContext('useUpdateSession')
 
 type InfiniteData = ListAgentSessionsResponse[]
 
@@ -53,6 +56,16 @@ export const useUpdateSession = (agentId: string | null) => {
         void mutate(itemKey, result, { revalidate: false })
         if (options?.showSuccessToast ?? true) {
           window.toast.success(t('common.update_success'))
+        }
+        const nextPermissionMode = form.configuration?.permission_mode
+        if (nextPermissionMode) {
+          window.api.agentSessionStream.setPermissionMode(sessionId, nextPermissionMode).catch((err) => {
+            logger.warn('Failed to hot-switch permission mode on active session', {
+              sessionId,
+              mode: nextPermissionMode,
+              error: err instanceof Error ? err.message : String(err)
+            })
+          })
         }
         return result
       } catch (error) {

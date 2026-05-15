@@ -1,4 +1,4 @@
-import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
+import type { PermissionMode, PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
 import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
@@ -552,6 +552,8 @@ const api = {
     subscribe: (sessionId: string) => ipcRenderer.invoke(IpcChannel.AgentSessionStream_Subscribe, { sessionId }),
     unsubscribe: (sessionId: string) => ipcRenderer.invoke(IpcChannel.AgentSessionStream_Unsubscribe, { sessionId }),
     abort: (sessionId: string) => ipcRenderer.invoke(IpcChannel.AgentSessionStream_Abort, { sessionId }),
+    setPermissionMode: (sessionId: string, mode: PermissionMode) =>
+      ipcRenderer.invoke(IpcChannel.AgentSessionStream_SetPermissionMode, { sessionId, mode }),
     onChunk: (
       callback: (chunk: {
         sessionId: string

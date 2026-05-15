@@ -113,6 +113,7 @@ export enum IpcChannel {
   AgentSessionStream_Subscribe = 'agent-session-stream:subscribe',
   AgentSessionStream_Unsubscribe = 'agent-session-stream:unsubscribe',
   AgentSessionStream_Abort = 'agent-session-stream:abort',
+  AgentSessionStream_SetPermissionMode = 'agent-session-stream:set-permission-mode',
   AgentSessionStream_Chunk = 'agent-session-stream:chunk',
   AgentSession_Changed = 'agent-session:changed',
 

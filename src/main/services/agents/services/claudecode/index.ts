@@ -58,6 +58,7 @@ import { isProvisioned, provisionBuiltinAgent } from '../builtin/BuiltinAgentPro
 import { channelService } from '../ChannelService'
 import { PromptBuilder } from '../cherryclaw/prompt'
 import { sessionService } from '../SessionService'
+import { registerActiveQuery, unregisterActiveQuery } from './active-queries'
 import { buildNamespacedToolCallId } from './claude-stream-state'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
@@ -928,8 +929,11 @@ class ClaudeCodeService implements AgentServiceInterface {
     const startTime = Date.now()
     const streamState = new ClaudeStreamState({ agentSessionId: sessionId })
 
+    const q = query({ prompt: promptStream, options })
+    registerActiveQuery(sessionId, q)
+
     try {
-      for await (const message of query({ prompt: promptStream, options })) {
+      for await (const message of q) {
         if (hasCompleted) break
 
         jsonOutput.push(message)
@@ -1060,6 +1064,7 @@ class ClaudeCodeService implements AgentServiceInterface {
         error: new Error(errorMessage)
       })
     } finally {
+      unregisterActiveQuery(sessionId)
       closePromptStream()
     }
   }
