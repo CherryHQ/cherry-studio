@@ -1,7 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
+import type { MessageEditorConfig } from '@renderer/components/chat/messages/types'
 import { useMemo } from 'react'
-
-import type { MessageEditorConfig } from '../types'
 
 export function useMessageEditorConfig(fontSize: number): MessageEditorConfig {
   const [pasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')

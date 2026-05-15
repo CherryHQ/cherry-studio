@@ -1,6 +1,5 @@
+import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import { useCallback, useMemo } from 'react'
-
-import type { MessageListActions } from '../types'
 
 export type MessagePlatformActions = Pick<
   MessageListActions,

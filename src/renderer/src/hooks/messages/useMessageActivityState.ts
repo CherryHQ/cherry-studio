@@ -1,10 +1,9 @@
+import type { MessageActivityState, MessageListItem } from '@renderer/components/chat/messages/types'
+import { isMessageListItemAwaitingApproval } from '@renderer/components/chat/messages/utils/messageListItem'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { isToolUIPart } from 'ai'
 import { useCallback, useMemo } from 'react'
-
-import type { MessageActivityState, MessageListItem } from '../types'
-import { isMessageListItemAwaitingApproval } from '../utils/messageListItem'
 
 export function useMessageActivityState(
   topicId: string,

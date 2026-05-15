@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import { useAgentMessageListProviderValue } from '@renderer/components/chat/messages/adapters/agentMessageListAdapter'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
@@ -10,6 +9,8 @@ import { TopicType } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import { memo, useMemo } from 'react'
+
+import { useAgentMessageListProviderValue } from '../messages/agentMessageListAdapter'
 
 const logger = loggerService.withContext('AgentSessionMessages')
 

@@ -1,9 +1,8 @@
+import type { MessageListProviderValue } from '@renderer/components/chat/messages/types'
 import type { Topic } from '@renderer/types'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-
-import type { MessageListProviderValue } from '../types'
 
 const exportActionsMock = vi.hoisted(() => ({
   saveTextFile: vi.fn(),
@@ -66,7 +65,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   })
 }))
 
-vi.mock('../adapters/useMessageListRenderConfig', () => ({
+vi.mock('@renderer/hooks/messages/useMessageListRenderConfig', () => ({
   useMessageListRenderConfig: () => ({
     renderConfig: {
       userName: '',
@@ -88,7 +87,7 @@ vi.mock('../adapters/useMessageListRenderConfig', () => ({
   })
 }))
 
-vi.mock('../adapters/useMessageEditorConfig', () => ({
+vi.mock('@renderer/hooks/messages/useMessageEditorConfig', () => ({
   useMessageEditorConfig: () => ({
     pasteLongTextAsFile: false,
     pasteLongTextThreshold: 1500,
@@ -98,7 +97,7 @@ vi.mock('../adapters/useMessageEditorConfig', () => ({
   })
 }))
 
-vi.mock('../adapters/useMessageMenuConfig', () => ({
+vi.mock('@renderer/hooks/messages/useMessageMenuConfig', () => ({
   useMessageMenuConfig: () => ({
     confirmDeleteMessage: false,
     confirmRegenerateMessage: false,
@@ -118,19 +117,19 @@ vi.mock('../adapters/useMessageMenuConfig', () => ({
   })
 }))
 
-vi.mock('../adapters/useMessageExportActions', () => ({
+vi.mock('@renderer/hooks/messages/useMessageExportActions', () => ({
   useMessageExportActions: useMessageExportActionsMock
 }))
 
-vi.mock('../adapters/useMessageErrorActions', () => ({
+vi.mock('@renderer/hooks/messages/useMessageErrorActions', () => ({
   useMessageErrorActions: () => errorActionsMock
 }))
 
-vi.mock('../adapters/useMessageLeafCapabilities', () => ({
+vi.mock('@renderer/hooks/messages/useMessageLeafCapabilities', () => ({
   useMessageLeafCapabilities: () => leafCapabilitiesMock
 }))
 
-const { useAgentMessageListProviderValue } = await import('../adapters/agentMessageListAdapter')
+const { useAgentMessageListProviderValue } = await import('../agentMessageListAdapter')
 
 describe('useAgentMessageListProviderValue', () => {
   it('adapts CherryUIMessage input and injects supported agent capabilities', () => {

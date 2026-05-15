@@ -1,3 +1,4 @@
+import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
@@ -13,8 +14,6 @@ import {
   messageToMarkdown
 } from '@renderer/utils/export'
 import { useCallback, useMemo } from 'react'
-
-import type { MessageListActions } from '../types'
 
 type MessageExportActions = Pick<
   MessageListActions,

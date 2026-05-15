@@ -1,8 +1,4 @@
 import { cacheService } from '@data/CacheService'
-import { useMessageEditorConfig } from '@renderer/components/chat/messages/adapters/useMessageEditorConfig'
-import { useMessageErrorActions } from '@renderer/components/chat/messages/adapters/useMessageErrorActions'
-import { useMessageLeafCapabilities } from '@renderer/components/chat/messages/adapters/useMessageLeafCapabilities'
-import { useMessageListRenderConfig } from '@renderer/components/chat/messages/adapters/useMessageListRenderConfig'
 import { PartsProvider } from '@renderer/components/chat/messages/blocks'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import type {
@@ -10,6 +6,10 @@ import type {
   MessageListProviderValue,
   MessageUiState
 } from '@renderer/components/chat/messages/types'
+import { useMessageEditorConfig } from '@renderer/hooks/messages/useMessageEditorConfig'
+import { useMessageErrorActions } from '@renderer/hooks/messages/useMessageErrorActions'
+import { useMessageLeafCapabilities } from '@renderer/hooks/messages/useMessageLeafCapabilities'
+import { useMessageListRenderConfig } from '@renderer/hooks/messages/useMessageListRenderConfig'
 import type { Topic } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ReactNode } from 'react'

@@ -2,10 +2,35 @@ import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks'
+import type {
+  MessageGroupRuntime,
+  MessageListActions,
+  MessageListItem,
+  MessageListMeta,
+  MessageListProviderValue,
+  MessageListRuntime,
+  MessageListState,
+  MessageRuntime,
+  MessageUiState
+} from '@renderer/components/chat/messages/types'
+import {
+  getMessageListItemModel,
+  modelToSnapshot,
+  toMessageListItem
+} from '@renderer/components/chat/messages/utils/messageListItem'
 import { ModelSelector } from '@renderer/components/Selector'
 import { isVisionModel } from '@renderer/config/models'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
+import { useMessageActivityState } from '@renderer/hooks/messages/useMessageActivityState'
+import { useMessageEditorConfig } from '@renderer/hooks/messages/useMessageEditorConfig'
+import { useMessageErrorActions } from '@renderer/hooks/messages/useMessageErrorActions'
+import { useMessageExportActions } from '@renderer/hooks/messages/useMessageExportActions'
+import { useMessageLeafCapabilities } from '@renderer/hooks/messages/useMessageLeafCapabilities'
+import { useMessageListRenderConfig } from '@renderer/hooks/messages/useMessageListRenderConfig'
+import { useMessageMenuConfig } from '@renderer/hooks/messages/useMessageMenuConfig'
+import { useMessageSelectionController } from '@renderer/hooks/messages/useMessageSelectionController'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
 import { useLanguages } from '@renderer/hooks/translate'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -31,28 +56,6 @@ import { isNonChatModel, isVisionModel as isSharedVisionModel } from '@shared/ut
 import { last } from 'lodash'
 import { use, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { resolvePartFromParts } from '../blocks'
-import type {
-  MessageGroupRuntime,
-  MessageListActions,
-  MessageListItem,
-  MessageListMeta,
-  MessageListProviderValue,
-  MessageListRuntime,
-  MessageListState,
-  MessageRuntime,
-  MessageUiState
-} from '../types'
-import { getMessageListItemModel, modelToSnapshot, toMessageListItem } from '../utils/messageListItem'
-import { useMessageActivityState } from './useMessageActivityState'
-import { useMessageEditorConfig } from './useMessageEditorConfig'
-import { useMessageErrorActions } from './useMessageErrorActions'
-import { useMessageExportActions } from './useMessageExportActions'
-import { useMessageLeafCapabilities } from './useMessageLeafCapabilities'
-import { useMessageListRenderConfig } from './useMessageListRenderConfig'
-import { useMessageMenuConfig } from './useMessageMenuConfig'
-import { useMessageSelectionController } from './useMessageSelectionController'
 
 const logger = loggerService.withContext('HomeMessageListAdapter')
 

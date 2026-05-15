@@ -1,8 +1,7 @@
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
+import type { MessageMenuConfig } from '@renderer/components/chat/messages/types'
+import { defaultMessageMenuExportOptions } from '@renderer/components/chat/messages/types'
 import { useMemo } from 'react'
-
-import type { MessageMenuConfig } from '../types'
-import { defaultMessageMenuExportOptions } from '../types'
 
 const MESSAGE_EXPORT_MENU_PREFERENCE_KEYS = {
   image: 'data.export.menus.image',

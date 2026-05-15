@@ -1,4 +1,6 @@
 import { useQuery } from '@data/hooks/useDataApi'
+import type { MessageListActions, MessageListState } from '@renderer/components/chat/messages/types'
+import { containsInlineAbsoluteFilePath } from '@renderer/components/chat/messages/utils/filePath'
 import { useAttachment } from '@renderer/hooks/useAttachment'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import FileManager from '@renderer/services/FileManager'
@@ -11,8 +13,6 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { MessageListActions, MessageListState } from '../types'
-import { containsInlineAbsoluteFilePath } from '../utils/filePath'
 import { type MessagePlatformActions, useMessagePlatformActions } from './useMessagePlatformActions'
 
 type MessageLeafActions = Pick<

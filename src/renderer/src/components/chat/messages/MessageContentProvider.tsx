@@ -1,9 +1,9 @@
+import { useMessagePlatformActions } from '@renderer/hooks/messages/useMessagePlatformActions'
 import type { Topic } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ReactNode } from 'react'
 import { useMemo } from 'react'
 
-import { useMessagePlatformActions } from './adapters/useMessagePlatformActions'
 import { PartsProvider } from './blocks'
 import { MessageListProvider } from './MessageListProvider'
 import type { MessageListActions, MessageListItem, MessageListProviderValue, MessageRenderConfig } from './types'

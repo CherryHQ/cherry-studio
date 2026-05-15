@@ -1,12 +1,18 @@
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
+import type {
+  MessageListActions,
+  MessageListItem,
+  MessageListSelectionState
+} from '@renderer/components/chat/messages/types'
+import {
+  createSelectedMessageExportViews,
+  getSelectedMessagesPlainText
+} from '@renderer/components/chat/messages/utils/messageSelection'
 import { messagesToMarkdown } from '@renderer/utils/export'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import type { MessageListActions, MessageListItem, MessageListSelectionState } from '../types'
-import { createSelectedMessageExportViews, getSelectedMessagesPlainText } from '../utils/messageSelection'
 
 const logger = loggerService.withContext('useMessageSelectionController')
 

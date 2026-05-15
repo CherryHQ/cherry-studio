@@ -1,24 +1,23 @@
 import { cacheService } from '@data/CacheService'
-import type { Topic } from '@renderer/types'
-import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
-import { useCallback, useMemo } from 'react'
-
 import type {
   MessageListActions,
   MessageListMeta,
   MessageListProviderValue,
   MessageListState,
   MessageUiState
-} from '../types'
-import { toMessageListItem } from '../utils/messageListItem'
-import { useMessageActivityState } from './useMessageActivityState'
-import { useMessageEditorConfig } from './useMessageEditorConfig'
-import { useMessageErrorActions } from './useMessageErrorActions'
-import { useMessageExportActions } from './useMessageExportActions'
-import { useMessageLeafCapabilities } from './useMessageLeafCapabilities'
-import { useMessageListRenderConfig } from './useMessageListRenderConfig'
-import { useMessageMenuConfig } from './useMessageMenuConfig'
-import { useMessageSelectionController } from './useMessageSelectionController'
+} from '@renderer/components/chat/messages/types'
+import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { useMessageActivityState } from '@renderer/hooks/messages/useMessageActivityState'
+import { useMessageEditorConfig } from '@renderer/hooks/messages/useMessageEditorConfig'
+import { useMessageErrorActions } from '@renderer/hooks/messages/useMessageErrorActions'
+import { useMessageExportActions } from '@renderer/hooks/messages/useMessageExportActions'
+import { useMessageLeafCapabilities } from '@renderer/hooks/messages/useMessageLeafCapabilities'
+import { useMessageListRenderConfig } from '@renderer/hooks/messages/useMessageListRenderConfig'
+import { useMessageMenuConfig } from '@renderer/hooks/messages/useMessageMenuConfig'
+import { useMessageSelectionController } from '@renderer/hooks/messages/useMessageSelectionController'
+import type { Topic } from '@renderer/types'
+import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
+import { useCallback, useMemo } from 'react'
 
 interface AgentMessageListParams {
   topic: Topic

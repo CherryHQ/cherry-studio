@@ -14,7 +14,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 const logger = loggerService.withContext('ChatContent')
 
-import { useHomeMessageListProviderValue } from '@renderer/components/chat/messages/adapters/homeMessageListAdapter'
 import { RefreshProvider } from '@renderer/components/chat/messages/blocks'
 import { MessageListInitialLoading } from '@renderer/components/chat/messages/layout/MessageListLoading'
 import MessageList from '@renderer/components/chat/messages/MessageList'
@@ -26,6 +25,7 @@ import type { MessageListActions } from '@renderer/components/chat/messages/type
 import { useChatWriteActions } from './hooks/useChatWriteActions'
 import { useTopicMessagesCache } from './hooks/useTopicMessagesCache'
 import Inputbar from './Inputbar/Inputbar'
+import { useHomeMessageListProviderValue } from './messages/homeMessageListAdapter'
 
 export interface ChatContentFrameSlots {
   main: ReactNode
