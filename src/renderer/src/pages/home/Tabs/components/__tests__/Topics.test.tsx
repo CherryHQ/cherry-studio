@@ -238,6 +238,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.default.name') return 'Default Assistant'
       if (key === 'common.prompt') return 'Prompt'
       if (key === 'history.records.title') return 'Topic History'
+      if (key === 'assistants.reorder.error.failed') return 'Failed to reorder assistants'
       if (key === 'settings.topic.position.label') return 'Topic position'
       if (key === 'chat.topics.delete.shortcut') return `Hold ${options?.key ?? 'Ctrl'} to delete directly`
       return key
@@ -1204,6 +1205,29 @@ describe('Topics', () => {
       expect(patchSpy).toHaveBeenCalledWith('/assistants/assistant-1/order', { body: { after: 'assistant-2' } })
     )
     expect(patchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows a toast when assistant group reorder persistence fails', async () => {
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockRejectedValue(new Error('order failed'))
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+
+    renderTopicList()
+
+    dndMocks.onDragEnd?.({
+      active: {
+        data: sortableData('group:topic:assistant:assistant-1'),
+        id: 'group:topic:assistant:assistant-1'
+      },
+      over: {
+        data: sortableData('group:topic:assistant:assistant-2'),
+        id: 'group:topic:assistant:assistant-2'
+      }
+    })
+
+    await vi.waitFor(() =>
+      expect(window.toast.error).toHaveBeenCalledWith('Failed to reorder assistants: order failed')
+    )
+    expect(patchSpy).toHaveBeenCalledWith('/assistants/assistant-1/order', { body: { after: 'assistant-2' } })
   })
 
   it('treats the default assistant database row as a normal draggable assistant group', async () => {

@@ -1009,6 +1009,11 @@
       },
       "title": "助手库"
     },
+    "reorder": {
+      "error": {
+        "failed": "助手排序失败"
+      }
+    },
     "save": {
       "success": "保存成功",
       "title": "保存到助手库"

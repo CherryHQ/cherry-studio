@@ -1009,6 +1009,11 @@
       },
       "title": "Assistants Library"
     },
+    "reorder": {
+      "error": {
+        "failed": "Failed to reorder assistants"
+      }
+    },
     "save": {
       "success": "Saved successfully",
       "title": "Save to assistant library"

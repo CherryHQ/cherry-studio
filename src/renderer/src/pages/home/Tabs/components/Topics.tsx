@@ -26,6 +26,7 @@ import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getLeadingEmoji } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
 import dayjs from 'dayjs'
@@ -627,6 +628,7 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
         } catch (err) {
           setOptimisticAssistantOrderIds(null)
           logger.error('Failed to reorder assistant topic group', { activeAssistantId, err, overAssistantId })
+          window.toast.error(formatErrorMessageWithPrefix(err, t('assistants.reorder.error.failed')))
 
           try {
             await refreshAssistants()
