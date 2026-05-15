@@ -230,6 +230,22 @@ describe('options utils', () => {
         expect(result.providerOptions.openai).toHaveProperty('serviceTier')
         expect(result.providerOptions.openai.serviceTier).toBe(OpenAIServiceTiers.auto)
       })
+
+      it('should not throw when model.provider is not in the provider store (regression: issue #14999)', () => {
+        const gpt5Model: Model = {
+          id: 'gpt-5',
+          name: 'GPT-5',
+          provider: 'orphaned-provider-id'
+        } as Model
+
+        expect(() =>
+          buildProviderOptions(mockAssistant, gpt5Model, openaiProvider, {
+            enableReasoning: false,
+            enableWebSearch: false,
+            enableGenerateImage: false
+          })
+        ).not.toThrow()
+      })
     })
 
     describe('Anthropic provider', () => {
