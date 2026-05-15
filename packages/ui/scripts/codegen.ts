@@ -30,9 +30,10 @@ export function generateIconIndex(opts: {
   colorName: string
   hasAvatar: boolean
   hasDark: boolean
+  usesCurrentColor?: boolean
   colorPrimary: string
 }): void {
-  const { outPath, colorName, hasAvatar, hasDark, colorPrimary } = opts
+  const { outPath, colorName, hasAvatar, hasDark, usesCurrentColor = false, colorPrimary } = opts
   const lightName = `${colorName}Light`
   const darkName = `${colorName}Dark`
   const avatarName = `${colorName}Avatar`
@@ -40,25 +41,33 @@ export function generateIconIndex(opts: {
   const avatarImport = hasAvatar ? `import { ${avatarName} } from './avatar'\n` : ''
   const avatarField = hasAvatar ? `  Avatar: ${avatarName},\n` : ''
   const darkImport = hasDark ? `import { ${darkName} } from './dark'\n` : ''
+  const lightClassName = usesCurrentColor ? `cn('text-foreground', className)` : 'className'
+  const darkClassName = usesCurrentColor ? `cn('text-foreground', className)` : 'className'
+  const autoLightClassName = usesCurrentColor
+    ? `cn('text-foreground dark:hidden', className)`
+    : `cn('dark:hidden', className)`
+  const autoDarkClassName = usesCurrentColor
+    ? `cn('text-foreground hidden dark:block', className)`
+    : `cn('hidden dark:block', className)`
   const autoRender = hasDark
     ? `return (
     <>
-      <${lightName} className={cn('dark:hidden', className)} {...props} />
-      <${darkName} className={cn('hidden dark:block', className)} {...props} />
+      <${lightName} className={${autoLightClassName}} {...props} />
+      <${darkName} className={${autoDarkClassName}} {...props} />
     </>
   )`
-    : `return <${lightName} {...props} className={className} />`
+    : `return <${lightName} {...props} className={${lightClassName}} />`
   const darkVariantRender = hasDark
-    ? `  if (variant === 'dark') return <${darkName} {...props} className={className} />\n`
+    ? `  if (variant === 'dark') return <${darkName} {...props} className={${darkClassName}} />\n`
     : ''
-  const cnImport = hasDark ? `import { cn } from '../../../../lib/utils'\n` : ''
+  const cnImport = hasDark || usesCurrentColor ? `import { cn } from '../../../../lib/utils'\n` : ''
 
   const content = `${cnImport}import type { CompoundIcon, CompoundIconProps } from '../../types'
 ${avatarImport}${darkImport}
 import { ${lightName} } from './light'
 
 const ${colorName} = ({ variant, className, ...props }: CompoundIconProps) => {
-  if (variant === 'light') return <${lightName} {...props} className={className} />
+  if (variant === 'light') return <${lightName} {...props} className={${lightClassName}} />
 ${darkVariantRender}  ${autoRender}
 }
 

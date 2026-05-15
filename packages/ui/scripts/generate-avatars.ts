@@ -230,12 +230,15 @@ function generateIconIndex(baseDir: string, dirName: string): void {
   const colorName = getComponentName(baseDir, dirName)
   const colorPrimary = readColorPrimary(baseDir, dirName)
   const hasDark = fs.existsSync(path.join(baseDir, dirName, 'dark.tsx'))
+  const lightContent = fs.readFileSync(path.join(baseDir, dirName, 'light.tsx'), 'utf-8')
+  const usesCurrentColor = lightContent.includes('currentColor')
 
   codegenIconIndex({
     outPath: path.join(baseDir, dirName, 'index.tsx'),
     colorName,
     hasAvatar: true,
     hasDark,
+    usesCurrentColor,
     colorPrimary
   })
 }

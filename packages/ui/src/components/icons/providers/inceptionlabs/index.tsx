@@ -1,18 +1,11 @@
 import { cn } from '../../../../lib/utils'
 import type { CompoundIcon, CompoundIconProps } from '../../types'
 import { InceptionlabsAvatar } from './avatar'
-import { InceptionlabsDark } from './dark'
 import { InceptionlabsLight } from './light'
 
 const Inceptionlabs = ({ variant, className, ...props }: CompoundIconProps) => {
-  if (variant === 'light') return <InceptionlabsLight {...props} className={className} />
-  if (variant === 'dark') return <InceptionlabsDark {...props} className={className} />
-  return (
-    <>
-      <InceptionlabsLight className={cn('dark:hidden', className)} {...props} />
-      <InceptionlabsDark className={cn('hidden dark:block', className)} {...props} />
-    </>
-  )
+  if (variant === 'light') return <InceptionlabsLight {...props} className={cn('text-foreground', className)} />
+  return <InceptionlabsLight {...props} className={cn('text-foreground', className)} />
 }
 
 export const InceptionlabsIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Inceptionlabs, {
