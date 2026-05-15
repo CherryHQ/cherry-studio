@@ -119,7 +119,7 @@ export class AgentSessionMessageService {
               or(
                 eq(sessionMessagesTable.id, messageId),
                 sql`json_extract(${sessionMessagesTable.content}, '$.message.id') = ${messageId}`
-              )!
+              )
             )
           ),
       defaultHandlersFor('Message', messageId)

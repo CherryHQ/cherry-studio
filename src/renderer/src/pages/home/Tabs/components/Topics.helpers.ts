@@ -112,9 +112,9 @@ export function applyOptimisticTopicDisplayMove<T extends TopicListItem>(
       insertIndex = payload.position === 'before' ? overIndex : overIndex + 1
     }
   } else {
-    const firstTargetTopicIndex = next.findIndex((topic) => groupBy(topic)?.id === payload.targetGroupId)
-    if (firstTargetTopicIndex >= 0) {
-      insertIndex = firstTargetTopicIndex
+    const lastTargetTopicIndex = next.findLastIndex((topic) => groupBy(topic)?.id === payload.targetGroupId)
+    if (lastTargetTopicIndex >= 0) {
+      insertIndex = lastTargetTopicIndex + 1
     }
   }
 
@@ -131,17 +131,7 @@ export function buildTopicDropAnchor(payload: ResourceListItemReorderPayload): O
 }
 
 export function normalizeTopicDropPayload(payload: ResourceListItemReorderPayload): ResourceListItemReorderPayload {
-  if (
-    payload.type !== 'item' ||
-    payload.overType !== 'item' ||
-    payload.sourceGroupId !== payload.targetGroupId ||
-    payload.sourceIndex === payload.targetIndex
-  ) {
-    return payload
-  }
-
-  const position = payload.sourceIndex < payload.targetIndex ? 'after' : 'before'
-  return payload.position === position ? payload : { ...payload, position }
+  return payload
 }
 
 export function filterTopicsForManageMode<T extends TopicListItem>(

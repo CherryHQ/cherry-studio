@@ -353,7 +353,9 @@ function buildOpenAIProviderOptions(
   const { enableReasoning } = capabilities
   let providerOptions: OpenAIResponsesProviderOptions = {}
   if (enableReasoning) {
-    const reasoningParams = getOpenAIReasoningParams(assistant, model)
+    const reasoningParams = getOpenAIReasoningParams(assistant, model, {
+      summaryText: provider.settings.summaryText
+    })
     providerOptions = {
       ...providerOptions,
       ...reasoningParams,

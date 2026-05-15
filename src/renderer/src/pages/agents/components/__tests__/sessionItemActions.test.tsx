@@ -9,7 +9,6 @@ function createSessionActionFixture(overrides: Partial<SessionActionContext> = {
     onDelete: vi.fn(),
     pinned: false,
     sessionName: 'Session title',
-    setTopicPosition: vi.fn(),
     startEdit: vi.fn(),
     t,
     ...overrides
@@ -17,46 +16,40 @@ function createSessionActionFixture(overrides: Partial<SessionActionContext> = {
 }
 
 describe('session item actions', () => {
-  it('resolves rename, position, and delete actions without pin when pin callback is absent', () => {
+  it('resolves rename and delete actions without pin when pin callback is absent', () => {
     const actions = resolveSessionMenuActions(createSessionActionFixture())
 
-    expect(actions.map((action) => action.id)).toEqual(['session.rename', 'session.position', 'session.delete'])
-    expect(actions.find((action) => action.id === 'session.position')?.children.map((child) => child.id)).toEqual([
-      'session.position-left',
-      'session.position-right'
-    ])
+    expect(actions.map((action) => action.id)).toEqual(['session.rename', 'session.delete'])
   })
 
   it('resolves pin label from pinned state and executes callbacks', async () => {
     const onTogglePin = vi.fn()
     const onDelete = vi.fn()
-    const setTopicPosition = vi.fn()
     const startEdit = vi.fn()
     const actionContext = createSessionActionFixture({
       onDelete,
       onTogglePin,
       pinned: true,
-      setTopicPosition,
       startEdit
     })
     const actions = resolveSessionMenuActions(actionContext)
+    const deleteAction = actions.find((action) => action.id === 'session.delete')
 
-    expect(actions.map((action) => action.id)).toEqual([
-      'session.rename',
-      'session.toggle-pin',
-      'session.position',
-      'session.delete'
-    ])
+    expect(actions.map((action) => action.id)).toEqual(['session.rename', 'session.toggle-pin', 'session.delete'])
     expect(actions.find((action) => action.id === 'session.toggle-pin')?.label).toBe('chat.topics.unpin')
+    expect(deleteAction?.confirm).toMatchObject({
+      title: 'agent.session.delete.title',
+      description: 'agent.session.delete.content',
+      confirmText: 'common.delete',
+      destructive: true
+    })
 
     await executeSessionMenuAction(actions[0], actionContext)
     await executeSessionMenuAction(actions[1], actionContext)
-    await executeSessionMenuAction(actions[2].children[0], actionContext)
-    await executeSessionMenuAction(actions[3], actionContext)
+    await executeSessionMenuAction(actions[2], actionContext)
 
     expect(startEdit).toHaveBeenCalledWith('Session title')
     expect(onTogglePin).toHaveBeenCalled()
-    expect(setTopicPosition).toHaveBeenCalledWith('left')
     expect(onDelete).toHaveBeenCalled()
   })
 })

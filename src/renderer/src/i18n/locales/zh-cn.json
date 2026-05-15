@@ -378,6 +378,12 @@
         },
         "title": "删除会话"
       },
+      "display": {
+        "agent": "智能体",
+        "time": "时间",
+        "title": "展示方式",
+        "workdir": "工作目录"
+      },
       "edit": {
         "title": "编辑会话"
       },
@@ -387,12 +393,28 @@
           "null_id": "会话 ID 为空"
         }
       },
+      "group": {
+        "collapse": "折叠会话",
+        "earlier": "更早",
+        "no_workdir": "无工作目录",
+        "show_more": "显示更多会话",
+        "this_week": "本周",
+        "today": "今天",
+        "unknown_agent": "未知智能体",
+        "yesterday": "昨天"
+      },
       "label_one": "会话",
       "label_other": "会话",
+      "list": {
+        "title": "会话"
+      },
       "reorder": {
         "error": {
           "failed": "会话排序失败"
         }
+      },
+      "search": {
+        "placeholder": "搜索会话"
       },
       "update": {
         "error": {

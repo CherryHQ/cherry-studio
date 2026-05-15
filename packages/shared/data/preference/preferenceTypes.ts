@@ -80,6 +80,8 @@ export type AssistantTabSortType = 'tags' | 'list'
 
 export type TopicDisplayMode = 'time' | 'assistant'
 
+export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir'
+
 export type SidebarIcon =
   | 'assistants'
   | 'agents'

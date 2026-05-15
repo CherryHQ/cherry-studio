@@ -1,15 +1,11 @@
-import { HelpTooltip } from '@cherrystudio/ui'
-import Selector from '@renderer/components/Selector'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
+import { SettingRowTitleSmall } from '@renderer/pages/chat-settings/settingsPanelPrimitives'
 import { SettingRow } from '@renderer/pages/settings'
-import type { RootState } from '@renderer/store'
-import { useAppDispatch } from '@renderer/store'
-import { setOpenAIStreamOptionsIncludeUsage } from '@renderer/store/settings'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'
 import type { OpenAICompletionsStreamOptions } from '@shared/types/aiSdk'
 import type { FC } from 'react'
-import { useCallback, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 
 type IncludeUsageOption = {
   value: 'undefined' | 'false' | 'true'
@@ -17,20 +13,13 @@ type IncludeUsageOption = {
 }
 
 interface Props {
-  SettingRowTitleSmall: FC<{ children: React.ReactNode }>
+  includeUsage: OpenAICompletionsStreamOptions['include_usage']
+  disabled?: boolean
+  onIncludeUsageChange: (value: OpenAICompletionsStreamOptions['include_usage']) => void
 }
 
-const StreamOptionsSetting: FC<Props> = ({ SettingRowTitleSmall }) => {
+const StreamOptionsSetting: FC<Props> = ({ includeUsage, disabled, onIncludeUsageChange }) => {
   const { t } = useTranslation()
-  const includeUsage = useSelector((state: RootState) => state.settings.openAI?.streamOptions?.includeUsage)
-  const dispatch = useAppDispatch()
-
-  const setIncludeUsage = useCallback(
-    (value: OpenAICompletionsStreamOptions['include_usage']) => {
-      dispatch(setOpenAIStreamOptionsIncludeUsage(value))
-    },
-    [dispatch]
-  )
 
   const includeUsageOptions = useMemo(() => {
     return [
@@ -51,20 +40,26 @@ const StreamOptionsSetting: FC<Props> = ({ SettingRowTitleSmall }) => {
 
   return (
     <SettingRow>
-      <SettingRowTitleSmall>
-        {t('settings.openai.stream_options.include_usage.title')}{' '}
-        <HelpTooltip
-          content={t('settings.openai.stream_options.include_usage.tip')}
-          iconProps={{ className: 'ml-1' }}
-        />
+      <SettingRowTitleSmall hint={t('settings.openai.stream_options.include_usage.tip')}>
+        {t('settings.openai.stream_options.include_usage.title')}
       </SettingRowTitleSmall>
-      <Selector
+      <Select
+        disabled={disabled}
         value={toOptionValue(includeUsage)}
-        onChange={(value) => {
-          setIncludeUsage(toRealValue(value))
-        }}
-        options={includeUsageOptions}
-      />
+        onValueChange={(value) => {
+          onIncludeUsageChange(toRealValue(value as IncludeUsageOption['value']))
+        }}>
+        <SelectTrigger disabled={disabled} size="sm" className="w-45 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="text-xs">
+          {includeUsageOptions.map((option) => (
+            <SelectItem className="text-xs" key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </SettingRow>
   )
 }

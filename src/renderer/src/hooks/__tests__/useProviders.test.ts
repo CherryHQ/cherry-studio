@@ -200,13 +200,28 @@ describe('useProvider', () => {
 
     expect(result.current.provider).toEqual(mockProvider1)
     expect(result.current.isLoading).toBe(false)
-    expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId', { params: { providerId: 'openai' } })
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId', {
+      params: { providerId: 'openai' },
+      enabled: true
+    })
   })
 
   it('should build correct params for hyphenated provider IDs', () => {
     renderHook(() => useProvider('openai-main'))
 
-    expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId', { params: { providerId: 'openai-main' } })
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId', {
+      params: { providerId: 'openai-main' },
+      enabled: true
+    })
+  })
+
+  it('should not fetch a single provider until an ID is available', () => {
+    renderHook(() => useProvider(undefined))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId', {
+      params: { providerId: '' },
+      enabled: false
+    })
   })
 
   it('should expose error and refetch from useQuery', () => {

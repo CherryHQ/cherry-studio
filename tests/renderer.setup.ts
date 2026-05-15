@@ -218,6 +218,37 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('button', { ...props, type: 'button', 'data-testid': 'context-menu-sub-trigger' }, children),
     ContextMenuSubContent: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'context-menu-sub-content' }, children),
+    ConfirmDialog: ({
+      cancelText = 'Cancel',
+      confirmText = 'Confirm',
+      content,
+      description,
+      onConfirm,
+      onOpenChange,
+      open,
+      title
+    }) =>
+      open
+        ? React.createElement(
+            'div',
+            { role: 'dialog', 'data-testid': 'confirm-dialog' },
+            React.createElement('h2', null, title),
+            description ? React.createElement('p', null, description) : null,
+            content,
+            React.createElement('button', { type: 'button', onClick: () => onOpenChange?.(false) }, cancelText),
+            React.createElement(
+              'button',
+              {
+                type: 'button',
+                onClick: async () => {
+                  await onConfirm?.()
+                  onOpenChange?.(false)
+                }
+              },
+              confirmText
+            )
+          )
+        : null,
     ImagePreviewContextMenu: ({ actions = [], children, context, item }) =>
       React.createElement(
         'div',

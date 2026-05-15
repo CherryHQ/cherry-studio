@@ -378,6 +378,12 @@
         },
         "title": "Delete session"
       },
+      "display": {
+        "agent": "Agent",
+        "time": "Time",
+        "title": "Display mode",
+        "workdir": "Workspace"
+      },
       "edit": {
         "title": "Edit session"
       },
@@ -387,12 +393,28 @@
           "null_id": "Session ID is null"
         }
       },
+      "group": {
+        "collapse": "Collapse sessions",
+        "earlier": "Earlier",
+        "no_workdir": "No workspace",
+        "show_more": "Show more sessions",
+        "this_week": "This week",
+        "today": "Today",
+        "unknown_agent": "Unknown agent",
+        "yesterday": "Yesterday"
+      },
       "label_one": "Session",
       "label_other": "Sessions",
+      "list": {
+        "title": "Sessions"
+      },
       "reorder": {
         "error": {
           "failed": "Failed to reorder sessions"
         }
+      },
+      "search": {
+        "placeholder": "Search sessions"
       },
       "update": {
         "error": {

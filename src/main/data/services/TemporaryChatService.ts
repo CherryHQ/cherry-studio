@@ -184,11 +184,11 @@ export class TemporaryChatService {
         // because the TS-side ISO strings don't match the DB's integer column.
         //
         // `orderKey` is computed via `insertWithOrderKey` so the new persisted
-        // topic lands at the tail of its `groupId` partition, matching what
-        // `topicService.create` does for normal topics. The `?? undefined`
-        // pattern used for the other fields converts `null` to `undefined`
-        // so Drizzle omits the column entirely, letting the DB default apply.
-        const groupIdForScope = topic.groupId ?? null
+        // topic lands at the tail of the global non-deleted topic order,
+        // matching what `topicService.create` does for normal topics. The
+        // `?? undefined` pattern used for the other fields converts `null` to
+        // `undefined` so Drizzle omits the column entirely, letting the DB
+        // default apply.
         const assistantId = topic.assistantId ?? undefined
         await insertWithOrderKey(
           tx,
@@ -201,7 +201,7 @@ export class TemporaryChatService {
           },
           {
             pkColumn: topicTable.id,
-            scope: groupIdForScope === null ? isNull(topicTable.groupId) : eq(topicTable.groupId, groupIdForScope)
+            scope: isNull(topicTable.deletedAt)
           }
         )
 

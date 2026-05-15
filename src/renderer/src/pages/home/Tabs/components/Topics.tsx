@@ -1,13 +1,4 @@
-import {
-  Button,
-  ContextMenuSub,
-  MenuItem,
-  MenuList,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  Tooltip
-} from '@cherrystudio/ui'
+import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
@@ -52,33 +43,30 @@ import { cn } from '@renderer/utils/style'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
 import {
-  BrushCleaning,
   Check,
   CheckSquare,
   ChevronDown,
   ChevronsUpDown,
   Clock3,
-  Copy,
-  Database,
-  Edit3,
-  FileText,
-  Image,
   ListChecks,
   ListFilter,
-  NotebookPen,
   PinIcon,
-  PinOffIcon,
   Plus,
   Sparkles,
   Square,
   Trash2,
-  UploadIcon,
   XIcon
 } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import {
+  executeTopicMenuAction,
+  resolveTopicMenuActions,
+  type TopicActionContext,
+  type TopicExportMenuOptions
+} from './topicContextMenuActions'
 import { TopicManagePanel, useTopicManageMode } from './TopicManageMode'
 import {
   applyOptimisticTopicDisplayMove,
@@ -102,21 +90,6 @@ interface Props {
   setActiveTopic: (topic: Topic) => void
   position: 'left' | 'right'
 }
-
-type ExportMenuOptions = Record<
-  | 'docx'
-  | 'image'
-  | 'joplin'
-  | 'markdown'
-  | 'markdown_reason'
-  | 'notes'
-  | 'notion'
-  | 'obsidian'
-  | 'plain_text'
-  | 'siyuan'
-  | 'yuque',
-  boolean
->
 
 const TOPIC_DISPLAY_OPTIONS: TopicDisplayMode[] = ['time', 'assistant']
 const DEFAULT_ASSISTANT_GROUP_EMOJI = '😀'
@@ -671,7 +644,7 @@ export function Topics({ activeTopic, setActiveTopic, position }: Props) {
         <TopicListBody
           activeTopic={activeTopic}
           deletingTopicId={deletingTopicId}
-          exportMenuOptions={exportMenuOptions as ExportMenuOptions}
+          exportMenuOptions={exportMenuOptions as TopicExportMenuOptions}
           isNewlyRenamed={isNewlyRenamed}
           isRenaming={isRenaming}
           listRef={listRef}
@@ -807,7 +780,7 @@ const useTopicListStreamStatuses = (topicIds: readonly string[]): ReadonlyMap<st
 interface TopicListBodyProps {
   activeTopic: Topic
   deletingTopicId: string | null
-  exportMenuOptions: ExportMenuOptions
+  exportMenuOptions: TopicExportMenuOptions
   isNewlyRenamed: (topicId: string) => boolean
   isRenaming: (topicId: string) => boolean
   listRef: RefObject<HTMLDivElement | null>
@@ -919,6 +892,83 @@ function TopicRow({
       : ''
   const { isFulfilled: isTopicStreamFulfilled, isPending: isTopicStreamPending } = streamStatus
   const hasTopicStreamIndicator = !isActive && (isTopicStreamPending || isTopicStreamFulfilled)
+  const actionContext = useMemo<TopicActionContext>(
+    () => ({
+      exportMenuOptions,
+      isRenaming: isRenaming(topic.id),
+      onAutoRename,
+      onClearMessages,
+      onCopyImage: (topic) => void EventEmitter.emit(EVENT_NAMES.COPY_TOPIC_IMAGE, topic),
+      onCopyMarkdown: copyTopicAsMarkdown,
+      onCopyPlainText: copyTopicAsPlainText,
+      onDelete: onDeleteFromMenu,
+      onExportImage: (topic) => void EventEmitter.emit(EVENT_NAMES.EXPORT_TOPIC_IMAGE, topic),
+      onExportJoplin: async (topic) => {
+        const topicMessages = await getTopicMessages(topic.id)
+        void exportMarkdownToJoplin(topic.name, topicMessages)
+      },
+      onExportMarkdown: async (topic) => {
+        await exportTopicAsMarkdown(topic)
+      },
+      onExportMarkdownReason: async (topic) => {
+        await exportTopicAsMarkdown(topic, true)
+      },
+      onExportNotion: async (topic) => {
+        await exportTopicToNotion(topic)
+      },
+      onExportObsidian: async (topic) => {
+        await ObsidianExportPopup.show({ title: topic.name, topic, processingMethod: '3' })
+      },
+      onExportSiyuan: async (topic) => {
+        const markdown = await topicToMarkdown(topic)
+        void exportMarkdownToSiyuan(topic.name, markdown)
+      },
+      onExportWord: async (topic) => {
+        const markdown = await topicToMarkdown(topic)
+        void window.api.export.toWord(markdown, removeSpecialCharactersForFileName(topic.name))
+      },
+      onExportYuque: async (topic) => {
+        const markdown = await topicToMarkdown(topic)
+        void exportMarkdownToYuque(topic.name, markdown)
+      },
+      onPinTopic,
+      onPromptRename,
+      onSaveToKnowledge: async (topic) => {
+        try {
+          const result = await SaveToKnowledgePopup.showForTopic(topic)
+          if (result?.success) {
+            window.toast.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
+          }
+        } catch {
+          window.toast.error(t('chat.save.topic.knowledge.error.save_failed'))
+        }
+      },
+      onSaveToNotes: (topic) => exportTopicToNotes(topic, notesPath),
+      t,
+      topic,
+      topicsLength
+    }),
+    [
+      exportMenuOptions,
+      isRenaming,
+      notesPath,
+      onAutoRename,
+      onClearMessages,
+      onDeleteFromMenu,
+      onPinTopic,
+      onPromptRename,
+      t,
+      topic,
+      topicsLength
+    ]
+  )
+  const menuActions = useMemo(() => resolveTopicMenuActions(actionContext), [actionContext])
+  const handleMenuAction = useCallback(
+    async (action: (typeof menuActions)[number]) => {
+      await executeTopicMenuAction(action, actionContext)
+    },
+    [actionContext]
+  )
 
   const row = (
     <ResourceList.Item
@@ -1020,195 +1070,9 @@ function TopicRow({
   }
 
   return (
-    <ResourceList.ContextMenu
-      item={topic}
-      content={
-        <TopicContextMenuContent
-          exportMenuOptions={exportMenuOptions}
-          isRenaming={isRenaming}
-          notesPath={notesPath}
-          onAutoRename={onAutoRename}
-          onClearMessages={onClearMessages}
-          onDeleteFromMenu={onDeleteFromMenu}
-          onPinTopic={onPinTopic}
-          onPromptRename={onPromptRename}
-          topic={topic}
-          topicsLength={topicsLength}
-        />
-      }>
+    <ResourceList.ContextMenu item={topic} actions={menuActions} onAction={handleMenuAction}>
       {row}
     </ResourceList.ContextMenu>
-  )
-}
-
-interface TopicContextMenuContentProps {
-  exportMenuOptions: ExportMenuOptions
-  isRenaming: (topicId: string) => boolean
-  notesPath: string
-  onAutoRename: (topic: Topic) => Promise<void>
-  onClearMessages: (topic: Topic) => void
-  onDeleteFromMenu: (topic: Topic) => Promise<void>
-  onPinTopic: (topic: Topic) => Promise<void>
-  onPromptRename: (topic: Topic) => Promise<void>
-  topic: Topic
-  topicsLength: number
-}
-
-function TopicContextMenuContent({
-  exportMenuOptions,
-  isRenaming,
-  notesPath,
-  onAutoRename,
-  onClearMessages,
-  onDeleteFromMenu,
-  onPinTopic,
-  onPromptRename,
-  topic,
-  topicsLength
-}: TopicContextMenuContentProps) {
-  const { t } = useTranslation()
-
-  return (
-    <>
-      <ResourceList.ContextMenuAction
-        disabled={isRenaming(topic.id)}
-        icon={<Sparkles />}
-        onSelect={() => void onAutoRename(topic)}>
-        {t('chat.topics.auto_rename')}
-      </ResourceList.ContextMenuAction>
-      <ResourceList.ContextMenuAction
-        disabled={isRenaming(topic.id)}
-        icon={<Edit3 />}
-        onSelect={() => void onPromptRename(topic)}>
-        {t('chat.topics.edit.title')}
-      </ResourceList.ContextMenuAction>
-      <ResourceList.ContextMenuAction
-        icon={topic.pinned ? <PinOffIcon /> : <PinIcon />}
-        onSelect={() => void onPinTopic(topic)}>
-        {topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
-      </ResourceList.ContextMenuAction>
-      <ResourceList.ContextMenuAction icon={<BrushCleaning />} onSelect={() => onClearMessages(topic)}>
-        {t('chat.topics.clear.title')}
-      </ResourceList.ContextMenuAction>
-      <ResourceList.ContextMenuSeparator />
-      <ResourceList.ContextMenuAction icon={<NotebookPen />} onSelect={() => void exportTopicToNotes(topic, notesPath)}>
-        {t('notes.save')}
-      </ResourceList.ContextMenuAction>
-      <ResourceList.ContextMenuAction
-        icon={<Database />}
-        onSelect={async () => {
-          try {
-            const result = await SaveToKnowledgePopup.showForTopic(topic)
-            if (result?.success) {
-              window.toast.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
-            }
-          } catch {
-            window.toast.error(t('chat.save.topic.knowledge.error.save_failed'))
-          }
-        }}>
-        {t('chat.save.topic.knowledge.menu_title')}
-      </ResourceList.ContextMenuAction>
-      <ContextMenuSub>
-        <ResourceList.ContextMenuSubAction icon={<UploadIcon />}>
-          {t('chat.topics.export.title')}
-        </ResourceList.ContextMenuSubAction>
-        <ResourceList.ContextMenuSubContent>
-          {exportMenuOptions.image && (
-            <ResourceList.ContextMenuAction onSelect={() => EventEmitter.emit(EVENT_NAMES.EXPORT_TOPIC_IMAGE, topic)}>
-              {t('chat.topics.export.image')}
-            </ResourceList.ContextMenuAction>
-          )}
-          {exportMenuOptions.markdown && (
-            <ResourceList.ContextMenuAction onSelect={() => exportTopicAsMarkdown(topic)}>
-              {t('chat.topics.export.md.label')}
-            </ResourceList.ContextMenuAction>
-          )}
-          {exportMenuOptions.markdown_reason && (
-            <ResourceList.ContextMenuAction onSelect={() => exportTopicAsMarkdown(topic, true)}>
-              {t('chat.topics.export.md.reason')}
-            </ResourceList.ContextMenuAction>
-          )}
-          {exportMenuOptions.docx && (
-            <ResourceList.ContextMenuAction
-              onSelect={async () => {
-                const markdown = await topicToMarkdown(topic)
-                void window.api.export.toWord(markdown, removeSpecialCharactersForFileName(topic.name))
-              }}>
-              {t('chat.topics.export.word')}
-            </ResourceList.ContextMenuAction>
-          )}
-          {exportMenuOptions.notion && (
-            <ResourceList.ContextMenuAction onSelect={() => void exportTopicToNotion(topic)}>
-              {t('chat.topics.export.notion')}
-            </ResourceList.ContextMenuAction>
-          )}
-          {exportMenuOptions.yuque && (
-            <ResourceList.ContextMenuAction
-              onSelect={async () => {
-                const markdown = await topicToMarkdown(topic)
-                void exportMarkdownToYuque(topic.name, markdown)
-              }}>
-              {t('chat.topics.export.yuque')}
-            </ResourceList.ContextMenuAction>
-          )}
-          {exportMenuOptions.obsidian && (
-            <ResourceList.ContextMenuAction
-              onSelect={async () => {
-                await ObsidianExportPopup.show({ title: topic.name, topic, processingMethod: '3' })
-              }}>
-              {t('chat.topics.export.obsidian')}
-            </ResourceList.ContextMenuAction>
-          )}
-          {exportMenuOptions.joplin && (
-            <ResourceList.ContextMenuAction
-              onSelect={async () => {
-                const topicMessages = await getTopicMessages(topic.id)
-                void exportMarkdownToJoplin(topic.name, topicMessages)
-              }}>
-              {t('chat.topics.export.joplin')}
-            </ResourceList.ContextMenuAction>
-          )}
-          {exportMenuOptions.siyuan && (
-            <ResourceList.ContextMenuAction
-              onSelect={async () => {
-                const markdown = await topicToMarkdown(topic)
-                void exportMarkdownToSiyuan(topic.name, markdown)
-              }}>
-              {t('chat.topics.export.siyuan')}
-            </ResourceList.ContextMenuAction>
-          )}
-        </ResourceList.ContextMenuSubContent>
-      </ContextMenuSub>
-      <ContextMenuSub>
-        <ResourceList.ContextMenuSubAction icon={<Copy />}>
-          {t('chat.topics.copy.title')}
-        </ResourceList.ContextMenuSubAction>
-        <ResourceList.ContextMenuSubContent>
-          <ResourceList.ContextMenuAction
-            icon={<Image />}
-            onSelect={() => EventEmitter.emit(EVENT_NAMES.COPY_TOPIC_IMAGE, topic)}>
-            {t('chat.topics.copy.image')}
-          </ResourceList.ContextMenuAction>
-          <ResourceList.ContextMenuAction icon={<FileText />} onSelect={() => copyTopicAsMarkdown(topic)}>
-            {t('chat.topics.copy.md')}
-          </ResourceList.ContextMenuAction>
-          <ResourceList.ContextMenuAction icon={<FileText />} onSelect={() => copyTopicAsPlainText(topic)}>
-            {t('chat.topics.copy.plain_text')}
-          </ResourceList.ContextMenuAction>
-        </ResourceList.ContextMenuSubContent>
-      </ContextMenuSub>
-      {topicsLength > 1 && !topic.pinned && (
-        <>
-          <ResourceList.ContextMenuSeparator />
-          <ResourceList.ContextMenuAction
-            icon={<Trash2 />}
-            variant="destructive"
-            onSelect={() => void onDeleteFromMenu(topic)}>
-            {t('common.delete')}
-          </ResourceList.ContextMenuAction>
-        </>
-      )}
-    </>
   )
 }
 
