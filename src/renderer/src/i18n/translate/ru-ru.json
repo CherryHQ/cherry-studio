@@ -5147,23 +5147,16 @@
       "default_assistant_model_description": "Модель, используемая при создании нового ассистента, если ассистент не имеет настроенной модели, будет использоваться эта модель",
       "empty": "Модели не найдены",
       "manage": {
-        "add_error": "[to be translated]:Failed to add models",
         "add_listed": {
           "confirm": "Вы уверены, что хотите добавить все модели в список?",
           "label": "Добавить в список"
         },
-        "add_success": "[to be translated]:Successfully added {{count}} models",
         "add_whole_group": "Добавить всю группу",
-        "batch_add_selected": "[to be translated]:Add selected models",
         "fetch_list": "Получить список моделей",
-        "no_models_to_add": "[to be translated]:No models to add",
         "refetch_list": "Повторное получение списка моделей",
         "remove_listed": "Удалить из списка",
         "remove_model": "Удалить модель",
-        "remove_whole_group": "Удалить всю группу",
-        "select_all": "[to be translated]:Select all",
-        "select_all_group": "[to be translated]:Select all models in group {{groupName}}",
-        "select_model": "[to be translated]:Select model {{modelName}}"
+        "remove_whole_group": "Удалить всю группу"
       },
       "provider_id": "ID провайдера",
       "provider_key_add_confirm": "Добавить API ключ для {{provider}}?",

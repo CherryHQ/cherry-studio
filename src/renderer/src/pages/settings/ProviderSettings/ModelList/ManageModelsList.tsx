@@ -266,6 +266,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
                       <Button
                         type="primary"
                         size="small"
+                        aria-label={t('settings.models.manage.batch_add_selected')}
                         onClick={(e) => {
                           e.stopPropagation()
                           void (async () => {

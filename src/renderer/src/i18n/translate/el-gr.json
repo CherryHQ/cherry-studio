@@ -5147,23 +5147,16 @@
       "default_assistant_model_description": "Το μοντέλο που χρησιμοποιείται όταν δημιουργείτε νέο υπάλληλο. Αν το υπάλληλο δεν έχει επιλεγμένο ένα μοντέλο, τότε θα χρησιμοποιεί αυτό το μοντέλο.",
       "empty": "Δεν υπάρχουν μοντέλα",
       "manage": {
-        "add_error": "[to be translated]:Failed to add models",
         "add_listed": {
           "confirm": "Είστε βέβαιοι ότι θέλετε να προσθέσετε όλα τα μοντέλα στη λίστα;",
           "label": "Προσθήκη μοντέλων από τη λίστα"
         },
-        "add_success": "[to be translated]:Successfully added {{count}} models",
         "add_whole_group": "Προσθήκη ολόκληρης ομάδας",
-        "batch_add_selected": "[to be translated]:Add selected models",
         "fetch_list": "Λήψη λίστας μοντέλων",
-        "no_models_to_add": "[to be translated]:No models to add",
         "refetch_list": "Επαναλήψτε τη λήψη της λίστας μοντέλων",
         "remove_listed": "Αφαίρεση μοντέλων από τη λίστα",
         "remove_model": "Αφαίρεση Μοντέλου",
-        "remove_whole_group": "Αφαίρεση ολόκληρης ομάδας",
-        "select_all": "[to be translated]:Select all",
-        "select_all_group": "[to be translated]:Select all models in group {{groupName}}",
-        "select_model": "[to be translated]:Select model {{modelName}}"
+        "remove_whole_group": "Αφαίρεση ολόκληρης ομάδας"
       },
       "provider_id": "Αναγνωριστικό Παρόχου",
       "provider_key_add_confirm": "Θέλετε να προσθέσετε κλειδί API για τον {{provider}};",

@@ -6,7 +6,7 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import type { EndpointType, Model, Provider } from '@renderer/types'
 import type { FormProps } from 'antd'
 import { Button, Flex, Form, Modal, Select } from 'antd'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface ShowParams {
@@ -35,14 +35,17 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
   const labelWidth = useDynamicLabelWidth([t('settings.models.add.endpoint_type.label')])
   const didResolve = useRef(false)
 
-  const resolveOnce = (data: ResolveData | null) => {
-    if (!didResolve.current) {
-      didResolve.current = true
-      resolve(data)
-    }
-  }
+  const resolveOnce = useCallback(
+    (data: ResolveData | null) => {
+      if (!didResolve.current) {
+        didResolve.current = true
+        resolve(data)
+      }
+    },
+    [resolve]
+  )
 
-  const onClose = () => {
+  const handleAfterClose = () => {
     resolveOnce(null)
   }
 
@@ -73,8 +76,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
     return () => {
       resolveOnce(null)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [resolveOnce])
 
   return (
     <Modal
@@ -82,7 +84,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
       open={open}
       onCancel={onCancel}
       maskClosable={false}
-      afterClose={onClose}
+      afterClose={handleAfterClose}
       footer={null}
       transitionName="animation-move-down"
       centered>

@@ -5147,23 +5147,16 @@
       "default_assistant_model_description": "新しいアシスタントを作成する際に使用されるモデル。アシスタントがモデルを設定していない場合、このモデルが使用されます",
       "empty": "モデルが見つかりません",
       "manage": {
-        "add_error": "[to be translated]:Failed to add models",
         "add_listed": {
           "confirm": "すべてのモデルをリストに追加しますか？",
           "label": "リストにモデルを追加"
         },
-        "add_success": "[to be translated]:Successfully added {{count}} models",
         "add_whole_group": "グループ全体を追加",
-        "batch_add_selected": "[to be translated]:Add selected models",
         "fetch_list": "モデルリストを取得",
-        "no_models_to_add": "[to be translated]:No models to add",
         "refetch_list": "モデルリストを再取得",
         "remove_listed": "リストからモデルを削除",
         "remove_model": "モデルを削除",
-        "remove_whole_group": "グループ全体を削除",
-        "select_all": "[to be translated]:Select all",
-        "select_all_group": "[to be translated]:Select all models in group {{groupName}}",
-        "select_model": "[to be translated]:Select model {{modelName}}"
+        "remove_whole_group": "グループ全体を削除"
       },
       "provider_id": "プロバイダー ID",
       "provider_key_add_confirm": "{{provider}} の API キーを追加しますか？",

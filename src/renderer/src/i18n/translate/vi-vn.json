@@ -5147,23 +5147,16 @@
       "default_assistant_model_description": "Mô hình được sử dụng khi tạo trợ lý mới, nếu trợ lý chưa được thiết lập, mô hình này sẽ được sử dụng",
       "empty": "Không tìm thấy mô hình nào",
       "manage": {
-        "add_error": "[to be translated]:Failed to add models",
         "add_listed": {
           "confirm": "Bạn có chắc chắn muốn thêm tất cả các mô hình vào danh sách không?",
           "label": "Thêm các mô hình vào danh sách"
         },
-        "add_success": "[to be translated]:Successfully added {{count}} models",
         "add_whole_group": "Thêm toàn bộ nhóm",
-        "batch_add_selected": "[to be translated]:Add selected models",
         "fetch_list": "Lấy danh sách mô hình",
-        "no_models_to_add": "[to be translated]:No models to add",
         "refetch_list": "Tải lại danh sách mô hình",
         "remove_listed": "Xóa các mô hình khỏi danh sách",
         "remove_model": "Xóa mô hình",
-        "remove_whole_group": "Xóa toàn bộ nhóm",
-        "select_all": "[to be translated]:Select all",
-        "select_all_group": "[to be translated]:Select all models in group {{groupName}}",
-        "select_model": "[to be translated]:Select model {{modelName}}"
+        "remove_whole_group": "Xóa toàn bộ nhóm"
       },
       "provider_id": "ID Nhà cung cấp",
       "provider_key_add_confirm": "Bạn có muốn thêm khóa API cho {{provider}} không?",
