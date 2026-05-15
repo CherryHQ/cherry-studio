@@ -275,6 +275,13 @@ const ToolBlockGroup: React.FC<Props> = ({ blocks }) => {
     })
   }, [blocks])
 
+  // Auto-expand group when there are active tools (pending/waiting for approval, streaming)
+  useEffect(() => {
+    if (!allCompleted) {
+      setActiveKey((prev) => (prev.includes('tool-group') ? prev : [...prev, 'tool-group']))
+    }
+  }, [allCompleted])
+
   const currentRunningBlock = useMemo(() => {
     return blocks.find((block) => {
       const status = block.metadata?.rawMcpToolResponse?.status
