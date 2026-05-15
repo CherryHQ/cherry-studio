@@ -3,7 +3,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronDown, X } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 export interface SelectDropdownProps<T extends { id: string }> {
   items: T[]
@@ -21,6 +21,12 @@ export interface SelectDropdownProps<T extends { id: string }> {
   itemHeight?: number
   /** Pre-rendered rows outside visible area; raise this if you see blank frames during fast scroll. */
   overscan?: number
+  /**
+   * Extra classes appended to the trigger button.
+   * Use `data-[state=open]:*` selectors to override the open-state border/ring
+   * (defaults follow `--color-primary`, which tracks the user theme color).
+   */
+  triggerClassName?: string
 }
 
 const scrollbarClass =
@@ -46,6 +52,21 @@ function VirtualRows<T extends { id: string }>({
     estimateSize: () => itemHeight,
     overscan
   })
+
+  // 当 Popover Portal 到 body 而外层是 Radix modal Dialog 时，body 的 react-remove-scroll
+  // 会吞掉 portal'd 内容上的 wheel 事件。手动处理 wheel，绕过外层拦截。
+  useEffect(() => {
+    const el = scrollerRef.current
+    if (!el) return
+    const handleWheel = (e: WheelEvent) => {
+      if (el.scrollHeight <= el.clientHeight) return
+      e.preventDefault()
+      e.stopPropagation()
+      el.scrollTop += e.deltaY
+    }
+    el.addEventListener('wheel', handleWheel, { passive: false })
+    return () => el.removeEventListener('wheel', handleWheel)
+  }, [])
 
   return (
     <div ref={scrollerRef} className={scrollbarClass} style={{ maxHeight }}>
@@ -79,8 +100,9 @@ export function SelectDropdown<T extends { id: string }>({
   emptyText,
   maxHeight = 240,
   virtualize = false,
-  itemHeight = 32,
-  overscan = 12
+  itemHeight = 36,
+  overscan = 12,
+  triggerClassName
 }: SelectDropdownProps<T>) {
   const [open, setOpen] = useState(false)
   const selected = items.find((i) => i.id === selectedId)
@@ -92,7 +114,7 @@ export function SelectDropdown<T extends { id: string }>({
         <div
           className={cn(
             'flex items-center gap-1 rounded-md pr-1 transition-colors',
-            isSelected && 'bg-primary/10 text-primary'
+            isSelected && 'bg-accent text-foreground'
           )}>
           <button
             type="button"
@@ -100,14 +122,14 @@ export function SelectDropdown<T extends { id: string }>({
               onSelect(item.id)
               setOpen(false)
             }}
-            className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent/60">
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted">
             {renderItem(item, isSelected)}
           </button>
           <button
             type="button"
             aria-label={removeLabel}
             onClick={() => onRemove(item.id)}
-            className="shrink-0 rounded-md p-1 text-muted-foreground/30 transition-colors hover:bg-accent/60 hover:text-foreground">
+            className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
             <X size={10} />
           </button>
         </div>
@@ -121,8 +143,8 @@ export function SelectDropdown<T extends { id: string }>({
           setOpen(false)
         }}
         className={cn(
-          'w-full rounded-md px-2.5 py-1.5 text-left text-xs transition-colors',
-          isSelected ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-accent/60'
+          'w-full rounded-md px-2.5 py-1.5 text-left text-sm transition-colors',
+          isSelected ? 'bg-accent text-foreground' : 'text-foreground hover:bg-muted'
         )}>
         {renderItem(item, isSelected)}
       </button>
@@ -135,8 +157,9 @@ export function SelectDropdown<T extends { id: string }>({
         <button
           type="button"
           className={cn(
-            'flex w-full items-center justify-between rounded-md border bg-transparent px-2.5 py-1.5 text-xs transition-colors hover:bg-muted/30',
-            open ? 'border-primary/40 ring-1 ring-primary/15' : 'border-border/40'
+            'flex h-9 w-full items-center justify-between rounded-md border bg-transparent px-3 text-sm transition-colors hover:bg-muted/30',
+            open ? 'border-primary/40 ring-1 ring-primary/15' : 'border-border-muted',
+            triggerClassName
           )}>
           <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
             {renderTriggerLeading}
@@ -148,16 +171,16 @@ export function SelectDropdown<T extends { id: string }>({
           </div>
           <ChevronDown
             size={12}
-            className={cn('ml-2 shrink-0 text-muted-foreground/50 transition-transform', open && 'rotate-180')}
+            className={cn('ml-2 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')}
           />
         </button>
       </PopoverTrigger>
       <PopoverContent
         align="start"
         sideOffset={4}
-        className="w-(--radix-popover-trigger-width) rounded-md border border-border/40 bg-popover p-1 shadow-lg">
+        className="w-(--radix-popover-trigger-width) rounded-md border border-border-muted bg-popover p-1 shadow-lg">
         {items.length === 0 && emptyText ? (
-          <div className="px-2.5 py-3 text-muted-foreground/45 text-xs">{emptyText}</div>
+          <div className="px-2.5 py-3 text-muted-foreground/45 text-sm">{emptyText}</div>
         ) : virtualize ? (
           <VirtualRows
             items={items}

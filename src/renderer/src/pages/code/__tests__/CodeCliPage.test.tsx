@@ -31,6 +31,13 @@ vi.mock('@cherrystudio/ui', async () => {
       }),
     Label: ({ children, htmlFor, className }: { children: React.ReactNode; htmlFor?: string; className?: string }) =>
       React.createElement('label', { htmlFor, className }, children),
+    Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
+      open ? React.createElement('div', { role: 'dialog' }, children) : null,
+    DialogContent: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
+    DialogHeader: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
+    DialogTitle: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
+    DialogFooter: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
+    DialogClose: ({ children }: { children: React.ReactNode }) => React.createElement(React.Fragment, null, children),
     SelectDropdown: () => React.createElement('div', null),
     Textarea: {
       Input: ({ value, onValueChange }: { value?: string; onValueChange?: (value: string) => void }) =>
@@ -157,11 +164,6 @@ vi.mock('../components/CodeToolGallery', () => ({
       open tool
     </button>
   )
-}))
-
-vi.mock('../components/CodeToolDialog', () => ({
-  CodeToolDialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
-    open ? <div role="dialog">{children}</div> : null
 }))
 
 vi.mock('../components/FieldLabel', () => ({

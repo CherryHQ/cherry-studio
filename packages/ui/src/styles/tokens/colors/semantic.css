@@ -37,9 +37,9 @@
   --cs-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);
 
   /* UI Element Colors */
-  --cs-secondary: oklch(0 0 0 / 0.05); /* Secondary Button Background */
-  --cs-secondary-hover: oklch(0 0 0 / 0.85);
-  --cs-secondary-active: oklch(0 0 0 / 0.7);
+  --cs-secondary: #f5f5f5; /* Secondary Button Background */
+  --cs-secondary-hover: #ebebeb;
+  --cs-secondary-active: #e0e0e0;
   --cs-muted: oklch(0 0 0 / 0.05); /* Muted/Subtle Background */
   --cs-accent: oklch(0 0 0 / 0.05); /* Accent Background */
   --cs-ghost-hover: oklch(0 0 0 / 0.05); /* Ghost Button Hover */
@@ -79,9 +79,9 @@
   --cs-ring: oklch(0.76 0.204 131 / 0.4);
 
   /* UI Element Colors - Dark Mode */
-  --cs-secondary: oklch(1 0 0 / 0.1); /* Secondary Button Background */
-  --cs-secondary-hover: oklch(1 0 0 / 0.2);
-  --cs-secondary-active: oklch(1 0 0 / 0.25);
+  --cs-secondary: #262626; /* Secondary Button Background */
+  --cs-secondary-hover: #333333;
+  --cs-secondary-active: #404040;
   --cs-muted: oklch(1 0 0 / 0.1); /* Muted/Subtle Background */
   --cs-accent: oklch(1 0 0 / 0.1); /* Accent Background */
   --cs-ghost-hover: oklch(1 0 0 / 0.1); /* Ghost Button Hover */

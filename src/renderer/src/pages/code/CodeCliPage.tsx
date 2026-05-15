@@ -1,4 +1,16 @@
-import { Button, Checkbox, Label, SelectDropdown, Textarea } from '@cherrystudio/ui'
+import {
+  Button,
+  Checkbox,
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Label,
+  SelectDropdown,
+  Textarea
+} from '@cherrystudio/ui'
 import { AiProvider } from '@renderer/aiCore'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
@@ -29,7 +41,6 @@ import {
   OPENAI_CODEX_SUPPORTED_PROVIDERS,
   parseEnvironmentVariables
 } from '.'
-import { CodeToolDialog } from './components/CodeToolDialog'
 import { CodeToolGallery } from './components/CodeToolGallery'
 import { FieldLabel } from './components/FieldLabel'
 import type { CodeToolMeta } from './components/types'
@@ -434,136 +445,165 @@ const CodeCliPage: FC = () => {
         />
 
         {activeMeta && (
-          <CodeToolDialog
-            open={dialogOpen}
-            tool={activeMeta}
-            canLaunch={canLaunch && !!isBunInstalled}
-            status={launchSuccess ? 'success' : isLaunching ? 'launching' : 'idle'}
-            onClose={() => setDialogOpen(false)}
-            onLaunch={handleLaunch}>
-            {selectedCliTool !== codeCLI.githubCopilotCli && (
-              <div>
-                <FieldLabel hint={t('code.model_hint')}>{t('code.model')}</FieldLabel>
-                <SelectDropdown
-                  items={modelItems}
-                  virtualize
-                  selectedId={selectedModel}
-                  onSelect={handleModelChange}
-                  placeholder={t('code.model_placeholder')}
-                  renderSelected={(item) => (
-                    <div className="flex min-w-0 flex-1 items-center gap-2">
-                      <ModelAvatar model={item.model} size={18} />
-                      <span className="truncate text-foreground">{item.model.name || item.model.id}</span>
-                    </div>
-                  )}
-                  renderItem={(item, isSelected) => (
-                    <div className="flex items-center gap-2">
-                      <ModelAvatar model={item.model} size={18} />
-                      <span className="flex-1 truncate">{item.model.name || item.model.id}</span>
-                      <span className="shrink-0 text-muted-foreground text-xs">
-                        {getFancyProviderName(item.provider)}
-                      </span>
-                      {isSelected && <Check size={11} className="ml-0.5 shrink-0 text-foreground" />}
-                    </div>
-                  )}
-                />
-              </div>
-            )}
+          <Dialog open={dialogOpen} onOpenChange={(next) => !next && setDialogOpen(false)}>
+            <DialogContent aria-describedby={undefined}>
+              <DialogHeader>
+                <DialogTitle>{activeMeta.label}</DialogTitle>
+              </DialogHeader>
 
-            <div>
-              <FieldLabel hint={t('code.working_directory_hint')}>{t('code.working_directory')}</FieldLabel>
-              <div className="flex items-center gap-2">
-                <div className="min-w-0 flex-1">
-                  <SelectDropdown
-                    items={directoryItems}
-                    selectedId={currentDirectory || null}
-                    onSelect={(id) => void setCurrentDir(id)}
-                    onRemove={handleRemoveDirectory}
-                    removeLabel={t('common.delete')}
-                    emptyText={t('common.none')}
-                    placeholder={t('code.folder_placeholder')}
-                    renderTriggerLeading={<FolderOpen size={11} className="shrink-0 text-muted-foreground" />}
-                    renderSelected={(item) => <span className="truncate font-mono text-foreground">{item.id}</span>}
-                    renderItem={(item, isSelected) => (
-                      <>
-                        <FolderOpen
-                          size={11}
-                          className={isSelected ? 'shrink-0 text-foreground' : 'shrink-0 text-muted-foreground'}
-                        />
-                        <span className="flex-1 truncate font-mono">{item.id}</span>
-                        {isSelected && <Check size={11} className="shrink-0 text-foreground" />}
-                      </>
-                    )}
-                  />
-                </div>
-                <Button variant="secondary" size="lg" onClick={() => void selectFolder()} className="shrink-0">
-                  {t('code.select_folder')}
-                </Button>
-              </div>
-            </div>
-
-            {(isMac || isWin) && terminalItems.length > 0 && (
-              <div>
-                <FieldLabel hint={t('code.terminal_hint')}>{t('code.terminal')}</FieldLabel>
-                <SelectDropdown
-                  items={terminalItems}
-                  selectedId={selectedTerminal}
-                  onSelect={setTerminal}
-                  placeholder={t('code.terminal_placeholder')}
-                  renderSelected={(item) => <span className="truncate text-foreground">{item.name}</span>}
-                  renderItem={(item, isSelected) => (
-                    <div className="flex items-center gap-2">
-                      <span className="flex-1">{item.name}</span>
-                      {isSelected && <Check size={11} className="shrink-0 text-foreground" />}
-                    </div>
-                  )}
-                />
-                {needsWindowsCustomPath && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => handleSetCustomPath(selectedTerminal)}
-                      className="text-muted-foreground shadow-none hover:text-foreground">
-                      <FolderOpen size={10} />
-                      {t('code.set_custom_path')}
-                    </Button>
-                    <span className="truncate text-muted-foreground text-xs">
-                      {terminalCustomPaths[selectedTerminal]
-                        ? `${t('code.custom_path')}: ${terminalCustomPaths[selectedTerminal]}`
-                        : t('code.custom_path_required')}
-                    </span>
+              <div className="flex flex-col gap-4">
+                {selectedCliTool !== codeCLI.githubCopilotCli && (
+                  <div>
+                    <FieldLabel hint={t('code.model_hint')}>{t('code.model')}</FieldLabel>
+                    <SelectDropdown
+                      items={modelItems}
+                      virtualize
+                      selectedId={selectedModel}
+                      onSelect={handleModelChange}
+                      placeholder={t('code.model_placeholder')}
+                      triggerClassName="data-[state=open]:border-foreground! data-[state=open]:ring-foreground/10!"
+                      renderSelected={(item) => (
+                        <div className="flex min-w-0 flex-1 items-center gap-2">
+                          <ModelAvatar model={item.model} size={18} />
+                          <span className="truncate text-foreground">{item.model.name || item.model.id}</span>
+                        </div>
+                      )}
+                      renderItem={(item, isSelected) => (
+                        <div className="flex items-center gap-2">
+                          <ModelAvatar model={item.model} size={18} />
+                          <span className="flex-1 truncate">{item.model.name || item.model.id}</span>
+                          <span className="shrink-0 text-muted-foreground text-xs">
+                            {getFancyProviderName(item.provider)}
+                          </span>
+                          {isSelected && <Check size={11} className="ml-0.5 shrink-0 text-foreground" />}
+                        </div>
+                      )}
+                    />
                   </div>
                 )}
+
+                <div>
+                  <FieldLabel hint={t('code.working_directory_hint')}>{t('code.working_directory')}</FieldLabel>
+                  <div className="flex items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                      <SelectDropdown
+                        items={directoryItems}
+                        selectedId={currentDirectory || null}
+                        onSelect={(id) => void setCurrentDir(id)}
+                        onRemove={handleRemoveDirectory}
+                        removeLabel={t('common.delete')}
+                        emptyText={t('common.none')}
+                        placeholder={t('code.folder_placeholder')}
+                        triggerClassName="data-[state=open]:border-foreground! data-[state=open]:ring-foreground/10!"
+                        renderTriggerLeading={<FolderOpen size={11} className="shrink-0 text-muted-foreground" />}
+                        renderSelected={(item) => <span className="truncate font-mono text-foreground">{item.id}</span>}
+                        renderItem={(item, isSelected) => (
+                          <>
+                            <FolderOpen
+                              size={11}
+                              className={isSelected ? 'shrink-0 text-foreground' : 'shrink-0 text-muted-foreground'}
+                            />
+                            <span className="flex-1 truncate font-mono">{item.id}</span>
+                            {isSelected && <Check size={11} className="shrink-0 text-foreground" />}
+                          </>
+                        )}
+                      />
+                    </div>
+                    <Button variant="secondary" size="lg" onClick={() => void selectFolder()} className="shrink-0">
+                      {t('code.select_folder')}
+                    </Button>
+                  </div>
+                </div>
+
+                {(isMac || isWin) && terminalItems.length > 0 && (
+                  <div>
+                    <FieldLabel hint={t('code.terminal_hint')}>{t('code.terminal')}</FieldLabel>
+                    <SelectDropdown
+                      items={terminalItems}
+                      selectedId={selectedTerminal}
+                      onSelect={setTerminal}
+                      placeholder={t('code.terminal_placeholder')}
+                      triggerClassName="data-[state=open]:border-foreground! data-[state=open]:ring-foreground/10!"
+                      renderSelected={(item) => <span className="truncate text-foreground">{item.name}</span>}
+                      renderItem={(item, isSelected) => (
+                        <div className="flex items-center gap-2">
+                          <span className="flex-1">{item.name}</span>
+                          {isSelected && <Check size={11} className="shrink-0 text-foreground" />}
+                        </div>
+                      )}
+                    />
+                    {needsWindowsCustomPath && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleSetCustomPath(selectedTerminal)}
+                          className="text-muted-foreground shadow-none hover:text-foreground">
+                          <FolderOpen size={10} />
+                          {t('code.set_custom_path')}
+                        </Button>
+                        <span className="truncate text-muted-foreground text-xs">
+                          {terminalCustomPaths[selectedTerminal]
+                            ? `${t('code.custom_path')}: ${terminalCustomPaths[selectedTerminal]}`
+                            : t('code.custom_path_required')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div>
+                  <FieldLabel hint={t('code.env_vars_help')}>{t('code.environment_variables')}</FieldLabel>
+                  <Textarea.Input
+                    value={environmentVariables}
+                    onValueChange={setEnvVars}
+                    rows={4}
+                    placeholder={'KEY1=value1\nKEY2=value2'}
+                    className="min-h-24 resize-none rounded-md border-input px-3 py-2 font-mono text-xs shadow-none placeholder:text-muted-foreground focus-visible:border-foreground focus-visible:ring-2 focus-visible:ring-foreground/10 md:text-xs [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-0.75"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <Checkbox
+                    id="code-cli-auto-update"
+                    size="sm"
+                    checked={autoUpdateToLatest}
+                    onCheckedChange={(v) => setAutoUpdateToLatest(v === true)}
+                    className="border-input hover:bg-accent data-[state=checked]:border-foreground data-[state=checked]:bg-foreground data-[state=checked]:text-background [&_[data-slot=checkbox-indicator]>svg]:stroke-background [&_[data-slot=checkbox-indicator]>svg]:text-background"
+                  />
+                  <Label
+                    htmlFor="code-cli-auto-update"
+                    className="cursor-pointer font-normal text-muted-foreground text-sm hover:text-foreground">
+                    {t('code.auto_update_to_latest')}
+                  </Label>
+                </div>
               </div>
-            )}
 
-            <div>
-              <FieldLabel hint={t('code.env_vars_help')}>{t('code.environment_variables')}</FieldLabel>
-              <Textarea.Input
-                value={environmentVariables}
-                onValueChange={setEnvVars}
-                rows={4}
-                placeholder={'KEY1=value1\nKEY2=value2'}
-                className="min-h-24 resize-none rounded-md border-input px-3 py-2 font-mono text-xs shadow-none placeholder:text-muted-foreground focus-visible:border-foreground focus-visible:ring-2 focus-visible:ring-foreground/10 md:text-xs [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-0.75"
-              />
-            </div>
-
-            <div className="flex items-center gap-2 pt-1">
-              <Checkbox
-                id="code-cli-auto-update"
-                size="sm"
-                checked={autoUpdateToLatest}
-                onCheckedChange={(v) => setAutoUpdateToLatest(v === true)}
-                className="border-input hover:bg-accent data-[state=checked]:border-foreground data-[state=checked]:bg-foreground data-[state=checked]:text-background [&_[data-slot=checkbox-indicator]>svg]:stroke-background [&_[data-slot=checkbox-indicator]>svg]:text-background"
-              />
-              <Label
-                htmlFor="code-cli-auto-update"
-                className="cursor-pointer font-normal text-muted-foreground text-sm hover:text-foreground">
-                {t('code.auto_update_to_latest')}
-              </Label>
-            </div>
-          </CodeToolDialog>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="outline" disabled={isLaunching}>
+                    {t('common.cancel')}
+                  </Button>
+                </DialogClose>
+                <Button
+                  variant="emphasis"
+                  onClick={handleLaunch}
+                  loading={isLaunching}
+                  disabled={!canLaunch || !isBunInstalled || isLaunching}>
+                  {launchSuccess ? (
+                    <>
+                      <Check size={14} />
+                      <span>{t('code.launch.launched')}</span>
+                    </>
+                  ) : isLaunching ? (
+                    t('code.launching')
+                  ) : (
+                    t('code.launch.label')
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         )}
       </div>
     </div>
