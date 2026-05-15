@@ -59,7 +59,7 @@ vi.mock('@renderer/components/app/Navbar', () => ({
   NavbarCenter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>
 }))
 
-vi.mock('@renderer/components/ModelSelector', () => ({
+vi.mock('@renderer/components/Selector', () => ({
   ModelSelector: ({ trigger }: { trigger: React.ReactNode }) => <>{trigger}</>
 }))
 

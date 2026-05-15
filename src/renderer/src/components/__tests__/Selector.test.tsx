@@ -15,6 +15,16 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+vi.mock('@renderer/i18n/label', () => ({
+  getProviderLabel: (id: string) => id
+}))
+
+vi.mock('@renderer/i18n', () => ({
+  default: {
+    t: (key: string) => key
+  }
+}))
+
 describe('Selector', () => {
   it('renders the selected single option and emits the original option value', async () => {
     const onChange = vi.fn()

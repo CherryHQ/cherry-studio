@@ -4685,6 +4685,20 @@
       },
       "sort_label": "排序",
       "unpin": "取消固定"
+    },
+    "create_dialog": {
+      "agent_title": "新建智能体",
+      "assistant_title": "新建助手",
+      "avatar_aria": "选择头像",
+      "create": "新建",
+      "description_placeholder": "描述它的用途...",
+      "dialog_description": "在选择器中轻量新建资源。",
+      "model_placeholder": "选择模型",
+      "model_required": "请选择模型",
+      "name_placeholder": "输入名称",
+      "name_required": "请输入名称",
+      "refresh_failed": "已新建，但列表刷新失败",
+      "submit_failed": "新建失败"
     }
   },
   "settings": {

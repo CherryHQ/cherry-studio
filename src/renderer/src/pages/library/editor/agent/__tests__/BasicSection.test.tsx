@@ -84,7 +84,7 @@ vi.mock('@renderer/hooks/agents/useAgentModelFilter', () => ({
   useAgentModelFilter: useAgentModelFilterMock
 }))
 
-vi.mock('@renderer/components/ModelSelector', () => ({
+vi.mock('@renderer/components/Selector', () => ({
   ModelSelector: ({
     trigger,
     filter,

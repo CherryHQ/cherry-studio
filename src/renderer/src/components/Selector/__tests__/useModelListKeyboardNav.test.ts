@@ -15,7 +15,7 @@
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { useModelListKeyboardNav } from '../useModelListKeyboardNav'
+import { useModelListKeyboardNav } from '../model/useModelListKeyboardNav'
 
 interface Item {
   key: string
