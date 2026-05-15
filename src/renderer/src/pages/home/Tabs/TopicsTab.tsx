@@ -5,6 +5,7 @@ import { Topics } from './components/Topics'
 
 interface Props {
   activeTopic: Topic
+  onOpenHistory?: (origin?: DOMRectReadOnly) => void
   setActiveTopic: (topic: Topic) => void
   position: 'left' | 'right'
 }

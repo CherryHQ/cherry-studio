@@ -15,7 +15,10 @@ import type { ResolvedAction } from './actionTypes'
 export interface ActionMenuProps<TContext = unknown> {
   actions: readonly ResolvedAction<TContext>[]
   className?: string
+  confirmDialogContentClassName?: string
+  confirmDialogOverlayClassName?: string
   onAction: (action: ResolvedAction<TContext>) => void | Promise<void>
+  onConfirmActionComplete?: () => void
 }
 
 function groupActions<TContext>(actions: readonly ResolvedAction<TContext>[]) {
@@ -33,7 +36,14 @@ function groupActions<TContext>(actions: readonly ResolvedAction<TContext>[]) {
   return grouped
 }
 
-export function ActionMenu<TContext = unknown>({ actions, className, onAction }: ActionMenuProps<TContext>) {
+export function ActionMenu<TContext = unknown>({
+  actions,
+  className,
+  confirmDialogContentClassName,
+  confirmDialogOverlayClassName,
+  onAction,
+  onConfirmActionComplete
+}: ActionMenuProps<TContext>) {
   const groupedActions = useMemo(() => groupActions(actions), [actions])
   const [pendingAction, setPendingAction] = useState<ResolvedAction<TContext> | undefined>()
 
@@ -96,6 +106,8 @@ export function ActionMenu<TContext = unknown>({ actions, className, onAction }:
       <ActionConfirmDialog
         open={!!pendingAction}
         confirm={pendingAction?.confirm}
+        contentClassName={confirmDialogContentClassName}
+        overlayClassName={confirmDialogOverlayClassName}
         onOpenChange={(open) => {
           if (!open) setPendingAction(undefined)
         }}
@@ -103,6 +115,7 @@ export function ActionMenu<TContext = unknown>({ actions, className, onAction }:
           if (!pendingAction) return
           await runAction(pendingAction)
           setPendingAction(undefined)
+          onConfirmActionComplete?.()
         }}
       />
     </>

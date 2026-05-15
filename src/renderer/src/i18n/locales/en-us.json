@@ -1736,8 +1736,10 @@
     "add": "Add",
     "add_success": "Added successfully",
     "advanced_settings": "Advanced Settings",
+    "agent": "Agent",
     "agent_one": "Agent",
     "agent_other": "Agents",
+    "all": "All",
     "and": "and",
     "assistant": "Agent",
     "assistant_one": "Assistant",
@@ -1864,6 +1866,7 @@
     "upload_image": "Upload image file",
     "uploaded_image": "Uploaded image",
     "warning": "Warning",
+    "yesterday": "Yesterday",
     "you": "You"
   },
   "dialog": {
@@ -2072,6 +2075,44 @@
     },
     "locate": {
       "message": "Locate the message"
+    },
+    "records": {
+      "agentSubtitle": "{{count}} sessions",
+      "agentTitle": "Agent History",
+      "assistantSubtitle": "{{count}} topics",
+      "empty": {
+        "description": "No topics for the current filters.",
+        "sessionsDescription": "No sessions for the current filters.",
+        "sessionsTitle": "No sessions",
+        "title": "No topics"
+      },
+      "loading": {
+        "description": "Loading topic list.",
+        "sessionsDescription": "Loading session list.",
+        "sessionsTitle": "Loading sessions",
+        "title": "Loading topics"
+      },
+      "resultCount": "{{count}} results",
+      "searchSession": "Search sessions...",
+      "searchTopic": "Search topics...",
+      "sidebar": {
+        "searchAssistant": "Search assistants...",
+        "status": "Status",
+        "unknownAssistant": "Unknown assistant"
+      },
+      "status": {
+        "completed": "Completed",
+        "failed": "Failed",
+        "running": "Running"
+      },
+      "table": {
+        "emptyValue": "—",
+        "messages": "Messages",
+        "session": "Session",
+        "time": "Time",
+        "title": "Title"
+      },
+      "title": "Topic History"
     },
     "search": {
       "match": {

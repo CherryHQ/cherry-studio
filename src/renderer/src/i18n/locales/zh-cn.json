@@ -1736,8 +1736,10 @@
     "add": "添加",
     "add_success": "添加成功",
     "advanced_settings": "高级设置",
+    "agent": "智能体",
     "agent_one": "智能体",
     "agent_other": "智能体",
+    "all": "全部",
     "and": "和",
     "assistant": "助手",
     "assistant_one": "助手",
@@ -1864,6 +1866,7 @@
     "upload_image": "上传图片文件",
     "uploaded_image": "已上传图片",
     "warning": "警告",
+    "yesterday": "昨天",
     "you": "用户"
   },
   "dialog": {
@@ -2072,6 +2075,44 @@
     },
     "locate": {
       "message": "定位到消息"
+    },
+    "records": {
+      "agentSubtitle": "{{count}} 个会话",
+      "agentTitle": "智能体历史记录",
+      "assistantSubtitle": "{{count}} 个话题",
+      "empty": {
+        "description": "当前筛选下没有可展示的话题。",
+        "sessionsDescription": "当前筛选下没有可展示的会话。",
+        "sessionsTitle": "暂无会话",
+        "title": "暂无话题"
+      },
+      "loading": {
+        "description": "正在读取话题列表。",
+        "sessionsDescription": "正在读取会话列表。",
+        "sessionsTitle": "正在加载会话",
+        "title": "正在加载话题"
+      },
+      "resultCount": "{{count}} 条结果",
+      "searchSession": "搜索会话...",
+      "searchTopic": "搜索话题...",
+      "sidebar": {
+        "searchAssistant": "搜索助手...",
+        "status": "状态",
+        "unknownAssistant": "未知助手"
+      },
+      "status": {
+        "completed": "已完成",
+        "failed": "失败",
+        "running": "运行中"
+      },
+      "table": {
+        "emptyValue": "—",
+        "messages": "消息",
+        "session": "会话",
+        "time": "时间",
+        "title": "标题"
+      },
+      "title": "话题历史记录"
     },
     "search": {
       "match": {

@@ -5,6 +5,7 @@ import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
 import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
+import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
 import type { Topic } from '@renderer/types'
@@ -12,6 +13,7 @@ import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@s
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import styled from 'styled-components'
 
 import Chat from './Chat'
 import Navbar from './Navbar'
@@ -39,6 +41,8 @@ function buildPendingTemporaryTopic(id: string): Topic {
 const HomePage: FC = () => {
   const navigate = useNavigate()
   const { isLeftNavbar } = useNavbarPosition()
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyOrigin, setHistoryOrigin] = useState<DOMRectReadOnly>()
 
   const location = useLocation()
   const state = location.state as { topic?: Topic } | undefined
@@ -136,29 +140,43 @@ const HomePage: FC = () => {
     }
   }, [showSidebar])
 
+  const openHistory = useCallback((origin?: DOMRectReadOnly) => {
+    setHistoryOrigin(origin)
+    setHistoryOpen(true)
+  }, [])
+  const closeHistory = useCallback(() => setHistoryOpen(false), [])
+  const historyOverlay = (
+    <HistoryRecordsPage
+      mode="assistant"
+      open={historyOpen}
+      activeRecordId={activeTopic?.id}
+      origin={historyOrigin}
+      onClose={closeHistory}
+      onRecordSelect={setActiveTopic}
+    />
+  )
+
   if (!activeTopic) {
-    return (
-      <div
-        id="home-page"
-        className="flex flex-1 flex-col [[navbar-position='left']_&]:max-w-[calc(100vw-var(--sidebar-width))] [[navbar-position='top']_&]:max-w-screen"
-      />
-    )
+    return <Container id="home-page">{historyOverlay}</Container>
   }
 
   const panePosition = topicPosition === 'right' ? 'right' : 'left'
 
   return (
-    <div
-      id="home-page"
-      className="flex flex-1 flex-col [[navbar-position='left']_&]:max-w-[calc(100vw-var(--sidebar-width))] [[navbar-position='top']_&]:max-w-screen">
+    <Container id="home-page">
       {isLeftNavbar && <Navbar position="left" />}
-      <div
-        id={isLeftNavbar ? 'content-container' : undefined}
-        className="flex flex-1 flex-row overflow-hidden [[navbar-position='top']_&]:max-w-[calc(100vw-12px)]">
+      <ContentContainer id={isLeftNavbar ? 'content-container' : undefined}>
         <Chat
           activeTopic={activeTopic}
           setActiveTopic={setActiveTopic}
-          pane={<HomeTabs activeTopic={activeTopic} setActiveTopic={setActiveTopic} position={panePosition} />}
+          pane={
+            <HomeTabs
+              activeTopic={activeTopic}
+              setActiveTopic={setActiveTopic}
+              position={panePosition}
+              onOpenHistory={openHistory}
+            />
+          }
           paneOpen={showSidebar}
           panePosition={panePosition}
           // Wire the persist callback only while the temp lease is the
@@ -169,9 +187,35 @@ const HomePage: FC = () => {
             tempTopicId && activeTopic.id === tempTopicId ? persistTemporaryTopicAndRefresh : undefined
           }
         />
-      </div>
-    </div>
+      </ContentContainer>
+      {historyOverlay}
+    </Container>
   )
 }
+
+const Container = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  [navbar-position='left'] & {
+    max-width: calc(100vw - var(--sidebar-width));
+  }
+  [navbar-position='top'] & {
+    max-width: 100vw;
+  }
+`
+
+const ContentContainer = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: row;
+  overflow: hidden;
+
+  [navbar-position='top'] & {
+    max-width: calc(100vw - 12px);
+  }
+`
 
 export default HomePage

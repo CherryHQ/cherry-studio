@@ -227,11 +227,15 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.export.siyuan') return 'Export to Siyuan'
       if (key === 'common.delete') return 'Delete'
       if (key === 'common.cancel') return 'Cancel'
+      if (key === 'common.name') return 'Name'
+      if (key === 'common.required_field') return 'Required field'
+      if (key === 'common.save') return 'Save'
       if (key === 'chat.topics.manage.delete.confirm.title') return 'Delete Topics'
       if (key === 'chat.topics.manage.delete.confirm.content') return `Delete ${options?.count ?? 0} topic(s)?`
       if (key === 'chat.add.topic.title') return 'New Topic'
       if (key === 'chat.default.name') return 'Default Assistant'
       if (key === 'common.prompt') return 'Prompt'
+      if (key === 'history.records.title') return 'Topic History'
       if (key === 'settings.topic.position.label') return 'Topic position'
       if (key === 'chat.topics.delete.shortcut') return `Hold ${options?.key ?? 'Ctrl'} to delete directly`
       return key
@@ -308,10 +312,15 @@ function createTopicPin(overrides: Partial<Pin> = {}): Pin {
   }
 }
 
-function renderTopicList() {
+function renderTopicList({ onOpenHistory }: { onOpenHistory?: () => void } = {}) {
   const setActiveTopic = vi.fn()
   const renderNode = () => (
-    <Topics activeTopic={createRendererTopic()} setActiveTopic={setActiveTopic} position="left" />
+    <Topics
+      activeTopic={createRendererTopic()}
+      setActiveTopic={setActiveTopic}
+      position="left"
+      onOpenHistory={onOpenHistory}
+    />
   )
   const view = render(renderNode())
   return { ...view, rerenderTopicList: () => view.rerender(renderNode()), setActiveTopic }
@@ -349,6 +358,13 @@ function clearTopicStreamCache(...topicIds: string[]) {
 describe('Topics', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    Object.assign(window, {
+      toast: {
+        error: vi.fn(),
+        success: vi.fn(),
+        warning: vi.fn()
+      }
+    })
     topicStreamStatusMocks.statuses.clear()
     clearTopicStreamCache('topic-a', 'topic-b', 'topic-c', 'topic-d', 'topic-e')
     vi.useFakeTimers({ shouldAdvanceTime: true })
@@ -608,6 +624,41 @@ describe('Topics', () => {
     )
   })
 
+  it('renames a topic from the shared context menu dialog', async () => {
+    const { getByText } = renderTopicList()
+
+    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit topic name' }))
+
+    expect(topicDataMocks.updateTopic).not.toHaveBeenCalled()
+
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('Edit topic name')
+    const input = within(dialog).getByLabelText('Name')
+    expect(topicDataMocks.updateTopic).not.toHaveBeenCalled()
+
+    fireEvent.change(input, { target: { value: 'Renamed topic' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await vi.waitFor(() =>
+      expect(topicDataMocks.updateTopic).toHaveBeenCalledWith('topic-a', {
+        name: 'Renamed topic',
+        isNameManuallyEdited: true
+      })
+    )
+  })
+
+  it('autofocuses inline rename when double-clicking a topic title', () => {
+    const { getByText } = renderTopicList()
+
+    fireEvent.doubleClick(getByText('Alpha topic'))
+
+    const input = screen.getByLabelText('Edit topic name')
+    expect(input).toHaveFocus()
+    expect(topicDataMocks.updateTopic).not.toHaveBeenCalled()
+  })
+
   it('confirms topic deletion from the shared context menu before deleting', async () => {
     const { getByText } = renderTopicList()
 
@@ -809,6 +860,25 @@ describe('Topics', () => {
     fireEvent.click(screen.getByLabelText('Display mode'))
     fireEvent.click(screen.getByRole('button', { name: 'Time' }))
     expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('time')
+  })
+
+  it('opens topic history from the trailing header action when provided', () => {
+    const onOpenHistory = vi.fn()
+
+    renderTopicList({ onOpenHistory })
+
+    const historyButton = screen.getByLabelText('Topic History')
+    vi.spyOn(historyButton, 'getBoundingClientRect').mockReturnValue({
+      x: 10,
+      y: 20,
+      width: 30,
+      height: 40
+    } as DOMRect)
+
+    fireEvent.click(historyButton)
+
+    expect(onOpenHistory).toHaveBeenCalledTimes(1)
+    expect(onOpenHistory).toHaveBeenCalledWith({ x: 10, y: 20, width: 30, height: 40 })
   })
 
   it('adds a new topic from the search-area create bar', () => {

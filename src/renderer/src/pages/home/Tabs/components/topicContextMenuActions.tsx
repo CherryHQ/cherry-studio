@@ -53,9 +53,9 @@ export interface TopicActionContext {
   onExportWord: TopicMenuHandler
   onExportYuque: TopicMenuHandler
   onPinTopic: TopicMenuHandler
-  onPromptRename: TopicMenuHandler
   onSaveToKnowledge: TopicMenuHandler
   onSaveToNotes: TopicMenuHandler
+  onStartRename: TopicMenuHandler
   t: TFunction
   topic: Topic
   topicsLength: number
@@ -80,8 +80,8 @@ topicActionRegistry.registerCommand({
 })
 
 topicActionRegistry.registerCommand({
-  id: 'topic.prompt-rename',
-  run: ({ onPromptRename, topic }) => onPromptRename(topic)
+  id: 'topic.rename',
+  run: ({ onStartRename, topic }) => onStartRename(topic)
 })
 
 topicActionRegistry.registerCommand({
@@ -180,8 +180,8 @@ topicActionRegistry.registerAction({
 })
 
 topicActionRegistry.registerAction({
-  id: 'topic.prompt-rename',
-  commandId: 'topic.prompt-rename',
+  id: 'topic.rename',
+  commandId: 'topic.rename',
   label: ({ t }) => t('chat.topics.edit.title'),
   icon: () => <Edit3 size={14} />,
   order: 20,
