@@ -13,8 +13,10 @@ const virtualMocks = vi.hoisted(() => ({
       })),
     getTotalSize: () => options.count * 56,
     measureElement: vi.fn(),
-    scrollElement: null
-  }))
+    scrollElement: null,
+    scrollToIndex: virtualMocks.scrollToIndex
+  })),
+  scrollToIndex: vi.fn()
 }))
 
 const dndMocks = vi.hoisted(() => ({
@@ -236,6 +238,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.default.name') return 'Default Assistant'
       if (key === 'common.prompt') return 'Prompt'
       if (key === 'history.records.title') return 'Topic History'
+      if (key === 'assistants.reorder.error.failed') return 'Failed to reorder assistants'
       if (key === 'settings.topic.position.label') return 'Topic position'
       if (key === 'chat.topics.delete.shortcut') return `Hold ${options?.key ?? 'Ctrl'} to delete directly`
       return key
@@ -245,6 +248,7 @@ vi.mock('react-i18next', () => ({
 
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type * as TopicDataApiModule from '@renderer/hooks/useTopicDataApi'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
@@ -312,18 +316,29 @@ function createTopicPin(overrides: Partial<Pin> = {}): Pin {
   }
 }
 
-function renderTopicList({ onOpenHistory }: { onOpenHistory?: () => void } = {}) {
+function renderTopicList({
+  onOpenHistory,
+  revealRequest
+}: {
+  onOpenHistory?: () => void
+  revealRequest?: ResourceListRevealRequest
+} = {}) {
   const setActiveTopic = vi.fn()
-  const renderNode = () => (
+  const renderNode = (nextRevealRequest = revealRequest) => (
     <Topics
       activeTopic={createRendererTopic()}
       setActiveTopic={setActiveTopic}
       position="left"
       onOpenHistory={onOpenHistory}
+      revealRequest={nextRevealRequest}
     />
   )
   const view = render(renderNode())
-  return { ...view, rerenderTopicList: () => view.rerender(renderNode()), setActiveTopic }
+  return {
+    ...view,
+    rerenderTopicList: (nextRevealRequest = revealRequest) => view.rerender(renderNode(nextRevealRequest)),
+    setActiveTopic
+  }
 }
 
 function getTopicRow(topicName: string) {
@@ -336,6 +351,14 @@ function sortableData(id: string) {
   const data = dndMocks.sortableData.get(id)
   if (!data) {
     throw new Error(`Expected sortable data for ${id}`)
+  }
+  return { current: data }
+}
+
+function droppableData(id: string) {
+  const data = dndMocks.droppableData.get(id)
+  if (!data) {
+    throw new Error(`Expected droppable data for ${id}`)
   }
   return { current: data }
 }
@@ -881,6 +904,51 @@ describe('Topics', () => {
     expect(onOpenHistory).toHaveBeenCalledWith({ x: 10, y: 20, width: 30, height: 40 })
   })
 
+  it('reveals a history-selected topic hidden by manage search, a collapsed group, and show-more', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.collapsed_group_ids' as never, ['topic:time:today'])
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: createTopicPageItems(6)
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    const { rerenderTopicList } = renderTopicList()
+
+    expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Topic 6')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText('Manage topics'))
+    const manageSearchButton = document.querySelector('[data-title="Search topics"] button')
+    expect(manageSearchButton).toBeInTheDocument()
+    fireEvent.click(manageSearchButton as HTMLElement)
+    const manageSearch = screen.getAllByPlaceholderText('Search topics').at(-1)
+    expect(manageSearch).toBeInTheDocument()
+    fireEvent.change(manageSearch as HTMLElement, { target: { value: 'missing' } })
+    expect(screen.queryByText('Topic 6')).not.toBeInTheDocument()
+
+    rerenderTopicList({ itemId: 'topic-6', requestId: 1, clearFilters: true, clearQuery: true })
+
+    expect(await screen.findByText('Topic 6')).toBeInTheDocument()
+    const revealedRow = screen.getByText('Topic 6').closest('[role="option"]')
+    expect(revealedRow).not.toBeNull()
+    expect(revealedRow!).toHaveAttribute('data-reveal-focus', 'true')
+    expect(revealedRow!).toHaveClass('animation-resource-list-reveal-focus')
+    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'true')
+    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toEqual([])
+    expect(virtualMocks.scrollToIndex).toHaveBeenCalledWith(expect.any(Number), { align: 'center' })
+  })
+
   it('adds a new topic from the search-area create bar', () => {
     renderTopicList()
 
@@ -1108,6 +1176,223 @@ describe('Topics', () => {
     expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toEqual([
       'topic:time:today'
     ])
+  })
+
+  it('persists assistant group reorder and applies the assistant order optimistically', async () => {
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+
+    renderTopicList()
+
+    dndMocks.onDragEnd?.({
+      active: {
+        data: sortableData('group:topic:assistant:assistant-1'),
+        id: 'group:topic:assistant:assistant-1'
+      },
+      over: {
+        data: sortableData('group:topic:assistant:assistant-2'),
+        id: 'group:topic:assistant:assistant-2'
+      }
+    })
+
+    await vi.waitFor(() => {
+      const rowTexts = screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')
+      expect(rowTexts.findIndex((text) => text.includes('Alpha topic'))).toBeGreaterThan(
+        rowTexts.findIndex((text) => text.includes('Gamma topic'))
+      )
+    })
+    await vi.waitFor(() =>
+      expect(patchSpy).toHaveBeenCalledWith('/assistants/assistant-1/order', { body: { after: 'assistant-2' } })
+    )
+    expect(patchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows a toast when assistant group reorder persistence fails', async () => {
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockRejectedValue(new Error('order failed'))
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+
+    renderTopicList()
+
+    dndMocks.onDragEnd?.({
+      active: {
+        data: sortableData('group:topic:assistant:assistant-1'),
+        id: 'group:topic:assistant:assistant-1'
+      },
+      over: {
+        data: sortableData('group:topic:assistant:assistant-2'),
+        id: 'group:topic:assistant:assistant-2'
+      }
+    })
+
+    await vi.waitFor(() =>
+      expect(window.toast.error).toHaveBeenCalledWith('Failed to reorder assistants: order failed')
+    )
+    expect(patchSpy).toHaveBeenCalledWith('/assistants/assistant-1/order', { body: { after: 'assistant-2' } })
+  })
+
+  it('treats the default assistant database row as a normal draggable assistant group', async () => {
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    mockUseQuery.mockImplementation((path) => {
+      if (path === '/pins') {
+        return {
+          data: [],
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn().mockResolvedValue(undefined),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+      if (path === '/assistants') {
+        return {
+          data: {
+            items: [
+              {
+                id: 'assistant-default',
+                name: 'Default Assistant',
+                emoji: '😀',
+                orderKey: 'a',
+                createdAt: '2026-01-01T00:00:00.000Z',
+                updatedAt: '2026-01-01T00:00:00.000Z'
+              },
+              {
+                id: 'assistant-2',
+                name: 'Beta Assistant',
+                emoji: '✍️',
+                orderKey: 'b',
+                createdAt: '2026-01-01T00:00:00.000Z',
+                updatedAt: '2026-01-01T00:00:00.000Z'
+              }
+            ],
+            total: 2
+          },
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn().mockResolvedValue(undefined),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+      return {
+        data: undefined,
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        refetch: vi.fn().mockResolvedValue(undefined),
+        mutate: vi.fn().mockResolvedValue(undefined)
+      }
+    })
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({
+              id: 'topic-default',
+              name: 'Default row topic',
+              assistantId: 'assistant-default',
+              orderKey: 'a'
+            }),
+            createApiTopic({ id: 'topic-beta', name: 'Beta row topic', assistantId: 'assistant-2', orderKey: 'b' })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    renderTopicList()
+
+    dndMocks.onDragEnd?.({
+      active: {
+        data: sortableData('group:topic:assistant:assistant-default'),
+        id: 'group:topic:assistant:assistant-default'
+      },
+      over: {
+        data: sortableData('group:topic:assistant:assistant-2'),
+        id: 'group:topic:assistant:assistant-2'
+      }
+    })
+
+    await vi.waitFor(() =>
+      expect(patchSpy).toHaveBeenCalledWith('/assistants/assistant-default/order', {
+        body: { after: 'assistant-2' }
+      })
+    )
+    expect(patchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not allow pinned or unknown groups to participate in assistant group reorder', () => {
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({ id: 'topic-a', name: 'Known alpha', assistantId: 'assistant-1', orderKey: 'a' }),
+            createApiTopic({ id: 'topic-b', name: 'Pinned topic', assistantId: 'assistant-1', orderKey: 'b' }),
+            createApiTopic({
+              id: 'topic-e',
+              name: 'Unknown topic',
+              assistantId: 'missing-assistant',
+              orderKey: 'e'
+            })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    renderTopicList()
+
+    expect(dndMocks.sortableData.has('group:topic:pinned')).toBe(false)
+    expect(dndMocks.sortableData.has('group:topic:assistant:unknown')).toBe(false)
+
+    dndMocks.onDragEnd?.({
+      active: {
+        data: sortableData('group:topic:assistant:assistant-1'),
+        id: 'group:topic:assistant:assistant-1'
+      },
+      over: { data: droppableData('group:topic:pinned'), id: 'group:topic:pinned' }
+    })
+    dndMocks.onDragEnd?.({
+      active: {
+        data: sortableData('group:topic:assistant:assistant-1'),
+        id: 'group:topic:assistant:assistant-1'
+      },
+      over: {
+        data: droppableData('group:topic:assistant:unknown'),
+        id: 'group:topic:assistant:unknown'
+      }
+    })
+
+    expect(patchSpy).not.toHaveBeenCalled()
+  })
+
+  it('disables assistant group reorder in manage mode', () => {
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+
+    renderTopicList()
+
+    expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('Manage topics'))
+
+    expect(screen.queryByTestId('dnd-context')).not.toBeInTheDocument()
+    expect(patchSpy).not.toHaveBeenCalled()
   })
 
   it('moves only the active topic in the optimistic display overlay without rewriting order keys', () => {

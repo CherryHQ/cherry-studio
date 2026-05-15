@@ -12,6 +12,8 @@ import {
   Skeleton
 } from '@cherrystudio/ui'
 import {
+  buildGroupedVirtualRows,
+  type DynamicVirtualListRef,
   GroupedSortableVirtualList,
   type GroupedSortableVirtualListDragPayload,
   GroupedVirtualList,
@@ -19,7 +21,7 @@ import {
 } from '@renderer/components/VirtualList'
 import { cn } from '@renderer/utils/style'
 import { CalendarDays, ChevronsDown, ChevronsUp, SearchIcon } from 'lucide-react'
-import type { ComponentProps, ReactNode, Ref } from 'react'
+import type { ComponentProps, ReactNode, Ref, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 
 import { ActionMenu } from '../actions/ActionMenu'
@@ -33,6 +35,7 @@ import {
   type ResourceListItemBase,
   type ResourceListMeta,
   type ResourceListReorderPayload,
+  type ResourceListRevealRequest,
   type ResourceListSortOption,
   type ResourceListState,
   type ResourceListStatus,
@@ -86,6 +89,7 @@ export type {
   ResourceListItemBase,
   ResourceListMeta,
   ResourceListReorderPayload,
+  ResourceListRevealRequest,
   ResourceListSortOption,
   ResourceListState,
   ResourceListStatus,
@@ -110,6 +114,7 @@ type ResourceListProviderProps<T extends ResourceListItemBase> = {
   getGroupHeaderAction?: (group: ResourceListGroup) => ReactNode
   getGroupHeaderIcon?: ResourceListMeta<T>['getGroupHeaderIcon']
   collapsedGroupIds?: readonly string[]
+  revealRequest?: ResourceListRevealRequest
   dragCapabilities?: ResourceListDragCapabilities
   canDragGroup?: (group: ResourceListGroup, groupIndex: number) => boolean
   canDragItem?: (args: {
@@ -162,6 +167,16 @@ type ProviderAction =
   | { type: 'showMoreInGroup'; groupId: string; defaultCount: number; step: number }
   | { type: 'collapseGroupItems'; groupId: string; defaultCount: number }
   | { type: 'toggleGroup'; groupId: string }
+  | {
+      type: 'revealItem'
+      clearFilters?: boolean
+      clearQuery?: boolean
+      groupId: string | null
+      itemId: string
+      requestId: number
+      visibleCount?: number
+    }
+  | { type: 'clearRevealFocus'; itemId: string; requestId: number }
   | { type: 'startDrag'; id: string }
   | { type: 'endDrag' }
   | { type: 'setStatus'; status: ResourceListStatus }
@@ -206,6 +221,34 @@ function reducer(state: ResourceListState, action: ProviderAction): ResourceList
         : [...state.collapsedGroups, action.groupId]
       return { ...state, collapsedGroups }
     }
+    case 'revealItem': {
+      const nextGroupVisibleCounts = { ...state.groupVisibleCounts }
+
+      if (action.groupId && action.visibleCount !== undefined) {
+        nextGroupVisibleCounts[action.groupId] = Math.max(
+          nextGroupVisibleCounts[action.groupId] ?? 0,
+          action.visibleCount
+        )
+      }
+
+      return {
+        ...state,
+        query: action.clearQuery ? '' : state.query,
+        filters: action.clearFilters ? [] : state.filters,
+        collapsedGroups: action.groupId
+          ? state.collapsedGroups.filter((groupId) => groupId !== action.groupId)
+          : state.collapsedGroups,
+        groupVisibleCounts: nextGroupVisibleCounts,
+        revealFocus: { itemId: action.itemId, requestId: action.requestId }
+      }
+    }
+    case 'clearRevealFocus': {
+      if (state.revealFocus?.itemId !== action.itemId || state.revealFocus.requestId !== action.requestId) {
+        return state
+      }
+
+      return { ...state, revealFocus: null }
+    }
     case 'startDrag':
       return { ...state, draggingId: action.id }
     case 'endDrag':
@@ -230,6 +273,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
   getGroupHeaderAction,
   getGroupHeaderIcon,
   collapsedGroupIds,
+  revealRequest,
   dragCapabilities,
   canDragGroup,
   canDragItem,
@@ -252,6 +296,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
     sort: defaultSortId ?? null,
     selectedId: selectedIdProp ?? null,
     hoveredId: null,
+    revealFocus: null,
     renamingId: null,
     collapsedGroups: [],
     groupVisibleCounts: {},
@@ -263,6 +308,96 @@ function ResourceListProvider<T extends ResourceListItemBase>({
   const filterById = useMemo(() => new Map(filterOptions.map((option) => [option.id, option])), [filterOptions])
   const sortById = useMemo(() => new Map(sortOptions.map((option) => [option.id, option])), [sortOptions])
   const effectiveCollapsedGroupIds = collapsedGroupIds ?? state.collapsedGroups
+  const handledRevealRequestRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!revealRequest) return
+
+    const requestKey = `${revealRequest.requestId}:${revealRequest.itemId}`
+    if (handledRevealRequestRef.current === requestKey) return
+
+    const query = revealRequest.clearQuery ? '' : state.query.trim().toLowerCase()
+    const filters = revealRequest.clearFilters ? [] : state.filters
+    let revealItems = [...items]
+
+    if (query) {
+      revealItems = revealItems.filter((item) => getItemLabel(item).toLowerCase().includes(query))
+    }
+
+    if (filters.length > 0) {
+      revealItems = revealItems.filter((item) =>
+        filters.every((filterId) => filterById.get(filterId)?.predicate(item) ?? true)
+      )
+    }
+
+    const sort = state.sort ? sortById.get(state.sort) : null
+    if (sort) {
+      revealItems.sort(sort.comparator)
+    }
+
+    const targetItem = revealItems.find((item) => getItemId(item) === revealRequest.itemId)
+    if (!targetItem) return
+
+    const targetGroup = groupBy ? (groupBy(targetItem) ?? { id: 'ungrouped', label: '' }) : null
+    const targetGroupId = targetGroup?.id ?? null
+    let visibleCount: number | undefined
+
+    if (targetGroupId && groupBy) {
+      const groupItems = revealItems.filter(
+        (item) => (groupBy(item) ?? { id: 'ungrouped', label: '' }).id === targetGroupId
+      )
+      const targetIndexInGroup = groupItems.findIndex((item) => getItemId(item) === revealRequest.itemId)
+      if (targetIndexInGroup >= 0) {
+        const currentVisibleCount = state.groupVisibleCounts[targetGroupId] ?? defaultGroupVisibleCount
+        const targetVisibleCount = targetIndexInGroup + 1
+        visibleCount = targetVisibleCount > currentVisibleCount ? targetVisibleCount : undefined
+      }
+
+      if (collapsedGroupIds && effectiveCollapsedGroupIds.includes(targetGroupId)) {
+        onCollapsedGroupIdsChange?.(effectiveCollapsedGroupIds.filter((groupId) => groupId !== targetGroupId))
+      }
+    }
+
+    handledRevealRequestRef.current = requestKey
+    dispatch({
+      type: 'revealItem',
+      clearFilters: revealRequest.clearFilters,
+      clearQuery: revealRequest.clearQuery,
+      groupId: targetGroupId,
+      itemId: revealRequest.itemId,
+      requestId: revealRequest.requestId,
+      visibleCount
+    })
+  }, [
+    collapsedGroupIds,
+    effectiveCollapsedGroupIds,
+    filterById,
+    defaultGroupVisibleCount,
+    getItemId,
+    getItemLabel,
+    groupBy,
+    items,
+    onCollapsedGroupIdsChange,
+    revealRequest,
+    sortById,
+    state.filters,
+    state.groupVisibleCounts,
+    state.query,
+    state.sort
+  ])
+
+  useEffect(() => {
+    if (!state.revealFocus) return
+
+    const { itemId, requestId } = state.revealFocus
+    const timeout = window.setTimeout(() => {
+      dispatch({ type: 'clearRevealFocus', itemId, requestId })
+    }, 1000)
+
+    return () => {
+      window.clearTimeout(timeout)
+    }
+  }, [state.revealFocus])
 
   const viewItems = useMemo(() => {
     const normalizedQuery = state.query.trim().toLowerCase()
@@ -422,6 +557,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
         groupLoadStep,
         groupShowMoreLabel,
         groupCollapseLabel,
+        revealRequest,
         dragCapabilities: {
           groups: false,
           items: true,
@@ -459,6 +595,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
       groupLoadStep,
       groupCollapseLabel,
       groupShowMoreLabel,
+      revealRequest,
       items,
       selectedIdProp,
       sortOptions,
@@ -755,6 +892,7 @@ function Item<T extends ResourceListItemBase>({
   const id = meta.getItemId(item)
   const selected = state.selectedId === id
   const hovered = state.hoveredId === id
+  const revealFocused = state.revealFocus?.itemId === id
 
   return (
     <div
@@ -763,11 +901,13 @@ function Item<T extends ResourceListItemBase>({
       aria-selected={selected}
       data-selected={selected || undefined}
       data-hovered={hovered || undefined}
+      data-reveal-focus={revealFocused || undefined}
       tabIndex={tabIndex ?? 0}
       className={cn(
         'group flex min-h-8 w-full cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1.5 text-sm outline-none transition-colors',
         'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground focus-visible:ring-1 focus-visible:ring-ring',
         selected && 'bg-sidebar-accent text-sidebar-accent-foreground',
+        revealFocused && 'animation-resource-list-reveal-focus',
         className
       )}
       onClick={(event) => {
@@ -979,9 +1119,41 @@ function buildVirtualGroups<T extends ResourceListItemBase>(
   return groups
 }
 
+function getRevealRowIndex<T extends ResourceListItemBase>(
+  groups: ResourceListVirtualGroup<T>[],
+  itemId: string,
+  getItemId: (item: T) => string
+) {
+  const rows = buildGroupedVirtualRows(groups, true, true)
+  return rows.findIndex((row) => row.type === 'item' && getItemId(row.item.item) === itemId)
+}
+
+function useRevealRequestScroll<T extends ResourceListItemBase>(
+  context: ResourceListContextValue<T>,
+  groups: ResourceListVirtualGroup<T>[],
+  virtualListRef: RefObject<DynamicVirtualListRef | null>
+) {
+  const scrolledRequestRef = useRef<string | null>(null)
+  const revealRequest = context.meta.revealRequest
+
+  useEffect(() => {
+    if (!revealRequest) return
+
+    const requestKey = `${revealRequest.requestId}:${revealRequest.itemId}`
+    if (scrolledRequestRef.current === requestKey) return
+
+    const rowIndex = getRevealRowIndex(groups, revealRequest.itemId, context.meta.getItemId)
+    if (rowIndex < 0) return
+
+    scrolledRequestRef.current = requestKey
+    virtualListRef.current?.scrollToIndex(rowIndex, { align: 'center' })
+  }, [context.meta.getItemId, groups, revealRequest, virtualListRef])
+}
+
 function VirtualItems<T extends ResourceListItemBase>({ className, ref, renderItem }: VirtualItemsProps<T>) {
   const context = useResourceList<T>()
   const groups = useMemo(() => buildVirtualGroups(context), [context])
+  const virtualListRef = useRef<DynamicVirtualListRef>(null)
   const { stage, handleScroll } = useAutoHideScrollbar()
   const isScrolling = stage !== 'idle'
   const estimateVirtualItemSize = useCallback(
@@ -997,9 +1169,11 @@ function VirtualItems<T extends ResourceListItemBase>({ className, ref, renderIt
     (footer: ResourceListVirtualFooter) => <GroupShowMore groupId={footer.groupId} />,
     []
   )
+  useRevealRequestScroll(context, groups, virtualListRef)
 
   return (
     <GroupedVirtualList
+      ref={virtualListRef}
       scrollElementRef={ref}
       role="listbox"
       groups={groups}
@@ -1142,6 +1316,7 @@ function VirtualDraggableItems<T extends ResourceListItemBase>({
 }: VirtualDraggableItemsProps<T>) {
   const context = useResourceList<T>()
   const groups = useMemo(() => buildVirtualGroups(context), [context])
+  const virtualListRef = useRef<DynamicVirtualListRef>(null)
   const { stage, handleScroll } = useAutoHideScrollbar()
   const isScrolling = stage !== 'idle'
   const getGroupId = useCallback((group: ResourceListGroup) => group.id, [])
@@ -1258,9 +1433,11 @@ function VirtualDraggableItems<T extends ResourceListItemBase>({
     (footer: ResourceListVirtualFooter) => <GroupShowMore groupId={footer.groupId} />,
     []
   )
+  useRevealRequestScroll(context, groups, virtualListRef)
 
   return (
     <GroupedSortableVirtualList
+      ref={virtualListRef}
       scrollElementRef={ref}
       role="listbox"
       groups={groups}

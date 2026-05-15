@@ -1009,6 +1009,11 @@
       },
       "title": "助手庫"
     },
+    "reorder": {
+      "error": {
+        "failed": "助手排序失敗"
+      }
+    },
     "save": {
       "success": "儲存成功",
       "title": "儲存到助手庫"

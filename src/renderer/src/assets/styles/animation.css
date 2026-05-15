@@ -89,6 +89,38 @@
   animation: animation-locate-highlight 2.5s ease-in-out;
 }
 
+@keyframes animation-resource-list-reveal-focus {
+  0%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.animation-resource-list-reveal-focus {
+  position: relative;
+  overflow: hidden;
+}
+
+.animation-resource-list-reveal-focus::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 62%, transparent);
+  content: '';
+  pointer-events: none;
+  animation: animation-resource-list-reveal-focus 1s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animation-resource-list-reveal-focus::after {
+    opacity: 1;
+    animation: none;
+  }
+}
+
 /* 流光动画 */
 @keyframes animation-shimmer {
   0% {

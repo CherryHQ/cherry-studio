@@ -401,17 +401,9 @@ describe('HistoryRecordsPage assistant mode', () => {
     expect(hookMocks.useAgents).not.toHaveBeenCalled()
   })
 
-  it('renders the animated overlay shell from the trigger origin', () => {
+  it('renders the overlay shell without transition animation', () => {
     hookMocks.useAllTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-
-    const portalRoot = document.getElementById('home-page')
-    vi.spyOn(portalRoot!, 'getBoundingClientRect').mockReturnValue({
-      left: 0,
-      top: 0,
-      width: 1200,
-      height: 800
-    } as DOMRect)
 
     render(
       <HistoryRecordsPage
@@ -423,10 +415,12 @@ describe('HistoryRecordsPage assistant mode', () => {
       />
     )
 
-    expect(screen.getByTestId('history-records-page-motion')).toHaveClass('z-40')
+    const overlay = screen.getByTestId('history-records-page')
+    expect(overlay).toHaveClass('z-40')
+    expect(overlay).not.toHaveStyle({ willChange: 'clip-path' })
   })
 
-  it('keeps the overlay mounted long enough for the close animation', () => {
+  it('unmounts the overlay immediately when closed', () => {
     hookMocks.useAllTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
 
@@ -438,10 +432,10 @@ describe('HistoryRecordsPage assistant mode', () => {
     }
 
     const { rerender } = render(<HistoryRecordsPage {...props} open />)
-    expect(screen.getByTestId('history-records-page-motion')).toBeInTheDocument()
+    expect(screen.getByTestId('history-records-page')).toBeInTheDocument()
 
     rerender(<HistoryRecordsPage {...props} open={false} />)
-    expect(screen.getByTestId('history-records-page-motion')).toBeInTheDocument()
+    expect(screen.queryByTestId('history-records-page')).not.toBeInTheDocument()
   })
 
   it('renders the external topic context menu for history rows', () => {

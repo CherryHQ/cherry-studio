@@ -18,7 +18,7 @@ const HistoryQueryForm = ({ mode, resultCount, searchText, onSearchTextChange }:
       : t('history.records.searchSession', '搜索会话...')
 
   return (
-    <div className="flex h-11 shrink-0 items-center justify-between gap-3 bg-background px-5 [border-bottom:0.5px_solid_var(--color-border-subtle)]">
+    <div className="flex h-11 shrink-0 items-center justify-between gap-3 bg-card px-5 [border-bottom:0.5px_solid_var(--color-border-subtle)]">
       <div className="flex min-w-0 items-center gap-3">
         <div className="font-medium text-foreground text-sm leading-5">
           {t('history.records.resultCount', '{{count}} 条结果', { count: resultCount })}
@@ -33,7 +33,7 @@ const HistoryQueryForm = ({ mode, resultCount, searchText, onSearchTextChange }:
           />
           <Input
             value={searchText}
-            className="h-8 rounded-md border-border-subtle bg-background pl-8 text-xs shadow-none"
+            className="h-8 rounded-md border-border-subtle bg-card pl-8 text-xs shadow-none"
             placeholder={searchPlaceholder}
             aria-label={searchPlaceholder}
             onChange={(event) => onSearchTextChange(event.target.value)}

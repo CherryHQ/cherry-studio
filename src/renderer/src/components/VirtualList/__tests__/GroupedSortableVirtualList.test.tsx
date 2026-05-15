@@ -460,7 +460,7 @@ describe('GroupedSortableVirtualList', () => {
     expect(indicator).not.toHaveClass('bg-sidebar-primary', 'bg-sidebar-border')
   })
 
-  it('disables sortable projection for item drags while preserving group sorting', () => {
+  it('disables sortable projection and shows insertion lines for item and group drags', () => {
     renderList(vi.fn(), { dragCapabilities: { groups: true }, canDragGroup: () => true })
 
     startDragging('item:a')
@@ -509,8 +509,31 @@ describe('GroupedSortableVirtualList', () => {
         overIndex: 3,
         rects: []
       })
-    ).toEqual({ scaleX: 1, scaleY: 1, x: 0, y: 12 })
-    expect(dndMocks.verticalListSortingStrategy).toHaveBeenCalledTimes(1)
+    ).toBeNull()
+    expect(dndMocks.verticalListSortingStrategy).not.toHaveBeenCalled()
+
+    const targetRow = screen.getByText('Item Gamma').parentElement
+    const indicator = targetRow?.querySelector('[data-drop-indicator="after"]')
+    expect(indicator).toBeInTheDocument()
+    expect(indicator).toHaveClass('right-2', 'left-2', 'h-0.5', 'bg-sidebar-ring')
+    expect(screen.getAllByText('Header First')[0].parentElement).toHaveStyle({ opacity: '0.5' })
+    expect(screen.getByText('Item Alpha').parentElement).toHaveStyle({ opacity: '0.5' })
+    expect(screen.getByText('Item Beta').parentElement).toHaveStyle({ opacity: '0.5' })
+  })
+
+  it('shows the group insertion line before the target group when moving upward', () => {
+    renderList(vi.fn(), { dragCapabilities: { groups: true }, canDragGroup: () => true })
+
+    startDragging('group:second')
+
+    act(() => {
+      dndMocks.onDragOver?.(dragEvent('group:second', 'group:first'))
+    })
+
+    const targetHeader = screen.getByText('Header First').parentElement
+    const indicator = targetHeader?.querySelector('[data-drop-indicator="before"]')
+    expect(indicator).toBeInTheDocument()
+    expect(indicator).toHaveClass('right-2', 'left-2', 'h-0.5', 'bg-sidebar-ring')
   })
 
   it('keeps same-group item drops enabled independently from cross-group drops', () => {
