@@ -258,7 +258,8 @@ export default class AiProvider {
         middlewareConfig.enableWebSearch,
         undefined,
         undefined,
-        providerConfig.providerId
+        providerConfig.providerId,
+        middlewareConfig.idleTimeout
       )
 
       const streamResult = await executor.streamText({

@@ -307,7 +307,7 @@ export default function ProviderEditorDrawer({
         <div className="space-y-2">
           <label className="font-medium text-[13px] text-foreground/85">{t('settings.provider.add.type')}</label>
           {isEditing ? (
-            <div className="flex w-full items-center justify-between rounded-md border border-border/40 bg-muted/20 px-2.5 py-1.5 text-xs text-foreground/70">
+            <div className="flex w-full items-center justify-between rounded-md border border-border/40 bg-muted/20 px-2.5 py-1.5 text-foreground/70 text-xs">
               <span className="truncate">{selectedTemplate.label}</span>
             </div>
           ) : (

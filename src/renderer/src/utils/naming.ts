@@ -207,16 +207,28 @@ export function getBriefInfo(text: string, maxLength: number = 50): string {
 }
 
 /**
- * 清理 provider 名称，用于环境变量值：
- * - 替换空格为短横线
- * - 替换其他危险字符为下划线
+ * 清理 provider 名称，用于环境变量名：
+ * - 只保留 [a-zA-Z0-9_\s.-]（白名单）
+ * - 空格转短横线（下游会把 - 和 . 再转 _）
+ * - 清理后为空时用 hash 兜底
  * @param {string} name 输入字符串
  * @returns {string} 清理后的字符串
  */
 export function sanitizeProviderName(name: string): string {
-  return name
+  if (!name) return name
+
+  const sanitized = name
+    .replace(/[^a-zA-Z0-9_\s.-]/g, '') // whitelist: only keep env-var-safe chars
     .replace(/\s+/g, '-') // spaces -> dashes
-    .replace(/[<>:"|?*\\/_]/g, '_') // dangerous chars -> underscores
+
+  if (!sanitized) {
+    let hash = 0
+    for (let i = 0; i < name.length; i++) {
+      hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0
+    }
+    return 'p_' + Math.abs(hash).toString(36)
+  }
+  return sanitized
 }
 
 /**
