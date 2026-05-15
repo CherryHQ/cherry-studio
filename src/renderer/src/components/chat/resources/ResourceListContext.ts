@@ -8,6 +8,13 @@ export type ResourceListItemBase = {
 
 export type ResourceListStatus = 'idle' | 'loading' | 'error' | 'empty'
 
+export type ResourceListRevealRequest = {
+  clearFilters?: boolean
+  clearQuery?: boolean
+  itemId: string
+  requestId: number
+}
+
 export type ResourceListGroup = {
   id: string
   label: string
@@ -70,6 +77,7 @@ export type ResourceListState = {
   sort: string | null
   selectedId: string | null
   hoveredId: string | null
+  revealFocus: { itemId: string; requestId: number } | null
   renamingId: string | null
   collapsedGroups: string[]
   groupVisibleCounts: Record<string, number>
@@ -108,6 +116,7 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   groupLoadStep: number
   groupShowMoreLabel?: string
   groupCollapseLabel?: string
+  revealRequest?: ResourceListRevealRequest
   dragCapabilities: ResourceListDragCapabilities
   canDragGroup?: (group: ResourceListGroup, groupIndex: number) => boolean
   canDragItem?: (args: {
