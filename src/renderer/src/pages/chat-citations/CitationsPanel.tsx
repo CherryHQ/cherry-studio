@@ -13,6 +13,9 @@ interface Props {
 const CitationsPanel = ({ open, onClose, citations }: Props) => {
   const { t } = useTranslation()
   const openPath = useCallback((path: string) => window.api.file.openPath(path), [])
+  const openExternalUrl = useCallback((url: string) => {
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }, [])
 
   return (
     <PageSidePanel
@@ -22,7 +25,7 @@ const CitationsPanel = ({ open, onClose, citations }: Props) => {
       closeLabel={t('common.close')}
       backdropClassName="bg-transparent dark:bg-transparent"
       bodyClassName="flex min-h-0 flex-col space-y-0 overflow-hidden p-0 pb-2">
-      <CitationsPanelContent citations={citations} openPath={openPath} />
+      <CitationsPanelContent citations={citations} openPath={openPath} openExternalUrl={openExternalUrl} />
     </PageSidePanel>
   )
 }

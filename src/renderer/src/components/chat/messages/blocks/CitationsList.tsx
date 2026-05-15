@@ -19,6 +19,7 @@ interface CitationsListProps {
 interface CitationsPanelContentProps {
   citations: Citation[]
   openPath?: (path: string) => void | Promise<void>
+  openExternalUrl?: (url: string) => void | Promise<void>
 }
 
 const queryClient = new QueryClient({
@@ -79,7 +80,11 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
   )
 }
 
-export const CitationsPanelContent: React.FC<CitationsPanelContentProps> = ({ citations, openPath }) => {
+export const CitationsPanelContent: React.FC<CitationsPanelContentProps> = ({
+  citations,
+  openPath,
+  openExternalUrl
+}) => {
   return (
     <QueryClientProvider client={queryClient}>
       <Scrollbar className="min-h-0 flex-1">
@@ -89,17 +94,17 @@ export const CitationsPanelContent: React.FC<CitationsPanelContentProps> = ({ ci
             className="border-border border-b-[0.5px] last:border-b-0">
             {citation.type === 'websearch' && (
               <div className="max-w-[min(400px,60vw)] px-3">
-                <WebSearchCitation citation={citation} openPath={openPath} />
+                <WebSearchCitation citation={citation} openPath={openPath} openExternalUrl={openExternalUrl} />
               </div>
             )}
             {citation.type === 'memory' && (
               <div className="max-w-150 px-3">
-                <KnowledgeCitation citation={{ ...citation }} openPath={openPath} />
+                <KnowledgeCitation citation={{ ...citation }} openPath={openPath} openExternalUrl={openExternalUrl} />
               </div>
             )}
             {citation.type === 'knowledge' && (
               <div className="max-w-150 px-3">
-                <KnowledgeCitation citation={{ ...citation }} openPath={openPath} />
+                <KnowledgeCitation citation={{ ...citation }} openPath={openPath} openExternalUrl={openExternalUrl} />
               </div>
             )}
           </div>
@@ -155,15 +160,16 @@ const CopyButton: React.FC<{ content: string }> = ({ content }) => {
   )
 }
 
-const WebSearchCitation: React.FC<{ citation: Citation; openPath?: (path: string) => void | Promise<void> }> = ({
-  citation,
-  openPath
-}) => {
+const WebSearchCitation: React.FC<{
+  citation: Citation
+  openPath?: (path: string) => void | Promise<void>
+  openExternalUrl?: (url: string) => void | Promise<void>
+}> = ({ citation, openPath, openExternalUrl }) => {
   const isXPost = Boolean(citation.url && isXPostUrl(citation.url))
   const actions = useOptionalMessageListActions()
   const linkActions = {
     openPath: openPath ?? actions?.openPath,
-    openExternalUrl: actions?.openExternalUrl
+    openExternalUrl: openExternalUrl ?? actions?.openExternalUrl
   }
 
   const { data: fetchedContent, isLoading } = useQuery({
@@ -227,14 +233,15 @@ const WebSearchCitation: React.FC<{ citation: Citation; openPath?: (path: string
   )
 }
 
-const KnowledgeCitation: React.FC<{ citation: Citation; openPath?: (path: string) => void | Promise<void> }> = ({
-  citation,
-  openPath
-}) => {
+const KnowledgeCitation: React.FC<{
+  citation: Citation
+  openPath?: (path: string) => void | Promise<void>
+  openExternalUrl?: (url: string) => void | Promise<void>
+}> = ({ citation, openPath, openExternalUrl }) => {
   const actions = useOptionalMessageListActions()
   const linkActions = {
     openPath: openPath ?? actions?.openPath,
-    openExternalUrl: actions?.openExternalUrl
+    openExternalUrl: openExternalUrl ?? actions?.openExternalUrl
   }
 
   return (

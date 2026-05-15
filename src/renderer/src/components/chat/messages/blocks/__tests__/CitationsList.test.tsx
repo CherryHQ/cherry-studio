@@ -81,4 +81,16 @@ describe('CitationsList', () => {
 
     expect(screen.getByTestId('citations-scrollbar')).toHaveClass('min-h-0', 'flex-1')
   })
+
+  it('opens panel web citations through the supplied external URL action', () => {
+    const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Example', type: 'websearch' }]
+    const openExternalUrl = vi.fn()
+
+    render(<CitationsPanelContent citations={citations} openPath={vi.fn()} openExternalUrl={openExternalUrl} />)
+
+    fireEvent.click(screen.getByRole('link', { name: 'Example' }))
+
+    expect(openExternalUrl).toHaveBeenCalledTimes(1)
+    expect(openExternalUrl).toHaveBeenCalledWith('https://example.com')
+  })
 })

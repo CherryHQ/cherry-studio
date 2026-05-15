@@ -41,7 +41,11 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 vi.mock('@renderer/components/chat/messages/blocks/CitationsList', () => ({
-  CitationsPanelContent: (props: { citations: Citation[]; openPath?: (path: string) => void | Promise<void> }) => {
+  CitationsPanelContent: (props: {
+    citations: Citation[]
+    openPath?: (path: string) => void | Promise<void>
+    openExternalUrl?: (url: string) => void | Promise<void>
+  }) => {
     mocks.citationsPanelContent(props)
     return <div data-testid="citations-panel-content">{props.citations.length}</div>
   }
@@ -64,6 +68,7 @@ describe('CitationsPanel', () => {
         }
       }
     })
+    window.open = vi.fn()
   })
 
   it('renders citations in a transparent page side panel with a full-height body', () => {
@@ -89,5 +94,9 @@ describe('CitationsPanel', () => {
 
     contentProps.openPath?.('/tmp/example.md')
     expect(mocks.fileOpenPath).toHaveBeenCalledWith('/tmp/example.md')
+
+    contentProps.openExternalUrl?.('https://example.com')
+    expect(window.open).toHaveBeenCalledTimes(1)
+    expect(window.open).toHaveBeenCalledWith('https://example.com', '_blank', 'noopener,noreferrer')
   })
 })
