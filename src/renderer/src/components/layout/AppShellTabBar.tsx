@@ -11,7 +11,7 @@ import { getMiniAppsLogo } from '@renderer/config/miniApps'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { cn, uuid } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
-import { ChevronsLeft, Home, Pin, PinOff, Plus, X } from 'lucide-react'
+import { ChevronsLeft, Pin, PinOff, Plus, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -42,7 +42,8 @@ const TabIcon: FC<{ tab: Tab; size: number; className?: string }> = ({ tab, size
   return <Icon size={size} strokeWidth={1.6} className={className} />
 }
 
-const HOME_TAB_ID = 'home'
+const DEFAULT_TAB_ID = 'chat'
+const LAUNCHPAD_URL = '/app/launchpad'
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -76,30 +77,6 @@ interface TabToneProps {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 const Separator = () => <div className="mx-0.5 h-4 w-px shrink-0 bg-border/50" />
-
-const HomeTabButton = ({
-  isActive,
-  onClick,
-  tooltip,
-  tone
-}: {
-  isActive: boolean
-  onClick: () => void
-  tooltip: string
-  tone: TabToneProps
-}) => (
-  <Tooltip placement="bottom" content={tooltip} delay={600}>
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'flex h-8 w-8 shrink-0 cursor-default items-center justify-center rounded-full transition-colors duration-150 [-webkit-app-region:no-drag]',
-        isActive ? tone.activeClass : tone.hoverClass
-      )}>
-      <Home size={14} strokeWidth={1.6} />
-    </button>
-  </Tooltip>
-)
 
 type PinnedTabButtonProps = {
   tab: Tab
@@ -174,7 +151,7 @@ const NormalTabButton = ({
   ref,
   ...rest
 }: NormalTabButtonProps) => {
-  const isCloseable = tab.id !== HOME_TAB_ID
+  const isCloseable = tab.id !== DEFAULT_TAB_ID
   const btnRef = useRef<HTMLButtonElement | null>(null)
   const [isNarrow, setIsNarrow] = useState(false)
 
@@ -347,19 +324,22 @@ export const AppShellTabBar = ({
     [isMacTransparentWindow]
   )
 
-  const { homeTab, pinnedTabs, normalTabs } = useMemo(() => {
+  const { defaultTab, pinnedTabs, normalTabs } = useMemo(() => {
     const pinned: Tab[] = []
     const normal: Tab[] = []
-    const home = tabs.find((tab) => tab.id === HOME_TAB_ID)
+    let defaultRouteTab: Tab | undefined
     for (const tab of tabs) {
-      if (tab.id === HOME_TAB_ID) continue
+      if (tab.id === DEFAULT_TAB_ID) {
+        defaultRouteTab = tab
+        continue
+      }
       if (tab.isPinned) {
         pinned.push(tab)
       } else {
         normal.push(tab)
       }
     }
-    return { homeTab: home, pinnedTabs: pinned, normalTabs: normal }
+    return { defaultTab: defaultRouteTab, pinnedTabs: pinned, normalTabs: normal }
   }, [tabs])
 
   // ─── Context menu actions ───────────────────────────────────────────────────
@@ -397,25 +377,12 @@ export const AppShellTabBar = ({
 
   // ─── Action handlers ────────────────────────────────────────────────────────
 
-  const handleHomeClick = () => {
-    if (homeTab) {
-      setActiveTab(homeTab.id)
-      return
-    }
-    addTab({
-      id: HOME_TAB_ID,
-      type: 'route',
-      url: '/home',
-      title: getDefaultRouteTitle('/home')
-    })
-  }
-
   const handleAddTab = () => {
     addTab({
       id: uuid(),
       type: 'route',
-      url: '/',
-      title: getDefaultRouteTitle('/')
+      url: LAUNCHPAD_URL,
+      title: getDefaultRouteTitle(LAUNCHPAD_URL)
     })
   }
 
@@ -431,19 +398,33 @@ export const AppShellTabBar = ({
           rightPaddingClass,
           isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-3'
         )}>
-        {/* Home tab */}
-        {!isDetached && (
-          <HomeTabButton
-            isActive={activeTabId === HOME_TAB_ID}
-            onClick={handleHomeClick}
-            tooltip={t('title.home')}
-            tone={tabTone}
-          />
-        )}
-        {!isDetached && (pinnedTabs.length > 0 || normalTabs.length > 0) && <Separator />}
-
         {/* Tabs scrollable area — empty space stays draggable; only interactive elements override */}
         <div className="flex flex-1 items-center gap-1 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden">
+          {defaultTab && (
+            <NormalTabButton
+              tab={defaultTab}
+              isActive={defaultTab.id === activeTabId}
+              onSelect={() => setActiveTab(defaultTab.id)}
+              onClose={() => undefined}
+              showClose={!isDetached}
+              tone={tabTone}
+              drag={{
+                isDragging: false,
+                isGhost: false,
+                noTransition,
+                translateX: 0,
+                onPointerDown: () => undefined
+              }}
+              tabRef={(el) => {
+                if (el) {
+                  tabRefs.current.set(defaultTab.id, el)
+                } else {
+                  tabRefs.current.delete(defaultTab.id)
+                }
+              }}
+            />
+          )}
+
           {/* Pinned tabs */}
           {pinnedTabs.length > 0 && (
             <div className="flex shrink-0 items-center gap-0 rounded-full bg-sidebar-accent/50 p-0 [-webkit-app-region:no-drag]">

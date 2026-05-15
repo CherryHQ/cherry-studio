@@ -85,10 +85,10 @@ describe('TabLRUManager', () => {
         expect(result).not.toContain('tab-0')
       })
 
-      it('should not hibernate the home tab', () => {
+      it('should not hibernate the default chat tab', () => {
         const now = Date.now()
         const tabs = [
-          createTab('home', { lastAccessTime: now - 10000 }), // Oldest
+          createTab('chat', { lastAccessTime: now - 10000 }), // Oldest
           ...Array.from({ length: TAB_LIMITS.softCap + 1 }, (_, i) =>
             createTab(`tab-${i}`, { lastAccessTime: now + i * 1000 })
           )
@@ -96,7 +96,7 @@ describe('TabLRUManager', () => {
 
         const result = manager.checkAndGetDormantCandidates(tabs, `tab-${TAB_LIMITS.softCap}`)
 
-        expect(result).not.toContain('home')
+        expect(result).not.toContain('chat')
       })
 
       it('should not hibernate pinned tabs', () => {
@@ -141,14 +141,14 @@ describe('TabLRUManager', () => {
 
         const result = manager.checkAndGetDormantCandidates(tabs, `tab-${TAB_LIMITS.hardCap + 1}`)
 
-        // Hard cap triggered: pinned tabs are no longer exempt (except home and active)
+        // Hard cap triggered: pinned tabs are no longer exempt (except the default chat tab and active)
         expect(result).toContain('pinned-old')
       })
 
-      it('should still protect home and active tabs in hard cap mode', () => {
+      it('should still protect the default chat and active tabs in hard cap mode', () => {
         const now = Date.now()
         const tabs = [
-          createTab('home', { lastAccessTime: now - 30000 }),
+          createTab('chat', { lastAccessTime: now - 30000 }),
           ...Array.from({ length: TAB_LIMITS.hardCap + 2 }, (_, i) =>
             createTab(`tab-${i}`, { lastAccessTime: now + i * 1000 })
           )
@@ -157,7 +157,7 @@ describe('TabLRUManager', () => {
         const activeTabId = `tab-${TAB_LIMITS.hardCap + 1}`
         const result = manager.checkAndGetDormantCandidates(tabs, activeTabId)
 
-        expect(result).not.toContain('home')
+        expect(result).not.toContain('chat')
         expect(result).not.toContain(activeTabId)
       })
     })

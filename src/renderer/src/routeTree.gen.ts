@@ -10,9 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as HomeRouteImport } from './routes/home'
 import { Route as AppRouteImport } from './routes/app'
-import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsWebsearchRouteImport } from './routes/settings/websearch'
 import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
@@ -37,6 +35,7 @@ import { Route as AppTranslateRouteImport } from './routes/app/translate'
 import { Route as AppOpenclawRouteImport } from './routes/app/openclaw'
 import { Route as AppNotesRouteImport } from './routes/app/notes'
 import { Route as AppLibraryRouteImport } from './routes/app/library'
+import { Route as AppLaunchpadRouteImport } from './routes/app/launchpad'
 import { Route as AppKnowledgeRouteImport } from './routes/app/knowledge'
 import { Route as AppFilesRouteImport } from './routes/app/files'
 import { Route as AppCodeRouteImport } from './routes/app/code'
@@ -61,19 +60,9 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
-const HomeRoute = HomeRouteImport.update({
-  id: '/home',
-  path: '/home',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AppRoute = AppRouteImport.update({
   id: '/app',
   path: '/app',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsIndexRoute = SettingsIndexRouteImport.update({
@@ -197,6 +186,11 @@ const AppLibraryRoute = AppLibraryRouteImport.update({
   path: '/library',
   getParentRoute: () => AppRoute,
 } as any)
+const AppLaunchpadRoute = AppLaunchpadRouteImport.update({
+  id: '/launchpad',
+  path: '/launchpad',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppKnowledgeRoute = AppKnowledgeRouteImport.update({
   id: '/knowledge',
   path: '/knowledge',
@@ -290,9 +284,7 @@ const SettingsMcpSettingsServerIdRoute =
   } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
-  '/home': typeof HomeRoute
   '/settings': typeof SettingsRouteWithChildren
   '/app/agents': typeof AppAgentsRoute
   '/app/assistant': typeof AppAssistantRoute
@@ -300,6 +292,7 @@ export interface FileRoutesByFullPath {
   '/app/code': typeof AppCodeRoute
   '/app/files': typeof AppFilesRoute
   '/app/knowledge': typeof AppKnowledgeRoute
+  '/app/launchpad': typeof AppLaunchpadRoute
   '/app/library': typeof AppLibraryRoute
   '/app/notes': typeof AppNotesRoute
   '/app/openclaw': typeof AppOpenclawRoute
@@ -338,15 +331,14 @@ export interface FileRoutesByFullPath {
   '/settings/mcp/settings/$serverId': typeof SettingsMcpSettingsServerIdRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
-  '/home': typeof HomeRoute
   '/app/agents': typeof AppAgentsRoute
   '/app/assistant': typeof AppAssistantRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
   '/app/files': typeof AppFilesRoute
   '/app/knowledge': typeof AppKnowledgeRoute
+  '/app/launchpad': typeof AppLaunchpadRoute
   '/app/library': typeof AppLibraryRoute
   '/app/notes': typeof AppNotesRoute
   '/app/openclaw': typeof AppOpenclawRoute
@@ -385,9 +377,7 @@ export interface FileRoutesByTo {
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
-  '/home': typeof HomeRoute
   '/settings': typeof SettingsRouteWithChildren
   '/app/agents': typeof AppAgentsRoute
   '/app/assistant': typeof AppAssistantRoute
@@ -395,6 +385,7 @@ export interface FileRoutesById {
   '/app/code': typeof AppCodeRoute
   '/app/files': typeof AppFilesRoute
   '/app/knowledge': typeof AppKnowledgeRoute
+  '/app/launchpad': typeof AppLaunchpadRoute
   '/app/library': typeof AppLibraryRoute
   '/app/notes': typeof AppNotesRoute
   '/app/openclaw': typeof AppOpenclawRoute
@@ -435,9 +426,7 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/'
     | '/app'
-    | '/home'
     | '/settings'
     | '/app/agents'
     | '/app/assistant'
@@ -445,6 +434,7 @@ export interface FileRouteTypes {
     | '/app/code'
     | '/app/files'
     | '/app/knowledge'
+    | '/app/launchpad'
     | '/app/library'
     | '/app/notes'
     | '/app/openclaw'
@@ -483,15 +473,14 @@ export interface FileRouteTypes {
     | '/settings/mcp/settings/$serverId'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
     | '/app'
-    | '/home'
     | '/app/agents'
     | '/app/assistant'
     | '/app/chat'
     | '/app/code'
     | '/app/files'
     | '/app/knowledge'
+    | '/app/launchpad'
     | '/app/library'
     | '/app/notes'
     | '/app/openclaw'
@@ -529,9 +518,7 @@ export interface FileRouteTypes {
     | '/settings/mcp/settings/$serverId'
   id:
     | '__root__'
-    | '/'
     | '/app'
-    | '/home'
     | '/settings'
     | '/app/agents'
     | '/app/assistant'
@@ -539,6 +526,7 @@ export interface FileRouteTypes {
     | '/app/code'
     | '/app/files'
     | '/app/knowledge'
+    | '/app/launchpad'
     | '/app/library'
     | '/app/notes'
     | '/app/openclaw'
@@ -578,9 +566,7 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
-  HomeRoute: typeof HomeRoute
   SettingsRoute: typeof SettingsRouteWithChildren
 }
 
@@ -593,25 +579,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/home': {
-      id: '/home'
-      path: '/home'
-      fullPath: '/home'
-      preLoaderRoute: typeof HomeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/app': {
       id: '/app'
       path: '/app'
       fullPath: '/app'
       preLoaderRoute: typeof AppRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings/': {
@@ -782,6 +754,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppLibraryRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/launchpad': {
+      id: '/app/launchpad'
+      path: '/launchpad'
+      fullPath: '/app/launchpad'
+      preLoaderRoute: typeof AppLaunchpadRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/knowledge': {
       id: '/app/knowledge'
       path: '/knowledge'
@@ -918,6 +897,7 @@ interface AppRouteChildren {
   AppCodeRoute: typeof AppCodeRoute
   AppFilesRoute: typeof AppFilesRoute
   AppKnowledgeRoute: typeof AppKnowledgeRoute
+  AppLaunchpadRoute: typeof AppLaunchpadRoute
   AppLibraryRoute: typeof AppLibraryRoute
   AppNotesRoute: typeof AppNotesRoute
   AppOpenclawRoute: typeof AppOpenclawRoute
@@ -935,6 +915,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppCodeRoute: AppCodeRoute,
   AppFilesRoute: AppFilesRoute,
   AppKnowledgeRoute: AppKnowledgeRoute,
+  AppLaunchpadRoute: AppLaunchpadRoute,
   AppLibraryRoute: AppLibraryRoute,
   AppNotesRoute: AppNotesRoute,
   AppOpenclawRoute: AppOpenclawRoute,
@@ -1024,9 +1005,7 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
 )
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
-  HomeRoute: HomeRoute,
   SettingsRoute: SettingsRouteWithChildren,
 }
 export const routeTree = rootRouteImport
