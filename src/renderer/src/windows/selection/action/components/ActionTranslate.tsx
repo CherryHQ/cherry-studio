@@ -11,6 +11,7 @@ import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import db from '@renderer/databases'
 import { useMessageListRenderConfig } from '@renderer/hooks/messages/useMessageListRenderConfig'
+import { useMessagePlatformActions } from '@renderer/hooks/messages/useMessagePlatformActions'
 import { useDetectLang, useLanguages } from '@renderer/hooks/translate'
 import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
 import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
@@ -45,6 +46,7 @@ const logger = loggerService.withContext('ActionTranslate')
 const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const { t } = useTranslation()
   const { renderConfig } = useMessageListRenderConfig()
+  const platformActions = useMessagePlatformActions()
 
   const [language] = usePreference('app.language')
   const { languages, getLanguage } = useLanguages()
@@ -461,7 +463,8 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
             <MessageContentProvider
               messages={[latestAssistantMessage]}
               partsByMessageId={partsMap}
-              renderConfig={renderConfig}>
+              renderConfig={renderConfig}
+              actions={platformActions}>
               <MessageContent key={latestAssistantMessage.id} message={latestAssistantMessage} />
             </MessageContentProvider>
           )}

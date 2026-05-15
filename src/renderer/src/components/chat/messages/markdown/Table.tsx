@@ -2,13 +2,13 @@ import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { CopyIcon } from '@renderer/components/Icons'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
-import { exportTableToExcel } from '@renderer/utils/exportExcel'
 import { Check, FileSpreadsheet } from 'lucide-react'
 import MarkdownIt from 'markdown-it'
 import React, { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Node } from 'unist'
 
+import { useOptionalMessageListActions } from '../MessageListProvider'
 import { useMarkdownBlockContext } from './Markdown'
 
 const logger = loggerService.withContext('Table')
@@ -26,74 +26,80 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
   const { t } = useTranslation()
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const mdCtx = useMarkdownBlockContext()
+  const actions = useOptionalMessageListActions()
+  const canCopyTable = !!actions?.copyRichContent
+  const canExportExcel = !!actions?.exportTableAsExcel
 
   const handleCopyTable = useCallback(async () => {
     const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position, mdCtx?.content)
     if (!tableMarkdown) {
-      window.toast?.error(t('message.error.table.invalid'))
+      actions?.notifyError?.(t('message.error.table.invalid'))
       return
     }
 
     try {
       const tableHtml = convertMarkdownTableToHtml(tableMarkdown)
-
-      if (navigator.clipboard && window.ClipboardItem) {
-        const clipboardItem = new ClipboardItem({
-          'text/plain': new Blob([tableMarkdown], { type: 'text/plain' }),
-          'text/html': new Blob([tableHtml], { type: 'text/html' })
-        })
-        await navigator.clipboard.write([clipboardItem])
-      } else {
-        await navigator.clipboard.writeText(tableMarkdown)
-      }
+      await actions?.copyRichContent?.(
+        {
+          plainText: tableMarkdown,
+          html: tableHtml
+        },
+        { successMessage: t('message.copied') }
+      )
       setCopied(true)
     } catch (error) {
       logger.error('Failed to copy table to clipboard', { error })
-      window.toast?.error(t('message.copy.failed'))
+      actions?.notifyError?.(t('message.copy.failed'))
     }
-  }, [blockId, node?.position, setCopied, t, mdCtx?.content])
+  }, [actions, blockId, node?.position, setCopied, t, mdCtx?.content])
 
   const handleExportExcel = useCallback(async () => {
     const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position, mdCtx?.content)
     if (!tableMarkdown) {
-      window.toast?.error(t('message.error.table.invalid'))
+      actions?.notifyError?.(t('message.error.table.invalid'))
       return
     }
 
     try {
-      const result = await exportTableToExcel(tableMarkdown)
+      const result = await actions?.exportTableAsExcel?.(tableMarkdown)
       if (result) {
-        window.toast?.success(t('message.success.excel.export'))
+        actions?.notifySuccess?.(t('message.success.excel.export'))
       }
     } catch (error) {
       logger.error('Failed to export table to Excel', { error })
-      window.toast?.error(t('message.error.excel.export'))
+      actions?.notifyError?.(t('message.error.excel.export'))
     }
-  }, [blockId, node?.position, t, mdCtx?.content])
+  }, [actions, blockId, node?.position, t, mdCtx?.content])
 
   return (
     <div className="table-wrapper relative hover:[&_.table-toolbar]:opacity-100">
       <table>{children}</table>
-      <div className="table-toolbar transform-[translateZ(0)] absolute top-2 right-2 z-10 flex gap-1 rounded opacity-0 transition-opacity duration-200 ease-in-out will-change-[opacity]">
-        <Tooltip content={t('common.copy')} delay={800}>
-          <div
-            className="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded bg-accent text-foreground-muted opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-muted"
-            role="button"
-            aria-label={t('common.copy')}
-            onClick={handleCopyTable}>
-            {copied ? <Check size={14} color="var(--color-primary)" /> : <CopyIcon size={14} />}
-          </div>
-        </Tooltip>
-        <Tooltip content={t('common.export.excel')} delay={800}>
-          <div
-            className="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded bg-accent text-foreground-muted opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-muted"
-            role="button"
-            aria-label={t('common.export.excel')}
-            onClick={handleExportExcel}>
-            <FileSpreadsheet size={14} />
-          </div>
-        </Tooltip>
-      </div>
+      {(canCopyTable || canExportExcel) && (
+        <div className="table-toolbar transform-[translateZ(0)] absolute top-2 right-2 z-10 flex gap-1 rounded opacity-0 transition-opacity duration-200 ease-in-out will-change-[opacity]">
+          {canCopyTable && (
+            <Tooltip content={t('common.copy')} delay={800}>
+              <div
+                className="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded bg-accent text-foreground-muted opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-muted"
+                role="button"
+                aria-label={t('common.copy')}
+                onClick={handleCopyTable}>
+                {copied ? <Check size={14} color="var(--color-primary)" /> : <CopyIcon size={14} />}
+              </div>
+            </Tooltip>
+          )}
+          {canExportExcel && (
+            <Tooltip content={t('common.export.excel')} delay={800}>
+              <div
+                className="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded bg-accent text-foreground-muted opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-muted"
+                role="button"
+                aria-label={t('common.export.excel')}
+                onClick={handleExportExcel}>
+                <FileSpreadsheet size={14} />
+              </div>
+            </Tooltip>
+          )}
+        </div>
+      )}
     </div>
   )
 }

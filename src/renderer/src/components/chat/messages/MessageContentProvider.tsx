@@ -1,4 +1,3 @@
-import { useMessagePlatformActions } from '@renderer/hooks/messages/useMessagePlatformActions'
 import type { Topic } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ReactNode } from 'react'
@@ -8,6 +7,8 @@ import { PartsProvider } from './blocks'
 import { MessageListProvider } from './MessageListProvider'
 import type { MessageListActions, MessageListItem, MessageListProviderValue, MessageRenderConfig } from './types'
 import { defaultMessageEditorConfig, defaultMessageRenderConfig } from './types'
+
+const EMPTY_MESSAGE_ACTIONS: MessageListActions = {}
 
 interface MessageContentProviderProps {
   messages: MessageListItem[]
@@ -40,11 +41,7 @@ export function MessageContentProvider({
   renderConfig,
   actions
 }: MessageContentProviderProps) {
-  const platformActions = useMessagePlatformActions()
-  const mergedActions = useMemo<MessageListActions>(
-    () => ({ ...platformActions, ...actions }),
-    [actions, platformActions]
-  )
+  const resolvedActions = actions ?? EMPTY_MESSAGE_ACTIONS
   const mergedRenderConfig = useMemo(
     () => ({
       ...defaultMessageRenderConfig,
@@ -85,12 +82,12 @@ export function MessageContentProvider({
           isApprovalAnchor: false
         })
       },
-      actions: mergedActions,
+      actions: resolvedActions,
       meta: {
         selectionLayer: false
       }
     }),
-    [editorConfig, mergedActions, mergedRenderConfig, messages, partsByMessageId, topic]
+    [editorConfig, mergedRenderConfig, messages, partsByMessageId, resolvedActions, topic]
   )
 
   return (

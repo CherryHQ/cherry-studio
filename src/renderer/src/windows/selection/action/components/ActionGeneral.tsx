@@ -8,6 +8,7 @@ import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import CopyButton from '@renderer/components/CopyButton'
 import { useMessageListRenderConfig } from '@renderer/hooks/messages/useMessageListRenderConfig'
+import { useMessagePlatformActions } from '@renderer/hooks/messages/useMessagePlatformActions'
 import { useAssistant, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
 import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
@@ -37,6 +38,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const [language] = usePreference('app.language')
   const [showOriginal, setShowOriginal] = useState(false)
   const { renderConfig } = useMessageListRenderConfig()
+  const platformActions = useMessagePlatformActions()
 
   const { assistant: defaultAssistant } = useDefaultAssistant()
   const { assistant: chosenAssistant } = useAssistant(action.assistantId ?? '')
@@ -206,7 +208,8 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
             <MessageContentProvider
               messages={[latestAssistantMessage]}
               partsByMessageId={partsMap}
-              renderConfig={renderConfig}>
+              renderConfig={renderConfig}
+              actions={platformActions}>
               <MessageContent key={latestAssistantMessage.id} message={latestAssistantMessage} />
             </MessageContentProvider>
           )}

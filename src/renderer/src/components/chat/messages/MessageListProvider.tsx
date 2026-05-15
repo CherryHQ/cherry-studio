@@ -41,7 +41,6 @@ type MessageListUiValue = Pick<
   | 'getTranslationLanguageLabel'
 >
 
-const MessageListContext = createContext<MessageListProviderValue | null>(null)
 const MessageListDataContext = createContext<MessageListDataValue | null>(null)
 const MessageListPartsContext = createContext<MessageListState['partsByMessageId'] | null>(null)
 const MessageListActionsContext = createContext<MessageListActions | null>(null)
@@ -114,21 +113,19 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
   )
 
   return (
-    <MessageListContext value={value}>
-      <MessageListDataContext value={data}>
-        <MessageListPartsContext value={state.partsByMessageId}>
-          <MessageListActionsContext value={actions}>
-            <MessageListMetaContext value={meta}>
-              <MessageListRenderConfigContext value={state.renderConfig}>
-                <MessageListSelectionContext value={state.selection}>
-                  <MessageListUiContext value={ui}>{children}</MessageListUiContext>
-                </MessageListSelectionContext>
-              </MessageListRenderConfigContext>
-            </MessageListMetaContext>
-          </MessageListActionsContext>
-        </MessageListPartsContext>
-      </MessageListDataContext>
-    </MessageListContext>
+    <MessageListDataContext value={data}>
+      <MessageListPartsContext value={state.partsByMessageId}>
+        <MessageListActionsContext value={actions}>
+          <MessageListMetaContext value={meta}>
+            <MessageListRenderConfigContext value={state.renderConfig}>
+              <MessageListSelectionContext value={state.selection}>
+                <MessageListUiContext value={ui}>{children}</MessageListUiContext>
+              </MessageListSelectionContext>
+            </MessageListRenderConfigContext>
+          </MessageListMetaContext>
+        </MessageListActionsContext>
+      </MessageListPartsContext>
+    </MessageListDataContext>
   )
 }
 
@@ -140,24 +137,12 @@ const useRequiredContext = <T,>(context: Context<T | null>, name: string): T => 
   return value
 }
 
-export const useOptionalMessageList = (): MessageListProviderValue | null => {
-  return use(MessageListContext)
-}
-
 export const useOptionalMessageListActions = (): MessageListActions | undefined => {
   return use(MessageListActionsContext) ?? undefined
 }
 
 export const useOptionalMessageListUi = (): MessageListUiValue | undefined => {
   return use(MessageListUiContext) ?? undefined
-}
-
-export const useMessageList = (): MessageListProviderValue => {
-  const value = use(MessageListContext)
-  if (!value) {
-    throw new Error('useMessageList must be used within MessageListProvider')
-  }
-  return value
 }
 
 export const useMessageListData = (): MessageListDataValue => {

@@ -1,9 +1,17 @@
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
+import { exportTableToExcel } from '@renderer/utils/exportExcel'
 import { useCallback, useMemo } from 'react'
 
 export type MessagePlatformActions = Pick<
   MessageListActions,
-  'copyText' | 'copyImage' | 'notifyInfo' | 'notifySuccess' | 'notifyWarning' | 'notifyError'
+  | 'copyText'
+  | 'copyRichContent'
+  | 'copyImage'
+  | 'exportTableAsExcel'
+  | 'notifyInfo'
+  | 'notifySuccess'
+  | 'notifyWarning'
+  | 'notifyError'
 >
 
 export function useMessagePlatformActions(): MessagePlatformActions {
@@ -26,6 +34,29 @@ export function useMessagePlatformActions(): MessagePlatformActions {
     }
   }, [])
 
+  const copyRichContent = useCallback<NonNullable<MessageListActions['copyRichContent']>>(
+    async ({ plainText, html }, options) => {
+      if (navigator.clipboard && window.ClipboardItem) {
+        const clipboardItem = new ClipboardItem({
+          'text/plain': new Blob([plainText], { type: 'text/plain' }),
+          'text/html': new Blob([html], { type: 'text/html' })
+        })
+        await navigator.clipboard.write([clipboardItem])
+      } else {
+        await navigator.clipboard.writeText(plainText)
+      }
+
+      if (options?.successMessage) {
+        window.toast.success(options.successMessage)
+      }
+    },
+    []
+  )
+
+  const exportTableAsExcel = useCallback<NonNullable<MessageListActions['exportTableAsExcel']>>((markdown) => {
+    return exportTableToExcel(markdown)
+  }, [])
+
   const notifyInfo = useCallback<NonNullable<MessageListActions['notifyInfo']>>((message) => {
     window.toast.info(message)
   }, [])
@@ -45,12 +76,14 @@ export function useMessagePlatformActions(): MessagePlatformActions {
   return useMemo(
     () => ({
       copyText,
+      copyRichContent,
       copyImage,
+      exportTableAsExcel,
       notifyInfo,
       notifySuccess,
       notifyWarning,
       notifyError
     }),
-    [copyImage, copyText, notifyError, notifyInfo, notifySuccess, notifyWarning]
+    [copyImage, copyRichContent, copyText, exportTableAsExcel, notifyError, notifyInfo, notifySuccess, notifyWarning]
   )
 }

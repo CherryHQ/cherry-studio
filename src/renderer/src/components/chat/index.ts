@@ -12,7 +12,7 @@ export type {
 export * from './adapters'
 export { MessageVirtualList, type MessageVirtualListHandle } from './messages/list/MessageVirtualList'
 export { default as MessageList } from './messages/MessageList'
-export { MessageListProvider, useMessageList } from './messages/MessageListProvider'
+export { MessageListProvider } from './messages/MessageListProvider'
 export type { MessageListProviderValue } from './messages/types'
 export * from './primitives'
 export { ChatAppShell, type ChatAppShellProps } from './shell/ChatAppShell'

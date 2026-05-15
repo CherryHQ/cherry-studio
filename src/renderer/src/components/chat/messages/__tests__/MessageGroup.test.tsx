@@ -168,33 +168,6 @@ vi.mock('../list/MessageGroupMenuBar', () => ({
 }))
 
 vi.mock('../MessageListProvider', () => ({
-  useMessageList: () => {
-    const settings = mocks.settings()
-
-    return {
-      state: {
-        renderConfig: {
-          userName: '',
-          narrowMode: false,
-          messageStyle: settings.messageStyle,
-          messageFont: settings.messageFont,
-          fontSize: settings.fontSize,
-          renderInputMessageAsMarkdown: false,
-          codeFancyBlock: true,
-          thoughtAutoCollapse: true,
-          mathEngine: 'KaTeX',
-          mathEnableSingleDollar: false,
-          showMessageOutline: settings.showMessageOutline,
-          multiModelMessageStyle: settings.multiModelMessageStyle,
-          multiModelGridColumns: settings.gridColumns,
-          multiModelGridPopoverTrigger: settings.gridPopoverTrigger
-        },
-        partsByMessageId: {}
-      },
-      actions: mocks.messageListActions(),
-      meta: {}
-    }
-  },
   useMessageListActions: () => mocks.messageListActions(),
   useMessageRenderConfig: () => {
     const settings = mocks.settings()

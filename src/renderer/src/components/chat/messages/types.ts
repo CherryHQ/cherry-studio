@@ -296,7 +296,12 @@ export interface MessageListActions {
   openExternalUrl?: (url: string) => void | Promise<void>
   openInExternalApp?: (app: ExternalAppInfo, path: string) => void | Promise<void>
   copyText?: (text: string, options?: { successMessage?: string; emptyMessage?: string }) => void | Promise<void>
+  copyRichContent?: (
+    content: { plainText: string; html: string },
+    options?: { successMessage?: string }
+  ) => void | Promise<void>
   copyImage?: (blob: Blob, options?: { successMessage?: string }) => void | Promise<void>
+  exportTableAsExcel?: (markdown: string) => boolean | Promise<boolean>
   notifyInfo?: (message: string) => void
   notifySuccess?: (message: string) => void
   notifyWarning?: (message: string) => void

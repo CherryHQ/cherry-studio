@@ -29,7 +29,7 @@ describe('MessageContentProvider', () => {
     expect(screen.getByText('standalone content')).toBeInTheDocument()
   })
 
-  it('provides default platform actions for standalone content rendering', () => {
+  it('does not inject platform actions by default', () => {
     const Probe = () => {
       const actions = useMessageListActions()
       return <span>{actions.copyText && actions.notifyError ? 'platform-actions' : 'missing-actions'}</span>
@@ -37,6 +37,27 @@ describe('MessageContentProvider', () => {
 
     render(
       <MessageContentProvider messages={[message]} partsByMessageId={partsByMessageId}>
+        <Probe />
+      </MessageContentProvider>
+    )
+
+    expect(screen.getByText('missing-actions')).toBeInTheDocument()
+  })
+
+  it('provides explicitly passed actions for standalone content rendering', () => {
+    const Probe = () => {
+      const actions = useMessageListActions()
+      return <span>{actions.copyText && actions.notifyError ? 'platform-actions' : 'missing-actions'}</span>
+    }
+
+    render(
+      <MessageContentProvider
+        messages={[message]}
+        partsByMessageId={partsByMessageId}
+        actions={{
+          copyText: async () => {},
+          notifyError: () => {}
+        }}>
         <Probe />
       </MessageContentProvider>
     )

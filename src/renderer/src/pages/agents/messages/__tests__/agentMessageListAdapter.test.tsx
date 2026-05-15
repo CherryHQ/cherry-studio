@@ -34,7 +34,9 @@ const leafCapabilitiesMock = vi.hoisted(() => ({
   openInExternalApp: vi.fn(),
   uploadEditorFiles: vi.fn(),
   copyText: vi.fn(),
+  copyRichContent: vi.fn(),
   copyImage: vi.fn(),
+  exportTableAsExcel: vi.fn(),
   notifyInfo: vi.fn(),
   notifySuccess: vi.fn(),
   notifyWarning: vi.fn(),
@@ -240,7 +242,9 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.openInExternalApp).toBe(leafCapabilitiesMock.openInExternalApp)
     expect(value?.actions.uploadEditorFiles).toBe(leafCapabilitiesMock.uploadEditorFiles)
     expect(value?.actions.copyText).toBe(leafCapabilitiesMock.copyText)
+    expect(value?.actions.copyRichContent).toBe(leafCapabilitiesMock.copyRichContent)
     expect(value?.actions.copyImage).toBe(leafCapabilitiesMock.copyImage)
+    expect(value?.actions.exportTableAsExcel).toBe(leafCapabilitiesMock.exportTableAsExcel)
     expect(value?.actions.notifyInfo).toBe(leafCapabilitiesMock.notifyInfo)
     expect(value?.actions.notifySuccess).toBe(leafCapabilitiesMock.notifySuccess)
     expect(value?.actions.notifyWarning).toBe(leafCapabilitiesMock.notifyWarning)

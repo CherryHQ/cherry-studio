@@ -3,6 +3,7 @@ import { MessageContentProvider } from '@renderer/components/chat/messages'
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMessageListRenderConfig } from '@renderer/hooks/messages/useMessageListRenderConfig'
+import { useMessagePlatformActions } from '@renderer/hooks/messages/useMessagePlatformActions'
 import type { Assistant } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { FC } from 'react'
@@ -24,9 +25,14 @@ interface ContainerProps {
 
 const Messages: FC<Props> = ({ assistant, route, isOutputted, messages, partsByMessageId }) => {
   const { renderConfig } = useMessageListRenderConfig()
+  const platformActions = useMessagePlatformActions()
 
   return (
-    <MessageContentProvider messages={messages} partsByMessageId={partsByMessageId} renderConfig={renderConfig}>
+    <MessageContentProvider
+      messages={messages}
+      partsByMessageId={partsByMessageId}
+      renderConfig={renderConfig}
+      actions={platformActions}>
       <Container id="messages" key={assistant.id}>
         {!isOutputted && <LoadingOutlined style={{ fontSize: 16 }} spin />}
         {[...messages].reverse().map((message, index) => (
