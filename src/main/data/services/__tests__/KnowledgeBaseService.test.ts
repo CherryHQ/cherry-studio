@@ -1,8 +1,10 @@
-import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
+import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { KnowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { ErrorCode } from '@shared/data/api'
+import type { FileEntryId } from '@shared/data/types/file'
 import { type CreateKnowledgeBaseDto, KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -385,6 +387,42 @@ describe('KnowledgeBaseService', () => {
 
       const rows = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, 'kb-1'))
       expect(rows).toHaveLength(0)
+    })
+
+    it('should clean knowledge item file refs before cascading item deletion', async () => {
+      const fileEntryId = '019606a0-0000-7000-8000-00000000f301' as FileEntryId
+      const itemId = '019606a0-0000-7000-8000-00000000f302'
+      await seedKnowledgeBase()
+      await dbh.db.insert(fileEntryTable).values({
+        id: fileEntryId,
+        origin: 'internal',
+        name: 'knowledge-file',
+        ext: 'md',
+        size: 1,
+        externalPath: null,
+        trashedAt: null
+      })
+      await dbh.db.insert(knowledgeItemTable).values({
+        id: itemId,
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'file',
+        data: { source: '/docs/file.md', fileEntryId },
+        status: 'idle',
+        phase: null,
+        error: null
+      })
+      await dbh.db.insert(fileRefTable).values({
+        fileEntryId,
+        sourceType: 'knowledge_item',
+        sourceId: itemId,
+        role: 'attachment'
+      })
+
+      await service.delete('kb-1')
+
+      const refs = await dbh.db.select().from(fileRefTable)
+      expect(refs).toHaveLength(0)
     })
 
     it('should throw NotFound when deleting a missing knowledge base', async () => {

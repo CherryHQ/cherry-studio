@@ -5,12 +5,15 @@
  */
 
 import { application } from '@application'
+import { fileRefTable } from '@data/db/schemas/file'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
+import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import type { OffsetPaginationResponse } from '@shared/data/api'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
+import { type FileEntryId, knowledgeItemRoles, knowledgeItemSourceType } from '@shared/data/types/file'
 import {
   type CreateKnowledgeItemDto,
   type KnowledgeItem,
@@ -25,8 +28,13 @@ import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeItemService')
 const CONTAINER_CHILD_FAILURE_ERROR = 'One or more child items failed'
+const KNOWLEDGE_ITEM_FILE_REF_ROLE = knowledgeItemRoles[0]
+const SQLITE_INARRAY_CHUNK = 500
 
 type KnowledgeItemRow = typeof knowledgeItemTable.$inferSelect
+type KnowledgeItemQueryRunner = Pick<DbType, 'all'>
+type FileRefInsertDb = Pick<DbType, 'insert'>
+type FileRefDeleteDb = Pick<DbType, 'delete'>
 
 type KnowledgeItemStatusUpdate = {
   phase?: KnowledgeItemPhase | null
@@ -53,6 +61,34 @@ function rowToKnowledgeItem(row: KnowledgeItemRow): KnowledgeItem {
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   })
+}
+
+async function createKnowledgeItemFileRef(
+  db: FileRefInsertDb,
+  values: { fileEntryId: FileEntryId; itemId: string }
+): Promise<void> {
+  await db
+    .insert(fileRefTable)
+    .values({
+      fileEntryId: values.fileEntryId,
+      sourceType: knowledgeItemSourceType,
+      sourceId: values.itemId,
+      role: KNOWLEDGE_ITEM_FILE_REF_ROLE
+    })
+    .onConflictDoNothing()
+}
+
+async function cleanupKnowledgeItemFileRefs(db: FileRefDeleteDb, sourceIds: readonly string[]): Promise<void> {
+  if (sourceIds.length === 0) {
+    return
+  }
+
+  for (let i = 0; i < sourceIds.length; i += SQLITE_INARRAY_CHUNK) {
+    const chunk = sourceIds.slice(i, i + SQLITE_INARRAY_CHUNK)
+    await db
+      .delete(fileRefTable)
+      .where(and(eq(fileRefTable.sourceType, knowledgeItemSourceType), inArray(fileRefTable.sourceId, chunk)))
+  }
 }
 
 export class KnowledgeItemService {
@@ -117,8 +153,8 @@ export class KnowledgeItemService {
   async create(baseId: string, item: CreateKnowledgeItemDto): Promise<KnowledgeItem> {
     await this.validateGroupOwner(baseId, item.groupId)
 
-    const [row] = await this.db.transaction(async (tx) =>
-      withSqliteErrors(
+    const [row] = await this.db.transaction(async (tx) => {
+      const createdRows = await withSqliteErrors(
         () =>
           tx
             .insert(knowledgeItemTable)
@@ -149,7 +185,19 @@ export class KnowledgeItemService {
             })
         } satisfies SqliteErrorHandlers
       )
-    )
+
+      const createdRow = createdRows[0]
+      if (createdRow && item.type === 'file') {
+        await withSqliteErrors(
+          () => createKnowledgeItemFileRef(tx, { fileEntryId: item.data.fileEntryId, itemId: createdRow.id }),
+          {
+            foreignKey: () => DataApiErrorFactory.notFound('FileEntry', item.data.fileEntryId)
+          } satisfies SqliteErrorHandlers
+        )
+      }
+
+      return createdRows
+    })
 
     if (!row) {
       throw DataApiErrorFactory.dataInconsistent('KnowledgeItem', 'Knowledge item create result missing')
@@ -250,38 +298,7 @@ export class KnowledgeItemService {
   }
 
   private async getDescendantIds(baseId: string, rootIds: string[]): Promise<string[]> {
-    const uniqueRootIds = [...new Set(rootIds)]
-
-    if (uniqueRootIds.length === 0) {
-      return []
-    }
-
-    const rows = await this.db.all<{ id: string }>(sql`
-      WITH RECURSIVE subtree AS (
-        SELECT id
-        FROM knowledge_item
-        WHERE base_id = ${baseId}
-          AND id IN (${sql.join(
-            uniqueRootIds.map((id) => sql`${id}`),
-            sql`, `
-          )})
-
-        UNION ALL
-
-        SELECT child.id
-        FROM knowledge_item child
-        INNER JOIN subtree parent ON child.group_id = parent.id
-        WHERE child.base_id = ${baseId}
-      )
-      SELECT DISTINCT id
-      FROM subtree
-      WHERE id NOT IN (${sql.join(
-        uniqueRootIds.map((id) => sql`${id}`),
-        sql`, `
-      )})
-    `)
-
-    return rows.map((row) => row.id)
+    return this.getDescendantIdsForDb(this.db, baseId, rootIds)
   }
 
   async deleteLeafDescendantItems(baseId: string, rootIds: string[]): Promise<void> {
@@ -291,31 +308,36 @@ export class KnowledgeItemService {
       return
     }
 
-    await this.db.run(sql`
-      WITH RECURSIVE subtree AS (
-        SELECT id
-        FROM knowledge_item
+    await this.db.transaction(async (tx) => {
+      const deletedIds = await this.getDescendantIdsForDb(tx, baseId, uniqueRootIds)
+      await cleanupKnowledgeItemFileRefs(tx, deletedIds)
+
+      await tx.run(sql`
+        WITH RECURSIVE subtree AS (
+          SELECT id
+          FROM knowledge_item
+          WHERE base_id = ${baseId}
+            AND id IN (${sql.join(
+              uniqueRootIds.map((id) => sql`${id}`),
+              sql`, `
+            )})
+
+          UNION ALL
+
+          SELECT child.id
+          FROM knowledge_item child
+          INNER JOIN subtree parent ON child.group_id = parent.id
+          WHERE child.base_id = ${baseId}
+        )
+        DELETE FROM knowledge_item
         WHERE base_id = ${baseId}
-          AND id IN (${sql.join(
+          AND id IN (SELECT id FROM subtree)
+          AND id NOT IN (${sql.join(
             uniqueRootIds.map((id) => sql`${id}`),
             sql`, `
           )})
-
-        UNION ALL
-
-        SELECT child.id
-        FROM knowledge_item child
-        INNER JOIN subtree parent ON child.group_id = parent.id
-        WHERE child.base_id = ${baseId}
-      )
-      DELETE FROM knowledge_item
-      WHERE base_id = ${baseId}
-        AND id IN (SELECT id FROM subtree)
-        AND id NOT IN (${sql.join(
-          uniqueRootIds.map((id) => sql`${id}`),
-          sql`, `
-        )})
-    `)
+      `)
+    })
   }
 
   private async getLeafDescendantIds(baseId: string, rootIds: string[]): Promise<string[]> {
@@ -345,6 +367,45 @@ export class KnowledgeItemService {
       SELECT DISTINCT id
       FROM subtree
       WHERE type IN ('file', 'url', 'note')
+    `)
+
+    return rows.map((row) => row.id)
+  }
+
+  private async getDescendantIdsForDb(
+    db: KnowledgeItemQueryRunner,
+    baseId: string,
+    rootIds: string[]
+  ): Promise<string[]> {
+    const uniqueRootIds = [...new Set(rootIds)]
+
+    if (uniqueRootIds.length === 0) {
+      return []
+    }
+
+    const rows = await db.all<{ id: string }>(sql`
+      WITH RECURSIVE subtree AS (
+        SELECT id
+        FROM knowledge_item
+        WHERE base_id = ${baseId}
+          AND id IN (${sql.join(
+            uniqueRootIds.map((id) => sql`${id}`),
+            sql`, `
+          )})
+
+        UNION ALL
+
+        SELECT child.id
+        FROM knowledge_item child
+        INNER JOIN subtree parent ON child.group_id = parent.id
+        WHERE child.base_id = ${baseId}
+      )
+      SELECT DISTINCT id
+      FROM subtree
+      WHERE id NOT IN (${sql.join(
+        uniqueRootIds.map((id) => sql`${id}`),
+        sql`, `
+      )})
     `)
 
     return rows.map((row) => row.id)
@@ -472,6 +533,9 @@ export class KnowledgeItemService {
       if (!existingRow) {
         throw DataApiErrorFactory.notFound('KnowledgeItem', id)
       }
+
+      const descendantIds = await this.getDescendantIdsForDb(tx, existingRow.baseId, [id])
+      await cleanupKnowledgeItemFileRefs(tx, [id, ...descendantIds])
 
       const [row] = await tx.delete(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).returning({
         id: knowledgeItemTable.id
