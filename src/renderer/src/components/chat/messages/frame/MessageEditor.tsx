@@ -1,10 +1,8 @@
 import { Textarea, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
-import FileManager from '@renderer/services/FileManager'
 import PasteService from '@renderer/services/PasteService'
 import type { FileMetadata } from '@renderer/types'
-import { FILE_TYPE } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFilesFromDropEvent, isSendMessageKeyPressed } from '@renderer/utils/input'
@@ -57,8 +55,9 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
     canAddImageFile: false,
     canAddTextFile: true
   }
-  const couldAddImageFile = editorCapabilities.canAddImageFile
-  const couldAddTextFile = editorCapabilities.canAddTextFile
+  const canUploadEditorFiles = !!actions.uploadEditorFiles
+  const couldAddImageFile = canUploadEditorFiles && editorCapabilities.canAddImageFile
+  const couldAddTextFile = canUploadEditorFiles && editorCapabilities.canAddTextFile
 
   const extensions = useMemo(() => {
     if (couldAddImageFile && couldAddTextFile) {
@@ -207,16 +206,8 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
   const buildFinalParts = async (): Promise<CherryMessagePart[]> => {
     const finalParts = [...editedParts]
     if (files.length > 0) {
-      const uploadedFiles = await FileManager.uploadFiles(files)
-      for (const file of uploadedFiles) {
-        const isImage = file.type === FILE_TYPE.IMAGE
-        finalParts.push({
-          type: 'file',
-          mediaType: isImage ? `image/${file.ext.replace('.', '')}` : 'application/octet-stream',
-          url: `file://${file.path}`,
-          filename: file.origin_name || file.name
-        } as CherryMessagePart)
-      }
+      const uploadedParts = await actions.uploadEditorFiles?.(files)
+      if (uploadedParts?.length) finalParts.push(...uploadedParts)
     }
     return finalParts
   }
@@ -323,7 +314,7 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
               />
             </Tooltip>
           )}
-          {isUserMessage && actions.selectFiles && (
+          {isUserMessage && actions.selectFiles && (couldAddImageFile || couldAddTextFile) && (
             <MessageAttachmentButton
               active={files.length > 0}
               couldAddImageFile={couldAddImageFile}

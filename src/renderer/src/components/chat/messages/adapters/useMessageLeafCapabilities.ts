@@ -2,7 +2,7 @@ import { useQuery } from '@data/hooks/useDataApi'
 import { useAttachment } from '@renderer/hooks/useAttachment'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import FileManager from '@renderer/services/FileManager'
-import type { MCPTool } from '@renderer/types'
+import { FILE_TYPE, type FileMetadata, type MCPTool } from '@renderer/types'
 import { parseFileTypes } from '@renderer/utils'
 import { buildEditorUrl } from '@renderer/utils/editorUtils'
 import type { MCPProgressEvent } from '@shared/config/types'
@@ -17,7 +17,7 @@ import { type MessagePlatformActions, useMessagePlatformActions } from './useMes
 
 type MessageLeafActions = Pick<
   MessageListActions,
-  'previewFile' | 'subscribeToolProgress' | 'openExternalUrl' | 'openInExternalApp'
+  'previewFile' | 'subscribeToolProgress' | 'openExternalUrl' | 'openInExternalApp' | 'uploadEditorFiles'
 > &
   MessagePlatformActions
 type MessageLeafState = Pick<MessageListState, 'isToolAutoApproved' | 'externalCodeEditors'>
@@ -113,6 +113,22 @@ export function useMessageLeafCapabilities({
     window.open(url, '_blank', 'noopener,noreferrer')
   }, [])
 
+  const uploadEditorFiles = useCallback<NonNullable<MessageListActions['uploadEditorFiles']>>(
+    async (files: FileMetadata[]) => {
+      const uploadedFiles = await FileManager.uploadFiles(files)
+      return uploadedFiles.map((file) => {
+        const isImage = file.type === FILE_TYPE.IMAGE
+        return {
+          type: 'file',
+          mediaType: isImage ? `image/${file.ext.replace('.', '')}` : 'application/octet-stream',
+          url: `file://${file.path}`,
+          filename: file.origin_name || file.name
+        } as CherryMessagePart
+      })
+    },
+    []
+  )
+
   const isToolAutoApproved = useCallback<NonNullable<MessageListState['isToolAutoApproved']>>(
     (tool: MCPTool, allowedTools?: string[]) => {
       if (allowedTools?.includes(tool.id)) return true
@@ -129,6 +145,7 @@ export function useMessageLeafCapabilities({
       subscribeToolProgress,
       openExternalUrl,
       openInExternalApp,
+      uploadEditorFiles,
       ...platformActions,
       isToolAutoApproved,
       externalCodeEditors
@@ -140,7 +157,8 @@ export function useMessageLeafCapabilities({
       openInExternalApp,
       platformActions,
       previewFile,
-      subscribeToolProgress
+      subscribeToolProgress,
+      uploadEditorFiles
     ]
   )
 }

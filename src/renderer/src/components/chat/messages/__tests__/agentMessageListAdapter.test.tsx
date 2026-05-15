@@ -33,6 +33,7 @@ const leafCapabilitiesMock = vi.hoisted(() => ({
   subscribeToolProgress: vi.fn(),
   openExternalUrl: vi.fn(),
   openInExternalApp: vi.fn(),
+  uploadEditorFiles: vi.fn(),
   copyText: vi.fn(),
   copyImage: vi.fn(),
   notifyInfo: vi.fn(),
@@ -238,6 +239,7 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.subscribeToolProgress).toBe(leafCapabilitiesMock.subscribeToolProgress)
     expect(value?.actions.openExternalUrl).toBe(leafCapabilitiesMock.openExternalUrl)
     expect(value?.actions.openInExternalApp).toBe(leafCapabilitiesMock.openInExternalApp)
+    expect(value?.actions.uploadEditorFiles).toBe(leafCapabilitiesMock.uploadEditorFiles)
     expect(value?.actions.copyText).toBe(leafCapabilitiesMock.copyText)
     expect(value?.actions.copyImage).toBe(leafCapabilitiesMock.copyImage)
     expect(value?.actions.notifyInfo).toBe(leafCapabilitiesMock.notifyInfo)
