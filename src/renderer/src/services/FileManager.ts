@@ -95,7 +95,17 @@ class FileManager {
     try {
       await window.api.file.delete(id + file.ext)
     } catch (error) {
-      logger.error('Failed to delete file:', error as Error)
+      // Stable anchor `FM_DELETE_IPC_FAILED` so support / users grepping for
+      // orphaned files have a single string to filter on. We deliberately
+      // do not rethrow: this is v1-throwaway code (callers use `Promise.all`
+      // which would otherwise tear down batch deletes on the first failure);
+      // the physical file leak is visible via the diagnostic trail and the
+      // v2 sweep that runs at startup.
+      logger.error('FM_DELETE_IPC_FAILED', error as Error, {
+        fileId: id,
+        ext: file.ext,
+        physicalName: id + file.ext
+      })
     }
   }
 
@@ -131,8 +141,15 @@ class FileManager {
 
   static async updateFile(file: FileMetadata) {
     // Dexie writes are frozen. updateFile is a no-op until Batch A-E migrates
-    // this call site to the v2 File IPC rename channel.
-    logger.warn('FileManager.updateFile: Dexie writes are frozen; skipping update for file id=' + file.id)
+    // this call site to the v2 File IPC rename channel. Callers see a
+    // "saved but didn't" outcome — on next refresh the original name reappears.
+    // Stable anchor `FM_UPDATE_NOT_IMPL` lets support / users grep for
+    // affected rename attempts during the migration window.
+    logger.warn('FM_UPDATE_NOT_IMPL', {
+      fileId: file.id,
+      originName: file.origin_name,
+      reason: 'Dexie writes are frozen; rename will not persist until v2 File IPC rename lands (Batch A-E)'
+    })
   }
 
   static formatFileName(file: FileMetadata) {
