@@ -23,6 +23,11 @@ const cacheHookMocks = vi.hoisted(() => ({
   setMultiSelectMode: vi.fn(),
   setSelectedMessageIds: vi.fn()
 }))
+const errorActionsMock = vi.hoisted(() => ({
+  diagnoseMessageError: vi.fn(),
+  openErrorDetail: vi.fn(),
+  navigateErrorTarget: vi.fn()
+}))
 
 vi.mock('@data/hooks/useCache', () => ({
   useCache: (key: string) => {
@@ -85,6 +90,10 @@ vi.mock('../adapters/useMessageMenuConfig', () => ({
 
 vi.mock('../adapters/useMessageExportActions', () => ({
   useMessageExportActions: useMessageExportActionsMock
+}))
+
+vi.mock('../adapters/useMessageErrorActions', () => ({
+  useMessageErrorActions: () => errorActionsMock
 }))
 
 const { useAgentMessageListProviderValue } = await import('../adapters/agentMessageListAdapter')
@@ -181,6 +190,10 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.exportToObsidian).toBe(exportActionsMock.exportToObsidian)
     expect(value?.actions.exportToJoplin).toBe(exportActionsMock.exportToJoplin)
     expect(value?.actions.exportToSiyuan).toBe(exportActionsMock.exportToSiyuan)
+    expect(value?.actions.diagnoseMessageError).toBe(errorActionsMock.diagnoseMessageError)
+    expect(value?.actions.openErrorDetail).toBe(errorActionsMock.openErrorDetail)
+    expect(value?.actions.navigateErrorTarget).toBe(errorActionsMock.navigateErrorTarget)
+    expect(value?.actions.removeMessageErrorPart).toBeUndefined()
     expect(value?.actions.openTrace).toBeUndefined()
     expect(value?.actions.openPath).toEqual(expect.any(Function))
     expect(value?.actions.showInFolder).toEqual(expect.any(Function))

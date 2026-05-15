@@ -1,40 +1,24 @@
 import { Button } from '@cherrystudio/ui'
-import { dataApiService } from '@data/DataApiService'
-import { loggerService } from '@logger'
-import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
-import { cacheService } from '@renderer/data/CacheService'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabel, getProviderLabel } from '@renderer/i18n/label'
-import type { DiagnosisResult } from '@renderer/services/ErrorDiagnosisService'
-import { classifyErrorByAI } from '@renderer/services/ErrorDiagnosisService'
 import type { SerializedError } from '@renderer/types/error'
 import { classifyError } from '@renderer/utils/errorClassifier'
-import type { CherryMessagePart } from '@shared/data/types/message'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { AlertTriangle, ChevronRight, Settings, X } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
-import type { MessageListItem } from '../types'
+import { useMessageListActions } from '../MessageListProvider'
+import type { MessageErrorDiagnosisResult, MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
-import { useRefresh } from './MessagePartsContext'
-
-const logger = loggerService.withContext('ErrorBlock')
 
 const HTTP_ERROR_CODES = [400, 401, 403, 404, 429, 500, 502, 503, 504]
-
-// Cache classified summaries through the canonical CacheService memory tier.
-// Key is dynamic (`${message}:${lang}`), so use the casual API. TTL = 1 hour
-// — long enough to dedupe within a session, short enough that lazy cleanup
-// keeps the table bounded.
-const AI_CLASSIFY_TTL_MS = 60 * 60 * 1000
-const aiClassifyCacheKey = (message: string, language: string) => `error.classify.${message}:${language}`
 
 interface Props {
   partId: string
   error: SerializedError | undefined
   message: MessageListItem
-  cachedDiagnosis?: DiagnosisResult
+  cachedDiagnosis?: MessageErrorDiagnosisResult
 }
 
 const ErrorBlock: React.FC<Props> = ({ partId, error, message, cachedDiagnosis }) => {
@@ -89,12 +73,11 @@ const MessageErrorInfo: React.FC<{
   partId: string
   error: Props['error']
   message: MessageListItem
-  cachedDiagnosis?: DiagnosisResult
+  cachedDiagnosis?: MessageErrorDiagnosisResult
 }> = ({ partId, error, message, cachedDiagnosis }) => {
-  const refresh = useRefresh()
+  const { diagnoseMessageError, removeMessageErrorPart, openErrorDetail, navigateErrorTarget } = useMessageListActions()
   const { setTimeoutTimer } = useTimer()
   const { t, i18n } = useTranslation()
-  const navigate = useNavigate()
   const [aiSummary, setAiSummary] = useState<string>('')
 
   const errorMessage = error?.message ?? undefined
@@ -113,14 +96,16 @@ const MessageErrorInfo: React.FC<{
   )
 
   useEffect(() => {
-    if (classification.category !== 'unknown' || !errorMessage || !error) return
+    if (classification.category !== 'unknown' || !errorMessage || !error || !diagnoseMessageError) return
     let cancelled = false
-    const cacheKey = aiClassifyCacheKey(errorMessage, i18n.language)
-    const cached = cacheService.getCasual<Promise<string>>(cacheKey)
-    const promise: Promise<string> = cached ?? classifyErrorByAI(error, i18n.language)
-    if (!cached) cacheService.setCasual<Promise<string>>(cacheKey, promise, AI_CLASSIFY_TTL_MS)
-    promise
-      .then((summary: string) => {
+    diagnoseMessageError({
+      message,
+      partId,
+      error,
+      language: i18n.language
+    })
+      .then((result) => {
+        const summary = typeof result === 'string' ? result : (result?.summary ?? '')
         if (!cancelled && summary) setAiSummary(summary)
       })
       .catch(() => {})
@@ -128,9 +113,9 @@ const MessageErrorInfo: React.FC<{
       cancelled = true
     }
     // Intentionally exclude `error` from deps — its identity changes per render
-    // but the cache key + the captured ref's message are both stable.
+    // but the action input's scalar message/language fields are both stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classification.category, errorMessage, i18n.language])
+  }, [classification.category, diagnoseMessageError, errorMessage, i18n.language, message, partId])
 
   const diagnosisContext = useMemo(
     () => ({
@@ -148,36 +133,20 @@ const MessageErrorInfo: React.FC<{
         'onRemoveErrorPart',
         async () => {
           try {
-            const res = (await dataApiService.get(`/messages/${message.id}`)) as {
-              data?: { parts?: CherryMessagePart[] }
-            }
-            const currentParts = res.data?.parts ?? []
-            // Parse part index from partId (format: ${messageId}-part-${index} or ${messageId}-block-${index})
-            const partMatch = partId.match(/-(?:part|block)-(\d+)$/)
-            const partIndex = partMatch ? parseInt(partMatch[1], 10) : -1
-            if (
-              partIndex >= 0 &&
-              partIndex < currentParts.length &&
-              (currentParts[partIndex].type as string) === 'data-error'
-            ) {
-              const updatedParts = currentParts.filter((_, i) => i !== partIndex)
-              await dataApiService.patch(`/messages/${message.id}`, { body: { data: { parts: updatedParts } } })
-              refresh()
-            }
-          } catch (err) {
-            logger.error('Failed to remove error part:', err as Error)
-          }
+            await removeMessageErrorPart?.({ messageId: message.id, partId })
+          } catch {}
         },
         350
       )
     },
-    [setTimeoutTimer, message.id, partId, refresh]
+    [removeMessageErrorPart, setTimeoutTimer, message.id, partId]
   )
 
   const showErrorDetail = () => {
-    showErrorDetailPopup({
+    openErrorDetail?.({
+      message,
       error,
-      blockId: partId,
+      partId,
       cachedDiagnosis,
       diagnosisContext
     })
@@ -186,27 +155,33 @@ const MessageErrorInfo: React.FC<{
   const onNavigate = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (classification.navTarget) {
-      void navigate({ to: classification.navTarget })
+      void navigateErrorTarget?.(classification.navTarget)
     }
   }
 
+  const canOpenDetail = !!openErrorDetail
+  const canRemoveErrorPart = !!removeMessageErrorPart
+  const canNavigate = !!classification.navTarget && !!navigateErrorTarget
+
   return (
     <div
-      className="group relative my-2 cursor-pointer rounded-lg border px-3.5 py-3 text-[13px] transition-all duration-200 hover:border-[color-mix(in_srgb,var(--color-error-base)_35%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-error-base)_7%,transparent)]"
+      className={`group relative my-2 rounded-lg border px-3.5 py-3 text-[13px] transition-all duration-200 hover:border-[color-mix(in_srgb,var(--color-error-base)_35%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-error-base)_7%,transparent)]${canOpenDetail ? ' cursor-pointer' : ''}`}
       style={{
         borderColor: 'color-mix(in srgb, var(--color-error-base) 20%, transparent)',
         background: 'color-mix(in srgb, var(--color-error-base) 4%, transparent)'
       }}
-      onClick={showErrorDetail}>
+      onClick={canOpenDetail ? showErrorDetail : undefined}>
       {/* Close button */}
-      <button
-        type="button"
-        className="absolute top-2 right-2 flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded border-none bg-transparent opacity-0 transition-all duration-150 hover:bg-[color-mix(in_srgb,var(--color-error-base)_12%,transparent)] hover:text-error-text group-hover:opacity-100"
-        onClick={onRemoveErrorPart}
-        aria-label="close"
-        title={t('common.close')}>
-        <X size={14} />
-      </button>
+      {canRemoveErrorPart && (
+        <button
+          type="button"
+          className="absolute top-2 right-2 flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded border-none bg-transparent opacity-0 transition-all duration-150 hover:bg-[color-mix(in_srgb,var(--color-error-base)_12%,transparent)] hover:text-error-text group-hover:opacity-100"
+          onClick={onRemoveErrorPart}
+          aria-label="close"
+          title={t('common.close')}>
+          <X size={14} />
+        </button>
+      )}
 
       {/* Header: icon + title */}
       <div className="mb-1.5 flex items-center gap-2">
@@ -227,7 +202,7 @@ const MessageErrorInfo: React.FC<{
 
       {/* Footer */}
       <div className="mt-2.5 ml-5.75 flex items-center gap-2">
-        {classification.navTarget && (
+        {canNavigate && (
           <Button
             size="sm"
             type="button"
@@ -237,12 +212,14 @@ const MessageErrorInfo: React.FC<{
             {t('error.diagnosis.go_to_settings')}
           </Button>
         )}
-        <div
-          className="ml-auto inline-flex items-center gap-0.5 text-xs transition-colors duration-150 group-hover:text-error-text"
-          style={{ color: 'var(--color-foreground-muted)' }}>
-          {t('common.detail')}
-          <ChevronRight size={14} />
-        </div>
+        {canOpenDetail && (
+          <div
+            className="ml-auto inline-flex items-center gap-0.5 text-xs transition-colors duration-150 group-hover:text-error-text"
+            style={{ color: 'var(--color-foreground-muted)' }}>
+            {t('common.detail')}
+            <ChevronRight size={14} />
+          </div>
+        )}
       </div>
     </div>
   )

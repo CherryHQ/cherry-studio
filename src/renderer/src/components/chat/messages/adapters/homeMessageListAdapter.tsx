@@ -19,7 +19,7 @@ import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/erro
 import { filterSupportedFiles } from '@renderer/utils/file'
 import { updateCodeBlock } from '@renderer/utils/markdown'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
-import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, Message, ModelSnapshot } from '@shared/data/types/message'
 import {
   createUniqueModelId,
   type Model as SharedModel,
@@ -45,6 +45,7 @@ import type {
 } from '../types'
 import { getMessageListItemModel, modelToSnapshot, toMessageListItem } from '../utils/messageListItem'
 import { useMessageActivityState } from './useMessageActivityState'
+import { useMessageErrorActions } from './useMessageErrorActions'
 import { useMessageExportActions } from './useMessageExportActions'
 import { useMessageListRenderConfig } from './useMessageListRenderConfig'
 import { useMessageMenuConfig } from './useMessageMenuConfig'
@@ -85,6 +86,7 @@ export function useHomeMessageListProviderValue({
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
   const menuConfig = useMessageMenuConfig()
   const exportActions = useMessageExportActions({ topicName: topic.name })
+  const errorActions = useMessageErrorActions()
 
   const messageItems = useMemo(
     () =>
@@ -306,6 +308,26 @@ export function useHomeMessageListProviderValue({
   const abortTool = useCallback((toolId: string) => {
     return window.api.mcp.abortTool(toolId)
   }, [])
+
+  const removeMessageErrorPart = useCallback<NonNullable<MessageListActions['removeMessageErrorPart']>>(
+    async ({ messageId, partId }) => {
+      try {
+        const persistedMessage = (await dataApiService.get(`/messages/${messageId}`)) as Message
+        const persistedParts = persistedMessage.data.parts ?? []
+        const resolved = resolvePartFromParts({ [messageId]: persistedParts }, partId)
+        if (!resolved || resolved.messageId !== messageId || (resolved.part.type as string) !== 'data-error') return
+
+        await chatWrite?.editMessage(
+          messageId,
+          persistedParts.filter((_, index) => index !== resolved.index)
+        )
+      } catch (error) {
+        logger.error('Failed to remove error part:', error as Error)
+        throw error
+      }
+    },
+    [chatWrite]
+  )
 
   const getMessageUiState = useCallback(
     (messageId: string) => (cacheService.get(`message.ui.${messageId}` as const) || {}) as MessageUiState,
@@ -542,6 +564,8 @@ export function useHomeMessageListProviderValue({
       startNewContext,
       saveCodeBlock,
       ...exportActions,
+      ...errorActions,
+      removeMessageErrorPart,
       openTrace,
       openPath,
       showInFolder,
@@ -572,6 +596,7 @@ export function useHomeMessageListProviderValue({
       deleteMessageGroup,
       editMessage,
       exportActions,
+      errorActions,
       forkAndResendMessage,
       loadOlder,
       locateMessage,
@@ -579,6 +604,7 @@ export function useHomeMessageListProviderValue({
       openTrace,
       regenerateMessage,
       renderRegenerateModelPicker,
+      removeMessageErrorPart,
       saveCodeBlock,
       selectFiles,
       setActiveBranch,

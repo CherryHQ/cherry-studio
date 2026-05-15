@@ -1,4 +1,5 @@
 import type { FileMetadata, Topic, TranslateLangCode, TranslateLanguage } from '@renderer/types'
+import type { SerializedError } from '@renderer/types/error'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type {
   ChatMessageStyle,
@@ -101,6 +102,43 @@ export interface MessageModelPickerRenderOptions {
   message: MessageListItem
   messageParts: CherryMessagePart[]
   trigger: ReactNode
+}
+
+export interface MessageErrorDiagnosisStep {
+  text: string
+}
+
+export interface MessageErrorDiagnosisResult {
+  summary: string
+  category: string
+  explanation: string
+  steps: MessageErrorDiagnosisStep[]
+}
+
+export interface MessageErrorDiagnosisContext {
+  errorSource?: string
+  providerName?: string
+  modelId?: string
+}
+
+export interface MessageErrorDiagnosisInput {
+  message: MessageListItem
+  partId: string
+  error: SerializedError
+  language: string
+}
+
+export interface MessageErrorDetailInput {
+  message: MessageListItem
+  partId: string
+  error?: SerializedError
+  cachedDiagnosis?: MessageErrorDiagnosisResult
+  diagnosisContext?: MessageErrorDiagnosisContext
+}
+
+export interface RemoveMessageErrorPartInput {
+  messageId: string
+  partId: string
 }
 
 export interface MessageListItem {
@@ -206,6 +244,12 @@ export interface MessageListActions {
   openPath?: (path: string) => void | Promise<void>
   showInFolder?: (path: string) => void | Promise<void>
   abortTool?: (toolId: string) => boolean | Promise<boolean>
+  diagnoseMessageError?: (
+    input: MessageErrorDiagnosisInput
+  ) => Promise<MessageErrorDiagnosisResult | string | null | undefined>
+  removeMessageErrorPart?: (input: RemoveMessageErrorPartInput) => void | Promise<void>
+  openErrorDetail?: (input: MessageErrorDetailInput) => void | Promise<void>
+  navigateErrorTarget?: (target: string) => void | Promise<void>
   selectFiles?: (options: { extensions: string[] }) => Promise<FileMetadata[] | null | undefined>
   translateEditorText?: (text: string) => Promise<string | null | undefined>
   translateMessage?: (messageId: string, language: TranslateLanguage, sourceText: string) => void | Promise<void>

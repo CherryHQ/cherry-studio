@@ -1,4 +1,5 @@
 import { cacheService } from '@data/CacheService'
+import { useMessageErrorActions } from '@renderer/components/chat/messages/adapters/useMessageErrorActions'
 import { useMessageListRenderConfig } from '@renderer/components/chat/messages/adapters/useMessageListRenderConfig'
 import { PartsProvider } from '@renderer/components/chat/messages/blocks'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
@@ -21,6 +22,7 @@ interface Props {
 
 export function HistoryMessageListProvider({ topic, messages, partsByMessageId, children }: Props) {
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
+  const errorActions = useMessageErrorActions()
   const getMessageUiState = useCallback(
     (messageId: string) => (cacheService.get(`message.ui.${messageId}` as const) || {}) as MessageUiState,
     []
@@ -70,6 +72,7 @@ export function HistoryMessageListProvider({ topic, messages, partsByMessageId, 
       actions: {
         openPath,
         showInFolder,
+        ...errorActions,
         updateMessageUiState,
         updateRenderConfig
       },
@@ -85,6 +88,7 @@ export function HistoryMessageListProvider({ topic, messages, partsByMessageId, 
       renderConfig,
       showInFolder,
       topic,
+      errorActions,
       updateMessageUiState,
       updateRenderConfig
     ]

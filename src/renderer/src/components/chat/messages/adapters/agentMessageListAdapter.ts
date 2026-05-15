@@ -12,6 +12,7 @@ import type {
 } from '../types'
 import { toMessageListItem } from '../utils/messageListItem'
 import { useMessageActivityState } from './useMessageActivityState'
+import { useMessageErrorActions } from './useMessageErrorActions'
 import { useMessageExportActions } from './useMessageExportActions'
 import { useMessageListRenderConfig } from './useMessageListRenderConfig'
 import { useMessageMenuConfig } from './useMessageMenuConfig'
@@ -63,6 +64,7 @@ export function useAgentMessageListProviderValue({
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
   const menuConfig = useMessageMenuConfig()
   const exportActions = useMessageExportActions({ topicName: topic.name })
+  const errorActions = useMessageErrorActions()
   const selectionController = useMessageSelectionController({
     topicId: topic.id,
     messages: messageItems,
@@ -133,6 +135,7 @@ export function useAgentMessageListProviderValue({
       loadOlder,
       deleteMessage,
       ...exportActions,
+      ...errorActions,
       openPath,
       showInFolder,
       abortTool,
@@ -143,6 +146,7 @@ export function useAgentMessageListProviderValue({
     [
       abortTool,
       deleteMessage,
+      errorActions,
       exportActions,
       loadOlder,
       openPath,
