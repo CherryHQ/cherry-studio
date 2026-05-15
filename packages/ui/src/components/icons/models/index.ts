@@ -3,7 +3,7 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-05-14T12:41:14.247Z
+ * Generated at: 2026-05-15T02:44:13.595Z
  * Total icons: 35
  */
 export { AyaIcon as Aya } from './aya'

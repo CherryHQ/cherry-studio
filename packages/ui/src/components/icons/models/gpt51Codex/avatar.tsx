@@ -2,7 +2,6 @@ import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/a
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { type IconAvatarProps } from '../../types'
-import { Gpt51CodexDark } from './dark'
 import { Gpt51CodexLight } from './light'
 
 export function Gpt51CodexAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
@@ -11,8 +10,7 @@ export function Gpt51CodexAvatar({ size = 32, shape = 'circle', className }: Omi
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <Gpt51CodexLight className="dark:hidden" style={{ width: size * 0.7, height: size * 0.7 }} />
-        <Gpt51CodexDark className="hidden dark:block" style={{ width: size * 0.7, height: size * 0.7 }} />
+        <Gpt51CodexLight style={{ width: size * 0.7, height: size * 0.7 }} />
       </AvatarFallback>
     </Avatar>
   )

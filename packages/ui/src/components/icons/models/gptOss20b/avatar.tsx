@@ -2,7 +2,6 @@ import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/a
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { type IconAvatarProps } from '../../types'
-import { GptOss20bDark } from './dark'
 import { GptOss20bLight } from './light'
 
 export function GptOss20bAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
@@ -11,8 +10,7 @@ export function GptOss20bAvatar({ size = 32, shape = 'circle', className }: Omit
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <GptOss20bLight className="dark:hidden" style={{ width: size * 0.7, height: size * 0.7 }} />
-        <GptOss20bDark className="hidden dark:block" style={{ width: size * 0.7, height: size * 0.7 }} />
+        <GptOss20bLight style={{ width: size * 0.7, height: size * 0.7 }} />
       </AvatarFallback>
     </Avatar>
   )
