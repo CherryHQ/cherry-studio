@@ -6,6 +6,8 @@ import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
+import { useAppSelector } from '@renderer/store'
+import { setLastActiveAssistantId } from '@renderer/store/assistants'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import type { Assistant, Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
@@ -29,9 +31,12 @@ const HomePage: FC = () => {
 
   const location = useLocation()
   const state = location.state
+  const lastActiveAssistantId = useAppSelector((s) => s.assistants.lastActiveAssistantId)
+
+  const lastActiveAssistant = lastActiveAssistantId ? assistants.find((a) => a.id === lastActiveAssistantId) : undefined
 
   const [activeAssistant, _setActiveAssistant] = useState<Assistant>(
-    state?.assistant || _activeAssistant || assistants[0]
+    state?.assistant || _activeAssistant || lastActiveAssistant || assistants[0]
   )
   const { activeTopic, setActiveTopic: _setActiveTopic } = useActiveTopic(activeAssistant?.id ?? '', state?.topic)
   const { showAssistants, showTopics, topicPosition } = useSettings()
@@ -78,6 +83,7 @@ const HomePage: FC = () => {
   const setActiveAssistant = useCallback(
     (newAssistant: Assistant) => {
       if (newAssistant.id === activeAssistant?.id) return
+      dispatch(setLastActiveAssistantId(newAssistant.id))
       startTransition(() => {
         _setActiveAssistant(newAssistant)
         // 同步更新 active topic，避免不必要的重新渲染
@@ -85,7 +91,7 @@ const HomePage: FC = () => {
         _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic))
       })
     },
-    [_setActiveTopic, activeAssistant?.id]
+    [_setActiveTopic, activeAssistant?.id, dispatch]
   )
 
   const setActiveTopic = useCallback(
