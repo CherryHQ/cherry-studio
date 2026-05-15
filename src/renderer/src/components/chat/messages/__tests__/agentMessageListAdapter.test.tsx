@@ -35,6 +35,7 @@ const leafCapabilitiesMock = vi.hoisted(() => ({
   openInExternalApp: vi.fn(),
   copyText: vi.fn(),
   copyImage: vi.fn(),
+  notifyInfo: vi.fn(),
   notifySuccess: vi.fn(),
   notifyWarning: vi.fn(),
   notifyError: vi.fn(),
@@ -83,6 +84,16 @@ vi.mock('../adapters/useMessageListRenderConfig', () => ({
       multiModelGridPopoverTrigger: 'click'
     },
     updateRenderConfig: vi.fn()
+  })
+}))
+
+vi.mock('../adapters/useMessageEditorConfig', () => ({
+  useMessageEditorConfig: () => ({
+    pasteLongTextAsFile: false,
+    pasteLongTextThreshold: 1500,
+    fontSize: 14,
+    sendMessageShortcut: 'Enter',
+    enableSpellCheck: false
   })
 }))
 
@@ -190,6 +201,13 @@ describe('useAgentMessageListProviderValue', () => {
       isMultiSelectMode: true,
       selectedMessageIds: ['user-1']
     })
+    expect(value?.state.editorConfig).toEqual({
+      pasteLongTextAsFile: false,
+      pasteLongTextThreshold: 1500,
+      fontSize: 14,
+      sendMessageShortcut: 'Enter',
+      enableSpellCheck: false
+    })
     expect(useMessageExportActionsMock).toHaveBeenCalledWith({
       topicName: 'Agent session'
     })
@@ -222,6 +240,7 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.openInExternalApp).toBe(leafCapabilitiesMock.openInExternalApp)
     expect(value?.actions.copyText).toBe(leafCapabilitiesMock.copyText)
     expect(value?.actions.copyImage).toBe(leafCapabilitiesMock.copyImage)
+    expect(value?.actions.notifyInfo).toBe(leafCapabilitiesMock.notifyInfo)
     expect(value?.actions.notifySuccess).toBe(leafCapabilitiesMock.notifySuccess)
     expect(value?.actions.notifyWarning).toBe(leafCapabilitiesMock.notifyWarning)
     expect(value?.actions.notifyError).toBe(leafCapabilitiesMock.notifyError)

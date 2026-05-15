@@ -5,7 +5,8 @@ import type {
   ChatMessageStyle,
   MathEngine,
   MultiModelGridPopoverTrigger,
-  MultiModelMessageStyle
+  MultiModelMessageStyle,
+  SendMessageShortcut
 } from '@shared/data/preference/preferenceTypes'
 import type {
   CherryMessagePart,
@@ -58,6 +59,14 @@ export interface MessageActivityState {
 export interface MessageEditorCapabilities {
   canAddImageFile: boolean
   canAddTextFile: boolean
+}
+
+export interface MessageEditorConfig {
+  pasteLongTextAsFile: boolean
+  pasteLongTextThreshold: number
+  fontSize: number
+  sendMessageShortcut: SendMessageShortcut
+  enableSpellCheck: boolean
 }
 
 export interface MessageMenuExportOptions {
@@ -217,6 +226,14 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
   multiModelGridPopoverTrigger: 'click'
 }
 
+export const defaultMessageEditorConfig: MessageEditorConfig = {
+  pasteLongTextAsFile: false,
+  pasteLongTextThreshold: 1500,
+  fontSize: defaultMessageRenderConfig.fontSize,
+  sendMessageShortcut: 'Enter',
+  enableSpellCheck: false
+}
+
 export type MessageRenderConfigUpdate = Partial<
   Pick<MessageRenderConfig, 'multiModelGridColumns' | 'multiModelGridPopoverTrigger'>
 >
@@ -236,6 +253,7 @@ export interface MessageListState {
   listKey?: string
   readonly?: boolean
   renderConfig: MessageRenderConfig
+  editorConfig?: MessageEditorConfig
   menuConfig?: MessageMenuConfig
   selection?: MessageListSelectionState
   translationLanguages?: TranslateLanguage[]
@@ -279,6 +297,7 @@ export interface MessageListActions {
   openInExternalApp?: (app: ExternalAppInfo, path: string) => void | Promise<void>
   copyText?: (text: string, options?: { successMessage?: string; emptyMessage?: string }) => void | Promise<void>
   copyImage?: (blob: Blob, options?: { successMessage?: string }) => void | Promise<void>
+  notifyInfo?: (message: string) => void
   notifySuccess?: (message: string) => void
   notifyWarning?: (message: string) => void
   notifyError?: (message: string) => void
@@ -293,6 +312,7 @@ export interface MessageListActions {
   openErrorDetail?: (input: MessageErrorDetailInput) => void | Promise<void>
   navigateErrorTarget?: (target: string) => void | Promise<void>
   selectFiles?: (options: { extensions: string[] }) => Promise<FileMetadata[] | null | undefined>
+  uploadEditorFiles?: (files: FileMetadata[]) => Promise<CherryMessagePart[]>
   translateEditorText?: (text: string) => Promise<string | null | undefined>
   translateMessage?: (messageId: string, language: TranslateLanguage, sourceText: string) => void | Promise<void>
   abortMessageTranslation?: (messageId: string) => void | Promise<void>

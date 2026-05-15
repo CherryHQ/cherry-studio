@@ -1,4 +1,5 @@
 import { cacheService } from '@data/CacheService'
+import { useMessageEditorConfig } from '@renderer/components/chat/messages/adapters/useMessageEditorConfig'
 import { useMessageErrorActions } from '@renderer/components/chat/messages/adapters/useMessageErrorActions'
 import { useMessageLeafCapabilities } from '@renderer/components/chat/messages/adapters/useMessageLeafCapabilities'
 import { useMessageListRenderConfig } from '@renderer/components/chat/messages/adapters/useMessageListRenderConfig'
@@ -23,6 +24,7 @@ interface Props {
 
 export function HistoryMessageListProvider({ topic, messages, partsByMessageId, children }: Props) {
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
+  const editorConfig = useMessageEditorConfig(renderConfig.fontSize)
   const errorActions = useMessageErrorActions()
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId })
   const getMessageUiState = useCallback(
@@ -59,6 +61,7 @@ export function HistoryMessageListProvider({ topic, messages, partsByMessageId, 
         listKey: `history-${topic.id}`,
         readonly: true,
         renderConfig,
+        editorConfig,
         selection: {
           enabled: false,
           isMultiSelectMode: false,
@@ -85,6 +88,7 @@ export function HistoryMessageListProvider({ topic, messages, partsByMessageId, 
         copyImage: leafCapabilities.copyImage,
         notifySuccess: leafCapabilities.notifySuccess,
         notifyWarning: leafCapabilities.notifyWarning,
+        notifyInfo: leafCapabilities.notifyInfo,
         notifyError: leafCapabilities.notifyError,
         updateMessageUiState,
         updateRenderConfig
@@ -103,6 +107,7 @@ export function HistoryMessageListProvider({ topic, messages, partsByMessageId, 
       leafCapabilities.copyText,
       leafCapabilities.copyImage,
       leafCapabilities.notifyError,
+      leafCapabilities.notifyInfo,
       leafCapabilities.notifySuccess,
       leafCapabilities.notifyWarning,
       leafCapabilities.previewFile,
@@ -110,6 +115,7 @@ export function HistoryMessageListProvider({ topic, messages, partsByMessageId, 
       openPath,
       partsByMessageId,
       renderConfig,
+      editorConfig,
       showInFolder,
       topic,
       errorActions,

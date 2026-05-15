@@ -1,5 +1,4 @@
 import { Textarea, Tooltip } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import FileManager from '@renderer/services/FileManager'
@@ -18,7 +17,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useMessageParts } from '../blocks'
 import { useMessageListActions, useMessageListUi } from '../MessageListProvider'
-import type { MessageListItem } from '../types'
+import { defaultMessageEditorConfig, type MessageListItem } from '../types'
 import { MessageAttachmentButton, MessageAttachmentPreview } from './MessageAttachmentPreview'
 
 interface Props {
@@ -40,11 +39,8 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
   const [isSelectingFiles, setIsSelectingFiles] = useState(false)
   const actions = useMessageListActions()
   const messageUi = useMessageListUi()
-  const [pasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
-  const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
-  const [fontSize] = usePreference('chat.message.font_size')
-  const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [enableSpellCheck] = usePreference('app.spell_check.enabled')
+  const { pasteLongTextAsFile, pasteLongTextThreshold, fontSize, sendMessageShortcut, enableSpellCheck } =
+    messageUi.editorConfig ?? defaultMessageEditorConfig
   const { t } = useTranslation()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const isUserMessage = message.role === 'user'
@@ -154,11 +150,11 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
       }
     } catch (error) {
       logger.error('Translation failed:', error as Error)
-      window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
+      actions.notifyError?.(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
     } finally {
       setIsTranslating(false)
     }
-  }, [actions.translateEditorText, editableText, isTranslating, onTranslated, t])
+  }, [actions.notifyError, actions.translateEditorText, editableText, isTranslating, onTranslated, t])
 
   const handlePartRemove = (index: number) => {
     setEditedParts((prev) => prev.filter((_, i) => i !== index))
@@ -203,7 +199,7 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
       })
 
       if (droppedFiles.length > 0 && supportedFiles === 0) {
-        window.toast.info(t('chat.input.file_not_supported'))
+        actions.notifyInfo?.(t('chat.input.file_not_supported'))
       }
     }
   }

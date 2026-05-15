@@ -12,6 +12,7 @@ import type {
 } from '../types'
 import { toMessageListItem } from '../utils/messageListItem'
 import { useMessageActivityState } from './useMessageActivityState'
+import { useMessageEditorConfig } from './useMessageEditorConfig'
 import { useMessageErrorActions } from './useMessageErrorActions'
 import { useMessageExportActions } from './useMessageExportActions'
 import { useMessageLeafCapabilities } from './useMessageLeafCapabilities'
@@ -65,6 +66,7 @@ export function useAgentMessageListProviderValue({
 
   const getMessageActivityState = useMessageActivityState(topic.id, partsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
+  const editorConfig = useMessageEditorConfig(renderConfig.fontSize)
   const menuConfig = useMessageMenuConfig()
   const exportActions = useMessageExportActions({ topicName: topic.name })
   const errorActions = useMessageErrorActions()
@@ -114,6 +116,7 @@ export function useAgentMessageListProviderValue({
       listKey: topic.id,
       readonly: true,
       renderConfig,
+      editorConfig,
       menuConfig,
       selection: selectionController.selection,
       getMessageUiState,
@@ -126,6 +129,7 @@ export function useAgentMessageListProviderValue({
       getMessageUiState,
       hasOlder,
       isLoading,
+      editorConfig,
       leafCapabilities.externalCodeEditors,
       leafCapabilities.isToolAutoApproved,
       menuConfig,
@@ -152,6 +156,7 @@ export function useAgentMessageListProviderValue({
       copyImage: leafCapabilities.copyImage,
       notifySuccess: leafCapabilities.notifySuccess,
       notifyWarning: leafCapabilities.notifyWarning,
+      notifyInfo: leafCapabilities.notifyInfo,
       notifyError: leafCapabilities.notifyError,
       openPath,
       openCitationsPanel,
@@ -173,6 +178,7 @@ export function useAgentMessageListProviderValue({
       leafCapabilities.copyText,
       leafCapabilities.copyImage,
       leafCapabilities.notifyError,
+      leafCapabilities.notifyInfo,
       leafCapabilities.notifySuccess,
       leafCapabilities.notifyWarning,
       loadOlder,

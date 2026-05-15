@@ -7,7 +7,7 @@ import { useMessagePlatformActions } from './adapters/useMessagePlatformActions'
 import { PartsProvider } from './blocks'
 import { MessageListProvider } from './MessageListProvider'
 import type { MessageListActions, MessageListItem, MessageListProviderValue, MessageRenderConfig } from './types'
-import { defaultMessageRenderConfig } from './types'
+import { defaultMessageEditorConfig, defaultMessageRenderConfig } from './types'
 
 interface MessageContentProviderProps {
   messages: MessageListItem[]
@@ -45,6 +45,20 @@ export function MessageContentProvider({
     () => ({ ...platformActions, ...actions }),
     [actions, platformActions]
   )
+  const mergedRenderConfig = useMemo(
+    () => ({
+      ...defaultMessageRenderConfig,
+      ...renderConfig
+    }),
+    [renderConfig]
+  )
+  const editorConfig = useMemo(
+    () => ({
+      ...defaultMessageEditorConfig,
+      fontSize: mergedRenderConfig.fontSize
+    }),
+    [mergedRenderConfig.fontSize]
+  )
 
   const value = useMemo<MessageListProviderValue>(
     () => ({
@@ -58,10 +72,8 @@ export function MessageContentProvider({
         overscan: 0,
         loadOlderDelayMs: 0,
         loadingResetDelayMs: 0,
-        renderConfig: {
-          ...defaultMessageRenderConfig,
-          ...renderConfig
-        },
+        renderConfig: mergedRenderConfig,
+        editorConfig,
         selection: {
           enabled: false,
           isMultiSelectMode: false,
@@ -78,7 +90,7 @@ export function MessageContentProvider({
         selectionLayer: false
       }
     }),
-    [mergedActions, messages, partsByMessageId, renderConfig, topic]
+    [editorConfig, mergedActions, mergedRenderConfig, messages, partsByMessageId, topic]
   )
 
   return (

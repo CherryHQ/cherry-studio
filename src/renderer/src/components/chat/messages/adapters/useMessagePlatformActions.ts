@@ -4,7 +4,7 @@ import type { MessageListActions } from '../types'
 
 export type MessagePlatformActions = Pick<
   MessageListActions,
-  'copyText' | 'copyImage' | 'notifySuccess' | 'notifyWarning' | 'notifyError'
+  'copyText' | 'copyImage' | 'notifyInfo' | 'notifySuccess' | 'notifyWarning' | 'notifyError'
 >
 
 export function useMessagePlatformActions(): MessagePlatformActions {
@@ -27,6 +27,10 @@ export function useMessagePlatformActions(): MessagePlatformActions {
     }
   }, [])
 
+  const notifyInfo = useCallback<NonNullable<MessageListActions['notifyInfo']>>((message) => {
+    window.toast.info(message)
+  }, [])
+
   const notifySuccess = useCallback<NonNullable<MessageListActions['notifySuccess']>>((message) => {
     window.toast.success(message)
   }, [])
@@ -43,10 +47,11 @@ export function useMessagePlatformActions(): MessagePlatformActions {
     () => ({
       copyText,
       copyImage,
+      notifyInfo,
       notifySuccess,
       notifyWarning,
       notifyError
     }),
-    [copyImage, copyText, notifyError, notifySuccess, notifyWarning]
+    [copyImage, copyText, notifyError, notifyInfo, notifySuccess, notifyWarning]
   )
 }

@@ -46,6 +46,7 @@ import type {
 } from '../types'
 import { getMessageListItemModel, modelToSnapshot, toMessageListItem } from '../utils/messageListItem'
 import { useMessageActivityState } from './useMessageActivityState'
+import { useMessageEditorConfig } from './useMessageEditorConfig'
 import { useMessageErrorActions } from './useMessageErrorActions'
 import { useMessageExportActions } from './useMessageExportActions'
 import { useMessageLeafCapabilities } from './useMessageLeafCapabilities'
@@ -88,6 +89,7 @@ export function useHomeMessageListProviderValue({
   const siblingsContext = use(SiblingsContext)
   const getMessageActivityState = useMessageActivityState(topic.id, partsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
+  const editorConfig = useMessageEditorConfig(renderConfig.fontSize)
   const menuConfig = useMessageMenuConfig()
   const exportActions = useMessageExportActions({ topicName: topic.name })
   const errorActions = useMessageErrorActions()
@@ -530,6 +532,7 @@ export function useHomeMessageListProviderValue({
       listKey: assistant?.id ?? topic.assistantId,
       readonly: false,
       renderConfig,
+      editorConfig,
       menuConfig,
       selection: selectionController.selection,
       translationLanguages: translationLanguages ?? [],
@@ -545,6 +548,7 @@ export function useHomeMessageListProviderValue({
     [
       assistant?.id,
       editorTranslationTargetLanguage,
+      editorConfig,
       getMessageActivityState,
       getMessageEditorCapabilities,
       getMessageSiblings,
@@ -583,6 +587,7 @@ export function useHomeMessageListProviderValue({
       copyImage: leafCapabilities.copyImage,
       notifySuccess: leafCapabilities.notifySuccess,
       notifyWarning: leafCapabilities.notifyWarning,
+      notifyInfo: leafCapabilities.notifyInfo,
       notifyError: leafCapabilities.notifyError,
       respondToolApproval,
       removeMessageErrorPart,
@@ -626,6 +631,7 @@ export function useHomeMessageListProviderValue({
       leafCapabilities.copyText,
       leafCapabilities.copyImage,
       leafCapabilities.notifyError,
+      leafCapabilities.notifyInfo,
       leafCapabilities.notifySuccess,
       leafCapabilities.notifyWarning,
       loadOlder,
