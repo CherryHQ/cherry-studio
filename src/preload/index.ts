@@ -894,8 +894,10 @@ const api = {
       messages?: unknown[]
       mcpToolIds?: string[]
     }): Promise<{ text: string; usage?: unknown }> => ipcRenderer.invoke(IpcChannel.Ai_GenerateText, request),
-    checkModel: (request: { uniqueModelId?: string; timeout?: number }): Promise<{ latency: number }> =>
-      ipcRenderer.invoke(IpcChannel.Ai_CheckModel, request),
+    checkModel: (
+      request: { uniqueModelId?: string; timeout?: number; apiKeyOverride?: string },
+      signal?: AbortSignal
+    ): Promise<{ latency: number }> => invokeWithAbort(IpcChannel.Ai_CheckModel, request, signal),
     embedMany: (request: {
       uniqueModelId?: string
       values: string[]
@@ -928,6 +930,7 @@ const api = {
       providerId?: string
       assistantId?: string
       throwOnError?: boolean
+      apiKeyOverride?: string
     }): Promise<Array<{ id: string; name: string; provider: string; group: string; [key: string]: unknown }>> =>
       ipcRenderer.invoke(IpcChannel.Ai_ListModels, request),
 

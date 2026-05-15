@@ -23,7 +23,7 @@ import { TemporaryChatBackend } from '../persistence/backends/TemporaryChatBacke
 import type { CherryUIMessage, StreamListener } from '../types'
 import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvider'
 import type { MainDispatchRequest } from './dispatch'
-import { resolveAssistantModelId, resolveModels } from './modelResolution'
+import { limitHistoryByAssistantContext, resolveAssistantModelId, resolveModels } from './modelResolution'
 
 const logger = loggerService.withContext('TemporaryChatContextProvider')
 
@@ -56,7 +56,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     const topic = temporaryChatService.getTopic(req.topicId)
     if (!topic) throw new Error(`Temporary topic not found: ${req.topicId}`)
 
-    const { assistantId, defaultModelId } = await resolveAssistantModelId(topic.assistantId)
+    const { assistantId, defaultModelId, assistant } = await resolveAssistantModelId(topic.assistantId)
 
     let resolveWith: UniqueModelId[] | undefined
     if (req.mentionedModelIds?.length) {
@@ -90,11 +90,14 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
 
     // 2. Read the full linear history.
     const prior = await temporaryChatService.listMessages(req.topicId)
-    const history: CherryUIMessage[] = prior.map((m) => ({
-      id: m.id,
-      role: m.role,
-      parts: m.data.parts ?? []
-    }))
+    const history: CherryUIMessage[] = limitHistoryByAssistantContext(
+      prior.map((m) => ({
+        id: m.id,
+        role: m.role,
+        parts: m.data.parts ?? []
+      })),
+      assistant
+    )
 
     // 3. Build listeners: subscriber (WebContents) + PersistenceListener wrapping
     //    the in-memory temporary-chat backend.
@@ -114,6 +117,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       chatId: req.topicId,
       trigger: 'submit-message',
       assistantId,
+      runtimeAssistant: assistant,
       uniqueModelId: model.id,
       messages: history
     }

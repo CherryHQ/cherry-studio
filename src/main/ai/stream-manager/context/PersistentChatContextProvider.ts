@@ -18,6 +18,7 @@ import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, trace } from '@opentelemetry/api'
 import { applyApprovalDecisions } from '@shared/ai/transport'
+import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
@@ -28,7 +29,12 @@ import { MessageServiceBackend } from '../persistence/backends/MessageServiceBac
 import type { CherryUIMessage, StreamListener } from '../types'
 import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvider'
 import type { MainContinueConversationRequest, MainDispatchRequest } from './dispatch'
-import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
+import {
+  limitHistoryByAssistantContext,
+  resolveAssistantModelId,
+  resolveModels,
+  resolvePersistentSiblingsGroupId
+} from './modelResolution'
 
 const rawTracer = trace.getTracer(TRACER_NAME)
 
@@ -76,14 +82,14 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   async prepareDispatch(subscriber: StreamListener, req: MainDispatchRequest): Promise<PreparedDispatch> {
     // 1. Resolve context
     const topic = await topicService.getById(req.topicId)
-    const { assistantId, defaultModelId } = await resolveAssistantModelId(topic?.assistantId)
+    const { assistantId, defaultModelId, assistant } = await resolveAssistantModelId(topic?.assistantId)
 
     // 2. continue-conversation takes a separate code path:
     //    no new placeholder is created — the existing assistant anchor is
     //    reused. Multi-model isn't meaningful here either (the approval
     //    belongs to one specific assistant turn).
     if (req.trigger === 'continue-conversation') {
-      return this.prepareContinueDispatch(subscriber, req, assistantId, defaultModelId)
+      return this.prepareContinueDispatch(subscriber, req, assistantId, defaultModelId, assistant)
     }
 
     // 3. Models (single or multi)
@@ -192,10 +198,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     }
 
     // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
-    const history = await this.buildHistory(userMessage.id)
+    const history = await this.buildHistory(userMessage.id, assistant)
     const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
       modelId: model.id,
-      request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, placeholder.id),
+      request: this.buildStreamRequest(req.topicId, assistantId, assistant, model.id, history, placeholder.id),
       rootSpan
     }))
 
@@ -228,7 +234,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     subscriber: StreamListener,
     req: MainContinueConversationRequest,
     assistantId: string | undefined,
-    defaultModelId: UniqueModelId
+    defaultModelId: UniqueModelId,
+    assistant: Assistant
   ): Promise<PreparedDispatch> {
     const anchor = await messageService.getById(req.parentAnchorId)
     if (anchor.role !== 'assistant') {
@@ -272,13 +279,13 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       })
     ]
 
-    const history = await this.buildHistory(anchor.id)
+    const history = await this.buildHistory(anchor.id, assistant)
     return {
       topicId: req.topicId,
       models: [
         {
           modelId: model.id,
-          request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, anchor.id),
+          request: this.buildStreamRequest(req.topicId, assistantId, assistant, model.id, history, anchor.id),
           rootSpan
         }
       ],
@@ -296,18 +303,20 @@ export class PersistentChatContextProvider implements ChatContextProvider {
    *    that assistant's parts so the model sees approval-responded state)
    * Pulled out of AiStreamManager so the registry stays free of data-layer dependencies.
    */
-  private async buildHistory(anchorMessageId: string): Promise<CherryUIMessage[]> {
+  private async buildHistory(anchorMessageId: string, assistant: Assistant | undefined): Promise<CherryUIMessage[]> {
     const messagePath = await messageService.getPathToNode(anchorMessageId)
-    return messagePath.map((msg) => ({
+    const history = messagePath.map((msg) => ({
       id: msg.id,
       role: msg.role,
       parts: msg.data.parts ?? []
     }))
+    return limitHistoryByAssistantContext(history, assistant)
   }
 
   private buildStreamRequest(
     topicId: string,
     assistantId: string | undefined,
+    runtimeAssistant: Assistant | undefined,
     uniqueModelId: UniqueModelId,
     history: CherryUIMessage[],
     messageId: string
@@ -316,6 +325,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       chatId: topicId,
       trigger: 'submit-message',
       assistantId,
+      runtimeAssistant,
       uniqueModelId,
       messages: history,
       messageId

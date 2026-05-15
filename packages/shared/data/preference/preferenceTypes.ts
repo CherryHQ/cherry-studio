@@ -1,4 +1,5 @@
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
+import type { AssistantSettings } from '@shared/data/types/assistant'
 import * as z from 'zod'
 
 import type { PreferenceSchemas } from './preferenceSchemas'
@@ -25,6 +26,19 @@ export type PreferenceUpdateOptions = {
 export type PreferenceShortcutType = {
   binding: string[]
   enabled: boolean
+}
+
+export const DEFAULT_ASSISTANT_CONTEXT_COUNT = 5
+
+export type DefaultAssistantPreferenceSettings = Partial<AssistantSettings> & {
+  contextCount?: number
+}
+
+export type DefaultAssistantPreference = {
+  name?: string
+  emoji?: string
+  prompt?: string
+  settings?: DefaultAssistantPreferenceSettings
 }
 
 export enum SelectionTriggerMode {

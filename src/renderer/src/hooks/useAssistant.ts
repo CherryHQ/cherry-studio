@@ -5,6 +5,7 @@ import { composeDefaultAssistant } from '@renderer/services/defaultAssistant'
 import type { Assistant, AssistantSettings, Model } from '@renderer/types'
 import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/modelReconcile'
 import type { CreateAssistantDto, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
+import type { DefaultAssistantPreferenceSettings } from '@shared/data/preference/preferenceTypes'
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useMemo } from 'react'
 
@@ -31,11 +32,31 @@ export function useAssistants() {
  * rendered by handling `useAssistant(...).assistant === undefined` directly,
  * not by faking up an Assistant.
  */
-export function useDefaultAssistant(): { assistant: Assistant } {
+export function useDefaultAssistant(): {
+  assistant: Assistant
+  defaultAssistant: Assistant
+  updateDefaultAssistant: (assistant: Assistant) => void
+} {
   const [defaultModelId] = usePreference('chat.default_model_id')
+  const [defaultAssistantPreference, setDefaultAssistantPreference] = usePreference('chat.default_assistant')
   const modelId = (defaultModelId ?? null) as UniqueModelId | null
-  const assistant = useMemo(() => composeDefaultAssistant(modelId), [modelId])
-  return { assistant }
+  const assistant = useMemo(
+    () => composeDefaultAssistant(modelId, defaultAssistantPreference),
+    [defaultAssistantPreference, modelId]
+  )
+  const updateDefaultAssistant = useCallback(
+    (nextAssistant: Assistant) => {
+      void setDefaultAssistantPreference({
+        name: nextAssistant.name,
+        emoji: nextAssistant.emoji,
+        prompt: nextAssistant.prompt,
+        settings: nextAssistant.settings as DefaultAssistantPreferenceSettings
+      })
+    },
+    [setDefaultAssistantPreference]
+  )
+
+  return { assistant, defaultAssistant: assistant, updateDefaultAssistant }
 }
 
 /**

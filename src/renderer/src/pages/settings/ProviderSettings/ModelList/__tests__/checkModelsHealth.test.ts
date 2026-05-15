@@ -13,7 +13,10 @@ vi.mock('@renderer/services/ApiService', () => ({
 
 vi.mock('../../utils/v1ProviderShim', () => ({
   toV1ModelForCheckApi: (model: unknown) => model,
-  toV1ProviderShim: (provider: unknown) => provider
+  toV1ProviderShim: (provider: Record<string, unknown>, options: Record<string, unknown>) => ({
+    ...provider,
+    ...options
+  })
 }))
 
 vi.mock('../../utils/healthCheck', async () => {
@@ -74,6 +77,27 @@ describe('checkModelsHealth', () => {
         timeout: 1000
       })
     ).rejects.toThrow('aggregation failed')
+  })
+
+  it('passes the current key and abort signal through each model check', async () => {
+    const controller = new AbortController()
+    checkModelMock.mockResolvedValue(undefined)
+
+    await checkModelsHealth({
+      provider: { id: 'openai' } as never,
+      models: [{ id: 'model-a' }] as never,
+      apiKeys: ['sk-current'],
+      isConcurrent: true,
+      timeout: 1000,
+      signal: controller.signal
+    })
+
+    expect(checkModelMock).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: 'sk-current' }),
+      { id: 'model-a' },
+      1000,
+      controller.signal
+    )
   })
 
   it('aborts between sequential models when the signal fires mid-iteration', async () => {

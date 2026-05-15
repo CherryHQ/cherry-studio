@@ -35,6 +35,7 @@ export interface BuildAgentParamsInput {
   request: AiBaseRequest & {
     chatId?: string
     messageId?: string
+    apiKeyOverride?: string
   }
   signal: AbortSignal | undefined
   provider: Provider
@@ -57,7 +58,7 @@ export interface BuiltAgentParams {
 export async function buildAgentParams(input: BuildAgentParamsInput): Promise<BuiltAgentParams> {
   const { request, signal, provider, model, assistant, extraFeatures } = input
 
-  const sdkConfig = await resolveSdkConfig(provider, model, request.chatId)
+  const sdkConfig = await resolveSdkConfig(provider, model, request.chatId, request.apiKeyOverride)
   const { tools, deferredEntries, mcpToolIds } = await resolveTools(request, assistant, model)
   const capabilities = assistant ? resolveCapabilities(model, provider, assistant) : undefined
 
@@ -103,10 +104,19 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
 }
 
 /** sdkConfig with optional Claude Code agent-session id derived from chatId. */
-async function resolveSdkConfig(provider: Provider, model: Model, chatId: string | undefined): Promise<SdkConfig> {
+async function resolveSdkConfig(
+  provider: Provider,
+  model: Model,
+  chatId: string | undefined,
+  apiKeyOverride: string | undefined
+): Promise<SdkConfig> {
   const agentSessionId = chatId && isAgentSessionTopic(chatId) ? extractAgentSessionId(chatId) : undefined
+  const options = {
+    ...(agentSessionId !== undefined ? { agentSessionId } : {}),
+    ...(apiKeyOverride !== undefined ? { apiKeyOverride } : {})
+  }
   return {
-    ...(await providerToAiSdkConfig(provider, model, { agentSessionId })),
+    ...(await providerToAiSdkConfig(provider, model, options)),
     modelId: model.apiModelId ?? model.id
   }
 }

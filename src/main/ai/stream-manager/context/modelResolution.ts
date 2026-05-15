@@ -7,6 +7,11 @@ import { application } from '@application'
 import { assistantDataService } from '@data/services/AssistantService'
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
+import {
+  DEFAULT_ASSISTANT_CONTEXT_COUNT,
+  type DefaultAssistantPreference
+} from '@shared/data/preference/preferenceTypes'
+import { type Assistant, DEFAULT_ASSISTANT_ID, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 // Monotonic counter so two regenerate clicks within the same millisecond
@@ -17,6 +22,47 @@ let siblingsGroupCounter = 0
 function nextSiblingsGroupId(): number {
   siblingsGroupCounter = (siblingsGroupCounter + 1) % 1000
   return Date.now() * 1000 + siblingsGroupCounter
+}
+
+const DEFAULT_ASSISTANT_TIMESTAMP = new Date(0).toISOString()
+
+function composeDefaultAssistant(
+  modelId: UniqueModelId,
+  overrides: DefaultAssistantPreference | null | undefined
+): Assistant {
+  const settings = {
+    ...DEFAULT_ASSISTANT_SETTINGS,
+    contextCount: DEFAULT_ASSISTANT_CONTEXT_COUNT,
+    ...overrides?.settings
+  }
+
+  return {
+    id: DEFAULT_ASSISTANT_ID,
+    name: overrides?.name ?? 'Default Assistant',
+    emoji: overrides?.emoji ?? '😀',
+    prompt: overrides?.prompt ?? '',
+    description: '',
+    settings,
+    modelId,
+    modelName: null,
+    mcpServerIds: [],
+    knowledgeBaseIds: [],
+    tags: [],
+    createdAt: DEFAULT_ASSISTANT_TIMESTAMP,
+    updatedAt: DEFAULT_ASSISTANT_TIMESTAMP
+  }
+}
+
+function resolveContextCount(assistant: Assistant | undefined): number | undefined {
+  const raw = (assistant?.settings as { contextCount?: unknown } | undefined)?.contextCount
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return undefined
+  return Math.max(0, Math.floor(raw))
+}
+
+export function limitHistoryByAssistantContext<T>(history: T[], assistant: Assistant | undefined): T[] {
+  const contextCount = resolveContextCount(assistant)
+  if (contextCount === undefined) return history
+  return history.slice(-(contextCount + 1))
 }
 
 /** Resolve the Model list from an optional `@mentioned` list, falling back to the assistant default. */
@@ -45,16 +91,21 @@ export async function resolveModels(
  */
 export async function resolveAssistantModelId(
   assistantId: string | null | undefined
-): Promise<{ assistantId: string | undefined; defaultModelId: UniqueModelId }> {
+): Promise<{ assistantId: string | undefined; defaultModelId: UniqueModelId; assistant: Assistant }> {
   if (assistantId) {
     const assistant = await assistantDataService.getById(assistantId)
     if (!assistant.modelId) throw new Error(`Assistant ${assistantId} has no model configured`)
-    return { assistantId, defaultModelId: assistant.modelId }
+    return { assistantId, defaultModelId: assistant.modelId, assistant }
   }
 
   const defaultModelId = application.get('PreferenceService').get('chat.default_model_id') as UniqueModelId | null
   if (!defaultModelId) throw new Error('No default model configured for assistant-less topic')
-  return { assistantId: undefined, defaultModelId }
+  const defaultAssistant = application.get('PreferenceService').get('chat.default_assistant')
+  return {
+    assistantId: undefined,
+    defaultModelId,
+    assistant: composeDefaultAssistant(defaultModelId, defaultAssistant)
+  }
 }
 
 /**

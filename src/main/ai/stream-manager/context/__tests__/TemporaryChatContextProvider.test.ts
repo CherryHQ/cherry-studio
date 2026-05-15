@@ -113,12 +113,19 @@ describe('TemporaryChatContextProvider', () => {
 
   it('uses the default model preference when topic has no assistantId', async () => {
     getTopicMock.mockReturnValueOnce({ id: '1', assistantId: null })
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_assistant', {
+      prompt: 'Use the default assistant prompt.',
+      settings: { temperature: 0.3, enableTemperature: true, contextCount: 0 }
+    })
 
     const prepared = await provider.prepareDispatch(makeSubscriber(), openReq())
 
     expect(getAssistantByIdMock).not.toHaveBeenCalled()
     expect(prepared.models[0].modelId).toBe('openai::gpt-4o')
     expect(prepared.models[0].request.assistantId).toBeUndefined()
+    expect(prepared.models[0].request.runtimeAssistant?.prompt).toBe('Use the default assistant prompt.')
+    expect(prepared.models[0].request.runtimeAssistant?.settings.temperature).toBe(0.3)
+    expect(prepared.models[0].request.messages).toHaveLength(1)
   })
 
   it('uses the default model preference when topic.assistantId is undefined', async () => {

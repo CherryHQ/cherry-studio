@@ -38,6 +38,22 @@ import type { AiBaseRequest, AiStreamRequest, AiTransportOptions } from './types
 
 const logger = loggerService.withContext('AiService')
 
+function toAbortError(reason: unknown): Error {
+  if (reason instanceof Error) {
+    return reason
+  }
+
+  const error = new Error(typeof reason === 'string' ? reason : 'Aborted')
+  error.name = 'AbortError'
+  return error
+}
+
+export function stripRuntimeAssistantFromRendererRequest<T extends object>(request: T): T {
+  const safeRequest = { ...request } as T & { runtimeAssistant?: unknown }
+  delete safeRequest.runtimeAssistant
+  return safeRequest as T
+}
+
 // ── Request types ──────────────────────────────────────────────────
 
 /**
@@ -126,6 +142,17 @@ export interface AiEmbedResult {
   usage?: EmbeddingModelUsage
 }
 
+export interface AiListModelsRequest extends AiBaseRequest {
+  providerId?: string
+  throwOnError?: boolean
+  apiKeyOverride?: string
+}
+
+export interface AiCheckModelRequest extends AiBaseRequest {
+  timeout?: number
+  apiKeyOverride?: string
+}
+
 // ── Service ────────────────────────────────────────────────────────
 
 /**
@@ -175,15 +202,46 @@ export class AiService extends BaseService {
 
   private registerIpcHandlers(): void {
     this.ipcHandle(IpcChannel.Ai_GenerateText, async (_, request: AiGenerateRequest) => {
-      return this.generateText(request)
+      return this.generateText(stripRuntimeAssistantFromRendererRequest(request))
     })
 
-    this.ipcHandle(IpcChannel.Ai_CheckModel, async (_, request: AiBaseRequest & { timeout?: number }) => {
-      return this.checkModel(request)
+    this.ipcHandle(IpcChannel.Ai_CheckModel, async (_, request: AiCheckModelRequest) => {
+      return this.checkModel(stripRuntimeAssistantFromRendererRequest(request))
+    })
+
+    this.ipcOn(IpcChannel.Ai_CheckModel, (event, payload: AiCheckModelRequest) => {
+      const port = event.ports[0]
+      if (!port) {
+        logger.error('Ai_CheckModel received without a MessagePort — caller bypassed invokeWithAbort')
+        return
+      }
+
+      const controller = new AbortController()
+      const onAbortMessage = (msg: { data?: { type?: string; reason?: string } }) => {
+        if (msg.data?.type === 'abort') controller.abort(new Error(msg.data.reason ?? 'Aborted'))
+      }
+      port.on('message', onAbortMessage)
+      port.start()
+
+      void (async () => {
+        try {
+          const request = stripRuntimeAssistantFromRendererRequest(payload)
+          const result = await this.checkModel({
+            ...request,
+            requestOptions: { ...request.requestOptions, signal: controller.signal }
+          })
+          port.postMessage({ type: 'result', value: result })
+        } catch (err) {
+          port.postMessage({ type: 'error', error: serializeError(err) })
+        } finally {
+          port.off('message', onAbortMessage)
+          port.close()
+        }
+      })()
     })
 
     this.ipcHandle(IpcChannel.Ai_EmbedMany, async (_, request: AiEmbedRequest) => {
-      return this.embedMany(request)
+      return this.embedMany(stripRuntimeAssistantFromRendererRequest(request))
     })
 
     // Image generation uses MessagePort instead of `ipcHandle` so the
@@ -209,9 +267,10 @@ export class AiService extends BaseService {
 
       void (async () => {
         try {
+          const request = stripRuntimeAssistantFromRendererRequest(payload)
           const result = await this.generateImage({
-            ...payload,
-            requestOptions: { ...payload.requestOptions, signal: controller.signal }
+            ...request,
+            requestOptions: { ...request.requestOptions, signal: controller.signal }
           })
           port.postMessage({ type: 'result', value: result })
         } catch (err) {
@@ -225,8 +284,8 @@ export class AiService extends BaseService {
       })()
     })
 
-    this.ipcHandle(IpcChannel.Ai_ListModels, async (_, request: AiBaseRequest) => {
-      return this.listModels(request)
+    this.ipcHandle(IpcChannel.Ai_ListModels, async (_, request: AiListModelsRequest) => {
+      return this.listModels(stripRuntimeAssistantFromRendererRequest(request))
     })
 
     this.ipcHandle(IpcChannel.Ai_Translate_Open, async (event, request: TranslateOpenRequest) => {
@@ -479,9 +538,14 @@ export class AiService extends BaseService {
 
   // ── Model listing ──
 
-  async listModels(request: AiBaseRequest & { throwOnError?: boolean }): Promise<Partial<Model>[]> {
-    const { provider } = await this.getProviderAndModel(request)
-    return listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
+  async listModels(request: AiListModelsRequest): Promise<Partial<Model>[]> {
+    const provider = request.providerId
+      ? await providerService.getByProviderId(request.providerId)
+      : (await this.getProviderAndModel(request)).provider
+    return listModelsFromProvider(provider, undefined, {
+      throwOnError: request.throwOnError,
+      ...(request.apiKeyOverride !== undefined ? { apiKeyOverride: request.apiKeyOverride } : {})
+    })
   }
 
   // ── API validation ──
@@ -493,7 +557,7 @@ export class AiService extends BaseService {
    * `generateText` otherwise — renderers do not need to know anything about
    * model types to run a health check.
    */
-  async checkModel(request: AiBaseRequest & { timeout?: number }): Promise<{ latency: number }> {
+  async checkModel(request: AsInProcess<AiCheckModelRequest>): Promise<{ latency: number }> {
     const { model } = await this.getProviderAndModel(request)
     const start = performance.now()
     const timeout = request.timeout ?? 15000
@@ -502,35 +566,50 @@ export class AiService extends BaseService {
     // the race, we also cancel the underlying HTTP work (otherwise tokens keep
     // burning server-side). Always clear the timer on both success and failure
     // paths so it cannot keep the event loop alive.
-    const controller = new AbortController()
+    const timeoutController = new AbortController()
+    const signal = request.requestOptions?.signal
+      ? AbortSignal.any([request.requestOptions.signal, timeoutController.signal])
+      : timeoutController.signal
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+    let abortCleanup: (() => void) | undefined
     const timeoutPromise = new Promise<never>((_, reject) => {
       timeoutHandle = setTimeout(() => {
-        controller.abort(new Error('Check model timeout'))
-        reject(new Error('Check model timeout'))
+        const error = new Error('Check model timeout')
+        timeoutController.abort(error)
+        reject(error)
       }, timeout)
+    })
+    const abortPromise = new Promise<never>((_, reject) => {
+      const rejectAborted = () => reject(toAbortError(signal.reason))
+      if (signal.aborted) {
+        rejectAborted()
+        return
+      }
+      signal.addEventListener('abort', rejectAborted, { once: true })
+      abortCleanup = () => signal.removeEventListener('abort', rejectAborted)
     })
 
     const probeRequest = {
       ...request,
-      requestOptions: { ...request.requestOptions, signal: controller.signal }
+      requestOptions: { ...request.requestOptions, signal }
     }
     const probe = isEmbeddingModel(model)
       ? this.embedMany({ ...probeRequest, values: ['test'] })
       : this.generateText({ ...probeRequest, system: 'test', prompt: 'hi' })
 
     try {
-      await Promise.race([probe, timeoutPromise])
+      await Promise.race([probe, timeoutPromise, abortPromise])
       return { latency: performance.now() - start }
     } finally {
       if (timeoutHandle) clearTimeout(timeoutHandle)
+      abortCleanup?.()
     }
   }
 
   // ── Shared agent parameter resolution ──
 
   private async buildAgentParamsFor(
-    request: AsInProcess<AiBaseRequest> & { chatId?: string },
+    request: AsInProcess<AiBaseRequest> & { chatId?: string; apiKeyOverride?: string; runtimeAssistant?: Assistant },
     signal: AbortSignal | undefined,
     extraFeatures: readonly RequestFeature[] = []
   ) {
@@ -564,9 +643,9 @@ export class AiService extends BaseService {
    * Get provider + model for this request.
    * All from v2 DataApi (SQLite). Priority: explicit uniqueModelId > assistant.modelId
    */
-  private async getProviderAndModel(request: AiBaseRequest & { chatId?: string }) {
-    let assistant: Assistant | undefined
-    if (request.assistantId) {
+  private async getProviderAndModel(request: AiBaseRequest & { chatId?: string; runtimeAssistant?: Assistant }) {
+    let assistant: Assistant | undefined = request.runtimeAssistant
+    if (!assistant && request.assistantId) {
       assistant = await assistantDataService.getById(request.assistantId).catch(() => undefined)
     }
 

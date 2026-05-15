@@ -99,6 +99,14 @@ describe('ComplexPreferenceMappings', () => {
       expect(codeToolsMapping).toBeDefined()
       expect(codeToolsMapping!.targetKeys).toEqual(['feature.code_cli.overrides'])
     })
+
+    it('should contain default assistant preference migration', () => {
+      const defaultAssistantMapping = COMPLEX_PREFERENCE_MAPPINGS.find(
+        (m) => m.id === 'default_assistant_preference_migrate'
+      )
+      expect(defaultAssistantMapping).toBeDefined()
+      expect(defaultAssistantMapping?.targetKeys).toEqual(['chat.default_assistant'])
+    })
   })
 
   describe('getComplexMappingTargetKeys', () => {
@@ -117,6 +125,7 @@ describe('ComplexPreferenceMappings', () => {
       expect(keys).toContain('topic.naming.model_id')
       expect(keys).toContain('feature.quick_assistant.model_id')
       expect(keys).toContain('feature.translate.model_id')
+      expect(keys).toContain('chat.default_assistant')
       expect(keys).toContain('feature.openclaw.gateway_port')
       expect(keys).toContain('feature.openclaw.selected_model_id')
       expect(keys).toContain('shortcut.general.zoom_in')
@@ -168,6 +177,64 @@ describe('ComplexPreferenceMappings', () => {
     it('should return undefined for non-existent id', () => {
       const mapping = getComplexMappingById('does_not_exist')
       expect(mapping).toBeUndefined()
+    })
+  })
+
+  describe('default_assistant_preference_migrate', () => {
+    it('should merge live default assistant edits with the defaultAssistant slot', () => {
+      const mapping = getComplexMappingById('default_assistant_preference_migrate')!
+
+      const result = mapping.transform({
+        assistants: [
+          {
+            id: 'default',
+            name: 'My Default',
+            prompt: '',
+            settings: { temperature: 0.7, enableTemperature: true }
+          }
+        ],
+        defaultAssistant: {
+          id: 'default',
+          name: 'Default Assistant',
+          prompt: 'Use this prompt',
+          emoji: '😀',
+          settings: { contextCount: 8, topP: 0.9 }
+        }
+      })
+
+      expect(result['chat.default_assistant']).toEqual({
+        name: 'My Default',
+        prompt: 'Use this prompt',
+        emoji: '😀',
+        settings: {
+          temperature: 0.7,
+          enableTemperature: true,
+          contextCount: 8,
+          topP: 0.9
+        }
+      })
+    })
+
+    it('should preserve contextCount and drop invalid assistant settings', () => {
+      const mapping = getComplexMappingById('default_assistant_preference_migrate')!
+
+      const result = mapping.transform({
+        defaultAssistant: {
+          id: 'default',
+          settings: {
+            contextCount: 3.8,
+            maxTokens: 0,
+            enableMaxTokens: false
+          }
+        }
+      })
+
+      expect(result['chat.default_assistant']).toEqual({
+        settings: {
+          contextCount: 3,
+          enableMaxTokens: false
+        }
+      })
     })
   })
 

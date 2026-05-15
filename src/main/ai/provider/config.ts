@@ -97,7 +97,7 @@ type ConfigBuilderEntry = {
 export async function providerToAiSdkConfig(
   provider: Provider,
   model: Model,
-  options?: { agentSessionId?: string }
+  options?: { agentSessionId?: string; apiKeyOverride?: string }
 ): Promise<ProviderConfig> {
   const { endpointType, baseUrl } = resolveEffectiveEndpoint(provider, model)
 
@@ -107,7 +107,7 @@ export async function providerToAiSdkConfig(
 
   const formattedBaseUrl = formatBaseURL(baseUrl, provider, endpointType)
   const { baseURL, endpoint } = routeToEndpoint(formattedBaseUrl)
-  const apiKey = await providerService.getRotatedApiKey(provider.id)
+  const apiKey = options?.apiKeyOverride ?? (await providerService.getRotatedApiKey(provider.id))
 
   const ctx: BuilderContext = {
     actualProvider: provider,

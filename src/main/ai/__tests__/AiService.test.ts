@@ -3,6 +3,26 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockGenerateImage = vi.fn()
 const mockDownloadImageAsBase64 = vi.fn()
+const { mockGetAssistantById, mockGetModelByKey, mockGetProviderByProviderId, mockListModelsFromProvider } = vi.hoisted(
+  () => ({
+    mockGetAssistantById: vi.fn(),
+    mockGetModelByKey: vi.fn(),
+    mockGetProviderByProviderId: vi.fn(),
+    mockListModelsFromProvider: vi.fn()
+  })
+)
+
+vi.mock('@data/services/AssistantService', () => ({
+  assistantDataService: {
+    getById: (...args: unknown[]) => mockGetAssistantById(...args)
+  }
+}))
+
+vi.mock('@main/data/services/ModelService', () => ({
+  modelService: {
+    getByKey: (...args: unknown[]) => mockGetModelByKey(...args)
+  }
+}))
 
 vi.mock('@main/services/agents/services/channels/ChannelAdapter', () => ({
   downloadImageAsBase64: (...args: unknown[]) => mockDownloadImageAsBase64(...args)
@@ -14,7 +34,18 @@ vi.mock('@cherrystudio/ai-core', () => ({
   generateImage: (...args: unknown[]) => mockGenerateImage(...args)
 }))
 
-const { AiService } = await import('../AiService')
+vi.mock('@main/data/services/ProviderService', () => ({
+  providerService: {
+    getByProviderId: (...args: unknown[]) => mockGetProviderByProviderId(...args)
+  }
+}))
+
+vi.mock('../provider/listModels', () => ({
+  listModels: (...args: unknown[]) => mockListModelsFromProvider(...args)
+}))
+
+const { AiService, stripRuntimeAssistantFromRendererRequest } = await import('../AiService')
+const { makeProvider } = await import('./fixtures')
 
 /**
  * Instantiate `AiService` directly (without going through the lifecycle
@@ -110,5 +141,82 @@ describe('AiService', () => {
     expect(result).toEqual({
       images: [{ kind: 'base64', data: 'data:image/png;base64,abc123', mediaType: 'image/png' }]
     })
+  })
+
+  it('lists models directly by providerId without requiring a model id', async () => {
+    const service = createService()
+    const provider = makeProvider({ id: 'openai' })
+    const models = [{ id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o' }]
+    mockGetProviderByProviderId.mockResolvedValue(provider)
+    mockListModelsFromProvider.mockResolvedValue(models)
+
+    await expect(service.listModels({ providerId: 'openai', throwOnError: true })).resolves.toBe(models)
+
+    expect(mockGetProviderByProviderId).toHaveBeenCalledWith('openai')
+    expect(mockListModelsFromProvider).toHaveBeenCalledWith(provider, undefined, { throwOnError: true })
+  })
+
+  it('strips renderer-supplied runtimeAssistant from public IPC requests', () => {
+    const request = {
+      uniqueModelId: 'openai::gpt-4o',
+      runtimeAssistant: {
+        id: 'default',
+        prompt: 'renderer supplied prompt'
+      }
+    }
+
+    expect(stripRuntimeAssistantFromRendererRequest(request)).toStrictEqual({
+      uniqueModelId: 'openai::gpt-4o'
+    })
+    expect(request.runtimeAssistant.prompt).toBe('renderer supplied prompt')
+  })
+
+  it('uses a stream-manager resolved runtime assistant without reloading it by id', async () => {
+    const service = createService()
+    const provider = makeProvider({ id: 'openai' })
+    const model = { id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o' }
+    const runtimeAssistant = {
+      id: 'default',
+      name: 'Default',
+      prompt: 'Use this default prompt.',
+      emoji: ':)',
+      description: '',
+      settings: {
+        temperature: 0.2,
+        enableTemperature: true,
+        topP: 1,
+        enableTopP: false,
+        maxTokens: 4096,
+        enableMaxTokens: false,
+        streamOutput: true,
+        reasoning_effort: 'default',
+        mcpMode: 'auto',
+        toolUseMode: 'function',
+        maxToolCalls: 20,
+        enableMaxToolCalls: true,
+        enableWebSearch: false,
+        customParameters: []
+      },
+      modelId: 'openai::gpt-4o',
+      modelName: null,
+      mcpServerIds: [],
+      knowledgeBaseIds: [],
+      tags: [],
+      createdAt: new Date(0).toISOString(),
+      updatedAt: new Date(0).toISOString()
+    }
+    mockGetProviderByProviderId.mockResolvedValue(provider)
+    mockGetModelByKey.mockResolvedValue(model)
+
+    const result = await (service as any).getProviderAndModel({
+      assistantId: 'default',
+      runtimeAssistant,
+      uniqueModelId: 'openai::gpt-4o'
+    })
+
+    expect(result.assistant).toBe(runtimeAssistant)
+    expect(mockGetAssistantById).not.toHaveBeenCalled()
+    expect(mockGetProviderByProviderId).toHaveBeenCalledWith('openai')
+    expect(mockGetModelByKey).toHaveBeenCalledWith('openai', 'gpt-4o')
   })
 })

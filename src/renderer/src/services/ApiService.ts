@@ -13,12 +13,36 @@ import { purifyMarkdownImages } from '@renderer/utils/markdown'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
 import { NOT_SUPPORT_API_KEY_PROVIDER_TYPES, NOT_SUPPORT_API_KEY_PROVIDERS } from '@renderer/utils/provider'
-import { createUniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import { isEmpty, takeRight } from 'lodash'
 
 import { readDefaultModel, readQuickModel } from './ModelService'
 
 const logger = loggerService.withContext('ApiService')
+
+type ListedModel = Partial<Model> & {
+  id: string
+  providerId?: string
+  apiModelId?: string
+  ownedBy?: string
+  endpointTypes?: Model['supported_endpoint_types']
+  supportsStreaming?: boolean
+}
+
+function normalizeListedModel(provider: Provider, model: ListedModel): Model {
+  const apiModelId = model.apiModelId ?? (isUniqueModelId(model.id) ? parseUniqueModelId(model.id).modelId : model.id)
+
+  return {
+    ...model,
+    id: apiModelId,
+    provider: model.provider ?? model.providerId ?? provider.id,
+    name: model.name ?? apiModelId,
+    group: model.group ?? provider.id,
+    owned_by: model.owned_by ?? model.ownedBy,
+    supported_endpoint_types: model.supported_endpoint_types ?? model.endpointTypes,
+    supported_text_delta: model.supported_text_delta ?? model.supportsStreaming
+  }
+}
 
 export async function fetchMessagesSummary({
   messages
@@ -119,7 +143,12 @@ export async function fetchGenerate({
 
 export async function fetchModels(provider: Provider, options?: { throwOnError?: boolean }): Promise<Model[]> {
   try {
-    return await window.api.ai.listModels({ providerId: provider.id, throwOnError: options?.throwOnError })
+    const models = await window.api.ai.listModels({
+      providerId: provider.id,
+      throwOnError: options?.throwOnError,
+      ...(provider.apiKey ? { apiKeyOverride: provider.apiKey } : {})
+    })
+    return models.map((model) => normalizeListedModel(provider, model))
   } catch (error) {
     if (options?.throwOnError) {
       throw error
@@ -167,13 +196,17 @@ export async function checkApi(
   provider: Provider,
   model: Model,
   timeout = 15000,
-  _signal?: AbortSignal
+  signal?: AbortSignal
 ): Promise<{ latency: number }> {
   checkApiProvider(provider)
-  return await window.api.ai.checkModel({
-    uniqueModelId: createUniqueModelId(provider.id, model.id),
-    timeout
-  })
+  return await window.api.ai.checkModel(
+    {
+      uniqueModelId: isUniqueModelId(model.id) ? model.id : createUniqueModelId(provider.id, model.id),
+      timeout,
+      ...(provider.apiKey ? { apiKeyOverride: provider.apiKey } : {})
+    },
+    signal
+  )
 }
 
 export async function checkModel(

@@ -9,6 +9,7 @@ import {
   createUniqueModelId,
   ENDPOINT_TYPE,
   type EndpointType as RuntimeEndpointType,
+  isUniqueModelId,
   type Model,
   parseUniqueModelId
 } from '@shared/data/types/model'
@@ -43,6 +44,7 @@ function providerNeedsApiKeyForModelSync(provider: Provider): boolean {
 type ProviderResolveModelsPath = Extract<ConcreteApiPaths, `/providers/${string}/models:resolve`>
 type ProviderApiKeysPath = Extract<ConcreteApiPaths, `/providers/${string}/api-keys`>
 type ProviderApiKeysResponse = { keys: ApiKeyEntry[] }
+type FetchedModel = LegacyModel & Partial<Model>
 
 const LEGACY_ENDPOINT_TO_RUNTIME: Record<string, RuntimeEndpointType> = {
   openai: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -53,8 +55,24 @@ const LEGACY_ENDPOINT_TO_RUNTIME: Record<string, RuntimeEndpointType> = {
   'jina-rerank': ENDPOINT_TYPE.JINA_RERANK
 }
 
-async function fetchModelsStrict(provider: LegacyProvider): Promise<LegacyModel[]> {
-  return await fetchModels(provider, { throwOnError: true })
+async function fetchModelsStrict(provider: LegacyProvider): Promise<FetchedModel[]> {
+  return (await fetchModels(provider, { throwOnError: true })) as FetchedModel[]
+}
+
+function getFetchedModelId(model: FetchedModel): string {
+  if (model.apiModelId) {
+    return model.apiModelId
+  }
+
+  if (isUniqueModelId(model.id)) {
+    return parseUniqueModelId(model.id).modelId
+  }
+
+  return model.id
+}
+
+function getLastPathSegment(modelId: string): string {
+  return modelId.includes('/') ? modelId.substring(modelId.lastIndexOf('/') + 1) : modelId
 }
 
 export function toCreateModelDto(
@@ -73,20 +91,22 @@ export function toCreateModelDto(
   }
 }
 
-function normalizeFetchedModel(providerId: string, model: LegacyModel): Model {
+function normalizeFetchedModel(providerId: string, model: FetchedModel): Model {
+  const modelId = getFetchedModelId(model)
   const endpointTypes = [
     ...(model.supported_endpoint_types
       ?.map((endpointType) => LEGACY_ENDPOINT_TO_RUNTIME[endpointType])
       .filter((endpointType): endpointType is RuntimeEndpointType => endpointType !== undefined) ?? []),
     ...(model.endpoint_type && LEGACY_ENDPOINT_TO_RUNTIME[model.endpoint_type]
       ? [LEGACY_ENDPOINT_TO_RUNTIME[model.endpoint_type]]
-      : [])
+      : []),
+    ...(model.endpointTypes ?? [])
   ]
 
   return {
-    id: createUniqueModelId(providerId, model.id),
+    id: createUniqueModelId(providerId, modelId),
     providerId,
-    apiModelId: model.id,
+    apiModelId: modelId,
     name: model.name,
     description: model.description,
     group: model.group,
@@ -100,7 +120,7 @@ function normalizeFetchedModel(providerId: string, model: LegacyModel): Model {
   }
 }
 
-async function enrichFetchedModels(providerId: string, fetchedModels: LegacyModel[]): Promise<Model[]> {
+async function enrichFetchedModels(providerId: string, fetchedModels: FetchedModel[]): Promise<Model[]> {
   const filteredModels = fetchedModels.filter((model) => !isEmpty(model.name))
   if (filteredModels.length === 0) {
     return []
@@ -109,7 +129,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: LegacyMode
   const resolveModelsPath: ProviderResolveModelsPath = `/providers/${providerId}/models:resolve`
   const resolved = (await dataApiService.get(resolveModelsPath, {
     query: {
-      ids: filteredModels.map((model) => model.id)
+      ids: filteredModels.map(getFetchedModelId)
     }
   })) as Model[]
 
@@ -140,15 +160,12 @@ async function enrichFetchedModels(providerId: string, fetchedModels: LegacyMode
 
   return filteredModels.map((fetched) => {
     const base = normalizeFetchedModel(providerId, fetched)
+    const rawModelId = base.apiModelId ?? getFetchedModelId(fetched)
+    const lastSegmentId = getLastPathSegment(rawModelId)
     const registry =
-      resolvedMap.get(fetched.id) ??
-      resolvedMap.get(fetched.id.includes('/') ? fetched.id.substring(fetched.id.lastIndexOf('/') + 1) : fetched.id) ??
-      resolvedMap.get(
-        (fetched.id.includes('/') ? fetched.id.substring(fetched.id.lastIndexOf('/') + 1) : fetched.id).replaceAll(
-          '.',
-          '-'
-        )
-      )
+      resolvedMap.get(rawModelId) ??
+      resolvedMap.get(lastSegmentId) ??
+      resolvedMap.get(lastSegmentId.replaceAll('.', '-'))
 
     if (!registry) {
       return base

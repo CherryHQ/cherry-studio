@@ -27,6 +27,7 @@ import {
   normalizeWebSearchDefaultProvider
 } from '../transformers/PreferenceTransformers'
 import { transformCodeCli } from './CodeCliTransforms'
+import { transformDefaultAssistantPreference } from './DefaultAssistantPreferenceMappings'
 import { mergeFileProcessingOverrides } from './FileProcessingOverrideMappings'
 import { transformLlmModelIds } from './LlmModelTransforms'
 import { SHORTCUT_TARGET_KEYS, transformShortcuts } from './ShortcutMappings'
@@ -206,6 +207,18 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
       'feature.translate.model_id'
     ],
     transform: transformLlmModelIds
+  },
+
+  // Default assistant template overrides
+  {
+    id: 'default_assistant_preference_migrate',
+    description: 'Migrate legacy defaultAssistant edits into the v2 default assistant preference',
+    sources: {
+      assistants: { source: 'redux', category: 'assistants', key: 'assistants' },
+      defaultAssistant: { source: 'redux', category: 'assistants', key: 'defaultAssistant' }
+    },
+    targetKeys: ['chat.default_assistant'],
+    transform: transformDefaultAssistantPreference
   },
 
   // OpenClaw preferences migration (legacy port + JSON model string → v2 preferences)

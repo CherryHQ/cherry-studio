@@ -111,6 +111,13 @@
       "description": "Hidden sidebar icons (complex migration: rewrite 'minapp' → 'mini_app')"
     },{
 
+      "targetKey": "chat.default_assistant",
+      "type": "PreferenceTypes.DefaultAssistantPreference",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Default assistant UI overrides for assistant-less topics"
+    },
+    {
       "targetKey": "chat.default_model_id",
       "type": "string",
       "defaultValue": null,

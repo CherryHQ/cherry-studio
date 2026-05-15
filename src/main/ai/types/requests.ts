@@ -1,6 +1,7 @@
 /**
  * Request shapes shared between `AiService` and `stream-manager`.
  */
+import type { Assistant } from '@shared/data/types/assistant'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ChatTransport, UIMessage } from 'ai'
 
@@ -57,8 +58,10 @@ export interface AiBaseRequest {
 
 export type ChatTrigger = Parameters<ChatTransport<UIMessage>['sendMessages']>[0]['trigger']
 
-/** Streaming chat request — pure transport data. Serialisable across IPC. */
+/** Streaming chat request built inside Main after renderer IPC dispatch has resolved context. */
 export interface AiStreamRequest extends AiBaseRequest {
+  /** Main-process resolved assistant config. Set by stream-manager after DataApi/Preference lookup. */
+  runtimeAssistant?: Assistant
   /** Used by AiService for chunk routing. In AiStreamManager path this is set to topicId. */
   chatId: string
   trigger: ChatTrigger

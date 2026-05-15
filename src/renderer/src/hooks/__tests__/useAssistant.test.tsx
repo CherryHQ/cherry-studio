@@ -1,7 +1,7 @@
 import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAssistant, useDefaultAssistant } from '../useAssistant'
@@ -23,6 +23,46 @@ describe('useDefaultAssistant', () => {
     const { result } = renderHook(() => useDefaultAssistant())
 
     expect(result.current.assistant.modelId).toBe('openai::gpt-4o')
+  })
+
+  it('applies default assistant preference overrides', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.default_assistant', {
+      name: 'Default writer',
+      emoji: ':)',
+      prompt: 'Write concise answers.',
+      settings: { temperature: 0.2, enableTemperature: true, contextCount: 3 }
+    })
+
+    const { result } = renderHook(() => useDefaultAssistant())
+
+    expect(result.current.defaultAssistant.name).toBe('Default writer')
+    expect(result.current.defaultAssistant.emoji).toBe(':)')
+    expect(result.current.defaultAssistant.prompt).toBe('Write concise answers.')
+    expect(result.current.defaultAssistant.settings.temperature).toBe(0.2)
+    expect((result.current.defaultAssistant.settings as { contextCount?: number }).contextCount).toBe(3)
+  })
+
+  it('updates the default assistant preference', () => {
+    const { result } = renderHook(() => useDefaultAssistant())
+
+    act(() => {
+      result.current.updateDefaultAssistant({
+        ...result.current.defaultAssistant,
+        name: 'Updated default',
+        prompt: 'Use this prompt.',
+        settings: {
+          ...result.current.defaultAssistant.settings,
+          temperature: 0.4,
+          contextCount: 2
+        } as typeof result.current.defaultAssistant.settings
+      })
+    })
+
+    expect(MockUsePreferenceUtils.getPreferenceValue('chat.default_assistant')).toMatchObject({
+      name: 'Updated default',
+      prompt: 'Use this prompt.',
+      settings: { temperature: 0.4, contextCount: 2 }
+    })
   })
 
   it('returns null modelId when preference is unset', () => {

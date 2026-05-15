@@ -217,6 +217,49 @@ describe('PreferencesMigrator', () => {
       expect(overrides.mistral?.apiKeys).toEqual(['ocr-test-key'])
     })
 
+    it('migrates legacy defaultAssistant edits into chat.default_assistant', async () => {
+      const ctx = createTestContext(
+        {
+          redux: {
+            assistants: {
+              assistants: [
+                {
+                  id: 'default',
+                  name: 'My Default',
+                  prompt: '',
+                  settings: { temperature: 0.6, enableTemperature: true }
+                }
+              ],
+              defaultAssistant: {
+                id: 'default',
+                prompt: 'Legacy default prompt',
+                emoji: '😀',
+                settings: { contextCount: 9, maxTokens: 8192 }
+              }
+            }
+          }
+        },
+        dbh.db
+      )
+
+      await migrator.prepare(ctx)
+      await migrator.execute(ctx)
+
+      const rows = await selectByKey(dbh.db, 'chat.default_assistant')
+      expect(rows).toHaveLength(1)
+      expect(rows[0].value).toEqual({
+        name: 'My Default',
+        prompt: 'Legacy default prompt',
+        emoji: '😀',
+        settings: {
+          temperature: 0.6,
+          enableTemperature: true,
+          contextCount: 9,
+          maxTokens: 8192
+        }
+      })
+    })
+
     it('handles malformed complex-mapping source without aborting other prefs', async () => {
       // shortcuts source must be an array; transformShortcuts logs and returns
       // {} when given a non-array, so prepare succeeds with no shortcut.* rows
