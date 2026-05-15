@@ -211,14 +211,34 @@ export class AgentService extends BaseService {
       }
 
       if (existing) {
-        // Sync localized description/instructions on every startup (language may have changed)
+        // Sync localized name/description/instructions on every startup (language may have changed)
         const resolvedPaths = this.resolveAccessiblePaths([], id)
         const workspace = resolvedPaths[0]
         const agentConfig = workspace ? await provisionWorkspace(workspace, builtinRole) : undefined
-        if (agentConfig && (agentConfig.description || agentConfig.instructions)) {
+        if (
+          agentConfig &&
+          (agentConfig.name || agentConfig.description || agentConfig.instructions || agentConfig.configuration)
+        ) {
           const updateData: UpdateAgentRequest = {}
+          if (agentConfig.name) updateData.name = agentConfig.name
           if (agentConfig.description) updateData.description = agentConfig.description
           if (agentConfig.instructions) updateData.instructions = agentConfig.instructions
+          if (agentConfig.configuration) {
+            // Merge template config with existing stored config — existing stored values take precedence
+            // so user customizations (e.g. permission_mode, max_turns) are never overwritten on startup.
+            let existingConfig: Record<string, unknown> = {}
+            if (existing.configuration) {
+              try {
+                existingConfig = JSON.parse(existing.configuration)
+              } catch {
+                logger.warn('Failed to parse existing agent configuration, using empty config', { agentId: id })
+              }
+            }
+            updateData.configuration = {
+              ...agentConfig.configuration,
+              ...existingConfig
+            } as UpdateAgentRequest['configuration']
+          }
           await this.updateAgent(id, updateData)
         }
         return { agentId: id }
