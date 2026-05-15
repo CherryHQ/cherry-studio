@@ -1,5 +1,4 @@
 import { Flex } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
 import type { Citation, Model } from '@renderer/types'
 import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
 import type { CitationReferenceView } from '@renderer/utils/partsToBlocks'
@@ -9,6 +8,7 @@ import React, { useCallback } from 'react'
 
 import type { MarkdownSource } from '../markdown/Markdown'
 import Markdown from '../markdown/Markdown'
+import { useMessageRenderConfig } from '../MessageListProvider'
 import CitationsList from './CitationsList'
 
 interface Props {
@@ -30,7 +30,7 @@ const MainTextBlock: React.FC<Props> = ({
   role,
   mentions = []
 }) => {
-  const [renderInputMessageAsMarkdown] = usePreference('chat.message.render_as_markdown')
+  const { renderInputMessageAsMarkdown } = useMessageRenderConfig()
 
   const block: MarkdownSource = { id, content, status: isStreaming ? 'streaming' : 'success' }
 

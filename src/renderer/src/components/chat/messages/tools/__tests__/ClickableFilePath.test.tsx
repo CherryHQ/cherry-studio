@@ -1,3 +1,4 @@
+import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -8,6 +9,11 @@ import { ClickableFilePath } from '../agent/ClickableFilePath'
 
 const mockOpenPath = vi.fn().mockResolvedValue(undefined)
 const mockShowInFolder = vi.fn().mockResolvedValue(undefined)
+const mockOpenInExternalApp = vi.fn()
+const externalCodeEditors: ExternalAppInfo[] = [
+  { id: 'vscode', name: 'Visual Studio Code', protocol: 'vscode://', tags: ['code-editor'], path: '/app/vscode' },
+  { id: 'cursor', name: 'Cursor', protocol: 'cursor://', tags: ['code-editor'], path: '/app/cursor' }
+]
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -22,19 +28,8 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useExternalApps', () => ({
-  useExternalApps: () => ({
-    data: [
-      { id: 'vscode', name: 'Visual Studio Code', protocol: 'vscode://', tags: ['code-editor'], path: '/app/vscode' },
-      { id: 'cursor', name: 'Cursor', protocol: 'cursor://', tags: ['code-editor'], path: '/app/cursor' }
-    ]
-  })
-}))
-
 vi.mock('@renderer/utils/editorUtils', () => ({
-  getEditorIcon: ({ id }: { id: string }) => <span data-testid={`${id}-icon`} />,
-  buildEditorUrl: (app: { protocol: string }, path: string) =>
-    `${app.protocol}file/${path.split('/').map(encodeURIComponent).join('/')}?windowId=_blank`
+  getEditorIcon: ({ id }: { id: string }) => <span data-testid={`${id}-icon`} />
 }))
 
 const renderWithProvider = (ui: ReactElement, actions: MessageListProviderValue['actions'] = {}) => {
@@ -48,7 +43,8 @@ const renderWithProvider = (ui: ReactElement, actions: MessageListProviderValue[
       overscan: 0,
       loadOlderDelayMs: 0,
       loadingResetDelayMs: 0,
-      renderConfig: defaultMessageRenderConfig
+      renderConfig: defaultMessageRenderConfig,
+      externalCodeEditors: [...externalCodeEditors]
     },
     actions,
     meta: { selectionLayer: false }
@@ -91,6 +87,11 @@ describe('ClickableFilePath', () => {
 
   it('should render ellipsis dropdown trigger', () => {
     renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, { showInFolder: mockShowInFolder })
+    expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument()
+  })
+
+  it('should render ellipsis dropdown trigger for external editor capability', () => {
+    renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, { openInExternalApp: mockOpenInExternalApp })
     expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument()
   })
 

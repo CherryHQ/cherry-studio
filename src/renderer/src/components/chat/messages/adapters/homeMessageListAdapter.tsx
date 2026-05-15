@@ -10,6 +10,7 @@ import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
 import { useLanguages } from '@renderer/hooks/translate'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
+import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { translateInputText } from '@renderer/services/TranslateCommandService'
 import { translateText } from '@renderer/services/TranslateService'
@@ -47,6 +48,7 @@ import { getMessageListItemModel, modelToSnapshot, toMessageListItem } from '../
 import { useMessageActivityState } from './useMessageActivityState'
 import { useMessageErrorActions } from './useMessageErrorActions'
 import { useMessageExportActions } from './useMessageExportActions'
+import { useMessageLeafCapabilities } from './useMessageLeafCapabilities'
 import { useMessageListRenderConfig } from './useMessageListRenderConfig'
 import { useMessageMenuConfig } from './useMessageMenuConfig'
 import { useMessageSelectionController } from './useMessageSelectionController'
@@ -89,6 +91,8 @@ export function useHomeMessageListProviderValue({
   const menuConfig = useMessageMenuConfig()
   const exportActions = useMessageExportActions({ topicName: topic.name })
   const errorActions = useMessageErrorActions()
+  const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId })
+  const respondToolApproval = useToolApprovalBridge(topic.id, messages)
 
   const messageItems = useMemo(
     () =>
@@ -534,6 +538,8 @@ export function useHomeMessageListProviderValue({
       getMessageSiblings,
       getMessageActivityState,
       getMessageEditorCapabilities,
+      isToolAutoApproved: leafCapabilities.isToolAutoApproved,
+      externalCodeEditors: leafCapabilities.externalCodeEditors,
       getTranslationLanguageLabel
     }),
     [
@@ -545,6 +551,8 @@ export function useHomeMessageListProviderValue({
       getMessageUiState,
       getTranslationLanguageLabel,
       hasOlder,
+      leafCapabilities.externalCodeEditors,
+      leafCapabilities.isToolAutoApproved,
       menuConfig,
       messageItems,
       messageNavigation,
@@ -567,6 +575,11 @@ export function useHomeMessageListProviderValue({
       saveCodeBlock,
       ...exportActions,
       ...errorActions,
+      previewFile: leafCapabilities.previewFile,
+      subscribeToolProgress: leafCapabilities.subscribeToolProgress,
+      openExternalUrl: leafCapabilities.openExternalUrl,
+      openInExternalApp: leafCapabilities.openInExternalApp,
+      respondToolApproval,
       removeMessageErrorPart,
       openTrace,
       openPath,
@@ -601,6 +614,10 @@ export function useHomeMessageListProviderValue({
       exportActions,
       errorActions,
       forkAndResendMessage,
+      leafCapabilities.previewFile,
+      leafCapabilities.subscribeToolProgress,
+      leafCapabilities.openExternalUrl,
+      leafCapabilities.openInExternalApp,
       loadOlder,
       locateMessage,
       openCitationsPanel,
@@ -608,6 +625,7 @@ export function useHomeMessageListProviderValue({
       openTrace,
       regenerateMessage,
       renderRegenerateModelPicker,
+      respondToolApproval,
       removeMessageErrorPart,
       saveCodeBlock,
       selectFiles,

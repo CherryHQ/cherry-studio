@@ -35,6 +35,8 @@ type MessageListUiValue = Pick<
   | 'getMessageSiblings'
   | 'getMessageActivityState'
   | 'getMessageEditorCapabilities'
+  | 'isToolAutoApproved'
+  | 'externalCodeEditors'
   | 'getTranslationLanguageLabel'
 >
 
@@ -89,6 +91,8 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       getMessageSiblings: state.getMessageSiblings,
       getMessageActivityState: state.getMessageActivityState,
       getMessageEditorCapabilities: state.getMessageEditorCapabilities,
+      isToolAutoApproved: state.isToolAutoApproved,
+      externalCodeEditors: state.externalCodeEditors,
       getTranslationLanguageLabel: state.getTranslationLanguageLabel
     }),
     [
@@ -100,6 +104,8 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       state.getMessageSiblings,
       state.getMessageActivityState,
       state.getMessageEditorCapabilities,
+      state.isToolAutoApproved,
+      state.externalCodeEditors,
       state.getTranslationLanguageLabel
     ]
   )
@@ -137,6 +143,10 @@ export const useOptionalMessageList = (): MessageListProviderValue | null => {
 
 export const useOptionalMessageListActions = (): MessageListActions | undefined => {
   return use(MessageListActionsContext) ?? undefined
+}
+
+export const useOptionalMessageListUi = (): MessageListUiValue | undefined => {
+  return use(MessageListUiContext) ?? undefined
 }
 
 export const useMessageList = (): MessageListProviderValue => {

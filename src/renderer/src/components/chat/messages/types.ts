@@ -1,8 +1,9 @@
-import type { Citation, FileMetadata, Topic, TranslateLangCode, TranslateLanguage } from '@renderer/types'
+import type { Citation, FileMetadata, MCPTool, Topic, TranslateLangCode, TranslateLanguage } from '@renderer/types'
 import type { SerializedError } from '@renderer/types/error'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type {
   ChatMessageStyle,
+  MathEngine,
   MultiModelGridPopoverTrigger,
   MultiModelMessageStyle
 } from '@shared/data/preference/preferenceTypes'
@@ -13,6 +14,7 @@ import type {
   MessageStatus,
   ModelSnapshot
 } from '@shared/data/types/message'
+import type { ExternalAppInfo } from '@shared/externalApp/types'
 import type { ReactNode } from 'react'
 
 export interface MessageUiState {
@@ -128,6 +130,23 @@ export interface MessageErrorDiagnosisInput {
   language: string
 }
 
+export interface MessageToolApprovalMatch {
+  part: CherryMessagePart
+  state: string
+  toolCallId: string
+  messageId: string
+  approvalId?: string
+  transport?: string
+  input?: unknown
+}
+
+export interface MessageToolApprovalInput {
+  match: MessageToolApprovalMatch
+  approved: boolean
+  reason?: string
+  updatedInput?: Record<string, unknown>
+}
+
 export interface MessageErrorDetailInput {
   message: MessageListItem
   partId: string
@@ -170,6 +189,11 @@ export interface MessageRenderConfig {
   messageStyle: ChatMessageStyle
   messageFont: string
   fontSize: number
+  renderInputMessageAsMarkdown: boolean
+  codeFancyBlock: boolean
+  thoughtAutoCollapse: boolean
+  mathEngine: MathEngine
+  mathEnableSingleDollar: boolean
   showMessageOutline: boolean
   multiModelMessageStyle: MultiModelMessageStyle
   multiModelGridColumns: number
@@ -182,6 +206,11 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
   messageStyle: 'plain',
   messageFont: 'system',
   fontSize: 14,
+  renderInputMessageAsMarkdown: false,
+  codeFancyBlock: true,
+  thoughtAutoCollapse: true,
+  mathEngine: 'KaTeX',
+  mathEnableSingleDollar: false,
   showMessageOutline: false,
   multiModelMessageStyle: 'horizontal',
   multiModelGridColumns: 2,
@@ -215,6 +244,8 @@ export interface MessageListState {
   getMessageSiblings?: (messageId: string) => MessageSiblingInfo | null
   getMessageActivityState?: (message: MessageListItem) => MessageActivityState
   getMessageEditorCapabilities?: (message: MessageListItem) => MessageEditorCapabilities
+  isToolAutoApproved?: (tool: MCPTool, allowedTools?: string[]) => boolean
+  externalCodeEditors?: ExternalAppInfo[]
   getTranslationLanguageLabel?: (
     language: TranslateLangCode | TranslateLanguage | null,
     withEmoji?: boolean
@@ -244,7 +275,12 @@ export interface MessageListActions {
   openPath?: (path: string) => void | Promise<void>
   openCitationsPanel?: (data: { citations: Citation[] }) => void
   showInFolder?: (path: string) => void | Promise<void>
+  openExternalUrl?: (url: string) => void | Promise<void>
+  openInExternalApp?: (app: ExternalAppInfo, path: string) => void | Promise<void>
+  previewFile?: (file: FileMetadata) => void | Promise<void>
   abortTool?: (toolId: string) => boolean | Promise<boolean>
+  subscribeToolProgress?: (toolId: string, onProgress: (progress: number) => void) => void | (() => void)
+  respondToolApproval?: (input: MessageToolApprovalInput) => void | Promise<void>
   diagnoseMessageError?: (
     input: MessageErrorDiagnosisInput
   ) => Promise<MessageErrorDiagnosisResult | string | null | undefined>

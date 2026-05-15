@@ -2,7 +2,6 @@ import { ColFlex, Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import ImageViewer from '@renderer/components/ImageViewer'
 import CustomTag from '@renderer/components/Tags/CustomTag'
-import { useAttachment } from '@renderer/hooks/useAttachment'
 import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
@@ -25,6 +24,8 @@ import {
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useOptionalMessageListActions } from '../MessageListProvider'
 
 const MAX_FILENAME_DISPLAY_LENGTH = 20
 const FILE_ICON_SIZE = 12
@@ -90,7 +91,7 @@ const getFilenameExtension = (filename?: string) => {
 }
 
 const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
-  const { preview } = useAttachment()
+  const previewFile = useOptionalMessageListActions()?.previewFile
   const [visible, setVisible] = useState(false)
 
   const isImage = (ext: string) => ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'].includes(ext.toLowerCase())
@@ -124,9 +125,7 @@ const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
             setVisible(true)
             return
           }
-          const path = FileManager.getSafePath(file)
-          const name = FileManager.formatFileName(file)
-          void preview(path, name, file.type, file.ext)
+          void previewFile?.(file)
         }}
         title={fullName}>
         {displayName}

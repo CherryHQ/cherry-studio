@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => {
     messageListActions: { saveCodeBlock } as any,
     getCodeBlockId: vi.fn(),
     isOpenFenceBlock: vi.fn(),
-    usePreference: vi.fn().mockReturnValue([true]),
+    renderConfig: { codeFancyBlock: true },
     isWin: false,
     CodeBlockView: vi.fn(({ onSave, children }) => (
       <div>
@@ -34,6 +34,7 @@ const mocks = vi.hoisted(() => {
 })
 
 vi.mock('../../MessageListProvider', () => ({
+  useMessageRenderConfig: () => mocks.renderConfig,
   useOptionalMessageListActions: () => mocks.messageListActions
 }))
 
@@ -46,10 +47,6 @@ vi.mock('@renderer/config/constant', () => ({
 vi.mock('@renderer/utils/markdown', () => ({
   getCodeBlockId: mocks.getCodeBlockId,
   isOpenFenceBlock: mocks.isOpenFenceBlock
-}))
-
-vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: () => mocks.usePreference()
 }))
 
 vi.mock('@renderer/components/CodeBlockView', () => ({

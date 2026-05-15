@@ -1,4 +1,3 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { ClickableFilePath } from '@renderer/components/chat/messages/tools/agent/ClickableFilePath'
 import { CodeBlockView, HtmlArtifactsCard } from '@renderer/components/CodeBlockView'
 import { isWin } from '@renderer/config/constant'
@@ -6,7 +5,8 @@ import { getCodeBlockId, isOpenFenceBlock } from '@renderer/utils/markdown'
 import type { Node } from 'mdast'
 import React, { memo, useCallback, useMemo } from 'react'
 
-import { useOptionalMessageListActions } from '../MessageListProvider'
+import { useMessageRenderConfig, useOptionalMessageListActions } from '../MessageListProvider'
+import { isInlineAbsoluteFilePath } from '../utils/filePath'
 import { useMarkdownBlockContext } from './Markdown'
 
 interface Props {
@@ -28,7 +28,7 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
         ? 'svg'
         : detectedLanguage
   }, [children, detectedLanguage])
-  const [codeFancyBlock] = usePreference('chat.code.fancy_block')
+  const { codeFancyBlock } = useMessageRenderConfig()
 
   // 代码块 id
   const id = useMemo(() => getCodeBlockId(node?.position?.start), [node?.position?.start])
@@ -68,7 +68,7 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
 
   // Detect inline code that looks like an absolute file path (e.g. /Users/foo/bar.tsx)
   // On Windows, Unix-style paths are not valid local paths, so skip detection there.
-  if (!isWin && typeof children === 'string' && /^\/[\w.-]+(?:\/[\w.-]+)+$/.test(children)) {
+  if (!isWin && typeof children === 'string' && isInlineAbsoluteFilePath(children)) {
     return (
       <code className={className} style={{ textWrap: 'wrap', fontSize: '95%', padding: '2px 4px' }}>
         <ClickableFilePath path={children} />

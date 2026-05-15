@@ -1,10 +1,10 @@
 import { loggerService } from '@logger'
 import { usePartsMap } from '@renderer/components/chat/messages/blocks'
-import { useToolApprovalRespond } from '@renderer/hooks/ToolApprovalContext'
 import type { MCPToolResponse, NormalToolResponse } from '@renderer/types'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useOptionalMessageListActions } from '../../MessageListProvider'
 import { APPROVAL_REQUESTED, APPROVAL_RESPONDED, findToolPartByCallId } from '../toolResponse'
 
 const logger = loggerService.withContext('useToolApproval')
@@ -48,7 +48,7 @@ const IDLE: ToolApprovalState & ToolApprovalActions = {
 export function useToolApproval(target: ToolApprovalTarget): ToolApprovalState & ToolApprovalActions {
   const { t } = useTranslation()
   const partsMap = usePartsMap()
-  const respondToolApproval = useToolApprovalRespond()
+  const respondToolApproval = useOptionalMessageListActions()?.respondToolApproval
 
   const toolCallId = target.toolCallId ?? target.id ?? ''
   const match = useMemo(() => findToolPartByCallId(partsMap, toolCallId), [partsMap, toolCallId])

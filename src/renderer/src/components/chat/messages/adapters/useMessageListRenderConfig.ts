@@ -9,6 +9,11 @@ export function useMessageListRenderConfig() {
   const [messageStyle] = usePreference('chat.message.style')
   const [messageFont] = usePreference('chat.message.font')
   const [fontSize] = usePreference('chat.message.font_size')
+  const [renderInputMessageAsMarkdown] = usePreference('chat.message.render_as_markdown')
+  const [codeFancyBlock] = usePreference('chat.code.fancy_block')
+  const [thoughtAutoCollapse] = usePreference('chat.message.thought.auto_collapse')
+  const [mathEngine] = usePreference('chat.message.math.engine')
+  const [mathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
   const [showMessageOutline] = usePreference('chat.message.show_outline')
   const [multiModelMessageStyle] = usePreference('chat.message.multi_model.style')
   const [multiModelGridColumns, setMultiModelGridColumns] = usePreference('chat.message.multi_model.grid_columns')
@@ -23,6 +28,11 @@ export function useMessageListRenderConfig() {
       messageStyle,
       messageFont,
       fontSize,
+      renderInputMessageAsMarkdown,
+      codeFancyBlock,
+      thoughtAutoCollapse,
+      mathEngine,
+      mathEnableSingleDollar,
       showMessageOutline,
       multiModelMessageStyle,
       multiModelGridColumns,
@@ -30,13 +40,18 @@ export function useMessageListRenderConfig() {
     }),
     [
       fontSize,
+      codeFancyBlock,
+      mathEnableSingleDollar,
+      mathEngine,
       messageFont,
       messageStyle,
       multiModelGridColumns,
       multiModelGridPopoverTrigger,
       multiModelMessageStyle,
       narrowMode,
+      renderInputMessageAsMarkdown,
       showMessageOutline,
+      thoughtAutoCollapse,
       userName
     ]
   )

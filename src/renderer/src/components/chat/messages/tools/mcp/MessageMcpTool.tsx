@@ -1,21 +1,21 @@
 import { CircularProgress, Flex, Tooltip } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { CopyIcon } from '@renderer/components/Icons'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
-import { useIsToolAutoApproved } from '@renderer/hooks/useMCPServers'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { MCPToolResponse } from '@renderer/types'
-import type { MCPProgressEvent } from '@shared/config/types'
-import { IpcChannel } from '@shared/IpcChannel'
 import { Check, ShieldCheck, Wrench } from 'lucide-react'
 import { parse as parsePartialJson } from 'partial-json'
 import type { ComponentPropsWithoutRef, FC } from 'react'
 import { memo, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useOptionalMessageListActions } from '../../MessageListProvider'
+import {
+  useMessageRenderConfig,
+  useOptionalMessageListActions,
+  useOptionalMessageListUi
+} from '../../MessageListProvider'
 import { getEffectiveStatus, SkeletonSpan, ToolStatusIndicator, TruncatedIndicator } from '../agent/GenericTools'
 import { useToolApproval } from '../hooks/useToolApproval'
 import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, ResponseSection } from '../shared/ArgsTable'
@@ -40,17 +40,19 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
   const [activeKeys, setActiveKeys] = useState<string[]>([])
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({})
   const { t } = useTranslation()
-  const [messageFont] = usePreference('chat.message.font')
-  const [fontSize] = usePreference('chat.message.font_size')
+  const { messageFont, fontSize } = useMessageRenderConfig()
   const [progress, setProgress] = useState<number>(0)
   const { setTimeoutTimer } = useTimer()
-  const abortTool = useOptionalMessageListActions()?.abortTool
+  const actions = useOptionalMessageListActions()
+  const abortTool = actions?.abortTool
+  const subscribeToolProgress = actions?.subscribeToolProgress
+  const { isToolAutoApproved } = useOptionalMessageListUi() ?? {}
 
   // Use the unified approval hook
   const approval = useToolApproval(toolResponse)
 
   const { id, tool, status, response, partialArguments } = toolResponse
-  const autoApproved = useIsToolAutoApproved(tool)
+  const autoApproved = isToolAutoApproved?.(tool) ?? false
   const isPending = status === 'pending'
   const isDone = status === 'done'
   const isError = status === 'error'
@@ -58,20 +60,12 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
   const willAwaitApproval = approval.isWaiting || (!autoApproved && status === 'invoking')
 
   useEffect(() => {
-    const removeListener = window.electron.ipcRenderer.on(
-      IpcChannel.Mcp_Progress,
-      (_event: Electron.IpcRendererEvent, data: MCPProgressEvent) => {
-        // Only update progress if this event is for our specific tool call
-        if (data.callId === id) {
-          setProgress(data.progress)
-        }
-      }
-    )
+    const unsubscribe = subscribeToolProgress?.(id, setProgress)
     return () => {
       setProgress(0)
-      removeListener()
+      unsubscribe?.()
     }
-  }, [id])
+  }, [id, subscribeToolProgress])
 
   // Auto-expand when streaming, auto-collapse when done
   useEffect(() => {

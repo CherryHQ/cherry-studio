@@ -1,5 +1,4 @@
 import { Flex, Tooltip } from '@cherrystudio/ui'
-import { useIsToolAutoApproved } from '@renderer/hooks/useMCPServers'
 import type { MCPTool, MCPToolResponse, NormalToolResponse } from '@renderer/types'
 import {
   Bot,
@@ -21,6 +20,7 @@ import type { ComponentPropsWithoutRef, FC, ReactNode } from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useOptionalMessageListUi } from '../MessageListProvider'
 import { type ToolStatus, ToolStatusIndicator } from './agent/GenericTools'
 import { AgentToolsType } from './agent/types'
 
@@ -202,7 +202,8 @@ const McpToolHeader: FC<McpToolHeaderProps> = ({
   Container
 }) => {
   const { t } = useTranslation()
-  const autoApproved = useIsToolAutoApproved(tool)
+  const { isToolAutoApproved } = useOptionalMessageListUi() ?? {}
+  const autoApproved = isToolAutoApproved?.(tool) ?? false
   return (
     <Container>
       <ToolName className="items-center gap-1.5">

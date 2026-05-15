@@ -3,7 +3,8 @@ import { render, screen } from '@testing-library/react'
 import React from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { MessageListItem } from '../../types'
+import { MessageListProvider } from '../../MessageListProvider'
+import { defaultMessageRenderConfig, type MessageListItem, type MessageListProviderValue } from '../../types'
 import { PartsProvider } from '../MessagePartsContext'
 
 // ============================================================================
@@ -13,7 +14,6 @@ import { PartsProvider } from '../MessagePartsContext'
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
 }))
-vi.mock('@data/hooks/usePreference', () => ({ usePreference: vi.fn(() => [false, vi.fn()]) }))
 vi.mock('@renderer/types/file', () => ({
   FILE_TYPE: { IMAGE: 'image', VIDEO: 'video', AUDIO: 'audio', TEXT: 'text', DOCUMENT: 'document', OTHER: 'other' }
 }))
@@ -139,10 +139,33 @@ const msg = (overrides: Partial<MessageListItem> = {}): MessageListItem =>
 
 const renderParts = (parts: CherryMessagePart[], message?: MessageListItem) => {
   const m = message ?? msg()
+  const value: MessageListProviderValue = {
+    state: {
+      topic: { id: m.topicId, name: 'Topic' } as MessageListProviderValue['state']['topic'],
+      messages: [m],
+      partsByMessageId: { [m.id]: parts },
+      messageNavigation: 'none',
+      estimateSize: 400,
+      overscan: 0,
+      loadOlderDelayMs: 0,
+      loadingResetDelayMs: 0,
+      renderConfig: defaultMessageRenderConfig,
+      getMessageActivityState: () => ({
+        isProcessing: false,
+        isStreamTarget: false,
+        isApprovalAnchor: false
+      })
+    },
+    actions: {},
+    meta: { selectionLayer: false }
+  }
+
   return render(
-    <PartsProvider value={{ [m.id]: parts }}>
-      <MessagePartsRenderer message={m} />
-    </PartsProvider>
+    <MessageListProvider value={value}>
+      <PartsProvider value={{ [m.id]: parts }}>
+        <MessagePartsRenderer message={m} />
+      </PartsProvider>
+    </MessageListProvider>
   )
 }
 

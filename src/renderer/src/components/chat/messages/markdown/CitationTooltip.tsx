@@ -6,6 +6,8 @@ import { useQuery } from '@tanstack/react-query'
 import React, { memo, useCallback, useMemo } from 'react'
 import * as z from 'zod'
 
+import { useOptionalMessageListActions } from '../MessageListProvider'
+
 export const CitationSchema = z.object({
   url: z.url(),
   title: z.string().optional(),
@@ -18,6 +20,7 @@ interface CitationTooltipProps {
 }
 
 const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation }) => {
+  const openExternalUrl = useOptionalMessageListActions()?.openExternalUrl
   const hostname = useMemo(() => {
     try {
       return new URL(citation.url).hostname
@@ -46,17 +49,24 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
     return undefined
   }, [citation.content, isXPost, oembedData])
 
-  const handleClick = useCallback(() => {
-    window.open(citation.url, '_blank', 'noopener,noreferrer')
-  }, [citation.url])
+  const handleClick = useCallback(
+    (event: React.MouseEvent<HTMLAnchorElement>) => {
+      if (!openExternalUrl) return
+      event.preventDefault()
+      void openExternalUrl(citation.url)
+    },
+    [citation.url, openExternalUrl]
+  )
 
   // 自定义悬浮卡片内容
   const tooltipContent = useMemo(
     () => (
       <div style={{ userSelect: 'text' }}>
-        <div
+        <a
+          href={citation.url}
+          target="_blank"
+          rel="noopener noreferrer"
           className="mb-2 flex cursor-pointer items-center gap-2 hover:opacity-80"
-          role="button"
           aria-label={`Open ${sourceTitle} in new tab`}
           onClick={handleClick}>
           <Favicon hostname={hostname} alt={sourceTitle} />
@@ -67,7 +77,7 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
             title={sourceTitle}>
             <MarqueeText>{sourceTitle}</MarqueeText>
           </div>
-        </div>
+        </a>
         {displayContent && (
           <div
             className="mb-2 overflow-hidden text-[13px] text-foreground-secondary leading-normal [-webkit-box-orient:vertical] [-webkit-line-clamp:3] [display:-webkit-box]"
@@ -82,16 +92,18 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
             {displayContent}
           </div>
         )}
-        <div
+        <a
+          href={citation.url}
+          target="_blank"
+          rel="noopener noreferrer"
           className="cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-primary text-xs hover:underline"
-          role="button"
           aria-label={`Visit ${hostname}`}
           onClick={handleClick}>
           {hostname}
-        </div>
+        </a>
       </div>
     ),
-    [displayContent, hostname, handleClick, sourceTitle]
+    [citation.url, displayContent, hostname, handleClick, sourceTitle]
   )
 
   return (

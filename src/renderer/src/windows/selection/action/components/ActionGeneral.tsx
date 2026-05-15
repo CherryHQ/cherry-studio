@@ -2,7 +2,8 @@ import { useChat } from '@ai-sdk/react'
 import { LoadingOutlined } from '@ant-design/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { PartsProvider } from '@renderer/components/chat/messages/blocks'
+import { MessageContentProvider } from '@renderer/components/chat/messages'
+import { useMessageListRenderConfig } from '@renderer/components/chat/messages/adapters/useMessageListRenderConfig'
 import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
 import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
@@ -35,6 +36,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const { t } = useTranslation()
   const [language] = usePreference('app.language')
   const [showOriginal, setShowOriginal] = useState(false)
+  const { renderConfig } = useMessageListRenderConfig()
 
   const { assistant: defaultAssistant } = useDefaultAssistant()
   const { assistant: chosenAssistant } = useAssistant(action.assistantId ?? '')
@@ -201,9 +203,12 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
             })}
           {isPreparing && <LoadingOutlined style={{ fontSize: 16 }} spin />}
           {!isPreparing && latestAssistantMessage && (
-            <PartsProvider value={partsMap}>
+            <MessageContentProvider
+              messages={[latestAssistantMessage]}
+              partsByMessageId={partsMap}
+              renderConfig={renderConfig}>
               <MessageContent key={latestAssistantMessage.id} message={latestAssistantMessage} />
-            </PartsProvider>
+            </MessageContentProvider>
           )}
         </Result>
         {error && <ErrorMsg>{error}</ErrorMsg>}

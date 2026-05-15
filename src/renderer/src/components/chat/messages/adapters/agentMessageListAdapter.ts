@@ -14,6 +14,7 @@ import { toMessageListItem } from '../utils/messageListItem'
 import { useMessageActivityState } from './useMessageActivityState'
 import { useMessageErrorActions } from './useMessageErrorActions'
 import { useMessageExportActions } from './useMessageExportActions'
+import { useMessageLeafCapabilities } from './useMessageLeafCapabilities'
 import { useMessageListRenderConfig } from './useMessageListRenderConfig'
 import { useMessageMenuConfig } from './useMessageMenuConfig'
 import { useMessageSelectionController } from './useMessageSelectionController'
@@ -67,6 +68,7 @@ export function useAgentMessageListProviderValue({
   const menuConfig = useMessageMenuConfig()
   const exportActions = useMessageExportActions({ topicName: topic.name })
   const errorActions = useMessageErrorActions()
+  const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId })
   const selectionController = useMessageSelectionController({
     topicId: topic.id,
     messages: messageItems,
@@ -115,13 +117,17 @@ export function useAgentMessageListProviderValue({
       menuConfig,
       selection: selectionController.selection,
       getMessageUiState,
-      getMessageActivityState
+      getMessageActivityState,
+      isToolAutoApproved: leafCapabilities.isToolAutoApproved,
+      externalCodeEditors: leafCapabilities.externalCodeEditors
     }),
     [
       getMessageActivityState,
       getMessageUiState,
       hasOlder,
       isLoading,
+      leafCapabilities.externalCodeEditors,
+      leafCapabilities.isToolAutoApproved,
       menuConfig,
       messageNavigation,
       messageItems,
@@ -138,6 +144,10 @@ export function useAgentMessageListProviderValue({
       deleteMessage,
       ...exportActions,
       ...errorActions,
+      previewFile: leafCapabilities.previewFile,
+      subscribeToolProgress: leafCapabilities.subscribeToolProgress,
+      openExternalUrl: leafCapabilities.openExternalUrl,
+      openInExternalApp: leafCapabilities.openInExternalApp,
       openPath,
       openCitationsPanel,
       showInFolder,
@@ -151,6 +161,10 @@ export function useAgentMessageListProviderValue({
       deleteMessage,
       errorActions,
       exportActions,
+      leafCapabilities.previewFile,
+      leafCapabilities.subscribeToolProgress,
+      leafCapabilities.openExternalUrl,
+      leafCapabilities.openInExternalApp,
       loadOlder,
       openCitationsPanel,
       openPath,

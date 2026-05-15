@@ -28,6 +28,14 @@ const errorActionsMock = vi.hoisted(() => ({
   openErrorDetail: vi.fn(),
   navigateErrorTarget: vi.fn()
 }))
+const leafCapabilitiesMock = vi.hoisted(() => ({
+  previewFile: vi.fn(),
+  subscribeToolProgress: vi.fn(),
+  openExternalUrl: vi.fn(),
+  openInExternalApp: vi.fn(),
+  isToolAutoApproved: vi.fn(() => false),
+  externalCodeEditors: []
+}))
 
 vi.mock('@data/hooks/useCache', () => ({
   useCache: (key: string) => {
@@ -59,6 +67,11 @@ vi.mock('../adapters/useMessageListRenderConfig', () => ({
       messageStyle: 'plain',
       messageFont: 'system',
       fontSize: 14,
+      renderInputMessageAsMarkdown: false,
+      codeFancyBlock: true,
+      thoughtAutoCollapse: true,
+      mathEngine: 'KaTeX',
+      mathEnableSingleDollar: false,
       showMessageOutline: false,
       multiModelMessageStyle: 'horizontal',
       multiModelGridColumns: 2,
@@ -94,6 +107,10 @@ vi.mock('../adapters/useMessageExportActions', () => ({
 
 vi.mock('../adapters/useMessageErrorActions', () => ({
   useMessageErrorActions: () => errorActionsMock
+}))
+
+vi.mock('../adapters/useMessageLeafCapabilities', () => ({
+  useMessageLeafCapabilities: () => leafCapabilitiesMock
 }))
 
 const { useAgentMessageListProviderValue } = await import('../adapters/agentMessageListAdapter')
@@ -194,6 +211,12 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.openErrorDetail).toBe(errorActionsMock.openErrorDetail)
     expect(value?.actions.navigateErrorTarget).toBe(errorActionsMock.navigateErrorTarget)
     expect(value?.actions.removeMessageErrorPart).toBeUndefined()
+    expect(value?.actions.previewFile).toBe(leafCapabilitiesMock.previewFile)
+    expect(value?.actions.subscribeToolProgress).toBe(leafCapabilitiesMock.subscribeToolProgress)
+    expect(value?.actions.openExternalUrl).toBe(leafCapabilitiesMock.openExternalUrl)
+    expect(value?.actions.openInExternalApp).toBe(leafCapabilitiesMock.openInExternalApp)
+    expect(value?.state.isToolAutoApproved).toBe(leafCapabilitiesMock.isToolAutoApproved)
+    expect(value?.state.externalCodeEditors).toBe(leafCapabilitiesMock.externalCodeEditors)
     expect(value?.actions.openTrace).toBeUndefined()
     expect(value?.actions.openPath).toEqual(expect.any(Function))
     expect(value?.actions.showInFolder).toEqual(expect.any(Function))

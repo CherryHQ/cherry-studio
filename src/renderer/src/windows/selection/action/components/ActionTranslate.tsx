@@ -3,7 +3,8 @@ import { LoadingOutlined } from '@ant-design/icons'
 import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { PartsProvider } from '@renderer/components/chat/messages/blocks'
+import { MessageContentProvider } from '@renderer/components/chat/messages'
+import { useMessageListRenderConfig } from '@renderer/components/chat/messages/adapters/useMessageListRenderConfig'
 import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
 import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
@@ -43,6 +44,7 @@ const logger = loggerService.withContext('ActionTranslate')
 
 const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const { t } = useTranslation()
+  const { renderConfig } = useMessageListRenderConfig()
 
   const [language] = usePreference('app.language')
   const { languages, getLanguage } = useLanguages()
@@ -456,9 +458,12 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
             })}
           {isPreparing && <LoadingOutlined style={{ fontSize: 16 }} spin />}
           {!isPreparing && latestAssistantMessage && (
-            <PartsProvider value={partsMap}>
+            <MessageContentProvider
+              messages={[latestAssistantMessage]}
+              partsByMessageId={partsMap}
+              renderConfig={renderConfig}>
               <MessageContent key={latestAssistantMessage.id} message={latestAssistantMessage} />
-            </PartsProvider>
+            </MessageContentProvider>
           )}
         </Result>
         {(detectError || error) && <ErrorMsg>{detectError || error}</ErrorMsg>}

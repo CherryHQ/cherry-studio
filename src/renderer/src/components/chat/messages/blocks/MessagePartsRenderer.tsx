@@ -13,7 +13,6 @@
 
 import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { FILE_TYPE } from '@renderer/types/file'
 import { convertReferencesToCitationReferences, convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
@@ -23,6 +22,7 @@ import React, { useMemo } from 'react'
 
 import MessageAttachments from '../frame/MessageAttachments'
 import MessageVideo from '../frame/MessageVideo'
+import { useMessageListUi } from '../MessageListProvider'
 import MessageTools from '../tools/MessageTools'
 import { buildToolResponseFromPart, type ToolRenderItem } from '../tools/toolResponse'
 import type { MessageListItem } from '../types'
@@ -399,9 +399,10 @@ const ToolGroupView = React.memo(
 
 const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   const messageParts = useMessageParts(message.id)
+  const { getMessageActivityState } = useMessageListUi()
 
-  const { isPending: isTopicStreaming } = useTopicStreamStatus(message.topicId)
-  const isStreaming = isTopicStreaming && message.status === 'pending'
+  const activityState = getMessageActivityState?.(message)
+  const isStreaming = !!activityState?.isProcessing && message.status === 'pending'
 
   const grouped = useMemo(() => {
     if (messageParts.length === 0) return []

@@ -1,7 +1,6 @@
 import { Badge, Button, Checkbox, Input, RadioGroup, RadioGroupItem } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { usePartsMap } from '@renderer/components/chat/messages/blocks'
-import { useToolApprovalRespond } from '@renderer/hooks/ToolApprovalContext'
 import type { NormalToolResponse } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { CheckCircle, CheckCircle2, ChevronLeft, ChevronRight, HelpCircle, Send } from 'lucide-react'
@@ -9,6 +8,7 @@ import type { ReactNode } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useOptionalMessageListActions } from '../MessageListProvider'
 import { SkeletonValue } from './agent/GenericTools'
 import { type AskUserQuestionItem, parseAskUserQuestionToolInput } from './agent/types'
 import { APPROVAL_REQUESTED, findToolPartByCallId } from './toolResponse'
@@ -264,7 +264,7 @@ function PendingContent({
 export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const { t } = useTranslation()
   const partsMap = usePartsMap()
-  const respondToolApproval = useToolApprovalRespond()
+  const respondToolApproval = useOptionalMessageListActions()?.respondToolApproval
   const match = useMemo(
     () => findToolPartByCallId(partsMap, toolResponse.toolCallId),
     [partsMap, toolResponse.toolCallId]
@@ -405,7 +405,11 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
   const answeredCount = Object.keys(displayAnswers).length
 
   const submitButton = (
-    <Button variant="default" loading={isSubmitting} disabled={!allAnswered || isSubmitting} onClick={handleSubmit}>
+    <Button
+      variant="default"
+      loading={isSubmitting}
+      disabled={!respondToolApproval || !allAnswered || isSubmitting}
+      onClick={handleSubmit}>
       <Send size={16} />
       {t('agent.askUserQuestion.submit')}
     </Button>

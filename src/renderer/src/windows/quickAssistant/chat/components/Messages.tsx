@@ -1,5 +1,6 @@
 import { LoadingOutlined } from '@ant-design/icons'
-import { PartsProvider } from '@renderer/components/chat/messages/blocks'
+import { MessageContentProvider } from '@renderer/components/chat/messages'
+import { useMessageListRenderConfig } from '@renderer/components/chat/messages/adapters/useMessageListRenderConfig'
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import Scrollbar from '@renderer/components/Scrollbar'
 import type { Assistant } from '@renderer/types'
@@ -22,15 +23,17 @@ interface ContainerProps {
 }
 
 const Messages: FC<Props> = ({ assistant, route, isOutputted, messages, partsByMessageId }) => {
+  const { renderConfig } = useMessageListRenderConfig()
+
   return (
-    <PartsProvider value={partsByMessageId}>
+    <MessageContentProvider messages={messages} partsByMessageId={partsByMessageId} renderConfig={renderConfig}>
       <Container id="messages" key={assistant.id}>
         {!isOutputted && <LoadingOutlined style={{ fontSize: 16 }} spin />}
         {[...messages].reverse().map((message, index) => (
           <MessageItem key={message.id} message={message} index={index} total={messages.length} route={route} />
         ))}
       </Container>
-    </PartsProvider>
+    </MessageContentProvider>
   )
 }
 

@@ -1,12 +1,13 @@
 import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import { applyApprovalDecisions } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useCallback } from 'react'
 
-import type { ToolApprovalRespondFn } from './ToolApprovalContext'
-
 const logger = loggerService.withContext('useToolApprovalBridge')
+
+type ToolApprovalRespondFn = (args: MessageToolApprovalInput) => Promise<void> | void
 
 /**
  * Tool-approval flow:

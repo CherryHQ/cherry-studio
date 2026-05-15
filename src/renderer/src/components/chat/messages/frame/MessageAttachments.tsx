@@ -1,8 +1,7 @@
 import { Button } from '@cherrystudio/ui'
-import { useAttachment } from '@renderer/hooks/useAttachment'
 import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types/file'
-import { formatFileSize, parseFileTypes } from '@renderer/utils'
+import { formatFileSize } from '@renderer/utils'
 import { t } from 'i18next'
 import { Paperclip } from 'lucide-react'
 import type { FC } from 'react'
@@ -14,7 +13,6 @@ interface Props {
 }
 
 const MessageAttachments: FC<Props> = ({ file }) => {
-  const { preview } = useAttachment()
   const actions = useOptionalMessageListActions()
 
   if (!file) {
@@ -25,14 +23,10 @@ const MessageAttachments: FC<Props> = ({ file }) => {
   const fileName = FileManager.formatFileName(file)
   const fileSuffix = file.ext ? file.ext.replace('.', '').toUpperCase() : file.type.toUpperCase()
   const openPath = actions?.openPath
+  const previewFile = actions?.previewFile
 
   const handlePreview = () => {
-    const fileType = parseFileTypes(file.type)
-    if (fileType === null) {
-      window.modal.error({ content: t('files.preview.error'), centered: true })
-      return
-    }
-    void preview(safePath, fileName, fileType, file.ext)
+    void previewFile?.(file)
   }
 
   return (
@@ -44,7 +38,7 @@ const MessageAttachments: FC<Props> = ({ file }) => {
         <button
           type="button"
           className="min-w-0 flex-1 text-left"
-          onClick={handlePreview}
+          onClick={previewFile ? handlePreview : undefined}
           title={fileName}
           aria-label={fileName}>
           <div className="truncate text-foreground text-sm">{fileName}</div>
@@ -53,7 +47,7 @@ const MessageAttachments: FC<Props> = ({ file }) => {
           </div>
         </button>
         <div className="flex shrink-0 items-center gap-2">
-          <Button size="sm" variant="secondary" onClick={handlePreview}>
+          <Button size="sm" variant="secondary" disabled={!previewFile} onClick={handlePreview}>
             {t('common.preview')}
           </Button>
           <Button size="sm" variant="outline" disabled={!openPath} onClick={() => void openPath?.(safePath)}>

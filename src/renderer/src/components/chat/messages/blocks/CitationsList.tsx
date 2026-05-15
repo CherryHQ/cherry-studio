@@ -109,10 +109,24 @@ export const CitationsPanelContent: React.FC<CitationsPanelContentProps> = ({ ci
   )
 }
 
-const handleLinkClick = (url: string, event: React.MouseEvent, openPath?: (path: string) => void | Promise<void>) => {
+const handleLinkClick = (
+  url: string,
+  event: React.MouseEvent,
+  actions?: {
+    openPath?: (path: string) => void | Promise<void>
+    openExternalUrl?: (url: string) => void | Promise<void>
+  }
+) => {
+  if (url.startsWith('http')) {
+    if (!actions?.openExternalUrl) return
+    event.preventDefault()
+    void actions.openExternalUrl(url)
+    return
+  }
+
+  if (!actions?.openPath) return
   event.preventDefault()
-  if (url.startsWith('http')) window.open(url, '_blank', 'noopener,noreferrer')
-  else void openPath?.(url)
+  void actions.openPath(url)
 }
 
 const CopyButton: React.FC<{ content: string }> = ({ content }) => {
@@ -146,8 +160,11 @@ const WebSearchCitation: React.FC<{ citation: Citation; openPath?: (path: string
   openPath
 }) => {
   const isXPost = Boolean(citation.url && isXPostUrl(citation.url))
-  const fallbackOpenPath = useOptionalMessageListActions()?.openPath
-  const resolvedOpenPath = openPath ?? fallbackOpenPath
+  const actions = useOptionalMessageListActions()
+  const linkActions = {
+    openPath: openPath ?? actions?.openPath,
+    openExternalUrl: actions?.openExternalUrl
+  }
 
   const { data: fetchedContent, isLoading } = useQuery({
     queryKey: ['webContent', citation.url],
@@ -186,7 +203,7 @@ const WebSearchCitation: React.FC<{ citation: Citation; openPath?: (path: string
           <a
             className="flex-1 text-nowrap text-foreground text-sm leading-[1.6] no-underline"
             href={citation.url}
-            onClick={(e) => handleLinkClick(citation.url, e, resolvedOpenPath)}>
+            onClick={(e) => handleLinkClick(citation.url, e, linkActions)}>
             {displayTitle || <span className="text-primary">{citation.hostname}</span>}
           </a>
 
@@ -214,8 +231,11 @@ const KnowledgeCitation: React.FC<{ citation: Citation; openPath?: (path: string
   citation,
   openPath
 }) => {
-  const fallbackOpenPath = useOptionalMessageListActions()?.openPath
-  const resolvedOpenPath = openPath ?? fallbackOpenPath
+  const actions = useOptionalMessageListActions()
+  const linkActions = {
+    openPath: openPath ?? actions?.openPath,
+    openExternalUrl: actions?.openExternalUrl
+  }
 
   return (
     <SelectionContextMenu>
@@ -225,7 +245,7 @@ const KnowledgeCitation: React.FC<{ citation: Citation; openPath?: (path: string
           <a
             className="flex-1 text-nowrap text-foreground text-sm leading-[1.6] no-underline"
             href={citation.url}
-            onClick={(e) => handleLinkClick(citation.url, e, resolvedOpenPath)}>
+            onClick={(e) => handleLinkClick(citation.url, e, linkActions)}>
             {/* example title: User/path/example.pdf */}
             {citation.title?.split('/').pop()}
           </a>

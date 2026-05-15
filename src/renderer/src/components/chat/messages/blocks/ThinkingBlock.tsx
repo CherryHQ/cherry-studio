@@ -1,5 +1,4 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Tooltip } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CopyIcon } from '@renderer/components/Icons'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
@@ -9,6 +8,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { MarkdownSource } from '../markdown/Markdown'
 import Markdown from '../markdown/Markdown'
+import { useMessageRenderConfig } from '../MessageListProvider'
 import ThinkingEffect from './ThinkingEffect'
 import { useScrollAnchor } from './useScrollAnchor'
 
@@ -36,9 +36,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs }
   )
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const { t } = useTranslation()
-  const [messageFont] = usePreference('chat.message.font')
-  const [fontSize] = usePreference('chat.message.font_size')
-  const [thoughtAutoCollapse] = usePreference('chat.message.thought.auto_collapse')
+  const { messageFont, fontSize, thoughtAutoCollapse } = useMessageRenderConfig()
   const [activeKey, setActiveKey] = useState<string>('')
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
 

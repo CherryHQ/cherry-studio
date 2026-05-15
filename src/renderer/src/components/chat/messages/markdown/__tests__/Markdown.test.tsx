@@ -13,12 +13,11 @@ const mockMathSettings = vi.hoisted(() => ({
 const mockUseTranslation = vi.fn()
 
 // Mock hooks
-vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: (key: string) => {
-    if (key === 'chat.message.math.engine') return [mockMathSettings.current.mathEngine]
-    if (key === 'chat.message.math.single_dollar') return [mockMathSettings.current.mathEnableSingleDollar]
-    return [undefined]
-  }
+vi.mock('../../MessageListProvider', () => ({
+  useMessageRenderConfig: () => ({
+    mathEngine: mockMathSettings.current.mathEngine,
+    mathEnableSingleDollar: mockMathSettings.current.mathEnableSingleDollar
+  })
 }))
 
 vi.mock('react-i18next', () => ({

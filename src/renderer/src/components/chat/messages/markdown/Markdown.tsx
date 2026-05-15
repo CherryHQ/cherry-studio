@@ -3,7 +3,6 @@ import 'katex/dist/contrib/copy-tex'
 import 'katex/dist/contrib/mhchem'
 import 'remark-github-blockquote-alert/alert.css'
 
-import { usePreference } from '@data/hooks/usePreference'
 import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
@@ -24,6 +23,7 @@ import remarkAlert from 'remark-github-blockquote-alert'
 import remarkMath from 'remark-math'
 import type { Pluggable } from 'unified'
 
+import { useMessageRenderConfig } from '../MessageListProvider'
 import CodeBlock from './CodeBlock'
 import Link from './Link'
 import MarkdownSvgRenderer from './MarkdownSvgRenderer'
@@ -68,8 +68,7 @@ interface Props {
 
 const Markdown: FC<Props> = ({ block, postProcess }) => {
   const { t } = useTranslation()
-  const [mathEngine] = usePreference('chat.message.math.engine')
-  const [mathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
+  const { mathEngine, mathEnableSingleDollar } = useMessageRenderConfig()
 
   const remarkPlugins = useMemo(() => {
     const plugins = [

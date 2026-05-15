@@ -1,14 +1,13 @@
 import { MenuDivider, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { Icon } from '@iconify/react'
-import { useExternalApps } from '@renderer/hooks/useExternalApps'
-import { buildEditorUrl, getEditorIcon } from '@renderer/utils/editorUtils'
+import { getEditorIcon } from '@renderer/utils/editorUtils'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { FolderOpen, MoreHorizontal } from 'lucide-react'
 import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useOptionalMessageListActions } from '../../MessageListProvider'
+import { useOptionalMessageListActions, useOptionalMessageListUi } from '../../MessageListProvider'
 
 interface ClickableFilePathProps {
   path: string
@@ -17,23 +16,23 @@ interface ClickableFilePathProps {
 
 export const ClickableFilePath = memo(function ClickableFilePath({ path, displayName }: ClickableFilePathProps) {
   const { t } = useTranslation()
-  const { data: externalApps } = useExternalApps()
   const iconName = useMemo(() => getFileIconName(path), [path])
+  const ui = useOptionalMessageListUi()
   const actions = useOptionalMessageListActions()
   const openPath = actions?.openPath
   const showInFolder = actions?.showInFolder
-
-  const availableEditors = useMemo(
-    () => externalApps?.filter((app) => app.tags.includes('code-editor')) ?? [],
-    [externalApps]
-  )
-  const hasMoreActions = Boolean(showInFolder) || availableEditors.length > 0
+  const openInExternalApp = actions?.openInExternalApp
+  const availableEditors = ui?.externalCodeEditors ?? []
+  const hasEditorActions = Boolean(openInExternalApp && availableEditors.length > 0)
+  const hasMoreActions = Boolean(showInFolder) || hasEditorActions
 
   const openInEditor = useCallback(
     (app: ExternalAppInfo) => {
-      window.open(buildEditorUrl(app, path))
+      Promise.resolve(openInExternalApp?.(app, path)).catch(() => {
+        window.toast.error(t('chat.input.tools.open_file_error', { path }))
+      })
     },
-    [path]
+    [openInExternalApp, path, t]
   )
 
   const handleOpen = useCallback(
@@ -98,18 +97,19 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
                   }}
                 />
               )}
-              {showInFolder && availableEditors.length > 0 && <MenuDivider />}
-              {availableEditors.map((app) => (
-                <MenuItem
-                  key={app.id}
-                  label={app.name}
-                  icon={getEditorIcon(app)}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    openInEditor(app)
-                  }}
-                />
-              ))}
+              {showInFolder && hasEditorActions && <MenuDivider />}
+              {openInExternalApp &&
+                availableEditors.map((app) => (
+                  <MenuItem
+                    key={app.id}
+                    label={app.name}
+                    icon={getEditorIcon(app)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openInEditor(app)
+                    }}
+                  />
+                ))}
             </MenuList>
           </PopoverContent>
         </Popover>
