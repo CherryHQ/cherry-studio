@@ -1,13 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import CitationTooltip from '../CitationTooltip'
-
-// Mock dependencies
-const mockWindowOpen = vi.fn()
 
 vi.mock('@renderer/utils/fetch', () => ({
   fetchXOEmbed: vi.fn().mockResolvedValue(null),
@@ -20,30 +16,24 @@ vi.mock('@renderer/components/Icons/FallbackFavicon', () => ({
 }))
 
 const uiMocks = vi.hoisted(() => ({
-  Tooltip: vi.fn(({ children, title, content, placement, ...props }: any) => (
-    <div data-testid="tooltip-wrapper" data-placement={placement} {...props}>
-      {children}
-      <div data-testid="tooltip-content">{content || title}</div>
-    </div>
-  ))
+  Tooltip: vi.fn((rawProps: any) => {
+    const { children, title, content, placement, ...props } = rawProps
+    delete props.showArrow
+
+    return (
+      <div data-testid="tooltip-wrapper" data-placement={placement} {...props}>
+        {children}
+        <div data-testid="tooltip-content">{content || title}</div>
+      </div>
+    )
+  })
 }))
 
 vi.mock('@cherrystudio/ui', () => uiMocks)
 
-const originalWindowOpen = window.open
-
 describe('CitationTooltip', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    Object.defineProperty(window, 'open', {
-      value: mockWindowOpen,
-      writable: true
-    })
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
-    window.open = originalWindowOpen
   })
 
   // Test data factory
@@ -67,14 +57,10 @@ describe('CitationTooltip', () => {
     return render(<CitationTooltip citation={citation}>{children}</CitationTooltip>, { wrapper: createWrapper() })
   }
 
-  const expectWindowOpenCalled = (url: string) => {
-    expect(mockWindowOpen).toHaveBeenCalledWith(url, '_blank', 'noopener,noreferrer')
-  }
-
   const getTooltipContent = () => screen.getByTestId('tooltip-content')
 
-  const getCitationHeaderButton = () => screen.getByRole('button', { name: /open .* in new tab/i })
-  const getCitationFooterButton = () => screen.getByRole('button', { name: /visit .*/i })
+  const getCitationHeaderLink = () => screen.getByRole('link', { name: /open .* in new tab/i })
+  const getCitationFooterLink = () => screen.getByRole('link', { name: /visit .*/i })
   const getCitationTitle = () => screen.getByRole('heading', { level: 3 })
   const getCitationContent = () => screen.queryByRole('article', { name: /citation content/i })
 
@@ -86,6 +72,18 @@ describe('CitationTooltip', () => {
       expect(screen.getByText('Click me')).toBeInTheDocument()
       expect(screen.getByTestId('tooltip-wrapper')).toBeInTheDocument()
       expect(getTooltipContent()).toBeInTheDocument()
+    })
+
+    it('should override default tooltip dark colors with markdown-aligned colors', () => {
+      const citation = createCitationData()
+      renderCitationTooltip(citation)
+
+      expect(screen.getByTestId('tooltip-wrapper')).toHaveClass(
+        'bg-card',
+        'dark:bg-card',
+        'text-foreground',
+        'dark:text-foreground'
+      )
     })
 
     it('should render Favicon with correct props', () => {
@@ -217,48 +215,39 @@ describe('CitationTooltip', () => {
   })
 
   describe('user interactions', () => {
-    it('should open URL when header is clicked', async () => {
-      const user = userEvent.setup()
+    it('should render header as an external URL link', () => {
       const citation = createCitationData({ url: 'https://header-click.com' })
       renderCitationTooltip(citation)
 
-      const header = getCitationHeaderButton()
-      await user.click(header)
-
-      expectWindowOpenCalled('https://header-click.com')
+      const header = getCitationHeaderLink()
+      expect(header).toHaveAttribute('href', 'https://header-click.com')
+      expect(header).toHaveAttribute('target', '_blank')
+      expect(header).toHaveAttribute('rel', 'noopener noreferrer')
     })
 
-    it('should open URL when footer is clicked', async () => {
-      const user = userEvent.setup()
+    it('should render footer as an external URL link', () => {
       const citation = createCitationData({ url: 'https://footer-click.com' })
       renderCitationTooltip(citation)
 
-      const footer = getCitationFooterButton()
-      await user.click(footer)
-
-      expectWindowOpenCalled('https://footer-click.com')
+      const footer = getCitationFooterLink()
+      expect(footer).toHaveAttribute('href', 'https://footer-click.com')
+      expect(footer).toHaveAttribute('target', '_blank')
+      expect(footer).toHaveAttribute('rel', 'noopener noreferrer')
     })
 
-    it('should not trigger click when content area is clicked', async () => {
-      const user = userEvent.setup()
+    it('should render content area without link behavior', () => {
       const citation = createCitationData({ content: 'Non-clickable content' })
       renderCitationTooltip(citation)
 
       const content = screen.getByText('Non-clickable content')
-      await user.click(content)
-
-      expect(mockWindowOpen).not.toHaveBeenCalled()
+      expect(content).not.toHaveAttribute('href')
     })
 
-    it('should handle invalid URLs gracefully', async () => {
-      const user = userEvent.setup()
+    it('should handle invalid URLs gracefully', () => {
       const citation = createCitationData({ url: 'invalid-url' })
       renderCitationTooltip(citation)
 
-      const footer = getCitationFooterButton()
-      await user.click(footer)
-
-      expectWindowOpenCalled('invalid-url')
+      expect(getCitationFooterLink()).toHaveAttribute('href', 'invalid-url')
     })
   })
 

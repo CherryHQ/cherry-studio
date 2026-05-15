@@ -2,7 +2,7 @@
 
 exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
 <div
-  class="rounded-[8px] border border-border bg-background p-3"
+  class="rounded-[8px] border border-border bg-card p-3 text-foreground dark:bg-card dark:text-foreground"
   data-testid="tooltip-wrapper"
 >
   <span>
@@ -14,10 +14,12 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
     <div
       style="user-select: text;"
     >
-      <div
+      <a
         aria-label="Open Example Article in new tab"
         class="mb-2 flex cursor-pointer items-center gap-2 hover:opacity-80"
-        role="button"
+        href="https://example.com/article"
+        rel="noopener noreferrer"
+        target="_blank"
       >
         <div
           alt="Example Article"
@@ -40,7 +42,7 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
             </div>
           </div>
         </div>
-      </div>
+      </a>
       <div
         aria-label="Citation content"
         class="mb-2 overflow-hidden text-[13px] text-foreground-secondary leading-normal [-webkit-box-orient:vertical] [-webkit-line-clamp:3] [display:-webkit-box]"
@@ -49,13 +51,15 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
       >
         This is the article content for testing purposes.
       </div>
-      <div
+      <a
         aria-label="Visit example.com"
         class="cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-primary text-xs hover:underline"
-        role="button"
+        href="https://example.com/article"
+        rel="noopener noreferrer"
+        target="_blank"
       >
         example.com
-      </div>
+      </a>
     </div>
   </div>
 </div>
