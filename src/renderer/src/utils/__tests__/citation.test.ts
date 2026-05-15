@@ -220,7 +220,6 @@ Numbered list:
 1. item with [2]`
 
       const result = normalizeCitationMarks(content, citationMap)
-      console.log(result)
 
       expect(result).toContain('citation [cite:1]')
       expect(result).toContain('blockquote with [cite:2]')
@@ -230,6 +229,152 @@ Numbered list:
       expect(result).toContain('Subheading with [cite:2]')
       expect(result).toContain('list item with citation [cite:1]')
       expect(result).toContain('item with [cite:2]')
+    })
+  })
+
+  describe('normalizeCitationMarks math skip (issue #14619)', () => {
+    const citations: Citation[] = [
+      { number: 1, url: 'https://example1.com', title: 'Example 1' },
+      { number: 2, url: 'https://example2.com', title: 'Example 2' },
+      { number: 3, url: 'https://example3.com', title: 'Example 3' }
+    ]
+    const citationMap = createCitationMap(citations)
+
+    it('should skip citations inside native inline LaTeX math \\(...\\)', () => {
+      const content = 'Math \\([2]+[3]\\equiv[1]\\pmod{4}\\), source [1]'
+      const result = normalizeCitationMarks(content, citationMap)
+
+      expect(result).toContain('\\([2]+[3]\\equiv[1]\\pmod{4}\\)')
+      expect(result).not.toContain('[cite:2]')
+      expect(result).not.toContain('[cite:3]')
+      expect(result).toContain('source [cite:1]')
+    })
+
+    it('should skip citations inside native display LaTeX math \\[...\\]', () => {
+      const content = 'Formula:\n\\[[2]+[3]\\equiv[1]\\pmod{4}\\]\nReference [2]'
+      const result = normalizeCitationMarks(content, citationMap)
+
+      expect(result).toContain('\\[[2]+[3]\\equiv[1]\\pmod{4}\\]')
+      expect(result).toContain('Reference [cite:2]')
+    })
+
+    it('should skip citations inside dollar inline math $...$', () => {
+      const content = 'Math $[2]+[3]\\equiv[1]\\pmod{4}$ and citation [3]'
+      const result = normalizeCitationMarks(content, citationMap)
+
+      expect(result).toContain('$[2]+[3]\\equiv[1]\\pmod{4}$')
+      expect(result).toContain('citation [cite:3]')
+    })
+
+    it('should skip citations inside digit-leading dollar inline math', () => {
+      const content = 'Math $2 + [1] = 3$ and citation [2]'
+      const result = normalizeCitationMarks(content, citationMap)
+
+      expect(result).toContain('$2 + [1] = 3$')
+      expect(result).toContain('citation [cite:2]')
+    })
+
+    it('should skip citations inside dollar display math $$...$$', () => {
+      const content = '$$[2]+[3]\\equiv[1]\\pmod{4}$$\nSee [1]'
+      const result = normalizeCitationMarks(content, citationMap)
+
+      expect(result).toContain('$$[2]+[3]\\equiv[1]\\pmod{4}$$')
+      expect(result).toContain('See [cite:1]')
+    })
+
+    it('should handle multiple math ranges and normal citations correctly', () => {
+      const content = 'A [1], math \\([2]\\), B [2], display $$[3]$$, C [3]'
+      const result = normalizeCitationMarks(content, citationMap)
+
+      expect(result).toBe('A [cite:1], math \\([2]\\), B [cite:2], display $$[3]$$, C [cite:3]')
+    })
+  })
+
+  describe('withCitationTags regression (issue #14619)', () => {
+    it('should not inject citation tags into math content', () => {
+      const content = '\\(\\mathbf{[2]+[3] \\equiv [1] \\pmod{4}}\\) and source [1]'
+      const citations: Citation[] = [
+        { number: 1, url: 'https://example.com', title: 'Source' },
+        { number: 2, url: 'https://example.com', title: 'Source 2' },
+        { number: 3, url: 'https://example.com', title: 'Source 3' }
+      ]
+
+      const result = withCitationTags(content, citations)
+
+      // Math section should not contain citation HTML
+      const mathSection = result.substring(result.indexOf('\\('), result.indexOf('\\)') + '\\)'.length)
+      expect(mathSection).not.toContain('<sup')
+      expect(mathSection).not.toContain('data-citation')
+      expect(mathSection).not.toContain('](')
+
+      // Normal citation outside math should render
+      expect(result).toContain('source [<sup data-citation=')
+    })
+  })
+
+  describe('source-specific citation math skip (issue #14619)', () => {
+    const citations: Citation[] = [
+      { number: 1, url: 'https://example.com', title: 'Source' },
+      { number: 2, url: 'https://example.com', title: 'Source 2' }
+    ]
+
+    it('should skip OpenAI citation syntax inside math', () => {
+      const content = 'Math \\([<sup>1</sup>](https://example.com)+1\\), source [<sup>1</sup>](https://example.com)'
+      const citationMap = createCitationMap(citations)
+
+      for (const sourceType of [
+        WEB_SEARCH_SOURCE.OPENAI,
+        WEB_SEARCH_SOURCE.OPENAI_RESPONSE,
+        WEB_SEARCH_SOURCE.PERPLEXITY
+      ]) {
+        const result = normalizeCitationMarks(content, citationMap, sourceType)
+
+        // Math range should keep OpenAI syntax unchanged
+        expect(result).toContain('\\([<sup>1</sup>](https://example.com)+1\\)')
+        // Outside math should be normalized
+        expect(result).toContain('source [cite:1]')
+      }
+    })
+
+    it('should skip Grok citation syntax inside math', () => {
+      const content = 'Math \\([[1]](https://example.com)+1\\), source [[1]](https://example.com)'
+      const citationMap = createCitationMap(citations)
+
+      const result = normalizeCitationMarks(content, citationMap, WEB_SEARCH_SOURCE.GROK)
+
+      // Math range should keep Grok syntax unchanged
+      expect(result).toContain('\\([[1]](https://example.com)+1\\)')
+      // Outside math should be normalized
+      expect(result).toContain('source [cite:1]')
+    })
+
+    it('should skip Gemini metadata insertion inside math ranges', () => {
+      const content = 'Math \\([2]+[3]\\) then normal text'
+      const metadata: GroundingSupport[] = [
+        {
+          // endIndex points inside the math range at char offset 14 (inside "\\([2]+[3]\\)")
+          segment: { startIndex: 0, endIndex: 7, text: 'Math \\(' },
+          groundingChunkIndices: [0]
+        },
+        {
+          // endIndex points after math range, in normal text
+          segment: { startIndex: 15, endIndex: 31, text: 'then normal text' },
+          groundingChunkIndices: [1]
+        }
+      ]
+      const geminiCitations: Citation[] = [
+        { number: 1, url: 'https://example.com', title: 'Test 1', metadata },
+        { number: 2, url: 'https://example.com', title: 'Test 2' }
+      ]
+      const citationMap = createCitationMap(geminiCitations)
+
+      const result = normalizeCitationMarks(content, citationMap, WEB_SEARCH_SOURCE.GEMINI)
+
+      // Math range should not contain citation markers
+      const mathSection = result.substring(result.indexOf('\\('), result.indexOf('\\)') + '\\)'.length)
+      expect(mathSection).not.toContain('[cite:')
+      // Normal text should have insertion
+      expect(result).toContain('[cite:2]')
     })
   })
 
@@ -595,6 +740,48 @@ Numbered list:
         const citationData = JSON.parse(match[1].replace(/&quot;/g, '"'))
         expect(citationData.content.length).toBe(200)
         expect(citationData.content).toBe(longContent.substring(0, 200))
+      }
+    })
+
+    it('should handle local file URL as non-clickable', () => {
+      const citation: Citation = {
+        number: 1,
+        url: 'file:///C:/Users/test/math.pdf',
+        title: 'Local PDF'
+      }
+
+      const result = generateCitationTag(citation)
+
+      expect(result).toContain('[<sup data-citation=')
+      expect(result).toContain('1</sup>]()')
+      expect(result).not.toContain('](file:///C:/Users/test/math.pdf)')
+    })
+
+    it('should safely encode citation content with LaTeX commands', () => {
+      const citation: Citation = {
+        number: 1,
+        url: '',
+        title: 'Formula source',
+        content: 'Contains \\frac{[2]}{(3)} and \\pmod{4}'
+      }
+
+      const result = generateCitationTag(citation)
+
+      // Should produce a valid tag with empty URL
+      expect(result).toContain('[<sup data-citation=')
+      expect(result).toContain('1</sup>]()')
+      // data-citation should contain properly HTML-encoded JSON
+      const match = result.match(/data-citation='([^']+)'/)
+      expect(match).not.toBeNull()
+      if (match) {
+        // Verify the JSON is parseable after HTML decode
+        const decoded = match[1]
+          .replace(/&quot;/g, '"')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+        const parsed = JSON.parse(decoded)
+        expect(parsed.content).toBe('Contains \\frac{[2]}{(3)} and \\pmod{4}')
       }
     })
   })

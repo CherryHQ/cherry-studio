@@ -46,6 +46,43 @@ export function withCitationTags(content: string, citations: Citation[], sourceT
 }
 
 /**
+ * Collect protected ranges where citation normalization should not operate.
+ * Covers fenced/inline code and common math delimiters.
+ */
+function collectProtectedRanges(content: string): Array<{ start: number; end: number }> {
+  const ranges: Array<{ start: number; end: number }> = []
+
+  // Fenced code blocks and inline code
+  const codeRegex = /```[\s\S]*?```|`[^`\n]*`/gm
+  let m: RegExpExecArray | null
+  while ((m = codeRegex.exec(content)) !== null) {
+    ranges.push({ start: m.index, end: m.index + m[0].length })
+  }
+
+  // Native LaTeX inline math \(...\) and display math \[...\]
+  const latexRegex = /\\\(.*?\\\)|\\\[.*?\\\]/gs
+  while ((m = latexRegex.exec(content)) !== null) {
+    ranges.push({ start: m.index, end: m.index + m[0].length })
+  }
+
+  // Dollar display math $$...$$
+  const dollarDisplayRegex = /\$\$[\s\S]*?\$\$/g
+  while ((m = dollarDisplayRegex.exec(content)) !== null) {
+    ranges.push({ start: m.index, end: m.index + m[0].length })
+  }
+
+  // Dollar inline math $...$ — prioritize formula preservation, including digit-leading math.
+  const dollarInlineRegex = /(?<!\$)\$(?!\$)([^\s$](?:[^\n$]*[^\s$])?)\$(?!\$)/g
+  while ((m = dollarInlineRegex.exec(content)) !== null) {
+    ranges.push({ start: m.index, end: m.index + m[0].length })
+  }
+
+  // Sort by start position for efficient range checking
+  ranges.sort((a, b) => a.start - b.start)
+  return ranges
+}
+
+/**
  * 标准化引用标记，统一转换为 [cite:N] 格式：
  * - OpenAI 格式: [<sup>N</sup>](url) → [cite:N]
  * - Gemini 格式: 根据metadata添加 [cite:N]
@@ -53,7 +90,7 @@ export function withCitationTags(content: string, citations: Citation[], sourceT
  *
  * 算法：
  * - one pass + 正则替换
- * - 跳过代码块等特殊上下文
+ * - 跳过代码块和数学公式等特殊上下文
  *
  * @param content 原始文本内容
  * @param citationMap 引用映射表
@@ -65,23 +102,14 @@ export function normalizeCitationMarks(
   citationMap: Map<number, Citation>,
   sourceType?: WebSearchSource
 ): string {
-  // 识别需要跳过的代码区域，注意：indented code block已被禁用，不需要跳过
-  const codeBlockRegex = /```[\s\S]*?```|`[^`\n]*`/gm
-  const skipRanges: Array<{ start: number; end: number }> = []
+  // Collect protected ranges (code + math)
+  const skipRanges = collectProtectedRanges(content)
 
-  let match
-  while ((match = codeBlockRegex.exec(content)) !== null) {
-    skipRanges.push({
-      start: match.index,
-      end: match.index + match[0].length
-    })
-  }
-
-  // 检查位置是否在代码块内
+  // Check whether a position falls inside any protected range
   const shouldSkip = (pos: number): boolean => {
     for (const range of skipRanges) {
       if (pos >= range.start && pos < range.end) return true
-      if (range.start > pos) break // 已排序，可以提前结束
+      if (range.start > pos) break // sorted, early exit
     }
     return false
   }
