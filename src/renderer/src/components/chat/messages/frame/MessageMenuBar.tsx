@@ -13,7 +13,7 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { ModelSelector } from '@renderer/components/ModelSelector'
+import { ModelSelector } from '@renderer/components/Selector'
 import type { MessageMenuBarScope } from '@renderer/config/registry/messageMenuBar'
 import { DEFAULT_MESSAGE_MENUBAR_SCOPE, getMessageMenuBarConfig } from '@renderer/config/registry/messageMenuBar'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'

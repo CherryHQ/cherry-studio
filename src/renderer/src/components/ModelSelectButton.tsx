@@ -1,6 +1,6 @@
 import type { TooltipProps } from '@cherrystudio/ui'
 import { Button, Tooltip } from '@cherrystudio/ui'
-import { ModelSelector } from '@renderer/components/ModelSelector'
+import { ModelSelector } from '@renderer/components/Selector'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
 import type { Model } from '@renderer/types'
 import type { Model as SharedModel } from '@shared/data/types/model'

@@ -2,8 +2,7 @@ import { Button } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
-import { ModelSelector } from '@renderer/components/ModelSelector'
-import { AssistantSelector } from '@renderer/components/ResourceSelector'
+import { AssistantSelector, ModelSelector } from '@renderer/components/Selector'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProviderDisplayName } from '@renderer/hooks/useProviders'
@@ -60,6 +59,7 @@ const TopicContent = ({ assistantId, topicId, onOpenSettings }: TopicContentProp
       <HorizontalScrollContainer className="ml-2 flex-initial">
         <div className="flex flex-nowrap items-center gap-2">
           <AssistantSelector
+            multi={false}
             value={assistantId ?? null}
             onChange={handleAssistantChange}
             trigger={

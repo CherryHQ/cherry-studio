@@ -1,5 +1,5 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { ModelSelector } from '@renderer/components/ModelSelector'
+import { ModelSelector } from '@renderer/components/Selector'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
 import { useModelById } from '@renderer/hooks/useModels'

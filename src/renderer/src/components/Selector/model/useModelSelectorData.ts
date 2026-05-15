@@ -179,6 +179,28 @@ export function useModelSelectorData({
     [modelsByProvider, searchText]
   )
 
+  const filteredModelsByProvider = useMemo(() => {
+    const nextFilteredModels = new Map<string, Model[]>()
+
+    sortedProviders.forEach((provider) => {
+      const filteredModels = searchFilter(provider).filter((model) => (!showTagFilter ? true : tagFilter(model)))
+      nextFilteredModels.set(provider.id, filteredModels)
+    })
+
+    return nextFilteredModels
+  }, [searchFilter, showTagFilter, sortedProviders, tagFilter])
+
+  const duplicateNamesByProvider = useMemo(
+    () =>
+      new Map(
+        sortedProviders.map((provider) => [
+          provider.id,
+          getDuplicateModelNames(filteredModelsByProvider.get(provider.id) ?? [])
+        ])
+      ),
+    [filteredModelsByProvider, sortedProviders]
+  )
+
   const createModelItem = useCallback(
     (model: Model, provider: Provider, isPinned: boolean, showIdentifier: boolean): ModelSelectorModelItem => {
       const modelId = model.id
@@ -191,24 +213,17 @@ export function useModelSelectorData({
         modelId,
         modelIdentifier: getModelIdentifier(model),
         isPinned,
-        isSelected: visibleSelectedModelIdSet.has(modelId),
         showIdentifier
       }
     },
-    [visibleSelectedModelIdSet]
+    []
   )
 
   const { listItems, modelItems } = useMemo(() => {
     const items: FlatListItem[] = []
     const pinnedIdSet = new Set(pinnedIds)
     const providerById = new Map(sortedProviders.map((provider) => [provider.id, provider]))
-    const finalModelFilter = (model: Model) => (!showTagFilter || tagFilter(model)) && baseModelFilter(model)
-    const duplicateNamesByProvider = new Map<string, Set<string>>(
-      sortedProviders.map((provider) => [
-        provider.id,
-        getDuplicateModelNames(searchFilter(provider).filter((model) => (!showTagFilter ? true : tagFilter(model))))
-      ])
-    )
+    const finalModelFilter = (model: Model) => !showTagFilter || tagFilter(model)
 
     if (searchText.length === 0 && showPinnedModels && pinnedIdSet.size > 0) {
       const pinnedItems = pinnedIds.flatMap((modelId) => {
@@ -235,9 +250,9 @@ export function useModelSelectorData({
     }
 
     sortedProviders.forEach((provider) => {
-      const filteredModels = searchFilter(provider)
-        .filter((model) => (!showTagFilter ? true : tagFilter(model)))
-        .filter((model) => !showPinnedModels || searchText.length > 0 || !pinnedIdSet.has(model.id))
+      const filteredModels = (filteredModelsByProvider.get(provider.id) ?? []).filter(
+        (model) => !showPinnedModels || searchText.length > 0 || !pinnedIdSet.has(model.id)
+      )
 
       if (filteredModels.length === 0) {
         return
@@ -267,11 +282,11 @@ export function useModelSelectorData({
     const selectableModelItems = items.filter((item): item is ModelSelectorModelItem => item.type === 'model')
     return { listItems: items, modelItems: selectableModelItems }
   }, [
-    baseModelFilter,
     createModelItem,
+    duplicateNamesByProvider,
+    filteredModelsByProvider,
     pinnedIds,
     selectableModelsById,
-    searchFilter,
     searchText.length,
     showPinnedModels,
     showTagFilter,
@@ -294,6 +309,7 @@ export function useModelSelectorData({
     sortedProviders,
     tagSelection,
     togglePin,
-    toggleTag
+    toggleTag,
+    visibleSelectedModelIdSet
   }
 }

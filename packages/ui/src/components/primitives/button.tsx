@@ -80,7 +80,7 @@ function Button({
       data-variant={variant ?? 'default'}
       className={cn(buttonVariants({ variant, size, className }))}
       disabled={disabled || loading}
-      aria-loading={loading}
+      aria-busy={loading || undefined}
       {...props}>
       {/* asChild mode does not support loading because Slot requires a single child element */}
       {asChild ? (
