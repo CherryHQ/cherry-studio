@@ -54,6 +54,7 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 import { isNonChatModel, isVisionModel as isSharedVisionModel } from '@shared/utils/model'
+import { useNavigate } from '@tanstack/react-router'
 import { last } from 'lodash'
 import { use, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -83,6 +84,7 @@ export function useHomeMessageListProviderValue({
   onComponentUpdate,
   onFirstUpdate
 }: HomeMessageListParams): MessageListProviderValue {
+  const navigate = useNavigate()
   const { assistant, model } = useAssistant(topic.assistantId)
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const [editorTranslationTargetLanguage] = usePreference('chat.input.translate.target_language')
@@ -322,6 +324,11 @@ export function useHomeMessageListProviderValue({
     return window.api.mcp.abortTool(toolId)
   }, [])
 
+  const navigateToRoute = useCallback<NonNullable<MessageListActions['navigateToRoute']>>(
+    ({ path, query }) => navigate({ to: path, search: query }),
+    [navigate]
+  )
+
   const removeMessageErrorPart = useCallback<NonNullable<MessageListActions['removeMessageErrorPart']>>(
     async ({ messageId, partId }) => {
       try {
@@ -461,6 +468,22 @@ export function useHomeMessageListProviderValue({
     [chatWrite]
   )
 
+  const deleteMessageGroupWithConfirm = useCallback<NonNullable<MessageListActions['deleteMessageGroupWithConfirm']>>(
+    (parentId) => {
+      window.modal.confirm({
+        title: t('message.group.delete.title'),
+        content: t('message.group.delete.content'),
+        centered: true,
+        okButtonProps: {
+          danger: true
+        },
+        okText: t('common.delete'),
+        onOk: () => deleteMessageGroup(parentId)
+      })
+    },
+    [deleteMessageGroup, t]
+  )
+
   const regenerateMessage = useCallback<NonNullable<MessageListActions['regenerateMessage']>>(
     (messageId) => chatWrite?.regenerate(messageId),
     [chatWrite]
@@ -590,6 +613,7 @@ export function useHomeMessageListProviderValue({
       subscribeToolProgress: leafCapabilities.subscribeToolProgress,
       openExternalUrl: leafCapabilities.openExternalUrl,
       openInExternalApp: leafCapabilities.openInExternalApp,
+      navigateToRoute,
       openUserProfile: headerCapabilities.openUserProfile,
       openProviderApp: headerCapabilities.openProviderApp,
       uploadEditorFiles: leafCapabilities.uploadEditorFiles,
@@ -623,6 +647,7 @@ export function useHomeMessageListProviderValue({
       startMessageBranch,
       setActiveBranch,
       deleteMessageGroup,
+      deleteMessageGroupWithConfirm,
       regenerateMessage,
       translateMessage,
       abortMessageTranslation,
@@ -636,6 +661,7 @@ export function useHomeMessageListProviderValue({
       bindRuntime,
       deleteMessage,
       deleteMessageGroup,
+      deleteMessageGroupWithConfirm,
       editMessage,
       exportActions,
       errorActions,
@@ -646,6 +672,7 @@ export function useHomeMessageListProviderValue({
       leafCapabilities.subscribeToolProgress,
       leafCapabilities.openExternalUrl,
       leafCapabilities.openInExternalApp,
+      navigateToRoute,
       leafCapabilities.uploadEditorFiles,
       leafCapabilities.handleEditorPaste,
       leafCapabilities.bindEditorPasteHandler,

@@ -1,5 +1,6 @@
-import { useNavigate } from '@tanstack/react-router'
 import { Compass } from 'lucide-react'
+
+import { useOptionalMessageListActions } from '../../MessageListProvider'
 
 interface NavigateToolInput {
   path?: string
@@ -111,16 +112,18 @@ export function NavigateToolInline({
         : ''
   const isSuccess = outputText.includes('Navigated to')
 
-  const navigate = useNavigate()
+  const navigateToRoute = useOptionalMessageListActions()?.navigateToRoute
 
   const handleClick = () => {
-    void navigate({ to: basePath })
+    if (!basePath || !navigateToRoute) return
+    void navigateToRoute({ path: basePath, query: queryObj })
   }
 
   return (
     <button
       onClick={handleClick}
-      className="my-1 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border border-solid bg-muted px-3 py-1.5 text-foreground text-sm transition-colors hover:bg-accent"
+      disabled={!basePath || !navigateToRoute}
+      className="my-1 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border border-solid bg-muted px-3 py-1.5 text-foreground text-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-muted"
       type="button">
       <Compass className="h-3.5 w-3.5 opacity-60" />
       <span>

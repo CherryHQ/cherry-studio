@@ -68,6 +68,8 @@ export interface MessageMenuBarActionContext {
 
 export type MessageMenuBarResolvedAction = ResolvedAction<MessageMenuBarActionContext>
 
+export type MessageMenuBarToolbarRenderKind = 'button' | 'delete' | 'model-picker' | 'more-menu' | 'translate'
+
 export type MessageMenuBarTranslationItem =
   | {
       key: string
@@ -84,6 +86,12 @@ export const isMessageMenuBarTranslationDivider = (
 ): item is Extract<MessageMenuBarTranslationItem, { type: 'divider' }> => 'type' in item && item.type === 'divider'
 
 const toolbarOrder = new Map(DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS.map((id, index) => [id, index * 10]))
+const toolbarRenderKinds: Partial<Record<MessageMenuBarButtonId, MessageMenuBarToolbarRenderKind>> = {
+  'assistant-mention-model': 'model-picker',
+  delete: 'delete',
+  'more-menu': 'more-menu',
+  translate: 'translate'
+}
 
 const messageMenuBarActionRegistry = createActionRegistry<MessageMenuBarActionContext>()
 
@@ -565,6 +573,10 @@ export function resolveMessageMenuBarMenuActions(context: MessageMenuBarActionCo
   return messageMenuBarActionRegistry
     .resolve(context, 'menu')
     .filter((action) => !!action.commandId || action.children.length > 0)
+}
+
+export function getMessageMenuBarToolbarRenderKind(actionId: string): MessageMenuBarToolbarRenderKind {
+  return toolbarRenderKinds[actionId as MessageMenuBarButtonId] ?? 'button'
 }
 
 export function executeMessageMenuBarAction(actionId: string, context: MessageMenuBarActionContext): Promise<boolean> {

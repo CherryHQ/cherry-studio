@@ -54,6 +54,7 @@ const headerCapabilitiesMock = vi.hoisted(() => ({
   openUserProfile: vi.fn(),
   openProviderApp: vi.fn()
 }))
+const navigateMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@data/hooks/useCache', () => ({
   useCache: (key: string) => {
@@ -143,6 +144,10 @@ vi.mock('@renderer/hooks/messages/useMessageLeafCapabilities', () => ({
 
 vi.mock('@renderer/hooks/messages/useMessageHeaderCapabilities', () => ({
   useMessageHeaderCapabilities: () => headerCapabilitiesMock
+}))
+
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => navigateMock
 }))
 
 const { useAgentMessageListProviderValue } = await import('../agentMessageListAdapter')
@@ -254,6 +259,7 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.subscribeToolProgress).toBe(leafCapabilitiesMock.subscribeToolProgress)
     expect(value?.actions.openExternalUrl).toBe(leafCapabilitiesMock.openExternalUrl)
     expect(value?.actions.openInExternalApp).toBe(leafCapabilitiesMock.openInExternalApp)
+    expect(value?.actions.navigateToRoute).toEqual(expect.any(Function))
     expect(value?.actions.openUserProfile).toBe(headerCapabilitiesMock.openUserProfile)
     expect(value?.actions.openProviderApp).toBe(headerCapabilitiesMock.openProviderApp)
     expect(value?.actions.uploadEditorFiles).toBe(leafCapabilitiesMock.uploadEditorFiles)
@@ -277,6 +283,12 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.openPath).toEqual(expect.any(Function))
     expect(value?.actions.showInFolder).toEqual(expect.any(Function))
     expect(value?.actions.abortTool).toEqual(expect.any(Function))
+
+    value?.actions.navigateToRoute?.({ path: '/settings/provider', query: { id: 'provider-1' } })
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/settings/provider',
+      search: { id: 'provider-1' }
+    })
   })
 
   it('does not expose selected delete action without delete capability', () => {

@@ -25,6 +25,7 @@ vi.mock('@renderer/utils/export', () => ({
 import type { MessageMenuBarActionContext } from '../messageMenuBarActions'
 import {
   executeMessageMenuBarAction,
+  getMessageMenuBarToolbarRenderKind,
   resolveMessageMenuBarMenuActions,
   resolveMessageMenuBarToolbarActions,
   resolveMessageMenuBarTranslationItems
@@ -84,6 +85,14 @@ function createContext(overrides: Partial<MessageMenuBarActionContext> = {}): Me
 }
 
 describe('messageMenuBarActions', () => {
+  it('describes toolbar special render kinds outside MessageMenuBar', () => {
+    expect(getMessageMenuBarToolbarRenderKind('assistant-mention-model')).toBe('model-picker')
+    expect(getMessageMenuBarToolbarRenderKind('translate')).toBe('translate')
+    expect(getMessageMenuBarToolbarRenderKind('more-menu')).toBe('more-menu')
+    expect(getMessageMenuBarToolbarRenderKind('delete')).toBe('delete')
+    expect(getMessageMenuBarToolbarRenderKind('copy')).toBe('button')
+  })
+
   it('keeps write actions hidden when capabilities are absent', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
       createContext({

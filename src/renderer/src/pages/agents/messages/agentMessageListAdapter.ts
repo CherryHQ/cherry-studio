@@ -18,6 +18,7 @@ import { useMessageMenuConfig } from '@renderer/hooks/messages/useMessageMenuCon
 import { useMessageSelectionController } from '@renderer/hooks/messages/useMessageSelectionController'
 import type { Topic } from '@renderer/types'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
+import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useMemo } from 'react'
 
 interface AgentMessageListParams {
@@ -52,6 +53,7 @@ export function useAgentMessageListProviderValue({
   deleteMessage,
   messageNavigation
 }: AgentMessageListParams): MessageListProviderValue {
+  const navigate = useNavigate()
   const messageItems = useMemo(
     () =>
       messages.map((message) =>
@@ -101,6 +103,11 @@ export function useAgentMessageListProviderValue({
   const abortTool = useCallback((toolId: string) => {
     return window.api.mcp.abortTool(toolId)
   }, [])
+
+  const navigateToRoute = useCallback<NonNullable<MessageListActions['navigateToRoute']>>(
+    ({ path, query }) => navigate({ to: path, search: query }),
+    [navigate]
+  )
 
   const state = useMemo<MessageListState>(
     () => ({
@@ -155,6 +162,7 @@ export function useAgentMessageListProviderValue({
       subscribeToolProgress: leafCapabilities.subscribeToolProgress,
       openExternalUrl: leafCapabilities.openExternalUrl,
       openInExternalApp: leafCapabilities.openInExternalApp,
+      navigateToRoute,
       openUserProfile: headerCapabilities.openUserProfile,
       openProviderApp: headerCapabilities.openProviderApp,
       uploadEditorFiles: leafCapabilities.uploadEditorFiles,
@@ -189,6 +197,7 @@ export function useAgentMessageListProviderValue({
       leafCapabilities.subscribeToolProgress,
       leafCapabilities.openExternalUrl,
       leafCapabilities.openInExternalApp,
+      navigateToRoute,
       leafCapabilities.uploadEditorFiles,
       leafCapabilities.handleEditorPaste,
       leafCapabilities.bindEditorPasteHandler,

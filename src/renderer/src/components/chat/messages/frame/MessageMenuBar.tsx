@@ -31,6 +31,7 @@ import { defaultMessageMenuConfig, type MessageListItem } from '../types'
 import { createMessageExportView } from '../utils/messageListItem'
 import {
   executeMessageMenuBarAction,
+  getMessageMenuBarToolbarRenderKind,
   isMessageMenuBarTranslationDivider,
   type MessageMenuBarActionContext,
   type MessageMenuBarResolvedAction,
@@ -296,65 +297,63 @@ const renderToolbarAction = ({
   t,
   translationItems
 }: RenderToolbarActionOptions) => {
-  if (action.id === 'assistant-mention-model') {
-    return (
-      actionContext.actions.renderRegenerateModelPicker?.({
-        message: actionContext.message,
-        messageParts,
-        trigger: (
-          <Tooltip content={action.label} delay={800}>
-            <ActionButton className="message-action-button" $softHoverBg={softHoverBg}>
-              {action.icon}
-            </ActionButton>
+  switch (getMessageMenuBarToolbarRenderKind(action.id)) {
+    case 'model-picker':
+      return (
+        actionContext.actions.renderRegenerateModelPicker?.({
+          message: actionContext.message,
+          messageParts,
+          trigger: (
+            <Tooltip content={action.label} delay={800}>
+              <ActionButton className="message-action-button" $softHoverBg={softHoverBg}>
+                {action.icon}
+              </ActionButton>
+            </Tooltip>
+          )
+        }) ?? null
+      )
+    case 'translate':
+      return renderTranslateAction({
+        action,
+        executeAction,
+        isTranslating,
+        softHoverBg,
+        t,
+        translationItems
+      })
+    case 'more-menu':
+      if (menuActions.length === 0) return null
+      return (
+        <MessageActionMenuPopover actions={menuActions} align="end" onAction={executeAction}>
+          <ActionButton
+            className="message-action-button"
+            onClick={(e) => e.stopPropagation()}
+            $softHoverBg={softHoverBg}>
+            {action.icon}
+          </ActionButton>
+        </MessageActionMenuPopover>
+      )
+    case 'delete':
+      return renderActionButton({
+        action,
+        executeAction,
+        icon: (
+          <Tooltip content={action.label} delay={1000} isOpen={showDeleteTooltip} onOpenChange={setShowDeleteTooltip}>
+            {action.icon}
           </Tooltip>
-        )
-      }) ?? null
-    )
+        ),
+        setShowDeleteTooltip,
+        softHoverBg,
+        tooltip: false
+      })
+    case 'button':
+      return renderActionButton({
+        action,
+        executeAction,
+        setShowDeleteTooltip,
+        softHoverBg
+      })
   }
-
-  if (action.id === 'translate') {
-    return renderTranslateAction({
-      action,
-      executeAction,
-      isTranslating,
-      softHoverBg,
-      t,
-      translationItems
-    })
-  }
-
-  if (action.id === 'more-menu') {
-    if (menuActions.length === 0) return null
-    return (
-      <MessageActionMenuPopover actions={menuActions} align="end" onAction={executeAction}>
-        <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()} $softHoverBg={softHoverBg}>
-          {action.icon}
-        </ActionButton>
-      </MessageActionMenuPopover>
-    )
-  }
-
-  if (action.id === 'delete') {
-    return renderActionButton({
-      action,
-      executeAction,
-      icon: (
-        <Tooltip content={action.label} delay={1000} isOpen={showDeleteTooltip} onOpenChange={setShowDeleteTooltip}>
-          {action.icon}
-        </Tooltip>
-      ),
-      setShowDeleteTooltip,
-      softHoverBg,
-      tooltip: false
-    })
-  }
-
-  return renderActionButton({
-    action,
-    executeAction,
-    setShowDeleteTooltip,
-    softHoverBg
-  })
 }
 
 const renderActionButton = ({

@@ -1,5 +1,4 @@
-import { RowFlex } from '@cherrystudio/ui'
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import { Columns2, Folder, Grid2X2, RotateCcw, Rows3, Trash2 } from 'lucide-react'
@@ -34,18 +33,9 @@ const MessageGroupMenuBar: FC<Props> = ({
 
   const handleDeleteGroup = async () => {
     const parentId = messages[0]?.parentId
-    if (!parentId || !actions.deleteMessageGroup) return
+    if (!parentId || !actions.deleteMessageGroupWithConfirm) return
 
-    window.modal.confirm({
-      title: t('message.group.delete.title'),
-      content: t('message.group.delete.content'),
-      centered: true,
-      okButtonProps: {
-        danger: true
-      },
-      okText: t('common.delete'),
-      onOk: () => actions.deleteMessageGroup?.(parentId)
-    })
+    await actions.deleteMessageGroupWithConfirm(parentId)
   }
 
   const isFailedMessage = (m: MessageListItem) => {
@@ -128,7 +118,7 @@ const MessageGroupMenuBar: FC<Props> = ({
             </Button>
           </Tooltip>
         )}
-        {actions.deleteMessageGroup && (
+        {actions.deleteMessageGroupWithConfirm && (
           <Button variant="ghost" size="sm" onClick={handleDeleteGroup} className="size-7 min-w-7 p-0">
             <Trash2 size={14} color="var(--color-error-base)" />
           </Button>

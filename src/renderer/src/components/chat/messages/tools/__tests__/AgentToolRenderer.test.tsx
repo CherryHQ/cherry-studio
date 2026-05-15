@@ -1,5 +1,5 @@
 import type { NormalToolResponse } from '@renderer/types'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { parse as parsePartialJson } from 'partial-json'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -23,9 +23,15 @@ const mockUseTranslation = vi.fn()
 
 // Parts map drives approval state post-migration. Default: no pending approvals.
 const mockPartsMap = vi.hoisted(() => vi.fn((): Record<string, unknown[]> | null => null))
+const mockMessageListActions = vi.hoisted(() => vi.fn(() => ({})))
 
 vi.mock('@renderer/components/chat/messages/blocks', () => ({
   usePartsMap: () => mockPartsMap()
+}))
+
+vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
+  useOptionalMessageListActions: () => mockMessageListActions(),
+  useOptionalMessageListUi: () => ({ externalCodeEditors: [] })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -119,6 +125,7 @@ describe('AgentToolRenderer', () => {
 
   beforeEach(() => {
     mockPartsMap.mockReturnValue(null) // no parts context: no pending approval
+    mockMessageListActions.mockReturnValue({})
     mockUseTranslation.mockReturnValue({
       t: (key: string, options?: string | { count?: number }) => {
         // Handle plural keys with count option
@@ -312,6 +319,35 @@ describe('AgentToolRenderer', () => {
 
       // Should show the ToolStatusIndicator with loading icon
       expect(screen.getByTestId('loading-icon')).toBeInTheDocument()
+    })
+  })
+
+  describe('navigate tool rendering', () => {
+    it('routes navigate tool clicks through message list action', () => {
+      const navigateToRoute = vi.fn()
+      mockMessageListActions.mockReturnValue({ navigateToRoute })
+      const toolResponse = createToolResponse({
+        tool: {
+          id: 'mcp__assistant__navigate',
+          name: 'mcp__assistant__navigate',
+          description: 'Navigate',
+          type: 'provider'
+        },
+        status: 'done',
+        arguments: {
+          path: '/settings/provider',
+          query: { id: 'openai' }
+        },
+        response: 'Navigated to /settings/provider'
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      fireEvent.click(screen.getByRole('button'))
+
+      expect(navigateToRoute).toHaveBeenCalledWith({
+        path: '/settings/provider',
+        query: { id: 'openai' }
+      })
     })
   })
 

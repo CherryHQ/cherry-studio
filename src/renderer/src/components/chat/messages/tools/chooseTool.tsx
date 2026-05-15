@@ -6,7 +6,7 @@
 
 import type { NormalToolResponse } from '@renderer/types'
 
-import { AgentToolRenderer } from './agent'
+import { AgentExecutionTimeline } from './agent'
 import { AgentToolsType } from './agent/types'
 import { MessageKnowledgeSearchToolTitle } from './knowledge/MessageKnowledgeSearch'
 import MessageMetaTool, { isMetaToolName } from './meta/MessageMetaTool'
@@ -53,7 +53,7 @@ export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | 
   }
 
   if (isAgentTool(toolName as AgentToolsType)) {
-    return <AgentToolRenderer toolResponse={toolResponse} />
+    return <AgentExecutionTimeline toolResponse={toolResponse} />
   }
   return null
 }

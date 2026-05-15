@@ -125,8 +125,8 @@ function ToolContent({
   )
 }
 
-// 统一的组件渲染入口
-export function AgentToolRenderer({ toolResponse }: { toolResponse: NormalToolResponse }) {
+// 统一的 Agent 执行渲染入口
+export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const { arguments: args, response, tool, status, partialArguments } = toolResponse
 
   const partsMap = usePartsMap()
@@ -179,4 +179,8 @@ export function AgentToolRenderer({ toolResponse }: { toolResponse: NormalToolRe
       hasError={status === 'error'}
     />
   )
+}
+
+export function AgentToolRenderer(props: { toolResponse: NormalToolResponse }) {
+  return <AgentExecutionTimeline {...props} />
 }

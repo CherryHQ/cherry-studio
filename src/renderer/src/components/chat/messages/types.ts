@@ -317,6 +317,7 @@ export interface MessageListActions {
   showInFolder?: (path: string) => void | Promise<void>
   openExternalUrl?: (url: string) => void | Promise<void>
   openInExternalApp?: (app: ExternalAppInfo, path: string) => void | Promise<void>
+  navigateToRoute?: (target: { path: string; query?: Record<string, string> }) => void | Promise<void>
   openUserProfile?: () => void | Promise<void>
   openProviderApp?: (providerId: string) => void | Promise<void>
   copyText?: (text: string, options?: { successMessage?: string; emptyMessage?: string }) => void | Promise<void>
@@ -363,6 +364,7 @@ export interface MessageListActions {
   startMessageBranch?: (messageId: string) => void | Promise<void>
   setActiveBranch?: (messageId: string) => void | Promise<void>
   deleteMessageGroup?: (parentId: string) => void | Promise<void>
+  deleteMessageGroupWithConfirm?: (parentId: string) => void | Promise<void>
   regenerateMessage?: (messageId: string) => void | Promise<void>
 }
 

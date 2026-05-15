@@ -13,6 +13,7 @@ import { useMessageLeafCapabilities } from '@renderer/hooks/messages/useMessageL
 import { useMessageListRenderConfig } from '@renderer/hooks/messages/useMessageListRenderConfig'
 import type { Topic } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { useNavigate } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { useCallback, useMemo } from 'react'
 
@@ -24,6 +25,7 @@ interface Props {
 }
 
 export function HistoryMessageListProvider({ topic, messages, partsByMessageId, children }: Props) {
+  const navigate = useNavigate()
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
   const editorConfig = useMessageEditorConfig(renderConfig.fontSize)
   const errorActions = useMessageErrorActions()
@@ -47,6 +49,11 @@ export function HistoryMessageListProvider({ topic, messages, partsByMessageId, 
   const showInFolder = useCallback((path: string) => {
     return window.api.file.showInFolder(path)
   }, [])
+
+  const navigateToRoute = useCallback(
+    ({ path, query }: { path: string; query?: Record<string, string> }) => navigate({ to: path, search: query }),
+    [navigate]
+  )
 
   const value = useMemo<MessageListProviderValue>(
     () => ({
@@ -87,6 +94,7 @@ export function HistoryMessageListProvider({ topic, messages, partsByMessageId, 
         subscribeToolProgress: leafCapabilities.subscribeToolProgress,
         openExternalUrl: leafCapabilities.openExternalUrl,
         openInExternalApp: leafCapabilities.openInExternalApp,
+        navigateToRoute,
         openUserProfile: headerCapabilities.openUserProfile,
         openProviderApp: headerCapabilities.openProviderApp,
         uploadEditorFiles: leafCapabilities.uploadEditorFiles,
@@ -121,6 +129,7 @@ export function HistoryMessageListProvider({ topic, messages, partsByMessageId, 
       leafCapabilities.isToolAutoApproved,
       leafCapabilities.openExternalUrl,
       leafCapabilities.openInExternalApp,
+      navigateToRoute,
       leafCapabilities.uploadEditorFiles,
       leafCapabilities.handleEditorPaste,
       leafCapabilities.bindEditorPasteHandler,
