@@ -290,6 +290,74 @@ describe('FileMigrator ext normalization', () => {
     const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
     expect(firstRow.ext).toBeNull()
   })
+
+  it('ext containing path separator is rejected as malformed', async () => {
+    const row = makeInternalRow({ id: '550e8400-e29b-41d4-a716-446655440099', ext: 'pdf/exe' })
+    const { ctx } = createMockContext([row])
+    const m = new FileMigrator()
+    const result = await m.prepare(ctx as never)
+
+    expect(result.success).toBe(true)
+    const joined = (result.warnings ?? []).join('\n')
+    expect(joined).toContain('Invalid ext')
+    expect(joined).toContain(row.id)
+  })
+
+  it('ext containing null byte is rejected as malformed', async () => {
+    const row = makeInternalRow({ id: '550e8400-e29b-41d4-a716-44665544009a', ext: 'a\0b' })
+    const { ctx } = createMockContext([row])
+    const m = new FileMigrator()
+    const result = await m.prepare(ctx as never)
+
+    expect(result.success).toBe(true)
+    const joined = (result.warnings ?? []).join('\n')
+    expect(joined).toContain('Invalid ext')
+  })
+})
+
+// ─── Size handling ───────────────────────────────────────────────────────────
+
+describe('FileMigrator size handling', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('non-numeric size falls back to 0 with a warning carrying the row id and raw value', async () => {
+    const row = makeInternalRow({
+      id: '550e8400-e29b-41d4-a716-446655440010',
+      size: 'big' as unknown as number
+    })
+    const { ctx, insertValues } = createMockContext([row])
+    const m = new FileMigrator()
+    const result = await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    expect(result.success).toBe(true)
+    const joined = (result.warnings ?? []).join('\n')
+    expect(joined).toContain('Invalid size')
+    expect(joined).toContain(row.id)
+    expect(joined).toContain('"big"')
+
+    const inserted = insertValues.mock.calls[0][0]
+    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
+    expect(firstRow.size).toBe(0)
+  })
+
+  it('negative size falls back to 0 with a warning', async () => {
+    const row = makeInternalRow({ id: '550e8400-e29b-41d4-a716-446655440011', size: -1 })
+    const { ctx, insertValues } = createMockContext([row])
+    const m = new FileMigrator()
+    const result = await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    const joined = (result.warnings ?? []).join('\n')
+    expect(joined).toContain('Invalid size')
+    expect(joined).toContain('-1')
+
+    const inserted = insertValues.mock.calls[0][0]
+    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
+    expect(firstRow.size).toBe(0)
+  })
 })
 
 // ─── Dead fields dropped (Task 2.5) ──────────────────────────────────────────

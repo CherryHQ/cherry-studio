@@ -6,6 +6,7 @@ import path from 'node:path'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
+import { SafeExtSchema } from '@shared/data/types/file/essential'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import { sql } from 'drizzle-orm'
 
@@ -80,7 +81,20 @@ function toFileEntry(
   if (!row.path || typeof row.path !== 'string' || row.path.trim() === '') return null
   if (!row.name || typeof row.name !== 'string' || row.name.trim() === '') return null
 
-  const ext = normalizeExt(row.ext)
+  const normalizedExt = normalizeExt(row.ext)
+  let ext: string | null = null
+  if (normalizedExt !== null) {
+    const parsedExt = SafeExtSchema.safeParse(normalizedExt)
+    if (!parsedExt.success) {
+      // ext column has no DB CHECK, so a malformed value would silently land
+      // in v2 and only blow up at row-read time via FileEntrySchema.parse.
+      // Treat as malformed row instead — the caller skips it with a warning.
+      onWarning(`Invalid ext for file id=${row.id}; treating row as malformed. raw=${JSON.stringify(row.ext)}`)
+      return null
+    }
+    ext = parsedExt.data
+  }
+
   const createdAt = parseTimestamp(row.created_at, (raw) => {
     onWarning(`Invalid created_at for file id=${row.id}; falling back to migration time. raw=${JSON.stringify(raw)}`)
   })
@@ -90,6 +104,10 @@ function toFileEntry(
   const isInternal = row.path.startsWith(internalPrefix)
 
   if (isInternal) {
+    const validSize = typeof row.size === 'number' && row.size >= 0
+    if (!validSize) {
+      onWarning(`Invalid size for file id=${row.id}; falling back to 0. raw=${JSON.stringify(row.size)}`)
+    }
     return {
       id: row.id,
       origin: 'internal',
@@ -97,7 +115,7 @@ function toFileEntry(
         ? path.basename(row.origin_name, row.origin_name.includes('.') ? path.extname(row.origin_name) : '')
         : row.name,
       ext,
-      size: typeof row.size === 'number' && row.size >= 0 ? row.size : 0,
+      size: validSize ? (row.size as number) : 0,
       externalPath: null,
       trashedAt: null,
       createdAt,
