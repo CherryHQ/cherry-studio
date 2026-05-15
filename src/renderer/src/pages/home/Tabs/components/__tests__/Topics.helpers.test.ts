@@ -1,14 +1,19 @@
-import type { ResourceListItemReorderPayload } from '@renderer/components/chat/resources'
+import type {
+  ResourceListGroupReorderPayload,
+  ResourceListItemReorderPayload
+} from '@renderer/components/chat/resources'
 import type { Topic } from '@renderer/types'
 import { describe, expect, it } from 'vitest'
 
 import {
   applyOptimisticTopicDisplayMove,
+  buildAssistantGroupDropAnchor,
   buildTopicDropAnchor,
   createTopicDisplayGroupResolver,
   filterTopicsForManageMode,
   getTopicTimeBucket,
   groupTopicByPinned,
+  moveAssistantGroupAfterDrop,
   moveTopicAfterDrop,
   normalizeTopicDropPayload,
   sortTopicsForDisplayGroups,
@@ -66,6 +71,37 @@ describe('Topics helpers', () => {
     expect(buildTopicDropAnchor({ ...basePayload, overId: 'topic:assistant:assistant-1', overType: 'group' })).toEqual({
       position: 'last'
     })
+  })
+
+  it('translates assistant group drops into persisted order anchors', () => {
+    const basePayload: ResourceListGroupReorderPayload = {
+      type: 'group',
+      activeGroupId: 'topic:assistant:assistant-a',
+      overGroupId: 'topic:assistant:assistant-b',
+      overType: 'group',
+      sourceIndex: 1,
+      targetIndex: 2
+    }
+
+    expect(buildAssistantGroupDropAnchor(basePayload, 'assistant-b')).toEqual({ after: 'assistant-b' })
+    expect(buildAssistantGroupDropAnchor({ ...basePayload, sourceIndex: 2, targetIndex: 1 }, 'assistant-b')).toEqual({
+      before: 'assistant-b'
+    })
+  })
+
+  it('projects assistant group drops into optimistic assistant order', () => {
+    expect(
+      moveAssistantGroupAfterDrop(['assistant-a', 'assistant-b', 'assistant-c'], 'assistant-a', 'assistant-c', {
+        sourceIndex: 0,
+        targetIndex: 2
+      })
+    ).toEqual(['assistant-b', 'assistant-c', 'assistant-a'])
+    expect(
+      moveAssistantGroupAfterDrop(['assistant-a', 'assistant-b', 'assistant-c'], 'assistant-c', 'assistant-a', {
+        sourceIndex: 2,
+        targetIndex: 0
+      })
+    ).toEqual(['assistant-c', 'assistant-a', 'assistant-b'])
   })
 
   it('preserves same-group item drop positions from the insertion line', () => {
@@ -250,11 +286,10 @@ describe('Topics helpers', () => {
     })
   })
 
-  it('sorts assistant display groups by pinned, default, assistant rank, then unknown while preserving group order', () => {
+  it('sorts assistant display groups by pinned, assistant rank, then unknown while preserving group order', () => {
     const topics = [
       createTopic({ id: 'assistant-b-1', assistantId: 'assistant-b' }),
       createTopic({ id: 'unknown-1', assistantId: 'missing-assistant' }),
-      createTopic({ id: 'default-1', assistantId: undefined }),
       createTopic({ id: 'assistant-a-1', assistantId: 'assistant-a' }),
       createTopic({ id: 'pinned-1', assistantId: 'missing-assistant', pinned: true }),
       createTopic({ id: 'assistant-b-2', assistantId: 'assistant-b' })
@@ -268,7 +303,7 @@ describe('Topics helpers', () => {
         ]),
         mode: 'assistant'
       }).map((topic) => topic.id)
-    ).toEqual(['pinned-1', 'default-1', 'assistant-a-1', 'assistant-b-1', 'assistant-b-2', 'unknown-1'])
+    ).toEqual(['pinned-1', 'assistant-a-1', 'assistant-b-1', 'assistant-b-2', 'unknown-1'])
   })
 
   it('sorts assistant group topics by persisted orderKey descending when available', () => {

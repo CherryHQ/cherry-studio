@@ -53,10 +53,12 @@ import type { TopicExportMenuOptions } from './topicContextMenuActions'
 import { TopicManagePanel, useTopicManageMode } from './TopicManageMode'
 import {
   applyOptimisticTopicDisplayMove,
+  buildAssistantGroupDropAnchor,
   buildTopicDropAnchor,
   createTopicDisplayGroupResolver,
   filterTopicsForManageMode,
   getAssistantIdFromTopicGroupId,
+  moveAssistantGroupAfterDrop,
   normalizeTopicDropPayload,
   sortTopicsForDisplayGroups,
   TOPIC_DEFAULT_ASSISTANT_GROUP_ID,
@@ -184,7 +186,8 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
   const {
     assistants,
     isLoading: isAssistantsLoading,
-    error: assistantsError
+    error: assistantsError,
+    refetch: refreshAssistants
   } = useAssistantsApi({ enabled: isAssistantDisplayMode })
   const listRef = useRef<HTMLDivElement>(null)
   const deleteTimerRef = useRef<NodeJS.Timeout>(null)
@@ -215,10 +218,43 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
     setOptimisticMove(null)
   }, [apiTopicOrderSignature])
 
-  const assistantById = useMemo(() => new Map(assistants.map((assistant) => [assistant.id, assistant])), [assistants])
-  const assistantRankById = useMemo(
-    () => new Map(assistants.map((assistant, index) => [assistant.id, index])),
+  const [optimisticAssistantOrderIds, setOptimisticAssistantOrderIds] = useState<readonly string[] | null>(null)
+  const assistantOrderSignature = useMemo(
+    () => assistants.map((assistant) => `${assistant.id}:${assistant.orderKey ?? ''}`).join('|'),
     [assistants]
+  )
+
+  useEffect(() => {
+    setOptimisticAssistantOrderIds(null)
+  }, [assistantOrderSignature])
+
+  const orderedAssistants = useMemo(() => {
+    if (!optimisticAssistantOrderIds) {
+      return assistants
+    }
+
+    const assistantById = new Map(assistants.map((assistant) => [assistant.id, assistant]))
+    const ordered = optimisticAssistantOrderIds.flatMap((assistantId) => {
+      const assistant = assistantById.get(assistantId)
+      return assistant ? [assistant] : []
+    })
+    const optimisticIds = new Set(optimisticAssistantOrderIds)
+
+    for (const assistant of assistants) {
+      if (!optimisticIds.has(assistant.id)) {
+        ordered.push(assistant)
+      }
+    }
+
+    return ordered
+  }, [assistants, optimisticAssistantOrderIds])
+  const assistantById = useMemo(
+    () => new Map(orderedAssistants.map((assistant) => [assistant.id, assistant])),
+    [orderedAssistants]
+  )
+  const assistantRankById = useMemo(
+    () => new Map(orderedAssistants.map((assistant, index) => [assistant.id, index])),
+    [orderedAssistants]
   )
 
   const manageState = useTopicManageMode()
@@ -524,10 +560,87 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
     [assistantById, isAssistantDisplayMode, isManageMode]
   )
 
+  const canDragTopicGroup = useCallback(
+    (group: { id: string }) => {
+      if (!isAssistantDisplayMode || isManageMode) return false
+
+      const assistantId = getAssistantIdFromTopicGroupId(group.id)
+      return !!assistantId && assistantById.has(assistantId)
+    },
+    [assistantById, isAssistantDisplayMode, isManageMode]
+  )
+
+  const canDropTopicGroup = useCallback(
+    ({
+      activeGroupId,
+      overGroupId
+    }: {
+      activeGroupId: string
+      overGroupId: string
+      overType: 'group' | 'item'
+      sourceIndex: number
+      targetIndex: number
+    }) => {
+      if (!isAssistantDisplayMode || isManageMode) return false
+
+      const activeAssistantId = getAssistantIdFromTopicGroupId(activeGroupId)
+      const overAssistantId = getAssistantIdFromTopicGroupId(overGroupId)
+
+      return (
+        !!activeAssistantId &&
+        !!overAssistantId &&
+        assistantById.has(activeAssistantId) &&
+        assistantById.has(overAssistantId)
+      )
+    },
+    [assistantById, isAssistantDisplayMode, isManageMode]
+  )
+
   const handleTopicReorder = useCallback(
     async (payload: ResourceListReorderPayload) => {
-      if (payload.type !== 'item') return
       if (!isAssistantDisplayMode || isManageMode) return
+
+      if (payload.type === 'group') {
+        const activeAssistantId = getAssistantIdFromTopicGroupId(payload.activeGroupId)
+        const overAssistantId = getAssistantIdFromTopicGroupId(payload.overGroupId)
+
+        if (
+          !activeAssistantId ||
+          !overAssistantId ||
+          !assistantById.has(activeAssistantId) ||
+          !assistantById.has(overAssistantId)
+        ) {
+          return
+        }
+
+        const assistantIds = orderedAssistants.map((assistant) => assistant.id)
+        const nextAssistantIds = moveAssistantGroupAfterDrop(assistantIds, activeAssistantId, overAssistantId, payload)
+        const anchor = buildAssistantGroupDropAnchor(payload, overAssistantId)
+
+        setOptimisticAssistantOrderIds(nextAssistantIds)
+
+        try {
+          await dataApiService.patch(`/assistants/${activeAssistantId}/order`, {
+            body: anchor
+          })
+          await refreshAssistants()
+        } catch (err) {
+          setOptimisticAssistantOrderIds(null)
+          logger.error('Failed to reorder assistant topic group', { activeAssistantId, err, overAssistantId })
+
+          try {
+            await refreshAssistants()
+          } catch (refreshErr) {
+            logger.error('Failed to refresh assistants after group reorder failure', {
+              activeAssistantId,
+              refreshErr
+            })
+          }
+        }
+
+        return
+      }
+
       if (payload.sourceGroupId === TOPIC_PINNED_GROUP_ID || payload.targetGroupId === TOPIC_PINNED_GROUP_ID) return
       if (payload.targetGroupId === TOPIC_UNKNOWN_ASSISTANT_GROUP_ID) return
 
@@ -568,7 +681,7 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
         }
       }
     },
-    [assistantById, isAssistantDisplayMode, isManageMode, refreshTopics, topics]
+    [assistantById, isAssistantDisplayMode, isManageMode, orderedAssistants, refreshAssistants, refreshTopics, topics]
   )
 
   return (
@@ -586,11 +699,13 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
         getGroupHeaderAction={getGroupHeaderAction}
         getGroupHeaderIcon={getGroupHeaderIcon}
         dragCapabilities={{
-          groups: false,
+          groups: isAssistantDisplayMode && !isManageMode,
           items: isAssistantDisplayMode && !isManageMode,
           itemSameGroup: isAssistantDisplayMode && !isManageMode,
           itemCrossGroup: isAssistantDisplayMode && !isManageMode
         }}
+        canDragGroup={canDragTopicGroup}
+        canDropGroup={canDropTopicGroup}
         canDragItem={canDragTopicItem}
         canDropItem={canDropTopicItem}
         groupShowMoreLabel={t('chat.topics.group.show_more')}

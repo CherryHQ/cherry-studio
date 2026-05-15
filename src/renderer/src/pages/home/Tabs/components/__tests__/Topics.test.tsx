@@ -354,6 +354,14 @@ function sortableData(id: string) {
   return { current: data }
 }
 
+function droppableData(id: string) {
+  const data = dndMocks.droppableData.get(id)
+  if (!data) {
+    throw new Error(`Expected droppable data for ${id}`)
+  }
+  return { current: data }
+}
+
 const topicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses.${topicId}` as never
 const topicStreamSeenCacheKey = (topicId: string) => `topic.stream.seen.${topicId}` as never
 
@@ -1167,6 +1175,200 @@ describe('Topics', () => {
     expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toEqual([
       'topic:time:today'
     ])
+  })
+
+  it('persists assistant group reorder and applies the assistant order optimistically', async () => {
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+
+    renderTopicList()
+
+    dndMocks.onDragEnd?.({
+      active: {
+        data: sortableData('group:topic:assistant:assistant-1'),
+        id: 'group:topic:assistant:assistant-1'
+      },
+      over: {
+        data: sortableData('group:topic:assistant:assistant-2'),
+        id: 'group:topic:assistant:assistant-2'
+      }
+    })
+
+    await vi.waitFor(() => {
+      const rowTexts = screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')
+      expect(rowTexts.findIndex((text) => text.includes('Alpha topic'))).toBeGreaterThan(
+        rowTexts.findIndex((text) => text.includes('Gamma topic'))
+      )
+    })
+    await vi.waitFor(() =>
+      expect(patchSpy).toHaveBeenCalledWith('/assistants/assistant-1/order', { body: { after: 'assistant-2' } })
+    )
+    expect(patchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('treats the default assistant database row as a normal draggable assistant group', async () => {
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    mockUseQuery.mockImplementation((path) => {
+      if (path === '/pins') {
+        return {
+          data: [],
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn().mockResolvedValue(undefined),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+      if (path === '/assistants') {
+        return {
+          data: {
+            items: [
+              {
+                id: 'assistant-default',
+                name: 'Default Assistant',
+                emoji: '😀',
+                orderKey: 'a',
+                createdAt: '2026-01-01T00:00:00.000Z',
+                updatedAt: '2026-01-01T00:00:00.000Z'
+              },
+              {
+                id: 'assistant-2',
+                name: 'Beta Assistant',
+                emoji: '✍️',
+                orderKey: 'b',
+                createdAt: '2026-01-01T00:00:00.000Z',
+                updatedAt: '2026-01-01T00:00:00.000Z'
+              }
+            ],
+            total: 2
+          },
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn().mockResolvedValue(undefined),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+      return {
+        data: undefined,
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        refetch: vi.fn().mockResolvedValue(undefined),
+        mutate: vi.fn().mockResolvedValue(undefined)
+      }
+    })
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({
+              id: 'topic-default',
+              name: 'Default row topic',
+              assistantId: 'assistant-default',
+              orderKey: 'a'
+            }),
+            createApiTopic({ id: 'topic-beta', name: 'Beta row topic', assistantId: 'assistant-2', orderKey: 'b' })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    renderTopicList()
+
+    dndMocks.onDragEnd?.({
+      active: {
+        data: sortableData('group:topic:assistant:assistant-default'),
+        id: 'group:topic:assistant:assistant-default'
+      },
+      over: {
+        data: sortableData('group:topic:assistant:assistant-2'),
+        id: 'group:topic:assistant:assistant-2'
+      }
+    })
+
+    await vi.waitFor(() =>
+      expect(patchSpy).toHaveBeenCalledWith('/assistants/assistant-default/order', {
+        body: { after: 'assistant-2' }
+      })
+    )
+    expect(patchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not allow pinned or unknown groups to participate in assistant group reorder', () => {
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({ id: 'topic-a', name: 'Known alpha', assistantId: 'assistant-1', orderKey: 'a' }),
+            createApiTopic({ id: 'topic-b', name: 'Pinned topic', assistantId: 'assistant-1', orderKey: 'b' }),
+            createApiTopic({
+              id: 'topic-e',
+              name: 'Unknown topic',
+              assistantId: 'missing-assistant',
+              orderKey: 'e'
+            })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    renderTopicList()
+
+    expect(dndMocks.sortableData.has('group:topic:pinned')).toBe(false)
+    expect(dndMocks.sortableData.has('group:topic:assistant:unknown')).toBe(false)
+
+    dndMocks.onDragEnd?.({
+      active: {
+        data: sortableData('group:topic:assistant:assistant-1'),
+        id: 'group:topic:assistant:assistant-1'
+      },
+      over: { data: droppableData('group:topic:pinned'), id: 'group:topic:pinned' }
+    })
+    dndMocks.onDragEnd?.({
+      active: {
+        data: sortableData('group:topic:assistant:assistant-1'),
+        id: 'group:topic:assistant:assistant-1'
+      },
+      over: {
+        data: droppableData('group:topic:assistant:unknown'),
+        id: 'group:topic:assistant:unknown'
+      }
+    })
+
+    expect(patchSpy).not.toHaveBeenCalled()
+  })
+
+  it('disables assistant group reorder in manage mode', () => {
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+
+    renderTopicList()
+
+    expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('Manage topics'))
+
+    expect(screen.queryByTestId('dnd-context')).not.toBeInTheDocument()
+    expect(patchSpy).not.toHaveBeenCalled()
   })
 
   it('moves only the active topic in the optimistic display overlay without rewriting order keys', () => {
