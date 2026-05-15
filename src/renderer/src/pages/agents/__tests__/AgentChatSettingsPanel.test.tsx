@@ -34,12 +34,6 @@ vi.mock('@renderer/components/chat', () => ({
   LoadingState: () => <div data-testid="loading-state" />
 }))
 
-vi.mock('@renderer/components/chat/composer/variants/AskUserQuestionComposer', () => ({
-  default: ({ request }: { request: { approvalId: string } }) => (
-    <div data-testid="ask-user-question-composer" data-approval-id={request.approvalId} />
-  )
-}))
-
 vi.mock('@renderer/components/chat/messages/stream/useMessagePartsById', () => ({
   useMessagePartsById: () => partsByMessageIdMock.value
 }))
@@ -254,7 +248,7 @@ describe('AgentChat settings panel', () => {
 
     render(<AgentChat />)
 
-    expect(screen.getByTestId('ask-user-question-composer')).toHaveAttribute('data-approval-id', 'approval-1')
+    expect(screen.getByText('Choose logger')).toBeInTheDocument()
     expect(screen.queryByTestId('agent-inputbar')).not.toBeInTheDocument()
   })
 })

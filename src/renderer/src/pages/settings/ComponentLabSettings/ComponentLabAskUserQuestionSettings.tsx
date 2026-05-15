@@ -1,6 +1,7 @@
 import { Button } from '@cherrystudio/ui'
-import { findLatestPendingAskUserQuestionRequest } from '@renderer/components/chat/composer/askUserQuestion'
-import AskUserQuestionComposer from '@renderer/components/chat/composer/variants/AskUserQuestionComposer'
+import AskUserQuestionComposer, {
+  findLatestPendingAskUserQuestionRequest
+} from '@renderer/components/chat/composer/variants/AskUserQuestionComposer'
 import type { AskUserQuestionToolInput } from '@renderer/components/chat/messages/tools/agent/types'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart } from '@shared/data/types/message'

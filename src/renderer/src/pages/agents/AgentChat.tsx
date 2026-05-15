@@ -1,6 +1,10 @@
 import { ChatAppShell, type ChatPanePosition } from '@renderer/components/chat'
-import { findLatestPendingAskUserQuestionRequest } from '@renderer/components/chat/composer/askUserQuestion'
-import AskUserQuestionComposer from '@renderer/components/chat/composer/variants/AskUserQuestionComposer'
+import { ComposerContextProvider } from '@renderer/components/chat/composer/ComposerContext'
+import ComposerCore from '@renderer/components/chat/composer/ComposerCore'
+import {
+  createAskUserQuestionComposerOverride,
+  findLatestPendingAskUserQuestionRequest
+} from '@renderer/components/chat/composer/variants/AskUserQuestionComposer'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import { MessageListInitialLoading } from '@renderer/components/chat/messages/layout/MessageListLoading'
 import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
@@ -245,38 +249,39 @@ const AgentChatInner = ({
     [sessionTopicId]
   )
 
+  const composerContext = useMemo(
+    () => ({
+      overrides: askUserQuestionRequest
+        ? [
+            createAskUserQuestionComposerOverride({
+              request: askUserQuestionRequest,
+              onRespond: handleAskUserQuestionRespond
+            })
+          ]
+        : []
+    }),
+    [askUserQuestionRequest, handleAskUserQuestionRespond]
+  )
+
   const bottomComposer = useMemo(() => {
     if (isMultiSelectMode) return undefined
 
-    if (askUserQuestionRequest) {
-      return (
-        <AskUserQuestionComposer
-          key={askUserQuestionRequest.approvalId}
-          request={askUserQuestionRequest}
-          onRespond={handleAskUserQuestionRespond}
-        />
-      )
-    }
-
     return (
-      <AgentSessionInputbar
-        agentId={agentId}
-        sessionId={sessionId}
-        sendMessage={chat.sendMessage}
-        stop={chat.stop}
-        isStreaming={isPending}
-      />
+      <ComposerContextProvider value={composerContext}>
+        <ComposerCore
+          fallback={
+            <AgentSessionInputbar
+              agentId={agentId}
+              sessionId={sessionId}
+              sendMessage={chat.sendMessage}
+              stop={chat.stop}
+              isStreaming={isPending}
+            />
+          }
+        />
+      </ComposerContextProvider>
     )
-  }, [
-    agentId,
-    askUserQuestionRequest,
-    chat.sendMessage,
-    chat.stop,
-    handleAskUserQuestionRespond,
-    isMultiSelectMode,
-    isPending,
-    sessionId
-  ])
+  }, [agentId, chat.sendMessage, chat.stop, composerContext, isMultiSelectMode, isPending, sessionId])
 
   return (
     <AgentChatFrame
