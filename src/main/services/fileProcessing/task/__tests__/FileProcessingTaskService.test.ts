@@ -585,12 +585,19 @@ describe('FileProcessingTaskService', () => {
         fileEntryId: imageFileEntryId,
         processorId: 'doc2x'
       })
-    ).rejects.toThrow('File processing document_to_markdown only supports PDF files')
+    ).rejects.toThrow('File processing document_to_markdown only supports document files')
 
     await service._doStop()
   })
 
-  it('rejects non-PDF document file entries for document_to_markdown', async () => {
+  it('allows non-PDF document file entries for document_to_markdown', async () => {
+    const prepare = vi.fn().mockReturnValue({
+      mode: 'background' as const,
+      execute: vi.fn().mockResolvedValue({
+        kind: 'markdown',
+        markdownContent: '# docx'
+      })
+    })
     const service = new FileProcessingTaskService()
     await service._doInit()
 
@@ -598,11 +605,7 @@ describe('FileProcessingTaskService', () => {
       isAvailable: () => true,
       capabilities: {
         document_to_markdown: {
-          prepare: vi.fn().mockReturnValue({
-            mode: 'remote-poll',
-            startRemote: vi.fn(),
-            pollRemote: vi.fn()
-          })
+          prepare
         }
       }
     }
@@ -610,13 +613,18 @@ describe('FileProcessingTaskService', () => {
       createConfig('doc2x', 'document_to_markdown', [FILE_TYPE.DOCUMENT])
     )
 
-    await expect(
-      service.startTask({
-        feature: 'document_to_markdown',
-        fileEntryId: wordFileEntryId,
-        processorId: 'doc2x'
-      })
-    ).rejects.toThrow('File processing document_to_markdown only supports PDF files')
+    const started = await service.startTask({
+      feature: 'document_to_markdown',
+      fileEntryId: wordFileEntryId,
+      processorId: 'doc2x'
+    })
+
+    expect(started).toMatchObject({
+      feature: 'document_to_markdown',
+      processorId: 'doc2x',
+      status: 'processing'
+    })
+    expect(prepare).toHaveBeenCalledWith(wordFileInfo, expect.objectContaining({ id: 'doc2x' }), undefined)
 
     await service._doStop()
   })

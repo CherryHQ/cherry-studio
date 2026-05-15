@@ -72,14 +72,12 @@ describe('file processing support utils', () => {
     )
   })
 
-  it('allows document_to_markdown for PDF files only', () => {
+  it('allows document_to_markdown for document files only', () => {
     expect(() => assertFeatureSupportsFileInfo(pdfFileInfo, 'document_to_markdown')).not.toThrow()
     expect(() => assertFeatureSupportsFileInfo({ ...pdfFileInfo, ext: 'PDF' }, 'document_to_markdown')).not.toThrow()
+    expect(() => assertFeatureSupportsFileInfo(wordFileInfo, 'document_to_markdown')).not.toThrow()
     expect(() => assertFeatureSupportsFileInfo(imageFileInfo, 'document_to_markdown')).toThrowError(
-      'File processing document_to_markdown only supports PDF files'
-    )
-    expect(() => assertFeatureSupportsFileInfo(wordFileInfo, 'document_to_markdown')).toThrowError(
-      'File processing document_to_markdown only supports PDF files'
+      'File processing document_to_markdown only supports document files'
     )
   })
 

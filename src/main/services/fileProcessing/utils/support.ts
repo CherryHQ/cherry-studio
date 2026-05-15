@@ -7,8 +7,8 @@ export function assertFeatureSupportsFileInfo(file: FileInfo, feature: FileProce
     throw new Error(`File processing ${feature} only supports image files`)
   }
 
-  if (feature === 'document_to_markdown' && file.ext?.toLowerCase() !== 'pdf') {
-    throw new Error(`File processing ${feature} only supports PDF files`)
+  if (feature === 'document_to_markdown' && file.type !== FILE_TYPE.DOCUMENT) {
+    throw new Error(`File processing ${feature} only supports document files`)
   }
 }
 
