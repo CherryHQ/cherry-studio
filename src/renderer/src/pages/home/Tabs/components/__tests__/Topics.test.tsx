@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,6 +20,7 @@ const virtualMocks = vi.hoisted(() => ({
 const dndMocks = vi.hoisted(() => ({
   droppableData: new Map<string, unknown>(),
   onDragEnd: undefined as undefined | ((event: any) => void),
+  onDragOver: undefined as undefined | ((event: any) => void),
   sortableData: new Map<string, unknown>()
 }))
 
@@ -33,8 +34,9 @@ vi.mock('@tanstack/react-virtual', () => ({
 vi.mock('@dnd-kit/core', () => {
   const React = require('react')
   return {
-    DndContext: ({ children, onDragEnd }: { children: ReactNode; onDragEnd?: any }) => {
+    DndContext: ({ children, onDragEnd, onDragOver }: { children: ReactNode; onDragEnd?: any; onDragOver?: any }) => {
       dndMocks.onDragEnd = onDragEnd
+      dndMocks.onDragOver = onDragOver
       return React.createElement('div', { 'data-testid': 'dnd-context' }, children)
     },
     DragOverlay: ({ children }: { children: ReactNode }) =>
@@ -69,7 +71,7 @@ vi.mock('@dnd-kit/sortable', () => {
         isDragging: false
       }
     },
-    verticalListSortingStrategy: {}
+    verticalListSortingStrategy: vi.fn(() => null)
   }
 })
 
@@ -486,6 +488,7 @@ describe('Topics', () => {
       mutate: vi.fn()
     })
     dndMocks.onDragEnd = undefined
+    dndMocks.onDragOver = undefined
     dndMocks.droppableData.clear()
     dndMocks.sortableData.clear()
   })
@@ -1075,7 +1078,7 @@ describe('Topics', () => {
     expect(next.map((topic) => topic.orderKey)).toEqual(['c', 'a', 'd'])
   })
 
-  it('normalizes stale rect position when reordering topics within the same assistant group', async () => {
+  it('uses the drag rect fallback when dropping without a prior insertion line', async () => {
     const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
 
@@ -1093,18 +1096,18 @@ describe('Topics', () => {
 
     await vi.waitFor(() => {
       const rowTexts = screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')
-      expect(rowTexts.findIndex((text) => text.includes('Gamma topic'))).toBeLessThan(
-        rowTexts.findIndex((text) => text.includes('Delta archive'))
+      expect(rowTexts.findIndex((text) => text.includes('Delta archive'))).toBeLessThan(
+        rowTexts.findIndex((text) => text.includes('Gamma topic'))
       )
     })
     await vi.waitFor(() =>
-      expect(patchSpy).toHaveBeenCalledWith('/topics/topic-d/order', { body: { before: 'topic-c' } })
+      expect(patchSpy).toHaveBeenCalledWith('/topics/topic-d/order', { body: { after: 'topic-c' } })
     )
     expect(patchSpy).toHaveBeenCalledTimes(1)
     expect(patchSpy).not.toHaveBeenCalledWith('/topics/topic-d', expect.anything())
   })
 
-  it('keeps multi-topic same-group drops at the intended index when rect position is stale', async () => {
+  it('keeps multi-topic same-group drops at the fallback insertion index', async () => {
     const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseInfiniteQuery.mockReturnValue({
@@ -1140,15 +1143,101 @@ describe('Topics', () => {
 
     await vi.waitFor(() => {
       const rowTexts = screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')
-      expect(rowTexts.findIndex((text) => text.includes('Alpha topic'))).toBeLessThan(
-        rowTexts.findIndex((text) => text.includes('Gamma topic'))
-      )
-      expect(rowTexts.findIndex((text) => text.includes('Gamma topic'))).toBeGreaterThan(
+      expect(rowTexts.findIndex((text) => text.includes('Gamma topic'))).toBeLessThan(
         rowTexts.findIndex((text) => text.includes('Alpha topic'))
+      )
+      expect(rowTexts.findIndex((text) => text.includes('Alpha topic'))).toBeGreaterThan(
+        rowTexts.findIndex((text) => text.includes('Gamma topic'))
       )
     })
     await vi.waitFor(() =>
-      expect(patchSpy).toHaveBeenCalledWith('/topics/topic-c/order', { body: { before: 'topic-a' } })
+      expect(patchSpy).toHaveBeenCalledWith('/topics/topic-c/order', { body: { after: 'topic-a' } })
+    )
+    expect(patchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps assistant grouped topics stable during cross-group drag hover', () => {
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+
+    renderTopicList()
+
+    const beforeHoverRows = screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')
+
+    act(() => {
+      dndMocks.onDragOver?.({
+        active: {
+          data: sortableData('item:topic-a'),
+          id: 'item:topic-a',
+          rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
+        },
+        over: { data: sortableData('item:topic-d'), id: 'item:topic-d', rect: { top: 10, height: 20 } }
+      })
+    })
+
+    expect(patchSpy).not.toHaveBeenCalled()
+    expect(screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')).toEqual(beforeHoverRows)
+    expect(document.querySelector('[data-drop-indicator="after"]')).toBeInTheDocument()
+  })
+
+  it('keeps assistant grouped topics stable during same-group drag hover', () => {
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+
+    renderTopicList()
+
+    const beforeHoverRows = screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')
+
+    act(() => {
+      dndMocks.onDragOver?.({
+        active: {
+          data: sortableData('item:topic-d'),
+          id: 'item:topic-d',
+          rect: { current: { initial: null, translated: { top: 10, height: 20 } } }
+        },
+        over: { data: sortableData('item:topic-c'), id: 'item:topic-c', rect: { top: 80, height: 20 } }
+      })
+    })
+
+    expect(patchSpy).not.toHaveBeenCalled()
+    expect(screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')).toEqual(beforeHoverRows)
+    expect(document.querySelector('[data-drop-indicator="before"]')).toBeInTheDocument()
+  })
+
+  it('persists same-group drops using the last insertion line position', async () => {
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+
+    renderTopicList()
+
+    act(() => {
+      dndMocks.onDragOver?.({
+        active: {
+          data: sortableData('item:topic-d'),
+          id: 'item:topic-d',
+          rect: { current: { initial: null, translated: { top: 10, height: 20 } } }
+        },
+        over: { data: sortableData('item:topic-c'), id: 'item:topic-c', rect: { top: 80, height: 20 } }
+      })
+    })
+
+    dndMocks.onDragEnd?.({
+      active: {
+        data: sortableData('item:topic-d'),
+        id: 'item:topic-d',
+        rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
+      },
+      over: { data: sortableData('item:topic-c'), id: 'item:topic-c', rect: { top: 10, height: 20 } }
+    })
+
+    await vi.waitFor(() => {
+      const rowTexts = screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')
+      expect(rowTexts.findIndex((text) => text.includes('Delta archive'))).toBeLessThan(
+        rowTexts.findIndex((text) => text.includes('Gamma topic'))
+      )
+    })
+    await vi.waitFor(() =>
+      expect(patchSpy).toHaveBeenCalledWith('/topics/topic-d/order', { body: { after: 'topic-c' } })
     )
     expect(patchSpy).toHaveBeenCalledTimes(1)
   })

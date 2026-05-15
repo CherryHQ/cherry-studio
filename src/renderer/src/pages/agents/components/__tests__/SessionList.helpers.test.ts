@@ -69,7 +69,7 @@ describe('SessionList helpers', () => {
     })
   })
 
-  it('normalizes same-group item drops from source and target indexes', () => {
+  it('preserves same-group item drop positions from the insertion line', () => {
     const payload: ResourceListItemReorderPayload = {
       type: 'item',
       activeId: 'a',
@@ -82,7 +82,7 @@ describe('SessionList helpers', () => {
       targetIndex: 1
     }
 
-    expect(normalizeSessionDropPayload(payload)).toEqual({ ...payload, position: 'after' })
+    expect(normalizeSessionDropPayload(payload)).toBe(payload)
 
     const crossGroupPayload = {
       ...payload,

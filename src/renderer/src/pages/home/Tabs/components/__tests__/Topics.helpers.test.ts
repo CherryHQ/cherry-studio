@@ -3,6 +3,7 @@ import type { Topic } from '@renderer/types'
 import { describe, expect, it } from 'vitest'
 
 import {
+  applyOptimisticTopicDisplayMove,
   buildTopicDropAnchor,
   createTopicDisplayGroupResolver,
   filterTopicsForManageMode,
@@ -67,7 +68,7 @@ describe('Topics helpers', () => {
     })
   })
 
-  it('normalizes same-group item drops by source and target indexes', () => {
+  it('preserves same-group item drop positions from the insertion line', () => {
     const basePayload: ResourceListItemReorderPayload = {
       type: 'item',
       activeId: 'a',
@@ -80,20 +81,15 @@ describe('Topics helpers', () => {
       targetIndex: 1
     }
 
-    expect(normalizeTopicDropPayload(basePayload)).toEqual({ ...basePayload, position: 'after' })
-    expect(
-      normalizeTopicDropPayload({
-        ...basePayload,
-        position: 'after',
-        sourceIndex: 1,
-        targetIndex: 0
-      })
-    ).toEqual({
+    expect(normalizeTopicDropPayload(basePayload)).toBe(basePayload)
+
+    const movingUpPayload = {
       ...basePayload,
-      position: 'before',
+      position: 'after' as const,
       sourceIndex: 1,
       targetIndex: 0
-    })
+    }
+    expect(normalizeTopicDropPayload(movingUpPayload)).toBe(movingUpPayload)
 
     const crossGroupPayload = {
       ...basePayload,
@@ -119,6 +115,37 @@ describe('Topics helpers', () => {
 
     expect(moveTopicAfterDrop(topics, payload).map((topic) => topic.id)).toEqual(['b', 'c', 'a'])
     expect(topics.map((topic) => topic.id)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('projects group drops at the visual append position of the target group', () => {
+    const topics = [
+      createTopic({ id: 'a', assistantId: 'assistant-1' }),
+      createTopic({ id: 'b', assistantId: 'assistant-2' }),
+      createTopic({ id: 'c', assistantId: 'assistant-2' }),
+      createTopic({ id: 'd', assistantId: 'assistant-3' })
+    ]
+    const groupBy = (topic: Topic) => ({
+      id: `topic:assistant:${topic.assistantId}`,
+      label: topic.assistantId ?? 'default'
+    })
+    const payload: ResourceListItemReorderPayload = {
+      type: 'item',
+      activeId: 'a',
+      overId: 'topic:assistant:assistant-2',
+      position: 'before',
+      overType: 'group',
+      sourceGroupId: 'topic:assistant:assistant-1',
+      targetGroupId: 'topic:assistant:assistant-2',
+      sourceIndex: 0,
+      targetIndex: 0
+    }
+
+    expect(applyOptimisticTopicDisplayMove(topics, payload, 'assistant-2', groupBy).map((topic) => topic.id)).toEqual([
+      'b',
+      'c',
+      'a',
+      'd'
+    ])
   })
 
   it('filters manage-mode topics by all space-separated keywords only while managing', () => {

@@ -550,14 +550,55 @@ describe('Sessions', () => {
         active: {
           data: sortableData('item:session-a'),
           id: 'item:session-a',
+          rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
+        },
+        over: { data: sortableData('item:session-b'), id: 'item:session-b', rect: { top: 10, height: 20 } }
+      })
+    })
+
+    await vi.waitFor(() =>
+      expect(sessionDataMocks.reorderSession).toHaveBeenCalledWith('session-a', { after: 'session-b' })
+    )
+  })
+
+  it('persists same-agent drops using the last insertion line position', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-a', orderKey: 'b' })
+      ]
+    })
+
+    render(<Sessions />)
+
+    expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
+    startDraggingSession('session-a')
+
+    act(() => {
+      dndMocks.onDragOver?.({
+        active: {
+          data: sortableData('item:session-a'),
+          id: 'item:session-a',
           rect: { current: { initial: null, translated: { top: 10, height: 20 } } }
         },
         over: { data: sortableData('item:session-b'), id: 'item:session-b', rect: { top: 80, height: 20 } }
       })
     })
 
+    act(() => {
+      dndMocks.onDragEnd?.({
+        active: {
+          data: sortableData('item:session-a'),
+          id: 'item:session-a',
+          rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
+        },
+        over: { data: sortableData('item:session-b'), id: 'item:session-b', rect: { top: 10, height: 20 } }
+      })
+    })
+
     await vi.waitFor(() =>
-      expect(sessionDataMocks.reorderSession).toHaveBeenCalledWith('session-a', { after: 'session-b' })
+      expect(sessionDataMocks.reorderSession).toHaveBeenCalledWith('session-a', { before: 'session-b' })
     )
   })
 
@@ -602,9 +643,9 @@ describe('Sessions', () => {
         active: {
           data: sortableData('item:session-a'),
           id: 'item:session-a',
-          rect: { current: { initial: null, translated: { top: 10, height: 20 } } }
+          rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
         },
-        over: { data: sortableData('item:session-b'), id: 'item:session-b', rect: { top: 80, height: 20 } }
+        over: { data: sortableData('item:session-b'), id: 'item:session-b', rect: { top: 10, height: 20 } }
       })
     })
 

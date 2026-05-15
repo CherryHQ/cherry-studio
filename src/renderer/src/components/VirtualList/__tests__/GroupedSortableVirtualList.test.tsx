@@ -23,6 +23,7 @@ const virtualMocks = vi.hoisted(() => ({
 }))
 
 const dndMocks = vi.hoisted(() => ({
+  activeSortableId: null as null | string,
   droppableData: new Map<string, unknown>(),
   droppableDisabled: new Map<string, boolean | undefined>(),
   onDragCancel: undefined as undefined | ((event: any) => void),
@@ -30,7 +31,9 @@ const dndMocks = vi.hoisted(() => ({
   onDragOver: undefined as undefined | ((event: any) => void),
   onDragStart: undefined as undefined | ((event: any) => void),
   sortableData: new Map<string, unknown>(),
-  sortableDisabled: new Map<string, boolean | undefined>()
+  sortableDisabled: new Map<string, boolean | undefined>(),
+  sortableStrategy: undefined as undefined | ((args: any) => unknown),
+  verticalListSortingStrategy: vi.fn(() => ({ scaleX: 1, scaleY: 1, x: 0, y: 12 }))
 }))
 
 vi.mock('@tanstack/react-virtual', () => ({
@@ -79,21 +82,23 @@ vi.mock('@dnd-kit/core', () => {
 vi.mock('@dnd-kit/sortable', () => {
   const React = require('react')
   return {
-    SortableContext: ({ children }: { children: ReactNode }) =>
-      React.createElement('div', { 'data-testid': 'sortable-context' }, children),
+    SortableContext: ({ children, strategy }: { children: ReactNode; strategy?: (args: any) => unknown }) => {
+      dndMocks.sortableStrategy = strategy
+      return React.createElement('div', { 'data-testid': 'sortable-context' }, children)
+    },
     useSortable: ({ data, disabled, id }: { data: unknown; disabled?: boolean; id: string }) => {
       dndMocks.sortableData.set(id, data)
       dndMocks.sortableDisabled.set(id, disabled)
       return {
         attributes: {},
-        isDragging: false,
+        isDragging: dndMocks.activeSortableId === id,
         listeners: {},
         setNodeRef: vi.fn(),
         transform: { scaleX: 1, scaleY: 1, x: 0, y: 12 },
         transition: 'transform 200ms ease'
       }
     },
-    verticalListSortingStrategy: {}
+    verticalListSortingStrategy: dndMocks.verticalListSortingStrategy
   }
 })
 
@@ -136,10 +141,13 @@ const groups = [
 ]
 
 function renderList(onDragEnd = vi.fn(), extraProps = {}) {
+  dndMocks.activeSortableId = null
   dndMocks.droppableData.clear()
   dndMocks.droppableDisabled.clear()
   dndMocks.sortableData.clear()
   dndMocks.sortableDisabled.clear()
+  dndMocks.sortableStrategy = undefined
+  dndMocks.verticalListSortingStrategy.mockClear()
 
   render(
     <GroupedSortableVirtualList<TestGroup, TestItem, string>
@@ -181,6 +189,13 @@ function dragStartEvent(activeId: string) {
       rect: { current: { initial: { height: 32, width: 180 }, translated: null } }
     }
   }
+}
+
+function startDragging(activeId: string) {
+  dndMocks.activeSortableId = activeId
+  act(() => {
+    dndMocks.onDragStart?.(dragStartEvent(activeId))
+  })
 }
 
 function getGroupRows(groupLabel: string, itemLabel: string, footerLabel: string) {
@@ -331,19 +346,153 @@ describe('GroupedSortableVirtualList', () => {
   it('renders a drag overlay for the active row while dragging', () => {
     renderList(vi.fn(), { dragCapabilities: { itemCrossGroup: false } })
 
-    act(() => {
-      dndMocks.onDragStart?.(dragStartEvent('item:a'))
-    })
+    startDragging('item:a')
 
     const overlay = screen.getByTestId('drag-overlay')
     expect(within(overlay).getByText('Item Alpha')).toBeInTheDocument()
     expect(overlay.firstElementChild).toHaveStyle({ height: '32px', width: '180px' })
+    expect(screen.getAllByText('Item Alpha')[0].parentElement).toHaveStyle({ opacity: '0' })
 
     act(() => {
       dndMocks.onDragCancel?.({})
     })
 
     expect(screen.getByTestId('drag-overlay')).toBeEmptyDOMElement()
+  })
+
+  it('freezes row transforms and shows an insertion line while hovering across groups', () => {
+    renderList()
+
+    startDragging('item:a')
+
+    act(() => {
+      dndMocks.onDragOver?.(dragEvent('item:a', 'item:c'))
+    })
+
+    const sourceRow = screen.getAllByText('Item Alpha')[0].parentElement
+    const sameGroupRow = screen.getByText('Item Beta').parentElement
+    const targetRow = screen.getByText('Item Gamma').parentElement
+
+    expect(sourceRow).toHaveStyle({ opacity: '0', transform: '', transition: '' })
+    expect(sameGroupRow).toHaveStyle({ transform: '', transition: '' })
+    expect(targetRow).toHaveStyle({ transform: '', transition: '' })
+    expect(targetRow?.querySelector('[data-drop-indicator="after"]')).toBeInTheDocument()
+    expect(within(screen.getByTestId('drag-overlay')).getByText('Item Alpha')).toBeInTheDocument()
+  })
+
+  it('freezes row transforms and shows an insertion line while hovering within the same group', () => {
+    renderList()
+
+    startDragging('item:a')
+
+    act(() => {
+      dndMocks.onDragOver?.(dragEvent('item:a', 'item:b'))
+    })
+
+    const sourceRow = screen.getAllByText('Item Alpha')[0].parentElement
+    const targetRow = screen.getByText('Item Beta').parentElement
+    const otherGroupRow = screen.getByText('Item Gamma').parentElement
+
+    expect(sourceRow).toHaveStyle({ opacity: '0', transform: '', transition: '' })
+    expect(targetRow).toHaveStyle({ transform: '', transition: '' })
+    expect(otherGroupRow).toHaveStyle({ transform: '', transition: '' })
+    expect(targetRow?.querySelector('[data-drop-indicator="after"]')).toBeInTheDocument()
+    expect(within(screen.getByTestId('drag-overlay')).getByText('Item Alpha')).toBeInTheDocument()
+  })
+
+  it('uses the latest insertion line position when the drop rect disagrees', () => {
+    const onDragEnd = renderList()
+
+    startDragging('item:a')
+
+    act(() => {
+      dndMocks.onDragOver?.(dragEvent('item:a', 'item:b'))
+    })
+
+    act(() => {
+      dndMocks.onDragEnd?.({
+        active: {
+          data: dataFor('sortable', 'item:a'),
+          id: 'item:a',
+          rect: { current: { initial: null, translated: { top: 0, height: 20 } } }
+        },
+        over: { data: dataFor('sortable', 'item:b'), id: 'item:b', rect: { top: 100, height: 20 } }
+      })
+    })
+
+    expect(onDragEnd).toHaveBeenCalledWith(expect.objectContaining({ overId: 'b', position: 'after' }))
+  })
+
+  it('renders group drops as append indicators at the end of the target group', () => {
+    renderList(vi.fn(), { renderGroupFooter: (footer: unknown) => <div>Footer {String(footer)}</div> })
+
+    startDragging('item:a')
+
+    act(() => {
+      dndMocks.onDragOver?.(dragEvent('item:a', 'group:second', 'droppable'))
+    })
+
+    const targetHeader = screen.getByText('Header Second').parentElement
+    const targetItem = screen.getByText('Item Gamma').parentElement
+    const targetFooter = screen.getByText('Footer Second').parentElement
+
+    expect(targetHeader).toHaveAttribute('data-drop-target', 'true')
+    expect(targetHeader?.querySelector('[data-drop-indicator]')).not.toBeInTheDocument()
+    expect(targetItem?.querySelector('[data-drop-indicator]')).not.toBeInTheDocument()
+    expect(targetFooter?.querySelector('[data-drop-indicator="before"]')).toBeInTheDocument()
+  })
+
+  it('disables sortable projection for item drags while preserving group sorting', () => {
+    renderList(vi.fn(), { dragCapabilities: { groups: true }, canDragGroup: () => true })
+
+    startDragging('item:a')
+
+    act(() => {
+      dndMocks.onDragOver?.(dragEvent('item:a', 'item:c'))
+    })
+
+    expect(
+      dndMocks.sortableStrategy?.({
+        activeIndex: 0,
+        activeNodeRect: null,
+        index: 1,
+        overIndex: 2,
+        rects: []
+      })
+    ).toBeNull()
+    expect(dndMocks.verticalListSortingStrategy).not.toHaveBeenCalled()
+
+    act(() => {
+      dndMocks.onDragOver?.(dragEvent('item:a', 'item:b'))
+    })
+
+    expect(
+      dndMocks.sortableStrategy?.({
+        activeIndex: 0,
+        activeNodeRect: null,
+        index: 1,
+        overIndex: 1,
+        rects: []
+      })
+    ).toBeNull()
+    expect(dndMocks.verticalListSortingStrategy).not.toHaveBeenCalled()
+
+    startDragging('group:first')
+
+    act(() => {
+      dndMocks.onDragOver?.(dragEvent('group:first', 'group:second'))
+    })
+
+    expect(
+      dndMocks.sortableStrategy?.({
+        activeIndex: 0,
+        activeNodeRect: null,
+        index: 1,
+        overIndex: 3,
+        rects: []
+      })
+    ).toEqual({ scaleX: 1, scaleY: 1, x: 0, y: 12 })
+    expect(dndMocks.verticalListSortingStrategy).toHaveBeenCalledTimes(1)
   })
 
   it('keeps same-group item drops enabled independently from cross-group drops', () => {

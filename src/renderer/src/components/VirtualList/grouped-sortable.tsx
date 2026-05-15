@@ -8,10 +8,10 @@ import {
   useSensor,
   useSensors
 } from '@dnd-kit/core'
-import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { SortableContext, type SortingStrategy, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type React from 'react'
-import { memo, useCallback, useMemo, useState } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import DynamicVirtualList, { type DynamicVirtualListProps } from './dynamic'
@@ -59,9 +59,18 @@ type ActiveDragState<TGroup, TItem> = {
 }
 
 type OverDropState = {
+  position: 'before' | 'after'
   rowType: 'group' | 'item'
   targetId: UniqueIdentifier
   targetGroupId: UniqueIdentifier
+}
+
+type DropIndicatorPosition = 'before' | 'after'
+
+type GroupAppendIndicatorTarget = {
+  itemId?: UniqueIdentifier
+  position: DropIndicatorPosition
+  rowType: 'group-footer' | 'group-header' | 'item'
 }
 
 export type GroupedSortableVirtualListItemDragPayload<TGroup, TItem> = {
@@ -215,6 +224,24 @@ function isItemDragData<TGroup, TItem>(data: RowDragData<TGroup, TItem>): data i
   return data.rowType === 'item'
 }
 
+function joinClassNames(...classNames: Array<false | string | undefined>) {
+  const next = classNames.filter(Boolean).join(' ')
+  return next || undefined
+}
+
+function DropIndicator({ position }: { position: DropIndicatorPosition }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={joinClassNames(
+        'pointer-events-none absolute right-1.5 left-1.5 z-10 h-0.5 rounded-full bg-sidebar-primary',
+        position === 'before' ? 'top-0' : 'bottom-0'
+      )}
+      data-drop-indicator={position}
+    />
+  )
+}
+
 function buildDragStartPayload<TGroup, TItem>(
   active: RowDragData<TGroup, TItem>
 ): GroupedSortableVirtualListDragStartPayload<TGroup, TItem> {
@@ -355,8 +382,45 @@ function buildDropPayloadFromEvent<TGroup, TItem>(event: Pick<DragEndEvent, 'act
   return { active, over, payload }
 }
 
-function getOverDropState<TGroup, TItem>(over: RowDragData<TGroup, TItem>): OverDropState {
+function getDropPositionFromState<TGroup, TItem>(over: RowDragData<TGroup, TItem>, dropState: OverDropState | null) {
+  if (!dropState) return null
+
+  const overTargetId = isItemDragData(over) ? over.itemId : over.groupId
+  if (dropState.rowType !== over.rowType) return null
+  if (dropState.targetId !== overTargetId) return null
+  if (dropState.targetGroupId !== over.groupId) return null
+
+  return dropState.position
+}
+
+function buildDropPayloadFromStateOrEvent<TGroup, TItem>(
+  event: Pick<DragEndEvent, 'active' | 'over'>,
+  dropState: OverDropState | null,
+  groupAppendDropTargets?: Map<UniqueIdentifier, ItemDragData<TGroup, TItem>>
+) {
+  const active = getEventData<TGroup, TItem>(event.active.data.current)
+  const over = getEventData<TGroup, TItem>(event.over?.data.current)
+  if (!active || !over) return null
+
+  const statePosition = getDropPositionFromState(over, dropState)
+  const appendDropTarget =
+    statePosition !== null && isItemDragData(active) && !isItemDragData(over)
+      ? groupAppendDropTargets?.get(over.groupId)
+      : undefined
+  const payloadOver = appendDropTarget ?? over
+  const position = appendDropTarget ? 'after' : (statePosition ?? getItemDropPosition(event, active, over))
+  const payload = buildDragEndPayload(active, payloadOver, position)
+  if (!payload) return null
+
+  return { active, over: payloadOver, payload }
+}
+
+function getOverDropState<TGroup, TItem>(
+  over: RowDragData<TGroup, TItem>,
+  position: 'before' | 'after'
+): OverDropState {
   return {
+    position,
     rowType: over.rowType,
     targetId: isItemDragData(over) ? over.itemId : over.groupId,
     targetGroupId: over.groupId
@@ -365,6 +429,7 @@ function getOverDropState<TGroup, TItem>(over: RowDragData<TGroup, TItem>): Over
 
 function isSameOverDropState(current: OverDropState | null, next: OverDropState | null) {
   return (
+    current?.position === next?.position &&
     current?.rowType === next?.rowType &&
     current?.targetId === next?.targetId &&
     current?.targetGroupId === next?.targetGroupId
@@ -453,6 +518,8 @@ type SortableItemRowProps<TGroup, TItem> = {
   children: React.ReactNode
   data: ItemDragData<TGroup, TItem>
   disabled: boolean
+  dropIndicatorPosition?: DropIndicatorPosition | null
+  freezeTransform?: boolean
   overDropState: OverDropState | null
 }
 
@@ -461,6 +528,8 @@ function SortableItemRow<TGroup, TItem>({
   children,
   data,
   disabled,
+  dropIndicatorPosition,
+  freezeTransform = false,
   overDropState
 }: SortableItemRowProps<TGroup, TItem>) {
   const dropTargetRowState = getDropTargetRowState({
@@ -485,13 +554,15 @@ function SortableItemRow<TGroup, TItem>({
       ref={setNodeRef}
       data-dragging={isDragging || undefined}
       {...dropTargetRowState.props}
+      className={joinClassNames(dropTargetRowState.props.className, dropIndicatorPosition && 'relative')}
       style={{
         opacity: isDragging ? 0 : undefined,
-        transform: dropTargetRowState.isBlocked ? undefined : CSS.Transform.toString(transform),
-        transition: dropTargetRowState.isBlocked ? undefined : transition
+        transform: dropTargetRowState.isBlocked || freezeTransform ? undefined : CSS.Transform.toString(transform),
+        transition: dropTargetRowState.isBlocked || freezeTransform ? undefined : transition
       }}
       {...attributes}
       {...listeners}>
+      {dropIndicatorPosition ? <DropIndicator position={dropIndicatorPosition} /> : null}
       {children}
     </div>
   )
@@ -503,6 +574,8 @@ type GroupHeaderRowProps<TGroup, TItem> = {
   data: GroupDragData<TGroup>
   draggable: boolean
   disabled: boolean
+  dropIndicatorPosition?: DropIndicatorPosition | null
+  freezeTransform?: boolean
   overDropState: OverDropState | null
 }
 
@@ -512,6 +585,8 @@ function GroupHeaderRow<TGroup, TItem>({
   data,
   draggable,
   disabled,
+  dropIndicatorPosition,
+  freezeTransform,
   overDropState
 }: GroupHeaderRowProps<TGroup, TItem>) {
   if (draggable) {
@@ -520,6 +595,8 @@ function GroupHeaderRow<TGroup, TItem>({
         activeDragState={activeDragState}
         data={data}
         disabled={disabled}
+        dropIndicatorPosition={dropIndicatorPosition}
+        freezeTransform={freezeTransform}
         overDropState={overDropState}>
         {children}
       </SortableGroupHeaderRow>
@@ -531,6 +608,7 @@ function GroupHeaderRow<TGroup, TItem>({
       activeDragState={activeDragState}
       data={data}
       disabled={disabled}
+      dropIndicatorPosition={dropIndicatorPosition}
       overDropState={overDropState}>
       {children}
     </DroppableGroupHeaderRow>
@@ -542,6 +620,8 @@ function SortableGroupHeaderRow<TGroup, TItem>({
   children,
   data,
   disabled,
+  dropIndicatorPosition,
+  freezeTransform = false,
   overDropState
 }: Omit<GroupHeaderRowProps<TGroup, TItem>, 'draggable'>) {
   const dropTargetRowState = getDropTargetRowState({
@@ -562,13 +642,15 @@ function SortableGroupHeaderRow<TGroup, TItem>({
       ref={setNodeRef}
       data-dragging={isDragging || undefined}
       {...dropTargetRowState.props}
+      className={joinClassNames(dropTargetRowState.props.className, dropIndicatorPosition && 'relative')}
       style={{
         opacity: isDragging ? 0 : undefined,
-        transform: dropTargetRowState.isBlocked ? undefined : CSS.Transform.toString(transform),
-        transition: dropTargetRowState.isBlocked ? undefined : transition
+        transform: dropTargetRowState.isBlocked || freezeTransform ? undefined : CSS.Transform.toString(transform),
+        transition: dropTargetRowState.isBlocked || freezeTransform ? undefined : transition
       }}
       {...attributes}
       {...listeners}>
+      {dropIndicatorPosition ? <DropIndicator position={dropIndicatorPosition} /> : null}
       {children}
     </div>
   )
@@ -579,6 +661,7 @@ function DroppableGroupHeaderRow<TGroup, TItem>({
   children,
   data,
   disabled,
+  dropIndicatorPosition,
   overDropState
 }: Omit<GroupHeaderRowProps<TGroup, TItem>, 'draggable'>) {
   const dropTargetRowState = getDropTargetRowState({
@@ -595,7 +678,12 @@ function DroppableGroupHeaderRow<TGroup, TItem>({
   })
 
   return (
-    <div ref={setNodeRef} data-over={isOver || undefined} {...dropTargetRowState.props}>
+    <div
+      ref={setNodeRef}
+      data-over={isOver || undefined}
+      {...dropTargetRowState.props}
+      className={joinClassNames(dropTargetRowState.props.className, dropIndicatorPosition && 'relative')}>
+      {dropIndicatorPosition ? <DropIndicator position={dropIndicatorPosition} /> : null}
       {children}
     </div>
   )
@@ -606,13 +694,15 @@ type GroupFooterRowProps<TGroup, TItem> = {
   children: React.ReactNode
   data: GroupDragData<TGroup>
   disabled: boolean
+  dropIndicatorPosition?: DropIndicatorPosition | null
 }
 
 function GroupFooterRow<TGroup, TItem>({
   activeDragState,
   children,
   data,
-  disabled
+  disabled,
+  dropIndicatorPosition
 }: GroupFooterRowProps<TGroup, TItem>) {
   const dropTargetRowState = getDropTargetRowState({
     activeDragState,
@@ -626,7 +716,11 @@ function GroupFooterRow<TGroup, TItem>({
   })
 
   return (
-    <div ref={setNodeRef} {...dropTargetRowState.props}>
+    <div
+      ref={setNodeRef}
+      {...dropTargetRowState.props}
+      className={joinClassNames(dropTargetRowState.props.className, dropIndicatorPosition && 'relative')}>
+      {dropIndicatorPosition ? <DropIndicator position={dropIndicatorPosition} /> : null}
       {children}
     </div>
   )
@@ -663,6 +757,7 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
   )
   const [activeDragState, setActiveDragState] = useState<ActiveDragState<TGroup, TItem> | null>(null)
   const [overDropState, setOverDropState] = useState<OverDropState | null>(null)
+  const overDropStateRef = useRef<OverDropState | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: dragActivationDistance } }),
@@ -693,6 +788,57 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
       }),
     [canDragGroup, effectiveDragCapabilities.groups, getGroupId, getItemId, rows]
   )
+
+  const groupAppendIndicatorTargets = useMemo(() => {
+    const targets = new Map<UniqueIdentifier, GroupAppendIndicatorTarget>()
+
+    for (const row of rows) {
+      const groupId = getGroupId(row.group, row.groupIndex)
+
+      if (row.type === 'group-header') {
+        targets.set(groupId, { position: 'after', rowType: 'group-header' })
+        continue
+      }
+
+      if (row.type === 'item') {
+        targets.set(groupId, {
+          itemId: getItemId(row.item, row.itemIndex, row.group, row.groupIndex, row.itemIndexInGroup),
+          position: 'after',
+          rowType: 'item'
+        })
+        continue
+      }
+
+      targets.set(groupId, { position: 'before', rowType: 'group-footer' })
+    }
+
+    return targets
+  }, [getGroupId, getItemId, rows])
+
+  const groupAppendDropTargets = useMemo(() => {
+    const targets = new Map<UniqueIdentifier, ItemDragData<TGroup, TItem>>()
+
+    for (const row of rows) {
+      if (row.type !== 'item') continue
+
+      const groupId = getGroupId(row.group, row.groupIndex)
+      const itemId = getItemId(row.item, row.itemIndex, row.group, row.groupIndex, row.itemIndexInGroup)
+      targets.set(
+        groupId,
+        buildItemDragData({
+          group: row.group,
+          groupId,
+          groupIndex: row.groupIndex,
+          item: row.item,
+          itemId,
+          itemIndex: row.itemIndex,
+          itemIndexInGroup: row.itemIndexInGroup
+        })
+      )
+    }
+
+    return targets
+  }, [getGroupId, getItemId, rows])
 
   const estimateRowSize = useCallback(
     (index: number) => {
@@ -794,13 +940,32 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
   )
 
   const clearOverDropState = useCallback(() => {
+    overDropStateRef.current = null
     setOverDropState((current) => (current === null ? current : null))
   }, [])
 
   const clearDragState = useCallback(() => {
     setActiveDragState((current) => (current === null ? current : null))
+    overDropStateRef.current = null
     setOverDropState((current) => (current === null ? current : null))
   }, [])
+
+  const updateOverDropState = useCallback((nextOverDropState: OverDropState) => {
+    overDropStateRef.current = nextOverDropState
+    setOverDropState((current) => (isSameOverDropState(current, nextOverDropState) ? current : nextOverDropState))
+  }, [])
+
+  const sortingStrategy = useCallback<SortingStrategy>(
+    (args) => {
+      const active = activeDragState?.active
+      if (active && isItemDragData(active)) {
+        return null
+      }
+
+      return verticalListSortingStrategy(args)
+    },
+    [activeDragState]
+  )
 
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
@@ -841,16 +1006,48 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
         return
       }
 
-      const nextOverDropState = getOverDropState(result.over)
-      setOverDropState((current) => (isSameOverDropState(current, nextOverDropState) ? current : nextOverDropState))
+      updateOverDropState(getOverDropState(result.over, result.payload.position))
     },
-    [canDragActive, canDropGroup, canDropItem, clearOverDropState, effectiveDragCapabilities]
+    [canDragActive, canDropGroup, canDropItem, clearOverDropState, effectiveDragCapabilities, updateOverDropState]
+  )
+
+  const isItemDragProjection = activeDragState?.active !== undefined && isItemDragData(activeDragState.active)
+
+  const getDropIndicatorPosition = useCallback(
+    (row: GroupedSortableVirtualListRow<TGroup, TItem, THeader, TFooter>): DropIndicatorPosition | null => {
+      if (!overDropState) return null
+
+      const groupId = getGroupId(row.group, row.groupIndex)
+      if (overDropState.rowType === 'item') {
+        if (row.type !== 'item') return null
+
+        const itemId = getItemId(row.item, row.itemIndex, row.group, row.groupIndex, row.itemIndexInGroup)
+        return itemId === overDropState.targetId ? overDropState.position : null
+      }
+
+      if (overDropState.targetGroupId !== groupId) return null
+
+      const target = groupAppendIndicatorTargets.get(groupId)
+      if (!target || target.rowType !== row.type) return null
+
+      if (row.type === 'item') {
+        const itemId = getItemId(row.item, row.itemIndex, row.group, row.groupIndex, row.itemIndexInGroup)
+        if (target.itemId !== itemId) return null
+      }
+
+      return target.position
+    },
+    [getGroupId, getItemId, groupAppendIndicatorTargets, overDropState]
   )
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
+      const result = buildDropPayloadFromStateOrEvent<TGroup, TItem>(
+        event,
+        overDropStateRef.current,
+        groupAppendDropTargets
+      )
       clearDragState()
-      const result = buildDropPayloadFromEvent<TGroup, TItem>(event)
       if (!result || !canDragActive(result.active)) return
 
       const { payload } = result
@@ -859,7 +1056,15 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
 
       onDragEnd?.(payload)
     },
-    [canDragActive, canDropGroup, canDropItem, clearDragState, effectiveDragCapabilities, onDragEnd]
+    [
+      canDragActive,
+      canDropGroup,
+      canDropItem,
+      clearDragState,
+      effectiveDragCapabilities,
+      groupAppendDropTargets,
+      onDragEnd
+    ]
   )
 
   const renderRow = useCallback(
@@ -873,6 +1078,8 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
             activeDragState={activeDragState}
             data={data}
             disabled={disabled}
+            dropIndicatorPosition={getDropIndicatorPosition(row)}
+            freezeTransform={isItemDragProjection}
             overDropState={overDropState}
             draggable={
               !disabled && effectiveDragCapabilities.groups && (canDragGroup?.(row.group, row.groupIndex) ?? true)
@@ -887,7 +1094,11 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
         const data = buildGroupDragData(row.group, groupId, row.groupIndex)
 
         return (
-          <GroupFooterRow activeDragState={activeDragState} data={data} disabled={disabled}>
+          <GroupFooterRow
+            activeDragState={activeDragState}
+            data={data}
+            disabled={disabled}
+            dropIndicatorPosition={getDropIndicatorPosition(row)}>
             {renderGroupFooter?.(row.footer, row.group, row.groupIndex) ?? null}
           </GroupFooterRow>
         )
@@ -913,6 +1124,8 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
           activeDragState={activeDragState}
           data={data}
           disabled={itemDisabled}
+          dropIndicatorPosition={getDropIndicatorPosition(row)}
+          freezeTransform={isItemDragProjection}
           overDropState={overDropState}>
           {renderItem(row.item, row.itemIndex, row.group, row.groupIndex, row.itemIndexInGroup)}
         </SortableItemRow>
@@ -925,8 +1138,10 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
       disabled,
       effectiveDragCapabilities.groups,
       effectiveDragCapabilities.items,
+      getDropIndicatorPosition,
       getGroupId,
       getItemId,
+      isItemDragProjection,
       overDropState,
       renderGroupFooter,
       renderGroupHeader,
@@ -972,7 +1187,7 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
       onDragOver={handleDragOver}
       onDragCancel={clearDragState}
       onDragEnd={handleDragEnd}>
-      <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+      <SortableContext items={sortableIds} strategy={sortingStrategy}>
         <DynamicVirtualList {...virtualListProps} list={rows} estimateSize={estimateRowSize} children={renderRow} />
       </SortableContext>
       {createPortal(dragOverlay, document.body)}

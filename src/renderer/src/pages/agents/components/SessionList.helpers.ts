@@ -265,17 +265,7 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
 }
 
 export function normalizeSessionDropPayload(payload: ResourceListItemReorderPayload): ResourceListItemReorderPayload {
-  if (
-    payload.type !== 'item' ||
-    payload.overType !== 'item' ||
-    payload.sourceGroupId !== payload.targetGroupId ||
-    payload.sourceIndex === payload.targetIndex
-  ) {
-    return payload
-  }
-
-  const position = payload.sourceIndex < payload.targetIndex ? 'after' : 'before'
-  return payload.position === position ? payload : { ...payload, position }
+  return payload
 }
 
 export function buildSessionDropAnchor(payload: ResourceListItemReorderPayload): OrderRequest {
