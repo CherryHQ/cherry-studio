@@ -176,7 +176,6 @@ const MessageMenuBar: FC<Props> = (props) => {
             actionContext={actionContext}
             executeAction={executeAction}
             menuActions={menuActions}
-            messageParts={messageParts}
             softHoverBg={softHoverBg}
             translationItems={translationItems}
           />

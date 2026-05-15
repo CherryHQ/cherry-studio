@@ -10,7 +10,6 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import NarrowLayout from '../layout/NarrowLayout'
-import { PartsProvider } from './blocks'
 import { MessageListInitialLoading } from './layout/MessageListLoading'
 import { MessagesContainer } from './layout/shared'
 import MessageAnchorLine from './list/MessageAnchorLine'
@@ -21,7 +20,6 @@ import {
   useMessageListActions,
   useMessageListData,
   useMessageListMeta,
-  useMessageListParts,
   useMessageListSelection,
   useMessageRenderConfig
 } from './MessageListProvider'
@@ -44,7 +42,6 @@ function groupMessageListItems(messages: MessageListItem[]): Record<string, Mess
 
 const MessageList = () => {
   const data = useMessageListData()
-  const partsByMessageId = useMessageListParts()
   const actions = useMessageListActions()
   const meta = useMessageListMeta()
   const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
@@ -126,74 +123,72 @@ const MessageList = () => {
   }
 
   return (
-    <PartsProvider value={partsByMessageId}>
-      <MessagesContainer id="messages" className="messages-container" key={data.listKey}>
-        <NarrowLayout
-          narrowMode={renderConfig.narrowMode}
-          style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          {beforeList}
-          <SelectionContextMenu>
-            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-              <MessageVirtualList
-                handleRef={messageListRef}
-                items={groupedMessages}
-                getItemKey={([key]) => key}
-                estimateSize={data.estimateSize}
-                overscan={data.overscan}
-                bottomPadding={isMultiSelectMode ? MULTI_SELECT_BOTTOM_PADDING_PX : undefined}
-                hasMoreTop={hasOlder}
-                onReachTop={loadMoreMessages}
-                renderItem={([key, groupMessages]) => (
-                  <MessageGroup
-                    key={key}
-                    messages={groupMessages}
-                    topic={topic}
-                    registerMessageElement={registerMessageElement}
-                  />
-                )}
-                style={{ flex: 1, minHeight: 0 }}
-              />
-              {isLoadingMore && (
-                <div
-                  className="pointer-events-none flex w-full justify-center py-2.5"
-                  style={{ background: 'var(--color-background)' }}>
-                  <LoadingIcon color="var(--color-foreground-secondary)" />
-                </div>
+    <MessagesContainer id="messages" className="messages-container" key={data.listKey}>
+      <NarrowLayout
+        narrowMode={renderConfig.narrowMode}
+        style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        {beforeList}
+        <SelectionContextMenu>
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+            <MessageVirtualList
+              handleRef={messageListRef}
+              items={groupedMessages}
+              getItemKey={([key]) => key}
+              estimateSize={data.estimateSize}
+              overscan={data.overscan}
+              bottomPadding={isMultiSelectMode ? MULTI_SELECT_BOTTOM_PADDING_PX : undefined}
+              hasMoreTop={hasOlder}
+              onReachTop={loadMoreMessages}
+              renderItem={([key, groupMessages]) => (
+                <MessageGroup
+                  key={key}
+                  messages={groupMessages}
+                  topic={topic}
+                  registerMessageElement={registerMessageElement}
+                />
               )}
-            </div>
-          </SelectionContextMenu>
-        </NarrowLayout>
-        {messageNavigation === 'anchor' && (
-          <MessageAnchorLine
-            messages={messages}
-            scrollToMessageId={scrollToMessageById}
-            scrollToBottom={scrollToBottom}
-          />
-        )}
-        {meta.selectionLayer && (
-          <SelectionBox
-            isMultiSelectMode={isMultiSelectMode}
-            scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
-            messageElements={messageElements.current}
-            handleSelectMessage={(messageId, selected) => actions.selectMessage?.(messageId, selected)}
-          />
-        )}
-        <MultiSelectActionPopup
-          selectedMessageIds={selectedMessageIds}
-          isMultiSelectMode={isMultiSelectMode}
-          onSave={
-            actions.saveSelectedMessages ? () => void actions.saveSelectedMessages?.(selectedMessageIds) : undefined
-          }
-          onCopy={
-            actions.copySelectedMessages ? () => void actions.copySelectedMessages?.(selectedMessageIds) : undefined
-          }
-          onDelete={
-            actions.deleteSelectedMessages ? () => void actions.deleteSelectedMessages?.(selectedMessageIds) : undefined
-          }
-          onClose={() => actions.toggleMultiSelectMode?.(false)}
+              style={{ flex: 1, minHeight: 0 }}
+            />
+            {isLoadingMore && (
+              <div
+                className="pointer-events-none flex w-full justify-center py-2.5"
+                style={{ background: 'var(--color-background)' }}>
+                <LoadingIcon color="var(--color-foreground-secondary)" />
+              </div>
+            )}
+          </div>
+        </SelectionContextMenu>
+      </NarrowLayout>
+      {messageNavigation === 'anchor' && (
+        <MessageAnchorLine
+          messages={messages}
+          scrollToMessageId={scrollToMessageById}
+          scrollToBottom={scrollToBottom}
         />
-      </MessagesContainer>
-    </PartsProvider>
+      )}
+      {meta.selectionLayer && (
+        <SelectionBox
+          isMultiSelectMode={isMultiSelectMode}
+          scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
+          messageElements={messageElements.current}
+          handleSelectMessage={(messageId, selected) => actions.selectMessage?.(messageId, selected)}
+        />
+      )}
+      <MultiSelectActionPopup
+        selectedMessageIds={selectedMessageIds}
+        isMultiSelectMode={isMultiSelectMode}
+        onSave={
+          actions.saveSelectedMessages ? () => void actions.saveSelectedMessages?.(selectedMessageIds) : undefined
+        }
+        onCopy={
+          actions.copySelectedMessages ? () => void actions.copySelectedMessages?.(selectedMessageIds) : undefined
+        }
+        onDelete={
+          actions.deleteSelectedMessages ? () => void actions.deleteSelectedMessages?.(selectedMessageIds) : undefined
+        }
+        onClose={() => actions.toggleMultiSelectMode?.(false)}
+      />
+    </MessagesContainer>
   )
 }
 

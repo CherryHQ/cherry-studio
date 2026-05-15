@@ -42,6 +42,9 @@ Page-only UI should stay in the page directory. If a component is only a Home or
 - `layout/`: message-list local layout helpers.
 - `adapters/`: thin provider-value assembly for page variants when keeping them near the message contract is useful.
 
+`MessageListProvider` owns the internal parts context. Pages and adapters should pass
+`state.partsByMessageId`; they should not wrap `PartsProvider` manually.
+
 Directory names stay lowercase. React component files stay PascalCase.
 
 ## Provider Contract

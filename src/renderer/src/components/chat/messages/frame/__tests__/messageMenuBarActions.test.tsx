@@ -25,7 +25,6 @@ vi.mock('@renderer/utils/export', () => ({
 import type { MessageMenuBarActionContext } from '../messageMenuBarActions'
 import {
   executeMessageMenuBarAction,
-  getMessageMenuBarToolbarRenderKind,
   resolveMessageMenuBarMenuActions,
   resolveMessageMenuBarToolbarActions,
   resolveMessageMenuBarTranslationItems
@@ -85,14 +84,6 @@ function createContext(overrides: Partial<MessageMenuBarActionContext> = {}): Me
 }
 
 describe('messageMenuBarActions', () => {
-  it('describes toolbar special render kinds outside MessageMenuBar', () => {
-    expect(getMessageMenuBarToolbarRenderKind('assistant-mention-model')).toBe('model-picker')
-    expect(getMessageMenuBarToolbarRenderKind('translate')).toBe('translate')
-    expect(getMessageMenuBarToolbarRenderKind('more-menu')).toBe('more-menu')
-    expect(getMessageMenuBarToolbarRenderKind('delete')).toBe('delete')
-    expect(getMessageMenuBarToolbarRenderKind('copy')).toBe('button')
-  })
-
   it('keeps write actions hidden when capabilities are absent', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
       createContext({
@@ -137,11 +128,13 @@ describe('messageMenuBarActions', () => {
       'delete',
       'more-menu'
     ])
-    expect(toolbarActions.find((action) => action.id === 'assistant-mention-model')?.toolbarRenderKind).toBe(
-      'model-picker'
+    expect(toolbarActions.find((action) => action.id === 'copy')?.renderToolbar).toBeUndefined()
+    expect(typeof toolbarActions.find((action) => action.id === 'assistant-mention-model')?.renderToolbar).toBe(
+      'function'
     )
-    expect(toolbarActions.find((action) => action.id === 'translate')?.toolbarRenderKind).toBe('translate')
-    expect(toolbarActions.find((action) => action.id === 'more-menu')?.toolbarRenderKind).toBe('more-menu')
+    expect(typeof toolbarActions.find((action) => action.id === 'translate')?.renderToolbar).toBe('function')
+    expect(typeof toolbarActions.find((action) => action.id === 'delete')?.renderToolbar).toBe('function')
+    expect(typeof toolbarActions.find((action) => action.id === 'more-menu')?.renderToolbar).toBe('function')
   })
 
   it('keeps session scope capability-driven for toolbar actions', () => {

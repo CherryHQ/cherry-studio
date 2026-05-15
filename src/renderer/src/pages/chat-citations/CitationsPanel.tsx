@@ -1,6 +1,6 @@
 import { PageSidePanel } from '@cherrystudio/ui'
 import { CitationsPanelContent } from '@renderer/components/chat/messages/blocks/CitationsList'
-import { useMessagePlatformActions } from '@renderer/hooks/messages/useMessagePlatformActions'
+import { useMessagePlatformActions } from '@renderer/pages/shared/messages/hooks/useMessagePlatformActions'
 import type { Citation } from '@renderer/types'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'

@@ -1,4 +1,3 @@
-import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -11,8 +10,7 @@ import type {
   MessageListProviderValue,
   MessageListRuntime,
   MessageListState,
-  MessageRuntime,
-  MessageUiState
+  MessageRuntime
 } from '@renderer/components/chat/messages/types'
 import {
   getMessageListItemModel,
@@ -23,19 +21,26 @@ import { ModelSelector } from '@renderer/components/Selector'
 import { isVisionModel } from '@renderer/config/models'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
-import { useMessageActivityState } from '@renderer/hooks/messages/useMessageActivityState'
-import { useMessageEditorConfig } from '@renderer/hooks/messages/useMessageEditorConfig'
-import { useMessageErrorActions } from '@renderer/hooks/messages/useMessageErrorActions'
-import { useMessageExportActions } from '@renderer/hooks/messages/useMessageExportActions'
-import { useMessageHeaderCapabilities } from '@renderer/hooks/messages/useMessageHeaderCapabilities'
-import { useMessageLeafCapabilities } from '@renderer/hooks/messages/useMessageLeafCapabilities'
-import { useMessageListRenderConfig } from '@renderer/hooks/messages/useMessageListRenderConfig'
-import { useMessageMenuConfig } from '@renderer/hooks/messages/useMessageMenuConfig'
-import { useMessageSelectionController } from '@renderer/hooks/messages/useMessageSelectionController'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
 import { useLanguages } from '@renderer/hooks/translate'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
+import { useMessageActivityState } from '@renderer/pages/shared/messages/hooks/useMessageActivityState'
+import { useMessageEditorConfig } from '@renderer/pages/shared/messages/hooks/useMessageEditorConfig'
+import { useMessageErrorActions } from '@renderer/pages/shared/messages/hooks/useMessageErrorActions'
+import { useMessageExportActions } from '@renderer/pages/shared/messages/hooks/useMessageExportActions'
+import { useMessageHeaderCapabilities } from '@renderer/pages/shared/messages/hooks/useMessageHeaderCapabilities'
+import { useMessageLeafCapabilities } from '@renderer/pages/shared/messages/hooks/useMessageLeafCapabilities'
+import { useMessageListRenderConfig } from '@renderer/pages/shared/messages/hooks/useMessageListRenderConfig'
+import { useMessageMenuConfig } from '@renderer/pages/shared/messages/hooks/useMessageMenuConfig'
+import { useMessageSelectionController } from '@renderer/pages/shared/messages/hooks/useMessageSelectionController'
+import { useMessageUiStateCache } from '@renderer/pages/shared/messages/hooks/useMessageUiStateCache'
+import {
+  createMessageListProviderValue,
+  pickMessageHeaderActions,
+  pickMessageLeafActions,
+  pickMessageLeafState
+} from '@renderer/pages/shared/messages/messageListProviderBuilder'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { translateInputText } from '@renderer/services/TranslateCommandService'
 import { translateText } from '@renderer/services/TranslateService'
@@ -102,6 +107,7 @@ export function useHomeMessageListProviderValue({
   const errorActions = useMessageErrorActions()
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId })
   const headerCapabilities = useMessageHeaderCapabilities()
+  const messageUiStateCache = useMessageUiStateCache()
 
   const messageItems = useMemo(
     () =>
@@ -349,17 +355,6 @@ export function useHomeMessageListProviderValue({
     [chatWrite]
   )
 
-  const getMessageUiState = useCallback(
-    (messageId: string) => (cacheService.get(`message.ui.${messageId}` as const) || {}) as MessageUiState,
-    []
-  )
-
-  const updateMessageUiState = useCallback((messageId: string, updates: MessageUiState) => {
-    const cacheKey = `message.ui.${messageId}` as const
-    const current = cacheService.get(cacheKey) || {}
-    cacheService.set(cacheKey, { ...current, ...updates })
-  }, [])
-
   const createTranslationUpdater = useCallback(
     async (
       messageId: string,
@@ -565,13 +560,11 @@ export function useHomeMessageListProviderValue({
       selection: selectionController.selection,
       translationLanguages: translationLanguages ?? [],
       editorTranslationTargetLabel: getTranslationLanguageLabel(editorTranslationTargetLanguage, false),
-      getMessageUiState,
+      getMessageUiState: messageUiStateCache.getMessageUiState,
       getMessageSiblings,
       getMessageActivityState,
       getMessageEditorCapabilities,
-      getFileView: leafCapabilities.getFileView,
-      isToolAutoApproved: leafCapabilities.isToolAutoApproved,
-      externalCodeEditors: leafCapabilities.externalCodeEditors,
+      ...pickMessageLeafState(leafCapabilities),
       getTranslationLanguageLabel
     }),
     [
@@ -581,13 +574,11 @@ export function useHomeMessageListProviderValue({
       getMessageActivityState,
       getMessageEditorCapabilities,
       getMessageSiblings,
-      getMessageUiState,
       getTranslationLanguageLabel,
       hasOlder,
-      leafCapabilities.externalCodeEditors,
-      leafCapabilities.getFileView,
-      leafCapabilities.isToolAutoApproved,
+      leafCapabilities,
       menuConfig,
+      messageUiStateCache.getMessageUiState,
       messageItems,
       messageNavigation,
       partsByMessageId,
@@ -609,26 +600,9 @@ export function useHomeMessageListProviderValue({
       saveCodeBlock,
       ...exportActions,
       ...errorActions,
-      previewFile: leafCapabilities.previewFile,
-      subscribeToolProgress: leafCapabilities.subscribeToolProgress,
-      openExternalUrl: leafCapabilities.openExternalUrl,
-      openInExternalApp: leafCapabilities.openInExternalApp,
+      ...pickMessageLeafActions(leafCapabilities),
       navigateToRoute,
-      openUserProfile: headerCapabilities.openUserProfile,
-      openProviderApp: headerCapabilities.openProviderApp,
-      uploadEditorFiles: leafCapabilities.uploadEditorFiles,
-      handleEditorPaste: leafCapabilities.handleEditorPaste,
-      bindEditorPasteHandler: leafCapabilities.bindEditorPasteHandler,
-      focusEditorPasteTarget: leafCapabilities.focusEditorPasteTarget,
-      getDroppedEditorFiles: leafCapabilities.getDroppedEditorFiles,
-      copyText: leafCapabilities.copyText,
-      copyRichContent: leafCapabilities.copyRichContent,
-      copyImage: leafCapabilities.copyImage,
-      exportTableAsExcel: leafCapabilities.exportTableAsExcel,
-      notifySuccess: leafCapabilities.notifySuccess,
-      notifyWarning: leafCapabilities.notifyWarning,
-      notifyInfo: leafCapabilities.notifyInfo,
-      notifyError: leafCapabilities.notifyError,
+      ...pickMessageHeaderActions(headerCapabilities),
       respondToolApproval,
       removeMessageErrorPart,
       openTrace,
@@ -639,7 +613,7 @@ export function useHomeMessageListProviderValue({
       selectFiles,
       translateEditorText,
       ...selectionController.actions,
-      updateMessageUiState,
+      updateMessageUiState: messageUiStateCache.updateMessageUiState,
       updateRenderConfig,
       editMessage,
       forkAndResendMessage,
@@ -666,28 +640,12 @@ export function useHomeMessageListProviderValue({
       exportActions,
       errorActions,
       forkAndResendMessage,
-      headerCapabilities.openProviderApp,
-      headerCapabilities.openUserProfile,
-      leafCapabilities.previewFile,
-      leafCapabilities.subscribeToolProgress,
-      leafCapabilities.openExternalUrl,
-      leafCapabilities.openInExternalApp,
+      headerCapabilities,
+      leafCapabilities,
       navigateToRoute,
-      leafCapabilities.uploadEditorFiles,
-      leafCapabilities.handleEditorPaste,
-      leafCapabilities.bindEditorPasteHandler,
-      leafCapabilities.focusEditorPasteTarget,
-      leafCapabilities.getDroppedEditorFiles,
-      leafCapabilities.copyText,
-      leafCapabilities.copyRichContent,
-      leafCapabilities.copyImage,
-      leafCapabilities.exportTableAsExcel,
-      leafCapabilities.notifyError,
-      leafCapabilities.notifyInfo,
-      leafCapabilities.notifySuccess,
-      leafCapabilities.notifyWarning,
       loadOlder,
       locateMessage,
+      messageUiStateCache.updateMessageUiState,
       openCitationsPanel,
       openPath,
       openTrace,
@@ -704,7 +662,6 @@ export function useHomeMessageListProviderValue({
       selectionController.actions,
       translateEditorText,
       translateMessage,
-      updateMessageUiState,
       updateRenderConfig
     ]
   )
@@ -718,12 +675,5 @@ export function useHomeMessageListProviderValue({
     [headerCapabilities.userProfile, topic.name]
   )
 
-  return useMemo(
-    () => ({
-      state,
-      actions,
-      meta
-    }),
-    [actions, meta, state]
-  )
+  return useMemo(() => createMessageListProviderValue({ state, actions, meta }), [actions, meta, state])
 }

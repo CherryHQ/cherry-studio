@@ -78,7 +78,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/messages/useMessageListRenderConfig', () => ({
+vi.mock('@renderer/pages/shared/messages/hooks/useMessageListRenderConfig', () => ({
   useMessageListRenderConfig: () => ({
     renderConfig: {
       userName: '',
@@ -100,7 +100,7 @@ vi.mock('@renderer/hooks/messages/useMessageListRenderConfig', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/messages/useMessageEditorConfig', () => ({
+vi.mock('@renderer/pages/shared/messages/hooks/useMessageEditorConfig', () => ({
   useMessageEditorConfig: () => ({
     pasteLongTextAsFile: false,
     pasteLongTextThreshold: 1500,
@@ -110,7 +110,7 @@ vi.mock('@renderer/hooks/messages/useMessageEditorConfig', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/messages/useMessageMenuConfig', () => ({
+vi.mock('@renderer/pages/shared/messages/hooks/useMessageMenuConfig', () => ({
   useMessageMenuConfig: () => ({
     confirmDeleteMessage: false,
     confirmRegenerateMessage: false,
@@ -130,19 +130,19 @@ vi.mock('@renderer/hooks/messages/useMessageMenuConfig', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/messages/useMessageExportActions', () => ({
+vi.mock('@renderer/pages/shared/messages/hooks/useMessageExportActions', () => ({
   useMessageExportActions: useMessageExportActionsMock
 }))
 
-vi.mock('@renderer/hooks/messages/useMessageErrorActions', () => ({
+vi.mock('@renderer/pages/shared/messages/hooks/useMessageErrorActions', () => ({
   useMessageErrorActions: () => errorActionsMock
 }))
 
-vi.mock('@renderer/hooks/messages/useMessageLeafCapabilities', () => ({
+vi.mock('@renderer/pages/shared/messages/hooks/useMessageLeafCapabilities', () => ({
   useMessageLeafCapabilities: () => leafCapabilitiesMock
 }))
 
-vi.mock('@renderer/hooks/messages/useMessageHeaderCapabilities', () => ({
+vi.mock('@renderer/pages/shared/messages/hooks/useMessageHeaderCapabilities', () => ({
   useMessageHeaderCapabilities: () => headerCapabilitiesMock
 }))
 

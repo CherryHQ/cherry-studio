@@ -1,6 +1,7 @@
 import type { Context, ReactNode } from 'react'
 import { createContext, use, useMemo } from 'react'
 
+import { PartsProvider, usePartsMap } from './blocks/MessagePartsContext'
 import type {
   MessageListActions,
   MessageListMeta,
@@ -43,7 +44,6 @@ type MessageListUiValue = Pick<
 >
 
 const MessageListDataContext = createContext<MessageListDataValue | null>(null)
-const MessageListPartsContext = createContext<MessageListState['partsByMessageId'] | null>(null)
 const MessageListActionsContext = createContext<MessageListActions | null>(null)
 const MessageListMetaContext = createContext<MessageListMeta | null>(null)
 const MessageListRenderConfigContext = createContext<MessageRenderConfig | null>(null)
@@ -117,7 +117,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
 
   return (
     <MessageListDataContext value={data}>
-      <MessageListPartsContext value={state.partsByMessageId}>
+      <PartsProvider value={state.partsByMessageId}>
         <MessageListActionsContext value={actions}>
           <MessageListMetaContext value={meta}>
             <MessageListRenderConfigContext value={state.renderConfig}>
@@ -127,7 +127,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
             </MessageListRenderConfigContext>
           </MessageListMetaContext>
         </MessageListActionsContext>
-      </MessageListPartsContext>
+      </PartsProvider>
     </MessageListDataContext>
   )
 }
@@ -153,7 +153,11 @@ export const useMessageListData = (): MessageListDataValue => {
 }
 
 export const useMessageListParts = (): MessageListState['partsByMessageId'] => {
-  return useRequiredContext(MessageListPartsContext, 'useMessageListParts')
+  const partsMap = usePartsMap()
+  if (partsMap === null) {
+    throw new Error('useMessageListParts must be used within MessageListProvider')
+  }
+  return partsMap
 }
 
 export const useMessageListActions = (): MessageListActions => {

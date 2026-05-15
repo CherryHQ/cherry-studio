@@ -1,16 +1,23 @@
-import { cacheService } from '@data/CacheService'
-import { PartsProvider } from '@renderer/components/chat/messages/blocks'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import type {
+  MessageListActions,
   MessageListItem,
+  MessageListMeta,
   MessageListProviderValue,
-  MessageUiState
+  MessageListState
 } from '@renderer/components/chat/messages/types'
-import { useMessageEditorConfig } from '@renderer/hooks/messages/useMessageEditorConfig'
-import { useMessageErrorActions } from '@renderer/hooks/messages/useMessageErrorActions'
-import { useMessageHeaderCapabilities } from '@renderer/hooks/messages/useMessageHeaderCapabilities'
-import { useMessageLeafCapabilities } from '@renderer/hooks/messages/useMessageLeafCapabilities'
-import { useMessageListRenderConfig } from '@renderer/hooks/messages/useMessageListRenderConfig'
+import { useMessageEditorConfig } from '@renderer/pages/shared/messages/hooks/useMessageEditorConfig'
+import { useMessageErrorActions } from '@renderer/pages/shared/messages/hooks/useMessageErrorActions'
+import { useMessageHeaderCapabilities } from '@renderer/pages/shared/messages/hooks/useMessageHeaderCapabilities'
+import { useMessageLeafCapabilities } from '@renderer/pages/shared/messages/hooks/useMessageLeafCapabilities'
+import { useMessageListRenderConfig } from '@renderer/pages/shared/messages/hooks/useMessageListRenderConfig'
+import { useMessageUiStateCache } from '@renderer/pages/shared/messages/hooks/useMessageUiStateCache'
+import {
+  createMessageListProviderValue,
+  pickMessageHeaderActions,
+  pickMessageLeafActions,
+  pickMessageLeafState
+} from '@renderer/pages/shared/messages/messageListProviderBuilder'
 import type { Topic } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { useNavigate } from '@tanstack/react-router'
@@ -31,16 +38,7 @@ export function HistoryMessageListProvider({ topic, messages, partsByMessageId, 
   const errorActions = useMessageErrorActions()
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId })
   const headerCapabilities = useMessageHeaderCapabilities()
-  const getMessageUiState = useCallback(
-    (messageId: string) => (cacheService.get(`message.ui.${messageId}` as const) || {}) as MessageUiState,
-    []
-  )
-
-  const updateMessageUiState = useCallback((messageId: string, updates: MessageUiState) => {
-    const cacheKey = `message.ui.${messageId}` as const
-    const current = cacheService.get(cacheKey) || {}
-    cacheService.set(cacheKey, { ...current, ...updates })
-  }, [])
+  const messageUiStateCache = useMessageUiStateCache()
 
   const openPath = useCallback((path: string) => {
     return window.api.file.openPath(path)
@@ -55,111 +53,80 @@ export function HistoryMessageListProvider({ topic, messages, partsByMessageId, 
     [navigate]
   )
 
-  const value = useMemo<MessageListProviderValue>(
+  const state = useMemo<MessageListState>(
     () => ({
-      state: {
-        topic,
-        messages,
-        partsByMessageId,
-        hasOlder: false,
-        messageNavigation: 'none',
-        estimateSize: 400,
-        overscan: 0,
-        loadOlderDelayMs: 0,
-        loadingResetDelayMs: 0,
-        listKey: `history-${topic.id}`,
-        readonly: true,
-        renderConfig,
-        editorConfig,
-        selection: {
-          enabled: false,
-          isMultiSelectMode: false,
-          selectedMessageIds: []
-        },
-        getMessageUiState,
-        getMessageActivityState: () => ({
-          isProcessing: false,
-          isStreamTarget: false,
-          isApprovalAnchor: false
-        }),
-        getFileView: leafCapabilities.getFileView,
-        isToolAutoApproved: leafCapabilities.isToolAutoApproved,
-        externalCodeEditors: leafCapabilities.externalCodeEditors
+      topic,
+      messages,
+      partsByMessageId,
+      hasOlder: false,
+      messageNavigation: 'none',
+      estimateSize: 400,
+      overscan: 0,
+      loadOlderDelayMs: 0,
+      loadingResetDelayMs: 0,
+      listKey: `history-${topic.id}`,
+      readonly: true,
+      renderConfig,
+      editorConfig,
+      selection: {
+        enabled: false,
+        isMultiSelectMode: false,
+        selectedMessageIds: []
       },
-      actions: {
-        openPath,
-        showInFolder,
-        ...errorActions,
-        previewFile: leafCapabilities.previewFile,
-        subscribeToolProgress: leafCapabilities.subscribeToolProgress,
-        openExternalUrl: leafCapabilities.openExternalUrl,
-        openInExternalApp: leafCapabilities.openInExternalApp,
-        navigateToRoute,
-        openUserProfile: headerCapabilities.openUserProfile,
-        openProviderApp: headerCapabilities.openProviderApp,
-        uploadEditorFiles: leafCapabilities.uploadEditorFiles,
-        handleEditorPaste: leafCapabilities.handleEditorPaste,
-        bindEditorPasteHandler: leafCapabilities.bindEditorPasteHandler,
-        focusEditorPasteTarget: leafCapabilities.focusEditorPasteTarget,
-        getDroppedEditorFiles: leafCapabilities.getDroppedEditorFiles,
-        copyText: leafCapabilities.copyText,
-        copyRichContent: leafCapabilities.copyRichContent,
-        copyImage: leafCapabilities.copyImage,
-        exportTableAsExcel: leafCapabilities.exportTableAsExcel,
-        notifySuccess: leafCapabilities.notifySuccess,
-        notifyWarning: leafCapabilities.notifyWarning,
-        notifyInfo: leafCapabilities.notifyInfo,
-        notifyError: leafCapabilities.notifyError,
-        updateMessageUiState,
-        updateRenderConfig
-      },
-      meta: {
-        selectionLayer: false,
-        userProfile: headerCapabilities.userProfile
-      }
+      getMessageUiState: messageUiStateCache.getMessageUiState,
+      getMessageActivityState: () => ({
+        isProcessing: false,
+        isStreamTarget: false,
+        isApprovalAnchor: false
+      }),
+      ...pickMessageLeafState(leafCapabilities)
     }),
     [
-      getMessageUiState,
-      headerCapabilities.openProviderApp,
-      headerCapabilities.openUserProfile,
-      headerCapabilities.userProfile,
       messages,
-      leafCapabilities.externalCodeEditors,
-      leafCapabilities.getFileView,
-      leafCapabilities.isToolAutoApproved,
-      leafCapabilities.openExternalUrl,
-      leafCapabilities.openInExternalApp,
-      navigateToRoute,
-      leafCapabilities.uploadEditorFiles,
-      leafCapabilities.handleEditorPaste,
-      leafCapabilities.bindEditorPasteHandler,
-      leafCapabilities.focusEditorPasteTarget,
-      leafCapabilities.getDroppedEditorFiles,
-      leafCapabilities.copyText,
-      leafCapabilities.copyRichContent,
-      leafCapabilities.copyImage,
-      leafCapabilities.exportTableAsExcel,
-      leafCapabilities.notifyError,
-      leafCapabilities.notifyInfo,
-      leafCapabilities.notifySuccess,
-      leafCapabilities.notifyWarning,
-      leafCapabilities.previewFile,
-      leafCapabilities.subscribeToolProgress,
-      openPath,
+      leafCapabilities,
+      messageUiStateCache.getMessageUiState,
       partsByMessageId,
       renderConfig,
       editorConfig,
+      topic
+    ]
+  )
+
+  const actions = useMemo<MessageListActions>(
+    () => ({
+      openPath,
       showInFolder,
-      topic,
+      ...errorActions,
+      ...pickMessageLeafActions(leafCapabilities),
+      navigateToRoute,
+      ...pickMessageHeaderActions(headerCapabilities),
+      updateMessageUiState: messageUiStateCache.updateMessageUiState,
+      updateRenderConfig
+    }),
+    [
       errorActions,
-      updateMessageUiState,
+      headerCapabilities,
+      leafCapabilities,
+      messageUiStateCache.updateMessageUiState,
+      navigateToRoute,
+      openPath,
+      showInFolder,
       updateRenderConfig
     ]
   )
 
-  return (
-    <MessageListProvider value={value}>
-      <PartsProvider value={partsByMessageId}>{children}</PartsProvider>
-    </MessageListProvider>
+  const meta = useMemo<MessageListMeta>(
+    () => ({
+      selectionLayer: false,
+      userProfile: headerCapabilities.userProfile
+    }),
+    [headerCapabilities.userProfile]
   )
+
+  const value = useMemo<MessageListProviderValue>(
+    () => createMessageListProviderValue({ state, actions, meta }),
+    [actions, meta, state]
+  )
+
+  return <MessageListProvider value={value}>{children}</MessageListProvider>
 }

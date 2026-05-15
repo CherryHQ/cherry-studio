@@ -3,7 +3,6 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ReactNode } from 'react'
 import { useMemo } from 'react'
 
-import { PartsProvider } from './blocks'
 import { MessageListProvider } from './MessageListProvider'
 import type { MessageListActions, MessageListItem, MessageListProviderValue, MessageRenderConfig } from './types'
 import { defaultMessageEditorConfig, defaultMessageRenderConfig } from './types'
@@ -90,9 +89,5 @@ export function MessageContentProvider({
     [editorConfig, mergedRenderConfig, messages, partsByMessageId, resolvedActions, topic]
   )
 
-  return (
-    <MessageListProvider value={value}>
-      <PartsProvider value={partsByMessageId}>{children}</PartsProvider>
-    </MessageListProvider>
-  )
+  return <MessageListProvider value={value}>{children}</MessageListProvider>
 }
