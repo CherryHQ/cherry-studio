@@ -121,6 +121,15 @@ describe('isFunctionCallingModel', () => {
     expect(isFunctionCallingModel(createModel({ id: 'deepseek/deepseek-v3.2-speciale' }))).toBe(false)
   })
 
+  it('excludes deepseek-r1 reasoning models', () => {
+    expect(isFunctionCallingModel(createModel({ id: 'deepseek-r1:1.5b' }))).toBe(false)
+    expect(isFunctionCallingModel(createModel({ id: 'deepseek-r1:7b' }))).toBe(false)
+    expect(isFunctionCallingModel(createModel({ id: 'deepseek-r1:70b' }))).toBe(false)
+    expect(isFunctionCallingModel(createModel({ id: 'deepseek-r1' }))).toBe(false)
+    expect(isFunctionCallingModel(createModel({ id: 'deepseek-r1-16k' }))).toBe(false)
+    expect(isFunctionCallingModel(createModel({ id: 'ollama/deepseek-r1:1.5b' }))).toBe(false)
+  })
+
   it('returns true when identified as deepseek hybrid inference model', () => {
     deepSeekHybridMock.mockReturnValueOnce(true)
     expect(isFunctionCallingModel(createModel({ id: 'deepseek-v3-1', provider: 'custom' }))).toBe(true)
