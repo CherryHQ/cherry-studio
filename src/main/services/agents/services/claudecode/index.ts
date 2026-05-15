@@ -1,5 +1,6 @@
 // src/main/services/agents/services/claudecode/index.ts
 import { fork } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import * as fs from 'node:fs'
 import { createRequire } from 'node:module'
@@ -43,6 +44,7 @@ import {
 } from '@shared/agents/claudecode/constants'
 import { languageEnglishNameMap } from '@shared/config/languages'
 import { withoutTrailingApiVersion } from '@shared/utils'
+import { buildPdfPromptText, extractPdfText, MAX_INLINE_PDF_TEXT_BYTES } from '@shared/utils/pdf'
 import { app } from 'electron'
 
 import type { GetAgentSessionResponse } from '../..'
@@ -94,6 +96,7 @@ class ClaudeCodeStream extends EventEmitter implements AgentStream {
 class ClaudeCodeService implements AgentServiceInterface {
   private claudeExecutablePath: string
   private claudeProxyBootstrapPath: string
+  private readonly pdfReadCache = new Map<string, Promise<string>>()
 
   constructor() {
     // Resolve Claude Code CLI robustly (works in dev and in asar)
@@ -333,6 +336,14 @@ class ClaudeCodeService implements AgentServiceInterface {
 
       const hookInput = input
       const toolName = hookInput.tool_name
+      const isRecord = (value: unknown): value is Record<string, unknown> => {
+        return !!value && typeof value === 'object' && !Array.isArray(value)
+      }
+      const toolInput = isRecord(hookInput.tool_input) ? hookInput.tool_input : {}
+      const rewrittenToolInput =
+        normalizeToolName(toolName) === 'Read'
+          ? await this.rewritePdfReadToolInput(toolInput, hookInput.cwd || cwd)
+          : null
 
       logger.debug('PreToolUse hook triggered', {
         session_id: hookInput.session_id,
@@ -365,16 +376,21 @@ class ClaudeCodeService implements AgentServiceInterface {
             permission_mode: input.permission_mode,
             autoAllowTools
           })
-          const isRecord = (v: unknown): v is Record<string, unknown> => {
-            return !!v && typeof v === 'object' && !Array.isArray(v)
-          }
-          const toolInput = isRecord(input.tool_input) ? input.tool_input : {}
 
           await promptForToolApproval(toolName, toolInput, {
             ...options,
             toolCallId: namespacedToolCallId,
             autoApprove: true
           })
+        }
+      }
+
+      if (rewrittenToolInput) {
+        return {
+          hookSpecificOutput: {
+            hookEventName: 'PreToolUse',
+            updatedInput: rewrittenToolInput
+          }
         }
       }
 
@@ -717,6 +733,117 @@ class ClaudeCodeService implements AgentServiceInterface {
     } catch {
       return undefined
     }
+  }
+
+  private getReadToolPath(toolInput: Record<string, unknown>): string | undefined {
+    const pathCandidates = [toolInput.file_path, toolInput.path, toolInput.filePath]
+
+    for (const candidate of pathCandidates) {
+      if (typeof candidate === 'string' && candidate.trim()) {
+        return candidate.trim()
+      }
+    }
+
+    return undefined
+  }
+
+  private rewriteReadToolInput(toolInput: Record<string, unknown>, readPath: string): Record<string, unknown> {
+    const rewrittenInput = { ...toolInput }
+
+    if (typeof rewrittenInput.file_path === 'string') {
+      rewrittenInput.file_path = readPath
+    }
+
+    if (typeof rewrittenInput.path === 'string') {
+      rewrittenInput.path = readPath
+    }
+
+    if (typeof rewrittenInput.filePath === 'string') {
+      rewrittenInput.filePath = readPath
+    }
+
+    return rewrittenInput
+  }
+
+  private async rewritePdfReadToolInput(
+    toolInput: Record<string, unknown>,
+    cwd: string
+  ): Promise<Record<string, unknown> | null> {
+    const originalPath = this.getReadToolPath(toolInput)
+    if (!originalPath) {
+      return null
+    }
+
+    if (path.extname(originalPath).toLowerCase() !== '.pdf') {
+      return null
+    }
+
+    const absolutePath = path.isAbsolute(originalPath) ? originalPath : path.resolve(cwd, originalPath)
+
+    let fileStat: fs.Stats
+    try {
+      fileStat = await fs.promises.stat(absolutePath)
+    } catch (error) {
+      logger.warn('Skipping PDF Read rewrite because the source file is not accessible', {
+        filePath: absolutePath,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return null
+    }
+
+    const cacheKey = `${absolutePath}:${fileStat.mtimeMs}:${fileStat.size}`
+    let cachePromise = this.pdfReadCache.get(cacheKey)
+
+    if (!cachePromise) {
+      cachePromise = this.createPdfReadCacheFile(absolutePath, cwd)
+      this.pdfReadCache.set(cacheKey, cachePromise)
+    }
+
+    try {
+      const rewrittenPath = await cachePromise
+      return this.rewriteReadToolInput(toolInput, rewrittenPath)
+    } catch (error) {
+      this.pdfReadCache.delete(cacheKey)
+      logger.warn('Failed to prepare capped PDF text for Read tool', {
+        filePath: absolutePath,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return null
+    }
+  }
+
+  private async createPdfReadCacheFile(absolutePath: string, cwd: string): Promise<string> {
+    const cacheDir = path.join(cwd, '.cherry-studio', 'pdf-cache')
+    await fs.promises.mkdir(cacheDir, { recursive: true })
+
+    const baseName = path.basename(absolutePath, path.extname(absolutePath)) || 'pdf'
+    const safeBaseName = baseName.replace(/[^a-zA-Z0-9._-]+/g, '_')
+    const pathHash = createHash('sha1').update(absolutePath).digest('hex').slice(0, 12)
+    const cachePath = path.join(cacheDir, `${safeBaseName}-${pathHash}.txt`)
+    const fileName = path.basename(absolutePath)
+
+    try {
+      const pdfData = await fs.promises.readFile(absolutePath)
+      const extractedText = await extractPdfText(pdfData)
+      const promptText = buildPdfPromptText(fileName, extractedText, MAX_INLINE_PDF_TEXT_BYTES)
+      const text = promptText?.text ?? `${fileName}\n[PDF truncated]`
+
+      await fs.promises.writeFile(cachePath, text, 'utf-8')
+
+      logger.debug('Prepared capped PDF cache for Claude Code Read tool', {
+        filePath: absolutePath,
+        cachePath,
+        truncated: promptText?.truncated ?? true
+      })
+    } catch (error) {
+      logger.warn('Falling back to a placeholder for unreadable PDF content', {
+        filePath: absolutePath,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      await fs.promises.writeFile(cachePath, `${fileName}\n[PDF truncated]`, 'utf-8')
+    }
+
+    return cachePath
   }
 
   private async createUserMessageStream(

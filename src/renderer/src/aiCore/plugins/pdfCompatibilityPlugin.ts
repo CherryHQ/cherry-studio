@@ -10,7 +10,7 @@ import { loggerService } from '@logger'
 import { isAnthropicModel, isGeminiModel } from '@renderer/config/models'
 import { isOpenAILLMModel } from '@renderer/config/models/openai'
 import type { Model, Provider, ProviderType } from '@renderer/types'
-import { extractPdfText } from '@shared/utils/pdf'
+import { buildPdfPromptText, extractPdfText, getUtf8ByteLength, MAX_INLINE_PDF_TEXT_BYTES } from '@shared/utils/pdf'
 import type { LanguageModelMiddleware } from 'ai'
 import i18n from 'i18next'
 
@@ -62,6 +62,21 @@ function pdfCompatibilityMiddleware(provider: Provider, model: Model): LanguageM
         return params
       }
 
+      const pdfPartCount = params.prompt.reduce((count, message) => {
+        if (!Array.isArray(message.content)) {
+          return count
+        }
+
+        return count + message.content.filter((part: (typeof message.content)[number]) => isPdfFilePart(part)).length
+      }, 0)
+
+      if (pdfPartCount === 0) {
+        return params
+      }
+
+      let remainingPdfBudget = MAX_INLINE_PDF_TEXT_BYTES
+      let remainingPdfParts = pdfPartCount
+
       const messages: LanguageModelV3Message[] = []
       for (const message of params.prompt) {
         if (!Array.isArray(message.content)) {
@@ -83,12 +98,34 @@ function pdfCompatibilityMiddleware(provider: Provider, model: Model): LanguageM
           }
 
           const fileName = part.filename || 'PDF'
+          const budgetForThisFile = Math.ceil(remainingPdfBudget / remainingPdfParts)
+          remainingPdfParts -= 1
+
+          if (budgetForThisFile <= 0) {
+            logger.warn(`Skipping PDF ${fileName} because the prompt budget is exhausted`)
+            continue
+          }
 
           try {
             const textContent =
               part.data instanceof URL ? await extractPdfText(part.data) : await window.api.pdf.extractText(part.data)
-            logger.debug(`Converting PDF FilePart to TextPart for provider ${provider.id} (type: ${provider.type})`)
-            newContent.push({ type: 'text', text: `${fileName}\n${textContent.trim()}` })
+            const promptText = buildPdfPromptText(fileName, textContent, budgetForThisFile)
+
+            if (!promptText) {
+              logger.warn(`Skipping PDF ${fileName} because the prompt budget is too small`)
+              continue
+            }
+
+            if (promptText.truncated) {
+              logger.debug(
+                `Truncated PDF ${fileName} to fit within the request budget for provider ${provider.id} (type: ${provider.type})`
+              )
+            } else {
+              logger.debug(`Converting PDF FilePart to TextPart for provider ${provider.id} (type: ${provider.type})`)
+            }
+
+            newContent.push({ type: 'text', text: promptText.text })
+            remainingPdfBudget = Math.max(0, remainingPdfBudget - getUtf8ByteLength(promptText.text))
           } catch (error) {
             logger.warn(`Failed to extract text from PDF ${fileName}:`, error instanceof Error ? error : undefined)
             window.toast.warning(i18n.t('message.warning.file.pdf_text_extraction_failed', { name: fileName }))

@@ -17,9 +17,14 @@ vi.mock('@renderer/config/models/openai', () => ({
 
 const mockExtractPdfText = vi.fn()
 
-vi.mock('@shared/utils/pdf', () => ({
-  extractPdfText: (...args: unknown[]) => mockExtractPdfText(...args)
-}))
+vi.mock('@shared/utils/pdf', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+
+  return {
+    ...actual,
+    extractPdfText: (...args: unknown[]) => mockExtractPdfText(...args)
+  }
+})
 
 vi.stubGlobal('window', {
   ...globalThis.window,
@@ -174,6 +179,35 @@ describe('pdfCompatibilityPlugin', () => {
         { type: 'text', text: 'report.pdf\nExtracted PDF content' }
       ]
     })
+  })
+
+  it('should truncate oversized PDF text to keep the prompt under the body limit', async () => {
+    const provider = makeProvider('ollama', 'ollama')
+    const largeText = 'a'.repeat(2_500_000)
+    mockExtractPdfText.mockResolvedValueOnce(largeText)
+    mockExtractPdfText.mockResolvedValueOnce(largeText)
+
+    const params = {
+      prompt: [{ role: 'user' as const, content: [makePdfFilePart('first.pdf'), makePdfFilePart('second.pdf')] }]
+    } as unknown as LanguageModelV3CallOptions
+
+    const result = await runMiddleware(provider, params)
+    const serializedBytes = new TextEncoder().encode(JSON.stringify(result)).length
+
+    expect(serializedBytes).toBeLessThan(6 * 1024 * 1024)
+
+    const content = result.prompt[0].content as Array<{ type: string; text?: string }>
+    expect(content).toHaveLength(2)
+    expect(content[0]).toMatchObject({
+      type: 'text',
+      text: expect.stringContaining('first.pdf')
+    })
+    expect(content[1]).toMatchObject({
+      type: 'text',
+      text: expect.stringContaining('second.pdf')
+    })
+    expect(content[0].text).toContain('[PDF truncated]')
+    expect(content[1].text).toContain('[PDF truncated]')
   })
 
   it('should drop PDF part and warn when text extraction fails', async () => {

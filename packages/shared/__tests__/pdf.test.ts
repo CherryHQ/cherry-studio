@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { extractPdfText } from '../utils/pdf'
+import { buildPdfPromptText, extractPdfText } from '../utils/pdf'
 
 // Minimal valid PDF with text "Hello"
 // Generated from: %PDF-1.0 with a single page containing "Hello"
@@ -47,5 +47,30 @@ describe('extractPdfText', () => {
     // We test that extractPdfText doesn't crash on edge cases
     const text = await extractPdfText(MINIMAL_PDF_BASE64)
     expect(typeof text).toBe('string')
+  })
+})
+
+describe('buildPdfPromptText', () => {
+  it('should keep short PDF text unchanged', () => {
+    const result = buildPdfPromptText('report.pdf', 'Hello world', 1_024)
+
+    expect(result).toEqual({ text: 'report.pdf\nHello world', truncated: false })
+  })
+
+  it('should truncate oversized PDF text within the byte budget', () => {
+    const oversizedText = 'a'.repeat(5_000_000)
+    const result = buildPdfPromptText('report.pdf', oversizedText, 128)
+
+    expect(result).not.toBeNull()
+    expect(result?.truncated).toBe(true)
+    expect(result?.text).toContain('report.pdf')
+    expect(result?.text).toContain('[PDF truncated]')
+    expect(new TextEncoder().encode(result!.text).length).toBeLessThanOrEqual(128)
+  })
+
+  it('should return null when the budget cannot fit the prefix and truncation marker', () => {
+    const result = buildPdfPromptText('report.pdf', 'Hello world', 4)
+
+    expect(result).toBeNull()
   })
 })
