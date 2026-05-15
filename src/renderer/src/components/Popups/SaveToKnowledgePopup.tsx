@@ -1,7 +1,21 @@
+import {
+  Button,
+  ColFlex,
+  Combobox,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Flex,
+  HelpTooltip,
+  Label
+} from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { TopView } from '@renderer/components/TopView'
-import { useKnowledge, useKnowledgeBases } from '@renderer/hooks/useKnowledge'
+import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBases'
+import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import type { NotesTreeNode } from '@renderer/types/note'
@@ -13,15 +27,13 @@ import {
   processMessageContent,
   processTopicContent
 } from '@renderer/utils/knowledge'
-import { Flex, Form, Modal, Select, Tooltip, Typography } from 'antd'
-import { Check, CircleHelp } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import type { KnowledgeRuntimeAddItemInput } from '@shared/data/types/knowledge'
+import { Check } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 const logger = loggerService.withContext('SaveToKnowledgePopup')
-
-const { Text } = Typography
+const CLOSE_ANIMATION_MS = 200
 
 // Base Content Type Config
 const CONTENT_TYPE_CONFIG = {
@@ -95,6 +107,24 @@ interface Props extends ShowParams {
   resolve: (data: SaveResult | null) => void
 }
 
+const getNoteSource = (source: ContentSource, title?: string) => {
+  const trimmedTitle = title?.trim()
+
+  if (trimmedTitle) {
+    return trimmedTitle
+  }
+
+  if (source.type === 'note') {
+    return source.data.name.trim() || source.data.id
+  }
+
+  if (source.type === 'topic') {
+    return source.data.name.trim() || source.data.id
+  }
+
+  return source.data.id
+}
+
 const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
   const [open, setOpen] = useState(true)
   const [loading, setLoading] = useState(false)
@@ -103,8 +133,9 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
   const [selectedTypes, setSelectedTypes] = useState<ContentType[]>([])
   const [hasInitialized, setHasInitialized] = useState(false)
   const [contentStats, setContentStats] = useState<ContentStats | null>(null)
+  const resolvedRef = useRef(false)
   const { bases } = useKnowledgeBases()
-  const { addNote, addFiles } = useKnowledge(selectedBaseId || '')
+  const { submit: submitKnowledgeItems } = useAddKnowledgeItems(selectedBaseId || '')
   const { t } = useTranslation()
 
   const isTopicMode = source?.type === 'topic'
@@ -173,14 +204,14 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
       bases.map((base) => ({
         label: base.name,
         value: base.id,
-        disabled: !base.version
+        disabled: base.status !== 'completed'
       })),
     [bases]
   )
 
   // 表单状态
   const formState = useMemo(() => {
-    const hasValidBase = selectedBaseId && bases.find((base) => base.id === selectedBaseId)?.version
+    const hasValidBase = selectedBaseId && bases.find((base) => base.id === selectedBaseId)?.status === 'completed'
     const hasContent = isNoteMode || contentTypeOptions.length > 0
 
     const canSubmit = hasValidBase && (isNoteMode || (selectedTypes.length > 0 && hasContent))
@@ -203,7 +234,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
   // 默认选择第一个可用知识库
   useEffect(() => {
     if (!selectedBaseId) {
-      const firstAvailableBase = bases.find((base) => base.version)
+      const firstAvailableBase = bases.find((base) => base.status === 'completed')
       if (firstAvailableBase) {
         setSelectedBaseId(firstAvailableBase.id)
       }
@@ -242,6 +273,16 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
     setSelectedTypes((prev) => (prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]))
   }
 
+  const resolveAfterClose = (result: SaveResult | null) => {
+    if (resolvedRef.current) return
+
+    resolvedRef.current = true
+    setOpen(false)
+    window.setTimeout(() => {
+      resolve(result)
+    }, CLOSE_ANIMATION_MS)
+  }
+
   const onOk = async () => {
     if (!formState.canSubmit) return
 
@@ -259,9 +300,12 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
         throw new Error('Selected knowledge base not found')
       }
 
-      if (!selectedBase.version) {
+      if (selectedBase.status !== 'completed') {
         throw new Error('Knowledge base is not properly configured. Please check the knowledge base settings.')
       }
+
+      const items: KnowledgeRuntimeAddItemInput[] = []
+      const noteSource = getNoteSource(source, title)
 
       if (isNoteMode) {
         const note = source.data
@@ -282,7 +326,13 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
         }
 
         logger.debug('Note content loaded', { contentLength: content.length })
-        await addNote(content)
+        items.push({
+          type: 'note',
+          data: {
+            source: noteSource,
+            content
+          }
+        })
         savedCount = 1
       } else {
         // 原有的消息或主题处理逻辑
@@ -292,18 +342,35 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
 
         logger.debug('Processed content:', result)
         if (result.text.trim() && selectedTypes.some((type) => type !== CONTENT_TYPES.FILE)) {
-          await addNote(result.text)
+          items.push({
+            type: 'note',
+            data: {
+              source: noteSource,
+              content: result.text
+            }
+          })
           savedCount++
         }
 
         if (result.files.length > 0 && selectedTypes.includes(CONTENT_TYPES.FILE)) {
-          addFiles(result.files)
+          items.push(
+            ...result.files.map((file) => ({
+              type: 'file' as const,
+              data: {
+                source: file.path || file.origin_name || file.name,
+                file
+              }
+            }))
+          )
           savedCount += result.files.length
         }
       }
 
-      setOpen(false)
-      resolve({ success: true, savedCount })
+      if (items.length > 0) {
+        await submitKnowledgeItems(items)
+      }
+
+      resolveAfterClose({ success: true, savedCount })
     } catch (error) {
       logger.error('save failed:', error as Error)
 
@@ -327,68 +394,77 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
     }
   }
 
-  const onCancel = () => setOpen(false)
-  const onClose = () => resolve(null)
+  const onCancel = () => {
+    resolveAfterClose(null)
+  }
 
   const renderEmptyState = () => (
-    <EmptyContainer>
-      <Text type="secondary">{uiState.message}</Text>
-    </EmptyContainer>
+    <div className="flex min-h-[100px] items-center justify-center text-center">
+      <span className="text-muted-foreground text-sm">{uiState.message}</span>
+    </div>
   )
 
   const renderFormContent = () => (
-    <>
-      <Form layout="vertical">
-        <Form.Item
-          label={t('chat.save.knowledge.select.base.title')}
-          help={!formState.hasValidBase && selectedBaseId ? t('chat.save.knowledge.error.invalid_base') : undefined}
-          validateStatus={!formState.hasValidBase && selectedBaseId ? 'error' : undefined}>
-          <Select
-            value={selectedBaseId}
-            onChange={setSelectedBaseId}
-            options={knowledgeBaseOptions}
-            placeholder={t('chat.save.knowledge.select.base.placeholder')}
-            showSearch
-          />
-        </Form.Item>
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label>{t('chat.save.knowledge.select.base.title')}</Label>
+        <Combobox
+          className="w-full"
+          emptyText={t('common.no_results')}
+          error={!formState.hasValidBase && !!selectedBaseId}
+          filterOption={(option, search) =>
+            [option.label, option.value].filter(Boolean).join(' ').toLowerCase().includes(search.trim().toLowerCase())
+          }
+          onChange={(value) => setSelectedBaseId(Array.isArray(value) ? value[0] : value)}
+          options={knowledgeBaseOptions}
+          placeholder={t('chat.save.knowledge.select.base.placeholder')}
+          popoverClassName="w-(--radix-popover-trigger-width)"
+          searchPlaceholder={t('common.search')}
+          searchPlacement="trigger"
+          searchable
+          value={selectedBaseId}
+        />
+        {!formState.hasValidBase && selectedBaseId && (
+          <p className="text-destructive text-xs">{t('chat.save.knowledge.error.invalid_base')}</p>
+        )}
+      </div>
 
-        {!isNoteMode && (
-          <Form.Item
-            label={t(
+      {!isNoteMode && (
+        <div className="space-y-2">
+          <Label>
+            {t(
               isTopicMode
                 ? 'chat.save.topic.knowledge.select.content.label'
                 : 'chat.save.knowledge.select.content.title'
-            )}>
-            <Flex gap={8} style={{ flexDirection: 'column' }}>
-              {contentTypeOptions.map((option) => (
-                <ContentTypeItem
-                  key={option.type}
-                  align="center"
-                  justify="space-between"
-                  onClick={() => handleContentTypeToggle(option.type)}>
-                  <Flex align="center" gap={8}>
-                    <CustomTag
-                      color={selectedTypes.includes(option.type) ? TAG_COLORS.SELECTED : TAG_COLORS.UNSELECTED}
-                      size={12}>
-                      {option.count}
-                    </CustomTag>
-                    <span>{option.label}</span>
-                    <Tooltip title={option.description} mouseLeaveDelay={0}>
-                      <CircleHelp size={16} style={{ cursor: 'help' }} />
-                    </Tooltip>
-                  </Flex>
-                  {selectedTypes.includes(option.type) && <Check size={16} color={TAG_COLORS.SELECTED} />}
-                </ContentTypeItem>
-              ))}
-            </Flex>
-          </Form.Item>
-        )}
-      </Form>
+            )}
+          </Label>
+          <ColFlex className="gap-2">
+            {contentTypeOptions.map((option) => (
+              <button
+                key={option.type}
+                type="button"
+                className="flex w-full cursor-pointer items-center justify-between rounded-md border border-border p-3 text-left transition-colors hover:border-primary"
+                onClick={() => handleContentTypeToggle(option.type)}>
+                <Flex className="items-center gap-2">
+                  <CustomTag
+                    color={selectedTypes.includes(option.type) ? TAG_COLORS.SELECTED : TAG_COLORS.UNSELECTED}
+                    size={12}>
+                    {option.count}
+                  </CustomTag>
+                  <span>{option.label}</span>
+                  <HelpTooltip content={option.description} />
+                </Flex>
+                {selectedTypes.includes(option.type) && <Check size={16} color={TAG_COLORS.SELECTED} />}
+              </button>
+            ))}
+          </ColFlex>
+        </div>
+      )}
 
       {!isNoteMode && (
-        <InfoContainer>
+        <div className="mt-4 flex min-h-10 items-center rounded-md bg-muted p-3">
           {formState.selectedCount > 0 && (
-            <Text type="secondary" style={{ fontSize: '12px' }}>
+            <span className="text-muted-foreground text-xs">
               {t(
                 isTopicMode
                   ? 'chat.save.topic.knowledge.select.content.selected_tip'
@@ -398,47 +474,45 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
                   ...(isTopicMode && { messages: (contentStats as TopicContentStats)?.messages || 0 })
                 }
               )}
-            </Text>
+            </span>
           )}
           {formState.hasNoSelection && (
-            <Text type="warning" style={{ fontSize: '12px' }}>
-              {t('chat.save.knowledge.error.no_content_selected')}
-            </Text>
+            <span className="text-warning text-xs">{t('chat.save.knowledge.error.no_content_selected')}</span>
           )}
           {!formState.hasNoSelection && formState.selectedCount === 0 && (
-            <Text type="secondary" style={{ fontSize: '12px', opacity: 0 }}>
-              &nbsp;
-            </Text>
+            <span className="text-muted-foreground text-xs opacity-0">&nbsp;</span>
           )}
-        </InfoContainer>
+        </div>
       )}
-    </>
+    </div>
   )
 
   return (
-    <Modal
-      title={
-        title ||
-        t(
-          isNoteMode
-            ? 'notes.export_knowledge'
-            : isTopicMode
-              ? 'chat.save.topic.knowledge.title'
-              : 'chat.save.knowledge.title'
-        )
-      }
-      open={open}
-      onOk={onOk}
-      onCancel={onCancel}
-      afterClose={onClose}
-      destroyOnHidden
-      centered
-      width={500}
-      okText={t('common.save')}
-      cancelText={t('common.cancel')}
-      okButtonProps={{ loading, disabled: !formState.canSubmit || analysisLoading }}>
-      {uiState.type === 'form' ? renderFormContent() : renderEmptyState()}
-    </Modal>
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>
+            {title ||
+              t(
+                isNoteMode
+                  ? 'notes.export_knowledge'
+                  : isTopicMode
+                    ? 'chat.save.topic.knowledge.title'
+                    : 'chat.save.knowledge.title'
+              )}
+          </DialogTitle>
+        </DialogHeader>
+        {uiState.type === 'form' ? renderFormContent() : renderEmptyState()}
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>
+            {t('common.cancel')}
+          </Button>
+          <Button onClick={onOk} loading={loading} disabled={!formState.canSubmit || analysisLoading}>
+            {t('common.save')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -476,34 +550,3 @@ export default class SaveToKnowledgePopup {
     return this.show({ source: { type: 'note', data: note }, title })
   }
 }
-
-const EmptyContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100px;
-  text-align: center;
-`
-
-const ContentTypeItem = styled(Flex)`
-  padding: 12px;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: border-color 0.2s;
-  position: relative;
-
-  &:hover {
-    border-color: var(--color-primary);
-  }
-`
-
-const InfoContainer = styled.div`
-  background: var(--color-background-soft);
-  padding: 12px;
-  border-radius: 6px;
-  margin-top: 16px;
-  min-height: 40px; /* To avoid layout shift */
-  display: flex;
-  align-items: center;
-`

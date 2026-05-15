@@ -465,7 +465,7 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
             const activeTrigger = triggerInfoRef.current
             if (activeTrigger?.type === 'input' && activeTrigger?.position !== undefined) {
               setText((currentText) => {
-                const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
+                const textArea = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
                 const caret = textArea ? (textArea.selectionStart ?? currentText.length) : currentText.length
                 const symbolForRemoval = activeTrigger.symbol ?? QuickPanelReservedSymbol.MentionModels
                 return removeTriggerSymbolAndText(

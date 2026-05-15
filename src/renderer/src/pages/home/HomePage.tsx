@@ -1,6 +1,7 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useAssistants } from '@renderer/hooks/useAssistant'
-import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
@@ -9,11 +10,11 @@ import NavigationService from '@renderer/services/NavigationService'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import type { Assistant, Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
+import { useLocation, useNavigate } from '@tanstack/react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 import { startTransition, useCallback, useEffect, useState } from 'react'
 import { useDispatch } from 'react-redux'
-import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import Chat from './Chat'
@@ -28,27 +29,31 @@ const HomePage: FC = () => {
   const { isLeftNavbar } = useNavbarPosition()
 
   const location = useLocation()
-  const state = location.state
+  const state = location.state as { assistant?: Assistant; topic?: Topic } | undefined
 
   const [activeAssistant, _setActiveAssistant] = useState<Assistant>(
     state?.assistant || _activeAssistant || assistants[0]
   )
+
   const { activeTopic, setActiveTopic: _setActiveTopic } = useActiveTopic(activeAssistant?.id ?? '', state?.topic)
-  const { showAssistants, showTopics, topicPosition } = useSettings()
+  const [showAssistants] = usePreference('assistant.tab.show')
+  const [showTopics] = usePreference('topic.tab.show')
+  const [topicPosition] = usePreference('topic.position')
   const { setShowAssistants, toggleShowAssistants } = useShowAssistants()
   const { toggleShowTopics } = useShowTopics()
   const dispatch = useDispatch()
 
   _activeAssistant = activeAssistant
 
-  useShortcut('toggle_show_assistants', () => {
+  // TODO: Replace with sidebar toggle logic once the new sidebar UI is implemented
+  useShortcut('general.toggle_sidebar', () => {
     if (topicPosition === 'right') {
-      toggleShowAssistants()
+      void toggleShowAssistants()
       return
     }
 
     if (!showAssistants) {
-      setShowAssistants(true)
+      void setShowAssistants(true)
       requestAnimationFrame(() => {
         void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
       })
@@ -58,14 +63,14 @@ const HomePage: FC = () => {
     void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
   })
 
-  useShortcut('toggle_show_topics', () => {
+  useShortcut('topic.toggle_show_topics', () => {
     if (topicPosition === 'right') {
-      toggleShowTopics()
+      void toggleShowTopics()
       return
     }
 
     if (!showAssistants) {
-      setShowAssistants(true)
+      void setShowAssistants(true)
       requestAnimationFrame(() => {
         void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
       })

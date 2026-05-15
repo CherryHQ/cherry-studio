@@ -1,11 +1,11 @@
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { CopyIcon, DeleteIcon } from '@renderer/components/Icons'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import type { Topic } from '@renderer/types'
-import { Button, Tooltip } from 'antd'
+import { cn } from '@renderer/utils'
 import { Save, X } from 'lucide-react'
-import type { FC } from 'react'
+import type { FC, HTMLAttributes } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
   topic: Topic
@@ -35,78 +35,63 @@ const MultiSelectActionPopup: FC<Props> = ({ topic }) => {
       <ActionBar>
         <SelectionCount>{t('common.selectedMessages', { count: selectedMessageIds.length })}</SelectionCount>
         <ActionButtons>
-          <Tooltip title={t('common.save')}>
+          <Tooltip content={t('common.save')}>
             <Button
-              shape="circle"
-              color="default"
-              variant="text"
-              icon={<Save size={16} />}
+              className="rounded-full"
+              variant="ghost"
               disabled={isActionDisabled}
               onClick={() => handleAction('save')}
-            />
+              size="icon">
+              <Save size={16} />
+            </Button>
           </Tooltip>
-          <Tooltip title={t('common.copy')}>
+          <Tooltip content={t('common.copy')}>
             <Button
-              shape="circle"
-              color="default"
-              variant="text"
-              icon={<CopyIcon size={16} />}
+              className="rounded-full"
+              variant="ghost"
               disabled={isActionDisabled}
               onClick={() => handleAction('copy')}
-            />
+              size="icon">
+              <CopyIcon size={16} />
+            </Button>
           </Tooltip>
-          <Tooltip title={t('common.delete')}>
-            <Button
-              shape="circle"
-              color="danger"
-              variant="text"
-              danger
-              icon={<DeleteIcon size={16} className="lucide-custom" />}
-              onClick={() => handleAction('delete')}
-            />
+          <Tooltip content={t('common.delete')}>
+            <Button className="rounded-full" variant="ghost" onClick={() => handleAction('delete')} size="icon">
+              <DeleteIcon size={16} className="lucide-custom" />
+            </Button>
           </Tooltip>
         </ActionButtons>
-        <Tooltip title={t('chat.navigation.close')}>
-          <Button shape="circle" color="default" variant="text" icon={<X size={16} />} onClick={handleClose} />
+        <Tooltip content={t('chat.navigation.close')}>
+          <Button className="rounded-full" variant="ghost" onClick={handleClose} size="icon">
+            <X size={16} />
+          </Button>
         </Tooltip>
       </ActionBar>
     </Container>
   )
 }
 
-const Container = styled.div`
-  position: fixed;
-  inset: auto 0 0 0;
-  z-index: 1000;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 16px;
-`
+const Container: FC<HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
+  <div className={cn('fixed inset-x-0 bottom-0 z-[1000] flex items-center justify-center p-4', className)} {...props} />
+)
 
-const ActionBar = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background-color: var(--color-background);
-  padding: 4px 4px;
-  border-radius: 99px;
-  box-shadow: 0px 2px 8px 0px rgb(128 128 128 / 20%);
-  border: 0.5px solid var(--color-border);
-  gap: 16px;
-`
+const ActionBar: FC<HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
+  <div
+    className={cn(
+      'flex items-center justify-between gap-4 rounded-[99px] border-[0.5px] border-[var(--color-border)]',
+      'bg-[var(--color-background)] p-1 shadow-[0_2px_8px_0_rgb(128_128_128_/_20%)]',
+      className
+    )}
+    {...props}
+  />
+)
 
-const ActionButtons = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`
+const ActionButtons: FC<HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
+  <div className={cn('flex items-center gap-2', className)} {...props} />
+)
 
-const SelectionCount = styled.div`
-  color: var(--color-text-2);
-  font-size: 14px;
-  padding-left: 8px;
-  flex-shrink: 0;
-`
+const SelectionCount: FC<HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
+  <div className={cn('shrink-0 pl-2 text-[14px] text-foreground-secondary', className)} {...props} />
+)
 
 export default MultiSelectActionPopup

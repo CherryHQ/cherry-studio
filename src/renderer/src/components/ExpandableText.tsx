@@ -1,7 +1,7 @@
-import { Button } from 'antd'
-import { memo, useCallback, useMemo, useState } from 'react'
+import { Button } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface ExpandableTextProps {
   text: string
@@ -20,32 +20,14 @@ const ExpandableText = ({
     setIsExpanded((prev) => !prev)
   }, [])
 
-  const button = useMemo(() => {
-    return (
-      <Button type="link" onClick={toggleExpand} style={{ alignSelf: 'flex-end' }}>
+  return (
+    <div ref={ref} className={cn('flex', isExpanded ? 'flex-col' : 'flex-row')} style={style}>
+      <div className={cn('overflow-hidden', isExpanded ? 'whitespace-normal' : 'truncate leading-[30px]')}>{text}</div>
+      <Button variant="ghost" onClick={toggleExpand} className="self-end">
         {isExpanded ? t('common.collapse') : t('common.expand')}
       </Button>
-    )
-  }, [isExpanded, t, toggleExpand])
-
-  return (
-    <Container ref={ref} style={style} $expanded={isExpanded}>
-      <TextContainer $expanded={isExpanded}>{text}</TextContainer>
-      {button}
-    </Container>
+    </div>
   )
 }
 
-const Container = styled.div<{ $expanded?: boolean }>`
-  display: flex;
-  flex-direction: ${(props) => (props.$expanded ? 'column' : 'row')};
-`
-
-const TextContainer = styled.div<{ $expanded?: boolean }>`
-  overflow: hidden;
-  text-overflow: ${(props) => (props.$expanded ? 'unset' : 'ellipsis')};
-  white-space: ${(props) => (props.$expanded ? 'normal' : 'nowrap')};
-  line-height: ${(props) => (props.$expanded ? 'unset' : '30px')};
-`
-
-export default memo(ExpandableText)
+export default ExpandableText

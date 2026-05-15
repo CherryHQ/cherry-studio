@@ -1,6 +1,7 @@
+import { application } from '@application'
+import { loggerService } from '@logger'
+import { WindowType } from '@main/core/window/types'
 import PreprocessProvider from '@main/knowledge/preprocess/PreprocessProvider'
-import { loggerService } from '@main/services/LoggerService'
-import { windowService } from '@main/services/WindowService'
 import type { FileMetadata, KnowledgeBaseParams, KnowledgeItem } from '@types'
 
 const logger = loggerService.withContext('PreprocessingService')
@@ -31,8 +32,7 @@ class PreprocessingService {
         fileToProcess = processedFile
 
         // Notify the UI
-        const mainWindow = windowService.getMainWindow()
-        mainWindow?.webContents.send('file-preprocess-finished', {
+        application.get('WindowManager').broadcastToType(WindowType.Main, 'file-preprocess-finished', {
           itemId: item.id
         })
       } catch (err) {

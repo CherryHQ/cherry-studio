@@ -1,20 +1,26 @@
+import type { ColumnDef } from '@cherrystudio/ui'
+import { Badge, ColFlex, DataTable, Flex, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/Icons'
 import type { MCPServer, MCPTool } from '@renderer/types'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
-import { Badge, Descriptions, Empty, Flex, Switch, Table, Tag, Tooltip, Typography } from 'antd'
-import type { ColumnsType } from 'antd/es/table'
-import { Info, Zap } from 'lucide-react'
+import { Zap } from 'lucide-react'
+import type { Key } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { McpDetailItem, McpDetailList, RequiredMark } from './McpDetailList'
 
 interface MCPToolsSectionProps {
   tools: MCPTool[]
   server: MCPServer
+  searchText: string
   onToggleTool: (tool: MCPTool, enabled: boolean) => void
   onToggleAutoApprove: (tool: MCPTool, autoApprove: boolean) => void
 }
 
-const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: MCPToolsSectionProps) => {
+const MCPToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAutoApprove }: MCPToolsSectionProps) => {
   const { t } = useTranslation()
+  const [expandedRowKeys, setExpandedRowKeys] = useState<Key[]>([])
 
   // Check if a tool is enabled (not in the disabledTools array)
   const isToolEnabled = (tool: MCPTool) => {
@@ -31,20 +37,20 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
     onToggleAutoApprove(tool, checked)
   }
 
-  const getTypeColor = (type: string) => {
+  const getTypeBadgeClass = (type: string) => {
     switch (type) {
       case 'string':
-        return 'blue'
+        return 'border-primary/30 bg-primary/10 text-primary'
       case 'number':
-        return 'green'
+        return 'border-success/30 bg-success/10 text-success'
       case 'boolean':
-        return 'purple'
+        return 'border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400'
       case 'object':
-        return 'orange'
+        return 'border-warning/30 bg-warning/10 text-warning'
       case 'array':
-        return 'cyan'
+        return 'border-cyan-500/30 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400'
       default:
-        return 'default'
+        return 'border-border bg-background-subtle text-foreground'
     }
   }
 
@@ -55,26 +61,21 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
     const itemType = prop.type === 'array' && prop.items?.type ? `${prop.items.type}[]` : prop.type
 
     return (
-      <Flex vertical gap={4}>
-        <Flex align="center" gap={8}>
-          {itemType && (
-            <Badge
-              color={getTypeColor(prop.type)}
-              text={<Typography.Text type="secondary">{itemType}</Typography.Text>}
-            />
-          )}
+      <ColFlex className="gap-1">
+        <Flex className="items-center gap-2">
+          {itemType && <Badge className={getTypeBadgeClass(prop.type)}>{itemType}</Badge>}
         </Flex>
-        {prop.description && (
-          <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 4 }}>
-            {prop.description}
-          </Typography.Paragraph>
-        )}
+        {prop.description && <p className="m-0 text-foreground-secondary text-sm leading-5">{prop.description}</p>}
         {prop.enum && (
-          <div style={{ marginTop: 4 }}>
-            <Typography.Text type="secondary">{t('settings.mcp.tools.inputSchema.enum.allowedValues')}</Typography.Text>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+          <div className="mt-1">
+            <span className="text-foreground-secondary text-sm">
+              {t('settings.mcp.tools.inputSchema.enum.allowedValues')}
+            </span>
+            <div className="mt-1 flex flex-wrap gap-1">
               {prop.enum.map((value: string, idx: number) => (
-                <Tag key={idx}>{value}</Tag>
+                <Badge key={idx} variant="outline">
+                  {value}
+                </Badge>
               ))}
             </div>
           </div>
@@ -87,136 +88,141 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
           prop.type === 'array' &&
           prop.items?.type === 'object' &&
           prop.items.properties && (
-            <div style={{ marginTop: 4 }}>
-              <Typography.Text type="secondary" italic>
-                items:
-              </Typography.Text>
+            <div className="mt-1">
+              <span className="text-foreground-secondary text-sm italic">items:</span>
               {renderSchemaProperties(prop.items.properties, prop.items.required, depth + 1)}
             </div>
           )}
-      </Flex>
+      </ColFlex>
     )
   }
 
-  // Render a set of schema properties as a Descriptions list
   const renderSchemaProperties = (properties: Record<string, any>, required?: string[], depth: number = 0) => {
     return (
-      <Descriptions bordered size="small" column={1} style={{ userSelect: 'text', marginTop: 4 }}>
+      <McpDetailList className="mt-1 select-text">
         {Object.entries(properties).map(([key, prop]: [string, any]) => (
-          <Descriptions.Item
+          <McpDetailItem
             key={key}
             label={
-              <Flex gap={4}>
-                <Typography.Text strong>{key}</Typography.Text>
+              <Flex className="gap-1">
+                <span className="font-medium">{key}</span>
                 {required?.includes(key) && (
-                  <Tooltip title={t('common.required_field')}>
-                    <span style={{ color: '#f5222d' }}>*</span>
+                  <Tooltip content={t('common.required_field')}>
+                    <RequiredMark />
                   </Tooltip>
                 )}
               </Flex>
             }>
             {renderPropertyValue(prop, depth)}
-          </Descriptions.Item>
+          </McpDetailItem>
         ))}
-      </Descriptions>
+      </McpDetailList>
     )
   }
 
-  // Render tool properties from the input schema
   const renderToolProperties = (tool: MCPTool) => {
     if (!tool.inputSchema?.properties) return null
     return renderSchemaProperties(tool.inputSchema.properties, tool.inputSchema.required)
   }
 
-  const columns: ColumnsType<MCPTool> = [
+  const filteredTools = useMemo(() => {
+    const query = searchText.trim().toLowerCase()
+
+    if (!query) {
+      return tools
+    }
+
+    return tools.filter((tool) =>
+      [tool.name, tool.id, tool.description].some((value) => value?.toLowerCase().includes(query))
+    )
+  }, [searchText, tools])
+
+  const columns: ColumnDef<MCPTool>[] = [
     {
-      title: <Typography.Text strong>{t('settings.mcp.tools.availableTools')}</Typography.Text>,
-      dataIndex: 'name',
-      key: 'name',
-      filters: tools.map((tool) => ({
-        text: tool.name,
-        value: tool.name
-      })),
-      onFilter: (value, record) => record.name === value,
-      filterSearch: true,
-      render: (_, tool) => (
-        <Flex vertical align="flex-start" gap={4}>
-          <Flex align="center" gap={4}>
-            <Typography.Text strong ellipsis={{ tooltip: tool.name }}>
-              {tool.name}
-            </Typography.Text>
-            <Tooltip title={`ID: ${tool.id}`} mouseEnterDelay={0}>
-              <Info size={14} />
-            </Tooltip>
-          </Flex>
-          {tool.description && (
-            <Typography.Paragraph
-              type="secondary"
-              style={{ fontSize: '13px' }}
-              ellipsis={{ rows: 1, expandable: true }}>
-              {tool.description}
-            </Typography.Paragraph>
-          )}
-        </Flex>
-      )
+      id: 'name',
+      header: () => <span className="font-medium">{t('settings.mcp.tools.availableTools')}</span>,
+      meta: { width: 400, maxWidth: 400 },
+      cell: ({ row }) => {
+        const tool = row.original
+
+        return (
+          <ColFlex className="gap-1">
+            <Flex className="items-center gap-1">
+              <span className="truncate font-medium text-foreground text-sm" title={tool.name}>
+                {tool.name}
+              </span>
+              <InfoTooltip content={`ID: ${tool.id}`} />
+            </Flex>
+            {tool.description && (
+              <Tooltip content={tool.description}>
+                <p className="m-0 line-clamp-1 text-[13px] text-foreground-secondary leading-5">{tool.description}</p>
+              </Tooltip>
+            )}
+          </ColFlex>
+        )
+      }
     },
     {
-      title: (
-        <Flex align="center" justify="center" gap={4}>
+      id: 'enable',
+      header: () => (
+        <Flex className="items-center justify-center gap-1">
           <McpLogo width={14} height={14} style={{ opacity: 0.8 }} />
-          <Typography.Text strong>{t('settings.mcp.tools.enable')}</Typography.Text>
+          <span className="font-medium">{t('settings.mcp.tools.enable')}</span>
         </Flex>
       ),
-      key: 'enable',
-      width: 150, // Fixed width might be good for alignment
-      align: 'center',
-      render: (_, tool) => (
-        <Switch checked={isToolEnabled(tool)} onChange={(checked) => handleToggle(tool, checked)} size="small" />
-      )
+      meta: { width: 150, maxWidth: 150, align: 'center' },
+      cell: ({ row }) => {
+        const tool = row.original
+
+        return (
+          <Switch size="xs" checked={isToolEnabled(tool)} onCheckedChange={(checked) => handleToggle(tool, checked)} />
+        )
+      }
     },
     {
-      title: (
-        <Flex align="center" justify="center" gap={4}>
+      id: 'autoApprove',
+      header: () => (
+        <Flex className="items-center justify-center gap-1">
           <Zap size={14} color="red" />
-          <Typography.Text strong>{t('settings.mcp.tools.autoApprove.label')}</Typography.Text>
+          <span className="font-medium">{t('settings.mcp.tools.autoApprove.label')}</span>
         </Flex>
       ),
-      key: 'autoApprove',
-      width: 150, // Fixed width
-      align: 'center',
-      render: (_, tool) => (
-        <Tooltip
-          title={
-            !isToolEnabled(tool)
-              ? t('settings.mcp.tools.autoApprove.tooltip.howToEnable')
-              : isToolAutoApproved(tool, server)
-                ? t('settings.mcp.tools.autoApprove.tooltip.enabled')
-                : t('settings.mcp.tools.autoApprove.tooltip.disabled')
-          }
-          placement="top">
-          <Switch
-            checked={isToolAutoApproved(tool, server)}
-            disabled={!isToolEnabled(tool)}
-            onChange={(checked) => handleAutoApproveToggle(tool, checked)}
-            size="small"
-          />
-        </Tooltip>
-      )
+      meta: { width: 150, maxWidth: 150, align: 'center' },
+      cell: ({ row }) => {
+        const tool = row.original
+
+        return (
+          <Tooltip
+            content={
+              !isToolEnabled(tool)
+                ? t('settings.mcp.tools.autoApprove.tooltip.howToEnable')
+                : isToolAutoApproved(tool, server)
+                  ? t('settings.mcp.tools.autoApprove.tooltip.enabled')
+                  : t('settings.mcp.tools.autoApprove.tooltip.disabled')
+            }>
+            <Switch
+              size="xs"
+              checked={isToolAutoApproved(tool, server)}
+              disabled={!isToolEnabled(tool)}
+              onCheckedChange={(checked) => handleAutoApproveToggle(tool, checked)}
+            />
+          </Tooltip>
+        )
+      }
     }
   ]
 
-  return tools.length > 0 ? (
-    <Table
-      rowKey="id"
+  return (
+    <DataTable
+      data={filteredTools}
       columns={columns}
-      dataSource={tools}
-      pagination={false}
-      expandable={{
-        expandedRowRender: (tool) => renderToolProperties(tool)
-      }}
+      rowKey="id"
+      emptyText={searchText ? t('common.no_results') : t('settings.mcp.tools.noToolsAvailable')}
+      expandedRowKeys={expandedRowKeys}
+      onExpandedRowChange={setExpandedRowKeys}
+      renderExpandedRow={(tool) => renderToolProperties(tool)}
+      getCanExpand={(tool) => Boolean(tool.inputSchema?.properties)}
     />
-  ) : (
-    <Empty description={t('settings.mcp.tools.noToolsAvailable')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
   )
 }
 

@@ -1,11 +1,20 @@
 import type { MCPCallToolResponse, MCPTool } from '@types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@main/services/MCPService', () => ({
-  default: {
-    listAllActiveServerTools: vi.fn(async () => []),
-    callToolById: vi.fn(async () => ({ content: [{ type: 'text', text: '{}' }] })),
-    abortTool: vi.fn(async () => true)
+const mockMcpService = {
+  listAllActiveServerTools: vi.fn(async (): Promise<MCPTool[]> => []),
+  callToolById: vi.fn(async (): Promise<MCPCallToolResponse> => ({ content: [{ type: 'text', text: '{}' }] })),
+  abortTool: vi.fn(async () => true)
+}
+
+vi.mock('@application', () => ({
+  application: {
+    get: vi.fn((name: string) => {
+      if (name === 'McpService') {
+        return mockMcpService
+      }
+      throw new Error(`[MockApplication] Unknown service: ${name}`)
+    })
   }
 }))
 
@@ -28,8 +37,7 @@ const githubSearchRepos: MCPTool = {
 }
 
 async function callWithMockedResponse(response: MCPCallToolResponse): Promise<unknown> {
-  const mcpService = (await import('@main/services/MCPService')).default
-  vi.mocked(mcpService.callToolById).mockResolvedValueOnce(response)
+  mockMcpService.callToolById.mockResolvedValueOnce(response)
   syncToolMapFromTools([githubSearchRepos])
   return callMcpTool('githubSearchRepos', {})
 }
@@ -136,8 +144,7 @@ describe('resolveHubToolNameAsync', () => {
   })
 
   it('lazily refreshes mapping when null', async () => {
-    const mcpService = (await import('@main/services/MCPService')).default
-    vi.mocked(mcpService.listAllActiveServerTools).mockResolvedValue([
+    mockMcpService.listAllActiveServerTools.mockResolvedValue([
       {
         id: 'github__search_repos',
         name: 'search_repos',
@@ -155,17 +162,15 @@ describe('resolveHubToolNameAsync', () => {
     // Async version should refresh and resolve
     const result = await resolveHubToolNameAsync('githubSearchRepos')
     expect(result).toEqual({ serverId: 'github', toolName: 'search_repos' })
-    expect(mcpService.listAllActiveServerTools).toHaveBeenCalled()
+    expect(mockMcpService.listAllActiveServerTools).toHaveBeenCalled()
   })
 
   it('retries resolution after refresh when tool not found in stale mapping', async () => {
-    const mcpService = (await import('@main/services/MCPService')).default
-
     // Initialize with an empty tool list
     syncToolMapFromTools([])
 
     // Mock listAllActiveServerTools to return the tool on refresh
-    vi.mocked(mcpService.listAllActiveServerTools).mockResolvedValue([
+    mockMcpService.listAllActiveServerTools.mockResolvedValue([
       {
         id: 'tavily__tavily_search',
         name: 'tavily_search',

@@ -1,14 +1,15 @@
 /**
  * 职责：提供原子化的、无状态的API调用函数
  */
+import { cacheService } from '@data/CacheService'
+import { dataApiService } from '@data/DataApiService'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { buildStreamTextParams } from '@renderer/aiCore/prepareParams'
 import type { AiSdkMiddlewareConfig } from '@renderer/aiCore/types/middlewareConfig'
 import { buildProviderOptions } from '@renderer/aiCore/utils/options'
 import { isDedicatedImageGenerationModel, isEmbeddingModel, isFunctionCallingModel } from '@renderer/config/models'
-import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
-import store from '@renderer/store'
 import { hubMCPServer } from '@renderer/store/mcp'
 import type { Assistant, MCPServer, MCPTool, Model, Provider } from '@renderer/types'
 import { type FetchChatCompletionParams, getEffectiveMcpMode, isSystemProvider } from '@renderer/types'
@@ -48,7 +49,6 @@ import type { StreamProcessorCallbacks } from './StreamProcessingService'
 //   filterUsefulMessages,
 //   filterUserRoleStartMessages
 // } from './MessagesService'
-// import WebSearchService from './WebSearchService'
 
 // FIXME: 这里太多重复逻辑，需要重构
 
@@ -56,12 +56,18 @@ const logger = loggerService.withContext('ApiService')
 const SUMMARY_REQUEST_TIMEOUT_MS = 15_000
 
 /**
+ * Fetch active MCP servers from the Data API.
+ */
+async function fetchActiveMcpServers(): Promise<MCPServer[]> {
+  const response = await dataApiService.get('/mcp-servers', { query: { isActive: true } })
+  return (response as { items: MCPServer[] }).items ?? []
+}
+
+/**
  * Get the MCP servers to use based on the assistant's MCP mode.
  */
-export function getMcpServersForAssistant(assistant: Assistant): MCPServer[] {
+export async function getMcpServersForAssistant(assistant: Assistant): Promise<MCPServer[]> {
   const mode = getEffectiveMcpMode(assistant)
-  const allMcpServers = store.getState().mcp.servers || []
-  const activedMcpServers = allMcpServers.filter((s) => s.isActive)
 
   switch (mode) {
     case 'disabled':
@@ -69,6 +75,7 @@ export function getMcpServersForAssistant(assistant: Assistant): MCPServer[] {
     case 'auto':
       return [hubMCPServer]
     case 'manual': {
+      const activedMcpServers = await fetchActiveMcpServers()
       const assistantMcpServers = assistant.mcpServers || []
       return activedMcpServers.filter((server) => assistantMcpServers.some((s) => s.id === server.id))
     }
@@ -78,8 +85,7 @@ export function getMcpServersForAssistant(assistant: Assistant): MCPServer[] {
 }
 
 export async function fetchAllActiveServerTools(): Promise<MCPTool[]> {
-  const allMcpServers = store.getState().mcp.servers || []
-  const activedMcpServers = allMcpServers.filter((s) => s.isActive)
+  const activedMcpServers = await fetchActiveMcpServers()
 
   if (activedMcpServers.length === 0) {
     return []
@@ -108,7 +114,7 @@ export async function fetchAllActiveServerTools(): Promise<MCPTool[]> {
 
 export async function fetchMcpTools(assistant: Assistant) {
   let mcpTools: MCPTool[] = []
-  const enabledMCPs = getMcpServersForAssistant(assistant)
+  const enabledMCPs = await getMcpServersForAssistant(assistant)
 
   if (enabledMCPs && enabledMCPs.length > 0) {
     try {
@@ -260,7 +266,6 @@ export async function fetchChatCompletion({
   } = await buildStreamTextParams(messages, assistant, provider, {
     mcpTools: mcpTools,
     allowedTools,
-    webSearchProviderId: assistant.webSearchProviderId,
     requestOptions
   })
 
@@ -277,6 +282,7 @@ export async function fetchChatCompletion({
     isSupportedToolUse: isSupportedToolUse(assistant),
     webSearchPluginConfig: webSearchPluginConfig,
     enableWebSearch: capabilities.enableWebSearch,
+    enableWebSearchTools: !!assistant.enableWebSearch && !capabilities.enableWebSearch,
     enableGenerateImage: capabilities.enableGenerateImage,
     enableUrlContext: capabilities.enableUrlContext,
     mcpMode,
@@ -443,7 +449,7 @@ export async function fetchMessagesSummary({
 }: {
   messages: Message[]
 }): Promise<{ text: string | null; error?: string }> {
-  let prompt = getStoreSetting('topicNamingPrompt') || i18n.t('prompts.title')
+  let prompt = (await preferenceService.get('topic.naming_prompt')) || i18n.t('prompts.title')
   const model = getQuickModel()
 
   if (prompt && containsSupportedVariables(prompt)) {
@@ -557,7 +563,7 @@ export async function fetchMessagesSummary({
 }
 
 export async function fetchNoteSummary({ content, assistant }: { content: string; assistant?: Assistant }) {
-  let prompt = getStoreSetting('topicNamingPrompt') || i18n.t('prompts.title')
+  let prompt = (await preferenceService.get('topic.naming_prompt')) || i18n.t('prompts.title')
   const resolvedAssistant = assistant || getDefaultAssistant()
   const model = getQuickModel() || resolvedAssistant.model || getDefaultModel()
 
@@ -761,9 +767,9 @@ export function getRotatedApiKey(provider: Provider): string {
     return keys[0]
   }
 
-  const lastUsedKey = window.keyv.get(keyName)
+  const lastUsedKey = cacheService.getCasual<string>(keyName)
   if (!lastUsedKey) {
-    window.keyv.set(keyName, keys[0])
+    cacheService.setCasual(keyName, keys[0])
     return keys[0]
   }
 
@@ -779,7 +785,7 @@ export function getRotatedApiKey(provider: Provider): string {
 
   const nextIndex = (currentIndex + 1) % keys.length
   const nextKey = keys[nextIndex]
-  window.keyv.set(keyName, nextKey)
+  cacheService.setCasual(keyName, nextKey)
 
   return nextKey
 }
@@ -837,7 +843,23 @@ export function checkApiProvider(provider: Provider): void {
  * @param timeout - Maximum time (ms) to wait for the request to complete. Defaults to 15000 ms.
  * @throws {Error} If the request fails or times out, indicating the API is not usable.
  */
-export async function checkApi(provider: Provider, model: Model, timeout = 15000): Promise<void> {
+function createAbortPromise(signal: AbortSignal | undefined): Promise<never> | null {
+  if (!signal) {
+    return null
+  }
+
+  return new Promise((_, reject) => {
+    const rejectAborted = () => reject(new DOMException('Aborted', 'AbortError'))
+    if (signal.aborted) {
+      rejectAborted()
+      return
+    }
+
+    signal.addEventListener('abort', rejectAborted, { once: true })
+  })
+}
+
+export async function checkApi(provider: Provider, model: Model, timeout = 15000, signal?: AbortSignal): Promise<void> {
   checkApiProvider(provider)
 
   const ai = new AiProvider(model, provider)
@@ -849,15 +871,21 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
   if (isEmbeddingModel(model)) {
     logger.info('checkApi: embedding model detected, calling getEmbeddingDimensions', { modelId: model.id })
     const timerPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout))
-    await Promise.race([ai.getEmbeddingDimensions(model), timerPromise])
+    const abortPromise = createAbortPromise(signal)
+    await Promise.race([
+      ai.getEmbeddingDimensions(model, signal),
+      timerPromise,
+      ...(abortPromise ? [abortPromise] : [])
+    ])
   } else {
     const abortId = uuid()
-    const signal = readyToAbort(abortId)
+    const checkSignal = readyToAbort(abortId)
+    const abortSignal = signal ? AbortSignal.any([checkSignal, signal]) : checkSignal
     let streamError: ResponseError | undefined
     const params: StreamTextParams = {
       system: assistant.prompt,
       prompt: 'hi',
-      abortSignal: signal
+      abortSignal
     }
     const config: AiProviderConfig = {
       streamOutput: true,
@@ -888,8 +916,13 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
   }
 }
 
-export async function checkModel(provider: Provider, model: Model, timeout = 15000): Promise<{ latency: number }> {
+export async function checkModel(
+  provider: Provider,
+  model: Model,
+  timeout = 15000,
+  signal?: AbortSignal
+): Promise<{ latency: number }> {
   const startTime = performance.now()
-  await checkApi(provider, model, timeout)
+  await checkApi(provider, model, timeout, signal)
   return { latency: performance.now() - startTime }
 }

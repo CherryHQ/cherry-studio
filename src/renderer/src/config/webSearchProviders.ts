@@ -1,69 +1,4 @@
-import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
-
-type WebSearchProviderConfig = {
-  websites: {
-    official: string
-    apiKey?: string
-  }
-}
-
-export const WEB_SEARCH_PROVIDER_CONFIG: Record<WebSearchProviderId, WebSearchProviderConfig> = {
-  zhipu: {
-    websites: {
-      official: 'https://docs.bigmodel.cn/cn/guide/tools/web-search',
-      apiKey: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
-    }
-  },
-  tavily: {
-    websites: {
-      official: 'https://tavily.com',
-      apiKey: 'https://app.tavily.com/home'
-    }
-  },
-  searxng: {
-    websites: {
-      official: 'https://docs.searxng.org'
-    }
-  },
-  exa: {
-    websites: {
-      official: 'https://exa.ai',
-      apiKey: 'https://dashboard.exa.ai/api-keys'
-    }
-  },
-  'exa-mcp': {
-    websites: {
-      official: 'https://exa.ai'
-    }
-  },
-  bocha: {
-    websites: {
-      official: 'https://bochaai.com',
-      apiKey: 'https://open.bochaai.com/overview'
-    }
-  },
-  'local-google': {
-    websites: {
-      official: 'https://www.google.com'
-    }
-  },
-  'local-bing': {
-    websites: {
-      official: 'https://www.bing.com'
-    }
-  },
-  'local-baidu': {
-    websites: {
-      official: 'https://www.baidu.com'
-    }
-  },
-  querit: {
-    websites: {
-      official: 'https://querit.ai',
-      apiKey: 'https://www.querit.ai/en/dashboard/api-keys'
-    }
-  }
-}
+import type { WebSearchProvider } from '@renderer/types'
 
 export const WEB_SEARCH_PROVIDERS: WebSearchProvider[] = [
   {
@@ -103,24 +38,19 @@ export const WEB_SEARCH_PROVIDERS: WebSearchProvider[] = [
     apiKey: ''
   },
   {
-    id: 'local-google',
-    name: 'Google',
-    url: 'https://www.google.com/search?q=%s'
-  },
-  {
-    id: 'local-bing',
-    name: 'Bing',
-    url: 'https://cn.bing.com/search?q=%s&ensearch=1'
-  },
-  {
-    id: 'local-baidu',
-    name: 'Baidu',
-    url: 'https://www.baidu.com/s?wd=%s'
-  },
-  {
     id: 'querit',
     name: 'Querit',
     apiHost: 'https://api.querit.ai',
+    apiKey: ''
+  },
+  {
+    id: 'fetch',
+    name: 'fetch'
+  },
+  {
+    id: 'jina',
+    name: 'Jina',
+    apiHost: 'https://s.jina.ai',
     apiKey: ''
   }
 ] as const

@@ -1,22 +1,19 @@
 import { LoadingOutlined, WifiOutlined } from '@ant-design/icons'
-import { HStack } from '@renderer/components/Layout'
+import { Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import BackupPopup from '@renderer/components/Popups/BackupPopup'
 import LanTransferPopup from '@renderer/components/Popups/LanTransferPopup'
 import RestorePopup from '@renderer/components/Popups/RestorePopup'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useKnowledgeFiles } from '@renderer/hooks/useKnowledgeFiles'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { reset } from '@renderer/services/BackupService'
-import store, { useAppDispatch } from '@renderer/store'
-import { setSkipBackupFile as _setSkipBackupFile } from '@renderer/store/settings'
 import type { AppInfo } from '@renderer/types'
-import { formatFileSize } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import { occupiedDirs } from '@shared/config/constant'
-import { Button, Progress, Switch, Tooltip, Typography } from 'antd'
 import { FolderInput, FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
+import type React from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
@@ -24,14 +21,9 @@ const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
   const [appInfo, setAppInfo] = useState<AppInfo>()
   const [cacheSize, setCacheSize] = useState<string>('')
-  const { size, removeAllFiles } = useKnowledgeFiles()
   const { theme } = useTheme()
   const { setTimeoutTimer } = useTimer()
-
-  const _skipBackupFile = store.getState().settings.skipBackupFile
-  const [skipBackupFile, setSkipBackupFile] = useState<boolean>(_skipBackupFile)
-
-  const dispatch = useAppDispatch()
+  const [skipBackupFile, setSkipBackupFile] = usePreference('data.backup.general.skip_backup_file')
 
   useEffect(() => {
     void window.api.getAppInfo().then(setAppInfo)
@@ -102,7 +94,7 @@ const BasicDataSettings: React.FC = () => {
         setTimeoutTimer(
           'doubleConfirmModalBeforeCopyData',
           () => {
-            void window.api.relaunchApp({
+            void window.api.application.relaunch({
               args: ['--new-data-path=' + newPath]
             })
           },
@@ -139,9 +131,8 @@ const BasicDataSettings: React.FC = () => {
         <MigrationPathRow style={{ marginTop: '20px', flexDirection: 'row', alignItems: 'center' }}>
           <Switch
             defaultChecked={shouldCopyData}
-            onChange={(checked) => (shouldCopyData = checked)}
-            style={{ marginRight: '8px' }}
-            title={t('settings.data.app_data.copy_data_option')}
+            onCheckedChange={(checked) => (shouldCopyData = checked)}
+            className="mr-2"
           />
           <MigrationPathLabel style={{ fontWeight: 'normal', fontSize: '14px' }}>
             {t('settings.data.app_data.copy_data_option')}
@@ -161,7 +152,7 @@ const BasicDataSettings: React.FC = () => {
           <CopyDataContent />
           <MigrationNotice>
             <p style={{ color: 'var(--color-warning)' }}>{t('settings.data.app_data.restart_notice')}</p>
-            <p style={{ color: 'var(--color-text-3)', marginTop: '8px' }}>
+            <p style={{ color: 'var(--color-foreground-muted)', marginTop: '8px' }}>
               {t('settings.data.app_data.copy_time_notice')}
             </p>
           </MigrationNotice>
@@ -188,7 +179,7 @@ const BasicDataSettings: React.FC = () => {
             setTimeoutTimer(
               'showMigrationConfirmModal_1',
               () => {
-                void window.api.relaunchApp({
+                void window.api.application.relaunch({
                   args: ['--new-data-path=' + newPath]
                 })
               },
@@ -205,13 +196,11 @@ const BasicDataSettings: React.FC = () => {
             'showMigrationConfirmModal_2',
             () => {
               window.toast.success(t('settings.data.app_data.select_success'))
-              void window.api.setStopQuitApp(false, '')
-              void window.api.relaunchApp()
+              void window.api.application.relaunch()
             },
             500
           )
         } catch (error) {
-          void window.api.setStopQuitApp(false, '')
           window.toast.error({
             title: t('settings.data.app_data.path_change_failed') + ': ' + error,
             timeout: 5000
@@ -238,7 +227,7 @@ const BasicDataSettings: React.FC = () => {
           <MigrationNotice>
             <p>{t('settings.data.app_data.copying')}</p>
             <div style={{ marginTop: '12px' }}>
-              <Progress percent={currentProgress} status="active" strokeWidth={8} />
+              <MigrationProgressBar percent={currentProgress} status="active" strokeWidth={8} />
             </div>
             <p style={{ color: 'var(--color-warning)', marginTop: '12px', fontSize: '13px' }}>
               {t('settings.data.app_data.copying_warning')}
@@ -261,7 +250,7 @@ const BasicDataSettings: React.FC = () => {
             <MigrationNotice>
               <p>{t('settings.data.app_data.copying')}</p>
               <div style={{ marginTop: '12px' }}>
-                <Progress percent={Math.round(progress)} status={status} strokeWidth={8} />
+                <MigrationProgressBar percent={Math.round(progress)} status={status} strokeWidth={8} />
               </div>
               <p style={{ color: 'var(--color-warning)', marginTop: '12px', fontSize: '13px' }}>
                 {t('settings.data.app_data.copying_warning')}
@@ -365,8 +354,8 @@ const BasicDataSettings: React.FC = () => {
       )
 
       const { loadingModal, progressInterval, updateProgress } = showProgressModal(title, className, PathsContent)
+      const holdId = await window.api.application.preventQuit(t('settings.data.app_data.stop_quit_app_reason'))
       try {
-        void window.api.setStopQuitApp(true, t('settings.data.app_data.stop_quit_app_reason'))
         await startMigration(originalPath, newDataPath, progressInterval, updateProgress, loadingModal)
 
         setAppInfo(await window.api.getAppInfo())
@@ -375,15 +364,15 @@ const BasicDataSettings: React.FC = () => {
           'handleDataMigration',
           () => {
             window.toast.success(t('settings.data.app_data.select_success'))
-            void window.api.setStopQuitApp(false, '')
-            void window.api.relaunchApp({
+            void window.api.application.allowQuit(holdId)
+            void window.api.application.relaunch({
               args: ['--user-data-dir=' + newDataPath]
             })
           },
           1000
         )
       } catch (error) {
-        void window.api.setStopQuitApp(false, '')
+        void window.api.application.allowQuit(holdId)
         window.toast.error({
           title: t('settings.data.app_data.copy_failed') + ': ' + error,
           timeout: 5000
@@ -432,25 +421,8 @@ const BasicDataSettings: React.FC = () => {
     })
   }
 
-  const handleRemoveAllFiles = () => {
-    window.modal.confirm({
-      centered: true,
-      title: t('settings.data.app_knowledge.remove_all') + ` (${formatFileSize(size)}) `,
-      content: t('settings.data.app_knowledge.remove_all_confirm'),
-      onOk: async () => {
-        await removeAllFiles()
-        window.toast.success(t('settings.data.app_knowledge.remove_all_success'))
-      },
-      okText: t('common.delete'),
-      okButtonProps: {
-        danger: true
-      }
-    })
-  }
-
   const onSkipBackupFilesChange = (value: boolean) => {
-    setSkipBackupFile(value)
-    dispatch(_setSkipBackupFile(value))
+    void setSkipBackupFile(value)
   }
 
   return (
@@ -460,19 +432,21 @@ const BasicDataSettings: React.FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-          <HStack gap="5px" justifyContent="space-between">
-            <Button onClick={() => BackupPopup.show()} icon={<SaveIcon size={14} />}>
+          <RowFlex className="justify-between gap-1.25">
+            <Button onClick={() => BackupPopup.show()} variant="outline">
+              <SaveIcon size={14} />
               {t('settings.general.backup.button')}
             </Button>
-            <Button onClick={RestorePopup.show} icon={<FolderOpen size={14} />}>
+            <Button onClick={RestorePopup.show} variant="outline">
+              <FolderOpen size={14} />
               {t('settings.general.restore.button')}
             </Button>
-          </HStack>
+          </RowFlex>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-          <Switch checked={skipBackupFile} onChange={onSkipBackupFilesChange} />
+          <Switch checked={skipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
         </SettingRow>
         <SettingRow>
           <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
@@ -483,20 +457,22 @@ const BasicDataSettings: React.FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.data.export_to_phone.lan.title')}</SettingRowTitle>
-          <HStack gap="5px" justifyContent="space-between">
-            <Button onClick={LanTransferPopup.show} icon={<WifiOutlined size={14} />}>
+          <RowFlex className="justify-between gap-1.25">
+            <Button onClick={LanTransferPopup.show} variant="outline">
+              <WifiOutlined size={14} />
               {t('settings.data.export_to_phone.lan.button')}
             </Button>
-          </HStack>
+          </RowFlex>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.data.export_to_phone.file.title')}</SettingRowTitle>
-          <HStack gap="5px" justifyContent="space-between">
-            <Button onClick={() => BackupPopup.show('lan-transfer')} icon={<FolderInput size={14} />}>
+          <RowFlex className="justify-between gap-1.25">
+            <Button onClick={() => BackupPopup.show('lan-transfer')} variant="outline">
+              <FolderInput size={14} />
               {t('settings.data.export_to_phone.file.button')}
             </Button>
-          </HStack>
+          </RowFlex>
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
@@ -505,35 +481,36 @@ const BasicDataSettings: React.FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.data.app_data.label')}</SettingRowTitle>
           <PathRow>
-            <PathText style={{ color: 'var(--color-text-3)' }} onClick={() => handleOpenPath(appInfo?.appDataPath)}>
+            <PathText
+              style={{ color: 'var(--color-foreground-muted)' }}
+              onClick={() => handleOpenPath(appInfo?.appDataPath)}>
               {appInfo?.appDataPath}
             </PathText>
             <Tooltip title={t('settings.data.app_data.select')}>
               <FolderOutput onClick={handleSelectAppDataPath} style={{ cursor: 'pointer' }} size={16} />
             </Tooltip>
-            <HStack gap="5px" style={{ marginLeft: '8px' }}>
-              <Button onClick={() => handleOpenPath(appInfo?.appDataPath)}>{t('settings.data.app_data.open')}</Button>
-            </HStack>
+            <RowFlex className="ml-2 gap-1.25">
+              <Button onClick={() => handleOpenPath(appInfo?.appDataPath)} variant="outline">
+                {t('settings.data.app_data.open')}
+              </Button>
+            </RowFlex>
           </PathRow>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.data.app_logs.label')}</SettingRowTitle>
           <PathRow>
-            <PathText style={{ color: 'var(--color-text-3)' }} onClick={() => handleOpenPath(appInfo?.logsPath)}>
+            <PathText
+              style={{ color: 'var(--color-foreground-muted)' }}
+              onClick={() => handleOpenPath(appInfo?.logsPath)}>
               {appInfo?.logsPath}
             </PathText>
-            <HStack gap="5px" style={{ marginLeft: '8px' }}>
-              <Button onClick={() => handleOpenPath(appInfo?.logsPath)}>{t('settings.data.app_logs.button')}</Button>
-            </HStack>
+            <RowFlex className="ml-2 gap-1.25">
+              <Button onClick={() => handleOpenPath(appInfo?.logsPath)} variant="outline">
+                {t('settings.data.app_logs.button')}
+              </Button>
+            </RowFlex>
           </PathRow>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.data.app_knowledge.label')}</SettingRowTitle>
-          <HStack alignItems="center" gap="5px">
-            <Button onClick={handleRemoveAllFiles}>{t('settings.data.app_knowledge.button.delete')}</Button>
-          </HStack>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
@@ -541,87 +518,93 @@ const BasicDataSettings: React.FC = () => {
             {t('settings.data.clear_cache.title')}
             {cacheSize && <CacheText>({cacheSize}MB)</CacheText>}
           </SettingRowTitle>
-          <HStack gap="5px">
-            <Button onClick={handleClearCache}>{t('settings.data.clear_cache.button')}</Button>
-          </HStack>
+          <RowFlex className="gap-1.25">
+            <Button onClick={handleClearCache} variant="outline">
+              {t('settings.data.clear_cache.button')}
+            </Button>
+          </RowFlex>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.general.reset.title')}</SettingRowTitle>
-          <HStack gap="5px">
-            <Button onClick={reset} danger>
+          <RowFlex className="gap-1.25">
+            <Button onClick={reset} variant="destructive">
               {t('settings.general.reset.title')}
             </Button>
-          </HStack>
+          </RowFlex>
         </SettingRow>
       </SettingGroup>
     </>
   )
 }
 
-const CacheText = styled(Typography.Text)`
-  color: var(--color-text-3);
-  font-size: 12px;
-  margin-left: 5px;
-  line-height: 16px;
-  display: inline-block;
-  vertical-align: middle;
-  text-align: left;
-`
+const CacheText = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span
+    className={cn('ml-1.25 inline-block text-left align-middle text-foreground-muted text-xs leading-4', className)}
+    {...props}
+  />
+)
 
-const PathText = styled(Typography.Text)`
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  display: inline-block;
-  vertical-align: middle;
-  text-align: right;
-  margin-left: 5px;
-  cursor: pointer
-`
+const PathText = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span
+    className={cn('ml-1.25 inline-block min-w-0 flex-1 cursor-pointer truncate text-right align-middle', className)}
+    {...props}
+  />
+)
 
-const PathRow = styled(HStack)`
-  min-width: 0;
-  flex: 1;
-  width: 0;
-  align-items: center;
-  gap: 5px;
-`
+interface MigrationProgressBarProps {
+  percent: number
+  status: 'active' | 'success'
+  strokeWidth: number
+}
 
-// Add styled components for migration modal
-const MigrationModalContent = styled.div`
-  padding: 20px 0 10px;
-  display: flex;
-  flex-direction: column;
-`
+const MigrationProgressBar = ({ percent, status, strokeWidth }: MigrationProgressBarProps) => {
+  const normalizedPercent = Math.min(100, Math.max(0, Math.round(percent)))
 
-const MigrationNotice = styled.div`
-  margin-top: 24px;
-  font-size: 14px;
-`
+  return (
+    <div className="flex w-full items-center gap-2">
+      <div className="w-full overflow-hidden rounded-full bg-border" style={{ height: strokeWidth }}>
+        <div
+          className={cn(
+            'h-full rounded-full transition-[width] duration-300',
+            status === 'success' ? 'bg-success' : 'bg-primary'
+          )}
+          style={{ width: `${normalizedPercent}%` }}
+        />
+      </div>
+      <span className="min-w-10 text-right text-foreground-muted text-xs">{normalizedPercent}%</span>
+    </div>
+  )
+}
 
-const MigrationPathRow = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-`
+const PathRow = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof RowFlex>) => (
+  <RowFlex className={cn('w-0 min-w-0 flex-1 items-center gap-1.25', className)} {...props} />
+)
 
-const MigrationPathLabel = styled.div`
-  font-weight: 600;
-  font-size: 15px;
-  color: var(--color-text-1);
-`
+const MigrationModalContent = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex flex-col py-5 pb-2.5', className)} {...props} />
+)
 
-const MigrationPathValue = styled.div`
-  font-size: 14px;
-  color: var(--color-text-2);
-  background-color: var(--color-background-soft);
-  padding: 8px 12px;
-  border-radius: 4px;
-  word-break: break-all;
-  border: 1px solid var(--color-border);
-`
+const MigrationNotice = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mt-6 text-sm', className)} {...props} />
+)
+
+const MigrationPathRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex flex-col gap-1.25', className)} {...props} />
+)
+
+const MigrationPathLabel = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('font-semibold text-[15px] text-foreground', className)} {...props} />
+)
+
+const MigrationPathValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      'break-all rounded border border-border bg-background-subtle px-3 py-2 text-foreground-secondary text-sm',
+      className
+    )}
+    {...props}
+  />
+)
 
 export default BasicDataSettings

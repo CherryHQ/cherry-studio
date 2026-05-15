@@ -1,19 +1,17 @@
 import { HolderOutlined } from '@ant-design/icons'
+import { useCache } from '@data/hooks/useCache'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
-import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
-import useTranslate from '@renderer/hooks/useTranslate'
 import PasteService from '@renderer/services/PasteService'
 import { translateText } from '@renderer/services/TranslateService'
-import { useAppDispatch } from '@renderer/store'
-import { setSearching } from '@renderer/store/runtime'
 import type { FileMetadata } from '@renderer/types'
 import { classNames } from '@renderer/utils'
+import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { formatQuotedText } from '@renderer/utils/formats'
 import { isSendMessageKeyPressed } from '@renderer/utils/input'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -38,6 +36,7 @@ import { usePasteHandler } from '../hooks/usePasteHandler'
 import { getInputbarConfig } from '../registry'
 import SendMessageButton from '../SendMessageButton'
 import type { InputbarScope } from '../types'
+import { findNextPromptVariableRange } from './promptVariableNavigation'
 
 const logger = loggerService.withContext('InputbarCore')
 
@@ -128,27 +127,22 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   const { setFiles, setIsExpanded, toolsRegistry, triggers } = useInputbarToolsDispatch()
   const { setExtensions } = useInputbarToolsInternalDispatch()
   const isEmpty = text.trim().length === 0
-  const [inputFocus, setInputFocus] = useState(false)
-  const {
-    targetLanguage,
-    sendMessageShortcut,
-    fontSize,
-    pasteLongTextAsFile,
-    pasteLongTextThreshold,
-    autoTranslateWithSpace,
-    enableQuickPanelTriggers,
-    enableSpellCheck
-  } = useSettings()
+  const [targetLanguage] = usePreference('chat.input.translate.target_language')
+  const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
+  const [pasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
+  const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
+  const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
+  const [enableQuickPanelTriggers] = usePreference('chat.input.quick_panel.triggers_enabled')
+  const [enableSpellCheck] = usePreference('app.spell_check.enabled')
+  const [fontSize] = usePreference('chat.message.font_size')
+  const [searching, setSearching] = useCache('chat.web_search.searching')
   const quickPanelTriggersEnabled = forceEnableQuickPanelTriggers ?? enableQuickPanelTriggers
 
   const { t } = useTranslation()
   const [isTranslating, setIsTranslating] = useState(false)
-  const { getLanguageByLangcode } = useTranslate()
 
-  const dispatch = useAppDispatch()
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const spaceClickTimer = useRef<NodeJS.Timeout | null>(null)
-  const { searching } = useRuntime()
   const startDragY = useRef<number>(0)
   const startHeight = useRef<number>(0)
   const { setTimeoutTimer } = useTimer()
@@ -211,15 +205,20 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
 
     try {
       setIsTranslating(true)
-      const translatedText = await translateText(text, getLanguageByLangcode(targetLanguage))
+      const translatedText = await translateText(text, targetLanguage)
       translatedText && setText(translatedText)
       setTimeoutTimer('translate', () => resizeTextArea(), 0)
     } catch (error) {
-      logger.warn('Translation failed:', error as Error)
+      // Mirrors TranslatePage's error flow: suppress user-initiated aborts,
+      // log + toast anything else so the space-key auto-translate never fails silently.
+      if (!isAbortError(error)) {
+        logger.error('Auto-translate (space) failed', error as Error)
+        window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
+      }
     } finally {
       setIsTranslating(false)
     }
-  }, [getLanguageByLangcode, isTranslating, resizeTextArea, setText, setTimeoutTimer, targetLanguage, text])
+  }, [isTranslating, resizeTextArea, setText, setTimeoutTimer, t, targetLanguage, text])
 
   const rootTriggerHandlerRef = useRef<((payload?: unknown) => void) | undefined>(undefined)
 
@@ -269,32 +268,18 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (event.key === 'Tab' && inputFocus) {
-        event.preventDefault()
-        const textArea = textareaRef.current?.resizableTextArea?.textArea
-        if (!textArea) {
-          return
-        }
-        const cursorPosition = textArea.selectionStart
+      if (event.key === 'Tab') {
+        const textArea = textareaRef.current?.resizableTextArea?.textArea ?? event.currentTarget
         const selectionLength = textArea.selectionEnd - textArea.selectionStart
-        const text = textArea.value
+        const variableRange = findNextPromptVariableRange(textArea.value, textArea.selectionStart, selectionLength)
 
-        let match = text.slice(cursorPosition + selectionLength).match(/\$\{[^}]+\}/)
-        let startIndex: number
-
-        if (!match) {
-          match = text.match(/\$\{[^}]+\}/)
-          startIndex = match?.index ?? -1
-        } else {
-          startIndex = cursorPosition + selectionLength + match.index!
-        }
-
-        if (startIndex !== -1) {
-          const endIndex = startIndex + match![0].length
-          textArea.setSelectionRange(startIndex, endIndex)
+        if (variableRange) {
+          event.preventDefault()
+          textArea.setSelectionRange(variableRange.start, variableRange.end)
           return
         }
       }
+
       if (autoTranslateWithSpace && event.key === ' ') {
         setSpaceClickCount((prev) => prev + 1)
         if (spaceClickTimer.current) {
@@ -337,19 +322,18 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
       }
     },
     [
-      inputFocus,
       autoTranslateWithSpace,
       isExpanded,
       text.length,
       files.length,
-      textareaRef,
       spaceClickCount,
       translate,
       handleToggleExpanded,
       sendMessageShortcut,
       isSendDisabled,
       handleSendMessage,
-      setFiles
+      setFiles,
+      textareaRef
     ]
   )
 
@@ -461,10 +445,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   )
 
   const appendTxtContentToInput = useCallback(
-    async (file: FileMetadata, event: React.MouseEvent<HTMLDivElement>) => {
-      event.preventDefault()
-      event.stopPropagation()
-
+    async (file: FileMetadata) => {
       try {
         const targetPath = file.path
         const content = await window.api.file.readExternal(targetPath, true)
@@ -508,14 +489,13 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   )
 
   const handleFocus = useCallback(() => {
-    setInputFocus(true)
-    dispatch(setSearching(false))
+    setSearching(false)
     // Don't close panel in multiple selection mode, or if triggered by input
     if (quickPanel.isVisible && quickPanel.triggerInfo?.type !== 'input' && !quickPanel.multiple) {
       quickPanel.close()
     }
     PasteService.setLastFocusedComponent('inputbar')
-  }, [dispatch, quickPanel])
+  }, [quickPanel, setSearching])
 
   const handleDragStart = useCallback(
     (event: React.MouseEvent) => {
@@ -620,9 +600,11 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
     if (isLoading) {
       extras.push(
         <Tooltip key="pause" placement="top" title={t('chat.input.pause')} mouseLeaveDelay={0} arrow>
-          <ActionIconButton onClick={onPause} style={{ marginRight: -2 }}>
-            <CirclePause size={20} color="var(--color-error)" />
-          </ActionIconButton>
+          <ActionIconButton
+            onClick={onPause}
+            style={{ marginRight: -2 }}
+            icon={<CirclePause size={20} color="var(--color-error)" />}
+          />
         </Tooltip>
       )
     }
@@ -649,7 +631,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
             <HolderOutlined style={{ fontSize: 12 }} />
           </DragHandle>
           {files.length > 0 && (
-            <AttachmentPreview files={files} setFiles={setFiles} onAttachmentContextMenu={appendTxtContentToInput} />
+            <AttachmentPreview files={files} setFiles={setFiles} onPasteAsText={appendTxtContentToInput} />
           )}
           {topContent}
 
@@ -660,7 +642,6 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
             onKeyDown={handleKeyDown}
             onPaste={(e) => handlePaste(e.nativeEvent)}
             onFocus={handleFocus}
-            onBlur={() => setInputFocus(false)}
             placeholder={isTranslating ? t('chat.input.translating') : placeholder}
             autoFocus
             variant="borderless"
@@ -675,7 +656,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
             }}
             disabled={isTranslating || searching}
             onClick={() => {
-              searching && dispatch(setSearching(false))
+              searching && setSearching(false)
               quickPanel.close()
             }}
           />

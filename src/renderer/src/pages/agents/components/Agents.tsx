@@ -1,10 +1,10 @@
 import AddButton from '@renderer/components/AddButton'
 import DraggableVirtualList from '@renderer/components/DraggableList/virtual-list'
 import AgentModalPopup from '@renderer/components/Popups/agent/AgentModal'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useApiServer } from '@renderer/hooks/useApiServer'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import type { AgentEntity } from '@renderer/types'
 import { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -19,8 +19,7 @@ const Agents = ({ onSelectItem }: AgentsProps) => {
   const { t } = useTranslation()
   const { agents, deleteAgent, isLoading, error, reorderAgents } = useAgents()
   const { apiServerRunning, startApiServer } = useApiServer()
-  const { chat } = useRuntime()
-  const { activeAgentId } = chat
+  const [activeAgentId] = useCache('agent.active_id')
   const { setActiveAgentId } = useActiveAgent()
 
   const handleAgentPress = useCallback(

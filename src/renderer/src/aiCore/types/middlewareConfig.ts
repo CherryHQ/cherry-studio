@@ -19,6 +19,7 @@ export interface AiSdkMiddlewareConfig {
   isPromptToolUse: boolean
   isSupportedToolUse: boolean
   enableWebSearch: boolean
+  enableWebSearchTools?: boolean
   enableGenerateImage: boolean
   enableUrlContext: boolean
   mcpTools?: MCPTool[]

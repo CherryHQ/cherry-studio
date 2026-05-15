@@ -1,6 +1,6 @@
+import { RowFlex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { NavbarCenter, NavbarHeader, NavbarRight } from '@renderer/components/app/Navbar'
-import { HStack } from '@renderer/components/Layout'
 import BaseNavbarIcon from '@renderer/components/NavbarIcon'
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
@@ -208,7 +208,7 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
     <NavbarHeader
       className="home-navbar"
       style={{ justifyContent: 'flex-start', borderBottom: '0.5px solid var(--color-border)' }}>
-      <HStack alignItems="center" flex="0 0 auto">
+      <RowFlex className="flex-[0_0_auto] items-center">
         {showWorkspace && (
           <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
             <NavbarIcon onClick={handleToggleShowWorkspace}>
@@ -223,7 +223,7 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
             </NavbarIcon>
           </Tooltip>
         )}
-      </HStack>
+      </RowFlex>
       <NavbarCenter style={{ flex: 1, minWidth: 0 }}>
         <BreadcrumbsContainer>
           <Breadcrumb

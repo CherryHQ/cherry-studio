@@ -1,88 +1,101 @@
 import {
-  FileExcelFilled,
-  FileImageFilled,
-  FileMarkdownFilled,
-  FilePdfFilled,
-  FilePptFilled,
-  FileTextFilled,
-  FileUnknownFilled,
-  FileWordFilled,
-  FileZipFilled,
-  FolderOpenFilled,
-  GlobalOutlined,
-  LinkOutlined
-} from '@ant-design/icons'
-import ConfirmDialog from '@renderer/components/ConfirmDialog'
+  ColFlex,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+  Tooltip
+} from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import ImageViewer from '@renderer/components/ImageViewer'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAttachment } from '@renderer/hooks/useAttachment'
 import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import { Flex, Image, Tooltip } from 'antd'
 import { isEmpty } from 'lodash'
-import type { FC, MouseEvent } from 'react'
-import { useState } from 'react'
+import {
+  FileArchive,
+  FileBadge,
+  FileImage,
+  FileQuestionMark,
+  FileSpreadsheet,
+  FileText,
+  FileType,
+  FolderOpen,
+  Globe,
+  Link,
+  type LucideIcon,
+  Presentation
+} from 'lucide-react'
+import type { FC } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
+
+const logger = loggerService.withContext('AttachmentPreview')
 
 interface Props {
   files: FileMetadata[]
   setFiles: (files: FileMetadata[]) => void
-  onAttachmentContextMenu?: (file: FileMetadata, event: MouseEvent<HTMLDivElement>) => void
+  onPasteAsText?: (file: FileMetadata) => void
 }
 
 const MAX_FILENAME_DISPLAY_LENGTH = 20
+const FILE_ICON_SIZE = 12
+
+const fileIcon = (Icon: LucideIcon) => <Icon size={FILE_ICON_SIZE} />
+
 function truncateFileName(name: string, maxLength: number = MAX_FILENAME_DISPLAY_LENGTH) {
   if (name.length <= maxLength) return name
   return name.slice(0, maxLength - 3) + '...'
 }
 
 export const getFileIcon = (type?: string) => {
-  if (!type) return <FileUnknownFilled />
+  if (!type) return fileIcon(FileQuestionMark)
 
   const ext = type.toLowerCase()
 
   if (['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'].includes(ext)) {
-    return <FileImageFilled />
+    return fileIcon(FileImage)
   }
 
   if (['.doc', '.docx'].includes(ext)) {
-    return <FileWordFilled />
+    return fileIcon(FileBadge)
   }
   if (['.xls', '.xlsx'].includes(ext)) {
-    return <FileExcelFilled />
+    return fileIcon(FileSpreadsheet)
   }
   if (['.ppt', '.pptx'].includes(ext)) {
-    return <FilePptFilled />
+    return fileIcon(Presentation)
   }
   if (ext === '.pdf') {
-    return <FilePdfFilled />
+    return fileIcon(FileType)
   }
   if (['.md', '.markdown'].includes(ext)) {
-    return <FileMarkdownFilled />
+    return fileIcon(FileText)
   }
 
   if (['.zip', '.rar', '.7z', '.tar', '.gz'].includes(ext)) {
-    return <FileZipFilled />
+    return fileIcon(FileArchive)
   }
 
   if (['.txt', '.json', '.log', '.yml', '.yaml', '.xml', '.csv', '.tscn', '.gd'].includes(ext)) {
-    return <FileTextFilled />
+    return fileIcon(FileText)
   }
 
   if (['.url'].includes(ext)) {
-    return <LinkOutlined />
+    return fileIcon(Link)
   }
 
   if (['.sitemap'].includes(ext)) {
-    return <GlobalOutlined />
+    return fileIcon(Globe)
   }
 
   if (['.folder'].includes(ext)) {
-    return <FolderOpenFilled />
+    return fileIcon(FolderOpen)
   }
 
-  return <FileUnknownFilled />
+  return fileIcon(FileQuestionMark)
 }
 
 export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
@@ -97,17 +110,14 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
 
   return (
     <Tooltip
-      styles={{
-        body: {
-          padding: 5
-        }
+      classNames={{
+        content: 'p-1'
       }}
-      fresh
-      title={
-        <Flex vertical gap={2} align="center">
+      content={
+        <ColFlex className="items-center gap-0.5">
           {isImage(file.ext) && (
-            <Image
-              style={{ width: 80, maxHeight: 200 }}
+            <ImageViewer
+              className="max-h-[200px] w-20"
               src={'file://' + FileManager.getSafePath(file)}
               preview={{
                 visible: visible,
@@ -116,11 +126,12 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
               }}
             />
           )}
-          <span style={{ wordBreak: 'break-all' }}>{fullName}</span>
+          <span className="break-all">{fullName}</span>
           {formatFileSize(file.size)}
-        </Flex>
+        </ColFlex>
       }>
-      <FileName
+      <span
+        className="cursor-pointer hover:underline"
         onClick={() => {
           if (isImage(file.ext)) {
             setVisible(true)
@@ -132,112 +143,71 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
         }}
         title={fullName}>
         {displayName}
-      </FileName>
+      </span>
     </Tooltip>
   )
 }
 
-const AttachmentPreview: FC<Props> = ({ files, setFiles, onAttachmentContextMenu }) => {
+const AttachmentItem: FC<{
+  file: FileMetadata
+  onRemove: () => void
+  onPasteAsText?: (file: FileMetadata) => void
+}> = ({ file, onRemove, onPasteAsText }) => {
   const { t } = useTranslation()
-  const [contextMenu, setContextMenu] = useState<{
-    file: FileMetadata
-    x: number
-    y: number
-  } | null>(null)
+  const [isTextFile, setIsTextFile] = useState<boolean | null>(null)
+  const probedRef = useRef(false)
 
-  const handleContextMenu = async (file: FileMetadata, event: MouseEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    event.stopPropagation()
-
-    // 获取被点击元素的位置
-    const target = event.currentTarget as HTMLElement
-    const rect = target.getBoundingClientRect()
-
-    // 计算对话框位置：附件标签的中心位置
-    const x = rect.left + rect.width / 2
-    const y = rect.top
-
-    try {
-      const isText = await window.api.file.isTextFile(file.path)
-      if (!isText) {
-        setContextMenu(null)
-        return
-      }
-
-      setContextMenu({
-        file,
-        x,
-        y
+  const handleOpenChange = (open: boolean) => {
+    if (!open || probedRef.current) return
+    probedRef.current = true
+    void window.api.file
+      .isTextFile(file.path)
+      .then(setIsTextFile)
+      .catch((error) => {
+        logger.warn('isTextFile probe failed; treating attachment as binary', error as Error)
+        setIsTextFile(false)
       })
-    } catch (error) {
-      setContextMenu(null)
-    }
   }
 
-  const handleConfirm = () => {
-    if (contextMenu && onAttachmentContextMenu) {
-      // Create a synthetic mouse event for the callback
-      const syntheticEvent = {
-        preventDefault: () => {},
-        stopPropagation: () => {}
-      } as MouseEvent<HTMLDivElement>
-      onAttachmentContextMenu(contextMenu.file, syntheticEvent)
-    }
-    setContextMenu(null)
+  const tag = (
+    <CustomTag icon={getFileIcon(file.ext)} color="#37a5aa" closable onClose={onRemove}>
+      <FileNameRender file={file} />
+    </CustomTag>
+  )
+
+  if (!onPasteAsText) {
+    return tag
   }
 
-  const handleCancel = () => {
-    setContextMenu(null)
-  }
+  return (
+    <ContextMenu onOpenChange={handleOpenChange}>
+      <ContextMenuTrigger asChild>{tag}</ContextMenuTrigger>
+      {isTextFile && (
+        <ContextMenuContent>
+          <ContextMenuItem onSelect={() => onPasteAsText(file)}>{t('chat.input.paste_text_file')}</ContextMenuItem>
+        </ContextMenuContent>
+      )}
+    </ContextMenu>
+  )
+}
 
+const AttachmentPreview: FC<Props> = ({ files, setFiles, onPasteAsText }) => {
   if (isEmpty(files)) {
     return null
   }
 
   return (
-    <>
-      <ContentContainer>
-        {files.map((file) => (
-          <CustomTag
-            key={file.id}
-            icon={getFileIcon(file.ext)}
-            color="#37a5aa"
-            closable
-            onClose={() => setFiles(files.filter((f) => f.id !== file.id))}
-            onContextMenu={(event) => {
-              void handleContextMenu(file, event)
-            }}>
-            <FileNameRender file={file} />
-          </CustomTag>
-        ))}
-      </ContentContainer>
-
-      {contextMenu && (
-        <ConfirmDialog
-          x={contextMenu.x}
-          y={contextMenu.y}
-          message={t('chat.input.paste_text_file_confirm')}
-          onConfirm={handleConfirm}
-          onCancel={handleCancel}
+    <div className="flex w-full flex-wrap gap-1 px-[15px] py-[5px]">
+      {files.map((file) => (
+        <AttachmentItem
+          key={file.id}
+          file={file}
+          onRemove={() => setFiles(files.filter((f) => f.id !== file.id))}
+          onPasteAsText={onPasteAsText}
         />
-      )}
-    </>
+      ))}
+    </div>
   )
 }
-
-const ContentContainer = styled.div`
-  width: 100%;
-  padding: 5px 15px 5px 15px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 4px;
-`
-
-const FileName = styled.span`
-  cursor: pointer;
-  &:hover {
-    text-decoration: underline;
-  }
-`
 
 export default AttachmentPreview

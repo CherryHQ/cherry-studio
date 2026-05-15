@@ -1,9 +1,9 @@
-import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
+import { Avatar, AvatarImage, EmojiAvatar } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { getModelLogoById } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelName } from '@renderer/services/ModelService'
@@ -14,7 +14,6 @@ import type { Message } from '@renderer/types/newMessage'
 import { isEmoji, removeLeadingEmoji } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { Avatar } from 'antd'
 import { CircleChevronDown } from 'lucide-react'
 import { type FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -24,8 +23,8 @@ interface MessageLineProps {
   messages: Message[]
 }
 
-const getAvatarSource = (isLocalAi: boolean, modelId: string | undefined) => {
-  if (isLocalAi) return AppLogo
+const getModelIcon = (isLocalAi: boolean, modelId: string | undefined) => {
+  if (isLocalAi) return undefined
   return modelId ? getModelLogoById(modelId) : undefined
 }
 
@@ -34,7 +33,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
   const avatar = useAvatar()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
-  const { userName } = useSettings()
+  const [userName] = usePreference('app.user.name')
   const { setTimeoutTimer } = useTimer()
 
   const messagesListRef = useRef<HTMLDivElement>(null)
@@ -203,7 +202,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
           const opacity = 0.5 + calculateValueByDistance(message.id, 1)
           const scale = 1 + calculateValueByDistance(message.id, 1.2)
           const size = 10 + calculateValueByDistance(message.id, 20)
-          const avatarSource = getAvatarSource(isLocalAi, getMessageModelId(message))
+          const ModelIcon = getModelIcon(isLocalAi, getMessageModelId(message))
           const username = removeLeadingEmoji(getUserName(message))
           const content = getMainTextContent(message)
 
@@ -226,14 +225,19 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
               </MessageItemContainer>
 
               {message.role === 'assistant' ? (
-                <MessageItemAvatar
-                  src={avatarSource}
-                  size={size}
-                  style={{
-                    border: isLocalAi ? '1px solid var(--color-border-soft)' : 'none',
-                    filter: theme === 'dark' ? 'invert(0.05)' : undefined
-                  }}
-                />
+                ModelIcon ? (
+                  <ModelIcon.Avatar size={size} />
+                ) : (
+                  <MessageItemAvatar
+                    style={{
+                      width: size,
+                      height: size,
+                      border: isLocalAi ? '1px solid var(--color-border-soft)' : 'none',
+                      filter: theme === 'dark' ? 'invert(0.05)' : undefined
+                    }}>
+                    {isLocalAi && <AvatarImage src={AppLogo} />}
+                  </MessageItemAvatar>
+                )
               ) : (
                 <>
                   {isEmoji(avatar) ? (
@@ -247,7 +251,9 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
                       {avatar}
                     </EmojiAvatar>
                   ) : (
-                    <MessageItemAvatar src={avatar} size={size} />
+                    <MessageItemAvatar style={{ width: size, height: size }}>
+                      <AvatarImage src={avatar} />
+                    </MessageItemAvatar>
                   )}
                 </>
               )}

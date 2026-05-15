@@ -1,8 +1,8 @@
+import { CodeEditor, type CodeEditorHandles } from '@cherrystudio/ui'
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
 import type { ActionTool } from '@renderer/components/ActionTools'
-import type { CodeEditorHandles } from '@renderer/components/CodeEditor'
-import CodeEditor from '@renderer/components/CodeEditor'
 import {
   CodeToolbar,
   useCopyTool,
@@ -18,15 +18,15 @@ import CodeViewer from '@renderer/components/CodeViewer'
 import ImageViewer from '@renderer/components/ImageViewer'
 import type { BasicPreviewHandles } from '@renderer/components/Preview'
 import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/config/constant'
-import { useSettings } from '@renderer/hooks/useSettings'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { getExtensionByLanguage } from '@renderer/utils/code-language'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
+import { cn } from '@renderer/utils/style'
 import dayjs from 'dayjs'
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled, { css } from 'styled-components'
 
 import { SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
 import StatusBar from './StatusBar'
@@ -58,7 +58,25 @@ interface Props {
  */
 export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave }) => {
   const { t } = useTranslation()
-  const { codeEditor, codeExecution, codeImageTools, codeCollapsible, codeWrappable } = useSettings()
+
+  const [codeExecutionEnabled] = usePreference('chat.code.execution.enabled')
+  const [codeExecutionTimeoutMinutes] = usePreference('chat.code.execution.timeout_minutes')
+  const [codeCollapsible] = usePreference('chat.code.collapsible')
+  const [codeWrappable] = usePreference('chat.code.wrappable')
+  const [codeImageTools] = usePreference('chat.code.image_tools')
+  const [fontSize] = usePreference('chat.message.font_size')
+  const [codeShowLineNumbers] = usePreference('chat.code.show_line_numbers')
+  const [codeEditor] = useMultiplePreferences({
+    enabled: 'chat.code.editor.enabled',
+    autocompletion: 'chat.code.editor.autocompletion',
+    foldGutter: 'chat.code.editor.fold_gutter',
+    highlightActiveLine: 'chat.code.editor.highlight_active_line',
+    keymap: 'chat.code.editor.keymap',
+    themeLight: 'chat.code.editor.theme_light',
+    themeDark: 'chat.code.editor.theme_dark'
+  })
+
+  const { activeCmTheme } = useCodeStyle()
 
   const [viewState, setViewState] = useState({
     mode: 'special' as ViewMode,
@@ -90,8 +108,8 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   const [tools, setTools] = useState<ActionTool[]>([])
 
   const isExecutable = useMemo(() => {
-    return codeExecution.enabled && language === 'python'
-  }, [codeExecution.enabled, language])
+    return codeExecutionEnabled && language === 'python'
+  }, [codeExecutionEnabled, language])
 
   const sourceViewRef = useRef<CodeEditorHandles>(null)
   const specialViewRef = useRef<BasicPreviewHandles>(null)
@@ -165,7 +183,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
     setExecutionResult(null)
 
     pyodideService
-      .runScript(children, {}, codeExecution.timeoutMinutes * 60000)
+      .runScript(children, {}, codeExecutionTimeoutMinutes * 60000)
       .then((result) => {
         setExecutionResult(result)
       })
@@ -178,11 +196,13 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
       .finally(() => {
         setIsRunning(false)
       })
-  }, [children, codeExecution.timeoutMinutes])
+  }, [children, codeExecutionTimeoutMinutes])
 
   const showPreviewTools = useMemo(() => {
     return viewMode !== 'source' && hasSpecialView
   }, [hasSpecialView, viewMode])
+
+  const hasStatusBar = isExecutable && !!executionResult
 
   // 复制按钮
   useCopyTool({
@@ -257,12 +277,14 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
         <CodeEditor
           className="source-view"
           ref={sourceViewRef}
+          theme={activeCmTheme}
+          fontSize={fontSize - 1}
           value={children}
           language={language}
           onSave={onSave}
           onHeightChange={handleHeightChange}
           maxHeight={`${MAX_COLLAPSED_CODE_HEIGHT}px`}
-          options={{ stream: true }}
+          options={{ stream: true, lineNumbers: codeShowLineNumbers, ...codeEditor }}
           expanded={shouldExpand}
           wrapped={shouldWrap}
         />
@@ -278,7 +300,19 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
           onRequestExpand={codeCollapsible ? () => setExpandOverride(true) : undefined}
         />
       ),
-    [children, codeCollapsible, codeEditor.enabled, handleHeightChange, language, onSave, shouldExpand, shouldWrap]
+    [
+      activeCmTheme,
+      children,
+      codeCollapsible,
+      codeEditor,
+      codeShowLineNumbers,
+      fontSize,
+      handleHeightChange,
+      language,
+      onSave,
+      shouldExpand,
+      shouldWrap
+    ]
   )
 
   // 特殊视图组件映射
@@ -296,15 +330,17 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 
   const renderHeader = useMemo(() => {
     if (isInSpecialView) {
-      return <CodeHeader $isInSpecialView>{''}</CodeHeader>
+      return (
+        <div className="mt-1.5 flex h-4 items-center rounded-t-lg bg-transparent px-2.5 font-bold text-foreground text-sm leading-none" />
+      )
     }
     const ext = getExtensionByLanguage(language)
     const iconName = getFileIconName(`file${ext}`)
     return (
-      <CodeHeader $isInSpecialView={false}>
+      <div className="flex h-[34px] items-center rounded-t-lg bg-muted px-2.5 font-bold text-foreground text-sm leading-none">
         <Icon icon={`material-icon-theme:${iconName}`} style={{ fontSize: '1.1em', marginRight: 6 }} />
         {language.charAt(0).toUpperCase() + language.slice(1)}
-      </CodeHeader>
+      </div>
     )
   }, [isInSpecialView, language])
 
@@ -314,18 +350,31 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
     const showSourceView = !specialView || viewMode !== 'special'
 
     return (
-      <SplitViewWrapper
-        className="split-view-wrapper"
-        $isSpecialView={showSpecialView && !showSourceView}
-        $isSplitView={showSpecialView && showSourceView}>
+      <div
+        className={cn(
+          'split-view-wrapper flex [&>*]:w-full [&>*]:flex-[1_1_auto]',
+          !hasStatusBar && (showSpecialView && !showSourceView ? 'rounded-lg' : 'rounded-b-lg'),
+          !hasStatusBar && '[&_.code-viewer]:rounded-[inherit]',
+          showSpecialView &&
+            showSourceView &&
+            "before:-translate-x-1/2 relative before:absolute before:top-0 before:bottom-0 before:left-1/2 before:z-[1] before:w-px before:bg-muted before:content-['']"
+        )}>
         {showSpecialView && specialView}
         {showSourceView && sourceView}
-      </SplitViewWrapper>
+      </div>
     )
-  }, [specialView, sourceView, viewMode])
+  }, [hasStatusBar, specialView, sourceView, viewMode])
 
   return (
-    <CodeBlockWrapper className="code-block" $isInSpecialView={isInSpecialView}>
+    <div
+      className={cn(
+        'code-block relative w-full min-w-[35ch]',
+        '[&_.code-toolbar]:transform-gpu [&_.code-toolbar]:opacity-0 [&_.code-toolbar]:transition-opacity [&_.code-toolbar]:duration-200 [&_.code-toolbar]:ease-in-out [&_.code-toolbar]:will-change-[opacity]',
+        '[&:hover_.code-toolbar]:opacity-100 [&_.code-toolbar.show]:opacity-100',
+        isInSpecialView
+          ? '[&_.code-toolbar]:rounded-none [&_.code-toolbar]:bg-transparent'
+          : '[&_.code-toolbar]:rounded-[4px] [&_.code-toolbar]:bg-muted'
+      )}>
       {renderHeader}
       <CodeToolbar tools={tools} />
       {renderContent}
@@ -337,86 +386,6 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
           )}
         </StatusBar>
       )}
-    </CodeBlockWrapper>
+    </div>
   )
 })
-
-const CodeBlockWrapper = styled.div<{ $isInSpecialView: boolean }>`
-  position: relative;
-  width: 100%;
-  /* FIXME: 最小宽度用于解决两个问题。
-   * 一是 CodeViewer 在气泡样式下的用户消息中无法撑开气泡，
-   * 二是 代码块内容过少时 toolbar 会和 title 重叠。
-   */
-  min-width: 35ch;
-
-  .code-toolbar {
-    background-color: ${(props) => (props.$isInSpecialView ? 'transparent' : 'var(--color-background-mute)')};
-    border-radius: ${(props) => (props.$isInSpecialView ? '0' : '4px')};
-    opacity: 0;
-    transition: opacity 0.2s ease;
-    transform: translateZ(0);
-    will-change: opacity;
-    &.show {
-      opacity: 1;
-    }
-  }
-  &:hover {
-    .code-toolbar {
-      opacity: 1;
-    }
-  }
-`
-
-const CodeHeader = styled.div<{ $isInSpecialView?: boolean }>`
-  display: flex;
-  align-items: center;
-  color: var(--color-text);
-  font-size: 14px;
-  line-height: 1;
-  font-weight: bold;
-  padding: 0 10px;
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
-  margin-top: ${(props) => (props.$isInSpecialView ? '6px' : '0')};
-  height: ${(props) => (props.$isInSpecialView ? '16px' : '34px')};
-  background-color: ${(props) => (props.$isInSpecialView ? 'transparent' : 'var(--color-background-mute)')};
-`
-
-const SplitViewWrapper = styled.div<{ $isSpecialView: boolean; $isSplitView: boolean }>`
-  display: flex;
-
-  > * {
-    flex: 1 1 auto;
-    width: 100%;
-  }
-
-  &:not(:has(+ [class*='Container'])) {
-    // 特殊视图的 header 会隐藏，所以全都使用圆角
-    border-radius: ${(props) => (props.$isSpecialView ? '8px' : '0 0 8px 8px')};
-    // FIXME: 滚动条边缘会溢出，可以考虑增加 padding，但是要保证代码主题颜色铺满容器。
-    // overflow: hidden;
-    .code-viewer {
-      border-radius: inherit;
-    }
-  }
-
-  // 在 split 模式下添加中间分隔线
-  ${(props) =>
-    props.$isSplitView &&
-    css`
-      position: relative;
-
-      &:before {
-        content: '';
-        position: absolute;
-        top: 0;
-        bottom: 0;
-        left: 50%;
-        width: 1px;
-        background-color: var(--color-background-mute);
-        transform: translateX(-50%);
-        z-index: 1;
-      }
-    `}
-`

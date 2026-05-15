@@ -1,11 +1,17 @@
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuItemContent,
+  ContextMenuSeparator,
+  ContextMenuTrigger
+} from '@cherrystudio/ui'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
 import { useAppSelector } from '@renderer/store'
 import { selectSortType } from '@renderer/store/note'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
-import type { MenuProps } from 'antd'
-import { Dropdown } from 'antd'
 import { FilePlus, Folder, FolderUp, Loader2, Upload, X } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -18,8 +24,7 @@ import {
   NotesDragContext,
   NotesEditingContext,
   NotesSearchContext,
-  NotesSelectionContext,
-  NotesUIContext
+  NotesSelectionContext
 } from './context/NotesContexts'
 import { useFullTextSearch } from './hooks/useFullTextSearch'
 import { useNotesDragAndDrop } from './hooks/useNotesDragAndDrop'
@@ -59,12 +64,10 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const { t } = useTranslation()
   const { activeNode } = useActiveNode(notesTree)
   const sortType = useAppSelector(selectSortType)
-
   const [isShowStarred, setIsShowStarred] = useState(false)
   const [isShowSearch, setIsShowSearch] = useState(false)
   const [searchKeyword, setSearchKeyword] = useState('')
   const [isDragOverSidebar, setIsDragOverSidebar] = useState(false)
-  const [openDropdownKey, setOpenDropdownKey] = useState<string | null>(null)
 
   const notesTreeRef = useRef<NotesTreeNode[]>(notesTree)
   const virtualListRef = useRef<any>(null)
@@ -90,7 +93,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     setIsDragOverSidebar
   })
 
-  const { getMenuItems } = useNotesMenu({
+  const { renderMenuItems } = useNotesMenu({
     renamingNodeIds,
     onCreateNote,
     onCreateFolder,
@@ -166,35 +169,23 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     [onSortNodes]
   )
 
-  const getEmptyAreaMenuItems = useCallback((): MenuProps['items'] => {
-    return [
-      {
-        label: t('notes.new_note'),
-        key: 'new_note',
-        icon: <FilePlus size={14} />,
-        onClick: handleCreateNote
-      },
-      {
-        label: t('notes.new_folder'),
-        key: 'new_folder',
-        icon: <Folder size={14} />,
-        onClick: handleCreateFolder
-      },
-      { type: 'divider' },
-      {
-        label: t('notes.upload_files'),
-        key: 'upload_files',
-        icon: <Upload size={14} />,
-        onClick: handleSelectFiles
-      },
-      {
-        label: t('notes.upload_folder'),
-        key: 'upload_folder',
-        icon: <FolderUp size={14} />,
-        onClick: handleSelectFolder
-      }
-    ]
-  }, [t, handleCreateNote, handleCreateFolder, handleSelectFiles, handleSelectFolder])
+  const renderEmptyAreaMenuItems = () => (
+    <>
+      <ContextMenuItem onSelect={handleCreateNote}>
+        <ContextMenuItemContent icon={<FilePlus size={14} />}>{t('notes.new_note')}</ContextMenuItemContent>
+      </ContextMenuItem>
+      <ContextMenuItem onSelect={handleCreateFolder}>
+        <ContextMenuItemContent icon={<Folder size={14} />}>{t('notes.new_folder')}</ContextMenuItemContent>
+      </ContextMenuItem>
+      <ContextMenuSeparator />
+      <ContextMenuItem onSelect={handleSelectFiles}>
+        <ContextMenuItemContent icon={<Upload size={14} />}>{t('notes.upload_files')}</ContextMenuItemContent>
+      </ContextMenuItem>
+      <ContextMenuItem onSelect={handleSelectFolder}>
+        <ContextMenuItemContent icon={<FolderUp size={14} />}>{t('notes.upload_folder')}</ContextMenuItemContent>
+      </ContextMenuItem>
+    </>
+  )
 
   // Flatten tree nodes for virtualization and filtering
   const flattenedNodes = useMemo(() => {
@@ -284,12 +275,11 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
   const actionsValue = useMemo(
     () => ({
-      getMenuItems,
+      renderMenuItems,
       onSelectNode,
-      onToggleExpanded,
-      onDropdownOpenChange: setOpenDropdownKey
+      onToggleExpanded
     }),
-    [getMenuItems, onSelectNode, onToggleExpanded]
+    [renderMenuItems, onSelectNode, onToggleExpanded]
   )
 
   const selectionValue = useMemo(
@@ -347,59 +337,55 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
         <NotesEditingContext value={editingValue}>
           <NotesDragContext value={dragValue}>
             <NotesSearchContext value={searchValue}>
-              <NotesUIContext value={{ openDropdownKey }}>
-                <SidebarContainer
-                  onDragOver={(e) => {
-                    e.preventDefault()
-                    if (!draggedNodeId) {
-                      setIsDragOverSidebar(true)
-                    }
-                  }}
-                  onDragLeave={() => setIsDragOverSidebar(false)}
-                  onDrop={(e) => {
-                    if (!draggedNodeId) {
-                      void handleDropFiles(e)
-                    }
-                  }}>
-                  <NotesSidebarHeader
-                    isShowStarred={isShowStarred}
-                    isShowSearch={isShowSearch}
-                    searchKeyword={searchKeyword}
-                    sortType={sortType}
-                    onCreateFolder={handleCreateFolder}
-                    onCreateNote={handleCreateNote}
-                    onToggleStarredView={handleToggleStarredView}
-                    onToggleSearchView={handleToggleSearchView}
-                    onSetSearchKeyword={setSearchKeyword}
-                    onSelectSortType={handleSelectSortType}
-                  />
+              <SidebarContainer
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  if (!draggedNodeId) {
+                    setIsDragOverSidebar(true)
+                  }
+                }}
+                onDragLeave={() => setIsDragOverSidebar(false)}
+                onDrop={(e) => {
+                  if (!draggedNodeId) {
+                    void handleDropFiles(e)
+                  }
+                }}>
+                <NotesSidebarHeader
+                  isShowStarred={isShowStarred}
+                  isShowSearch={isShowSearch}
+                  searchKeyword={searchKeyword}
+                  sortType={sortType}
+                  onCreateFolder={handleCreateFolder}
+                  onCreateNote={handleCreateNote}
+                  onToggleStarredView={handleToggleStarredView}
+                  onToggleSearchView={handleToggleSearchView}
+                  onSetSearchKeyword={setSearchKeyword}
+                  onSelectSortType={handleSelectSortType}
+                />
 
-                  <NotesTreeContainer>
-                    {isShowSearch && isSearching && (
-                      <SearchStatusBar>
-                        <Loader2 size={14} className="animate-spin" />
-                        <span>{t('notes.search.searching')}</span>
-                        <CancelButton onClick={cancel} title={t('common.cancel')}>
-                          <X size={14} />
-                        </CancelButton>
-                      </SearchStatusBar>
-                    )}
-                    {isShowSearch && !isSearching && hasSearchKeyword && searchStats.total > 0 && (
-                      <SearchStatusBar>
-                        <span>
-                          {t('notes.search.found_results', {
-                            count: searchStats.total,
-                            nameCount: searchStats.fileNameMatches,
-                            contentCount: searchStats.contentMatches + searchStats.bothMatches
-                          })}
-                        </span>
-                      </SearchStatusBar>
-                    )}
-                    <Dropdown
-                      menu={{ items: getEmptyAreaMenuItems() }}
-                      trigger={['contextMenu']}
-                      open={openDropdownKey === 'empty-area'}
-                      onOpenChange={(open) => setOpenDropdownKey(open ? 'empty-area' : null)}>
+                <NotesTreeContainer>
+                  {isShowSearch && isSearching && (
+                    <SearchStatusBar>
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>{t('notes.search.searching')}</span>
+                      <CancelButton onClick={cancel} title={t('common.cancel')}>
+                        <X size={14} />
+                      </CancelButton>
+                    </SearchStatusBar>
+                  )}
+                  {isShowSearch && !isSearching && hasSearchKeyword && searchStats.total > 0 && (
+                    <SearchStatusBar>
+                      <span>
+                        {t('notes.search.found_results', {
+                          count: searchStats.total,
+                          nameCount: searchStats.fileNameMatches,
+                          contentCount: searchStats.contentMatches + searchStats.bothMatches
+                        })}
+                      </span>
+                    </SearchStatusBar>
+                  )}
+                  <ContextMenu>
+                    <ContextMenuTrigger asChild>
                       <DynamicVirtualList
                         ref={virtualListRef}
                         list={flattenedNodes}
@@ -410,30 +396,31 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                         getItemDepth={getItemDepth}>
                         {({ node, depth }) => <TreeNode node={node} depth={depth} renderChildren={false} />}
                       </DynamicVirtualList>
-                    </Dropdown>
-                    {!isShowStarred && !isShowSearch && (
-                      <div style={{ padding: '0 8px', marginTop: '6px', marginBottom: '12px' }}>
-                        <TreeNode
-                          node={{
-                            id: 'hint-node',
-                            name: '',
-                            type: 'hint',
-                            treePath: '',
-                            externalPath: '',
-                            createdAt: '',
-                            updatedAt: ''
-                          }}
-                          depth={0}
-                          renderChildren={false}
-                          onHintClick={handleSelectFolder}
-                        />
-                      </div>
-                    )}
-                  </NotesTreeContainer>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent>{renderEmptyAreaMenuItems()}</ContextMenuContent>
+                  </ContextMenu>
+                  {!isShowStarred && !isShowSearch && (
+                    <div style={{ padding: '0 8px', marginTop: '6px', marginBottom: '12px' }}>
+                      <TreeNode
+                        node={{
+                          id: 'hint-node',
+                          name: '',
+                          type: 'hint',
+                          treePath: '',
+                          externalPath: '',
+                          createdAt: '',
+                          updatedAt: ''
+                        }}
+                        depth={0}
+                        renderChildren={false}
+                        onHintClick={handleSelectFolder}
+                      />
+                    </div>
+                  )}
+                </NotesTreeContainer>
 
-                  {isDragOverSidebar && <DragOverIndicator />}
-                </SidebarContainer>
-              </NotesUIContext>
+                {isDragOverSidebar && <DragOverIndicator />}
+              </SidebarContainer>
             </NotesSearchContext>
           </NotesDragContext>
         </NotesEditingContext>

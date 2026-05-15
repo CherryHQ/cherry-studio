@@ -1,0 +1,628 @@
+/**
+ * Provider Service - handles provider CRUD operations
+ *
+ * Provides business logic for:
+ * - Provider CRUD operations
+ * - Row to Provider conversion
+ */
+
+import { application } from '@application'
+import { userModelTable } from '@data/db/schemas/userModel'
+import type { NewUserProvider, UserProvider } from '@data/db/schemas/userProvider'
+import { userProviderTable } from '@data/db/schemas/userProvider'
+import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
+import type { DbType } from '@data/db/types'
+import { pinService } from '@data/services/PinService'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
+import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
+import { loggerService } from '@logger'
+import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api'
+import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
+import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
+import type {
+  ApiKeyEntry,
+  AuthConfig,
+  AuthType,
+  Provider,
+  ProviderSettings,
+  RuntimeApiFeatures
+} from '@shared/data/types/provider'
+import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
+import { asc, eq } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
+
+const logger = loggerService.withContext('DataApi:ProviderService')
+
+type NewUserProviderInput = Omit<NewUserProvider, 'orderKey'>
+
+function normalizeApiKeyEntry(entry: ApiKeyEntry): ApiKeyEntry {
+  const key = entry.key.trim()
+  if (!key) {
+    throw DataApiErrorFactory.validation({ key: ['API key cannot be empty'] })
+  }
+
+  return {
+    id: entry.id,
+    key,
+    ...(entry.label ? { label: entry.label } : {}),
+    isEnabled: entry.isEnabled
+  }
+}
+
+function normalizeApiKeyEntries(apiKeys: ApiKeyEntry[]): ApiKeyEntry[] {
+  const seenKeys = new Set<string>()
+  const seenIds = new Set<string>()
+  return apiKeys.map((entry) => {
+    const normalized = normalizeApiKeyEntry(entry)
+    if (seenKeys.has(normalized.key)) {
+      throw DataApiErrorFactory.conflict('API key already exists', 'API key')
+    }
+    if (seenIds.has(normalized.id)) {
+      throw DataApiErrorFactory.conflict('API key id already exists', 'API key')
+    }
+    seenKeys.add(normalized.key)
+    seenIds.add(normalized.id)
+    return normalized
+  })
+}
+
+/**
+ * Convert database row to Provider entity
+ */
+function rowToRuntimeProvider(row: UserProvider): Provider {
+  const presetMetadata = providerRegistryService.getProviderDisplayMetadata(row.presetProviderId ?? row.providerId)
+
+  // Process API keys (strip actual key values for security)
+  // oxlint-disable-next-line no-unused-vars
+  const apiKeys = (row.apiKeys ?? []).map(({ key: _key, ...rest }) => rest)
+
+  // Determine auth type
+  let authType: AuthType = 'api-key'
+  if (row.authConfig?.type) {
+    authType = row.authConfig.type
+  }
+
+  // Merge API features
+  const apiFeatures: RuntimeApiFeatures = {
+    ...DEFAULT_API_FEATURES,
+    ...row.apiFeatures
+  }
+
+  // Merge settings
+  const settings: ProviderSettings = {
+    ...DEFAULT_PROVIDER_SETTINGS,
+    ...(row.providerSettings as Partial<ProviderSettings> | null)
+  }
+
+  return {
+    id: row.providerId,
+    presetProviderId: row.presetProviderId ?? undefined,
+    name: row.name,
+    description: presetMetadata.description,
+    websites: presetMetadata.websites,
+    endpointConfigs: row.endpointConfigs ?? undefined,
+    defaultChatEndpoint: row.defaultChatEndpoint ?? undefined,
+    apiKeys,
+    authType,
+    apiFeatures,
+    settings,
+    isEnabled: row.isEnabled
+  }
+}
+
+class ProviderService {
+  private apiKeyMutationQueues = new Map<string, Promise<void>>()
+
+  private async runApiKeyMutation<T>(providerId: string, operation: () => Promise<T>): Promise<T> {
+    const previous = this.apiKeyMutationQueues.get(providerId) ?? Promise.resolve()
+    let release!: () => void
+    const current = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const queued = previous.then(
+      () => current,
+      () => current
+    )
+
+    this.apiKeyMutationQueues.set(providerId, queued)
+
+    try {
+      await previous.catch(() => undefined)
+      return await operation()
+    } finally {
+      release()
+      if (this.apiKeyMutationQueues.get(providerId) === queued) {
+        this.apiKeyMutationQueues.delete(providerId)
+      }
+    }
+  }
+
+  private rethrowOrderError(error: unknown): never {
+    if (
+      error instanceof DataApiError &&
+      error.code === ErrorCode.NOT_FOUND &&
+      error.details?.resource === 'user_provider'
+    ) {
+      throw DataApiErrorFactory.notFound('Provider', error.details.id)
+    }
+
+    throw error
+  }
+
+  /**
+   * List providers with optional filters
+   */
+  async list(query: ListProvidersQuery): Promise<Provider[]> {
+    const db = application.get('DbService').getDb()
+
+    let rows: UserProvider[]
+
+    if (query.enabled !== undefined) {
+      rows = await db
+        .select()
+        .from(userProviderTable)
+        .where(eq(userProviderTable.isEnabled, query.enabled))
+        .orderBy(asc(userProviderTable.orderKey))
+    } else {
+      rows = await db.select().from(userProviderTable).orderBy(asc(userProviderTable.orderKey))
+    }
+
+    return rows.map(rowToRuntimeProvider)
+  }
+
+  /**
+   * Get a provider by its provider ID
+   */
+  async getByProviderId(providerId: string): Promise<Provider> {
+    const db = application.get('DbService').getDb()
+    const [row] = await db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1)
+
+    if (!row) {
+      throw DataApiErrorFactory.notFound('Provider', providerId)
+    }
+
+    return rowToRuntimeProvider(row)
+  }
+
+  /**
+   * Create a new provider
+   */
+  async create(dto: CreateProviderDto): Promise<Provider> {
+    const db = application.get('DbService').getDb()
+
+    const values: NewUserProviderInput = {
+      providerId: dto.providerId,
+      presetProviderId: dto.presetProviderId ?? null,
+      name: dto.name,
+      endpointConfigs: dto.endpointConfigs ?? null,
+      defaultChatEndpoint: dto.defaultChatEndpoint ?? null,
+      apiKeys: dto.apiKeys ?? [],
+      authConfig: dto.authConfig ?? null,
+      apiFeatures: dto.apiFeatures ?? null,
+      providerSettings: dto.providerSettings ?? null
+    }
+
+    const row = await withSqliteErrors(
+      async () =>
+        await db.transaction(async (tx) => {
+          return (await insertWithOrderKey(tx, userProviderTable, values, {
+            pkColumn: userProviderTable.providerId
+          })) as UserProvider
+        }),
+      {
+        unique: () => DataApiErrorFactory.conflict(`Provider '${dto.providerId}' already exists`, 'Provider')
+      } satisfies SqliteErrorHandlers
+    )
+
+    logger.info('Created provider', { providerId: dto.providerId })
+
+    return rowToRuntimeProvider(row)
+  }
+
+  /**
+   * Update an existing provider
+   */
+  async update(providerId: string, dto: UpdateProviderDto): Promise<Provider> {
+    const db = application.get('DbService').getDb()
+
+    // Build update object
+    const updates: Partial<NewUserProvider> = {}
+
+    if (dto.name !== undefined) updates.name = dto.name
+    if (dto.endpointConfigs !== undefined) updates.endpointConfigs = dto.endpointConfigs
+    if (dto.defaultChatEndpoint !== undefined) updates.defaultChatEndpoint = dto.defaultChatEndpoint
+    if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
+    if (dto.apiFeatures !== undefined) updates.apiFeatures = dto.apiFeatures
+    if (dto.providerSettings !== undefined) updates.providerSettings = dto.providerSettings
+    if (dto.isEnabled !== undefined) updates.isEnabled = dto.isEnabled
+
+    const [row] = await db
+      .update(userProviderTable)
+      .set(updates)
+      .where(eq(userProviderTable.providerId, providerId))
+      .returning()
+
+    if (!row) {
+      throw DataApiErrorFactory.notFound('Provider', providerId)
+    }
+
+    logger.info('Updated provider', { providerId, changes: Object.keys(dto) })
+
+    return rowToRuntimeProvider(row)
+  }
+
+  /**
+   * Batch insert providers (used by PresetProviderSeeder for preset seeding).
+   * Insert-only — existing providers are filtered out before order keys are assigned.
+   * All user-customizable fields are preserved.
+   */
+  async batchUpsert(providers: NewUserProviderInput[]): Promise<void> {
+    if (providers.length === 0) return
+
+    const db = application.get('DbService').getDb()
+    const insertedCount = await db.transaction((tx) => this.batchUpsertTx(tx, providers))
+
+    logger.info('Batch upserted providers', { insertedCount })
+  }
+
+  async batchUpsertTx(tx: Pick<DbType, 'select' | 'insert'>, providers: NewUserProviderInput[]): Promise<number> {
+    const existing = await tx.select({ providerId: userProviderTable.providerId }).from(userProviderTable)
+    const existingIds = new Set(existing.map((row) => row.providerId))
+    const newProviders = providers.filter((provider) => !existingIds.has(provider.providerId))
+
+    if (newProviders.length === 0) return 0
+
+    await insertManyWithOrderKey(tx, userProviderTable, newProviders, {
+      pkColumn: userProviderTable.providerId
+    })
+    return newProviders.length
+  }
+
+  /**
+   * Get a rotated API key for a provider (round-robin across enabled keys).
+   * Returns empty string for providers that don't have keys.
+   */
+  async getRotatedApiKey(providerId: string): Promise<string> {
+    const db = application.get('DbService').getDb()
+    const [row] = await db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1)
+
+    if (!row) {
+      throw DataApiErrorFactory.notFound('Provider', providerId)
+    }
+
+    const enabledKeys = (row.apiKeys ?? []).filter((k) => k.isEnabled)
+
+    if (enabledKeys.length === 0) {
+      return ''
+    }
+
+    if (enabledKeys.length === 1) {
+      return enabledKeys[0].key
+    }
+
+    // Round-robin using CacheService
+    const cache = application.get('CacheService')
+    const cacheKey = `settings.provider.${providerId}.last_used_key_id`
+    const lastUsedKeyId = cache.get<string>(cacheKey)
+
+    if (!lastUsedKeyId) {
+      cache.set(cacheKey, enabledKeys[0].id)
+      return enabledKeys[0].key
+    }
+
+    const currentIndex = enabledKeys.findIndex((k) => k.id === lastUsedKeyId)
+    const nextIndex = (currentIndex + 1) % enabledKeys.length
+    const nextKey = enabledKeys[nextIndex]
+    cache.set(cacheKey, nextKey.id)
+
+    return nextKey.key
+  }
+
+  /**
+   * Get API keys for a provider.
+   *
+   * Pass `{ enabled: true }` to filter to enabled keys only (e.g. health check
+   * iteration, rotation consumers); omit it to get all keys (settings management
+   * UI that needs to preserve disabled entries).
+   */
+  async getApiKeys(providerId: string, options: { enabled?: boolean } = {}): Promise<ApiKeyEntry[]> {
+    const db = application.get('DbService').getDb()
+    const [row] = await db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1)
+
+    if (!row) {
+      throw DataApiErrorFactory.notFound('Provider', providerId)
+    }
+
+    const apiKeys = row.apiKeys ?? []
+    return options.enabled ? apiKeys.filter((k) => k.isEnabled) : apiKeys
+  }
+
+  /**
+   * Get full auth config (includes sensitive credentials).
+   */
+  async getAuthConfig(providerId: string): Promise<AuthConfig | null> {
+    const db = application.get('DbService').getDb()
+    const [row] = await db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1)
+
+    if (!row) {
+      throw DataApiErrorFactory.notFound('Provider', providerId)
+    }
+
+    return row.authConfig ?? null
+  }
+
+  /**
+   * Add an API key to a provider. Skips if the key value already exists.
+   * Returns the updated Provider.
+   */
+  async addApiKey(providerId: string, key: string, label?: string): Promise<Provider> {
+    const { provider, added } = await this.runApiKeyMutation(providerId, async () => {
+      const db = application.get('DbService').getDb()
+      return await db.transaction(async (tx) => {
+        const [row] = await tx
+          .select()
+          .from(userProviderTable)
+          .where(eq(userProviderTable.providerId, providerId))
+          .limit(1)
+
+        if (!row) {
+          throw DataApiErrorFactory.notFound('Provider', providerId)
+        }
+
+        const existingKeys = row.apiKeys ?? []
+
+        // Skip if key value already exists
+        if (existingKeys.some((k) => k.key === key)) {
+          return { provider: rowToRuntimeProvider(row), added: false }
+        }
+
+        const newEntry = {
+          id: uuidv4(),
+          key,
+          ...(label ? { label } : {}),
+          isEnabled: true
+        }
+
+        const updatedKeys = [...existingKeys, newEntry]
+
+        const [updated] = await tx
+          .update(userProviderTable)
+          .set({ apiKeys: updatedKeys })
+          .where(eq(userProviderTable.providerId, providerId))
+          .returning()
+
+        return { provider: rowToRuntimeProvider(updated), added: true }
+      })
+    })
+
+    if (added) {
+      logger.info('Added API key to provider', { providerId })
+    } else {
+      logger.info('API key already exists, skipping', { providerId })
+    }
+
+    return provider
+  }
+
+  /**
+   * Replace the full API key list via the dedicated API-key resource.
+   */
+  async replaceApiKeys(providerId: string, apiKeys: ApiKeyEntry[]): Promise<Provider> {
+    const normalizedApiKeys = normalizeApiKeyEntries(apiKeys)
+    const provider = await this.runApiKeyMutation(providerId, async () => {
+      const db = application.get('DbService').getDb()
+      return await db.transaction(async (tx) => {
+        const [row] = await tx
+          .update(userProviderTable)
+          .set({ apiKeys: normalizedApiKeys })
+          .where(eq(userProviderTable.providerId, providerId))
+          .returning()
+
+        if (!row) {
+          throw DataApiErrorFactory.notFound('Provider', providerId)
+        }
+
+        return rowToRuntimeProvider(row)
+      })
+    })
+
+    logger.info('Replaced provider API keys', { providerId, count: normalizedApiKeys.length })
+
+    return provider
+  }
+
+  /**
+   * Update a single API key entry by key ID.
+   */
+  async updateApiKey(
+    providerId: string,
+    keyId: string,
+    updates: {
+      key?: string
+      label?: string
+      isEnabled?: boolean
+    }
+  ): Promise<Provider> {
+    const provider = await this.runApiKeyMutation(providerId, async () => {
+      const db = application.get('DbService').getDb()
+      return await db.transaction(async (tx) => {
+        const [row] = await tx
+          .select()
+          .from(userProviderTable)
+          .where(eq(userProviderTable.providerId, providerId))
+          .limit(1)
+
+        if (!row) {
+          throw DataApiErrorFactory.notFound('Provider', providerId)
+        }
+
+        const existingKeys = row.apiKeys ?? []
+        const keyIndex = existingKeys.findIndex((entry) => entry.id === keyId)
+
+        if (keyIndex === -1) {
+          throw DataApiErrorFactory.notFound('API key', keyId)
+        }
+
+        const nextKeyValue = updates.key?.trim()
+        if (updates.key !== undefined && !nextKeyValue) {
+          throw DataApiErrorFactory.validation({ key: ['API key cannot be empty'] })
+        }
+
+        if (nextKeyValue && existingKeys.some((entry, index) => index !== keyIndex && entry.key === nextKeyValue)) {
+          throw DataApiErrorFactory.conflict('API key already exists', 'API key')
+        }
+
+        const updatedKeys = existingKeys.map((entry, index) => {
+          if (index !== keyIndex) {
+            return entry
+          }
+
+          const updatedEntry = {
+            ...entry,
+            ...(updates.isEnabled !== undefined ? { isEnabled: updates.isEnabled } : {}),
+            ...(nextKeyValue ? { key: nextKeyValue } : {})
+          }
+
+          if (updates.label !== undefined) {
+            if (updates.label) {
+              updatedEntry.label = updates.label
+            } else {
+              delete updatedEntry.label
+            }
+          }
+
+          return updatedEntry
+        })
+
+        const [updated] = await tx
+          .update(userProviderTable)
+          .set({ apiKeys: updatedKeys })
+          .where(eq(userProviderTable.providerId, providerId))
+          .returning()
+
+        return rowToRuntimeProvider(updated)
+      })
+    })
+
+    logger.info('Updated API key', { providerId, keyId, changes: Object.keys(updates) })
+
+    return provider
+  }
+
+  /**
+   * Delete an API key by key ID and return updated provider.
+   */
+  async deleteApiKey(providerId: string, keyId: string): Promise<Provider> {
+    const provider = await this.runApiKeyMutation(providerId, async () => {
+      const db = application.get('DbService').getDb()
+      return await db.transaction(async (tx) => {
+        const [row] = await tx
+          .select()
+          .from(userProviderTable)
+          .where(eq(userProviderTable.providerId, providerId))
+          .limit(1)
+
+        if (!row) {
+          throw DataApiErrorFactory.notFound('Provider', providerId)
+        }
+
+        const existingKeys = row.apiKeys ?? []
+        const updatedKeys = existingKeys.filter((entry) => entry.id !== keyId)
+
+        if (updatedKeys.length === existingKeys.length) {
+          throw DataApiErrorFactory.notFound('API key', keyId)
+        }
+
+        const [updated] = await tx
+          .update(userProviderTable)
+          .set({ apiKeys: updatedKeys })
+          .where(eq(userProviderTable.providerId, providerId))
+          .returning()
+
+        return rowToRuntimeProvider(updated)
+      })
+    })
+
+    logger.info('Deleted API key from provider', { providerId, keyId })
+
+    return provider
+  }
+
+  /**
+   * Delete a provider. Canonical preset providers (where providerId === presetProviderId)
+   * cannot be deleted. User-created providers that inherit from a preset can be deleted.
+   */
+  async delete(providerId: string): Promise<void> {
+    const db = application.get('DbService').getDb()
+
+    await db.transaction(async (tx) => {
+      const [provider] = await tx
+        .select({ presetProviderId: userProviderTable.presetProviderId })
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, providerId))
+        .limit(1)
+
+      if (!provider) {
+        throw DataApiErrorFactory.notFound('Provider', providerId)
+      }
+
+      if (provider.presetProviderId && provider.presetProviderId === providerId) {
+        throw DataApiErrorFactory.invalidOperation(`Cannot delete preset provider '${providerId}'`)
+      }
+
+      const models = await tx
+        .select({ id: userModelTable.id })
+        .from(userModelTable)
+        .where(eq(userModelTable.providerId, providerId))
+
+      await pinService.purgeForEntitiesTx(
+        tx,
+        'model',
+        models.map((model) => model.id)
+      )
+
+      const deleted = await tx
+        .delete(userProviderTable)
+        .where(eq(userProviderTable.providerId, providerId))
+        .returning({ providerId: userProviderTable.providerId })
+
+      if (deleted.length === 0) {
+        throw DataApiErrorFactory.notFound('Provider', providerId)
+      }
+    })
+
+    logger.info('Deleted provider', { providerId })
+  }
+
+  async move(providerId: string, anchor: OrderRequest): Promise<void> {
+    const db = application.get('DbService').getDb()
+
+    try {
+      await db.transaction(async (tx) => {
+        await applyMoves(tx, userProviderTable, [{ id: providerId, anchor }], {
+          pkColumn: userProviderTable.providerId
+        })
+      })
+    } catch (error) {
+      this.rethrowOrderError(error)
+    }
+    logger.info('Moved provider', { providerId, anchor })
+  }
+
+  async reorder(moves: OrderBatchRequest['moves']): Promise<void> {
+    const db = application.get('DbService').getDb()
+
+    try {
+      await db.transaction(async (tx) => {
+        await applyMoves(tx, userProviderTable, moves, {
+          pkColumn: userProviderTable.providerId
+        })
+      })
+    } catch (error) {
+      this.rethrowOrderError(error)
+    }
+    logger.info('Reordered providers', { count: moves.length })
+  }
+}
+
+export const providerService = new ProviderService()

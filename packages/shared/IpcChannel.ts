@@ -2,19 +2,12 @@ export enum IpcChannel {
   App_GetCacheSize = 'app:get-cache-size',
   App_ClearCache = 'app:clear-cache',
   App_SetLaunchOnBoot = 'app:set-launch-on-boot',
-  App_SetLanguage = 'app:set-language',
   App_SetEnableSpellCheck = 'app:set-enable-spell-check',
   App_SetSpellCheckLanguages = 'app:set-spell-check-languages',
   App_CheckForUpdate = 'app:check-for-update',
   App_QuitAndInstall = 'app:quit-and-install',
-  App_Reload = 'app:reload',
-  App_Quit = 'app:quit',
+  Application_Quit = 'application:quit',
   App_Info = 'app:info',
-  App_Proxy = 'app:proxy',
-  App_SetLaunchToTray = 'app:set-launch-to-tray',
-  App_SetTray = 'app:set-tray',
-  App_SetTrayOnClose = 'app:set-tray-on-close',
-  App_SetTheme = 'app:set-theme',
   App_SetAutoUpdate = 'app:set-auto-update',
   App_SetTestPlan = 'app:set-test-plan',
   App_SetTestChannel = 'app:set-test-channel',
@@ -24,12 +17,13 @@ export enum IpcChannel {
   App_ResolvePath = 'app:resolve-path',
   App_IsPathInside = 'app:is-path-inside',
   App_Copy = 'app:copy',
-  App_SetStopQuitApp = 'app:set-stop-quit-app',
+  Application_PreventQuit = 'application:prevent-quit',
+  Application_AllowQuit = 'application:allow-quit',
   App_SetAppDataPath = 'app:set-app-data-path',
   App_GetDataPathFromArgs = 'app:get-data-path-from-args',
   App_FlushAppData = 'app:flush-app-data',
   App_IsNotEmptyDir = 'app:is-not-empty-dir',
-  App_RelaunchApp = 'app:relaunch-app',
+  Application_Relaunch = 'application:relaunch',
   App_ResetData = 'app:reset-data',
   App_IsBinaryExist = 'app:is-binary-exist',
   App_GetBinaryPath = 'app:get-binary-path',
@@ -37,20 +31,14 @@ export enum IpcChannel {
   App_InstallBunBinary = 'app:install-bun-binary',
   App_InstallOvmsBinary = 'app:install-ovms-binary',
   App_LogToMain = 'app:log-to-main',
-  App_SaveData = 'app:save-data',
   App_GetDiskInfo = 'app:get-disk-info',
-  App_SetFullScreen = 'app:set-full-screen',
-  App_IsFullScreen = 'app:is-full-screen',
   App_GetSystemFonts = 'app:get-system-fonts',
   App_GetIpCountry = 'app:get-ip-country',
-  APP_CrashRenderProcess = 'app:crash-render-process',
 
   App_MacIsProcessTrusted = 'app:mac-is-process-trusted',
   App_MacRequestProcessTrust = 'app:mac-request-process-trust',
 
   App_QuoteToMain = 'app:quote-to-main',
-  App_SetDisableHardwareAcceleration = 'app:set-disable-hardware-acceleration',
-  App_SetUseSystemTitleBar = 'app:set-use-system-title-bar',
 
   Notification_Send = 'notification:send',
   Notification_OnClick = 'notification:on-click',
@@ -65,16 +53,18 @@ export enum IpcChannel {
   Open_Path = 'open:path',
   Open_Website = 'open:website',
 
-  Minapp = 'minapp',
+  MiniApp = 'mini-app',
 
   Config_Set = 'config:set',
   Config_Get = 'config:get',
 
-  MiniWindow_Show = 'miniwindow:show',
-  MiniWindow_Hide = 'miniwindow:hide',
-  MiniWindow_Close = 'miniwindow:close',
-  MiniWindow_Toggle = 'miniwindow:toggle',
-  MiniWindow_SetPin = 'miniwindow:set-pin',
+  // Quick Assistant
+  QuickAssistant_Show = 'quick-assistant:show',
+  QuickAssistant_Hide = 'quick-assistant:hide',
+  QuickAssistant_Close = 'quick-assistant:close',
+  QuickAssistant_Toggle = 'quick-assistant:toggle',
+  QuickAssistant_SetPin = 'quick-assistant:set-pin',
+  QuickAssistant_Shown = 'quick-assistant:shown',
 
   // Mcp
   Mcp_AddServer = 'mcp:add-server',
@@ -100,6 +90,8 @@ export enum IpcChannel {
   Mcp_ServerLog = 'mcp:server-log',
   // Python
   Python_Execute = 'python:execute',
+  Python_ExecutionRequest = 'python:execution-request',
+  Python_ExecutionResponse = 'python:execution-response',
 
   // agent messages
   AgentMessage_PersistExchange = 'agent-message:persist-exchange',
@@ -143,7 +135,9 @@ export enum IpcChannel {
   CherryIN_GetBalance = 'cherryin:get-balance',
   CherryIN_Logout = 'cherryin:logout',
   CherryIN_StartOAuthFlow = 'cherryin:start-oauth-flow',
-  CherryIN_ExchangeToken = 'cherryin:exchange-token',
+  // Main → renderer push: OAuth callback result, addressed to the flow initiator
+  // captured at startOAuthFlow time. Replaces the renderer-pulled exchange-token IPC.
+  CherryIN_OAuthResult = 'cherryin:oauth-result',
 
   // obsidian
   Obsidian_GetVaults = 'obsidian:get-vaults',
@@ -169,17 +163,29 @@ export enum IpcChannel {
   VertexAI_GetAccessToken = 'vertexai:get-access-token',
   VertexAI_ClearAuthCache = 'vertexai:clear-auth-cache',
 
-  Windows_ResetMinimumSize = 'window:reset-minimum-size',
-  Windows_SetMinimumSize = 'window:set-minimum-size',
-  Windows_Resize = 'window:resize',
-  Windows_GetSize = 'window:get-size',
-  Windows_Minimize = 'window:minimize',
-  Windows_Maximize = 'window:maximize',
-  Windows_Unmaximize = 'window:unmaximize',
-  Windows_Close = 'window:close',
-  Windows_IsMaximized = 'window:is-maximized',
-  Windows_MaximizedChanged = 'window:maximized-changed',
-  Windows_NavigateToAbout = 'window:navigate-to-about',
+  // MainWindow: handlers in MainWindowService, operate on main window only.
+  MainWindow_Reload = 'main-window:reload',
+  MainWindow_CrashRenderProcess = 'main-window:crash-render-process',
+  MainWindow_ResetMinimumSize = 'main-window:reset-minimum-size',
+  MainWindow_SetMinimumSize = 'main-window:set-minimum-size',
+  /**
+   * @deprecated Point-to-point navigation IPC.
+   * Slated for removal in v2 — planned replacement is a unified
+   * `MainWindow_Navigate(path)` channel (or v2 router-level protocol).
+   * Do not add more single-route channels of this shape.
+   */
+  MainWindow_NavigateToAbout = 'main-window:navigate-to-about',
+  /** @deprecated See MainWindow_NavigateToAbout above. */
+  MainWindow_NavigateToSettings = 'main-window:navigate-to-settings',
+
+  Shortcut_RegistrationConflict = 'shortcut:registration-conflict',
+
+  // Tab
+  Tab_Attach = 'tab:attach',
+  Tab_Detach = 'tab:detach',
+  Tab_MoveWindow = 'tab:move-window',
+  Tab_TryAttach = 'tab:try-attach',
+  Tab_DragEnd = 'tab:drag-end',
 
   KnowledgeBase_Create = 'knowledge-base:create',
   KnowledgeBase_Reset = 'knowledge-base:reset',
@@ -188,6 +194,20 @@ export enum IpcChannel {
   KnowledgeBase_Remove = 'knowledge-base:remove',
   KnowledgeBase_Search = 'knowledge-base:search',
   KnowledgeBase_Rerank = 'knowledge-base:rerank',
+  KnowledgeRuntime_CreateBase = 'knowledge-runtime:create-base',
+  KnowledgeRuntime_RestoreBase = 'knowledge-runtime:restore-base',
+  KnowledgeRuntime_DeleteBase = 'knowledge-runtime:delete-base',
+  KnowledgeRuntime_AddItems = 'knowledge-runtime:add-items',
+  KnowledgeRuntime_DeleteItems = 'knowledge-runtime:delete-items',
+  KnowledgeRuntime_ReindexItems = 'knowledge-runtime:reindex-items',
+  KnowledgeRuntime_Search = 'knowledge-runtime:search',
+  KnowledgeRuntime_ListItemChunks = 'knowledge-runtime:list-item-chunks',
+  KnowledgeRuntime_DeleteItemChunk = 'knowledge-runtime:delete-item-chunk',
+
+  FileProcessing_StartTask = 'file-processing:start-task',
+  FileProcessing_GetTask = 'file-processing:get-task',
+  FileProcessing_CancelTask = 'file-processing:cancel-task',
+  FileProcessing_ListAvailableProcessors = 'file-processing:list-available-processors',
 
   //file
   File_Open = 'file:open',
@@ -236,6 +256,9 @@ export enum IpcChannel {
   File_ResumeWatcher = 'file:resumeWatcher',
   File_BatchUploadMarkdown = 'file:batchUploadMarkdown',
   File_ShowInFolder = 'file:showInFolder',
+  // FileManager v2 surface (Phase 1b.3)
+  File_GetDanglingState = 'file:getDanglingState',
+  File_BatchGetDanglingStates = 'file:batchGetDanglingStates',
 
   // PDF
   Pdf_ExtractText = 'pdf:extractText',
@@ -247,8 +270,6 @@ export enum IpcChannel {
   FileService_Retrieve = 'file-service:retrieve',
 
   Export_Word = 'export:word',
-
-  Shortcuts_Update = 'shortcuts:update',
 
   // backup
   Backup_Backup = 'backup:backup',
@@ -271,6 +292,20 @@ export enum IpcChannel {
   Backup_CreateLanTransferBackup = 'backup:createLanTransferBackup',
   Backup_DeleteLanTransferBackup = 'backup:deleteLanTransferBackup',
 
+  // data migration
+  DataMigrate_CheckNeeded = 'data-migrate:check-needed',
+  DataMigrate_GetProgress = 'data-migrate:get-progress',
+  DataMigrate_Cancel = 'data-migrate:cancel',
+  DataMigrate_RequireBackup = 'data-migrate:require-backup',
+  DataMigrate_BackupCompleted = 'data-migrate:backup-completed',
+  DataMigrate_ShowBackupDialog = 'data-migrate:show-backup-dialog',
+  DataMigrate_StartFlow = 'data-migrate:start-flow',
+  DataMigrate_ProceedToBackup = 'data-migrate:proceed-to-backup',
+  DataMigrate_StartMigration = 'data-migrate:start-migration',
+  DataMigrate_RetryMigration = 'data-migrate:retry-migration',
+  DataMigrate_RestartApp = 'data-migrate:restart-app',
+  DataMigrate_CloseWindow = 'data-migrate:close-window',
+
   // zip
   Zip_Compress = 'zip:compress',
   Zip_Decompress = 'zip:decompress',
@@ -289,7 +324,8 @@ export enum IpcChannel {
 
   // events
   BackupProgress = 'backup-progress',
-  ThemeUpdated = 'theme:updated',
+  DataMigrateProgress = 'data-migrate-progress',
+  NativeThemeUpdated = 'native-theme:updated',
   RestoreProgress = 'restore-progress',
   UpdateError = 'update-error',
   UpdateAvailable = 'update-available',
@@ -300,26 +336,17 @@ export enum IpcChannel {
 
   DirectoryProcessingPercent = 'directory-processing-percent',
 
-  FullscreenStatusChanged = 'fullscreen-status-changed',
-
-  HideMiniWindow = 'hide-mini-window',
-  ShowMiniWindow = 'show-mini-window',
-
-  ReduxStoreReady = 'redux-store-ready',
-
   // Search Window
   SearchWindow_Open = 'search-window:open',
   SearchWindow_Close = 'search-window:close',
   SearchWindow_OpenUrl = 'search-window:open-url',
 
-  //Store Sync
-  StoreSync_Subscribe = 'store-sync:subscribe',
-  StoreSync_Unsubscribe = 'store-sync:unsubscribe',
-  StoreSync_OnUpdate = 'store-sync:on-update',
-  StoreSync_BroadcastSync = 'store-sync:broadcast-sync',
-
   // Provider
   Provider_AddKey = 'provider:add-key',
+
+  // Web Search
+  WebSearch_SearchKeywords = 'web-search:search-keywords',
+  WebSearch_FetchUrls = 'web-search:fetch-urls',
 
   //Selection Assistant
   Selection_TextSelected = 'selection:text-selected',
@@ -327,31 +354,29 @@ export enum IpcChannel {
   Selection_ToolbarVisibilityChange = 'selection:toolbar-visibility-change',
   Selection_ToolbarDetermineSize = 'selection:toolbar-determine-size',
   Selection_WriteToClipboard = 'selection:write-to-clipboard',
-  Selection_SetEnabled = 'selection:set-enabled',
-  Selection_SetTriggerMode = 'selection:set-trigger-mode',
-  Selection_SetFilterMode = 'selection:set-filter-mode',
-  Selection_SetFilterList = 'selection:set-filter-list',
-  Selection_SetFollowToolbar = 'selection:set-follow-toolbar',
-  Selection_SetRemeberWinSize = 'selection:set-remeber-win-size',
-  Selection_ActionWindowClose = 'selection:action-window-close',
-  Selection_ActionWindowMinimize = 'selection:action-window-minimize',
   Selection_ActionWindowPin = 'selection:action-window-pin',
   Selection_ProcessAction = 'selection:process-action',
-  Selection_UpdateActionData = 'selection:update-action-data',
   Selection_GetLinuxEnvInfo = 'selection:get-linux-env-info',
 
-  // Memory
-  Memory_Add = 'memory:add',
-  Memory_Search = 'memory:search',
-  Memory_List = 'memory:list',
-  Memory_Delete = 'memory:delete',
-  Memory_Update = 'memory:update',
-  Memory_Get = 'memory:get',
-  Memory_SetConfig = 'memory:set-config',
-  Memory_DeleteUser = 'memory:delete-user',
-  Memory_DeleteAllMemoriesForUser = 'memory:delete-all-memories-for-user',
-  Memory_GetUsersList = 'memory:get-users-list',
-  Memory_MigrateMemoryDb = 'memory:migrate-memory-db',
+  // Data: Preference
+  Preference_Get = 'preference:get',
+  Preference_Set = 'preference:set',
+  Preference_GetMultipleRaw = 'preference:get-multiple-raw',
+  Preference_SetMultiple = 'preference:set-multiple',
+  Preference_GetAll = 'preference:get-all',
+  Preference_Subscribe = 'preference:subscribe',
+  Preference_Changed = 'preference:changed',
+
+  // Data: Cache
+  Cache_Sync = 'cache:sync',
+  Cache_SyncBatch = 'cache:sync-batch',
+  Cache_GetAllShared = 'cache:get-all-shared',
+
+  // Data: API Channels
+  DataApi_Request = 'data-api:request',
+  DataApi_Subscribe = 'data-api:subscribe',
+  DataApi_Unsubscribe = 'data-api:unsubscribe',
+  DataApi_Stream = 'data-api:stream',
 
   // TRACE
   TRACE_SAVE_DATA = 'trace:saveData',
@@ -388,12 +413,12 @@ export enum IpcChannel {
   // ExternalApps
   ExternalApps_DetectInstalled = 'external-apps:detect-installed',
 
-  // CodeTools
-  CodeTools_Run = 'code-tools:run',
-  CodeTools_GetAvailableTerminals = 'code-tools:get-available-terminals',
-  CodeTools_SetCustomTerminalPath = 'code-tools:set-custom-terminal-path',
-  CodeTools_GetCustomTerminalPath = 'code-tools:get-custom-terminal-path',
-  CodeTools_RemoveCustomTerminalPath = 'code-tools:remove-custom-terminal-path',
+  // CodeCli
+  CodeCli_Run = 'code-cli:run',
+  CodeCli_GetAvailableTerminals = 'code-cli:get-available-terminals',
+  CodeCli_SetCustomTerminalPath = 'code-cli:set-custom-terminal-path',
+  CodeCli_GetCustomTerminalPath = 'code-cli:get-custom-terminal-path',
+  CodeCli_RemoveCustomTerminalPath = 'code-cli:remove-custom-terminal-path',
 
   // OCR
   OCR_ocr = 'ocr:ocr',
@@ -423,16 +448,16 @@ export enum IpcChannel {
   Skill_ListFiles = 'skill:list-files',
   Skill_ListLocal = 'skill:list-local',
 
-  // Local Transfer
-  LocalTransfer_ListServices = 'local-transfer:list',
-  LocalTransfer_StartScan = 'local-transfer:start-scan',
-  LocalTransfer_StopScan = 'local-transfer:stop-scan',
-  LocalTransfer_ServicesUpdated = 'local-transfer:services-updated',
-  LocalTransfer_Connect = 'local-transfer:connect',
-  LocalTransfer_Disconnect = 'local-transfer:disconnect',
-  LocalTransfer_ClientEvent = 'local-transfer:client-event',
-  LocalTransfer_SendFile = 'local-transfer:send-file',
-  LocalTransfer_CancelTransfer = 'local-transfer:cancel-transfer',
+  // LAN Transfer
+  LanTransfer_ListServices = 'lan-transfer:list',
+  LanTransfer_StartScan = 'lan-transfer:start-scan',
+  LanTransfer_StopScan = 'lan-transfer:stop-scan',
+  LanTransfer_ServicesUpdated = 'lan-transfer:services-updated',
+  LanTransfer_Connect = 'lan-transfer:connect',
+  LanTransfer_Disconnect = 'lan-transfer:disconnect',
+  LanTransfer_ClientEvent = 'lan-transfer:client-event',
+  LanTransfer_SendFile = 'lan-transfer:send-file',
+  LanTransfer_CancelTransfer = 'lan-transfer:cancel-transfer',
 
   // OpenClaw
   OpenClaw_CheckInstalled = 'openclaw:check-installed',
@@ -450,5 +475,42 @@ export enum IpcChannel {
   OpenClaw_PerformUpdate = 'openclaw:perform-update',
 
   // Analytics
-  Analytics_TrackTokenUsage = 'analytics:track-token-usage'
+  Analytics_TrackTokenUsage = 'analytics:track-token-usage',
+
+  // WindowManager
+  SettingsWindow_Open = 'settings-window:open',
+  WindowManager_Open = 'window-manager:open',
+  WindowManager_Close = 'window-manager:close',
+  WindowManager_Minimize = 'window-manager:minimize',
+  WindowManager_Maximize = 'window-manager:maximize',
+  WindowManager_Unmaximize = 'window-manager:unmaximize',
+  WindowManager_SetFullScreen = 'window-manager:set-full-screen',
+  WindowManager_IsMaximized = 'window-manager:is-maximized',
+  WindowManager_IsFullScreen = 'window-manager:is-full-screen',
+  WindowManager_GetInitData = 'window-manager:get-init-data',
+  // All three below are sent only to the originating window's webContents.
+  // macOS unreliable for maximize/unmaximize (electron#3325, #28699) — use FullscreenChanged on macOS.
+  WindowManager_MaximizedChanged = 'window-manager:maximized-changed',
+  // OS-level only; does NOT cover HTML5 element.requestFullscreen() or macOS setSimpleFullScreen.
+  WindowManager_FullscreenChanged = 'window-manager:fullscreen-changed',
+  // Payload = the initData passed to open(); omitted if none supplied, not fired on fresh creation.
+  WindowManager_Reused = 'window-manager:reused',
+
+  // Agent operations
+  Agent_RunTask = 'agent:run-task',
+  Agent_GetModels = 'agent:get-models',
+  Agent_ListTools = 'agent:list-tools'
+
+  // ──────────────────────────────────────────────────────────────
+  // TODO(v2): the following IPC channels are still referenced via
+  // bare string literals throughout the codebase and not declared
+  // as enum members. They should be collected here in a future
+  // cleanup pass so broadcastToType/invoke call sites get editor
+  // auto-complete and cross-reference support:
+  //
+  //   - 'notification-click'        (NotificationService + ipc.ts Notification_OnClick handler)
+  //   - 'protocol-data'             (ProtocolService + preload)
+  //   - 'file-preprocess-finished'  (PreprocessingService + KnowledgeService)
+  //   - 'file-preprocess-progress'  (BasePreprocessProvider)
+  // ──────────────────────────────────────────────────────────────
 }

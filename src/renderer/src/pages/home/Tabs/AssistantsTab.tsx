@@ -3,10 +3,11 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
-import { useTags } from '@renderer/hooks/useTags'
+import { useTags } from '@renderer/hooks/useTagsLegacy'
 import type { RootState } from '@renderer/store'
 import { useAppSelector } from '@renderer/store'
-import type { Assistant, AssistantsSortType } from '@renderer/types'
+import type { Assistant } from '@renderer/types'
+import type { AssistantTabSortType } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -126,8 +127,8 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
   )
 
   const handleSortByChange = useCallback(
-    (sortType: AssistantsSortType) => {
-      setAssistantsTabSortType(sortType)
+    (sortType: AssistantTabSortType) => {
+      void setAssistantsTabSortType(sortType)
     },
     [setAssistantsTabSortType]
   )

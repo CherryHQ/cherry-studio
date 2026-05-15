@@ -1,3 +1,4 @@
+import { Button } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { SelectChatModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import { isLocalAi } from '@renderer/config/env'
@@ -6,12 +7,11 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { Assistant, Model } from '@renderer/types'
-import { Button, Tag } from 'antd'
+import { Tag } from 'antd'
 import { ChevronsUpDown } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
   assistant: Assistant
@@ -25,8 +25,7 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
 
   const modelFilter = (model: Model) => !isEmbeddingModel(model) && !isRerankModel(model)
 
-  const onSelectModel = async (event: React.MouseEvent<HTMLElement>) => {
-    event.currentTarget.blur()
+  const onSelectModel = async () => {
     const selectedModel = await SelectChatModelPopup.show({ model, filter: modelFilter })
     if (selectedModel) {
       // 避免更新数据造成关闭弹框的卡顿
@@ -54,40 +53,21 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
   const providerName = getProviderName(model)
 
   return (
-    <DropdownButton size="small" type="text" onClick={onSelectModel}>
-      <ButtonContent>
-        <ModelAvatar model={model} size={20} />
-        <ModelName>
+    <Button
+      size="sm"
+      variant="ghost"
+      onClick={onSelectModel}
+      className="h-7 max-w-[min(360px,45vw)] rounded-md border border-transparent border-solid bg-transparent px-2 py-0 text-xs shadow-none">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <ModelAvatar model={model} size={18} />
+        <span className="min-w-0 truncate font-medium text-xs leading-none">
           {model ? model.name : t('button.select_model')} {providerName ? ' | ' + providerName : ''}
-        </ModelName>
-      </ButtonContent>
-      <ChevronsUpDown size={14} color="var(--color-icon)" />
+        </span>
+      </div>
+      <ChevronsUpDown size={13} className="text-muted-foreground" />
       {!provider && <Tag color="error">{t('models.invalid_model')}</Tag>}
-    </DropdownButton>
+    </Button>
   )
 }
-
-const DropdownButton = styled(Button)`
-  font-size: 11px;
-  border-radius: 15px;
-  padding: 13px 5px;
-  -webkit-app-region: none;
-  box-shadow: none;
-  background-color: transparent;
-  border: 1px solid transparent;
-  margin-top: 1px;
-`
-
-const ButtonContent = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-`
-
-const ModelName = styled.span`
-  font-weight: 500;
-  margin-right: -2px;
-  font-size: 12px;
-`
 
 export default SelectModelButton

@@ -1,7 +1,7 @@
-import { CopyOutlined } from '@ant-design/icons'
+import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tooltip } from '@cherrystudio/ui'
 import { DEFAULT_LANGUAGES, getHighlighter, getShiki } from '@renderer/utils/shiki'
 import { NodeViewContent, NodeViewWrapper, type ReactNodeViewProps, ReactNodeViewRenderer } from '@tiptap/react'
-import { Button, Select, Tooltip } from 'antd'
+import { Copy } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -59,22 +59,22 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
   return (
     <NodeViewWrapper className="code-block-wrapper">
       <div className="code-block-header">
-        <Select
-          size="small"
-          className="code-block-language-select"
-          value={language}
-          onChange={handleLanguageChange}
-          options={languageOptions.map((lang) => ({ value: lang, label: lang }))}
-          style={{ minWidth: 90 }}
-        />
-        <Tooltip title={t('common.copy')}>
-          <Button
-            size="small"
-            type="text"
-            icon={<CopyOutlined />}
-            className="code-block-copy-btn"
-            onClick={handleCopy}
-          />
+        <Select value={language} onValueChange={handleLanguageChange}>
+          <SelectTrigger size="sm" className="code-block-language-select min-w-[90px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {languageOptions.map((lang) => (
+              <SelectItem key={lang} value={lang}>
+                {lang}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Tooltip content={t('common.copy')}>
+          <Button size="icon-sm" variant="ghost" className="code-block-copy-btn" onClick={handleCopy}>
+            <Copy size={14} />
+          </Button>
         </Tooltip>
       </div>
       <pre className={`language-${language}`}>

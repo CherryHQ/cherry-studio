@@ -1,9 +1,9 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ContentSearch, type ContentSearchRef } from '@renderer/components/ContentSearch'
 import { MARKDOWN_SOURCE_LINE_ATTR } from '@renderer/components/RichEditor/constants'
 import DragHandle from '@tiptap/extension-drag-handle-react'
 import { EditorContent } from '@tiptap/react'
-import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, GripVertical, Plus, Trash2 } from 'lucide-react'
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
@@ -37,14 +37,12 @@ const logger = loggerService.withContext('RichEditor')
  * 3. Closest line <= target
  */
 function findElementByLine(editorDom: HTMLElement, lineNumber: number, lineContent?: string): HTMLElement | null {
-  const allElements = Array.from(editorDom.querySelectorAll(`[${MARKDOWN_SOURCE_LINE_ATTR}]`)) as HTMLElement[]
+  const allElements = Array.from(editorDom.querySelectorAll<HTMLElement>(`[${MARKDOWN_SOURCE_LINE_ATTR}]`))
   if (allElements.length === 0) {
     logger.warn('No elements with data-source-line attribute found')
     return null
   }
-  const exactMatches = editorDom.querySelectorAll(
-    `[${MARKDOWN_SOURCE_LINE_ATTR}="${lineNumber}"]`
-  ) as NodeListOf<HTMLElement>
+  const exactMatches = editorDom.querySelectorAll<HTMLElement>(`[${MARKDOWN_SOURCE_LINE_ATTR}="${lineNumber}"]`)
 
   // Strategy 1: Exact line + content match
   if (exactMatches.length > 1 && lineContent) {
@@ -583,12 +581,12 @@ const RichEditor = ({
         style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <StyledEditorContent>
           <PlusButton editor={editor} onElementClick={handlePlusButtonClick}>
-            <Tooltip title={t('richEditor.plusButton')}>
+            <Tooltip content={t('richEditor.plusButton')}>
               <Plus />
             </Tooltip>
           </PlusButton>
           <DragHandle editor={editor} onElementDragEnd={handleDragEnd}>
-            <Tooltip title={t('richEditor.dragHandle')}>
+            <Tooltip content={t('richEditor.dragHandle')}>
               <GripVertical />
             </Tooltip>
           </DragHandle>

@@ -1,10 +1,11 @@
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useApiServer } from '@renderer/hooks/useApiServer'
-import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -25,25 +26,25 @@ const AgentPage = () => {
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
   const { showTopics, toggleShowTopics } = useShowTopics()
   const { topicPosition } = useSettings()
-  const { chat } = useRuntime()
-  const { activeAgentId } = chat
+  const [activeAgentId] = useCache('agent.active_id')
   const { agents } = useAgents()
   const { setActiveAgentId } = useActiveAgent()
   const { apiServerConfig, apiServerRunning, apiServerLoading } = useApiServer()
   const { t } = useTranslation()
 
-  useShortcut('toggle_show_assistants', () => {
+  // TODO: Replace with sidebar toggle logic once the new sidebar UI is implemented
+  useShortcut('general.toggle_sidebar', () => {
     if (topicPosition === 'left') {
-      toggleShowAssistants()
+      void toggleShowAssistants()
       return
     }
 
     void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
   })
 
-  useShortcut('toggle_show_topics', () => {
+  useShortcut('topic.toggle_show_topics', () => {
     if (topicPosition === 'right') {
-      toggleShowTopics()
+      void toggleShowTopics()
     } else {
       void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
     }

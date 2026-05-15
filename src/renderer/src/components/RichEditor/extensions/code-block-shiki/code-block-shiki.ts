@@ -21,7 +21,7 @@ export const CodeBlockShiki = CodeBlock.extend<CodeBlockShikiOptions>({
       HTMLAttributes: {
         class: 'code-block-shiki'
       }
-    }
+    } as CodeBlockShikiOptions
   },
 
   addInputRules() {

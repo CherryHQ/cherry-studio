@@ -3,11 +3,16 @@
  * --------------------------------------------------------------------------
  * ⚠️ NOTICE: V2 DATA&UI REFACTORING (by 0xfullex)
  * --------------------------------------------------------------------------
- * STOP: Feature PRs affecting this file are currently BLOCKED.
- * Only critical bug fixes are accepted during this migration phase.
+ * Runtime reads / dispatches of this slice have all been migrated to
+ * `useCache('translate.*')` and `usePreference('feature.translate.*')`.
+ * It is retained (and still combined into the root reducer) for exactly one
+ * reason: the redux-persist migrations at versions 137 and 152 assign into
+ * `state.translate.*`, and removing the slice before a compatible persist
+ * version bump would break state rehydration for users upgrading from older
+ * versions. Final removal must land together with a migration that deletes
+ * `state.translate` from persisted state and a redux-persist version bump.
  *
- * This file is being refactored to v2 standards.
- * Any non-critical changes will conflict with the ongoing work.
+ * STOP: Do NOT add new actions, selectors, or field consumers here.
  *
  * 🔗 Context & Status:
  * - Contribution Hold: https://github.com/CherryHQ/cherry-studio/issues/10954
@@ -20,7 +25,6 @@ import { createSlice } from '@reduxjs/toolkit'
 export interface TranslateState {
   translateInput: string
   translatedContent: string
-  // TODO: #9749
   settings: {
     autoCopy: boolean
   }

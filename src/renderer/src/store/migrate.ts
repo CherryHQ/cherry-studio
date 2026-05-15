@@ -22,12 +22,11 @@ import {
   DEFAULT_TEMPERATURE,
   isMac
 } from '@renderer/config/constant'
-import { allMinApps } from '@renderer/config/minapps'
+import { allMiniApps } from '@renderer/config/miniApps'
 import { isFunctionCallingModel, isNotSupportTextDeltaModel, qwenModel, SYSTEM_MODELS } from '@renderer/config/models'
 import { BUILTIN_OCR_PROVIDERS, BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
-import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
-import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
+// import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import db from '@renderer/databases'
 import { getModel } from '@renderer/hooks/useModel'
 import i18n from '@renderer/i18n'
@@ -39,7 +38,6 @@ import type {
   Model,
   Provider,
   ProviderApiOptions,
-  TranslateLanguageCode,
   WebSearchProvider
 } from '@renderer/types'
 import { isBuiltinMCPServer, isSystemProvider, SystemProviderIds } from '@renderer/types'
@@ -50,7 +48,10 @@ import {
   isSupportStreamOptionsProvider
 } from '@renderer/utils/provider'
 import { API_SERVER_DEFAULTS } from '@shared/config/constant'
-import { defaultByPassRules, UpgradeChannel } from '@shared/config/constant'
+import { defaultByPassRules } from '@shared/config/constant'
+import { TRANSLATE_PROMPT } from '@shared/config/prompts'
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import { parseTranslateLangCode, type TranslateLangCode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
@@ -59,11 +60,10 @@ import { DEFAULT_TOOL_ORDER, DEFAULT_TOOL_ORDER_BY_SCOPE } from './inputTools'
 import { initialState as llmInitialState, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
 import { initialState as notesInitialState } from './note'
-import { defaultActionItems } from './selectionStore'
+// import { defaultActionItems } from './selectionStore'
 import { initialState as settingsInitialState } from './settings'
 import { initialState as shortcutsInitialState } from './shortcuts'
 import { defaultWebSearchProviders } from './websearch'
-
 const logger = loggerService.withContext('Migrate')
 
 // remove logo base64 data to reduce the size of the state
@@ -94,7 +94,7 @@ function removeMiniAppFromState(state: RootState, id: string) {
 
 function addMiniApp(state: RootState, id: string) {
   if (state.minapps) {
-    const app = allMinApps.find((app) => app.id === id)
+    const app = allMiniApps.find((app) => app.id === id)
     if (app) {
       if (!state.minapps.enabled.find((app) => app.id === id)) {
         state.minapps.enabled.push(app)
@@ -167,14 +167,15 @@ function updateWebSearchProvider(state: RootState, provider: Partial<WebSearchPr
 }
 
 function addSelectionAction(state: RootState, id: string) {
-  if (state.selectionStore && state.selectionStore.actionItems) {
-    if (!state.selectionStore.actionItems.some((item) => item.id === id)) {
-      const action = defaultActionItems.find((item) => item.id === id)
-      if (action) {
-        state.selectionStore.actionItems.push(action)
-      }
-    }
-  }
+  // if (state.selectionStore && state.selectionStore.actionItems) {
+  //   if (!state.selectionStore.actionItems.some((item) => item.id === id)) {
+  //     const action = defaultActionItems.find((item) => item.id === id)
+  //     if (action) {
+  //       state.selectionStore.actionItems.push(action)
+  //     }
+  //   }
+  // }
+  return [state, id]
 }
 
 /**
@@ -862,7 +863,7 @@ const migrateConfig = {
         })
       }
       state.settings.sidebarIcons = {
-        visible: DEFAULT_SIDEBAR_ICONS,
+        visible: DefaultPreferences.default['ui.sidebar.icons.visible'],
         disabled: []
       }
       return state
@@ -874,7 +875,7 @@ const migrateConfig = {
     try {
       if (!state.settings.sidebarIcons) {
         state.settings.sidebarIcons = {
-          visible: DEFAULT_SIDEBAR_ICONS,
+          visible: DefaultPreferences.default['ui.sidebar.icons.visible'],
           disabled: []
         }
       }
@@ -1071,7 +1072,7 @@ const migrateConfig = {
 
       if (state.minapps) {
         appIds.forEach((id) => {
-          const app = allMinApps.find((app) => app.id === id)
+          const app = allMiniApps.find((app) => app.id === id)
           if (app) {
             state.minapps.enabled.push(app)
           }
@@ -1892,18 +1893,18 @@ const migrateConfig = {
         state.settings.s3 = settingsInitialState.s3
       }
 
-      const langMap: Record<string, TranslateLanguageCode> = {
-        english: 'en-us',
-        chinese: 'zh-cn',
-        'chinese-traditional': 'zh-tw',
-        japanese: 'ja-jp',
-        russian: 'ru-ru'
+      const langMap: Record<string, TranslateLangCode> = {
+        english: parseTranslateLangCode('en-us'),
+        chinese: parseTranslateLangCode('zh-cn'),
+        'chinese-traditional': parseTranslateLangCode('zh-tw'),
+        japanese: parseTranslateLangCode('ja-jp'),
+        russian: parseTranslateLangCode('ru-ru')
       }
 
       const origin = state.settings.targetLanguage
       const newLang = langMap[origin]
       if (newLang) state.settings.targetLanguage = newLang
-      else state.settings.targetLanguage = 'en-us'
+      else state.settings.targetLanguage = parseTranslateLangCode('en-us')
 
       state.llm.providers.forEach((provider) => {
         if (provider.id === 'azure-openai') {
@@ -2255,10 +2256,10 @@ const migrateConfig = {
   '136': (state: RootState) => {
     try {
       state.settings.sidebarIcons.visible = [...new Set(state.settings.sidebarIcons.visible)].filter((icon) =>
-        DEFAULT_SIDEBAR_ICONS.includes(icon)
+        DefaultPreferences.default['ui.sidebar.icons.visible'].includes(icon)
       )
       state.settings.sidebarIcons.disabled = [...new Set(state.settings.sidebarIcons.disabled)].filter((icon) =>
-        DEFAULT_SIDEBAR_ICONS.includes(icon)
+        DefaultPreferences.default['ui.sidebar.icons.visible'].includes(icon)
       )
       return state
     } catch (error) {
@@ -3078,7 +3079,7 @@ const migrateConfig = {
   // 1.7.7
   '189': (state: RootState) => {
     try {
-      void window.api.memory.migrateMemoryDb()
+      // void window.api.memory.migrateMemoryDb()
       // @ts-ignore
       const memoryLlmApiClient = state?.memory?.memoryConfig?.llmApiClient
       // @ts-ignore
@@ -3415,8 +3416,8 @@ const migrateConfig = {
   }
 }
 
-// 注意：添加新迁移时，记得同时更新 persistReducer
-// file://./index.ts
+// // 注意：添加新迁移时，记得同时更新 persistReducer
+// // file://./index.ts
 
 const migrate = createMigrate(migrateConfig as any)
 

@@ -1,23 +1,13 @@
-import store from '@renderer/store'
-import { initialState as defaultSettings } from '@renderer/store/settings'
+import { preferenceService } from '@data/PreferenceService'
 import type { Notification } from '@renderer/types/notification'
 
-import { NotificationQueue } from '../queue/NotificationQueue'
+import { notificationQueue } from '../queue/NotificationQueue'
 
 export class NotificationService {
-  private static instance: NotificationService
-  private queue: NotificationQueue
+  private queue = notificationQueue
 
-  private constructor() {
-    this.queue = NotificationQueue.getInstance()
+  constructor() {
     this.setupNotificationClickHandler()
-  }
-
-  public static getInstance(): NotificationService {
-    if (!NotificationService.instance) {
-      NotificationService.instance = new NotificationService()
-    }
-    return NotificationService.instance
   }
 
   /**
@@ -25,7 +15,11 @@ export class NotificationService {
    * @param notification 要发送的通知
    */
   public async send(notification: Notification): Promise<void> {
-    const notificationSettings = store.getState().settings.notification || defaultSettings.notification
+    const notificationSettings = await preferenceService.getMultiple({
+      assistant: 'app.notification.assistant.enabled',
+      backup: 'app.notification.backup.enabled',
+      knowledge: 'app.notification.knowledge.enabled'
+    })
 
     if (notificationSettings[notification.source]) {
       void this.queue.add(notification)
@@ -59,3 +53,5 @@ export class NotificationService {
     return this.queue.pending
   }
 }
+
+export const notificationService = new NotificationService()

@@ -1,64 +1,45 @@
-import type { ThemeMode } from '@renderer/types'
+import { cn } from '@renderer/utils'
+import type { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useState } from 'react'
-import styled from 'styled-components'
 
-export const CollapsibleSettingGroup = styled(({ title, children, defaultExpanded = true, extra, ...rest }) => {
+export const CollapsibleSettingGroup = ({
+  title,
+  children,
+  defaultExpanded = true,
+  extra,
+  className,
+  ...rest
+}: React.ComponentPropsWithoutRef<'div'> & {
+  title: React.ReactNode
+  defaultExpanded?: boolean
+  extra?: React.ReactNode
+  theme?: ThemeMode
+}) => {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
 
   return (
-    <SettingGroup {...rest}>
-      <GroupHeader>
-        <div
-          onClick={() => setIsExpanded(!isExpanded)}
-          style={{ display: 'flex', alignItems: 'center', flex: 1, cursor: 'pointer' }}>
+    <div className={cn('mt-0 mb-1 w-full rounded-lg px-1.25', className)} {...rest}>
+      <div className="mb-2.5 flex cursor-pointer select-none items-center border-border border-b-[0.5px] pb-3">
+        <div onClick={() => setIsExpanded(!isExpanded)} className="flex flex-1 cursor-pointer items-center">
           {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          <GroupTitle>{title}</GroupTitle>
+          <div className="ml-1 font-medium text-sm">{title}</div>
         </div>
         {extra && <div>{extra}</div>}
-      </GroupHeader>
+      </div>
       <AnimatePresence initial={false}>
         {isExpanded && (
-          <ContentContainer
+          <motion.div
+            className="overflow-hidden"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}>
             <div>{children}</div>
-          </ContentContainer>
+          </motion.div>
         )}
       </AnimatePresence>
-    </SettingGroup>
+    </div>
   )
-})`
-  margin-bottom: 4px;
-`
-
-const SettingGroup = styled.div<{ theme?: ThemeMode }>`
-  padding: 0 5px;
-  width: 100%;
-  margin-top: 0;
-  border-radius: 8px;
-`
-
-const GroupHeader = styled.div`
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  padding: 8px 0;
-  padding-bottom: 12px;
-  user-select: none;
-  margin-bottom: 10px;
-  border-bottom: 0.5px solid var(--color-border);
-`
-
-const GroupTitle = styled.div`
-  font-weight: 500;
-  margin-left: 4px;
-  font-size: 14px;
-`
-
-const ContentContainer = styled(motion.div)`
-  overflow: hidden;
-`
+}

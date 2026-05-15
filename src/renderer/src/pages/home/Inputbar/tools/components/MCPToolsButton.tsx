@@ -1,3 +1,4 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
@@ -8,16 +9,17 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { EventEmitter } from '@renderer/services/EventService'
-import type { McpMode, MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
+import type { McpMode, MCPPrompt, MCPResource } from '@renderer/types'
 import { getEffectiveMcpMode } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { isGeminiWebSearchProvider, isSupportUrlContextProvider } from '@renderer/utils/provider'
-import { Form, Input, Tooltip } from 'antd'
+import type { MCPServer } from '@shared/data/types/mcpServer'
+import { useNavigate } from '@tanstack/react-router'
+import { Form, Input } from 'antd'
 import { CircleX, Hammer, Plus, Sparkles } from 'lucide-react'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router'
 
 interface Props {
   assistantId: string
@@ -104,8 +106,15 @@ const extractPromptContent = (response: any): string | null => {
   return null
 }
 
+const hammerIcon = <Hammer />
+const plusIcon = <Plus />
+const circleXIcon = <CircleX />
+const sparklesIcon = <Sparkles />
+const hammerIcon18 = <Hammer size={18} />
+const sparklesIcon18 = <Sparkles size={18} />
+
 const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, assistantId }) => {
-  const { activedMcpServers } = useMCPServers()
+  const { mcpServers: activedMcpServers } = useMCPServers({ isActive: true })
   const { t } = useTranslation()
   const quickPanelHook = useQuickPanel()
   const navigate = useNavigate()
@@ -126,9 +135,10 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
   const currentMode = useMemo(() => getEffectiveMcpMode(assistant), [assistant])
 
   const mcpServers = useMemo(() => assistant.mcpServers || [], [assistant.mcpServers])
+  const mcpServerIds = useMemo(() => new Set(mcpServers.map((s) => s.id)), [mcpServers])
   const assistantMcpServers = useMemo(
-    () => activedMcpServers.filter((server) => mcpServers.some((s) => s.id === server.id)),
-    [activedMcpServers, mcpServers]
+    () => activedMcpServers.filter((server) => mcpServerIds.has(server.id)),
+    [activedMcpServers, mcpServerIds]
   )
 
   const handleModeChange = useCallback(
@@ -188,19 +198,19 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
     const newList: QuickPanelListItem[] = activedMcpServers.map((server) => ({
       label: server.name,
       description: server.description || server.baseUrl,
-      icon: <Hammer />,
+      icon: hammerIcon,
       action: () => EventEmitter.emit('mcp-server-select', server),
-      isSelected: assistantMcpServers.some((s) => s.id === server.id)
+      isSelected: mcpServerIds.has(server.id)
     }))
 
     newList.push({
       label: t('settings.mcp.addServer.label') + '...',
-      icon: <Plus />,
-      action: () => navigate('/settings/mcp')
+      icon: plusIcon,
+      action: () => navigate({ to: '/settings/mcp' })
     })
 
     return newList
-  }, [activedMcpServers, t, assistantMcpServers, navigate])
+  }, [activedMcpServers, t, mcpServerIds, navigate])
 
   const openManualModePanel = useCallback(() => {
     quickPanelHook.open({
@@ -220,7 +230,7 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
     newList.push({
       label: t('assistants.settings.mcp.mode.disabled.label'),
       description: t('assistants.settings.mcp.mode.disabled.description'),
-      icon: <CircleX />,
+      icon: circleXIcon,
       isSelected: currentMode === 'disabled',
       action: () => {
         handleModeChange('disabled')
@@ -231,7 +241,7 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
     newList.push({
       label: t('assistants.settings.mcp.mode.auto.label'),
       description: t('assistants.settings.mcp.mode.auto.description'),
-      icon: <Sparkles />,
+      icon: sparklesIcon,
       isSelected: currentMode === 'auto',
       action: () => {
         handleModeChange('auto')
@@ -242,7 +252,7 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
     newList.push({
       label: t('assistants.settings.mcp.mode.manual.label'),
       description: t('assistants.settings.mcp.mode.manual.description'),
-      icon: <Hammer />,
+      icon: hammerIcon,
       isSelected: currentMode === 'manual',
       isMenu: true,
       action: () => {
@@ -380,28 +390,39 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
     [activedMcpServers, form, t, insertPromptIntoTextArea]
   )
 
-  const promptList = useMemo(async () => {
-    const prompts: MCPPrompt[] = []
+  const [prompts, setPrompts] = useState<MCPPrompt[]>([])
 
-    for (const server of activedMcpServers) {
-      const serverPrompts = await window.api.mcp.listPrompts(server)
-      prompts.push(...serverPrompts)
+  useEffect(() => {
+    let cancelled = false
+
+    const fetchPrompts = async () => {
+      const results = await Promise.all(activedMcpServers.map((server) => window.api.mcp.listPrompts(server)))
+      if (!cancelled) {
+        setPrompts(results.flat())
+      }
     }
 
-    return prompts.map((prompt) => ({
-      label: prompt.name,
-      description: prompt.description,
-      icon: <Hammer />,
-      action: () => handlePromptSelect(prompt as MCPPromptWithArgs)
-    }))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void fetchPrompts()
+    return () => {
+      cancelled = true
+    }
   }, [activedMcpServers])
 
-  const openPromptList = useCallback(async () => {
-    const prompts = await promptList
+  const promptList = useMemo<QuickPanelListItem[]>(
+    () =>
+      prompts.map((prompt) => ({
+        label: prompt.name,
+        description: prompt.description,
+        icon: hammerIcon,
+        action: () => handlePromptSelect(prompt as MCPPromptWithArgs)
+      })),
+    [prompts, handlePromptSelect]
+  )
+
+  const openPromptList = useCallback(() => {
     quickPanelHook.open({
       title: t('settings.mcp.title'),
-      list: prompts,
+      list: promptList,
       symbol: QuickPanelReservedSymbol.McpPrompt,
       multiple: true
     })
@@ -452,38 +473,35 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
     [activedMcpServers, t, insertPromptIntoTextArea]
   )
 
-  const [resourcesList, setResourcesList] = useState<QuickPanelListItem[]>([])
+  const [resources, setResources] = useState<MCPResource[]>([])
 
   useEffect(() => {
-    let isMounted = true
+    let cancelled = false
 
     const fetchResources = async () => {
-      const resources: MCPResource[] = []
-
-      for (const server of activedMcpServers) {
-        const serverResources = await window.api.mcp.listResources(server)
-        resources.push(...serverResources)
-      }
-
-      if (isMounted) {
-        setResourcesList(
-          resources.map((resource) => ({
-            label: resource.name,
-            description: resource.description,
-            icon: <Hammer />,
-            action: () => handleResourceSelect(resource)
-          }))
-        )
+      const results = await Promise.all(activedMcpServers.map((server) => window.api.mcp.listResources(server)))
+      if (!cancelled) {
+        setResources(results.flat())
       }
     }
 
     void fetchResources()
 
     return () => {
-      isMounted = false
+      cancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activedMcpServers])
+
+  const resourcesList = useMemo<QuickPanelListItem[]>(
+    () =>
+      resources.map((resource) => ({
+        label: resource.name,
+        description: resource.description,
+        icon: hammerIcon,
+        action: () => handleResourceSelect(resource)
+      })),
+    [resources, handleResourceSelect]
+  )
 
   const openResourcesList = useCallback(async () => {
     quickPanelHook.open({
@@ -507,21 +525,21 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
       {
         label: t('settings.mcp.title'),
         description: '',
-        icon: <Hammer />,
+        icon: hammerIcon,
         isMenu: true,
         action: () => openQuickPanel()
       },
       {
         label: `MCP ${t('settings.mcp.tabs.prompts')}`,
         description: '',
-        icon: <Hammer />,
+        icon: hammerIcon,
         isMenu: true,
         action: () => openPromptList()
       },
       {
         label: `MCP ${t('settings.mcp.tabs.resources')}`,
         description: '',
-        icon: <Hammer />,
+        icon: hammerIcon,
         isMenu: true,
         action: () => openResourcesList()
       }
@@ -546,19 +564,22 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
   const getButtonIcon = () => {
     switch (currentMode) {
       case 'auto':
-        return <Sparkles size={18} />
+        return sparklesIcon18
       case 'disabled':
       case 'manual':
       default:
-        return <Hammer size={18} />
+        return hammerIcon18
     }
   }
 
   return (
-    <Tooltip placement="top" title={t('settings.mcp.title')} mouseLeaveDelay={0} arrow>
-      <ActionIconButton onClick={handleOpenQuickPanel} active={isActive} aria-label={t('settings.mcp.title')}>
-        {getButtonIcon()}
-      </ActionIconButton>
+    <Tooltip content={t('settings.mcp.title')}>
+      <ActionIconButton
+        onClick={handleOpenQuickPanel}
+        active={isActive}
+        aria-label={t('settings.mcp.title')}
+        icon={getButtonIcon()}
+      />
     </Tooltip>
   )
 }

@@ -1,63 +1,58 @@
-import { GithubOutlined } from '@ant-design/icons'
+import { Badge, Button, CircularProgress, Divider, SegmentedControl, Switch, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import LogoAvatar from '@renderer/components/Icons/LogoAvatar'
 import IndicatorLight from '@renderer/components/IndicatorLight'
-import { HStack } from '@renderer/components/Layout'
 import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
 import { APP_NAME, AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
+import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
+import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import i18n from '@renderer/i18n'
-import { useAppDispatch } from '@renderer/store'
-import { setUpdateState } from '@renderer/store/runtime'
-import { ThemeMode } from '@renderer/types'
-import { runAsyncFunction } from '@renderer/utils'
-import { UpgradeChannel } from '@shared/config/constant'
-import { Avatar, Button, Progress, Radio, Row, Switch, Tag, Tooltip } from 'antd'
+import { cn, runAsyncFunction } from '@renderer/utils'
+import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { debounce } from 'lodash'
-import { Briefcase, Bug, Building2, Github, Globe, Mail, Rss } from 'lucide-react'
-import { BadgeQuestionMark } from 'lucide-react'
-import type { FC } from 'react'
+import { BadgeQuestionMark, Briefcase, Bug, Building2, Github, Globe, Mail, Rss } from 'lucide-react'
+import type { FC, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
-import { Link } from 'react-router-dom'
-import styled from 'styled-components'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingTitle } from '.'
+import { SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
 
 const AboutSettings: FC = () => {
+  const [autoCheckUpdate, setAutoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
+  const [testPlan, setTestPlan] = usePreference('app.dist.test_plan.enabled')
+  const [testChannel, setTestChannel] = usePreference('app.dist.test_plan.channel')
+
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
   const { t } = useTranslation()
-  const { autoCheckUpdate, setAutoCheckUpdate, testPlan, setTestPlan, testChannel, setTestChannel } = useSettings()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
-  const { update } = useRuntime()
-  const { openSmartMinapp } = useMinappPopup()
+  const { openSmartMiniApp } = useMiniAppPopup()
+
+  const { appUpdateState, updateAppUpdateState } = useAppUpdateState()
 
   const onCheckUpdate = debounce(
     async () => {
-      if (update.checking || update.downloading) {
+      if (appUpdateState.checking || appUpdateState.downloading) {
         return
       }
 
-      if (update.downloaded) {
-        // Open update dialog directly in renderer
-        void UpdateDialogPopup.show({ releaseInfo: update.info || null })
+      if (appUpdateState.downloaded) {
+        void UpdateDialogPopup.show({ releaseInfo: appUpdateState.info || null })
         return
       }
 
-      dispatch(setUpdateState({ checking: true, manualCheck: true }))
+      updateAppUpdateState({ checking: true, manualCheck: true })
 
       try {
         await window.api.checkForUpdate()
-      } catch (error) {
-        dispatch(setUpdateState({ manualCheck: false }))
+      } catch {
+        updateAppUpdateState({ manualCheck: false })
         window.toast.error(t('settings.about.updateError'))
       }
 
-      dispatch(setUpdateState({ checking: false }))
+      updateAppUpdateState({ checking: false })
     },
     2000,
     { leading: true, trailing: false }
@@ -86,8 +81,8 @@ const AboutSettings: FC = () => {
 
   const showReleases = async () => {
     const { appPath } = await window.api.getAppInfo()
-    openSmartMinapp({
-      id: 'cherrystudio-releases',
+    openSmartMiniApp({
+      appId: 'cherrystudio-releases',
       name: t('settings.about.releases.title'),
       url: `file://${appPath}/resources/cherry-studio/releases.html?theme=${theme === ThemeMode.dark ? 'dark' : 'light'}`,
       logo: AppLogo
@@ -104,21 +99,17 @@ const AboutSettings: FC = () => {
     if (testPlan && currentChannelByVersion !== UpgradeChannel.LATEST && value !== currentChannelByVersion) {
       window.toast.warning(t('settings.general.test_plan.version_channel_not_match'))
     }
-    setTestChannel(value)
-    // Clear update info when switching upgrade channel
-    dispatch(
-      setUpdateState({
-        available: false,
-        info: null,
-        downloaded: false,
-        checking: false,
-        downloading: false,
-        downloadProgress: 0
-      })
-    )
+    void setTestChannel(value)
+    updateAppUpdateState({
+      available: false,
+      info: null,
+      downloaded: false,
+      checking: false,
+      downloading: false,
+      downloadProgress: 0
+    })
   }
 
-  // Get available test version options based on current version
   const getAvailableTestChannels = () => {
     return [
       {
@@ -135,20 +126,18 @@ const AboutSettings: FC = () => {
   }
 
   const handleSetTestPlan = (value: boolean) => {
-    setTestPlan(value)
-    dispatch(
-      setUpdateState({
-        available: false,
-        info: null,
-        downloaded: false,
-        checking: false,
-        downloading: false,
-        downloadProgress: 0
-      })
-    )
+    void setTestPlan(value)
+    updateAppUpdateState({
+      available: false,
+      info: null,
+      downloaded: false,
+      checking: false,
+      downloading: false,
+      downloadProgress: 0
+    })
 
     if (value === true) {
-      setTestChannel(getTestChannel())
+      void setTestChannel(getTestChannel())
     }
   }
 
@@ -165,7 +154,7 @@ const AboutSettings: FC = () => {
       setVersion(appInfo.version)
       setIsPortable(appInfo.isPortable)
     })
-    setAutoCheckUpdate(autoCheckUpdate)
+    void setAutoCheckUpdate(autoCheckUpdate)
   }, [autoCheckUpdate, setAutoCheckUpdate])
 
   const onOpenDocs = () => {
@@ -173,252 +162,219 @@ const AboutSettings: FC = () => {
     void window.api.openWebsite(isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/docs/en-us')
   }
 
+  const testChannels = getAvailableTestChannels()
+
   return (
-    <SettingContainer theme={theme}>
+    <div className={cn('flex w-full flex-1 flex-col overflow-y-auto px-5 py-4 [&::-webkit-scrollbar]:hidden')}>
       <SettingGroup theme={theme}>
-        <SettingTitle>
-          {t('settings.about.title')}
-          <HStack alignItems="center">
-            <Link to="https://github.com/CherryHQ/cherry-studio">
-              <GithubOutlined style={{ marginRight: 4, color: 'var(--color-text)', fontSize: 20 }} />
-            </Link>
-          </HStack>
+        <SettingTitle className="gap-2">
+          <span className="font-semibold text-[15px]">{t('settings.about.title')}</span>
+          <button
+            type="button"
+            onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}
+            className="inline-flex items-center justify-center rounded-md p-1 text-(--color-foreground) transition-colors hover:bg-(--color-muted)">
+            <Github className="size-5" />
+          </button>
         </SettingTitle>
-        <SettingDivider />
-        <AboutHeader>
-          <Row align="middle">
-            <AvatarWrapper onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}>
-              {update.downloadProgress > 0 && (
-                <ProgressCircle
-                  type="circle"
-                  size={84}
-                  percent={update.downloadProgress}
-                  showInfo={false}
-                  strokeLinecap="butt"
-                  strokeColor="#67ad5b"
-                />
+
+        <Divider className="my-1.5" />
+
+        <div className="flex flex-wrap items-center justify-between gap-3 py-1">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <button
+              type="button"
+              onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}
+              className="relative cursor-pointer">
+              {appUpdateState.downloadProgress > 0 && (
+                <div className="-top-0.5 -left-0.5 pointer-events-none absolute">
+                  <CircularProgress
+                    value={appUpdateState.downloadProgress}
+                    size={76}
+                    strokeWidth={4}
+                    shape="square"
+                    className="stroke-transparent"
+                    progressClassName="stroke-[#67ad5b]"
+                  />
+                </div>
               )}
-              <Avatar src={AppLogo} size={80} style={{ minHeight: 80 }} />
-            </AvatarWrapper>
-            <VersionWrapper>
-              <Title>{APP_NAME}</Title>
-              <Description>{t('settings.about.description')}</Description>
-              <Tag
+              <LogoAvatar logo={AppLogo} size={72} className="rounded-full" />
+            </button>
+
+            <div className="flex min-h-[72px] flex-col items-start justify-center">
+              <div className="mb-1 font-bold text-(--color-foreground) text-lg">{APP_NAME}</div>
+              <div className="text-(--color-foreground-secondary) text-sm">{t('settings.about.description')}</div>
+              <button
+                type="button"
                 onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/releases')}
-                color="cyan"
-                style={{ marginTop: 8, cursor: 'pointer' }}>
-                v{version}
-              </Tag>
-            </VersionWrapper>
-          </Row>
+                className="mt-1.5">
+                <Badge className="cursor-pointer rounded-md border-primary/20 bg-primary/10 px-1.5 py-0 font-medium text-[11px] text-primary leading-4 transition-colors hover:bg-primary/15">
+                  v{version}
+                </Badge>
+              </button>
+            </div>
+          </div>
+
           {!isPortable && (
-            <CheckUpdateButton
-              onClick={onCheckUpdate}
-              loading={update.checking}
-              disabled={update.downloading || update.checking}>
-              {update.downloading
-                ? t('settings.about.downloading')
-                : update.available
-                  ? t('settings.about.checkUpdate.available')
-                  : t('settings.about.checkUpdate.label')}
-            </CheckUpdateButton>
+            <div className="flex shrink-0 items-center justify-end">
+              <Button
+                size="sm"
+                variant="outline"
+                loading={appUpdateState.checking}
+                onClick={onCheckUpdate}
+                disabled={appUpdateState.downloading}
+                className="!w-fit !min-w-0 shrink-0">
+                {appUpdateState.downloading
+                  ? t('settings.about.downloading')
+                  : appUpdateState.available
+                    ? t('settings.about.checkUpdate.available')
+                    : t('settings.about.checkUpdate.label')}
+              </Button>
+            </div>
           )}
-        </AboutHeader>
+        </div>
+
         {!isPortable && (
           <>
-            <SettingDivider />
-            <SettingRow>
+            <Divider className="my-3" />
+            <SettingRow className="gap-3">
               <SettingRowTitle>{t('settings.general.auto_check_update.title')}</SettingRowTitle>
-              <Switch value={autoCheckUpdate} onChange={(v) => setAutoCheckUpdate(v)} />
+              <Switch checked={autoCheckUpdate} onCheckedChange={(v) => setAutoCheckUpdate(v)} />
             </SettingRow>
-            <SettingDivider />
-            <SettingRow>
+
+            <Divider className="my-3" />
+            <SettingRow className="gap-3">
               <SettingRowTitle>{t('settings.general.test_plan.title')}</SettingRowTitle>
-              <Tooltip title={t('settings.general.test_plan.tooltip')} trigger={['hover', 'focus']}>
-                <Switch value={testPlan} onChange={(v) => handleSetTestPlan(v)} />
+              <Tooltip content={t('settings.general.test_plan.tooltip')}>
+                <Switch checked={testPlan} onCheckedChange={(v) => handleSetTestPlan(v)} />
               </Tooltip>
             </SettingRow>
+
             {testPlan && (
               <>
-                <SettingDivider />
-                <SettingRow>
+                <Divider className="my-1.5" />
+                <SettingRow className="items-center gap-3">
                   <SettingRowTitle>{t('settings.general.test_plan.version_options')}</SettingRowTitle>
-                  <Radio.Group
-                    size="small"
-                    buttonStyle="solid"
+                  <SegmentedControl<UpgradeChannel>
                     value={getTestChannel()}
-                    onChange={(e) => handleTestChannelChange(e.target.value)}>
-                    {getAvailableTestChannels().map((option) => (
-                      <Tooltip key={option.value} title={option.tooltip}>
-                        <Radio.Button value={option.value}>{option.label}</Radio.Button>
-                      </Tooltip>
-                    ))}
-                  </Radio.Group>
+                    onValueChange={handleTestChannelChange}
+                    options={testChannels.map((option) => ({
+                      value: option.value,
+                      label: (
+                        <Tooltip content={option.tooltip}>
+                          <span>{option.label}</span>
+                        </Tooltip>
+                      )
+                    }))}
+                    size="sm"
+                  />
                 </SettingRow>
               </>
             )}
           </>
         )}
       </SettingGroup>
-      {update.info && update.available && (
+
+      {appUpdateState.info && appUpdateState.available && (
         <SettingGroup theme={theme}>
-          <SettingRow>
-            <SettingRowTitle>
-              {t('settings.about.updateAvailable', { version: update.info.version })}
+          <SettingRow className="gap-3">
+            <SettingRowTitle className="gap-2.5">
+              {t('settings.about.updateAvailable', { version: appUpdateState.info.version })}
               <IndicatorLight color="green" />
             </SettingRowTitle>
           </SettingRow>
-          <UpdateNotesWrapper className="markdown">
+          <div className="markdown my-2 rounded-md bg-muted px-0 py-3 text-(--color-foreground-secondary) text-sm [&_p]:m-0">
             <Markdown>
-              {typeof update.info.releaseNotes === 'string'
-                ? update.info.releaseNotes.replace(/\n/g, '\n\n')
-                : update.info.releaseNotes?.map((note) => note.note).join('\n')}
+              {typeof appUpdateState.info.releaseNotes === 'string'
+                ? appUpdateState.info.releaseNotes.replace(/\n/g, '\n\n')
+                : appUpdateState.info.releaseNotes?.map((note) => note.note).join('\n')}
             </Markdown>
-          </UpdateNotesWrapper>
+          </div>
         </SettingGroup>
       )}
+
       <SettingGroup theme={theme}>
-        <SettingRow>
-          <SettingRowTitle>
-            <BadgeQuestionMark size={18} />
-            {t('docs.title')}
-          </SettingRowTitle>
-          <Button onClick={onOpenDocs}>{t('settings.about.website.button')}</Button>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>
-            <Rss size={18} />
-            {t('settings.about.releases.title')}
-          </SettingRowTitle>
-          <Button onClick={showReleases}>{t('settings.about.releases.button')}</Button>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>
-            <Globe size={18} />
-            {t('settings.about.website.title')}
-          </SettingRowTitle>
-          <Button onClick={() => onOpenWebsite('https://cherry-ai.com')}>{t('settings.about.website.button')}</Button>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>
-            <Github size={18} />
-            {t('settings.about.feedback.title')}
-          </SettingRowTitle>
-          <Button onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/issues/new/choose')}>
-            {t('settings.about.feedback.button')}
-          </Button>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>
-            <Building2 size={18} />
-            {t('settings.about.enterprise.title')}
-          </SettingRowTitle>
-          <Button onClick={showEnterprise}>{t('settings.about.website.button')}</Button>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>
-            <Mail size={18} />
-            {t('settings.about.contact.title')}
-          </SettingRowTitle>
-          <Button onClick={mailto}>{t('settings.about.contact.button')}</Button>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>
-            <Briefcase size={18} />
-            {t('settings.about.careers.title')}
-          </SettingRowTitle>
-          <Button onClick={() => onOpenWebsite('https://www.cherry-ai.com/careers')}>
-            {t('settings.about.careers.button')}
-          </Button>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>
-            <Bug size={18} />
-            {t('settings.about.debug.title')}
-          </SettingRowTitle>
-          <Button onClick={debug}>{t('settings.about.debug.open')}</Button>
-        </SettingRow>
+        <AboutActionRow
+          icon={<BadgeQuestionMark className="size-4.5" />}
+          title={t('docs.title')}
+          actionLabel={t('settings.about.website.button')}
+          onAction={onOpenDocs}
+        />
+        <Divider className="my-3" />
+        <AboutActionRow
+          icon={<Rss className="size-4.5" />}
+          title={t('settings.about.releases.title')}
+          actionLabel={t('settings.about.releases.button')}
+          onAction={showReleases}
+        />
+        <Divider className="my-3" />
+        <AboutActionRow
+          icon={<Globe className="size-4.5" />}
+          title={t('settings.about.website.title')}
+          actionLabel={t('settings.about.website.button')}
+          onAction={() => onOpenWebsite('https://cherry-ai.com')}
+        />
+        <Divider className="my-3" />
+        <AboutActionRow
+          icon={<Github className="size-4.5" />}
+          title={t('settings.about.feedback.title')}
+          actionLabel={t('settings.about.feedback.button')}
+          onAction={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/issues/new/choose')}
+        />
+        <Divider className="my-3" />
+        <AboutActionRow
+          icon={<Building2 className="size-4.5" />}
+          title={t('settings.about.enterprise.title')}
+          actionLabel={t('settings.about.website.button')}
+          onAction={showEnterprise}
+        />
+        <Divider className="my-3" />
+        <AboutActionRow
+          icon={<Mail className="size-4.5" />}
+          title={t('settings.about.contact.title')}
+          actionLabel={t('settings.about.contact.button')}
+          onAction={mailto}
+        />
+        <Divider className="my-3" />
+        <AboutActionRow
+          icon={<Briefcase className="size-4.5" />}
+          title={t('settings.about.careers.title')}
+          actionLabel={t('settings.about.careers.button')}
+          onAction={() => onOpenWebsite('https://www.cherry-ai.com/careers')}
+        />
+        <Divider className="my-3" />
+        <AboutActionRow
+          icon={<Bug className="size-4.5" />}
+          title={t('settings.about.debug.title')}
+          actionLabel={t('settings.about.debug.open')}
+          onAction={debug}
+        />
       </SettingGroup>
-    </SettingContainer>
+    </div>
   )
 }
 
-const AboutHeader = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 5px 0;
-`
-
-const VersionWrapper = styled.div`
-  display: flex;
-  flex-direction: column;
-  min-height: 80px;
-  justify-content: center;
-  align-items: flex-start;
-`
-
-const Title = styled.div`
-  font-size: 20px;
-  font-weight: bold;
-  color: var(--color-text-1);
-  margin-bottom: 5px;
-`
-
-const Description = styled.div`
-  font-size: 14px;
-  color: var(--color-text-2);
-  text-align: center;
-`
-
-const CheckUpdateButton = styled(Button)``
-
-const AvatarWrapper = styled.div`
-  position: relative;
-  cursor: pointer;
-  margin-right: 15px;
-`
-
-const ProgressCircle = styled(Progress)`
-  position: absolute;
-  top: -2px;
-  left: -2px;
-`
-
-export const SettingRowTitle = styled.div`
-  font-size: 14px;
-  line-height: 18px;
-  color: var(--color-text-1);
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
-  .anticon {
-    font-size: 16px;
-    color: var(--color-text-1);
-  }
-`
-
-const UpdateNotesWrapper = styled.div`
-  padding: 12px 0;
-  margin: 8px 0;
-  background-color: var(--color-bg-2);
-  border-radius: 6px;
-  color: var(--color-text-2);
-  font-size: 14px;
-
-  p {
-    margin: 0;
-  }
-`
+function AboutActionRow({
+  actionLabel,
+  icon,
+  onAction,
+  title
+}: {
+  actionLabel: string
+  icon: ReactNode
+  onAction: () => void | Promise<void>
+  title: string
+}) {
+  return (
+    <SettingRow className="gap-3">
+      <SettingRowTitle className="gap-2.5">
+        {icon}
+        {title}
+      </SettingRowTitle>
+      <Button size="sm" onClick={() => void onAction()} variant="outline">
+        {actionLabel}
+      </Button>
+    </SettingRow>
+  )
+}
 
 export default AboutSettings

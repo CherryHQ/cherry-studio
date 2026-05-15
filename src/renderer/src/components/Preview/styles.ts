@@ -1,47 +1,64 @@
-import { Flex } from 'antd'
-import { styled } from 'styled-components'
+import { Flex } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
+import React from 'react'
 
-export const PreviewError = styled.div`
-  overflow: auto;
-  padding: 16px;
-  color: #ff4d4f;
-  border: 1px solid #ff4d4f;
-  border-radius: 4px;
-  word-wrap: break-word;
-  white-space: pre-wrap;
-`
+type DivProps = React.ComponentProps<'div'>
+type ShadowContainerStyle = React.CSSProperties & Record<string, string>
 
-export const PreviewContainer = styled(Flex).attrs({ role: 'alert' })`
-  position: relative;
-  /* Make sure the toolbar is visible */
-  min-height: 8rem;
+export const PreviewError = ({ className, ref, ...props }: DivProps) =>
+  React.createElement('div', {
+    ref,
+    className: cn(
+      'overflow-auto whitespace-pre-wrap break-words rounded-[4px] border border-[#ff4d4f] p-4 text-[#ff4d4f]',
+      className
+    ),
+    ...props
+  })
 
-  .special-preview {
-    min-height: 8rem;
-  }
+PreviewError.displayName = 'PreviewError'
 
-  .preview-toolbar {
-    transition: opacity 0.3s ease-in-out;
-    transform: translateZ(0);
-    will-change: opacity;
-    opacity: 0;
-  }
+export const PreviewContainer = ({
+  className,
+  role = 'alert',
+  ...props
+}: React.ComponentPropsWithoutRef<typeof Flex>) =>
+  React.createElement(Flex, {
+    role,
+    className: cn(
+      'relative min-h-[8rem] [&_.special-preview]:min-h-[8rem]',
+      '[&_.preview-toolbar]:transform-gpu [&_.preview-toolbar]:opacity-0 [&_.preview-toolbar]:transition-opacity [&_.preview-toolbar]:duration-300 [&_.preview-toolbar]:ease-in-out [&_.preview-toolbar]:will-change-[opacity]',
+      '[&:hover_.preview-toolbar]:opacity-100',
+      className
+    ),
+    ...props
+  })
 
-  &:hover {
-    .preview-toolbar {
-      opacity: 1;
-    }
-  }
-`
+const shadowWhiteStyle: ShadowContainerStyle = {
+  '--shadow-host-background-color': 'white',
+  '--shadow-host-border': '0.5px solid var(--color-background-subtle)',
+  '--shadow-host-border-radius': '8px'
+}
 
-export const ShadowWhiteContainer = styled.div`
-  --shadow-host-background-color: white;
-  --shadow-host-border: 0.5px solid var(--color-code-background);
-  --shadow-host-border-radius: 8px;
-`
+export const ShadowWhiteContainer = ({ style, ref, ...props }: DivProps) =>
+  React.createElement('div', {
+    ref,
+    style: { ...shadowWhiteStyle, ...style },
+    ...props
+  })
 
-export const ShadowTransparentContainer = styled.div`
-  --shadow-host-background-color: transparent;
-  --shadow-host-border: unset;
-  --shadow-host-border-radius: unset;
-`
+ShadowWhiteContainer.displayName = 'ShadowWhiteContainer'
+
+const shadowTransparentStyle: ShadowContainerStyle = {
+  '--shadow-host-background-color': 'transparent',
+  '--shadow-host-border': 'unset',
+  '--shadow-host-border-radius': 'unset'
+}
+
+export const ShadowTransparentContainer = ({ style, ref, ...props }: DivProps) =>
+  React.createElement('div', {
+    ref,
+    style: { ...shadowTransparentStyle, ...style },
+    ...props
+  })
+
+ShadowTransparentContainer.displayName = 'ShadowTransparentContainer'

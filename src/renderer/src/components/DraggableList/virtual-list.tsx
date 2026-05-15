@@ -1,3 +1,4 @@
+import { Scrollbar } from '@cherrystudio/ui'
 import type {
   DroppableProps,
   DropResult,
@@ -6,7 +7,6 @@ import type {
   ResponderProvided
 } from '@hello-pangea/dnd'
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { droppableReorder } from '@renderer/utils'
 import { type ScrollToOptions, useVirtualizer, type VirtualItem } from '@tanstack/react-virtual'
 import { type Key, memo, useCallback, useImperativeHandle, useRef } from 'react'
@@ -58,6 +58,7 @@ export interface DraggableVirtualListProps<T> {
   header?: React.ReactNode
   children: (item: T, index: number) => React.ReactNode
   disabled?: boolean
+  disableInteractiveElementBlocking?: boolean
 }
 
 /**
@@ -84,7 +85,8 @@ function DraggableVirtualList<T>({
   overscan = 5,
   header,
   children,
-  disabled
+  disabled,
+  disableInteractiveElementBlocking
 }: DraggableVirtualListProps<T>): React.ReactElement {
   const _onDragEnd = (result: DropResult, provided: ResponderProvided) => {
     onDragEnd?.(result, provided)
@@ -100,6 +102,14 @@ function DraggableVirtualList<T>({
 
   // 虚拟列表滚动容器的 ref
   const parentRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const droppableInnerRef = useRef<((element: HTMLElement | null) => void) | null>(null)
+
+  const setScrollNode = useCallback((node: HTMLDivElement | null) => {
+    scrollContainerRef.current = node
+    parentRef.current = node
+    droppableInnerRef.current?.(node)
+  }, [])
 
   const virtualizer = useVirtualizer({
     count: list?.length ?? 0,
@@ -149,15 +159,11 @@ function DraggableVirtualList<T>({
           }}
           {...droppableProps}>
           {(provided) => {
-            // 让 dnd 和虚拟列表共享同一个滚动容器
-            const setRefs = (el: HTMLDivElement | null) => {
-              provided.innerRef(el)
-              parentRef.current = el
-            }
+            droppableInnerRef.current = provided.innerRef
 
             return (
               <Scrollbar
-                ref={setRefs}
+                ref={setScrollNode}
                 {...provided.droppableProps}
                 className="virtual-scroller"
                 style={{
@@ -185,6 +191,7 @@ function DraggableVirtualList<T>({
                       virtualizer={virtualizer}
                       children={children}
                       disabled={disabled}
+                      disableInteractiveElementBlocking={disableInteractiveElementBlocking}
                     />
                   ))}
                 </div>
@@ -201,7 +208,16 @@ function DraggableVirtualList<T>({
  * 渲染单个可拖拽的虚拟列表项，高度为动态测量
  */
 const VirtualRow = memo(
-  ({ virtualItem, list, children, itemStyle, itemContainerStyle, virtualizer, disabled }: any) => {
+  ({
+    virtualItem,
+    list,
+    children,
+    itemStyle,
+    itemContainerStyle,
+    virtualizer,
+    disabled,
+    disableInteractiveElementBlocking
+  }: any) => {
     const item = list[virtualItem.index]
     const draggableId = String(virtualItem.key)
     return (
@@ -209,6 +225,7 @@ const VirtualRow = memo(
         key={`draggable_${draggableId}`}
         draggableId={draggableId}
         isDragDisabled={disabled}
+        disableInteractiveElementBlocking={disableInteractiveElementBlocking}
         index={virtualItem.index}>
         {(provided) => {
           const setDragRefs = (el: HTMLElement | null) => {

@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { uuid } from '@renderer/utils'
+import { IpcChannel } from '@shared/IpcChannel'
 
 const logger = loggerService.withContext('PyodideService')
 
@@ -30,26 +31,10 @@ export interface PyodideExecutionResult {
  * Pyodide Web Worker 服务
  */
 class PyodideService {
-  private static instance: PyodideService | null = null
-
   private worker: Worker | null = null
   private initPromise: Promise<void> | null = null
   private initRetryCount: number = 0
   private resolvers: Map<string, { resolve: (value: any) => void; reject: (error: Error) => void }> = new Map()
-
-  private constructor() {
-    // 单例模式
-  }
-
-  /**
-   * 获取 PyodideService 单例实例
-   */
-  public static getInstance(): PyodideService {
-    if (!PyodideService.instance) {
-      PyodideService.instance = new PyodideService()
-    }
-    return PyodideService.instance
-  }
 
   /**
    * 初始化 Pyodide Worker
@@ -278,7 +263,7 @@ class PyodideService {
 }
 
 // 创建并导出单例实例
-export const pyodideService = PyodideService.getInstance()
+export const pyodideService = new PyodideService()
 
 // Set up IPC handler for main process requests
 if (typeof window !== 'undefined' && window.electron?.ipcRenderer) {
@@ -295,20 +280,20 @@ if (typeof window !== 'undefined' && window.electron?.ipcRenderer) {
     error?: string
   }
 
-  window.electron.ipcRenderer.on('python-execution-request', async (_, request: PythonExecutionRequest) => {
+  window.electron.ipcRenderer.on(IpcChannel.Python_ExecutionRequest, async (_, request: PythonExecutionRequest) => {
     try {
       const { text } = await pyodideService.runScript(request.script, request.context, request.timeout)
       const response: PythonExecutionResponse = {
         id: request.id,
         result: text
       }
-      window.electron.ipcRenderer.send('python-execution-response', response)
+      window.electron.ipcRenderer.send(IpcChannel.Python_ExecutionResponse, response)
     } catch (error: unknown) {
       const response: PythonExecutionResponse = {
         id: request.id,
         error: error instanceof Error ? error.message : String(error)
       }
-      window.electron.ipcRenderer.send('python-execution-response', response)
+      window.electron.ipcRenderer.send(IpcChannel.Python_ExecutionResponse, response)
     }
   })
 }

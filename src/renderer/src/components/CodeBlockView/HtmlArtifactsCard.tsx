@@ -1,15 +1,12 @@
-import { CodeOutlined } from '@ant-design/icons'
+import { Button } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
-import { useTheme } from '@renderer/context/ThemeProvider'
-import type { ThemeMode } from '@renderer/types'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
-import { Button } from 'antd'
 import { Code, DownloadIcon, Globe, LinkIcon, Sparkles } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ClipLoader } from 'react-spinners'
-import styled, { keyframes } from 'styled-components'
 
 import HtmlArtifactsPopup from './HtmlArtifactsPopup'
 
@@ -21,17 +18,10 @@ interface Props {
   isStreaming?: boolean
 }
 
-const getTerminalStyles = (theme: ThemeMode) => ({
-  background: theme === 'dark' ? '#1e1e1e' : '#f0f0f0',
-  color: theme === 'dark' ? '#cccccc' : '#333333',
-  promptColor: theme === 'dark' ? '#00ff00' : '#007700'
-})
-
 const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => {
   const { t } = useTranslation()
   const title = extractHtmlTitle(html) || 'HTML Artifacts'
   const [isPopupOpen, setIsPopupOpen] = useState(false)
-  const { theme } = useTheme()
 
   const htmlContent = html || ''
   const hasContent = htmlContent.trim().length > 0
@@ -56,59 +46,72 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => 
 
   return (
     <>
-      <Container $isStreaming={isStreaming}>
-        <Header>
-          <IconWrapper $isStreaming={isStreaming}>
-            {isStreaming ? <Sparkles size={20} color="white" /> : <Globe size={20} color="white" />}
-          </IconWrapper>
-          <TitleSection>
-            <Title>{title}</Title>
-            <TypeBadge>
+      <div className="mt-0 mb-2.5 overflow-hidden rounded-md border border-border bg-background">
+        <div className="flex items-center gap-3 rounded-t-md border-border border-b bg-muted/50 px-6 pt-5 pb-4">
+          <div
+            className={cn(
+              'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white shadow-sm transition-colors',
+              isStreaming
+                ? 'bg-linear-to-br from-amber-500 to-amber-600 shadow-amber-500/30'
+                : 'bg-linear-to-br from-blue-500 to-blue-700 shadow-blue-500/30'
+            )}>
+            {isStreaming ? <Sparkles size={20} /> : <Globe size={20} />}
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <span className="truncate font-['Ubuntu'] font-bold text-foreground text-sm leading-snug">{title}</span>
+            <div className="inline-flex w-fit items-center gap-1 rounded-md border border-border bg-muted px-1.5 py-0.75 font-medium text-[10px] text-muted-foreground">
               <Code size={12} />
               <span>HTML</span>
-            </TypeBadge>
-          </TitleSection>
-        </Header>
-        <Content>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-background">
           {isStreaming && !hasContent ? (
-            <GeneratingContainer>
+            <div className="flex min-h-[78px] items-center justify-center gap-2 p-5">
               <ClipLoader size={20} color="var(--color-primary)" />
-              <GeneratingText>{t('html_artifacts.generating', 'Generating content...')}</GeneratingText>
-            </GeneratingContainer>
+              <div className="text-muted-foreground text-sm">
+                {t('html_artifacts.generating', 'Generating content...')}
+              </div>
+            </div>
           ) : isStreaming && hasContent ? (
             <>
-              <TerminalPreview $theme={theme}>
-                <TerminalContent $theme={theme}>
-                  <TerminalLine>
-                    <TerminalPrompt $theme={theme}>$</TerminalPrompt>
-                    <TerminalCodeLine $theme={theme}>
+              <div className="m-4 overflow-hidden rounded-md bg-muted font-mono dark:bg-neutral-900">
+                <div className="min-h-20 bg-muted p-3 text-[13px] text-foreground leading-relaxed dark:bg-neutral-900 dark:text-neutral-300">
+                  <div className="flex items-start gap-2">
+                    <span className="shrink-0 font-bold text-green-700 dark:text-green-400">$</span>
+                    <span className="flex-1 whitespace-pre-wrap break-words bg-transparent text-foreground dark:text-neutral-300">
                       {htmlContent.trim().split('\n').slice(-3).join('\n')}
-                      <TerminalCursor $theme={theme} />
-                    </TerminalCodeLine>
-                  </TerminalLine>
-                </TerminalContent>
-              </TerminalPreview>
-              <ButtonContainer>
-                <Button icon={<CodeOutlined />} onClick={() => setIsPopupOpen(true)} type="primary">
+                      <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-green-700 dark:bg-green-400" />
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="m-[10px_16px] flex flex-row gap-2">
+                <Button onClick={() => setIsPopupOpen(true)}>
+                  <Code size={14} />
                   {t('chat.artifacts.button.preview')}
                 </Button>
-              </ButtonContainer>
+              </div>
             </>
           ) : (
-            <ButtonContainer>
-              <Button icon={<CodeOutlined />} onClick={() => setIsPopupOpen(true)} type="text" disabled={!hasContent}>
+            <div className="m-[10px_16px] flex flex-row gap-2">
+              <Button onClick={() => setIsPopupOpen(true)} variant="ghost" disabled={!hasContent}>
+                <Code size={14} />
                 {t('chat.artifacts.button.preview')}
               </Button>
-              <Button icon={<LinkIcon size={14} />} onClick={handleOpenExternal} type="text" disabled={!hasContent}>
+              <Button onClick={handleOpenExternal} variant="ghost" disabled={!hasContent}>
+                <LinkIcon size={14} />
                 {t('chat.artifacts.button.openExternal')}
               </Button>
-              <Button icon={<DownloadIcon size={14} />} onClick={handleDownload} type="text" disabled={!hasContent}>
+              <Button onClick={handleDownload} variant="ghost" disabled={!hasContent}>
+                <DownloadIcon size={14} />
                 {t('code_block.download.label')}
               </Button>
-            </ButtonContainer>
+            </div>
           )}
-        </Content>
-      </Container>
+        </div>
+      </div>
 
       <HtmlArtifactsPopup
         open={isPopupOpen}
@@ -120,151 +123,5 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => 
     </>
   )
 }
-
-const Container = styled.div<{ $isStreaming: boolean }>`
-  background: var(--color-background);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  overflow: hidden;
-  margin: 10px 0;
-  margin-top: 0;
-`
-
-const GeneratingContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  padding: 20px;
-  min-height: 78px;
-`
-
-const GeneratingText = styled.div`
-  font-size: 14px;
-  color: var(--color-text-secondary);
-`
-
-const Header = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 20px 24px 16px;
-  background: var(--color-background-soft);
-  border-bottom: 1px solid var(--color-border);
-  border-radius: 8px 8px 0 0;
-`
-
-const IconWrapper = styled.div<{ $isStreaming: boolean }>`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 44px;
-  height: 44px;
-  background: ${(props) =>
-    props.$isStreaming
-      ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
-      : 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)'};
-  border-radius: 12px;
-  color: white;
-  box-shadow: ${(props) =>
-    props.$isStreaming ? '0 4px 6px -1px rgba(245, 158, 11, 0.3)' : '0 4px 6px -1px rgba(59, 130, 246, 0.3)'};
-  transition: background 0.3s ease;
-`
-
-const TitleSection = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-`
-
-const Title = styled.span`
-  font-size: 14px;
-  font-weight: bold;
-  color: var(--color-text-1);
-  line-height: 1.4;
-  font-family: 'Ubuntu';
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-`
-
-const TypeBadge = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 6px;
-  background: var(--color-background-mute);
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  width: fit-content;
-`
-
-const Content = styled.div`
-  padding: 0;
-  background: var(--color-background);
-`
-
-const ButtonContainer = styled.div`
-  margin: 10px 16px !important;
-  display: flex;
-  flex-direction: row;
-`
-
-const TerminalPreview = styled.div<{ $theme: ThemeMode }>`
-  margin: 16px;
-  background: ${(props) => getTerminalStyles(props.$theme).background};
-  border-radius: 8px;
-  overflow: hidden;
-  font-family: var(--code-font-family);
-`
-
-const TerminalContent = styled.div<{ $theme: ThemeMode }>`
-  padding: 12px;
-  background: ${(props) => getTerminalStyles(props.$theme).background};
-  color: ${(props) => getTerminalStyles(props.$theme).color};
-  font-size: 13px;
-  line-height: 1.4;
-  min-height: 80px;
-`
-
-const TerminalLine = styled.div`
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-`
-
-const TerminalCodeLine = styled.span<{ $theme: ThemeMode }>`
-  flex: 1;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: ${(props) => getTerminalStyles(props.$theme).color};
-  background-color: transparent !important;
-`
-
-const TerminalPrompt = styled.span<{ $theme: ThemeMode }>`
-  color: ${(props) => getTerminalStyles(props.$theme).promptColor};
-  font-weight: bold;
-  flex-shrink: 0;
-`
-
-const blinkAnimation = keyframes`
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0; }
-`
-
-const TerminalCursor = styled.span<{ $theme: ThemeMode }>`
-  display: inline-block;
-  width: 2px;
-  height: 16px;
-  background: ${(props) => getTerminalStyles(props.$theme).promptColor};
-  animation: ${blinkAnimation} 1s infinite;
-  margin-left: 2px;
-`
 
 export default HtmlArtifactsCard

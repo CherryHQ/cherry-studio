@@ -1,9 +1,11 @@
+import { agentChannelService as channelService } from '@data/services/AgentChannelService'
+import { agentChannelWorkflowService } from '@data/services/AgentChannelWorkflowService'
+import { agentService } from '@data/services/AgentService'
+import { agentTaskService as taskService } from '@data/services/AgentTaskService'
+import { agentTaskWorkflowService } from '@data/services/AgentTaskWorkflowService'
 import { loggerService } from '@logger'
-import { type ChannelConfig, ChannelConfigSchema } from '@main/services/agents/database/schema'
-import { agentService } from '@main/services/agents/services/AgentService'
+import { type ChannelConfig, ChannelConfigSchema } from '@main/services/agents/services/channels/channelConfig'
 import { channelManager } from '@main/services/agents/services/channels/ChannelManager'
-import { channelService } from '@main/services/agents/services/ChannelService'
-import { taskService } from '@main/services/agents/services/TaskService'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
@@ -336,13 +338,13 @@ class ClawServer {
       channelIds = [this.sourceChannelId]
     }
 
-    const task = await taskService.createTask(this.agentId, {
+    const task = await agentTaskWorkflowService.createTask(this.agentId, {
       name,
       prompt: message,
-      schedule_type: scheduleType,
-      schedule_value: scheduleValue,
-      timeout_minutes: timeoutMinutes && timeoutMinutes > 0 ? timeoutMinutes : undefined,
-      channel_ids: channelIds && channelIds.length > 0 ? channelIds : undefined
+      scheduleType,
+      scheduleValue,
+      timeoutMinutes: timeoutMinutes && timeoutMinutes > 0 ? timeoutMinutes : undefined,
+      channelIds: channelIds && channelIds.length > 0 ? channelIds : undefined
     })
 
     logger.info('Cron job created via tool', { agentId: this.agentId, taskId: task.id })
@@ -438,7 +440,7 @@ class ClawServer {
     }))
 
     const result = {
-      agent_id: agent.id,
+      agentId: agent.id,
       name: agent.name,
       model: agent.model,
       supported_channel_types: Object.entries(CHANNEL_CONFIG_SCHEMAS).map(([type, schema]) => ({
@@ -485,13 +487,6 @@ class ClawServer {
 
     const channelType = type as ChannelConfig['type']
     const config = ChannelConfigSchema.parse({ type: channelType, ...cfg })
-    const newChannel = await channelService.createChannel({
-      type: channelType,
-      name,
-      agentId: this.agentId,
-      config,
-      isActive: enabled ?? true
-    })
 
     // For channels that use QR-based setup (WeChat login, Feishu app registration),
     // connect is blocking (waits for QR scan), so run sync in background
@@ -499,6 +494,14 @@ class ClawServer {
     const needsQr = type === 'wechat' || (type === 'feishu' && !cfg.app_id && !cfg.app_secret)
 
     if (needsQr) {
+      const newChannel = await channelService.createChannel({
+        type: channelType,
+        name,
+        agentId: this.agentId,
+        config,
+        isActive: enabled ?? true
+      })
+
       const qrPromise = channelManager.waitForQrUrl(this.agentId, newChannel.id, 30_000)
       // Fire-and-forget: syncChannel will complete once the user scans
       channelManager.syncChannel(newChannel.id).catch((err) => {
@@ -559,7 +562,13 @@ class ClawServer {
       }
     }
 
-    await channelManager.syncChannel(newChannel.id)
+    const newChannel = await agentChannelWorkflowService.createChannel({
+      type: channelType,
+      name,
+      agentId: this.agentId,
+      config,
+      isActive: enabled ?? true
+    })
 
     logger.info('Channel added via config tool', { agentId: this.agentId, channelId: newChannel.id, type })
     return {
@@ -586,8 +595,7 @@ class ClawServer {
       updates.config = { ...existing.config, ...(args.config as Record<string, unknown>) }
     }
 
-    await channelService.updateChannel(channelId, updates)
-    await channelManager.syncChannel(channelId)
+    await agentChannelWorkflowService.updateChannel(channelId, updates)
 
     logger.info('Channel updated via config tool', { agentId: this.agentId, channelId })
     return {
@@ -602,8 +610,7 @@ class ClawServer {
     const channel = await channelService.getChannel(channelId)
     if (!channel) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
-    await channelService.deleteChannel(channelId)
-    await channelManager.disconnectChannel(channelId)
+    await agentChannelWorkflowService.deleteChannel(channelId)
 
     logger.info('Channel removed via config tool', { agentId: this.agentId, channelId, type: channel.type })
     return {
@@ -618,8 +625,7 @@ class ClawServer {
     const channel = await channelService.getChannel(channelId)
     if (!channel) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
-    const needsQr =
-      channel.type === 'wechat' || (channel.type === 'feishu' && !(channel.config as Record<string, unknown>).app_id)
+    const needsQr = channel.type === 'wechat' || (channel.type === 'feishu' && !channel.config.app_id)
 
     if (!needsQr) {
       await channelManager.syncChannel(channelId)
@@ -724,8 +730,7 @@ class ClawServer {
    */
   private async removeOrphanChannel(channelId: string): Promise<void> {
     try {
-      await channelService.deleteChannel(channelId)
-      await channelManager.disconnectChannel(channelId)
+      await agentChannelWorkflowService.deleteChannel(channelId)
     } catch (err) {
       logger.error('Failed to remove orphan channel', {
         agentId: this.agentId,
@@ -739,7 +744,7 @@ class ClawServer {
     const id = args.id
     if (!id) throw new McpError(ErrorCode.InvalidParams, "'id' is required for remove")
 
-    const deleted = await taskService.deleteTask(this.agentId, id)
+    const deleted = await agentTaskWorkflowService.deleteTask(this.agentId, id)
     if (!deleted) throw new McpError(ErrorCode.InvalidParams, `Job "${id}" not found`)
 
     logger.info('Cron job removed via tool', { agentId: this.agentId, taskId: id })

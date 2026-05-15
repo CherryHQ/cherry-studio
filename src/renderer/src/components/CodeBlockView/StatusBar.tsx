@@ -1,25 +1,13 @@
-import { Flex } from 'antd'
+import { Flex } from '@cherrystudio/ui'
 import type { FC, ReactNode } from 'react'
 import { memo } from 'react'
-import styled from 'styled-components'
 
 interface Props {
   children: string | ReactNode
 }
 
 const StatusBar: FC<Props> = ({ children }) => {
-  return <Container>{children}</Container>
+  return <Flex className="flex-col gap-2 overflow-y-auto rounded-b-lg bg-muted p-3 [text-wrap:wrap]">{children}</Flex>
 }
-
-const Container = styled(Flex)`
-  background-color: var(--color-background-mute);
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  overflow-y: auto;
-  text-wrap: wrap;
-  border-radius: 0 0 8px 8px;
-`
 
 export default memo(StatusBar)

@@ -1,31 +1,21 @@
-import { Tooltip } from 'antd'
+import { Tooltip } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { ImageIcon } from 'lucide-react'
 import type { FC } from 'react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 const VisionIcon: FC<React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>> = (props) => {
   const { t } = useTranslation()
+  const { className, ...iconProps } = props as React.HTMLAttributes<HTMLElement> & { className?: string }
 
   return (
-    <Container>
-      <Tooltip title={t('models.type.vision')} placement="top">
-        <Icon size={15} {...(props as any)} />
+    <div className="flex items-center justify-center">
+      <Tooltip content={t('models.type.vision')}>
+        <ImageIcon size={15} {...(iconProps as any)} className={cn('mr-[6px] text-primary', className)} />
       </Tooltip>
-    </Container>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-`
-
-const Icon = styled(ImageIcon)`
-  color: var(--color-primary);
-  margin-right: 6px;
-`
 
 export default VisionIcon

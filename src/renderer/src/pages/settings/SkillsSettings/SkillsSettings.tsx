@@ -1,26 +1,27 @@
+import {
+  Badge,
+  Checkbox,
+  ConfirmDialog,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+  EmptyState,
+  MenuItem,
+  MenuList,
+  Spinner,
+  Tooltip
+} from '@cherrystudio/ui'
 import { Icon } from '@iconify/react'
 import CodeViewer from '@renderer/components/CodeViewer'
-import ListItem from '@renderer/components/ListItem'
 import RichEditor from '@renderer/components/RichEditor'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useInstalledSkills, useSkillInstall, useSkillSearch } from '@renderer/hooks/useSkills'
 import { getFileIconName } from '@renderer/utils/fileIconName'
+import { cn } from '@renderer/utils/style'
 import type { InstalledSkill, SkillFileNode, SkillSearchResult, SkillSearchSource } from '@types'
-import {
-  Button,
-  Checkbox,
-  Dropdown,
-  Empty,
-  Input,
-  message,
-  Modal,
-  Popconfirm,
-  Spin,
-  Tag,
-  Tooltip,
-  Typography,
-  Upload
-} from 'antd'
+import { Button, Input, message, Modal, Typography, Upload } from 'antd'
 import {
   ArrowLeft,
   ChevronRight,
@@ -34,13 +35,12 @@ import {
   Upload as UploadIcon,
   X
 } from 'lucide-react'
+import type React from 'react'
 import { type FC, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 const { Dragger } = Upload
 
-const TITLE_STYLE = { fontWeight: 500 } as const
 const SEARCH_SOURCES: SkillSearchSource[] = ['claude-plugins.dev', 'skills.sh', 'clawhub.ai']
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx', '.markdown'])
 const ICON_STYLE_16 = { fontSize: 16, flexShrink: 0 } as const
@@ -237,6 +237,7 @@ const SkillsSettings: FC = () => {
   // Multi-select state
   const [multiSelectMode, setMultiSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
+  const [pendingUninstallSkill, setPendingUninstallSkill] = useState<InstalledSkill | null>(null)
 
   // Search tab state
   const [searchTab, setSearchTab] = useState<SkillSearchSource>('claude-plugins.dev')
@@ -320,6 +321,7 @@ const SkillsSettings: FC = () => {
   const filteredResults = useMemo(() => {
     return results.filter((r) => r.sourceRegistry === searchTab)
   }, [results, searchTab])
+  const selectedSkillId = selectedSkill?.id
 
   // Pre-compute tab counts in one pass (js-combine-iterations)
   const tabCounts = useMemo(() => {
@@ -389,17 +391,10 @@ const SkillsSettings: FC = () => {
     setSelectedIds(new Set())
   }, [])
 
-  const handleContextMenuUninstall = useCallback(
-    (skill: InstalledSkill) => {
-      if (skill.source === 'builtin') return
-      window.modal.confirm({
-        title: t('settings.skills.confirmUninstall'),
-        centered: true,
-        onOk: () => handleUninstall(skill)
-      })
-    },
-    [handleUninstall, t]
-  )
+  const handleContextMenuUninstall = useCallback((skill: InstalledSkill) => {
+    if (skill.source === 'builtin') return
+    setPendingUninstallSkill(skill)
+  }, [])
 
   const handleDrop = useCallback(
     async (file: File) => {
@@ -494,144 +489,138 @@ const SkillsSettings: FC = () => {
     <Container>
       <MainContainer>
         {/* Left Panel */}
-        <MenuList>
-          {selectedSkill ? (
-            <>
-              <ListHeader>
-                <BackButton onClick={handleBack}>
-                  <ArrowLeft size={14} />
-                </BackButton>
-                <Typography.Text strong style={SKILL_NAME_STYLE}>
-                  {selectedSkill.name}
-                </Typography.Text>
-              </ListHeader>
-              <FileTreeContainer>
-                {fileTree.map((node) => (
-                  <FileTreeNode
-                    key={node.path}
-                    node={node}
-                    depth={0}
-                    expandedDirs={expandedDirs}
-                    selectedFile={selectedFile}
-                    onToggleDir={toggleDir}
-                    onSelectFile={setSelectedFile}
-                  />
-                ))}
-              </FileTreeContainer>
-            </>
-          ) : (
-            <>
-              <ListHeader>
-                {multiSelectMode ? (
-                  <>
-                    <Button
-                      type="text"
-                      size="small"
-                      danger
-                      disabled={selectedIds.size === 0}
-                      icon={<Trash2 size={14} />}
-                      onClick={handleBatchUninstall}>
-                      {selectedIds.size > 0 ? selectedIds.size : ''}
-                    </Button>
-                    <div style={FLEX_1_STYLE} />
-                    <Button type="text" size="small" onClick={exitMultiSelect}>
-                      <X size={14} />
-                    </Button>
-                  </>
-                ) : (
-                  <Typography.Text strong style={FONT_13_STYLE}>
-                    {t('settings.skills.installed')} ({skills.length})
+        <MenuScroll>
+          <SkillsMenuList>
+            {selectedSkill ? (
+              <>
+                <ListHeader>
+                  <BackButton onClick={handleBack}>
+                    <ArrowLeft size={14} />
+                  </BackButton>
+                  <Typography.Text strong style={SKILL_NAME_STYLE}>
+                    {selectedSkill.name}
                   </Typography.Text>
-                )}
-              </ListHeader>
+                </ListHeader>
+                <FileTreeContainer>
+                  {fileTree.map((node) => (
+                    <FileTreeNode
+                      key={node.path}
+                      node={node}
+                      depth={0}
+                      expandedDirs={expandedDirs}
+                      selectedFile={selectedFile}
+                      onToggleDir={toggleDir}
+                      onSelectFile={setSelectedFile}
+                    />
+                  ))}
+                </FileTreeContainer>
+              </>
+            ) : (
+              <>
+                <ListHeader>
+                  {multiSelectMode ? (
+                    <>
+                      <Button
+                        type="text"
+                        size="small"
+                        danger
+                        disabled={selectedIds.size === 0}
+                        icon={<Trash2 size={14} />}
+                        onClick={handleBatchUninstall}>
+                        {selectedIds.size > 0 ? selectedIds.size : ''}
+                      </Button>
+                      <div style={FLEX_1_STYLE} />
+                      <Button type="text" size="small" onClick={exitMultiSelect}>
+                        <X size={14} />
+                      </Button>
+                    </>
+                  ) : (
+                    <Typography.Text strong style={FONT_13_STYLE}>
+                      {t('settings.skills.installed')} ({skills.length})
+                    </Typography.Text>
+                  )}
+                </ListHeader>
 
-              <FilterContainer>
-                <Input
-                  size="small"
-                  placeholder={t('settings.skills.filterPlaceholder')}
-                  value={localFilter}
-                  onChange={(e) => setLocalFilter(e.target.value)}
-                  prefix={<Search size={12} style={SEARCH_PREFIX_STYLE} />}
-                  allowClear
-                />
-              </FilterContainer>
+                <FilterContainer>
+                  <Input
+                    size="small"
+                    placeholder={t('settings.skills.filterPlaceholder')}
+                    value={localFilter}
+                    onChange={(e) => setLocalFilter(e.target.value)}
+                    prefix={<Search size={12} style={SEARCH_PREFIX_STYLE} />}
+                    allowClear
+                  />
+                </FilterContainer>
 
-              {loading ? (
-                <SpinContainer>
-                  <Spin size="small" />
-                </SpinContainer>
-              ) : filteredSkills.length === 0 ? (
-                <EmptyHint>
-                  <Puzzle size={32} strokeWidth={1} style={EMPTY_ICON_STYLE} />
-                  <EmptyText>
-                    {localFilter ? t('settings.skills.noFilterResults') : t('settings.skills.noInstalled')}
-                  </EmptyText>
-                </EmptyHint>
-              ) : (
-                filteredSkills.map((skill) => {
-                  const isBuiltin = skill.source === 'builtin'
-                  if (multiSelectMode) {
+                {loading ? (
+                  <SpinContainer>
+                    <Spinner text={t('common.loading')} />
+                  </SpinContainer>
+                ) : filteredSkills.length === 0 ? (
+                  <EmptyHint>
+                    <Puzzle size={32} strokeWidth={1} style={EMPTY_ICON_STYLE} />
+                    <EmptyText>
+                      {localFilter ? t('settings.skills.noFilterResults') : t('settings.skills.noInstalled')}
+                    </EmptyText>
+                  </EmptyHint>
+                ) : (
+                  filteredSkills.map((skill) => {
+                    const isBuiltin = skill.source === 'builtin'
+                    if (multiSelectMode) {
+                      return (
+                        <CheckboxItem
+                          key={skill.id}
+                          onClick={() =>
+                            setSelectedIds((prev) => {
+                              const next = new Set(prev)
+                              if (next.has(skill.id)) {
+                                next.delete(skill.id)
+                              } else if (!isBuiltin) {
+                                next.add(skill.id)
+                              }
+                              return next
+                            })
+                          }>
+                          <Checkbox checked={selectedIds.has(skill.id)} disabled={isBuiltin} style={NO_EVENTS_STYLE} />
+                          <CheckboxLabel $disabled={isBuiltin}>{skill.name}</CheckboxLabel>
+                        </CheckboxItem>
+                      )
+                    }
                     return (
-                      <CheckboxItem
-                        key={skill.id}
-                        onClick={() =>
-                          setSelectedIds((prev) => {
-                            const next = new Set(prev)
-                            if (next.has(skill.id)) {
-                              next.delete(skill.id)
-                            } else if (!isBuiltin) {
-                              next.add(skill.id)
-                            }
-                            return next
-                          })
-                        }>
-                        <Checkbox checked={selectedIds.has(skill.id)} disabled={isBuiltin} style={NO_EVENTS_STYLE} />
-                        <CheckboxLabel $disabled={isBuiltin}>{skill.name}</CheckboxLabel>
-                      </CheckboxItem>
+                      <ContextMenu key={skill.id}>
+                        <ContextMenuTrigger asChild>
+                          <MenuItem
+                            label={skill.name}
+                            description={skill.description ?? undefined}
+                            descriptionLines={2}
+                            active={selectedSkillId === skill.id}
+                            onClick={() => setSelectedSkill(skill)}
+                            icon={<Puzzle size={16} />}
+                            className="rounded-lg font-medium"
+                          />
+                        </ContextMenuTrigger>
+                        <ContextMenuContent>
+                          <ContextMenuItem onSelect={() => setMultiSelectMode(true)}>
+                            {t('settings.skills.multiSelect')}
+                          </ContextMenuItem>
+                          {!isBuiltin ? (
+                            <>
+                              <ContextMenuSeparator />
+                              <ContextMenuItem variant="destructive" onSelect={() => handleContextMenuUninstall(skill)}>
+                                <Trash2 size={14} />
+                                {t('settings.skills.uninstall')}
+                              </ContextMenuItem>
+                            </>
+                          ) : null}
+                        </ContextMenuContent>
+                      </ContextMenu>
                     )
-                  }
-                  return (
-                    <Dropdown
-                      key={skill.id}
-                      trigger={['contextMenu']}
-                      menu={{
-                        items: [
-                          {
-                            key: 'multiSelect',
-                            label: t('settings.skills.multiSelect'),
-                            onClick: () => setMultiSelectMode(true)
-                          },
-                          ...(!isBuiltin
-                            ? [
-                                { type: 'divider' as const, key: 'div' },
-                                {
-                                  key: 'uninstall',
-                                  label: t('settings.skills.uninstall'),
-                                  danger: true,
-                                  icon: <Trash2 size={14} />,
-                                  onClick: () => handleContextMenuUninstall(skill)
-                                }
-                              ]
-                            : [])
-                        ]
-                      }}>
-                      <div>
-                        <ListItem
-                          title={skill.name}
-                          subtitle={skill.description ?? undefined}
-                          active={false}
-                          onClick={() => setSelectedSkill(skill)}
-                          icon={<Puzzle size={16} />}
-                          titleStyle={TITLE_STYLE}
-                        />
-                      </div>
-                    </Dropdown>
-                  )
-                })
-              )}
-            </>
-          )}
-        </MenuList>
+                  })
+                )}
+              </>
+            )}
+          </SkillsMenuList>
+        </MenuScroll>
 
         {/* Right Panel */}
         <RightContainer>
@@ -642,16 +631,20 @@ const SkillsSettings: FC = () => {
             <TopBarRight ref={searchContainerRef}>
               {selectedSkill ? (
                 <DetailMeta>
-                  {selectedSkill.author ? <Tag color="blue">{selectedSkill.author}</Tag> : null}
-                  <Tag>{selectedSkill.source === 'builtin' ? t('settings.skills.builtin') : selectedSkill.source}</Tag>
+                  {selectedSkill.author ? (
+                    <Badge className="border-primary/30 bg-primary/10 text-primary">{selectedSkill.author}</Badge>
+                  ) : null}
+                  <Badge variant="outline">
+                    {selectedSkill.source === 'builtin' ? t('settings.skills.builtin') : selectedSkill.source}
+                  </Badge>
                   {selectedSkill.source !== 'builtin' ? (
-                    <Popconfirm
-                      title={t('settings.skills.confirmUninstall')}
-                      onConfirm={() => handleUninstall(selectedSkill)}
-                      okText={t('common.confirm')}
-                      cancelText={t('common.cancel')}>
-                      <Button type="text" size="small" danger icon={<Trash2 size={14} />} />
-                    </Popconfirm>
+                    <Button
+                      type="text"
+                      size="small"
+                      danger
+                      icon={<Trash2 size={14} />}
+                      onClick={() => setPendingUninstallSkill(selectedSkill)}
+                    />
                   ) : null}
                 </DetailMeta>
               ) : null}
@@ -680,7 +673,7 @@ const SkillsSettings: FC = () => {
                     <SearchResultsScroll>
                       {searching ? (
                         <DropdownLoading>
-                          <Spin size="small" />
+                          <Spinner text={t('common.loading')} className="text-xs" />
                         </DropdownLoading>
                       ) : null}
                       {!searching && searchQuery && filteredResults.length === 0 ? (
@@ -707,7 +700,7 @@ const SkillsSettings: FC = () => {
             {selectedSkill ? (
               loadingContent ? (
                 <SpinContainer>
-                  <Spin />
+                  <Spinner text={t('common.loading')} />
                 </SpinContainer>
               ) : selectedFile && fileContent !== null ? (
                 isMarkdownFile(selectedFile) ? (
@@ -728,7 +721,9 @@ const SkillsSettings: FC = () => {
                 )
               ) : (
                 <EmptyStateContainer>
-                  <Empty
+                  <EmptyState
+                    compact
+                    preset="no-file"
                     description={selectedFile ? t('settings.skills.noSkillFile') : t('settings.skills.selectFile')}
                   />
                 </EmptyStateContainer>
@@ -800,7 +795,7 @@ const SkillsSettings: FC = () => {
                 </MetaItem>
               ) : null}
               <MetaItem>
-                <Tag color="blue">{previewResult.sourceRegistry}</Tag>
+                <Badge className="border-primary/30 bg-primary/10 text-primary">{previewResult.sourceRegistry}</Badge>
               </MetaItem>
               {previewResult.sourceUrl ? (
                 <MetaItem>
@@ -818,445 +813,147 @@ const SkillsSettings: FC = () => {
           </PreviewContent>
         ) : null}
       </Modal>
+      <ConfirmDialog
+        open={pendingUninstallSkill !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingUninstallSkill(null)
+          }
+        }}
+        title={t('settings.skills.confirmUninstall')}
+        confirmText={t('common.confirm')}
+        cancelText={t('common.cancel')}
+        destructive
+        onConfirm={async () => {
+          if (pendingUninstallSkill) {
+            await handleUninstall(pendingUninstallSkill)
+            setPendingUninstallSkill(null)
+          }
+        }}
+      />
     </Container>
   )
 }
 
-// ─── Styled Components ───────────────────────────────────────
+type DivProps = React.ComponentPropsWithoutRef<'div'>
+type SpanProps = React.ComponentPropsWithoutRef<'span'>
 
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-`
+const divWithClass =
+  (classes: string) =>
+  ({ ref, className, ...props }: DivProps & { ref?: React.RefObject<HTMLDivElement | null> }) => (
+    <div ref={ref} className={cn(classes, className)} {...props} />
+  )
 
-const MainContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  width: 100%;
-  height: calc(100vh - var(--navbar-height) - 6px);
-  overflow: hidden;
-`
+const spanWithClass =
+  (classes: string) =>
+  ({ className, ...props }: SpanProps) => <span className={cn(classes, className)} {...props} />
 
-const MenuList = styled(Scrollbar)`
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  width: var(--settings-width);
-  padding: 12px;
-  border-right: 0.5px solid var(--color-border);
-  height: calc(100vh - var(--navbar-height));
-`
+const Container = divWithClass('flex flex-1')
+const MainContainer = divWithClass('flex w-full flex-1 flex-row overflow-hidden')
+const SkillsMenuList = ({ className, ...props }: React.ComponentProps<typeof MenuList>) => (
+  <MenuList
+    className={cn(
+      'flex min-h-full w-(--settings-width) flex-col gap-1.25 p-3 pb-12 [box-sizing:border-box]',
+      className
+    )}
+    {...props}
+  />
+)
+const MenuScroll = ({ className, ...props }: React.ComponentProps<typeof Scrollbar>) => (
+  <Scrollbar
+    className={cn(
+      'h-[calc(100vh-var(--navbar-height))] w-(--settings-width) border-border border-r-[0.5px]',
+      className
+    )}
+    {...props}
+  />
+)
+const ListHeader = divWithClass('flex items-center gap-2 pt-1 pb-2')
+const FilterContainer = divWithClass('pb-2')
+const RightContainer = divWithClass('relative flex flex-1 flex-col')
+const TopBar = divWithClass('flex min-h-11 items-center gap-2 border-border border-b-[0.5px] px-4 py-2.5')
+const BackButton = divWithClass(
+  'flex cursor-pointer items-center rounded p-1 text-foreground-secondary hover:bg-accent'
+)
+const TopBarTitle = divWithClass('flex-1 truncate font-medium text-sm')
+const TopBarRight = divWithClass('relative flex items-center gap-2')
+const DetailMeta = divWithClass('flex items-center gap-1.5')
+const SearchInputWrapper = divWithClass('relative w-[280px]')
+const SearchDropdown = divWithClass(
+  'absolute top-full right-0 z-100 mt-1 flex max-h-[400px] w-full flex-col rounded-lg border-border border-[0.5px] bg-background shadow-[0_4px_12px_rgba(0,0,0,0.1)]'
+)
+const SearchTabs = divWithClass('flex shrink-0 border-border border-b-[0.5px]')
+const SearchTab = ({ className, $active, ...props }: DivProps & { $active: boolean }) => (
+  <div
+    className={cn(
+      'flex flex-1 cursor-pointer items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-1.5 text-[11px] transition-all',
+      $active
+        ? 'border-primary text-primary'
+        : 'border-transparent text-foreground-muted hover:text-foreground-secondary',
+      className
+    )}
+    {...props}
+  />
+)
+const TabCount = spanWithClass('min-w-4 rounded-sm bg-accent px-1 text-center text-[10px]')
+const SearchResultsScroll = divWithClass('flex-1 overflow-y-auto')
+const DropdownLoading = divWithClass('flex justify-center p-4')
+const DropdownEmpty = divWithClass('p-4 text-center text-foreground-muted text-xs')
+const SearchResultItem = divWithClass(
+  'flex items-center justify-between gap-2 border-border border-t-[0.5px] px-3 py-2 first:border-t-0 hover:bg-accent'
+)
+const ResultActions = divWithClass('flex shrink-0 items-center gap-1')
+const ExternalLinkButton = divWithClass(
+  'flex cursor-pointer items-center rounded p-1 text-foreground-muted hover:bg-accent hover:text-foreground'
+)
+const ResultInfo = divWithClass('min-w-0 flex-1 cursor-pointer')
+const ResultName = divWithClass('truncate font-medium text-[13px]')
+const ResultMeta = divWithClass('mt-0.5 flex items-center gap-1.5')
+const MetaBadge = spanWithClass('inline-flex items-center gap-0.5 text-[11px] text-foreground-muted')
+const ContentArea = divWithClass('flex-1 overflow-hidden')
+const EmptyStateContainer = divWithClass('flex h-full items-center justify-center')
+const EmptyStateTitle = divWithClass('font-medium text-base text-foreground')
+const EmptyStateDesc = divWithClass('text-[13px] text-foreground-muted leading-1.5')
+const EmptyStateActions = divWithClass('mt-2 flex gap-2')
+const EmptyStateTip = divWithClass('mt-1 text-[11px] text-foreground-muted opacity-70')
+const DropHint = divWithClass('mt-2 text-foreground-muted text-xs')
+const SpinContainer = divWithClass('flex justify-center p-5')
+const EmptyHint = divWithClass('flex flex-col items-center gap-2 px-4 py-10')
+const CheckboxItem = divWithClass('flex cursor-pointer items-center gap-2 rounded-md px-3 py-1.5 hover:bg-accent')
+const CheckboxLabel = ({ className, $disabled, ...props }: SpanProps & { $disabled: boolean }) => (
+  <span className={cn('truncate text-[13px]', $disabled && 'opacity-40', className)} {...props} />
+)
+const EmptyText = divWithClass('text-foreground-muted text-xs')
 
-const ListHeader = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 0 8px;
-`
-
-const FilterContainer = styled.div`
-  padding: 0 0 8px;
-`
-
-const RightContainer = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-`
-
-const TopBar = styled.div`
-  display: flex;
-  align-items: center;
-  padding: 10px 16px;
-  border-bottom: 0.5px solid var(--color-border);
-  gap: 8px;
-  min-height: 44px;
-`
-
-const BackButton = styled.div`
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  color: var(--color-text-2);
-  &:hover {
-    background: var(--color-background-soft);
-  }
-`
-
-const TopBarTitle = styled.div`
-  font-size: 14px;
-  font-weight: 500;
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
-
-const TopBarRight = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  position: relative;
-`
-
-const DetailMeta = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-`
-
-const SearchInputWrapper = styled.div`
-  position: relative;
-  width: 280px;
-`
-
-const SearchDropdown = styled.div`
-  position: absolute;
-  top: 100%;
-  right: 0;
-  width: 100%;
-  max-height: 400px;
-  display: flex;
-  flex-direction: column;
-  background: var(--color-background);
-  border: 0.5px solid var(--color-border);
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  margin-top: 4px;
-  z-index: 100;
-`
-
-const SearchTabs = styled.div`
-  display: flex;
-  border-bottom: 0.5px solid var(--color-border);
-  flex-shrink: 0;
-`
-
-const SearchTab = styled.div<{ $active: boolean }>`
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 6px 8px;
-  font-size: 11px;
-  cursor: pointer;
-  color: ${(p) => (p.$active ? 'var(--color-primary)' : 'var(--color-text-3)')};
-  border-bottom: 2px solid ${(p) => (p.$active ? 'var(--color-primary)' : 'transparent')};
-  transition: all 0.15s;
-  white-space: nowrap;
-
-  &:hover {
-    color: ${(p) => (p.$active ? 'var(--color-primary)' : 'var(--color-text-2)')};
-  }
-`
-
-const TabCount = styled.span`
-  font-size: 10px;
-  background: var(--color-background-soft);
-  padding: 0 4px;
-  border-radius: 8px;
-  min-width: 16px;
-  text-align: center;
-`
-
-const SearchResultsScroll = styled.div`
-  flex: 1;
-  overflow-y: auto;
-`
-
-const DropdownLoading = styled.div`
-  display: flex;
-  justify-content: center;
-  padding: 16px;
-`
-
-const DropdownEmpty = styled.div`
-  padding: 16px;
-  text-align: center;
-  color: var(--color-text-3);
-  font-size: 12px;
-`
-
-const SearchResultItem = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  gap: 8px;
-  &:hover {
-    background: var(--color-background-soft);
-  }
-  & + & {
-    border-top: 0.5px solid var(--color-border);
-  }
-`
-
-const ResultActions = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-`
-
-const ExternalLinkButton = styled.div`
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  color: var(--color-text-3);
-  &:hover {
-    color: var(--color-text);
-    background: var(--color-background-soft);
-  }
-`
-
-const ResultInfo = styled.div`
-  flex: 1;
-  min-width: 0;
-  cursor: pointer;
-`
-
-const ResultName = styled.div`
-  font-size: 13px;
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
-
-const ResultMeta = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 2px;
-`
-
-const MetaBadge = styled.span`
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  font-size: 11px;
-  color: var(--color-text-3);
-`
-
-const ContentArea = styled.div`
-  flex: 1;
-  overflow: hidden;
-`
-
-const EmptyStateContainer = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-`
-
-const EmptyStateTitle = styled.div`
-  font-size: 16px;
-  font-weight: 500;
-  color: var(--color-text-1);
-`
-
-const EmptyStateDesc = styled.div`
-  font-size: 13px;
-  color: var(--color-text-3);
-  line-height: 1.5;
-`
-
-const EmptyStateActions = styled.div`
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
-`
-
-const EmptyStateTip = styled.div`
-  font-size: 11px;
-  color: var(--color-text-3);
-  opacity: 0.7;
-  margin-top: 4px;
-`
-
-const DropHint = styled.div`
-  font-size: 12px;
-  color: var(--color-text-3);
-  margin-top: 8px;
-`
-
-const SpinContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  padding: 20px;
-`
-
-const EmptyHint = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 40px 16px;
-`
-
-const CheckboxItem = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-
-  &:hover {
-    background: var(--color-background-soft);
-  }
-`
-
-const CheckboxLabel = styled.span<{ $disabled: boolean }>`
-  font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  opacity: ${(p) => (p.$disabled ? 0.4 : 1)};
-`
-
-const EmptyText = styled.div`
-  font-size: 12px;
-  color: var(--color-text-3);
-`
-
-// ─── File Tree ──────────────────────────────────────────────
-
-const FileTreeContainer = styled.div`
-  flex: 1;
-  overflow-y: auto;
-`
-
-const FileTreeItem = styled.div<{ $depth: number; $active: boolean }>`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  padding-left: ${(p) => 8 + p.$depth * 16}px;
-  border-radius: 6px;
-  font-size: 12px;
-  cursor: pointer;
-  color: ${(p) => (p.$active ? 'var(--color-text)' : 'var(--color-text-2)')};
-  background: ${(p) => (p.$active ? 'var(--color-background-soft)' : 'transparent')};
-
-  &:hover {
-    background: var(--color-background-soft);
-  }
-`
-
-const FileTreeName = styled.span`
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-`
-
-// ─── Content Viewers ────────────────────────────────────────
-
-const MarkdownContainer = styled.div`
-  height: 100%;
-  overflow-y: auto;
-  padding: 0;
-
-  /* Override RichEditor wrapper styles for full-width fit */
-  > div {
-    border: none;
-    border-radius: 0;
-  }
-
-  /* Hide TipTap drag handle and plus button in readonly mode */
-  .drag-handle,
-  .plus-button {
-    display: none !important;
-  }
-`
-
-const CodeViewerContainer = styled.div`
-  height: 100%;
-  overflow-y: auto;
-
-  /* Ensure text is selectable for copy */
-  user-select: text;
-  -webkit-user-select: text;
-`
-
-// ─── Drop Zone ──────────────────────────────────────────────
-
-const DropZoneContainer = styled.div`
-  height: 100%;
-  display: flex;
-  padding-bottom: 2px;
-
-  .ant-upload-wrapper,
-  .ant-upload-drag {
-    height: 100%;
-    display: flex;
-  }
-
-  .ant-upload-wrapper {
-    flex: 1;
-  }
-
-  .ant-upload-drag {
-    flex: 1;
-    background: transparent;
-    border-radius: 0;
-    border: 2px dashed transparent;
-    border-bottom-right-radius: 6px;
-    transition: border-color 0.2s;
-
-    &.ant-upload-drag-hover {
-      border-color: var(--color-primary);
-    }
-  }
-
-  .ant-upload-btn {
-    height: 100% !important;
-    display: flex !important;
-    align-items: center;
-    justify-content: center;
-  }
-`
-
-const DropZoneContent = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  max-width: 360px;
-  text-align: center;
-`
-
-// ─── Preview Modal ──────────────────────────────────────────
-
-const PreviewContent = styled.div`
-  p {
-    margin-bottom: 12px;
-    color: var(--color-text-2);
-  }
-`
-
-const PreviewMeta = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-`
-
-const MetaItem = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 13px;
-  color: var(--color-text-2);
-`
+const FileTreeContainer = divWithClass('flex-1 overflow-y-auto')
+const FileTreeItem = ({
+  className,
+  $depth,
+  $active,
+  style,
+  ...props
+}: DivProps & { $depth: number; $active: boolean }) => (
+  <div
+    className={cn(
+      'flex cursor-pointer items-center gap-1.5 rounded-md py-1 pr-2 text-xs hover:bg-accent',
+      $active ? 'bg-accent text-foreground' : 'text-foreground-secondary',
+      className
+    )}
+    style={{ paddingLeft: 8 + $depth * 16, ...style }}
+    {...props}
+  />
+)
+const FileTreeName = spanWithClass('flex-1 truncate')
+const MarkdownContainer = divWithClass(
+  'h-full overflow-y-auto px-4 pt-4 pb-0 [&_.drag-handle]:hidden! [&_.plus-button]:hidden! [&>div]:rounded-none [&>div]:border-none'
+)
+const CodeViewerContainer = divWithClass('h-full select-text overflow-y-auto px-4 pt-4 pb-0')
+const DropZoneContainer = divWithClass(
+  'flex h-full pb-0.5 [&_.ant-upload-btn]:flex! [&_.ant-upload-btn]:h-full! [&_.ant-upload-btn]:items-center [&_.ant-upload-btn]:justify-center [&_.ant-upload-drag.ant-upload-drag-hover]:border-primary [&_.ant-upload-drag]:flex [&_.ant-upload-drag]:flex-1 [&_.ant-upload-drag]:rounded-none [&_.ant-upload-drag]:rounded-br-md [&_.ant-upload-drag]:border-2 [&_.ant-upload-drag]:border-dashed [&_.ant-upload-drag]:border-transparent [&_.ant-upload-drag]:bg-transparent [&_.ant-upload-drag]:transition-colors [&_.ant-upload-wrapper]:flex [&_.ant-upload-wrapper]:h-full [&_.ant-upload-wrapper]:flex-1'
+)
+const DropZoneContent = divWithClass('flex max-w-[360px] flex-col items-center gap-3 text-center')
+const PreviewContent = divWithClass('[&_p]:mb-3 [&_p]:text-foreground-secondary')
+const PreviewMeta = divWithClass('flex flex-wrap items-center gap-3')
+const MetaItem = divWithClass('flex items-center gap-1 text-[13px] text-foreground-secondary')
 
 export default SkillsSettings

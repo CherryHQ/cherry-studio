@@ -1,9 +1,6 @@
-import { Button, Modal, Typography } from 'antd'
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import type { FC } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import styled from 'styled-components'
-
-const { Text, Paragraph } = Typography
 
 interface MacProcessTrustHintModalProps {
   open: boolean
@@ -24,45 +21,36 @@ const MacProcessTrustHintModal: FC<MacProcessTrustHintModalProps> = ({ open, onC
   }
 
   return (
-    <Modal
-      title={t('selection.settings.enable.mac_process_trust_hint.title')}
-      open={open}
-      onCancel={onClose}
-      footer={
-        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-          <Button type="link" style={{ color: 'var(--color-text-3)', fontSize: 12 }} onClick={handleOpenAccessibility}>
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('selection.settings.enable.mac_process_trust_hint.title')}</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-3 py-4 text-foreground text-sm">
+          <p className="m-0">
+            <Trans i18nKey="selection.settings.enable.mac_process_trust_hint.description.0" />
+          </p>
+          <p className="m-0">
+            <Trans i18nKey="selection.settings.enable.mac_process_trust_hint.description.1" />
+          </p>
+          <p className="m-0">
+            <Trans i18nKey="selection.settings.enable.mac_process_trust_hint.description.2" />
+          </p>
+        </div>
+        <div className="flex w-full items-center justify-between">
+          <Button
+            variant="ghost"
+            className="text-[var(--color-foreground-muted)] text-xs"
+            onClick={handleOpenAccessibility}>
             {t('selection.settings.enable.mac_process_trust_hint.button.open_accessibility_settings')}
           </Button>
-          <Button type="primary" onClick={handleConfirm}>
+          <Button onClick={handleConfirm}>
             {t('selection.settings.enable.mac_process_trust_hint.button.go_to_settings')}
           </Button>
         </div>
-      }
-      centered
-      destroyOnHidden>
-      <ContentContainer>
-        <Paragraph>
-          <Text>
-            <Trans i18nKey="selection.settings.enable.mac_process_trust_hint.description.0" />
-          </Text>
-        </Paragraph>
-        <Paragraph>
-          <Text>
-            <Trans i18nKey="selection.settings.enable.mac_process_trust_hint.description.1" />
-          </Text>
-        </Paragraph>
-        <Paragraph>
-          <Text>
-            <Trans i18nKey="selection.settings.enable.mac_process_trust_hint.description.2" />
-          </Text>
-        </Paragraph>
-      </ContentContainer>
-    </Modal>
+      </DialogContent>
+    </Dialog>
   )
 }
-
-const ContentContainer = styled.div`
-  padding: 16px 0;
-`
 
 export default MacProcessTrustHintModal

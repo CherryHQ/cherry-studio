@@ -1,0 +1,49 @@
+{
+  "name": "@vectorstores/libsql",
+  "description": "libSQL/Turso Storage for vectorstores",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/marcusschiesser/vectorstores.git",
+    "directory": "packages/vectorstores/libsql"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "clean": "rm -rf dist",
+    "test": "pnpm --dir ../../.. exec vitest run --project vectorstores"
+  },
+  "devDependencies": {
+    "tsdown": "^0.20.3",
+    "typescript": "^5.8.3",
+    "vitest": "2.1.0",
+    "@vectorstores/core": "^0.1.8",
+    "@vectorstores/env": "^0.1.0"
+  },
+  "peerDependencies": {
+    "@vectorstores/core": "^0.1.8",
+    "@vectorstores/env": "^0.1.0"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.15.15"
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

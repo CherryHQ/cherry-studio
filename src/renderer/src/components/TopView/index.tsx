@@ -1,13 +1,13 @@
 // import { loggerService } from '@logger'
-import TopViewMinappContainer from '@renderer/components/MinApp/TopViewMinappContainer'
+import { Box } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import AppModalProvider from '@renderer/components/AppModal'
 import { useAppInit } from '@renderer/hooks/useAppInit'
-import { useShortcuts } from '@renderer/hooks/useShortcuts'
-import { message, Modal } from 'antd'
 import type { PropsWithChildren } from 'react'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import { Box } from '../Layout'
-import { getToastUtilities, initMessageApi } from './toast'
+import { ToastProvider, useToasts } from './toast'
 
 let onPop = () => {}
 let onShow = ({ element, id }: { element: React.FC | React.ReactNode; id: string }) => {
@@ -30,23 +30,21 @@ type ElementItem = {
 
 // const logger = loggerService.withContext('TopView')
 
-const TopViewContainer: React.FC<Props> = ({ children }) => {
+const TopViewContent: React.FC<Props> = ({ children }) => {
   const [elements, setElements] = useState<ElementItem[]>([])
   const elementsRef = useRef<ElementItem[]>([])
   elementsRef.current = elements
 
-  const [modal, modalContextHolder] = Modal.useModal()
-  const [messageApi, messageContextHolder] = message.useMessage()
-  const { shortcuts } = useShortcuts()
-  const enableQuitFullScreen = shortcuts.find((item) => item.key === 'exit_fullscreen')?.enabled
+  const [exitFullscreenPref] = usePreference('shortcut.general.exit_fullscreen')
+  const enableQuitFullScreen = exitFullscreenPref?.enabled !== false
 
   useAppInit()
 
+  const toast = useToasts()
+
   useEffect(() => {
-    window.modal = modal
-    initMessageApi(messageApi)
-    window.toast = getToastUtilities()
-  }, [messageApi, modal])
+    window.toast = toast
+  }, [toast])
 
   onPop = () => {
     const views = [...elementsRef.current]
@@ -74,8 +72,8 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
 
   const FullScreenContainer: React.FC<PropsWithChildren> = useCallback(({ children }) => {
     return (
-      <Box flex={1} position="absolute" w="100%" h="100%" className="topview-fullscreen-container">
-        <Box position="absolute" w="100%" h="100%" onClick={onPop} />
+      <Box className="topview-fullscreen-container absolute h-full w-full flex-1">
+        <Box className="absolute h-full w-full" onClick={onPop} />
         {children}
       </Box>
     )
@@ -87,7 +85,7 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
       if (!enableQuitFullScreen) return
 
       if (e.key === 'Escape' && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-        void window.api.setFullScreen(false)
+        void window.api.windowManager.setFullScreen(false)
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -99,15 +97,37 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
   return (
     <>
       {children}
-      {messageContextHolder}
-      {modalContextHolder}
-      <TopViewMinappContainer />
+      <AppModalProvider
+        onReady={(modal) => {
+          window.modal = modal
+        }}
+      />
       {elements.map(({ element: Element, id }) => (
         <FullScreenContainer key={`TOPVIEW_${id}`}>
           {typeof Element === 'function' ? <Element /> : Element}
         </FullScreenContainer>
       ))}
     </>
+  )
+}
+
+const TopViewContainer: React.FC<Props> = ({ children }) => {
+  const { t } = useTranslation()
+  const toastLabels = useMemo(
+    () => ({
+      close: t('common.close'),
+      error: t('common.error'),
+      errorDescription: t('error.unknown'),
+      loading: t('common.loading'),
+      success: t('common.success')
+    }),
+    [t]
+  )
+
+  return (
+    <ToastProvider labels={toastLabels}>
+      <TopViewContent>{children}</TopViewContent>
+    </ToastProvider>
   )
 }
 

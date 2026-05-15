@@ -82,6 +82,38 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
   }
 
   /**
+   * Resolve modelId through the plugin pipeline (configureContext → resolveModel → wrapLanguageModel).
+   * Returns a middleware-wrapped LanguageModel ready for external consumers like ToolLoopAgent.
+   *
+   * Note: This is a model-resolution-only path, not a full request lifecycle.
+   * - `originalParams` in context will be `{}` since no request params exist at resolution time.
+   * - `onError` hooks are NOT invoked on failure — callers should handle errors directly.
+   */
+  async resolveModel(modelId: string): Promise<LanguageModel> {
+    const context = createContext(this.providerId, modelId, {})
+    const manager = new PluginManager(this.basePlugins)
+
+    // 1. configureContext — collect middlewares
+    await manager.executeConfigureContext(context)
+
+    // 2. resolveModel — string → LanguageModel
+    const resolved = await manager.executeFirst<LanguageModel>('resolveModel', modelId, context)
+    if (!resolved) {
+      throw new ModelResolutionError(modelId, this.providerId)
+    }
+
+    // 3. Apply middlewares
+    if (context.middlewares && context.middlewares.length > 0) {
+      return wrapLanguageModel({
+        model: resolved as LanguageModelV3,
+        middleware: context.middlewares
+      })
+    }
+
+    return resolved
+  }
+
+  /**
    * 执行带插件的操作（非流式）
    * 提供给AiExecutor使用
    */

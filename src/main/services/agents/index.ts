@@ -17,9 +17,5 @@ export * from './services'
 export { type AgentModelField, AgentModelValidationError } from './errors'
 
 // === Base Infrastructure ===
-// Shared database utilities and base service class
-export { BaseService } from './BaseService'
-
-// === Database Layer ===
-// Drizzle ORM schemas, migrations, and database utilities
-export * as Database from './database'
+// Shared utility functions for agent services
+export * from './agentUtils'

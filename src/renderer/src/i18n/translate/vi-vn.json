@@ -36,7 +36,9 @@
         "comingSoon": "Sắp ra mắt",
         "connected": "Đã kết nối",
         "connecting": "Kết nối",
+        "createError": "Không tạo được kênh",
         "deleteConfirm": "Xóa kênh \"{{name}}\"?",
+        "deleteError": "Không xóa được kênh",
         "description": "Kết nối tác nhân của bạn với các nền tảng nhắn tin.",
         "disconnected": "Ngắt kết nối",
         "discord": {
@@ -121,6 +123,7 @@
           "title": "Telegram"
         },
         "title": "Kênh",
+        "updateError": "Không thể cập nhật kênh",
         "wechat": {
           "addAccount": "Thêm Tài khoản WeChat",
           "chatIds": "ID Người Dùng Được Phép",
@@ -211,6 +214,9 @@
         },
         "edit": "Chỉnh sửa",
         "empty": "Không có tác vụ nào được lên lịch. Thêm một tác vụ để bắt đầu.",
+        "error": {
+          "loadFailed": "Không tải được nhiệm vụ"
+        },
         "intervalPlaceholder": "Khoảng thời gian tính bằng phút",
         "intervalUnit": "phút",
         "lastRun": "Lần chạy cuối",
@@ -220,6 +226,7 @@
           "error": "Lỗi",
           "justNow": "vừa mới đây",
           "label": "Lịch sử chạy",
+          "loadError": "Không tải được lịch sử chạy",
           "result": "Kết quả",
           "runAt": "Chạy tại",
           "running": "Đang chạy...",
@@ -571,6 +578,98 @@
     },
     "sidebar_title": "Đại lý",
     "todo": {
+      "mock": {
+        "actions": {
+          "complete": "[to be translated]:Complete",
+          "dismiss": "[to be translated]:Dismiss"
+        },
+        "details": {
+          "addRouter": {
+            "summary": "[to be translated]:Configuring client routing with react-router-dom v6...",
+            "title": "[to be translated]:Add React Router"
+          },
+          "configureProject": {
+            "resources": {
+              "createdMeta": "[to be translated]:created",
+              "postcssConfig": "[to be translated]:postcss.config.js",
+              "tailwindConfig": "[to be translated]:tailwind.config.js",
+              "updatedMeta": "[to be translated]:updated",
+              "viteConfig": "[to be translated]:vite.config.ts - port 3001"
+            },
+            "title": "[to be translated]:Configure project"
+          },
+          "installDependencies": {
+            "resources": {
+              "dependenciesMeta": "[to be translated]:dependencies",
+              "devDependenciesMeta": "[to be translated]:devDependencies",
+              "reactDeps": "[to be translated]:react@18.3.1, react-dom@18.3.1",
+              "tailwindDeps": "[to be translated]:tailwindcss@3.4.4, postcss@8.4.38",
+              "typescriptDeps": "[to be translated]:typescript@5.4.5, vite@5.3.0"
+            },
+            "summary": "[to be translated]:Installed react, react-dom, tailwindcss, postcss, autoprefixer, and TypeScript.",
+            "title": "[to be translated]:Install dependencies"
+          },
+          "reviewReferences": {
+            "collectionTitle": "[to be translated]:Reviewed references",
+            "resources": {
+              "npmCreateVite": "[to be translated]:npm create vite - Official Scaffolding",
+              "npmMeta": "[to be translated]:npmjs.com",
+              "reactDocs": "[to be translated]:React Documentation - Quick Start",
+              "reactMeta": "[to be translated]:react.dev",
+              "tailwindDocs": "[to be translated]:Tailwind CSS - Installation Guide",
+              "tailwindMeta": "[to be translated]:tailwindcss.com",
+              "viteDocs": "[to be translated]:Vite - Next Generation Frontend Tooling",
+              "viteMeta": "[to be translated]:vitejs.dev"
+            },
+            "title": "[to be translated]:Review references"
+          },
+          "searchWeb": {
+            "resources": {
+              "reactViteQuery": "[to be translated]:React Vite TypeScript starter 2025 best practices"
+            },
+            "summary": "[to be translated]:Collected current references for React + Vite scaffolding and best practices.",
+            "title": "[to be translated]:Search web references"
+          },
+          "title": "[to be translated]:Execution details",
+          "writeComponents": {
+            "collectionTitle": "[to be translated]:Created files",
+            "resources": {
+              "app": "[to be translated]:src/App.tsx",
+              "button": "[to be translated]:src/components/Button.tsx",
+              "card": "[to be translated]:src/components/Card.tsx",
+              "footer": "[to be translated]:src/components/Footer.tsx",
+              "header": "[to be translated]:src/components/Header.tsx",
+              "layout": "[to be translated]:src/components/Layout.tsx",
+              "modifiedMeta": "[to be translated]:modified",
+              "newMeta": "[to be translated]:new",
+              "updatedMeta": "[to be translated]:updated"
+            },
+            "title": "[to be translated]:Write components"
+          },
+          "writePages": {
+            "resources": {
+              "about": "[to be translated]:src/pages/About.tsx",
+              "home": "[to be translated]:src/pages/Home.tsx",
+              "newMeta": "[to be translated]:new"
+            },
+            "title": "[to be translated]:Write pages"
+          }
+        },
+        "progress": "[to be translated]:{{completed}}/{{total}} tasks completed",
+        "tasks": {
+          "addLinting": "[to be translated]:Add ESLint + Prettier",
+          "addRouter": "[to be translated]:Add React Router",
+          "buildDeploy": "[to be translated]:Build and deploy",
+          "configureProject": "[to be translated]:Configure project",
+          "finish": "[to be translated]:Finish",
+          "installDependencies": "[to be translated]:Install dependencies",
+          "reviewReferences": "[to be translated]:Review references",
+          "searchWeb": "[to be translated]:Search web references",
+          "writeComponents": "[to be translated]:Write components",
+          "writePages": "[to be translated]:Write pages"
+        },
+        "title": "[to be translated]:Tasks"
+      },
       "panel": {
         "title": "{{completed}}/{{total}} nhiệm vụ đã hoàn thành"
       },
@@ -839,6 +938,7 @@
         "agent": "Trợ lý Xuất khẩu"
       },
       "import": {
+        "action": "[to be translated]:Import Assistant",
         "button": "Nhập khẩu",
         "error": {
           "fetch_failed": "Không thể tải từ URL",
@@ -848,6 +948,10 @@
         },
         "file_filter": "Tệp JSON",
         "select_file": "Chọn Tệp",
+        "subscribe": {
+          "title": "[to be translated]:Agent Subscription",
+          "url_placeholder": "[to be translated]:Subscription URL"
+        },
         "title": "Nhập từ bên ngoài",
         "type": {
           "file": "Tập tin",
@@ -951,15 +1055,15 @@
         "xhigh_description": "Lý luận cấp độ cực cao"
       },
       "regular_phrases": {
-        "add": "Thêm Cụm từ",
-        "contentLabel": "Nội dung",
-        "contentPlaceholder": "Vui lòng nhập nội dung cụm từ, hỗ trợ sử dụng biến và nhấn Tab để nhanh chóng định vị biến cần sửa. Ví dụ:  \nHãy giúp tôi lên lộ trình từ ${from} đến ${to} và gửi nó đến ${email}.",
-        "delete": "Xóa cụm từ",
-        "deleteConfirm": "Bạn có chắc chắn muốn xóa cụm từ này không?",
-        "edit": "Chỉnh sửa cụm từ",
-        "title": "Cụm từ thông dụng",
-        "titleLabel": "Tiêu đề",
-        "titlePlaceholder": "Nhập tiêu đề"
+        "add": "[to be translated]:Add Phrase",
+        "contentLabel": "[to be translated]:Content",
+        "contentPlaceholder": "[to be translated]:Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+        "delete": "[to be translated]:Delete Phrase",
+        "deleteConfirm": "[to be translated]:Are you sure to delete this phrase?",
+        "edit": "[to be translated]:Edit Phrase",
+        "title": "[to be translated]:Regular Phrase",
+        "titleLabel": "[to be translated]:Title",
+        "titlePlaceholder": "[to be translated]:Enter title"
       },
       "title": "Cài đặt Trợ lý",
       "tool_use_mode": {
@@ -1103,7 +1207,7 @@
       },
       "new_session": "Phiên mới {{Command}}",
       "new_topic": "Chủ đề mới {{Command}}",
-      "paste_text_file_confirm": "Dán vào thanh nhập liệu?",
+      "paste_text_file": "[to be translated]:Paste into input",
       "pause": "Tạm dừng",
       "placeholder": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi - @ để Chọn Mô hình, / để Bao gồm Công cụ",
       "placeholder_without_triggers": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi",
@@ -1399,6 +1503,7 @@
         "title_tip": "Astuces : Double-cliquez sur le nom du sujet pour le renommer directement sur place"
       },
       "export": {
+        "failed": "[to be translated]:Export failed",
         "image": "Xuất dưới dạng hình ảnh",
         "image_saved": "Hình ảnh đã được lưu thành công",
         "joplin": "Exporteren naar Joplin",
@@ -1491,6 +1596,7 @@
       "unpin": "Bỏ ghim chủ đề"
     },
     "translate": "Dịch",
+    "user": "Người dùng",
     "web_search": {
       "warning": {
         "openai": "Mô hình GPT-5 với nỗ lực suy luận tối thiểu không hỗ trợ tìm kiếm web."
@@ -1502,6 +1608,8 @@
     "bun_required_message": "Môi trường Bun là bắt buộc để chạy các công cụ CLI",
     "cli_tool": "Công cụ CLI",
     "cli_tool_placeholder": "Chọn công cụ CLI để sử dụng",
+    "count_one": "{{count}} mục",
+    "count_other": "{{count}} mục",
     "custom_path": "Đường dẫn tùy chỉnh",
     "custom_path_error": "Falha ao definir caminho personalizado do terminal",
     "custom_path_required": "Chemin personnalisé requis pour ce terminal",
@@ -1510,27 +1618,42 @@
     "env_vars_help": "Nhập các biến môi trường tùy chỉnh (mỗi dòng một biến, định dạng: KEY=value)",
     "environment_variables": "Biến Môi trường",
     "folder_placeholder": "Chọn thư mục làm việc",
+    "hero_tagline": "[to be translated]:Pick a CLI tool to configure",
     "install_bun": "Cài đặt Bun",
     "installing_bun": "Đang cài đặt...",
     "launch": {
       "bun_required": "Vui lòng cài đặt môi trường Bun trước khi khởi chạy các công cụ CLI",
       "error": "Lancement échoué, veuillez réessayer",
       "label": "Lanzamiento",
+      "launched": "Đã ra mắt",
       "success": "Khởi chạy thành công",
       "validation_error": "Vui lòng hoàn thành tất cả các trường bắt buộc: công cụ CLI, mô hình và thư mục làm việc"
     },
     "launching": "Lanzando...",
     "model": "Modelo",
+    "model_hint": "Chọn mô hình AI mà công cụ CLI nên sử dụng",
     "model_placeholder": "Chọn mô hình cần sử dụng",
     "model_required": "Vui lòng chọn một mô hình",
     "select_folder": "Pilih Folder",
     "set_custom_path": "Đặt đường dẫn terminal tùy chỉnh",
     "supported_providers": "Nhà cung cấp được hỗ trợ",
     "terminal": "Thiết bị đầu cuối",
+    "terminal_hint": "Chọn ứng dụng terminal để chạy CLI",
     "terminal_placeholder": "Chọn ứng dụng thiết bị đầu cuối",
     "title": "Công cụ mã",
+    "tool_description": {
+      "claude_code": "[to be translated]:Anthropic's official command-line AI coding assistant",
+      "gemini_cli": "[to be translated]:Google's official Gemini command-line assistant",
+      "github_copilot_cli": "[to be translated]:GitHub's official Copilot command-line companion",
+      "iflow_cli": "[to be translated]:iFlow's multi-model command-line assistant",
+      "kimi_cli": "[to be translated]:Moonshot's Kimi command-line assistant",
+      "openai_codex": "[to be translated]:OpenAI's official code generation CLI",
+      "opencode": "[to be translated]:Open-source multi-model coding agent",
+      "qwen_code": "[to be translated]:Alibaba Tongyi's open-source CLI coding tool"
+    },
     "update_options": "Tùy chọn Cập nhật",
-    "working_directory": "Thư mục làm việc"
+    "working_directory": "Thư mục làm việc",
+    "working_directory_hint": "Thư mục làm việc mà công cụ CLI khởi chạy trong"
   },
   "code_block": {
     "collapse": "Colapso",
@@ -1646,6 +1769,7 @@
     "models": "Mô hình",
     "more": "Thêm",
     "name": "Tên",
+    "next": "[to be translated]:Next",
     "next_match": "Trận đấu tiếp theo",
     "no_results": "Không có kết quả",
     "none": "",
@@ -1661,6 +1785,7 @@
     },
     "powered_by": "Được cung cấp bởi",
     "preview": "Xem trước",
+    "previous": "[to be translated]:Previous",
     "previous_match": "Trận đấu trước",
     "prompt": "Lời nhắc",
     "provider": "Nhà cung cấp",
@@ -1939,7 +2064,8 @@
     "empty_preview": "Không có nội dung để hiển thị",
     "generating": "Tạo",
     "preview": "Xem trước",
-    "split": "Tách"
+    "split": "Tách",
+    "view_mode": "Chế độ xem"
   },
   "import": {
     "chatgpt": {
@@ -1973,126 +2099,233 @@
   },
   "knowledge": {
     "add": {
-      "title": "Thêm Cơ sở kiến thức"
+      "group": "[to be translated]:Group",
+      "icon": "[to be translated]:Icon",
+      "submit": "[to be translated]:Create",
+      "title": "[to be translated]:New Knowledge Base"
     },
-    "add_directory": "Thêm Thư mục",
-    "add_file": "Thêm Tệp",
-    "add_image": "Thêm hình ảnh",
-    "add_note": "Thêm Ghi chú",
-    "add_sitemap": "Sơ đồ trang web",
-    "add_url": "Thêm URL",
-    "add_video": "Thêm video",
-    "cancel_index": "Hủy lập chỉ mục",
-    "chunk_overlap": "Chồng lấn khối",
-    "chunk_overlap_placeholder": "Mặc định (không khuyến khích thay đổi)",
-    "chunk_overlap_tooltip": "Lượng nội dung trùng lặp giữa các đoạn kề nhau, đảm bảo rằng các đoạn vẫn liên quan về ngữ cảnh, nâng cao hiệu quả tổng thể khi xử lý văn bản dài.",
-    "chunk_size": "Kích thước khối",
-    "chunk_size_change_warning": "Kích thước đoạn và kích thước chồng lấn chỉ được áp dụng cho nội dung mới",
-    "chunk_size_placeholder": "Mặc định (không khuyến khích thay đổi)",
-    "chunk_size_too_large": "Kích thước đoạn không được vượt quá giới hạn ngữ cảnh của mô hình ({{max_context}})",
-    "chunk_size_tooltip": "Chia tài liệu thành các đoạn, mỗi đoạn không vượt quá giới hạn ngữ cảnh của mô hình",
-    "clear_selection": "Xóa lựa chọn",
-    "delete": "Xóa",
-    "delete_confirm": "Bạn có chắc chắn muốn xóa cơ sở kiến thức này không?",
-    "dimensions": "Chiều embedding",
-    "dimensions_auto_set": "Tự động thiết lập kích thước embedding",
-    "dimensions_default": "Mô hình sẽ sử dụng kích thước embedding mặc định",
-    "dimensions_error_invalid": "Kích thước embedding không hợp lệ",
-    "dimensions_set_right": "⚠️ Vui lòng đảm bảo mô hình hỗ trợ kích thước chiều nhúng đã đặt",
-    "dimensions_size_placeholder": "Để trống để không truyền kích thước",
-    "dimensions_size_too_large": "The embedding dimension cannot exceed the model's maximum context length ({{max_context}}).",
-    "dimensions_size_tooltip": "Embedding size, the larger the value, the more tokens will be used. Leave blank to not pass the size parameter.",
-    "directories": "Thư mục",
-    "directory_placeholder": "Nhập đường dẫn thư mục",
-    "document_count": "Documentos solicitados en fragmentos",
-    "document_count_default": "Mặc định",
-    "document_count_help": "Càng yêu cầu nhiều đoạn tài liệu, thông tin được bao gồm càng nhiều, nhưng cũng tiêu tốn càng nhiều token.",
-    "drag_file": "Kéo tệp vào đây",
-    "drag_image": "Kéo ảnh vào đây",
-    "edit_remark": "Chỉnh sửa Ghi chú",
-    "edit_remark_placeholder": "Vui lòng nhập nội dung ghi chú",
-    "embedding_model": "Mô hình Nhúng",
-    "embedding_model_required": "Conhecimento Base Modelo de Incorporação é necessário",
-    "empty": "Không tìm thấy cơ sở kiến thức",
-    "error": {
-      "failed_to_create": "Tạo cơ sở tri thức thất bại",
-      "failed_to_edit": "Chỉnh sửa cơ sở tri thức thất bại",
-      "model_invalid": "Chưa chọn mô hình",
-      "video": {
-        "local_file_missing": "Không tìm thấy tệp video",
-        "youtube_url_missing": "Không tìm thấy URL video YouTube"
+    "context": {
+      "delete": "[to be translated]:Delete Knowledge Base",
+      "delete_confirm_description": "[to be translated]:This knowledge base cannot be recovered after deletion.",
+      "delete_confirm_title": "[to be translated]:Delete Knowledge Base?",
+      "move_to": "[to be translated]:Move to",
+      "rename": "[to be translated]:Rename"
+    },
+    "data_source": {
+      "actions": {
+        "delete": "[to be translated]:Delete",
+        "preview_source": "[to be translated]:Preview Source",
+        "reindex": "[to be translated]:Reindex",
+        "view_chunks": "[to be translated]:View Chunks"
+      },
+      "add_dialog": {
+        "directory": {
+          "description": "[to be translated]:Recursively import supported files from a folder",
+          "title": "[to be translated]:Click to select a folder"
+        },
+        "footer": {
+          "selected_directories": "[to be translated]:{{count}} directories selected",
+          "selected_files": "[to be translated]:{{count}} files selected",
+          "selected_notes": "[to be translated]:{{count}} notes selected"
+        },
+        "note": {
+          "description": "[to be translated]:Select existing notes as knowledge base sources",
+          "empty_description": "[to be translated]:Selectable notes will appear here after the real notes list is connected. For now, use files, folders, URLs, or sitemaps.",
+          "empty_title": "[to be translated]:Notes are not connected yet"
+        },
+        "placeholder": {
+          "supported_formats": "[to be translated]:Supports PDF, DOCX, MD, XLSX, TXT, CSV",
+          "title": "[to be translated]:Click to select files or drag them here"
+        },
+        "sitemap": {
+          "description": "[to be translated]:Enter a sitemap URL:",
+          "help": "[to be translated]:Pages listed in the sitemap will be read and indexed",
+          "placeholder": "[to be translated]:https://docs.cherry-ai.com/sitemap-pages.xml"
+        },
+        "sources": {
+          "directory": "[to be translated]:Folder",
+          "file": "[to be translated]:File",
+          "note": "[to be translated]:Note",
+          "sitemap": "[to be translated]:Website",
+          "url": "[to be translated]:URL"
+        },
+        "submit": {
+          "error": "[to be translated]:Failed to add data source",
+          "success": "[to be translated]:Data source added to knowledge base"
+        },
+        "title": "[to be translated]:Add Data Source",
+        "url": {
+          "description": "[to be translated]:Enter a webpage URL:",
+          "help": "[to be translated]:Page text will be fetched, chunked, and indexed automatically",
+          "input_label": "[to be translated]:Webpage URL",
+          "placeholder": "[to be translated]:https://docs.cherry-ai.com/",
+          "title": "[to be translated]:Import a single webpage"
+        }
+      },
+      "chunk_delete_confirm_description": "[to be translated]:After deletion, this chunk will no longer be used for retrieval. Reindexing the data source will generate it again.",
+      "chunk_delete_confirm_title": "[to be translated]:Delete Chunk?",
+      "chunks_count": "[to be translated]:{{count}} chunks",
+      "delete_confirm_description": "[to be translated]:This data source and its index data cannot be recovered after deletion.",
+      "delete_confirm_title": "[to be translated]:Delete Data Source?",
+      "delete_failed": "[to be translated]:Failed to delete data source",
+      "empty_description": "[to be translated]:No data sources yet",
+      "filters": {
+        "all": "[to be translated]:All",
+        "directory": "[to be translated]:Folders",
+        "file": "[to be translated]:Files",
+        "note": "[to be translated]:Notes",
+        "sitemap": "[to be translated]:Websites",
+        "url": "[to be translated]:URLs"
+      },
+      "preview": {
+        "failed": "[to be translated]:Failed to preview source",
+        "unavailable": "[to be translated]:This data source has no source to preview"
+      },
+      "ready_summary": "[to be translated]:{{ready}}/{{total}} ready",
+      "reindex_failed": "[to be translated]:Failed to reindex data source",
+      "status": {
+        "chunking": "[to be translated]:Chunking",
+        "embedding": "[to be translated]:Embedding",
+        "error": "[to be translated]:Error",
+        "pending": "[to be translated]:Waiting",
+        "ready": "[to be translated]:Ready"
       }
     },
+    "dimensions": "[to be translated]:Embedding Dimensions",
+    "dimensions_auto_set": "Tự động thiết lập kích thước embedding",
+    "dimensions_error_invalid": "Kích thước embedding không hợp lệ",
+    "dimensions_size_placeholder": "Để trống để không truyền kích thước",
+    "drag_file": "Kéo tệp vào đây",
+    "embedding_model": "[to be translated]:Embedding Model",
+    "embedding_model_required": "[to be translated]:Knowledge base embedding model is required",
+    "empty": "[to be translated]:No knowledge bases",
+    "error": {
+      "failed_base_unknown": "[to be translated]:This knowledge base failed during migration. Rebuild it and choose a new embedding model.",
+      "failed_to_create": "[to be translated]:Failed to create knowledge base",
+      "failed_to_delete": "[to be translated]:Failed to delete knowledge base",
+      "failed_to_edit": "[to be translated]:Failed to edit knowledge base",
+      "failed_to_move": "[to be translated]:Failed to move knowledge base",
+      "missing_embedding_model": "[to be translated]:The embedding model used by this knowledge base was not found during migration. Rebuild the knowledge base and choose a new embedding model.",
+      "model_invalid": "Chưa chọn mô hình"
+    },
     "file_hint": "Hỗ trợ {{file_types}}",
-    "image_hint": "Supporto {{image_types}}",
-    "images": "Hình ảnh",
-    "index_all": "Indeks Semua",
-    "index_cancelled": "Đã hủy lập chỉ mục",
-    "index_started": "Việc lập chỉ mục đã bắt đầu",
-    "invalid_url": "URL không hợp lệ",
-    "migrate": {
-      "button": {
-        "text": "Di chuyển"
-      },
-      "confirm": {
-        "content": "Phát hiện thay đổi trong mô hình embedding hoặc kích thước, không thể lưu trực tiếp cấu hình. Việc di chuyển cơ sở kiến thức sẽ không xóa cơ sở kiến thức hiện có, mà sẽ tạo một bản sao và sau đó xử lý lại tất cả các mục trong cơ sở kiến thức, điều này có thể tiêu tốn một lượng lớn token, vui lòng thực hiện một cách thận trọng.",
-        "ok": "Bắt đầu Di dời",
-        "title": "Di chuyển Cơ sở Kiến thức"
-      },
+    "groups": {
+      "add": "[to be translated]:New Group",
+      "create_base_here": "[to be translated]:Create here",
+      "delete": "[to be translated]:Delete Group",
+      "delete_confirm_description": "[to be translated]:Knowledge bases in this group will be moved to Ungrouped after deletion.",
+      "delete_confirm_title": "[to be translated]:Delete Group?",
       "error": {
-        "failed": "Di cư thất bại"
+        "failed_to_create": "[to be translated]:Failed to create group",
+        "failed_to_delete": "[to be translated]:Failed to delete group",
+        "failed_to_update": "[to be translated]:Failed to rename group"
       },
-      "source_dimensions": "Kích thước nguồn",
-      "source_model": "Mô hình nguồn",
-      "target_dimensions": "Kích thước mục tiêu",
-      "target_model": "Mục tiêu Mô hình"
+      "name_placeholder": "[to be translated]:Enter group name...",
+      "name_required": "[to be translated]:Group name is required",
+      "rename": "[to be translated]:Rename",
+      "rename_title": "[to be translated]:Rename Group",
+      "ungrouped": "[to be translated]:Ungrouped"
     },
-    "model_info": "Modellinformation",
-    "name_required": "Tên Cơ sở Kiến thức là bắt buộc",
-    "no_bases": "Không có cơ sở kiến thức nào khả dụng",
-    "no_match": "Không tìm thấy nội dung phù hợp trong cơ sở kiến thức.",
-    "no_provider": "Nhà cung cấp mô hình cơ sở tri thức chưa được thiết lập, cơ sở tri thức sẽ không còn được hỗ trợ nữa, vui lòng tạo một cơ sở tri thức mới",
-    "not_set": "Chưa thiết lập",
-    "not_support": "Cơ sở dữ liệu động cơ cơ sở tri thức đã được cập nhật, cơ sở tri thức này sẽ không còn được hỗ trợ nữa, vui lòng tạo một cơ sở tri thức mới",
-    "notes": "Ghi chú",
-    "notes_placeholder": "Introduza informações ou contexto adicionais para esta base de conhecimento...",
+    "meta": {
+      "documents_count": "[to be translated]:{{count}} documents"
+    },
+    "name_required": "[to be translated]:Knowledge base name is required",
+    "not_set": "[to be translated]:Not Set",
     "provider_not_found": "Không tìm thấy nhà cung cấp",
-    "rename": "Đổi tên",
-    "search": "Tìm kiếm cơ sở kiến thức",
-    "search_placeholder": "Nhập văn bản để tìm kiếm",
-    "settings": {
-      "preprocessing": "Tiền xử lý",
-      "preprocessing_tooltip": "Tiền xử lý các tệp đã tải lên",
-      "title": "Cài đặt Cơ sở Tri thức"
+    "rag": {
+      "chunk_overlap": "[to be translated]:Overlap Size",
+      "chunk_overlap_invalid": "[to be translated]:Chunk overlap must be greater than or equal to 0",
+      "chunk_overlap_must_be_smaller": "[to be translated]:Chunk overlap must be smaller than chunk size",
+      "chunk_overlap_requires_chunk_size": "[to be translated]:Chunk size is required when chunk overlap is set",
+      "chunk_size": "[to be translated]:Chunk Size",
+      "chunk_size_change_warning": "[to be translated]:Chunk size and overlap changes only apply to newly added content",
+      "chunk_size_invalid": "[to be translated]:Chunk size must be greater than 0",
+      "chunking": "[to be translated]:Chunking",
+      "default_separator": "[to be translated]:Auto (recommended)",
+      "dimensions": "[to be translated]:Vector Dimensions",
+      "document_count": "[to be translated]:Document Count",
+      "embedding_model": "[to be translated]:Embedding Model",
+      "embedding_model_select": "[to be translated]:Model Selection",
+      "file_processing": "[to be translated]:File Processing",
+      "file_processing_hint": "[to be translated]:File processing runs automatically during document import. Choosing the right provider can improve document parsing quality.",
+      "hints": {
+        "chunk_overlap": "[to be translated]:Number of overlapping tokens kept between adjacent chunks to reduce semantic breaks.",
+        "chunk_size": "[to be translated]:Target token count for each document chunk. This affects retrieval granularity and context length.",
+        "dimensions": "[to be translated]:The vector dimension output by the current embedding model, used to create and match vector indexes.",
+        "document_count": "[to be translated]:Maximum number of document chunks returned for each retrieval. Higher values cover more content but use more context.",
+        "embedding_model": "[to be translated]:Used to convert knowledge base content into vectors. Changing the model usually requires reindexing existing content.",
+        "hybrid_alpha": "[to be translated]:Vector score weight in hybrid retrieval. Higher values favor semantic matching.",
+        "processor": "[to be translated]:Parser used when importing files to extract body text, tables, and related content.",
+        "rerank_model": "[to be translated]:Model used to rerank initial retrieval results and improve final chunk relevance.",
+        "search_mode": "[to be translated]:Choose a retrieval mode: vector search for semantic matching, full-text search for keywords, or hybrid search for both.",
+        "threshold": "[to be translated]:Similarity threshold for filtering low-relevance chunks. Higher values make retrieval stricter.",
+        "threshold_disabled": "[to be translated]:This retrieval mode returns ordered results and does not use a similarity threshold."
+      },
+      "hybrid_alpha": "[to be translated]:Hybrid Alpha",
+      "hybrid_alpha_hint": "[to be translated]:Only configurable in Hybrid retrieval mode",
+      "processor": "[to be translated]:Processing Provider",
+      "refresh_dimensions": "[to be translated]:Refresh vector dimensions",
+      "rerank_disabled": "[to be translated]:Disabled",
+      "rerank_model": "[to be translated]:Rerank Model",
+      "reset_action": "[to be translated]:Restore Defaults",
+      "reset_defaults": "[to be translated]:Reset Defaults",
+      "retrieval": "[to be translated]:Retrieval Settings",
+      "save_action": "[to be translated]:Save",
+      "saved": "[to be translated]:Saved",
+      "search_mode": {
+        "bm25": "[to be translated]:Full-text Search",
+        "default": "[to be translated]:Vector Search",
+        "hybrid": "[to be translated]:Hybrid Search (recommended)",
+        "title": "[to be translated]:Search Mode"
+      },
+      "separator_rule": "[to be translated]:Separator Rule",
+      "threshold": "[to be translated]:Similarity Threshold",
+      "tokens_unit": "[to be translated]:tokens"
     },
-    "sitemap_added": "Đã thêm thành công",
-    "sitemap_placeholder": "Nhập URL bản đồ trang web",
-    "sitemaps": "Trang web",
-    "source": "Nguồn",
-    "status": "Tình trạng",
-    "status_completed": "Hoàn thành",
-    "status_embedding_completed": "Nhúng đã hoàn thành",
+    "recall": {
+      "collapse": "[to be translated]:Collapse Chunk",
+      "copy": "[to be translated]:Copy Chunk",
+      "duration": "[to be translated]:{{duration}}ms",
+      "empty_description": "[to be translated]:Matched document chunks and scores will appear here",
+      "empty_title": "[to be translated]:Enter a query to test retrieval",
+      "expand": "[to be translated]:Expand Chunk",
+      "history_clear": "[to be translated]:Clear",
+      "history_remove": "[to be translated]:Remove History",
+      "history_title": "[to be translated]:Search History",
+      "placeholder": "[to be translated]:Enter test query...",
+      "ranking_only": "[to be translated]:Ordered results",
+      "result_count": "[to be translated]:{{count}} results",
+      "result_rank": "[to be translated]:Rank #{{rank}}",
+      "result_relevance": "[to be translated]:Relevance {{score}}",
+      "search_failed": "[to be translated]:Failed to run recall test",
+      "searching": "[to be translated]:Searching...",
+      "submit": "[to be translated]:Search",
+      "top_score": "[to be translated]:Top: {{score}}"
+    },
+    "rename_title": "[to be translated]:Rename Knowledge Base",
+    "restore": {
+      "action": "[to be translated]:Rebuild knowledge base",
+      "default_name": "[to be translated]:{{name}}_bak",
+      "failed_to_restore": "[to be translated]:Failed to rebuild knowledge base",
+      "submit": "[to be translated]:Rebuild",
+      "title": "[to be translated]:Rebuild Knowledge Base"
+    },
+    "search": "[to be translated]:Search Knowledge Base",
+    "search_placeholder": "Nhập văn bản để tìm kiếm",
+    "status": {
+      "completed": "[to be translated]:Ready",
+      "failed": "[to be translated]:Failed",
+      "processing": "[to be translated]:Processing"
+    },
     "status_embedding_failed": "Nhúng Thất Bại",
-    "status_failed": "Thất bại",
-    "status_new": "Đã thêm",
-    "status_pending": "Đang chờ xử lý",
-    "status_preprocess_completed": "Tiền xử lý đã hoàn thành",
     "status_preprocess_failed": "Tiền xử lý thất bại",
-    "status_processing": "Đang xử lý",
     "subtitle_file": "tập tin phụ đề",
-    "threshold": "Ngưỡng khớp",
-    "threshold_placeholder": "Chưa được thiết lập",
-    "threshold_too_large_or_small": "Ngưỡng không thể lớn hơn 1 hoặc nhỏ hơn 0",
-    "threshold_tooltip": "Được sử dụng để đánh giá mức độ liên quan giữa câu hỏi của người dùng và nội dung trong cơ sở tri thức (0-1)",
-    "title": "Cơ sở tri thức",
-    "topN": "Số kết quả được trả về",
-    "topN_placeholder": "Chưa được đặt",
-    "topN_too_large_or_small": "Số kết quả trả về không thể lớn hơn 30 hoặc nhỏ hơn 1.",
-    "topN_tooltip": "Số lượng kết quả khớp được trả về; giá trị càng lớn thì càng nhiều kết quả khớp, nhưng cũng tiêu tốn nhiều token hơn.",
-    "url_added": "URL đã được thêm",
-    "url_placeholder": "Nhập URL, nhiều URL được phân tách bằng Enter",
-    "urls": "URL",
-    "videos": "Video",
+    "tabs": {
+      "data_source": "[to be translated]:Data Sources",
+      "rag_config": "[to be translated]:RAG Config",
+      "recall_test": "[to be translated]:Recall Test"
+    },
+    "title": "[to be translated]:Knowledge Base",
     "videos_file": "tệp video"
   },
   "languages": {
@@ -2120,7 +2353,472 @@
   },
   "launchpad": {
     "apps": "Ứng dụng",
-    "minapps": "Minapps"
+    "minapps": "[to be translated]:Minapps",
+    "miniApps": "MiniApps"
+  },
+  "library": {
+    "action": {
+      "create": "[to be translated]:New",
+      "delete": "[to be translated]:Delete",
+      "disable": "[to be translated]:Disable",
+      "duplicate": "[to be translated]:Duplicate",
+      "edit": "[to be translated]:Edit",
+      "enable": "[to be translated]:Enable",
+      "manage_tags": "[to be translated]:Manage tags",
+      "uninstall": "[to be translated]:Uninstall"
+    },
+    "assistant_catalog": {
+      "add": "[to be translated]:Add",
+      "add_failed": "[to be translated]:Failed to add assistant",
+      "browse_label": "[to be translated]:Assistant categories",
+      "empty_description": "[to be translated]:This category has no assistant presets yet.",
+      "empty_title": "[to be translated]:No assistants to add",
+      "mine": "[to be translated]:Mine",
+      "no_match_description": "[to be translated]:Try a different search keyword",
+      "no_match_title": "[to be translated]:No matching assistants",
+      "preview": "[to be translated]:Preview",
+      "preview_description": "[to be translated]:Overview",
+      "preview_prompt": "[to be translated]:Prompt",
+      "scroll_left": "[to be translated]:Scroll categories left",
+      "scroll_right": "[to be translated]:Scroll categories right"
+    },
+    "badge": {
+      "update": "[to be translated]:Update"
+    },
+    "config": {
+      "agent": {
+        "create_banner": "[to be translated]:Save before binding tools and MCP servers",
+        "create_title": "[to be translated]:New agent",
+        "field": {
+          "accessible_paths": {
+            "add": "[to be translated]:Add directory",
+            "empty": "[to be translated]:Not set (defaults to the workspace root)",
+            "hint": "[to be translated]:Limits directories the agent can access",
+            "label": "[to be translated]:Accessible directories"
+          },
+          "allowed_tools": {
+            "add": "[to be translated]:Add tool",
+            "empty": "[to be translated]:Leave empty to use the permission mode default",
+            "label": "[to be translated]:Allowed tools"
+          },
+          "avatar": {
+            "hint": "[to be translated]:Used to identify it in the library and sessions"
+          },
+          "description": {
+            "hint": "[to be translated]:Helps identify what this agent is for",
+            "label": "[to be translated]:Description",
+            "placeholder": "[to be translated]:What this agent is for…"
+          },
+          "env_vars": {
+            "help": "[to be translated]:One KEY=VALUE per line",
+            "label": "[to be translated]:Environment variables"
+          },
+          "heartbeat_enabled": {
+            "label": "[to be translated]:Heartbeat check"
+          },
+          "heartbeat_interval": {
+            "label": "[to be translated]:Heartbeat interval (minutes)"
+          },
+          "instructions": {
+            "hint": "[to be translated]:Defines the agent's role and behavior boundaries",
+            "label": "[to be translated]:System prompt",
+            "placeholder": "[to be translated]:Tell the agent who it is and what it can do…"
+          },
+          "max_turns": {
+            "help": "[to be translated]:0 means use the default",
+            "label": "[to be translated]:Max conversation turns"
+          },
+          "mcps": {
+            "add": "[to be translated]:Add MCP server",
+            "empty": "[to be translated]:None bound",
+            "label": "[to be translated]:MCP servers (id)"
+          },
+          "model": {
+            "help": "[to be translated]:UniqueModelId; will switch to a picker backed by /models later",
+            "hint": "[to be translated]:Main reasoning and execution",
+            "label": "[to be translated]:Primary model (required)"
+          },
+          "name": {
+            "hint": "[to be translated]:Shown in the library and session lists",
+            "label": "[to be translated]:Agent name",
+            "placeholder": "[to be translated]:Give the agent a name"
+          },
+          "permission_mode": {
+            "help": "[to be translated]:Switching to bypassPermissions is equivalent to enabling Soul mode",
+            "label": "[to be translated]:Permission mode",
+            "option": {
+              "acceptEdits": "[to be translated]:Accept edits",
+              "bypassPermissions": "[to be translated]:Bypass permissions (Soul)",
+              "default": "[to be translated]:Default",
+              "plan": "[to be translated]:Plan mode"
+            }
+          },
+          "plan_model": {
+            "hint": "[to be translated]:Task decomposition and planning",
+            "label": "[to be translated]:Plan model (optional)"
+          },
+          "small_model": {
+            "hint": "[to be translated]:Lightweight checks and formatting",
+            "label": "[to be translated]:Small model (optional)"
+          },
+          "soul_enabled": {
+            "help": "[to be translated]:When enabled, automatically grants bypassPermissions",
+            "label": "[to be translated]:Soul mode"
+          }
+        },
+        "model_config": "[to be translated]:Model configuration",
+        "section": {
+          "advanced": {
+            "desc": "[to be translated]:Execution limits and runtime parameters",
+            "label": "[to be translated]:Advanced",
+            "title": "[to be translated]:Advanced"
+          },
+          "basic": {
+            "desc": "[to be translated]:Agent name, description, and primary model",
+            "label": "[to be translated]:Basic",
+            "title": "[to be translated]:Basic"
+          },
+          "permission": {
+            "desc": "[to be translated]:Authorization scope for agent actions",
+            "label": "[to be translated]:Permission mode",
+            "title": "[to be translated]:Permission mode"
+          },
+          "prompt": {
+            "desc": "[to be translated]:System prompt and behavioral constraints",
+            "label": "[to be translated]:Prompt",
+            "title": "[to be translated]:Prompt"
+          },
+          "tools": {
+            "add": "[to be translated]:Add",
+            "desc": "[to be translated]:MCP servers, allowed tools, and runtime settings",
+            "label": "[to be translated]:Tools & runtime",
+            "no_builtin_enabled": "[to be translated]:No built-in tools enabled",
+            "no_mcp_bound": "[to be translated]:No MCP servers bound",
+            "no_skills_enabled": "[to be translated]:No skills enabled",
+            "search_placeholder": "[to be translated]:Search tools or servers...",
+            "skills_coming_soon": "[to be translated]:Skill bindings coming soon",
+            "skills_require_save": "[to be translated]:Save before enabling skills",
+            "tab": {
+              "mcp": "[to be translated]:MCP Server",
+              "skills": "[to be translated]:Skills",
+              "tools": "[to be translated]:Built-in tools"
+            },
+            "title": "[to be translated]:Tools & runtime"
+          }
+        }
+      },
+      "basic": {
+        "context_count": "[to be translated]:Context count",
+        "creative": "[to be translated]:Creative",
+        "custom_params": "[to be translated]:Custom parameters",
+        "custom_params_add": "[to be translated]:Add parameter",
+        "custom_params_name": "[to be translated]:Parameter name",
+        "default_value": "[to be translated]:Model default",
+        "desc": "[to be translated]:Configure the assistant's identity and model parameters",
+        "description_label": "[to be translated]:Description",
+        "field": {
+          "avatar": {
+            "hint": "[to be translated]:Used to identify the assistant in the library and chats"
+          },
+          "context_count": {
+            "hint": "[to be translated]:Number of recent messages kept as context"
+          },
+          "custom_params": {
+            "hint": "[to be translated]:Extra provider parameters sent with requests"
+          },
+          "description": {
+            "hint": "[to be translated]:Helps distinguish what this assistant is for",
+            "placeholder": "[to be translated]:What this assistant is for..."
+          },
+          "max_tokens": {
+            "hint": "[to be translated]:Caps response length when enabled"
+          },
+          "max_tool_calls": {
+            "hint": "[to be translated]:Limits tool-call loops when enabled"
+          },
+          "model": {
+            "hint": "[to be translated]:Overrides the global default model for this assistant"
+          },
+          "name": {
+            "hint": "[to be translated]:Shown in the library and assistant selectors",
+            "placeholder": "[to be translated]:Give the assistant a name"
+          },
+          "stream_output": {
+            "hint": "[to be translated]:Shows responses as they are generated"
+          },
+          "tags": {
+            "hint": "[to be translated]:Used for filtering and organizing assistants"
+          },
+          "temperature": {
+            "hint": "[to be translated]:Controls randomness when enabled"
+          },
+          "tool_use_mode": {
+            "hint": "[to be translated]:Controls how tools are exposed to the model"
+          },
+          "top_p": {
+            "hint": "[to be translated]:Limits token sampling range when enabled"
+          }
+        },
+        "json_invalid": "[to be translated]:Invalid JSON format",
+        "max_tokens": "[to be translated]:Max tokens",
+        "max_tool_calls": "[to be translated]:Max tool calls",
+        "model": "[to be translated]:Default model",
+        "model_clear": "[to be translated]:Clear",
+        "model_not_found": "[to be translated]:Model not found (may have been removed): {{id}}",
+        "model_pick": "[to be translated]:+ Pick model",
+        "pick_avatar": "[to be translated]:Pick avatar",
+        "precise": "[to be translated]:Precise",
+        "stream_output": "[to be translated]:Stream output",
+        "tag_empty": "[to be translated]:No tags available",
+        "tag_hint": "[to be translated]:To add a new tag, use the \"+ Tag\" entry in the library top bar",
+        "tag_placeholder": "[to be translated]:Select tags",
+        "tag_search": "[to be translated]:Search tags",
+        "tags": "[to be translated]:Tags",
+        "temperature": "[to be translated]:Temperature",
+        "title": "[to be translated]:Basic settings",
+        "tool_use_function": "[to be translated]:Function",
+        "tool_use_mode": "[to be translated]:Tool call mode",
+        "tool_use_prompt": "[to be translated]:Prompt",
+        "top_p": "[to be translated]:Top-P",
+        "unlimited": "[to be translated]:Unlimited"
+      },
+      "breadcrumb": "[to be translated]:Library",
+      "knowledge": {
+        "add": "[to be translated]:Add knowledge base",
+        "desc": "[to be translated]:Link one or more knowledge bases; relevant snippets will be retrieved during chat",
+        "doc_count": "[to be translated]:{{count}} docs",
+        "empty_desc": "[to be translated]:Once linked, the assistant can answer based on document content",
+        "empty_title": "[to be translated]:No knowledge bases linked",
+        "invalid_suffix": "[to be translated]:... (unavailable)",
+        "linked": "[to be translated]:Linked knowledge bases",
+        "linked_hint": "[to be translated]:Controls which knowledge bases this assistant can retrieve from",
+        "no_more": "[to be translated]:No more knowledge bases available",
+        "remove_aria": "[to be translated]:Remove",
+        "search": "[to be translated]:Search knowledge bases...",
+        "title": "[to be translated]:Knowledge bases"
+      },
+      "prompt": {
+        "create_title": "[to be translated]:New Prompt",
+        "dblclick_hint": "[to be translated]:Double-click the preview to switch back to edit",
+        "desc": "[to be translated]:The system prompt is sent as the opening context of the assistant",
+        "edit_title": "[to be translated]:Edit Prompt",
+        "field": {
+          "content": {
+            "label": "[to be translated]:Content",
+            "too_long": "[to be translated]:Content must be {{max}} characters or fewer"
+          },
+          "name": {
+            "label": "[to be translated]:Name",
+            "too_long": "[to be translated]:Name must be {{max}} characters or fewer"
+          }
+        },
+        "generate": "[to be translated]:Generate prompt",
+        "insert_variable": "[to be translated]:Insert variable",
+        "label": "[to be translated]:System prompt",
+        "placeholder": "[to be translated]:Enter the system prompt. Variables like {{date}} and {{model_name}} are supported...",
+        "title": "[to be translated]:Prompt",
+        "tokens_label": "[to be translated]:Tokens: ",
+        "variables_title": "[to be translated]:Available variables",
+        "vars": {
+          "arch": "[to be translated]:CPU architecture",
+          "date": "[to be translated]:Date",
+          "datetime": "[to be translated]:Date and time",
+          "language": "[to be translated]:Language",
+          "model_name": "[to be translated]:Model name",
+          "os": "[to be translated]:Operating system",
+          "time": "[to be translated]:Time",
+          "username": "[to be translated]:Username"
+        }
+      },
+      "save_failed": "[to be translated]:Save failed",
+      "saving": "[to be translated]:Saving...",
+      "section": {
+        "basic": {
+          "desc": "[to be translated]:Name, avatar, model parameters",
+          "label": "[to be translated]:Basic"
+        },
+        "knowledge": {
+          "desc": "[to be translated]:Linked knowledge bases and retrieval",
+          "label": "[to be translated]:Knowledge"
+        },
+        "more": {
+          "desc": "[to be translated]:Model, tags, and parameters",
+          "label": "[to be translated]:More settings"
+        },
+        "prompt": {
+          "desc": "[to be translated]:System prompt and variables",
+          "label": "[to be translated]:Prompt"
+        },
+        "tools": {
+          "desc": "[to be translated]:MCP servers and tool configuration",
+          "label": "[to be translated]:Tools"
+        }
+      },
+      "tools": {
+        "add_mcp": "[to be translated]:Add MCP server",
+        "added": "[to be translated]:Added MCP servers",
+        "added_hint": "[to be translated]:Manual mode exposes only the servers in this list",
+        "desc": "[to be translated]:Configure the MCP servers this assistant can call during chat",
+        "empty_desc": "[to be translated]:Once added, the assistant can invoke external tools",
+        "empty_title": "[to be translated]:No MCP servers added",
+        "inactive_badge": "[to be translated]:Inactive",
+        "info_main": "[to be translated]:MCP (Model Context Protocol) lets the model safely invoke external tools.",
+        "info_sub": "[to be translated]:Enabling only necessary servers improves safety and response speed.",
+        "mode": {
+          "auto": {
+            "desc": "[to be translated]:The model decides which enabled MCP tools to call",
+            "label": "[to be translated]:Auto"
+          },
+          "disabled": {
+            "desc": "[to be translated]:No MCP tools are available during chat",
+            "label": "[to be translated]:Disabled"
+          },
+          "manual": {
+            "desc": "[to be translated]:Expose only the MCP servers selected below",
+            "label": "[to be translated]:Manual"
+          }
+        },
+        "no_more": "[to be translated]:No more servers available",
+        "search": "[to be translated]:Search available servers...",
+        "switch_title_active": "[to be translated]:Toggle off to remove",
+        "switch_title_inactive": "[to be translated]:This server is disabled in MCP settings; remove it to re-add later",
+        "title": "[to be translated]:Tools"
+      }
+    },
+    "create_menu": {
+      "create": "[to be translated]:New {{type}}",
+      "import": "[to be translated]:Import {{type}}"
+    },
+    "delete": {
+      "agent": {
+        "content": "[to be translated]:Are you sure you want to delete this agent? This action cannot be undone.",
+        "title": "[to be translated]:Delete agent"
+      },
+      "skill": {
+        "content": "[to be translated]:Are you sure you want to uninstall this skill? It will be removed from the global library and all agent workspace symlinks will be cleaned up.",
+        "title": "[to be translated]:Uninstall skill"
+      }
+    },
+    "delete_confirm": {
+      "cancel": "[to be translated]:Cancel",
+      "confirm": "[to be translated]:Delete",
+      "description": "[to be translated]:Delete \"{{name}}\"? This action cannot be undone.",
+      "title": "[to be translated]:Delete"
+    },
+    "duplicate_assistant_failed": "[to be translated]:Failed to duplicate assistant",
+    "duplicate_name": "[to be translated]:{{name}} (copy)",
+    "empty_state": {
+      "description": "[to be translated]:Click \"New\" to create your first resource.",
+      "empty_description": "[to be translated]:Create your first agent or assistant",
+      "empty_title": "[to be translated]:No resources yet",
+      "no_match_description": "[to be translated]:Try a different search keyword",
+      "no_match_title": "[to be translated]:No matching resources",
+      "title": "[to be translated]:No resources"
+    },
+    "export_assistant_failed": "[to be translated]:Failed to export assistant",
+    "import_dialog": {
+      "clipboard": {
+        "button": "[to be translated]:Parse and import",
+        "placeholder": "[to be translated]:Paste JSON configuration here..."
+      },
+      "error": {
+        "content_too_large": "[to be translated]:Content too large (>5 MB)",
+        "file_too_large": "[to be translated]:File too large (>5 MB)",
+        "invalid_url": "[to be translated]:Invalid URL",
+        "response_too_large": "[to be translated]:Response too large (>5 MB)",
+        "timeout": "[to be translated]:Request timed out. Check that the URL is reachable.",
+        "unsupported_protocol": "[to be translated]:Only http or https URLs are supported"
+      },
+      "failure": "[to be translated]:Import failed: {{error}}",
+      "file": {
+        "drop_hint": "[to be translated]:Drag and drop a file here, or click to pick one",
+        "formats": "[to be translated]:Supports .json"
+      },
+      "partial_success": "[to be translated]:Partial success: {{success}} imported, {{failed}} failed ({{first_name}}: {{first_error}})",
+      "subtitle": "[to be translated]:JSON configuration files are supported",
+      "success": "[to be translated]:Imported successfully: {{name}}",
+      "tab": {
+        "clipboard": "[to be translated]:Clipboard",
+        "file": "[to be translated]:File upload",
+        "url": "[to be translated]:Import from URL"
+      },
+      "url": {
+        "button": "[to be translated]:Fetch and import",
+        "hint": "[to be translated]:Import from a GitHub Gist, GitHub repo, or any public URL",
+        "supports": "[to be translated]:Raw file URLs are supported"
+      }
+    },
+    "import_skill_dialog": {
+      "local": {
+        "drop_hint": "[to be translated]:Drop a ZIP or directory here, or click to choose a ZIP",
+        "formats": "[to be translated]:Supports .zip files and directories containing SKILL.md"
+      },
+      "subtitle": "[to be translated]:Install a skill from a ZIP file or directory",
+      "title": "[to be translated]:Import skill"
+    },
+    "no_match": "[to be translated]:No matching results",
+    "pending_backend": {
+      "description": "[to be translated]:Write operations for this resource are coming soon. This view is a placeholder.",
+      "title": "[to be translated]:Backend setup in progress"
+    },
+    "sidebar": {
+      "all_resources": "[to be translated]:All resources",
+      "all_tags": "[to be translated]:All tags",
+      "no_tags": "[to be translated]:No tags yet",
+      "subtitle": "[to be translated]:Manage your AI resources",
+      "tags": "[to be translated]:Tags",
+      "title": "[to be translated]:Library"
+    },
+    "skill_detail": {
+      "created_at": "[to be translated]:Created",
+      "delete_description": "[to be translated]:Remove this skill and all of its configuration. This action cannot be undone.",
+      "delete_title": "[to be translated]:Delete skill",
+      "description": "[to be translated]:Description",
+      "file_preview": "[to be translated]:File preview",
+      "installed": "[to be translated]:Installed",
+      "no_description": "[to be translated]:No description",
+      "source_files": "[to be translated]:Source files",
+      "updated_at": "[to be translated]:Recently updated"
+    },
+    "sort": {
+      "created": "[to be translated]:Sort by created",
+      "name": "[to be translated]:Sort by name",
+      "updated": "[to be translated]:Sort by updated"
+    },
+    "subtitle": "[to be translated]:Manage your assistants, agents and skills",
+    "tag_picker": {
+      "no_tags": "[to be translated]:No tags yet",
+      "placeholder": "[to be translated]:New tag name..."
+    },
+    "tag_sync_failed": "[to be translated]:Failed to sync tags",
+    "time_ago": {
+      "days": "[to be translated]:{{count}} day(s) ago",
+      "hours": "[to be translated]:{{count}} hour(s) ago",
+      "just_now": "[to be translated]:Just now",
+      "minutes": "[to be translated]:{{count}} minute(s) ago",
+      "months": "[to be translated]:{{count}} month(s) ago"
+    },
+    "title": "[to be translated]:Library",
+    "toolbar": {
+      "add_tag_placeholder": "[to be translated]:Tag name...",
+      "new_resource": "[to be translated]:New resource",
+      "search_placeholder": "[to be translated]:Search resources...",
+      "tag_button": "[to be translated]:Tag"
+    },
+    "type": {
+      "agent": "[to be translated]:Agent",
+      "assistant": "[to be translated]:Assistant",
+      "new_agent": "[to be translated]:New agent",
+      "new_assistant": "[to be translated]:New assistant",
+      "new_prompt": "[to be translated]:New Prompt",
+      "prompt": "[to be translated]:Prompt",
+      "skill": "[to be translated]:Skill"
+    },
+    "uninstall_failed": "[to be translated]:Failed to uninstall",
+    "view": {
+      "grid": "[to be translated]:Grid view",
+      "list": "[to be translated]:List view"
+    }
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2129,112 +2827,6 @@
       "title": "Thời gian giữ hoạt động"
     },
     "title": "LM Studio"
-  },
-  "memory": {
-    "actions": "Hành động",
-    "add_failed": "Không thể thêm bộ nhớ",
-    "add_first_memory": "Adicione Sua Primeira Memória",
-    "add_memory": "Adicionar Memória",
-    "add_new_user": "Thêm Người Dùng Mới",
-    "add_success": "Memoria añadida con éxito",
-    "add_user": "Thêm Người dùng",
-    "add_user_failed": "Không thể thêm người dùng",
-    "all_users": "Tất cả người dùng",
-    "cannot_delete_default_user": "Không thể xóa người dùng mặc định",
-    "configure_memory_first": "Vui lòng định cấu hình cài đặt bộ nhớ trước",
-    "content": "Nội dung",
-    "current_user": "Người dùng hiện tại",
-    "custom": "Tùy chỉnh",
-    "default": "Mặc định",
-    "default_user": "Người dùng Mặc định",
-    "delete_confirm": "Bạn có chắc chắn muốn xóa ký ức này không?",
-    "delete_confirm_content": "Bạn có chắc chắn muốn xóa {{count}} ký ức?",
-    "delete_confirm_single": "Bạn có chắc chắn muốn xóa ký ức này không?",
-    "delete_confirm_title": "Xóa Ký Ức",
-    "delete_failed": "Gagal menghapus memori",
-    "delete_selected": "Xóa đã chọn",
-    "delete_success": "Bộ nhớ đã được xóa thành công",
-    "delete_user": "Xóa Người dùng",
-    "delete_user_confirm_content": "Bạn có chắc chắn muốn xóa người dùng {{user}} và toàn bộ ký ức của họ không?",
-    "delete_user_confirm_title": "Xóa người dùng",
-    "delete_user_failed": "Không xóa được người dùng",
-    "description": "Bộ nhớ cho phép bạn lưu trữ và quản lý thông tin về các tương tác của bạn với trợ lý. Bạn có thể thêm, chỉnh sửa và xóa ký ức, cũng như lọc và tìm kiếm trong số chúng.",
-    "edit_memory": "Chỉnh sửa Bộ nhớ",
-    "embedding_dimensions": "Kích thước nhúng",
-    "embedding_model": "Mô hình Nhúng",
-    "enable_global_memory_first": "Vui lòng bật bộ nhớ toàn cầu trước",
-    "end_date": "Ngày kết thúc",
-    "global_memory": "Bộ nhớ toàn cục",
-    "global_memory_description": "Để sử dụng các tính năng bộ nhớ, vui lòng kích hoạt bộ nhớ toàn cầu trong cài đặt trợ lý.",
-    "global_memory_disabled_desc": "Để sử dụng các tính năng bộ nhớ, vui lòng bật bộ nhớ toàn cục trong cài đặt trợ lý trước.",
-    "global_memory_disabled_title": "Bộ Nhớ Toàn Cầu Đã Bị Vô Hiệu Hóa",
-    "global_memory_enabled": "Bộ nhớ toàn cầu đã được kích hoạt",
-    "go_to_memory_page": "Đi tới Trang Bộ nhớ",
-    "initial_memory_content": "Chào mừng! Đây là ký ức đầu tiên của bạn.",
-    "llm_model": "Mô hình LLM",
-    "load_failed": "Không tải được ký ức",
-    "loading": "Đang tải ký ức...",
-    "loading_memories": "Đang tải ký ức...",
-    "memories_description": "Hiển thị {{count}} trong tổng số {{total}} ký ức",
-    "memories_reset_success": "Tất cả ký ức cho {{user}} đã được đặt lại thành công",
-    "memory": "bộ nhớ",
-    "memory_content": "Nội dung bộ nhớ",
-    "memory_placeholder": "Nhập nội dung bộ nhớ...",
-    "new_user_id": "ID Người Dùng Mới",
-    "new_user_id_placeholder": "Nhập ID người dùng duy nhất",
-    "no_matching_memories": "Không tìm thấy ký ức phù hợp nào",
-    "no_memories": "Chưa có kỷ niệm nào",
-    "no_memories_description": "Bắt đầu bằng cách thêm ký ức đầu tiên của bạn để bắt đầu",
-    "not_configured_desc": "Vui lòng cấu hình các mô hình embedding và LLM trong cài đặt bộ nhớ để kích hoạt chức năng bộ nhớ.",
-    "not_configured_title": "Bộ nhớ chưa được cấu hình",
-    "pagination_total": "{{start}}-{{end}} trong tổng số {{total}} mục",
-    "please_enter_memory": "Vui lòng nhập nội dung bộ nhớ",
-    "please_select_embedding_model": "Vui lòng chọn một mô hình nhúng",
-    "please_select_llm_model": "Vui lòng chọn một mô hình LLM",
-    "reset_filters": "Đặt lại Bộ lọc",
-    "reset_memories": "Đặt lại Ký ức",
-    "reset_memories_confirm_content": "Bạn có chắc chắn muốn xóa vĩnh viễn tất cả ký ức của {{user}} không? Hành động này không thể hoàn tác.",
-    "reset_memories_confirm_title": "Đặt lại Tất cả Ký ức",
-    "reset_memories_failed": "Không thể đặt lại ký ức",
-    "reset_user_memories": "Đặt lại Bộ nhớ Người dùng",
-    "reset_user_memories_confirm_content": "Bạn có chắc chắn muốn đặt lại toàn bộ ký ức cho {{user}} không?",
-    "reset_user_memories_confirm_title": "Đặt lại bộ nhớ người dùng",
-    "reset_user_memories_failed": "Không thể đặt lại bộ nhớ người dùng",
-    "score": "Điểm",
-    "search": "Tìm kiếm",
-    "search_placeholder": "Tìm kiếm ký ức...",
-    "select_embedding_model_placeholder": "Chọn Mô hình Nhúng",
-    "select_llm_model_placeholder": "Chọn mô hình LLM",
-    "select_user": "Chọn Người dùng",
-    "settings": "Cài đặt",
-    "settings_title": "Cài đặt bộ nhớ",
-    "start_date": "Ngày bắt đầu",
-    "statistics": "Thống kê",
-    "stored_memories": "Ký Ức Được Lưu Trữ",
-    "switch_user": "Chuyển người dùng",
-    "switch_user_confirm": "Chuyển ngữ cảnh người dùng sang {{user}}?",
-    "time": "Thời gian",
-    "title": "Kỷ niệm",
-    "total_memories": "tổng số ký ức",
-    "try_different_filters": "Thử điều chỉnh tiêu chí tìm kiếm của bạn",
-    "update_failed": "Không thể cập nhật bộ nhớ",
-    "update_success": "Bộ nhớ đã được cập nhật thành công",
-    "user": "Người dùng",
-    "user_created": "Người dùng {{user}} đã được tạo và chuyển đổi thành công",
-    "user_deleted": "Người dùng {{user}} đã được xóa thành công",
-    "user_id": "ID người dùng",
-    "user_id_exists": "ID người dùng này đã tồn tại",
-    "user_id_invalid_chars": "ID người dùng chỉ có thể chứa chữ cái, chữ số, dấu gạch ngang và dấu gạch dưới",
-    "user_id_placeholder": "Nhập ID người dùng (tùy chọn)",
-    "user_id_required": "ID người dùng là bắt buộc",
-    "user_id_reserved": "'default-user' được giữ lại, vui lòng sử dụng một ID khác",
-    "user_id_rules": "ID người dùng phải là duy nhất và chỉ chứa chữ cái, chữ số, dấu gạch ngang (-) và dấu gạch dưới (_)",
-    "user_id_too_long": "ID người dùng không được vượt quá 50 ký tự",
-    "user_management": "Quản lý người dùng",
-    "user_memories_reset": "Tất cả ký ức cho {{user}} đã được đặt lại",
-    "user_switch_failed": "Không thể chuyển đổi người dùng",
-    "user_switched": "Ngữ cảnh người dùng đã chuyển sang {{user}}",
-    "users": "người dùng"
   },
   "message": {
     "agents": {
@@ -2576,101 +3168,145 @@
     "websearch": {
       "cutoff": "Đang cắt ngắn nội dung tìm kiếm...",
       "fetch_complete": "{{count}} kết quả tìm kiếm",
-      "rag": "Đang thực thi RAG...",
-      "rag_complete": "Giữ lại {{countAfter}} trên {{countBefore}} kết quả...",
-      "rag_failed": "RAG thất bại, trả về kết quả trống..."
+      "partial_failure": "{{count}} kết quả tìm kiếm, một số tìm kiếm thất bại"
     }
   },
   "minapp": {
-    "add_to_launchpad": "Ajouter à Launchpad",
-    "add_to_sidebar": "Thêm vào thanh bên",
+    "add_to_launchpad": "[to be translated]:Add to Launchpad",
+    "add_to_sidebar": "[to be translated]:Add to Sidebar",
     "popup": {
-      "close": "Đóng MinApp",
-      "devtools": "Công cụ dành cho nhà phát triển",
-      "goBack": "Quay lại",
-      "goForward": "Tiến về phía trước",
-      "minimize": "Thu nhỏ Ứng dụng Min",
-      "openExternal": "Mở trong trình duyệt",
-      "open_link_external_off": "Hiện tại: Mở liên kết trong cửa sổ mặc định",
-      "open_link_external_on": "Hiện tại: Mở liên kết trong trình duyệt",
-      "refresh": "Làm mới",
-      "rightclick_copyurl": "Nhấp chuột phải để sao chép URL"
+      "close": "[to be translated]:Close MinApp",
+      "devtools": "[to be translated]:Developer Tools",
+      "goBack": "[to be translated]:Go Back",
+      "goForward": "[to be translated]:Go Forward",
+      "minimize": "[to be translated]:Minimize MinApp",
+      "openExternal": "[to be translated]:Open in Browser",
+      "open_link_external_off": "[to be translated]:Current: Open links in default window",
+      "open_link_external_on": "[to be translated]:Current: Open links in browser",
+      "refresh": "[to be translated]:Refresh",
+      "rightclick_copyurl": "[to be translated]:Right-click to copy URL"
     },
-    "remove_from_launchpad": "Xóa khỏi Launchpad",
-    "remove_from_sidebar": "Xóa khỏi thanh bên",
+    "remove_from_launchpad": "[to be translated]:Remove from Launchpad",
+    "remove_from_sidebar": "[to be translated]:Remove from Sidebar",
     "sidebar": {
       "close": {
-        "title": "Đóng"
+        "title": "[to be translated]:Close"
       },
       "closeall": {
-        "title": "Đóng tất cả"
+        "title": "[to be translated]:Close All"
       },
       "hide": {
-        "title": "Ẩn"
+        "title": "[to be translated]:Hide"
       },
       "remove_custom": {
-        "title": "Xóa Ứng dụng Tùy chỉnh"
+        "title": "[to be translated]:Delete Custom App"
       }
     },
-    "title": "Ứng dụng nhỏ"
+    "title": "[to be translated]:MinApp"
   },
   "minapps": {
-    "ant-ling": "Kiến Ling",
-    "baichuan": "Baichuan",
-    "baidu-ai-search": "Tìm kiếm AI Baidu",
-    "chatglm": "ChatGLM",
-    "dangbei": "Dangbei",
-    "doubao": "Doubao",
-    "hailuo": "Hailuo",
-    "ima": "ima",
-    "metaso": "Metaso",
-    "minimax-agent": "Đại lý Minimax Trung Quốc",
-    "minimax-global": "Tác nhân Minimax",
-    "nami-ai": "Nami AI",
-    "nami-ai-search": "Tìm kiếm Nami AI",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Nguyên bảo",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Wanzhi",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Tiểu Nghi",
-    "zhihu": "Zhihu"
+    "ant-ling": "[to be translated]:Ant Ling",
+    "baichuan": "[to be translated]:Baichuan",
+    "baidu-ai-search": "[to be translated]:Baidu AI Search",
+    "chatglm": "[to be translated]:ChatGLM",
+    "dangbei": "[to be translated]:Dangbei",
+    "doubao": "[to be translated]:Doubao",
+    "hailuo": "[to be translated]:Hailuo",
+    "ima": "[to be translated]:ima",
+    "metaso": "[to be translated]:Metaso",
+    "minimax-agent": "[to be translated]:Minimax Agent CN",
+    "minimax-global": "[to be translated]:Minimax Agent",
+    "nami-ai": "[to be translated]:Nami AI",
+    "nami-ai-search": "[to be translated]:Nami AI Search",
+    "qwen": "[to be translated]:Qwen",
+    "sensechat": "[to be translated]:SenseChat",
+    "stepfun": "[to be translated]:Stepfun",
+    "tencent-yuanbao": "[to be translated]:Yuanbao",
+    "tiangong-ai": "[to be translated]:Skywork",
+    "wanzhi": "[to be translated]:Wanzhi",
+    "wenxin": "[to be translated]:ERNIE",
+    "wps-copilot": "[to be translated]:WPS Copilot",
+    "xiaoyi": "[to be translated]:Xiaoyi",
+    "zhihu": "[to be translated]:Zhihu"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "Mẹo: Nếu bạn thấy thông báo 'trình duyệt không được tin cậy' khi đăng nhập vào Google, vui lòng trước tiên đăng nhập qua mini app Google trong danh sách mini app, sau đó mới dùng đăng nhập Google ở các mini app khác"
+  "miniApp": {
+    "add_to_launchpad": "[to be translated]:Add to Launchpad",
+    "add_to_sidebar": "[to be translated]:Add to Sidebar",
+    "error": {
+      "load_failed": "[to be translated]:Failed to load app",
+      "not_found": "[to be translated]:App not found"
     },
-    "clipboard": {
-      "empty": "Bộ nhớ tạm trống"
+    "hide_failed": "Failed to hide mini-app",
+    "pin_failed": "[to be translated]:Failed to pin mini-app",
+    "popup": {
+      "close": "[to be translated]:Close MiniApp",
+      "devtools": "[to be translated]:Developer Tools",
+      "goBack": "[to be translated]:Go Back",
+      "goForward": "[to be translated]:Go Forward",
+      "openExternal": "[to be translated]:Open in Browser",
+      "open_link_external_off": "[to be translated]:Current: Open links in default window",
+      "open_link_external_on": "[to be translated]:Current: Open links in browser",
+      "refresh": "[to be translated]:Refresh",
+      "rightclick_copyurl": "[to be translated]:Right-click to copy URL"
     },
-    "feature": {
-      "chat": "Trả lời câu hỏi này",
-      "explanation": "Giải thích",
-      "summary": "Tóm tắt nội dung",
-      "translate": "Dịch văn bản"
+    "remove_from_launchpad": "[to be translated]:Remove from Launchpad",
+    "remove_from_sidebar": "[to be translated]:Remove from Sidebar",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "[to be translated]:Failed: {{message}}",
+      "html_saved": "[to be translated]:HTML saved to: {{path}}",
+      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
     },
-    "footer": {
-      "backspace_clear": "Nhấn Backspace để xóa",
-      "copy_last_message": "Nhấn C để sao chép",
-      "esc": "ESC để {{action}}",
-      "esc_back": "trả về",
-      "esc_close": "đóng",
-      "esc_pause": "tạm dừng"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "Hỏi {{model}} để được giúp đỡ...",
-        "title": "Bạn muốn làm gì với văn bản này?"
+    "show_failed": "Failed to show mini-app",
+    "sidebar": {
+      "close": {
+        "title": "[to be translated]:Close"
+      },
+      "closeall": {
+        "title": "[to be translated]:Close All"
+      },
+      "hide": {
+        "title": "[to be translated]:Hide"
+      },
+      "remove_custom": {
+        "title": "[to be translated]:Delete Custom App"
       }
     },
-    "tooltip": {
-      "pin": "Giữ cửa sổ ở trên cùng"
-    }
+    "title": "[to be translated]:MiniApp",
+    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
+  },
+  "miniApps": {
+    "ant-ling": "[to be translated]:Ant Ling",
+    "baichuan": "[to be translated]:Baichuan",
+    "baidu-ai-search": "[to be translated]:Baidu AI Search",
+    "chatglm": "[to be translated]:ChatGLM",
+    "dangbei": "[to be translated]:Dangbei",
+    "doubao": "[to be translated]:Doubao",
+    "hailuo": "[to be translated]:Hailuo",
+    "ima": "[to be translated]:ima",
+    "metaso": "[to be translated]:Metaso",
+    "minimax-agent": "[to be translated]:Minimax Agent CN",
+    "minimax-global": "[to be translated]:Minimax Agent",
+    "nami-ai": "[to be translated]:Nami AI",
+    "nami-ai-search": "[to be translated]:Nami AI Search",
+    "qwen": "[to be translated]:Qwen",
+    "sensechat": "[to be translated]:SenseChat",
+    "stepfun": "[to be translated]:Stepfun",
+    "tencent-yuanbao": "[to be translated]:Yuanbao",
+    "tiangong-ai": "[to be translated]:Skywork",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
+    "wanzhi": "[to be translated]:Wanzhi",
+    "wenxin": "[to be translated]:ERNIE",
+    "wps-copilot": "[to be translated]:WPS Copilot",
+    "xiaoyi": "[to be translated]:Xiaoyi",
+    "zhihu": "[to be translated]:Zhihu"
   },
   "models": {
+    "action": {
+      "pin": "Ghim mô hình này",
+      "unpin": "Gỡ ghim mô hình"
+    },
     "add_parameter": "Thêm tham số",
     "all": "Tất cả",
     "custom_parameters": "Tham số Tùy chỉnh",
@@ -2688,6 +3324,9 @@
     "function_calling": "Gọi Hàm",
     "invalid_model": "Mô hình không hợp lệ",
     "json_parse_error": "Định dạng JSON không hợp lệ",
+    "multi_select": {
+      "label": "Đa mô hình song song (loại trừ lẫn nhau với đa trợ lý)"
+    },
     "no_matches": "Không có mô hình nào khả dụng",
     "parameter_name": "Tên tham số",
     "parameter_type": {
@@ -2701,8 +3340,6 @@
       "cost": "Chi phí",
       "currency": "Tiền tệ",
       "custom": "Tùy chỉnh",
-      "custom_currency": "Tiền tệ tùy chỉnh",
-      "custom_currency_placeholder": "Nhập Tiền Tệ Tùy Chỉnh",
       "input": "Harga Masukan",
       "million_tokens": "M Tokeny",
       "output": "Preis der Ausgabe",
@@ -3054,6 +3691,12 @@
       "model_task": "Nhiệm vụ mẫu:",
       "success": "Tải xuống thành công",
       "success_desc": "Mô hình \"{{modelName}}\"-\"{{modelId}}\" đã được tải xuống thành công, vui lòng vào giao diện quản lý OVMS để thêm mô hình",
+      "task": {
+        "embeddings": "[to be translated]:Embeddings",
+        "image_generation": "[to be translated]:Image Generation",
+        "rerank": "[to be translated]:Rerank",
+        "text_generation": "[to be translated]:Text Generation"
+      },
       "tip": "Mô hình đang được tải xuống, đôi khi mất vài giờ. Vui lòng kiên nhẫn...",
       "title": "Tải mô hình Intel OpenVINO"
     },
@@ -3070,6 +3713,7 @@
       "run": "Chạy OVMS thất bại:",
       "stop": "Dừng OVMS thất bại:"
     },
+    "guide": "Hướng dẫn Intel OVMS:",
     "status": {
       "not_installed": "OVMS chưa được cài đặt",
       "not_running": "OVMS không đang chạy",
@@ -3366,18 +4010,25 @@
     "uninstalling": "Đang gỡ cài đặt..."
   },
   "preview": {
+    "close": "[to be translated]:Close Preview",
     "copy": {
       "image": "Sao chép dưới dạng hình ảnh",
       "src": "Kopier billedkilde"
     },
     "dialog": "Mở hộp thoại",
+    "flip_horizontal": "[to be translated]:Flip Horizontal",
+    "flip_vertical": "[to be translated]:Flip Vertical",
     "label": "Previsualización",
+    "next": "[to be translated]:Next Image",
     "pan": "Chảo",
     "pan_down": "Quay xuống",
     "pan_left": "Panoramique vers la gauche",
     "pan_right": "Quay sang phải",
     "pan_up": "Quay lên",
+    "previous": "[to be translated]:Previous Image",
     "reset": "Đặt lại",
+    "rotate_left": "[to be translated]:Rotate Left",
+    "rotate_right": "[to be translated]:Rotate Right",
     "source": "Ver Código Fuente",
     "zoom_in": "Phóng to",
     "zoom_out": "Zum Herauszoomen"
@@ -3401,11 +4052,13 @@
     "burncloud": "BurnCloud",
     "cephalon": "cephalon",
     "cerebras": "Cerebras AI",
+    "cherryai": "[to be translated]:CherryAI",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
     "dmxapi": "DMXAPI",
+    "doc2x": "[to be translated]:Doc2X",
     "doubao": "Volcengine",
     "fireworks": "Pháo hoa",
     "gemini": "Gemini",
@@ -3423,6 +4076,7 @@
     "lmstudio": "LM Studio",
     "longcat": "LongCat AI",
     "mimo": "Xiaomi MiMo",
+    "mineru": "[to be translated]:MinerU",
     "minimax": "MiniMax Trung Quốc",
     "minimax-global": "MiniMax",
     "mistral": "Mistral",
@@ -3433,9 +4087,12 @@
     "o3": "O3",
     "ocoolai": "ocoolAI",
     "ollama": "Ollama",
+    "open-mineru": "[to be translated]:Open MinerU",
     "openai": "OpenAI",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
+    "ovocr": "[to be translated]:Intel OV(NPU) OCR",
+    "paddleocr": "[to be translated]:PaddleOCR",
     "perplexity": "Perplexity",
     "ph8": "PH8",
     "poe": "Poe",
@@ -3445,7 +4102,9 @@
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
+    "system": "[to be translated]:System OCR",
     "tencent-cloud-ti": "Tencent Cloud TI",
+    "tesseract": "[to be translated]:Tesseract",
     "together": "Cùng nhau",
     "tokenflux": "TokenFlux",
     "vertexai": "Vertex AI",
@@ -3455,6 +4114,37 @@
     "zai": "Z.ai",
     "zhinao": "360AI",
     "zhipu": "Mô hình Lớn"
+  },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "Mẹo: Nếu bạn thấy thông báo 'trình duyệt không được tin cậy' khi đăng nhập vào Google, vui lòng đầu tiên đăng nhập qua ứng dụng nhỏ Google trong danh sách ứng dụng nhỏ, sau đó sử dụng đăng nhập Google trong các ứng dụng nhỏ khác"
+    },
+    "clipboard": {
+      "empty": "Khay nhớp trống"
+    },
+    "feature": {
+      "chat": "Trả lời câu hỏi này",
+      "explanation": "Giải thích",
+      "summary": "Tóm tắt nội dung",
+      "translate": "Dịch văn bản"
+    },
+    "footer": {
+      "backspace_clear": "Nhấn Backspace để xóa",
+      "copy_last_message": "Nhấn C để sao chép",
+      "esc": "ESC để {{action}}",
+      "esc_back": "trả về",
+      "esc_close": "đóng",
+      "esc_pause": "tạm dừng"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "Hỏi {{model}} để được giúp đỡ...",
+        "title": "Bạn muốn làm gì với văn bản này?"
+      }
+    },
+    "tooltip": {
+      "pin": "Giữ cửa sổ ở trên cùng"
+    }
   },
   "restore": {
     "confirm": {
@@ -3708,6 +4398,9 @@
         "summary": "Vui lòng tóm tắt nội dung sau. Yêu cầu: Trả lời bằng {{language}}; không bao gồm bất kỳ lời giải thích nào về lời nhắc này, chỉ đưa ra câu trả lời trực tiếp:"
       },
       "translate": {
+        "error": {
+          "no_selected_text": "[to be translated]:No text selected to translate"
+        },
         "smart_translate_tips": "Dịch thông minh: Nội dung sẽ được dịch sang ngôn ngữ đích trước; nội dung đã ở ngôn ngữ đích sẽ được dịch sang ngôn ngữ thay thế"
       },
       "window": {
@@ -3775,7 +4468,7 @@
         "title": "Danh sách Bộ lọc Ứng dụng",
         "user_tips": {
           "mac": "Vui lòng nhập Bundle ID của ứng dụng, mỗi dòng một cái, không phân biệt chữ hoa chữ thường, có thể khớp mờ. Ví dụ: com.google.Chrome, com.apple.mail, v.v.",
-          "windows": "Vui lòng nhập tên tệp thực thi của ứng dụng, mỗi dòng một cái, không phân biệt chữ hoa chữ thường, có thể khớp mờ. Ví dụ: chrome.exe, weixin.exe, Cherry Studio.exe, v.v."
+          "windows": "Vui lòng nhập tên tệp thực thi của ứng dụng, mỗi dòng một cái, không phân biệt chữ hoa chữ thường, có thể khớp mờ. Ví dụ: chrome.exe, weixin.exe, CherryStudio.exe, v.v."
         }
       },
       "linux": {
@@ -3896,6 +4589,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "Tác nhân mới",
+      "empty_text": "Chưa có tác nhân nào",
+      "search_placeholder": "Tìm kiếm đại lý…"
+    },
+    "assistant": {
+      "create_new": "Trợ lý mới",
+      "empty_text": "Chưa có trợ lý nào",
+      "multi_hint": "(loại trừ lẫn nhau với đa mô hình)",
+      "multi_label": "Trợ lý song song đa nhiệm",
+      "search_placeholder": "Trợ lý tìm kiếm…"
+    },
+    "common": {
+      "edit": "Chỉnh sửa",
+      "pin": "Ghim",
+      "pinned_title": "Đã ghim",
+      "sort": {
+        "asc": "Lâu đời nhất",
+        "desc": "Gần đây"
+      },
+      "sort_label": "Sắp xếp",
+      "unpin": "Bỏ ghim"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3962,6 +4680,115 @@
       "description": "Kết nối các tác nhân với các nền tảng nhắn tin như Telegram, Feishu, Discord và nhiều hơn nữa.",
       "title": "Kênh"
     },
+    "componentLab": {
+      "agentSelector": {
+        "clearSelection": "Rõ ràng",
+        "configDescription": "Chuyển đổi props để xem trước hành vi của thành phần",
+        "configTitle": "Cấu hình",
+        "currentProps": "Props hiện tại",
+        "description": "AgentSelector hiện đọc dữ liệu DataApi /agents thực tế để xác minh hành vi chọn id/mục, ghim, sắp xếp và tìm kiếm.",
+        "emptyShellNotice": "Bản xem trước này sử dụng danh sách tác nhân thực được trả về bởi /agents DataApi.",
+        "lastOnChange": "Cập nhật mới nhất về onChange",
+        "previewDescription": "Nhấp vào công tắc để mở bộ chọn",
+        "previewTitle": "Xem trước",
+        "title": "Bộ chọn tác nhân",
+        "triggerPlaceholder": "Chọn một đại lý",
+        "valueProp": "Giá trị hiện tại"
+      },
+      "agentTodoList": {
+        "title": "[to be translated]:Agent Todo List"
+      },
+      "assistantSelector": {
+        "clearSelection": "Rõ ràng",
+        "configDescription": "Chuyển đổi props để xem trước hành vi của component",
+        "configTitle": "Cấu hình",
+        "currentProps": "Props hiện tại",
+        "description": "Gắn trực tiếp thành phần kinh doanh AssistantSelector để xác minh hành vi đa/đơn, id/mục, ghim, sắp xếp và tìm kiếm.",
+        "lastOnChange": "Cập nhật mới nhất về onChange",
+        "previewDescription": "Nhấp vào kích hoạt để mở bộ chọn",
+        "previewTitle": "Xem trước",
+        "title": "Trình chọn Trợ lý",
+        "triggerPlaceholder": "Chọn một trợ lý",
+        "triggerSelectedCount": "{{count}} trợ lý đã được chọn",
+        "valueProp": "Giá trị hiện tại"
+      },
+      "description": "Chỉ hiển thị trong quá trình phát triển để thử nghiệm trình chọn mô hình mới trực tiếp trong ứng dụng.",
+      "fileProcessing": {
+        "artifact": {
+          "file": "[to be translated]:Markdown file",
+          "text": "[to be translated]:Text result"
+        },
+        "description": "[to be translated]:Run every configured file processor through the real file processing IPC and compare results.",
+        "duration": "[to be translated]:{{seconds}}s",
+        "markdown": {
+          "description": "[to be translated]:Select a document and run all document-to-markdown processors.",
+          "fileFilterName": "[to be translated]:Documents",
+          "noFile": "[to be translated]:No document selected",
+          "select": "[to be translated]:Select document",
+          "start": "[to be translated]:Test markdown",
+          "title": "[to be translated]:Markdown"
+        },
+        "noProcessors": "[to be translated]:No processors support this feature.",
+        "ocr": {
+          "description": "[to be translated]:Select an image and run all OCR processors.",
+          "fileFilterName": "[to be translated]:Images",
+          "noFile": "[to be translated]:No image selected",
+          "select": "[to be translated]:Select image",
+          "start": "[to be translated]:Test OCR",
+          "title": "[to be translated]:OCR"
+        },
+        "processorCount": "[to be translated]:{{count}} processors",
+        "status": {
+          "cancelled": "[to be translated]:Cancelled",
+          "completed": "[to be translated]:Completed",
+          "failed": "[to be translated]:Failed",
+          "idle": "[to be translated]:Idle",
+          "pending": "[to be translated]:Pending",
+          "processing": "[to be translated]:Processing",
+          "starting": "[to be translated]:Starting"
+        },
+        "taskId": "[to be translated]:Task ID",
+        "title": "[to be translated]:Document Parsing"
+      },
+      "label": "Phòng thí nghiệm linh kiện",
+      "modelSelector": {
+        "behaviorConfig": "Cấu hình Hành vi & Hiển thị",
+        "callbackEmpty": "Chưa nhận được bất kỳ callback thành phần nào",
+        "clearSelection": "Xóa lựa chọn",
+        "configDescription": "Chuyển đổi các thuộc tính ModelSelector chính ở trên và kiểm tra giá trị đầu vào cùng với các payload callback bên dưới.",
+        "configTitle": "Sân chơi Đạo cụ",
+        "controlMultiSelectMode": "Chế độ chọn nhiều được kiểm soát",
+        "currentProps": "Props Hiện Tại",
+        "defaultMultiSelectMode": "chế độ chọn nhiều mặc định",
+        "description": "Trang này gắn trực tiếp thành phần kinh doanh ModelSelector hiện tại để chúng ta có thể xác minh hành vi lựa chọn, lọc, tìm kiếm và ghim.",
+        "empty": "Hiện không có mô hình nào khả dụng nên bộ chọn chưa thể hiển thị.",
+        "lastModeChangeReturn": "Cập nhật mới nhất về Return onMultiSelectModeChange",
+        "lastSelectReturn": "Mới nhất vềSelect Return",
+        "loading": "Đang tải mô hình...",
+        "modelId": "ID mô hình",
+        "multiSelectMode": "chế độ chọn nhiều",
+        "multiple": "nhiều",
+        "normalizedIds": "ID Đã Chọn Được Chuẩn Hóa",
+        "outputEmpty": "Chưa có dữ liệu để hiển thị",
+        "provider": "Nhà cung cấp",
+        "resetOutputs": "Đặt lại đầu ra",
+        "resultsDescription": "Điều này hiển thị giá trị đề xuất hiện tại, các id đã chọn được chuẩn hóa và đầu ra gọi lại mới nhất từ thành phần.",
+        "resultsTitle": "Đầu ra & Trạng thái",
+        "selected": "Lựa chọn hiện tại",
+        "selectedEmpty": "Chưa chọn mô hình nào",
+        "selectionConfig": "Cấu hình Giá trị Lựa chọn",
+        "selectionType": "loại lựa chọn",
+        "selectionTypeId": "Trả về ID mô hình",
+        "selectionTypeModel": "Trả về các đối tượng mô hình",
+        "showPinnedModels": "hiển thị các mô hình được ghim",
+        "showTagFilter": "hiển thịBộLọcThẻ",
+        "title": "Bộ chọn mô hình",
+        "triggerPlaceholder": "Chọn một mô hình",
+        "triggerSelectedCount": "{{count}} mô hình đã được chọn",
+        "valueProp": "Giá trị đề xuất hiện tại"
+      },
+      "title": "Phòng thí nghiệm Thành phần Phát triển"
+    },
     "data": {
       "app_data": {
         "copy_data_option": "Sao chép dữ liệu, sẽ tự động khởi động lại sau khi sao chép dữ liệu thư mục gốc vào thư mục mới",
@@ -3989,15 +4816,6 @@
         "select_success": "Thư mục dữ liệu đã thay đổi, ứng dụng sẽ khởi động lại để áp dụng các thay đổi",
         "select_title": "Thay đổi Thư mục Dữ liệu Ứng dụng",
         "stop_quit_app_reason": "Ứng dụng hiện đang di chuyển dữ liệu và không thể thoát"
-      },
-      "app_knowledge": {
-        "button": {
-          "delete": "Xóa Tệp"
-        },
-        "label": "Tệp Cơ Sở Kiến Thức",
-        "remove_all": "Xóa Tệp Cơ Sở Tri Thức",
-        "remove_all_confirm": "Xóa các tệp cơ sở tri thức sẽ giảm dung lượng lưu trữ đang chiếm dụng, nhưng không xóa dữ liệu vector của cơ sở tri thức; sau khi xóa, tệp nguồn sẽ không thể mở lại được. Tiếp tục?",
-        "remove_all_success": "Tệp đã được xóa thành công"
       },
       "app_logs": {
         "button": "Mở Nhật ký",
@@ -4627,7 +5445,10 @@
           "icon": "Hiển thị biểu tượng Kiến thức"
         },
         "minapp": {
-          "icon": "Hiển thị biểu tượng MinApp"
+          "icon": "[to be translated]:Show MinApp icon"
+        },
+        "miniApp": {
+          "icon": "[to be translated]:Show MiniApp icon"
         },
         "painting": {
           "icon": "Hiển thị biểu tượng Vẽ"
@@ -4660,6 +5481,15 @@
       "backup": {
         "button": "Sao lưu",
         "title": "Sao lưu và Khôi phục Dữ liệu"
+      },
+      "common": {
+        "sections": {
+          "custom_css": "CSS Tùy chỉnh",
+          "display_language": "Hiển thị & Ngôn ngữ",
+          "privacy_advanced": "Quyền riêng tư & Nâng cao",
+          "system_startup": "Hệ thống & Khởi động"
+        },
+        "title": "Cài đặt chung"
       },
       "display": {
         "title": "Cài đặt hiển thị"
@@ -4721,6 +5551,12 @@
         "label": "Ngôn ngữ đích",
         "russian": "Tiếng Nga"
       }
+    },
+    "integrations": {
+      "groups": {
+        "notes": "Ghi chú"
+      },
+      "title": "Tích hợp"
     },
     "launch": {
       "onboot": "Tự động khởi động khi bật máy",
@@ -4991,6 +5827,13 @@
       "url": "URL",
       "user": "Người dùng"
     },
+    "menuGroups": {
+      "appSettings": "Cài đặt ứng dụng",
+      "integrations": "Tích hợp",
+      "productivity": "Năng suất",
+      "services": "Dịch vụ",
+      "system": "Hệ thống"
+    },
     "messages": {
       "divider": {
         "label": "Hiển thị đường phân cách giữa các tin nhắn",
@@ -5028,7 +5871,7 @@
       "title": "Cài đặt tin nhắn",
       "use_serif_font": "Dùng phông chữ có chân"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "Các thay đổi sẽ có hiệu lực khi số lượng ứng dụng mini đang mở đạt đến giá trị đã đặt",
       "cache_description": "Đặt số lượng tối đa các ứng dụng mini đang hoạt động cần giữ trong bộ nhớ",
       "cache_settings": "Cài đặt bộ nhớ đệm",
@@ -5078,19 +5921,77 @@
         "title": "Bộ lọc Mini Program"
       },
       "reset_tooltip": "Redefinir para o padrão",
-      "sidebar_description": "Hiển thị ứng dụng mini đang hoạt động trong thanh bên",
-      "sidebar_title": "Hiển thị Ứng dụng Nhỏ Đang Hoạt động trong Thanh Bên",
       "title": "Cài đặt Ứng dụng Mini",
       "visible": "Mini aplicaciones visibles"
+    },
+    "miniapps": {
+      "cache_change_notice": "[to be translated]:Changes will take effect when the number of open mini apps reaches the set value",
+      "cache_description": "[to be translated]:Set the maximum number of active mini apps to keep in memory",
+      "cache_settings": "[to be translated]:Cache Settings",
+      "cache_title": "[to be translated]:Mini App Cache Limit",
+      "custom": {
+        "conflicting_ids": "[to be translated]:Conflicting IDs with default apps: {{ids}}",
+        "duplicate_ids": "[to be translated]:Duplicate IDs found: {{ids}}",
+        "edit_description": "[to be translated]:Edit custom mini app configuration here. Each app should include id, name, url, and logo fields.",
+        "edit_title": "[to be translated]:Edit Custom Mini App",
+        "id": "[to be translated]:ID",
+        "id_error": "[to be translated]:ID is required.",
+        "id_placeholder": "[to be translated]:Enter ID",
+        "logo": "[to be translated]:Logo",
+        "logo_file": "[to be translated]:Upload Logo File",
+        "logo_upload_button": "[to be translated]:Upload",
+        "logo_upload_error": "[to be translated]:Failed to upload logo.",
+        "logo_upload_label": "[to be translated]:Upload Logo",
+        "logo_upload_success": "[to be translated]:Logo uploaded successfully.",
+        "logo_url": "[to be translated]:Logo URL",
+        "logo_url_label": "[to be translated]:Logo URL",
+        "logo_url_placeholder": "[to be translated]:Enter logo URL",
+        "name": "[to be translated]:Name",
+        "name_error": "[to be translated]:Name is required.",
+        "name_placeholder": "[to be translated]:Enter name",
+        "placeholder": "[to be translated]:Enter custom mini app configuration (JSON format)",
+        "remove_error": "[to be translated]:Failed to remove custom mini app.",
+        "remove_success": "[to be translated]:Custom mini app removed successfully.",
+        "save": "[to be translated]:Save",
+        "save_error": "[to be translated]:Failed to save custom mini app.",
+        "save_success": "[to be translated]:Custom mini app saved successfully.",
+        "title": "[to be translated]:Custom",
+        "url": "[to be translated]:URL",
+        "url_error": "[to be translated]:URL is required.",
+        "url_placeholder": "[to be translated]:Enter URL"
+      },
+      "disabled": "[to be translated]:Hidden Mini Apps",
+      "display_title": "[to be translated]:Mini App Display Settings",
+      "empty": "[to be translated]:Drag mini apps from the left to hide them",
+      "open_link_external": {
+        "title": "[to be translated]:Open new-window links in browser"
+      },
+      "region": {
+        "auto": "[to be translated]:Auto detect",
+        "cn": "[to be translated]:China",
+        "description": "[to be translated]:Filtering unsupported mini-programs based on the region",
+        "global": "[to be translated]:Global",
+        "title": "[to be translated]:Mini Program filter"
+      },
+      "reset_tooltip": "[to be translated]:Reset to default",
+      "sidebar_description": "[to be translated]:Show active mini apps in the sidebar",
+      "sidebar_title": "[to be translated]:Sidebar Active Mini Apps Display",
+      "title": "[to be translated]:Mini Apps Settings",
+      "visible": "[to be translated]:Visible Mini Apps"
     },
     "model": "Mô hình Mặc định",
     "models": {
       "add": {
         "add_model": "Thêm Mô hình",
         "batch_add_models": "Thêm hàng loạt mô hình",
+        "context_window": {
+          "label": "[to be translated]:Context window",
+          "placeholder": "[to be translated]:e.g. 128000"
+        },
         "endpoint_type": {
           "label": "Loại Điểm Cuối",
           "placeholder": "Chọn loại điểm cuối",
+          "remove_chip": "[to be translated]:Remove",
           "required": "Vui lòng chọn một loại điểm cuối",
           "tooltip": "Chọn định dạng loại điểm cuối API"
         },
@@ -5098,6 +5999,14 @@
           "label": "Tên Nhóm",
           "placeholder": "Tùy chọn ví dụ: ChatGPT",
           "tooltip": "Tùy chọn ví dụ: ChatGPT"
+        },
+        "max_input_tokens": {
+          "label": "[to be translated]:Max input tokens",
+          "placeholder": "[to be translated]:e.g. 128000"
+        },
+        "max_output_tokens": {
+          "label": "[to be translated]:Max output tokens",
+          "placeholder": "[to be translated]:e.g. 4096"
         },
         "model_id": {
           "label": "ID mô hình",
@@ -5119,15 +6028,19 @@
       },
       "api_key": "Khóa API",
       "base_url": "URL cơ sở",
+      "bulk_disable": "Disable all",
+      "bulk_enable": "Enable all",
       "check": {
         "all": "Todo",
         "all_models_passed": "Tất cả các mô hình đã vượt qua kiểm tra",
         "button_caption": "Kiểm tra sức khỏe",
         "disabled": "Vô hiệu hóa",
         "disclaimer": "Việc kiểm tra sức khỏe yêu cầu gửi các yêu cầu, vui lòng sử dụng một cách thận trọng. Các mô hình tính phí theo từng yêu cầu có thể phát sinh chi phí bổ sung, vui lòng tự chịu trách nhiệm.",
+        "drawer_result_hint": "Results remain here until you close the drawer or run the check again.",
         "enable_concurrent": "Đồng thời",
         "enabled": "Đã bật",
         "failed": "Thất bại",
+        "failed_to_start": "[to be translated]:Failed to start health check",
         "keys_status_count": "Đã vượt qua: {{count_passed}} khóa, không vượt qua: {{count_failed}} khóa",
         "model_status_failed": "{{count}} mô hình hoàn toàn không thể truy cập",
         "model_status_partial": "{{count}} mô hình có các khóa không thể truy cập",
@@ -5135,28 +6048,92 @@
         "model_status_summary": "{{provider}}: {{summary}}",
         "no_api_keys": "Không tìm thấy khóa API, vui lòng thêm khóa API trước.",
         "no_results": "Không có kết quả",
+        "outcome_fail_short": "{{count}} failed",
+        "outcome_success_short": "{{count}} passed",
+        "outcome_total": "{{count}} total",
         "passed": "Đã thông qua",
+        "pipeline_heading": "Detection progress",
+        "progress_count": "{{done}} / {{total}}",
+        "progress_current": "Đang kiểm tra: {{name}}",
+        "progress_hint": "Bạn có thể đóng bảng này; quá trình kiểm tra vẫn tiếp tục ở nền.",
+        "progress_title": "Đang chạy kiểm tra sức khỏe",
+        "retry": "Check again",
         "select_api_key": "Chọn khóa API để sử dụng:",
         "single": "Unico",
         "start": "Bắt đầu",
+        "status_checking": "Checking…",
         "timeout": "Hết thời gian",
         "title": "Kontrola zdraví modelu",
         "use_all_keys": "Clave(s)"
       },
+      "copy_model_id_tooltip": "[to be translated]:Click to copy model ID: {{id}}",
       "default_assistant_model": "Mô hình Trợ lý Mặc định",
-      "default_assistant_model_description": "Mô hình được sử dụng khi tạo trợ lý mới, nếu trợ lý chưa được thiết lập, mô hình này sẽ được sử dụng",
+      "default_assistant_model_description": "Dùng khi trợ lý chưa có mô hình",
       "empty": "Không tìm thấy mô hình nào",
+      "list_title": "Model list",
       "manage": {
+        "add_custom_model": "Add custom model",
         "add_listed": {
           "confirm": "Bạn có chắc chắn muốn thêm tất cả các mô hình vào danh sách không?",
           "label": "Thêm các mô hình vào danh sách"
         },
         "add_whole_group": "Thêm toàn bộ nhóm",
+        "drawer_title": "Model management",
+        "fetch_deselect_all_add": "Deselect all",
+        "fetch_deselect_all_remove": "Deselect all",
         "fetch_list": "Lấy danh sách mô hình",
+        "fetch_ok": "OK",
+        "fetch_removed_hint": "These models no longer exist on the provider API. Check to remove them from your list.",
+        "fetch_result_title": "Pull result",
+        "fetch_select_all_add": "Select all to add",
+        "fetch_select_all_remove": "Select all to remove",
+        "fetch_summary_add": "Add {{selected}}/{{total}} models",
+        "fetch_summary_remove": "Remove {{selected}}/{{total}} models",
+        "fetch_up_to_date": "Your model list is up to date",
+        "fetch_up_to_date_hint": "No new or removed models were found.",
+        "filter_add_all": "Add all in view",
+        "filter_remove_all": "Remove from provider",
+        "footer_done": "Done",
+        "large_group_hidden": "[to be translated]:Show {{count}} more models",
+        "operation_failed": "Model operation failed.",
         "refetch_list": "Tải lại danh sách mô hình",
+        "reload_catalog": "Refresh list",
         "remove_listed": "Xóa các mô hình khỏi danh sách",
         "remove_model": "Xóa mô hình",
-        "remove_whole_group": "Xóa toàn bộ nhóm"
+        "remove_whole_group": "Xóa toàn bộ nhóm",
+        "search_models_placeholder": "Search models…",
+        "select_none": "Select none",
+        "status_all": "All",
+        "status_disabled": "Disabled",
+        "status_enabled": "Enabled",
+        "sync_added_description": "New upstream models that can be added to this provider.",
+        "sync_added_metric": "{{count}} new models",
+        "sync_added_section": "New models",
+        "sync_apply_changes": "Apply changes",
+        "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
+        "sync_empty_added": "No new upstream models were found.",
+        "sync_empty_missing": "No unavailable local models were found.",
+        "sync_impact_section": "Reference impact",
+        "sync_impact_summary": "{{models}} impacted models, {{references}} strong references",
+        "sync_missing_description": "Local models that no longer exist in the latest upstream list.",
+        "sync_missing_metric": "{{count}} unavailable models",
+        "sync_missing_section": "Unavailable models",
+        "sync_no_references": "No strong references",
+        "sync_pick_delete": "Delete",
+        "sync_pick_deprecate": "Mark deprecated",
+        "sync_preview_description": "Review upstream model changes before updating your local model list.",
+        "sync_preview_summary": "Pull preview",
+        "sync_pull_failed": "Failed to pull models.",
+        "sync_reference_assistants": "Assistants {{count}}",
+        "sync_reference_knowledge": "Knowledge bases {{count}}",
+        "sync_reference_preferences": "Preferences {{count}}",
+        "sync_references": "Strong references {{count}}",
+        "sync_replacement": "Suggested replacement: {{model}}",
+        "sync_selected_metric": "{{count}} selected",
+        "sync_selected_summary": "{{selected}} / {{total}} selected",
+        "sync_switch_to_delete": "Delete instead",
+        "sync_switch_to_deprecate": "Mark deprecated instead",
+        "sync_will_deprecate": "Will be marked deprecated"
       },
       "provider_id": "ID Nhà cung cấp",
       "provider_key_add_confirm": "Bạn có muốn thêm khóa API cho {{provider}} không?",
@@ -5177,6 +6154,11 @@
         "label": "Mô hình Nhanh",
         "setting_title": "Thiết lập mô hình nhanh",
         "tooltip": "Khuyến nghị chọn mô hình nhẹ và không nên chọn mô hình suy nghĩ."
+      },
+      "toolbar": {
+        "filter_close": "Close filter",
+        "filter_open": "Filter by capability",
+        "pull_short": "Pull"
       },
       "topic_naming": {
         "auto": "Tự động đặt tên chủ đề",
@@ -5238,9 +6220,35 @@
         "title": "Tính dài dòng"
       }
     },
+    "plugins": {
+      "bunDescription": "Trình thực thi JavaScript được sử dụng bởi các dịch vụ MCP và các công cụ liên quan.",
+      "description": "Quản lý các công cụ nhị phân và phụ thuộc runtime cần thiết cho ứng dụng.",
+      "installing": "Đang cài đặt...",
+      "notInstalled": "Chưa cài đặt",
+      "title": "Phần bổ trợ",
+      "uvDescription": "Trình quản lý gói Python cho các dịch vụ MCP và cài đặt phụ thuộc."
+    },
     "privacy": {
       "enable_privacy_mode": "Báo cáo lỗi và thống kê ẩn danh",
       "title": "Cài đặt quyền riêng tư"
+    },
+    "prompts": {
+      "add": "[to be translated]:Add Prompt",
+      "contentLabel": "[to be translated]:Content",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "[to be translated]:Delete Prompt",
+      "deleteConfirm": "[to be translated]:The prompt will be permanently deleted. Continue?",
+      "edit": "[to be translated]:Edit Prompt",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
+      "title": "[to be translated]:Prompt Management",
+      "titleLabel": "[to be translated]:Title",
+      "titlePlaceholder": "[to be translated]:Enter prompt title"
     },
     "provider": {
       "add": {
@@ -5335,14 +6343,26 @@
         }
       },
       "api_host": "Máy chủ API",
+      "api_host_drawer_hint": "[to be translated]:Custom API request URL; leave empty when the catalog default applies.",
       "api_host_no_valid": "Địa chỉ API không hợp lệ",
+      "api_host_placeholder": "[to be translated]:Not configured",
       "api_host_preview": "Xem trước: {{url}}",
       "api_host_tooltip": "Chỉ ghi đè khi nhà cung cấp của bạn yêu cầu một điểm cuối tương thích OpenAI tùy chỉnh.",
       "api_key": {
+        "copy": "[to be translated]:Copy",
+        "enabled_suffix": "[to be translated]:enabled",
+        "hide_key": "[to be translated]:Hide key",
         "label": "Khóa API",
-        "tip": "Dùng dấu phẩy để phân tách nhiều khóa"
+        "label_placeholder": "[to be translated]:Label",
+        "list_description": "[to be translated]:Manage multiple API keys for this provider",
+        "placeholder": "[to be translated]:Use commas to separate multiple keys",
+        "save_failed": "Không thể lưu khóa API",
+        "show_key": "[to be translated]:Show key",
+        "tip": "Dùng dấu phẩy để phân tách nhiều khóa",
+        "unnamed": "[to be translated]:API Key"
       },
       "api_version": "Phiên bản API",
+      "auth_connection_section": "Connection & authentication",
       "aws-bedrock": {
         "access_key_id": "ID Khóa Truy Cập AWS",
         "access_key_id_help": "Votre ID de clé d'accès AWS pour accéder aux services AWS Bedrock",
@@ -5382,7 +6402,15 @@
       "check": "Kiểm tra",
       "check_all_keys": "Kiểm tra tất cả các phím",
       "check_multiple_keys": "Kiểm tra nhiều khóa API",
+      "cherryin": {
+        "api_host": {
+          "acceleration": "[to be translated]:Acceleration domain",
+          "backup": "[to be translated]:Backup domain",
+          "international": "[to be translated]:International domain"
+        }
+      },
       "copilot": {
+        "add_request_header": "Add header",
         "auth_failed": "Xác thực Github Copilot thất bại.",
         "auth_success": "Xác thực GitHub Copilot thành công.",
         "auth_success_title": "Chứng nhận thành công.",
@@ -5395,7 +6423,12 @@
         "description": "Tài khoản GitHub của bạn cần đăng ký Copilot.",
         "description_detail": "GitHub Copilot là một trợ lý mã nguồn được hỗ trợ bởi AI, yêu cầu có đăng ký GitHub Copilot hợp lệ để sử dụng.",
         "expand": "Mở rộng",
+        "header_field_name": "Header",
+        "header_field_value": "Value",
+        "header_name_placeholder": "Header name",
+        "header_value_placeholder": "Header value",
         "headers_description": "Tiêu đề yêu cầu tùy chỉnh (định dạng JSON)",
+        "headers_json_placeholder": "[to be translated]:{\n  \"X-Custom-Header\": \"value\"\n}",
         "invalid_json": "Lỗi định dạng JSON",
         "login": "Đăng nhập vào Github",
         "logout": "Thoát GitHub",
@@ -5416,7 +6449,9 @@
         "step_copy_code_desc": "Sao chép mã ủy quyền thiết bị",
         "step_copy_code_detail": "Mã xác thực đã được sao chép tự động, bạn cũng có thể sao chép thủ công",
         "step_get_code": "Lấy Mã Ủy Quyền",
-        "step_get_code_desc": "Tạo mã ủy quyền thiết bị"
+        "step_get_code_desc": "Tạo mã ủy quyền thiết bị",
+        "toggle_headers_editor_json": "[to be translated]:Switch to JSON editor",
+        "toggle_headers_editor_list": "[to be translated]:Switch to header list"
       },
       "delete": {
         "content": "Bạn có chắc chắn muốn xóa nhà cung cấp này không?",
@@ -5446,13 +6481,19 @@
       },
       "oauth": {
         "balance": "Cân bằng",
+        "balance_error": "[to be translated]:Failed to fetch balance",
         "button": "Iniciar sesión con {{provider}}",
         "cherryIn": {
+          "account_title": "Cherry IN account",
           "description": "Đăng nhập vào CherryIN bằng OAuth 2.0",
           "logged_in": "Đã đăng nhập qua OAuth",
           "login_button": "Đăng nhập bằng OAuth",
           "logout_button": "Keluar",
-          "title": "Đăng nhập OAuth"
+          "register_account": "Create account",
+          "service_attribution": "This service is provided by <link>open.cherryin.ai</link>",
+          "tagline": "After you sign in, you can use all model services",
+          "title": "Đăng nhập OAuth",
+          "use_api_key": "Use API key instead"
         },
         "connect": "Kết nối {{provider}}",
         "description": "Dịch vụ này được cung cấp bởi <website>{{provider}}</website>",
@@ -5467,13 +6508,18 @@
         "provided_by_suffix": "I’m ready—please provide the text you’d like me to translate.",
         "requests": "Yêu cầu",
         "topup": "Recarga",
-        "usage_title": "Cách sử dụng"
+        "usage_title": "Cách sử dụng",
+        "usage_unit": "tokens"
       },
       "openai": {
         "alert": "Nhà cung cấp OpenAI không còn hỗ trợ các phương thức gọi cũ. Nếu đang sử dụng API của bên thứ ba, vui lòng tạo một nhà cung cấp dịch vụ mới."
       },
       "remove_duplicate_keys": "Xóa các khóa trùng lặp",
       "remove_invalid_keys": "Xóa các khóa không hợp lệ",
+      "reorder_failed": "[to be translated]:Failed to reorder providers",
+      "request_configuration": "[to be translated]:Request configuration",
+      "request_configuration_tooltip": "[to be translated]:Configure API Host and custom request headers",
+      "save_failed": "[to be translated]:Failed to save provider settings",
       "search": "Nhà cung cấp tìm kiếm...",
       "search_placeholder": "Tìm kiếm mã hoặc tên mô hình",
       "title": "Nhà cung cấp mô hình",
@@ -5536,18 +6582,18 @@
       "title": "Menú Rápido"
     },
     "quickPhrase": {
-      "add": "Thêm cụm từ",
-      "assistant": "Cụm từ Trợ lý",
-      "contentLabel": "Nội dung",
-      "contentPlaceholder": "Vui lòng nhập nội dung cụm từ, hỗ trợ sử dụng biến và nhấn Tab để nhanh chóng định vị biến cần sửa. Ví dụ:  \nHãy giúp tôi lên lộ trình từ ${from} đến ${to} và gửi nó đến ${email}.",
-      "delete": "Xóa cụm từ",
-      "deleteConfirm": "Cụm từ này không thể khôi phục sau khi xóa, tiếp tục?",
-      "edit": "Bearbeite Phrase",
-      "global": "Frases Globales",
-      "locationLabel": "Thêm Vị trí",
-      "title": "Cụm từ nhanh",
-      "titleLabel": "Tiêu đề",
-      "titlePlaceholder": "Vui lòng nhập tiêu đề cụm từ"
+      "add": "[to be translated]:Add Phrase",
+      "assistant": "[to be translated]:Assistant Phrases",
+      "contentLabel": "[to be translated]:Content",
+      "contentPlaceholder": "[to be translated]:Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "[to be translated]:Delete Phrase",
+      "deleteConfirm": "[to be translated]:The phrase cannot be recovered after deletion, continue?",
+      "edit": "[to be translated]:Edit Phrase",
+      "global": "[to be translated]:Global Phrases",
+      "locationLabel": "[to be translated]:Add Location",
+      "title": "[to be translated]:Quick Phrases",
+      "titleLabel": "[to be translated]:Title",
+      "titlePlaceholder": "[to be translated]:Please enter phrase title"
     },
     "scheduledTasks": {
       "description": "Quản lý các tác vụ đã lên lịch trên tất cả các tác nhân. Các tác vụ sẽ tự động chạy theo lịch đã cấu hình.",
@@ -5560,22 +6606,40 @@
     "shortcuts": {
       "action": "Hành động",
       "actions": "hoạt động",
+      "all_disable": "Tắt Tất Cả",
+      "all_enable": "Kích hoạt Tất cả",
+      "bind_first_to_enable": "Trước tiên hãy gán một phím tắt để thay đổi trạng thái kích hoạt của nó",
+      "categories": {
+        "assistant": "Công cụ Trợ lý AI",
+        "chat": "Tương tác tin nhắn",
+        "general": "Toàn cầu và Cửa sổ",
+        "title": "Nhóm Phím Tắt",
+        "topic": "Cuộc trò chuyện và Chủ đề"
+      },
       "clear_shortcut": "Phím tắt rõ ràng",
       "clear_topic": "Tin nhắn rõ ràng",
+      "conflict_with": "Đã được \"{{name}}\" sử dụng",
       "copy_last_message": "Sao tin nhắn cuối cùng",
       "edit_last_user_message": "Chỉnh sửa tin nhắn cuối cùng của người dùng",
+      "empty": "Không có phím tắt nào khả dụng trong nhóm này",
       "enabled": "Kích hoạt",
       "exit_fullscreen": "Thoát toàn màn hình",
       "label": "Khóa",
-      "mini_window": "Trợ lý Nhanh",
       "new_topic": "Chủ đề mới",
+      "occupied_by_other_application": "Phím tắt này đã được hệ thống hoặc một ứng dụng khác sử dụng",
       "press_shortcut": "Nhấn Phím tắt",
+      "quick_assistant": "Trợ lý nhanh",
       "rename_topic": "Đổi tên chủ đề",
+      "reset": "Đặt lại",
       "reset_defaults": "Đặt lại mặc định",
       "reset_defaults_confirm": "Bạn có chắc chắn muốn đặt lại tất cả phím tắt không?",
+      "reset_defaults_failed": "Không thể đặt lại phím tắt về mặc định",
       "reset_to_default": "Đặt lại về mặc định",
+      "save_failed": "Không thể lưu phím tắt",
+      "save_failed_with_name": "Không thể lưu phím tắt: {{name}}",
       "search_message": "Tin nhắn tìm kiếm",
       "search_message_in_chat": "Tìm Tin nhắn trong Cuộc trò chuyện Hiện tại",
+      "search_placeholder": "Tìm kiếm phím tắt...",
       "select_model": "Chọn Mô hình",
       "selection_assistant_select_text": "Trợ lý Lựa chọn: Chọn Văn bản",
       "selection_assistant_toggle": "Bật Trợ lý Chọn",
@@ -5583,8 +6647,8 @@
       "show_settings": "Mở Cài đặt",
       "title": "Phím tắt",
       "toggle_new_context": "Ngữ cảnh rõ ràng",
-      "toggle_show_assistants": "Bật Trợ lý",
       "toggle_show_topics": "Chuyển đổi chủ đề",
+      "toggle_sidebar": "Chuyển đổi thanh bên",
       "zoom_in": "Phóng to",
       "zoom_out": "Thu nhỏ",
       "zoom_reset": "Đặt lại thu phóng"
@@ -5640,49 +6704,82 @@
     },
     "title": "Cài đặt",
     "tool": {
-      "ocr": {
-        "common": {
-          "langs": "Ngôn ngữ được hỗ trợ"
+      "file_processing": {
+        "actions": {
+          "set_as_default": "[to be translated]:Set as default"
         },
-        "error": {
-          "not_system": "Hệ thống OCR chỉ hỗ trợ Windows và MacOS"
+        "errors": {
+          "invalid_api_host": "[to be translated]:Invalid API host",
+          "load_processors_failed": "[to be translated]:Failed to load available processors",
+          "save_failed": "[to be translated]:Save failed"
         },
-        "image": {
-          "error": {
-            "provider_not_found": "Nhà cung cấp không tồn tại"
+        "features": {
+          "document_to_markdown": {
+            "title": "[to be translated]:Document Processing"
           },
-          "system": {
-            "no_need_configure": "macOS erfordert keine Konfiguration"
-          },
-          "title": "Hình ảnh"
-        },
-        "image_provider": "nhà cung cấp dịch vụ OCR",
-        "paddleocr": {
-          "aistudio_access_token": "Mã truy cập của Cộng đồng AI Studio",
-          "api_url": "URL API",
-          "api_url_label": "Lấy Mã Truy Cập và URL API"
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "Để Windows cung cấp dịch vụ, bạn cần tải các gói ngôn ngữ trong hệ thống để hỗ trợ các ngôn ngữ liên quan."
+          "image_to_text": {
+            "title": "[to be translated]:OCR"
           }
         },
-        "tesseract": {
-          "langs_tooltip": "Đọc tài liệu để tìm hiểu ngôn ngữ tùy chỉnh nào được hỗ trợ"
+        "fields": {
+          "api_base_url": "[to be translated]:API Base URL",
+          "api_key": "[to be translated]:API Key",
+          "api_keys_placeholder": "[to be translated]:Separate multiple keys with commas",
+          "languages": "[to be translated]:Languages"
         },
-        "title": "Dịch vụ OCR"
-      },
-      "preprocess": {
-        "paddleocr": {
-          "aistudio_access_token": "Mã truy cập của Cộng đồng AI Studio",
-          "api_url": "URL API",
-          "api_url_label": "Lấy Mã Truy Cập và URL API",
-          "paddleocr_url_label": "Trang web chính thức của PaddleOCR"
+        "processors": {
+          "doc2x": {
+            "description": "[to be translated]:Advanced file restoration engine.",
+            "name": "[to be translated]:Doc2x"
+          },
+          "mineru": {
+            "description": "[to be translated]:OpenDataLab's open-source high-quality PDF extraction tool.",
+            "name": "[to be translated]:MinerU"
+          },
+          "mistral": {
+            "description": "[to be translated]:File parsing and understanding service.",
+            "name": "[to be translated]:Mistral"
+          },
+          "open_mineru": {
+            "description": "[to be translated]:Self-hostable MinerU service for teams that want more control over the processing pipeline.",
+            "name": "[to be translated]:Open MinerU"
+          },
+          "ovocr": {
+            "description": "[to be translated]:Intel OpenVINO OCR engine that runs locally with NPU acceleration.",
+            "name": "[to be translated]:Intel OV OCR"
+          },
+          "paddleocr": {
+            "deployment": {
+              "description": "[to be translated]:You can deploy PaddleOCR locally with the officially supported Docker image, then enter the API address here.",
+              "docs": "[to be translated]:View Docker deployment docs"
+            },
+            "description": "[to be translated]:Baidu PaddleOCR recognition system.",
+            "fields": {
+              "parse_model": "[to be translated]:Parse Model"
+            },
+            "name": "[to be translated]:PaddleOCR"
+          },
+          "system": {
+            "description": "[to be translated]:Native operating system OCR engine.",
+            "name": "[to be translated]:System OCR",
+            "status": {
+              "available": "[to be translated]:Detected available macOS Live Text / Windows OCR engine.",
+              "no_configuration": "[to be translated]:System OCR calls the native system engine directly. It is fastest, but accuracy depends on the OS version."
+            }
+          },
+          "tesseract": {
+            "description": "[to be translated]:Google's open-source OCR engine that runs fully locally.",
+            "name": "[to be translated]:Tesseract OCR"
+          }
         },
-        "provider": "Nhà cung cấp Xử lý Tài liệu",
-        "provider_placeholder": "Chọn nhà cung cấp xử lý tài liệu",
-        "title": "Xử lý tài liệu",
-        "tooltip": "Trong Cài đặt -> Công cụ, hãy đặt nhà cung cấp dịch vụ xử lý tài liệu. Xử lý tài liệu có thể cải thiện hiệu quả khả năng truy xuất của các tài liệu có định dạng phức tạp và tài liệu đã quét."
+        "sections": {
+          "authentication": "[to be translated]:Authentication",
+          "description": "[to be translated]:Description",
+          "language_packs": "[to be translated]:Language Packs",
+          "model_parameters": "[to be translated]:Model Parameters",
+          "status": "[to be translated]:Status"
+        },
+        "title": "[to be translated]:Document Parsing"
       },
       "title": "Các Cài Đặt Khác",
       "websearch": {
@@ -5695,6 +6792,7 @@
         "apikey": "Khóa API",
         "blacklist": "Danh sách đen",
         "blacklist_description": "Kết quả từ các trang web sau sẽ không xuất hiện trong kết quả tìm kiếm",
+        "blacklist_invalid_entries": "[to be translated]:Invalid blacklist entries: {{entries}}",
         "blacklist_tooltip": "Pattern matching: *://*.example.com/*\nRegular expression: /example\\.(net|org)/",
         "check": "Kiểm tra",
         "check_failed": "Verifikation fehlgeschlagen",
@@ -5711,29 +6809,21 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "RAG thất bại"
-          },
-          "info": {
-            "dimensions_auto_success": "Kích thước tự động lấy thành công, kích thước: {{dimensions}}"
-          },
           "method": {
             "cutoff": "Ngưỡng cắt",
             "label": "Phương pháp nén",
-            "none": "không",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "Số lượng phần tài liệu",
-              "tooltip": "Số lượng đoạn tài liệu dự kiến sẽ trích xuất từ mỗi kết quả tìm kiếm, tổng số đoạn tài liệu thực tế được trích xuất bằng giá trị này nhân với số lượng kết quả tìm kiếm."
-            }
+            "none": "không"
           },
           "title": "Nén Kết Quả Tìm Kiếm"
         },
         "content_limit": "Giới hạn độ dài nội dung",
         "content_limit_tooltip": "Giới hạn độ dài nội dung của kết quả tìm kiếm; nội dung vượt quá giới hạn sẽ bị cắt ngắn.",
         "default_provider": "Nhà cung cấp mặc định",
+        "errors": {
+          "save_failed": "[to be translated]:Save failed",
+          "zhipu_sync_failed": "[to be translated]:Failed to sync Zhipu API key to Web Search. Please re-save the key or check Web Search settings."
+        },
+        "fetch_urls_provider": "[to be translated]:Default URL fetch provider",
         "free": "Miễn phí",
         "is_default": "Mặc định",
         "local_provider": {
@@ -5745,27 +6835,24 @@
         "no_provider_selected": "Vui lòng chọn nhà cung cấp dịch vụ tìm kiếm trước khi kiểm tra.",
         "overwrite": "Ghi đè dịch vụ tìm kiếm",
         "overwrite_tooltip": "Buộc sử dụng dịch vụ tìm kiếm thay vì mô hình ngôn ngữ lớn",
+        "provider_description": {
+          "bocha": "[to be translated]:Chinese AI search API with real-time web and structured results.",
+          "exa": "[to be translated]:Neural search API for AI apps, tuned for semantic web retrieval.",
+          "exa_mcp": "[to be translated]:Expose Exa search to agents through the Exa MCP Server.",
+          "fetch": "[to be translated]:Built-in URL fetch provider. Fetches web page content from a URL to enrich search results.",
+          "jina": "[to be translated]:Jina Reader search and read APIs for retrieving clean web content.",
+          "querit": "[to be translated]:Search service for AI apps with web retrieval results.",
+          "searxng": "[to be translated]:Self-hostable free internet metasearch engine across many sources.",
+          "tavily": "[to be translated]:Search engine optimized for LLMs.",
+          "zhipu": "[to be translated]:Zhipu GLM Web Search for live web retrieval and current information."
+        },
         "search_max_result": {
           "label": "Số kết quả tìm kiếm",
           "tooltip": "Khi tính năng nén kết quả tìm kiếm bị tắt, số lượng kết quả có thể quá lớn, dẫn đến không đủ token"
         },
         "search_provider": "Nhà cung cấp dịch vụ tìm kiếm",
         "search_provider_placeholder": "Chọn một nhà cung cấp dịch vụ tìm kiếm.",
-        "search_with_time": "Tìm kiếm bao gồm cả ngày tháng",
         "set_as_default": "Definir como padrão",
-        "subscribe": "Đăng ký Danh sách đen",
-        "subscribe_add": "Thêm Đăng ký",
-        "subscribe_add_failed": "Không thêm được nguồn nguồn cấp dữ liệu",
-        "subscribe_add_success": "Đã thêm nguồn cấp dữ liệu đăng ký thành công!",
-        "subscribe_delete": "Xóa",
-        "subscribe_name": {
-          "label": "Tên thay thế",
-          "placeholder": "Tên thay thế được sử dụng khi nguồn cấp dữ liệu đã tải xuống không có tên."
-        },
-        "subscribe_update": "Cập nhật",
-        "subscribe_update_failed": "Cập nhật nguồn đăng ký thất bại",
-        "subscribe_update_success": "Nguồn đăng ký đã được cập nhật thành công",
-        "subscribe_url": "Url Đăng ký",
         "tavily": {
           "api_key": {
             "label": "Khóa API Tavily",
@@ -5852,6 +6939,13 @@
       "title": "Zoom de página"
     }
   },
+  "tab": {
+    "close": "Đóng Tab",
+    "move_to_first": "[to be translated]:Move to First",
+    "new": "Thẻ Mới",
+    "pin": "Ghim Tab",
+    "unpin": "Gỡ ghim thẻ"
+  },
   "title": {
     "apps": "Ứng dụng",
     "code": "Mã",
@@ -5860,7 +6954,6 @@
     "knowledge": "Cơ sở tri thức",
     "launchpad": "Bảng khởi chạy",
     "mcp-servers": "MCP Servers",
-    "memories": "Kỷ niệm",
     "notes": "Ghi chú",
     "openclaw": "OpenClaw",
     "paintings": "Tranh vẽ",
@@ -5916,6 +7009,7 @@
         },
         "label": "Phương pháp phát hiện tự động",
         "llm": {
+          "label": "[to be translated]:LLM",
           "tip": "Việc sử dụng mô hình nhanh để phát hiện ngôn ngữ tiêu tốn ít token hơn."
         },
         "placeholder": "Chọn phương pháp phát hiện tự động",
@@ -5929,8 +7023,12 @@
     "detecting": "Détection en cours...",
     "empty": "Nội dung dịch trống",
     "error": {
+      "auto_copy_failed": "[to be translated]:Failed to auto-copy translation result",
       "chat_qwen_mt": "Mô hình MT Qwen không thể được sử dụng trong trò chuyện. Vui lòng đến trang dịch thuật.",
       "detect": {
+        "empty": "[to be translated]:Detected language is empty",
+        "failed": "[to be translated]:Language detection failed",
+        "invalid": "[to be translated]:Detected language is not supported",
         "qwen_mt": "Mô hình QwenMT không thể được sử dụng để phát hiện ngôn ngữ",
         "unknown": "Detected an unknown language",
         "update_setting": "Thiết lập thất bại"
@@ -5938,6 +7036,7 @@
       "empty": "Kết quả dịch là nội dung trống",
       "failed": "Traducción fallida",
       "invalid_source": "Ngôn ngữ nguồn không hợp lệ",
+      "languages_load_failed": "[to be translated]:Failed to load translate languages. Some features may be unavailable.",
       "not_configured": "Mô hình dịch chưa được cấu hình",
       "not_supported": "Ngôn ngữ không được hỗ trợ {{language}}",
       "unknown": "Se ha producido un error desconocido durante la traducción"
@@ -5950,23 +7049,42 @@
       "error": {
         "check_type": "Đã xảy ra lỗi khi kiểm tra loại tệp",
         "multiple": "No se permiten múltiples cargas de archivos.",
+        "ocr": "[to be translated]:Failed to recognize image text",
         "too_large": "Tập tin quá lớn",
         "unknown": "Không đọc được nội dung tệp"
       },
       "reading": "Đang đọc nội dung tệp..."
     },
     "history": {
+      "back": "[to be translated]:Back to list",
       "clear": "Xóa lịch sử",
       "clear_description": "Xóa lịch sử sẽ xóa toàn bộ lịch sử dịch, bạn có muốn tiếp tục?",
+      "copy_target": "[to be translated]:Copy result",
       "delete": "Xóa lịch sử dịch",
+      "delete_description": "[to be translated]:Delete this translation history record? This action cannot be undone.",
       "empty": "Không có lịch sử dịch",
       "error": {
+        "add": "[to be translated]:Failed to add translation history",
+        "clear": "[to be translated]:Failed to clear translation history",
         "delete": "Xóa thất bại",
+        "load": "[to be translated]:Failed to load translation history",
         "save": "Không lưu được lịch sử dịch"
       },
+      "filter": {
+        "starred": "[to be translated]:Only starred"
+      },
+      "reuse": "[to be translated]:Reuse",
       "search": {
         "placeholder": "Buscar historial de traducción"
       },
+      "source": "[to be translated]:Source",
+      "success": {
+        "add": "[to be translated]:Saved to history",
+        "clear": "[to be translated]:History cleared",
+        "delete": "[to be translated]:Deleted",
+        "update": "[to be translated]:Saved"
+      },
+      "target": "[to be translated]:Target",
       "title": "Historial de Traducción"
     },
     "info": {
@@ -5995,6 +7113,9 @@
       "autoCopy": "Copy after translation",
       "bidirectional": "Cài đặt Dịch thuật Hai chiều",
       "bidirectional_tip": "Khi được bật, chỉ hỗ trợ dịch hai chiều giữa ngôn ngữ nguồn và ngôn ngữ đích",
+      "error": {
+        "save": "[to be translated]:Failed to save translation settings"
+      },
       "model": "Model Ayarları",
       "model_desc": "Modelo usado para el servicio de traducción",
       "model_placeholder": "Chọn mô hình dịch",
@@ -6003,6 +7124,7 @@
       "scroll_sync": "Cài đặt cuộn đồng bộ",
       "title": "Cài đặt Dịch thuật"
     },
+    "source_language": "[to be translated]:Source Language",
     "stop": "Dừng Dịch",
     "success": {
       "custom": {
@@ -6018,7 +7140,7 @@
   },
   "tray": {
     "quit": "Thôi",
-    "show_mini_window": "Trợ lý Nhanh",
+    "show_quick_assistant": "Trợ lý Nhanh",
     "show_window": "Hiển thị cửa sổ"
   },
   "update": {

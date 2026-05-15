@@ -1,5 +1,7 @@
 import { loggerService } from '@logger'
 import { isLinux } from '@main/constant'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { IpcChannel } from '@shared/IpcChannel'
 import type { OcrHandler, OcrProvider, OcrResult, SupportedOcrFile } from '@types'
 import { BuiltinOcrProviderIds } from '@types'
 
@@ -10,8 +12,19 @@ import { tesseractService } from './builtin/TesseractService'
 
 const logger = loggerService.withContext('OcrService')
 
-export class OcrService {
+@Injectable('OcrService')
+@ServicePhase(Phase.WhenReady)
+export class OcrService extends BaseService {
   private registry: Map<string, OcrHandler> = new Map()
+
+  protected async onInit(): Promise<void> {
+    this.registerBuiltinProviders()
+    this.registerIpcHandlers()
+  }
+
+  protected async onStop(): Promise<void> {
+    await tesseractService.dispose()
+  }
 
   register(providerId: string, handler: OcrHandler): void {
     if (this.registry.has(providerId)) {
@@ -35,15 +48,23 @@ export class OcrService {
     }
     return handler(file, provider.config)
   }
+
+  private registerBuiltinProviders(): void {
+    this.register(BuiltinOcrProviderIds.tesseract, tesseractService.ocr.bind(tesseractService))
+
+    if (!isLinux) {
+      this.register(BuiltinOcrProviderIds.system, systemOcrService.ocr.bind(systemOcrService))
+    }
+
+    this.register(BuiltinOcrProviderIds.paddleocr, ppocrService.ocr.bind(ppocrService))
+
+    if (ovOcrService.isAvailable()) {
+      this.register(BuiltinOcrProviderIds.ovocr, ovOcrService.ocr.bind(ovOcrService))
+    }
+  }
+
+  private registerIpcHandlers(): void {
+    this.ipcHandle(IpcChannel.OCR_ocr, (_, file: SupportedOcrFile, provider: OcrProvider) => this.ocr(file, provider))
+    this.ipcHandle(IpcChannel.OCR_ListProviders, () => this.listProviderIds())
+  }
 }
-
-export const ocrService = new OcrService()
-
-// Register built-in providers
-ocrService.register(BuiltinOcrProviderIds.tesseract, tesseractService.ocr.bind(tesseractService))
-
-!isLinux && ocrService.register(BuiltinOcrProviderIds.system, systemOcrService.ocr.bind(systemOcrService))
-
-ocrService.register(BuiltinOcrProviderIds.paddleocr, ppocrService.ocr.bind(ppocrService))
-
-ovOcrService.isAvailable() && ocrService.register(BuiltinOcrProviderIds.ovocr, ovOcrService.ocr.bind(ovOcrService))

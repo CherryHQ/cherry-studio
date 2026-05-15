@@ -1,145 +1,126 @@
-import { REFERENCE_PROMPT } from '@renderer/config/prompts'
-import WebSearchService from '@renderer/services/WebSearchService'
-import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
-import type { ExtractResults } from '@renderer/utils/extract'
 import { getUrlOriginOrFallback } from '@renderer/utils/url'
+import { REFERENCE_PROMPT } from '@shared/config/prompts'
+import type { WebSearchResponse } from '@shared/data/types/webSearch'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
 
 export const BUILTIN_WEB_SEARCH_TOOL_NAME = 'builtin_web_search'
+export const BUILTIN_FETCH_URLS_TOOL_NAME = 'builtin_fetch_urls'
 
 const MAX_BUILTIN_WEB_SEARCH_QUERIES = 3
+const MAX_BUILTIN_FETCH_URLS = 20
 
-function normalizeWebSearchQueries(questions: string[]): string[] {
-  if (questions[0] === 'not_needed') {
-    return ['not_needed']
-  }
-
+function normalizeInputs(inputs: string[], limit: number, getDeduplicationKey: (input: string) => string): string[] {
   const seen = new Set<string>()
 
-  return questions
-    .map((question) => question.trim())
-    .filter((question) => question.length > 0)
-    .filter((question) => {
-      const key = question.toLocaleLowerCase()
+  return inputs
+    .map((input) => input.trim())
+    .filter(Boolean)
+    .filter((input) => {
+      const key = getDeduplicationKey(input)
       if (seen.has(key)) {
         return false
       }
       seen.add(key)
       return true
     })
-    .slice(0, MAX_BUILTIN_WEB_SEARCH_QUERIES)
+    .slice(0, limit)
 }
 
-/**
- * 使用预提取关键词的网络搜索工具
- * 这个工具直接使用插件阶段分析的搜索意图，避免重复分析
- */
-export const webSearchToolWithPreExtractedKeywords = (
-  webSearchProviderId: WebSearchProvider['id'],
-  extractedKeywords: {
-    question: string[]
-    links?: string[]
-  },
-  requestId: string
-) => {
-  const webSearchProvider = WebSearchService.getWebSearchProvider(webSearchProviderId)
-  let cachedSearchResultsPromise: Promise<WebSearchProviderResponse> | undefined
+function normalizeSearchQueries(inputs: string[], limit: number): string[] {
+  return normalizeInputs(inputs, limit, (input) => input.toLocaleLowerCase())
+}
 
-  return tool({
-    description: `Web search tool for finding current information, news, and real-time data from the internet.
+function normalizeFetchUrls(inputs: string[], limit: number): string[] {
+  return normalizeInputs(inputs, limit, (input) => input)
+}
 
-This tool has been configured with search parameters based on the conversation context:
-- Prepared queries: ${extractedKeywords.question.map((q) => `"${q}"`).join(', ')}${
-      extractedKeywords.links?.length
-        ? `
-- Relevant URLs: ${extractedKeywords.links.join(', ')}`
-        : ''
-    }
+function toWebSearchModelOutput(results: WebSearchResponse, action: 'search' | 'fetch') {
+  const summary =
+    results.results.length > 0
+      ? `Found ${results.results.length} relevant sources. Use [number] format to cite specific information.`
+      : 'No relevant sources were found.'
 
-You can use this tool as-is to search with the prepared queries, or provide additionalContext to refine or replace the search terms.`,
+  const citationData = results.results.map((result, index) => ({
+    number: index + 1,
+    title: result.title,
+    content: result.content,
+    url: getUrlOriginOrFallback(result.url)
+  }))
 
+  const referenceContent = `\`\`\`json\n${JSON.stringify(citationData, null, 2)}\n\`\`\``
+  const instructions = REFERENCE_PROMPT.replace(
+    '{question}',
+    "Based on the web results, please answer the user's question with proper citations."
+  ).replace('{references}', referenceContent)
+
+  return {
+    type: 'content' as const,
+    value: [
+      {
+        type: 'text' as const,
+        text:
+          action === 'search'
+            ? 'This tool searches the web and formats results for citation.'
+            : 'This tool fetches URL content and formats results for citation.'
+      },
+      {
+        type: 'text' as const,
+        text: summary
+      },
+      {
+        type: 'text' as const,
+        text: instructions
+      }
+    ]
+  }
+}
+
+export const webSearchTool = () =>
+  tool({
+    description:
+      'Search the web for current information, news, and real-time data. Use focused search queries and cite returned sources as [1], [2], etc.',
     inputSchema: z.object({
-      additionalContext: z
-        .string()
-        .optional()
-        .describe('Optional additional context, keywords, or specific focus to enhance the search')
+      queries: z.array(z.string()).optional().describe('Focused web search queries.'),
+      additionalContext: z.string().optional().describe('Fallback single query when the model omits the queries array.')
     }),
-
-    execute: async ({ additionalContext }) => {
-      if (cachedSearchResultsPromise) {
-        return cachedSearchResultsPromise
+    execute: async ({ queries, additionalContext }) => {
+      const keywords = normalizeSearchQueries(
+        queries?.length ? queries : [additionalContext ?? ''],
+        MAX_BUILTIN_WEB_SEARCH_QUERIES
+      )
+      if (keywords.length === 0) {
+        throw new Error('Provide at least one search query in `queries` (string array).')
       }
 
-      let finalQueries = normalizeWebSearchQueries(extractedKeywords.question)
-
-      if (additionalContext?.trim()) {
-        // 如果大模型提供了额外上下文，使用更具体的描述
-        const cleanContext = additionalContext.trim()
-        if (cleanContext) {
-          finalQueries = normalizeWebSearchQueries([cleanContext])
-        }
-      }
-
-      // 检查是否需要搜索
-      if (finalQueries.length === 0 || finalQueries[0] === 'not_needed') {
-        return { query: '', results: [] }
-      }
-
-      // 构建 ExtractResults 结构用于 processWebsearch
-      const extractResults: ExtractResults = {
-        websearch: {
-          question: finalQueries,
-          links: extractedKeywords.links
-        }
-      }
-      cachedSearchResultsPromise = WebSearchService.processWebsearch(webSearchProvider!, extractResults, requestId)
-      try {
-        return await cachedSearchResultsPromise
-      } catch (error) {
-        cachedSearchResultsPromise = undefined
-        throw error
-      }
+      return window.api.webSearch.searchKeywords({
+        keywords
+      })
     },
-    toModelOutput: ({ output: results }) => {
-      let summary = 'No search needed based on the query analysis.'
-      if (results.query && results.results.length > 0) {
-        summary = `Found ${results.results.length} relevant sources. Use [number] format to cite specific information.`
-      }
-
-      const citationData = results.results.map((result, index) => ({
-        number: index + 1,
-        title: result.title,
-        content: result.content,
-        url: getUrlOriginOrFallback(result.url)
-      }))
-
-      const referenceContent = `\`\`\`json\n${JSON.stringify(citationData, null, 2)}\n\`\`\``
-      const fullInstructions = REFERENCE_PROMPT.replace(
-        '{question}',
-        "Based on the search results, please answer the user's question with proper citations."
-      ).replace('{references}', referenceContent)
-      const instructions = fullInstructions
-      return {
-        type: 'content',
-        value: [
-          {
-            type: 'text',
-            text: 'This tool searches for relevant information and formats results for easy citation. The returned sources should be cited using [1], [2], etc. format in your response.'
-          },
-          {
-            type: 'text',
-            text: summary
-          },
-          {
-            type: 'text',
-            text: instructions
-          }
-        ]
-      }
-    }
+    toModelOutput: ({ output }) => toWebSearchModelOutput(output, 'search')
   })
-}
 
-export type WebSearchToolOutput = InferToolOutput<ReturnType<typeof webSearchToolWithPreExtractedKeywords>>
-export type WebSearchToolInput = InferToolInput<ReturnType<typeof webSearchToolWithPreExtractedKeywords>>
+export const fetchUrlsTool = () =>
+  tool({
+    description:
+      'Fetch and read specific web URLs supplied by the user or conversation. Use this when exact URLs need to be opened or summarized.',
+    inputSchema: z.object({
+      urls: z.array(z.string()).min(1).describe('Absolute URLs to fetch.')
+    }),
+    execute: async ({ urls }) => {
+      const normalizedUrls = normalizeFetchUrls(urls, MAX_BUILTIN_FETCH_URLS)
+      if (normalizedUrls.length === 0) {
+        throw new Error('Provide at least one URL in `urls` (string array).')
+      }
+
+      return window.api.webSearch.fetchUrls({
+        urls: normalizedUrls
+      })
+    },
+    toModelOutput: ({ output }) => toWebSearchModelOutput(output, 'fetch')
+  })
+
+export type WebSearchToolOutput = InferToolOutput<ReturnType<typeof webSearchTool>>
+export type WebSearchToolInput = InferToolInput<ReturnType<typeof webSearchTool>>
+export type FetchUrlsToolOutput = InferToolOutput<ReturnType<typeof fetchUrlsTool>>
+export type FetchUrlsToolInput = InferToolInput<ReturnType<typeof fetchUrlsTool>>

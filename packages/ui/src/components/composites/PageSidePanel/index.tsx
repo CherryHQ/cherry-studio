@@ -1,0 +1,173 @@
+/**
+ * An in-page side drawer: the panel is positioned absolutely within its nearest
+ * positioned parent, while the backdrop covers the viewport so sibling menus
+ * and navigation chrome are dimmed and click-blocked.
+ *
+ * For a full-screen modal dialog that covers the whole viewport with a
+ * backdrop, use the shadcn `Drawer` primitive from '@cherrystudio/ui' instead.
+ */
+import { Button } from '@cherrystudio/ui/components/primitives/button'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { AnimatePresence, motion } from 'framer-motion'
+import { XIcon } from 'lucide-react'
+import * as React from 'react'
+import { useCallback, useEffect, useId, useRef } from 'react'
+
+import Scrollbar from '../Scrollbar'
+
+type PageSidePanelPlacement = 'left' | 'right'
+
+interface PageSidePanelProps {
+  open: boolean
+  onClose: () => void
+  children?: React.ReactNode
+  header?: React.ReactNode
+  footer?: React.ReactNode
+  side?: PageSidePanelPlacement
+  showCloseButton?: boolean
+  closeLabel?: string
+  backdropClassName?: string
+  contentClassName?: string
+  headerClassName?: string
+  bodyClassName?: string
+  footerClassName?: string
+  closeButtonClassName?: string
+}
+
+function PageSidePanel({
+  open,
+  onClose,
+  children,
+  header,
+  footer,
+  side = 'right',
+  showCloseButton = true,
+  closeLabel = 'Close',
+  backdropClassName,
+  contentClassName,
+  headerClassName,
+  bodyClassName,
+  footerClassName,
+  closeButtonClassName
+}: PageSidePanelProps) {
+  const hasHeader = !!header || showCloseButton
+  const headerId = useId()
+  const panelRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLElement | null>(null)
+  const closedByPointerDownRef = useRef(false)
+
+  const handleClose = useCallback(
+    (event?: React.MouseEvent | React.PointerEvent | React.KeyboardEvent) => {
+      event?.preventDefault()
+      event?.stopPropagation()
+      onClose()
+    },
+    [onClose]
+  )
+
+  useEffect(() => {
+    if (open) {
+      closedByPointerDownRef.current = false
+      triggerRef.current = document.activeElement as HTMLElement | null
+      requestAnimationFrame(() => {
+        panelRef.current?.focus()
+      })
+    } else {
+      triggerRef.current?.focus()
+      triggerRef.current = null
+    }
+  }, [open])
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div
+            key="backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            data-slot="page-side-panel-backdrop"
+            className={cn('fixed inset-0 z-[60] bg-black/20 dark:bg-black/60', backdropClassName)}
+            onClick={handleClose}
+          />
+          <motion.aside
+            ref={panelRef}
+            key="panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={header ? headerId : undefined}
+            tabIndex={-1}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') handleClose(e)
+            }}
+            initial={{ x: side === 'right' ? '100%' : '-100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: side === 'right' ? '100%' : '-100%' }}
+            transition={{ type: 'spring', damping: 30, stiffness: 350 }}
+            data-slot="page-side-panel"
+            className={cn(
+              'absolute top-2 bottom-2 z-[70] flex w-100 flex-col overflow-hidden rounded-md border border-border/30 bg-card text-card-foreground shadow-2xl outline-none',
+              side === 'right' ? 'right-2' : 'left-2',
+              contentClassName
+            )}>
+            {hasHeader && (
+              <div
+                data-slot="page-side-panel-header"
+                className={cn(
+                  'flex h-11 shrink-0 items-center justify-between border-border/15 border-b px-4',
+                  headerClassName
+                )}>
+                <div id={header ? headerId : undefined} className="min-w-0 flex flex-1 items-center">
+                  {header}
+                </div>
+                {showCloseButton && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onPointerDown={(event) => {
+                      closedByPointerDownRef.current = true
+                      handleClose(event)
+                    }}
+                    onClick={(event) => {
+                      if (closedByPointerDownRef.current) {
+                        closedByPointerDownRef.current = false
+                        event.preventDefault()
+                        event.stopPropagation()
+                        return
+                      }
+                      handleClose(event)
+                    }}
+                    aria-label={closeLabel}
+                    data-slot="page-side-panel-close"
+                    className={cn(
+                      'ml-3 shrink-0 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground',
+                      closeButtonClassName
+                    )}>
+                    <XIcon size={13} />
+                  </Button>
+                )}
+              </div>
+            )}
+
+            <Scrollbar data-slot="page-side-panel-body" className={cn('flex-1 space-y-4 px-4 py-4', bodyClassName)}>
+              {children}
+            </Scrollbar>
+
+            {footer && (
+              <div
+                data-slot="page-side-panel-footer"
+                className={cn('shrink-0 space-y-2.5 border-border/15 border-t px-4 py-3', footerClassName)}>
+                {footer}
+              </div>
+            )}
+          </motion.aside>
+        </>
+      )}
+    </AnimatePresence>
+  )
+}
+
+export { PageSidePanel, type PageSidePanelPlacement, type PageSidePanelProps }

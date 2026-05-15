@@ -1,71 +1,95 @@
-import { InfoCircleOutlined } from '@ant-design/icons'
+import {
+  Button,
+  ButtonGroup,
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  InfoTooltip,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  RowFlex,
+  Switch
+} from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistants, useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setQuickAssistantId } from '@renderer/store/llm'
-import {
-  setClickTrayToShowQuickAssistant,
-  setEnableQuickAssistant,
-  setReadClipboardAtStartup
-} from '@renderer/store/settings'
-import { matchKeywordsInString } from '@renderer/utils'
-import HomeWindow from '@renderer/windows/mini/home/HomeWindow'
-import { Button, Select, Switch, Tooltip } from 'antd'
+import type { Assistant } from '@renderer/types'
+import { cn } from '@renderer/utils/style'
+import HomeWindow from '@renderer/windows/quickAssistant/home/HomeWindow'
+import { Check, ChevronDown, Info } from 'lucide-react'
+import type React from 'react'
 import type { FC } from 'react'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
 
 const QuickAssistantSettings: FC = () => {
+  const [enableQuickAssistant, setEnableQuickAssistant] = usePreference('feature.quick_assistant.enabled')
+  const [clickTrayToShowQuickAssistant, setClickTrayToShowQuickAssistant] = usePreference(
+    'feature.quick_assistant.click_tray_to_show'
+  )
+  const [readClipboardAtStartup, setReadClipboardAtStartup] = usePreference(
+    'feature.quick_assistant.read_clipboard_at_startup'
+  )
+  const [, setTray] = usePreference('app.tray.enabled')
+
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const { enableQuickAssistant, clickTrayToShowQuickAssistant, setTray, readClipboardAtStartup } = useSettings()
   const dispatch = useAppDispatch()
   const { assistants } = useAssistants()
   const { quickAssistantId } = useAppSelector((state) => state.llm)
   const { defaultAssistant: _defaultAssistant } = useDefaultAssistant()
   const { defaultModel } = useDefaultModel()
+  const [assistantSelectOpen, setAssistantSelectOpen] = useState(false)
 
   // Take the "default assistant" from the assistant list first.
   const defaultAssistant = useMemo(
     () => assistants.find((a) => a.id === _defaultAssistant.id) || _defaultAssistant,
     [assistants, _defaultAssistant]
   )
+  const assistantOptions = useMemo(
+    () => [defaultAssistant, ...assistants.filter((assistant) => assistant.id !== defaultAssistant.id)],
+    [assistants, defaultAssistant]
+  )
+  const selectedAssistant = assistantOptions.find((assistant) => assistant.id === quickAssistantId) || defaultAssistant
+  const handleAssistantSelect = (assistantId: string) => {
+    dispatch(setQuickAssistantId(assistantId))
+  }
 
   const handleEnableQuickAssistant = async (enable: boolean) => {
-    dispatch(setEnableQuickAssistant(enable))
-    await window.api.config.set('enableQuickAssistant', enable, true)
+    await setEnableQuickAssistant(enable)
 
-    void (!enable && window.api.miniWindow.close())
+    void (!enable && window.api.quickAssistant.close())
 
     if (enable && !clickTrayToShowQuickAssistant) {
       window.toast.info({
         title: t('settings.quickAssistant.use_shortcut_to_show'),
         timeout: 4000,
-        icon: <InfoCircleOutlined />
+        icon: <Info size={16} />
       })
     }
 
     if (enable && clickTrayToShowQuickAssistant) {
-      setTray(true)
+      void setTray(true)
     }
   }
 
   const handleClickTrayToShowQuickAssistant = async (checked: boolean) => {
-    dispatch(setClickTrayToShowQuickAssistant(checked))
-    await window.api.config.set('clickTrayToShowQuickAssistant', checked)
-    checked && setTray(true)
+    await setClickTrayToShowQuickAssistant(checked)
+    if (checked) void setTray(true)
   }
 
   const handleClickReadClipboardAtStartup = async (checked: boolean) => {
-    dispatch(setReadClipboardAtStartup(checked))
-    await window.api.config.set('readClipboardAtStartup', checked)
-    void window.api.miniWindow.close()
+    await setReadClipboardAtStartup(checked)
+    void window.api.quickAssistant.close()
   }
 
   return (
@@ -76,18 +100,20 @@ const QuickAssistantSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span>{t('settings.quickAssistant.enable_quick_assistant')}</span>
-            <Tooltip title={t('settings.quickAssistant.use_shortcut_to_show')} placement="right">
-              <InfoCircleOutlined style={{ cursor: 'pointer' }} />
-            </Tooltip>
+            <InfoTooltip
+              content={t('settings.quickAssistant.use_shortcut_to_show')}
+              placement="right"
+              iconProps={{ className: 'cursor-pointer' }}
+            />
           </SettingRowTitle>
-          <Switch checked={enableQuickAssistant} onChange={handleEnableQuickAssistant} />
+          <Switch checked={enableQuickAssistant} onCheckedChange={handleEnableQuickAssistant} />
         </SettingRow>
         {enableQuickAssistant && (
           <>
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.quickAssistant.click_tray_to_show')}</SettingRowTitle>
-              <Switch checked={clickTrayToShowQuickAssistant} onChange={handleClickTrayToShowQuickAssistant} />
+              <Switch checked={clickTrayToShowQuickAssistant} onCheckedChange={handleClickTrayToShowQuickAssistant} />
             </SettingRow>
           </>
         )}
@@ -96,154 +122,149 @@ const QuickAssistantSettings: FC = () => {
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.quickAssistant.read_clipboard_at_startup')}</SettingRowTitle>
-              <Switch checked={readClipboardAtStartup} onChange={handleClickReadClipboardAtStartup} />
+              <Switch checked={readClipboardAtStartup} onCheckedChange={handleClickReadClipboardAtStartup} />
             </SettingRow>
           </>
         )}
       </SettingGroup>
       {enableQuickAssistant && (
         <SettingGroup theme={theme}>
-          <HStack alignItems="center" justifyContent="space-between">
-            <HStack alignItems="center" gap={10}>
+          <RowFlex className="items-center justify-between">
+            <RowFlex className="items-center gap-2.5">
               {t('settings.models.quick_assistant_model')}
-              <Tooltip title={t('selection.settings.user_modal.model.tooltip')} arrow>
-                <InfoCircleOutlined style={{ cursor: 'pointer' }} />
-              </Tooltip>
+              <InfoTooltip
+                content={t('selection.settings.user_modal.model.tooltip')}
+                showArrow
+                iconProps={{ className: 'cursor-pointer' }}
+              />
               <Spacer />
-            </HStack>
-            <HStack alignItems="center" gap={10}>
+            </RowFlex>
+            <RowFlex className="items-center gap-2.5">
               {!quickAssistantId ? null : (
-                <HStack alignItems="center">
-                  <Select
-                    value={quickAssistantId || defaultAssistant.id}
-                    style={{ width: 300, height: 34 }}
-                    onChange={(value) => dispatch(setQuickAssistantId(value))}
-                    placeholder={t('settings.models.quick_assistant_selection')}
-                    showSearch
-                    options={[
-                      {
-                        key: defaultAssistant.id,
-                        value: defaultAssistant.id,
-                        title: defaultAssistant.name,
-                        label: (
-                          <AssistantItem>
-                            <ModelAvatar model={defaultAssistant.model || defaultModel} size={18} />
-                            <AssistantName>{defaultAssistant.name}</AssistantName>
-                            <Spacer />
-                            <DefaultTag isCurrent={true}>{t('settings.models.quick_assistant_default_tag')}</DefaultTag>
-                          </AssistantItem>
-                        )
-                      },
-                      ...assistants
-                        .filter((a) => a.id !== defaultAssistant.id)
-                        .map((a) => ({
-                          key: a.id,
-                          value: a.id,
-                          title: a.name,
-                          label: (
-                            <AssistantItem>
-                              <ModelAvatar model={a.model || defaultModel} size={18} />
-                              <AssistantName>{a.name}</AssistantName>
-                              <Spacer />
-                            </AssistantItem>
-                          )
-                        }))
-                    ]}
-                    filterOption={(input, option) => matchKeywordsInString(input, option?.title || '')}
-                  />
-                </HStack>
+                <RowFlex className="items-center">
+                  <Popover open={assistantSelectOpen} onOpenChange={setAssistantSelectOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="h-[34px] w-[300px] justify-between px-2 shadow-none"
+                        aria-expanded={assistantSelectOpen}>
+                        <AssistantOption
+                          assistant={selectedAssistant}
+                          defaultAssistantId={defaultAssistant.id}
+                          defaultModel={defaultModel}
+                        />
+                        <ChevronDown size={16} className="shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="w-[300px] p-0"
+                      align="end"
+                      onFocusOutside={(event) => {
+                        // The embedded quick assistant preview auto-focuses its input on render.
+                        event.preventDefault()
+                      }}>
+                      <Command>
+                        <CommandInput placeholder={t('settings.models.quick_assistant_selection')} />
+                        <CommandList>
+                          <CommandEmpty>{t('common.no_results')}</CommandEmpty>
+                          <CommandGroup>
+                            {assistantOptions.map((assistant) => (
+                              <CommandItem
+                                key={assistant.id}
+                                value={`${assistant.name} ${assistant.id}`}
+                                keywords={[assistant.name, assistant.id]}
+                                onSelect={() => {
+                                  handleAssistantSelect(assistant.id)
+                                }}>
+                                <AssistantOption
+                                  assistant={assistant}
+                                  defaultAssistantId={defaultAssistant.id}
+                                  defaultModel={defaultModel}
+                                />
+                                {assistant.id === quickAssistantId && (
+                                  <Check size={14} className="ml-auto text-primary" />
+                                )}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </RowFlex>
               )}
-              <HStack alignItems="center" gap={0}>
-                <StyledButton
-                  type={quickAssistantId ? 'primary' : 'default'}
+              <ButtonGroup>
+                <Button
+                  className="min-w-20"
+                  variant={quickAssistantId ? 'default' : 'outline'}
                   onClick={() => {
                     dispatch(setQuickAssistantId(defaultAssistant.id))
-                  }}
-                  selected={!!quickAssistantId}>
+                  }}>
                   {t('settings.models.use_assistant')}
-                </StyledButton>
-                <StyledButton
-                  type={!quickAssistantId ? 'primary' : 'default'}
-                  onClick={() => dispatch(setQuickAssistantId(''))}
-                  selected={!quickAssistantId}>
+                </Button>
+                <Button
+                  className="min-w-20"
+                  variant={!quickAssistantId ? 'default' : 'outline'}
+                  onClick={() => dispatch(setQuickAssistantId(''))}>
                   {t('settings.models.use_model')}
-                </StyledButton>
-              </HStack>
-            </HStack>
-          </HStack>
+                </Button>
+              </ButtonGroup>
+            </RowFlex>
+          </RowFlex>
         </SettingGroup>
       )}
       {enableQuickAssistant && (
-        <AssistantContainer>
+        <div className="mx-auto mt-5 h-[460px] w-full overflow-hidden rounded-[10px] border-[0.5px] border-border bg-background">
           <HomeWindow draggable={false} />
-        </AssistantContainer>
+        </div>
       )}
     </SettingContainer>
   )
 }
 
-const AssistantContainer = styled.div`
-  width: 100%;
-  height: 460px;
-  background-color: var(--color-background);
-  border-radius: 10px;
-  border: 0.5px solid var(--color-border);
-  margin: 0 auto;
-  overflow: hidden;
-`
+const AssistantOption = ({
+  assistant,
+  defaultAssistantId,
+  defaultModel
+}: {
+  assistant: Assistant
+  defaultAssistantId: string
+  defaultModel: Assistant['model']
+}) => {
+  const { t } = useTranslation()
+  const isDefault = assistant.id === defaultAssistantId
 
-const AssistantItem = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  height: 28px;
-`
+  return (
+    <AssistantItem>
+      <ModelAvatar model={assistant.model || defaultModel} size={18} />
+      <AssistantName>{assistant.name}</AssistantName>
+      <Spacer />
+      {isDefault && <DefaultTag isCurrent={true}>{t('settings.models.quick_assistant_default_tag')}</DefaultTag>}
+    </AssistantItem>
+  )
+}
 
-const AssistantName = styled.span`
-  max-width: calc(100% - 60px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
+const AssistantItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex h-7 min-w-0 flex-1 flex-row items-center gap-2', className)} {...props} />
+)
 
-const Spacer = styled.div`
-  flex: 1;
-`
+const AssistantName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={cn('max-w-[calc(100%-60px)] truncate', className)} {...props} />
+)
 
-const DefaultTag = styled.span<{ isCurrent: boolean }>`
-  color: ${(props) => (props.isCurrent ? 'var(--color-primary)' : 'var(--color-text-3)')};
-  font-size: 12px;
-  padding: 2px 4px;
-  border-radius: 4px;
-`
+const Spacer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex-1', className)} {...props} />
+)
 
-const StyledButton = styled(Button)<{ selected: boolean }>`
-  border-radius: ${(props) => (props.selected ? '6px' : '6px')};
-  z-index: ${(props) => (props.selected ? 1 : 0)};
-  min-width: 80px;
-
-  &:first-child {
-    border-top-right-radius: 0;
-    border-bottom-right-radius: 0;
-    border-right-width: 0; // No right border for the first button when not selected
-  }
-
-  &:last-child {
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-    border-left-width: 1px; // Ensure left border for the last button
-  }
-
-  // Override Ant Design's default hover and focus styles for a cleaner look
-
-  &:hover,
-  &:focus {
-    z-index: 1;
-    border-color: ${(props) => (props.selected ? 'var(--ant-primary-color)' : 'var(--ant-primary-color-hover)')};
-    box-shadow: ${(props) =>
-      props.selected ? '0 0 0 2px var(--ant-primary-color-outline)' : '0 0 0 2px var(--ant-primary-color-outline)'};
-  }
-`
+const DefaultTag = ({
+  className,
+  isCurrent,
+  ...props
+}: React.ComponentPropsWithoutRef<'span'> & { isCurrent: boolean }) => (
+  <span
+    className={cn('rounded px-1 py-0.5 text-xs', isCurrent ? 'text-primary' : 'text-foreground-muted', className)}
+    {...props}
+  />
+)
 
 export default QuickAssistantSettings

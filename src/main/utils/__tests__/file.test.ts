@@ -9,16 +9,7 @@ import iconv from 'iconv-lite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { readTextFileWithAutoEncoding, resolveAndValidatePath } from '../file'
-import {
-  getAllFiles,
-  getAppConfigDir,
-  getConfigDir,
-  getFilesDir,
-  getFileType,
-  getTempDir,
-  isPathInside,
-  untildify
-} from '../file'
+import { getAllFiles, getFileType, isPathInside, untildify } from '../file'
 
 // Mock dependencies
 vi.mock('node:fs')
@@ -223,39 +214,6 @@ describe('file', () => {
     })
   })
 
-  describe('getTempDir', () => {
-    it('should return correct temp directory path', () => {
-      const tempDir = getTempDir()
-      expect(tempDir).toBe('/mock/temp/CherryStudio')
-    })
-  })
-
-  describe('getFilesDir', () => {
-    it('should return correct files directory path', () => {
-      const filesDir = getFilesDir()
-      expect(filesDir).toBe('/mock/userData/Data/Files')
-    })
-  })
-
-  describe('getConfigDir', () => {
-    it('should return correct config directory path', () => {
-      const configDir = getConfigDir()
-      expect(configDir).toBe('/mock/home/.cherrystudio/config')
-    })
-  })
-
-  describe('getAppConfigDir', () => {
-    it('should return correct app config directory path', () => {
-      const appConfigDir = getAppConfigDir('test-app')
-      expect(appConfigDir).toBe('/mock/home/.cherrystudio/config/test-app')
-    })
-
-    it('should handle empty app name', () => {
-      const appConfigDir = getAppConfigDir('')
-      expect(appConfigDir).toBe('/mock/home/.cherrystudio/config/')
-    })
-  })
-
   describe('readTextFileWithAutoEncoding', () => {
     const mockFilePath = '/path/to/mock/file.txt'
 
@@ -264,7 +222,7 @@ describe('file', () => {
       const buffer = Buffer.from(iconv.encode(content, 'GB18030'))
 
       // 模拟文件读取和编码检测
-      vi.spyOn(fsPromises, 'readFile').mockResolvedValue(buffer)
+      vi.spyOn(fsPromises, 'readFile').mockResolvedValue(buffer as unknown as string)
       vi.spyOn(chardet, 'detectFile').mockResolvedValue('GB18030')
 
       const result = await readTextFileWithAutoEncoding(mockFilePath)
@@ -276,7 +234,7 @@ describe('file', () => {
       const buffer = Buffer.from(iconv.encode(content, 'UTF-8'))
 
       // 模拟文件读取
-      vi.spyOn(fsPromises, 'readFile').mockResolvedValue(buffer)
+      vi.spyOn(fsPromises, 'readFile').mockResolvedValue(buffer as unknown as string)
       vi.spyOn(chardet, 'detectFile').mockResolvedValue('GB18030')
 
       const result = await readTextFileWithAutoEncoding(mockFilePath)

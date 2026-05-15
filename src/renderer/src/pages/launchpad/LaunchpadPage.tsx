@@ -1,93 +1,107 @@
 import { OpenClawIcon } from '@renderer/components/Icons/SVGIcon'
-import App from '@renderer/components/MinApp/MinApp'
-import { useMinapps } from '@renderer/hooks/useMinapps'
-import { useRuntime } from '@renderer/hooks/useRuntime'
+import App from '@renderer/components/MiniApp/MiniApp'
+import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { Code, FileSearch, Folder, Languages, LayoutGrid, NotepadText, Palette, Sparkle } from 'lucide-react'
+import { useNavigate } from '@tanstack/react-router'
+import {
+  BookMarked,
+  Code,
+  FileSearch,
+  Folder,
+  Languages,
+  LayoutGrid,
+  NotepadText,
+  Palette,
+  Sparkle
+} from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 const LaunchpadPage: FC = () => {
   const navigate = useNavigate()
   const { t } = useTranslation()
   const { defaultPaintingProvider } = useSettings()
-  const { pinned } = useMinapps()
-  const { openedKeepAliveMinapps } = useRuntime()
+  const { pinned, openedKeepAliveMiniApps } = useMiniApps()
 
   const appMenuItems = [
     {
       icon: <LayoutGrid size={32} className="icon" />,
       text: t('title.apps'),
-      path: '/apps',
+      path: '/app/mini-app',
       bgColor: 'linear-gradient(135deg, #8B5CF6, #A855F7)' // 小程序：紫色，代表多功能和灵活性
     },
     {
       icon: <FileSearch size={32} className="icon" />,
       text: t('title.knowledge'),
-      path: '/knowledge',
+      path: '/app/knowledge',
       bgColor: 'linear-gradient(135deg, #10B981, #34D399)' // 知识库：翠绿色，代表生长和知识
     },
     {
       icon: <Palette size={32} className="icon" />,
       text: t('title.paintings'),
-      path: `/paintings/${defaultPaintingProvider}`,
+      path: `/app/paintings/${defaultPaintingProvider}`,
       bgColor: 'linear-gradient(135deg, #EC4899, #F472B6)' // 绘画：活力粉色，代表创造力和艺术
     },
     {
       icon: <Sparkle size={32} className="icon" />,
       text: t('title.store'),
-      path: '/store',
+      path: '/app/assistant',
       bgColor: 'linear-gradient(135deg, #6366F1, #4F46E5)' // AI助手：靛蓝渐变，代表智能和科技
     },
     {
       icon: <Languages size={32} className="icon" />,
       text: t('title.translate'),
-      path: '/translate',
+      path: '/app/translate',
       bgColor: 'linear-gradient(135deg, #06B6D4, #0EA5E9)' // 翻译：明亮的青蓝色，代表沟通和流畅
     },
     {
       icon: <Folder size={32} className="icon" />,
       text: t('title.files'),
-      path: '/files',
+      path: '/app/files',
       bgColor: 'linear-gradient(135deg, #F59E0B, #FBBF24)' // 文件：金色，代表资源和重要性
     },
     {
       icon: <Code size={32} className="icon" />,
       text: t('title.code'),
-      path: '/code',
+      path: '/app/code',
       bgColor: 'linear-gradient(135deg, #1F2937, #374151)' // Code CLI：高级暗黑色，代表专业和技术
     },
     {
       icon: <OpenClawIcon className="icon" />,
       text: t('title.openclaw'),
-      path: '/openclaw',
+      path: '/app/openclaw',
       bgColor: 'linear-gradient(135deg, #EF4444, #B91C1C)' // OpenClaw：红色渐变，代表龙虾的颜色
     },
     {
       icon: <NotepadText size={32} className="icon" />,
       text: t('title.notes'),
-      path: '/notes',
+      path: '/app/notes',
       bgColor: 'linear-gradient(135deg, #F97316, #FB923C)' // 笔记：橙色，代表活力和清晰思路
+    },
+    {
+      icon: <BookMarked size={32} className="icon" />,
+      text: t('library.title'),
+      path: '/app/library',
+      bgColor: 'linear-gradient(135deg, #0EA5E9, #6366F1)' // 资源库：临时入口
     }
   ]
 
   // 合并并排序小程序列表
-  const sortedMinapps = useMemo(() => {
+  const sortedMiniApps = useMemo(() => {
     // 先添加固定的小程序，保持原有顺序
     const result = [...pinned]
 
     // 再添加其他已打开但未固定的小程序
-    openedKeepAliveMinapps.forEach((app) => {
-      if (!result.some((pinnedApp) => pinnedApp.id === app.id)) {
+    openedKeepAliveMiniApps.forEach((app) => {
+      if (!result.some((pinnedApp) => pinnedApp.appId === app.appId)) {
         result.push(app)
       }
     })
 
     return result
-  }, [openedKeepAliveMinapps, pinned])
+  }, [openedKeepAliveMiniApps, pinned])
 
   return (
     <Container>
@@ -96,7 +110,7 @@ const LaunchpadPage: FC = () => {
           <SectionTitle>{t('launchpad.apps')}</SectionTitle>
           <Grid>
             {appMenuItems.map((item) => (
-              <AppIcon key={item.path} onClick={() => navigate(item.path)}>
+              <AppIcon key={item.path} onClick={() => navigate({ to: item.path })}>
                 <IconContainer>
                   <IconWrapper bgColor={item.bgColor}>{item.icon}</IconWrapper>
                 </IconContainer>
@@ -106,12 +120,12 @@ const LaunchpadPage: FC = () => {
           </Grid>
         </Section>
 
-        {sortedMinapps.length > 0 && (
+        {sortedMiniApps.length > 0 && (
           <Section>
-            <SectionTitle>{t('launchpad.minapps')}</SectionTitle>
+            <SectionTitle>{t('launchpad.miniApps')}</SectionTitle>
             <Grid>
-              {sortedMinapps.map((app) => (
-                <AppWrapper key={app.id}>
+              {sortedMiniApps.map((app) => (
+                <AppWrapper key={app.appId}>
                   <App app={app} size={56} />
                 </AppWrapper>
               ))}

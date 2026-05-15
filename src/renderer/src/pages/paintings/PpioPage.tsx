@@ -1,30 +1,29 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
+import { Switch } from '@cherrystudio/ui'
+import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
-import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
-import { LanguagesEnum } from '@renderer/config/translate'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
-import { useAppDispatch } from '@renderer/store'
-import { setGenerating } from '@renderer/store/runtime'
 import type { FileMetadata, PaintingsState, PpioPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
+import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
+import { useNavigate } from '@tanstack/react-router'
 import type { UploadFile } from 'antd'
-import { Button, Input, Segmented, Select, Switch, Tooltip, Upload } from 'antd'
+import { Button, Input, Segmented, Select, Tooltip, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
@@ -83,7 +82,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const [isTranslating, setIsTranslating] = useState(false)
 
-  const dispatch = useAppDispatch()
+  const [, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const { autoTranslateWithSpace } = useSettings()
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
@@ -167,11 +166,11 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
       setAbortController(null)
     }
     setIsLoading(false)
-    dispatch(setGenerating(false))
+    setGenerating(false)
   }
 
   const handleProviderChange = (providerId: string) => {
-    navigate(`/paintings/${providerId}`, { replace: true })
+    void navigate({ to: '../' + providerId, replace: true })
   }
 
   const handleModeChange = (value: string) => {
@@ -234,7 +233,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     setIsLoading(true)
-    dispatch(setGenerating(true))
+    setGenerating(true)
 
     const controller = new AbortController()
     setAbortController(controller)
@@ -312,7 +311,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
       updatePaintingState({ ppioStatus: 'failed' })
     } finally {
       setIsLoading(false)
-      dispatch(setGenerating(false))
+      setGenerating(false)
       setAbortController(null)
     }
   }
@@ -322,7 +321,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     setIsTranslating(true)
     try {
-      const translatedText = await translateText(painting.prompt, LanguagesEnum.enUS)
+      const translatedText = await translateText(painting.prompt, BUILTIN_LANGUAGE.enUS.langCode)
       if (translatedText) {
         updatePaintingState({ prompt: translatedText })
       }
@@ -408,12 +407,12 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
         )
       case 'switch':
         return (
-          <HStack>
+          <div className="flex items-center">
             <Switch
               checked={(painting[item.key!] ?? item.initialValue) as boolean}
-              onChange={(checked) => updatePaintingState({ [item.key!]: checked })}
+              onCheckedChange={(checked) => updatePaintingState({ [item.key!]: checked })}
             />
-          </HStack>
+          </div>
         )
       case 'image': {
         const imageKey = item.key as keyof PpioPainting

@@ -2,10 +2,10 @@ import HorizontalScrollContainer from '@renderer/components/HorizontalScrollCont
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
-import { useNavbarPosition } from '@renderer/hooks/useSettings'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useShowAssistants } from '@renderer/hooks/useStore'
-import { AgentSettingsPopup, SessionSettingsPopup } from '@renderer/pages/settings/AgentSettings'
-import { AgentLabel, SessionLabel } from '@renderer/pages/settings/AgentSettings/shared'
+import { AgentSettingsPopup, SessionSettingsPopup } from '@renderer/pages/agents/AgentSettings'
+import { AgentLabel, SessionLabel } from '@renderer/pages/agents/AgentSettings/shared'
 import type { AgentEntity, ApiModel } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
@@ -120,8 +120,8 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
       </div>
       <div className="flex items-center">
         {/* Open External Apps */}
-        {activeSession && activeSession.accessible_paths?.[0] && (
-          <OpenExternalAppButton workdir={activeSession.accessible_paths[0]} className="mr-2" />
+        {activeSession && activeSession.accessiblePaths?.[0] && (
+          <OpenExternalAppButton workdir={activeSession.accessiblePaths[0]} className="mr-2" />
         )}
         <Tools />
       </div>

@@ -1,13 +1,23 @@
+import {
+  Button,
+  CodeEditor,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Spinner
+} from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import CodeEditor from '@renderer/components/CodeEditor'
 import { TopView } from '@renderer/components/TopView'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setMCPServers } from '@renderer/store/mcp'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { MCPServer } from '@renderer/types'
 import { safeValidateMcpConfig } from '@renderer/types'
 import { parseJSON } from '@renderer/utils'
 import { formatErrorMessage, formatZodError } from '@renderer/utils/error'
-import { Modal, Spin, Typography } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -23,9 +33,9 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [jsonSaving, setJsonSaving] = useState(false)
   const [jsonError, setJsonError] = useState('')
   const [isLoading, setIsLoading] = useState(true)
-  const mcpServers = useAppSelector((state) => state.mcp.servers)
-
-  const dispatch = useAppDispatch()
+  const { mcpServers, refetch } = useMCPServers()
+  const [fontSize] = usePreference('chat.message.font_size')
+  const { activeCmTheme } = useCodeStyle()
   const { t } = useTranslation()
 
   useEffect(() => {
@@ -53,12 +63,21 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     }
   }, [mcpServers, t])
 
+  const closePopup = () => {
+    setOpen(false)
+    resolve({})
+  }
+
   const onOk = async () => {
     setJsonSaving(true)
 
     try {
       if (!jsonConfig.trim()) {
-        dispatch(setMCPServers([]))
+        // Delete all existing servers
+        for (const server of mcpServers) {
+          await dataApiService.delete(`/mcp-servers/${server.id}`)
+        }
+        void refetch()
         window.toast.success(t('settings.mcp.jsonSaveSuccess'))
         setJsonError('')
         setJsonSaving(false)
@@ -66,7 +85,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       }
 
       const parsedJson = parseJSON(jsonConfig)
-      if (parseJSON === null) {
+      if (parsedJson === null) {
         throw new Error(t('settings.mcp.addServer.importFrom.invalid'))
       }
 
@@ -88,11 +107,27 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         serversArray.push(server)
       }
 
-      dispatch(setMCPServers(serversArray))
+      // Delete existing servers not in the new config, update existing ones, create new ones
+      const newServerIds = new Set(serversArray.map((s) => s.id))
+      for (const server of mcpServers) {
+        if (!newServerIds.has(server.id)) {
+          await dataApiService.delete(`/mcp-servers/${server.id}`)
+        }
+      }
+      const existingIds = new Set(mcpServers.map((s) => s.id))
+      for (const server of serversArray) {
+        if (existingIds.has(server.id)) {
+          const { id, ...updates } = server
+          await dataApiService.patch(`/mcp-servers/${id}`, { body: updates })
+        } else {
+          await dataApiService.post('/mcp-servers', { body: server })
+        }
+      }
+      void refetch()
 
       window.toast.success(t('settings.mcp.jsonSaveSuccess'))
       setJsonError('')
-      setOpen(false)
+      closePopup()
     } catch (error: unknown) {
       setJsonError(formatErrorMessage(error) || t('settings.mcp.jsonSaveError'))
       window.toast.error(t('settings.mcp.jsonSaveError'))
@@ -101,54 +136,49 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     }
   }
 
-  const onCancel = () => {
-    setOpen(false)
-  }
-
-  const onClose = () => {
-    resolve({})
-  }
-
-  EditMcpJsonPopup.hide = onCancel
+  EditMcpJsonPopup.hide = closePopup
 
   return (
-    <Modal
-      title={t('settings.mcp.editJson')}
-      open={open}
-      onOk={onOk}
-      onCancel={onCancel}
-      afterClose={onClose}
-      maskClosable={false}
-      width={800}
-      loading={jsonSaving}
-      transitionName="animation-move-down"
-      centered>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Typography.Text style={{ width: '100%' }} type="danger">
-          {jsonError ? <pre>{jsonError}</pre> : ''}
-        </Typography.Text>
-      </div>
-      {isLoading ? (
-        <Spin size="large" />
-      ) : (
-        <CodeEditor
-          value={jsonConfig}
-          language="json"
-          onChange={(value) => setJsonConfig(value)}
-          height="60vh"
-          expanded={false}
-          wrapped
-          options={{
-            lint: true,
-            lineNumbers: true,
-            foldGutter: true,
-            highlightActiveLine: true,
-            keymap: true
-          }}
-        />
-      )}
-      <Typography.Text type="secondary">{t('settings.mcp.jsonModeHint')}</Typography.Text>
-    </Modal>
+    <Dialog open={open} onOpenChange={(next) => !next && closePopup()}>
+      <DialogContent className="max-w-[800px]" onPointerDownOutside={(event) => event.preventDefault()}>
+        <DialogHeader>
+          <DialogTitle>{t('settings.mcp.editJson')}</DialogTitle>
+        </DialogHeader>
+        <div className="mb-4 flex justify-between">
+          <div className="w-full text-destructive text-sm">{jsonError ? <pre>{jsonError}</pre> : ''}</div>
+        </div>
+        {isLoading ? (
+          <Spinner text={t('common.loading')} />
+        ) : (
+          <CodeEditor
+            theme={activeCmTheme}
+            fontSize={fontSize - 1}
+            value={jsonConfig}
+            language="json"
+            onChange={(value) => setJsonConfig(value)}
+            height="60vh"
+            expanded={false}
+            wrapped
+            options={{
+              lint: true,
+              lineNumbers: true,
+              foldGutter: true,
+              highlightActiveLine: true,
+              keymap: true
+            }}
+          />
+        )}
+        <div className="text-muted-foreground text-sm">{t('settings.mcp.jsonModeHint')}</div>
+        <DialogFooter>
+          <Button variant="outline" onClick={closePopup}>
+            {t('common.cancel')}
+          </Button>
+          <Button onClick={onOk} loading={jsonSaving}>
+            {t('common.confirm')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

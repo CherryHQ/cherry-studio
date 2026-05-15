@@ -1,3 +1,4 @@
+import { useNavigate } from '@tanstack/react-router'
 import { Compass } from 'lucide-react'
 
 interface NavigateToolInput {
@@ -23,15 +24,13 @@ const ROUTE_LABELS: Record<string, { icon: string; label: string }> = {
   // Settings pages
   '/settings/provider': { icon: '🔑', label: 'Provider' },
   '/settings/model': { icon: '🤖', label: 'Models' },
-  '/settings/general': { icon: '⚙️', label: 'General' },
-  '/settings/display': { icon: '🖥️', label: 'Display' },
+  '/settings/general': { icon: '⚙️', label: 'Common Settings' },
   '/settings/data': { icon: '💾', label: 'Data' },
   '/settings/mcp': { icon: '🔌', label: 'MCP' },
   '/settings/websearch': { icon: '🔍', label: 'Web Search' },
-  '/settings/memory': { icon: '🧠', label: 'Memory' },
   '/settings/api-server': { icon: '🌐', label: 'API Server' },
-  '/settings/docprocess': { icon: '📄', label: 'Doc Processing' },
-  '/settings/quickphrase': { icon: '⚡', label: 'Quick Phrases' },
+  '/settings/file-processing': { icon: '📄', label: 'File Processing' },
+  '/settings/prompts': { icon: '⚡', label: 'Prompt Management' },
   '/settings/shortcut': { icon: '⌨️', label: 'Shortcuts' },
   '/settings/quickAssistant': { icon: '🪟', label: 'Quick Assistant' },
   '/settings/selectionAssistant': { icon: '✂️', label: 'Selection Assistant' },
@@ -43,11 +42,7 @@ const ROUTE_LABELS: Record<string, { icon: string; label: string }> = {
   '/settings/mcp/marketplaces': { icon: '🛒', label: 'MCP Market' },
   '/settings/mcp/npx-search': { icon: '🔍', label: 'NPX Search' },
   '/settings/mcp/mcp-install': { icon: '📥', label: 'Install MCP' },
-  '/settings/mcp/settings': { icon: '⚙️', label: 'MCP Settings' },
-
-  // Web Search sub-pages
-  '/settings/websearch/general': { icon: '🔍', label: 'Search Settings' },
-  '/settings/websearch/provider': { icon: '🔍', label: 'Search Provider' }
+  '/settings/mcp/settings': { icon: '⚙️', label: 'MCP Settings' }
 }
 
 // Sorted by path length descending for longest prefix match
@@ -112,10 +107,10 @@ export function NavigateToolInline({
         : ''
   const isSuccess = outputText.includes('Navigated to')
 
+  const navigate = useNavigate()
+
   const handleClick = () => {
-    if (typeof window.navigate === 'function') {
-      window.navigate(fullPath)
-    }
+    void navigate({ to: basePath })
   }
 
   return (

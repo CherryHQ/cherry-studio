@@ -1,7 +1,17 @@
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+  Badge,
+  ColFlex,
+  EmptyState,
+  Flex
+} from '@cherrystudio/ui'
 import type { MCPResource } from '@renderer/types'
-import { Collapse, Descriptions, Empty, Flex, Tag, Typography } from 'antd'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
+
+import { McpDetailItem, McpDetailList } from './McpDetailList'
 
 interface MCPResourcesSectionProps {
   resources: MCPResource[]
@@ -29,80 +39,65 @@ const MCPResourcesSection = ({ resources }: MCPResourcesSectionProps) => {
   // Render resource properties
   const renderResourceProperties = (resource: MCPResource) => {
     return (
-      <Descriptions column={1} size="small" bordered>
+      <McpDetailList>
         {resource.mimeType && (
-          <Descriptions.Item label={t('settings.mcp.resources.mimeType') || 'MIME Type'}>
-            <Tag color="blue">{resource.mimeType}</Tag>
-          </Descriptions.Item>
+          <McpDetailItem label={t('settings.mcp.resources.mimeType') || 'MIME Type'}>
+            <Badge className="border-primary/30 bg-primary/10 text-primary">{resource.mimeType}</Badge>
+          </McpDetailItem>
         )}
         {resource.size !== undefined && (
-          <Descriptions.Item label={t('settings.mcp.resources.size') || 'Size'}>
+          <McpDetailItem label={t('settings.mcp.resources.size') || 'Size'}>
             {formatFileSize(resource.size)}
-          </Descriptions.Item>
+          </McpDetailItem>
         )}
         {resource.text && (
-          <Descriptions.Item label={t('settings.mcp.resources.text') || 'Text'}>{resource.text}</Descriptions.Item>
+          <McpDetailItem label={t('settings.mcp.resources.text') || 'Text'}>
+            <p className="m-0 whitespace-pre-wrap">{resource.text}</p>
+          </McpDetailItem>
         )}
         {resource.blob && (
-          <Descriptions.Item label={t('settings.mcp.resources.blob') || 'Binary Data'}>
+          <McpDetailItem label={t('settings.mcp.resources.blob') || 'Binary Data'}>
             {t('settings.mcp.resources.blobInvisible') || 'Binary data is not visible here.'}
-          </Descriptions.Item>
+          </McpDetailItem>
         )}
-      </Descriptions>
+      </McpDetailList>
     )
   }
 
   return (
-    <Section>
-      <SectionTitle>{t('settings.mcp.resources.availableResources') || 'Available Resources'}</SectionTitle>
+    <div className="mt-2 pt-2">
       {resources.length > 0 ? (
-        <Collapse bordered={false} ghost>
-          {resources.map((resource) => (
-            <Collapse.Panel
-              key={resource.uri}
-              header={
-                <Flex vertical align="flex-start" style={{ width: '100%' }}>
-                  <Flex align="center" style={{ width: '100%' }}>
-                    <Typography.Text strong>{`${resource.name} (${resource.uri})`}</Typography.Text>
-                  </Flex>
-                  {resource.description && (
-                    <Typography.Text type="secondary" style={{ fontSize: '13px', marginTop: 4 }}>
-                      {resource.description.length > 100
-                        ? `${resource.description.substring(0, 100)}...`
-                        : resource.description}
-                    </Typography.Text>
-                  )}
-                </Flex>
-              }>
-              <SelectableContent>{renderResourceProperties(resource)}</SelectableContent>
-            </Collapse.Panel>
-          ))}
-        </Collapse>
+        <>
+          <h3 className="mb-2 font-medium text-foreground-secondary text-sm">
+            {t('settings.mcp.resources.availableResources') || 'Available Resources'}
+          </h3>
+          <Accordion type="multiple">
+            {resources.map((resource) => (
+              <AccordionItem key={resource.uri} value={resource.uri}>
+                <AccordionTrigger className="py-3">
+                  <ColFlex className="w-full min-w-0 items-start">
+                    <Flex className="w-full min-w-0 items-center">
+                      <span className="truncate font-medium text-foreground text-sm">{`${resource.name} (${resource.uri})`}</span>
+                    </Flex>
+                    {resource.description && (
+                      <span className="mt-1 text-[13px] text-foreground-secondary leading-5">
+                        {resource.description.length > 100
+                          ? `${resource.description.substring(0, 100)}...`
+                          : resource.description}
+                      </span>
+                    )}
+                  </ColFlex>
+                </AccordionTrigger>
+                <AccordionContent className="select-text px-3">{renderResourceProperties(resource)}</AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        </>
       ) : (
-        <Empty
-          description={t('settings.mcp.resources.noResourcesAvailable') || 'No resources available'}
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
-        />
+        <EmptyState compact preset="no-result" description={t('settings.mcp.resources.noResourcesAvailable')} />
       )}
-    </Section>
+    </div>
   )
 }
-
-const Section = styled.div`
-  margin-top: 8px;
-  padding-top: 8px;
-`
-
-const SectionTitle = styled.h3`
-  font-size: 14px;
-  font-weight: 500;
-  margin-bottom: 8px;
-  color: var(--color-text-secondary);
-`
-
-const SelectableContent = styled.div`
-  user-select: text;
-  padding: 0 12px;
-`
 
 export default MCPResourcesSection

@@ -1,9 +1,9 @@
 import { Readable } from 'node:stream'
 import type { ReadableStream as NodeReadableStream } from 'node:stream/web'
 
+import { application } from '@application'
 import * as Lark from '@larksuiteoapi/node-sdk'
-import type { FeishuDomain } from '@main/services/agents/database/schema'
-import { windowService } from '@main/services/WindowService'
+import { WindowType } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import {
@@ -14,6 +14,7 @@ import {
   MAX_FILE_SIZE_BYTES,
   type SendMessageOptions
 } from '../../ChannelAdapter'
+import type { FeishuDomain } from '../../channelConfig'
 import { registerAdapterFactory } from '../../ChannelManager'
 import { isSlashCommand } from '../../constants'
 import { FlushController } from '../../FlushController'
@@ -595,16 +596,13 @@ class FeishuAdapter extends ChannelAdapter {
     appId?: string,
     appSecret?: string
   ): void {
-    const mainWindow = windowService.getMainWindow()
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send(IpcChannel.Feishu_QrLogin, {
-        channelId: this.channelId,
-        url,
-        status,
-        appId,
-        appSecret
-      })
-    }
+    application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.Feishu_QrLogin, {
+      channelId: this.channelId,
+      url,
+      status,
+      appId,
+      appSecret
+    })
   }
 
   protected override async performDisconnect(): Promise<void> {

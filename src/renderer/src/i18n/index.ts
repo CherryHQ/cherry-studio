@@ -10,6 +10,7 @@ import 'dayjs/locale/vi'
 import 'dayjs/locale/zh-cn'
 import 'dayjs/locale/zh-tw'
 
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { defaultLanguage } from '@shared/config/constant'
 import dayjs from 'dayjs'
@@ -50,12 +51,12 @@ const resources = Object.fromEntries(
   ].map(([locale, translation]) => [locale, { translation }])
 )
 
-export const getLanguage = () => {
-  return localStorage.getItem('language') || navigator.language || defaultLanguage
+export const getLanguage = async () => {
+  return (await preferenceService.get('app.language')) || navigator.language || defaultLanguage
 }
 
-export const getLanguageCode = () => {
-  return getLanguage().split('-')[0]
+export const getLanguageCode = async () => {
+  return (await getLanguage()).split('-')[0]
 }
 
 // Map i18n language codes to dayjs locale codes
@@ -81,7 +82,7 @@ export const setDayjsLocale = (language: string) => {
 
 void i18n.use(initReactI18next).init({
   resources,
-  lng: getLanguage(),
+  lng: await getLanguage(),
   fallbackLng: defaultLanguage,
   interpolation: {
     escapeValue: false

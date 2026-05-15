@@ -1,9 +1,8 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { app, net, safeStorage } from 'electron'
+import { net, safeStorage } from 'electron'
 import fs from 'fs'
 import path from 'path'
-
-import { getConfigDir } from '../utils/file'
 
 const logger = loggerService.withContext('CopilotService')
 
@@ -65,11 +64,12 @@ class CopilotServiceError extends Error {
 }
 
 class CopilotService {
-  private readonly tokenFilePath: string
+  // Memoized backing field for the lazy `tokenFilePath` getter below.
+  // `undefined` until first access; resolved exactly once and cached.
+  private _tokenFilePath: string | undefined
   private headers: Record<string, string>
 
   constructor() {
-    this.tokenFilePath = this.getTokenFilePath()
     this.headers = {
       ...CONFIG.DEFAULT_HEADERS,
       accept: 'application/json',
@@ -77,12 +77,46 @@ class CopilotService {
     }
   }
 
+  // TODO(v2): Lazy + memoized getter is a workaround, not a fix.
+  //
+  // The real problem is that `CopilotService` is exported as a top-level
+  // singleton at the bottom of this file
+  // (`export const copilotService = new CopilotService()`). That
+  // singleton is instantiated during the static import graph of
+  // `src/main/index.ts` (via `ipc.ts`), BEFORE
+  // `application.bootstrap()` runs and builds the path registry. The
+  // previous shape resolved `tokenFilePath` in the constructor
+  // (`this.tokenFilePath = this.getTokenFilePath()`), which called
+  // `application.getPath(...)` at instantiation time and threw
+  // "PATHS not initialized".
+  //
+  // Lazy + cached resolution defers the path lookup until first *access*
+  // (cached because `getTokenFilePath` does an `fs.existsSync` syscall
+  // for the legacy-path fallback — we don't want that on every read).
+  // But the class itself is still being constructed too early. We've
+  // merely moved the path lookup out of construction; we have NOT
+  // solved the architectural issue.
+  //
+  // The proper v2 fix is to migrate `CopilotService` into the lifecycle
+  // system: extend `BaseService`, add `@Injectable`, register in
+  // `serviceRegistry.ts`, and have callers resolve it via
+  // `application.get('CopilotService')` instead of importing the
+  // singleton. Once that's done, the DI container will instantiate it
+  // inside `application.bootstrap()` after the path registry is built,
+  // and the constructor can resolve `tokenFilePath` directly again.
+  // Until then, keep this lazy getter — do NOT move the assignment
+  // back to the constructor.
+  private get tokenFilePath(): string {
+    return (this._tokenFilePath ??= this.getTokenFilePath())
+  }
+
   private getTokenFilePath = (): string => {
-    const oldTokenFilePath = path.join(app.getPath('userData'), CONFIG.TOKEN_FILE_NAME)
+    // Legacy path: token was previously stored directly under userData
+    const oldTokenFilePath = path.join(application.getPath('app.userdata'), CONFIG.TOKEN_FILE_NAME)
     if (fs.existsSync(oldTokenFilePath)) {
       return oldTokenFilePath
     }
-    return path.join(getConfigDir(), CONFIG.TOKEN_FILE_NAME)
+    return application.getPath('feature.copilot.token_file')
   }
 
   /**
@@ -291,4 +325,4 @@ class CopilotService {
   }
 }
 
-export default new CopilotService()
+export const copilotService = new CopilotService()

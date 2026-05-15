@@ -1,11 +1,11 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { isMac, isWin } from '@renderer/config/constant'
-import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import useUserTheme from '@renderer/hooks/useUserTheme'
-import { ThemeMode } from '@renderer/types'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { PropsWithChildren } from 'react'
 import React, { createContext, use, useEffect, useState } from 'react'
-
 interface ThemeContextType {
   theme: ThemeMode
   settedTheme: ThemeMode
@@ -30,12 +30,17 @@ const tailwindThemeChange = (theme: ThemeMode) => {
   root.classList.add(theme)
 }
 
+const getSystemTheme = () =>
+  window.matchMedia('(prefers-color-scheme: dark)').matches ? ThemeMode.dark : ThemeMode.light
+
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   // 用户设置的主题
-  const { theme: settedTheme, setTheme: setSettedTheme, language } = useSettings()
-  const [actualTheme, setActualTheme] = useState<ThemeMode>(
-    window.matchMedia('(prefers-color-scheme: dark)').matches ? ThemeMode.dark : ThemeMode.light
-  )
+  // const { theme: settedTheme, setTheme: setSettedTheme, language } = useSettings()
+
+  const [settedTheme, setSettedTheme] = usePreference('ui.theme_mode')
+  const [language] = usePreference('app.language')
+
+  const [actualTheme, setActualTheme] = useState<ThemeMode>(getSystemTheme)
   const { initUserTheme } = useUserTheme()
   const { navbarPosition } = useNavbarPosition()
 
@@ -45,13 +50,12 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       [ThemeMode.dark]: ThemeMode.system,
       [ThemeMode.system]: ThemeMode.light
     }[settedTheme]
-    setSettedTheme(nextTheme || ThemeMode.system)
+    void setSettedTheme(nextTheme || ThemeMode.system)
   }
 
   useEffect(() => {
     // Set initial theme and OS attributes on body
     document.body.setAttribute('os', isMac ? 'mac' : isWin ? 'windows' : 'linux')
-    document.body.setAttribute('theme-mode', actualTheme)
     if (actualTheme === ThemeMode.dark) {
       document.body.classList.remove('light')
       document.body.classList.add('dark')
@@ -60,19 +64,18 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       document.body.classList.add('light')
     }
     document.body.setAttribute('navbar-position', navbarPosition)
-    document.documentElement.lang = language
+    document.documentElement.lang = language || navigator.language
 
     // if theme is old auto, then set theme to system
     // we can delete this after next big release
     if (settedTheme !== ThemeMode.dark && settedTheme !== ThemeMode.light && settedTheme !== ThemeMode.system) {
-      setSettedTheme(ThemeMode.system)
+      void setSettedTheme(ThemeMode.system)
     }
 
     initUserTheme()
 
     // listen for theme updates from main process
-    return window.electron.ipcRenderer.on(IpcChannel.ThemeUpdated, (_, actualTheme: ThemeMode) => {
-      document.body.setAttribute('theme-mode', actualTheme)
+    return window.electron.ipcRenderer.on(IpcChannel.NativeThemeUpdated, (_, actualTheme: ThemeMode) => {
       setActualTheme(actualTheme)
     })
   }, [actualTheme, initUserTheme, language, navbarPosition, setSettedTheme, settedTheme])
@@ -82,11 +85,27 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   }, [actualTheme])
 
   useEffect(() => {
-    void window.api.setTheme(settedTheme)
+    if (settedTheme === ThemeMode.light || settedTheme === ThemeMode.dark) {
+      setActualTheme(settedTheme)
+      return
+    }
+
+    if (settedTheme !== ThemeMode.system) {
+      return
+    }
+
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const updateSystemTheme = () => {
+      setActualTheme(media.matches ? ThemeMode.dark : ThemeMode.light)
+    }
+
+    updateSystemTheme()
+    media.addEventListener('change', updateSystemTheme)
+    return () => media.removeEventListener('change', updateSystemTheme)
   }, [settedTheme])
 
   return (
-    <ThemeContext value={{ theme: actualTheme, settedTheme, toggleTheme, setTheme: setSettedTheme }}>
+    <ThemeContext value={{ theme: actualTheme, settedTheme: settedTheme, toggleTheme, setTheme: setSettedTheme }}>
       {children}
     </ThemeContext>
   )

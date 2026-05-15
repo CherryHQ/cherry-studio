@@ -1,8 +1,9 @@
+import { HelpTooltip } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import AnthropicProviderListPopover from '@renderer/components/AnthropicProviderListPopover'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { HelpTooltip } from '@renderer/components/TooltipIcons'
 import { TopView } from '@renderer/components/TopView'
 import { permissionModeCards } from '@renderer/config/agent'
 import { isWin } from '@renderer/config/constant'
@@ -22,7 +23,7 @@ import { AgentConfigurationSchema, isAgentType } from '@renderer/types'
 import { parseKeyValueString, serializeKeyValueString } from '@renderer/utils/env'
 import { getAnthropicSupportedProviders } from '@renderer/utils/provider'
 import type { GitBashPathInfo } from '@shared/config/constant'
-import { Button, Input, Modal, Select, Switch, Tooltip } from 'antd'
+import { Button, Input, Modal, Select, Tooltip } from 'antd'
 import { Info } from 'lucide-react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -41,8 +42,8 @@ const buildAgentForm = (existing?: AgentWithTools): BaseAgentForm => ({
   description: existing?.description,
   instructions: existing?.instructions,
   model: existing?.model ?? '',
-  accessible_paths: existing?.accessible_paths ? [...existing.accessible_paths] : [],
-  allowed_tools: existing?.allowed_tools ? [...existing.allowed_tools] : [],
+  accessiblePaths: existing?.accessiblePaths ? [...existing.accessiblePaths] : [],
+  allowedTools: existing?.allowedTools ? [...existing.allowedTools] : [],
   mcps: existing?.mcps ? [...existing.mcps] : [],
   configuration: AgentConfigurationSchema.parse(existing?.configuration ?? {})
 })
@@ -222,13 +223,13 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
         return
       }
       setForm((prev) => {
-        if (prev.accessible_paths.includes(selected)) {
+        if (prev.accessiblePaths.includes(selected)) {
           window.toast.warning(t('agent.session.accessible_paths.duplicate'))
           return prev
         }
         return {
           ...prev,
-          accessible_paths: [...prev.accessible_paths, selected]
+          accessiblePaths: [...prev.accessiblePaths, selected]
         }
       })
     } catch (error) {
@@ -240,7 +241,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
   const removeAccessiblePath = useCallback((path: string) => {
     setForm((prev) => ({
       ...prev,
-      accessible_paths: prev.accessible_paths.filter((item) => item !== path)
+      accessiblePaths: prev.accessiblePaths.filter((item) => item !== path)
     }))
   }, [])
 
@@ -251,15 +252,15 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
       type: form.type,
       name: form.name,
       model: form.model,
-      accessible_paths: form.accessible_paths.length > 0 ? form.accessible_paths : ['/'],
-      allowed_tools: form.allowed_tools ?? [],
+      accessiblePaths: form.accessiblePaths.length > 0 ? form.accessiblePaths : ['/'],
+      allowedTools: form.allowedTools ?? [],
       description: form.description,
       instructions: form.instructions,
       configuration: form.configuration,
-      created_at: agent?.created_at ?? new Date().toISOString(),
-      updated_at: agent?.updated_at ?? new Date().toISOString()
+      createdAt: agent?.createdAt ?? new Date().toISOString(),
+      updatedAt: agent?.updatedAt ?? new Date().toISOString()
     }),
-    [form, agent?.id, agent?.created_at, agent?.updated_at]
+    [form, agent?.id, agent?.createdAt, agent?.updatedAt]
   )
 
   const handleModelSelect = useCallback(async (model: ApiModel) => {
@@ -313,8 +314,8 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
           description: form.description,
           instructions: form.instructions,
           model: form.model,
-          accessible_paths: [...form.accessible_paths],
-          allowed_tools: [...form.allowed_tools],
+          accessiblePaths: [...form.accessiblePaths],
+          allowedTools: [...form.allowedTools],
           configuration: form.configuration ? { ...form.configuration } : undefined
         } satisfies UpdateAgentForm
 
@@ -332,8 +333,8 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
           description: form.description,
           instructions: form.instructions,
           model: form.model,
-          accessible_paths: [...form.accessible_paths],
-          allowed_tools: [...form.allowed_tools],
+          accessiblePaths: [...form.accessiblePaths],
+          allowedTools: [...form.allowedTools],
           configuration: form.configuration ? { ...form.configuration } : undefined
         } satisfies AddAgentForm
         const result = await addAgent(newAgent)
@@ -350,11 +351,11 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
     [
       form.type,
       form.model,
-      form.accessible_paths,
+      form.accessiblePaths,
       form.name,
       form.description,
       form.instructions,
-      form.allowed_tools,
+      form.allowedTools,
       form.configuration,
       agent,
       t,
@@ -462,7 +463,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
                     <Info size={16} className="text-foreground-400" />
                   </Tooltip>
                 </div>
-                <Switch checked={soulEnabled} size="small" onChange={onSoulModeChange} />
+                <Switch checked={soulEnabled} size="sm" onCheckedChange={onSoulModeChange} />
               </div>
             </FormItem>
 
@@ -499,9 +500,9 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
                   {t('agent.session.accessible_paths.add')}
                 </Button>
               </LabelWithButton>
-              {form.accessible_paths.length > 0 ? (
+              {form.accessiblePaths.length > 0 ? (
                 <PathList>
-                  {form.accessible_paths.map((path) => (
+                  {form.accessiblePaths.map((path) => (
                     <PathItem key={path}>
                       <PathText title={path}>{path}</PathText>
                       <Button size="small" danger onClick={() => removeAccessiblePath(path)}>

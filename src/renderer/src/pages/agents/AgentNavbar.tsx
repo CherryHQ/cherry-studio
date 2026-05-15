@@ -1,17 +1,15 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { Navbar, NavbarCenter, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
-import { HStack } from '@renderer/components/Layout'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { modelGenerating } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
+import { modelGenerating } from '@renderer/hooks/useModel'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
-import { useAppDispatch } from '@renderer/store'
-import { setNarrowMode } from '@renderer/store/settings'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Menu, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
+import styled from 'styled-components'
 
 import UpdateAppButton from '../home/components/UpdateAppButton'
 import AgentSidePanelDrawer from './components/AgentSidePanelDrawer'
@@ -19,16 +17,16 @@ import AgentSidePanelDrawer from './components/AgentSidePanelDrawer'
 const AgentNavbar = () => {
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
   const { showTopics, toggleShowTopics } = useShowTopics()
-  const { narrowMode, topicPosition } = useSettings()
-  const dispatch = useAppDispatch()
+  const [narrowMode, setNarrowMode] = usePreference('chat.narrow_mode')
+  const [topicPosition] = usePreference('topic.position')
 
-  useShortcut('search_message', () => {
+  useShortcut('general.search', () => {
     void SearchPopup.show()
   })
 
   const handleNarrowModeToggle = async () => {
     await modelGenerating()
-    dispatch(setNarrowMode(!narrowMode))
+    void setNarrowMode(!narrowMode)
   }
 
   return (
@@ -80,17 +78,17 @@ const AgentNavbar = () => {
           minWidth: 'auto'
         }}
         className="agent-navbar-right">
-        <HStack alignItems="center" gap={6}>
+        <div className="flex items-center gap-1.5">
           <UpdateAppButton />
           <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
-            <NavbarIcon className="max-[1000px]:hidden" onClick={() => SearchPopup.show()}>
+            <NarrowIcon onClick={() => SearchPopup.show()}>
               <Search size={18} />
-            </NavbarIcon>
+            </NarrowIcon>
           </Tooltip>
           <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
-            <NavbarIcon className="max-[1000px]:hidden" onClick={handleNarrowModeToggle}>
+            <NarrowIcon onClick={handleNarrowModeToggle}>
               <i className="iconfont icon-icon-adaptive-width"></i>
-            </NavbarIcon>
+            </NarrowIcon>
           </Tooltip>
           {topicPosition === 'right' && !showTopics && (
             <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
@@ -106,10 +104,16 @@ const AgentNavbar = () => {
               </NavbarIcon>
             </Tooltip>
           )}
-        </HStack>
+        </div>
       </NavbarRight>
     </Navbar>
   )
 }
+
+const NarrowIcon = styled(NavbarIcon)`
+  @media (max-width: 1000px) {
+    display: none;
+  }
+`
 
 export default AgentNavbar

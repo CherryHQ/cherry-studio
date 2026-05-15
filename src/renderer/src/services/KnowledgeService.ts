@@ -4,7 +4,6 @@ import { AiProvider } from '@renderer/aiCore'
 import { getMessageContent } from '@renderer/aiCore/plugins/searchOrchestrationPlugin'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
-import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
 import type { Assistant } from '@renderer/types'
@@ -23,6 +22,7 @@ import { routeToEndpoint } from '@renderer/utils'
 import type { ExtractResults } from '@renderer/utils/extract'
 import { createCitationBlock } from '@renderer/utils/messageUtils/create'
 import { isAzureOpenAIProvider, isGeminiProvider } from '@renderer/utils/provider'
+import { REFERENCE_PROMPT } from '@shared/config/prompts'
 import type { ModelMessage, UserModelMessage } from 'ai'
 import { isEmpty } from 'lodash'
 
@@ -37,17 +37,6 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
   const rerankProvider = getProviderByModel(base.rerankModel)
   const aiProvider = new AiProvider(base.model)
   const rerankAiProvider = new AiProvider(rerankProvider)
-
-  // get preprocess provider from store instead of base.preprocessProvider
-  const preprocessProvider = store
-    .getState()
-    .preprocess.providers.find((p) => p.id === base.preprocessProvider?.provider.id)
-  const updatedPreprocessProvider = preprocessProvider
-    ? {
-        type: 'preprocess' as const,
-        provider: preprocessProvider
-      }
-    : base.preprocessProvider
 
   const actualProvider = aiProvider.getActualProvider()
 
@@ -94,8 +83,7 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
       apiKey: rerankAiProvider.getApiKey() || 'secret',
       baseURL: rerankHost
     },
-    documentCount: base.documentCount,
-    preprocessProvider: updatedPreprocessProvider
+    documentCount: base.documentCount
   }
 }
 
@@ -163,7 +151,7 @@ export const searchKnowledgeBase = async (
     const threshold = base.threshold || DEFAULT_KNOWLEDGE_THRESHOLD
 
     if (topicId) {
-      currentSpan = addSpan({
+      currentSpan = await addSpan({
         topicId,
         name: `${base.name}-search`,
         inputs: {
@@ -260,7 +248,7 @@ export const processKnowledgeSearch = async (
     return []
   }
 
-  const span = addSpan({
+  const span = await addSpan({
     topicId,
     name: 'knowledgeSearch',
     inputs: {

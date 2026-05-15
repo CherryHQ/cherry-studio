@@ -11,7 +11,7 @@ import { buildProviderOptions } from '../options'
 
 // Mock dependencies
 vi.mock('@cherrystudio/ai-core/provider', async (importOriginal) => {
-  const actual = (await importOriginal()) as object
+  const actual = (await importOriginal()) as Record<string, unknown>
   return {
     ...actual,
     baseProviderIdSchema: {

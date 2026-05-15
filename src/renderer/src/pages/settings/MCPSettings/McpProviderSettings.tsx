@@ -1,18 +1,17 @@
+import { Button, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import db from '@renderer/databases'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { MCPServer } from '@renderer/types'
-import { Button, Divider, Flex, Input, Space } from 'antd'
-import Link from 'antd/es/typography/Link'
+import { cn } from '@renderer/utils/style'
 import { Check, Plus, SquareArrowOutUpRight } from 'lucide-react'
+import type React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
-import { SettingHelpLink, SettingHelpTextRow, SettingSubtitle } from '..'
-import { getProviderDisplayName, type ProviderConfig } from './providers/config'
+import { getMCPProviderLogo, getProviderDisplayName, type ProviderConfig } from './providers/config'
 
 const logger = loggerService.withContext('McpProviderSettings')
 
@@ -118,50 +117,67 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
   }, [existingServers, provider, t, token])
 
   const isFetchDisabled = !token
+  const ProviderLogo = getMCPProviderLogo(provider.key)
 
   return (
     <DetailContainer>
       <ProviderHeader>
-        <Flex className="items-center">
-          <ProviderName>{getProviderDisplayName(provider, t)}</ProviderName>
-          {provider.discoverUrl && (
-            <Link target="_blank" href={provider.discoverUrl} style={{ display: 'flex' }}>
-              <Button type="text" size="small">
-                <SquareArrowOutUpRight size={14} />
-              </Button>
-            </Link>
-          )}
-        </Flex>
-        <Button type="primary" onClick={handleFetch} disabled={isFetching || isFetchDisabled}>
+        <div className="flex min-w-0 items-center gap-3">
+          {ProviderLogo && <ProviderLogo.Avatar size={36} shape="circle" />}
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <ProviderName>{getProviderDisplayName(provider, t)}</ProviderName>
+              {provider.discoverUrl && (
+                <Button
+                  asChild
+                  variant="ghost"
+                  size="icon-sm"
+                  className="size-6 rounded-md text-muted-foreground shadow-none hover:text-blue-600 dark:hover:text-blue-400">
+                  <a target="_blank" rel="noreferrer" href={provider.discoverUrl}>
+                    <SquareArrowOutUpRight size={13} />
+                  </a>
+                </Button>
+              )}
+            </div>
+            <ProviderDescription>{t(provider.descriptionKey)}</ProviderDescription>
+          </div>
+        </div>
+        <Button
+          onClick={handleFetch}
+          disabled={isFetching || isFetchDisabled}
+          className="h-8 shrink-0 rounded-lg px-3 text-xs shadow-none">
           {t('settings.mcp.fetch.button', 'Fetch Servers')}
         </Button>
       </ProviderHeader>
-      <Divider style={{ width: '100%', margin: '10px 0' }} />
-      <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.api_key.label')}</SettingSubtitle>
-      <Space.Compact style={{ width: '100%', marginTop: 5 }}>
-        <Input.Password
+
+      <SettingsPanel>
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <PanelTitle>{t('settings.provider.api_key.label')}</PanelTitle>
+        </div>
+        <Input
+          type="password"
           value={token}
           placeholder={t('settings.mcp.sync.tokenPlaceholder', 'Enter API token here')}
           onChange={(e) => handleTokenChange(e.target.value)}
           spellCheck={false}
+          className="h-9 rounded-lg bg-background shadow-none"
         />
-      </Space.Compact>
-      <SettingHelpTextRow>
-        <Flex dir="row">
-          {provider.apiKeyUrl && (
-            <SettingHelpLink target="_blank" href={provider.apiKeyUrl}>
-              {t('settings.provider.get_api_key')}
-            </SettingHelpLink>
-          )}
-        </Flex>
-      </SettingHelpTextRow>
+        {provider.apiKeyUrl && (
+          <a
+            target="_blank"
+            rel="noreferrer"
+            href={provider.apiKeyUrl}
+            className="mt-3.5 inline-flex items-center font-medium text-xs hover:underline"
+            style={{ color: 'var(--color-blue-600)' }}>
+            {t('settings.provider.get_api_key')}
+          </a>
+        )}
+      </SettingsPanel>
 
       {sortedServers.length > 0 && (
-        <>
-          <Flex justify="space-between" align="center" style={{ marginTop: 20 }}>
-            <SettingSubtitle style={{ margin: 0 }}>
-              {t('settings.mcp.servers', 'Available MCP Servers')}
-            </SettingSubtitle>
+        <SettingsPanel>
+          <div className="flex items-center justify-between">
+            <PanelTitle>{t('settings.mcp.servers', 'Available MCP Servers')}</PanelTitle>
             <CollapsibleSearchBar
               onSearch={setSearchText}
               placeholder={t('settings.mcp.search.placeholder', 'Search servers...')}
@@ -169,7 +185,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
               maxWidth={200}
               style={{ borderRadius: 20 }}
             />
-          </Flex>
+          </div>
           <ServerList>
             {filteredServers.map((server) => (
               <ServerItem key={server.id}>
@@ -189,74 +205,76 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                   return (
                     <Button
                       disabled={isAlreadyAdded}
-                      style={{ marginLeft: 10 }}
-                      onClick={() => {
+                      variant="ghost"
+                      size="icon-sm"
+                      className="ml-2.5 size-7 min-h-7 shadow-none"
+                      onClick={async () => {
                         if (!isAlreadyAdded) {
-                          addMCPServer(server)
-                          window.toast.success(t('settings.mcp.addSuccess'))
+                          try {
+                            await addMCPServer(server)
+                            window.toast.success(t('settings.mcp.addSuccess'))
+                          } catch {
+                            window.toast.error(t('settings.mcp.addError'))
+                          }
                         }
-                      }}
-                      icon={isAlreadyAdded ? <Check size={14} /> : <Plus size={14} />}
-                    />
+                      }}>
+                      {isAlreadyAdded ? <Check size={12} /> : <Plus size={12} />}
+                    </Button>
                   )
                 })()}
               </ServerItem>
             ))}
           </ServerList>
-        </>
+        </SettingsPanel>
       )}
     </DetailContainer>
   )
 }
 
-const DetailContainer = styled(Scrollbar)`
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  height: calc(100vh - var(--navbar-height));
-`
+const DetailContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Scrollbar>) => (
+  <Scrollbar className={cn('flex h-[calc(100vh-var(--navbar-height))] flex-col px-5 py-4', className)} {...props} />
+)
 
-const ProviderHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-`
+const ProviderHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex items-center justify-between gap-3 border-border/70 border-b pb-2', className)} {...props} />
+)
 
-const ProviderName = styled.span`
-  font-size: 14px;
-  font-weight: 500;
-  margin-right: -2px;
-`
+const ProviderName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={cn('min-w-0 truncate font-semibold text-base leading-6', className)} {...props} />
+)
 
-const ServerList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 8px;
-`
+const ProviderDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mt-0.5 text-muted-foreground text-xs leading-5', className)} {...props} />
+)
 
-const ServerItem = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background-color: var(--color-background);
-  &:hover {
-    border-color: var(--color-primary);
-  }
-`
+const SettingsPanel = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mt-4', className)} {...props} />
+)
 
-const ServerName = styled.div`
-  font-weight: 500;
-  font-size: 14px;
-  margin-bottom: 4px;
-`
+const PanelTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('font-semibold text-foreground text-sm', className)} {...props} />
+)
 
-const ServerDescription = styled.div`
-  color: var(--color-text-secondary);
-  font-size: 12px;
-`
+const ServerList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mt-2 flex flex-col gap-2', className)} {...props} />
+)
+
+const ServerItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      'flex items-center justify-between rounded-lg border border-border/60 px-3 py-2 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/35',
+      className
+    )}
+    {...props}
+  />
+)
+
+const ServerName = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-0.5 font-medium text-sm leading-5', className)} {...props} />
+)
+
+const ServerDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('line-clamp-2 text-muted-foreground text-xs leading-5', className)} {...props} />
+)
 
 export default McpProviderSettings
