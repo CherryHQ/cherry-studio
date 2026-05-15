@@ -5,15 +5,10 @@ import type * as HealthCheckUtils from '../../utils/healthCheck'
 import { aggregateApiKeyResults } from '../../utils/healthCheck'
 import { checkModelsHealth } from '../checkModelsHealth'
 
-const checkModelMock = vi.fn()
+const checkApiMock = vi.fn()
 
 vi.mock('@renderer/services/ApiService', () => ({
-  checkModel: (...args: unknown[]) => checkModelMock(...args)
-}))
-
-vi.mock('../../utils/v1ProviderShim', () => ({
-  toV1ModelForCheckApi: (model: unknown) => model,
-  toV1ProviderShim: (provider: unknown) => provider
+  checkApi: (...args: unknown[]) => checkApiMock(...args)
 }))
 
 vi.mock('../../utils/healthCheck', async () => {
@@ -24,13 +19,17 @@ vi.mock('../../utils/healthCheck', async () => {
   }
 })
 
-function deferred() {
-  let resolve!: () => void
-  const promise = new Promise<void>((res) => {
+function deferred<T = void>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((res) => {
     resolve = res
   })
   return { promise, resolve }
 }
+
+// checkApi resolves to `{ latency }`; tests gate on the underlying call count
+// + per-iteration deferreds, so most use a default latency of 0.
+const okResult = { latency: 0 }
 
 describe('checkModelsHealth', () => {
   beforeEach(() => {
@@ -38,36 +37,34 @@ describe('checkModelsHealth', () => {
   })
 
   it('does not start the next model check until the current one finishes when concurrency is disabled', async () => {
-    const first = deferred()
-    const second = deferred()
-    checkModelMock.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+    const first = deferred<typeof okResult>()
+    const second = deferred<typeof okResult>()
+    checkApiMock.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
 
     const run = checkModelsHealth({
-      provider: { id: 'openai' } as never,
       models: [{ id: 'model-a' }, { id: 'model-b' }] as never,
       apiKeys: ['sk-test'],
       isConcurrent: false,
       timeout: 1000
     })
 
-    await waitFor(() => expect(checkModelMock).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(checkApiMock).toHaveBeenCalledTimes(1))
 
-    first.resolve()
-    await waitFor(() => expect(checkModelMock).toHaveBeenCalledTimes(2))
+    first.resolve(okResult)
+    await waitFor(() => expect(checkApiMock).toHaveBeenCalledTimes(2))
 
-    second.resolve()
+    second.resolve(okResult)
     await run
   })
 
   it('rejects when the health check pipeline fails outside per-key results', async () => {
-    checkModelMock.mockResolvedValue(undefined)
+    checkApiMock.mockResolvedValue(okResult)
     vi.mocked(aggregateApiKeyResults).mockImplementationOnce(() => {
       throw new Error('aggregation failed')
     })
 
     await expect(
       checkModelsHealth({
-        provider: { id: 'openai' } as never,
         models: [{ id: 'model-a' }] as never,
         apiKeys: ['sk-test'],
         isConcurrent: true,
@@ -77,18 +74,17 @@ describe('checkModelsHealth', () => {
   })
 
   it('aborts between sequential models when the signal fires mid-iteration', async () => {
-    // T5: pin the three signal?.throwIfAborted() guards in sequential mode.
+    // Pin the three signal?.throwIfAborted() guards in sequential mode.
     // After model-a resolves, aborting the controller must drop model-b
     // before any work happens — not finish all then abort.
     const firstResolved = deferred()
     const controller = new AbortController()
-    checkModelMock.mockImplementation(async () => {
+    checkApiMock.mockImplementation(async () => {
       firstResolved.resolve()
-      return undefined
+      return okResult
     })
 
     const run = checkModelsHealth({
-      provider: { id: 'openai' } as never,
       models: [{ id: 'model-a' }, { id: 'model-b' }] as never,
       apiKeys: ['sk-test'],
       isConcurrent: false,
@@ -100,24 +96,24 @@ describe('checkModelsHealth', () => {
     controller.abort()
 
     await expect(run).rejects.toThrow()
-    expect(checkModelMock).toHaveBeenCalledTimes(1)
+    expect(checkApiMock).toHaveBeenCalledTimes(1)
   })
 
   it('concurrent mode preserves index-correct slot assignment under partial abort', async () => {
-    // T5: in concurrent mode results[index] is assigned (not push), so even if
+    // In concurrent mode results[index] is assigned (not push), so even if
     // some models reject via abort the surviving result lands at its own index.
-    const slowB = deferred()
-    checkModelMock.mockImplementation(async (_provider, model) => {
-      if ((model as { id: string }).id === 'model-a') {
-        return undefined
+    const slowB = deferred<typeof okResult>()
+    // checkApi is now called with (uniqueModelId, options) — read the id from
+    // the first arg to decide which call should hang.
+    checkApiMock.mockImplementation(async (uniqueModelId: string) => {
+      if (uniqueModelId === 'model-a') {
+        return okResult
       }
-      await slowB.promise
-      return undefined
+      return slowB.promise
     })
 
     const controller = new AbortController()
     const run = checkModelsHealth({
-      provider: { id: 'openai' } as never,
       models: [{ id: 'model-a' }, { id: 'model-b' }] as never,
       apiKeys: ['sk-test'],
       isConcurrent: true,
@@ -126,9 +122,9 @@ describe('checkModelsHealth', () => {
     })
 
     // Let model-a complete its slot, then abort before model-b finishes.
-    await waitFor(() => expect(checkModelMock).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(checkApiMock).toHaveBeenCalledTimes(2))
     controller.abort()
-    slowB.resolve()
+    slowB.resolve(okResult)
 
     await expect(run).rejects.toThrow()
   })

@@ -87,7 +87,7 @@ export function useProviderEndpointActions({
 
   const syncProviderModelsInBackground = useCallback(
     (nextProvider: Provider) => {
-      void syncProviderModels(nextProvider).catch((error) => {
+      void syncProviderModels().catch((error) => {
         logger.error('Silent provider model sync failed after endpoint update', {
           providerId: nextProvider.id,
           error

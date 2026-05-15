@@ -55,6 +55,20 @@ export interface AiBaseRequest {
   requestOptions?: AiTransportOptions
 }
 
+/**
+ * Provider-scoped request that has no model concept (Ai_ListModels).
+ *
+ * Resolves the target provider from `providerId` when supplied, falling
+ * back to the assistant's bound model's provider when only `assistantId`
+ * is given. `throwOnError` surfaces upstream failures instead of silently
+ * returning a partial/empty list — used by the model-sync UX.
+ */
+export interface ListModelsRequest {
+  providerId?: string
+  assistantId?: string
+  throwOnError?: boolean
+}
+
 export type ChatTrigger = Parameters<ChatTransport<UIMessage>['sendMessages']>[0]['trigger']
 
 /** Streaming chat request — pure transport data. Serialisable across IPC. */

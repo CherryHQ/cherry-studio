@@ -1,3 +1,4 @@
+import store from '@renderer/store'
 import type { Provider } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
 import { formatApiHost, formatOllamaApiHost, formatVertexApiHost, isWithTrailingSharp } from '@renderer/utils/api'
@@ -44,7 +45,18 @@ export function formatProviderApiHost(provider: Provider): Provider {
     { match: isOllamaProvider, format: (p) => formatOllamaApiHost(p.apiHost) },
     { match: isGeminiProvider, format: (p, av) => formatApiHost(p.apiHost, av, 'v1beta') },
     { match: isAzureOpenAIProvider, format: (p) => formatApiHost(p.apiHost, false) },
-    { match: isVertexProvider, format: (p) => formatVertexApiHost(p as Parameters<typeof formatVertexApiHost>[0]) }
+    {
+      match: isVertexProvider,
+      format: (p) => {
+        // TODO(v1-cleanup): drop with the v1 surfaces calling formatProviderApiHost
+        // — CodeCliPage.tsx + KnowledgeService.ts. They still resolve provider via
+        // v1 Redux + v1 `Model.provider`, so project/location come from Redux here.
+        // v2 ProviderSettings reads `Provider.authConfig` (iam-gcp) directly and
+        // never goes through this helper.
+        const { projectId: project, location } = store.getState().llm.settings.vertexai
+        return formatVertexApiHost({ apiHost: p.apiHost, project, location })
+      }
+    }
   ]
 
   const formatter = formatters.find((f) => f.match(provider))

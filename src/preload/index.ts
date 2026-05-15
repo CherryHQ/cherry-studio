@@ -50,6 +50,7 @@ import type {
   KnowledgeSearchResult as KnowledgeVectorSearchResult,
   RestoreKnowledgeBaseDto
 } from '@shared/data/types/knowledge'
+import type { Model } from '@shared/data/types/model'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
 import type {
   WebSearchCheckProviderRequest,
@@ -927,8 +928,8 @@ const api = {
     listModels: (request: {
       providerId?: string
       assistantId?: string
-    }): Promise<Array<{ id: string; name: string; provider: string; group: string; [key: string]: unknown }>> =>
-      ipcRenderer.invoke(IpcChannel.Ai_ListModels, request),
+      throwOnError?: boolean
+    }): Promise<Partial<Model>[]> => ipcRenderer.invoke(IpcChannel.Ai_ListModels, request),
 
     // ── Tool approval (v6 ToolUIPart native flow) ──
     toolApproval: {

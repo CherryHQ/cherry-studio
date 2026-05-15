@@ -26,7 +26,8 @@ describe('transformAgentBlocksToParts', () => {
       type: 'claude_code',
       name: 'a1',
       instructions: '',
-      model: null
+      model: null,
+      orderKey: 'a0'
     })
   })
 

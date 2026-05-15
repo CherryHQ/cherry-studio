@@ -45,7 +45,8 @@ describe('SkillService', () => {
       type: 'claude-code',
       name: 'Test Agent',
       instructions: 'You are a helpful assistant.',
-      model: null
+      model: null,
+      orderKey: 'a0'
     })
   }
 

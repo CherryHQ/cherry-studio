@@ -52,17 +52,6 @@ vi.mock('@renderer/store', () => ({
   useAppSelector: () => false
 }))
 
-vi.mock('@renderer/aiCore', () => ({
-  default: class {
-    getBaseURL() {
-      return ''
-    }
-    getApiKey() {
-      return ''
-    }
-  }
-}))
-
 vi.mock('@renderer/utils/api', () => ({
   formatApiHost: vi.fn((host) => {
     if (!host) return ''

@@ -51,11 +51,6 @@ vi.mock('@renderer/services/ApiService', () => ({
   checkApi: (...args: any[]) => checkApiMock(...args)
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettings/utils/v1ProviderShim', () => ({
-  toV1ModelForCheckApi: (model: any) => model,
-  toV1ProviderShim: (_provider: any, options: any) => options
-}))
-
 vi.mock('@renderer/components/ErrorDetailModal', () => ({
   showErrorDetailPopup: (...args: any[]) => showErrorDetailPopupMock(...args)
 }))

@@ -42,17 +42,6 @@ vi.mock('@cherrystudio/ui', async () => {
   }
 })
 
-vi.mock('@renderer/aiCore', () => ({
-  AiProvider: class {
-    getBaseURL() {
-      return ''
-    }
-    getApiKey() {
-      return ''
-    }
-  }
-}))
-
 vi.mock('@renderer/components/app/Navbar', () => ({
   Navbar: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   NavbarCenter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>

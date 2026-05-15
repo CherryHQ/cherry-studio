@@ -101,12 +101,6 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 // Mock dependencies
-vi.mock('@renderer/aiCore', () => ({
-  AiProvider: vi.fn().mockImplementation(() => ({
-    getEmbeddingDimensions: mocks.aiCore.getEmbeddingDimensions
-  }))
-}))
-
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: () => ({ provider: { id: 'test-provider', name: 'Test Provider', apiKey: 'test-key' } })
 }))

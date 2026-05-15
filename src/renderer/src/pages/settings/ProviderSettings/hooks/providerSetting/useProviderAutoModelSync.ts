@@ -15,7 +15,7 @@ export function useProviderAutoModelSync(providerId: string) {
   const { provider } = useProvider(providerId)
   const { data: apiKeysData } = useProviderApiKeys(providerId)
   const { models } = useModels({ providerId }, { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS })
-  const { syncProviderModels, isSyncingModels } = useProviderModelSync(providerId, { existingModels: models })
+  const { syncProviderModels, isSyncingModels } = useProviderModelSync(providerId, { existingModels: [...models] })
 
   const initialModelSyncSignatureRef = useRef<string | null>(null)
   const lastAutoSyncLogKeyRef = useRef<string | null>(null)
@@ -139,7 +139,7 @@ export function useProviderAutoModelSync(providerId: string) {
     }
 
     initialModelSyncSignatureRef.current = initialModelSyncSignature
-    void syncProviderModels(provider).catch((error) => {
+    void syncProviderModels().catch((error) => {
       logger.error('Provider auto model sync failed', { providerId, error })
       if (initialModelSyncSignatureRef.current === initialModelSyncSignature) {
         initialModelSyncSignatureRef.current = null

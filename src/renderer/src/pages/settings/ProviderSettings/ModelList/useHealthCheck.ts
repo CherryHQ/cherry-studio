@@ -104,7 +104,6 @@ export const useHealthCheck = (providerId: string) => {
       try {
         await checkModelsHealth(
           {
-            provider,
             models: modelsToCheck,
             apiKeys: keys,
             isConcurrent,

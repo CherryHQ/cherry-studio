@@ -4,11 +4,10 @@ import { useModels } from '@renderer/hooks/useModels'
 import { useProvider } from '@renderer/hooks/useProviders'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { type ApiKeyConnectivity, HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
-import { toV1ModelForCheckApi, toV1ProviderShim } from '@renderer/pages/settings/ProviderSettings/utils/v1ProviderShim'
 import { checkApi as runCheckApi } from '@renderer/services/ApiService'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import { serializeHealthCheckError } from '@renderer/utils/error'
-import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
 import { isRerankModel } from '@shared/utils/model'
 import { isEmpty } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -76,17 +75,6 @@ export function useProviderConnectionCheck(providerId: string) {
     setConnectionCheckOpen(true)
   }, [checkableApiKeys, i18n, provider])
 
-  const resolveApiHostForModel = useCallback(
-    (selectedModel: Model) => {
-      if (selectedModel.endpointTypes?.includes(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)) {
-        return anthropicApiHost || apiHost
-      }
-
-      return apiHost
-    },
-    [anthropicApiHost, apiHost]
-  )
-
   const startConnectionCheck = useCallback(
     async ({ model, apiKey }: { model?: Model; apiKey: string }) => {
       if (!provider || !model) {
@@ -107,17 +95,7 @@ export function useProviderConnectionCheck(providerId: string) {
       try {
         setApiKeyConnectivity({ kind: 'checking', checking: true, status: HealthStatus.NOT_CHECKED, model })
 
-        // Transitional bridge: connection checking still calls the legacy
-        // ApiService `checkApi` path, which expects v1 provider/model shapes.
-        // Remove this conversion once that check path consumes runtime
-        // Data API entities directly.
-        const v1Provider = toV1ProviderShim(provider, {
-          models,
-          apiKey,
-          apiHost: resolveApiHostForModel(model)
-        })
-
-        await runCheckApi(v1Provider, toV1ModelForCheckApi(model), undefined, controller.signal)
+        await runCheckApi(model.id, { signal: controller.signal })
 
         if (runId !== runIdRef.current) return
 
@@ -152,7 +130,7 @@ export function useProviderConnectionCheck(providerId: string) {
         setConnectionCheckOpen(false)
       }
     },
-    [abortInFlightCheck, i18n, models, provider, resolveApiHostForModel, setTimeoutTimer]
+    [abortInFlightCheck, i18n, provider, setTimeoutTimer]
   )
 
   const checkApi = useCallback(async () => {

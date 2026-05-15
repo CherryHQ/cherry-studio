@@ -1,11 +1,11 @@
 import { loggerService } from '@logger'
-import { checkApi } from '@renderer/services/ApiService'
 import type { Model, PreprocessProvider, Provider } from '@renderer/types'
 import { isPreprocessProviderId } from '@renderer/types'
 import type { ApiKeyConnectivity, ApiKeyWithStatus } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import { serializeHealthCheckError } from '@renderer/utils/error'
+import { createUniqueModelId } from '@shared/data/types/model'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -196,7 +196,10 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
       try {
         const startTime = Date.now()
         if (isLlmProvider(provider) && model) {
-          await checkApi({ ...provider, apiKey: keyToCheck }, model)
+          await window.api.ai.checkModel({
+            uniqueModelId: createUniqueModelId(provider.id, model.id),
+            timeout: 15000
+          })
         } else {
           // 不处理预处理供应商\\
         }
