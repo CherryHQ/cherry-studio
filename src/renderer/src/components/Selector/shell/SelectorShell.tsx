@@ -15,6 +15,10 @@ import {
 } from 'react'
 
 type PopoverContentProps = ComponentPropsWithoutRef<typeof PopoverContent>
+/**
+ * Use `lazy-keep` only for high-frequency popovers where remounting list state is noticeably costly.
+ * Low-frequency selectors should keep the default `destroy` behavior.
+ */
 export type SelectorShellMountStrategy = 'destroy' | 'lazy-keep'
 const MIN_SELECTOR_LIST_HEIGHT = 36
 

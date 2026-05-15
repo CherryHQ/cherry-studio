@@ -166,7 +166,7 @@ beforeAll(() => {
     HTMLElement.prototype.setPointerCapture = () => {}
   }
   HTMLElement.prototype.scrollIntoView = () => {}
-  window.toast = { error: toastErrorMock } as typeof window.toast
+  window.toast = { error: toastErrorMock } as unknown as typeof window.toast
 })
 
 beforeEach(() => {
@@ -207,7 +207,9 @@ afterEach(() => {
 })
 
 function renderSelector() {
-  render(<AssistantSelector trigger={<button type="button">Open</button>} value={null} onChange={vi.fn()} />)
+  render(
+    <AssistantSelector trigger={<button type="button">Open</button>} multi={false} value={null} onChange={vi.fn()} />
+  )
 }
 
 function openPopover() {
@@ -255,7 +257,9 @@ describe('AssistantSelector', () => {
 
   it('creates an assistant, refreshes, reopens the selector, and does not auto-select', async () => {
     const onChange = vi.fn()
-    render(<AssistantSelector trigger={<button type="button">Open</button>} value={null} onChange={onChange} />)
+    render(
+      <AssistantSelector trigger={<button type="button">Open</button>} multi={false} value={null} onChange={onChange} />
+    )
     await openCreateDialog()
 
     fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Assistant' } })

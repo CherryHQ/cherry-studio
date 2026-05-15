@@ -154,7 +154,7 @@ beforeAll(() => {
     HTMLElement.prototype.setPointerCapture = () => {}
   }
   HTMLElement.prototype.scrollIntoView = () => {}
-  window.toast = { error: toastErrorMock } as typeof window.toast
+  window.toast = { error: toastErrorMock } as unknown as typeof window.toast
 })
 
 beforeEach(() => {

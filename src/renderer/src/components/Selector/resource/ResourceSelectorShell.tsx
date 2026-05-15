@@ -424,6 +424,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
 
   const handleKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      // Skip during IME composition: some browsers only signal via keyCode 229.
       // oxlint-disable-next-line no-deprecated
       if (event.nativeEvent.isComposing || event.keyCode === 229) return
 

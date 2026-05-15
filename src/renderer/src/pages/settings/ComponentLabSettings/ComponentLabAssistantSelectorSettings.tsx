@@ -139,13 +139,14 @@ const AssistantSelectorLabSession: FC<AssistantSelectorLabSessionProps> = ({ mul
       return (
         <AssistantSelector
           trigger={trigger}
+          multi={false}
           selectionType="item"
           value={singleItem}
           onChange={handleSingleItemChange}
         />
       )
     }
-    return <AssistantSelector trigger={trigger} value={singleId} onChange={handleSingleIdChange} />
+    return <AssistantSelector trigger={trigger} multi={false} value={singleId} onChange={handleSingleIdChange} />
   })()
 
   return (

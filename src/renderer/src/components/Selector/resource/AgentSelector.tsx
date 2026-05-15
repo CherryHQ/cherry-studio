@@ -136,8 +136,6 @@ export function AgentSelector(props: AgentSelectorProps) {
     open: selectorOpen,
     onOpenChange: handleSelectorOpenChange,
     mountStrategy,
-    // Refetch on every open transition (uncontrolled trigger click + controlled external opens)
-    // — ResourceSelectorShell de-duplicates by routing both paths through one effect.
     onOpen: refetchPins,
     items,
     fallbackIcon: AGENT_FALLBACK_ICON,

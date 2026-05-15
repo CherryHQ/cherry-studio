@@ -31,14 +31,14 @@ type SharedProps = {
 }
 
 export type AssistantSelectorSingleIdProps = SharedProps & {
-  multi?: false
+  multi: false
   selectionType?: 'id'
   value: string | null
   onChange: (value: string | null) => void
 }
 
 export type AssistantSelectorSingleItemProps = SharedProps & {
-  multi?: false
+  multi: false
   selectionType: 'item'
   value: AssistantSelectorItem | null
   onChange: (value: AssistantSelectorItem | null) => void
@@ -178,8 +178,6 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     open: selectorOpen,
     onOpenChange: handleSelectorOpenChange,
     mountStrategy,
-    // Refetch on every open transition (uncontrolled trigger click + controlled external opens)
-    // — ResourceSelectorShell de-duplicates by routing both paths through one effect.
     onOpen: refetchPins,
     items,
     tags,

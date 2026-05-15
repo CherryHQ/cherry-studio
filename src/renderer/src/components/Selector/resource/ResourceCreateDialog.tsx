@@ -44,6 +44,8 @@ type ResourceCreateDialogProps = {
   isSubmitting?: boolean
 }
 
+type SubmitState = { kind: 'idle' } | { kind: 'submitted' } | { kind: 'error'; message: string }
+
 function getDefaults(kind: ResourceCreateDialogKind) {
   return kind === 'assistant' ? { avatar: '💬' } : { avatar: '🤖' }
 }
@@ -67,8 +69,7 @@ export function ResourceCreateDialog({
   const [description, setDescription] = useState('')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
-  const [submitted, setSubmitted] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitState, setSubmitState] = useState<SubmitState>({ kind: 'idle' })
 
   useEffect(() => {
     if (!open) return
@@ -78,11 +79,12 @@ export function ResourceCreateDialog({
     setSelectedModel(undefined)
     setDescription('')
     setEmojiPickerOpen(false)
-    setSubmitted(false)
-    setSubmitError(null)
+    setSubmitState({ kind: 'idle' })
   }, [defaults.avatar, open])
 
   const trimmedName = name.trim()
+  const submitted = submitState.kind !== 'idle'
+  const submitError = submitState.kind === 'error' ? submitState.message : undefined
   const nameError = submitted && trimmedName.length === 0 ? t('selector.create_dialog.name_required') : undefined
   const modelError = submitted && !selectedModel ? t('selector.create_dialog.model_required') : undefined
   const title = t(
@@ -92,8 +94,7 @@ export function ResourceCreateDialog({
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault()
-      setSubmitted(true)
-      setSubmitError(null)
+      setSubmitState({ kind: 'submitted' })
 
       if (!trimmedName || !selectedModel?.id) {
         return
@@ -107,7 +108,7 @@ export function ResourceCreateDialog({
           description: description.trim()
         })
       } catch {
-        setSubmitError(t('selector.create_dialog.submit_failed'))
+        setSubmitState({ kind: 'error', message: t('selector.create_dialog.submit_failed') })
       }
     },
     [avatar, description, onSubmit, selectedModel?.id, t, trimmedName]
