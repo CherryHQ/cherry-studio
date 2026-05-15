@@ -91,6 +91,14 @@ const MessageItem: FC<Props> = ({
   const { setTimeoutTimer } = useTimer()
   const canEditMessage = !!actions.editMessage
   const isEditing = canEditMessage && editingMessageId === message.id
+  const handleStartEditing = useCallback(
+    (messageId: string) => {
+      if (canEditMessage) {
+        startEditing(messageId)
+      }
+    },
+    [canEditMessage, startEditing]
+  )
 
   useEffect(() => {
     if (isEditing && messageContainerRef.current) {
@@ -174,12 +182,10 @@ const MessageItem: FC<Props> = ({
     return actions.bindMessageRuntime?.(message.id, {
       locateMessage: messageHighlightHandler,
       startEditing: () => {
-        if (canEditMessage) {
-          startEditing(message.id)
-        }
+        handleStartEditing(message.id)
       }
     })
-  }, [actions, canEditMessage, message.id, messageHighlightHandler, startEditing])
+  }, [actions, handleStartEditing, message.id, messageHighlightHandler])
 
   const handleStartNewContext = useCallback(() => {
     if (isMultiSelectMode) return
@@ -227,6 +233,7 @@ const MessageItem: FC<Props> = ({
                     isGrouped={isGrouped}
                     isProcessing={isProcessing}
                     messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+                    onStartEditing={handleStartEditing}
                     onUpdateUseful={onUpdateUseful}
                     variant="header"
                   />
@@ -257,6 +264,7 @@ const MessageItem: FC<Props> = ({
                 isGrouped={isGrouped}
                 isProcessing={isProcessing}
                 messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+                onStartEditing={handleStartEditing}
                 onUpdateUseful={onUpdateUseful}
                 messageFont={messageFont}
                 fontSize={fontSize}
@@ -291,6 +299,7 @@ const MessageItem: FC<Props> = ({
                     isGrouped={isGrouped}
                     isProcessing={isProcessing}
                     messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+                    onStartEditing={handleStartEditing}
                     onUpdateUseful={onUpdateUseful}
                   />
                 </HorizontalScrollContainer>
@@ -313,6 +322,7 @@ const UserBubbleMessage = ({
   isGrouped,
   isProcessing,
   messageContainerRef,
+  onStartEditing,
   onUpdateUseful,
   messageFont,
   fontSize
@@ -323,6 +333,7 @@ const UserBubbleMessage = ({
   isGrouped?: boolean
   isProcessing: boolean
   messageContainerRef: React.RefObject<HTMLDivElement>
+  onStartEditing?: (messageId: string) => void
   onUpdateUseful?: (msgId: string) => void
   messageFont: string
   fontSize: number
@@ -365,6 +376,7 @@ const UserBubbleMessage = ({
           isGrouped={isGrouped}
           isProcessing={isProcessing}
           messageContainerRef={messageContainerRef}
+          onStartEditing={onStartEditing}
           onUpdateUseful={onUpdateUseful}
           variant="header"
         />

@@ -16,7 +16,14 @@ import { containsInlineAbsoluteFilePath } from '../utils/filePath'
 
 type MessageLeafActions = Pick<
   MessageListActions,
-  'previewFile' | 'subscribeToolProgress' | 'openExternalUrl' | 'openInExternalApp'
+  | 'previewFile'
+  | 'subscribeToolProgress'
+  | 'openExternalUrl'
+  | 'openInExternalApp'
+  | 'copyText'
+  | 'copyImage'
+  | 'notifySuccess'
+  | 'notifyWarning'
 >
 type MessageLeafState = Pick<MessageListState, 'isToolAutoApproved' | 'externalCodeEditors'>
 
@@ -110,6 +117,33 @@ export function useMessageLeafCapabilities({
     window.open(url, '_blank', 'noopener,noreferrer')
   }, [])
 
+  const copyText = useCallback<NonNullable<MessageListActions['copyText']>>(async (text, options) => {
+    if (!text && options?.emptyMessage) {
+      window.toast.warning(options.emptyMessage)
+      return
+    }
+
+    await navigator.clipboard.writeText(text)
+    if (options?.successMessage) {
+      window.toast.success(options.successMessage)
+    }
+  }, [])
+
+  const copyImage = useCallback<NonNullable<MessageListActions['copyImage']>>(async (blob, options) => {
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+    if (options?.successMessage) {
+      window.toast.success(options.successMessage)
+    }
+  }, [])
+
+  const notifySuccess = useCallback<NonNullable<MessageListActions['notifySuccess']>>((message) => {
+    window.toast.success(message)
+  }, [])
+
+  const notifyWarning = useCallback<NonNullable<MessageListActions['notifyWarning']>>((message) => {
+    window.toast.warning(message)
+  }, [])
+
   const isToolAutoApproved = useCallback<NonNullable<MessageListState['isToolAutoApproved']>>(
     (tool: MCPTool, allowedTools?: string[]) => {
       if (allowedTools?.includes(tool.id)) return true
@@ -126,9 +160,24 @@ export function useMessageLeafCapabilities({
       subscribeToolProgress,
       openExternalUrl,
       openInExternalApp,
+      copyText,
+      copyImage,
+      notifySuccess,
+      notifyWarning,
       isToolAutoApproved,
       externalCodeEditors
     }),
-    [externalCodeEditors, isToolAutoApproved, openExternalUrl, openInExternalApp, previewFile, subscribeToolProgress]
+    [
+      copyImage,
+      copyText,
+      externalCodeEditors,
+      isToolAutoApproved,
+      notifySuccess,
+      notifyWarning,
+      openExternalUrl,
+      openInExternalApp,
+      previewFile,
+      subscribeToolProgress
+    ]
   )
 }

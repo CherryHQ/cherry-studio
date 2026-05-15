@@ -33,6 +33,10 @@ const leafCapabilitiesMock = vi.hoisted(() => ({
   subscribeToolProgress: vi.fn(),
   openExternalUrl: vi.fn(),
   openInExternalApp: vi.fn(),
+  copyText: vi.fn(),
+  copyImage: vi.fn(),
+  notifySuccess: vi.fn(),
+  notifyWarning: vi.fn(),
   isToolAutoApproved: vi.fn(() => false),
   externalCodeEditors: []
 }))
@@ -215,6 +219,10 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.subscribeToolProgress).toBe(leafCapabilitiesMock.subscribeToolProgress)
     expect(value?.actions.openExternalUrl).toBe(leafCapabilitiesMock.openExternalUrl)
     expect(value?.actions.openInExternalApp).toBe(leafCapabilitiesMock.openInExternalApp)
+    expect(value?.actions.copyText).toBe(leafCapabilitiesMock.copyText)
+    expect(value?.actions.copyImage).toBe(leafCapabilitiesMock.copyImage)
+    expect(value?.actions.notifySuccess).toBe(leafCapabilitiesMock.notifySuccess)
+    expect(value?.actions.notifyWarning).toBe(leafCapabilitiesMock.notifyWarning)
     expect(value?.state.isToolAutoApproved).toBe(leafCapabilitiesMock.isToolAutoApproved)
     expect(value?.state.externalCodeEditors).toBe(leafCapabilitiesMock.externalCodeEditors)
     expect(value?.actions.openTrace).toBeUndefined()

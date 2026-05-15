@@ -277,6 +277,10 @@ export interface MessageListActions {
   showInFolder?: (path: string) => void | Promise<void>
   openExternalUrl?: (url: string) => void | Promise<void>
   openInExternalApp?: (app: ExternalAppInfo, path: string) => void | Promise<void>
+  copyText?: (text: string, options?: { successMessage?: string; emptyMessage?: string }) => void | Promise<void>
+  copyImage?: (blob: Blob, options?: { successMessage?: string }) => void | Promise<void>
+  notifySuccess?: (message: string) => void
+  notifyWarning?: (message: string) => void
   previewFile?: (file: FileMetadata) => void | Promise<void>
   abortTool?: (toolId: string) => boolean | Promise<boolean>
   subscribeToolProgress?: (toolId: string, onProgress: (progress: number) => void) => void | (() => void)

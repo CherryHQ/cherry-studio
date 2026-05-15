@@ -9,8 +9,7 @@ import { getMessageTitle } from '@renderer/services/MessagesService'
 import { TraceIcon } from '@renderer/trace/pages/Component'
 import type { TranslateLanguage } from '@renderer/types'
 import type { MessageExportView } from '@renderer/types/messageExport'
-import { copyMessageAsPlainText } from '@renderer/utils/copy'
-import { messageToMarkdown } from '@renderer/utils/export'
+import { messageToMarkdown, messageToPlainText } from '@renderer/utils/export'
 import { captureScrollableAsBlob, captureScrollableAsDataURL } from '@renderer/utils/image'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
 import { getTranslationFromParts } from '@renderer/utils/messageUtils/partsHelpers'
@@ -62,7 +61,7 @@ export interface MessageMenuBarActionContext {
   isEditable: boolean
   translateLanguages: TranslateLanguage[]
   getTranslationLanguageLabel?: (language: TranslateLanguage, withEmoji?: boolean) => string | undefined
-  startEditing: (messageId: string) => void
+  startEditingMessage?: (messageId: string) => void
   onUpdateUseful?: (messageId: string) => void
   t: TFunction
 }
@@ -121,14 +120,15 @@ function registerToolbarAction(
   })
 }
 
-registerCommand('message.copy', ({ mainTextContent, setCopied, t }) => {
-  void navigator.clipboard.writeText(removeTrailingDoubleSpaces(mainTextContent.trimStart()))
-  window.toast.success(t('message.copied'))
+registerCommand('message.copy', async ({ actions, mainTextContent, setCopied, t }) => {
+  await actions.copyText?.(removeTrailingDoubleSpaces(mainTextContent.trimStart()), {
+    successMessage: t('message.copied')
+  })
   setCopied(true)
 })
 
-registerCommand('message.edit', ({ message, startEditing }) => {
-  startEditing(message.id)
+registerCommand('message.edit', ({ message, startEditingMessage }) => {
+  startEditingMessage?.(message.id)
 })
 
 registerCommand('message.regenerate', async ({ actions, message }) => {
@@ -164,7 +164,7 @@ registerCommand('message.abortTranslation', async ({ actions, message }) => {
 
 registerCommand('message.newBranch', async ({ actions, message, t }) => {
   await actions.startMessageBranch?.(message.id)
-  window.toast.success(t('chat.message.new.branch.created'))
+  actions.notifySuccess?.(t('chat.message.new.branch.created'))
 })
 
 registerCommand('message.multiSelect', ({ actions }) => {
@@ -184,14 +184,16 @@ registerCommand('message.exportNotes', async ({ actions, messageForExport }) => 
   await actions.exportToNotes?.(messageForExport)
 })
 
-registerCommand('message.copyPlainText', ({ messageForExport }) => {
-  void copyMessageAsPlainText(messageForExport)
+registerCommand('message.copyPlainText', ({ actions, messageForExport, t }) => {
+  void actions.copyText?.(messageToPlainText(messageForExport), {
+    successMessage: t('message.copy.success')
+  })
 })
 
-registerCommand('message.copyImage', async ({ messageContainerRef }) => {
+registerCommand('message.copyImage', async ({ actions, messageContainerRef }) => {
   await captureScrollableAsBlob(messageContainerRef, async (blob) => {
     if (blob) {
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+      await actions.copyImage?.(blob)
     }
   })
 })
@@ -201,7 +203,7 @@ registerCommand('message.exportImage', async ({ actions, messageContainerRef, me
   const title = await getMessageTitle(messageForExport)
   if (title && imageData) {
     const success = await actions.saveImage?.(title, imageData)
-    if (success) window.toast.success(t('chat.topics.export.image_saved'))
+    if (success) actions.notifySuccess?.(t('chat.topics.export.image_saved'))
   }
 })
 
@@ -248,7 +250,10 @@ registerToolbarAction({
   commandId: 'message.edit',
   label: ({ t }) => t('common.edit'),
   icon: <EditIcon size={15} />,
-  availability: toolbarAvailability('user-edit', ({ actions, isUserMessage }) => isUserMessage && !!actions.editMessage)
+  availability: toolbarAvailability(
+    'user-edit',
+    ({ actions, isUserMessage, startEditingMessage }) => isUserMessage && !!actions.editMessage && !!startEditingMessage
+  )
 })
 
 registerToolbarAction({
@@ -256,7 +261,7 @@ registerToolbarAction({
   commandId: 'message.copy',
   label: ({ t }) => t('common.copy'),
   icon: ({ copied }) => (copied ? <Check size={15} color="var(--color-primary)" /> : <CopyIcon size={15} />),
-  availability: toolbarAvailability('copy')
+  availability: toolbarAvailability('copy', ({ actions }) => !!actions.copyText)
 })
 
 registerToolbarAction({
@@ -295,7 +300,7 @@ registerToolbarAction({
   availability: (context) => {
     const visibleInToolbar = context.toolbarButtonIds.has('translate')
     const canTranslate = !!context.actions.translateMessage && context.translateLanguages.length > 0
-    const canCopyTranslation = context.hasTranslationBlocks
+    const canCopyTranslation = context.hasTranslationBlocks && !!context.actions.copyText
     const canAbortTranslation = context.isTranslating && !!context.actions.abortMessageTranslation
     const visible =
       visibleInToolbar && !context.isUserMessage && (canTranslate || canCopyTranslation || canAbortTranslation)
@@ -377,7 +382,8 @@ registerAction({
   group: 'write',
   order: 10,
   surface: 'menu',
-  availability: ({ actions, isEditable, isUserMessage }) => isEditable && !!actions.editMessage && isUserMessage
+  availability: ({ actions, isEditable, isUserMessage, startEditingMessage }) =>
+    isEditable && !!actions.editMessage && !!startEditingMessage && isUserMessage
 })
 
 registerAction({
@@ -440,13 +446,13 @@ registerAction({
       id: 'export.copy-plain-text',
       commandId: 'message.copyPlainText',
       label: ({ t }) => t('chat.topics.copy.plain_text'),
-      availability: ({ menuConfig }) => menuConfig.exportMenuOptions.plain_text
+      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.plain_text && !!actions.copyText
     },
     {
       id: 'export.copy-image',
       commandId: 'message.copyImage',
       label: ({ t }) => t('chat.topics.copy.image'),
-      availability: ({ menuConfig }) => menuConfig.exportMenuOptions.image
+      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.image && !!actions.copyImage
     },
     {
       id: 'export.image',
@@ -523,6 +529,8 @@ export function resolveMessageMenuBarTranslationItems(
 
   if (!hasTranslationBlocks) return items
 
+  if (!actions.copyText) return items
+
   return [
     ...items,
     ...(items.length > 0 ? [{ type: 'divider' as const, key: 'translate-divider' }] : []),
@@ -536,10 +544,11 @@ export function resolveMessageMenuBarTranslationItems(
           .trim()
 
         if (translationContent) {
-          void navigator.clipboard.writeText(translationContent)
-          window.toast.success(t('translate.copied'))
+          void actions.copyText?.(translationContent, {
+            successMessage: t('translate.copied')
+          })
         } else {
-          window.toast.warning(t('translate.empty'))
+          actions.notifyWarning?.(t('translate.empty'))
         }
       }
     }

@@ -17,16 +17,14 @@ vi.mock('@renderer/trace/pages/Component', () => ({
   TraceIcon: () => null
 }))
 
-vi.mock('@renderer/utils/copy', () => ({
-  copyMessageAsPlainText: vi.fn()
-}))
-
 vi.mock('@renderer/utils/export', () => ({
-  messageToMarkdown: vi.fn()
+  messageToMarkdown: vi.fn(),
+  messageToPlainText: vi.fn(() => 'plain text')
 }))
 
 import type { MessageMenuBarActionContext } from '../messageMenuBarActions'
 import {
+  executeMessageMenuBarAction,
   resolveMessageMenuBarMenuActions,
   resolveMessageMenuBarToolbarActions,
   resolveMessageMenuBarTranslationItems
@@ -35,10 +33,14 @@ import {
 const t = ((key: string) => key) as any
 
 function createContext(overrides: Partial<MessageMenuBarActionContext> = {}): MessageMenuBarActionContext {
-  const actions = {} as MessageListActions
+  const baseActions = {
+    copyText: vi.fn(),
+    copyImage: vi.fn(),
+    notifySuccess: vi.fn(),
+    notifyWarning: vi.fn()
+  } as MessageListActions
 
   return {
-    actions,
     message: {
       id: 'message-1',
       role: 'assistant',
@@ -70,9 +72,13 @@ function createContext(overrides: Partial<MessageMenuBarActionContext> = {}): Me
     isUseful: false,
     isEditable: true,
     translateLanguages: [],
-    startEditing: vi.fn(),
+    startEditingMessage: vi.fn(),
     t,
-    ...overrides
+    ...overrides,
+    actions: {
+      ...baseActions,
+      ...overrides.actions
+    }
   }
 }
 
@@ -239,5 +245,19 @@ describe('messageMenuBarActions', () => {
     )
 
     expect(toolbarActions.find((action) => action.id === 'translate')?.availability.enabled).toBe(true)
+  })
+
+  it('routes copy through the injected clipboard action', async () => {
+    const copyText = vi.fn()
+    const setCopied = vi.fn()
+    const context = createContext({
+      actions: { copyText } as MessageListActions,
+      setCopied
+    })
+
+    await executeMessageMenuBarAction('copy', context)
+
+    expect(copyText).toHaveBeenCalledWith('hello', { successMessage: 'message.copied' })
+    expect(setCopied).toHaveBeenCalledWith(true)
   })
 })

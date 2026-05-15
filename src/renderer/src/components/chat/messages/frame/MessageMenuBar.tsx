@@ -12,7 +12,6 @@ import {
 } from '@cherrystudio/ui'
 import type { MessageMenuBarScope } from '@renderer/config/registry/messageMenuBar'
 import { DEFAULT_MESSAGE_MENUBAR_SCOPE, getMessageMenuBarConfig } from '@renderer/config/registry/messageMenuBar'
-import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import type { Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
@@ -50,6 +49,7 @@ interface Props {
   isAssistantMessage: boolean
   isProcessing: boolean
   messageContainerRef: React.RefObject<HTMLDivElement>
+  onStartEditing?: (messageId: string) => void
   onUpdateUseful?: (msgId: string) => void
   variant?: 'footer' | 'header'
 }
@@ -63,6 +63,7 @@ const MessageMenuBar: FC<Props> = (props) => {
     isProcessing,
     topic,
     messageContainerRef,
+    onStartEditing,
     onUpdateUseful,
     variant = 'footer'
   } = props
@@ -84,8 +85,6 @@ const MessageMenuBar: FC<Props> = (props) => {
   const messageForExport = useMemo(() => createMessageExportView(message, messageParts), [message, messageParts])
 
   const mainTextContent = useMemo(() => getTextFromParts(messageParts), [messageParts])
-
-  const { startEditing } = useMessageEditing()
 
   const isTranslating = useMemo(
     () =>
@@ -133,7 +132,7 @@ const MessageMenuBar: FC<Props> = (props) => {
       isEditable,
       translateLanguages,
       getTranslationLanguageLabel: messageUi.getTranslationLanguageLabel,
-      startEditing,
+      startEditingMessage: onStartEditing,
       onUpdateUseful,
       t
     }),
@@ -155,10 +154,10 @@ const MessageMenuBar: FC<Props> = (props) => {
       messageUi.getTranslationLanguageLabel,
       messageForExport,
       messageParts,
+      onStartEditing,
       onUpdateUseful,
       selection,
       setCopied,
-      startEditing,
       t,
       translateLanguages,
       toolbarButtonIds
