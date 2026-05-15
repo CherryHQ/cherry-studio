@@ -51,17 +51,35 @@ function parseTimestamp(dateStr: string | undefined | null, onInvalid?: (raw: st
   return ms
 }
 
-interface PreparedFileEntry {
+interface PreparedEntryBase {
   id: string
-  origin: 'internal' | 'external'
   name: string
   ext: string | null
-  size: number | null
-  externalPath: string | null
-  trashedAt: number | null
+  trashedAt: null
   createdAt: number
   updatedAt: number
 }
+
+/**
+ * Discriminated by `origin` so the DB CHECK constraints
+ * (`fe_origin_consistency`, `fe_size_internal_only`) are mirrored in TS: a
+ * `{origin: 'internal', size: null, externalPath: '/foo'}` literal is rejected
+ * at compile time, and `validate()`'s `filter(e => e.origin === 'internal')`
+ * narrows to `PreparedInternalEntry` naturally — no `as` casts.
+ */
+interface PreparedInternalEntry extends PreparedEntryBase {
+  origin: 'internal'
+  size: number
+  externalPath: null
+}
+
+interface PreparedExternalEntry extends PreparedEntryBase {
+  origin: 'external'
+  size: null
+  externalPath: string
+}
+
+type PreparedFileEntry = PreparedInternalEntry | PreparedExternalEntry
 
 /**
  * Determine origin and derive v2 fields from a v1 FileMetadata row.
@@ -272,7 +290,7 @@ export class FileMigrator extends BaseMigrator {
 
       // Sample physical files for internal entries
       const internalEntries = this.preparedEntries
-        .filter((e) => e.origin === 'internal')
+        .filter((e): e is PreparedInternalEntry => e.origin === 'internal')
         .slice(0, VALIDATE_SAMPLE_LIMIT)
 
       for (const entry of internalEntries) {
