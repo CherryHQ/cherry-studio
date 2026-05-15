@@ -1,6 +1,11 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+const animationStyles = readFileSync(join(process.cwd(), 'src/renderer/src/assets/styles/animation.css'), 'utf8')
 
 const virtualMocks = vi.hoisted(() => ({
   useVirtualizer: vi.fn((options: { count: number }) => ({
@@ -13,8 +18,10 @@ const virtualMocks = vi.hoisted(() => ({
       })),
     getTotalSize: () => options.count * 40,
     measureElement: vi.fn(),
-    scrollElement: null
-  }))
+    scrollElement: null,
+    scrollToIndex: virtualMocks.scrollToIndex
+  })),
+  scrollToIndex: vi.fn()
 }))
 
 const dndMocks = vi.hoisted(() => ({
@@ -115,6 +122,7 @@ afterEach(() => {
   dndMocks.onDragOver = undefined
   dndMocks.onDragStart = undefined
   dndMocks.sortableData.clear()
+  virtualMocks.scrollToIndex.mockClear()
   vi.useRealTimers()
 })
 
@@ -136,9 +144,12 @@ function Inspector() {
     <output data-testid="inspector">
       {JSON.stringify({
         query: state.query,
+        filters: state.filters,
+        collapsedGroups: state.collapsedGroups,
         selectedId: state.selectedId,
         renamingId: state.renamingId,
         names: view.items.map((item) => item.name),
+        visibleNames: view.visibleItems.map((item) => item.name),
         groups: view.groups.map((group) => group.group.id)
       })}
     </output>
@@ -162,6 +173,18 @@ function droppableData(id: string) {
 }
 
 describe('ResourceList', () => {
+  it('uses a border-only reveal focus animation without changing row background', () => {
+    const revealFocusStart = animationStyles.indexOf('@keyframes animation-resource-list-reveal-focus')
+    const revealFocusEnd = animationStyles.indexOf('/* 流光动画 */', revealFocusStart)
+    const revealFocusStyle = animationStyles.slice(revealFocusStart, revealFocusEnd)
+
+    expect(revealFocusStart).toBeGreaterThanOrEqual(0)
+    expect(revealFocusEnd).toBeGreaterThan(revealFocusStart)
+    expect(revealFocusStyle).toContain('.animation-resource-list-reveal-focus::after')
+    expect(revealFocusStyle).toContain('box-shadow: inset')
+    expect(revealFocusStyle).not.toMatch(/\bbackground(?:-color)?\s*:/)
+  })
+
   it('derives search, filter, sort, and group state without mutating items', () => {
     const originalOrder = ITEMS.map((item) => item.id).join(',')
     const Provider = ResourceList.Provider<TestItem>
@@ -840,6 +863,140 @@ describe('ResourceList', () => {
 
     expect(screen.getByRole('button', { name: 'Topics' })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('Topic 1')).toBeInTheDocument()
+  })
+
+  it('reveals a requested item by clearing local filters, expanding its group, loading enough rows, and scrolling', async () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const items = Array.from({ length: 8 }, (_, index) => ({
+      id: `topic-${index + 1}`,
+      name: `Topic ${index + 1}`,
+      kind: 'topic' as const,
+      pinned: index === 0,
+      updatedAt: index
+    }))
+
+    function RevealHarness({ requestId }: { requestId?: number }) {
+      const [collapsedGroupIds, setCollapsedGroupIds] = useState(['topics'])
+
+      return (
+        <Provider
+          items={items}
+          collapsedGroupIds={collapsedGroupIds}
+          defaultGroupVisibleCount={5}
+          filterOptions={[
+            {
+              id: 'pinned',
+              label: 'Pinned',
+              predicate: (item) => item.pinned === true
+            }
+          ]}
+          groupBy={() => ({ id: 'topics', label: 'Topics' })}
+          groupShowMoreLabel="Show more"
+          onCollapsedGroupIdsChange={setCollapsedGroupIds}
+          revealRequest={
+            requestId ? { itemId: 'topic-6', requestId, clearFilters: true, clearQuery: true } : undefined
+          }>
+          <ResourceList.Frame>
+            <ResourceList.Search placeholder="Search resources" />
+            <ResourceList.FilterBar />
+            <Inspector />
+            <ResourceList.VirtualItems<TestItem>
+              renderItem={(item) => (
+                <ResourceList.Item item={item}>
+                  <span>{item.name}</span>
+                </ResourceList.Item>
+              )}
+            />
+          </ResourceList.Frame>
+        </Provider>
+      )
+    }
+
+    const view = render(<RevealHarness />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
+    fireEvent.change(screen.getByPlaceholderText('Search resources'), { target: { value: 'missing' } })
+
+    expect(screen.getByPlaceholderText('Search resources')).toHaveValue('missing')
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
+      collapsedGroups: ['topics']
+    })
+    expect(screen.queryByText('Topic 6')).not.toBeInTheDocument()
+
+    vi.useFakeTimers()
+    view.rerender(<RevealHarness requestId={1} />)
+
+    expect(screen.getByText('Topic 6')).toBeInTheDocument()
+    const revealedRow = screen.getByText('Topic 6').closest('[role="option"]')
+    expect(revealedRow).not.toBeNull()
+    expect(revealedRow!).toHaveAttribute('data-reveal-focus', 'true')
+    expect(revealedRow!).toHaveClass('animation-resource-list-reveal-focus')
+    expect(screen.getByPlaceholderText('Search resources')).toHaveValue('')
+    expect(screen.getByRole('button', { name: 'Topics' })).toHaveAttribute('aria-expanded', 'true')
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
+      collapsedGroups: [],
+      filters: [],
+      visibleNames: expect.arrayContaining(['Topic 6'])
+    })
+    expect(virtualMocks.scrollToIndex).toHaveBeenCalledWith(expect.any(Number), { align: 'center' })
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(999)
+    })
+    expect(revealedRow!).toHaveAttribute('data-reveal-focus', 'true')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(revealedRow!).not.toHaveAttribute('data-reveal-focus')
+  })
+
+  it('does not shrink the default group window when the revealed item is already visible', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const items = Array.from({ length: 6 }, (_, index) => ({
+      id: `topic-${index + 1}`,
+      name: `Topic ${index + 1}`,
+      kind: 'topic' as const,
+      updatedAt: index
+    }))
+
+    function RevealHarness({ requestId }: { requestId?: number }) {
+      return (
+        <Provider
+          items={items}
+          defaultGroupVisibleCount={5}
+          groupBy={() => ({ id: 'topics', label: 'Topics' })}
+          groupShowMoreLabel="Show more"
+          revealRequest={requestId ? { itemId: 'topic-4', requestId } : undefined}>
+          <ResourceList.Frame>
+            <Inspector />
+            <ResourceList.VirtualItems<TestItem>
+              renderItem={(item) => (
+                <ResourceList.Item item={item}>
+                  <span>{item.name}</span>
+                </ResourceList.Item>
+              )}
+            />
+          </ResourceList.Frame>
+        </Provider>
+      )
+    }
+
+    const view = render(<RevealHarness />)
+
+    expect(screen.getByText('Topic 4')).toBeInTheDocument()
+    expect(screen.getByText('Topic 5')).toBeInTheDocument()
+    expect(screen.queryByText('Topic 6')).not.toBeInTheDocument()
+
+    vi.useFakeTimers()
+    view.rerender(<RevealHarness requestId={1} />)
+
+    expect(screen.getByText('Topic 4').closest('[role="option"]')).toHaveAttribute('data-reveal-focus', 'true')
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
+      visibleNames: ['Topic 1', 'Topic 2', 'Topic 3', 'Topic 4', 'Topic 5']
+    })
+    expect(screen.queryByText('Topic 6')).not.toBeInTheDocument()
+    expect(virtualMocks.scrollToIndex).toHaveBeenCalledWith(expect.any(Number), { align: 'center' })
   })
 
   it('provides shared header, search, and item presentation parts', () => {

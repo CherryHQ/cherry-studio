@@ -4,6 +4,7 @@ import {
   createTimeGroupResolver,
   getResourceTimeBucket,
   type ResourceListGroup,
+  type ResourceListGroupReorderPayload,
   type ResourceListGroupResolver,
   type ResourceListItemReorderPayload,
   type ResourceListTimeBucket,
@@ -130,6 +131,34 @@ export function buildTopicDropAnchor(payload: ResourceListItemReorderPayload): O
   return { position: 'last' }
 }
 
+export function buildAssistantGroupDropAnchor(
+  payload: ResourceListGroupReorderPayload,
+  overAssistantId: string
+): OrderRequest {
+  return payload.sourceIndex < payload.targetIndex ? { after: overAssistantId } : { before: overAssistantId }
+}
+
+export function moveAssistantGroupAfterDrop(
+  assistantIds: readonly string[],
+  activeAssistantId: string,
+  overAssistantId: string,
+  payload: Pick<ResourceListGroupReorderPayload, 'sourceIndex' | 'targetIndex'>
+): string[] {
+  const activeIndex = assistantIds.indexOf(activeAssistantId)
+  const overIndex = assistantIds.indexOf(overAssistantId)
+
+  if (activeIndex < 0 || overIndex < 0 || activeIndex === overIndex) {
+    return [...assistantIds]
+  }
+
+  const next = assistantIds.filter((assistantId) => assistantId !== activeAssistantId)
+  const adjustedOverIndex = next.indexOf(overAssistantId)
+  const insertIndex = payload.sourceIndex < payload.targetIndex ? adjustedOverIndex + 1 : adjustedOverIndex
+  next.splice(insertIndex, 0, activeAssistantId)
+
+  return next
+}
+
 export function normalizeTopicDropPayload(payload: ResourceListItemReorderPayload): ResourceListItemReorderPayload {
   return payload
 }
@@ -244,12 +273,16 @@ function getAssistantGroupRank<T extends Pick<Topic, 'assistantId' | 'pinned'>>(
     return 0
   }
 
-  if (!topic.assistantId) {
-    return 1
+  const assistantRank = topic.assistantId ? assistantRankById?.get(topic.assistantId) : undefined
+  if (assistantRank !== undefined) {
+    return assistantRank + 1
   }
 
-  const assistantRank = assistantRankById?.get(topic.assistantId)
-  return assistantRank === undefined ? TOPIC_UNKNOWN_ASSISTANT_RANK : assistantRank + 2
+  if (!topic.assistantId) {
+    return TOPIC_UNKNOWN_ASSISTANT_RANK - 1
+  }
+
+  return TOPIC_UNKNOWN_ASSISTANT_RANK
 }
 
 export function sortTopicsForDisplayGroups<T extends Pick<Topic, 'assistantId' | 'pinned' | 'updatedAt'>>(

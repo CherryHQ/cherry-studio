@@ -9,6 +9,7 @@ export type {
   ResourceListItemReorderPayload,
   ResourceListMeta,
   ResourceListReorderPayload,
+  ResourceListRevealRequest,
   ResourceListSortOption,
   ResourceListState,
   ResourceListStatus,
