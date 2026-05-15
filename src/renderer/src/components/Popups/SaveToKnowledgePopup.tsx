@@ -27,7 +27,7 @@ import {
   processMessageContent,
   processTopicContent
 } from '@renderer/utils/knowledge'
-import type { KnowledgeRuntimeAddItemInput } from '@shared/data/types/knowledge'
+import { isSupportedKnowledgeFileExt, type KnowledgeRuntimeAddItemInput } from '@shared/data/types/knowledge'
 import { Check } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -124,6 +124,15 @@ const getNoteSource = (source: ContentSource, title?: string) => {
 
   return source.data.id
 }
+
+const getPathExt = (filePath: string) => {
+  const fileName = filePath.split(/[\\/]/).pop() ?? filePath
+  const dotIndex = fileName.lastIndexOf('.')
+
+  return dotIndex > 0 && dotIndex < fileName.length - 1 ? fileName.slice(dotIndex + 1) : ''
+}
+
+const isSupportedKnowledgeFilePath = (filePath: string) => isSupportedKnowledgeFileExt(getPathExt(filePath))
 
 const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
   const [open, setOpen] = useState(true)
@@ -288,6 +297,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
 
     setLoading(true)
     let savedCount = 0
+    let unsupportedFileCount = 0
 
     try {
       // Validate knowledge base configuration before proceeding
@@ -353,8 +363,11 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
         }
 
         if (result.files.length > 0 && selectedTypes.includes(CONTENT_TYPES.FILE)) {
+          const supportedFiles = result.files.filter((file) => isSupportedKnowledgeFilePath(file.path))
+          unsupportedFileCount = result.files.length - supportedFiles.length
+
           items.push(
-            ...result.files.map((file) => ({
+            ...supportedFiles.map((file) => ({
               type: 'file' as const,
               data: {
                 source: file.path,
@@ -362,12 +375,20 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
               }
             }))
           )
-          savedCount += result.files.length
+          savedCount += supportedFiles.length
         }
+      }
+
+      if (selectedTypes.includes(CONTENT_TYPES.FILE) && savedCount === 0 && items.length === 0) {
+        throw new Error('No supported content to save')
       }
 
       if (items.length > 0) {
         await submitKnowledgeItems(items)
+      }
+
+      if (unsupportedFileCount > 0) {
+        window.toast.warning(t('chat.input.file_not_supported_count', { count: unsupportedFileCount }))
       }
 
       resolveAfterClose({ success: true, savedCount })
@@ -386,6 +407,8 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
           errorMessage = error.message
         } else if (error.message.includes('read note content')) {
           errorMessage = error.message
+        } else if (error.message.includes('No supported content to save') && unsupportedFileCount > 0) {
+          errorMessage = t('chat.input.file_not_supported_count', { count: unsupportedFileCount })
         }
       }
 
