@@ -149,9 +149,10 @@ const HomePage: FC = () => {
     <HistoryRecordsPage
       mode="assistant"
       open={historyOpen}
+      activeRecordId={activeTopic?.id}
       origin={historyOrigin}
       onClose={closeHistory}
-      onTopicSelect={setActiveTopic}
+      onRecordSelect={setActiveTopic}
     />
   )
 

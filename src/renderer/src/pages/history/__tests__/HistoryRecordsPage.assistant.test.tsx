@@ -4,6 +4,19 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { InputHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import enUS from '../../../i18n/locales/en-us.json'
+import zhCN from '../../../i18n/locales/zh-cn.json'
+import zhTW from '../../../i18n/locales/zh-tw.json'
+import deDE from '../../../i18n/translate/de-de.json'
+import elGR from '../../../i18n/translate/el-gr.json'
+import esES from '../../../i18n/translate/es-es.json'
+import frFR from '../../../i18n/translate/fr-fr.json'
+import jaJP from '../../../i18n/translate/ja-jp.json'
+import ptPT from '../../../i18n/translate/pt-pt.json'
+import roRO from '../../../i18n/translate/ro-ro.json'
+import ruRU from '../../../i18n/translate/ru-ru.json'
+import viVN from '../../../i18n/translate/vi-vn.json'
+
 const hookMocks = vi.hoisted(() => ({
   deleteTopic: vi.fn(),
   finishTopicRenaming: vi.fn(),
@@ -366,16 +379,16 @@ describe('HistoryRecordsPage assistant mode', () => {
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
 
     const onClose = vi.fn()
-    const onTopicSelect = vi.fn()
+    const onRecordSelect = vi.fn()
 
-    render(<HistoryRecordsPage mode="assistant" open onClose={onClose} onTopicSelect={onTopicSelect} />)
+    render(<HistoryRecordsPage mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
 
     expect(screen.queryByText('Messages')).not.toBeInTheDocument()
     expect(screen.queryByText('消息')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Alpha topic'))
 
-    expect(onTopicSelect).toHaveBeenCalledWith(
+    expect(onRecordSelect).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'topic-alpha',
         name: 'Alpha topic',
@@ -406,7 +419,7 @@ describe('HistoryRecordsPage assistant mode', () => {
         open
         origin={createTestDomRect({ x: 20, y: 30, width: 20, height: 20 })}
         onClose={vi.fn()}
-        onTopicSelect={vi.fn()}
+        onRecordSelect={vi.fn()}
       />
     )
 
@@ -421,7 +434,7 @@ describe('HistoryRecordsPage assistant mode', () => {
       mode: 'assistant' as const,
       origin: createTestDomRect({ x: 20, y: 30, width: 20, height: 20 }),
       onClose: vi.fn(),
-      onTopicSelect: vi.fn()
+      onRecordSelect: vi.fn()
     }
 
     const { rerender } = render(<HistoryRecordsPage {...props} open />)
@@ -439,7 +452,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
 
-    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onTopicSelect={vi.fn()} />)
+    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
@@ -466,16 +479,16 @@ describe('HistoryRecordsPage assistant mode', () => {
     hookMocks.useAllTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
     const onClose = vi.fn()
-    const onTopicSelect = vi.fn()
+    const onRecordSelect = vi.fn()
 
-    render(<HistoryRecordsPage mode="assistant" open onClose={onClose} onTopicSelect={onTopicSelect} />)
+    render(<HistoryRecordsPage mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Pin Topic' }))
 
     expect(hookMocks.togglePin).toHaveBeenCalledWith('topic-alpha')
-    expect(onTopicSelect).not.toHaveBeenCalled()
+    expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
   })
 
@@ -483,16 +496,16 @@ describe('HistoryRecordsPage assistant mode', () => {
     hookMocks.useAllTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
     const onClose = vi.fn()
-    const onTopicSelect = vi.fn()
+    const onRecordSelect = vi.fn()
 
-    render(<HistoryRecordsPage mode="assistant" open onClose={onClose} onTopicSelect={onTopicSelect} />)
+    render(<HistoryRecordsPage mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit topic name' }))
 
     expect(hookMocks.promptShow).not.toHaveBeenCalled()
-    expect(onTopicSelect).not.toHaveBeenCalled()
+    expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
     expect(hookMocks.updateTopic).not.toHaveBeenCalled()
 
@@ -515,7 +528,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     hookMocks.useAllTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
 
-    const { unmount } = render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onTopicSelect={vi.fn()} />)
+    const { unmount } = render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
@@ -529,7 +542,7 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     unmount()
     hookMocks.updateTopic.mockClear()
-    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onTopicSelect={vi.fn()} />)
+    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
     const nextAlphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const nextMenuContent = nextAlphaMenu?.querySelector('[data-testid="context-menu-content"]')
@@ -550,7 +563,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
 
-    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onTopicSelect={vi.fn()} />)
+    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
@@ -567,7 +580,169 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
   })
+
+  it('switches to the adjacent topic after deleting the active topic from the history row context menu', async () => {
+    hookMocks.useAllTopics.mockReturnValue({
+      topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
+      error: undefined,
+      isLoading: false
+    })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+    const onRecordSelect = vi.fn()
+
+    render(
+      <HistoryRecordsPage
+        mode="assistant"
+        open
+        activeRecordId="topic-alpha"
+        onClose={vi.fn()}
+        onRecordSelect={onRecordSelect}
+      />
+    )
+
+    const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    })
+
+    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
+    expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-beta', name: 'Beta topic' }))
+  })
+
+  it('does not switch topics after deleting a non-active history row', async () => {
+    hookMocks.useAllTopics.mockReturnValue({
+      topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
+      error: undefined,
+      isLoading: false
+    })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+    const onRecordSelect = vi.fn()
+
+    render(
+      <HistoryRecordsPage
+        mode="assistant"
+        open
+        activeRecordId="topic-beta"
+        onClose={vi.fn()}
+        onRecordSelect={onRecordSelect}
+      />
+    )
+
+    const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    })
+
+    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
+    expect(onRecordSelect).not.toHaveBeenCalled()
+  })
+
+  it('keeps the active topic unchanged when history deletion fails', async () => {
+    hookMocks.useAllTopics.mockReturnValue({
+      topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
+      error: undefined,
+      isLoading: false
+    })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+    hookMocks.deleteTopic.mockRejectedValueOnce(new Error('Delete failed'))
+    const onRecordSelect = vi.fn()
+
+    render(
+      <HistoryRecordsPage
+        mode="assistant"
+        open
+        activeRecordId="topic-alpha"
+        onClose={vi.fn()}
+        onRecordSelect={onRecordSelect}
+      />
+    )
+
+    const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    })
+
+    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
+    expect(onRecordSelect).not.toHaveBeenCalled()
+  })
 })
+
+describe('HistoryRecordsPage locale resources', () => {
+  it('defines the real history and delete dialog keys used by the page', () => {
+    const requiredGlobalKeys = [
+      'chat.topics.manage.delete.confirm.content',
+      'chat.topics.manage.delete.confirm.title',
+      'common.cancel',
+      'common.delete',
+      'common.required_field',
+      'common.save'
+    ]
+    const requiredRecordKeys = [
+      'agentSubtitle',
+      'agentTitle',
+      'assistantSubtitle',
+      'empty.description',
+      'empty.sessionsDescription',
+      'empty.sessionsTitle',
+      'empty.title',
+      'loading.description',
+      'loading.sessionsDescription',
+      'loading.sessionsTitle',
+      'loading.title',
+      'resultCount',
+      'searchSession',
+      'searchTopic',
+      'sidebar.searchAssistant',
+      'sidebar.status',
+      'sidebar.unknownAssistant',
+      'status.completed',
+      'status.failed',
+      'status.running',
+      'table.emptyValue',
+      'table.messages',
+      'table.session',
+      'table.time',
+      'table.title',
+      'title'
+    ]
+    const originalLocaleResources = [enUS, zhCN, zhTW]
+    const runtimeLocaleResources = [enUS, zhCN, zhTW, deDE, elGR, esES, frFR, jaJP, ptPT, roRO, ruRU, viVN]
+
+    for (const resource of runtimeLocaleResources) {
+      for (const key of requiredGlobalKeys) {
+        expect(getNestedValue(resource, key)).toEqual(expect.any(String))
+      }
+    }
+
+    for (const resource of originalLocaleResources) {
+      const history = getNestedValue(resource, 'history') as Record<string, unknown>
+      const records = getNestedValue(resource, 'history.records') as Record<string, unknown>
+
+      expect(history.records).toBeTypeOf('object')
+      expect(history.v2).toBeUndefined()
+      for (const key of requiredRecordKeys) {
+        expect(getNestedValue(records, key)).toEqual(expect.any(String))
+      }
+    }
+  })
+})
+
+function getNestedValue(source: Record<string, unknown>, key: string) {
+  return key.split('.').reduce<unknown>((value, segment) => {
+    if (!value || typeof value !== 'object') return undefined
+
+    return (value as Record<string, unknown>)[segment]
+  }, source)
+}
 
 function createTestDomRect({ height, width, x, y }: { height: number; width: number; x: number; y: number }) {
   return {

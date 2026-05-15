@@ -1043,9 +1043,16 @@ function ContextMenu<T extends ResourceListItemBase, TActionContext = unknown>({
 }: ContextMenuProps<T, TActionContext>) {
   const { actions, meta } = useResourceList<T>()
   const contentClass = cn(CONTEXT_MENU_CONTENT_CLASS, contentClassName)
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (open) actions.openContextMenu(meta.getItemId(item))
+    },
+    [actions, item, meta]
+  )
+  const [contextMenuKey, setContextMenuKey] = useState(0)
 
   return (
-    <UiContextMenu onOpenChange={(open) => open && actions.openContextMenu(meta.getItemId(item))}>
+    <UiContextMenu key={contextMenuKey} onOpenChange={handleOpenChange}>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
       {menuActions ? (
         <ActionMenu
@@ -1054,6 +1061,7 @@ function ContextMenu<T extends ResourceListItemBase, TActionContext = unknown>({
           confirmDialogContentClassName={confirmDialogContentClassName}
           confirmDialogOverlayClassName={confirmDialogOverlayClassName}
           onAction={(action) => onAction?.(action)}
+          onConfirmActionComplete={() => setContextMenuKey((key) => key + 1)}
         />
       ) : (
         <ContextMenuContent className={contentClass}>{content}</ContextMenuContent>

@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
+import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { ContextMenu, ContextMenuTrigger } from '../../primitives'
@@ -44,11 +45,15 @@ vi.mock('@cherrystudio/ui', async () => {
 const enabled = { visible: true, enabled: true }
 const disabled = { visible: true, enabled: false, reason: 'Unavailable' }
 
-function renderMenu(actions: ResolvedAction[], onAction = vi.fn()) {
+function renderMenu(
+  actions: ResolvedAction[],
+  onAction = vi.fn(),
+  props?: Pick<ComponentProps<typeof ActionMenu>, 'onConfirmActionComplete'>
+) {
   render(
     <ContextMenu>
       <ContextMenuTrigger>Trigger</ContextMenuTrigger>
-      <ActionMenu actions={actions} onAction={onAction} />
+      <ActionMenu actions={actions} onAction={onAction} {...props} />
     </ContextMenu>
   )
   return onAction
@@ -124,9 +129,42 @@ describe('ActionMenu', () => {
     expect(screen.getByText('Delete session?')).toBeInTheDocument()
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('dialog').querySelectorAll('button')[1]!)
+      fireEvent.click(screen.getByRole('dialog').querySelectorAll('button')[1])
     })
     expect(onAction).toHaveBeenCalledWith(expect.objectContaining({ id: 'delete' }))
+  })
+
+  it('notifies callers after a confirmed action completes', async () => {
+    const onAction = vi.fn().mockResolvedValue(undefined)
+    const onConfirmActionComplete = vi.fn()
+    renderMenu(
+      [
+        {
+          id: 'delete',
+          label: 'Delete',
+          danger: true,
+          confirm: {
+            title: 'Delete session?',
+            confirmText: 'Delete',
+            cancelText: 'Cancel',
+            destructive: true
+          },
+          availability: enabled,
+          children: []
+        }
+      ],
+      onAction,
+      { onConfirmActionComplete }
+    )
+
+    fireEvent.click(screen.getByText('Delete'))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('dialog').querySelectorAll('button')[1])
+    })
+
+    expect(onAction).toHaveBeenCalledWith(expect.objectContaining({ id: 'delete' }))
+    expect(onConfirmActionComplete).toHaveBeenCalledTimes(1)
   })
 })
 

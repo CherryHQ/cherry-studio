@@ -2076,23 +2076,7 @@
     "locate": {
       "message": "定位到訊息"
     },
-    "search": {
-      "match": {
-        "substring": "包含",
-        "whole_word": "整詞"
-      },
-      "messages": "搜尋所有訊息",
-      "placeholder": "搜尋話題或訊息...",
-      "sort": {
-        "newest": "最新優先",
-        "oldest": "最早優先"
-      },
-      "topics": {
-        "empty": "沒有找到相關話題，按 Enter 鍵搜尋所有訊息"
-      }
-    },
-    "title": "搜尋話題",
-    "v2": {
+    "records": {
       "agentSubtitle": "{{count}} 個會話",
       "agentTitle": "智能體歷史記錄",
       "assistantSubtitle": "{{count}} 個話題",
@@ -2129,7 +2113,23 @@
         "title": "標題"
       },
       "title": "話題歷史記錄"
-    }
+    },
+    "search": {
+      "match": {
+        "substring": "包含",
+        "whole_word": "整詞"
+      },
+      "messages": "搜尋所有訊息",
+      "placeholder": "搜尋話題或訊息...",
+      "sort": {
+        "newest": "最新優先",
+        "oldest": "最早優先"
+      },
+      "topics": {
+        "empty": "沒有找到相關話題，按 Enter 鍵搜尋所有訊息"
+      }
+    },
+    "title": "搜尋話題"
   },
   "html_artifacts": {
     "capture": {

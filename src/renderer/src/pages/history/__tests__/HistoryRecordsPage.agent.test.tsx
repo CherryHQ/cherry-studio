@@ -11,13 +11,11 @@ const hookMocks = vi.hoisted(() => ({
   cacheSubscribe: vi.fn(),
   deleteSession: vi.fn(),
   promptShow: vi.fn(),
-  setActiveSessionId: vi.fn(),
   togglePin: vi.fn(),
   updateSession: vi.fn(),
   useAgents: vi.fn(),
   useAllTopics: vi.fn(),
   useAssistants: vi.fn(),
-  useCache: vi.fn(),
   useMultiplePreferences: vi.fn(),
   usePins: vi.fn(),
   useSessions: vi.fn(),
@@ -117,10 +115,6 @@ vi.mock('@renderer/components/VirtualList', () => ({
       ))}
     </div>
   )
-}))
-
-vi.mock('@renderer/data/hooks/useCache', () => ({
-  useCache: hookMocks.useCache
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
@@ -283,7 +277,7 @@ function createAgent(overrides: Partial<AgentEntity> = {}): AgentEntity {
 }
 
 function setupAgentHistory({
-  activeSessionId = null,
+  activeRecordId = null,
   agents = [
     createAgent(),
     createAgent({ id: 'agent-beta', name: 'Beta agent', configuration: { avatar: 'B' } }),
@@ -300,7 +294,7 @@ function setupAgentHistory({
     })
   ]
 }: {
-  activeSessionId?: string | null
+  activeRecordId?: string | null
   agents?: AgentEntity[]
   sessions?: AgentSessionEntity[]
 } = {}) {
@@ -313,12 +307,20 @@ function setupAgentHistory({
     deleteSession: hookMocks.deleteSession,
     togglePin: hookMocks.togglePin
   })
-  hookMocks.useCache.mockReturnValue([activeSessionId, hookMocks.setActiveSessionId])
 
   const onClose = vi.fn()
-  render(<HistoryRecordsPage mode="agent" open onClose={onClose} />)
+  const onRecordSelect = vi.fn()
+  render(
+    <HistoryRecordsPage
+      mode="agent"
+      open
+      activeRecordId={activeRecordId}
+      onClose={onClose}
+      onRecordSelect={onRecordSelect}
+    />
+  )
 
-  return { onClose }
+  return { onClose, onRecordSelect }
 }
 
 describe('HistoryRecordsPage agent mode', () => {
@@ -341,7 +343,6 @@ describe('HistoryRecordsPage agent mode', () => {
     hookMocks.deleteSession.mockReset()
     hookMocks.deleteSession.mockResolvedValue(true)
     hookMocks.promptShow.mockReset()
-    hookMocks.setActiveSessionId.mockReset()
     hookMocks.togglePin.mockReset()
     hookMocks.togglePin.mockResolvedValue(undefined)
     hookMocks.updateSession.mockReset()
@@ -349,7 +350,6 @@ describe('HistoryRecordsPage agent mode', () => {
     hookMocks.useAgents.mockReset()
     hookMocks.useAllTopics.mockReset()
     hookMocks.useAssistants.mockReset()
-    hookMocks.useCache.mockReset()
     hookMocks.useMultiplePreferences.mockReset()
     hookMocks.useMultiplePreferences.mockReturnValue([
       {
@@ -433,11 +433,11 @@ describe('HistoryRecordsPage agent mode', () => {
   })
 
   it('activates the selected session and closes history', () => {
-    const { onClose } = setupAgentHistory()
+    const { onClose, onRecordSelect } = setupAgentHistory()
 
     fireEvent.click(screen.getByText('Beta session'))
 
-    expect(hookMocks.setActiveSessionId).toHaveBeenCalledWith('session-beta')
+    expect(onRecordSelect).toHaveBeenCalledWith('session-beta')
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
@@ -465,14 +465,14 @@ describe('HistoryRecordsPage agent mode', () => {
   })
 
   it('renames a session from the history row context menu without selecting the row', async () => {
-    const { onClose } = setupAgentHistory()
+    const { onClose, onRecordSelect } = setupAgentHistory()
 
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Rename' }))
 
     expect(hookMocks.promptShow).not.toHaveBeenCalled()
-    expect(hookMocks.setActiveSessionId).not.toHaveBeenCalled()
+    expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
     expect(hookMocks.updateSession).not.toHaveBeenCalled()
 
@@ -492,19 +492,19 @@ describe('HistoryRecordsPage agent mode', () => {
   })
 
   it('pins a session from the history row context menu without selecting the row', () => {
-    const { onClose } = setupAgentHistory()
+    const { onClose, onRecordSelect } = setupAgentHistory()
 
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Pin' }))
 
     expect(hookMocks.togglePin).toHaveBeenCalledWith('session-alpha')
-    expect(hookMocks.setActiveSessionId).not.toHaveBeenCalled()
+    expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
   })
 
   it('confirms session deletion and moves the active session when needed', async () => {
-    setupAgentHistory({ activeSessionId: 'session-alpha' })
+    const { onRecordSelect } = setupAgentHistory({ activeRecordId: 'session-alpha' })
 
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
@@ -520,6 +520,24 @@ describe('HistoryRecordsPage agent mode', () => {
     })
 
     expect(hookMocks.deleteSession).toHaveBeenCalledWith('session-alpha')
-    expect(hookMocks.setActiveSessionId).toHaveBeenCalledWith('session-beta')
+    expect(onRecordSelect).toHaveBeenCalledWith('session-beta')
+  })
+
+  it('clears the active session after deleting the last session from history', async () => {
+    const { onRecordSelect } = setupAgentHistory({
+      activeRecordId: 'session-alpha',
+      sessions: [createSession()]
+    })
+
+    const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    })
+
+    expect(hookMocks.deleteSession).toHaveBeenCalledWith('session-alpha')
+    expect(onRecordSelect).toHaveBeenCalledWith(null)
   })
 })

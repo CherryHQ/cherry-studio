@@ -1,5 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useAgents } from '@renderer/hooks/agents/useAgentDataApi'
 import { useAgentSessionInitializer } from '@renderer/hooks/agents/useAgentSessionInitializer'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
@@ -26,6 +27,7 @@ const AgentPage = () => {
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
   const { topicPosition } = useSettings()
   const { agents } = useAgents()
+  const [activeSessionId, setActiveSessionId] = useCache('agent.active_session_id')
   const { t } = useTranslation()
 
   // Seed `agent.active_session_id` to the most-recent session when nothing is set.
@@ -61,7 +63,14 @@ const AgentPage = () => {
   }, [])
   const closeHistory = useCallback(() => setHistoryOpen(false), [])
   const historyOverlay = (
-    <HistoryRecordsPage mode="agent" open={historyOpen} origin={historyOrigin} onClose={closeHistory} />
+    <HistoryRecordsPage
+      mode="agent"
+      open={historyOpen}
+      activeRecordId={activeSessionId}
+      origin={historyOrigin}
+      onClose={closeHistory}
+      onRecordSelect={setActiveSessionId}
+    />
   )
 
   if (agents && agents.length === 0) {

@@ -2076,23 +2076,7 @@
     "locate": {
       "message": "定位到消息"
     },
-    "search": {
-      "match": {
-        "substring": "包含",
-        "whole_word": "整词"
-      },
-      "messages": "搜索所有消息",
-      "placeholder": "搜索话题或消息...",
-      "sort": {
-        "newest": "最新优先",
-        "oldest": "最早优先"
-      },
-      "topics": {
-        "empty": "没有找到相关话题，点击回车键搜索所有消息"
-      }
-    },
-    "title": "话题搜索",
-    "v2": {
+    "records": {
       "agentSubtitle": "{{count}} 个会话",
       "agentTitle": "智能体历史记录",
       "assistantSubtitle": "{{count}} 个话题",
@@ -2129,7 +2113,23 @@
         "title": "标题"
       },
       "title": "话题历史记录"
-    }
+    },
+    "search": {
+      "match": {
+        "substring": "包含",
+        "whole_word": "整词"
+      },
+      "messages": "搜索所有消息",
+      "placeholder": "搜索话题或消息...",
+      "sort": {
+        "newest": "最新优先",
+        "oldest": "最早优先"
+      },
+      "topics": {
+        "empty": "没有找到相关话题，点击回车键搜索所有消息"
+      }
+    },
+    "title": "话题搜索"
   },
   "html_artifacts": {
     "capture": {

@@ -60,15 +60,26 @@ const HISTORY_OVERLAY_TRANSITION = {
 } as const
 type AgentHistorySessionStatus = Exclude<HistorySourceStatus, 'all'>
 
-interface HistoryRecordsPageProps {
+interface HistoryRecordsPageBaseProps {
   mode: HistoryRecordsMode
   open: boolean
+  activeRecordId?: string | null
   origin?: DOMRectReadOnly
   onClose: () => void
-  onTopicSelect?: (topic: RendererTopic) => void
 }
 
-const HistoryRecordsPage = ({ mode, open, origin, onClose, onTopicSelect }: HistoryRecordsPageProps) => {
+type HistoryRecordsPageProps =
+  | (HistoryRecordsPageBaseProps & {
+      mode: 'assistant'
+      onRecordSelect?: (topic: RendererTopic) => void
+    })
+  | (HistoryRecordsPageBaseProps & {
+      mode: 'agent'
+      onRecordSelect?: (sessionId: string | null) => void
+    })
+
+const HistoryRecordsPage = (props: HistoryRecordsPageProps) => {
+  const { mode, open, origin } = props
   const prefersReducedMotion = useReducedMotion()
   const portalRootId = mode === 'assistant' ? 'home-page' : 'agent-page'
   const portalRoot = document.getElementById(portalRootId)
@@ -91,7 +102,21 @@ const HistoryRecordsPage = ({ mode, open, origin, onClose, onTopicSelect }: Hist
           className="absolute inset-0 z-40 flex bg-background [-webkit-app-region:none]"
           data-testid="history-records-page-motion"
           style={{ willChange: 'opacity, clip-path' }}>
-          <HistoryRecordsContent mode={mode} onClose={onClose} onTopicSelect={onTopicSelect} />
+          {props.mode === 'assistant' ? (
+            <HistoryRecordsContent
+              mode="assistant"
+              activeRecordId={props.activeRecordId}
+              onClose={props.onClose}
+              onRecordSelect={props.onRecordSelect}
+            />
+          ) : (
+            <HistoryRecordsContent
+              mode="agent"
+              activeRecordId={props.activeRecordId}
+              onClose={props.onClose}
+              onRecordSelect={props.onRecordSelect}
+            />
+          )}
         </motion.div>
       )}
     </AnimatePresence>,
@@ -99,26 +124,57 @@ const HistoryRecordsPage = ({ mode, open, origin, onClose, onTopicSelect }: Hist
   )
 }
 
-interface HistoryRecordsContentProps {
-  mode: HistoryRecordsMode
-  onClose: () => void
-  onTopicSelect?: (topic: RendererTopic) => void
-}
+type HistoryRecordsContentProps =
+  | {
+      mode: 'assistant'
+      activeRecordId?: string | null
+      onClose: () => void
+      onRecordSelect?: (topic: RendererTopic) => void
+    }
+  | {
+      mode: 'agent'
+      activeRecordId?: string | null
+      onClose: () => void
+      onRecordSelect?: (sessionId: string | null) => void
+    }
 
-const HistoryRecordsContent = ({ mode, onClose, onTopicSelect }: HistoryRecordsContentProps) => {
-  if (mode === 'assistant') {
-    return <AssistantHistoryRecordsContent onClose={onClose} onTopicSelect={onTopicSelect} />
+const HistoryRecordsContent = (props: HistoryRecordsContentProps) => {
+  if (props.mode === 'assistant') {
+    return (
+      <AssistantHistoryRecordsContent
+        activeRecordId={props.activeRecordId}
+        onClose={props.onClose}
+        onRecordSelect={props.onRecordSelect}
+      />
+    )
   }
 
-  return <AgentHistoryRecordsContent onClose={onClose} />
+  return (
+    <AgentHistoryRecordsContent
+      activeRecordId={props.activeRecordId}
+      onClose={props.onClose}
+      onRecordSelect={props.onRecordSelect}
+    />
+  )
 }
 
-interface HistoryRecordsModeContentProps {
+interface AssistantHistoryRecordsContentProps {
+  activeRecordId?: string | null
   onClose: () => void
-  onTopicSelect?: (topic: RendererTopic) => void
+  onRecordSelect?: (topic: RendererTopic) => void
 }
 
-const AssistantHistoryRecordsContent = ({ onClose, onTopicSelect }: HistoryRecordsModeContentProps) => {
+interface AgentHistoryRecordsContentProps {
+  activeRecordId?: string | null
+  onClose: () => void
+  onRecordSelect?: (sessionId: string | null) => void
+}
+
+const AssistantHistoryRecordsContent = ({
+  activeRecordId,
+  onClose,
+  onRecordSelect
+}: AssistantHistoryRecordsContentProps) => {
   const { t } = useTranslation()
   const [selectedSourceId, setSelectedSourceId] = useState(ALL_SOURCE_ID)
   const [searchText, setSearchText] = useState('')
@@ -213,10 +269,10 @@ const AssistantHistoryRecordsContent = ({ onClose, onTopicSelect }: HistoryRecor
 
   const handleTopicSelect = useCallback(
     (topic: Topic) => {
-      onTopicSelect?.(rendererTopicById.get(topic.id) ?? mapApiTopicToRendererTopic(topic))
+      onRecordSelect?.(rendererTopicById.get(topic.id) ?? mapApiTopicToRendererTopic(topic))
       onClose()
     },
-    [onClose, onTopicSelect, rendererTopicById]
+    [onClose, onRecordSelect, rendererTopicById]
   )
 
   const updateTopic = useCallback(
@@ -247,9 +303,17 @@ const AssistantHistoryRecordsContent = ({ onClose, onTopicSelect }: HistoryRecor
         logger.error('Failed to delete topic from history records', { topicId: topic.id, err })
         const message = err instanceof Error ? err.message : t('chat.topics.manage.delete.error')
         window.toast.error(message)
+        return
+      }
+
+      if (topic.id === activeRecordId && topics.length > 1) {
+        const nextTopic = findAdjacentHistoryRecord(topics, topic.id, (candidate) => candidate.id)
+        if (nextTopic) {
+          onRecordSelect?.(getRendererTopic(nextTopic))
+        }
       }
     },
-    [deleteTopicById, t]
+    [activeRecordId, deleteTopicById, getRendererTopic, onRecordSelect, t, topics]
   )
 
   const handleClearMessages = useCallback((topic: RendererTopic) => {
@@ -350,12 +414,11 @@ const AssistantHistoryRecordsContent = ({ onClose, onTopicSelect }: HistoryRecor
   )
 }
 
-const AgentHistoryRecordsContent = ({ onClose }: HistoryRecordsModeContentProps) => {
+const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }: AgentHistoryRecordsContentProps) => {
   const { t } = useTranslation()
   const [selectedSourceId, setSelectedSourceId] = useState(ALL_SOURCE_ID)
   const [selectedStatus, setSelectedStatus] = useState<HistorySourceStatus>(ALL_SOURCE_ID)
   const [searchText, setSearchText] = useState('')
-  const [activeSessionId, setActiveSessionId] = useCache('agent.active_session_id')
 
   const {
     sessions,
@@ -435,21 +498,21 @@ const AgentHistoryRecordsContent = ({ onClose }: HistoryRecordsModeContentProps)
 
   const handleSessionSelect = useCallback(
     (sessionId: string) => {
-      setActiveSessionId(sessionId)
+      onRecordSelect?.(sessionId)
       onClose()
     },
-    [onClose, setActiveSessionId]
+    [onClose, onRecordSelect]
   )
 
   const handleDeleteSession = useCallback(
     async (id: string) => {
       const success = await deleteSession(id)
-      if (success && activeSessionId === id) {
-        const remainingSession = searchedSessions.find((session) => session.id !== id)
-        setActiveSessionId(remainingSession?.id ?? null)
+      if (success && activeRecordId === id) {
+        const nextSession = findAdjacentHistoryRecord(sortedSessions, id, (session) => session.id)
+        onRecordSelect?.(nextSession?.id ?? null)
       }
     },
-    [activeSessionId, deleteSession, searchedSessions, setActiveSessionId]
+    [activeRecordId, deleteSession, onRecordSelect, sortedSessions]
   )
 
   const handleRenameSession = useCallback(
@@ -674,6 +737,17 @@ function sortHistoryEntries<T>(
 
     return getHistoryTimestamp(getUpdatedAt(right)) - getHistoryTimestamp(getUpdatedAt(left))
   })
+}
+
+function findAdjacentHistoryRecord<T>(
+  items: readonly T[],
+  deletedId: string,
+  getId: (item: T) => string
+): T | undefined {
+  const index = items.findIndex((item) => getId(item) === deletedId)
+  if (index < 0) return undefined
+
+  return items[index + 1 === items.length ? index - 1 : index + 1]
 }
 
 function getHistoryTimestamp(value: string): number {
