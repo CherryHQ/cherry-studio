@@ -1,3 +1,4 @@
+import FlagEmoji from '@renderer/components/FlagEmoji'
 import { useOcrProvider } from '@renderer/hooks/useOcrProvider'
 import { BuiltinOcrProviderIds, isOcrOVProvider } from '@renderer/types'
 import { Flex, Tag } from 'antd'
@@ -22,9 +23,15 @@ export const OcrOVSettings = () => {
           </Flex>
         </SettingRowTitle>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <Tag>🇬🇧 {t('languages.english')}</Tag>
-          <Tag>🇨🇳 {t('languages.chinese')}</Tag>
-          <Tag>🇭🇰 {t('languages.chinese-traditional')}</Tag>
+          <Tag>
+            <FlagEmoji emoji="🇬🇧" /> {t('languages.english')}
+          </Tag>
+          <Tag>
+            <FlagEmoji emoji="🇨🇳" /> {t('languages.chinese')}
+          </Tag>
+          <Tag>
+            <FlagEmoji emoji="🇭🇰" /> {t('languages.chinese-traditional')}
+          </Tag>
         </div>
       </SettingRow>
     </>

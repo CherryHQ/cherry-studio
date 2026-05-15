@@ -1,3 +1,4 @@
+import FlagEmoji from '@renderer/components/FlagEmoji'
 import { UNKNOWN } from '@renderer/config/translate'
 import useTranslate from '@renderer/hooks/useTranslate'
 import type { TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
@@ -24,9 +25,7 @@ const LanguageSelect = (props: Props) => {
   const defaultLanguageRenderer = useCallback((lang: TranslateLanguage) => {
     return (
       <Space.Compact direction="horizontal" block>
-        <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
-          {lang.emoji}
-        </span>
+        <FlagEmoji emoji={lang.emoji} style={{ marginRight: 8 }} />
         {lang.label()}
       </Space.Compact>
     )

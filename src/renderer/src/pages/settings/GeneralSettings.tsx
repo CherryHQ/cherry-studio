@@ -1,4 +1,5 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
+import FlagEmoji from '@renderer/components/FlagEmoji'
 import { HStack } from '@renderer/components/Layout'
 import Selector from '@renderer/components/Selector'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
@@ -221,9 +222,7 @@ const GeneralSettings: FC = () => {
             options={languagesOptions.map((lang) => ({
               label: (
                 <Flex align="center" gap={8}>
-                  <span role="img" aria-label={lang.flag}>
-                    {lang.flag}
-                  </span>
+                  <FlagEmoji emoji={lang.flag} />
                   {lang.label}
                 </Flex>
               ),
@@ -289,9 +288,7 @@ const GeneralSettings: FC = () => {
                   value: lang.value,
                   label: (
                     <Flex align="center" gap={8}>
-                      <span role="img" aria-label={lang.flag}>
-                        {lang.flag}
-                      </span>
+                      <FlagEmoji emoji={lang.flag} />
                       {lang.label}
                     </Flex>
                   )

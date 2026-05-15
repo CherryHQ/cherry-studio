@@ -1,4 +1,5 @@
 import EditableNumber from '@renderer/components/EditableNumber'
+import FlagEmoji from '@renderer/components/FlagEmoji'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
 import { HelpTooltip } from '@renderer/components/TooltipIcons'
@@ -533,7 +534,14 @@ const AssistantSettingsTab = (props: Props) => {
               onChange={(value) => setTargetLanguage(value)}
               placeholder={UNKNOWN.emoji + ' ' + UNKNOWN.label()}
               options={translateLanguages.map((item) => {
-                return { value: item.langCode, label: item.emoji + ' ' + item.label() }
+                return {
+                  value: item.langCode,
+                  label: (
+                    <>
+                      <FlagEmoji emoji={item.emoji} /> {item.label()}
+                    </>
+                  )
+                }
               })}
             />
           </SettingRow>
