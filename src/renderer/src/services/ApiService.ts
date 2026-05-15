@@ -4,14 +4,14 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
-import type { Assistant, Model as V1Model } from '@renderer/types'
+import type { Assistant } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { getErrorMessage } from '@renderer/utils/error'
 import { purifyMarkdownImages } from '@renderer/utils/markdown'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
-import { createUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { takeRight } from 'lodash'
 
@@ -49,7 +49,7 @@ export async function fetchMessagesSummary({
 
   try {
     const { text } = await window.api.ai.generateText({
-      uniqueModelId: createUniqueModelId(model.provider, model.id),
+      uniqueModelId: model.id,
       system: prompt,
       prompt: conversation
     })
@@ -79,7 +79,7 @@ export async function fetchNoteSummary({ content }: { content: string; assistant
 
   try {
     const { text } = await window.api.ai.generateText({
-      uniqueModelId: createUniqueModelId(model.provider, model.id),
+      uniqueModelId: model.id,
       system: prompt,
       prompt: purifiedContent
     })
@@ -96,9 +96,7 @@ export async function fetchGenerate({
 }: {
   prompt: string
   content: string
-  // v1 Model from readDefaultModel — out of scope for shim removal; cleaned up
-  // alongside other ModelService consumers in a follow-up.
-  model?: V1Model
+  model?: Model
 }): Promise<string> {
   try {
     const resolvedModel = model ?? (await readDefaultModel())
@@ -107,7 +105,7 @@ export async function fetchGenerate({
       return ''
     }
     const { text } = await window.api.ai.generateText({
-      uniqueModelId: createUniqueModelId(resolvedModel.provider, resolvedModel.id),
+      uniqueModelId: resolvedModel.id,
       system: prompt,
       prompt: content
     })
