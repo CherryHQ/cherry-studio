@@ -154,6 +154,8 @@ export const generateToolEnvironment = ({
 
   switch (tool) {
     case codeTools.claudeCode: {
+      // https://code.claude.com/docs/en/env-vars
+      env.CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST = '1'
       env.ANTHROPIC_BASE_URL =
         getCodeToolsApiBaseUrl(model, 'anthropic') || modelProvider.anthropicApiHost || modelProvider.apiHost
       env.ANTHROPIC_MODEL = model.id
