@@ -1,33 +1,24 @@
-import { HelpTooltip } from '@cherrystudio/ui'
-import Selector from '@renderer/components/Selector'
-import { useProvider } from '@renderer/hooks/useProvider'
-import { SettingDivider, SettingRow } from '@renderer/pages/settings'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
+import { SettingGroup, SettingRowTitleSmall } from '@renderer/pages/chat-settings/settingsPanelPrimitives'
+import { SettingRow } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
-import type { GroqServiceTier, ServiceTier } from '@renderer/types'
-import { SystemProviderIds } from '@renderer/types'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'
+import type { GroqServiceTier, Provider, ProviderSettings, ServiceTier } from '@shared/data/types/provider'
 import type { FC } from 'react'
-import { useCallback, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type ServiceTierOptions = { value: NonNullable<GroqServiceTier> | 'undefined'; label: string }
 
 interface Props {
-  SettingGroup: FC<{ children: React.ReactNode }>
-  SettingRowTitleSmall: FC<{ children: React.ReactNode }>
+  provider: Provider
+  disabled?: boolean
+  onProviderSettingsChange: (providerSettings: Partial<ProviderSettings>) => void
 }
 
-const GroqSettingsGroup: FC<Props> = ({ SettingGroup, SettingRowTitleSmall }) => {
+const GroqSettingsGroup: FC<Props> = ({ provider, disabled, onProviderSettingsChange }) => {
   const { t } = useTranslation()
-  const { provider, updateProvider } = useProvider(SystemProviderIds.groq)
-  const serviceTierMode = provider.serviceTier
-
-  const setServiceTierMode = useCallback(
-    (value: ServiceTier) => {
-      updateProvider({ serviceTier: value })
-    },
-    [updateProvider]
-  )
+  const serviceTierMode = provider.settings.serviceTier as ServiceTier
 
   const serviceTierOptions = useMemo(() => {
     const options = [
@@ -55,20 +46,28 @@ const GroqSettingsGroup: FC<Props> = ({ SettingGroup, SettingRowTitleSmall }) =>
     <CollapsibleSettingGroup title={t('settings.groq.title')} defaultExpanded={true}>
       <SettingGroup>
         <SettingRow>
-          <SettingRowTitleSmall>
-            {t('settings.openai.service_tier.title')}{' '}
-            <HelpTooltip content={t('settings.openai.service_tier.tip')} iconProps={{ className: 'ml-1' }} />
+          <SettingRowTitleSmall hint={t('settings.openai.service_tier.tip')}>
+            {t('settings.openai.service_tier.title')}
           </SettingRowTitleSmall>
-          <Selector
+          <Select
+            disabled={disabled}
             value={toOptionValue(serviceTierMode)}
-            onChange={(value) => {
-              setServiceTierMode(toRealValue(value))
-            }}
-            options={serviceTierOptions}
-          />
+            onValueChange={(value) => {
+              onProviderSettingsChange({ serviceTier: toRealValue(value as ServiceTierOptions['value']) })
+            }}>
+            <SelectTrigger disabled={disabled} size="sm" className="w-45 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="text-xs">
+              {serviceTierOptions.map((option) => (
+                <SelectItem className="text-xs" key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </SettingRow>
       </SettingGroup>
-      <SettingDivider />
     </CollapsibleSettingGroup>
   )
 }

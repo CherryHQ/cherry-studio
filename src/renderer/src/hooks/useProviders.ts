@@ -71,11 +71,15 @@ export function useProviders(query?: ListProvidersQuery) {
 }
 
 // ─── Layer 2: Single read + write + delete ────────────────────────────
-export function useProvider(providerId: string) {
-  const { data, isLoading, error, refetch } = useQuery('/providers/:providerId', { params: { providerId } })
+export function useProvider(providerId: string | null | undefined) {
+  const resolvedProviderId = providerId ?? ''
+  const { data, isLoading, error, refetch } = useQuery('/providers/:providerId', {
+    params: { providerId: resolvedProviderId },
+    enabled: !!providerId
+  })
   const provider = data
 
-  const mutations = useProviderMutations(providerId)
+  const mutations = useProviderMutations(resolvedProviderId)
 
   return { provider, isLoading, error, refetch, ...mutations }
 }

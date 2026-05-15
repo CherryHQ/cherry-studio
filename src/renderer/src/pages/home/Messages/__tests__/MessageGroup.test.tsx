@@ -4,42 +4,43 @@ import { createEvent, fireEvent, render } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  editMessage: vi.fn(),
-  editMessageBlocks: vi.fn(),
-  resendUserMessageWithEdit: vi.fn(),
-  scrollIntoView: vi.fn(),
-  setTimeoutTimer: vi.fn(),
-  useChatContext: vi.fn().mockReturnValue({ isMultiSelectMode: false }),
-  useSettings: vi.fn().mockReturnValue({
-    multiModelMessageStyle: 'horizontal',
-    gridColumns: 2,
-    gridPopoverTrigger: 'click',
-    messageFont: 'system',
-    fontSize: 14,
-    messageStyle: 'plain',
-    showMessageOutline: false
-  }),
-  EventEmitter: {
-    on: vi.fn(() => vi.fn()),
-    off: vi.fn(),
-    emit: vi.fn()
-  },
-  MessageEditingProvider: vi.fn(({ children }: { children: ReactNode }) => <>{children}</>),
-  useMessageEditing: vi.fn().mockReturnValue({
-    editingMessageId: null,
-    startEditing: vi.fn(),
-    stopEditing: vi.fn()
-  }),
-  MessageGroupMenuBar: vi.fn(() => <div className="group-menu-bar">menu</div>),
-  HorizontalScrollContainer: vi.fn(({ children }: { children: ReactNode }) => <div>{children}</div>),
-  MessageContent: vi.fn(() => <div style={{ minHeight: 600 }}>Long message content</div>),
-  MessageEditor: vi.fn(() => <div>editor</div>),
-  MessageErrorBoundary: vi.fn(({ children }: { children: ReactNode }) => <>{children}</>),
-  MessageHeader: vi.fn(() => <div className="message-header">header</div>),
-  MessageMenubar: vi.fn(() => <div className="message-menubar">menubar</div>),
-  MessageOutline: vi.fn(() => null)
-}))
+const mocks = vi.hoisted(() => {
+  const preferenceValues: Record<string, unknown> = {
+    'chat.message.multi_model.grid_columns': 2,
+    'chat.message.multi_model.grid_popover_trigger': 'click',
+    'chat.message.multi_model.style': 'horizontal'
+  }
+
+  return {
+    editMessage: vi.fn(),
+    editMessageBlocks: vi.fn(),
+    resendUserMessageWithEdit: vi.fn(),
+    scrollIntoView: vi.fn(),
+    setTimeoutTimer: vi.fn(),
+    useChatContext: vi.fn().mockReturnValue({ isMultiSelectMode: false }),
+    preferenceValues,
+    usePreference: vi.fn((key: string) => [preferenceValues[key], vi.fn()]),
+    EventEmitter: {
+      on: vi.fn(() => vi.fn()),
+      off: vi.fn(),
+      emit: vi.fn()
+    },
+    MessageEditingProvider: vi.fn(({ children }: { children: ReactNode }) => <>{children}</>),
+    useMessageEditing: vi.fn().mockReturnValue({
+      editingMessageId: null,
+      startEditing: vi.fn(),
+      stopEditing: vi.fn()
+    }),
+    MessageGroupMenuBar: vi.fn(() => <div className="group-menu-bar">menu</div>),
+    HorizontalScrollContainer: vi.fn(({ children }: { children: ReactNode }) => <div>{children}</div>),
+    MessageContent: vi.fn(() => <div style={{ minHeight: 600 }}>Long message content</div>),
+    MessageEditor: vi.fn(() => <div>editor</div>),
+    MessageErrorBoundary: vi.fn(({ children }: { children: ReactNode }) => <>{children}</>),
+    MessageHeader: vi.fn(() => <div className="message-header">header</div>),
+    MessageMenubar: vi.fn(() => <div className="message-menubar">menubar</div>),
+    MessageOutline: vi.fn(() => null)
+  }
+})
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -102,8 +103,8 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useModel: () => null
 }))
 
-vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: () => mocks.useSettings()
+vi.mock('@data/hooks/usePreference', () => ({
+  usePreference: (key: string) => mocks.usePreference(key)
 }))
 
 vi.mock('@renderer/hooks/useTimer', () => ({
@@ -134,6 +135,7 @@ vi.mock('@renderer/utils/dom', () => ({
 }))
 
 vi.mock('@renderer/utils/messageUtils/is', () => ({
+  isMessageAwaitingApproval: () => false,
   isMessageProcessing: () => false
 }))
 
@@ -205,6 +207,9 @@ const setElementSize = (
 describe('MessageGroup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.preferenceValues['chat.message.multi_model.grid_columns'] = 2
+    mocks.preferenceValues['chat.message.multi_model.grid_popover_trigger'] = 'click'
+    mocks.preferenceValues['chat.message.multi_model.style'] = 'horizontal'
   })
 
   it('keeps vertical scrolling inside the message content area for horizontal layout', () => {
@@ -280,15 +285,7 @@ describe('MessageGroup', () => {
   })
 
   it('preserves visible content overflow for non-horizontal layouts', () => {
-    mocks.useSettings.mockReturnValue({
-      multiModelMessageStyle: 'vertical',
-      gridColumns: 2,
-      gridPopoverTrigger: 'click',
-      messageFont: 'system',
-      fontSize: 14,
-      messageStyle: 'plain',
-      showMessageOutline: false
-    })
+    mocks.preferenceValues['chat.message.multi_model.style'] = 'vertical'
 
     const messages = [createMessage('msg-1', 0, 'vertical'), createMessage('msg-2', 1, 'vertical')]
     const topic = { id: 'topic-1' } as Topic

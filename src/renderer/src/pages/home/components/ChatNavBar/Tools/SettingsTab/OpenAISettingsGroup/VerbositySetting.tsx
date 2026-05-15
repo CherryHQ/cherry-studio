@@ -1,17 +1,13 @@
-import { HelpTooltip } from '@cherrystudio/ui'
-import Selector from '@renderer/components/Selector'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { getModelSupportedVerbosity } from '@renderer/config/models'
+import { SettingRowTitleSmall } from '@renderer/pages/chat-settings/settingsPanelPrimitives'
 import { SettingRow } from '@renderer/pages/settings'
-import type { RootState } from '@renderer/store'
-import { useAppDispatch } from '@renderer/store'
-import { setOpenAIVerbosity } from '@renderer/store/settings'
 import type { Model } from '@renderer/types'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'
 import type { OpenAIVerbosity } from '@shared/types/aiSdk'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 
 type VerbosityOption = {
   value: NonNullable<OpenAIVerbosity> | 'undefined' | 'null'
@@ -20,20 +16,13 @@ type VerbosityOption = {
 
 interface Props {
   model: Model
-  SettingRowTitleSmall: FC<{ children: React.ReactNode }>
+  verbosity: OpenAIVerbosity
+  disabled?: boolean
+  onVerbosityChange: (value: OpenAIVerbosity) => void
 }
 
-const VerbositySetting: FC<Props> = ({ model, SettingRowTitleSmall }) => {
+const VerbositySetting: FC<Props> = ({ model, verbosity, disabled, onVerbosityChange }) => {
   const { t } = useTranslation()
-  const verbosity = useSelector((state: RootState) => state.settings.openAI.verbosity)
-  const dispatch = useAppDispatch()
-
-  const setVerbosity = useCallback(
-    (value: OpenAIVerbosity) => {
-      dispatch(setOpenAIVerbosity(value))
-    },
-    [dispatch]
-  )
 
   const verbosityOptions = useMemo(() => {
     const allOptions = [
@@ -62,28 +51,42 @@ const VerbositySetting: FC<Props> = ({ model, SettingRowTitleSmall }) => {
     return allOptions.filter((option) => supportedVerbosityLevels.includes(option.value))
   }, [model, t])
 
-  useEffect(() => {
-    if (verbosity !== undefined && !verbosityOptions.some((option) => option.value === toOptionValue(verbosity))) {
-      const supportedVerbosityLevels = getModelSupportedVerbosity(model)
-      // Default to the highest supported verbosity level
-      const defaultVerbosity = supportedVerbosityLevels[supportedVerbosityLevels.length - 1]
-      setVerbosity(defaultVerbosity)
+  // Derive the displayed value at render time. Auto-correcting an unsupported
+  // saved value via useEffect would persist a DB write on every model switch
+  // (no debounce, no rollback, alert with the wrong intent). Render-deriving
+  // here keeps the UI showing a legal value; the store is only updated when
+  // the user actually picks a new verbosity below.
+  const effectiveVerbosity = useMemo<OpenAIVerbosity>(() => {
+    if (verbosity === undefined) return verbosity
+    if (verbosityOptions.some((option) => option.value === toOptionValue(verbosity))) {
+      return verbosity
     }
-  }, [model, verbosity, verbosityOptions, setVerbosity])
+    const supported = getModelSupportedVerbosity(model)
+    return supported[supported.length - 1]
+  }, [verbosity, verbosityOptions, model])
 
   return (
     <SettingRow>
-      <SettingRowTitleSmall>
-        {t('settings.openai.verbosity.title')}{' '}
-        <HelpTooltip content={t('settings.openai.verbosity.tip')} iconProps={{ className: 'ml-1' }} />
+      <SettingRowTitleSmall hint={t('settings.openai.verbosity.tip')}>
+        {t('settings.openai.verbosity.title')}
       </SettingRowTitleSmall>
-      <Selector
-        value={toOptionValue(verbosity)}
-        onChange={(value) => {
-          setVerbosity(toRealValue(value))
-        }}
-        options={verbosityOptions}
-      />
+      <Select
+        disabled={disabled}
+        value={toOptionValue(effectiveVerbosity)}
+        onValueChange={(value) => {
+          onVerbosityChange(toRealValue(value as VerbosityOption['value']))
+        }}>
+        <SelectTrigger disabled={disabled} size="sm" className="w-45 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="text-xs">
+          {verbosityOptions.map((option) => (
+            <SelectItem className="text-xs" key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </SettingRow>
   )
 }
