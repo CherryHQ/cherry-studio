@@ -163,4 +163,54 @@ describe('ResourceCreateDialog', () => {
     expect(await screen.findByText('Create failed')).toBeInTheDocument()
     expect(screen.queryByText('Network down')).not.toBeInTheDocument()
   })
+
+  it('blocks outside and escape closes while submitting', () => {
+    const onOpenChange = vi.fn()
+    render(<ResourceCreateDialog kind="assistant" open isSubmitting onOpenChange={onOpenChange} onSubmit={vi.fn()} />)
+
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+    fireEvent.pointerDown(document.body)
+
+    expect(onOpenChange).not.toHaveBeenCalled()
+  })
+
+  it('resets fields when the same instance reopens', async () => {
+    const onOpenChange = vi.fn()
+    const { rerender } = render(
+      <ResourceCreateDialog kind="assistant" open onOpenChange={onOpenChange} onSubmit={vi.fn()} />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pick avatar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Choose emoji' }))
+    fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Study Assistant' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
+    fireEvent.change(screen.getByPlaceholderText('Describe this resource'), {
+      target: { value: 'Helps with notes' }
+    })
+
+    rerender(<ResourceCreateDialog kind="assistant" open={false} onOpenChange={onOpenChange} onSubmit={vi.fn()} />)
+    rerender(<ResourceCreateDialog kind="assistant" open onOpenChange={onOpenChange} onSubmit={vi.fn()} />)
+
+    expect(screen.getByPlaceholderText('Name this resource')).toHaveValue('')
+    expect(screen.getByText('Select a model')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Describe this resource')).toHaveValue('')
+    expect(screen.getByRole('button', { name: 'Pick avatar' })).toHaveTextContent('💬')
+  })
+
+  it('clears a previous submit error before retrying', async () => {
+    const onSubmit = vi.fn().mockRejectedValueOnce(new Error('Network down')).mockResolvedValueOnce(undefined)
+    render(<ResourceCreateDialog kind="agent" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
+
+    fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Build Agent' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    expect(await screen.findByText('Create failed')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Build Agent 2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2))
+    expect(screen.queryByText('Create failed')).not.toBeInTheDocument()
+  })
 })
