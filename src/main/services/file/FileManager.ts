@@ -139,8 +139,8 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { bootConfigService } from '@main/data/bootConfig'
 import { remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
-import { FileEntryIdSchema } from '@shared/data/types/file'
-import { SafeExtSchema } from '@shared/data/types/file/essential'
+import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
+import { SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
 import type {
   BatchCreateResult,
   BatchMutationResult,
@@ -212,22 +212,24 @@ export const BatchGetDanglingStatesIpcSchema = z.strictObject({
   ids: z.array(FileEntryIdSchema).max(FILE_BATCH_DANGLING_MAX_IDS)
 })
 
-// Phase 2 schemas — reuse SafeExtSchema (canonical bare-suffix rules + whitespace guard).
+// Phase 2 schemas — reuse the canonical essential.ts validators so the IPC
+// boundary is the gate (path-traversal / null bytes / whitespace-only names
+// rejected here, before downstream factories see them).
 const SafeExtNullableSchema = SafeExtSchema.nullable()
 
 export const CreateInternalEntryIpcSchema = z.discriminatedUnion('source', [
-  z.strictObject({ source: z.literal('path'), path: z.string().min(1) }),
-  z.strictObject({ source: z.literal('url'), url: z.string().min(1) }),
-  z.strictObject({ source: z.literal('base64'), data: z.string().min(1), name: z.string().optional() }),
+  z.strictObject({ source: z.literal('path'), path: AbsolutePathSchema }),
+  z.strictObject({ source: z.literal('url'), url: z.url() }),
+  z.strictObject({ source: z.literal('base64'), data: z.string().min(1), name: SafeNameSchema.optional() }),
   z.strictObject({
     source: z.literal('bytes'),
     data: z.instanceof(Uint8Array),
-    name: z.string().min(1),
+    name: SafeNameSchema,
     ext: SafeExtNullableSchema
   })
 ])
 
-export const EnsureExternalEntryIpcSchema = z.strictObject({ externalPath: z.string().min(1) })
+export const EnsureExternalEntryIpcSchema = z.strictObject({ externalPath: AbsolutePathSchema })
 
 export const GetPhysicalPathIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 
