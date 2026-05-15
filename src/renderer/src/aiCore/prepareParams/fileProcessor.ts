@@ -138,6 +138,12 @@ export async function handleOpenAILargeFileUpload(
       // 断言OpenAIFile对象
       const remoteFile = fileMetadata.originalFile.file as OpenAI.Files.FileObject
       // 判断用途是否一致
+      // v2-shim audit: files projected via `toFileMetadata` carry
+      // `file.purpose === undefined` (the field is dropped by design — see
+      // packages/shared/file/legacy/toFileMetadata.ts). For those files this
+      // comparison always mismatches and falls through to re-upload, which
+      // is the safe degradation: an extra upload, not data loss. Will close
+      // when Batch A-E migrates this call site off `FileMetadata`.
       if (remoteFile.purpose !== file.purpose) {
         logger.warn(`File ${file.origin_name} purpose mismatch: ${remoteFile.purpose} vs ${file.purpose}`)
         throw new Error('File purpose mismatch')
