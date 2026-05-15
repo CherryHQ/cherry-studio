@@ -2,6 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import {
   BaseService,
+  DependsOn,
   type Disposable,
   Emitter,
   type Event,
@@ -104,6 +105,7 @@ interface MarkProcessingTaskInput {
 
 @Injectable('FileProcessingTaskService')
 @ServicePhase(Phase.WhenReady)
+@DependsOn(['FileManager'])
 export class FileProcessingTaskService extends BaseService {
   private tasks: Map<string, FileProcessingTaskRecord> | null = null
   private pruneTimer: Disposable | null = null

@@ -1,3 +1,4 @@
+import { FILE_TYPE, getFileTypeByExt } from '@shared/file/types'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { FileMetadata } from '@types'
@@ -170,6 +171,31 @@ describe('ComponentLabFileProcessingSettings', () => {
     render(<ComponentLabSettings />)
 
     expect(screen.getByRole('button', { name: 'settings.componentLab.fileProcessing.title' })).toBeInTheDocument()
+  })
+
+  it('keeps the document-to-markdown file picker filter aligned with main document type detection', async () => {
+    selectFileMock.mockResolvedValueOnce([])
+
+    render(<ComponentLabFileProcessingSettings />)
+
+    fireEvent.click(screen.getByRole('button', { name: /settings.componentLab.fileProcessing.markdown.select/ }))
+
+    await waitFor(() => {
+      expect(selectFileMock).toHaveBeenCalled()
+    })
+
+    const filters = selectFileMock.mock.calls[0]?.[0]?.filters
+    expect(filters).toEqual([
+      {
+        name: 'settings.componentLab.fileProcessing.markdown.fileFilterName',
+        extensions: ['pdf', 'doc', 'docx', 'pptx', 'xlsx', 'odt']
+      }
+    ])
+
+    const extensions = filters?.[0]?.extensions ?? []
+    expect(extensions).not.toContain('odp')
+    expect(extensions).not.toContain('ods')
+    expect(extensions.every((ext: string) => getFileTypeByExt(ext) === FILE_TYPE.DOCUMENT)).toBe(true)
   })
 
   it('starts every image-to-text processor after selecting an OCR file', async () => {

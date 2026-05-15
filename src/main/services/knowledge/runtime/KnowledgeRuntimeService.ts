@@ -56,7 +56,7 @@ const assertNeverKnowledgeItem = (item: never): never => {
 
 @Injectable('KnowledgeRuntimeService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['KnowledgeVectorStoreService'])
+@DependsOn(['FileManager', 'KnowledgeVectorStoreService'])
 export class KnowledgeRuntimeService extends BaseService {
   private queue = new KnowledgeQueueManager()
 

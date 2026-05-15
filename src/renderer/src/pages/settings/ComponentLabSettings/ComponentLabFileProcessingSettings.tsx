@@ -74,7 +74,7 @@ const LAB_SECTIONS: readonly LabSectionConfig[] = [
     startKey: 'settings.componentLab.fileProcessing.markdown.start',
     noFileKey: 'settings.componentLab.fileProcessing.markdown.noFile',
     fileFilterNameKey: 'settings.componentLab.fileProcessing.markdown.fileFilterName',
-    extensions: ['pdf', 'doc', 'docx', 'pptx', 'xlsx', 'odt', 'odp', 'ods'],
+    extensions: ['pdf', 'doc', 'docx', 'pptx', 'xlsx', 'odt'],
     icon: <FileText className="size-4" />,
     testId: 'markdown'
   }

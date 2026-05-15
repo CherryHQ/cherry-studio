@@ -315,9 +315,9 @@ describe('KnowledgeRuntimeService', () => {
     prepareKnowledgeItemMock.mockImplementation(async ({ item }: { item: KnowledgeItem }) => [item])
   })
 
-  it('uses WhenReady phase and depends on KnowledgeVectorStoreService', () => {
+  it('uses WhenReady phase and depends on FileManager and KnowledgeVectorStoreService', () => {
     expect(getPhase(KnowledgeRuntimeService)).toBe(Phase.WhenReady)
-    expect(getDependencies(KnowledgeRuntimeService)).toEqual(['KnowledgeVectorStoreService'])
+    expect(getDependencies(KnowledgeRuntimeService)).toEqual(['FileManager', 'KnowledgeVectorStoreService'])
   })
 
   it('returns from addItems after enqueueing and completes indexing in the background', async () => {

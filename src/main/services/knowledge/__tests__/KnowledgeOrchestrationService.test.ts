@@ -291,9 +291,9 @@ describe('KnowledgeOrchestrationService', () => {
     runtimeSearchMock.mockResolvedValue([])
   })
 
-  it('uses WhenReady phase and depends on KnowledgeRuntimeService', () => {
+  it('uses WhenReady phase and depends on FileManager and KnowledgeRuntimeService', () => {
     expect(getPhase(KnowledgeOrchestrationService)).toBe(Phase.WhenReady)
-    expect(getDependencies(KnowledgeOrchestrationService)).toEqual(['KnowledgeRuntimeService'])
+    expect(getDependencies(KnowledgeOrchestrationService)).toEqual(['FileManager', 'KnowledgeRuntimeService'])
   })
 
   it('registers caller-facing knowledge IPC handlers', () => {

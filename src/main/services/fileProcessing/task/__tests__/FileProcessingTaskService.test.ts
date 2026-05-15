@@ -1,5 +1,5 @@
 import { BaseService } from '@main/core/lifecycle'
-import { getPhase } from '@main/core/lifecycle/decorators'
+import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type {
@@ -265,8 +265,9 @@ describe('FileProcessingTaskService', () => {
     })
   })
 
-  it('uses WhenReady phase', () => {
+  it('uses WhenReady phase and depends on FileManager', () => {
     expect(getPhase(FileProcessingTaskService)).toBe(Phase.WhenReady)
+    expect(getDependencies(FileProcessingTaskService)).toEqual(['FileManager'])
   })
 
   it('lists only currently available processors', async () => {

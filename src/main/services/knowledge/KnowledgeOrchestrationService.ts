@@ -110,7 +110,7 @@ function toCreateKnowledgeItemInput(item: KnowledgeItem): CreateKnowledgeItemDto
 
 @Injectable('KnowledgeOrchestrationService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['KnowledgeRuntimeService'])
+@DependsOn(['FileManager', 'KnowledgeRuntimeService'])
 export class KnowledgeOrchestrationService extends BaseService {
   protected onInit(): void {
     this.registerIpcHandlers()
