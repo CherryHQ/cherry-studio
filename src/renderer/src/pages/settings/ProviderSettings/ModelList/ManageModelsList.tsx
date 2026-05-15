@@ -52,41 +52,35 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
   const [collapsedGroups, setCollapsedGroups] = useState(new Set<string>())
   const [selectedModels, setSelectedModels] = useState<Set<string>>(new Set())
 
-  // 使用稳定的键来检测 modelGroups 内容变化，包含组内所有模型ID以避免选中已不存在的模型
-  // 使用 JSON.stringify 避免逗号分隔符可能导致的冲突
-  const modelGroupsKey = useMemo(() => {
-    const keys: string[] = []
-    Object.entries(modelGroups).forEach(([groupName, models]) => {
-      keys.push(groupName)
-      models.forEach((model) => keys.push(model.id))
-    })
-    return JSON.stringify(keys.sort())
-  }, [modelGroups])
-
   // 缓存已添加的模型ID集合，用于O(1)时间复杂度的查找
   const addedModelIds = useMemo(() => {
     return new Set((provider.models || []).map((m) => m.id))
   }, [provider.models])
 
-  useEffect(() => {
-    setSelectedModels(new Set())
-  }, [modelGroupsKey])
+  // 收集所有可用的模型ID，用于清理无效的选中项
+  const availableModelIds = useMemo(() => {
+    const ids = new Set<string>()
+    Object.values(modelGroups).forEach((models) => {
+      models.forEach((model) => ids.add(model.id))
+    })
+    return ids
+  }, [modelGroups])
 
-  // 当 provider.models 变化时，清理已不在未添加列表中的选中项
+  // 当 modelGroups 或 provider.models 变化时，清理无效选中项
   useEffect(() => {
     setSelectedModels((prev) => {
       const newSelected = new Set(prev)
       let changed = false
       for (const modelId of prev) {
-        // 如果模型已经被添加到 provider，从选中状态中移除
-        if (addedModelIds.has(modelId)) {
+        // 如果模型不在当前列表中或已被添加到 provider，从选中状态中移除
+        if (!availableModelIds.has(modelId) || addedModelIds.has(modelId)) {
           newSelected.delete(modelId)
           changed = true
         }
       }
       return changed ? newSelected : prev
     })
-  }, [addedModelIds])
+  }, [availableModelIds, addedModelIds])
 
   const handleGroupToggle = useCallback((groupName: string) => {
     setCollapsedGroups((prev) => {
@@ -272,19 +266,23 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
                       <Button
                         type="primary"
                         size="small"
-                        onClick={async (e) => {
+                        onClick={(e) => {
                           e.stopPropagation()
-                          const modelsToAdd = modelsNotInProvider.filter((m) => selectedModels.has(m.id))
-                          const success = await addModelsWithValidation(modelsToAdd)
-                          // 只有在模型实际被添加后才清除选择状态
-                          if (success) {
-                            setSelectedModels((prev) => {
-                              const newSelected = new Set(prev)
-                              modelsToAdd.forEach((m) => newSelected.delete(m.id))
-                              return newSelected
-                            })
-                            window.toast.success(t('settings.models.manage.add_success', { count: modelsToAdd.length }))
-                          }
+                          void (async () => {
+                            const modelsToAdd = modelsNotInProvider.filter((m) => selectedModels.has(m.id))
+                            const success = await addModelsWithValidation(modelsToAdd)
+                            // 只有在模型实际被添加后才清除选择状态
+                            if (success) {
+                              setSelectedModels((prev) => {
+                                const newSelected = new Set(prev)
+                                modelsToAdd.forEach((m) => newSelected.delete(m.id))
+                                return newSelected
+                              })
+                              window.toast.success(
+                                t('settings.models.manage.add_success', { count: modelsToAdd.length })
+                              )
+                            }
+                          })()
                         }}>
                         +{groupSelectedCount}
                       </Button>
@@ -324,7 +322,7 @@ interface ModelListItemProps {
   last?: boolean
   isSelected?: boolean
   onSelectChange?: (modelId: string, checked: boolean) => void
-  isAlreadyAdded?: boolean
+  isAlreadyAdded: boolean
   selectAriaLabel?: string
 }
 
@@ -341,12 +339,11 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(
     selectAriaLabel
   }) => {
     // isAlreadyAdded 由父组件通过 addedModelIds Set 计算传入，性能更优
-    const isAdded = isAlreadyAdded ?? false
     return (
       <ModelListItemContainer last={last}>
         <FileItem
           style={{
-            backgroundColor: isAdded ? 'rgba(0, 126, 0, 0.06)' : '',
+            backgroundColor: isAlreadyAdded ? 'rgba(0, 126, 0, 0.06)' : '',
             border: 'none',
             boxShadow: 'none'
           }}
@@ -354,7 +351,7 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(
             icon: <Avatar src={getModelLogoById(model.id)}>{model?.name?.[0]?.toUpperCase() || '?'}</Avatar>,
             name: (
               <Flex align="center" gap={8}>
-                {!isAdded && onSelectChange && (
+                {!isAlreadyAdded && onSelectChange && (
                   <Checkbox
                     checked={!!isSelected}
                     aria-label={selectAriaLabel || model.id}
@@ -369,7 +366,7 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(
             ),
             extra: model.description && <ExpandableText text={model.description} />,
             ext: '.model',
-            actions: isAdded ? (
+            actions: isAlreadyAdded ? (
               <Button type="text" onClick={() => onRemoveModel(model)} icon={<Minus size={16} />} />
             ) : (
               <Button type="text" onClick={() => onAddModel(model)} icon={<Plus size={16} />} />

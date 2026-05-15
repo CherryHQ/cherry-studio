@@ -6,7 +6,7 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import type { EndpointType, Model, Provider } from '@renderer/types'
 import type { FormProps } from 'antd'
 import { Button, Flex, Form, Modal, Select } from 'antd'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface ShowParams {
@@ -68,6 +68,13 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
     setOpen(false)
     resolveOnce({ success: true })
   }
+
+  useEffect(() => {
+    return () => {
+      resolveOnce(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <Modal
