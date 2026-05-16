@@ -15,6 +15,10 @@ vi.stubGlobal('api', {
   }
 })
 
+vi.mock('@renderer/hooks/agents/useActiveSession', () => ({
+  useActiveSession: () => ({ session: undefined })
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => {

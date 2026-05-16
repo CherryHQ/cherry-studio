@@ -1,5 +1,6 @@
 import { MoreOutlined } from '@ant-design/icons'
 import { Icon } from '@iconify/react'
+import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import { buildEditorUrl, getEditorIcon } from '@renderer/utils/editorUtils'
 import { getFileIconName } from '@renderer/utils/fileIconName'
@@ -9,6 +10,30 @@ import { FolderOpen } from 'lucide-react'
 import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+function isAbsolutePath(p: string): boolean {
+  return p.startsWith('/') || /^[a-zA-Z]:[/\\]/.test(p)
+}
+
+function resolveRelativePath(relativePath: string, basePath: string): string {
+  const normalizedBase = basePath.replace(/\\/g, '/')
+  const normalizedRel = relativePath.replace(/\\/g, '/').replace(/^\.\//, '')
+  const joined = normalizedBase.endsWith('/') ? normalizedBase + normalizedRel : normalizedBase + '/' + normalizedRel
+  const parts = joined.split('/')
+  const result: string[] = []
+  for (const part of parts) {
+    if (part === '.' || part === '') continue
+    if (part === '..') {
+      if (result.length > 0 && !/^[a-zA-Z]:$/.test(result[result.length - 1])) {
+        result.pop()
+      }
+      continue
+    }
+    result.push(part)
+  }
+  const prefix = normalizedBase.startsWith('/') ? '/' : ''
+  return prefix + result.join('/')
+}
+
 interface ClickableFilePathProps {
   path: string
   displayName?: string
@@ -17,6 +42,15 @@ interface ClickableFilePathProps {
 export const ClickableFilePath = memo(function ClickableFilePath({ path, displayName }: ClickableFilePathProps) {
   const { t } = useTranslation()
   const { data: externalApps } = useExternalApps()
+  const { session } = useActiveSession()
+
+  const resolvedPath = useMemo(() => {
+    if (isAbsolutePath(path)) return path
+    const workspacePath = session?.accessiblePaths?.[0]
+    if (!workspacePath) return path
+    return resolveRelativePath(path, workspacePath)
+  }, [path, session?.accessiblePaths?.[0]])
+
   const iconName = useMemo(() => getFileIconName(path), [path])
 
   const availableEditors = useMemo(
@@ -26,19 +60,19 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
 
   const openInEditor = useCallback(
     (app: ExternalAppInfo) => {
-      window.open(buildEditorUrl(app, path))
+      window.open(buildEditorUrl(app, resolvedPath))
     },
-    [path]
+    [resolvedPath]
   )
 
   const handleOpen = useCallback(
     (e: React.MouseEvent | React.KeyboardEvent) => {
       e.stopPropagation()
-      window.api.file.openPath(path).catch(() => {
+      window.api.file.openPath(resolvedPath).catch(() => {
         window.toast.error(t('chat.input.tools.open_file_error', { path }))
       })
     },
-    [path, t]
+    [resolvedPath, path, t]
   )
 
   const handleKeyDown = useCallback(
@@ -59,7 +93,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
         icon: <FolderOpen size={16} />,
         onClick: ({ domEvent }) => {
           domEvent.stopPropagation()
-          window.api.file.showInFolder(path).catch(() => {
+          window.api.file.showInFolder(resolvedPath).catch(() => {
             window.toast.error(t('chat.input.tools.file_not_found', { path }))
           })
         }
@@ -82,7 +116,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
     }
 
     return items
-  }, [path, t, availableEditors, openInEditor])
+  }, [resolvedPath, t, availableEditors, openInEditor])
 
   return (
     <span className="inline-flex items-center gap-0.5">

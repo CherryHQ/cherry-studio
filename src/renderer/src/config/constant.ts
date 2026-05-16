@@ -39,3 +39,7 @@ export const MAX_CONTEXT_COUNT = 100
 export const UNLIMITED_CONTEXT_COUNT = 100000
 
 export const MAX_COLLAPSED_CODE_HEIGHT = 350
+
+// File extensions recognized as generated artifact paths
+export const ARTIFACT_EXT =
+  '\\.(md|html?|txt|json|csv|pdf|xml|ya?ml|toml|ini|cfg|conf|log|svg|png|jpe?g|gif|bmp|ico|css|jsx?|tsx?|py|rb|go|rs|java|sql|sh|bat|ps1|pptx?|xlsx?|docx?)'
