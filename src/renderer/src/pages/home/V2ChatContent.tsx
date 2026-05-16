@@ -172,7 +172,8 @@ const V2ChatContentInner: FC<InnerProps> = ({
     setTranslationOverlayMap((prev) => {
       if (entry == null) {
         if (!(messageId in prev)) return prev
-        const { [messageId]: _, ...rest } = prev
+        const rest = { ...prev }
+        delete rest[messageId]
         return rest
       }
       const existing = prev[messageId]
