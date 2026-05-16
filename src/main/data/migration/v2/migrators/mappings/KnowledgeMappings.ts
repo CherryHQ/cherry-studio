@@ -7,7 +7,7 @@ import {
   DEFAULT_KNOWLEDGE_BASE_EMOJI,
   DEFAULT_KNOWLEDGE_BASE_STATUS,
   DEFAULT_KNOWLEDGE_SEARCH_MODE,
-  isUnsupportedKnowledgeFileExt,
+  isSupportedKnowledgeFileExt,
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   type KnowledgeItemData,
   type KnowledgeItemStatus
@@ -224,7 +224,7 @@ const isUnsupportedLegacyFile = (file: FileMetadata): boolean => {
     return true
   }
 
-  return isUnsupportedKnowledgeFileExt(file.ext)
+  return !isSupportedKnowledgeFileExt(file.ext)
 }
 
 export const transformKnowledgeBase = (

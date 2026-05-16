@@ -160,10 +160,11 @@ describe('expandDirectoryOwnerToTree', () => {
     )
   })
 
-  it('skips unsupported files before creating external file entries', async () => {
+  it('expands supported files and skips unsupported files before creating external file entries', async () => {
     tempRoot = createTempRoot()
-    realFs.writeFileSync(path.join(tempRoot, 'photo.png'), 'image')
-    realFs.writeFileSync(path.join(tempRoot, 'song.mp3'), 'audio')
+    realFs.writeFileSync(path.join(tempRoot, 'readme.md'), '# readme')
+    realFs.writeFileSync(path.join(tempRoot, 'blob.bin'), 'binary')
+    realFs.writeFileSync(path.join(tempRoot, 'cache.sqlite'), 'sqlite')
 
     const nodes = await expandDirectoryOwnerToTree(
       {
@@ -184,8 +185,17 @@ describe('expandDirectoryOwnerToTree', () => {
       createSignal()
     )
 
-    expect(nodes).toEqual([])
-    expect(ensureKnowledgeExternalFileEntryMock).not.toHaveBeenCalled()
+    expect(nodes).toEqual([
+      {
+        type: 'file',
+        data: {
+          source: path.join(tempRoot, 'readme.md'),
+          fileEntryId: expect.any(String)
+        }
+      }
+    ])
+    expect(ensureKnowledgeExternalFileEntryMock).toHaveBeenCalledOnce()
+    expect(ensureKnowledgeExternalFileEntryMock).toHaveBeenCalledWith(path.join(tempRoot, 'readme.md'))
   })
 
   it('stops before reading when the runtime signal is already aborted', async () => {

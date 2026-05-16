@@ -27,7 +27,7 @@ import {
   processMessageContent,
   processTopicContent
 } from '@renderer/utils/knowledge'
-import { isUnsupportedKnowledgeFileExt, type KnowledgeRuntimeAddItemInput } from '@shared/data/types/knowledge'
+import { isSupportedKnowledgeFileExt, type KnowledgeRuntimeAddItemInput } from '@shared/data/types/knowledge'
 import { Check } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -132,7 +132,7 @@ const getPathExt = (filePath: string) => {
   return dotIndex > 0 && dotIndex < fileName.length - 1 ? fileName.slice(dotIndex) : ''
 }
 
-const isUnsupportedKnowledgeFilePath = (filePath: string) => isUnsupportedKnowledgeFileExt(getPathExt(filePath))
+const isUnsupportedKnowledgeFilePath = (filePath: string) => !isSupportedKnowledgeFileExt(getPathExt(filePath))
 
 const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
   const [open, setOpen] = useState(true)

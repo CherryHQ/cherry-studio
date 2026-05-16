@@ -809,11 +809,11 @@ describe('KnowledgeOrchestrationService', () => {
     ])
   })
 
-  it('rejects unsupported file add inputs before creating external file entries', async () => {
+  it('rejects unsupported binary file add inputs before creating external file entries', async () => {
     const service = new KnowledgeOrchestrationService()
 
     await expect(
-      service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/song.mp3', path: '/docs/song.mp3' } }])
+      service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/cache.sqlite', path: '/docs/cache.sqlite' } }])
     ).rejects.toMatchObject({
       message: 'This file type is not supported in knowledge bases'
     })

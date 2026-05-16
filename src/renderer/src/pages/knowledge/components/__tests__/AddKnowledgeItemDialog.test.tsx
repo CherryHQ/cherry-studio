@@ -180,7 +180,7 @@ vi.mock('react-i18next', () => ({
         'knowledge.data_source.add_dialog.note.empty_description':
           '真实笔记列表接入后，将在这里展示可多选的笔记。当前可先使用文件、目录、网址或站点地图。',
         'knowledge.data_source.add_dialog.note.empty_title': '暂未接入笔记数据源',
-        'knowledge.data_source.add_dialog.placeholder.supported_formats': '支持 PDF, DOCX, MD, XLSX, TXT, CSV',
+        'knowledge.data_source.add_dialog.placeholder.supported_formats': '支持 PDF, DOCX, EPUB, MD, TXT, CSV, JSON',
         'knowledge.data_source.add_dialog.placeholder.title': '点击选择文件或拖拽到此处',
         'knowledge.data_source.add_dialog.sitemap.description': '输入 Sitemap 地址：',
         'knowledge.data_source.add_dialog.sitemap.help': '将读取 Sitemap 中包含的页面并建立索引',
@@ -298,7 +298,7 @@ describe('AddKnowledgeItemDialog', () => {
     setMockAcceptedFiles([
       createMockFile('alpha.pdf', 1024),
       createMockFile('photo.png', 2048),
-      createMockFile('.env', 512),
+      createMockFile('cache.sqlite', 512),
       createMockFile('notes.md', 256)
     ])
     fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
@@ -306,7 +306,7 @@ describe('AddKnowledgeItemDialog', () => {
     expect(screen.getByText('alpha.pdf')).toBeInTheDocument()
     expect(screen.getByText('notes.md')).toBeInTheDocument()
     expect(screen.getByText('photo.png')).toBeInTheDocument()
-    expect(screen.getByText('.env')).toBeInTheDocument()
+    expect(screen.getByText('cache.sqlite')).toBeInTheDocument()
     expect(screen.getAllByRole('tooltip', { name: '不支持此文件类型' })).toHaveLength(2)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.getByText('已选 4 个文件')).toBeInTheDocument()
@@ -336,11 +336,11 @@ describe('AddKnowledgeItemDialog', () => {
   it('disables add action when all selected files are unsupported', () => {
     render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-    setMockAcceptedFiles([createMockFile('photo.png', 2048), createMockFile('.env', 512)])
+    setMockAcceptedFiles([createMockFile('photo.png', 2048), createMockFile('cache.sqlite', 512)])
     fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
 
     expect(screen.getByText('photo.png')).toBeInTheDocument()
-    expect(screen.getByText('.env')).toBeInTheDocument()
+    expect(screen.getByText('cache.sqlite')).toBeInTheDocument()
     expect(screen.getAllByRole('tooltip', { name: '不支持此文件类型' })).toHaveLength(2)
     expect(screen.getByText('已选 2 个文件')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()

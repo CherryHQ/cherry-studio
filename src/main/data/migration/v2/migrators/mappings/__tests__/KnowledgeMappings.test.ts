@@ -261,6 +261,105 @@ describe('KnowledgeMappings', () => {
     })
   })
 
+  it('transformKnowledgeItem rejects unsupported legacy file extensions', () => {
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'file-item-sqlite',
+        type: 'file',
+        content: 'file-sqlite'
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map([
+          [
+            'file-sqlite',
+            {
+              ...fileMetadata,
+              id: 'file-sqlite',
+              name: 'cache.sqlite',
+              origin_name: 'cache.sqlite',
+              path: '/tmp/cache.sqlite',
+              ext: '.sqlite'
+            }
+          ]
+        ])
+      }
+    )
+
+    expect(result).toStrictEqual({
+      ok: false,
+      reason: 'invalid_file'
+    })
+  })
+
+  it('transformKnowledgeItem migrates supported markdown and pdf legacy files', () => {
+    const markdownMetadata = {
+      ...fileMetadata,
+      id: 'file-md',
+      name: 'notes.md',
+      origin_name: 'notes.md',
+      path: '/tmp/notes.md',
+      ext: '.md'
+    }
+
+    expect(
+      transformKnowledgeItem(
+        'kb-1',
+        {
+          id: 'file-item-md',
+          type: 'file',
+          content: 'file-md'
+        },
+        {
+          noteById: new Map(),
+          filesById: new Map([
+            ['file-md', markdownMetadata],
+            ['file-pdf', fileMetadata]
+          ])
+        }
+      )
+    ).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        id: 'file-item-md',
+        type: 'file',
+        data: {
+          source: '/tmp/notes.md',
+          path: '/tmp/notes.md'
+        }
+      })
+    })
+
+    expect(
+      transformKnowledgeItem(
+        'kb-1',
+        {
+          id: 'file-item-pdf',
+          type: 'file',
+          content: 'file-pdf'
+        },
+        {
+          noteById: new Map(),
+          filesById: new Map([
+            ['file-md', markdownMetadata],
+            ['file-pdf', fileMetadata]
+          ])
+        }
+      )
+    ).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        id: 'file-item-pdf',
+        type: 'file',
+        data: {
+          source: '/tmp/report.pdf',
+          path: '/tmp/report.pdf'
+        }
+      })
+    })
+  })
+
   it('transformKnowledgeItem clears blank legacy processing errors for idle and completed items', () => {
     const idleResult = transformKnowledgeItem(
       'kb-1',

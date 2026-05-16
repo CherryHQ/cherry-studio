@@ -1,7 +1,7 @@
 import { Dialog, DialogContent } from '@cherrystudio/ui'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { isUnsupportedKnowledgeFileExt } from '@shared/data/types/knowledge'
+import { isSupportedKnowledgeFileExt } from '@shared/data/types/knowledge'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -29,7 +29,7 @@ const getFileNameExt = (fileName: string) => {
   return dotIndex > 0 && dotIndex < fileName.length - 1 ? fileName.slice(dotIndex) : ''
 }
 
-const isUnsupportedKnowledgeFile = (file: File) => isUnsupportedKnowledgeFileExt(getFileNameExt(file.name))
+const isUnsupportedKnowledgeFile = (file: File) => !isSupportedKnowledgeFileExt(getFileNameExt(file.name))
 
 const resolveFilePath = (file: File): string | Error => {
   const filePath = window.api.file.getPathForFile(file)

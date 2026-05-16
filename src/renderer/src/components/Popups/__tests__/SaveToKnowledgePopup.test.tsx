@@ -217,7 +217,7 @@ describe('SaveToKnowledgePopup', () => {
     })
     mockProcessMessageContent.mockReturnValue({
       text: '',
-      files: [{ path: '/tmp/report.pdf' }, { path: '/tmp/photo.png' }, { path: '/tmp/notes.md' }]
+      files: [{ path: '/tmp/report.pdf' }, { path: '/tmp/cache.sqlite' }, { path: '/tmp/notes.md' }]
     })
 
     const promise = renderPopupForMessage()
@@ -267,7 +267,7 @@ describe('SaveToKnowledgePopup', () => {
     })
     mockProcessMessageContent.mockReturnValue({
       text: '',
-      files: [{ path: '/tmp/photo.png' }, { path: '/tmp/archive.zip' }]
+      files: [{ path: '/tmp/blob.bin' }, { path: '/tmp/cache.sqlite' }]
     })
 
     void renderPopupForMessage()
@@ -297,7 +297,7 @@ describe('SaveToKnowledgePopup', () => {
     })
     mockProcessMessageContent.mockReturnValue({
       text: 'hello',
-      files: [{ path: '/tmp/photo.png' }]
+      files: [{ path: '/tmp/cache.sqlite' }]
     })
 
     void renderPopupForMessage()

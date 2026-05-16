@@ -2135,7 +2135,7 @@
           "empty_title": "Notes are not connected yet"
         },
         "placeholder": {
-          "supported_formats": "Supports PDF, DOCX, MD, XLSX, TXT, CSV",
+          "supported_formats": "Supports PDF, DOCX, EPUB, MD, TXT, CSV, JSON",
           "title": "Click to select files or drag them here"
         },
         "sitemap": {

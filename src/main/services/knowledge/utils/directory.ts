@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import type { FileEntryId } from '@shared/data/types/file'
-import { isUnsupportedKnowledgeFileExt, type KnowledgeItem } from '@shared/data/types/knowledge'
+import { isSupportedKnowledgeFileExt, type KnowledgeItem } from '@shared/data/types/knowledge'
 
 import { ensureKnowledgeExternalFileEntry } from './file'
 
@@ -75,7 +75,7 @@ async function expandDirectoryNode(
   signal: AbortSignal
 ): Promise<ExpandedDirectoryNode | null> {
   if (node.type === 'file') {
-    if (isUnsupportedKnowledgeFileExt(path.extname(node.path))) {
+    if (!isSupportedKnowledgeFileExt(path.extname(node.path))) {
       return null
     }
 

@@ -2135,7 +2135,7 @@
           "empty_title": "暂未接入笔记数据源"
         },
         "placeholder": {
-          "supported_formats": "支持 PDF, DOCX, MD, XLSX, TXT, CSV",
+          "supported_formats": "支持 PDF, DOCX, EPUB, MD, TXT, CSV, JSON",
           "title": "点击选择文件或拖拽到此处"
         },
         "sitemap": {

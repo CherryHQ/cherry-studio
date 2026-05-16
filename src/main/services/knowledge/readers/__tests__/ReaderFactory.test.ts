@@ -231,6 +231,8 @@ describe('loadKnowledgeItemDocuments', () => {
   beforeEach(() => {
     fetchMock.mockReset()
     loggerWarnMock.mockReset()
+    Object.values(customReaderSpies).forEach((spy) => spy.mockClear())
+    Object.values(readerSpies).forEach((spy) => spy.mockClear())
     fileManagerGetByIdMock.mockReset()
     fileManagerGetByIdMock.mockImplementation(async (fileEntryId: string) => ({
       id: fileEntryId,
@@ -248,7 +250,8 @@ describe('loadKnowledgeItemDocuments', () => {
     ['.csv', 'csv'],
     ['.docx', 'docx'],
     ['.json', 'json'],
-    ['.md', 'markdown']
+    ['.md', 'markdown'],
+    ['.markdown', 'markdown']
   ])('maps %s files to the %s reader', async (ext, expectedReader) => {
     const item = createFileItem(ext)
     fileManagerGetByIdMock.mockResolvedValueOnce({
@@ -270,13 +273,13 @@ describe('loadKnowledgeItemDocuments', () => {
     })
   })
 
-  it('falls back to TextFileReader for unmatched file extensions', async () => {
-    const item = createFileItem('.log')
+  it('uses TextFileReader for supported text extensions without a dedicated reader', async () => {
+    const item = createFileItem('.txt')
     fileManagerGetByIdMock.mockResolvedValueOnce({
       id: item.data.fileEntryId,
       origin: 'external',
       name: 'sample',
-      ext: 'log',
+      ext: 'txt',
       externalPath: item.data.source,
       createdAt: 1775114958369,
       updatedAt: 1775114958369
@@ -285,9 +288,25 @@ describe('loadKnowledgeItemDocuments', () => {
 
     expect(docs[0]).toMatchObject({
       metadata: {
-        source: '/tmp/sample.log'
+        source: '/tmp/sample.txt'
       }
     })
+  })
+
+  it.each(['bin', 'sqlite', 'py', 'log', 'jsonl'])('rejects unsupported .%s files at load time', async (ext) => {
+    const item = createFileItem(`.${ext}`)
+    fileManagerGetByIdMock.mockResolvedValueOnce({
+      id: item.data.fileEntryId,
+      origin: 'external',
+      name: 'sample',
+      ext,
+      externalPath: item.data.source,
+      createdAt: 1775114958369,
+      updatedAt: 1775114958369
+    })
+
+    await expect(loadKnowledgeItemDocuments(item)).rejects.toThrow(`Unsupported knowledge file type: ${ext}`)
+    expect(readerSpies.text).not.toHaveBeenCalled()
   })
 
   it('uses the drafts export reader for .draftsexport files', async () => {

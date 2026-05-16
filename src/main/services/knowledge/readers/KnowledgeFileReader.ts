@@ -1,7 +1,11 @@
 import { application } from '@application'
 import { toFileInfo } from '@main/services/file'
 import type { FileEntry } from '@shared/data/types/file'
-import type { KnowledgeItemOf, KnowledgeSourceMetadata } from '@shared/data/types/knowledge'
+import {
+  isSupportedKnowledgeFileExt,
+  type KnowledgeItemOf,
+  type KnowledgeSourceMetadata
+} from '@shared/data/types/knowledge'
 import { Document, type FileReader as VectorStoreFileReader } from '@vectorstores/core'
 import { CSVReader } from '@vectorstores/readers/csv'
 import { DocxReader } from '@vectorstores/readers/docx'
@@ -14,7 +18,13 @@ import { DraftsExportReader } from './files/DraftsExportReader'
 import { EpubReader } from './files/EpubReader'
 
 export function createSupportedFileReader(file: Pick<FileEntry, 'ext'>): VectorStoreFileReader<Document> {
-  switch (file.ext) {
+  const ext = file.ext?.trim().replace(/^\./, '').toLowerCase() ?? ''
+
+  if (!isSupportedKnowledgeFileExt(ext)) {
+    throw new Error(`Unsupported knowledge file type: ${file.ext ?? ''}`)
+  }
+
+  switch (ext) {
     case 'pdf':
       return new PDFReader()
     case 'csv':
@@ -26,6 +36,7 @@ export function createSupportedFileReader(file: Pick<FileEntry, 'ext'>): VectorS
     case 'json':
       return new JSONReader()
     case 'md':
+    case 'markdown':
       return new MarkdownReader()
     case 'draftsexport':
       return new DraftsExportReader()

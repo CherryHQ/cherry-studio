@@ -1,6 +1,5 @@
 import * as z from 'zod'
 
-import { archiveExts, audioExts, imageExts, videoExts } from '../../config/constant'
 import { AbsolutePathSchema, FileEntryIdSchema } from './file'
 
 /**
@@ -18,17 +17,22 @@ import { AbsolutePathSchema, FileEntryIdSchema } from './file'
 export const KNOWLEDGE_ITEM_TYPES = ['file', 'url', 'note', 'sitemap', 'directory'] as const
 export const KnowledgeItemTypeSchema = z.enum(KNOWLEDGE_ITEM_TYPES)
 export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
-export const KNOWLEDGE_UNSUPPORTED_FILE_EXTS: readonly string[] = Object.freeze([
-  ...new Set([...imageExts, ...videoExts, ...audioExts, ...archiveExts])
-])
-const KNOWLEDGE_UNSUPPORTED_FILE_EXT_SET: ReadonlySet<string> = new Set(KNOWLEDGE_UNSUPPORTED_FILE_EXTS)
 
-export function isUnsupportedKnowledgeFileExt(ext: string): boolean {
+const SUPPORTED_KNOWLEDGE_FILE_EXTS = new Set([
+  '.txt',
+  '.md',
+  '.markdown',
+  '.pdf',
+  '.docx',
+  '.epub',
+  '.csv',
+  '.json',
+  '.draftsexport'
+])
+
+export function isSupportedKnowledgeFileExt(ext: string): boolean {
   const normalized = ext.trim().replace(/^\./, '').toLowerCase()
-  if (!normalized) {
-    return true
-  }
-  return KNOWLEDGE_UNSUPPORTED_FILE_EXT_SET.has(`.${normalized}`)
+  return normalized ? SUPPORTED_KNOWLEDGE_FILE_EXTS.has(`.${normalized}`) : false
 }
 
 export const KNOWLEDGE_ITEM_STATUSES = ['idle', 'processing', 'completed', 'failed'] as const

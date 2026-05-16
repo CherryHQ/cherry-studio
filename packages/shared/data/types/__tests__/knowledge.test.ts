@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  isUnsupportedKnowledgeFileExt,
-  KNOWLEDGE_UNSUPPORTED_FILE_EXTS,
-  KnowledgeSearchResultSchema
-} from '../knowledge'
+import { isSupportedKnowledgeFileExt, KnowledgeSearchResultSchema } from '../knowledge'
 
 describe('KnowledgeSearchResultSchema', () => {
   const result = {
@@ -42,31 +38,18 @@ describe('KnowledgeSearchResultSchema', () => {
   })
 })
 
-describe('knowledge unsupported file helpers', () => {
-  it('exposes the explicit knowledge unsupported extension list', () => {
-    expect(KNOWLEDGE_UNSUPPORTED_FILE_EXTS).toContain('.png')
-    expect(KNOWLEDGE_UNSUPPORTED_FILE_EXTS).toContain('.mp3')
-    expect(KNOWLEDGE_UNSUPPORTED_FILE_EXTS).toContain('.mp4')
-    expect(KNOWLEDGE_UNSUPPORTED_FILE_EXTS).toContain('.zip')
-    expect(KNOWLEDGE_UNSUPPORTED_FILE_EXTS).toContain('.rar')
-    expect(KNOWLEDGE_UNSUPPORTED_FILE_EXTS).toContain('.7z')
-    expect(KNOWLEDGE_UNSUPPORTED_FILE_EXTS).toContain('.tar')
-    expect(KNOWLEDGE_UNSUPPORTED_FILE_EXTS).toContain('.gz')
-  })
+describe('knowledge supported file helpers', () => {
+  it.each(['.txt', '.md', '.markdown', 'pdf', '.docx', '.EPUB', '.csv', ' .json ', '.draftsExport'])(
+    'classifies %s as supported',
+    (ext) => {
+      expect(isSupportedKnowledgeFileExt(ext)).toBe(true)
+    }
+  )
 
-  it('classifies extensions with the knowledge blocklist', () => {
-    expect(isUnsupportedKnowledgeFileExt('.md')).toBe(false)
-    expect(isUnsupportedKnowledgeFileExt('pdf')).toBe(false)
-    expect(isUnsupportedKnowledgeFileExt('.EPUB')).toBe(false)
-    expect(isUnsupportedKnowledgeFileExt(' .EPUB ')).toBe(false)
-    expect(isUnsupportedKnowledgeFileExt('.draftsExport')).toBe(false)
-    expect(isUnsupportedKnowledgeFileExt('draftsExport')).toBe(false)
-    expect(isUnsupportedKnowledgeFileExt('.png')).toBe(true)
-    expect(isUnsupportedKnowledgeFileExt('mp3')).toBe(true)
-    expect(isUnsupportedKnowledgeFileExt('.mp3')).toBe(true)
-    expect(isUnsupportedKnowledgeFileExt('.zip')).toBe(true)
-    expect(isUnsupportedKnowledgeFileExt(' RAR ')).toBe(true)
-    expect(isUnsupportedKnowledgeFileExt(' .RAR ')).toBe(true)
-    expect(isUnsupportedKnowledgeFileExt('')).toBe(true)
-  })
+  it.each(['.exe', '.bin', '.sqlite', '.py', '.ts', '.log', '.tsv', '.jsonl', '.ndjson', '.png', '.mp3', '.zip', ''])(
+    'classifies %s as unsupported',
+    (ext) => {
+      expect(isSupportedKnowledgeFileExt(ext)).toBe(false)
+    }
+  )
 })
