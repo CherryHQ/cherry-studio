@@ -11,10 +11,9 @@ interface Props {
   topic: Topic
 }
 
-const MultiSelectActionPopup: FC<Props> = ({ topic }) => {
+const MultiSelectActionPopup: FC<Props> = () => {
   const { t } = useTranslation()
-  const { toggleMultiSelectMode, selectedMessageIds, isMultiSelectMode, handleMultiSelectAction } =
-    useChatContext(topic)
+  const { toggleMultiSelectMode, selectedMessageIds, isMultiSelectMode, handleMultiSelectAction } = useChatContext()
 
   const handleAction = (action: string) => {
     void handleMultiSelectAction(action, selectedMessageIds)

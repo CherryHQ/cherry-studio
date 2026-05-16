@@ -30,7 +30,7 @@ interface Props {
   isGroupContextMessage?: boolean
 }
 
-const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGroupContextMessage }) => {
+const MessageHeader: FC<Props> = memo(({ assistant, model, message, isGroupContextMessage }) => {
   const avatar = useAvatar()
   const { theme } = useTheme()
   const [userName] = usePreference('app.user.name')
@@ -42,7 +42,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   const { isBubbleStyle } = useMessageStyle()
   const { openMiniAppById } = useMiniAppPopup()
 
-  const { isMultiSelectMode, selectedMessageIds, handleSelectMessage } = useChatContext(topic)
+  const { isMultiSelectMode, selectedMessageIds, handleSelectMessage } = useChatContext()
 
   const isSelected = selectedMessageIds?.includes(message.id)
 

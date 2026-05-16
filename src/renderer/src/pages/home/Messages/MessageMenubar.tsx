@@ -151,7 +151,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const currentMentionModelId = model ? createUniqueModelId(model.provider, model.id) : undefined
   const { model: currentMentionModel } = useModelById(currentMentionModelId ?? ('' as UniqueModelId))
   const { notesPath } = useNotesSettings()
-  const { toggleMultiSelectMode } = useChatContext(props.topic)
+  const { toggleMultiSelectMode } = useChatContext()
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
   const { languages, getLabel: getLanguageLabel } = useLanguages()

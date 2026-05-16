@@ -64,7 +64,7 @@ const Messages: React.FC<MessagesProps> = ({
   const v2Chat = useV2Chat()
   const { setTimeoutTimer } = useTimer()
 
-  const { isMultiSelectMode, handleSelectMessage } = useChatContext(topic)
+  const { isMultiSelectMode, handleSelectMessage } = useChatContext()
 
   const chatListRef = useRef<ChatVirtualListHandle | null>(null)
   // Mirrors the scroll element from `chatListRef.current?.getScrollElement()`

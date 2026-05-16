@@ -30,7 +30,7 @@ export const ChatContextProvider = ChatContext.Provider
  * Consumer hook — reads from the nearest ChatContextProvider.
  * Must be rendered inside a ChatContextProvider.
  */
-export const useChatContext = (_topic?: Topic): ChatContextValue => {
+export const useChatContext = (): ChatContextValue => {
   const ctx = use(ChatContext)
   if (!ctx) {
     throw new Error('useChatContext must be used within a ChatContextProvider')

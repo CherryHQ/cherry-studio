@@ -11,14 +11,14 @@ interface SelectableMessageProps {
   isClearMessage?: boolean
 }
 
-const SelectableMessage: FC<SelectableMessageProps> = ({ children, messageId, topic, isClearMessage = false }) => {
+const SelectableMessage: FC<SelectableMessageProps> = ({ children, messageId, isClearMessage = false }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const {
     registerMessageElement: contextRegister,
     isMultiSelectMode,
     selectedMessageIds,
     handleSelectMessage
-  } = useChatContext(topic)
+  } = useChatContext()
 
   const isSelected = selectedMessageIds?.includes(messageId)
 

@@ -45,7 +45,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const [multiModelMessageStyleSetting] = usePreference('chat.message.multi_model.style')
   const [gridColumns] = usePreference('chat.message.multi_model.grid_columns')
   const [gridPopoverTrigger] = usePreference('chat.message.multi_model.grid_popover_trigger')
-  const { isMultiSelectMode } = useChatContext(topic)
+  const { isMultiSelectMode } = useChatContext()
   const { setTimeoutTimer } = useTimer()
   const v2Chat = useV2Chat()
 
