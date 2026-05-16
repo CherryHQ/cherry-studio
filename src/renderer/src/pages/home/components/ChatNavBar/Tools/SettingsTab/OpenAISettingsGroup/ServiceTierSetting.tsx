@@ -28,7 +28,7 @@ const ServiceTierSetting: FC<Props> = ({ model, providerId, SettingRowTitleSmall
   const setServiceTierMode = useCallback(
     (value: ServiceTier) => {
       if (!provider) return
-      updateProvider({
+      void updateProvider({
         providerSettings: { ...provider.settings, serviceTier: value ?? undefined }
       })
     },

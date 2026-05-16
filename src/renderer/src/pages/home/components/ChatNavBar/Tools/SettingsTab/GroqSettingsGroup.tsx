@@ -26,7 +26,7 @@ const GroqSettingsGroup: FC<Props> = ({ SettingGroup, SettingRowTitleSmall }) =>
   const setServiceTierMode = useCallback(
     (value: ServiceTier) => {
       if (!provider) return
-      updateProvider({
+      void updateProvider({
         providerSettings: { ...provider.settings, serviceTier: value ?? undefined }
       })
     },
