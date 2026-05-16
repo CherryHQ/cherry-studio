@@ -11,7 +11,12 @@ import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { hubMCPServer } from '@renderer/store/mcp'
 import type { Assistant, MCPServer, MCPTool, Model, Provider } from '@renderer/types'
-import { type FetchChatCompletionParams, getEffectiveMcpMode, isSystemProvider } from '@renderer/types'
+import {
+  type FetchChatCompletionParams,
+  getEffectiveMcpMode,
+  isSystemProvider,
+  SystemProviderIds
+} from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
 import type { Message, ResponseError } from '@renderer/types/newMessage'
@@ -24,7 +29,11 @@ import { getErrorMessage, isAbortError } from '@renderer/utils/error'
 import { purifyMarkdownImages } from '@renderer/utils/markdown'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
-import { NOT_SUPPORT_API_KEY_PROVIDER_TYPES, NOT_SUPPORT_API_KEY_PROVIDERS } from '@renderer/utils/provider'
+import {
+  isOllamaProvider,
+  NOT_SUPPORT_API_KEY_PROVIDER_TYPES,
+  NOT_SUPPORT_API_KEY_PROVIDERS
+} from '@renderer/utils/provider'
 import { isEmpty, takeRight } from 'lodash'
 
 import type { AiProviderConfig } from '../aiCore'
@@ -54,6 +63,15 @@ import type { StreamProcessorCallbacks } from './StreamProcessingService'
 
 const logger = loggerService.withContext('ApiService')
 const SUMMARY_REQUEST_TIMEOUT_MS = 15_000
+const LOCAL_SUMMARY_REQUEST_TIMEOUT_MS = 90_000
+
+export function getSummaryRequestTimeoutMs(provider: Provider): number {
+  if (isOllamaProvider(provider) || provider.id === SystemProviderIds.lmstudio) {
+    return LOCAL_SUMMARY_REQUEST_TIMEOUT_MS
+  }
+
+  return SUMMARY_REQUEST_TIMEOUT_MS
+}
 
 /**
  * Get the MCP servers to use based on the assistant's MCP mode.
@@ -515,7 +533,7 @@ export async function fetchMessagesSummary({
     prompt: conversation,
     providerOptions,
     ...standardParams,
-    abortSignal: AbortSignal.timeout(SUMMARY_REQUEST_TIMEOUT_MS),
+    abortSignal: AbortSignal.timeout(getSummaryRequestTimeoutMs(provider)),
     maxRetries: 0
   }
 

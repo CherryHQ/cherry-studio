@@ -134,6 +134,11 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
       return
     }
 
+    if (!enableTopicNaming) {
+      logger.debug('Skip auto topic naming because enableTopicNaming is disabled')
+      return
+    }
+
     const applyTopicName = (name: string) => {
       const data = { ...topic, name } as Topic
       if (topic.id === _activeTopic.id) {
@@ -151,19 +156,6 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
         .trim()
 
       return truncateText(text)
-    }
-
-    if (!enableTopicNaming) {
-      const topicName = getFirstMessageName()
-      if (topicName) {
-        try {
-          startTopicRenaming(topicId)
-          applyTopicName(topicName)
-        } finally {
-          finishTopicRenaming(topicId)
-        }
-      }
-      return
     }
 
     if (topic && topic.name === i18n.t('chat.default.topic.name') && topic.messages.length >= 2) {
