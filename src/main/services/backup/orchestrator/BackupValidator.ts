@@ -2,10 +2,12 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
+import { createClient } from '@libsql/client'
 import { loggerService } from '@logger'
 import type { BackupManifest, ValidationOptions, ValidationResult } from '@shared/backup'
 import { BACKUP_MANIFEST_VERSION, ValidationErrorCode } from '@shared/backup'
 import StreamZip from 'node-stream-zip'
+import { pathToFileURL } from 'url'
 
 import { hashFile } from '../utils/checksum'
 
@@ -36,6 +38,11 @@ export class BackupValidatorImpl {
 
     if (options?.checkFiles !== false) {
       await this.validateChecksums(zipPath, manifest, errors, filesValidated)
+    }
+
+    // Schema version compatibility check (spec §6.5)
+    if (options?.checkManifest !== false && manifest.schemaVersion?.hash) {
+      await this.validateSchemaVersion(manifest, errors, warnings)
     }
 
     return {
@@ -143,5 +150,53 @@ export class BackupValidatorImpl {
       validated: filesValidated.length,
       errors: errors.length
     })
+  }
+
+  private async validateSchemaVersion(
+    manifest: BackupManifest,
+    errors: ValidationResult['errors'],
+    warnings: ValidationResult['warnings']
+  ): Promise<void> {
+    const live = await this.getLiveSchemaVersion()
+    const backupHash = manifest.schemaVersion.hash
+
+    if (!live.hash || !backupHash) return
+    if (backupHash === live.hash) return
+
+    const backupIsNewer = manifest.schemaVersion.createdAt > live.createdAt
+
+    if (backupIsNewer) {
+      errors.push({
+        code: ValidationErrorCode.COMPAT_VERSION_TOO_NEW,
+        message: 'Backup was created with a newer database schema. Please upgrade the application before restoring.',
+        expected: live.hash,
+        actual: backupHash
+      })
+    } else {
+      warnings.push({
+        code: ValidationErrorCode.COMPAT_VERSION_TOO_OLD,
+        message: 'Backup has an older database schema. Missing columns will use defaults. Import may lose some data.',
+        expected: live.hash,
+        actual: backupHash
+      })
+    }
+  }
+
+  private async getLiveSchemaVersion(): Promise<{ hash: string; createdAt: number }> {
+    const dbPath = application.getPath('app.database.file')
+    const client = createClient({ url: pathToFileURL(dbPath).href })
+    try {
+      const result = await client.execute(
+        'SELECT hash, created_at FROM __drizzle_migrations ORDER BY created_at DESC LIMIT 1'
+      )
+      if (result.rows.length > 0) {
+        return { hash: result.rows[0].hash as string, createdAt: Number(result.rows[0].created_at) }
+      }
+    } catch {
+      logger.warn('Could not read live schema version')
+    } finally {
+      client.close()
+    }
+    return { hash: '', createdAt: 0 }
   }
 }

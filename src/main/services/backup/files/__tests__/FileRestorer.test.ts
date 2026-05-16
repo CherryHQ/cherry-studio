@@ -63,7 +63,7 @@ describe('FileRestorer', () => {
     await fsp.rm(tmpDir, { recursive: true, force: true })
   })
 
-  it('OVERWRITE replaces files even when sizes match', async () => {
+  it('skips files when name and size match (spec §7.3)', async () => {
     const extractDir = path.join(tmpDir, 'extract')
     const filesDir = path.join(extractDir, 'files')
 
@@ -77,10 +77,27 @@ describe('FileRestorer', () => {
     const restorer = new FileRestorer(extractDir, createMockTracker() as never, createMockToken() as never)
     const result = await restorer.restoreFiles(ConflictStrategy.OVERWRITE)
 
+    // Same name + same size → skip regardless of strategy
+    expect(result.restored).toBe(0)
+    expect(result.skipped).toBe(1)
+    const content = await fsp.readFile(path.join(liveDir, 'a.txt'), 'utf-8')
+    expect(content).toBe('OLD!')
+  })
+
+  it('OVERWRITE replaces files when sizes differ', async () => {
+    const extractDir = path.join(tmpDir, 'extract')
+    const filesDir = path.join(extractDir, 'files')
+
+    await fsp.writeFile(path.join(filesDir, 'a.txt'), 'NEW CONTENT!')
+    await fsp.writeFile(path.join(liveDir, 'a.txt'), 'OLD!')
+
+    const restorer = new FileRestorer(extractDir, createMockTracker() as never, createMockToken() as never)
+    const result = await restorer.restoreFiles(ConflictStrategy.OVERWRITE)
+
     expect(result.restored).toBe(1)
     expect(result.skipped).toBe(0)
     const content = await fsp.readFile(path.join(liveDir, 'a.txt'), 'utf-8')
-    expect(content).toBe('NEW!')
+    expect(content).toBe('NEW CONTENT!')
   })
 
   it('SKIP skips existing files', async () => {

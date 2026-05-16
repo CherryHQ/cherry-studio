@@ -35,6 +35,16 @@ export class FileRestorer {
       const targetPath = path.join(targetDir, entry.name)
 
       if (fs.existsSync(targetPath)) {
+        const srcSize = fs.statSync(sourcePath).size
+        const tgtSize = fs.statSync(targetPath).size
+
+        // Same name + same size → skip regardless of strategy (spec §7.3)
+        if (srcSize === tgtSize) {
+          skipped++
+          continue
+        }
+
+        // Same name + different size + SKIP strategy → skip
         if (strategy === ConflictStrategy.SKIP) {
           skipped++
           continue
@@ -73,6 +83,15 @@ export class FileRestorer {
       const targetPath = path.join(targetDir, entry.name)
 
       if (fs.existsSync(targetPath)) {
+        // For KB directories, compare total file count as a proxy for size
+        const srcFiles = await this.countFilesRecursive(sourcePath)
+        const tgtFiles = await this.countFilesRecursive(targetPath)
+
+        if (srcFiles === tgtFiles) {
+          skipped++
+          continue
+        }
+
         if (strategy === ConflictStrategy.SKIP) {
           skipped++
           continue
@@ -86,5 +105,18 @@ export class FileRestorer {
 
     logger.info('Knowledge base restore complete', { restored, skipped })
     return { restored, skipped }
+  }
+
+  private async countFilesRecursive(dir: string): Promise<number> {
+    let count = 0
+    const entries = await fsp.readdir(dir, { withFileTypes: true })
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        count += await this.countFilesRecursive(path.join(dir, entry.name))
+      } else {
+        count++
+      }
+    }
+    return count
   }
 }
