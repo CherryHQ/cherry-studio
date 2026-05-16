@@ -153,12 +153,14 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
       return truncateText(text)
     }
 
+    // Skip LLM-based naming when disabled, but keep local fallback
     if (!enableTopicNaming) {
-      const topicName = getFirstMessageName()
-      if (topicName) {
+      logger.debug('Skip AI topic naming, using first message as fallback')
+      const fallbackName = getFirstMessageName()
+      if (fallbackName) {
+        startTopicRenaming(topicId)
         try {
-          startTopicRenaming(topicId)
-          applyTopicName(topicName)
+          applyTopicName(fallbackName)
         } finally {
           finishTopicRenaming(topicId)
         }
