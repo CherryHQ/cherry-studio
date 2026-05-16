@@ -111,14 +111,6 @@ export function isSupportVerbosityProvider(provider: Provider): boolean {
   return provider.apiFeatures.verbosity
 }
 
-export function isSupportEnableThinkingProvider(_provider: Provider): boolean {
-  // `enableThinking` was removed from ApiFeatures on HEAD (commit 741d9eb24).
-  // There is no per-provider toggle in v2; thinking control is model-level.
-  // v1 default was "supported unless explicitly disabled" → keep true until
-  // provider-registry capability inference lands (PR #14011).
-  return true
-}
-
 export function isProviderSupportAuth(provider: Pick<Provider, 'id'>): boolean {
   const supportProviders = ['302ai', 'silicon', 'aihubmix', 'ppio', 'tokenflux', 'aionly']
   return supportProviders.includes(provider.id)
