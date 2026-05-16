@@ -19,6 +19,7 @@ import {
   type UpdateAgentDto
 } from '@shared/data/api/schemas/agents'
 import type { AgentType } from '@shared/data/types/agent'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { and, asc, count, desc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -37,6 +38,7 @@ function rowToAgent(row: AgentRow, modelName: string | null = null): AgentEntity
   return {
     ...clean,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
+    model: clean.model as UniqueModelId | undefined,
     configuration: parseConfiguration(row.configuration),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt),
