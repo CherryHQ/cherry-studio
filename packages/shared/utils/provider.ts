@@ -3,8 +3,10 @@
  *
  * Supports both old types (provider.type) and v2 types (provider.presetProviderId).
  *
- * Will be replaced by `@cherrystudio/provider-registry` capability inference
- * once PR #14011 is merged.
+ * Capability predicates: serviceTier/verbosity read the v2 Provider's
+ * registry-sourced `apiFeatures`; urlContext/enableThinking derive from
+ * v2 provider identity (no registry apiFeatures flag exists for those),
+ * faithfully porting the former v1 `@renderer/utils/provider` semantics.
  * @see https://github.com/CherryHQ/cherry-studio/pull/14011
  */
 
@@ -47,32 +49,43 @@ export function isAIGatewayProvider(provider: Provider): boolean {
   return provider.presetProviderId === 'gateway' || provider.id === 'gateway'
 }
 
-/** Check if provider supports URL context */
-// oxlint-disable-next-line no-unused-vars
-export function isSupportUrlContextProvider(_provider: Provider): boolean {
-  // TODO: derive from provider-registry capabilities
-  return false
+/**
+ * Check if provider supports URL context (Gemini/Vertex/Anthropic/
+ * Azure-OpenAI/new-api family, plus cherryin). The provider-registry has
+ * no urlContext apiFeature flag, so this is derived from provider identity
+ * — a faithful v2 port of the former v1 SUPPORT_URL_CONTEXT_PROVIDER_TYPES.
+ */
+export function isSupportUrlContextProvider(provider: Provider): boolean {
+  return (
+    isGeminiProvider(provider) ||
+    isVertexProvider(provider) ||
+    isAnthropicProvider(provider) ||
+    isAzureOpenAIProvider(provider) ||
+    isNewApiProvider(provider) ||
+    provider.id === 'cherryin'
+  )
 }
 
-/** Check if provider supports service tier */
-// oxlint-disable-next-line no-unused-vars
-export function isSupportServiceTierProvider(_provider: Provider): boolean {
-  // TODO: derive from provider-registry capabilities
-  return false
+/** Check if provider supports service tier (registry-sourced apiFeatures). */
+export function isSupportServiceTierProvider(provider: Provider): boolean {
+  return provider.apiFeatures?.serviceTier ?? false
 }
 
-/** Check if provider supports verbosity */
-// oxlint-disable-next-line no-unused-vars
-export function isSupportVerbosityProvider(_provider: Provider): boolean {
-  // TODO: derive from provider-registry capabilities
-  return false
+/** Check if provider supports verbosity (registry-sourced apiFeatures). */
+export function isSupportVerbosityProvider(provider: Provider): boolean {
+  return provider.apiFeatures?.verbosity ?? false
 }
 
-/** Check if provider supports enabling thinking mode */
-// oxlint-disable-next-line no-unused-vars
-export function isSupportEnableThinkingProvider(_provider: Provider): boolean {
-  // TODO: derive from provider-registry capabilities
-  return false
+/**
+ * Providers that do NOT support the Qwen3 `enable_thinking` parameter
+ * (OpenAI Chat Completions API only). No registry apiFeature flag exists
+ * for this; faithful v2 port of the former v1 exclusion list.
+ */
+const NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDERS = ['ollama', 'lmstudio', 'nvidia', 'gpustack'] as const
+
+/** Check if provider supports enabling thinking mode. */
+export function isSupportEnableThinkingProvider(provider: Provider): boolean {
+  return !NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDERS.some((id) => id === provider.id)
 }
 
 // ── Additional v2 predicates (T1.2: single source of truth) ───────────────
