@@ -5,7 +5,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import AgentSettingsPopup from '@renderer/pages/settings/AgentSettings/AgentSettingsPopup'
 import { AgentLabel, buildResetToolingUpdate } from '@renderer/pages/settings/AgentSettings/shared'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { AgentEntity } from '@renderer/types'
+import type { GetAgentResponse } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
@@ -16,9 +16,9 @@ import { useTranslation } from 'react-i18next'
 // const logger = loggerService.withContext('AgentItem')
 
 interface AgentItemProps {
-  agent: AgentEntity
+  agent: GetAgentResponse
   isActive: boolean
-  onDelete: (agent: AgentEntity) => void
+  onDelete: (agent: GetAgentResponse) => void
   onPress: () => void
 }
 
