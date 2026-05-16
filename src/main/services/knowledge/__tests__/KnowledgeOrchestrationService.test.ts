@@ -7,6 +7,7 @@ import {
   type KnowledgeItem,
   type KnowledgeItemOf
 } from '@shared/data/types/knowledge'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -77,16 +78,6 @@ vi.mock('@application', async () => {
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      error: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn()
-    })
-  }
-}))
-
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
   const actual = await importOriginal<typeof LifecycleModule>()
 
@@ -122,9 +113,7 @@ vi.mock('../runtime/utils/cleanup', () => ({
   failItems: failItemsMock
 }))
 
-const { KnowledgeOrchestrationService, KnowledgeRuntimeAddItemsPartialError } = await import(
-  '../KnowledgeOrchestrationService'
-)
+const { KnowledgeOrchestrationService } = await import('../KnowledgeOrchestrationService')
 
 function createBase() {
   return {
@@ -176,18 +165,6 @@ function expectCompletedBaseNoopRebuildGuard(error: unknown) {
       operation: 'restoreBase',
       reason: 'Embedding model or dimensions must change when rebuilding a completed knowledge base'
     }
-  })
-}
-
-function expectRestorePartialError(
-  error: unknown,
-  failures: Array<{ sourceItemId: string | null; sourceItemType: string | null; message: string }>
-) {
-  expect(error).toBeInstanceOf(KnowledgeRuntimeAddItemsPartialError)
-  expect(error).toMatchObject({
-    name: 'KnowledgeRuntimeAddItemsPartialError',
-    message: `Failed to restore ${failures.length} knowledge root item(s)`,
-    failures
   })
 }
 
@@ -665,7 +642,7 @@ describe('KnowledgeOrchestrationService', () => {
     expect(runtimeAddItemsMock).not.toHaveBeenCalled()
   })
 
-  it('adds restored root items in one batch and deletes the new base when runtime acceptance fails', async () => {
+  it('returns the restored base and keeps it when runtime add fails after base creation', async () => {
     const service = new KnowledgeOrchestrationService()
     const sourceBase = createMissingModelBase()
     const firstRoot = { ...createNoteItem('note-root-1'), baseId: sourceBase.id }
@@ -683,10 +660,7 @@ describe('KnowledgeOrchestrationService', () => {
         embeddingModelId: 'openai::text-embedding-3-large',
         dimensions: 3072
       })
-    ).rejects.toSatisfy((restoreError: unknown) => {
-      expectRestorePartialError(restoreError, [{ sourceItemId: null, sourceItemType: null, message: error.message }])
-      return true
-    })
+    ).resolves.toEqual(createBase())
 
     expect(runtimeAddItemsMock).toHaveBeenCalledOnce()
     expect(runtimeAddItemsMock).toHaveBeenCalledWith('kb-1', [
@@ -694,11 +668,16 @@ describe('KnowledgeOrchestrationService', () => {
       { type: failedRoot.type, data: failedRoot.data },
       { type: thirdRoot.type, data: thirdRoot.data }
     ])
-    expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
-    expect(runtimeDeleteBaseArtifactsMock).toHaveBeenCalledWith('kb-1')
+    expect(mockMainLoggerService.error).toHaveBeenCalledWith('Failed to add restored knowledge root items', error, {
+      sourceBaseId: sourceBase.id,
+      restoredBaseId: 'kb-1',
+      rootItemCount: 3
+    })
+    expect(knowledgeBaseDeleteMock).not.toHaveBeenCalled()
+    expect(runtimeDeleteBaseArtifactsMock).not.toHaveBeenCalled()
   })
 
-  it('aggregates root item parse failures without calling runtime addItems', async () => {
+  it('skips invalid restored root items and keeps the new base', async () => {
     const service = new KnowledgeOrchestrationService()
     const sourceBase = createMissingModelBase()
     const firstRoot = { ...createNoteItem('note-root-1'), baseId: sourceBase.id }
@@ -718,23 +697,60 @@ describe('KnowledgeOrchestrationService', () => {
         embeddingModelId: 'openai::text-embedding-3-large',
         dimensions: 3072
       })
-    ).rejects.toSatisfy((restoreError: unknown) => {
-      expectRestorePartialError(restoreError, [
-        {
-          sourceItemId: invalidRoot.id,
-          sourceItemType: invalidRoot.type,
-          message: expect.stringContaining('Invalid input')
-        }
-      ])
-      return true
-    })
+    ).resolves.toEqual(createBase())
 
-    expect(runtimeAddItemsMock).not.toHaveBeenCalled()
-    expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
-    expect(runtimeDeleteBaseArtifactsMock).toHaveBeenCalledWith('kb-1')
+    expect(runtimeAddItemsMock).toHaveBeenCalledWith('kb-1', [{ type: firstRoot.type, data: firstRoot.data }])
+    expect(mockMainLoggerService.error).toHaveBeenCalledWith(
+      'Failed to prepare source knowledge root item for restore',
+      expect.any(Error),
+      {
+        sourceBaseId: sourceBase.id,
+        restoredBaseId: 'kb-1',
+        sourceItemId: invalidRoot.id,
+        sourceItemType: invalidRoot.type
+      }
+    )
+    expect(knowledgeBaseDeleteMock).not.toHaveBeenCalled()
+    expect(runtimeDeleteBaseArtifactsMock).not.toHaveBeenCalled()
   })
 
-  it('keeps the aggregate item acceptance error when cleanup of a failed restore also fails', async () => {
+  it('returns restored base without runtime add when all restored root items are invalid', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const sourceBase = createMissingModelBase()
+    const invalidRoot = {
+      ...createNoteItem('invalid-root'),
+      baseId: sourceBase.id,
+      type: 'unsupported',
+      data: { source: 'invalid-root' }
+    } as unknown as KnowledgeItem
+    knowledgeBaseGetByIdMock.mockResolvedValueOnce(sourceBase)
+    knowledgeItemGetItemsByBaseIdMock.mockResolvedValueOnce([invalidRoot])
+
+    await expect(
+      service.restoreBase({
+        sourceBaseId: 'source-kb',
+        name: 'Legacy KB_bak',
+        embeddingModelId: 'openai::text-embedding-3-large',
+        dimensions: 3072
+      })
+    ).resolves.toEqual(createBase())
+
+    expect(runtimeAddItemsMock).not.toHaveBeenCalled()
+    expect(mockMainLoggerService.error).toHaveBeenCalledWith(
+      'Failed to prepare source knowledge root item for restore',
+      expect.any(Error),
+      {
+        sourceBaseId: sourceBase.id,
+        restoredBaseId: 'kb-1',
+        sourceItemId: invalidRoot.id,
+        sourceItemType: invalidRoot.type
+      }
+    )
+    expect(knowledgeBaseDeleteMock).not.toHaveBeenCalled()
+    expect(runtimeDeleteBaseArtifactsMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps the restored base when runtime add fails even if old cleanup would have failed', async () => {
     const service = new KnowledgeOrchestrationService()
     const sourceBase = createMissingModelBase()
     const root = { ...createNoteItem('note-root'), baseId: sourceBase.id }
@@ -751,11 +767,15 @@ describe('KnowledgeOrchestrationService', () => {
         embeddingModelId: 'openai::text-embedding-3-large',
         dimensions: 3072
       })
-    ).rejects.toSatisfy((restoreError: unknown) => {
-      expectRestorePartialError(restoreError, [{ sourceItemId: null, sourceItemType: null, message: error.message }])
-      return true
+    ).resolves.toEqual(createBase())
+
+    expect(mockMainLoggerService.error).toHaveBeenCalledWith('Failed to add restored knowledge root items', error, {
+      sourceBaseId: sourceBase.id,
+      restoredBaseId: 'kb-1',
+      rootItemCount: 1
     })
     expect(knowledgeBaseDeleteMock).not.toHaveBeenCalled()
+    expect(runtimeDeleteBaseArtifactsMock).not.toHaveBeenCalled()
   })
 
   it('delegates create-item DTO inputs to runtime', async () => {

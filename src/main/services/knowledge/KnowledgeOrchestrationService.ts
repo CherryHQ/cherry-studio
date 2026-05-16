@@ -33,22 +33,6 @@ import { normalizeKnowledgeFileData } from './utils/file'
 const logger = loggerService.withContext('KnowledgeOrchestrationService')
 const SOURCE_FILE_MISSING_REINDEX_ERROR = 'Source file is missing'
 
-export interface KnowledgeRuntimeAddItemsPartialFailure {
-  sourceItemId: string | null
-  sourceItemType: KnowledgeItem['type'] | null
-  message: string
-}
-
-export class KnowledgeRuntimeAddItemsPartialError extends Error {
-  readonly failures: KnowledgeRuntimeAddItemsPartialFailure[]
-
-  constructor(failures: KnowledgeRuntimeAddItemsPartialFailure[]) {
-    super(`Failed to restore ${failures.length} knowledge root item(s)`)
-    this.name = 'KnowledgeRuntimeAddItemsPartialError'
-    this.failures = failures
-  }
-}
-
 function createRestoreBaseDto(sourceBase: KnowledgeBase, dto: RestoreKnowledgeBaseDto): CreateKnowledgeBaseDto {
   // The new vector store is shaped from dto.dimensions. Callers must resolve it
   // against dto.embeddingModelId before restore; mismatches surface during reindex.
@@ -178,51 +162,39 @@ export class KnowledgeOrchestrationService extends BaseService {
     const rootItems = await knowledgeItemService.getItemsByBaseId(sourceBase.id, { groupId: null })
     const restoredBase = await this.createBase(createDto)
 
-    try {
-      const failures: KnowledgeRuntimeAddItemsPartialFailure[] = []
-      const inputs: CreateKnowledgeItemDto[] = []
+    const inputs: CreateKnowledgeItemDto[] = []
 
-      for (const item of rootItems) {
-        try {
-          inputs.push(toCreateKnowledgeItemInput(item))
-        } catch (error) {
-          failures.push({
-            sourceItemId: item.id,
-            sourceItemType: item.type,
-            message: error instanceof Error ? error.message : String(error)
-          })
-        }
-      }
-
-      if (inputs.length > 0 && failures.length === 0) {
-        try {
-          await this.addPreparedItems(restoredBase.id, inputs)
-        } catch (error) {
-          failures.push({
-            sourceItemId: null,
-            sourceItemType: null,
-            message: error instanceof Error ? error.message : String(error)
-          })
-        }
-      }
-
-      if (failures.length > 0) {
-        throw new KnowledgeRuntimeAddItemsPartialError(failures)
-      }
-    } catch (error) {
+    for (const item of rootItems) {
       try {
-        await this.deleteBase(restoredBase.id)
-      } catch (cleanupError) {
+        inputs.push(toCreateKnowledgeItemInput(item))
+      } catch (error) {
         logger.error(
-          'Failed to delete restored knowledge base after item restoration failed',
-          cleanupError instanceof Error ? cleanupError : new Error(String(cleanupError)),
+          'Failed to prepare source knowledge root item for restore',
+          error instanceof Error ? error : new Error(String(error)),
           {
             sourceBaseId: sourceBase.id,
-            restoredBaseId: restoredBase.id
+            restoredBaseId: restoredBase.id,
+            sourceItemId: item.id,
+            sourceItemType: item.type
           }
         )
       }
-      throw error
+    }
+
+    if (inputs.length > 0) {
+      try {
+        await this.addPreparedItems(restoredBase.id, inputs)
+      } catch (error) {
+        logger.error(
+          'Failed to add restored knowledge root items',
+          error instanceof Error ? error : new Error(String(error)),
+          {
+            sourceBaseId: sourceBase.id,
+            restoredBaseId: restoredBase.id,
+            rootItemCount: inputs.length
+          }
+        )
+      }
     }
 
     return restoredBase
