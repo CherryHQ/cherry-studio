@@ -59,10 +59,6 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
   })
 }))
 
-vi.mock('@renderer/services/AssistantService', () => ({
-  getProviderByModel: () => ({ id: 'anthropic', type: 'anthropic' })
-}))
-
 vi.mock('@renderer/utils/api', () => ({
   splitApiKeyString: (value: string) => value.split(',').map((item) => item.trim())
 }))

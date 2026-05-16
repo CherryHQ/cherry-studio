@@ -30,7 +30,6 @@ vi.mock('@renderer/store/settings', () => ({
 }))
 
 vi.mock('@renderer/services/AssistantService', () => ({
-  getProviderByModel: vi.fn(),
   getAssistantSettings: vi.fn(),
   getDefaultAssistant: vi.fn().mockReturnValue({
     id: 'default',

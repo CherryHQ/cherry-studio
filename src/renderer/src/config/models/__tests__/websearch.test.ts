@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const providerMock = vi.mocked(getProviderByModel)
-
 vi.mock('@renderer/services/AssistantService', () => ({
-  getProviderByModel: vi.fn(),
   getAssistantSettings: vi.fn(),
   getDefaultAssistant: vi.fn().mockReturnValue({
     id: 'default',
@@ -51,8 +48,7 @@ vi.mock('@renderer/hooks/useSettings', () => ({
   getStoreSetting: vi.fn()
 }))
 
-import { getProviderByModel } from '@renderer/services/AssistantService'
-import type { Model as V1Model, Provider } from '@renderer/types'
+import type { Model as V1Model } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
 import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
@@ -71,20 +67,9 @@ import {
 const createModel = (overrides: Partial<V1Model> = {}): Model =>
   toSharedCompatModel({ id: 'gpt-4o', name: 'gpt-4o', provider: 'openai', group: 'OpenAI', ...overrides } as V1Model)
 
-const createProvider = (overrides: Partial<Provider> = {}): Provider => ({
-  id: 'openai',
-  type: 'openai',
-  name: 'OpenAI',
-  apiKey: '',
-  apiHost: '',
-  models: [],
-  ...overrides
-})
-
 describe('websearch helpers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    providerMock.mockReturnValue(createProvider())
   })
 
   describe('isOpenAIDeepResearchModel', () => {

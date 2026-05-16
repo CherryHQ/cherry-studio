@@ -37,12 +37,10 @@ vi.mock('@renderer/store', () => ({
   }
 }))
 
-const getProviderByModelMock = vi.fn()
 const isEmbeddingModelMock = vi.fn()
 const isRerankModelMock = vi.fn()
 
 vi.mock('@renderer/services/AssistantService', () => ({
-  getProviderByModel: (...args: any[]) => getProviderByModelMock(...args),
   getAssistantSettings: vi.fn(),
   getDefaultAssistant: vi.fn().mockReturnValue({
     id: 'default',
@@ -59,7 +57,6 @@ vi.mock('@renderer/config/models/embedding', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
-  getProviderByModelMock.mockReturnValue({ type: 'openai-response' } as any)
   isEmbeddingModelMock.mockReturnValue(false)
   isRerankModelMock.mockReturnValue(false)
 })

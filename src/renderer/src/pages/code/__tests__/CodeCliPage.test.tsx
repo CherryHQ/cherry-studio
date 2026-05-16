@@ -93,8 +93,7 @@ vi.mock('@renderer/hooks/useTimer', () => ({
 }))
 
 vi.mock('@renderer/services/AssistantService', () => ({
-  getAssistantSettings: () => ({}),
-  getProviderByModel: vi.fn()
+  getAssistantSettings: () => ({})
 }))
 
 vi.mock('@renderer/services/LoggerService', () => ({

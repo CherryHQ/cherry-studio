@@ -1,4 +1,3 @@
-import { getProviderByModel } from '@renderer/services/AssistantService'
 import type { Model as V1Model } from '@renderer/types'
 import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
@@ -69,10 +68,6 @@ vi.mock('@renderer/hooks/useSettings', () => ({
   getStoreSetting: vi.fn()
 }))
 
-vi.mock('@renderer/services/AssistantService', () => ({
-  getProviderByModel: vi.fn()
-}))
-
 vi.mock('../embedding', () => ({
   isEmbeddingModel: vi.fn(),
   isRerankModel: vi.fn()
@@ -81,14 +76,12 @@ vi.mock('../embedding', () => ({
 const createModel = (overrides: Partial<V1Model> = {}): V1Model =>
   ({ id: 'gpt-4o', name: 'gpt-4o', provider: 'openai', group: 'OpenAI', ...overrides }) as V1Model
 
-const providerMock = vi.mocked(getProviderByModel)
 const embeddingMock = vi.mocked(isEmbeddingModel)
 const rerankMock = vi.mocked(isRerankModel)
 
 describe('vision helpers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    providerMock.mockReturnValue({ type: 'openai-response' } as any)
     embeddingMock.mockReturnValue(false)
     rerankMock.mockReturnValue(false)
   })
