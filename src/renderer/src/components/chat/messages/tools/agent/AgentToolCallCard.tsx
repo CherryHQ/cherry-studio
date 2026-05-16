@@ -33,13 +33,14 @@ export function AgentToolCallCard({
       />
     ),
     classNames: {
-      body: 'max-h-96 overflow-scroll bg-foreground-50 p-2 text-foreground-900 dark:bg-foreground-100'
+      header: 'px-0 py-0',
+      body: 'max-h-96 overflow-auto bg-transparent p-0 text-foreground-900 dark:bg-transparent'
     }
   }
 
   return (
     <AgentToolDisclosure
-      className="w-max max-w-full data-[expanded=true]:w-full"
+      className="w-max max-w-full rounded-none border-0 bg-transparent data-[expanded=true]:w-full"
       isStreaming={isStreaming}
       item={toolContentItem}
     />
