@@ -1,4 +1,4 @@
-import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
+import { MessageStream } from '@anthropic-ai/sdk/lib/MessageStream'
 import { Stream } from '@cherrystudio/openai/streaming'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'

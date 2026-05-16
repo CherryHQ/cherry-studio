@@ -145,7 +145,7 @@
     "@ant-design/cssinjs": "1.23.0",
     "@ant-design/icons": "5.6.1",
     "@ant-design/v5-patch-for-react-19": "^1.0.3",
-    "@anthropic-ai/sdk": "^0.41.0",
+    "@anthropic-ai/sdk": "^0.81.0",
     "@aws-sdk/client-s3": "^3.998.0",
     "@biomejs/biome": "2.2.4",
     "@changesets/changelog-github": "^0.5.2",

@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import type { MessageCreateParams, MessageStreamEvent } from '@anthropic-ai/sdk/resources'
+import type { MessageCreateParams, RawMessageStreamEvent } from '@anthropic-ai/sdk/resources'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { anthropicService } from '@main/services/AnthropicService'
@@ -35,7 +35,7 @@ export interface ErrorResponse {
 
 export interface StreamConfig {
   response: Response
-  onChunk?: (chunk: MessageStreamEvent) => void
+  onChunk?: (chunk: RawMessageStreamEvent) => void
   onError?: (error: any) => void
   onComplete?: () => void
 }
