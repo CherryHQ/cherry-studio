@@ -4,7 +4,7 @@ import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { UpdateAgentBaseForm } from '@renderer/types'
 import { GLOBALLY_DISALLOWED_TOOLS, SOUL_MODE_DISALLOWED_TOOLS } from '@shared/agents/claudecode/constants'
 import type { CardProps } from 'antd'
-import { Card, Switch, Tag, Tooltip } from 'antd'
+import { Button, Card, Switch, Tag, Tooltip } from 'antd'
 import { uniq } from 'lodash'
 import { Wrench } from 'lucide-react'
 import type { FC } from 'react'
@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next'
 
 import {
   type AgentOrSessionSettingsProps,
+  buildResetToolingUpdate,
   computeModeDefaults,
   defaultConfiguration,
   isSoulModeEnabled,
@@ -65,6 +66,7 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
   const [searchTerm, setSearchTerm] = useState('')
   const [isUpdatingTools, setIsUpdatingTools] = useState(false)
   const [isUpdatingMcp, setIsUpdatingMcp] = useState(false)
+  const [isResetting, setIsResetting] = useState(false)
 
   const selectedMode = useMemo(
     () => agentBase?.configuration?.permission_mode ?? defaultConfiguration.permission_mode,
@@ -102,7 +104,7 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
 
   const handleToggleTool = useCallback(
     async (toolId: string, isApproved: boolean) => {
-      if (!agentBase || isUpdatingTools) {
+      if (!agentBase || isUpdatingTools || isResetting) {
         return
       }
 
@@ -119,12 +121,12 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
         setIsUpdatingTools(false)
       }
     },
-    [agentBase, isUpdatingTools, approvedToolIds, autoToolIds, availableTools, update]
+    [agentBase, isResetting, isUpdatingTools, approvedToolIds, autoToolIds, availableTools, update]
   )
 
   const handleToggleMcp = useCallback(
     async (serverId: string, enabled: boolean) => {
-      if (!agentBase || isUpdatingMcp) {
+      if (!agentBase || isUpdatingMcp || isResetting) {
         return
       }
       const exists = selectedMcpIds.includes(serverId)
@@ -140,8 +142,30 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
         setIsUpdatingMcp(false)
       }
     },
-    [agentBase, isUpdatingMcp, selectedMcpIds, update]
+    [agentBase, isResetting, isUpdatingMcp, selectedMcpIds, update]
   )
+
+  const handleResetTooling = useCallback(() => {
+    if (!agentBase || isResetting || isUpdatingTools || isUpdatingMcp) {
+      return
+    }
+
+    window.modal.confirm({
+      title: t('common.reset'),
+      okText: t('common.reset'),
+      cancelText: t('common.cancel'),
+      centered: true,
+      onOk: async () => {
+        setIsResetting(true)
+        try {
+          const resetUpdate = buildResetToolingUpdate(selectedMode, availableTools)
+          await update({ id: agentBase.id, ...resetUpdate } satisfies UpdateAgentBaseForm)
+        } finally {
+          setIsResetting(false)
+        }
+      }
+    })
+  }, [agentBase, availableTools, isResetting, isUpdatingMcp, isUpdatingTools, selectedMode, t, update])
 
   if (!agentBase) {
     return null
@@ -152,12 +176,21 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
       <SettingsItem divider={false}>
         <SettingsTitle
           contentAfter={
-            <CollapsibleSearchBar
-              onSearch={setSearchTerm}
-              placeholder={t('agent.settings.tooling.preapproved.search', 'Search tools')}
-              tooltip={t('agent.settings.tooling.preapproved.search', 'Search tools')}
-              style={{ borderRadius: 20 }}
-            />
+            <div className="flex items-center gap-2">
+              <CollapsibleSearchBar
+                onSearch={setSearchTerm}
+                placeholder={t('agent.settings.tooling.preapproved.search', 'Search tools')}
+                tooltip={t('agent.settings.tooling.preapproved.search', 'Search tools')}
+                style={{ borderRadius: 20 }}
+              />
+              <Button
+                danger
+                size="small"
+                disabled={isResetting || isUpdatingTools || isUpdatingMcp}
+                onClick={handleResetTooling}>
+                {t('common.reset')}
+              </Button>
+            </div>
           }>
           {t('agent.settings.toolsMcp.tools.title', 'Pre-approved Tools')}
         </SettingsTitle>

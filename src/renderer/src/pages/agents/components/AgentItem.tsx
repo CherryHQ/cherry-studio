@@ -1,10 +1,11 @@
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import MarqueeText from '@renderer/components/MarqueeText'
+import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import { useSettings } from '@renderer/hooks/useSettings'
 import AgentSettingsPopup from '@renderer/pages/settings/AgentSettings/AgentSettingsPopup'
-import { AgentLabel } from '@renderer/pages/settings/AgentSettings/shared'
+import { AgentLabel, buildResetToolingUpdate } from '@renderer/pages/settings/AgentSettings/shared'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { AgentEntity } from '@renderer/types'
+import type { GetAgentResponse } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
@@ -15,16 +16,18 @@ import { useTranslation } from 'react-i18next'
 // const logger = loggerService.withContext('AgentItem')
 
 interface AgentItemProps {
-  agent: AgentEntity
+  agent: GetAgentResponse
   isActive: boolean
-  onDelete: (agent: AgentEntity) => void
+  onDelete: (agent: GetAgentResponse) => void
   onPress: () => void
 }
 
 const AgentItem = ({ agent, isActive, onDelete, onPress }: AgentItemProps) => {
   const { t } = useTranslation()
   const { clickAssistantToShowTopic, topicPosition, assistantIconType } = useSettings()
+  const { updateAgent } = useUpdateAgent()
   const [isHovered, setIsHovered] = useState(false)
+  const [isResetting, setIsResetting] = useState(false)
 
   const handlePress = useCallback(() => {
     // Show session sidebar if setting is enabled (reusing the assistant setting for consistency)
@@ -39,6 +42,33 @@ const AgentItem = ({ agent, isActive, onDelete, onPress }: AgentItemProps) => {
   const handleMenuButtonClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
   }, [])
+
+  const handleResetTooling = useCallback(() => {
+    if (isResetting) {
+      return
+    }
+
+    window.modal.confirm({
+      title: t('agent.settings.tooling.reset', 'Reset tools & MCP'),
+      content: t(
+        'agent.settings.tooling.reset.confirm',
+        'This will clear the agent MCP connections and restore the default tool approvals for its current permission mode.'
+      ),
+      okText: t('common.reset'),
+      cancelText: t('common.cancel'),
+      centered: true,
+      onOk: async () => {
+        setIsResetting(true)
+        try {
+          const selectedMode = agent.configuration?.permission_mode ?? 'default'
+          const resetUpdate = buildResetToolingUpdate(selectedMode, agent.tools ?? [])
+          await updateAgent({ id: agent.id, ...resetUpdate }, { showSuccessToast: true })
+        } finally {
+          setIsResetting(false)
+        }
+      }
+    })
+  }, [agent.configuration?.permission_mode, agent.id, agent.tools, isResetting, t, updateAgent])
 
   const menuItems: MenuProps['items'] = useMemo(
     () => [
@@ -62,9 +92,14 @@ const AgentItem = ({ agent, isActive, onDelete, onPress }: AgentItemProps) => {
             onOk: () => onDelete(agent)
           })
         }
+      },
+      {
+        label: t('agent.settings.tooling.reset', 'Reset tools & MCP'),
+        key: 'reset-tooling',
+        onClick: handleResetTooling
       }
     ],
-    [t, agent, onDelete]
+    [agent, handleResetTooling, onDelete, t]
   )
 
   return (
