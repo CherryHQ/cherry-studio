@@ -75,12 +75,14 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
       })
     }
 
+    const cachedTokens = message?.usage?.prompt_tokens_details?.cached_tokens
     const tokensInfo = (
       <span className="tokens">
         Tokens:
         <span>{message?.usage?.total_tokens}</span>
         <span>↑{message?.usage?.prompt_tokens}</span>
         <span>↓{message?.usage?.completion_tokens}</span>
+        {cachedTokens ? <span>+{cachedTokens} cached</span> : null}
         <span>{getPriceString()}</span>
       </span>
     )

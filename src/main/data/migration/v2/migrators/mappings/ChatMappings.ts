@@ -175,6 +175,9 @@ export interface OldUsage {
   total_tokens?: number
   thoughts_tokens?: number
   cost?: number
+  prompt_tokens_details?: {
+    cached_tokens?: number
+  }
 }
 
 /**
@@ -599,6 +602,8 @@ export function mergeStats(usage?: OldUsage, metrics?: OldMetrics): MessageStats
     if (usage.total_tokens !== undefined) stats.totalTokens = usage.total_tokens
     if (usage.thoughts_tokens !== undefined) stats.thoughtsTokens = usage.thoughts_tokens
     if (usage.cost !== undefined) stats.cost = usage.cost
+    if (usage.prompt_tokens_details?.cached_tokens !== undefined)
+      stats.cachedTokens = usage.prompt_tokens_details.cached_tokens
   }
 
   // Performance metrics

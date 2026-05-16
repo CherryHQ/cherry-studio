@@ -371,10 +371,12 @@ export class AiSdkToChunkAdapter {
           final.text = clearMessage
         }
 
+        const cachedTokens = chunk.totalUsage?.inputTokenDetails?.cacheReadTokens
         const usage = {
           completion_tokens: chunk.totalUsage?.outputTokens || 0,
           prompt_tokens: chunk.totalUsage?.inputTokens || 0,
-          total_tokens: chunk.totalUsage?.totalTokens || 0
+          total_tokens: chunk.totalUsage?.totalTokens || 0,
+          ...(cachedTokens ? { prompt_tokens_details: { cached_tokens: cachedTokens } } : {})
         }
         const metrics = this.buildMetrics(chunk.totalUsage)
         const baseResponse = {
