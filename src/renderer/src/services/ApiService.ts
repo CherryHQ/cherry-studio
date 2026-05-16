@@ -66,7 +66,11 @@ const SUMMARY_REQUEST_TIMEOUT_MS = 15_000
 const LOCAL_SUMMARY_REQUEST_TIMEOUT_MS = 90_000
 
 export function getSummaryRequestTimeoutMs(provider: Provider): number {
-  if (isOllamaProvider(provider) || provider.id === SystemProviderIds.lmstudio) {
+  if (
+    isOllamaProvider(provider) ||
+    provider.id === SystemProviderIds.lmstudio ||
+    provider.id === SystemProviderIds.ovms
+  ) {
     return LOCAL_SUMMARY_REQUEST_TIMEOUT_MS
   }
 

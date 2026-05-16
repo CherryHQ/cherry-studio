@@ -134,4 +134,9 @@ describe('getSummaryRequestTimeoutMs', () => {
 
     expect(getSummaryRequestTimeoutMs(createProvider({ id: SystemProviderIds.openai, type: 'openai' }))).toBe(15_000)
   })
+  it('returns 90 seconds for OVMS providers', async () => {
+    const { getSummaryRequestTimeoutMs } = await import('../ApiService')
+
+    expect(getSummaryRequestTimeoutMs(createProvider({ id: SystemProviderIds.ovms }))).toBe(90_000)
+  })
 })
