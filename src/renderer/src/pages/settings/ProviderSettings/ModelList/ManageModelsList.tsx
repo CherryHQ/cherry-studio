@@ -220,6 +220,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
                     indeterminate={isGroupIndeterminate}
                     disabled={modelsNotInProvider.length === 0}
                     aria-label={t('settings.models.manage.select_all_group', { groupName: row.groupName })}
+                    onClick={(e) => e.stopPropagation()}
                     onChange={(e) => {
                       e.stopPropagation()
                       setSelectedModels((prev) => {
