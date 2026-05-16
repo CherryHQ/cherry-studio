@@ -133,30 +133,30 @@ describe('classifyError', () => {
 
   // Knowledge auth (source='knowledge' + auth indicators)
   it('classifies knowledge source + 401 as knowledge_auth', () => {
-    const result = classifyError(makeError({ message: 'Unauthorized', source: 'knowledge' } as any))
+    const result = classifyError(makeError({ message: 'Unauthorized', source: 'knowledge' }))
     expect(result.category).toBe('knowledge_auth')
     expect(result.i18nKey).toBe('error.diagnosis.knowledge_auth')
     expect(result.navTarget).toBe('/knowledge')
   })
 
   it('classifies knowledge source + invalid_api_key as knowledge_auth', () => {
-    const result = classifyError(makeError({ message: 'invalid_api_key', source: 'knowledge' } as any))
+    const result = classifyError(makeError({ message: 'invalid_api_key', source: 'knowledge' }))
     expect(result.category).toBe('knowledge_auth')
     expect(result.navTarget).toBe('/knowledge')
   })
 
   it('falls through knowledge source + 429 to quota classifier', () => {
-    const result = classifyError(makeError({ statusCode: 429, source: 'knowledge' } as any))
+    const result = classifyError(makeError({ statusCode: 429, source: 'knowledge' }))
     expect(result.category).toBe('quota')
   })
 
   it('falls through knowledge source + 500 to server classifier', () => {
-    const result = classifyError(makeError({ statusCode: 500, source: 'knowledge' } as any))
+    const result = classifyError(makeError({ statusCode: 500, source: 'knowledge' }))
     expect(result.category).toBe('server')
   })
 
   it('falls through knowledge source + timeout to network classifier', () => {
-    const result = classifyError(makeError({ message: 'Request timeout', source: 'knowledge' } as any))
+    const result = classifyError(makeError({ message: 'Request timeout', source: 'knowledge' }))
     expect(result.category).toBe('network')
   })
 
