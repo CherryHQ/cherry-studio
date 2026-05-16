@@ -5,7 +5,6 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import db from '@renderer/databases'
 import { useAppUpdateHandler, useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import i18n, { setDayjsLocale } from '@renderer/i18n'
-import { knowledgeQueue } from '@renderer/queue/KnowledgeQueue'
 import { delay, runAsyncFunction } from '@renderer/utils'
 import { checkDataLimit } from '@renderer/utils'
 import { defaultLanguage } from '@shared/config/constant'
@@ -114,10 +113,6 @@ export function useAppInit() {
       cacheService.set('app.path.files', info.filesPath)
       cacheService.set('app.path.resources', info.resourcesPath)
     })
-  }, [])
-
-  useEffect(() => {
-    void knowledgeQueue.checkAllBases()
   }, [])
 
   useEffect(() => {
