@@ -221,16 +221,19 @@ export const searchKnowledgeBase = async (
       })
     }
     return result
-  } catch (error: any) {
-    logger.error(`Error searching knowledge base ${base.name}:`, error as Error)
+  } catch (rawError: unknown) {
+    // Normalize to Error object before attaching metadata
+    const error = rawError instanceof Error ? rawError : new Error(String(rawError))
+    logger.error(`Error searching knowledge base ${base.name}:`, error)
     // Enrich error with embedding context so UI can identify the failing stage
-    error.source = 'knowledge'
-    error.providerId = base.model?.provider
-    error.modelId = base.model?.id
+    const enriched = error as unknown as Record<string, unknown>
+    enriched.source = 'knowledge'
+    enriched.providerId = base.model?.provider
+    enriched.modelId = base.model?.id
     if (topicId) {
       endSpan({
         topicId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        error,
         span: currentSpan,
         modelName
       })
