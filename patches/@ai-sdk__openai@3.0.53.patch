@@ -1,8 +1,18 @@
 diff --git a/dist/index.js b/dist/index.js
-index 1c78d6f..a81c976 100644
+index 1c78d6f..d760d7c 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -1753,13 +1753,15 @@ var modelMaxImagesPerCall = {
+@@ -1725,7 +1725,8 @@ var openaiImageResponseSchema = (0, import_provider_utils12.lazySchema)(
+       created: import_v48.z.number().nullish(),
+       data: import_v48.z.array(
+         import_v48.z.object({
+-          b64_json: import_v48.z.string(),
++          b64_json: import_v48.z.string().optional(),
++          url: import_v48.z.string().optional(),
+           revised_prompt: import_v48.z.string().nullish()
+         })
+       ),
+@@ -1753,13 +1754,15 @@ var modelMaxImagesPerCall = {
    "gpt-image-1": 10,
    "gpt-image-1-mini": 10,
    "gpt-image-1.5": 10,
@@ -19,11 +29,39 @@ index 1c78d6f..a81c976 100644
  ];
  function hasDefaultResponseFormat(modelId) {
    return defaultResponseFormatPrefixes.some(
+@@ -1843,7 +1846,7 @@ var OpenAIImageModel = class {
+         fetch: this.config.fetch
+       });
+       return {
+-        images: response2.data.map((item) => item.b64_json),
++        images: response2.data.map((item) => item.b64_json ?? item.url),
+         warnings,
+         usage: response2.usage != null ? {
+           inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,
+@@ -1899,7 +1902,7 @@ var OpenAIImageModel = class {
+       fetch: this.config.fetch
+     });
+     return {
+-      images: response.data.map((item) => item.b64_json),
++      images: response.data.map((item) => item.b64_json ?? item.url),
+       warnings,
+       usage: response.usage != null ? {
+         inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 3dee885..441a6af 100644
+index 3dee885..660c865 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -1768,13 +1768,15 @@ var modelMaxImagesPerCall = {
+@@ -1740,7 +1740,8 @@ var openaiImageResponseSchema = lazySchema7(
+       created: z8.number().nullish(),
+       data: z8.array(
+         z8.object({
+-          b64_json: z8.string(),
++          b64_json: z8.string().optional(),
++          url: z8.string().optional(),
+           revised_prompt: z8.string().nullish()
+         })
+       ),
+@@ -1768,13 +1769,15 @@ var modelMaxImagesPerCall = {
    "gpt-image-1": 10,
    "gpt-image-1-mini": 10,
    "gpt-image-1.5": 10,
@@ -40,11 +78,39 @@ index 3dee885..441a6af 100644
  ];
  function hasDefaultResponseFormat(modelId) {
    return defaultResponseFormatPrefixes.some(
+@@ -1858,7 +1861,7 @@ var OpenAIImageModel = class {
+         fetch: this.config.fetch
+       });
+       return {
+-        images: response2.data.map((item) => item.b64_json),
++        images: response2.data.map((item) => item.b64_json ?? item.url),
+         warnings,
+         usage: response2.usage != null ? {
+           inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,
+@@ -1914,7 +1917,7 @@ var OpenAIImageModel = class {
+       fetch: this.config.fetch
+     });
+     return {
+-      images: response.data.map((item) => item.b64_json),
++      images: response.data.map((item) => item.b64_json ?? item.url),
+       warnings,
+       usage: response.usage != null ? {
+         inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
 diff --git a/dist/internal/index.js b/dist/internal/index.js
-index 27527ce..b359aa3 100644
+index 27527ce..6360f77 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
-@@ -1780,13 +1780,15 @@ var modelMaxImagesPerCall = {
+@@ -1752,7 +1752,8 @@ var openaiImageResponseSchema = (0, import_provider_utils12.lazySchema)(
+       created: import_v48.z.number().nullish(),
+       data: import_v48.z.array(
+         import_v48.z.object({
+-          b64_json: import_v48.z.string(),
++          b64_json: import_v48.z.string().optional(),
++          url: import_v48.z.string().optional(),
+           revised_prompt: import_v48.z.string().nullish()
+         })
+       ),
+@@ -1780,13 +1781,15 @@ var modelMaxImagesPerCall = {
    "gpt-image-1": 10,
    "gpt-image-1-mini": 10,
    "gpt-image-1.5": 10,
@@ -61,11 +127,39 @@ index 27527ce..b359aa3 100644
  ];
  function hasDefaultResponseFormat(modelId) {
    return defaultResponseFormatPrefixes.some(
+@@ -1870,7 +1873,7 @@ var OpenAIImageModel = class {
+         fetch: this.config.fetch
+       });
+       return {
+-        images: response2.data.map((item) => item.b64_json),
++        images: response2.data.map((item) => item.b64_json ?? item.url),
+         warnings,
+         usage: response2.usage != null ? {
+           inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,
+@@ -1926,7 +1929,7 @@ var OpenAIImageModel = class {
+       fetch: this.config.fetch
+     });
+     return {
+-      images: response.data.map((item) => item.b64_json),
++      images: response.data.map((item) => item.b64_json ?? item.url),
+       warnings,
+       usage: response.usage != null ? {
+         inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
-index db50bed..04b9e17 100644
+index db50bed..7a04af6 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
-@@ -1760,13 +1760,15 @@ var modelMaxImagesPerCall = {
+@@ -1732,7 +1732,8 @@ var openaiImageResponseSchema = lazySchema7(
+       created: z8.number().nullish(),
+       data: z8.array(
+         z8.object({
+-          b64_json: z8.string(),
++          b64_json: z8.string().optional(),
++          url: z8.string().optional(),
+           revised_prompt: z8.string().nullish()
+         })
+       ),
+@@ -1760,13 +1761,15 @@ var modelMaxImagesPerCall = {
    "gpt-image-1": 10,
    "gpt-image-1-mini": 10,
    "gpt-image-1.5": 10,
@@ -82,3 +176,21 @@ index db50bed..04b9e17 100644
  ];
  function hasDefaultResponseFormat(modelId) {
    return defaultResponseFormatPrefixes.some(
+@@ -1850,7 +1853,7 @@ var OpenAIImageModel = class {
+         fetch: this.config.fetch
+       });
+       return {
+-        images: response2.data.map((item) => item.b64_json),
++        images: response2.data.map((item) => item.b64_json ?? item.url),
+         warnings,
+         usage: response2.usage != null ? {
+           inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,
+@@ -1906,7 +1909,7 @@ var OpenAIImageModel = class {
+       fetch: this.config.fetch
+     });
+     return {
+-      images: response.data.map((item) => item.b64_json),
++      images: response.data.map((item) => item.b64_json ?? item.url),
+       warnings,
+       usage: response.usage != null ? {
+         inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
