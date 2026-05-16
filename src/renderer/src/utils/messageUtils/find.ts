@@ -3,9 +3,7 @@
  *
  * Synthesise V1-shaped `MessageBlock`s from `Message.parts` so block-shape
  * consumers (export, knowledge analysis, etc.) keep their signatures. Pure
- * — no Redux, no DataApi. The parameter `BlockEntities` is retained for
- * call-site compatibility but is no longer consulted: the v1 message-blocks
- * Redux slice is gone, parts are the single source of truth.
+ * — no Redux, no DataApi. Parts are the single source of truth.
  */
 import type { FileMetadata } from '@renderer/types'
 import type {
@@ -20,10 +18,6 @@ import type {
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { CherryProviderMetadata } from '@shared/data/types/uiParts'
-
-// Retained as a no-op signature alias so existing call sites don't have to
-// drop their second argument when the v1 Redux-backed lookup goes away.
-type BlockEntities = Record<string, MessageBlock | undefined>
 
 function syntheticBase(
   messageId: string,
@@ -107,7 +101,7 @@ export const findAllBlocks = (message: Message): MessageBlock[] => {
   return out
 }
 
-export const findMainTextBlocks = (message: Message, _blockEntities?: BlockEntities): MainTextMessageBlock[] => {
+export const findMainTextBlocks = (message: Message): MainTextMessageBlock[] => {
   const out: MainTextMessageBlock[] = []
   getParts(message).forEach((part, i) => {
     if (part.type !== 'text') return
@@ -120,7 +114,7 @@ export const findMainTextBlocks = (message: Message, _blockEntities?: BlockEntit
   return out
 }
 
-export const findThinkingBlocks = (message: Message, _blockEntities?: BlockEntities): ThinkingMessageBlock[] => {
+export const findThinkingBlocks = (message: Message): ThinkingMessageBlock[] => {
   const out: ThinkingMessageBlock[] = []
   getParts(message).forEach((part, i) => {
     if (part.type !== 'reasoning') return
@@ -176,7 +170,7 @@ export const getMainTextContent = (message: Message): string => {
     .join('\n\n')
 }
 
-export const getThinkingContent = (message: Message, _blockEntities?: BlockEntities): string => {
+export const getThinkingContent = (message: Message): string => {
   return getParts(message)
     .filter((p): p is Extract<CherryMessagePart, { type: 'reasoning' }> => p.type === 'reasoning')
     .map((p) => p.text ?? '')
@@ -184,7 +178,7 @@ export const getThinkingContent = (message: Message, _blockEntities?: BlockEntit
     .join('\n\n')
 }
 
-export const getCitationContent = (message: Message, _blockEntities?: BlockEntities): string => {
+export const getCitationContent = (message: Message): string => {
   // V2 stores citations on text parts via `providerMetadata.cherry.references`
   // (not as separate `data-citation` parts). Walk text parts and format each
   // citation-category reference into `[N] [title](url)` — same shape v1's
@@ -210,7 +204,7 @@ export const getCitationContent = (message: Message, _blockEntities?: BlockEntit
   return lines.join('\n\n')
 }
 
-export const getFileContent = (message: Message, _blockEntities?: BlockEntities): FileMetadata[] => {
+export const getFileContent = (message: Message): FileMetadata[] => {
   const files: FileMetadata[] = []
   for (const block of findFileBlocks(message)) {
     if (block.file) files.push(block.file)
