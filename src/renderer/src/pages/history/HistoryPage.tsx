@@ -116,7 +116,7 @@ const HistoryPage: FC = () => {
       />
       <TopicMessages topic={topic} style={{ display: isShow('topic') }} />
       <SearchResults
-        keywords={isShow('search') ? searchKeywords : ''}
+        keywords={searchKeywords}
         onMessageClick={onMessageClick}
         onTopicClick={onTopicClick}
         style={{ display: isShow('search') }}

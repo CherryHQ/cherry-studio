@@ -1,20 +1,64 @@
-import { Scrollbar } from '@cherrystudio/ui'
+import { Button, Scrollbar, SegmentedControl } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { LoadingIcon } from '@renderer/components/Icons'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
-import { mapApiTopicToRendererTopic, useAllTopics } from '@renderer/hooks/useTopicDataApi'
 import type { Topic } from '@renderer/types'
-import type { SearchMessageResult } from '@shared/data/api/schemas/messages'
+import type {
+  SearchMessageResult,
+  SearchMessagesQueryParams,
+  SearchMessagesResponse
+} from '@shared/data/api/schemas/messages'
 import { buildKeywordUnionRegex, type KeywordMatchMode, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
-import { List, Segmented, Spin, Typography } from 'antd'
 import type { FC } from 'react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
-const { Text, Title } = Typography
 const logger = loggerService.withContext('HistorySearchResults')
+const SEARCH_PAGE_SIZE = 1000
+const SEARCH_RESULT_PAGE_SIZE = 10
+
+type SearchMessagesFetcher = (query: SearchMessagesQueryParams) => Promise<SearchMessagesResponse>
+const fetchMessageSearchPage: SearchMessagesFetcher = (pageQuery) =>
+  dataApiService.get('/messages/search', { query: pageQuery })
+
+export async function loadAllMessageSearchResults(
+  query: Omit<SearchMessagesQueryParams, 'cursor' | 'limit'>,
+  fetchPage: SearchMessagesFetcher = fetchMessageSearchPage,
+  shouldContinue: () => boolean = () => true
+): Promise<SearchMessageResult[]> {
+  const results: SearchMessageResult[] = []
+  let cursor: string | undefined
+
+  do {
+    if (!shouldContinue()) break
+
+    const page = await fetchPage({
+      ...query,
+      limit: SEARCH_PAGE_SIZE,
+      ...(cursor ? { cursor } : {})
+    })
+    if (!shouldContinue()) break
+
+    results.push(...page.items)
+    cursor = page.nextCursor
+  } while (cursor)
+
+  return results
+}
+
+function searchResultToTopic(result: SearchMessageResult): Topic {
+  return {
+    id: result.topicId,
+    assistantId: result.topicAssistantId,
+    name: result.topicName,
+    createdAt: result.topicCreatedAt,
+    updatedAt: result.topicUpdatedAt,
+    messages: [],
+    pinned: false
+  }
+}
 
 type SearchResult = SearchMessageResult & {
   topic: Topic
@@ -31,32 +75,36 @@ type ResultSortOrder = 'newest' | 'oldest'
 const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...props }) => {
   const { t } = useTranslation()
   const { handleScroll, containerRef } = useScrollPosition('SearchResults')
-  const observerRef = useRef<MutationObserver | null>(null)
   const searchRequestRef = useRef(0)
+  const lastScrollTopRef = useRef(0)
+  const isVisible = props.style?.display !== 'none'
 
   const [matchMode, setMatchMode] = useState<KeywordMatchMode>('whole-word')
   const [sortOrder, setSortOrder] = useState<ResultSortOrder>('newest')
   const [searchTerms, setSearchTerms] = useState<string[]>(splitKeywordsToTerms(keywords))
 
-  const { topics: apiAllTopics } = useAllTopics({ loadAll: true })
-  const allTopics = useMemo(() => apiAllTopics.map(mapApiTopicToRendererTopic), [apiAllTopics])
-  const storeTopicsMap = useMemo(() => {
-    const map = new Map<string, Topic>()
-    for (const t of allTopics) {
-      map.set(t.id, t)
-    }
-    return map
-  }, [allTopics])
-
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [searchStats, setSearchStats] = useState({ count: 0, time: 0 })
   const [isLoading, setIsLoading] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+
+  const scrollToTop = useCallback(() => {
+    lastScrollTopRef.current = 0
+    containerRef.current?.scrollTo({ top: 0 })
+  }, [containerRef])
+
+  const handleResultScroll = useCallback(() => {
+    if (!isVisible) return
+    lastScrollTopRef.current = containerRef.current?.scrollTop ?? 0
+    handleScroll()
+  }, [containerRef, handleScroll, isVisible])
 
   const onSearch = useCallback(async () => {
     const requestId = searchRequestRef.current + 1
     searchRequestRef.current = requestId
     setSearchResults([])
     setIsLoading(true)
+    scrollToTop()
 
     if (keywords.length === 0) {
       setSearchStats({ count: 0, time: 0 })
@@ -68,20 +116,18 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
     const startTime = performance.now()
     const newSearchTerms = splitKeywordsToTerms(keywords)
     try {
-      const apiResults = await dataApiService.get('/messages/search', {
-        query: { q: keywords, matchMode }
-      })
-      const results = apiResults
-        .map((result) => {
-          const topic = storeTopicsMap.get(result.topicId)
-          return topic ? { ...result, topic } : null
-        })
-        .filter((result): result is SearchResult => result !== null)
+      const apiResults = await loadAllMessageSearchResults(
+        { q: keywords, matchMode },
+        fetchMessageSearchPage,
+        () => requestId === searchRequestRef.current
+      )
+      const results = apiResults.map((result) => ({ ...result, topic: searchResultToTopic(result) }))
 
       if (requestId !== searchRequestRef.current) return
 
       const endTime = performance.now()
       setSearchResults(results)
+      setCurrentPage(1)
       setSearchStats({
         count: results.length,
         time: (endTime - startTime) / 1000
@@ -91,12 +137,13 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
       if (requestId !== searchRequestRef.current) return
       logger.error('History message search failed', error as Error)
       setSearchResults([])
+      setCurrentPage(1)
       setSearchStats({ count: 0, time: 0 })
       setSearchTerms(newSearchTerms)
     } finally {
       if (requestId === searchRequestRef.current) setIsLoading(false)
     }
-  }, [keywords, matchMode, storeTopicsMap])
+  }, [keywords, matchMode, scrollToTop])
 
   const sortedSearchResults = useMemo(() => {
     const results = [...searchResults]
@@ -110,6 +157,12 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
     })
     return results
   }, [searchResults, sortOrder])
+  const totalPages = Math.max(1, Math.ceil(sortedSearchResults.length / SEARCH_RESULT_PAGE_SIZE))
+  const pagedSearchResults = useMemo(() => {
+    const start = (currentPage - 1) * SEARCH_RESULT_PAGE_SIZE
+    return sortedSearchResults.slice(start, start + SEARCH_RESULT_PAGE_SIZE)
+  }, [currentPage, sortedSearchResults])
+  const showPagination = sortedSearchResults.length > SEARCH_RESULT_PAGE_SIZE
 
   const highlightText = (text: string) => {
     const escapeHtml = (s: string) =>
@@ -128,108 +181,118 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
   }, [onSearch])
 
   useEffect(() => {
-    if (!containerRef.current) return
+    setCurrentPage((page) => Math.min(page, totalPages))
+  }, [totalPages])
 
-    observerRef.current = new MutationObserver(() => {
-      containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
-    })
+  useLayoutEffect(() => {
+    if (!isVisible) return
 
-    observerRef.current.observe(containerRef.current, {
-      childList: true,
-      subtree: true
-    })
-
-    return () => observerRef.current?.disconnect()
-  }, [containerRef])
+    containerRef.current?.scrollTo({ top: lastScrollTopRef.current })
+  }, [containerRef, isVisible])
 
   return (
-    <Container ref={containerRef} {...props} onScroll={handleScroll}>
-      <Spin spinning={isLoading} indicator={<LoadingIcon color="var(--color-text-2)" />}>
-        <SearchToolbar>
-          <Segmented
-            shape="round"
-            size="small"
-            value={sortOrder}
-            onChange={(value) => setSortOrder(value as ResultSortOrder)}
-            options={[
-              { label: t('history.search.sort.newest'), value: 'newest' },
-              { label: t('history.search.sort.oldest'), value: 'oldest' }
-            ]}
-          />
-          <Segmented
-            shape="round"
-            size="small"
-            value={matchMode}
-            onChange={(value) => setMatchMode(value as KeywordMatchMode)}
-            options={[
-              { label: t('history.search.match.whole_word'), value: 'whole-word' },
-              { label: t('history.search.match.substring'), value: 'substring' }
-            ]}
-          />
-        </SearchToolbar>
-        {sortedSearchResults.length > 0 && (
-          <SearchStats>
-            Found {searchStats.count} results in {searchStats.time.toFixed(3)} seconds
-          </SearchStats>
-        )}
-        <List
-          itemLayout="vertical"
-          dataSource={sortedSearchResults}
-          pagination={{
-            pageSize: 10,
-            hideOnSinglePage: true
+    <Scrollbar
+      ref={containerRef}
+      {...props}
+      className={cn('flex min-h-0 w-full flex-1 flex-col px-9 py-5', props.className)}
+      onScroll={handleResultScroll}>
+      <div className="mb-2 flex w-full flex-row items-center justify-start gap-2.5">
+        <SegmentedControl<ResultSortOrder>
+          size="sm"
+          value={sortOrder}
+          onValueChange={(value) => {
+            setSortOrder(value)
+            scrollToTop()
           }}
-          style={{ opacity: isLoading ? 0 : 1 }}
-          renderItem={({ messageId, topicId, topic, snippet, createdAt }) => (
-            <List.Item>
-              <Title
-                level={5}
-                style={{ color: 'var(--color-primary)', cursor: 'pointer' }}
-                onClick={() => onTopicClick(topic)}>
-                {topic.name}
-              </Title>
-              <div style={{ cursor: 'pointer' }} onClick={() => onMessageClick({ messageId, topicId })}>
-                <Text style={{ whiteSpace: 'pre-line' }}>{highlightText(snippet)}</Text>
-              </div>
-              <SearchResultTime>
-                <Text type="secondary">{new Date(createdAt).toLocaleString()}</Text>
-              </SearchResultTime>
-            </List.Item>
-          )}
+          options={[
+            { label: t('history.search.sort.newest'), value: 'newest' },
+            { label: t('history.search.sort.oldest'), value: 'oldest' }
+          ]}
         />
-        <div style={{ minHeight: 30 }}></div>
-      </Spin>
-    </Container>
+        <SegmentedControl<KeywordMatchMode>
+          size="sm"
+          value={matchMode}
+          onValueChange={(value) => {
+            setMatchMode(value)
+            scrollToTop()
+          }}
+          options={[
+            { label: t('history.search.match.whole_word'), value: 'whole-word' },
+            { label: t('history.search.match.substring'), value: 'substring' }
+          ]}
+        />
+      </div>
+      <div className="relative min-h-0 flex-1">
+        {isLoading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center">
+            <LoadingIcon color="var(--color-foreground-muted)" />
+          </div>
+        )}
+        <div className={cn('flex min-h-0 flex-1 flex-col', isLoading && 'opacity-0')}>
+          {sortedSearchResults.length > 0 && (
+            <div className="text-[13px] text-foreground-muted">
+              Found {searchStats.count} results in {searchStats.time.toFixed(3)} seconds
+            </div>
+          )}
+          {pagedSearchResults.length > 0 ? (
+            <div className="flex flex-col divide-y divide-border-subtle">
+              {pagedSearchResults.map(({ messageId, topicId, topic, snippet, createdAt }) => (
+                <div key={messageId} className="py-3">
+                  <button
+                    type="button"
+                    className="mb-2 cursor-pointer text-left font-medium text-[15px] text-primary hover:underline"
+                    onClick={() => onTopicClick(topic)}>
+                    {topic.name}
+                  </button>
+                  <button
+                    type="button"
+                    className="block w-full cursor-pointer whitespace-pre-line text-left text-foreground text-sm leading-5"
+                    onClick={() => onMessageClick({ messageId, topicId })}>
+                    {highlightText(snippet)}
+                  </button>
+                  <div className="mt-2.5 text-right text-foreground-muted text-xs">
+                    {new Date(createdAt).toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            !isLoading && <div className="py-6 text-center text-foreground-muted text-sm">{t('common.no_results')}</div>
+          )}
+          {showPagination && (
+            <div className="mt-4 flex items-center justify-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={currentPage === 1}
+                onClick={() => {
+                  setCurrentPage((page) => Math.max(1, page - 1))
+                  scrollToTop()
+                }}>
+                {t('common.previous')}
+              </Button>
+              <span className="min-w-12 text-center text-foreground-muted text-xs">
+                {currentPage} / {totalPages}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={currentPage === totalPages}
+                onClick={() => {
+                  setCurrentPage((page) => Math.min(totalPages, page + 1))
+                  scrollToTop()
+                }}>
+                {t('common.next')}
+              </Button>
+            </div>
+          )}
+          <div className="min-h-7.5" />
+        </div>
+      </div>
+    </Scrollbar>
   )
 }
-
-const Container = styled(Scrollbar)`
-  width: 100%;
-  flex: 1;
-  min-height: 0;
-  padding: 20px 36px;
-  display: flex;
-  flex-direction: column;
-`
-
-const SearchStats = styled.div`
-  font-size: 13px;
-  color: var(--color-text-3);
-`
-
-const SearchToolbar = styled.div`
-  width: 100%;
-  display: flex;
-  flex-direction: row;
-  justify-content: flex-start;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
-`
-
-const SearchResultTime = styled.div`
-  margin-top: 10px;
-  text-align: right;
-`
 
 export default memo(SearchResults)

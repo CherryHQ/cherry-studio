@@ -183,13 +183,16 @@ describe('MessageService', () => {
 
       const result = await messageService.search({ q: 'needle', matchMode: 'substring' })
 
-      expect(result).toHaveLength(1)
-      expect(result[0]).toMatchObject({
+      expect(result.items).toHaveLength(1)
+      expect(result.nextCursor).toBeUndefined()
+      expect(result.items[0]).toMatchObject({
         messageId: 'm-search-1',
-        topicId: 'topic-search'
+        topicId: 'topic-search',
+        topicName: '',
+        topicAssistantId: undefined
       })
-      expect(result[0].snippet).toContain('unique needle')
-      expect(result[0].createdAt).toBe('1970-01-01T00:00:00.100Z')
+      expect(result.items[0].snippet).toContain('unique needle')
+      expect(result.items[0].createdAt).toBe('1970-01-01T00:00:00.100Z')
 
       const stored = await dbh.db
         .select({ searchableText: messageTable.searchableText })
@@ -227,7 +230,39 @@ describe('MessageService', () => {
 
       const result = await messageService.search({ q: 'sms', matchMode: 'whole-word' })
 
-      expect(result.map((item) => item.messageId)).toEqual(['m-word-2'])
+      expect(result.items.map((item) => item.messageId)).toEqual(['m-word-2'])
+    })
+
+    it('honors substring matching for terms that FTS would treat as whole tokens', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-substring', activeNodeId: 'm-substring-2', orderKey: 's5' })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'm-substring-1',
+          parentId: null,
+          topicId: 'topic-substring',
+          role: 'assistant',
+          data: partsText('abcneedledef is embedded in a larger token.'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'm-substring-2',
+          parentId: 'm-substring-1',
+          topicId: 'topic-substring',
+          role: 'assistant',
+          data: partsText('needle appears as a separate token too.'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 200,
+          updatedAt: 200
+        }
+      ])
+
+      const result = await messageService.search({ q: 'needle', matchMode: 'substring' })
+
+      expect(result.items.map((item) => item.messageId)).toEqual(['m-substring-2', 'm-substring-1'])
     })
 
     it('orders matches by newest message before applying limit', async () => {
@@ -259,7 +294,7 @@ describe('MessageService', () => {
 
       const result = await messageService.search({ q: 'needle', matchMode: 'substring', limit: 1 })
 
-      expect(result.map((item) => item.messageId)).toEqual(['m-order-new'])
+      expect(result.items.map((item) => item.messageId)).toEqual(['m-order-new'])
     })
 
     it('searches visible code parts', async () => {
@@ -278,8 +313,8 @@ describe('MessageService', () => {
 
       const result = await messageService.search({ q: 'searchableCodeNeedle', matchMode: 'substring' })
 
-      expect(result.map((item) => item.messageId)).toEqual(['m-code-1'])
-      expect(result[0].snippet).toContain('searchableCodeNeedle')
+      expect(result.items.map((item) => item.messageId)).toEqual(['m-code-1'])
+      expect(result.items[0].snippet).toContain('searchableCodeNeedle')
     })
 
     it('applies limit after whole-word filtering', async () => {
@@ -311,7 +346,60 @@ describe('MessageService', () => {
 
       const result = await messageService.search({ q: 'cat', matchMode: 'whole-word', limit: 1 })
 
-      expect(result.map((item) => item.messageId)).toEqual(['m-filter-valid'])
+      expect(result.items.map((item) => item.messageId)).toEqual(['m-filter-valid'])
+    })
+
+    it('returns a cursor for the next search result page', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-page', activeNodeId: 'm-page-3', orderKey: 's6' })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'm-page-1',
+          parentId: null,
+          topicId: 'topic-page',
+          role: 'assistant',
+          data: partsText('needle page one'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'm-page-2',
+          parentId: 'm-page-1',
+          topicId: 'topic-page',
+          role: 'assistant',
+          data: partsText('needle page two'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 200,
+          updatedAt: 200
+        },
+        {
+          id: 'm-page-3',
+          parentId: 'm-page-2',
+          topicId: 'topic-page',
+          role: 'assistant',
+          data: partsText('needle page three'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 300,
+          updatedAt: 300
+        }
+      ])
+
+      const firstPage = await messageService.search({ q: 'needle', matchMode: 'substring', limit: 2 })
+      await dbh.db.update(messageTable).set({ deletedAt: 400 }).where(eq(messageTable.id, 'm-page-2'))
+      const secondPage = await messageService.search({
+        q: 'needle',
+        matchMode: 'substring',
+        limit: 2,
+        cursor: firstPage.nextCursor
+      })
+
+      expect(firstPage.items.map((item) => item.messageId)).toEqual(['m-page-3', 'm-page-2'])
+      expect(firstPage.nextCursor).toBe('200:m-page-2')
+      expect(secondPage.items.map((item) => item.messageId)).toEqual(['m-page-1'])
+      expect(secondPage.nextCursor).toBeUndefined()
     })
   })
 
@@ -333,6 +421,25 @@ describe('MessageService', () => {
       const followNode = result.nodes.find((n) => n.id === 'm-follow')
       expect(rootNode?.parentId).toBeNull()
       expect(followNode?.parentId).toBe('m-a2')
+    })
+
+    it('uses v2 parts text for tree node preview', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-preview', activeNodeId: 'm-preview', orderKey: 'preview' })
+      await dbh.db.insert(messageTable).values({
+        id: 'm-preview',
+        parentId: null,
+        topicId: 'topic-preview',
+        role: 'assistant',
+        data: partsText('The v2 parts payload should be visible in the tree preview.'),
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 100,
+        updatedAt: 100
+      })
+
+      const result = await messageService.getTree('topic-preview', { depth: -1 })
+
+      expect(result.nodes.find((node) => node.id === 'm-preview')?.preview).toContain('v2 parts payload')
     })
   })
 

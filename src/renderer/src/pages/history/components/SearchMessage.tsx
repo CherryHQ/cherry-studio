@@ -1,4 +1,5 @@
 import { Button, RowFlex, Scrollbar } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { default as MessageItem } from '@renderer/components/chat/messages/frame/MessageFrame'
@@ -14,7 +15,6 @@ import { Forward } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { HistoryMessageListProvider } from './HistoryMessageListProvider'
 
@@ -72,12 +72,12 @@ const SearchMessage: FC<Props> = ({ message, ...props }) => {
   return (
     <MessageEditingProvider>
       <HistoryMessageListProvider topic={topic} messages={[messageItem]} partsByMessageId={partsByMessageId}>
-        <MessagesContainer {...props}>
-          <ContainerWrapper>
+        <Scrollbar {...props} className={cn('flex min-h-0 w-full flex-1 flex-col items-center', props.className)}>
+          <div className="relative flex w-full flex-col p-4">
             <MessageItem message={messageItem} topic={topic} hideMenuBar={true} />
             <Button
               variant="ghost"
-              className="absolute top-4 right-4 text-[var(--color-text-3)]"
+              className="absolute top-4 right-4 text-foreground-muted"
               onClick={() => locateToMessage(navigate, messageItem)}>
               <Forward size={16} />
             </Button>
@@ -87,28 +87,11 @@ const SearchMessage: FC<Props> = ({ message, ...props }) => {
                 {t('history.locate.message')}
               </Button>
             </RowFlex>
-          </ContainerWrapper>
-        </MessagesContainer>
+          </div>
+        </Scrollbar>
       </HistoryMessageListProvider>
     </MessageEditingProvider>
   )
 }
-
-const MessagesContainer = styled(Scrollbar)`
-  width: 100%;
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  flex-direction: column;
-  align-items: center;
-`
-
-const ContainerWrapper = styled.div`
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  padding: 16px;
-  position: relative;
-`
 
 export default SearchMessage

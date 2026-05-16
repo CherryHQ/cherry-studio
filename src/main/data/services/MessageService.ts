@@ -19,6 +19,7 @@ import type {
   DeleteMessageResponse,
   SearchMessageResult,
   SearchMessagesQueryParams,
+  SearchMessagesResponse,
   UpdateMessageDto
 } from '@shared/data/api/schemas/messages'
 import type {
@@ -36,6 +37,7 @@ import { buildSearchSnippet, stripMarkdownFormatting } from '@shared/utils/messa
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 
 import { topicService } from './TopicService'
+import { decodeCursor, encodeCursor } from './utils/cursor'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MessageService')
@@ -126,13 +128,51 @@ function rowToMessage(row: typeof messageTable.$inferSelect): Message {
 /**
  * Extract preview text from message data
  */
+function truncatePreview(text: string): string {
+  return text.length > PREVIEW_LENGTH ? text.substring(0, PREVIEW_LENGTH) + '...' : text
+}
+
+function getStringField(value: unknown, key: string): string | undefined {
+  if (!value || typeof value !== 'object') return undefined
+
+  const field = (value as Record<string, unknown>)[key]
+  return typeof field === 'string' ? field : undefined
+}
+
+function getObjectField(value: unknown, key: string): Record<string, unknown> | undefined {
+  if (!value || typeof value !== 'object') return undefined
+
+  const field = (value as Record<string, unknown>)[key]
+  return field && typeof field === 'object' ? (field as Record<string, unknown>) : undefined
+}
+
 function extractPreview(message: Message): string {
+  const parts = message.data?.parts || []
+  for (const part of parts) {
+    const data = getObjectField(part, 'data')
+    const text =
+      part.type === 'text'
+        ? getStringField(part, 'text')
+        : ['data-code', 'data-translation'].includes(part.type)
+          ? getStringField(data, 'content')
+          : part.type === 'data-compact'
+            ? (getStringField(data, 'content') ?? getStringField(data, 'compactedContent'))
+            : part.type === 'data-error'
+              ? getStringField(data, 'message')
+              : undefined
+
+    const preview = text?.trim()
+    if (preview) {
+      return truncatePreview(preview)
+    }
+  }
+
   const blocks = message.data?.blocks || []
   for (const block of blocks) {
     if ('content' in block && typeof block.content === 'string') {
       const text = block.content.trim()
       if (text.length > 0) {
-        return text.length > PREVIEW_LENGTH ? text.substring(0, PREVIEW_LENGTH) + '...' : text
+        return truncatePreview(text)
       }
     }
   }
@@ -167,11 +207,39 @@ function canUseFts(terms: string[]): boolean {
   return terms.every((term) => term.length >= MIN_FTS_TERM_LENGTH)
 }
 
+function decodeSearchCursor(raw: string | undefined): MessageSearchCursorRow | undefined {
+  if (!raw) return undefined
+
+  const decoded = decodeCursor(raw)
+  if (!decoded) return undefined
+
+  const createdAt = Number(decoded.key)
+  if (!Number.isFinite(createdAt)) {
+    logger.warn('search: cursor has invalid createdAt, falling back to first page', { cursor: raw })
+    return undefined
+  }
+
+  return { createdAt, id: decoded.id }
+}
+
 type MessageSearchRow = {
   id: string
   topicId: string
+  topicName: string
+  topicAssistantId: string | null
+  topicCreatedAt: number
+  topicUpdatedAt: number
   searchableText: string
   createdAt: number
+}
+
+type MessageSearchCursorRow = {
+  id: string
+  createdAt: number
+}
+
+type InternalSearchMessageResult = SearchMessageResult & {
+  cursorCreatedAt: number
 }
 
 export class MessageService {
@@ -584,51 +652,75 @@ export class MessageService {
     return rowToMessage(row)
   }
 
-  async search(query: SearchMessagesQueryParams): Promise<SearchMessageResult[]> {
+  async search(query: SearchMessagesQueryParams): Promise<SearchMessagesResponse> {
     const terms = splitKeywordsToTerms(query.q)
-    if (terms.length === 0) return []
+    if (terms.length === 0) return { items: [] }
 
     const db = application.get('DbService').getDb()
     const matchMode = query.matchMode ?? 'whole-word'
     const limit = query.limit ?? 500
+    const fetchLimit = limit + 1
     const regexes = buildKeywordRegexes(terms, { matchMode, flags: 'i' })
-    const useFts = canUseFts(terms)
+    const useFts = matchMode === 'whole-word' && canUseFts(terms)
     const ftsQuery = terms.map(quoteFtsTerm).join(' AND ')
     const likeConditions = terms.map((term) => {
       const pattern = `%${escapeLikeTerm(term.toLowerCase())}%`
       return sql`lower(searchable_text) LIKE ${pattern} ESCAPE '\\'`
     })
-    const results: SearchMessageResult[] = []
+    const results: InternalSearchMessageResult[] = []
+    const cursor = decodeSearchCursor(query.cursor)
     let offset = 0
 
-    while (results.length < limit) {
+    while (results.length < fetchLimit) {
       const rows = useFts
         ? await db.all<MessageSearchRow>(sql`
             SELECT
               m.id,
               m.topic_id AS "topicId",
+              t.name AS "topicName",
+              t.assistant_id AS "topicAssistantId",
+              t.created_at AS "topicCreatedAt",
+              t.updated_at AS "topicUpdatedAt",
               m.searchable_text AS "searchableText",
               m.created_at AS "createdAt"
             FROM message_fts
             JOIN message m ON m.rowid = message_fts.rowid
+            JOIN topic t ON t.id = m.topic_id
             WHERE message_fts MATCH ${ftsQuery}
               AND m.deleted_at IS NULL
+              AND t.deleted_at IS NULL
               AND m.searchable_text != ''
+              AND ${
+                cursor
+                  ? sql`(m.created_at < ${cursor.createdAt} OR (m.created_at = ${cursor.createdAt} AND m.id < ${cursor.id}))`
+                  : sql`1 = 1`
+              }
             ORDER BY m.created_at DESC, m.id DESC
             LIMIT ${SEARCH_CHUNK_SIZE}
             OFFSET ${offset}
           `)
         : await db.all<MessageSearchRow>(sql`
             SELECT
-              id,
-              topic_id AS "topicId",
-              searchable_text AS "searchableText",
-              created_at AS "createdAt"
+              message.id,
+              message.topic_id AS "topicId",
+              t.name AS "topicName",
+              t.assistant_id AS "topicAssistantId",
+              t.created_at AS "topicCreatedAt",
+              t.updated_at AS "topicUpdatedAt",
+              message.searchable_text AS "searchableText",
+              message.created_at AS "createdAt"
             FROM message
-            WHERE deleted_at IS NULL
-              AND searchable_text != ''
+            JOIN topic t ON t.id = message.topic_id
+            WHERE message.deleted_at IS NULL
+              AND t.deleted_at IS NULL
+              AND message.searchable_text != ''
               AND ${sql.join(likeConditions, sql` AND `)}
-            ORDER BY created_at DESC, id DESC
+              AND ${
+                cursor
+                  ? sql`(message.created_at < ${cursor.createdAt} OR (message.created_at = ${cursor.createdAt} AND message.id < ${cursor.id}))`
+                  : sql`1 = 1`
+              }
+            ORDER BY message.created_at DESC, message.id DESC
             LIMIT ${SEARCH_CHUNK_SIZE}
             OFFSET ${offset}
           `)
@@ -648,15 +740,27 @@ export class MessageService {
         results.push({
           messageId: row.id,
           topicId: row.topicId,
+          topicName: row.topicName,
+          topicAssistantId: row.topicAssistantId ?? undefined,
+          topicCreatedAt: timestampToISO(Number(row.topicCreatedAt)),
+          topicUpdatedAt: timestampToISO(Number(row.topicUpdatedAt)),
           snippet: buildSearchSnippet(searchableText, terms, matchMode),
-          createdAt: timestampToISO(Number(row.createdAt))
+          createdAt: timestampToISO(Number(row.createdAt)),
+          cursorCreatedAt: Number(row.createdAt)
         })
 
-        if (results.length >= limit) break
+        if (results.length >= fetchLimit) break
       }
     }
 
-    return results
+    const itemsWithCursor = results.slice(0, limit)
+    const nextCursorBoundary = results.length > limit ? itemsWithCursor.at(-1) : undefined
+    return {
+      items: itemsWithCursor.map(({ cursorCreatedAt: _cursorCreatedAt, ...item }) => item),
+      nextCursor: nextCursorBoundary
+        ? encodeCursor(String(nextCursorBoundary.cursorCreatedAt), nextCursorBoundary.messageId)
+        : undefined
+    }
   }
 
   /** Get all children of a message (messages whose parentId = given id). */
