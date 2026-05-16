@@ -15,7 +15,7 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -238,7 +238,7 @@ function ModelField({
   value: string
   allowClear?: boolean
   errorMessage?: string
-  onSelect: (modelId: string | null) => void
+  onSelect: (modelId: UniqueModelId | null) => void
 }) {
   return (
     <ModelSelectorField

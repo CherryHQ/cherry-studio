@@ -112,7 +112,7 @@ function createAgent(overrides: Partial<AgentDetail> = {}): AgentDetail {
     type: 'claude-code',
     name: 'Agent',
     description: '',
-    model: 'claude-sonnet-4-5',
+    model: 'anthropic::claude-sonnet-4-5',
     modelName: null,
     instructions: '',
     mcps: [],

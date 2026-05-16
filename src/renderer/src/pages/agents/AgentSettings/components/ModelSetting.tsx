@@ -1,7 +1,8 @@
 import { HelpTooltip } from '@cherrystudio/ui'
 import SelectAgentBaseModelButton from '@renderer/pages/agents/components/SelectAgentBaseModelButton'
-import type { AgentBaseWithId, Model, UpdateAgentFunctionUnion } from '@renderer/types'
+import type { AgentBaseWithId, UpdateAgentFunctionUnion } from '@renderer/types'
 import type { AgentType } from '@shared/data/types/agent'
+import type { Model } from '@shared/data/types/model'
 import { useTranslation } from 'react-i18next'
 
 import { SettingsItem, SettingsTitle } from '../shared'

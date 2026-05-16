@@ -11,6 +11,7 @@ import type { AddAgentForm, GetAgentResponse, UpdateAgentForm } from '@renderer/
 import type { UpdateAgentBaseOptions, UpdateAgentFunction } from '@renderer/types/agent'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentEntity } from '@shared/data/types/agent'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -125,7 +126,7 @@ export const useUpdateAgent = () => {
   )
 
   const updateModel = useCallback(
-    async (agentId: string, modelId: string, options?: UpdateAgentBaseOptions) => {
+    async (agentId: string, modelId: UniqueModelId, options?: UpdateAgentBaseOptions) => {
       void updateAgent({ id: agentId, model: modelId }, options)
     },
     [updateAgent]

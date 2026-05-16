@@ -1,16 +1,15 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { ModelSelector } from '@renderer/components/ModelSelector'
-import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
 import { useModelById } from '@renderer/hooks/useModels'
 import { useProviderDisplayName } from '@renderer/hooks/useProviders'
-import type { AgentBaseWithId, Model } from '@renderer/types'
+import type { AgentBaseWithId } from '@renderer/types'
 import type { AgentType } from '@shared/data/types/agent'
-import type { Model as SharedModel, UniqueModelId } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { ButtonProps } from 'antd'
 import { Button } from 'antd'
 import { ChevronsUpDown } from 'lucide-react'
-import { type CSSProperties, useCallback, useMemo } from 'react'
+import { type CSSProperties, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -42,18 +41,14 @@ const SelectAgentBaseModelButton = ({
   containerClassName
 }: Props) => {
   const { t } = useTranslation()
-  const { model: currentSharedModel } = useModelById((agent?.model ?? '') as UniqueModelId)
-  const model = useMemo(
-    () => (currentSharedModel ? fromSharedModel(currentSharedModel) : undefined),
-    [currentSharedModel]
-  )
+  const { model } = useModelById((agent?.model ?? '') as UniqueModelId)
   const modelFilter = useAgentModelFilter(agentType)
-  const providerName = useProviderDisplayName(currentSharedModel?.providerId)
+  const providerName = useProviderDisplayName(model?.providerId)
 
   const handleSelect = useCallback(
-    (selected: SharedModel | undefined) => {
+    (selected: Model | undefined) => {
       if (!selected || selected.id === agent?.model) return
-      void onSelect(fromSharedModel(selected))
+      void onSelect(selected)
     },
     [agent?.model, onSelect]
   )
@@ -70,7 +65,7 @@ const SelectAgentBaseModelButton = ({
   return (
     <ModelSelector
       multiple={false}
-      value={currentSharedModel}
+      value={model}
       filter={modelFilter}
       onSelect={handleSelect}
       trigger={

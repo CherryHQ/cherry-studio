@@ -71,10 +71,6 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
-vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: () => ({ providers: [] })
-}))
-
 vi.mock('@renderer/hooks/useModels', () => ({
   useModels: () => ({ models, isLoading: false })
 }))

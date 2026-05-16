@@ -42,8 +42,8 @@ describe('useAgents', () => {
 
     it('returns agents from data.items', () => {
       const mockAgents = [
-        { id: 'agent-1', name: 'Agent 1', model: 'claude-3' },
-        { id: 'agent-2', name: 'Agent 2', model: 'claude-3' }
+        { id: 'agent-1', name: 'Agent 1', model: 'anthropic::claude-3' },
+        { id: 'agent-2', name: 'Agent 2', model: 'anthropic::claude-3' }
       ]
       MockUseDataApiUtils.mockQueryResult('/agents', {
         data: { items: mockAgents, total: 2, page: 1 } as any
@@ -57,7 +57,7 @@ describe('useAgents', () => {
 
   describe('addAgent', () => {
     it('calls createTrigger and shows success toast', async () => {
-      const mockAgent = { id: 'new-agent', name: 'New Agent', model: 'claude-3' }
+      const mockAgent = { id: 'new-agent', name: 'New Agent', model: 'anthropic::claude-3' }
       const mockTrigger = vi.fn().mockResolvedValue(mockAgent)
       MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agents', mockTrigger)
       MockUseDataApiUtils.mockQueryResult('/agents', { data: { items: [], total: 0, page: 1 } as any })
@@ -66,7 +66,7 @@ describe('useAgents', () => {
       const addResult = await act(async () =>
         result.current.addAgent({
           name: 'New Agent',
-          model: 'claude-3',
+          model: 'anthropic::claude-3',
           type: 'claude-code',
           allowedTools: []
         })
@@ -89,7 +89,7 @@ describe('useAgents', () => {
       const addResult = await act(async () =>
         result.current.addAgent({
           name: 'New Agent',
-          model: 'claude-3',
+          model: 'anthropic::claude-3',
           type: 'claude-code',
           allowedTools: []
         })

@@ -8,6 +8,7 @@
 import { AgentBaseSchema, type AgentConfiguration, AgentEntitySchema } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { AgentBase, AgentEntity, AgentTool, AgentType } from '@shared/data/types/agent'
+import type { UniqueModelId } from '@shared/data/types/model'
 import * as z from 'zod'
 
 // v2 callers in `pages/library/editor/agent`, `hooks/agents/useAgentTools`,
@@ -55,7 +56,10 @@ export const isAgentEntity = (value: unknown): value is AgentEntity => {
 }
 
 // ------------------ Form models (UI-only) --------------------------------
-export type AgentBaseWithId = Omit<AgentBase, 'model'> & { id: string; model?: string }
+// Editable agent base keyed by id. `model` is optional during editing (may be
+// unset / mid-selection) but must stay a `UniqueModelId` — NOT widened to
+// `string`, so consumers don't need unsafe `as UniqueModelId` casts.
+export type AgentBaseWithId = Omit<AgentBase, 'model'> & { id: string; model?: UniqueModelId }
 
 export interface ListOptions {
   limit?: number
@@ -72,7 +76,7 @@ export type BaseAgentForm = {
   name: string
   description?: string
   instructions?: string
-  model: string
+  model: UniqueModelId
   allowedTools: string[]
   mcps?: string[]
   configuration?: AgentConfiguration

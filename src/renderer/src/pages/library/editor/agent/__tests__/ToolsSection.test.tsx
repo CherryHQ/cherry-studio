@@ -87,7 +87,7 @@ function createForm(overrides: Partial<AgentFormState> = {}): AgentFormState {
   return {
     name: 'Agent',
     description: '',
-    model: 'claude-sonnet-4-5',
+    model: 'anthropic::claude-sonnet-4-5',
     planModel: '',
     smallModel: '',
     instructions: '',
@@ -118,7 +118,7 @@ describe('ToolsSection', () => {
           id: 'agent-1',
           type: 'claude-code',
           name: 'Agent',
-          model: 'claude-sonnet-4-5',
+          model: 'anthropic::claude-sonnet-4-5',
           modelName: null,
           createdAt: '',
           updatedAt: ''
@@ -140,7 +140,7 @@ describe('ToolsSection', () => {
           id: 'agent-1',
           type: 'claude-code',
           name: 'Agent',
-          model: 'claude-sonnet-4-5',
+          model: 'anthropic::claude-sonnet-4-5',
           modelName: null,
           createdAt: '',
           updatedAt: ''
@@ -165,7 +165,7 @@ describe('ToolsSection', () => {
           id: 'agent-1',
           type: 'claude-code',
           name: 'Agent',
-          model: 'claude-sonnet-4-5',
+          model: 'anthropic::claude-sonnet-4-5',
           modelName: null,
           createdAt: '',
           updatedAt: ''
@@ -192,7 +192,7 @@ describe('ToolsSection', () => {
           id: '',
           type: 'claude-code',
           name: '',
-          model: '',
+          model: undefined,
           modelName: null,
           createdAt: '',
           updatedAt: '',

@@ -83,7 +83,7 @@ describe('useUpdateAgent', () => {
       const mockTrigger = vi.fn().mockResolvedValue({
         id: 'agent-1',
         name: 'A',
-        model: 'new-model',
+        model: 'anthropic::new-model',
         type: 'claude-code',
         allowedTools: [],
         configuration: {},
@@ -93,11 +93,11 @@ describe('useUpdateAgent', () => {
       MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId', mockTrigger)
 
       const { result } = renderHook(() => useUpdateAgent())
-      await act(async () => result.current.updateModel('agent-1', 'new-model'))
+      await act(async () => result.current.updateModel('agent-1', 'anthropic::new-model'))
 
       expect(mockTrigger).toHaveBeenCalledWith({
         params: { agentId: 'agent-1' },
-        body: { model: 'new-model' }
+        body: { model: 'anthropic::new-model' }
       })
     })
   })
