@@ -6,6 +6,11 @@ import electronViteConfig from './electron.vite.config'
 const mainConfig = (electronViteConfig as any).main
 const rendererConfig = (electronViteConfig as any).renderer
 
+// Resolve @vitest/web-worker from project root to avoid vite resolving
+// to a parent directory's node_modules (happens in git worktrees where
+// the main repo's node_modules exists in an ancestor directory).
+const webWorkerSetup = resolve('node_modules/@vitest/web-worker/dist/index.js')
+
 export default defineConfig({
   test: {
     projects: [
@@ -36,7 +41,7 @@ export default defineConfig({
         test: {
           name: 'renderer',
           environment: 'jsdom',
-          setupFiles: ['@vitest/web-worker', 'tests/renderer.setup.ts'],
+          setupFiles: [webWorkerSetup, 'tests/renderer.setup.ts'],
           include: ['src/renderer/**/*.{test,spec}.{ts,tsx}', 'src/renderer/**/__tests__/**/*.{test,spec}.{ts,tsx}'],
           benchmark: {
             include: ['src/renderer/**/*.bench.{ts,tsx}', 'src/renderer/**/__tests__/**/*.bench.{ts,tsx}']

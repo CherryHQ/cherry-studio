@@ -71,7 +71,7 @@
     "bench:renderer": "vitest bench --run --project renderer",
     "bench:aicore": "vitest bench --run --project aiCore",
     "bench:shared": "vitest bench --run --project shared",
-    "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && prek install",
+    "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && HP=$(git config --local --get core.hooksPath 2>/dev/null); [[ \"$HP\" == */.git/hooks ]] && git config --local --unset-all core.hooksPath 2>/dev/null; prek install",
     "claude": "dotenv -e .env -- claude",
     "changeset": "changeset",
     "changeset:status": "changeset status",
