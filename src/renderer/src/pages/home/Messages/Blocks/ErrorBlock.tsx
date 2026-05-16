@@ -82,7 +82,12 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
   const navigate = useNavigate()
   const [aiSummary, setAiSummary] = useState<string>('')
 
-  const providerId = message.model?.provider ?? (block.error?.providerId as string | undefined)
+  // Prefer error-level providerId for knowledge errors (embedding provider),
+  // otherwise fall back to chat model provider
+  const providerId =
+    (block.error?.source === 'knowledge' ? (block.error?.providerId as string | undefined) : undefined) ??
+    message.model?.provider ??
+    (block.error?.providerId as string | undefined)
   const classification = useMemo(() => classifyError(block.error, providerId), [block.error, providerId])
 
   // AI fallback: when rule-based classification returns 'unknown', ask AI for a one-line summary

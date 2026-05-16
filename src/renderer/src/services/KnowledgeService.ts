@@ -221,8 +221,12 @@ export const searchKnowledgeBase = async (
       })
     }
     return result
-  } catch (error) {
+  } catch (error: any) {
     logger.error(`Error searching knowledge base ${base.name}:`, error as Error)
+    // Enrich error with embedding context so UI can identify the failing stage
+    error.source = 'knowledge'
+    error.providerId = base.model?.provider
+    error.modelId = base.model?.id
     if (topicId) {
       endSpan({
         topicId,

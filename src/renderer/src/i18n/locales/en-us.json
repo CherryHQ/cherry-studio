@@ -1771,6 +1771,7 @@
       "deprecated": "This model has been retired, please switch to another model",
       "go_to_settings": "Go to Settings",
       "knowledge": "Knowledge base vectorization failed",
+      "knowledge_auth": "Knowledge search failed: embedding model authentication error, please check the knowledge base embedding model API Key",
       "mcp": "MCP server connection failed, check if service is running",
       "model": "Model not found or you don't have access",
       "model_conflict": "Diagnosis model is the same as the failing model",

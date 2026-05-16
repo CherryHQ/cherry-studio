@@ -14,6 +14,7 @@ export interface ErrorClassification {
     | 'server'
     | 'deprecated'
     | 'knowledge'
+    | 'knowledge_auth'
     | 'ocr'
     | 'mcp'
     | 'parse'
@@ -31,6 +32,12 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   const numStatus = typeof status === 'number' ? status : typeof status === 'string' ? parseInt(status, 10) : undefined
   const msg = ((error.message as string) || '').toLowerCase()
   const providerSuffix = providerId ? `?id=${providerId}` : ''
+
+  // Knowledge base auth errors — must take priority over generic auth
+  // so users are directed to knowledge settings, not chat model provider
+  if ((error as Record<string, unknown>).source === 'knowledge') {
+    return { category: 'knowledge_auth', i18nKey: 'error.diagnosis.knowledge_auth', navTarget: '/knowledge' }
+  }
 
   // Auth errors (401/403)
   if (

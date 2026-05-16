@@ -1771,6 +1771,7 @@
       "deprecated": "此模型已停用，請切換至其他模型",
       "go_to_settings": "前往設定",
       "knowledge": "知識庫向量化失敗",
+      "knowledge_auth": "知識庫檢索失敗：嵌入模型認證錯誤，請檢查知識庫的嵌入模型 API Key 配置",
       "mcp": "MCP 伺服器連線失敗，請檢查服務是否已啟動",
       "model": "模型不存在或你沒有存取權限",
       "model_conflict": "診斷模型與出錯模型相同，無法進行診斷",
