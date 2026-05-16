@@ -1,5 +1,5 @@
 import { CodeBlockView, HtmlArtifactsCard } from '@renderer/components/CodeBlockView'
-import { isWin } from '@renderer/config/constant'
+import { ARTIFACT_EXT } from '@renderer/config/constant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { ClickableFilePath } from '@renderer/pages/home/Messages/Tools/MessageAgentTools/ClickableFilePath'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -9,6 +9,23 @@ import { MessageBlockStatus } from '@renderer/types/newMessage'
 import { getCodeBlockId, isOpenFenceBlock } from '@renderer/utils/markdown'
 import type { Node } from 'mdast'
 import React, { memo, useCallback, useMemo } from 'react'
+
+const artifactExtRe = new RegExp(`${ARTIFACT_EXT}$`, 'i')
+
+function isLikelyFilePath(text: string): boolean {
+  if (!text) return false
+  // Exclude URLs
+  if (/^https?:\/\//i.test(text)) return false
+  // Must not contain whitespace
+  if (/\s/.test(text)) return false
+  // Must have a recognizable file extension
+  if (!artifactExtRe.test(text)) return false
+  // Must contain at least one directory separator
+  if (!text.includes('/') && !text.includes('\\')) return false
+  // Must not end with a separator
+  if (/[/\\]$/.test(text)) return false
+  return true
+}
 
 interface Props {
   children: string
@@ -67,9 +84,10 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
     )
   }
 
-  // Detect inline code that looks like an absolute file path (e.g. /Users/foo/bar.tsx)
-  // On Windows, Unix-style paths are not valid local paths, so skip detection there.
-  if (!isWin && typeof children === 'string' && /^\/[\w.-]+(?:\/[\w.-]+)+$/.test(children)) {
+  // Detect inline code that looks like a file path (absolute or relative)
+  // Supports Unix paths (/Users/foo/bar.md), Windows paths (C:\Users\foo\bar.md),
+  // and relative paths (output/黄金价格分析报告.md, ./file.html)
+  if (typeof children === 'string' && isLikelyFilePath(children)) {
     return (
       <code className={className} style={{ textWrap: 'wrap', fontSize: '95%', padding: '2px 4px' }}>
         <ClickableFilePath path={children} />

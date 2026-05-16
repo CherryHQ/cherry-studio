@@ -1,3 +1,4 @@
+import type * as RendererConstantModule from '@renderer/config/constant'
 import { MessageBlockStatus } from '@renderer/types/newMessage'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -64,11 +65,15 @@ vi.mock('@renderer/components/CodeBlockView', () => ({
   HtmlArtifactsCard: mocks.HtmlArtifactsCard
 }))
 
-vi.mock('@renderer/config/constant', () => ({
-  get isWin() {
-    return mocks.isWin
+vi.mock('@renderer/config/constant', async (importOriginal) => {
+  const mod = await importOriginal<typeof RendererConstantModule>()
+  return {
+    ...mod,
+    get isWin() {
+      return mocks.isWin
+    }
   }
-}))
+})
 
 // Mock ClickableFilePath
 vi.mock('@renderer/pages/home/Messages/Tools/MessageAgentTools/ClickableFilePath', () => ({
@@ -144,15 +149,6 @@ describe('CodeBlock', () => {
       'should NOT detect %s as a file path',
       (text) => {
         render(<CodeBlock {...defaultProps} className={undefined} children={text} />)
-        expect(screen.queryByTestId('clickable-file-path')).not.toBeInTheDocument()
-      }
-    )
-
-    it.each(['/home/user/project/src/index.ts', '/tmp/test.log', '/var/log/app.log', '/etc/nginx/nginx.conf'])(
-      'should NOT detect %s as a file path on Windows',
-      (path) => {
-        mocks.isWin = true
-        render(<CodeBlock {...defaultProps} className={undefined} children={path} />)
         expect(screen.queryByTestId('clickable-file-path')).not.toBeInTheDocument()
       }
     )
