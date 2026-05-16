@@ -40,6 +40,7 @@ export class ImportOrchestrator {
       this.progressTracker.setPhase(RestorePhase.VALIDATING)
       const manifest = await this.readManifest(tempDir)
       await this.verifyChecksums(tempDir)
+      await this.verifySchemaVersion(manifest)
 
       if (options.validateOnly) {
         this.progressTracker.setPhase(RestorePhase.COMPLETE)
@@ -169,6 +170,37 @@ export class ImportOrchestrator {
     const available = new Set(manifest.domains)
     const selected = options.domains ?? [...available]
     return selected.filter((d) => available.has(d))
+  }
+
+  private async verifySchemaVersion(manifest: BackupManifest): Promise<void> {
+    if (!manifest.schemaVersion?.hash) return
+
+    const dbPath = application.getPath('app.database.file')
+    const client = createClient({ url: pathToFileURL(dbPath).href })
+    try {
+      const result = await client.execute(
+        'SELECT hash, created_at FROM __drizzle_migrations ORDER BY created_at DESC LIMIT 1'
+      )
+      if (result.rows.length === 0) return
+
+      const liveHash = result.rows[0].hash as string
+      const liveCreatedAt = Number(result.rows[0].created_at)
+
+      if (manifest.schemaVersion.hash === liveHash) return
+
+      if (manifest.schemaVersion.createdAt > liveCreatedAt) {
+        throw new Error(
+          'Cannot restore: backup was created with a newer database schema. Please upgrade the application first.'
+        )
+      }
+
+      logger.warn('Backup has an older schema version — missing columns will use defaults')
+    } catch (err) {
+      if ((err as Error).message.startsWith('Cannot restore')) throw err
+      logger.warn('Could not verify schema version', err as Error)
+    } finally {
+      client.close()
+    }
   }
 
   private async rebuildFts(db: { run(query: ReturnType<typeof sql.raw>): Promise<unknown> }): Promise<void> {
