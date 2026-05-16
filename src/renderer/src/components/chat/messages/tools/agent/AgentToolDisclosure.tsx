@@ -17,7 +17,7 @@ export function AgentToolDisclosureLabel({
   trailingClassName?: string
 }) {
   return (
-    <div className="flex w-full items-start justify-between gap-2">
+    <div className="flex w-full items-center gap-2">
       <div className={labelClassName ?? 'min-w-0'}>{label}</div>
       {trailing && <div className={trailingClassName ?? 'shrink-0'}>{trailing}</div>}
     </div>
@@ -53,7 +53,7 @@ export function AgentToolDisclosure({
           aria-expanded={isExpanded}
           aria-controls={contentId}
           className={cn(
-            'group/agent-tool-trigger relative mb-2 flex w-full items-center justify-between gap-4 rounded-md px-2.5 py-2 text-left font-semibold text-foreground/90 text-sm leading-4 outline-none hover:no-underline focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 hover:[&_.tool-icon>*]:opacity-0',
+            'group/agent-tool-trigger relative flex w-full items-center justify-between gap-4 rounded-md px-2.5 py-2 text-left font-semibold text-foreground/90 text-sm leading-4 outline-none hover:no-underline focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 hover:[&_.tool-icon>*]:opacity-0',
             item.classNames?.header
           )}
           onClick={() => setIsExpanded((expanded) => !expanded)}>
@@ -61,13 +61,13 @@ export function AgentToolDisclosure({
           {isExpanded ? (
             <Minus
               size={16}
-              className="pointer-events-none absolute top-1/2 shrink-0 -translate-y-1/2 text-foreground-muted opacity-0 group-hover/agent-tool-trigger:opacity-100"
+              className="-translate-y-1/2 pointer-events-none absolute top-1/2 shrink-0 text-foreground-muted opacity-0 group-hover/agent-tool-trigger:opacity-100"
               style={{ left: 'var(--agent-tool-toggle-left, 0.625rem)' }}
             />
           ) : (
             <Plus
               size={16}
-              className="pointer-events-none absolute top-1/2 shrink-0 -translate-y-1/2 text-foreground-muted opacity-0 group-hover/agent-tool-trigger:opacity-100"
+              className="-translate-y-1/2 pointer-events-none absolute top-1/2 shrink-0 text-foreground-muted opacity-0 group-hover/agent-tool-trigger:opacity-100"
               style={{ left: 'var(--agent-tool-toggle-left, 0.625rem)' }}
             />
           )}
@@ -76,7 +76,7 @@ export function AgentToolDisclosure({
           id={contentId}
           data-testid={`collapse-content-${item.key}`}
           hidden={!isExpanded}
-          className={cn('p-2.5 text-foreground/60 text-sm leading-5', item.classNames?.body)}>
+          className={cn('mt-2 p-2.5 text-foreground/60 text-sm leading-5', item.classNames?.body)}>
           {item.children}
         </div>
       </div>
