@@ -14,6 +14,7 @@ import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import type { QuickPanelListItem, QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { useInputbarTools } from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
 import type {
   InputbarScope,
@@ -88,10 +89,12 @@ const InputbarTools = ({ scope, assistant, model, session }: InputbarToolsNewPro
   const isCollapse = useAppSelector((state) => state.inputTools.isCollapsed)
   const [targetTool, setTargetTool] = useState<ToolConfig | null>(null)
 
+  const { provider } = useProvider(model.providerId)
+
   // Get tools for current scope
   const availableTools = useMemo(() => {
-    return getToolsForScope(scope, { assistant, model, session })
-  }, [scope, assistant, model, session])
+    return getToolsForScope(scope, { assistant, model, session, provider })
+  }, [scope, assistant, model, session, provider])
 
   // Get tool order for current scope
   const toolOrder = useMemo(() => {
