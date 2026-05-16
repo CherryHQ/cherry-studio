@@ -8,6 +8,7 @@ import {
   isDedicatedImageGenerationModel,
   isGenerateImageModel,
   isImageEnhancementModel,
+  isImageGenerationEndpoint,
   isPureGenerateImageModel,
   isTextToImageModel,
   isVisionModel
@@ -133,6 +134,24 @@ describe('vision helpers', () => {
     it('returns false when models are not in dedicated or auto-enable sets', () => {
       expect(isDedicatedImageGenerationModel(createModel({ id: 'gpt-4o' }))).toBe(false)
       expect(isAutoEnableImageGenerationModel(createModel({ id: 'gpt-4o' }))).toBe(false)
+    })
+  })
+
+  describe('isImageGenerationEndpoint', () => {
+    it('routes models tagged with endpoint_type=image-generation regardless of id', () => {
+      expect(
+        isImageGenerationEndpoint(createModel({ id: 'custom-vendor-image-pro', endpoint_type: 'image-generation' }))
+      ).toBe(true)
+    })
+
+    it('still routes dedicated image ids when endpoint_type is unset', () => {
+      expect(isImageGenerationEndpoint(createModel({ id: 'gpt-image-2' }))).toBe(true)
+      expect(isImageGenerationEndpoint(createModel({ id: 'dall-e-3' }))).toBe(true)
+    })
+
+    it('does not route plain chat models without the tag', () => {
+      expect(isImageGenerationEndpoint(createModel({ id: 'gpt-4o' }))).toBe(false)
+      expect(isImageGenerationEndpoint(createModel({ id: 'gpt-4o', endpoint_type: 'openai' }))).toBe(false)
     })
   })
 })
