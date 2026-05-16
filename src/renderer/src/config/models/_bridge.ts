@@ -68,8 +68,6 @@ function inferCapabilities(v1: Model): ModelCapability[] {
   // Capability inference runs on `id` only. Running it on `name` would
   // conflate unrelated strings — e.g. a Hunyuan model whose display name
   // happens to be "gpt-4o" would get WEB_SEARCH via OpenAI heuristics.
-  // Name-based fallback for legacy v1 data lives in `checkByIdOrName`
-  // for the handful of specific checks that need it.
   const set = new Set<ModelCapability>()
   const id = v1.id
   if (!id) return []
@@ -142,15 +140,4 @@ function inferSupportedEfforts(lowerId: string, lowerName: string): string[] | u
   // Perplexity deep-research
   if (id.includes('sonar-deep-research')) return ['medium']
   return undefined
-}
-
-/**
- * Preserve renderer's legacy "check id, fall back to checking name" pattern
- * (originally `withModelIdAndNameAsId`). Used by the small handful of checks
- * where v1 data historically stored the real model id under `model.name`.
- */
-export function checkByIdOrName(model: Model | null | undefined, check: (m: SharedModel) => boolean): boolean {
-  if (!model) return false
-  if (check(toSharedCompatModel(model))) return true
-  return check(toSharedCompatModel({ ...model, id: model.name }))
 }
