@@ -1,6 +1,8 @@
-import type { ReactNode } from 'react'
+import { cn } from '@renderer/utils'
+import { ChevronDown } from 'lucide-react'
+import { type ReactNode, useId, useState } from 'react'
 
-import { ToolDisclosure, type ToolDisclosureItem } from '../shared/ToolDisclosure'
+import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { StreamingContext } from './GenericTools'
 
 export function AgentToolDisclosureLabel({
@@ -33,9 +35,47 @@ export function AgentToolDisclosure({
   isStreaming?: boolean
   item: ToolDisclosureItem
 }) {
+  const contentId = useId()
+  const itemKey = String(item.key)
+  const [isExpanded, setIsExpanded] = useState(() => defaultActiveKey.includes(itemKey))
+
   return (
     <StreamingContext value={isStreaming}>
-      <ToolDisclosure className={className} defaultActiveKey={defaultActiveKey} items={[item]} />
+      <div
+        className={cn(
+          'w-full overflow-hidden rounded-[7px] border border-border bg-background',
+          className,
+          item.classNames?.item,
+          item.className
+        )}>
+        <button
+          type="button"
+          aria-expanded={isExpanded}
+          aria-controls={contentId}
+          className={cn(
+            'group/agent-tool-trigger relative mb-2 flex w-full items-center justify-between gap-4 rounded-md px-2.5 py-2 text-left font-semibold text-foreground/90 text-sm leading-4 outline-none transition-colors hover:no-underline focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 [&_.tool-icon>*]:transition-opacity hover:[&_.tool-icon>*]:opacity-0',
+            item.classNames?.header
+          )}
+          onClick={() => setIsExpanded((expanded) => !expanded)}>
+          {item.label}
+          <ChevronDown
+            className={cn(
+              '-translate-y-1/2 pointer-events-none absolute top-1/2 size-4 shrink-0 text-foreground-muted opacity-0 transition-all duration-150 group-hover/agent-tool-trigger:opacity-100',
+              {
+                'rotate-180': isExpanded
+              }
+            )}
+            style={{ left: 'var(--agent-tool-toggle-left, 0.625rem)' }}
+          />
+        </button>
+        <div
+          id={contentId}
+          data-testid={`collapse-content-${item.key}`}
+          hidden={!isExpanded}
+          className={cn('p-2.5 text-foreground/60 text-sm leading-5', item.classNames?.body)}>
+          {item.children}
+        </div>
+      </div>
     </StreamingContext>
   )
 }

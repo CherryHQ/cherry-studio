@@ -29,18 +29,20 @@ export function AgentToolCallCard({
     label: (
       <AgentToolDisclosureLabel
         label={renderedItem.label}
-        trailing={status && <ToolStatusIndicator status={status} hasError={hasError} />}
+        trailing={
+          status && (status !== 'done' || hasError) && <ToolStatusIndicator status={status} hasError={hasError} />
+        }
       />
     ),
     classNames: {
-      header: 'px-0 py-0',
+      header: 'px-0 py-0 [--agent-tool-toggle-left:0px]',
       body: 'max-h-96 overflow-auto bg-transparent p-0 text-foreground-900 dark:bg-transparent'
     }
   }
 
   return (
     <AgentToolDisclosure
-      className="w-max max-w-full rounded-none border-0 bg-transparent data-[expanded=true]:w-full"
+      className="w-full max-w-full rounded-none border-0 bg-transparent"
       isStreaming={isStreaming}
       item={toolContentItem}
     />

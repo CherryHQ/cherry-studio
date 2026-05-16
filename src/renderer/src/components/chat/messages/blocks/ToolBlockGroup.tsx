@@ -1,9 +1,8 @@
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { Wrench } from 'lucide-react'
+import { ChevronDown, Wrench } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { getEffectiveStatus, type ToolStatus } from '../tools/agent/GenericTools'
@@ -157,7 +156,7 @@ interface ToolListContentProps {
 }
 
 const ToolListContent = React.memo(({ items, scrollRef }: ToolListContentProps) => (
-  <div ref={scrollRef} className="flex max-h-75 flex-col gap-2.5 overflow-y-auto">
+  <div ref={scrollRef} className="flex w-full flex-col gap-2.5">
     {items.map((item) => {
       const status = item.toolResponse.status
       const isCompleted = isCompletedStatus(status)
@@ -165,7 +164,7 @@ const ToolListContent = React.memo(({ items, scrollRef }: ToolListContentProps) 
         <div
           key={item.id}
           data-block-id={item.id}
-          className={`transition-opacity duration-200 ${isCompleted ? 'opacity-70' : 'opacity-100'}`}>
+          className={`w-full transition-opacity duration-200 ${isCompleted ? 'opacity-70' : 'opacity-100'}`}>
           <ErrorBoundary fallbackComponent={BlockErrorFallback}>
             <MessageTools toolResponse={item.toolResponse} />
           </ErrorBoundary>
@@ -179,9 +178,9 @@ ToolListContent.displayName = 'ToolListContent'
 // ============ Main Component ============
 
 const ToolBlockGroup: React.FC<Props> = ({ items }) => {
-  const [activeKey, setActiveKey] = useState('')
+  const [isExpanded, setIsExpanded] = useState(false)
+  const contentId = useId()
   const scrollRef = useRef<HTMLDivElement>(null)
-  const userExpandedRef = useRef(false)
 
   const allCompleted = useMemo(() => {
     return items.every((item) => isCompletedStatus(item.toolResponse.status))
@@ -192,29 +191,31 @@ const ToolBlockGroup: React.FC<Props> = ({ items }) => {
   }, [items])
 
   useEffect(() => {
-    if (activeKey === 'tool-group' && currentRunningBlock && scrollRef.current) {
+    if (isExpanded && currentRunningBlock && scrollRef.current) {
       const element = scrollRef.current.querySelector(`[data-block-id="${currentRunningBlock.id}"]`)
       element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
-  }, [activeKey, currentRunningBlock])
-
-  const handleChange = (value: string) => {
-    userExpandedRef.current = value === 'tool-group'
-    setActiveKey(value)
-  }
+  }, [isExpanded, currentRunningBlock])
 
   return (
-    <div className="group/tool-group w-fit max-w-full">
-      <Accordion type="single" collapsible value={activeKey} onValueChange={handleChange}>
-        <AccordionItem value="tool-group" className="border-0 first:border-t-0">
-          <AccordionTrigger className="justify-start gap-1.5 py-0 hover:no-underline [&>svg]:text-foreground-muted [&>svg]:opacity-0 [&>svg]:transition-opacity [&>svg]:duration-150 group-hover/tool-group:[&>svg]:opacity-100">
-            <GroupHeaderContent items={items} allCompleted={allCompleted} />
-          </AccordionTrigger>
-          <AccordionContent className="pt-2.5 pr-0 pb-0 pl-0">
-            <ToolListContent items={items} scrollRef={scrollRef} />
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
+    <div className={`group/tool-group max-w-full ${isExpanded ? 'w-full' : 'w-fit'}`}>
+      <button
+        type="button"
+        aria-expanded={isExpanded}
+        aria-controls={contentId}
+        className="flex w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent p-0 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        onClick={() => setIsExpanded((expanded) => !expanded)}>
+        <GroupHeaderContent items={items} allCompleted={allCompleted} />
+        <ChevronDown
+          size={16}
+          className={`shrink-0 text-foreground-muted opacity-0 transition-all duration-150 group-hover/tool-group:opacity-100 ${isExpanded ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {isExpanded && (
+        <div id={contentId} className="mt-3.5">
+          <ToolListContent items={items} scrollRef={scrollRef} />
+        </div>
+      )}
     </div>
   )
 }
