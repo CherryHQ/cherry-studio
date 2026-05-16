@@ -1,10 +1,10 @@
 /**
  * Auto-generated compound icon exports
- * Each icon supports: <Icon /> (Color default), <Icon.Color />, <Icon.Mono />, <Icon.Avatar />, Icon.colorPrimary
+ * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-02-19T12:11:35.625Z
- * Total icons: 155
+ * Generated at: 2026-05-15T12:20:09.038Z
+ * Total icons: 159
  */
 export { MinTop3Icon as MinTop3 } from './3minTop'
 export { Ai302Icon as Ai302 } from './302ai'

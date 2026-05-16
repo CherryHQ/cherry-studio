@@ -200,10 +200,12 @@ function detectHasBackground(svgPath: string): boolean {
  */
 function generateFullBleedAvatar(baseDir: string, dirName: string): void {
   const colorName = getComponentName(baseDir, dirName)
+  const hasDark = fs.existsSync(path.join(baseDir, dirName, 'dark.tsx'))
   codegenAvatar({
     outPath: path.join(baseDir, dirName, 'avatar.tsx'),
     colorName,
-    variant: 'full-bleed'
+    variant: 'full-bleed',
+    hasDark
   })
 }
 
@@ -212,26 +214,31 @@ function generateFullBleedAvatar(baseDir: string, dirName: string): void {
  */
 function generatePaddedAvatar(baseDir: string, dirName: string): void {
   const colorName = getComponentName(baseDir, dirName)
+  const hasDark = fs.existsSync(path.join(baseDir, dirName, 'dark.tsx'))
   codegenAvatar({
     outPath: path.join(baseDir, dirName, 'avatar.tsx'),
     colorName,
-    variant: 'padded'
+    variant: 'padded',
+    hasDark
   })
 }
 
 /**
- * Generate per-icon index.ts with compound export (Color + Mono + Avatar).
+ * Generate per-icon index.tsx with compound export (variant prop + Avatar).
  */
 function generateIconIndex(baseDir: string, dirName: string): void {
   const colorName = getComponentName(baseDir, dirName)
   const colorPrimary = readColorPrimary(baseDir, dirName)
-  const hasMono = fs.existsSync(path.join(baseDir, dirName, 'mono.tsx'))
+  const hasDark = fs.existsSync(path.join(baseDir, dirName, 'dark.tsx'))
+  const lightContent = fs.readFileSync(path.join(baseDir, dirName, 'light.tsx'), 'utf-8')
+  const usesCurrentColor = lightContent.includes('currentColor')
 
   codegenIconIndex({
-    outPath: path.join(baseDir, dirName, 'index.ts'),
+    outPath: path.join(baseDir, dirName, 'index.tsx'),
     colorName,
-    hasMono,
     hasAvatar: true,
+    hasDark,
+    usesCurrentColor,
     colorPrimary
   })
 }
@@ -247,7 +254,7 @@ function generateBarrelIndex(baseDir: string, iconDirs: string[]): void {
 
   const headerLines = [
     'Auto-generated compound icon exports',
-    'Each icon supports: <Icon /> (Color default), <Icon.Color />, <Icon.Mono />, <Icon.Avatar />, Icon.colorPrimary',
+    'Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary',
     'Do not edit manually',
     '',
     `Generated at: ${new Date().toISOString()}`,

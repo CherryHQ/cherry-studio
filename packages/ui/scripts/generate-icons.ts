@@ -5,9 +5,9 @@
  * Use --force to skip cache and regenerate all files.
  *
  * Modes:
- *   --type=icons      icons/general/*.svg    → src/components/icons/general/{name}.tsx      (flat)
- *   --type=providers   icons/providers/*.svg  → src/components/icons/providers/{name}/color.tsx (per-provider dir)
- *   --type=models      icons/models/*.svg     → src/components/icons/models/{name}/color.tsx   (per-model dir)
+ *   --type=icons      icons/general/*.svg                     → src/components/icons/general/{name}.tsx      (flat)
+ *   --type=providers  icons/providers/{light,dark}/*.svg      → src/components/icons/providers/{name}/{light,dark}.tsx
+ *   --type=models     icons/models/{light,dark}/*.svg         → src/components/icons/models/{name}/{light,dark}.tsx
  */
 import { transform } from '@svgr/core'
 import crypto from 'crypto'
@@ -15,9 +15,7 @@ import fs from 'fs/promises'
 import path from 'path'
 
 import { generateMeta } from './codegen'
-import { colorToLuminance, ensureViewBox, isMonochromeSvg, toCamelCase } from './svg-utils'
-import { createConvertToMonoPlugin } from './svgo-convert-to-mono'
-import { createRemoveBackgroundPlugin } from './svgo-remove-background'
+import { buildLightDarkSvgMap, ensureViewBox, type LightDarkSvgPair, tightenSvgViewBox, toCamelCase } from './svg-utils'
 
 type IconType = 'icons' | 'providers' | 'models'
 
@@ -63,15 +61,6 @@ function parseTypeArg(): IconType {
   if (value === 'icons' || value === 'providers' || value === 'models') return value
 
   throw new Error(`Invalid --type value: ${value}. Use "icons", "providers", or "models".`)
-}
-
-async function ensureInputDir(type: IconType): Promise<string> {
-  const inputDir = SOURCE_DIR_MAP[type]
-  const stat = await fs.stat(inputDir).catch(() => null)
-  if (!stat || !stat.isDirectory()) {
-    throw new Error(`Source directory not found for type=${type}. Expected: ${inputDir}`)
-  }
-  return inputDir
 }
 
 async function ensureOutputDir(type: IconType): Promise<string> {
@@ -134,10 +123,9 @@ function extractColorPrimary(svgContent: string): string {
 
 /**
  * Run SVGR transform on SVG content, return TSX code.
- * Accepts optional extra svgo plugins that run before preset-default.
  */
-async function svgrTransform(svgCode: string, componentName: string, extraSvgoPlugins: any[] = []): Promise<string> {
-  const processedSvg = ensureViewBox(svgCode)
+async function svgrTransform(svgCode: string, componentName: string): Promise<string> {
+  const processedSvg = tightenSvgViewBox(ensureViewBox(svgCode))
 
   let jsCode = await transform(
     processedSvg,
@@ -171,7 +159,6 @@ async function svgrTransform(svgCode: string, componentName: string, extraSvgoPl
               }
             })
           },
-          ...extraSvgoPlugins,
           {
             name: 'preset-default',
             params: {
@@ -199,6 +186,13 @@ async function svgrTransform(svgCode: string, componentName: string, extraSvgoPl
     `export { ${componentName} }\nexport default ${componentName}`
   )
 
+  // Add IconComponent type annotation
+  jsCode = jsCode.replace(
+    `import type { SVGProps } from 'react'`,
+    `import type { SVGProps } from 'react'\n\nimport type { IconComponent } from '../../types'`
+  )
+  jsCode = jsCode.replace(`const ${componentName} =`, `const ${componentName}: IconComponent =`)
+
   return jsCode
 }
 
@@ -217,91 +211,63 @@ async function generateFlatIcon(
 }
 
 /**
- * Generate per-logo directory with color.tsx and meta.ts (for --type=logos).
- * Uses removeBackground svgo plugin to strip background shapes and capture
- * the background fill for colorPrimary.
+ * Generate per-logo directory with light.tsx + optional dark.tsx + meta.ts.
  *
- * For monochrome SVGs (single-color/achromatic), applies removeBackground +
- * convertToMono plugins so color.tsx uses currentColor for theme adaptation.
+ * When the logo has no dedicated dark variant (pair.dark === null), no dark.tsx
+ * is emitted. The public CompoundIcon API remains uniform through the component
+ * `variant` prop; missing dark assets fall back to the light SVG internally.
  */
-async function generateLogoDir(
-  svgPath: string,
+async function generateLogoDirDual(
+  pair: LightDarkSvgPair,
   outputDir: string,
   dirName: string,
   componentName: string
-): Promise<{ monochrome: boolean; darkDesigned: boolean }> {
+): Promise<void> {
   const logoDir = path.join(outputDir, dirName)
   await fs.mkdir(logoDir, { recursive: true })
 
-  const svgCode = await fs.readFile(svgPath, 'utf-8')
-  const { monochrome, darkDesigned } = isMonochromeSvg(svgCode)
+  const lightSvg = await fs.readFile(pair.light, 'utf-8')
+  const lightTsx = await svgrTransform(lightSvg, `${componentName}Light`)
+  await fs.writeFile(path.join(logoDir, 'light.tsx'), lightTsx, 'utf-8')
 
-  let jsCode: string
-  let colorPrimary: string
-
-  if (monochrome) {
-    // Monochrome icon: remove background + convert to currentColor for theme adaptation
-    const bgPlugin = createRemoveBackgroundPlugin()
-    const monoPlugin = createConvertToMonoPlugin({
-      get backgroundWasDark() {
-        const fill = bgPlugin.getBackgroundFill()
-        const lum = fill ? colorToLuminance(fill) : -1
-        return (bgPlugin.wasRemoved() && lum >= 0 && lum < 0.5) || darkDesigned
-      }
-    })
-    jsCode = await svgrTransform(svgCode, componentName, [bgPlugin.plugin, monoPlugin.plugin])
-
-    // For colorPrimary: use background fill if available, else fall back to extractColorPrimary
-    colorPrimary = bgPlugin.getBackgroundFill() || extractColorPrimary(svgCode)
+  if (pair.dark) {
+    const darkSvg = await fs.readFile(pair.dark, 'utf-8')
+    const darkTsx = await svgrTransform(darkSvg, `${componentName}Dark`)
+    await fs.writeFile(path.join(logoDir, 'dark.tsx'), darkTsx, 'utf-8')
   } else {
-    // Colorful icon: detect-only background, preserve original colors
-    const bgPlugin = createRemoveBackgroundPlugin({ detectOnly: true })
-    jsCode = await svgrTransform(svgCode, componentName, [bgPlugin.plugin])
-    colorPrimary = bgPlugin.getBackgroundFill() || extractColorPrimary(svgCode)
-
-    // Replace near-black fills with currentColor for dark mode adaptation,
-    // while preserving actual brand colors (e.g. Intel: black text + blue dot).
-    // Skip when the icon has a preserved dark background — dark fills are integral
-    // to the design and the icon provides its own contrast (e.g. Poe, Kimi).
-    const bgFill = bgPlugin.getBackgroundFill()
-    const bgLum = bgFill ? colorToLuminance(bgFill) : -1
-    const hasDarkBackground = bgPlugin.wasRemoved() && bgLum >= 0 && bgLum < 0.15
-
-    if (!hasDarkBackground) {
-      jsCode = jsCode.replace(/fill="(#[0-9a-fA-F]{3,6})"/g, (match, hex) => {
-        const lum = colorToLuminance(hex)
-        if (lum >= 0 && lum < 0.15) {
-          return 'fill="currentColor"'
-        }
-        return match
-      })
-      jsCode = jsCode.replace(/stroke="(#[0-9a-fA-F]{3,6})"/g, (match, hex) => {
-        const lum = colorToLuminance(hex)
-        if (lum >= 0 && lum < 0.15) {
-          return 'stroke="currentColor"'
-        }
-        return match
-      })
-    }
+    await fs.rm(path.join(logoDir, 'dark.tsx'), { force: true })
   }
 
-  jsCode = jsCode.replace(
-    `import type { SVGProps } from 'react'`,
-    `import type { SVGProps } from 'react'\n\nimport type { IconComponent } from '../../types'`
-  )
-  jsCode = jsCode.replace(`const ${componentName} =`, `const ${componentName}: IconComponent =`)
-  await fs.writeFile(path.join(logoDir, 'color.tsx'), jsCode, 'utf-8')
-
+  let colorPrimary = extractColorPrimary(lightSvg)
   if (/^black$/i.test(colorPrimary)) colorPrimary = '#000000'
-  const colorScheme = monochrome ? 'mono' : 'color'
+
   generateMeta({
     outPath: path.join(logoDir, 'meta.ts'),
     dirName,
     colorPrimary,
-    colorScheme
+    colorScheme: 'color'
   })
+}
 
-  return { monochrome, darkDesigned }
+async function removeStaleLogoDirs(outputDir: string, activeDirNames: Set<string>): Promise<number> {
+  const entries = await fs.readdir(outputDir, { withFileTypes: true }).catch(() => [])
+  let removed = 0
+
+  for (const entry of entries) {
+    if (!entry.isDirectory() || activeDirNames.has(entry.name)) continue
+
+    const logoDir = path.join(outputDir, entry.name)
+    const hasGeneratedIcon = await fs
+      .stat(path.join(logoDir, 'light.tsx'))
+      .then(() => true)
+      .catch(() => false)
+
+    if (!hasGeneratedIcon) continue
+    await fs.rm(logoDir, { recursive: true, force: true })
+    removed++
+  }
+
+  return removed
 }
 
 /**
@@ -338,72 +304,102 @@ async function main() {
 
   console.log(`Starting icon generation (type: ${type})${force ? ' [FORCE]' : ''}...\n`)
 
-  const inputDir = await ensureInputDir(type)
   const outputDir = await ensureOutputDir(type)
+
+  if (type === 'providers' || type === 'models') {
+    const svgMap = buildLightDarkSvgMap(type)
+    console.log(`Found ${svgMap.size} light/dark SVG pairs in ${SOURCE_DIR_MAP[type]}\n`)
+    const removedStale = await removeStaleLogoDirs(outputDir, new Set(svgMap.keys()))
+    if (removedStale > 0)
+      console.log(`Removed ${removedStale} stale generated icon director${removedStale === 1 ? 'y' : 'ies'}\n`)
+
+    const hashCache = force ? {} : await loadHashCache()
+    const newHashCache: HashCache = { ...hashCache }
+    let generated = 0
+    let skipped = 0
+
+    for (const [dirName, pair] of svgMap) {
+      // dirName is camelCase; we need the original file basename for componentName
+      const baseFile = path.basename(pair.light)
+      const componentName = toPascalCase(baseFile)
+
+      try {
+        const lightContent = await fs.readFile(pair.light, 'utf-8')
+        const darkContent = pair.dark ? await fs.readFile(pair.dark, 'utf-8') : '<no-dark>'
+        const hash = computeHash(`light:${lightContent}\ndark:${darkContent}`)
+        const cacheKey = `${type}:${baseFile}`
+
+        const lightFile = path.join(outputDir, dirName, 'light.tsx')
+        const darkFile = path.join(outputDir, dirName, 'dark.tsx')
+        const lightExists = await fs
+          .stat(lightFile)
+          .then(() => true)
+          .catch(() => false)
+        const darkExists = await fs
+          .stat(darkFile)
+          .then(() => true)
+          .catch(() => false)
+        const outputExists = lightExists && (pair.dark ? darkExists : !darkExists)
+
+        if (!force && hashCache[cacheKey] === hash && outputExists) {
+          skipped++
+          continue
+        }
+
+        await generateLogoDirDual(pair, outputDir, dirName, componentName)
+        newHashCache[cacheKey] = hash
+        generated++
+        console.log(`  ${baseFile} -> ${componentName}{Light${pair.dark ? ',Dark' : ''}}`)
+      } catch (error) {
+        console.error(`  Failed to process ${dirName}:`, error)
+      }
+    }
+
+    await saveHashCache(newHashCache)
+    console.log(`\nGeneration complete! ${generated} generated, ${skipped} unchanged (cached)`)
+    return
+  }
+
+  // type === 'icons' — flat mode
+  const inputDir = SOURCE_DIR_MAP[type]
+  const inputStat = await fs.stat(inputDir).catch(() => null)
+  if (!inputStat || !inputStat.isDirectory()) {
+    throw new Error(`Source directory not found for type=${type}. Expected: ${inputDir}`)
+  }
 
   const files = await fs.readdir(inputDir)
   const svgFiles = files.filter((f) => f.endsWith('.svg'))
-
   console.log(`Found ${svgFiles.length} SVG files in ${inputDir}\n`)
 
   const hashCache = force ? {} : await loadHashCache()
   const newHashCache: HashCache = { ...hashCache }
-  const components: Array<{ dirName: string; componentName: string }> = []
+  const components: Array<{ filename: string; componentName: string }> = []
   let skipped = 0
 
   for (const svgFile of svgFiles) {
     const svgPath = path.join(inputDir, svgFile)
     const componentName = toPascalCase(svgFile)
-    const dirName = toCamelCase(svgFile)
+    const baseName = toCamelCase(svgFile)
+    const outputFilename = baseName + '.tsx'
 
     try {
       const svgContent = await fs.readFile(svgPath, 'utf-8')
       const cacheKey = `${type}:${svgFile}`
       const hash = computeHash(svgContent)
+      const outputPath = path.join(outputDir, outputFilename)
+      const outputExists = await fs
+        .stat(outputPath)
+        .then(() => true)
+        .catch(() => false)
 
-      if (type === 'providers' || type === 'models') {
-        // Per-directory output (color.tsx + meta.ts)
-        const colorFile = path.join(outputDir, dirName, 'color.tsx')
-        const outputExists = await fs
-          .stat(colorFile)
-          .then(() => true)
-          .catch(() => false)
-
-        if (!force && hashCache[cacheKey] === hash && outputExists) {
-          components.push({ dirName, componentName })
-          skipped++
-          continue
-        }
-
-        const result = await generateLogoDir(svgPath, outputDir, dirName, componentName)
-        components.push({ dirName, componentName })
-        newHashCache[cacheKey] = hash
-
-        const tags: string[] = []
-        if (result.monochrome) tags.push('monochrome')
-        if (result.darkDesigned) tags.push('dark-designed')
-        const suffix = tags.length > 0 ? ` [${tags.join(', ')}]` : ''
-        console.log(`  ${svgFile} -> ${componentName}${suffix}`)
+      if (!force && hashCache[cacheKey] === hash && outputExists) {
+        components.push({ filename: outputFilename, componentName })
+        skipped++
         continue
-      } else {
-        // Flat output
-        const outputFilename = dirName + '.tsx'
-        const outputPath = path.join(outputDir, outputFilename)
-        const outputExists = await fs
-          .stat(outputPath)
-          .then(() => true)
-          .catch(() => false)
-
-        if (!force && hashCache[cacheKey] === hash && outputExists) {
-          components.push({ dirName: outputFilename, componentName })
-          skipped++
-          continue
-        }
-
-        await generateFlatIcon(svgPath, outputDir, componentName, outputFilename)
       }
 
-      components.push({ dirName: type !== 'icons' ? dirName : dirName + '.tsx', componentName })
+      await generateFlatIcon(svgPath, outputDir, componentName, outputFilename)
+      components.push({ filename: outputFilename, componentName })
       newHashCache[cacheKey] = hash
       console.log(`  ${svgFile} -> ${componentName}`)
     } catch (error) {
@@ -413,14 +409,8 @@ async function main() {
 
   await saveHashCache(newHashCache)
 
-  if (type === 'icons') {
-    console.log('\nGenerating index.ts...')
-    await generateFlatIndex(
-      outputDir,
-      components.map((c) => ({ filename: c.dirName, componentName: c.componentName }))
-    )
-  }
-  // For providers/models, index.ts is generated by generate-mono-icons.ts after mono conversion
+  console.log('\nGenerating index.ts...')
+  await generateFlatIndex(outputDir, components)
 
   const generated = components.length - skipped
   console.log(

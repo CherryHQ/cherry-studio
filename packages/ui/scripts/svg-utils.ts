@@ -40,6 +40,80 @@ export function toCamelCase(filename: string): string {
   )
 }
 
+/**
+ * Tighten the SVG root viewBox to the bounding box of its visible content.
+ *
+ * Many designer-exported SVGs (e.g. from Figma frames) carry ~10-15% of empty
+ * padding inside the viewBox. Combined with the Avatar wrapper's own padding,
+ * the rendered logo ends up only filling ~40% of the visible container.
+ *
+ * This helper unions the bounding boxes of every `<path d="...">` and `<rect>`
+ * element in the file, then rewrites the root viewBox to that union (plus a
+ * tiny 1-unit margin so strokes don't get clipped).
+ *
+ * Returns the original code unchanged if it can't find a viewBox, has no
+ * visible geometry, or the computed bbox is already a good fit (>95% coverage).
+ */
+export function tightenSvgViewBox(svgCode: string): string {
+  const vbMatch = svgCode.match(/<svg[^>]*\bviewBox="([^"]+)"/)
+  if (!vbMatch) return svgCode
+  const [vbX, vbY, vbW, vbH] = vbMatch[1].split(/[\s,]+/).map(Number)
+  if (![vbX, vbY, vbW, vbH].every(isFinite)) return svgCode
+
+  // Strip <defs>, <mask>, <clipPath> — those don't render directly
+  const stripped = svgCode
+    .replace(/<defs[\s\S]*?<\/defs>/gi, '')
+    .replace(/<mask[\s\S]*?<\/mask>/gi, '')
+    .replace(/<clipPath[\s\S]*?<\/clipPath>/gi, '')
+
+  const bounds: BBox = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
+  let foundContent = false
+
+  for (const m of stripped.matchAll(/<path\b[^>]*\bd="([^"]+)"/g)) {
+    const pb = parseSvgPathBounds(m[1])
+    if (isFinite(pb.minX)) {
+      bounds.minX = Math.min(bounds.minX, pb.minX)
+      bounds.minY = Math.min(bounds.minY, pb.minY)
+      bounds.maxX = Math.max(bounds.maxX, pb.maxX)
+      bounds.maxY = Math.max(bounds.maxY, pb.maxY)
+      foundContent = true
+    }
+  }
+
+  for (const m of stripped.matchAll(/<rect\b([^>]*)>/g)) {
+    const a = m[1]
+    const x = parseFloat(a.match(/\bx="([^"]+)"/)?.[1] ?? '0')
+    const y = parseFloat(a.match(/\by="([^"]+)"/)?.[1] ?? '0')
+    const w = parseFloat(a.match(/\bwidth="([^"]+)"/)?.[1] ?? 'NaN')
+    const h = parseFloat(a.match(/\bheight="([^"]+)"/)?.[1] ?? 'NaN')
+    if (isFinite(w) && isFinite(h)) {
+      bounds.minX = Math.min(bounds.minX, x)
+      bounds.minY = Math.min(bounds.minY, y)
+      bounds.maxX = Math.max(bounds.maxX, x + w)
+      bounds.maxY = Math.max(bounds.maxY, y + h)
+      foundContent = true
+    }
+  }
+
+  if (!foundContent) return svgCode
+
+  // If content already fills >95% of the viewBox, leave it alone
+  const coverage = ((bounds.maxX - bounds.minX) * (bounds.maxY - bounds.minY)) / (vbW * vbH)
+  if (coverage > 0.95) return svgCode
+
+  // Add a 1-unit margin so anti-aliased strokes don't clip at the edges
+  const margin = 1
+  const nx = Math.max(vbX, bounds.minX - margin)
+  const ny = Math.max(vbY, bounds.minY - margin)
+  const nw = Math.min(vbX + vbW, bounds.maxX + margin) - nx
+  const nh = Math.min(vbY + vbH, bounds.maxY + margin) - ny
+
+  if (!isFinite(nw) || !isFinite(nh) || nw <= 0 || nh <= 0) return svgCode
+
+  const newViewBox = `viewBox="${nx} ${ny} ${nw} ${nh}"`
+  return svgCode.replace(/(<svg[^>]*\b)viewBox="[^"]+"/, `$1${newViewBox}`)
+}
+
 export function ensureViewBox(svgCode: string): string {
   if (/viewBox\s*=\s*"[^"]*"/.test(svgCode)) return svgCode
 
@@ -58,24 +132,64 @@ export function isImageBased(content: string): boolean {
 
 export function buildSvgMap(type: LogoType): Map<string, string> {
   const svgDir = SVG_SOURCE_MAP[type]
+  const lightDir = path.join(svgDir, 'light')
   const map = new Map<string, string>()
-  if (!fs.existsSync(svgDir)) return map
+  const sourceDir = fs.existsSync(lightDir) ? lightDir : svgDir
+  if (!fs.existsSync(sourceDir)) return map
 
-  for (const file of fs.readdirSync(svgDir)) {
+  for (const file of fs.readdirSync(sourceDir)) {
     if (!file.endsWith('.svg')) continue
-    map.set(toCamelCase(file), path.join(svgDir, file))
+    map.set(toCamelCase(file), path.join(sourceDir, file))
+  }
+  return map
+}
+
+export interface LightDarkSvgPair {
+  light: string
+  /** null when the logo has no dedicated dark variant (single-source logo). */
+  dark: string | null
+}
+
+/**
+ * Scan a logo source directory with light/ and (optional) dark/ subdirectories,
+ * returning a map keyed by camelCase dirName → { light, dark } SVG paths.
+ *
+ * The light variant is required. The dark variant is optional — if dark/{name}.svg
+ * is missing, the entry has dark=null and the public CompoundIcon API falls back
+ * to the light SVG for `variant="dark"` without generating a duplicate dark
+ * component.
+ */
+export function buildLightDarkSvgMap(type: LogoType): Map<string, LightDarkSvgPair> {
+  const svgDir = SVG_SOURCE_MAP[type]
+  const lightDir = path.join(svgDir, 'light')
+  const darkDir = path.join(svgDir, 'dark')
+  const map = new Map<string, LightDarkSvgPair>()
+  if (!fs.existsSync(lightDir)) return map
+
+  for (const file of fs.readdirSync(lightDir)) {
+    if (!file.endsWith('.svg')) continue
+    const darkPath = path.join(darkDir, file)
+    const hasDark = fs.existsSync(darkPath)
+    map.set(toCamelCase(file), {
+      light: path.join(lightDir, file),
+      dark: hasDark ? darkPath : null
+    })
   }
   return map
 }
 
 export function getComponentName(baseDir: string, dirName: string): string {
-  const colorPath = path.join(baseDir, dirName, 'color.tsx')
-  try {
-    const content = fs.readFileSync(colorPath, 'utf-8')
-    const match = content.match(/export \{ (\w+) \}/)
-    if (match) return match[1]
-  } catch {
-    /* fallback */
+  for (const filename of ['light.tsx', 'color.tsx']) {
+    const filePath = path.join(baseDir, dirName, filename)
+    try {
+      const content = fs.readFileSync(filePath, 'utf-8')
+      const match = content.match(/export \{ (\w+) \}/)
+      if (match) {
+        return filename === 'light.tsx' ? match[1].replace(/Light$/, '') : match[1]
+      }
+    } catch {
+      /* try next filename */
+    }
   }
   return dirName.charAt(0).toUpperCase() + dirName.slice(1)
 }
@@ -83,7 +197,12 @@ export function getComponentName(baseDir: string, dirName: string): string {
 export function collectIconDirs(baseDir: string): string[] {
   return fs
     .readdirSync(baseDir, { withFileTypes: true })
-    .filter((e) => e.isDirectory() && fs.existsSync(path.join(baseDir, e.name, 'color.tsx')))
+    .filter(
+      (e) =>
+        e.isDirectory() &&
+        (fs.existsSync(path.join(baseDir, e.name, 'light.tsx')) ||
+          fs.existsSync(path.join(baseDir, e.name, 'color.tsx')))
+    )
     .map((e) => e.name)
     .sort()
 }

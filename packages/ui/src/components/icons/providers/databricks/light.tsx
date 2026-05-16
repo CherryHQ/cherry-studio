@@ -1,0 +1,13 @@
+import type { SVGProps } from 'react'
+
+import type { IconComponent } from '../../types'
+const DatabricksLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="20.026 16 79.946 88" {...props}>
+    <path
+      fill="#FF3621"
+      d="M94.7949 52.452L60.0366 72.5035L22.8165 51.0799L21.0264 52.0709V67.6241L60.0366 90.0389L94.7949 70.0638V78.298L60.0366 98.3492L22.8165 76.9256L21.0264 77.9166V80.5852L60.0366 103L98.972 80.5852V65.0319L97.1818 64.0407L60.0366 85.3882L25.2034 65.4131V57.1791L60.0366 77.1543L98.972 54.7395V39.4149L97.0327 38.2713L60.0366 59.5425L26.9935 40.6347L60.0366 21.6507L87.1869 37.2802L89.5738 35.9078V34.0018L60.0366 17L21.0264 39.4149V41.8546L60.0366 64.2696L94.7949 44.2181V52.452Z"
+    />
+  </svg>
+)
+export { DatabricksLight }
+export default DatabricksLight

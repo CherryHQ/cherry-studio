@@ -82,7 +82,7 @@ const DMXAPISettings: FC<DMXAPISettingsProps> = ({ providerId }) => {
   return (
     <div className="mt-4 mb-[30px]">
       <div className="mb-[30px] flex flex-col items-center justify-center">
-        <Dmxapi.Color height={70} width="auto" />
+        <Dmxapi height={70} width="auto" />
       </div>
 
       <div className="flex w-full flex-col gap-2">
