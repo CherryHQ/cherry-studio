@@ -43,8 +43,8 @@ function makeProvider(id: string, type: ProviderType): Provider {
   return { id, name: id, type, apiKey: 'test', apiHost: 'https://test.com', isSystem: false, models: [] } as Provider
 }
 
-function makeModel(): Model {
-  return { id: 'test-model', provider: 'test', name: 'Test', group: 'test' } as Model
+function makeModel(overrides: Partial<Model> = {}): Model {
+  return { id: 'test-model', provider: 'test', name: 'Test', group: 'test', ...overrides } as Model
 }
 
 function makePdfFilePart(filename = 'test.pdf') {
@@ -147,6 +147,26 @@ describe('pdfCompatibilityPlugin', () => {
     } as unknown as LanguageModelV3CallOptions
 
     const result = await runMiddleware(provider, params)
+    expect(mockExtractPdfText).toHaveBeenCalledWith('base64pdfdata')
+    expect(result.prompt[0]).toMatchObject({
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Hello' },
+        { type: 'text', text: 'report.pdf\nExtracted PDF content' }
+      ]
+    })
+  })
+
+  it('should convert PDF for qiniu openai-compatible GPT models', async () => {
+    const provider = makeProvider('qiniu', 'openai')
+    const model = makeModel({ id: 'gpt-5.4', name: 'gpt-5.4' })
+    mockExtractPdfText.mockResolvedValue('Extracted PDF content')
+
+    const params = {
+      prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), makePdfFilePart('report.pdf')] }]
+    } as unknown as LanguageModelV3CallOptions
+
+    const result = await runMiddleware(provider, params, model)
     expect(mockExtractPdfText).toHaveBeenCalledWith('base64pdfdata')
     expect(result.prompt[0]).toMatchObject({
       role: 'user',
