@@ -55,7 +55,9 @@ vi.mock('@renderer/config/constant', () => ({
   DEFAULT_MAX_TOKENS: 4096,
   isMac: false,
   isWin: false,
-  TOKENFLUX_HOST: 'mock-host'
+  TOKENFLUX_HOST: 'mock-host',
+  ARTIFACT_EXT:
+    '\\.(md|html?|txt|json|csv|pdf|xml|ya?ml|toml|ini|cfg|conf|log|svg|png|jpe?g|gif|bmp|ico|css|jsx?|tsx?|py|rb|go|rs|java|sql|sh|bat|ps1|pptx?|xlsx?|docx?)'
 }))
 
 vi.mock('@renderer/utils/provider', () => ({

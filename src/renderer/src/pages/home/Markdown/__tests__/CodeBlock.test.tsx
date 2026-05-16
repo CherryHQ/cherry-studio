@@ -1,3 +1,4 @@
+import type * as RendererConstantModule from '@renderer/config/constant'
 import { MessageBlockStatus } from '@renderer/types/newMessage'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -65,7 +66,7 @@ vi.mock('@renderer/components/CodeBlockView', () => ({
 }))
 
 vi.mock('@renderer/config/constant', async (importOriginal) => {
-  const mod = await importOriginal<typeof import('@renderer/config/constant')>()
+  const mod = await importOriginal<typeof RendererConstantModule>()
   return {
     ...mod,
     get isWin() {
