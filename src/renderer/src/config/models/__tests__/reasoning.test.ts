@@ -1,46 +1,95 @@
-import type { Model } from '@renderer/types'
+import type { Model as V1Model } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { toSharedCompatModel } from '../_bridge'
 import { isEmbeddingModel, isRerankModel } from '../embedding'
-import { isOpenAIReasoningModel, isSupportedReasoningEffortOpenAIModel } from '../openai'
+import {
+  isOpenAIReasoningModel as _isOpenAIReasoningModel,
+  isSupportedReasoningEffortOpenAIModel as _isSupportedReasoningEffortOpenAIModel
+} from '../openai'
 import {
   findTokenLimit,
-  getModelSupportedReasoningEffortOptions,
-  getThinkModelType,
-  isClaude4SeriesModel,
-  isClaude45ReasoningModel,
-  isClaudeReasoningModel,
-  isDeepSeekHybridInferenceModel,
-  isDeepSeekV4PlusModel,
-  isDoubaoSeedAfter251015,
-  isDoubaoThinkingAutoModel,
-  isFixedReasoningModel,
-  isGeminiReasoningModel,
-  isGrok4FastReasoningModel,
-  isHunyuanReasoningModel,
-  isInterleavedThinkingModel,
-  isKimiReasoningModel,
-  isLingReasoningModel,
-  isMiniMaxReasoningModel,
-  isPerplexityReasoningModel,
-  isQwenAlwaysThinkModel,
-  isReasoningModel,
-  isStepReasoningModel,
-  isSupportedReasoningEffortGrokModel,
-  isSupportedReasoningEffortModel,
-  isSupportedReasoningEffortPerplexityModel,
-  isSupportedThinkingTokenDoubaoModel,
-  isSupportedThinkingTokenGeminiModel,
-  isSupportedThinkingTokenKimiModel,
-  isSupportedThinkingTokenMiMoModel,
-  isSupportedThinkingTokenModel,
-  isSupportedThinkingTokenQwenModel,
-  isSupportedThinkingTokenZhipuModel,
-  isZhipuReasoningModel,
+  getModelSupportedReasoningEffortOptions as _getModelSupportedReasoningEffortOptions,
+  getThinkModelType as _getThinkModelType,
+  isClaude4SeriesModel as _isClaude4SeriesModel,
+  isClaude45ReasoningModel as _isClaude45ReasoningModel,
+  isClaudeReasoningModel as _isClaudeReasoningModel,
+  isDeepSeekHybridInferenceModel as _isDeepSeekHybridInferenceModel,
+  isDeepSeekV4PlusModel as _isDeepSeekV4PlusModel,
+  isDoubaoSeedAfter251015 as _isDoubaoSeedAfter251015,
+  isDoubaoThinkingAutoModel as _isDoubaoThinkingAutoModel,
+  isFixedReasoningModel as _isFixedReasoningModel,
+  isGeminiReasoningModel as _isGeminiReasoningModel,
+  isGrok4FastReasoningModel as _isGrok4FastReasoningModel,
+  isHunyuanReasoningModel as _isHunyuanReasoningModel,
+  isInterleavedThinkingModel as _isInterleavedThinkingModel,
+  isKimiReasoningModel as _isKimiReasoningModel,
+  isLingReasoningModel as _isLingReasoningModel,
+  isMiniMaxReasoningModel as _isMiniMaxReasoningModel,
+  isPerplexityReasoningModel as _isPerplexityReasoningModel,
+  isQwenAlwaysThinkModel as _isQwenAlwaysThinkModel,
+  isReasoningModel as _isReasoningModel,
+  isStepReasoningModel as _isStepReasoningModel,
+  isSupportedReasoningEffortGrokModel as _isSupportedReasoningEffortGrokModel,
+  isSupportedReasoningEffortModel as _isSupportedReasoningEffortModel,
+  isSupportedReasoningEffortPerplexityModel as _isSupportedReasoningEffortPerplexityModel,
+  isSupportedThinkingTokenDoubaoModel as _isSupportedThinkingTokenDoubaoModel,
+  isSupportedThinkingTokenGeminiModel as _isSupportedThinkingTokenGeminiModel,
+  isSupportedThinkingTokenKimiModel as _isSupportedThinkingTokenKimiModel,
+  isSupportedThinkingTokenMiMoModel as _isSupportedThinkingTokenMiMoModel,
+  isSupportedThinkingTokenModel as _isSupportedThinkingTokenModel,
+  isSupportedThinkingTokenQwenModel as _isSupportedThinkingTokenQwenModel,
+  isSupportedThinkingTokenZhipuModel as _isSupportedThinkingTokenZhipuModel,
+  isZhipuReasoningModel as _isZhipuReasoningModel,
   MODEL_SUPPORTED_OPTIONS,
   MODEL_SUPPORTED_REASONING_EFFORT
 } from '../reasoning'
-import { isGemini3ThinkingTokenModel } from '../utils'
+import { isGemini3ThinkingTokenModel as _isGemini3ThinkingTokenModel } from '../utils'
+
+// Adapter: route v1-shape test fixtures through the same id→capability
+// inference the registry uses, so the wrappers stay pure v2 while every
+// existing assertion keeps its id→behaviour contract.
+const A =
+  <R>(fn: (m: Model) => R) =>
+  (m?: Partial<V1Model> | null): R =>
+    fn((m ? toSharedCompatModel(m as V1Model) : m) as Model)
+const getModelSupportedReasoningEffortOptions = A(_getModelSupportedReasoningEffortOptions)
+const getThinkModelType = A(_getThinkModelType)
+const isClaude4SeriesModel = A(_isClaude4SeriesModel)
+const isClaude45ReasoningModel = A(_isClaude45ReasoningModel)
+const isClaudeReasoningModel = A(_isClaudeReasoningModel)
+const isDeepSeekHybridInferenceModel = A(_isDeepSeekHybridInferenceModel)
+const isDeepSeekV4PlusModel = A(_isDeepSeekV4PlusModel)
+const isDoubaoSeedAfter251015 = A(_isDoubaoSeedAfter251015)
+const isDoubaoThinkingAutoModel = A(_isDoubaoThinkingAutoModel)
+const isFixedReasoningModel = A(_isFixedReasoningModel)
+const isGeminiReasoningModel = A(_isGeminiReasoningModel)
+const isGrok4FastReasoningModel = A(_isGrok4FastReasoningModel)
+const isHunyuanReasoningModel = A(_isHunyuanReasoningModel)
+const isInterleavedThinkingModel = A(_isInterleavedThinkingModel)
+const isKimiReasoningModel = A(_isKimiReasoningModel)
+const isLingReasoningModel = A(_isLingReasoningModel)
+const isMiniMaxReasoningModel = A(_isMiniMaxReasoningModel)
+const isPerplexityReasoningModel = A(_isPerplexityReasoningModel)
+const isQwenAlwaysThinkModel = A(_isQwenAlwaysThinkModel)
+const isReasoningModel = A(_isReasoningModel)
+const isStepReasoningModel = A(_isStepReasoningModel)
+const isSupportedReasoningEffortGrokModel = A(_isSupportedReasoningEffortGrokModel)
+const isSupportedReasoningEffortModel = A(_isSupportedReasoningEffortModel)
+const isSupportedReasoningEffortPerplexityModel = A(_isSupportedReasoningEffortPerplexityModel)
+const isSupportedThinkingTokenDoubaoModel = A(_isSupportedThinkingTokenDoubaoModel)
+const isSupportedThinkingTokenGeminiModel = A(_isSupportedThinkingTokenGeminiModel)
+const isSupportedThinkingTokenKimiModel = A(_isSupportedThinkingTokenKimiModel)
+const isSupportedThinkingTokenMiMoModel = A(_isSupportedThinkingTokenMiMoModel)
+const isSupportedThinkingTokenModel = A(_isSupportedThinkingTokenModel)
+const isSupportedThinkingTokenQwenModel = A(_isSupportedThinkingTokenQwenModel)
+const isSupportedThinkingTokenZhipuModel = A(_isSupportedThinkingTokenZhipuModel)
+const isZhipuReasoningModel = A(_isZhipuReasoningModel)
+const isOpenAIReasoningModel = A(_isOpenAIReasoningModel)
+const isSupportedReasoningEffortOpenAIModel = A(_isSupportedReasoningEffortOpenAIModel)
+const isGemini3ThinkingTokenModel = A(_isGemini3ThinkingTokenModel)
 import { isTextToImageModel } from '../vision'
 
 vi.mock('@renderer/store', () => ({
@@ -228,23 +277,18 @@ describe('Doubao Models', () => {
 })
 
 describe('Doubao Thinking Support', () => {
-  it('detects thinking token support by id or name', () => {
+  it('detects thinking token support by canonical id', () => {
     expect(isSupportedThinkingTokenDoubaoModel(createModel({ id: 'doubao-seed-1.6-flash' }))).toBe(true)
-    expect(
-      isSupportedThinkingTokenDoubaoModel(createModel({ id: 'custom', name: 'Doubao-1-5-Thinking-Pro-M-Extra' }))
-    ).toBe(true)
+    // v2: model id is canonical (legacy "real id under name" is handled by
+    // the v1→v2 migrators, not at runtime).
+    expect(isSupportedThinkingTokenDoubaoModel(createModel({ id: 'Doubao-1-5-Thinking-Pro-M-Extra' }))).toBe(true)
     expect(isSupportedThinkingTokenDoubaoModel(undefined)).toBe(false)
     expect(isSupportedThinkingTokenDoubaoModel(createModel({ id: 'doubao-standard' }))).toBe(false)
   })
 })
 
-const createModel = (overrides: Partial<Model> = {}): Model => ({
-  id: 'test-model',
-  name: 'Test Model',
-  provider: 'openai',
-  group: 'Test',
-  ...overrides
-})
+const createModel = (overrides: Partial<V1Model> = {}): V1Model =>
+  ({ id: 'test-model', name: 'Test Model', provider: 'openai', group: 'Test', ...overrides }) as V1Model
 
 const embeddingMock = vi.mocked(isEmbeddingModel)
 const rerankMock = vi.mocked(isRerankModel)
@@ -701,16 +745,15 @@ describe('isReasoningModel', () => {
     expect(isReasoningModel(createModel())).toBe(false)
   })
 
-  it('respects manual overrides', () => {
-    const forced = createModel({
-      capabilities: [{ type: 'reasoning', isUserSelected: true }]
-    })
-    expect(isReasoningModel(forced)).toBe(true)
+  it('reads the authoritative v2 capabilities array', () => {
+    const forced: Model = {
+      ...toSharedCompatModel(createModel()),
+      capabilities: [MODEL_CAPABILITY.REASONING]
+    }
+    expect(_isReasoningModel(forced)).toBe(true)
 
-    const disabled = createModel({
-      capabilities: [{ type: 'reasoning', isUserSelected: false }]
-    })
-    expect(isReasoningModel(disabled)).toBe(false)
+    const disabled: Model = { ...toSharedCompatModel(createModel()), capabilities: [], reasoning: undefined }
+    expect(_isReasoningModel(disabled)).toBe(false)
   })
 
   it('handles doubao-specific and generic matches', () => {
@@ -1016,34 +1059,13 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
     })
   })
 
-  describe('Name-based fallback', () => {
-    it('should fall back to name when id does not match', () => {
-      expect(
-        getThinkModelType(
-          createModel({
-            id: 'custom-id',
-            name: 'grok-4-fast'
-          })
-        )
-      ).toBe('grok4_fast')
-
-      expect(
-        getThinkModelType(
-          createModel({
-            id: 'custom-id',
-            name: 'gpt-5.1-codex'
-          })
-        )
-      ).toBe('gpt5_1_codex')
-
-      expect(
-        getThinkModelType(
-          createModel({
-            id: 'custom-id',
-            name: 'gemini-2.5-flash-latest'
-          })
-        )
-      ).toBe('gemini2_flash')
+  describe('Canonical id resolution', () => {
+    // v2: model id is canonical. Legacy "real id stored under name" is
+    // resolved by the v1→v2 migrators, not at runtime.
+    it('classifies by the canonical model id', () => {
+      expect(getThinkModelType(createModel({ id: 'grok-4-fast' }))).toBe('grok4_fast')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.1-codex' }))).toBe('gpt5_1_codex')
+      expect(getThinkModelType(createModel({ id: 'gemini-2.5-flash-latest' }))).toBe('gemini2_flash')
     })
 
     it('should use id result when id matches', () => {
@@ -2386,37 +2408,30 @@ describe('getModelSupportedReasoningEffortOptions', () => {
     })
   })
 
-  describe('Name-based fallback', () => {
-    it('should fall back to name when id does not match', () => {
+  describe('Canonical id resolution', () => {
+    // v2: model id is canonical. Legacy "real id stored under name" is
+    // resolved by the v1→v2 migrators, not at runtime.
+    it('classifies by the canonical model id', () => {
       // Grok 4 Fast requires openrouter provider to be recognized
       expect(
-        getModelSupportedReasoningEffortOptions(
-          createModel({
-            id: 'custom-id',
-            name: 'grok-4-fast',
-            provider: 'openrouter'
-          })
-        )
+        getModelSupportedReasoningEffortOptions(createModel({ id: 'grok-4-fast', provider: 'openrouter' }))
       ).toEqual(['default', 'none', 'auto'])
 
-      expect(
-        getModelSupportedReasoningEffortOptions(
-          createModel({
-            id: 'custom-id',
-            name: 'gpt-5.1'
-          })
-        )
-      ).toEqual(['default', 'none', 'low', 'medium', 'high'])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gpt-5.1' }))).toEqual([
+        'default',
+        'none',
+        'low',
+        'medium',
+        'high'
+      ])
 
-      // Qwen models work well for name-based fallback
-      expect(
-        getModelSupportedReasoningEffortOptions(
-          createModel({
-            id: 'custom-id',
-            name: 'qwen-plus'
-          })
-        )
-      ).toEqual(['default', 'none', 'low', 'medium', 'high'])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'qwen-plus' }))).toEqual([
+        'default',
+        'none',
+        'low',
+        'medium',
+        'high'
+      ])
     })
 
     it('should use id result when id matches', () => {
@@ -2965,55 +2980,55 @@ describe('Fireworks provider model name normalization', () => {
 
 describe('Doubao Seed 2.0 Models', () => {
   it('should identify doubao-seed-2-0-pro-260215 as thinking model', () => {
-    const model: Model = {
+    const model = createModel({
       id: 'doubao-seed-2-0-pro-260215',
       name: 'doubao-seed-2-0-pro',
       provider: 'doubao',
       group: 'Doubao-Seed-2.0'
-    }
+    })
     expect(isSupportedThinkingTokenDoubaoModel(model)).toBe(true)
     expect(isDoubaoSeedAfter251015(model)).toBe(true)
     expect(getThinkModelType(model)).toBe('doubao_after_251015')
   })
 
   it('should identify doubao-seed-2-0-lite-260215 as thinking model', () => {
-    const model: Model = {
+    const model = createModel({
       id: 'doubao-seed-2-0-lite-260215',
       name: 'doubao-seed-2-0-lite',
       provider: 'doubao',
       group: 'Doubao-Seed-2.0'
-    }
+    })
     expect(isSupportedThinkingTokenDoubaoModel(model)).toBe(true)
   })
 
   it('should support minimal, low, medium, high reasoning effort', () => {
-    const model: Model = {
+    const model = createModel({
       id: 'doubao-seed-2-0-lite-260215',
       name: 'doubao-seed-2-0-lite',
       provider: 'doubao',
       group: 'Doubao-Seed-2.0'
-    }
+    })
     const options = getModelSupportedReasoningEffortOptions(model)
     expect(options).toEqual(['default', 'minimal', 'low', 'medium', 'high'])
   })
 
   it('should identify doubao-seed-2-0-code-preview-260215', () => {
-    const model: Model = {
+    const model = createModel({
       id: 'doubao-seed-2-0-code-preview-260215',
       name: 'doubao-seed-2-0-code-preview',
       provider: 'doubao',
       group: 'Doubao-Seed-2.0'
-    }
+    })
     expect(isDoubaoSeedAfter251015(model)).toBe(true)
   })
 
   it('should identify doubao-seed-2-0-mini-260215', () => {
-    const model: Model = {
+    const model = createModel({
       id: 'doubao-seed-2-0-mini-260215',
       name: 'doubao-seed-2-0-mini',
       provider: 'doubao',
       group: 'Doubao-Seed-2.0'
-    }
+    })
     expect(isDoubaoSeedAfter251015(model)).toBe(true)
   })
 })

@@ -1,6 +1,9 @@
-import type { Model } from '@renderer/types'
+import type { Model as V1Model } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { toSharedCompatModel } from '../_bridge'
 import { isEmbeddingModel, isRerankModel } from '../embedding'
 import { isDeepSeekHybridInferenceModel } from '../reasoning'
 import { isFunctionCallingModel } from '../tooluse'
@@ -58,13 +61,21 @@ vi.mock('../reasoning', () => ({
   isDeepSeekHybridInferenceModel: vi.fn()
 }))
 
-const createModel = (overrides: Partial<Model> = {}): Model => ({
-  id: 'gpt-4o',
-  name: 'gpt-4o',
-  provider: 'openai',
-  group: 'OpenAI',
-  ...overrides
-})
+/**
+ * Builds a v2 `Model` by running the same id-based capability inference the
+ * registry/bridge uses (`toSharedCompatModel`). The renderer wrapper is now
+ * pure v2 (reads `model.capabilities`); routing the fixture through the
+ * shared inference preserves the exact id→behaviour mapping these tests
+ * assert without rewriting each assertion.
+ */
+const createModel = (overrides: Partial<V1Model> = {}): Model =>
+  toSharedCompatModel({
+    id: 'gpt-4o',
+    name: 'gpt-4o',
+    provider: 'openai',
+    group: 'OpenAI',
+    ...overrides
+  } as V1Model)
 
 const embeddingMock = vi.mocked(isEmbeddingModel)
 const rerankMock = vi.mocked(isRerankModel)
@@ -86,14 +97,10 @@ describe('isFunctionCallingModel', () => {
     expect(isFunctionCallingModel(undefined as unknown as Model)).toBe(false)
   })
 
-  it('respect manual user overrides', () => {
-    const model = createModel({
-      capabilities: [{ type: 'function_calling', isUserSelected: false }]
-    })
-    expect(isFunctionCallingModel(model)).toBe(false)
-    const enabled = createModel({
-      capabilities: [{ type: 'function_calling', isUserSelected: true }]
-    })
+  it('honours the authoritative v2 capabilities array', () => {
+    const disabled = { ...createModel(), capabilities: [] } as Model
+    expect(isFunctionCallingModel(disabled)).toBe(false)
+    const enabled = { ...createModel(), capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] } as Model
     expect(isFunctionCallingModel(enabled)).toBe(true)
   })
 
@@ -168,42 +175,42 @@ describe('isFunctionCallingModel', () => {
 
   describe('Doubao Seed 2.0 Models', () => {
     it('should identify doubao-seed-2-0-pro-260215 as function calling model', () => {
-      const model: Model = {
+      const model = createModel({
         id: 'doubao-seed-2-0-pro-260215',
         name: 'doubao-seed-2-0-pro',
         provider: 'doubao',
         group: 'Doubao-Seed-2.0'
-      }
+      })
       expect(isFunctionCallingModel(model)).toBe(true)
     })
 
     it('should identify doubao-seed-2-0-lite-260215 as function calling model', () => {
-      const model: Model = {
+      const model = createModel({
         id: 'doubao-seed-2-0-lite-260215',
         name: 'doubao-seed-2-0-lite',
         provider: 'doubao',
         group: 'Doubao-Seed-2.0'
-      }
+      })
       expect(isFunctionCallingModel(model)).toBe(true)
     })
 
     it('should identify doubao-seed-2-0-code-preview-260215 as function calling model', () => {
-      const model: Model = {
+      const model = createModel({
         id: 'doubao-seed-2-0-code-preview-260215',
         name: 'doubao-seed-2-0-code-preview',
         provider: 'doubao',
         group: 'Doubao-Seed-2.0'
-      }
+      })
       expect(isFunctionCallingModel(model)).toBe(true)
     })
 
     it('should identify doubao-seed-2-0-mini-260215 as function calling model', () => {
-      const model: Model = {
+      const model = createModel({
         id: 'doubao-seed-2-0-mini-260215',
         name: 'doubao-seed-2-0-mini',
         provider: 'doubao',
         group: 'Doubao-Seed-2.0'
-      }
+      })
       expect(isFunctionCallingModel(model)).toBe(true)
     })
   })

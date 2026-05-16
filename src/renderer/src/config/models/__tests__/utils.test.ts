@@ -1,7 +1,9 @@
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models/embedding'
-import type { Model } from '@renderer/types'
+import type { Model as V1Model } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { toSharedCompatModel } from '../_bridge'
 import { isOpenAIReasoningModel } from '../openai'
 import { isQwenMTModel } from '../qwen'
 import {
@@ -90,13 +92,8 @@ vi.mock('../websearch', () => ({
   isOpenAIWebSearchChatCompletionOnlyModel: vi.fn()
 }))
 
-const createModel = (overrides: Partial<Model> = {}): Model => ({
-  id: 'gpt-4o',
-  name: 'gpt-4o',
-  provider: 'openai',
-  group: 'OpenAI',
-  ...overrides
-})
+const createModel = (overrides: Partial<V1Model> = {}): Model =>
+  toSharedCompatModel({ id: 'gpt-4o', name: 'gpt-4o', provider: 'openai', group: 'OpenAI', ...overrides } as V1Model)
 
 const embeddingMock = vi.mocked(isEmbeddingModel)
 const rerankMock = vi.mocked(isRerankModel)

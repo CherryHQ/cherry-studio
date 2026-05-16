@@ -2,7 +2,6 @@ import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { isGenerateImageModel, isGenerateImageModels, isVisionModel, isVisionModels } from '@renderer/config/models'
-import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useInputText } from '@renderer/hooks/useInputText'
@@ -21,11 +20,12 @@ import {
   useInputbarToolsState
 } from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { type FileMetadata, type KnowledgeBase, type Model, type Topic, TopicType } from '@renderer/types'
+import { type FileMetadata, type KnowledgeBase, type Topic, TopicType } from '@renderer/types'
 import { delay } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
-import { createUniqueModelId, isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
+import { type UniqueModelId } from '@shared/data/types/model'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -141,7 +141,6 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
 
   const { assistant, model, updateAssistant } = useAssistant(topic.assistantId)
   const { createTopic } = useTopicMutations()
-  const v1Model = useMemo(() => (model ? fromSharedModel(model) : undefined), [model])
   const { knowledgeBases: allKnowledgeBases } = useKnowledgeBases()
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [enableQuickPanelTriggers] = usePreference('chat.input.quick_panel.triggers_enabled')
@@ -157,8 +156,8 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
     setIsSending(false)
   }, [topic.id])
   const loading = isPending || isSending || awaitingApproval
-  const isVisionAssistant = useMemo(() => (v1Model ? isVisionModel(v1Model) : false), [v1Model])
-  const isGenerateImageAssistant = useMemo(() => (v1Model ? isGenerateImageModel(v1Model) : false), [v1Model])
+  const isVisionAssistant = useMemo(() => (model ? isVisionModel(model) : false), [model])
+  const isGenerateImageAssistant = useMemo(() => (model ? isGenerateImageModel(model) : false), [model])
   const { setTimeoutTimer } = useTimer()
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
 
@@ -238,12 +237,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
     try {
       await onSendProp(text_, {
         files: files.length > 0 ? files : undefined,
-        mentionedModels:
-          mentionedModels.length > 0
-            ? mentionedModels.map((model) =>
-                isUniqueModelId(model.id) ? model.id : createUniqueModelId(model.provider, model.id)
-              )
-            : undefined
+        mentionedModels: mentionedModels.length > 0 ? mentionedModels.map((model) => model.id) : undefined
       })
     } catch (error) {
       logger.warn('send failed', { error })
@@ -384,9 +378,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
 
   // leftToolbar: 左侧工具栏
   const leftToolbar =
-    config.showTools && assistant && v1Model ? (
-      <InputbarTools scope={scope} assistant={assistant} model={v1Model} />
-    ) : null
+    config.showTools && assistant && model ? <InputbarTools scope={scope} assistant={assistant} model={model} /> : null
 
   return (
     <InputbarCore

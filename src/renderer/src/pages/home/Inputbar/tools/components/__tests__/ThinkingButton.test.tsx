@@ -1,5 +1,6 @@
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
-import type { Assistant, Model, ThinkingOption } from '@renderer/types'
+import type { Assistant, ThinkingOption } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -129,14 +130,17 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 // Test data factory functions
-const createModel = (overrides: Partial<Model> = {}): Model => ({
-  id: 'gpt-5',
-  provider: 'openai',
-  name: 'GPT-5',
-  group: 'openai',
-  capabilities: [],
-  ...overrides
-})
+// ThinkingButton's config/models predicates are fully mocked here, so the
+// model is an opaque prop — a structural v2 stub is sufficient.
+const createModel = (overrides: Record<string, unknown> = {}): Model =>
+  ({
+    id: 'openai::gpt-5',
+    providerId: 'openai',
+    name: 'GPT-5',
+    group: 'openai',
+    capabilities: [],
+    ...overrides
+  }) as unknown as Model
 
 const DEFAULT_TEST_SETTINGS = {
   temperature: 0.7,

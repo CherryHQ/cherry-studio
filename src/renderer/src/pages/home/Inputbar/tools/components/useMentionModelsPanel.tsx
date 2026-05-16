@@ -2,14 +2,13 @@ import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import { getModelLogo, isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config/models'
-import { fromSharedModel } from '@renderer/config/models/_bridge'
 import db from '@renderer/databases'
 import { useModels } from '@renderer/hooks/useModels'
 import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProviders'
 import type { ToolQuickPanelApi, ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
-import type { FileMetadata, Model } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
-import { createUniqueModelId } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
 import { useNavigate } from '@tanstack/react-router'
 import { Avatar } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -46,11 +45,11 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
   const { open, close, updateList, isVisible, symbol } = quickPanelController
   const { providers } = useProviders()
   const { models: v2Models } = useModels()
-  const v1ModelsByProvider = useMemo(() => {
+  const modelsByProvider = useMemo(() => {
     const map = new Map<string, Model[]>()
     for (const m of v2Models) {
       const arr = map.get(m.providerId) ?? []
-      arr.push(fromSharedModel(m))
+      arr.push(m)
       map.set(m.providerId, arr)
     }
     return map
@@ -114,12 +113,9 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
       const allowNonVision = !files.some((file) => file.type === FILE_TYPE.IMAGE)
       if (isVisionModel(model) || allowNonVision) {
         setMentionedModels((prev) => {
-          const modelId = createUniqueModelId(model.provider, model.id)
-          const exists = prev.some((m) => createUniqueModelId(m.provider, m.id) === modelId)
-          if (exists) return prev.filter((m) => createUniqueModelId(m.provider, m.id) !== modelId)
-          // Normalize id to UniqueModelId (providerId::modelId) for backend consumption
-          const normalized = { ...model, id: model.id.includes('::') ? model.id : `${model.provider}::${model.id}` }
-          return [...prev, normalized]
+          const exists = prev.some((m) => m.id === model.id)
+          if (exists) return prev.filter((m) => m.id !== model.id)
+          return [...prev, model]
         })
         hasModelActionRef.current = true
       }
@@ -145,9 +141,9 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
 
     if (pinnedModels.length > 0) {
       const pinnedItems = providers.flatMap((provider) =>
-        (v1ModelsByProvider.get(provider.id) ?? [])
+        (modelsByProvider.get(provider.id) ?? [])
           .filter((model) => !isEmbeddingModel(model) && !isRerankModel(model))
-          .filter((model) => pinnedModels.includes(createUniqueModelId(model.provider, model.id)))
+          .filter((model) => pinnedModels.includes(model.id))
           .filter((model) => couldMentionNotVisionModel || (!couldMentionNotVisionModel && isVisionModel(model)))
           .map((model) => ({
             label: (
@@ -163,10 +159,7 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
             })(),
             filterText: getProviderDisplayName(provider) + model.name,
             action: () => onMentionModel(model),
-            isSelected: mentionedModels.some(
-              (selected) =>
-                createUniqueModelId(selected.provider, selected.id) === createUniqueModelId(model.provider, model.id)
-            )
+            isSelected: mentionedModels.some((selected) => selected.id === model.id)
           }))
       )
 
@@ -177,9 +170,9 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
 
     providers.forEach((provider) => {
       const providerModels = sortBy(
-        (v1ModelsByProvider.get(provider.id) ?? [])
+        (modelsByProvider.get(provider.id) ?? [])
           .filter((model) => !isEmbeddingModel(model) && !isRerankModel(model))
-          .filter((model) => !pinnedModels.includes(createUniqueModelId(model.provider, model.id)))
+          .filter((model) => !pinnedModels.includes(model.id))
           .filter((model) => couldMentionNotVisionModel || (!couldMentionNotVisionModel && isVisionModel(model))),
         ['group', 'name']
       )
@@ -198,10 +191,7 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
         })(),
         filterText: getProviderDisplayName(provider) + model.name,
         action: () => onMentionModel(model),
-        isSelected: mentionedModels.some(
-          (selected) =>
-            createUniqueModelId(selected.provider, selected.id) === createUniqueModelId(model.provider, model.id)
-        )
+        isSelected: mentionedModels.some((selected) => selected.id === model.id)
       }))
 
       if (providerItems.length > 0) {
@@ -246,7 +236,7 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
     onMentionModel,
     pinnedModels,
     providers,
-    v1ModelsByProvider,
+    modelsByProvider,
     removeAtSymbolAndText,
     setText,
     t

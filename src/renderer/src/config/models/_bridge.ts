@@ -24,9 +24,9 @@
 
 import type { Modality } from '@cherrystudio/provider-registry'
 import { MODALITY } from '@cherrystudio/provider-registry'
-import type { EndpointType as RendererEndpointType, Model, ModelPricing } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import type { Model as SharedModel, ModelCapability, RuntimeReasoning, UniqueModelId } from '@shared/data/types/model'
-import { MODEL_CAPABILITY, parseUniqueModelId, UNIQUE_MODEL_ID_SEPARATOR } from '@shared/data/types/model'
+import { MODEL_CAPABILITY, UNIQUE_MODEL_ID_SEPARATOR } from '@shared/data/types/model'
 import {
   findTokenLimit,
   getLowerBaseModelName,
@@ -36,8 +36,7 @@ import {
   inferReasoningFromModelId,
   inferRerankFromModelId,
   inferVisionFromModelId,
-  inferWebSearchFromModelId,
-  isNotSupportTextDeltaModel
+  inferWebSearchFromModelId
 } from '@shared/utils/model'
 
 export function toSharedCompatModel(v1: Model): SharedModel {
@@ -154,30 +153,4 @@ export function checkByIdOrName(model: Model | null | undefined, check: (m: Shar
   if (!model) return false
   if (check(toSharedCompatModel(model))) return true
   return check(toSharedCompatModel({ ...model, id: model.name }))
-}
-
-export function fromSharedModel(api: SharedModel): Model {
-  const { providerId, modelId } = parseUniqueModelId(api.id)
-  return {
-    id: modelId,
-    provider: providerId,
-    name: api.name,
-    group: api.group ?? '',
-    owned_by: api.ownedBy,
-    description: api.description,
-    pricing: api.pricing ? toRendererPricing(api.pricing) : undefined,
-    supported_endpoint_types: api.endpointTypes as RendererEndpointType[] | undefined,
-    supported_text_delta: !isNotSupportTextDeltaModel(api)
-  }
-}
-
-function toRendererPricing(api: NonNullable<SharedModel['pricing']>): ModelPricing | undefined {
-  const input = api.input?.perMillionTokens
-  const output = api.output?.perMillionTokens
-  if (input == null || output == null) return undefined
-  return {
-    input_per_million_tokens: input,
-    output_per_million_tokens: output,
-    currencySymbol: api.input?.currency
-  }
 }

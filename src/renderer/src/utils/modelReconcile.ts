@@ -22,14 +22,15 @@ import {
   MODEL_SUPPORTED_REASONING_EFFORT
 } from '@renderer/config/models'
 import { cacheService } from '@renderer/data/CacheService'
-import type { AssistantSettings, Model as V1Model, ThinkingOption } from '@renderer/types'
+import type { AssistantSettings, ThinkingOption } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
 
 export type ReasoningEffortPatch = {
   reasoning_effort?: string
 }
 
 export function reconcileReasoningEffortForModel(
-  nextModel: V1Model,
+  nextModel: Model,
   currentEffort: string | undefined,
   assistantId: string
 ): ReasoningEffortPatch | null {
@@ -63,7 +64,7 @@ export function reconcileReasoningEffortForModel(
 }
 
 export function reconcileWebSearchForModel(
-  nextModel: V1Model,
+  nextModel: Model,
   current: Pick<AssistantSettings, 'enableWebSearch'>
 ): { enableWebSearch: false } | null {
   if (!current.enableWebSearch) return null

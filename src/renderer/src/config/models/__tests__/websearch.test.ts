@@ -52,9 +52,12 @@ vi.mock('@renderer/hooks/useSettings', () => ({
 }))
 
 import { getProviderByModel } from '@renderer/services/AssistantService'
-import type { Model, Provider } from '@renderer/types'
+import type { Model as V1Model, Provider } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
+import { toSharedCompatModel } from '../_bridge'
 import { isOpenAIDeepResearchModel } from '../openai'
 import {
   isHunyuanSearchModel,
@@ -65,13 +68,8 @@ import {
   isWebSearchModel
 } from '../websearch'
 
-const createModel = (overrides: Partial<Model> = {}): Model => ({
-  id: 'gpt-4o',
-  name: 'gpt-4o',
-  provider: 'openai',
-  group: 'OpenAI',
-  ...overrides
-})
+const createModel = (overrides: Partial<V1Model> = {}): Model =>
+  toSharedCompatModel({ id: 'gpt-4o', name: 'gpt-4o', provider: 'openai', group: 'OpenAI', ...overrides } as V1Model)
 
 const createProvider = (overrides: Partial<Provider> = {}): Provider => ({
   id: 'openai',
@@ -98,11 +96,11 @@ describe('websearch helpers', () => {
   })
 
   describe('isWebSearchModel', () => {
-    it('honors user overrides', () => {
-      const enabled = createModel({ capabilities: [{ type: 'web_search', isUserSelected: true }] })
+    it('reads the authoritative v2 capabilities array', () => {
+      const enabled: Model = { ...createModel({ id: 'gpt-4o' }), capabilities: [MODEL_CAPABILITY.WEB_SEARCH] }
       expect(isWebSearchModel(enabled)).toBe(true)
 
-      const disabled = createModel({ capabilities: [{ type: 'web_search', isUserSelected: false }] })
+      const disabled: Model = { ...createModel({ id: 'gpt-4o' }), capabilities: [] }
       expect(isWebSearchModel(disabled)).toBe(false)
     })
 
@@ -121,35 +119,34 @@ describe('websearch helpers', () => {
 
   describe('isMandatoryWebSearchModel', () => {
     it('requires sonar ids for perplexity/openrouter providers', () => {
-      providerMock.mockReturnValueOnce(createProvider({ id: SystemProviderIds.perplexity }))
-      expect(isMandatoryWebSearchModel(createModel({ id: 'sonar-pro' }))).toBe(true)
-
-      providerMock.mockReturnValueOnce(createProvider({ id: SystemProviderIds.openrouter }))
-      expect(isMandatoryWebSearchModel(createModel({ id: 'sonar-reasoning' }))).toBe(true)
-
-      providerMock.mockReturnValueOnce(createProvider({ id: 'openai' }))
-      expect(isMandatoryWebSearchModel(createModel({ id: 'sonar-pro' }))).toBe(false)
+      // v2: provider is encoded in the model id (`providerId::modelId`).
+      expect(isMandatoryWebSearchModel(createModel({ provider: SystemProviderIds.perplexity, id: 'sonar-pro' }))).toBe(
+        true
+      )
+      expect(
+        isMandatoryWebSearchModel(createModel({ provider: SystemProviderIds.openrouter, id: 'sonar-reasoning' }))
+      ).toBe(true)
+      expect(isMandatoryWebSearchModel(createModel({ provider: 'openai', id: 'sonar-pro' }))).toBe(false)
     })
 
     it.each([
       ['perplexity', 'non-sonar'],
       ['openrouter', 'gpt-4o-search-preview']
     ])('returns false for %s provider when id is %s', (providerId, modelId) => {
-      providerMock.mockReturnValueOnce(createProvider({ id: providerId }))
-      expect(isMandatoryWebSearchModel(createModel({ id: modelId }))).toBe(false)
+      expect(isMandatoryWebSearchModel(createModel({ provider: providerId, id: modelId }))).toBe(false)
     })
   })
 
   describe('isOpenRouterBuiltInWebSearchModel', () => {
     it('checks for sonar ids or OpenAI chat-completion-only variants', () => {
-      providerMock.mockReturnValueOnce(createProvider({ id: 'openrouter' }))
-      expect(isOpenRouterBuiltInWebSearchModel(createModel({ id: 'sonar-reasoning' }))).toBe(true)
-
-      providerMock.mockReturnValueOnce(createProvider({ id: 'openrouter' }))
-      expect(isOpenRouterBuiltInWebSearchModel(createModel({ id: 'gpt-4o-search-preview' }))).toBe(true)
-
-      providerMock.mockReturnValueOnce(createProvider({ id: 'custom' }))
-      expect(isOpenRouterBuiltInWebSearchModel(createModel({ id: 'sonar-reasoning' }))).toBe(false)
+      // v2: provider is encoded in the model id (`providerId::modelId`).
+      expect(isOpenRouterBuiltInWebSearchModel(createModel({ provider: 'openrouter', id: 'sonar-reasoning' }))).toBe(
+        true
+      )
+      expect(
+        isOpenRouterBuiltInWebSearchModel(createModel({ provider: 'openrouter', id: 'gpt-4o-search-preview' }))
+      ).toBe(true)
+      expect(isOpenRouterBuiltInWebSearchModel(createModel({ provider: 'custom', id: 'sonar-reasoning' }))).toBe(false)
     })
   })
 

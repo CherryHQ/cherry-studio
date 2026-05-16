@@ -1,6 +1,8 @@
-import type { Model } from '@renderer/types'
+import type { Model as V1Model } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
 import { describe, expect, it, vi } from 'vitest'
 
+import { toSharedCompatModel } from '../_bridge'
 import {
   isGPT5FamilyModel,
   isGPT5ProModel,
@@ -30,13 +32,8 @@ vi.mock('@renderer/hooks/useStore', () => ({
   getStoreProviders: vi.fn(() => [])
 }))
 
-const createModel = (overrides: Partial<Model> = {}): Model => ({
-  id: 'gpt-4o',
-  name: 'gpt-4o',
-  provider: 'openai',
-  group: 'OpenAI',
-  ...overrides
-})
+const createModel = (overrides: Partial<V1Model> = {}): Model =>
+  toSharedCompatModel({ id: 'gpt-4o', name: 'gpt-4o', provider: 'openai', group: 'OpenAI', ...overrides } as V1Model)
 
 describe('OpenAI Model Detection', () => {
   describe('isOpenAILLMModel', () => {

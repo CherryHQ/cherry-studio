@@ -4,8 +4,9 @@ import type {
   QuickPanelListItem,
   QuickPanelReservedSymbol
 } from '@renderer/components/QuickPanel'
-import { type Assistant, type Model, type ThinkingOption, TopicType } from '@renderer/types'
+import { type Assistant, type ThinkingOption, TopicType } from '@renderer/types'
 import type { InputBarToolType } from '@renderer/types/chat'
+import type { Model } from '@shared/data/types/model'
 import type { TFunction } from 'i18next'
 import React from 'react'
 

@@ -1,31 +1,20 @@
-import type { Model } from '@renderer/types'
-import { isUserSelectedModelType } from '@renderer/utils'
+import type { Model } from '@shared/data/types/model'
 import { isEmbeddingModel as sharedIsEmbeddingModel, isRerankModel as sharedIsRerankModel } from '@shared/utils/model'
 
-import { toSharedCompatModel } from './_bridge'
-
 /**
- * Embedding-model check. Reads shared's `EMBEDDING` capability (populated
- * via `inferEmbeddingFromModelId`). User overrides take priority; Anthropic
- * short-circuits (no embedding SKUs); Doubao falls back to `name` because
- * catalog ids are opaque.
+ * Embedding-model check. Reads shared's `EMBEDDING` capability. v2
+ * `Model.capabilities` is authoritative (registry inference + baked-in user
+ * overrides merged by `ModelService`).
  */
 export function isEmbeddingModel(model: Model): boolean {
-  const override = isUserSelectedModelType(model, 'embedding')
-  if (override !== undefined) return override
-  const isDoubao = model.provider === 'doubao' || model.id.includes('doubao')
-  if (isDoubao && model.name) {
-    return sharedIsEmbeddingModel(toSharedCompatModel({ ...model, id: model.name }))
-  }
-  return sharedIsEmbeddingModel(toSharedCompatModel(model))
+  if (!model) return false
+  return sharedIsEmbeddingModel(model)
 }
 
 /**
- * Reranker check. Reads shared's `RERANK` capability; honours user override.
+ * Reranker check. Reads shared's `RERANK` capability.
  */
 export function isRerankModel(model: Model): boolean {
   if (!model) return false
-  const override = isUserSelectedModelType(model, 'rerank')
-  if (override !== undefined) return override
-  return sharedIsRerankModel(toSharedCompatModel(model))
+  return sharedIsRerankModel(model)
 }

@@ -1,7 +1,7 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import { isGenerateImageModel } from '@renderer/config/models'
-import type { Model } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
 import { Image } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'

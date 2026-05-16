@@ -1,5 +1,6 @@
 import { createSelector } from '@reduxjs/toolkit'
 import { isNotSupportTextDeltaModel } from '@renderer/config/models'
+import { toSharedCompatModel } from '@renderer/config/models/_bridge'
 import { CHERRYAI_PROVIDER } from '@renderer/config/providers'
 import { getDefaultProvider } from '@renderer/services/AssistantService'
 import { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
@@ -84,7 +85,7 @@ export function useProvider(id: string) {
 
   const handleAddModel = useCallback(
     (model: Model) => {
-      let processedModel = { ...model, supported_text_delta: !isNotSupportTextDeltaModel(model) }
+      let processedModel = { ...model, supported_text_delta: !isNotSupportTextDeltaModel(toSharedCompatModel(model)) }
 
       if (provider && isNewApiProvider(provider)) {
         const endpointTypes = model.supported_endpoint_types

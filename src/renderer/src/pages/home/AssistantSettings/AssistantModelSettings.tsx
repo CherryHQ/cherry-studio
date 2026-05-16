@@ -6,7 +6,6 @@ import { DeleteIcon, ResetIcon } from '@renderer/components/Icons'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import Selector from '@renderer/components/Selector'
 import { DEFAULT_TEMPERATURE, MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@renderer/config/constant'
-import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useModelById } from '@renderer/hooks/useModels'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { SettingRow } from '@renderer/pages/settings'
@@ -207,11 +206,9 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   const onSelectModel = useCallback(
     (selected: SharedModel | undefined) => {
       if (!selected) return
-      // reconcile* still consume the v1 Model shape; bridge once here.
-      // selected.id is already the UniqueModelId.
-      const next = fromSharedModel(selected)
-      const reasoning = reconcileReasoningEffortForModel(next, assistant.settings.reasoning_effort, assistant.id)
-      const webSearch = reconcileWebSearchForModel(next, assistant.settings)
+      // reconcile* are v2-native; selected.id is already the UniqueModelId.
+      const reasoning = reconcileReasoningEffortForModel(selected, assistant.settings.reasoning_effort, assistant.id)
+      const webSearch = reconcileWebSearchForModel(selected, assistant.settings)
       updateAssistant(
         reasoning || webSearch
           ? {

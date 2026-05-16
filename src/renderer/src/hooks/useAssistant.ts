@@ -1,5 +1,4 @@
 import { usePreference } from '@data/hooks/usePreference'
-import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useAssistantApiById, useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistantDataApi'
 import { useDefaultModel, useModelById } from '@renderer/hooks/useModels'
 import { composeDefaultAssistant } from '@renderer/services/defaultAssistant'
@@ -69,12 +68,9 @@ export function useAssistant(id: string | null | undefined) {
     model,
     setModel: (next: Model, extraSettings?: Partial<AssistantSettings>) => {
       if (!id || !assistant) return
-      // reconcile* still consume the v1 Model shape (their reasoning-effort
-      // chain goes through the /config/models v1 adapter); bridge once here
-      // so call sites pass the v2 Model directly. next.id is the UniqueModelId.
-      const v1Next = fromSharedModel(next)
-      const reasoning = reconcileReasoningEffortForModel(v1Next, assistant.settings.reasoning_effort, id)
-      const webSearch = reconcileWebSearchForModel(v1Next, assistant.settings)
+      // reconcile* are v2-native; next.id is the UniqueModelId.
+      const reasoning = reconcileReasoningEffortForModel(next, assistant.settings.reasoning_effort, id)
+      const webSearch = reconcileWebSearchForModel(next, assistant.settings)
       const settingsPatch =
         extraSettings || reasoning || webSearch
           ? { ...assistant.settings, ...extraSettings, ...reasoning, ...webSearch }

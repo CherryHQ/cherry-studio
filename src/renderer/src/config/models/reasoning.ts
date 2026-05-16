@@ -2,17 +2,18 @@
  * Reasoning / thinking-mode model checks and reasoning-effort configuration.
  *
  * Pure family/variant checks delegate to `@shared/utils/model`. Renderer-only
- * concerns (`ThinkingOptionConfig` mapping, `getThinkModelType`, user-preference
- * overrides on `isReasoningModel`) stay here.
+ * concerns (`ThinkingOptionConfig` mapping, `getThinkModelType`) stay here.
+ * v2 `Model.capabilities` is authoritative (registry inference + baked-in
+ * user overrides merged by `ModelService`).
  */
 import type {
-  Model,
   ReasoningEffortConfig,
   ReasoningEffortOption,
   ThinkingModelType,
   ThinkingOptionConfig
 } from '@renderer/types'
-import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
+import { getLowerBaseModelName } from '@renderer/utils'
+import type { Model } from '@shared/data/types/model'
 import {
   DOUBAO_THINKING_AUTO_MODEL_REGEX as SHARED_DOUBAO_THINKING_AUTO_MODEL_REGEX,
   DOUBAO_THINKING_MODEL_REGEX as SHARED_DOUBAO_THINKING_MODEL_REGEX,
@@ -56,7 +57,6 @@ import {
   REASONING_REGEX as SHARED_REASONING_REGEX
 } from '@shared/utils/model'
 
-import { checkByIdOrName, toSharedCompatModel } from './_bridge'
 import {
   isGPT5FamilyModel,
   isGPT5ProModel,
@@ -70,6 +70,7 @@ import {
 } from './openai'
 import {
   GEMINI_FLASH_MODEL_REGEX,
+  getRawModelId,
   isClaude46SeriesModel,
   isClaude47SeriesModel,
   isGemini3FlashModel,
@@ -170,114 +171,96 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
 
 // ── Pure family / variant checks (delegated to shared) ───────────────────
 
-export const isClaude45ReasoningModel = (model: Model): boolean =>
-  sharedIsClaude45ReasoningModel(toSharedCompatModel(model))
+export const isClaude45ReasoningModel = (model: Model): boolean => sharedIsClaude45ReasoningModel(model)
 
-export const isClaude4SeriesModel = (model: Model): boolean => sharedIsClaude4SeriesModel(toSharedCompatModel(model))
+export const isClaude4SeriesModel = (model: Model): boolean => sharedIsClaude4SeriesModel(model)
 
-export const isClaudeReasoningModel = (model?: Model): boolean =>
-  model ? sharedIsClaudeReasoningModel(toSharedCompatModel(model)) : false
+export const isClaudeReasoningModel = (model?: Model): boolean => (model ? sharedIsClaudeReasoningModel(model) : false)
 
 export const isSupportedThinkingTokenClaudeModel = isClaudeReasoningModel
 
-export const isGeminiReasoningModel = (model?: Model): boolean =>
-  model ? sharedIsGeminiReasoningModel(toSharedCompatModel(model)) : false
+export const isGeminiReasoningModel = (model?: Model): boolean => (model ? sharedIsGeminiReasoningModel(model) : false)
 
 export const isSupportedThinkingTokenGeminiModel = (model: Model): boolean =>
-  sharedIsSupportedThinkingTokenGeminiModel(toSharedCompatModel(model))
+  sharedIsSupportedThinkingTokenGeminiModel(model)
 
-export const isQwenReasoningModel = (model?: Model): boolean =>
-  model ? sharedIsQwenReasoningModel(toSharedCompatModel(model)) : false
+export const isQwenReasoningModel = (model?: Model): boolean => (model ? sharedIsQwenReasoningModel(model) : false)
 
 export const isSupportedThinkingTokenQwenModel = (model?: Model): boolean =>
-  model ? sharedIsSupportedThinkingTokenQwenModel(toSharedCompatModel(model)) : false
+  model ? sharedIsSupportedThinkingTokenQwenModel(model) : false
 
-export const isQwenAlwaysThinkModel = (model?: Model): boolean =>
-  model ? sharedIsQwenAlwaysThinkModel(toSharedCompatModel(model)) : false
+export const isQwenAlwaysThinkModel = (model?: Model): boolean => (model ? sharedIsQwenAlwaysThinkModel(model) : false)
 
-// Doubao historically stored the real id under `name` for user-imported
-// models, so we keep the legacy id-or-name fallback here.
 export const isSupportedThinkingTokenDoubaoModel = (model?: Model): boolean =>
-  checkByIdOrName(model, sharedIsSupportedThinkingTokenDoubaoModel)
+  model ? sharedIsSupportedThinkingTokenDoubaoModel(model) : false
 
-export const isDoubaoThinkingAutoModel = (model: Model): boolean =>
-  checkByIdOrName(model, sharedIsDoubaoThinkingAutoModel)
+export const isDoubaoThinkingAutoModel = (model: Model): boolean => sharedIsDoubaoThinkingAutoModel(model)
 
-export const isDoubaoSeedAfter251015 = (model: Model): boolean =>
-  sharedIsDoubaoSeedAfter251015(toSharedCompatModel(model))
+export const isDoubaoSeedAfter251015 = (model: Model): boolean => sharedIsDoubaoSeedAfter251015(model)
 
-export const isDoubaoSeed18Model = (model: Model): boolean => sharedIsDoubaoSeed18Model(toSharedCompatModel(model))
+export const isDoubaoSeed18Model = (model: Model): boolean => sharedIsDoubaoSeed18Model(model)
 
-export const isGrokReasoningModel = (model?: Model): boolean =>
-  model ? sharedIsGrokReasoningModel(toSharedCompatModel(model)) : false
+export const isGrokReasoningModel = (model?: Model): boolean => (model ? sharedIsGrokReasoningModel(model) : false)
 
 export const isSupportedReasoningEffortGrokModel = (model?: Model): boolean =>
-  model ? sharedIsSupportedReasoningEffortGrokModel(toSharedCompatModel(model)) : false
+  model ? sharedIsSupportedReasoningEffortGrokModel(model) : false
 
 export const isGrok4FastReasoningModel = (model?: Model): boolean =>
-  model ? sharedIsGrok4FastReasoningModel(toSharedCompatModel(model)) : false
+  model ? sharedIsGrok4FastReasoningModel(model) : false
 
 export const isHostedGemma4ThinkingModel = (model?: Model): boolean =>
-  model ? sharedIsHostedGemma4ThinkingModel(toSharedCompatModel(model)) : false
+  model ? sharedIsHostedGemma4ThinkingModel(model) : false
 
 export const isHunyuanReasoningModel = (model?: Model): boolean =>
-  model ? sharedIsHunyuanReasoningModel(toSharedCompatModel(model)) : false
+  model ? sharedIsHunyuanReasoningModel(model) : false
 
 export const isSupportedThinkingTokenHunyuanModel = (model?: Model): boolean =>
-  model ? sharedIsSupportedThinkingTokenHunyuanModel(toSharedCompatModel(model)) : false
+  model ? sharedIsSupportedThinkingTokenHunyuanModel(model) : false
 
 export const isPerplexityReasoningModel = (model?: Model): boolean =>
-  model ? sharedIsPerplexityReasoningModel(toSharedCompatModel(model)) : false
+  model ? sharedIsPerplexityReasoningModel(model) : false
 
 export const isSupportedReasoningEffortPerplexityModel = (model: Model): boolean =>
-  sharedIsSupportedReasoningEffortPerplexityModel(toSharedCompatModel(model))
+  sharedIsSupportedReasoningEffortPerplexityModel(model)
 
 export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean =>
-  sharedIsSupportedThinkingTokenZhipuModel(toSharedCompatModel(model))
+  sharedIsSupportedThinkingTokenZhipuModel(model)
 
-export const isZhipuReasoningModel = (model?: Model): boolean =>
-  model ? sharedIsZhipuReasoningModel(toSharedCompatModel(model)) : false
+export const isZhipuReasoningModel = (model?: Model): boolean => (model ? sharedIsZhipuReasoningModel(model) : false)
 
 export const isSupportedThinkingTokenMiMoModel = (model: Model): boolean =>
-  sharedIsSupportedThinkingTokenMiMoModel(toSharedCompatModel(model))
+  sharedIsSupportedThinkingTokenMiMoModel(model)
 
-export const isMiMoReasoningModel = (model?: Model): boolean =>
-  model ? sharedIsMiMoReasoningModel(toSharedCompatModel(model)) : false
+export const isMiMoReasoningModel = (model?: Model): boolean => (model ? sharedIsMiMoReasoningModel(model) : false)
 
-// Kimi reasoning checks still honour the legacy "try id then name" fallback
-// because v1 data frequently stored the real id under `name`.
 export const isSupportedThinkingTokenKimiModel = (model: Model): boolean =>
-  checkByIdOrName(model, sharedIsSupportedThinkingTokenKimiModel)
+  sharedIsSupportedThinkingTokenKimiModel(model)
 
-export const isKimiReasoningModel = (model?: Model): boolean => checkByIdOrName(model, sharedIsKimiReasoningModel)
+export const isKimiReasoningModel = (model?: Model): boolean => (model ? sharedIsKimiReasoningModel(model) : false)
 
-export const isDeepSeekHybridInferenceModel = (model: Model): boolean =>
-  checkByIdOrName(model, sharedIsDeepSeekHybridInferenceModel)
+export const isDeepSeekHybridInferenceModel = (model: Model): boolean => sharedIsDeepSeekHybridInferenceModel(model)
 
-export const isDeepSeekV4PlusModel = (model: Model): boolean => checkByIdOrName(model, sharedIsDeepSeekV4PlusModel)
+export const isDeepSeekV4PlusModel = (model: Model): boolean => sharedIsDeepSeekV4PlusModel(model)
 
 export const isSupportedThinkingTokenDeepSeekModel = (model: Model): boolean =>
-  checkByIdOrName(model, sharedIsSupportedThinkingTokenDeepSeekModel)
+  sharedIsSupportedThinkingTokenDeepSeekModel(model)
 
-export const isLingReasoningModel = (model?: Model): boolean =>
-  model ? sharedIsLingReasoningModel(toSharedCompatModel(model)) : false
+export const isLingReasoningModel = (model?: Model): boolean => (model ? sharedIsLingReasoningModel(model) : false)
 
-export const isStepReasoningModel = (model?: Model): boolean =>
-  model ? sharedIsStepReasoningModel(toSharedCompatModel(model)) : false
+export const isStepReasoningModel = (model?: Model): boolean => (model ? sharedIsStepReasoningModel(model) : false)
 
 export const isMiniMaxReasoningModel = (model?: Model): boolean =>
-  model ? sharedIsMiniMaxReasoningModel(toSharedCompatModel(model)) : false
+  model ? sharedIsMiniMaxReasoningModel(model) : false
 
 export const isBaichuanReasoningModel = (model?: Model): boolean =>
-  model ? sharedIsBaichuanReasoningModel(toSharedCompatModel(model)) : false
+  model ? sharedIsBaichuanReasoningModel(model) : false
 
 export const isMistralReasoningModel = (model?: Model): boolean =>
-  model ? sharedIsMistralReasoningModel(toSharedCompatModel(model)) : false
+  model ? sharedIsMistralReasoningModel(model) : false
 
 /**
  * Composes renderer-local checks so the result reflects regex-based inference
- * rather than shared's `reasoning != null` schema check (v1 Model has no
- * `reasoning` field).
+ * rather than shared's `reasoning != null` schema check.
  */
 export const isFixedReasoningModel = (model: Model): boolean =>
   isReasoningModel(model) && !isSupportedThinkingTokenModel(model) && !isSupportedReasoningEffortModel(model)
@@ -287,7 +270,7 @@ const INTERLEAVED_THINKING_MODEL_REGEX =
 
 /** @deprecated Kept for legacy callers. Pure-ID inference. */
 export const isInterleavedThinkingModel = (model: Model): boolean =>
-  INTERLEAVED_THINKING_MODEL_REGEX.test(getLowerBaseModelName(model.id))
+  INTERLEAVED_THINKING_MODEL_REGEX.test(getLowerBaseModelName(getRawModelId(model)))
 
 export const findTokenLimit = sharedFindTokenLimit
 
@@ -327,7 +310,7 @@ export function isSupportedReasoningEffortModel(model?: Model): boolean {
 
 const _getThinkModelType = (model: Model): ThinkingModelType => {
   let thinkingModelType: ThinkingModelType = 'default'
-  const modelId = getLowerBaseModelName(model.id)
+  const modelId = getLowerBaseModelName(getRawModelId(model))
   if (isClaudeReasoningModel(model)) {
     thinkingModelType = 'claude'
     // 4.7 reuses the 4.6 effort list (low/medium/high/xhigh); provider-level
@@ -373,7 +356,7 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
       thinkingModelType = 'gemini3_pro'
     } else if (isGemini31ProModel(model)) {
       thinkingModelType = 'gemini3_1_pro'
-    } else if (GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
+    } else if (GEMINI_FLASH_MODEL_REGEX.test(getRawModelId(model))) {
       thinkingModelType = 'gemini2_flash'
     } else {
       thinkingModelType = 'gemini2_pro'
@@ -427,13 +410,11 @@ export const getModelSupportedReasoningEffortOptions = (
 }
 
 /**
- * Reasoning-model check. Reads shared's `REASONING` capability (populated
- * by the bridge from `inferReasoningFromModelId`, which unions every
- * vendor-family check). User preference override wraps it.
+ * Reasoning-model check. Reads shared's `REASONING` capability. v2
+ * `Model.capabilities` is authoritative (registry inference + baked-in user
+ * overrides merged by `ModelService`).
  */
 export function isReasoningModel(model?: Model): boolean {
   if (!model) return false
-  const override = isUserSelectedModelType(model, 'reasoning')
-  if (override !== undefined) return override
-  return sharedIsReasoningModel(toSharedCompatModel(model))
+  return sharedIsReasoningModel(model)
 }

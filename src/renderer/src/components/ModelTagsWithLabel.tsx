@@ -7,8 +7,8 @@ import {
   isWebSearchModel
 } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
-import type { Model } from '@renderer/types'
-import { isFreeModel } from '@renderer/utils/model'
+import type { Model } from '@shared/data/types/model'
+import { isFreeModel } from '@shared/utils/model'
 import type { FC } from 'react'
 import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
 

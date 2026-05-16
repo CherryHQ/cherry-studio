@@ -1,5 +1,6 @@
-import { type Model } from '@renderer/types'
 import { getLowerBaseModelName } from '@renderer/utils'
+import type { Model } from '@shared/data/types/model'
+import { parseUniqueModelId } from '@shared/data/types/model'
 import type { OpenAIVerbosity, ValidOpenAIVerbosity } from '@shared/types/aiSdk'
 import {
   GEMINI_FLASH_MODEL_REGEX as SHARED_GEMINI_FLASH_MODEL_REGEX,
@@ -25,7 +26,6 @@ import {
   isZhipuModel as sharedIsZhipuModel
 } from '@shared/utils/model'
 
-import { toSharedCompatModel } from './_bridge'
 import { isEmbeddingModel, isRerankModel } from './embedding'
 import {
   isGPT5FamilyModel,
@@ -40,9 +40,14 @@ import { isGenerateImageModel, isTextToImageModel, isVisionModel } from './visio
 export const GEMINI_FLASH_MODEL_REGEX = SHARED_GEMINI_FLASH_MODEL_REGEX
 export const NOT_SUPPORTED_REGEX = /(?:^tts|whisper|speech)/i
 
+/** Raw model id (provider prefix stripped) for renderer-local string ops. */
+export const getRawModelId = (model: Model): string => model.apiModelId ?? parseUniqueModelId(model.id).modelId
+
 // ── Renderer-only utility: id vs name fallback pattern ─────────────────────
+// Legacy v1 data sometimes stored the real id under `name`. v2 ids are
+// canonical, but a few renderer checks still try name as a fallback.
 export const withModelIdAndNameAsId = <T>(model: Model, fn: (model: Model) => T): { idResult: T; nameResult: T } => {
-  const modelWithNameAsId = { ...model, id: model.name }
+  const modelWithNameAsId = { ...model, apiModelId: model.name }
   return {
     idResult: fn(model),
     nameResult: fn(modelWithNameAsId)
@@ -50,67 +55,57 @@ export const withModelIdAndNameAsId = <T>(model: Model, fn: (model: Model) => T)
 }
 
 // ── Service-tier / endpoint support ────────────────────────────────────────
-export const isSupportFlexServiceTierModel = (model: Model): boolean =>
-  sharedIsSupportFlexServiceTierModel(toSharedCompatModel(model))
+export const isSupportFlexServiceTierModel = (model: Model): boolean => sharedIsSupportFlexServiceTierModel(model)
 
 export const isSupportedFlexServiceTier = isSupportFlexServiceTierModel
 
 // ── Family checks (delegated to shared) ─────────────────────────────────
-export const isGemmaModel = (model?: Model): boolean => (model ? sharedIsGemmaModel(toSharedCompatModel(model)) : false)
+export const isGemmaModel = (model?: Model): boolean => (model ? sharedIsGemmaModel(model) : false)
 
-export const isZhipuModel = (model: Model): boolean => sharedIsZhipuModel(toSharedCompatModel(model))
+export const isZhipuModel = (model: Model): boolean => sharedIsZhipuModel(model)
 
-export const isMoonshotModel = (model: Model): boolean => sharedIsMoonshotModel(toSharedCompatModel(model))
+export const isMoonshotModel = (model: Model): boolean => sharedIsMoonshotModel(model)
 
 export const isKimi25OrNewerModel = (model: Model | undefined | null): boolean =>
-  model ? sharedIsKimi25OrNewerModel(toSharedCompatModel(model)) : false
+  model ? sharedIsKimi25OrNewerModel(model) : false
 
-export const isAnthropicModel = (model?: Model): boolean =>
-  model ? sharedIsAnthropicModel(toSharedCompatModel(model)) : false
+export const isAnthropicModel = (model?: Model): boolean => (model ? sharedIsAnthropicModel(model) : false)
 
-export const isDeepSeekModel = (model?: Model): boolean =>
-  model ? sharedIsDeepSeekModel(toSharedCompatModel(model)) : false
+export const isDeepSeekModel = (model?: Model): boolean => (model ? sharedIsDeepSeekModel(model) : false)
 
-export const isGeminiModel = (model: Model): boolean => sharedIsGeminiModel(toSharedCompatModel(model))
+export const isGeminiModel = (model: Model): boolean => sharedIsGeminiModel(model)
 
-export const isGrokModel = (model: Model): boolean => sharedIsGrokModel(toSharedCompatModel(model))
+export const isGrokModel = (model: Model): boolean => sharedIsGrokModel(model)
 
-export const isGemini3Model = (model: Model): boolean => sharedIsGemini3Model(toSharedCompatModel(model))
+export const isGemini3Model = (model: Model): boolean => sharedIsGemini3Model(model)
 
-export const isGemini3ThinkingTokenModel = (model: Model): boolean =>
-  sharedIsGemini3ThinkingTokenModel(toSharedCompatModel(model))
+export const isGemini3ThinkingTokenModel = (model: Model): boolean => sharedIsGemini3ThinkingTokenModel(model)
 
 export const isGemini3FlashModel = (model: Model | undefined | null): boolean =>
-  model ? sharedIsGemini3FlashModel(toSharedCompatModel(model)) : false
+  model ? sharedIsGemini3FlashModel(model) : false
 
 export const isGemini31FlashLiteModel = (model: Model | undefined | null): boolean =>
-  model ? sharedIsGemini31FlashLiteModel(toSharedCompatModel(model)) : false
+  model ? sharedIsGemini31FlashLiteModel(model) : false
 
 export const isGemini3ProModel = (model: Model | undefined | null): boolean =>
-  model ? sharedIsGemini3ProModel(toSharedCompatModel(model)) : false
+  model ? sharedIsGemini3ProModel(model) : false
 
 export const isGemini31ProModel = (model: Model | undefined | null): boolean =>
-  model ? sharedIsGemini31ProModel(toSharedCompatModel(model)) : false
+  model ? sharedIsGemini31ProModel(model) : false
 
 export const isClaude46SeriesModel = (model: Model | undefined | null): boolean =>
-  model ? sharedIsClaude46SeriesModel(toSharedCompatModel(model)) : false
+  model ? sharedIsClaude46SeriesModel(model) : false
 
 export const isClaude47SeriesModel = (model: Model | undefined | null): boolean =>
-  model ? sharedIsClaude47SeriesModel(toSharedCompatModel(model)) : false
+  model ? sharedIsClaude47SeriesModel(model) : false
 
-export const isMaxTemperatureOneModel = (model: Model): boolean =>
-  sharedIsMaxTemperatureOneModel(toSharedCompatModel(model))
+export const isMaxTemperatureOneModel = (model: Model): boolean => sharedIsMaxTemperatureOneModel(model)
 
-export const isNotSupportTextDeltaModel = (model: Model): boolean =>
-  sharedIsNotSupportTextDeltaModel(toSharedCompatModel(model))
+export const isNotSupportTextDeltaModel = (model: Model): boolean => sharedIsNotSupportTextDeltaModel(model)
 
-export const isNotSupportSystemMessageModel = (model: Model): boolean =>
-  sharedIsNotSupportSystemMessageModel(toSharedCompatModel(model))
+export const isNotSupportSystemMessageModel = (model: Model): boolean => sharedIsNotSupportSystemMessageModel(model)
 
 // ── Collections ─────────────────────────────────────────────────────────
-// Use the renderer's own inference-based vision/image checks (which honour
-// user preferences). Shared's schema-driven equivalents would crash on v1
-// Model (no `capabilities` populated).
 export const isVisionModels = (models: Model[]): boolean => models.every(isVisionModel)
 
 export const isGenerateImageModels = (models: Model[]): boolean => models.every(isGenerateImageModel)
@@ -122,7 +117,7 @@ export const isGenerateImageModels = (models: Model[]): boolean => models.every(
 export function groupQwenModels(models: Model[]): Record<string, Model[]> {
   return models.reduce(
     (groups, model) => {
-      const modelId = getLowerBaseModelName(model.id)
+      const modelId = getLowerBaseModelName(getRawModelId(model))
       const prefixMatch = modelId.match(/^(qwen(?:\d+\.\d+|2(?:\.\d+)?|-\d+b|-(?:max|coder|vl)))/i)
       const groupKey = prefixMatch ? prefixMatch[1] : model.group || '其他'
       if (!groups[groupKey]) groups[groupKey] = []
@@ -144,7 +139,7 @@ const MODEL_SUPPORTED_VERBOSITY: readonly {
   },
   {
     validator: (model: Model) => {
-      const modelId = getLowerBaseModelName(model.id)
+      const modelId = getLowerBaseModelName(getRawModelId(model))
       if (modelId.includes('chat')) return false
       if (modelId.includes('codex')) {
         if (isGPT5SeriesModel(model) || isGPT51SeriesModel(model) || isGPT52SeriesModel(model)) return false

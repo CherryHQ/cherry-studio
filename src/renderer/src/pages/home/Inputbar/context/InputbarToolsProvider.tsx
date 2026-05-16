@@ -1,6 +1,7 @@
 import type { QuickPanelListItem, QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
-import type { FileMetadata, KnowledgeBase, Model } from '@renderer/types'
+import type { FileMetadata, KnowledgeBase } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
 import React, { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 type QuickPanelTriggerHandler = (payload?: unknown) => void

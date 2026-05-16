@@ -1,5 +1,4 @@
-import type { Model } from '@renderer/types'
-import { isUserSelectedModelType } from '@renderer/utils'
+import type { Model } from '@shared/data/types/model'
 import {
   isEditImageModel as sharedIsEditImageModel,
   isGenerateImageModel as sharedIsGenerateImageModel,
@@ -7,13 +6,11 @@ import {
   isVisionModel as sharedIsVisionModel
 } from '@shared/utils/model'
 
-import { toSharedCompatModel } from './_bridge'
-
 /**
  * Dedicated / text-to-image model = `IMAGE_GENERATION` without `REASONING`.
- * Registry / bridge populate both capabilities.
+ * Registry populates both capabilities.
  */
-export const isDedicatedImageModel = (model: Model): boolean => sharedIsTextToImageModel(toSharedCompatModel(model))
+export const isDedicatedImageModel = (model: Model): boolean => sharedIsTextToImageModel(model)
 
 /** Backward-compatible alias. */
 export const isDedicatedImageGenerationModel = isDedicatedImageModel
@@ -22,11 +19,9 @@ export const isDedicatedImageGenerationModel = isDedicatedImageModel
 export const isTextToImageModel = isDedicatedImageModel
 
 /**
- * Image editing model — `IMAGE_GENERATION` + IMAGE input modality. The
- * bridge populates `inputModalities: [IMAGE]` whenever a v1 id matches
- * vision / image-edit inference, so shared's check is authoritative.
+ * Image editing model — `IMAGE_GENERATION` + IMAGE input modality.
  */
-export const isEditImageModel = (model: Model): boolean => sharedIsEditImageModel(toSharedCompatModel(model))
+export const isEditImageModel = (model: Model): boolean => sharedIsEditImageModel(model)
 
 /** @deprecated Use `isEditImageModel`. */
 export const isImageEnhancementModel = isEditImageModel
@@ -37,14 +32,12 @@ export const isImageEnhancementModel = isEditImageModel
  * per-model "this model IS an image generator" toggle to auto-flip. Remove
  * this along with the Inputbar auto-toggle side-effect when v2 lands.
  */
-export const isAutoEnableImageGenerationModel = (model: Model): boolean =>
-  sharedIsGenerateImageModel(toSharedCompatModel(model))
+export const isAutoEnableImageGenerationModel = (model: Model): boolean => sharedIsGenerateImageModel(model)
 
 /**
  * Chat-style image generation. Reads shared's `IMAGE_GENERATION` capability.
  */
-export const isGenerateImageModel = (model: Model): boolean =>
-  !!model && sharedIsGenerateImageModel(toSharedCompatModel(model))
+export const isGenerateImageModel = (model: Model): boolean => !!model && sharedIsGenerateImageModel(model)
 
 /**
  * Pure image generator — can produce images without also acting as a chat /
@@ -54,11 +47,10 @@ export const isPureGenerateImageModel = isTextToImageModel
 
 /**
  * Vision-capable model. Reads shared's IMAGE_RECOGNITION / IMAGE input-
- * modality capabilities. User preference override sits on top.
+ * modality capabilities. v2 `Model.capabilities` is authoritative (registry
+ * inference + baked-in user overrides merged by `ModelService`).
  */
 export function isVisionModel(model: Model): boolean {
   if (!model) return false
-  const override = isUserSelectedModelType(model, 'vision')
-  if (override !== undefined) return override
-  return sharedIsVisionModel(toSharedCompatModel(model))
+  return sharedIsVisionModel(model)
 }

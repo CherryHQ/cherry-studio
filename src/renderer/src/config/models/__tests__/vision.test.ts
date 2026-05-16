@@ -1,17 +1,35 @@
 import { getProviderByModel } from '@renderer/services/AssistantService'
-import type { Model } from '@renderer/types'
+import type { Model as V1Model } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { toSharedCompatModel } from '../_bridge'
 import { isEmbeddingModel, isRerankModel } from '../embedding'
 import {
-  isAutoEnableImageGenerationModel,
-  isDedicatedImageGenerationModel,
-  isGenerateImageModel,
-  isImageEnhancementModel,
-  isPureGenerateImageModel,
-  isTextToImageModel,
-  isVisionModel
+  isAutoEnableImageGenerationModel as _isAutoEnableImageGenerationModel,
+  isDedicatedImageGenerationModel as _isDedicatedImageGenerationModel,
+  isGenerateImageModel as _isGenerateImageModel,
+  isImageEnhancementModel as _isImageEnhancementModel,
+  isPureGenerateImageModel as _isPureGenerateImageModel,
+  isTextToImageModel as _isTextToImageModel,
+  isVisionModel as _isVisionModel
 } from '../vision'
+
+// Adapter: route v1-shape test fixtures through the same id→capability
+// inference the registry uses (`toSharedCompatModel`), so the wrappers stay
+// pure v2 while every existing assertion keeps its id→behaviour contract.
+const adapt =
+  <R>(fn: (m: Model) => R) =>
+  (m: Partial<V1Model>): R =>
+    fn(toSharedCompatModel(m as V1Model))
+const isAutoEnableImageGenerationModel = adapt(_isAutoEnableImageGenerationModel)
+const isDedicatedImageGenerationModel = adapt(_isDedicatedImageGenerationModel)
+const isGenerateImageModel = adapt(_isGenerateImageModel)
+const isImageEnhancementModel = adapt(_isImageEnhancementModel)
+const isPureGenerateImageModel = adapt(_isPureGenerateImageModel)
+const isTextToImageModel = adapt(_isTextToImageModel)
+const isVisionModel = adapt(_isVisionModel)
 
 vi.mock('@renderer/hooks/useStore', () => ({
   getStoreProviders: vi.fn(() => [])
@@ -60,13 +78,8 @@ vi.mock('../embedding', () => ({
   isRerankModel: vi.fn()
 }))
 
-const createModel = (overrides: Partial<Model> = {}): Model => ({
-  id: 'gpt-4o',
-  name: 'gpt-4o',
-  provider: 'openai',
-  group: 'OpenAI',
-  ...overrides
-})
+const createModel = (overrides: Partial<V1Model> = {}): V1Model =>
+  ({ id: 'gpt-4o', name: 'gpt-4o', provider: 'openai', group: 'OpenAI', ...overrides }) as V1Model
 
 const providerMock = vi.mocked(getProviderByModel)
 const embeddingMock = vi.mocked(isEmbeddingModel)
@@ -122,18 +135,19 @@ describe('vision helpers', () => {
 })
 
 describe('isVisionModel', () => {
-  it('honors user-preference override', () => {
-    const disabled = createModel({
-      id: 'gpt-4o',
-      capabilities: [{ type: 'vision', isUserSelected: false }]
-    })
-    expect(isVisionModel(disabled)).toBe(false)
+  it('reads the authoritative v2 capabilities array', () => {
+    const disabled: Model = {
+      ...toSharedCompatModel(createModel({ id: 'gpt-4o' })),
+      capabilities: [],
+      inputModalities: []
+    }
+    expect(_isVisionModel(disabled)).toBe(false)
 
-    const forced = createModel({
-      id: 'gpt-4o',
-      capabilities: [{ type: 'vision', isUserSelected: true }]
-    })
-    expect(isVisionModel(forced)).toBe(true)
+    const forced: Model = {
+      ...toSharedCompatModel(createModel({ id: 'gpt-4o' })),
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION]
+    }
+    expect(_isVisionModel(forced)).toBe(true)
   })
 
   it('detects vision via id', () => {
@@ -341,42 +355,42 @@ describe('isVisionModel', () => {
 
 describe('Doubao Seed 2.0 Models', () => {
   it('should identify doubao-seed-2-0-pro-260215 as vision model', () => {
-    const model: Model = {
+    const model = createModel({
       id: 'doubao-seed-2-0-pro-260215',
       name: 'doubao-seed-2-0-pro',
       provider: 'doubao',
       group: 'Doubao-Seed-2.0'
-    }
+    })
     expect(isVisionModel(model)).toBe(true)
   })
 
   it('should identify doubao-seed-2-0-lite-260215 as vision model', () => {
-    const model: Model = {
+    const model = createModel({
       id: 'doubao-seed-2-0-lite-260215',
       name: 'doubao-seed-2-0-lite',
       provider: 'doubao',
       group: 'Doubao-Seed-2.0'
-    }
+    })
     expect(isVisionModel(model)).toBe(true)
   })
 
   it('should identify doubao-seed-2-0-code-preview-260215 as vision model', () => {
-    const model: Model = {
+    const model = createModel({
       id: 'doubao-seed-2-0-code-preview-260215',
       name: 'doubao-seed-2-0-code-preview',
       provider: 'doubao',
       group: 'Doubao-Seed-2.0'
-    }
+    })
     expect(isVisionModel(model)).toBe(true)
   })
 
   it('should identify doubao-seed-2-0-mini-260215 as vision model', () => {
-    const model: Model = {
+    const model = createModel({
       id: 'doubao-seed-2-0-mini-260215',
       name: 'doubao-seed-2-0-mini',
       provider: 'doubao',
       group: 'Doubao-Seed-2.0'
-    }
+    })
     expect(isVisionModel(model)).toBe(true)
   })
 })
