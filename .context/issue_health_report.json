@@ -1,88 +1,66 @@
 {
-  "generated_at": "2026-05-12T17:30:00Z",
-  "report_date": "2026-05-12",
+  "generated_at": "2026-05-16T16:00:00Z",
+  "report_date": "2026-05-16",
   "repository": "CherryHQ/cherry-studio",
   "health_summary": {
-    "total_open": 869,
+    "total_open": 867,
     "health_buckets": {
-      "Active": {
-        "definition": "Updated within last 30 days (>2026-04-12)",
-        "count": 565,
-        "pct": 65.0
-      },
-      "Aging": {
-        "definition": "Updated 30–120 days ago (2026-01-12..2026-04-11)",
-        "count": 296,
-        "pct": 34.1
+      "Active_plus_Aging": {
+        "definition": "Updated within last 30 days (≥2026-04-16)",
+        "count": 558,
+        "pct": 64.4
       },
       "Stale": {
-        "definition": "Updated 120–180 days ago (2025-11-12..2026-01-11)",
-        "count": 1,
-        "pct": 0.1
+        "definition": "Not updated in 30–90 days (2026-02-15 – 2026-04-15)",
+        "count": 305,
+        "pct": 35.2
       },
       "Zombie": {
-        "definition": "Not updated in >180 days (<2025-11-12)",
-        "count": 2,
-        "pct": 0.2
+        "definition": "Not updated in 90+ days (<2026-02-15)",
+        "count": 4,
+        "pct": 0.5
       }
     },
-    "inactive_label_count": 114,
-    "inactive_label_note": "GitHub 'inactive' label applied automatically"
+    "note": "Active/Aging split requires additional paginated fetch. Stale count from search:updated:<2026-04-16 (total=309 minus 4 zombie)."
   },
-  "label_health": {
-    "top_open_labels_sample": [
-      {"label": "inactive", "count_in_200": 69},
-      {"label": "UI/UX", "count_in_200": 60},
-      {"label": "Models", "count_in_200": 54},
-      {"label": "Assistant", "count_in_200": 30},
-      {"label": "discussion", "count_in_200": 19},
-      {"label": "help wanted", "count_in_200": 18},
-      {"label": "RAG", "count_in_200": 15},
-      {"label": "MCP", "count_in_200": 14},
-      {"label": "feature", "count_in_200": 12},
-      {"label": "Data", "count_in_200": 12},
-      {"label": "needs-repro", "count_in_200": 11},
-      {"label": "Connectivity", "count_in_200": 9},
-      {"label": "BUG", "count_in_200": 7},
-      {"label": "Blocked: v2", "count_in_200": 6},
-      {"label": "Performance", "count_in_200": 6},
-      {"label": "P2", "count_in_200": 4},
-      {"label": "OpenClaw", "count_in_200": 3},
-      {"label": "Agent", "count_in_200": 3},
-      {"label": "P3", "count_in_200": 3},
-      {"label": "Planned", "count_in_200": 2}
-    ],
-    "top_closed_30d_labels": [
-      {"label": "inactive", "count": 50},
-      {"label": "Models", "count": 20},
-      {"label": "UI/UX", "count": 18},
-      {"label": "feature", "count": 18},
-      {"label": "Blocked: v2", "count": 14},
-      {"label": "RAG", "count": 12},
-      {"label": "Assistant", "count": 12},
-      {"label": "Data", "count": 9},
-      {"label": "help wanted", "count": 9},
-      {"label": "discussion", "count": 9},
-      {"label": "BUG", "count": 7},
-      {"label": "MCP", "count": 6}
-    ]
-  },
+  "zombie_issues": [
+    {
+      "number": 5712,
+      "title": "【需求汇总】Agents with Workflows / 工作流&协同",
+      "labels": ["invalid", "inactive"],
+      "last_updated": "2025-10-23T00:31:34Z",
+      "author": "0xfullex",
+      "type": "Team tracking issue"
+    },
+    {
+      "number": 10844,
+      "title": "[Feature]: Backup feature enhance",
+      "labels": ["Dev Team", "Data"],
+      "last_updated": "2025-11-01T03:35:37Z",
+      "author": "GeorgeDong32",
+      "type": "Feature"
+    },
+    {
+      "number": 11578,
+      "title": "Upgrade to the MCP protocol by November 25, 2025.",
+      "labels": ["MCP"],
+      "last_updated": "2025-11-30T10:29:08Z",
+      "author": "DeJeune",
+      "type": "Feature"
+    },
+    {
+      "number": 5640,
+      "title": "【需求汇总】Cherry Studio as a Service (CSaaS) / API接口对外",
+      "labels": ["Dev Team"],
+      "last_updated": "2026-01-31T02:49:21Z",
+      "author": "0xfullex",
+      "type": "Team tracking issue"
+    }
+  ],
   "unlabeled": {
-    "total": 79,
-    "pct_of_total": 9.1,
+    "count_page1_sample": 9,
+    "pct_estimate": "~9%",
     "status": "OK — under 10% unlabeled"
-  },
-  "bug_triage": {
-    "total_open_bugs": 116,
-    "pct_of_total": 13.3,
-    "notable_clusters": [
-      "OpenClaw version/update prompt bugs (#13727, #14122, #13655) — 3 issues, possibly same root cause",
-      "MCP tool result processing (#13292)",
-      "Agent oversized message context-length error (#11688)",
-      "File read regression (#12079)",
-      "CherryIN balance not refreshing after recharge (#15022) — NEW today",
-      "Google/CherryIN includeServerSideToolInvocations payload error (#15047) — NEW today"
-    ]
   },
   "p_priority_issues": [
     {
@@ -91,14 +69,19 @@
       "title": "[Feature]: Unified Notification Center",
       "labels": ["Planned", "P1", "feature", "UI/UX"],
       "milestone": "v2.4.0",
-      "updated": "2026-05-07T05:52:49Z"
+      "updated": "2026-05-07T05:52:49Z",
+      "days_since_update": 9,
+      "health": "Aging"
     },
     {
       "priority": "P1",
       "number": 13608,
       "title": "[Bug]: xiaomi mimo response only displays the last line",
       "labels": ["P1", "Models"],
-      "updated": "2026-03-19T14:22:09Z"
+      "milestone": "v1.8.1 (closed)",
+      "updated": "2026-03-19T14:22:09Z",
+      "days_since_update": 58,
+      "health": "Stale"
     },
     {
       "priority": "P1",
@@ -106,17 +89,31 @@
       "title": "[Bug]: Azure OpenAI Resource not found — defaults to responses API",
       "labels": ["P1", "Models"],
       "assignee": "DeJeune",
-      "updated": "2026-03-05T08:47:59Z"
+      "updated": "2026-03-05T08:47:59Z",
+      "days_since_update": 72,
+      "health": "Stale"
     }
   ],
-  "p2_issues_count": 4,
-  "p3_issues_count": 3,
+  "closed_last_30d": {
+    "total": 413,
+    "dominant_reason": "not_planned (inactive bot sweep)",
+    "batch_close_note": "11 issues closed within 9 seconds on 2026-05-16T00:58:xx Z — automated inactive sweep",
+    "top_labels_on_closed": {
+      "inactive": 67,
+      "Models": 22,
+      "UI/UX": 20,
+      "discussion": 11,
+      "help wanted": 10,
+      "Assistant": 9,
+      "BUG": 7,
+      "MCP": 7
+    }
+  },
   "recommendations": [
-    "Investigate and consolidate the 3 OpenClaw update-prompt bug reports (#13727, #14122, #13655) — likely same underlying issue",
-    "Triage Agent oversized-message context-length error (#11688) — affects AI core reliability",
-    "2 zombie issues (>180d no activity) — consider closing if no longer reproducible",
-    "P1 #13608 and #13193 are in closed milestones but still open — re-milestone or close",
-    "79 unlabeled issues (9.1%) — acceptable but worth a weekly triage pass",
-    "296 aging issues (30-120d) represent a significant backlog to prioritize"
+    "P1 bugs #13608 (58d stale) and #13193 (72d stale) — reassign or close if fixed in recent release",
+    "305 stale issues (35%) warrant a triage sweep: close, label, or escalate",
+    "4 zombie team-tracking issues — review for v2 relevance and close or migrate to GitHub Discussions",
+    "74% of open PRs have no labels — add v2/main/hotfix labels for easier routing",
+    "Confirm #14899 (Unified Notification Center, P1, v2.4.0) has an assigned developer"
   ]
 }

@@ -1,54 +1,63 @@
 {
-  "generated_at": "2026-05-12T17:30:00Z",
-  "data_as_of": "2026-05-12",
+  "generated_at": "2026-05-16T16:00:00Z",
+  "data_as_of": "2026-05-16",
   "repository": "CherryHQ/cherry-studio",
   "open_issues": {
-    "total": 869,
-    "bug_label": 116,
-    "feature_label": 125,
+    "total": 867,
+    "bug_label": 5,
     "no_label": 79,
     "no_label_pct": 9.1,
     "p1_count": 3,
-    "top_labels": [
-      {"label": "inactive", "count": "~290 (est.)"},
-      {"label": "UI/UX", "count": "~252 (est.)"},
-      {"label": "Models", "count": "~227 (est.)"},
-      {"label": "Assistant", "count": "~126 (est.)"},
-      {"label": "discussion", "count": "~80 (est.)"},
-      {"label": "help wanted", "count": "~76 (est.)"},
-      {"label": "RAG", "count": "~63 (est.)"},
-      {"label": "MCP", "count": "~59 (est.)"},
-      {"label": "feature", "count": "~50 (est.)"},
-      {"label": "Data", "count": "~50 (est.)"}
+    "top_labels_page1_sample": [
+      { "label": "UI/UX", "count_in_100": 33 },
+      { "label": "inactive", "count_in_100": 32 },
+      { "label": "Models", "count_in_100": 28 },
+      { "label": "Assistant", "count_in_100": 20 },
+      { "label": "Data", "count_in_100": 7 },
+      { "label": "RAG", "count_in_100": 6 },
+      { "label": "Connectivity", "count_in_100": 6 },
+      { "label": "needs-repro", "count_in_100": 5 },
+      { "label": "BUG", "count_in_100": 5 },
+      { "label": "MCP", "count_in_100": 5 }
     ],
-    "note": "Label counts are extrapolated from 200-issue sample (most recently updated)."
+    "note": "Label counts from 100 most-recently-updated issues. Full label distribution requires paginated fetch."
   },
   "closed_issues_30d": {
-    "total": 379,
-    "note": "Issues closed between 2026-04-12 and 2026-05-12"
+    "total": 413,
+    "dominant_close_reason": "not_planned (inactive bot sweep)",
+    "by_week": {
+      "2026-05-11_week": 68,
+      "2026-05-04_week": 32
+    }
   },
   "open_prs": {
-    "total": 295,
+    "total": 100,
     "by_base": {
-      "main": 224,
-      "v2": 65,
-      "other": 6
+      "main": 63,
+      "v2": 34,
+      "other": 3
     },
-    "draft_total": 48,
-    "stale_prs_gt14d": [
-      {"number": 14313, "title": "feat(data): migrate paintings to v2 data architecture", "base": "v2", "days_old": 26},
-      {"number": 12060, "title": "feat: context menu", "base": "v2", "days_old": 142},
-      {"number": 13451, "title": "feat(file): Add schema and foundation for new file module", "base": "v2", "days_old": 59},
-      {"number": 10090, "title": "[WIP] feat: terminal", "base": "v2", "days_old": 244}
-    ]
+    "draft_total": 11,
+    "ready_total": 89,
+    "unlabeled_count": 74,
+    "unlabeled_pct": "74%",
+    "stale_prs_30plus_days": 0
   },
   "v2_prs": {
-    "open": 65,
-    "merged_last_30d": 46
+    "open": 68,
+    "merged_last_30d": 42,
+    "open_contributors": 25,
+    "weekly_velocity": {
+      "2026-W16": 3,
+      "2026-W17": 7,
+      "2026-W18": 9,
+      "2026-W19": 12,
+      "2026-W20": 11
+    }
   },
   "branch_strategy": {
     "main_status": "CODE FREEZE — hotfix/* only",
-    "v2_status": "Active development",
+    "v2_status": "Active development — accelerating",
     "effective_date": "2026-04-03"
   },
   "p1_issues": [
@@ -57,88 +66,43 @@
       "title": "[Feature]: Unified Notification Center",
       "labels": ["Planned", "P1", "feature", "UI/UX"],
       "created_at": "2026-05-07T05:01:00Z",
-      "updated": "2026-05-07T05:52:49Z",
+      "updated_at": "2026-05-07T05:52:49Z",
       "milestone": "v2.4.0",
-      "priority": "P1"
+      "comments": 0
     },
     {
       "number": 13608,
       "title": "[Bug]: xiaomi mimo response only displays the last line",
       "labels": ["P1", "Models"],
       "created_at": "2026-03-18T14:34:38Z",
+      "updated_at": "2026-03-19T14:22:09Z",
       "milestone": "v1.8.1 (closed)",
-      "priority": "P1"
+      "days_stale": 58
     },
     {
       "number": 13193,
-      "title": "[Bug]: Azure OpenAI Resource not found — defaults to responses API instead of chat/completions",
+      "title": "[Bug]: Azure OpenAI Resource not found — defaults to responses API",
       "labels": ["P1", "Models"],
       "created_at": "2026-03-04T05:07:40Z",
+      "updated_at": "2026-03-05T08:47:59Z",
       "assignee": "DeJeune",
-      "priority": "P1"
-    },
-    {
-      "number": 13727,
-      "title": "[Bug]: npm-installed OpenClaw triggers spurious update prompt",
-      "labels": ["BUG", "inactive", "OpenClaw"],
-      "updated": "2026-05-10T01:05:16Z",
-      "priority": "P1-Bug"
-    },
-    {
-      "number": 13292,
-      "title": "[Bug]: Multi Element MCP Tool Results are not processed properly",
-      "labels": ["BUG", "MCP", "needs-repro", "inactive"],
-      "updated": "2026-05-09T00:59:48Z",
-      "priority": "P1-Bug"
-    },
-    {
-      "number": 11688,
-      "title": "[Bug]: Model API returns context-length error when Agent automatically sends oversized messages",
-      "labels": ["BUG", "Models"],
-      "updated": "2026-05-05T16:47:25Z",
-      "priority": "P1-Bug"
+      "days_stale": 72
     }
   ],
-  "new_today": [
-    {
-      "number": 15047,
-      "title": "[Bug]: Invalid JSON payload — includeServerSideToolInvocations (Google/CherryIN)",
-      "type": "Bug",
-      "created_at": "2026-05-12T17:14:24Z"
-    },
-    {
-      "number": 15045,
-      "title": "feat(agent): AI SDK Agent Runtime",
-      "type": "PR",
-      "created_at": "2026-05-12T13:16:22Z",
-      "author": "DeJeune"
-    },
-    {
-      "number": 15044,
-      "title": "[Feature] Add CLI Plugin Support",
-      "type": "Feature",
-      "created_at": "2026-05-12T11:57:27Z",
-      "author": "vaayne"
-    },
-    {
-      "number": 15026,
-      "title": "refactor(selector): align model and resource selector styles",
-      "type": "PR (v2)",
-      "created_at": "2026-05-12T06:38:46Z",
-      "author": "zhangjiadi225"
-    },
-    {
-      "number": 15022,
-      "title": "[Bug]: CherryIN Balance Shows $0.00 After Successful Recharge",
-      "type": "Bug",
-      "created_at": "2026-05-12T06:32:21Z",
-      "assignee": "DeJeune",
-      "milestone": "v1.9.6"
-    }
+  "top_10_active_prs": [
+    { "number": 15132, "title": "fix(test): enable tests and pnpm install in git worktrees", "base": "main", "author": "GeorgeDong32", "draft": true, "updated": "2026-05-16T15:57:43Z" },
+    { "number": 12659, "title": "feat(backup): add v2 backup system refactor plan document", "base": "v2", "author": "GeorgeDong32", "draft": true, "updated": "2026-05-16T15:49:04Z" },
+    { "number": 15134, "title": "fix(chat): skip AI topic naming when disabled; extend timeout for local models", "base": "main", "author": "GeorgeDong32", "draft": false, "updated": "2026-05-16T15:46:10Z" },
+    { "number": 15133, "title": "fix(aiCore): support URL response format in image generation", "base": "main", "author": "Raymond8196", "draft": false, "updated": "2026-05-16T15:36:14Z" },
+    { "number": 15091, "title": "refactor(ui): consolidate the Code tools design language into shared foundations", "base": "v2", "author": "akazaakari950718-dev", "draft": false, "updated": "2026-05-16T13:22:57Z" },
+    { "number": 15087, "title": "feat(icons): light/dark dual-source architecture for provider/model logos", "base": "v2", "author": "akazaakari950718-dev", "draft": false, "updated": "2026-05-16T08:53:05Z" },
+    { "number": 15129, "title": "fix(knowledge): show embedding auth error instead of generic API key error", "base": "main", "author": "GeorgeDong32", "draft": true, "updated": "2026-05-16T06:27:54Z" },
+    { "number": 15126, "title": "fix: add agent tooling reset recovery", "base": "main", "author": "404-Page-Found", "draft": false, "updated": "2026-05-16T04:12:37Z" },
+    { "number": 15077, "title": "feat(settings): add error handling and user feedback for batch model selection", "base": "main", "author": "01luyicheng", "draft": false, "updated": "2026-05-16T03:55:00Z" },
+    { "number": 15125, "title": "feat: Make generated Markdown and HTML artifact paths clickable in Agents", "base": "v2", "author": "LWWZH", "draft": false, "updated": "2026-05-16T01:32:14Z" }
   ],
   "meta": {
-    "data_sources": ["GitHub MCP API (mcp__github__list_issues, search_issues, list_pull_requests, search_pull_requests)"],
-    "sample_coverage": "Total counts via search_issues total_count; 100-issue detailed samples per page",
-    "note": "gh CLI unavailable; data collected via GitHub MCP tools. Discussions API not available via MCP list/search tools."
+    "data_sources": ["GitHub MCP API (list_issues, search_issues, list_pull_requests, search_pull_requests)"],
+    "note": "gh CLI unavailable; data collected via GitHub MCP tools. Discussions API not available via MCP tools."
   }
 }

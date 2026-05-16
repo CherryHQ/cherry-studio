@@ -1,14 +1,22 @@
 {
-  "generated_at": "2026-05-12T17:30:00Z",
-  "report_date": "2026-05-12",
+  "generated_at": "2026-05-16T16:00:00Z",
+  "report_date": "2026-05-16",
   "repository": "CherryHQ/cherry-studio",
   "status": "partial",
-  "note": "GitHub Discussions are not accessible via the available MCP tools (list_issues / search_issues do not cover Discussions). The gh CLI is also unavailable in this environment. This file reflects what can be inferred from issue labels tagged 'discussion'.",
+  "note": "GitHub Discussions GraphQL API not accessible via available MCP tools. Metrics below are inferred from issue labels and issue cross-references.",
   "discussion_label_proxy": {
-    "open_issues_with_discussion_label": 19,
-    "closed_30d_issues_with_discussion_label": 9,
-    "note": "Issues labeled 'discussion' in the main issues tracker serve as a proxy metric."
+    "open_issues_with_discussion_label_sample": 4,
+    "closed_30d_issues_with_discussion_label": 11,
+    "total_observed": 15,
+    "note": "Based on 100-issue sample. Full count would require paginated fetch."
   },
+  "top_discussion_themes_inferred": [
+    "Model compatibility issues (Models label — 22 closed in 30d)",
+    "UI/UX feedback and feature requests (20 closed in 30d)",
+    "MCP server configuration questions (7 closed in 30d)",
+    "Agent workflow design (discussion + help wanted labels)",
+    "Backup/sync across devices (zombie issue #10844, feature #5640)"
+  ],
   "known_discussion_categories": [
     "General",
     "Ideas",
@@ -21,19 +29,17 @@
       "issue": 14899,
       "title": "Unified Notification Center",
       "related_issues": ["#13918", "#14447"],
-      "category": "Feature Request"
-    },
+      "category": "Feature Request",
+      "p1": true,
+      "milestone": "v2.4.0"
+    }
+  ],
+  "unanswered_items": [
     {
-      "issue": 15022,
-      "title": "CherryIN Balance Shows $0.00 After Recharge",
-      "related_issues": ["#15016", "#15019"],
-      "category": "Bug"
-    },
-    {
-      "issue": 14910,
-      "title": "PII Redaction via Local Models",
-      "related_issues": ["#14895"],
-      "category": "Feature Request"
+      "number": 14899,
+      "title": "Unified Notification Center (P1)",
+      "comments": 0,
+      "note": "P1 feature with no community comment — needs visibility"
     }
   ],
   "action_needed": "To enable full discussion analytics, configure gh CLI access or add a Discussions-capable GraphQL MCP endpoint.",
