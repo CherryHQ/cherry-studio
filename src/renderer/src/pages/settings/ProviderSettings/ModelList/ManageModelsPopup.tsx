@@ -14,7 +14,6 @@ import {
 } from '@renderer/config/models'
 import { useProvider } from '@renderer/hooks/useProvider'
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
-import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import { fetchModels } from '@renderer/services/ApiService'
 import type { Model, Provider } from '@renderer/types'
 import { filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
@@ -30,7 +29,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import ManageModelsList from './ManageModelsList'
-import { isModelInProvider, isValidNewApiModel } from './utils'
+import { addModelsWithValidation, isModelInProvider } from './utils'
 
 const logger = loggerService.withContext('ManageModelsPopup')
 
@@ -153,28 +152,23 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   }, [list, onRemoveModel, provider])
 
   const onAddAll = useCallback(() => {
-    const wouldAddModel = list.filter((model) => !isModelInProvider(provider, model.id))
     window.modal.confirm({
       title: t('settings.models.manage.add_listed.label'),
       content: t('settings.models.manage.add_listed.confirm'),
       centered: true,
-      onOk: () => {
-        if (isNewApiProvider(provider)) {
-          if (wouldAddModel.every(isValidNewApiModel)) {
-            wouldAddModel.forEach(onAddModel)
-          } else {
-            void NewApiBatchAddModelPopup.show({
-              title: t('settings.models.add.batch_add_models'),
-              batchModels: wouldAddModel,
-              provider
-            })
-          }
-        } else {
-          wouldAddModel.forEach(onAddModel)
+      onOk: async () => {
+        const wouldAddModel = list.filter((model) => !isModelInProvider(provider, model.id))
+        if (wouldAddModel.length === 0) {
+          window.toast.info(t('settings.models.manage.no_models_to_add'))
+          return
+        }
+        const success = await addModelsWithValidation(provider, wouldAddModel, onAddModel, t)
+        if (success) {
+          window.toast.success(t('settings.models.manage.add_success', { count: wouldAddModel.length }))
         }
       }
     })
-  }, [list, models, onAddModel, provider, t])
+  }, [list, onAddModel, provider, t])
 
   const loadModels = useCallback(async (provider: Provider) => {
     setLoadingModels(true)

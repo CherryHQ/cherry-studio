@@ -6,7 +6,7 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import type { EndpointType, Model, Provider } from '@renderer/types'
 import type { FormProps } from 'antd'
 import { Button, Flex, Form, Modal, Select } from 'antd'
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface ShowParams {
@@ -15,14 +15,16 @@ interface ShowParams {
   batchModels: Model[]
 }
 
+interface ResolveData {
+  success: boolean
+}
+
 interface Props extends ShowParams {
-  resolve: (data: any) => void
+  resolve: (data: ResolveData | null) => void
 }
 
 type FieldType = {
-  provider: string
-  group?: string
-  endpointType?: EndpointType
+  endpointType: EndpointType
 }
 
 const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels }) => {
@@ -30,17 +32,26 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
   const [form] = Form.useForm()
   const { addModel } = useProvider(provider.id)
   const { t } = useTranslation()
+  const labelWidth = useDynamicLabelWidth([t('settings.models.add.endpoint_type.label')])
+  const didResolve = useRef(false)
 
-  const onOk = () => {
-    setOpen(false)
+  const resolveOnce = useCallback(
+    (data: ResolveData | null) => {
+      if (!didResolve.current) {
+        didResolve.current = true
+        resolve(data)
+      }
+    },
+    [resolve]
+  )
+
+  const handleAfterClose = () => {
+    resolveOnce(null)
   }
 
   const onCancel = () => {
+    resolveOnce(null)
     setOpen(false)
-  }
-
-  const onClose = () => {
-    resolve({})
   }
 
   const onAddModel = (values: FieldType) => {
@@ -55,25 +66,31 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
   }
 
   const onFinish: FormProps<FieldType>['onFinish'] = (values) => {
-    if (onAddModel(values)) {
-      resolve({})
-    }
+    if (didResolve.current) return
+    onAddModel(values)
+    setOpen(false)
+    resolveOnce({ success: true })
   }
+
+  useEffect(() => {
+    return () => {
+      resolveOnce(null)
+    }
+  }, [resolveOnce])
 
   return (
     <Modal
       title={title}
       open={open}
-      onOk={onOk}
       onCancel={onCancel}
       maskClosable={false}
-      afterClose={onClose}
+      afterClose={handleAfterClose}
       footer={null}
       transitionName="animation-move-down"
       centered>
       <Form
         form={form}
-        labelCol={{ style: { width: useDynamicLabelWidth([t('settings.models.add.endpoint_type.label')]) } }}
+        labelCol={{ style: { width: labelWidth } }}
         labelAlign="left"
         colon={false}
         style={{ marginTop: 25 }}
@@ -107,12 +124,11 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
 }
 
 export default class NewApiBatchAddModelPopup {
-  static topviewId = 0
   static hide() {
     TopView.hide('NewApiBatchAddModelPopup')
   }
   static show(props: ShowParams) {
-    return new Promise<any>((resolve) => {
+    return new Promise<ResolveData | null>((resolve) => {
       TopView.show(
         <PopupContainer
           {...props}

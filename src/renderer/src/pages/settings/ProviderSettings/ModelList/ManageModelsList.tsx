@@ -4,17 +4,14 @@ import CustomTag from '@renderer/components/Tags/CustomTag'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { getModelLogoById } from '@renderer/config/models'
 import FileItem from '@renderer/pages/files/FileItem'
-import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import type { Model, Provider } from '@renderer/types'
-import { isNewApiProvider } from '@renderer/utils/provider'
-import { Button, Flex, Tooltip } from 'antd'
-import { Avatar } from 'antd'
+import { Avatar, Button, Checkbox, Flex, Tooltip } from 'antd'
 import { ChevronRight, Minus, Plus } from 'lucide-react'
-import React, { memo, useCallback, useMemo, useState } from 'react'
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { isModelInProvider, isValidNewApiModel } from './utils'
+import { addModelsWithValidation } from './utils'
 
 // 列表项类型定义
 interface GroupRowData {
@@ -48,18 +45,68 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
 }) => {
   const { t } = useTranslation()
   const [collapsedGroups, setCollapsedGroups] = useState(new Set<string>())
+  const [selectedModels, setSelectedModels] = useState<Set<string>>(new Set())
+
+  // 缓存已添加的模型ID集合，用于O(1)时间复杂度的查找
+  const addedModelIds = useMemo(() => {
+    return new Set((provider.models || []).map((m) => m.id))
+  }, [provider.models])
+
+  // 收集所有可用的模型ID，用于清理无效的选中项
+  const availableModelIds = useMemo(() => {
+    const ids = new Set<string>()
+    Object.values(modelGroups).forEach((models) => {
+      models.forEach((model) => ids.add(model.id))
+    })
+    return ids
+  }, [modelGroups])
+
+  // 当 modelGroups 或 provider.models 变化时，清理无效选中项
+  useEffect(() => {
+    setSelectedModels((prev) => {
+      const newSelected = new Set(prev)
+      let changed = false
+      for (const modelId of prev) {
+        // 如果模型不在当前列表中或已被添加到 provider，从选中状态中移除
+        if (!availableModelIds.has(modelId) || addedModelIds.has(modelId)) {
+          newSelected.delete(modelId)
+          changed = true
+        }
+      }
+      return changed ? newSelected : prev
+    })
+  }, [availableModelIds, addedModelIds])
 
   const handleGroupToggle = useCallback((groupName: string) => {
     setCollapsedGroups((prev) => {
       const newSet = new Set(prev)
       if (newSet.has(groupName)) {
-        newSet.delete(groupName) // 如果已折叠，则展开
+        newSet.delete(groupName)
       } else {
-        newSet.add(groupName) // 如果已展开，则折叠
+        newSet.add(groupName)
       }
       return newSet
     })
   }, [])
+
+  const handleSelectModel = useCallback((modelId: string, checked: boolean) => {
+    setSelectedModels((prev) => {
+      const newSet = new Set(prev)
+      if (checked) {
+        newSet.add(modelId)
+      } else {
+        newSet.delete(modelId)
+      }
+      return newSet
+    })
+  }, [])
+
+  const handleAddModelsWithValidation = useCallback(
+    async (modelsToAdd: Model[]): Promise<boolean> => {
+      return addModelsWithValidation(provider, modelsToAdd, onAddModel, t)
+    },
+    [provider, onAddModel, t]
+  )
 
   // 将分组数据扁平化为单一列表，过滤掉空组
   const flatRows = useMemo(() => {
@@ -87,30 +134,38 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
     return rows
   }, [modelGroups, collapsedGroups])
 
+  const handleBatchAddSelected = useCallback(
+    async (models: Model[]) => {
+      const modelsToAdd = models.filter((m) => selectedModels.has(m.id))
+      if (modelsToAdd.length === 0) return
+
+      const success = await handleAddModelsWithValidation(modelsToAdd)
+      if (success) {
+        setSelectedModels((prev) => {
+          const newSelected = new Set(prev)
+          modelsToAdd.forEach((m) => newSelected.delete(m.id))
+          return newSelected
+        })
+        window.toast.success(t('settings.models.manage.add_success', { count: modelsToAdd.length }))
+      }
+    },
+    [selectedModels, handleAddModelsWithValidation, t]
+  )
+
   const renderGroupTools = useCallback(
     (models: Model[]) => {
-      const isAllInProvider = models.every((model) => isModelInProvider(provider, model.id))
+      const isAllInProvider = models.every((model) => addedModelIds.has(model.id))
 
-      const handleGroupAction = () => {
+      const handleGroupAction = async () => {
         if (isAllInProvider) {
           // 移除整组
-          models.filter((model) => isModelInProvider(provider, model.id)).forEach(onRemoveModel)
+          models.filter((model) => addedModelIds.has(model.id)).forEach(onRemoveModel)
         } else {
-          // 添加整组
-          const wouldAddModels = models.filter((model) => !isModelInProvider(provider, model.id))
-
-          if (isNewApiProvider(provider)) {
-            if (wouldAddModels.every(isValidNewApiModel)) {
-              wouldAddModels.forEach(onAddModel)
-            } else {
-              void NewApiBatchAddModelPopup.show({
-                title: t('settings.models.add.batch_add_models'),
-                batchModels: wouldAddModels,
-                provider
-              })
-            }
-          } else {
-            wouldAddModels.forEach(onAddModel)
+          // 添加整组，复用 addModelsWithValidation 统一处理验证和弹窗
+          const wouldAddModels = models.filter((model) => !addedModelIds.has(model.id))
+          const success = await handleAddModelsWithValidation(wouldAddModels)
+          if (success) {
+            window.toast.success(t('settings.models.manage.add_success', { count: wouldAddModels.length }))
           }
         }
       }
@@ -130,13 +185,13 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
             icon={isAllInProvider ? <Minus size={16} /> : <Plus size={16} />}
             onClick={(e) => {
               e.stopPropagation()
-              handleGroupAction()
+              void handleGroupAction()
             }}
           />
         </Tooltip>
       )
     },
-    [provider, onRemoveModel, onAddModel, t]
+    [addedModelIds, onRemoveModel, t, handleAddModelsWithValidation]
   )
 
   return (
@@ -152,10 +207,38 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
       {(row) => {
         if (row.type === 'group') {
           const isCollapsed = collapsedGroups.has(row.groupName)
+          const modelsNotInProvider = row.models.filter((model) => !addedModelIds.has(model.id))
+          const groupSelectedCount = modelsNotInProvider.filter((m) => selectedModels.has(m.id)).length
+          const isGroupAllSelected = modelsNotInProvider.length > 0 && groupSelectedCount === modelsNotInProvider.length
+          const isGroupIndeterminate = groupSelectedCount > 0 && !isGroupAllSelected
           return (
             <GroupHeaderContainer isCollapsed={isCollapsed}>
               <GroupHeader isCollapsed={isCollapsed} onClick={() => handleGroupToggle(row.groupName)}>
                 <Flex align="center" gap={10} style={{ flex: 1 }}>
+                  <Checkbox
+                    checked={isGroupAllSelected}
+                    indeterminate={isGroupIndeterminate}
+                    disabled={modelsNotInProvider.length === 0}
+                    aria-label={t('settings.models.manage.select_all_group', { groupName: row.groupName })}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => {
+                      e.stopPropagation()
+                      setSelectedModels((prev) => {
+                        const newSelected = new Set(prev)
+                        // 基于 prev 重新计算当前组的选择状态
+                        const currentGroupSelectedCount = modelsNotInProvider.filter((m) => prev.has(m.id)).length
+                        const isCurrentlyAllSelected =
+                          modelsNotInProvider.length > 0 && currentGroupSelectedCount === modelsNotInProvider.length
+
+                        if (isCurrentlyAllSelected) {
+                          modelsNotInProvider.forEach((m) => newSelected.delete(m.id))
+                        } else {
+                          modelsNotInProvider.forEach((m) => newSelected.add(m.id))
+                        }
+                        return newSelected
+                      })
+                    }}
+                  />
                   <ChevronRight
                     size={16}
                     color="var(--color-text-3)"
@@ -167,7 +250,23 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
                     {row.models.length}
                   </CustomTag>
                 </Flex>
-                {renderGroupTools(row.models)}
+                <Flex align="center" gap={4}>
+                  {groupSelectedCount > 0 && (
+                    <Tooltip title={t('settings.models.manage.batch_add_selected')}>
+                      <Button
+                        type="primary"
+                        size="small"
+                        aria-label={t('settings.models.manage.batch_add_selected')}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void handleBatchAddSelected(modelsNotInProvider)
+                        }}>
+                        +{groupSelectedCount}
+                      </Button>
+                    </Tooltip>
+                  )}
+                  {renderGroupTools(row.models)}
+                </Flex>
               </GroupHeader>
             </GroupHeaderContainer>
           )
@@ -178,9 +277,12 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
             last={row.last}
             model={row.model}
             showIdentifier={duplicateModelNames.has(row.model.name)}
-            provider={provider}
             onAddModel={onAddModel}
             onRemoveModel={onRemoveModel}
+            isSelected={selectedModels.has(row.model.id)}
+            onSelectChange={handleSelectModel}
+            isAlreadyAdded={addedModelIds.has(row.model.id)}
+            selectAriaLabel={t('settings.models.manage.select_model', { modelName: row.model.name })}
           />
         )
       }}
@@ -192,29 +294,56 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
 interface ModelListItemProps {
   model: Model
   showIdentifier: boolean
-  provider: Provider
   onAddModel: (model: Model) => void
   onRemoveModel: (model: Model) => void
   last?: boolean
+  isSelected?: boolean
+  onSelectChange?: (modelId: string, checked: boolean) => void
+  isAlreadyAdded: boolean
+  selectAriaLabel?: string
 }
 
 const ModelListItem: React.FC<ModelListItemProps> = memo(
-  ({ model, showIdentifier, provider, onAddModel, onRemoveModel, last }) => {
-    const isAdded = useMemo(() => isModelInProvider(provider, model.id), [provider, model.id])
+  ({
+    model,
+    showIdentifier,
+    onAddModel,
+    onRemoveModel,
+    last,
+    isSelected,
+    onSelectChange,
+    isAlreadyAdded,
+    selectAriaLabel
+  }) => {
+    // isAlreadyAdded 由父组件通过 addedModelIds Set 计算传入，性能更优
     return (
       <ModelListItemContainer last={last}>
         <FileItem
           style={{
-            backgroundColor: isAdded ? 'rgba(0, 126, 0, 0.06)' : '',
+            backgroundColor: isAlreadyAdded ? 'rgba(0, 126, 0, 0.06)' : '',
             border: 'none',
             boxShadow: 'none'
           }}
           fileInfo={{
-            icon: <Avatar src={getModelLogoById(model.id)}>{model?.name?.[0]?.toUpperCase()}</Avatar>,
-            name: <ModelIdWithTags model={model} showIdentifier={showIdentifier} />,
+            icon: <Avatar src={getModelLogoById(model.id)}>{model?.name?.[0]?.toUpperCase() || '?'}</Avatar>,
+            name: (
+              <Flex align="center" gap={8}>
+                {!isAlreadyAdded && onSelectChange && (
+                  <Checkbox
+                    checked={!!isSelected}
+                    aria-label={selectAriaLabel || model.id}
+                    onChange={(e) => {
+                      e.stopPropagation()
+                      onSelectChange(model.id, e.target.checked)
+                    }}
+                  />
+                )}
+                <ModelIdWithTags model={model} showIdentifier={showIdentifier} />
+              </Flex>
+            ),
             extra: model.description && <ExpandableText text={model.description} />,
             ext: '.model',
-            actions: isAdded ? (
+            actions: isAlreadyAdded ? (
               <Button type="text" onClick={() => onRemoveModel(model)} icon={<Minus size={16} />} />
             ) : (
               <Button type="text" onClick={() => onAddModel(model)} icon={<Plus size={16} />} />
