@@ -171,13 +171,7 @@ export enum IpcChannel {
   Tab_TryAttach = 'tab:try-attach',
   Tab_DragEnd = 'tab:drag-end',
 
-  KnowledgeBase_Create = 'knowledge-base:create',
-  KnowledgeBase_Reset = 'knowledge-base:reset',
   KnowledgeBase_Delete = 'knowledge-base:delete',
-  KnowledgeBase_Add = 'knowledge-base:add',
-  KnowledgeBase_Remove = 'knowledge-base:remove',
-  KnowledgeBase_Search = 'knowledge-base:search',
-  KnowledgeBase_Rerank = 'knowledge-base:rerank',
   KnowledgeRuntime_CreateBase = 'knowledge-runtime:create-base',
   KnowledgeRuntime_RestoreBase = 'knowledge-runtime:restore-base',
   KnowledgeRuntime_DeleteBase = 'knowledge-runtime:delete-base',

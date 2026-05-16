@@ -67,9 +67,6 @@ import type {
   FileMetadata,
   FileUploadResponse,
   GetApiServerStatusResult,
-  KnowledgeBaseParams,
-  KnowledgeItem,
-  KnowledgeSearchResult,
   MCPServer,
   Notification,
   OcrProvider,
@@ -330,52 +327,10 @@ const api = {
   },
   openPath: (path: string) => ipcRenderer.invoke(IpcChannel.Open_Path, path),
   knowledgeBase: {
-    create: (base: KnowledgeBaseParams, context?: SpanContext) =>
-      tracedInvoke(IpcChannel.KnowledgeBase_Create, context, base),
-    reset: (base: KnowledgeBaseParams) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Reset, base),
-    delete: (id: string) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Delete, id),
-    add: ({
-      base,
-      item,
-      userId,
-      forceReload = false
-    }: {
-      base: KnowledgeBaseParams
-      item: KnowledgeItem
-      userId?: string
-      forceReload?: boolean
-    }) =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeBase_Add, {
-        base,
-        item,
-        forceReload,
-        userId
-      }),
-    remove: ({ uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams }) =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeBase_Remove, {
-        uniqueId,
-        uniqueIds,
-        base
-      }),
-    search: ({ search, base }: { search: string; base: KnowledgeBaseParams }, context?: SpanContext) =>
-      tracedInvoke(IpcChannel.KnowledgeBase_Search, context, { search, base }),
-    rerank: (
-      {
-        search,
-        base,
-        results
-      }: {
-        search: string
-        base: KnowledgeBaseParams
-        results: KnowledgeSearchResult[]
-      },
-      context?: SpanContext
-    ) =>
-      tracedInvoke(IpcChannel.KnowledgeBase_Rerank, context, {
-        search,
-        base,
-        results
-      })
+    // v1 renderer knowledge path retired (T4.2). Only base deletion remains,
+    // still invoked by the v1 Redux store/knowledge slice until that slice is
+    // removed in the unified step. v2 knowledge runs via window.api.knowledgeRuntime.*.
+    delete: (id: string) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Delete, id)
   },
   knowledgeRuntime: {
     createBase: (base: CreateKnowledgeBaseDto): Promise<KnowledgeBase> =>
