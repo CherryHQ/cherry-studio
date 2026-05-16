@@ -26,6 +26,15 @@ import { SettingDivider } from '..'
 export type AgentConfigurationState = AgentConfiguration & Record<string, unknown>
 export const defaultConfiguration: AgentConfigurationState = AgentConfigurationSchema.parse({})
 
+export const buildResetToolingUpdate = (selectedMode: PermissionMode, tools: Tool[]) => {
+  const nonMcpTools = tools.filter((tool) => tool.type !== 'mcp')
+
+  return {
+    allowed_tools: computeModeDefaults(selectedMode, nonMcpTools),
+    mcps: []
+  }
+}
+
 /**
  * Unified props type for settings components that work with both Agent and Session
  */
