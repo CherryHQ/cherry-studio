@@ -1,6 +1,7 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useTimer } from '@renderer/hooks/useTimer'
-import type { Assistant, Model } from '@renderer/types'
+import type { Assistant } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
 import { Input as AntdInput } from 'antd'
 import type { InputRef } from 'rc-input/lib/interface'
 import React, { useRef } from 'react'

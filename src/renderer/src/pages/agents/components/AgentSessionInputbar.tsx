@@ -4,11 +4,12 @@ import { loggerService } from '@logger'
 import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
+import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useAgent } from '@renderer/hooks/agents/useAgentDataApi'
 import { useSession } from '@renderer/hooks/agents/useSessionDataApi'
 import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useInputText } from '@renderer/hooks/useInputText'
-import { useProviders } from '@renderer/hooks/useProvider'
+import { useModels } from '@renderer/hooks/useModels'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { isSoulModeEnabled } from '@renderer/pages/agents/AgentSettings/shared'
@@ -31,6 +32,7 @@ import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { getBuiltinSlashCommands } from '@shared/data/types/agentSlashCommands'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { parseUniqueModelId } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -68,7 +70,7 @@ const AgentSessionInputbar = ({
   const { t } = useTranslation()
   const { session } = useSession(sessionId)
   const { agent } = useAgent(agentId)
-  const { providers } = useProviders()
+  const { models } = useModels()
   // FIXME: 不应该使用ref将action传到context提供给tool，权宜之计
   const actionsRef = useRef({
     resizeTextArea: () => {},
@@ -83,8 +85,11 @@ const AgentSessionInputbar = ({
     if (!agent?.model) return undefined
     const [providerId, actualModelId] = agent.model.split(':')
     if (!providerId || !actualModelId) return undefined
-    return providers.flatMap((p) => p.models).find((m) => m.id === actualModelId && m.provider === providerId)
-  }, [agent?.model, providers])
+    const v2Model = models.find(
+      (m) => m.providerId === providerId && (m.apiModelId ?? parseUniqueModelId(m.id).modelId) === actualModelId
+    )
+    return v2Model ? fromSharedModel(v2Model) : undefined
+  }, [agent?.model, models])
 
   // v2-shape Assistant stub for tools that expect a real assistant record.
   const assistantStub = useMemo<Assistant | null>(() => {

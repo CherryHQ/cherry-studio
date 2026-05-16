@@ -39,15 +39,8 @@ vi.stubGlobal('window', {
 })
 
 const isQwenMTModelMock = vi.fn()
-vi.mock('@renderer/config/models', () => ({
+vi.mock('@shared/utils/model', () => ({
   isQwenMTModel: (m: any) => isQwenMTModelMock(m)
-}))
-
-// _bridge is exercised by the hook to convert v2 SharedModel → v1 Model; the
-// pure helpers receive the v1-shaped Model directly so this mock only matters
-// for the hook surface tests.
-vi.mock('@renderer/config/models/_bridge', () => ({
-  fromSharedModel: (m: any) => m
 }))
 
 const useDefaultModelMock = vi.fn(() => ({ quickModel: TEST_MODEL }))

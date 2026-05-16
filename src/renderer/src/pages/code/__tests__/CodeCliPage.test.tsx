@@ -56,12 +56,6 @@ vi.mock('@renderer/config/constant', () => ({
   isWin: false
 }))
 
-vi.mock('@renderer/config/models', () => ({
-  isEmbeddingModel: () => false,
-  isRerankModel: () => false,
-  isTextToImageModel: () => false
-}))
-
 vi.mock('@renderer/data/hooks/useCache', () => ({
   usePersistCache: () => [true, vi.fn()]
 }))
@@ -85,8 +79,13 @@ vi.mock('@renderer/hooks/useCodeCli', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: () => ({ providers: [] })
+vi.mock('@renderer/hooks/useProviders', () => ({
+  useProviders: () => ({ providers: [] }),
+  getProviderDisplayName: (provider: { name?: string; id?: string }) => provider?.name ?? provider?.id ?? ''
+}))
+
+vi.mock('@renderer/hooks/useModels', () => ({
+  useModels: () => ({ models: [] })
 }))
 
 vi.mock('@renderer/hooks/useTimer', () => ({

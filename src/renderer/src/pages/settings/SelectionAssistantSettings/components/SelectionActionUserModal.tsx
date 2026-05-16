@@ -1,7 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import CopyButton from '@renderer/components/CopyButton'
-import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useDefaultModel } from '@renderer/hooks/useModels'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
@@ -30,7 +29,6 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
   const { assistants: userPredefinedAssistants } = useAssistants()
   const { assistant: defaultAssistant } = useDefaultAssistant()
   const { defaultModel: apiDefaultModel } = useDefaultModel()
-  const v1DefaultModel = apiDefaultModel ? fromSharedModel(apiDefaultModel) : undefined
 
   const [formData, setFormData] = useState<Partial<SelectionActionItem>>({})
   const [errors, setErrors] = useState<Partial<Record<keyof SelectionActionItem, string>>>({})
@@ -196,7 +194,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
               dropdownRender={(menu) => menu}>
               <Select.Option key={defaultAssistant.id} value={defaultAssistant.id}>
                 <AssistantItem>
-                  <ModelAvatar model={v1DefaultModel} size={18} />
+                  <ModelAvatar model={apiDefaultModel} size={18} />
                   <AssistantName>{defaultAssistant.name}</AssistantName>
                   <Spacer />
                   <CurrentTag isCurrent={true}>{t('selection.settings.user_modal.assistant.default')}</CurrentTag>
@@ -207,7 +205,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                 .map((a) => (
                   <Select.Option key={a.id} value={a.id}>
                     <AssistantItem>
-                      <ModelAvatar model={v1DefaultModel} size={18} />
+                      <ModelAvatar model={apiDefaultModel} size={18} />
                       <AssistantName>{a.name}</AssistantName>
                       <Spacer />
                     </AssistantItem>

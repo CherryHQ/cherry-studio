@@ -233,12 +233,6 @@ export function useProviderApiKeys(providerId: string) {
   return useQuery('/providers/:providerId/api-keys', { params: { providerId } })
 }
 
-export function useProviderRegistryModels(providerId: string) {
-  const result = useQuery('/providers/:providerId/registry-models', { params: { providerId } })
-  // Schema: GET /providers/:id/registry-models -> Model[]
-  return { ...result, data: result.data }
-}
-
 /**
  * Pure resolver for a provider's display name. System providers get the
  * i18n label; custom providers use their user-set name. Returns empty

@@ -2,7 +2,6 @@ import { useChat } from '@ai-sdk/react'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
-import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
@@ -69,11 +68,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const { defaultModel: defaultApiModel } = useDefaultModel()
   const { assistant: chosenAssistant, model: chosenApiModel } = useAssistant(quickAssistantId ?? '')
   const currentAssistant = chosenAssistant ?? defaultAssistant
-  const currentApiModel = chosenApiModel ?? defaultApiModel
-  const currentModel = useMemo(
-    () => (currentApiModel ? fromSharedModel(currentApiModel) : undefined),
-    [currentApiModel]
-  )
+  const currentModel = chosenApiModel ?? defaultApiModel
 
   // Lease a temporary topic for the quick-assistant conversation.
   // Lifecycle is tied to this component; resetting the conversation drops and leases a new one.

@@ -4,7 +4,6 @@ import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { CopyIcon } from '@renderer/components/Icons'
 import { ModelSelector } from '@renderer/components/ModelSelector'
-import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useSharedCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
@@ -507,7 +506,7 @@ const OpenClawPage: FC = () => {
               onSelect={handleModelSelect}
               trigger={
                 <Button variant="outline" className="w-full justify-start">
-                  {selectedModel ? <ModelAvatar model={fromSharedModel(selectedModel)} size={18} /> : null}
+                  {selectedModel ? <ModelAvatar model={selectedModel} size={18} /> : null}
                   <span className="flex-1 truncate text-left">
                     {selectedModel ? selectedModel.name : t('openclaw.model_config.select_model')}
                   </span>

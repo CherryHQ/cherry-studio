@@ -4,8 +4,6 @@ import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import TranslateButton from '@renderer/components/TranslateButton'
-import { isVisionModel } from '@renderer/config/models'
-import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
@@ -18,6 +16,7 @@ import { classNames } from '@renderer/utils'
 import { getFilesFromDropEvent, isSendMessageKeyPressed } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { isVisionModel } from '@shared/utils/model'
 import { Space } from 'antd'
 import type { TextAreaRef } from 'antd/es/input/TextArea'
 import TextArea from 'antd/es/input/TextArea'
@@ -46,8 +45,8 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
   const [files, setFiles] = useState<FileMetadata[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [isFileDragging, setIsFileDragging] = useState(false)
-  const { model: v2Model } = useAssistant(message.assistantId)
-  const model = useMemo(() => (v2Model ? fromSharedModel(v2Model) : undefined), [v2Model])
+  // v1 message
+  const { model } = useAssistant(message.assistantId)
   const { pasteLongTextAsFile } = useSettings()
 
   const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')

@@ -1,22 +1,21 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
+import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useProvider } from '@renderer/hooks/useProviders'
+import { useTimer } from '@renderer/hooks/useTimer'
+import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
+import { getWebSearchProviderLogo } from '@renderer/pages/settings/WebSearchSettings/utils/webSearchProviderMeta'
+import { getEffectiveMcpMode } from '@renderer/types'
+import { isToolUseModeFunction } from '@renderer/utils/assistant'
+import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
+import { checkWebSearchAvailability } from '@shared/data/utils/webSearchPreferences'
 import {
   isGemini3Model,
   isGeminiModel,
   isGPT5SeriesReasoningModel,
   isOpenAIWebSearchModel,
   isWebSearchModel
-} from '@renderer/config/models'
-import { fromSharedModel } from '@renderer/config/models/_bridge'
-import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useTimer } from '@renderer/hooks/useTimer'
-import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
-import { getWebSearchProviderLogo } from '@renderer/pages/settings/WebSearchSettings/utils/webSearchProviderMeta'
-import { getProviderByModel } from '@renderer/services/AssistantService'
-import { getEffectiveMcpMode } from '@renderer/types'
-import { isToolUseModeFunction } from '@renderer/utils/assistant'
-import { isGeminiWebSearchProvider } from '@renderer/utils/provider'
-import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
-import { checkWebSearchAvailability } from '@shared/data/utils/webSearchPreferences'
+} from '@shared/utils/model'
+import { isGeminiWebSearchProvider } from '@shared/utils/provider'
 import { useNavigate } from '@tanstack/react-router'
 import { Tooltip } from 'antd'
 import { Globe } from 'lucide-react'
@@ -38,12 +37,12 @@ const WebSearchButton: FC<Props> = ({ assistantId }) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { assistant, model, updateAssistant } = useAssistant(assistantId)
+  const { provider: modelProvider } = useProvider(model?.providerId ?? '')
   const { setTimeoutTimer } = useTimer()
   const { defaultSearchKeywordsProvider } = useWebSearchProviders()
-  const v1Model = useMemo(() => (model ? fromSharedModel(model) : undefined), [model])
 
   const enableWebSearch = assistant?.settings.enableWebSearch ?? false
-  const hasBuiltinWebSearch = v1Model ? isWebSearchModel(v1Model) : false
+  const hasBuiltinWebSearch = model ? isWebSearchModel(model) : false
 
   const activeProviderId = useMemo(() => {
     if (
@@ -60,7 +59,7 @@ const WebSearchButton: FC<Props> = ({ assistantId }) => {
   const providerLogo = !hasBuiltinWebSearch && activeProviderId ? getWebSearchProviderLogo(activeProviderId) : undefined
 
   const onClick = useCallback(() => {
-    if (!assistant || !v1Model) {
+    if (!assistant || !model) {
       window.toast.error(t('error.model.not_exists'))
       return
     }
@@ -84,12 +83,11 @@ const WebSearchButton: FC<Props> = ({ assistantId }) => {
     // Compatibility guards before enabling. Mirrors the previous
     // `updateToModelBuiltinWebSearch` checks; toast feedback stays in the
     // renderer for immediacy.
-    const provider = getProviderByModel(v1Model)
     if (
-      provider &&
-      isGeminiWebSearchProvider(provider) &&
-      isGeminiModel(v1Model) &&
-      !isGemini3Model(v1Model) &&
+      modelProvider &&
+      isGeminiWebSearchProvider(modelProvider) &&
+      isGeminiModel(model) &&
+      !isGemini3Model(model) &&
       isToolUseModeFunction(assistant) &&
       getEffectiveMcpMode(assistant) !== 'disabled'
     ) {
@@ -97,8 +95,8 @@ const WebSearchButton: FC<Props> = ({ assistantId }) => {
       return
     }
     if (
-      isOpenAIWebSearchModel(v1Model) &&
-      isGPT5SeriesReasoningModel(v1Model) &&
+      isOpenAIWebSearchModel(model) &&
+      isGPT5SeriesReasoningModel(model) &&
       assistant.settings.reasoning_effort === 'minimal'
     ) {
       window.toast.warning(t('chat.web_search.warning.openai'))
@@ -115,7 +113,8 @@ const WebSearchButton: FC<Props> = ({ assistantId }) => {
     setTimeoutTimer,
     t,
     updateAssistant,
-    v1Model
+    model,
+    modelProvider
   ])
 
   const ariaLabel = enableWebSearch ? t('common.close') : t('chat.input.web_search.label')

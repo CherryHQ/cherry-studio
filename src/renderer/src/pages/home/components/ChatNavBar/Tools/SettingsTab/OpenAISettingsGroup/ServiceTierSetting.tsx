@@ -1,9 +1,10 @@
 import Selector from '@renderer/components/Selector'
-import { isSupportFlexServiceTierModel } from '@renderer/config/models'
-import { useProvider } from '@renderer/hooks/useProvider'
+import { useProvider } from '@renderer/hooks/useProviders'
 import { SettingRow } from '@renderer/pages/settings'
-import type { Model, OpenAIServiceTier, ServiceTier } from '@renderer/types'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'
+import type { Model } from '@shared/data/types/model'
+import type { OpenAIServiceTier, ServiceTier } from '@shared/data/types/provider'
+import { isSupportFlexServiceTierModel } from '@shared/utils/model'
 import { Tooltip } from 'antd'
 import { CircleHelp } from 'lucide-react'
 import type { FC } from 'react'
@@ -21,14 +22,17 @@ interface Props {
 const ServiceTierSetting: FC<Props> = ({ model, providerId, SettingRowTitleSmall }) => {
   const { t } = useTranslation()
   const { provider, updateProvider } = useProvider(providerId)
-  const serviceTierMode = provider.serviceTier
+  const serviceTierMode = provider?.settings?.serviceTier as OpenAIServiceTier | undefined
   const isSupportFlexServiceTier = isSupportFlexServiceTierModel(model)
 
   const setServiceTierMode = useCallback(
     (value: ServiceTier) => {
-      updateProvider({ serviceTier: value })
+      if (!provider) return
+      updateProvider({
+        providerSettings: { ...provider.settings, serviceTier: value ?? undefined }
+      })
     },
-    [updateProvider]
+    [provider, updateProvider]
   )
 
   const serviceTierOptions = useMemo(() => {

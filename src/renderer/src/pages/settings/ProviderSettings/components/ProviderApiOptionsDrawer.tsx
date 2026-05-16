@@ -98,11 +98,6 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
         help: t('settings.provider.api.options.service_tier.help')
       },
       {
-        key: 'enableThinking',
-        label: t('settings.provider.api.options.enable_thinking.label'),
-        help: t('settings.provider.api.options.enable_thinking.help')
-      },
-      {
         key: 'verbosity',
         label: t('settings.provider.api.options.verbosity.label'),
         help: t('settings.provider.api.options.verbosity.help')

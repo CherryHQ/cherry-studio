@@ -1,11 +1,13 @@
 import { usePreference } from '@data/hooks/usePreference'
+import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useAssistantApiById, useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistantDataApi'
 import { useDefaultModel, useModelById } from '@renderer/hooks/useModels'
 import { composeDefaultAssistant } from '@renderer/services/defaultAssistant'
-import type { Assistant, AssistantSettings, Model } from '@renderer/types'
+import type { Assistant, AssistantSettings } from '@renderer/types'
 import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/modelReconcile'
 import type { CreateAssistantDto, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
-import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
+import { type UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useMemo } from 'react'
 
 export function useAssistants() {
@@ -67,18 +69,17 @@ export function useAssistant(id: string | null | undefined) {
     model,
     setModel: (next: Model, extraSettings?: Partial<AssistantSettings>) => {
       if (!id || !assistant) return
-      const reasoning = reconcileReasoningEffortForModel(next, assistant.settings.reasoning_effort, id)
-      const webSearch = reconcileWebSearchForModel(next, assistant.settings)
+      // reconcile* still consume the v1 Model shape (their reasoning-effort
+      // chain goes through the /config/models v1 adapter); bridge once here
+      // so call sites pass the v2 Model directly. next.id is the UniqueModelId.
+      const v1Next = fromSharedModel(next)
+      const reasoning = reconcileReasoningEffortForModel(v1Next, assistant.settings.reasoning_effort, id)
+      const webSearch = reconcileWebSearchForModel(v1Next, assistant.settings)
       const settingsPatch =
         extraSettings || reasoning || webSearch
           ? { ...assistant.settings, ...extraSettings, ...reasoning, ...webSearch }
           : undefined
-      void patchAssistant(
-        id,
-        settingsPatch
-          ? { modelId: createUniqueModelId(next.provider, next.id), settings: settingsPatch }
-          : { modelId: createUniqueModelId(next.provider, next.id) }
-      )
+      void patchAssistant(id, settingsPatch ? { modelId: next.id, settings: settingsPatch } : { modelId: next.id })
     },
     updateAssistant: (patch: UpdateAssistantDto) => {
       if (!id) return Promise.resolve(undefined)

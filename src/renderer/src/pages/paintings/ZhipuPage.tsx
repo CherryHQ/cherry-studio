@@ -6,7 +6,7 @@ import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navb
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { useAllProviders } from '@renderer/hooks/useProvider'
+import { useProviders } from '@renderer/hooks/useProviders'
 import FileManager from '@renderer/services/FileManager'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
@@ -37,7 +37,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { zhipu_paintings, addPainting, removePainting, updatePainting } = usePaintings()
   const [painting, setPainting] = useState<any>(zhipu_paintings?.[0] || DEFAULT_PAINTING)
   const { t } = useTranslation()
-  const providers = useAllProviders()
+  const { providers } = useProviders()
 
   // 确保painting使用智谱的cogview系列模型
   useEffect(() => {

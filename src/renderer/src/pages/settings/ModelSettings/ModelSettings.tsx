@@ -12,14 +12,13 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { ModelSelector } from '@renderer/components/ModelSelector'
-import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useDefaultModel } from '@renderer/hooks/useModels'
 import AssistantSettingsPopup from '@renderer/pages/home/AssistantSettings'
 import { TranslateSettingsPanelContent } from '@renderer/pages/translate/TranslateSettings'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
-import type { Model as SharedModel } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
 import { Languages, MessageSquareMore, PlusIcon, Rocket, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -49,28 +48,28 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const [translateModelPrompt, setTranslateModelPrompt] = usePreference('feature.translate.model_prompt')
   const [translateSettingsOpen, setTranslateSettingsOpen] = useState(false)
 
-  const modelFilter = useCallback((m: SharedModel) => !isNonChatModel(m), [])
+  const modelFilter = useCallback((m: Model) => !isNonChatModel(m), [])
 
   const onSelectDefault = useCallback(
-    (selected: SharedModel | undefined) => {
+    (selected: Model | undefined) => {
       if (!selected) return
-      void setDefaultModel(fromSharedModel(selected))
+      void setDefaultModel(selected)
     },
     [setDefaultModel]
   )
 
   const onSelectQuick = useCallback(
-    (selected: SharedModel | undefined) => {
+    (selected: Model | undefined) => {
       if (!selected) return
-      void setQuickModel(fromSharedModel(selected))
+      void setQuickModel(selected)
     },
     [setQuickModel]
   )
 
   const onSelectTranslate = useCallback(
-    (selected: SharedModel | undefined) => {
+    (selected: Model | undefined) => {
       if (!selected) return
-      void setTranslateModel(fromSharedModel(selected))
+      void setTranslateModel(selected)
     },
     [setTranslateModel]
   )
@@ -83,12 +82,11 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const groupStyle = compact ? { padding: 0, border: 'none', background: 'transparent' } : undefined
   const triggerStyle = { width: compact ? '100%' : 360 }
 
-  const renderTrigger = (model: SharedModel | undefined) => {
-    const v1 = model ? fromSharedModel(model) : undefined
+  const renderTrigger = (model: Model | undefined) => {
     return (
       <Button variant="outline" className="justify-start" style={triggerStyle}>
-        {v1 ? <ModelAvatar model={v1} size={18} /> : <PlusIcon size={16} />}
-        <span className="truncate">{v1 ? v1.name : t('settings.models.empty')}</span>
+        {model ? <ModelAvatar model={model} size={18} /> : <PlusIcon size={16} />}
+        <span className="truncate">{model ? model.name : t('settings.models.empty')}</span>
       </Button>
     )
   }

@@ -9,32 +9,52 @@ import {
   OpenCode,
   QwenCode
 } from '@cherrystudio/ui/icons'
-import {
-  isReasoningModel,
-  isSupportedReasoningEffortModel,
-  isSupportedThinkingTokenClaudeModel
-} from '@renderer/config/models/reasoning'
-import { EFFORT_RATIO, type EndpointType, type Model, type Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
-import { getFancyProviderName, sanitizeProviderName } from '@renderer/utils/naming'
-import { getThinkingBudget } from '@shared/ai/reasoningBudget'
+import { sanitizeProviderName } from '@renderer/utils/naming'
 import { codeCLI } from '@shared/config/constant'
 import { CLAUDE_SUPPORTED_PROVIDERS } from '@shared/config/providers'
+import type { EndpointType } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+import {
+  isAIGatewayProvider,
+  isAnthropicProvider,
+  isGeminiProvider,
+  isOpenAICompatibleProvider,
+  isOpenAIProvider
+} from '@shared/utils/provider'
 
 export interface LaunchValidationResult {
   isValid: boolean
   message?: string
 }
 
+/**
+ * Shape-agnostic env config. The caller (CodeCliPage) resolves all
+ * provider/model fields from the v2 DataApi and passes primitives, so this
+ * module no longer depends on the v1 Provider/Model shape.
+ */
 export interface ToolEnvironmentConfig {
   tool: codeCLI
-  model: Model
-  modelProvider: Provider
+  /** Raw provider model id (e.g. `claude-sonnet-4`), NOT the `providerId::modelId` unique id. */
+  rawModelId: string
+  /** Human-facing model name (v2 `model.name`). */
+  modelName: string
+  /** First v2 endpoint type for the model, or undefined. */
+  endpointType?: EndpointType
+  providerId: string
+  /** Display name (already fancy-formatted by the caller). */
+  fancyProviderName: string
+  /** True when the target provider speaks the Anthropic Messages API. */
+  isAnthropic: boolean
+  /** v2 anthropic-messages endpoint baseUrl, if configured. */
+  anthropicBaseUrl?: string
   apiKey: string
   baseUrl: string
-  context?: {
-    maxTokens?: number
-    reasoningEffort?: string
+  /** Precomputed by caller via @shared/utils/model (v2). */
+  reasoning?: {
+    isReasoning: boolean
+    supportsReasoningEffort: boolean
+    budgetTokens?: number
   }
 }
 
@@ -55,24 +75,29 @@ export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', 'che
 export const OPENAI_CODEX_SUPPORTED_PROVIDERS = ['openai', 'openrouter', 'aihubmix', 'new-api', 'cherryin']
 
 // Provider 过滤映射
+const ANTHROPIC_MESSAGES_ENDPOINT = 'anthropic-messages'
+const hasAnthropicEndpoint = (p: Provider): boolean =>
+  Boolean(p.endpointConfigs?.[ANTHROPIC_MESSAGES_ENDPOINT]?.baseUrl)
+const isOpenAILikeProvider = (p: Provider): boolean => isOpenAICompatibleProvider(p) || isOpenAIProvider(p)
+
 export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Provider[]> = {
   [codeCLI.claudeCode]: (providers) =>
     providers.filter(
-      (p) => p.type === 'anthropic' || CLAUDE_SUPPORTED_PROVIDERS.includes(p.id) || !!p.anthropicApiHost
+      (p) => isAnthropicProvider(p) || CLAUDE_SUPPORTED_PROVIDERS.includes(p.id) || hasAnthropicEndpoint(p)
     ),
   [codeCLI.geminiCli]: (providers) =>
-    providers.filter((p) => p.type === 'gemini' || GEMINI_SUPPORTED_PROVIDERS.includes(p.id)),
-  [codeCLI.qwenCode]: (providers) => providers.filter((p) => p.type.includes('openai')),
+    providers.filter((p) => isGeminiProvider(p) || GEMINI_SUPPORTED_PROVIDERS.includes(p.id)),
+  [codeCLI.qwenCode]: (providers) => providers.filter(isOpenAILikeProvider),
   [codeCLI.openaiCodex]: (providers) =>
-    providers.filter((p) => p.type === 'openai-response' || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(p.id)),
-  [codeCLI.iFlowCli]: (providers) => providers.filter((p) => p.type.includes('openai')),
+    providers.filter((p) => isOpenAIProvider(p) || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(p.id)),
+  [codeCLI.iFlowCli]: (providers) => providers.filter(isOpenAILikeProvider),
   [codeCLI.githubCopilotCli]: () => [],
-  [codeCLI.kimiCli]: (providers) => providers.filter((p) => p.type.includes('openai')),
+  [codeCLI.kimiCli]: (providers) => providers.filter(isOpenAILikeProvider),
   [codeCLI.openCode]: (providers) =>
-    providers.filter((p) => ['openai', 'openai-response', 'anthropic', 'new-api'].includes(p.type))
+    providers.filter((p) => isOpenAILikeProvider(p) || isAnthropicProvider(p) || isAIGatewayProvider(p))
 }
 
-export const getCodeCliApiBaseUrl = (model: Model, type: EndpointType) => {
+export const getCodeCliApiBaseUrl = (providerId: string, type: 'anthropic' | 'gemini') => {
   const CODE_CLI_API_ENDPOINTS = {
     aihubmix: {
       gemini: {
@@ -116,9 +141,7 @@ export const getCodeCliApiBaseUrl = (model: Model, type: EndpointType) => {
     }
   }
 
-  const provider = model.provider
-
-  return CODE_CLI_API_ENDPOINTS[provider]?.[type]?.api_base_url
+  return CODE_CLI_API_ENDPOINTS[providerId]?.[type]?.api_base_url
 }
 
 // 解析环境变量字符串为对象
@@ -141,34 +164,34 @@ export const parseEnvironmentVariables = (envVars: string): Record<string, strin
   return env
 }
 
+/**
+ * Opencode expects a wire-format string in OPENCODE_PROVIDER_TYPE. v2 has no
+ * `provider.type`; the caller derives this from v2 predicates.
+ */
+export type ProviderWireType = 'anthropic' | 'openai-response' | 'openai'
+
 // 为不同 CLI 工具生成环境变量配置
 export const generateToolEnvironment = ({
   tool,
-  model,
-  modelProvider,
+  rawModelId,
+  modelName,
+  endpointType,
+  providerId,
+  fancyProviderName,
+  isAnthropic,
+  anthropicBaseUrl,
   apiKey,
   baseUrl,
-  context
-}: {
-  tool: codeCLI
-  model: Model
-  modelProvider: Provider
-  apiKey: string
-  baseUrl: string
-  context?: {
-    maxTokens?: number
-    reasoningEffort?: string
-  }
-}): { env: Record<string, string> } => {
+  reasoning
+}: ToolEnvironmentConfig & { providerWireType?: ProviderWireType }): { env: Record<string, string> } => {
   const env: Record<string, string> = {}
   const formattedBaseUrl = formatApiHost(baseUrl)
 
   switch (tool) {
     case codeCLI.claudeCode: {
-      env.ANTHROPIC_BASE_URL =
-        getCodeCliApiBaseUrl(model, 'anthropic') || modelProvider.anthropicApiHost || modelProvider.apiHost
-      env.ANTHROPIC_MODEL = model.id
-      if (modelProvider.type === 'anthropic') {
+      env.ANTHROPIC_BASE_URL = getCodeCliApiBaseUrl(providerId, 'anthropic') || anthropicBaseUrl || baseUrl
+      env.ANTHROPIC_MODEL = rawModelId
+      if (isAnthropic) {
         env.ANTHROPIC_API_KEY = apiKey
       } else {
         env.ANTHROPIC_AUTH_TOKEN = apiKey
@@ -177,31 +200,31 @@ export const generateToolEnvironment = ({
     }
 
     case codeCLI.geminiCli: {
-      const apiBaseUrl = getCodeCliApiBaseUrl(model, 'gemini') || modelProvider.apiHost
+      const apiBaseUrl = getCodeCliApiBaseUrl(providerId, 'gemini') || baseUrl
       env.GEMINI_API_KEY = apiKey
       env.GEMINI_BASE_URL = apiBaseUrl
       env.GOOGLE_GEMINI_BASE_URL = apiBaseUrl
-      env.GEMINI_MODEL = model.id
+      env.GEMINI_MODEL = rawModelId
       break
     }
 
     case codeCLI.qwenCode:
       env.OPENAI_API_KEY = apiKey
       env.OPENAI_BASE_URL = formattedBaseUrl
-      env.OPENAI_MODEL = model.id
+      env.OPENAI_MODEL = rawModelId
       break
     case codeCLI.openaiCodex:
       env.OPENAI_API_KEY = apiKey
       env.OPENAI_BASE_URL = formattedBaseUrl
-      env.OPENAI_MODEL = model.id
-      env.OPENAI_MODEL_PROVIDER = modelProvider.id
-      env.OPENAI_MODEL_PROVIDER_NAME = modelProvider.name
+      env.OPENAI_MODEL = rawModelId
+      env.OPENAI_MODEL_PROVIDER = providerId
+      env.OPENAI_MODEL_PROVIDER_NAME = fancyProviderName
       break
 
     case codeCLI.iFlowCli:
       env.IFLOW_API_KEY = apiKey
       env.IFLOW_BASE_URL = formattedBaseUrl
-      env.IFLOW_MODEL_NAME = model.id
+      env.IFLOW_MODEL_NAME = rawModelId
       break
 
     case codeCLI.githubCopilotCli:
@@ -211,7 +234,7 @@ export const generateToolEnvironment = ({
     case codeCLI.kimiCli:
       env.KIMI_API_KEY = apiKey
       env.KIMI_BASE_URL = formattedBaseUrl
-      env.KIMI_MODEL_NAME = model.id
+      env.KIMI_MODEL_NAME = rawModelId
       break
 
     case codeCLI.openCode:
@@ -221,30 +244,20 @@ export const generateToolEnvironment = ({
         // anthropic: use formatApiHost(url, false) to preserve existing /v1 from provider config
         // @ai-sdk/anthropic appends /messages to the baseURL (not /v1/messages)
         // others: append /v1 (standard OpenAI-compatible endpoint)
-        const endpointType = model.endpoint_type
-        const isAnthropicEndpoint =
-          endpointType === 'anthropic' || (!endpointType && modelProvider.type === 'anthropic')
+        const isAnthropicEndpoint = endpointType === 'anthropic-messages' || (!endpointType && isAnthropic)
         const openCodeBaseUrl = isAnthropicEndpoint ? formatApiHost(baseUrl, false) : formattedBaseUrl
 
         env.OPENCODE_BASE_URL = openCodeBaseUrl
-        env.OPENCODE_MODEL_NAME = model.name
-        env.OPENCODE_MODEL_ENDPOINT_TYPE = endpointType || ''
-        // Calculate OpenCode-specific config internally
-        const isReasoning = isReasoningModel(model)
-        const supportsReasoningEffort = isSupportedReasoningEffortModel(model)
-        const budgetTokens = isSupportedThinkingTokenClaudeModel(model)
-          ? getThinkingBudget(context?.maxTokens, context?.reasoningEffort, model.id, EFFORT_RATIO, {
-              fallbackOnUnknown: true
-            })
-          : undefined
-        const providerType = modelProvider.type
-        const providerName = sanitizeProviderName(getFancyProviderName(modelProvider))
-        env.OPENCODE_MODEL_IS_REASONING = String(isReasoning)
-        env.OPENCODE_MODEL_SUPPORTS_REASONING_EFFORT = String(supportsReasoningEffort)
-        if (budgetTokens !== undefined) {
-          env.OPENCODE_MODEL_BUDGET_TOKENS = String(budgetTokens)
+        env.OPENCODE_MODEL_NAME = modelName
+        env.OPENCODE_MODEL_ENDPOINT_TYPE = endpointType ?? ''
+        // Reasoning flags are precomputed by the caller (v2 @shared/utils/model).
+        const providerName = sanitizeProviderName(fancyProviderName)
+        env.OPENCODE_MODEL_IS_REASONING = String(reasoning?.isReasoning ?? false)
+        env.OPENCODE_MODEL_SUPPORTS_REASONING_EFFORT = String(reasoning?.supportsReasoningEffort ?? false)
+        if (reasoning?.budgetTokens !== undefined) {
+          env.OPENCODE_MODEL_BUDGET_TOKENS = String(reasoning.budgetTokens)
         }
-        env.OPENCODE_PROVIDER_TYPE = providerType
+        env.OPENCODE_PROVIDER_TYPE = isAnthropic ? 'anthropic' : 'openai'
         env.OPENCODE_PROVIDER_NAME = providerName
         const envVarKey = `OPENCODE_API_KEY_${providerName.toUpperCase().replace(/[-.]/g, '_')}`
         env[envVarKey] = apiKey

@@ -5,8 +5,9 @@ import { loggerService } from '@logger'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
+import { useModels } from '@renderer/hooks/useModels'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { useAllProviders } from '@renderer/hooks/useProvider'
+import { useProviders } from '@renderer/hooks/useProviders'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
@@ -14,6 +15,7 @@ import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata, OvmsPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
+import { parseUniqueModelId } from '@shared/data/types/model'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { Input, InputNumber, Select, Slider } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
@@ -51,7 +53,8 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [ovmsConfig, setOvmsConfig] = useState<ConfigItem[]>([])
 
   const { t } = useTranslation()
-  const providers = useAllProviders()
+  const { providers } = useProviders()
+  const { models: ovmsV2Models } = useModels({ providerId: 'ovms' })
   const providerOptions = Options.map((option) => {
     const provider = providers.find((p) => p.id === option)
     if (provider) {
@@ -71,7 +74,9 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
   const location = useLocation()
   const { autoTranslateWithSpace } = useSettings()
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
-  const ovmsProvider = providers.find((p) => p.id === 'ovms')!
+  const ovmsProvider = providers.find((p) => p.id === 'ovms')
+  const ovmsApiHost =
+    ovmsProvider?.endpointConfigs?.[ovmsProvider.defaultChatEndpoint ?? 'openai-chat-completions']?.baseUrl ?? ''
 
   const getNewPainting = useCallback(() => {
     if (availableModels.length > 0) {
@@ -89,9 +94,11 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
   useEffect(() => {
     const loadModels = () => {
       try {
-        // Get OVMS provider to access its models
-        const ovmsProvider = providers.find((p) => p.id === 'ovms')
-        const providerModels = ovmsProvider?.models || []
+        // OVMS provider models now come from the v2 DataApi.
+        const providerModels = ovmsV2Models.map((m) => ({
+          id: m.apiModelId ?? parseUniqueModelId(m.id).modelId,
+          name: m.name
+        }))
 
         // Filter and format models for image generation
         const filteredModels = getOvmsModels(providerModels)
@@ -111,7 +118,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     loadModels()
-  }, [providers, painting.model]) // Re-run when providers change
+  }, [ovmsV2Models, painting.model]) // Re-run when OVMS models change
 
   const updatePaintingState = (updates: Partial<OvmsPainting>) => {
     const updatedPainting = { ...painting, ...updates }
@@ -188,7 +195,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
 
       logger.info('OVMS API request:', requestBody)
 
-      const response = await fetch(`${ovmsProvider.apiHost}images/generations`, {
+      const response = await fetch(`${ovmsApiHost}images/generations`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -495,7 +502,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
                   href="https://docs.openvino.ai/2025/model-server/ovms_demos_image_generation.html">
                   {t('paintings.learn_more')}
                   {(() => {
-                    const Icon = resolveProviderIcon(ovmsProvider.id)
+                    const Icon = resolveProviderIcon(ovmsProvider?.id ?? 'ovms')
                     return Icon ? <Icon.Avatar size={16} className="ml-1.25" /> : null
                   })()}
                 </SettingHelpLink>

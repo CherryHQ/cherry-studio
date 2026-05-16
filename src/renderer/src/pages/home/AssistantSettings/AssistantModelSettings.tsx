@@ -15,7 +15,7 @@ import type { Assistant, AssistantSettings } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/modelReconcile'
 import type { UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
-import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
+import { type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
 import { Col, Divider, Input, InputNumber, Row, Select, Slider } from 'antd'
 import { isNull } from 'lodash'
@@ -53,11 +53,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     () => assistant?.settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls,
     [assistant?.settings?.enableMaxToolCalls]
   )
-  const { model: apiDefaultModel } = useModelById(assistant?.modelId as UniqueModelId)
-  const defaultModel = useMemo(
-    () => (apiDefaultModel ? fromSharedModel(apiDefaultModel) : undefined),
-    [apiDefaultModel]
-  )
+  const { model: defaultModel } = useModelById(assistant?.modelId as UniqueModelId)
   const [topP, setTopP] = useState(assistant?.settings?.topP ?? 1)
   const enableTopP = useMemo(
     () => assistant?.settings?.enableTopP ?? DEFAULT_ASSISTANT_SETTINGS.enableTopP,
@@ -211,16 +207,18 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   const onSelectModel = useCallback(
     (selected: SharedModel | undefined) => {
       if (!selected) return
+      // reconcile* still consume the v1 Model shape; bridge once here.
+      // selected.id is already the UniqueModelId.
       const next = fromSharedModel(selected)
       const reasoning = reconcileReasoningEffortForModel(next, assistant.settings.reasoning_effort, assistant.id)
       const webSearch = reconcileWebSearchForModel(next, assistant.settings)
       updateAssistant(
         reasoning || webSearch
           ? {
-              modelId: createUniqueModelId(next.provider, next.id),
+              modelId: selected.id,
               settings: { ...assistant.settings, ...reasoning, ...webSearch }
             }
-          : { modelId: createUniqueModelId(next.provider, next.id) }
+          : { modelId: selected.id }
       )
     },
     [assistant.settings, assistant.id, updateAssistant]
@@ -238,7 +236,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <RowFlex className="items-center gap-[5px]">
           <ModelSelector
             multiple={false}
-            value={apiDefaultModel}
+            value={defaultModel}
             onSelect={onSelectModel}
             filter={modelFilter}
             trigger={

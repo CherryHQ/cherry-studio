@@ -2,12 +2,13 @@ import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import { getModelLogo, isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config/models'
+import { fromSharedModel } from '@renderer/config/models/_bridge'
 import db from '@renderer/databases'
-import { useProviders } from '@renderer/hooks/useProvider'
+import { useModels } from '@renderer/hooks/useModels'
+import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProviders'
 import type { ToolQuickPanelApi, ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
 import type { FileMetadata, Model } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
-import { getFancyProviderName } from '@renderer/utils'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { useNavigate } from '@tanstack/react-router'
 import { Avatar } from 'antd'
@@ -44,6 +45,16 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
   const { registerRootMenu, registerTrigger } = quickPanel
   const { open, close, updateList, isVisible, symbol } = quickPanelController
   const { providers } = useProviders()
+  const { models: v2Models } = useModels()
+  const v1ModelsByProvider = useMemo(() => {
+    const map = new Map<string, Model[]>()
+    for (const m of v2Models) {
+      const arr = map.get(m.providerId) ?? []
+      arr.push(fromSharedModel(m))
+      map.set(m.providerId, arr)
+    }
+    return map
+  }, [v2Models])
   const { t } = useTranslation()
   const navigate = useNavigate()
 
@@ -134,14 +145,14 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
 
     if (pinnedModels.length > 0) {
       const pinnedItems = providers.flatMap((provider) =>
-        provider.models
+        (v1ModelsByProvider.get(provider.id) ?? [])
           .filter((model) => !isEmbeddingModel(model) && !isRerankModel(model))
           .filter((model) => pinnedModels.includes(createUniqueModelId(model.provider, model.id)))
           .filter((model) => couldMentionNotVisionModel || (!couldMentionNotVisionModel && isVisionModel(model)))
           .map((model) => ({
             label: (
               <>
-                <ProviderName>{getFancyProviderName(provider)}</ProviderName>
+                <ProviderName>{getProviderDisplayName(provider)}</ProviderName>
                 <span style={{ opacity: 0.8 }}> | {model.name}</span>
               </>
             ),
@@ -150,7 +161,7 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
               const Icon = getModelLogo(model)
               return Icon ? <Icon.Avatar size={20} /> : <Avatar size={20}>{first(model.name)}</Avatar>
             })(),
-            filterText: getFancyProviderName(provider) + model.name,
+            filterText: getProviderDisplayName(provider) + model.name,
             action: () => onMentionModel(model),
             isSelected: mentionedModels.some(
               (selected) =>
@@ -166,7 +177,7 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
 
     providers.forEach((provider) => {
       const providerModels = sortBy(
-        provider.models
+        (v1ModelsByProvider.get(provider.id) ?? [])
           .filter((model) => !isEmbeddingModel(model) && !isRerankModel(model))
           .filter((model) => !pinnedModels.includes(createUniqueModelId(model.provider, model.id)))
           .filter((model) => couldMentionNotVisionModel || (!couldMentionNotVisionModel && isVisionModel(model))),
@@ -176,7 +187,7 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
       const providerItems = providerModels.map((model) => ({
         label: (
           <>
-            <ProviderName>{getFancyProviderName(provider)}</ProviderName>
+            <ProviderName>{getProviderDisplayName(provider)}</ProviderName>
             <span style={{ opacity: 0.8 }}> | {model.name}</span>
           </>
         ),
@@ -185,7 +196,7 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
           const Icon = getModelLogo(model)
           return Icon ? <Icon.Avatar size={20} /> : <Avatar size={20}>{first(model.name)}</Avatar>
         })(),
-        filterText: getFancyProviderName(provider) + model.name,
+        filterText: getProviderDisplayName(provider) + model.name,
         action: () => onMentionModel(model),
         isSelected: mentionedModels.some(
           (selected) =>
@@ -235,6 +246,7 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
     onMentionModel,
     pinnedModels,
     providers,
+    v1ModelsByProvider,
     removeAtSymbolAndText,
     setText,
     t

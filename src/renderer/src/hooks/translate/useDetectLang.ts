@@ -1,9 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { isQwenMTModel } from '@renderer/config/models'
-import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useDefaultModel } from '@renderer/hooks/useModels'
-import type { Model } from '@renderer/types'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import { LANG_DETECT_PROMPT } from '@shared/config/prompts'
 import {
@@ -12,10 +9,11 @@ import {
   type TranslateLangCode
 } from '@shared/data/preference/preferenceTypes'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
-import { createUniqueModelId } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
+import { isQwenMTModel } from '@shared/utils/model'
 import { franc } from 'franc-min'
 import i18n from 'i18next'
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useRef } from 'react'
 import { estimateTokenCount, sliceByTokens } from 'tokenx'
 
 import { useLanguages } from './useTranslateLanguages'
@@ -60,7 +58,7 @@ export const detectLanguageByLLM = async (
   const systemPrompt = LANG_DETECT_PROMPT.replace('{{list_lang}}', listLangText).replace('{{input}}', text)
 
   const { text: result } = await window.api.ai.generateText({
-    uniqueModelId: createUniqueModelId(model.provider, model.id),
+    uniqueModelId: model.id,
     system: systemPrompt,
     prompt: 'follow system prompt'
   })
@@ -169,11 +167,7 @@ export const detectWithMethod = async (
 export const useDetectLang = () => {
   const [method] = usePreference('feature.translate.auto_detection_method')
   const { languages } = useLanguages()
-  const { quickModel: sharedQuickModel } = useDefaultModel()
-  const quickModel: Model | undefined = useMemo(
-    () => (sharedQuickModel ? fromSharedModel(sharedQuickModel) : undefined),
-    [sharedQuickModel]
-  )
+  const { quickModel } = useDefaultModel()
 
   const toastedNotReadyRef = useRef(false)
   const toastedEmptyRef = useRef(false)

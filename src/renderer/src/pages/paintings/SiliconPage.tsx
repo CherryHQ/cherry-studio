@@ -14,8 +14,7 @@ import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { useAllProviders } from '@renderer/hooks/useProvider'
-import { getProviderByModel } from '@renderer/services/AssistantService'
+import { useProviderApiKeys, useProviders } from '@renderer/hooks/useProviders'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import type { Painting } from '@renderer/types'
@@ -109,9 +108,11 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { siliconflow_paintings, addPainting, removePainting, updatePainting } = usePaintings()
   const [painting, setPainting] = useState<Painting>(siliconflow_paintings[0] || DEFAULT_PAINTING)
   const { theme } = useTheme()
-  const providers = useAllProviders()
+  const { providers } = useProviders()
 
-  const siliconFlowProvider = providers.find((p) => p.id === 'silicon')!
+  const siliconFlowProvider = providers.find((p) => p.id === 'silicon')
+  const { data: siliconKeyData } = useProviderApiKeys('silicon')
+  const siliconApiKey = siliconKeyData?.keys.find((k) => k.isEnabled)?.key ?? ''
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
   const [isLoading, setIsLoading] = useState(false)
@@ -149,6 +150,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onGenerate = async () => {
+    if (!siliconFlowProvider) return
     await checkProviderEnabled(siliconFlowProvider, t)
 
     if (painting.files.length > 0) {
@@ -168,10 +170,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     updatePaintingState({ prompt })
 
-    const model = TEXT_TO_IMAGES_MODELS.find((m) => m.id === painting.model)
-    const provider = getProviderByModel(model)
-
-    if (!provider || !provider.apiKey) {
+    if (!siliconFlowProvider || !siliconApiKey) {
       window.modal.error({
         content: t('error.no_api_key'),
         centered: true
@@ -191,7 +190,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
     try {
       const result = await window.api.ai.generateImage(
         {
-          uniqueModelId: `${provider.id}::${painting.model}`,
+          uniqueModelId: `${siliconFlowProvider.id}::${painting.model}`,
           prompt,
           negativePrompt: painting.negativePrompt || undefined,
           size: painting.imageSize || '1024x1024',
@@ -354,7 +353,11 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
       <ContentContainer id="content-container">
         <LeftContainer>
           <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
-          <ProviderSelect provider={siliconFlowProvider} options={Options} onChange={handleProviderChange} />
+          <ProviderSelect
+            provider={siliconFlowProvider ?? { id: 'silicon' }}
+            options={Options}
+            onChange={handleProviderChange}
+          />
           <SettingTitle className="mt-4 mb-1">{t('common.model')}</SettingTitle>
           <Select value={painting.model} options={modelOptions} onChange={onSelectModel} />
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.image.size')}</SettingTitle>

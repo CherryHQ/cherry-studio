@@ -2,7 +2,6 @@ import { InfoCircleOutlined } from '@ant-design/icons'
 import { Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useDefaultModel } from '@renderer/hooks/useModels'
@@ -10,7 +9,6 @@ import { matchKeywordsInString } from '@renderer/utils'
 import HomeWindow from '@renderer/windows/quickAssistant/home/HomeWindow'
 import { Select } from 'antd'
 import type { FC } from 'react'
-import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -31,11 +29,7 @@ const QuickAssistantSettings: FC = () => {
   const { theme } = useTheme()
   const { assistants } = useAssistants()
   const { assistant: defaultAssistant } = useDefaultAssistant()
-  const { defaultModel: apiDefaultModel } = useDefaultModel()
-  const v1DefaultModel = useMemo(
-    () => (apiDefaultModel ? fromSharedModel(apiDefaultModel) : undefined),
-    [apiDefaultModel]
-  )
+  const { defaultModel } = useDefaultModel()
 
   const handleEnableQuickAssistant = async (enable: boolean) => {
     await setEnableQuickAssistant(enable)
@@ -128,7 +122,7 @@ const QuickAssistantSettings: FC = () => {
                         title: defaultAssistant.name,
                         label: (
                           <AssistantItem>
-                            <ModelAvatar model={v1DefaultModel} size={18} />
+                            <ModelAvatar model={defaultModel} size={18} />
                             <AssistantName>{defaultAssistant.name}</AssistantName>
                             <Spacer />
                             <DefaultTag isCurrent={true}>{t('settings.models.quick_assistant_default_tag')}</DefaultTag>
@@ -143,7 +137,7 @@ const QuickAssistantSettings: FC = () => {
                           title: a.name,
                           label: (
                             <AssistantItem>
-                              <ModelAvatar model={v1DefaultModel} size={18} />
+                              <ModelAvatar model={defaultModel} size={18} />
                               <AssistantName>{a.name}</AssistantName>
                               <Spacer />
                             </AssistantItem>

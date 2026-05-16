@@ -1,8 +1,7 @@
-import type { Model, Provider } from '@renderer/types'
 import { codeCLI } from '@shared/config/constant'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { CLI_TOOLS, generateToolEnvironment } from '../index'
+import { CLI_TOOLS, generateToolEnvironment, type ToolEnvironmentConfig } from '../index'
 
 // Mock CodeCliPage which is default export
 vi.mock('../CodeCliPage', () => ({ default: () => null }))
@@ -25,15 +24,6 @@ vi.mock('@renderer/hooks/useCodeCli', () => ({
     removeDir: vi.fn(),
     selectFolder: vi.fn()
   })
-}))
-
-vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: () => ({ providers: [] }),
-  useAllProviders: () => []
-}))
-
-vi.mock('@renderer/services/AssistantService', () => ({
-  getProviderByModel: vi.fn()
 }))
 
 vi.mock('@renderer/services/LoggerService', () => ({
@@ -75,21 +65,16 @@ vi.mock('react-i18next', async (importOriginal) => {
 })
 
 describe('generateToolEnvironment', () => {
-  const createMockModel = (id: string, provider: string): Model => ({
-    id,
-    name: id,
-    provider,
-    group: provider
-  })
-
-  const createMockProvider = (id: string, apiHost: string): Provider => ({
-    id,
-    type: 'openai',
-    name: id,
+  const baseConfig = (
+    overrides: Partial<ToolEnvironmentConfig> & Pick<ToolEnvironmentConfig, 'tool' | 'baseUrl'>
+  ): ToolEnvironmentConfig => ({
+    rawModelId: 'test-model',
+    modelName: 'test-model',
+    providerId: 'dashscope',
+    fancyProviderName: 'DashScope',
+    isAnthropic: false,
     apiKey: 'test-key',
-    apiHost,
-    models: [],
-    isSystem: true
+    ...overrides
   })
 
   beforeEach(() => {
@@ -97,121 +82,63 @@ describe('generateToolEnvironment', () => {
   })
 
   it('should format baseUrl with /v1 for qwenCode when missing', () => {
-    const model = createMockModel('qwen-turbo', 'dashscope')
-    const provider = createMockProvider('dashscope', 'https://dashscope.aliyuncs.com/compatible-mode')
-
-    const { env } = generateToolEnvironment({
-      tool: codeCLI.qwenCode,
-      model,
-      modelProvider: provider,
-      apiKey: 'test-key',
-      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode'
-    })
+    const { env } = generateToolEnvironment(
+      baseConfig({ tool: codeCLI.qwenCode, baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode' })
+    )
 
     expect(env.OPENAI_BASE_URL).toBe('https://dashscope.aliyuncs.com/compatible-mode/v1')
   })
 
   it('should not duplicate /v1 when already present for qwenCode', () => {
-    const model = createMockModel('qwen-turbo', 'dashscope')
-    const provider = createMockProvider('dashscope', 'https://dashscope.aliyuncs.com/compatible-mode/v1')
-
-    const { env } = generateToolEnvironment({
-      tool: codeCLI.qwenCode,
-      model,
-      modelProvider: provider,
-      apiKey: 'test-key',
-      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1'
-    })
+    const { env } = generateToolEnvironment(
+      baseConfig({ tool: codeCLI.qwenCode, baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1' })
+    )
 
     expect(env.OPENAI_BASE_URL).toBe('https://dashscope.aliyuncs.com/compatible-mode/v1')
   })
 
   it('should handle empty baseUrl gracefully', () => {
-    const model = createMockModel('qwen-turbo', 'dashscope')
-    const provider = createMockProvider('dashscope', '')
-
-    const { env } = generateToolEnvironment({
-      tool: codeCLI.qwenCode,
-      model,
-      modelProvider: provider,
-      apiKey: 'test-key',
-      baseUrl: ''
-    })
+    const { env } = generateToolEnvironment(baseConfig({ tool: codeCLI.qwenCode, baseUrl: '' }))
 
     expect(env.OPENAI_BASE_URL).toBe('')
   })
 
   it('should preserve other API versions when present', () => {
-    const model = createMockModel('qwen-plus', 'dashscope')
-    const provider = createMockProvider('dashscope', 'https://dashscope.aliyuncs.com/v2')
-
-    const { env } = generateToolEnvironment({
-      tool: codeCLI.qwenCode,
-      model,
-      modelProvider: provider,
-      apiKey: 'test-key',
-      baseUrl: 'https://dashscope.aliyuncs.com/v2'
-    })
+    const { env } = generateToolEnvironment(
+      baseConfig({ tool: codeCLI.qwenCode, baseUrl: 'https://dashscope.aliyuncs.com/v2' })
+    )
 
     expect(env.OPENAI_BASE_URL).toBe('https://dashscope.aliyuncs.com/v2')
   })
 
   it('should format baseUrl with /v1 for openaiCodex when missing', () => {
-    const model = createMockModel('gpt-4', 'openai')
-    const provider = createMockProvider('openai', 'https://api.openai.com')
-
-    const { env } = generateToolEnvironment({
-      tool: codeCLI.openaiCodex,
-      model,
-      modelProvider: provider,
-      apiKey: 'test-key',
-      baseUrl: 'https://api.openai.com'
-    })
+    const { env } = generateToolEnvironment(
+      baseConfig({ tool: codeCLI.openaiCodex, providerId: 'openai', baseUrl: 'https://api.openai.com' })
+    )
 
     expect(env.OPENAI_BASE_URL).toBe('https://api.openai.com/v1')
   })
 
   it('should format baseUrl with /v1 for iFlowCli when missing', () => {
-    const model = createMockModel('gpt-4', 'iflow')
-    const provider = createMockProvider('iflow', 'https://api.iflow.cn')
-
-    const { env } = generateToolEnvironment({
-      tool: codeCLI.iFlowCli,
-      model,
-      modelProvider: provider,
-      apiKey: 'test-key',
-      baseUrl: 'https://api.iflow.cn'
-    })
+    const { env } = generateToolEnvironment(
+      baseConfig({ tool: codeCLI.iFlowCli, providerId: 'iflow', baseUrl: 'https://api.iflow.cn' })
+    )
 
     expect(env.IFLOW_BASE_URL).toBe('https://api.iflow.cn/v1')
   })
 
   it('should handle trailing slash correctly', () => {
-    const model = createMockModel('qwen-turbo', 'dashscope')
-    const provider = createMockProvider('dashscope', 'https://dashscope.aliyuncs.com/compatible-mode/')
-
-    const { env } = generateToolEnvironment({
-      tool: codeCLI.qwenCode,
-      model,
-      modelProvider: provider,
-      apiKey: 'test-key',
-      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/'
-    })
+    const { env } = generateToolEnvironment(
+      baseConfig({ tool: codeCLI.qwenCode, baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/' })
+    )
 
     expect(env.OPENAI_BASE_URL).toBe('https://dashscope.aliyuncs.com/compatible-mode/v1')
   })
 
   it('should handle v2beta version correctly', () => {
-    const model = createMockModel('qwen-plus', 'dashscope')
-    const provider = createMockProvider('dashscope', 'https://dashscope.aliyuncs.com/v2beta')
-
-    const { env } = generateToolEnvironment({
-      tool: codeCLI.qwenCode,
-      model,
-      modelProvider: provider,
-      apiKey: 'test-key',
-      baseUrl: 'https://dashscope.aliyuncs.com/v2beta'
-    })
+    const { env } = generateToolEnvironment(
+      baseConfig({ tool: codeCLI.qwenCode, baseUrl: 'https://dashscope.aliyuncs.com/v2beta' })
+    )
 
     expect(env.OPENAI_BASE_URL).toBe('https://dashscope.aliyuncs.com/v2beta')
   })

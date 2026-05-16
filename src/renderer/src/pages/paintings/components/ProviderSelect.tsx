@@ -2,13 +2,13 @@ import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProviders'
 import ImageStorage from '@renderer/services/ImageStorage'
-import type { Provider } from '@types'
 import { Select } from 'antd'
 import type { FC } from 'react'
 import React, { useEffect, useState } from 'react'
 
 type ProviderSelectProps = {
-  provider: Provider
+  /** Structural minimum: only `id` is read, so this accepts v1 or v2 Provider. */
+  provider: { id: string }
   options: string[]
   onChange: (value: string) => void
   style?: React.CSSProperties

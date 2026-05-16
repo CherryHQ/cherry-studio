@@ -1,12 +1,12 @@
 import Selector from '@renderer/components/Selector'
-import { getModelSupportedVerbosity } from '@renderer/config/models'
 import { SettingRow } from '@renderer/pages/settings'
 import type { RootState } from '@renderer/store'
 import { useAppDispatch } from '@renderer/store'
 import { setOpenAIVerbosity } from '@renderer/store/settings'
-import type { Model } from '@renderer/types'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'
+import type { Model } from '@shared/data/types/model'
 import type { OpenAIVerbosity } from '@shared/types/aiSdk'
+import { getModelSupportedVerbosity } from '@shared/utils/model'
 import { Tooltip } from 'antd'
 import { CircleHelp } from 'lucide-react'
 import type { FC } from 'react'
@@ -68,7 +68,7 @@ const VerbositySetting: FC<Props> = ({ model, SettingRowTitleSmall }) => {
       const supportedVerbosityLevels = getModelSupportedVerbosity(model)
       // Default to the highest supported verbosity level
       const defaultVerbosity = supportedVerbosityLevels[supportedVerbosityLevels.length - 1]
-      setVerbosity(defaultVerbosity)
+      setVerbosity(defaultVerbosity as OpenAIVerbosity)
     }
   }, [model, verbosity, verbosityOptions, setVerbosity])
 

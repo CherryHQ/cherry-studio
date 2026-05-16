@@ -2,19 +2,18 @@ import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
-import { isGemini3Model, isGeminiModel } from '@renderer/config/models'
-import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import { useProvider } from '@renderer/hooks/useProviders'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
-import { getProviderByModel } from '@renderer/services/AssistantService'
 import { EventEmitter } from '@renderer/services/EventService'
 import type { AssistantSettings, McpMode, MCPPrompt, MCPResource } from '@renderer/types'
 import { getEffectiveMcpMode } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
-import { isGeminiWebSearchProvider } from '@renderer/utils/provider'
 import type { MCPServer } from '@shared/data/types/mcpServer'
+import { isGemini3Model, isGeminiModel } from '@shared/utils/model'
+import { isGeminiWebSearchProvider } from '@shared/utils/provider'
 import { useNavigate } from '@tanstack/react-router'
 import { Form, Input } from 'antd'
 import { CircleX, Hammer, Plus, Sparkles } from 'lucide-react'
@@ -122,12 +121,8 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
   const [form] = Form.useForm()
 
   const { assistant, model, updateAssistant } = useAssistant(assistantId)
+  const { provider: modelProvider } = useProvider(model?.providerId ?? '')
   const { setTimeoutTimer } = useTimer()
-
-  // Adapter: v1 model utilities (`isGeminiModel`, `getProviderByModel`, …)
-  // still take the renderer-shape `Model`. Convert at the boundary; goes
-  // away with the wider Model utility migration (reasoning.ts wave).
-  const v1Model = useMemo(() => (model ? fromSharedModel(model) : undefined), [model])
 
   const isMountedRef = useRef(true)
 
@@ -170,20 +165,13 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
         : [...Array.from(mcpServerIds), server.id]
 
       const settingsPatch: Partial<AssistantSettings> = { mcpMode: 'manual' }
-      if (
-        nextServerIds.length > 0 &&
-        v1Model &&
-        isGeminiModel(v1Model) &&
-        assistant &&
-        isToolUseModeFunction(assistant)
-      ) {
-        const provider = getProviderByModel(v1Model)
+      if (nextServerIds.length > 0 && model && isGeminiModel(model) && assistant && isToolUseModeFunction(assistant)) {
         // Gemini 3+ supports combining built-in tools with function calling
         if (
-          provider &&
-          isGeminiWebSearchProvider(provider) &&
+          modelProvider &&
+          isGeminiWebSearchProvider(modelProvider) &&
           assistant.settings?.enableWebSearch &&
-          !isGemini3Model(v1Model)
+          !isGemini3Model(model)
         ) {
           window.toast.warning(t('chat.mcp.warning.gemini_web_search'))
           settingsPatch.enableWebSearch = false
@@ -197,7 +185,7 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
         settings: nextSettings
       })
     },
-    [assistant, mcpServerIds, v1Model, mergeSettings, t, updateAssistant]
+    [assistant, mcpServerIds, model, modelProvider, mergeSettings, t, updateAssistant]
   )
 
   const handleMcpServerSelectRef = useRef(handleMcpServerSelect)

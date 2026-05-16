@@ -36,12 +36,10 @@ export function useDefaultModel() {
     defaultModel,
     quickModel,
     translateModel,
-    setDefaultModel: (next: { id: string; provider?: string; providerId?: string }) =>
-      setDefaultModelId(createUniqueModelId(next.provider ?? next.providerId ?? '', next.id)),
-    setQuickModel: (next: { id: string; provider?: string; providerId?: string }) =>
-      setQuickModelId(createUniqueModelId(next.provider ?? next.providerId ?? '', next.id)),
-    setTranslateModel: (next: { id: string; provider?: string; providerId?: string }) =>
-      setTranslateModelId(createUniqueModelId(next.provider ?? next.providerId ?? '', next.id))
+    // v2 Model.id is already the UniqueModelId — store it directly.
+    setDefaultModel: (next: { id: UniqueModelId }) => setDefaultModelId(next.id),
+    setQuickModel: (next: { id: UniqueModelId }) => setQuickModelId(next.id),
+    setTranslateModel: (next: { id: UniqueModelId }) => setTranslateModelId(next.id)
   }
 }
 

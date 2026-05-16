@@ -86,7 +86,7 @@ interface Props {
   isAssistantMessage: boolean
   isProcessing: boolean
   messageContainerRef: React.RefObject<HTMLDivElement>
-  setModel: (model: Model) => void
+  setModel: (model: SharedModel) => void
   onUpdateUseful?: (msgId: string) => void
 }
 

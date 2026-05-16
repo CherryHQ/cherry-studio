@@ -10,7 +10,7 @@ import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { useAllProviders } from '@renderer/hooks/useProvider'
+import { useProviderApiKeys, useProviders } from '@renderer/hooks/useProviders'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata } from '@renderer/types'
@@ -71,12 +71,17 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const providers = useAllProviders()
+  const { providers } = useProviders()
   const navigate = useNavigate()
   const location = useLocation()
   const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
-  const aihubmixProvider = providers.find((p) => p.id === 'aihubmix')!
+  const aihubmixProvider = providers.find((p) => p.id === 'aihubmix')
+  const { data: aihubmixKeyData } = useProviderApiKeys('aihubmix')
+  const aihubmixApiKey = aihubmixKeyData?.keys.find((k) => k.isEnabled)?.key ?? ''
+  const aihubmixApiHost =
+    aihubmixProvider?.endpointConfigs?.[aihubmixProvider.defaultChatEndpoint ?? 'openai-chat-completions']?.baseUrl ??
+    ''
 
   const modeOptions = [
     { label: t('paintings.mode.generate'), value: 'aihubmix_image_generate' },
@@ -136,6 +141,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onGenerate = async () => {
+    if (!aihubmixProvider) return
     await checkProviderEnabled(aihubmixProvider, t)
 
     if (painting.files.length > 0) {
@@ -151,7 +157,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
     updatePaintingState({ prompt })
 
-    if (!aihubmixProvider.apiKey) {
+    if (!aihubmixApiKey) {
       window.modal.error({
         content: t('error.no_api_key'),
         centered: true
@@ -169,9 +175,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     let body: string | FormData = ''
     let headers: Record<string, string> = {
-      'Api-Key': aihubmixProvider.apiKey
+      'Api-Key': aihubmixApiKey
     }
-    let url = aihubmixProvider.apiHost + `/ideogram/` + mode
+    let url = aihubmixApiHost + `/ideogram/` + mode
 
     try {
       if (mode === 'aihubmix_image_generate') {
@@ -201,10 +207,10 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           return
         } else if (painting.model === 'gemini-3-pro-image-preview') {
-          const geminiUrl = `${aihubmixProvider.apiHost}/gemini/v1beta/models/gemini-3-pro-image-preview:streamGenerateContent`
+          const geminiUrl = `${aihubmixApiHost}/gemini/v1beta/models/gemini-3-pro-image-preview:streamGenerateContent`
           const geminiHeaders = {
             'Content-Type': 'application/json',
-            'x-goog-api-key': aihubmixProvider.apiKey
+            'x-goog-api-key': aihubmixApiKey
           }
 
           const requestBody = {
@@ -323,13 +329,13 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           body = formData
           // For V3 endpoints - 使用模板字符串而不是字符串连接
-          logger.silly(`API 端点: ${aihubmixProvider.apiHost}/ideogram/v1/ideogram-v3/generate`)
+          logger.silly(`API 端点: ${aihubmixApiHost}/ideogram/v1/ideogram-v3/generate`)
 
           // 调整请求头，可能需要指定multipart/form-data
           // 注意：FormData会自动设置Content-Type，不应手动设置
-          const apiHeaders = { 'Api-Key': aihubmixProvider.apiKey }
+          const apiHeaders = { 'Api-Key': aihubmixApiKey }
 
-          const response = await fetch(`${aihubmixProvider.apiHost}/ideogram/v1/ideogram-v3/generate`, {
+          const response = await fetch(`${aihubmixApiHost}/ideogram/v1/ideogram-v3/generate`, {
             method: 'POST',
             headers: apiHeaders,
             body
@@ -362,9 +368,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               quality: painting.quality,
               ...(painting.model === 'gpt-image-1' ? { moderation: painting.moderation } : {})
             }
-            url = aihubmixProvider.apiHost + `/v1/images/generations`
+            url = aihubmixApiHost + `/v1/images/generations`
             headers = {
-              Authorization: `Bearer ${aihubmixProvider.apiKey}`
+              Authorization: `Bearer ${aihubmixApiKey}`
             }
           } else if (painting.model === 'FLUX.1-Kontext-pro') {
             requestData = {
@@ -374,9 +380,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               // height: painting.height,
               safety_tolerance: painting.safetyTolerance || 6
             }
-            url = aihubmixProvider.apiHost + `/v1/images/generations`
+            url = aihubmixApiHost + `/v1/images/generations`
             headers = {
-              Authorization: `Bearer ${aihubmixProvider.apiKey}`
+              Authorization: `Bearer ${aihubmixApiKey}`
             }
           } else {
             // Existing V1/V2 API
@@ -450,9 +456,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           body = formData
           // For V3 Remix endpoint
-          const response = await fetch(`${aihubmixProvider.apiHost}/ideogram/v1/ideogram-v3/remix`, {
+          const response = await fetch(`${aihubmixApiHost}/ideogram/v1/ideogram-v3/remix`, {
             method: 'POST',
-            headers: { 'Api-Key': aihubmixProvider.apiKey },
+            headers: { 'Api-Key': aihubmixApiKey },
             body
           })
 
@@ -886,16 +892,16 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         <LeftContainer>
           <ProviderTitleContainer>
             <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
-            <SettingHelpLink target="_blank" href={aihubmixProvider.apiHost}>
+            <SettingHelpLink target="_blank" href={aihubmixApiHost}>
               {t('paintings.learn_more')}
               {(() => {
-                const Icon = resolveProviderIcon(aihubmixProvider.id)
+                const Icon = resolveProviderIcon(aihubmixProvider?.id ?? 'aihubmix')
                 return Icon ? <Icon.Avatar size={16} className="ml-1.25" /> : null
               })()}
             </SettingHelpLink>
           </ProviderTitleContainer>
           <ProviderSelect
-            provider={aihubmixProvider}
+            provider={aihubmixProvider ?? { id: 'aihubmix' }}
             options={Options}
             onChange={handleProviderChange}
             className={'mb-4'}

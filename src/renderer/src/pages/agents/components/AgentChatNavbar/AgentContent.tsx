@@ -5,7 +5,6 @@ import HorizontalScrollContainer from '@renderer/components/HorizontalScrollCont
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { AgentSelector } from '@renderer/components/ResourceSelector'
-import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useUpdateAgent } from '@renderer/hooks/agents/useAgentDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
 import { useActiveSession, useUpdateSession } from '@renderer/hooks/agents/useSessionDataApi'
@@ -18,7 +17,7 @@ import type { Model as SharedModel, UniqueModelId } from '@shared/data/types/mod
 import { Menu, PanelLeftClose, PanelRightClose } from 'lucide-react'
 import { ChevronDown } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AgentSidePanelDrawer from '../AgentSidePanelDrawer'
@@ -41,10 +40,6 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
   const modelFilter = useAgentModelFilter(activeAgent.type)
 
   const { model: currentSharedModel } = useModelById((activeAgent.model ?? '') as UniqueModelId)
-  const currentRendererModel = useMemo(
-    () => (currentSharedModel ? fromSharedModel(currentSharedModel) : undefined),
-    [currentSharedModel]
-  )
   const providerName = useProviderDisplayName(currentSharedModel?.providerId)
 
   const handleAgentChange = useCallback(
@@ -118,9 +113,9 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
                   filter={modelFilter}
                   trigger={
                     <Button variant="ghost" size="sm" className="h-7 gap-1.5 rounded-full px-2 text-xs">
-                      <ModelAvatar model={currentRendererModel} size={20} />
+                      <ModelAvatar model={currentSharedModel} size={20} />
                       <span className="max-w-60 truncate">
-                        {currentRendererModel ? currentRendererModel.name : t('button.select_model')}
+                        {currentSharedModel ? currentSharedModel.name : t('button.select_model')}
                         {providerName ? ` | ${providerName}` : ''}
                       </span>
                       <ChevronDown size={14} className="text-muted-foreground" />
