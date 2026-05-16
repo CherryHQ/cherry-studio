@@ -213,12 +213,8 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
   }, [isSubmitting, request.match, respond, t])
 
   return (
-    <div
-      className={cn(
-        'relative z-[2] flex flex-col px-[18px] pt-0 pb-[18px] [[navbar-position=top]_&]:pb-2.5',
-        className
-      )}>
-      <div className="rounded-[17px] border-(--color-border) border-[0.5px] bg-(--color-background-opacity) p-2.5 backdrop-blur">
+    <div className={cn('relative z-2 flex flex-col px-4.5 pt-0 pb-4.5 in-[[navbar-position=top]]:pb-2.5', className)}>
+      <div className="rounded-[17px] border-border border-[0.5px] bg-(--color-background-opacity) p-2.5 backdrop-blur">
         <div className="flex items-center justify-between gap-3 px-1">
           <h2 className="line-clamp-1 flex min-w-0 flex-1 items-center gap-2 font-semibold text-foreground text-sm leading-5">
             <AlertTriangle className="size-4 shrink-0 text-warning" />

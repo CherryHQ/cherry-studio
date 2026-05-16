@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ThinkingBlock from '../ThinkingBlock'
@@ -10,11 +10,6 @@ const mockRenderConfig = vi.hoisted(() => ({
   fontSize: 14,
   thoughtAutoCollapse: false
 }))
-const mockActions = vi.hoisted(() => ({
-  copyText: vi.fn(),
-  notifyError: vi.fn()
-}))
-
 type ThinkingBlockFixture = {
   id: string
   content: string
@@ -23,99 +18,11 @@ type ThinkingBlockFixture = {
 }
 
 vi.mock('../../MessageListProvider', () => ({
-  useMessageListActions: () => mockActions,
   useMessageRenderConfig: () => mockRenderConfig
 }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => mockUseTranslation()
-}))
-
-vi.mock('@renderer/components/Icons', () => ({
-  CopyIcon: ({ size }: any) => (
-    <span data-testid="copy-icon" data-size={size}>
-      copy
-    </span>
-  )
-}))
-
-// Mock Shadcn Accordion components
-vi.mock('@cherrystudio/ui', () => ({
-  Accordion: ({ value, children, className }: any) => (
-    <div data-testid="accordion-root" className={className} data-value={value}>
-      {children}
-    </div>
-  ),
-  AccordionItem: ({ value, children }: any) => <div data-testid={`accordion-item-${value}`}>{children}</div>,
-  AccordionTrigger: ({ children, onClick }: any) => (
-    <div data-testid="accordion-trigger" onClick={onClick}>
-      {children}
-    </div>
-  ),
-  AccordionContent: ({ children, className }: any) => {
-    // Radix Accordion renders content only when open.
-    // We check the parent accordion value to decide visibility.
-    return (
-      <div data-testid="accordion-content" className={className}>
-        {children}
-      </div>
-    )
-  },
-  Tooltip: ({ title, content, children, mouseEnterDelay, delay }: any) => (
-    <div data-testid="tooltip" title={content ?? title} data-mouse-enter-delay={delay ?? mouseEnterDelay}>
-      {children}
-    </div>
-  )
-}))
-
-// We need a wrapper that simulates Radix's open/close behavior
-// Since we mock the Accordion, we simulate content visibility based on value
-vi.mock('../ThinkingBlock', async () => {
-  const actual = await vi.importActual('../ThinkingBlock')
-  return actual
-})
-
-vi.mock('lucide-react', () => ({
-  Check: ({ style, ...props }: any) => (
-    <span data-testid="check-icon" style={style} {...props}>
-      check
-    </span>
-  ),
-  Brain: ({ size }: any) => (
-    <span data-testid="brain-icon" data-size={size}>
-      brain
-    </span>
-  ),
-  ChevronDown: (props: any) => <svg data-testid="chevron-down-icon" {...props} />,
-  CheckIcon: () => <span>check</span>,
-  CircleXIcon: () => <span>error</span>,
-  AlertTriangleIcon: () => <span>alert</span>
-}))
-
-// Mock motion
-vi.mock('motion/react', () => ({
-  AnimatePresence: ({ children }: any) => <div data-testid="animate-presence">{children}</div>,
-  motion: {
-    div: (props: any) => <div {...props} />,
-    span: ({ children, variants, animate, initial, style }: any) => (
-      <span
-        data-testid="motion-span"
-        data-variants={JSON.stringify(variants)}
-        data-animate={animate}
-        data-initial={initial}
-        style={style}>
-        {children}
-      </span>
-    )
-  }
-}))
-
-// Mock motion variants
-vi.mock('@renderer/utils/motionVariants', () => ({
-  lightbulbVariants: {
-    active: { rotate: 10, scale: 1.1 },
-    idle: { rotate: 0, scale: 1 }
-  }
 }))
 
 // Mock Markdown component
@@ -131,10 +38,9 @@ vi.mock('@renderer/components/chat/messages/markdown/Markdown', () => ({
 // Mock ThinkingEffect component
 vi.mock('../ThinkingEffect', () => ({
   __esModule: true,
-  default: ({ isThinking, thinkingTimeText, expanded, copyButton }: any) => (
+  default: ({ isThinking, thinkingTimeText, expanded }: any) => (
     <div data-testid="mock-marquee-component" data-is-thinking={isThinking} data-expanded={expanded}>
       <div data-testid="thinking-time-text">{thinkingTimeText}</div>
-      {copyButton}
     </div>
   )
 }))
@@ -146,7 +52,6 @@ describe('ThinkingBlock', () => {
     mockRenderConfig.messageFont = 'sans-serif'
     mockRenderConfig.fontSize = 14
     mockRenderConfig.thoughtAutoCollapse = false
-    mockActions.copyText.mockResolvedValue(undefined)
 
     mockUseTranslation.mockReturnValue({
       t: (key: string, params?: any) => {
@@ -156,9 +61,6 @@ describe('ThinkingBlock', () => {
         if (key === 'chat.deeply_thought' && params?.seconds) {
           return `Thought for ${params.seconds}s`
         }
-        if (key === 'message.copied') return 'Copied!'
-        if (key === 'message.copy.failed') return 'Copy failed'
-        if (key === 'common.copy') return 'Copy'
         return key
       }
     })
@@ -194,6 +96,12 @@ describe('ThinkingBlock', () => {
   const getThinkingContent = () => screen.queryByText(/markdown:/i)
   const getCopyButton = () => screen.queryByRole('button', { name: /copy/i })
   const getThinkingTimeText = () => screen.getByTestId('thinking-time-text')
+  const getToggleButton = () => screen.getByRole('button')
+  const getContentContainer = () => {
+    const contentId = getToggleButton().getAttribute('aria-controls')
+    if (!contentId) throw new Error('Missing thinking content id')
+    return document.getElementById(contentId)
+  }
 
   describe('basic rendering', () => {
     it('should render thinking content when provided', () => {
@@ -216,7 +124,7 @@ describe('ThinkingBlock', () => {
       })
     })
 
-    it('should show copy button only when thinking is complete', () => {
+    it('should not show copy button', () => {
       // When thinking (streaming)
       const thinkingBlock = createThinkingBlock({ status: 'streaming' })
       const { rerender } = renderThinkingBlock(thinkingBlock)
@@ -234,7 +142,7 @@ describe('ThinkingBlock', () => {
         />
       )
 
-      expect(getCopyButton()).toBeInTheDocument()
+      expect(getCopyButton()).not.toBeInTheDocument()
     })
   })
 
@@ -301,8 +209,8 @@ describe('ThinkingBlock', () => {
       const block = createThinkingBlock()
       const { unmount } = renderThinkingBlock(block)
 
-      expect(screen.getByTestId('accordion-root')).toHaveAttribute('data-value', '')
-      // With mocked Accordion, content is always rendered in DOM.
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
+      expect(getContentContainer()).toHaveAttribute('hidden')
       expect(getThinkingContent()).toBeInTheDocument()
       unmount()
 
@@ -310,8 +218,8 @@ describe('ThinkingBlock', () => {
 
       renderThinkingBlock(block)
 
-      const accordionRoot = screen.getByTestId('accordion-root')
-      expect(accordionRoot).toHaveAttribute('data-value', '')
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
+      expect(getContentContainer()).toHaveAttribute('hidden')
     })
 
     it('should auto-collapse when thinking completes if setting enabled', () => {
@@ -320,8 +228,7 @@ describe('ThinkingBlock', () => {
       const streamingBlock = createThinkingBlock({ status: 'streaming' })
       const { rerender } = renderThinkingBlock(streamingBlock)
 
-      // With auto-collapse enabled, accordion value should be empty
-      expect(screen.getByTestId('accordion-root')).toHaveAttribute('data-value', '')
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
 
       // Stop thinking
       const completedBlock = createThinkingBlock({ status: 'success' })
@@ -335,7 +242,18 @@ describe('ThinkingBlock', () => {
       )
 
       // Should remain collapsed
-      expect(screen.getByTestId('accordion-root')).toHaveAttribute('data-value', '')
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
+      expect(getContentContainer()).toHaveAttribute('hidden')
+    })
+
+    it('should toggle expanded state when clicked', () => {
+      const block = createThinkingBlock()
+      renderThinkingBlock(block)
+
+      fireEvent.click(getToggleButton())
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+      expect(getContentContainer()).not.toHaveAttribute('hidden')
     })
   })
 
@@ -362,12 +280,12 @@ describe('ThinkingBlock', () => {
         const block = createThinkingBlock()
         const { unmount } = renderThinkingBlock(block)
 
-        // Find the content container within accordion-content
-        const contentEl = screen.getByTestId('accordion-content')
-        const styledDiv = contentEl.querySelector('div')
+        const styledDiv = screen.getByTestId('mock-markdown').parentElement
 
         expect(styledDiv).toHaveClass('[&_.markdown>p:only-child]:mb-0!')
         expect(styledDiv).toHaveStyle({
+          '--color-text': 'var(--color-foreground-muted)',
+          '--color-text-light': 'var(--color-foreground-muted)',
           fontFamily: expectedFont,
           fontSize: expectedSize
         })
@@ -426,7 +344,7 @@ describe('ThinkingBlock', () => {
 
       // Should still render correctly
       expect(getThinkingContent()).toBeInTheDocument()
-      expect(getCopyButton()).toBeInTheDocument()
+      expect(getCopyButton()).not.toBeInTheDocument()
     })
   })
 })

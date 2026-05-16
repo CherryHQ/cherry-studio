@@ -158,13 +158,8 @@ interface ToolListContentProps {
 const ToolListContent = React.memo(({ items, scrollRef }: ToolListContentProps) => (
   <div ref={scrollRef} className="flex w-full flex-col gap-2.5">
     {items.map((item) => {
-      const status = item.toolResponse.status
-      const isCompleted = isCompletedStatus(status)
       return (
-        <div
-          key={item.id}
-          data-block-id={item.id}
-          className={`w-full transition-opacity duration-200 ${isCompleted ? 'opacity-70' : 'opacity-100'}`}>
+        <div key={item.id} data-block-id={item.id} className="w-full">
           <ErrorBoundary fallbackComponent={BlockErrorFallback}>
             <MessageTools toolResponse={item.toolResponse} />
           </ErrorBoundary>
