@@ -296,16 +296,16 @@ export function renderModelPickerToolbarAction({
   actionContext,
   softHoverBg
 }: MessageMenuBarToolbarRenderContext) {
+  const label = typeof action.label === 'string' ? action.label : undefined
+
   return (
     actionContext.actions.renderRegenerateModelPicker?.({
       message: actionContext.message,
       messageParts: actionContext.messageParts,
       trigger: (
-        <Tooltip content={action.label} delay={800}>
-          <ActionButton className="message-action-button" $softHoverBg={softHoverBg}>
-            {action.icon}
-          </ActionButton>
-        </Tooltip>
+        <ActionButton className="message-action-button" aria-label={label} title={label} $softHoverBg={softHoverBg}>
+          {action.icon}
+        </ActionButton>
       )
     }) ?? null
   )

@@ -7,7 +7,7 @@ import { classNames } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { ComponentProps, ReactNode, WheelEvent as ReactWheelEvent } from 'react'
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import MessageItem from '../frame/MessageFrame'
 import {
@@ -17,6 +17,7 @@ import {
   useMessageRenderConfig
 } from '../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem, type MessageUiState } from '../types'
+import { isMessageListItemProcessing } from '../utils/messageListItem'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
 
 const logger = loggerService.withContext('MessageGroup')
@@ -24,6 +25,15 @@ interface Props {
   messages: MessageListItem[]
   topic: Topic
   registerMessageElement?: (id: string, element: HTMLElement | null) => void
+}
+
+function pickPreferredSelectedMessage(
+  messages: MessageListItem[],
+  getMessageUiState: (messageId: string) => MessageUiState
+) {
+  return (
+    messages.find((message) => getMessageUiState(message.id).foldSelected) ?? messages.find(isMessageListItemProcessing)
+  )
 }
 
 const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
@@ -59,6 +69,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
       multiModelMessageStyleSetting
   )
   const [selectedIndex, setSelectedIndex] = useState(messageLength - 1)
+  const previousMessageIdsRef = useRef(messages.map((message) => message.id))
 
   const multiModelMessageStyle = useMemo(
     () => (messageLength < 2 ? 'fold' : _multiModelMessageStyle),
@@ -70,8 +81,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   // Track selected and useful message IDs in React state
   const [selectedMessageId, setSelectedMessageIdState] = useState<string>(() => {
     if (messages.length === 1) return messages[0]?.id
-    const selected = messages.find((m) => getMessageUiState(m.id).foldSelected)
-    return selected?.id ?? messages[0]?.id
+    return pickPreferredSelectedMessage(messages, getMessageUiState)?.id ?? messages.at(-1)?.id ?? messages[0]?.id
   })
 
   const [usefulMessageId, setUsefulMessageIdState] = useState<string | null>(() => {
@@ -86,20 +96,38 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   // renders NOTHING (no wrapper gets the `selected` class) — the whole
   // group looks empty until the component re-mounts on topic switch.
   useEffect(() => {
+    const previousIds = previousMessageIdsRef.current
+    const previousIdSet = new Set(previousIds)
+    const addedMessages = messages.filter((message) => !previousIdSet.has(message.id))
+    previousMessageIdsRef.current = messages.map((message) => message.id)
+
     const hasSelected = messages.some((m) => m.id === selectedMessageId)
-    if (!hasSelected) {
-      const next = messages.find((m) => getMessageUiState(m.id).foldSelected)?.id ?? messages[0]?.id
-      if (next) setSelectedMessageIdState(next)
+    const nextSelectedMessage = !hasSelected
+      ? (pickPreferredSelectedMessage(messages, getMessageUiState) ?? messages.at(-1) ?? messages[0])
+      : addedMessages.length > 0
+        ? (pickPreferredSelectedMessage(addedMessages, getMessageUiState) ?? addedMessages.at(-1))
+        : undefined
+
+    if (nextSelectedMessage && nextSelectedMessage.id !== selectedMessageId) {
+      if (selectedMessageId) {
+        updateMessageUiState(selectedMessageId, { foldSelected: false })
+      }
+      updateMessageUiState(nextSelectedMessage.id, { foldSelected: true })
+      setSelectedMessageIdState(nextSelectedMessage.id)
+      setSelectedIndex(messages.findIndex((message) => message.id === nextSelectedMessage.id))
     }
+
     if (usefulMessageId && !messages.some((m) => m.id === usefulMessageId)) {
       setUsefulMessageIdState(null)
     }
-  }, [getMessageUiState, messages, selectedMessageId, usefulMessageId])
+  }, [getMessageUiState, messages, selectedMessageId, updateMessageUiState, usefulMessageId])
 
   const setSelectedMessage = useCallback(
     (message: MessageListItem) => {
       // 前一个
-      updateMessageUiState(selectedMessageId, { foldSelected: false })
+      if (selectedMessageId) {
+        updateMessageUiState(selectedMessageId, { foldSelected: false })
+      }
       // 当前选中的消息
       updateMessageUiState(message.id, { foldSelected: true })
       setSelectedMessageIdState(message.id)

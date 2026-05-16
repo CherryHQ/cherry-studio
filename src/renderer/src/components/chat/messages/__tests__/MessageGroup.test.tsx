@@ -1,6 +1,6 @@
 import type { Topic } from '@renderer/types'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
-import { createEvent, fireEvent, render } from '@testing-library/react'
+import { createEvent, fireEvent, render, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -356,5 +356,44 @@ describe('MessageGroup', () => {
     render(<MessageGroup messages={messages} topic={topic} />)
 
     expect(mocks.MessageGroupMenuBar).toHaveBeenCalled()
+  })
+
+  it('selects a newly added assistant sibling in fold layout', async () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'fold',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'plain',
+      showMessageOutline: false
+    })
+    const updateMessageUiState = vi.fn()
+    mocks.messageListActions.mockReturnValue({
+      setActiveBranch: vi.fn(),
+      updateMessageUiState
+    })
+
+    const messages = [createMessage('msg-1', 0, 'fold'), createMessage('msg-2', 1, 'fold')]
+    const newModelMessage = {
+      ...createMessage('msg-3', 2, 'fold'),
+      createdAt: '2026-01-01T00:00:01.000Z',
+      status: 'pending'
+    } as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
+    const topic = { id: 'topic-1' } as Topic
+
+    const { rerender } = render(<MessageGroup messages={messages} topic={topic} />)
+
+    rerender(<MessageGroup messages={[...messages, newModelMessage]} topic={topic} />)
+
+    await waitFor(() => {
+      expect(mocks.MessageGroupMenuBar).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          selectMessageId: 'msg-3'
+        }),
+        undefined
+      )
+    })
+    expect(updateMessageUiState).toHaveBeenCalledWith('msg-3', { foldSelected: true })
   })
 })

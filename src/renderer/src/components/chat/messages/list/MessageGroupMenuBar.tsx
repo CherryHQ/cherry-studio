@@ -137,7 +137,7 @@ const GroupMenuBar = ({
   return (
     <div
       className={[
-        'group-menu-bar mx-2.5 mt-2 mb-4 flex h-10 flex-row items-center justify-between gap-1.5 overflow-hidden rounded-[10px] border-[0.5px] border-border px-2 py-1.5',
+        'group-menu-bar mx-2.5 mt-2 mb-4 flex h-9 flex-row items-center justify-between gap-1 overflow-hidden rounded-[10px] border-[0.5px] border-border px-1.5 py-1',
         className
       ]
         .filter(Boolean)
