@@ -1,4 +1,5 @@
 import { Button, HelpTooltip, RowFlex, Switch } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import CodeEditor from '@renderer/components/CodeEditor'
 import EditableNumber from '@renderer/components/EditableNumber'
@@ -19,10 +20,9 @@ import { isNonChatModel } from '@shared/utils/model'
 import { Col, Divider, Input, InputNumber, Row, Select, Slider } from 'antd'
 import { isNull } from 'lodash'
 import { PlusIcon } from 'lucide-react'
-import type { FC } from 'react'
+import type { ComponentPropsWithoutRef, FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 type CustomParameter = AssistantSettings['customParameters'][number]
 
@@ -231,7 +231,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   }, [])
 
   return (
-    <Container>
+    <div className="flex flex-1 flex-col p-[5px]">
       <RowFlex className="mb-2.5 items-center justify-between">
         <Label>{t('assistants.settings.default_model')}</Label>
         <RowFlex className="items-center gap-[5px]">
@@ -512,41 +512,23 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           {t('chat.settings.reset')}
         </Button>
       </RowFlex>
-    </Container>
+    </div>
   )
 }
 
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  padding: 5px;
-`
+const Label = ({ className, ...props }: ComponentPropsWithoutRef<'p'>) => (
+  <p className={cn('mr-[5px] flex shrink-0 items-center gap-[5px] font-medium', className)} {...props} />
+)
 
-const Label = styled.p`
-  margin-right: 5px;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex-shrink: 0;
-`
+const ModelSelectButton = ({ className, ...props }: ComponentPropsWithoutRef<typeof Button>) => (
+  <Button className={cn('max-w-[300px] justify-start [&_.ant-btn-icon]:shrink-0', className)} {...props} />
+)
 
-const ModelSelectButton = styled(Button)`
-  max-width: 300px;
-  justify-content: flex-start;
-
-  .ant-btn-icon {
-    flex-shrink: 0;
-  }
-`
-
-const ModelName = styled.span`
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  display: inline-block;
-`
+const ModelName = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
+  <span
+    className={cn('inline-block max-w-full overflow-hidden text-ellipsis whitespace-nowrap', className)}
+    {...props}
+  />
+)
 
 export default AssistantModelSettings

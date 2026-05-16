@@ -7,7 +7,6 @@ import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Menu, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import styled from 'styled-components'
 
 import UpdateAppButton from '../home/components/UpdateAppButton'
 import AgentSidePanelDrawer from './components/AgentSidePanelDrawer'
@@ -78,14 +77,14 @@ const AgentNavbar = () => {
         <div className="flex items-center gap-1.5">
           <UpdateAppButton />
           <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
-            <NarrowIcon onClick={() => SearchPopup.show()}>
+            <NavbarIcon className="max-[1000px]:hidden" onClick={() => SearchPopup.show()}>
               <Search size={18} />
-            </NarrowIcon>
+            </NavbarIcon>
           </Tooltip>
           <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
-            <NarrowIcon onClick={handleNarrowModeToggle}>
+            <NavbarIcon className="max-[1000px]:hidden" onClick={handleNarrowModeToggle}>
               <i className="iconfont icon-icon-adaptive-width"></i>
-            </NarrowIcon>
+            </NavbarIcon>
           </Tooltip>
           {topicPosition === 'right' && (
             <Tooltip title={showSidebar ? t('navbar.hide_sidebar') : t('navbar.show_sidebar')} mouseEnterDelay={2}>
@@ -99,11 +98,5 @@ const AgentNavbar = () => {
     </Navbar>
   )
 }
-
-const NarrowIcon = styled(NavbarIcon)`
-  @media (max-width: 1000px) {
-    display: none;
-  }
-`
 
 export default AgentNavbar

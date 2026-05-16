@@ -1,7 +1,7 @@
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { TopView } from '@renderer/components/TopView'
-import type { Message } from '@renderer/types'
+import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { MessageBlock } from '@renderer/types/newMessage'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { useRef, useState } from 'react'
@@ -13,7 +13,7 @@ const CLOSE_ANIMATION_MS = 200
 
 interface ShowParams {
   title: string
-  message: Message
+  message: ExportableMessage
   blocks?: MessageBlock[]
   parts?: CherryMessagePart[]
 }

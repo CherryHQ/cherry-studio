@@ -1,18 +1,12 @@
 import type { Topic } from '@renderer/types'
 import { TopicType } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
-import { AssistantMessageStatus } from '@renderer/types/newMessage'
-import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createMessageActionRegistry } from '../../actions/actionRegistry'
 import { createRightPaneRegistry } from '../../panes/RightPaneRegistry'
-import { ComposerAdapter, createSessionComposerAdapter, MessageListAdapter, ResourceListAdapter } from '../index'
-
-const textPart = { type: 'text', text: 'hello' } as unknown as CherryMessagePart
+import { ComposerAdapter, createSessionComposerAdapter, ResourceListAdapter } from '../index'
 
 function createTopic(overrides: Partial<Topic> = {}): Topic {
   return {
@@ -129,88 +123,6 @@ describe('chat adapters', () => {
     expect('prompt' in item).toBe(false)
   })
 
-  it('maps renderer messages and preserves render fields', () => {
-    const message: Message = {
-      id: 'message-1',
-      role: 'assistant',
-      assistantId: 'assistant-1',
-      topicId: 'topic-1',
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-01T00:00:01.000Z',
-      status: AssistantMessageStatus.SUCCESS,
-      modelId: 'provider::model',
-      blocks: ['block-1'],
-      parts: [textPart]
-    }
-
-    expect(MessageListAdapter.fromRendererMessage(message)).toEqual({
-      id: 'message-1',
-      role: 'assistant',
-      status: 'success',
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-01T00:00:01.000Z',
-      modelId: 'provider::model',
-      blocks: ['block-1'],
-      parts: [textPart]
-    })
-  })
-
-  it('maps agent session messages from the persisted envelope', () => {
-    const row: AgentSessionMessageEntity = {
-      id: 'row-1',
-      sessionId: 'session-1',
-      role: 'assistant',
-      content: {
-        message: {
-          id: 'message-1',
-          role: 'assistant',
-          status: 'success',
-          createdAt: '2026-01-01T00:00:00.000Z',
-          modelId: 'provider::model',
-          data: { parts: [textPart] },
-          blocks: ['block-1']
-        },
-        blocks: []
-      },
-      agentSessionId: 'claude-session-1',
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-01T00:00:01.000Z'
-    }
-
-    expect(MessageListAdapter.fromAgentSessionMessage(row)).toEqual({
-      id: 'message-1',
-      role: 'assistant',
-      status: 'success',
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-01T00:00:01.000Z',
-      modelId: 'provider::model',
-      blocks: ['block-1'],
-      parts: [textPart]
-    })
-  })
-
-  it('keeps agent session message mapping stable when optional content is missing', () => {
-    const row: AgentSessionMessageEntity = {
-      id: 'row-1',
-      sessionId: 'session-1',
-      role: 'user',
-      content: undefined,
-      agentSessionId: null,
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-01T00:00:01.000Z'
-    }
-
-    expect(MessageListAdapter.fromAgentSessionMessage(row)).toEqual({
-      id: 'row-1',
-      role: 'user',
-      status: 'success',
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-01T00:00:01.000Z',
-      blocks: [],
-      parts: []
-    })
-  })
-
   it('creates composer contracts that only delegate send and stop', async () => {
     const send = vi.fn()
     const stop = vi.fn()
@@ -270,15 +182,13 @@ describe('chat registries', () => {
 
   it('resolves message action providers and disposes registrations', () => {
     const registry = createMessageActionRegistry()
-    const message = MessageListAdapter.fromRendererMessage({
+    const message = {
       id: 'message-1',
       role: 'assistant',
-      assistantId: 'assistant-1',
       topicId: 'topic-1',
       createdAt: '2026-01-01T00:00:00.000Z',
-      status: AssistantMessageStatus.SUCCESS,
-      blocks: []
-    })
+      status: 'success'
+    } as const
     const dispose = registry.register({
       id: 'copy-provider',
       resolve: ({ message: currentMessage }) => [{ id: `copy:${currentMessage.id}`, label: 'Copy' }]

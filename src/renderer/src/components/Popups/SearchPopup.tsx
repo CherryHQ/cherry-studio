@@ -41,7 +41,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="h-[80vh] max-h-[80vh] max-w-[700px] overflow-hidden rounded-[20px] p-0 pb-4">
+        className="flex h-[80vh] max-h-[80vh] max-w-[700px] flex-col overflow-hidden rounded-[20px] p-0 pb-4">
         <DialogHeader className="sr-only">
           <DialogTitle>{t('common.search')}</DialogTitle>
         </DialogHeader>

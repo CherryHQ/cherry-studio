@@ -1,16 +1,16 @@
 import { usePreference } from '@data/hooks/usePreference'
 // import MessageContent from './MessageContent'
-import MessageContent from '@renderer/pages/home/Messages/MessageContent'
-import MessageErrorBoundary from '@renderer/pages/home/Messages/MessageErrorBoundary'
+import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
+import MessageErrorBoundary from '@renderer/components/chat/messages/frame/MessageErrorBoundary'
+import type { MessageListItem } from '@renderer/components/chat/messages/types'
 // import { LegacyMessage } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
 import type { FC } from 'react'
 import { memo, useRef } from 'react'
 import styled from 'styled-components'
 
 interface Props {
-  message: Message
+  message: MessageListItem
   index?: number
   total: number
   route: string

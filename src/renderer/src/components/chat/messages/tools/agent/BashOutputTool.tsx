@@ -1,0 +1,187 @@
+import { Badge } from '@cherrystudio/ui'
+import { CheckCircle, Terminal, XCircle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+
+import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import { truncateOutput } from '../shared/truncateOutput'
+import { ToolHeader, TruncatedIndicator } from './GenericTools'
+import { TerminalOutput } from './TerminalOutput'
+import type { BashOutputToolInput, BashOutputToolOutput } from './types'
+import { AgentToolsType } from './types'
+
+interface ParsedBashOutput {
+  status?: string
+  exit_code?: number
+  stdout?: string
+  stderr?: string
+  timestamp?: string
+  tool_use_error?: string
+}
+
+const parseBashOutput = (output?: BashOutputToolOutput): ParsedBashOutput | null => {
+  if (!output) return null
+
+  try {
+    const parser = new DOMParser()
+    const hasToolError = output.includes('<tool_use_error>')
+    const xmlStr = output.includes('<status>') || hasToolError ? `<root>${output}</root>` : output
+    const xmlDoc = parser.parseFromString(xmlStr, 'application/xml')
+    const parserError = xmlDoc.querySelector('parsererror')
+    if (parserError) return null
+
+    const getElementText = (tagName: string): string | undefined => {
+      const element = xmlDoc.getElementsByTagName(tagName)[0]
+      return element?.textContent?.trim()
+    }
+
+    return {
+      status: getElementText('status'),
+      exit_code: getElementText('exit_code') ? parseInt(getElementText('exit_code')!) : undefined,
+      stdout: getElementText('stdout'),
+      stderr: getElementText('stderr'),
+      timestamp: getElementText('timestamp'),
+      tool_use_error: getElementText('tool_use_error')
+    }
+  } catch {
+    return null
+  }
+}
+
+export function BashOutputTool({
+  input,
+  output
+}: {
+  input?: BashOutputToolInput
+  output?: BashOutputToolOutput
+}): ToolDisclosureItem {
+  const { t } = useTranslation()
+  const parsedOutput = parseBashOutput(output)
+
+  const getStatusConfig = (parsed: ParsedBashOutput | null) => {
+    if (!parsed) return null
+
+    if (parsed.tool_use_error) {
+      return {
+        color: 'danger',
+        icon: <XCircle className="h-3.5 w-3.5" />,
+        text: t('message.tools.status.error')
+      } as const
+    }
+
+    const isCompleted = parsed.status === 'completed'
+    const isSuccess = parsed.exit_code === 0
+
+    if (isCompleted && isSuccess) {
+      return {
+        color: 'success',
+        icon: <CheckCircle className="h-3.5 w-3.5" />,
+        text: t('message.tools.status.success')
+      } as const
+    }
+
+    if (isCompleted) {
+      return {
+        color: 'danger',
+        icon: <XCircle className="h-3.5 w-3.5" />,
+        text: t('message.tools.status.failed')
+      } as const
+    }
+
+    return {
+      color: 'warning',
+      icon: <Terminal className="h-3.5 w-3.5" />,
+      text: t('message.tools.status.running')
+    } as const
+  }
+
+  const statusConfig = getStatusConfig(parsedOutput)
+
+  // Truncate stdout and stderr separately
+  const truncatedStdout = truncateOutput(parsedOutput?.stdout)
+  const truncatedStderr = truncateOutput(parsedOutput?.stderr)
+  const truncatedError = truncateOutput(parsedOutput?.tool_use_error)
+  const truncatedRawOutput = truncateOutput(output)
+
+  const children = parsedOutput ? (
+    <div className="flex flex-col gap-4">
+      {/* Status Info */}
+      <div className="flex flex-wrap items-center gap-2">
+        {parsedOutput.exit_code !== undefined && (
+          <Badge variant={parsedOutput.exit_code === 0 ? 'secondary' : 'destructive'}>
+            {t('message.tools.sections.exitCode')}: {parsedOutput.exit_code}
+          </Badge>
+        )}
+        {parsedOutput.timestamp && (
+          <Badge variant="outline" className="py-0 font-mono text-xs">
+            {new Date(parsedOutput.timestamp).toLocaleString()}
+          </Badge>
+        )}
+      </div>
+
+      {/* Standard Output */}
+      {truncatedStdout.data && (
+        <div>
+          <div className="mb-2 font-medium text-default-600 text-xs">{t('message.tools.sections.stdout')}:</div>
+          <TerminalOutput content={truncatedStdout.data} />
+          {truncatedStdout.isTruncated && <TruncatedIndicator originalLength={truncatedStdout.originalLength} />}
+        </div>
+      )}
+
+      {/* Standard Error */}
+      {truncatedStderr.data && (
+        <div className="border border-danger-200">
+          <div className="mb-2 font-medium text-danger-600 text-xs">{t('message.tools.sections.stderr')}:</div>
+          <TerminalOutput content={truncatedStderr.data} />
+          {truncatedStderr.isTruncated && <TruncatedIndicator originalLength={truncatedStderr.originalLength} />}
+        </div>
+      )}
+
+      {/* Tool Use Error */}
+      {truncatedError.data && (
+        <div className="border border-danger-200">
+          <div className="mb-2 flex items-center gap-2">
+            <XCircle className="h-4 w-4 text-danger" />
+            <span className="font-medium text-danger-600 text-xs">{t('message.tools.status.error')}:</span>
+          </div>
+          <TerminalOutput content={truncatedError.data} />
+          {truncatedError.isTruncated && <TruncatedIndicator originalLength={truncatedError.originalLength} />}
+        </div>
+      )}
+    </div>
+  ) : (
+    // 原始输出（如果解析失败或非 XML 格式）
+    truncatedRawOutput.data && (
+      <div>
+        <TerminalOutput content={truncatedRawOutput.data} />
+        {truncatedRawOutput.isTruncated && <TruncatedIndicator originalLength={truncatedRawOutput.originalLength} />}
+      </div>
+    )
+  )
+  return {
+    key: AgentToolsType.BashOutput,
+    label: (
+      <ToolHeader
+        toolName={AgentToolsType.BashOutput}
+        params={
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="py-0 font-mono text-xs">
+              {input?.bash_id}
+            </Badge>
+            {statusConfig && (
+              <Badge
+                variant={statusConfig.color === 'danger' ? 'destructive' : 'secondary'}
+                className="flex flex-row items-center gap-0.5">
+                {statusConfig.icon}
+                {statusConfig.text}
+              </Badge>
+            )}
+          </div>
+        }
+        variant="collapse-label"
+        showStatus={false}
+      />
+    ),
+
+    children: children
+  }
+}

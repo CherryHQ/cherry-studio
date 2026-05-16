@@ -8,11 +8,11 @@
  *
  * Two parallel stores need to stay in sync for every such write:
  *   (1) the shared SWR infinite cache for `/topics/:id/messages` — read by
- *       every `useTopicMessagesV2` subscriber (including other detached
+ *       every `useTopicMessages` subscriber (including other detached
  *       windows),
  *   (2) `useChat.state.messages` — owned by the caller's local instance.
  *
- * This hook owns (1) via the `mutate` passed in from `useTopicMessagesV2`
+ * This hook owns (1) via the `mutate` passed in from `useTopicMessages`
  * (which targets the same infinite cache key). Syncing (2) stays with the
  * caller since it holds `setMessages` from `useChatWithHistory`.
  */

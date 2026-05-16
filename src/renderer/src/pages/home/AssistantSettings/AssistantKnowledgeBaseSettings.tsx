@@ -6,7 +6,6 @@ import type { UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { SelectProps } from 'antd'
 import { Select } from 'antd'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
   assistant: Assistant
@@ -24,7 +23,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
   }))
 
   return (
-    <Container>
+    <div className="flex flex-1 flex-col overflow-hidden p-[5px]">
       <Box className="mb-2 font-bold">{t('common.knowledge_base')}</Box>
       <Select
         mode="multiple"
@@ -40,15 +39,8 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
             .includes(input.toLowerCase())
         }
       />
-    </Container>
+    </div>
   )
 }
 
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 5px;
-`
 export default AssistantKnowledgeBaseSettings

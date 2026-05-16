@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-import type { ChatMessageItem } from '../adapters/messageListAdapter'
+import type { MessageListItem } from '../messages/types'
 
 export type ActionSurface = 'menu' | 'toolbar' | 'shortcut'
 
@@ -75,7 +75,7 @@ export interface ResolvedAction<TContext = unknown> {
 }
 
 export interface MessageActionContext<Meta extends Record<string, unknown> = Record<string, unknown>> {
-  message: ChatMessageItem
+  message: MessageListItem
   selectedMessageIds?: readonly string[]
   readonly?: boolean
   meta?: Meta

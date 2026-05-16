@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "ответил",
+      "close": "Закрыть",
       "customPlaceholder": "Введите ваш ответ...",
       "loading": "Загрузка вопросов...",
       "multiSelect": "Множественный выбор",
@@ -25,6 +26,8 @@
       "noQuestions": "Нет доступных вопросов",
       "other": "Другое",
       "previous": "Предыдущий",
+      "progress": "{{current}} из {{total}}",
+      "skip": "Пропустить",
       "submit": "Отправить",
       "title": "Вопросы от агента"
     },
@@ -689,8 +692,10 @@
         "showDetails": "Показать сведения об инструменте"
       },
       "button": {
+        "allow": "Разрешить",
         "allowAll": "Всегда разрешать",
         "cancel": "Отмена",
+        "deny": "Deny",
         "run": "Беги"
       },
       "confirmation": "Вы уверены, что хотите запустить этот инструмент Claude?",
@@ -3043,6 +3048,7 @@
       "completed": "Завершено",
       "error": "Произошла ошибка",
       "groupHeader": "{{count}} вызовов инструментов",
+      "groupHeaderWithMessages": "{{toolCount}} вызовов инструментов, {{messageCount}} сообщений",
       "invoking": "Вызов",
       "labels": {
         "bash": "Баш",
@@ -4659,6 +4665,14 @@
       "agentTodoList": {
         "title": "[to be translated]:Agent Todo List"
       },
+      "askUserQuestion": {
+        "currentRequest": "Текущий запрос",
+        "description": "Предпросмотр нижнего AskUserQuestion composer с примером вопросов.",
+        "latestResponse": "Последний ответ",
+        "noResponse": "Ответ еще не отправлен",
+        "resetPreview": "Сбросить предпросмотр",
+        "title": "Ask User Question"
+      },
       "assistantSelector": {
         "clearSelection": "Прозрачный",
         "configDescription": "Переключайте свойства, чтобы просмотреть поведение компонента",
@@ -4711,7 +4725,17 @@
         "triggerSelectedCount": "{{count}} моделей выбрано",
         "valueProp": "Текущее ценностное предложение"
       },
-      "title": "Лаборатория компонентов разработки"
+      "title": "Лаборатория компонентов разработки",
+      "toolPermission": {
+        "builtinMode": "Built-in",
+        "currentRequest": "Current request",
+        "description": "Preview the bottom tool permission composer with built-in and MCP tool requests.",
+        "latestResponse": "Latest response",
+        "mcpMode": "MCP",
+        "noResponse": "No response submitted yet",
+        "resetPreview": "Reset preview",
+        "title": "Tool Permission"
+      }
     },
     "data": {
       "app_data": {

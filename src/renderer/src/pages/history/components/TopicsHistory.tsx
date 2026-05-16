@@ -1,6 +1,6 @@
 import { SearchOutlined } from '@ant-design/icons'
 import { ColFlex } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Button, Scrollbar } from '@cherrystudio/ui'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { mapApiTopicToRendererTopic, useAllTopics } from '@renderer/hooks/useTopicDataApi'
 import type { Topic } from '@renderer/types'
@@ -17,7 +17,7 @@ type Props = {
   keywords: string
   onClick: (topic: Topic) => void
   onSearch: () => void
-} & React.HTMLAttributes<HTMLDivElement>
+} & Omit<React.HTMLAttributes<HTMLDivElement>, 'onScroll'>
 
 const TopicsHistory: React.FC<Props> = ({ keywords, onClick, onSearch, ...props }) => {
   const { t } = useTranslation()
@@ -95,11 +95,11 @@ const ContainerWrapper = styled.div`
   flex-direction: column;
 `
 
-const ListContainer = styled.div`
+const ListContainer = styled(Scrollbar)`
   display: flex;
   flex: 1;
+  min-height: 0;
   flex-direction: column;
-  overflow-y: scroll;
   width: 100%;
   align-items: center;
   padding-top: 10px;

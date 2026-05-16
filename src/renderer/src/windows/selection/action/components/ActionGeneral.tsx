@@ -2,18 +2,20 @@ import { useChat } from '@ai-sdk/react'
 import { LoadingOutlined } from '@ant-design/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { MessageContentProvider } from '@renderer/components/chat/messages'
+import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
+import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
+import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import CopyButton from '@renderer/components/CopyButton'
 import { useAssistant, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
 import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { PartsProvider } from '@renderer/pages/home/Messages/Blocks'
-import ExecutionStreamCollector from '@renderer/pages/home/Messages/ExecutionStreamCollector'
-import MessageContent from '@renderer/pages/home/Messages/MessageContent'
+import { useMessageListRenderConfig } from '@renderer/pages/shared/messages/hooks/useMessageListRenderConfig'
+import { useMessagePlatformActions } from '@renderer/pages/shared/messages/hooks/useMessagePlatformActions'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
-import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -35,6 +37,8 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const { t } = useTranslation()
   const [language] = usePreference('app.language')
   const [showOriginal, setShowOriginal] = useState(false)
+  const { renderConfig } = useMessageListRenderConfig()
+  const platformActions = useMessagePlatformActions()
 
   const { assistant: defaultAssistant } = useDefaultAssistant()
   const { assistant: chosenAssistant } = useAssistant(action.assistantId ?? '')
@@ -118,16 +122,17 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
   const latestAssistantMessage = useMemo(() => {
     if (!latestAssistantUIMsg) return null
-    return {
-      id: latestAssistantUIMsg.id,
-      role: 'assistant' as const,
-      assistantId: '',
-      topicId: '',
-      createdAt: '',
-      status: isPending ? AssistantMessageStatus.PROCESSING : AssistantMessageStatus.SUCCESS,
-      blocks: []
-    }
-  }, [latestAssistantUIMsg, isPending])
+    return toMessageListItem(
+      {
+        ...latestAssistantUIMsg,
+        metadata: {
+          ...latestAssistantUIMsg.metadata,
+          status: isPending ? 'pending' : 'success'
+        }
+      },
+      { assistantId: activeAssistant?.id, topicId: temporaryTopicId ?? '' }
+    )
+  }, [activeAssistant?.id, latestAssistantUIMsg, isPending, temporaryTopicId])
 
   const content = useMemo(
     () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),
@@ -200,9 +205,13 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
             })}
           {isPreparing && <LoadingOutlined style={{ fontSize: 16 }} spin />}
           {!isPreparing && latestAssistantMessage && (
-            <PartsProvider value={partsMap}>
+            <MessageContentProvider
+              messages={[latestAssistantMessage]}
+              partsByMessageId={partsMap}
+              renderConfig={renderConfig}
+              actions={platformActions}>
               <MessageContent key={latestAssistantMessage.id} message={latestAssistantMessage} />
-            </PartsProvider>
+            </MessageContentProvider>
           )}
         </Result>
         {error && <ErrorMsg>{error}</ErrorMsg>}

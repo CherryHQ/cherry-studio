@@ -6,7 +6,7 @@
  *    `state: 'approval-requested'`
  */
 
-import { usePartsMap } from '@renderer/pages/home/Messages/Blocks/V2Contexts'
+import { usePartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import { isToolUIPart } from 'ai'
 import { useMemo } from 'react'
 

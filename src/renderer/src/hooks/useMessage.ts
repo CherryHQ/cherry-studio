@@ -1,13 +1,13 @@
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
-import { usePartsMap } from '@renderer/pages/home/Messages/Blocks/V2Contexts'
+import { usePartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import { type Topic, type TranslateLangCode } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { useCallback } from 'react'
 
-import { useV2Chat } from './V2ChatContext'
+import { useChatWrite } from './ChatWriteContext'
 
 const logger = loggerService.withContext('useMessage')
 
@@ -15,32 +15,32 @@ const logger = loggerService.withContext('useMessage')
  * Per-message bound operations.
  *
  * Consumers that already hold a stable `message.id` for the whole render
- * (MessageMenubar, Message, etc.) should reach for this hook; topic-level
+ * (MessageMenuBar, Message, etc.) should reach for this hook; topic-level
  * and dynamic-id callers (multi-select delete, group iteration) read
- * `useV2Chat()` directly.
+ * `useChatWrite()` directly.
  *
- * All write operations delegate into the V2 chat overrides context (owned
- * by `V2ChatContent`), so they pick up the optimistic SWR cache overlay
- * and refresh-failure isolation that hook wires up.
+ * All write operations delegate into the chat write context (owned by
+ * `ChatContent`), so they pick up the optimistic SWR cache overlay and
+ * refresh-failure isolation that hook wires up.
  */
 export function useMessage(messageId: string, topic: Topic) {
-  const v2 = useV2Chat()
+  const chatWrite = useChatWrite()
   const partsMap = usePartsMap()
 
-  // `V2ChatContent.handleDeleteMessage` handles span-cache cleanup
+  // `ChatContent.handleDeleteMessage` handles span-cache cleanup
   // internally; callers that have `traceId` / `modelName` on hand (e.g.
-  // `MessageMenubar` reading them off the assistant message) forward
+  // `MessageMenuBar` reading them off the assistant message) forward
   // them via the optional second argument.
   const remove = useCallback(
     async (traceId?: string, modelName?: string) => {
-      await v2?.deleteMessage(messageId, { traceId, modelName })
+      await chatWrite?.deleteMessage(messageId, { traceId, modelName })
     },
-    [messageId, v2]
+    [chatWrite, messageId]
   )
 
   const regenerate = useCallback(async () => {
-    await v2?.regenerate(messageId)
-  }, [messageId, v2])
+    await chatWrite?.regenerate(messageId)
+  }, [chatWrite, messageId])
 
   /**
    * Regenerate this assistant turn using a different model, producing a new
@@ -51,27 +51,27 @@ export function useMessage(messageId: string, topic: Topic) {
    */
   const regenerateWithModel = useCallback(
     async (modelId: UniqueModelId, modelSnapshot?: ModelSnapshot) => {
-      await v2?.regenerate(messageId, { modelId, modelSnapshot })
+      await chatWrite?.regenerate(messageId, { modelId, modelSnapshot })
     },
-    [messageId, v2]
+    [chatWrite, messageId]
   )
 
   const resend = useCallback(async () => {
-    await v2?.resend(messageId)
-  }, [messageId, v2])
+    await chatWrite?.resend(messageId)
+  }, [chatWrite, messageId])
 
   const editParts = useCallback(
     async (parts: CherryMessagePart[]) => {
-      await v2?.editMessage(messageId, parts)
+      await chatWrite?.editMessage(messageId, parts)
     },
-    [messageId, v2]
+    [chatWrite, messageId]
   )
 
   const forkAndResend = useCallback(
     async (parts: CherryMessagePart[]) => {
-      await v2?.forkAndResend(messageId, parts)
+      await chatWrite?.forkAndResend(messageId, parts)
     },
-    [messageId, v2]
+    [chatWrite, messageId]
   )
 
   /**
@@ -81,8 +81,8 @@ export function useMessage(messageId: string, topic: Topic) {
    * is created.
    */
   const startBranch = useCallback(async () => {
-    await v2?.setActiveNode(messageId)
-  }, [messageId, v2])
+    await chatWrite?.setActiveNode(messageId)
+  }, [chatWrite, messageId])
 
   /**
    * Initiates translation and returns an updater function.
@@ -94,7 +94,7 @@ export function useMessage(messageId: string, topic: Topic) {
       targetLanguage: TranslateLangCode,
       sourceLanguage?: TranslateLangCode
     ): Promise<((accumulatedText: string, isComplete?: boolean) => void) | null> => {
-      if (!topic.id || !v2) return null
+      if (!topic.id || !chatWrite) return null
 
       const currentParts = partsMap?.[messageId]
       if (!currentParts) {
@@ -109,7 +109,7 @@ export function useMessage(messageId: string, topic: Topic) {
         type: 'data-translation' as const,
         data: { content: '', targetLanguage, ...(sourceLanguage && { sourceLanguage }) }
       }
-      await v2.editMessage(messageId, [...baseParts, loadingPart as CherryMessagePart])
+      await chatWrite.editMessage(messageId, [...baseParts, loadingPart as CherryMessagePart])
 
       return (accumulatedText: string, _isComplete: boolean = false) => {
         const translationPart = {
@@ -121,10 +121,10 @@ export function useMessage(messageId: string, topic: Topic) {
           }
         }
 
-        void v2.editMessage(messageId, [...baseParts, translationPart as CherryMessagePart])
+        void chatWrite.editMessage(messageId, [...baseParts, translationPart as CherryMessagePart])
       }
     },
-    [messageId, partsMap, topic.id, v2]
+    [chatWrite, messageId, partsMap, topic.id]
   )
 
   return {

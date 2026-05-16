@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "απαντήθηκε",
+      "close": "Κλείσιμο",
       "customPlaceholder": "Εισάγετε την απάντησή σας...",
       "loading": "Φόρτωση ερωτήσεων...",
       "multiSelect": "Πολλαπλή επιλογή",
@@ -25,6 +26,8 @@
       "noQuestions": "Δεν υπάρχουν διαθέσιμες ερωτήσεις",
       "other": "Άλλο",
       "previous": "Προηγούμενο",
+      "progress": "{{current}} από {{total}}",
+      "skip": "Παράλειψη",
       "submit": "Υποβολή",
       "title": "Ερωτήσεις από τον πράκτορα"
     },
@@ -689,8 +692,10 @@
         "showDetails": "Εμφάνιση λεπτομερειών εργαλείου"
       },
       "button": {
+        "allow": "Να επιτραπεί",
         "allowAll": "Να Επιτρέπεται Πάντα",
         "cancel": "Ακύρωση",
+        "deny": "Deny",
         "run": "Τρέξε"
       },
       "confirmation": "Είσαι σίγουρος ότι θέλεις να εκτελέσεις αυτό το εργαλείο Claude;",
@@ -3043,6 +3048,7 @@
       "completed": "Ολοκληρώθηκε",
       "error": "Προέκυψε σφάλμα",
       "groupHeader": "{{count}} κλήσεις εργαλείων",
+      "groupHeaderWithMessages": "{{toolCount}} κλήσεις εργαλείων, {{messageCount}} μηνύματα",
       "invoking": "κλήση σε εξέλιξη",
       "labels": {
         "bash": "Μπας",
@@ -4659,6 +4665,14 @@
       "agentTodoList": {
         "title": "[to be translated]:Agent Todo List"
       },
+      "askUserQuestion": {
+        "currentRequest": "Τρέχον αίτημα",
+        "description": "Προεπισκόπηση του κάτω AskUserQuestion composer με ενδεικτικές ερωτήσεις.",
+        "latestResponse": "Τελευταία απάντηση",
+        "noResponse": "Δεν έχει υποβληθεί απάντηση ακόμη",
+        "resetPreview": "Επαναφορά προεπισκόπησης",
+        "title": "Ask User Question"
+      },
       "assistantSelector": {
         "clearSelection": "Καθαρό",
         "configDescription": "Εναλλαγή ιδιοτήτων για προεπισκόπηση της συμπεριφοράς του στοιχείου",
@@ -4711,7 +4725,17 @@
         "triggerSelectedCount": "{{count}} μοντέλα επιλέχθηκαν",
         "valueProp": "Τρέχουσα Πρόταση Αξίας"
       },
-      "title": "Εργαστήριο Ανάπτυξης Συστατικών"
+      "title": "Εργαστήριο Ανάπτυξης Συστατικών",
+      "toolPermission": {
+        "builtinMode": "Built-in",
+        "currentRequest": "Current request",
+        "description": "Preview the bottom tool permission composer with built-in and MCP tool requests.",
+        "latestResponse": "Latest response",
+        "mcpMode": "MCP",
+        "noResponse": "No response submitted yet",
+        "resetPreview": "Reset preview",
+        "title": "Tool Permission"
+      }
     },
     "data": {
       "app_data": {

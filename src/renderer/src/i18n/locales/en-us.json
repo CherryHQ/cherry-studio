@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "answered",
+      "close": "Close",
       "customPlaceholder": "Enter your answer...",
       "loading": "Loading questions...",
       "multiSelect": "Multi-select",
@@ -25,6 +26,8 @@
       "noQuestions": "No questions available",
       "other": "Other",
       "previous": "Previous",
+      "progress": "{{current}} of {{total}}",
+      "skip": "Skip",
       "submit": "Submit",
       "title": "Questions from Agent"
     },
@@ -711,8 +714,10 @@
         "showDetails": "Show tool details"
       },
       "button": {
+        "allow": "Allow",
         "allowAll": "Always Allow",
         "cancel": "Cancel",
+        "deny": "Deny",
         "run": "Run"
       },
       "confirmation": "Are you sure you want to run this Claude tool?",
@@ -3160,6 +3165,7 @@
       "completed": "Completed",
       "error": "Error occurred",
       "groupHeader": "{{count}} tool calls",
+      "groupHeaderWithMessages": "{{toolCount}} tool calls, {{messageCount}} messages",
       "invoking": "Invoking",
       "labels": {
         "bash": "Bash",
@@ -4790,6 +4796,14 @@
       "agentTodoList": {
         "title": "Agent Todo List"
       },
+      "askUserQuestion": {
+        "currentRequest": "Current request",
+        "description": "Preview the bottom AskUserQuestion composer with sample pending questions.",
+        "latestResponse": "Latest response",
+        "noResponse": "No response submitted yet",
+        "resetPreview": "Reset preview",
+        "title": "Ask User Question"
+      },
       "assistantSelector": {
         "clearSelection": "Clear",
         "configDescription": "Toggle props to preview component behavior",
@@ -4879,7 +4893,17 @@
         "triggerSelectedCount": "{{count}} models selected",
         "valueProp": "Current Value Prop"
       },
-      "title": "Development Component Lab"
+      "title": "Development Component Lab",
+      "toolPermission": {
+        "builtinMode": "Built-in",
+        "currentRequest": "Current request",
+        "description": "Preview the bottom tool permission composer with built-in and MCP tool requests.",
+        "latestResponse": "Latest response",
+        "mcpMode": "MCP",
+        "noResponse": "No response submitted yet",
+        "resetPreview": "Reset preview",
+        "title": "Tool Permission"
+      }
     },
     "data": {
       "app_data": {

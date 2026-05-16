@@ -1,12 +1,11 @@
-import { describe, expect, it } from 'vitest'
-
 import {
   buildKeywordRegex,
   buildKeywordRegexes,
   buildKeywordUnionRegex,
   type KeywordMatchMode,
   splitKeywordsToTerms
-} from '../keywordSearch'
+} from '@shared/utils/keywordSearch'
+import { describe, expect, it } from 'vitest'
 
 describe('keywordSearch', () => {
   describe('splitKeywordsToTerms', () => {

@@ -1,0 +1,67 @@
+import { Button } from '@cherrystudio/ui'
+import type { FileMetadata } from '@renderer/types/file'
+import { formatFileSize } from '@renderer/utils'
+import { t } from 'i18next'
+import { Paperclip } from 'lucide-react'
+import type { FC } from 'react'
+
+import { useOptionalMessageListActions, useOptionalMessageListUi } from '../MessageListProvider'
+
+interface Props {
+  file: FileMetadata
+}
+
+const MessageAttachments: FC<Props> = ({ file }) => {
+  const actions = useOptionalMessageListActions()
+  const messageUi = useOptionalMessageListUi()
+
+  if (!file) {
+    return null
+  }
+
+  const fileView = messageUi?.getFileView?.(file)
+  const safePath = fileView?.safePath
+  const fileName = fileView?.displayName || file.origin_name || file.name || file.path || ''
+  const fileSuffix = file.ext ? file.ext.replace('.', '').toUpperCase() : file.type.toUpperCase()
+  const openPath = actions?.openPath
+  const previewFile = actions?.previewFile
+
+  const handlePreview = () => {
+    void previewFile?.(file)
+  }
+
+  return (
+    <div className="message-attachments mt-0.5 mb-2">
+      <div className="flex max-w-130 items-center gap-3 rounded-lg border border-border bg-muted px-3 py-2">
+        <div className="shrink-0 text-foreground-secondary">
+          <Paperclip size={16} />
+        </div>
+        <button
+          type="button"
+          className="min-w-0 flex-1 text-left"
+          onClick={previewFile ? handlePreview : undefined}
+          title={fileName}
+          aria-label={fileName}>
+          <div className="truncate text-foreground text-sm">{fileName}</div>
+          <div className="text-foreground-secondary text-xs">
+            {formatFileSize(file.size)} · {fileSuffix}
+          </div>
+        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button size="sm" variant="secondary" disabled={!previewFile} onClick={handlePreview}>
+            {t('common.preview')}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!openPath || !safePath}
+            onClick={() => safePath && void openPath?.(safePath)}>
+            {t('files.open')}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default MessageAttachments

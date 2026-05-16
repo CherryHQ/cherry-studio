@@ -1,0 +1,86 @@
+import { ClickableFilePath } from '@renderer/components/chat/messages/tools/agent/ClickableFilePath'
+import { CodeBlockView, HtmlArtifactsCard } from '@renderer/components/CodeBlockView'
+import { isWin } from '@renderer/config/constant'
+import { getCodeBlockId, isOpenFenceBlock } from '@renderer/utils/markdown'
+import type { Node } from 'mdast'
+import React, { memo, useCallback, useMemo } from 'react'
+
+import { useMessageRenderConfig, useOptionalMessageListActions } from '../MessageListProvider'
+import { isInlineAbsoluteFilePath } from '../utils/filePath'
+import { useMarkdownBlockContext } from './Markdown'
+
+interface Props {
+  children: string
+  className?: string
+  node?: Omit<Node, 'type'>
+  blockId: string // Message block id
+  [key: string]: any
+}
+
+const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
+  const languageMatch = /language-([\w-+]+)/.exec(className || '')
+  const isMultiline = children?.includes('\n')
+  const detectedLanguage = languageMatch?.[1] ?? (isMultiline ? 'text' : null)
+  const language = useMemo(() => {
+    return detectedLanguage !== 'xml'
+      ? detectedLanguage
+      : /^\s*(?:<\?xml[\s\S]*?\?>\s*)?<svg[\s>]/i.test(children)
+        ? 'svg'
+        : detectedLanguage
+  }, [children, detectedLanguage])
+  const { codeFancyBlock } = useMessageRenderConfig()
+
+  // 代码块 id
+  const id = useMemo(() => getCodeBlockId(node?.position?.start), [node?.position?.start])
+
+  const mdCtx = useMarkdownBlockContext()
+  const isStreaming = mdCtx?.isStreaming ?? false
+  const actions = useOptionalMessageListActions()
+
+  const handleSave = useCallback(
+    (newContent: string) => {
+      if (id != null) {
+        void actions?.saveCodeBlock?.({
+          msgBlockId: blockId,
+          codeBlockId: id,
+          newContent
+        })
+      }
+    },
+    [actions, blockId, id]
+  )
+
+  if (language !== null) {
+    // Fancy code block
+    if (codeFancyBlock) {
+      if (language === 'html') {
+        const isOpenFence = isOpenFenceBlock(children?.length, languageMatch?.[1]?.length, node?.position)
+        return <HtmlArtifactsCard html={children} onSave={handleSave} isStreaming={isStreaming && isOpenFence} />
+      }
+    }
+
+    return (
+      <CodeBlockView language={language} onSave={handleSave}>
+        {children}
+      </CodeBlockView>
+    )
+  }
+
+  // Detect inline code that looks like an absolute file path (e.g. /Users/foo/bar.tsx)
+  // On Windows, Unix-style paths are not valid local paths, so skip detection there.
+  if (!isWin && typeof children === 'string' && isInlineAbsoluteFilePath(children)) {
+    return (
+      <code className={className} style={{ textWrap: 'wrap', fontSize: '95%', padding: '2px 4px' }}>
+        <ClickableFilePath path={children} />
+      </code>
+    )
+  }
+
+  return (
+    <code className={className} style={{ textWrap: 'wrap', fontSize: '95%', padding: '2px 4px' }}>
+      {children}
+    </code>
+  )
+}
+
+export default memo(CodeBlock)

@@ -1,5 +1,5 @@
 // `topicId` change is not exercised here — the hook does not evict stale
-// entries; the caller (V2ChatContent / AgentChat) re-mounts the entire
+// entries; the caller (ChatContent / AgentChat) re-mounts the entire
 // subtree via `key={topic.id}`, so this hook starts fresh on topic switch.
 
 import { Chat } from '@ai-sdk/react'
@@ -26,7 +26,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-import ExecutionStreamCollector from '@renderer/pages/home/Messages/ExecutionStreamCollector'
+import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
 
 import { type ExecutionFinishEvent, pickSeed, useExecutionChats } from '../useExecutionChats'
 

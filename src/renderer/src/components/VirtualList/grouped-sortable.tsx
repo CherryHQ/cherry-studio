@@ -229,7 +229,7 @@ function isItemDragData<TGroup, TItem>(data: RowDragData<TGroup, TItem>): data i
   return data.rowType === 'item'
 }
 
-function joinClassNames(...classNames: Array<false | string | undefined>) {
+function joinClassNames(...classNames: Array<false | null | string | undefined>) {
   const next = classNames.filter(Boolean).join(' ')
   return next || undefined
 }

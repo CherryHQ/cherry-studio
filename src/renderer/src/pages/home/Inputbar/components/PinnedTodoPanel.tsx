@@ -7,16 +7,13 @@
  * all todos complete and collapses on header click otherwise.
  */
 
-import type { Message } from '@renderer/types/newMessage'
-import type { CherryMessagePart } from '@shared/data/types/message'
+import type { TodoItem, TodoWriteToolInput } from '@renderer/components/chat/messages/tools/agent/types'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { Typography } from 'antd'
 import { CheckCircle, ChevronDown, ChevronUp, Circle, Loader2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
-
-import type { TodoItem, TodoWriteToolInput } from '../../Messages/Tools/MessageAgentTools/types'
 
 const { Text } = Typography
 
@@ -37,11 +34,11 @@ function extractTodoWriteTodos(part: CherryMessagePart): TodoItem[] | undefined 
 }
 
 function selectActiveTodos(
-  messages: Message[],
-  partsMap: Record<string, CherryMessagePart[]>
+  messages: CherryUIMessage[],
+  partsByMessageId: Record<string, CherryMessagePart[]>
 ): ActiveTodos | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {
-    const parts = partsMap[messages[i].id]
+    const parts = partsByMessageId[messages[i].id]
     if (!parts?.length) continue
     for (let j = parts.length - 1; j >= 0; j--) {
       const todos = extractTodoWriteTodos(parts[j])
@@ -73,106 +70,60 @@ const TodoStatusIcon: FC<{ status: TodoItem['status'] }> = ({ status }) => {
 }
 
 interface PinnedTodoPanelProps {
-  messages: Message[]
-  partsMap: Record<string, CherryMessagePart[]>
+  messages: CherryUIMessage[]
+  partsByMessageId: Record<string, CherryMessagePart[]>
 }
 
-export const PinnedTodoPanel: FC<PinnedTodoPanelProps> = ({ messages, partsMap }) => {
+export const PinnedTodoPanel: FC<PinnedTodoPanelProps> = ({ messages, partsByMessageId }) => {
   const { t } = useTranslation()
   const [isCollapsed, setIsCollapsed] = useState(true)
 
-  const activeTodos = useMemo(() => selectActiveTodos(messages, partsMap), [messages, partsMap])
+  const activeTodos = useMemo(() => selectActiveTodos(messages, partsByMessageId), [messages, partsByMessageId])
 
   if (!activeTodos) return null
 
   const { todos, activeTodo, completedCount, totalCount } = activeTodos
 
   return (
-    <Container>
-      <PanelBody>
-        <PanelHeader onClick={() => setIsCollapsed(!isCollapsed)}>
-          <HeaderLeft>
+    <div className="w-full">
+      <div className="overflow-hidden rounded-[17px] border-(--color-border) border-[0.5px] bg-(--color-background-opacity) [body[theme-mode=dark]_&]:bg-(--color-background-mute)">
+        <div
+          className="flex cursor-pointer items-center justify-between px-3 py-2 text-(--color-text-2) text-xs"
+          onClick={() => setIsCollapsed(!isCollapsed)}>
+          <div className="flex items-center gap-1.5">
             {isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
             {isCollapsed && activeTodo ? (
               <>
                 <TodoStatusIcon status={activeTodo.status} />
-                <HeaderTitle>
+                <Text className="font-medium text-xs">
                   {activeTodo.status === 'in_progress' ? activeTodo.activeForm : activeTodo.content}
-                </HeaderTitle>
+                </Text>
               </>
             ) : (
-              <HeaderTitle>{t('agent.todo.panel.title', { completed: completedCount, total: totalCount })}</HeaderTitle>
+              <Text className="font-medium text-xs">
+                {t('agent.todo.panel.title', { completed: completedCount, total: totalCount })}
+              </Text>
             )}
-          </HeaderLeft>
-        </PanelHeader>
-        <TodoList $collapsed={isCollapsed}>
+          </div>
+        </div>
+        <div
+          className="overflow-y-auto transition-[max-height] duration-200 ease-in-out"
+          style={{ maxHeight: isCollapsed ? '0px' : '200px' }}>
           {todos.map((todo, index) => (
-            <TodoItemRow key={`${todo.content}-${index}`} $completed={todo.status === 'completed'}>
+            <div
+              key={`${todo.content}-${index}`}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs"
+              style={{ opacity: todo.status === 'completed' ? 0.6 : 1 }}>
               <TodoStatusIcon status={todo.status} />
-              <TodoContent $completed={todo.status === 'completed'}>
+              <span
+                className="flex-1 text-(--color-text-1)"
+                style={{ textDecoration: todo.status === 'completed' ? 'line-through' : 'none' }}>
                 {todo.status === 'in_progress' ? todo.activeForm : todo.content}
-              </TodoContent>
-            </TodoItemRow>
+              </span>
+            </div>
           ))}
-        </TodoList>
-      </PanelBody>
-    </Container>
+        </div>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  width: 100%;
-`
-
-const PanelBody = styled.div`
-  border-radius: 17px;
-  border: 0.5px solid var(--color-border);
-  overflow: hidden;
-  background-color: var(--color-background-opacity);
-
-  body[theme-mode='dark'] & {
-    background-color: var(--color-background-mute);
-  }
-`
-
-const PanelHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  cursor: pointer;
-  font-size: 12px;
-  color: var(--color-text-2);
-`
-
-const HeaderLeft = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-`
-
-const HeaderTitle = styled(Text)`
-  font-weight: 500;
-  font-size: 12px;
-`
-
-const TodoList = styled.div<{ $collapsed: boolean }>`
-  max-height: ${(props) => (props.$collapsed ? '0px' : '200px')};
-  overflow-y: auto;
-  transition: max-height 0.2s ease;
-`
-
-const TodoItemRow = styled.div<{ $completed: boolean }>`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  font-size: 12px;
-  opacity: ${(props) => (props.$completed ? 0.6 : 1)};
-`
-
-const TodoContent = styled.span<{ $completed: boolean }>`
-  flex: 1;
-  text-decoration: ${(props) => (props.$completed ? 'line-through' : 'none')};
-  color: var(--color-text-1);
-`

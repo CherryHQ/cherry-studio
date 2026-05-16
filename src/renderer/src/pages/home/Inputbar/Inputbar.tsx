@@ -4,6 +4,7 @@ import { loggerService } from '@logger'
 import { isGenerateImageModel, isGenerateImageModels, isVisionModel, isVisionModels } from '@renderer/config/models'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useCache } from '@renderer/data/hooks/useCache'
+import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useInputText } from '@renderer/hooks/useInputText'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBaseDataApi'
@@ -13,7 +14,6 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicAwaitingApproval } from '@renderer/hooks/useTopicAwaitingApproval'
 import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopicDataApi'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { useV2Chat } from '@renderer/hooks/V2ChatContext'
 import {
   InputbarToolsProvider,
   useInputbarToolsDispatch,
@@ -148,7 +148,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
   const [enableQuickPanelTriggers] = usePreference('chat.input.quick_panel.triggers_enabled')
 
   const { t } = useTranslation()
-  const v2Chat = useV2Chat()
+  const chatWrite = useChatWrite()
   const { isPending } = useTopicStreamStatus(topic.id)
   const [isSending, setIsSending] = useState(false)
   useEffect(() => {
@@ -254,8 +254,8 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
   }, [onSendProp, text, mentionedModels, files, setText, setFiles, setTimeoutTimer, resizeTextArea, focusTextarea])
 
   const onPause = useCallback(() => {
-    v2Chat?.pause()
-  }, [v2Chat])
+    chatWrite?.pause()
+  }, [chatWrite])
 
   const clearTopic = useCallback(async () => {
     if (loading) {

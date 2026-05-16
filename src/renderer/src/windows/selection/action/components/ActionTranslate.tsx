@@ -3,6 +3,10 @@ import { LoadingOutlined } from '@ant-design/icons'
 import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { MessageContentProvider } from '@renderer/components/chat/messages'
+import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
+import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
+import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import db from '@renderer/databases'
@@ -11,14 +15,12 @@ import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
 import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { PartsProvider } from '@renderer/pages/home/Messages/Blocks'
-import ExecutionStreamCollector from '@renderer/pages/home/Messages/ExecutionStreamCollector'
-import MessageContent from '@renderer/pages/home/Messages/MessageContent'
+import { useMessageListRenderConfig } from '@renderer/pages/shared/messages/hooks/useMessageListRenderConfig'
+import { useMessagePlatformActions } from '@renderer/pages/shared/messages/hooks/useMessagePlatformActions'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
 import { resolveTranslatePayload } from '@renderer/services/TranslateService'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import type { TranslateLanguage } from '@renderer/types'
-import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import { defaultLanguage } from '@shared/config/constant'
@@ -43,6 +45,8 @@ const logger = loggerService.withContext('ActionTranslate')
 
 const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const { t } = useTranslation()
+  const { renderConfig } = useMessageListRenderConfig()
+  const platformActions = useMessagePlatformActions()
 
   const [language] = usePreference('app.language')
   const { languages, getLanguage } = useLanguages()
@@ -190,16 +194,17 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
   const latestAssistantMessage = useMemo(() => {
     if (!latestAssistantUIMsg) return null
-    return {
-      id: latestAssistantUIMsg.id,
-      role: 'assistant' as const,
-      assistantId: '',
-      topicId: '',
-      createdAt: '',
-      status: isPending ? AssistantMessageStatus.PROCESSING : AssistantMessageStatus.SUCCESS,
-      blocks: []
-    }
-  }, [latestAssistantUIMsg, isPending])
+    return toMessageListItem(
+      {
+        ...latestAssistantUIMsg,
+        metadata: {
+          ...latestAssistantUIMsg.metadata,
+          status: isPending ? 'pending' : 'success'
+        }
+      },
+      { topicId: temporaryTopicId ?? '' }
+    )
+  }, [latestAssistantUIMsg, isPending, temporaryTopicId])
 
   const content = useMemo(
     () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),
@@ -455,9 +460,13 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
             })}
           {isPreparing && <LoadingOutlined style={{ fontSize: 16 }} spin />}
           {!isPreparing && latestAssistantMessage && (
-            <PartsProvider value={partsMap}>
+            <MessageContentProvider
+              messages={[latestAssistantMessage]}
+              partsByMessageId={partsMap}
+              renderConfig={renderConfig}
+              actions={platformActions}>
               <MessageContent key={latestAssistantMessage.id} message={latestAssistantMessage} />
-            </PartsProvider>
+            </MessageContentProvider>
           )}
         </Result>
         {(detectError || error) && <ErrorMsg>{detectError || error}</ErrorMsg>}

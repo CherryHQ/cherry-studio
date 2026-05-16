@@ -1,0 +1,405 @@
+import type { CherryMessagePart } from '@shared/data/types/message'
+import { fireEvent, render, screen } from '@testing-library/react'
+import React from 'react'
+import { describe, expect, it, vi } from 'vitest'
+
+import { MessageListProvider } from '../../MessageListProvider'
+import { defaultMessageRenderConfig, type MessageListItem, type MessageListProviderValue } from '../../types'
+import { PartsProvider } from '../MessagePartsContext'
+
+// ============================================================================
+// Mocks — keep minimal, only mock what prevents module loading
+// ============================================================================
+
+vi.mock('@logger', () => ({
+  loggerService: { withContext: () => ({ warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
+}))
+vi.mock('@renderer/types/file', () => ({
+  FILE_TYPE: { IMAGE: 'image', VIDEO: 'video', AUDIO: 'audio', TEXT: 'text', DOCUMENT: 'document', OTHER: 'other' }
+}))
+
+// motion/react — provide motion.create so Spinner.tsx module loads
+vi.mock('motion/react', () => {
+  const Div = ({ ref, children, ...p }: any) => (
+    <div ref={ref} {...p}>
+      {children}
+    </div>
+  )
+  const proxy = new Proxy({ div: Div, create: (C: any) => C }, { get: (t, k) => (t as any)[k] ?? Div })
+  return { AnimatePresence: ({ children }: any) => <>{children}</>, motion: proxy }
+})
+
+vi.mock('@renderer/components/ErrorBoundary', () => ({
+  ErrorBoundary: ({ children }: any) => <>{children}</>
+}))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, params?: Record<string, number>) => {
+      if (key === 'message.tools.groupHeaderWithMessages') {
+        return `${params?.toolCount} tool calls, ${params?.messageCount} messages`
+      }
+      if (key === 'message.tools.groupHeader') {
+        return `${params?.count} tool calls`
+      }
+      return key
+    }
+  })
+}))
+
+// Leaf component mocks — render data-testid with key props for assertions
+vi.mock('@renderer/components/chat/messages/markdown/Markdown', () => ({
+  __esModule: true,
+  default: ({ block, postProcess }: any) => (
+    <div data-testid="mock-markdown">{postProcess ? postProcess(block.content) : block.content}</div>
+  ),
+  MarkdownBlockContext: React.createContext(null)
+}))
+
+vi.mock('../ImageBlock', () => ({
+  __esModule: true,
+  default: ({ images, isSingle }: any) => (
+    <div data-testid="mock-image-block" data-images={JSON.stringify(images)} data-single={String(isSingle)} />
+  )
+}))
+
+vi.mock('../../tools/MessageTools', () => ({
+  __esModule: true,
+  default: ({ toolResponse }: any) => (
+    <div
+      data-testid="mock-message-tools"
+      data-status={toolResponse?.status}
+      data-tool-type={toolResponse?.tool?.type}
+      data-tool-name={toolResponse?.tool?.name}
+      data-server-name={toolResponse?.tool?.serverName ?? ''}
+    />
+  )
+}))
+
+vi.mock('../../tools/toolResponse', () => ({
+  buildToolResponseFromPart: (part: any) => {
+    const t = part.type as string
+    if (!t.startsWith('tool-') && t !== 'dynamic-tool') return null
+    const id = part.toolCallId
+    if (!id) return null
+    const name = part.toolName || t.replace(/^tool-/, '') || 'unknown'
+    const out = part.output
+    const meta = out && typeof out === 'object' && out.metadata ? out.metadata : undefined
+    const isMcp = meta?.type === 'mcp' || t === 'dynamic-tool'
+    const status =
+      part.state === 'output-available'
+        ? 'done'
+        : part.state === 'output-error'
+          ? 'error'
+          : part.state === 'input-available'
+            ? 'invoking'
+            : 'pending'
+    return {
+      id,
+      toolCallId: id,
+      tool: {
+        id,
+        name,
+        type: isMcp ? 'mcp' : 'builtin',
+        ...(isMcp ? { serverId: meta?.serverId ?? 'unknown', serverName: meta?.serverName ?? 'MCP' } : {})
+      },
+      arguments: part.input,
+      status,
+      response: part.state === 'output-error' ? { isError: true } : (out?.content ?? out)
+    }
+  }
+}))
+
+vi.mock('../../frame/MessageVideo', () => ({
+  __esModule: true,
+  default: ({ url, filePath }: any) => (
+    <div data-testid="mock-message-video" data-url={url ?? ''} data-file-path={filePath ?? ''} />
+  )
+}))
+
+vi.mock('../ErrorBlock', () => ({
+  __esModule: true,
+  default: ({ error }: any) => <div data-testid="mock-error-block" data-error-message={error?.message ?? ''} />
+}))
+
+vi.mock('../ThinkingBlock', () => ({
+  __esModule: true,
+  default: ({ content }: any) => <div data-testid="mock-thinking-block">{content}</div>
+}))
+
+vi.mock('../../frame/MessageAttachments', () => ({
+  __esModule: true,
+  default: ({ file }: any) => <div data-testid="mock-attachments" data-file-name={file?.name ?? ''} />
+}))
+
+vi.mock('../ToolBlockGroup', () => ({
+  __esModule: true,
+  default: ({ items }: any) => <div data-testid="mock-tool-group" data-count={items?.length ?? 0} />
+}))
+
+vi.mock('../BlockErrorFallback', () => ({ __esModule: true, default: () => null }))
+vi.mock('../PlaceholderBlock', () => ({ __esModule: true, default: () => null }))
+
+// ============================================================================
+// Setup
+// ============================================================================
+
+import MessagePartsRenderer from '../MessagePartsRenderer'
+
+const msg = (overrides: Partial<MessageListItem> = {}): MessageListItem =>
+  ({
+    id: 'msg-1',
+    role: 'assistant',
+    assistantId: 'a',
+    topicId: 't',
+    createdAt: '2026-01-01T00:00:00Z',
+    status: 'success',
+    ...overrides
+  }) as MessageListItem
+
+const renderParts = (parts: CherryMessagePart[], message?: MessageListItem) => {
+  const m = message ?? msg()
+  const value: MessageListProviderValue = {
+    state: {
+      topic: { id: m.topicId, name: 'Topic' } as MessageListProviderValue['state']['topic'],
+      messages: [m],
+      partsByMessageId: { [m.id]: parts },
+      messageNavigation: 'none',
+      estimateSize: 400,
+      overscan: 0,
+      loadOlderDelayMs: 0,
+      loadingResetDelayMs: 0,
+      renderConfig: defaultMessageRenderConfig,
+      getMessageActivityState: () => ({
+        isProcessing: false,
+        isStreamTarget: false,
+        isApprovalAnchor: false
+      })
+    },
+    actions: {},
+    meta: { selectionLayer: false }
+  }
+
+  return render(
+    <MessageListProvider value={value}>
+      <PartsProvider value={{ [m.id]: parts }}>
+        <MessagePartsRenderer message={m} />
+      </PartsProvider>
+    </MessageListProvider>
+  )
+}
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+describe('MessagePartsRenderer', () => {
+  // -- empty --
+  it('renders nothing for empty parts', () => {
+    const { container } = renderParts([])
+    expect(container.innerHTML).toBe('')
+  })
+
+  // -- text --
+  it('renders text part via Markdown', () => {
+    renderParts([{ type: 'text', text: 'hello world' } as unknown as CherryMessagePart])
+    expect(screen.getByTestId('mock-markdown').textContent).toContain('hello world')
+  })
+
+  // -- data-code --
+  it('renders data-code as markdown code fence', () => {
+    renderParts([
+      { type: 'data-code', data: { content: 'console.log(1)', language: 'js' } } as unknown as CherryMessagePart
+    ])
+    const md = screen.getByTestId('mock-markdown')
+    expect(md.textContent).toContain('```js')
+    expect(md.textContent).toContain('console.log(1)')
+  })
+
+  // -- images --
+  it('renders single image with isSingle=true', () => {
+    renderParts([
+      { type: 'file', url: 'https://img.test/a.png', mediaType: 'image/png' } as unknown as CherryMessagePart
+    ])
+    const el = screen.getByTestId('mock-image-block')
+    expect(el.getAttribute('data-single')).toBe('true')
+    expect(el.getAttribute('data-images')).toBe('["https://img.test/a.png"]')
+  })
+
+  it('renders multiple images as group with isSingle=false', () => {
+    renderParts([
+      { type: 'file', url: 'https://img.test/a.png', mediaType: 'image/png' },
+      { type: 'file', url: 'https://img.test/b.jpg', mediaType: 'image/jpeg' }
+    ] as unknown as CherryMessagePart[])
+    const blocks = screen.getAllByTestId('mock-image-block')
+    expect(blocks).toHaveLength(2)
+    blocks.forEach((b) => expect(b.getAttribute('data-single')).toBe('false'))
+  })
+
+  it('skips image parts without url', () => {
+    renderParts([{ type: 'file', mediaType: 'image/png' } as unknown as CherryMessagePart])
+    expect(screen.queryByTestId('mock-image-block')).toBeNull()
+  })
+
+  // -- non-image file --
+  it('renders non-image file as attachment', () => {
+    renderParts([
+      {
+        type: 'file',
+        url: 'file:///doc.pdf',
+        mediaType: 'application/pdf',
+        filename: 'doc.pdf'
+      } as unknown as CherryMessagePart
+    ])
+    expect(screen.queryByTestId('mock-image-block')).toBeNull()
+    expect(screen.getByTestId('mock-attachments').getAttribute('data-file-name')).toBe('doc.pdf')
+  })
+
+  // -- tool (single) --
+  it('renders single dynamic-tool via MessageTools', () => {
+    renderParts([
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'tc-1',
+        toolName: 'search',
+        state: 'output-available',
+        input: { q: 'hi' },
+        output: { content: 'ok', metadata: { serverName: 'S', serverId: 's1', type: 'mcp' } }
+      } as unknown as CherryMessagePart
+    ])
+    const el = screen.getByTestId('mock-message-tools')
+    expect(el.getAttribute('data-status')).toBe('done')
+    expect(el.getAttribute('data-tool-name')).toBe('search')
+    expect(el.getAttribute('data-server-name')).toBe('S')
+  })
+
+  // -- tool group --
+  it('renders multiple tool parts as ToolBlockGroup', () => {
+    renderParts([
+      { type: 'dynamic-tool', toolCallId: 'a', toolName: 't1', state: 'output-available', output: {} },
+      { type: 'dynamic-tool', toolCallId: 'b', toolName: 't2', state: 'output-available', output: {} }
+    ] as unknown as CherryMessagePart[])
+    expect(screen.getByTestId('mock-tool-group').getAttribute('data-count')).toBe('2')
+  })
+
+  it('collapses completed tool history before final result', () => {
+    renderParts([
+      { type: 'text', text: 'checking project files' },
+      { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
+      { type: 'text', text: 'reading package metadata' },
+      { type: 'dynamic-tool', toolCallId: 'b', toolName: 'read', state: 'output-available', output: {} },
+      { type: 'text', text: 'final answer' }
+    ] as unknown as CherryMessagePart[])
+
+    const historyButton = screen.getByRole('button', { name: '2 tool calls, 2 messages' })
+    expect(screen.getByTestId('mock-markdown').textContent).toContain('final answer')
+    expect(screen.queryByText(/checking project files/)).toBeNull()
+    expect(screen.queryByText(/reading package metadata/)).toBeNull()
+
+    fireEvent.click(historyButton)
+
+    expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(2)
+    expect(screen.getAllByTestId('mock-markdown').map((node) => node.textContent)).toEqual([
+      'checking project files',
+      'reading package metadata',
+      'final answer'
+    ])
+  })
+
+  it('collapses reasoning after the final tool before final result', () => {
+    renderParts([
+      { type: 'text', text: 'checking project files' },
+      { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
+      { type: 'reasoning', text: 'deep thought after tool', state: 'done' },
+      { type: 'text', text: 'final answer' }
+    ] as unknown as CherryMessagePart[])
+
+    const historyButton = screen.getByRole('button', { name: '1 tool calls, 2 messages' })
+    expect(screen.getByTestId('mock-markdown').textContent).toContain('final answer')
+    expect(screen.queryByText(/checking project files/)).toBeNull()
+    expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
+
+    fireEvent.click(historyButton)
+
+    expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('deep thought after tool')
+    expect(screen.getAllByTestId('mock-markdown').map((node) => node.textContent)).toEqual([
+      'checking project files',
+      'final answer'
+    ])
+  })
+
+  it('does not collapse tool history while message is pending', () => {
+    renderParts(
+      [
+        { type: 'text', text: 'checking project files' },
+        { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
+        { type: 'text', text: 'final answer' }
+      ] as unknown as CherryMessagePart[],
+      msg({ status: 'pending' })
+    )
+
+    expect(screen.queryByRole('button', { name: /tool calls/ })).toBeNull()
+    expect(screen.getAllByTestId('mock-markdown').map((node) => node.textContent)).toEqual([
+      'checking project files',
+      'final answer'
+    ])
+  })
+
+  // -- data-video --
+  it('renders data-video with filePath', () => {
+    renderParts([{ type: 'data-video', data: { filePath: '/tmp/v.mp4' } } as unknown as CherryMessagePart])
+    const el = screen.getByTestId('mock-message-video')
+    expect(el.getAttribute('data-file-path')).toBe('/tmp/v.mp4')
+  })
+
+  it('renders data-video with url', () => {
+    renderParts([{ type: 'data-video', data: { url: 'https://v.test/v.mp4' } } as unknown as CherryMessagePart])
+    expect(screen.getByTestId('mock-message-video').getAttribute('data-url')).toBe('https://v.test/v.mp4')
+  })
+
+  // -- data-error --
+  it('renders data-error as ErrorBlock', () => {
+    renderParts([{ type: 'data-error', data: { name: 'Err', message: 'boom' } } as unknown as CherryMessagePart])
+    expect(screen.getByTestId('mock-error-block').getAttribute('data-error-message')).toBe('boom')
+  })
+
+  // -- data-citation --
+  it('returns nothing for data-citation (embedded in text)', () => {
+    const { container } = renderParts([{ type: 'data-citation', data: {} } as unknown as CherryMessagePart])
+    // Should render the AnimatePresence wrapper but no visible content
+    expect(container.querySelector('[data-testid]')).toBeNull()
+  })
+
+  // -- source-url / step-start --
+  it('skips source-url and step-start parts', () => {
+    const { container } = renderParts([
+      { type: 'source-url' } as unknown as CherryMessagePart,
+      { type: 'step-start' } as unknown as CherryMessagePart
+    ])
+    expect(container.querySelector('[data-testid]')).toBeNull()
+  })
+
+  // -- text with citations --
+  it('passes citation references through to MainTextBlock', () => {
+    renderParts([
+      {
+        type: 'text',
+        text: 'cited [1]',
+        providerMetadata: {
+          cherry: {
+            references: [
+              {
+                category: 'citation',
+                citationType: 'web',
+                content: { source: 'websearch', results: [{ url: 'https://ex.com', title: 'Ex' }] }
+              }
+            ]
+          }
+        }
+      } as unknown as CherryMessagePart
+    ])
+    const md = screen.getByTestId('mock-markdown')
+    expect(md.textContent).toContain('data-citation')
+    expect(md.textContent).toContain('https://ex.com')
+  })
+})

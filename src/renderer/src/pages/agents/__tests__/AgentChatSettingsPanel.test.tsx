@@ -1,9 +1,15 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AgentChat from '../AgentChat'
+
+const partsByMessageIdMock = vi.hoisted(() => ({
+  value: {}
+}))
+
+const toolApprovalRespondMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@renderer/components/chat', () => ({
   ChatAppShell: ({
@@ -28,6 +34,10 @@ vi.mock('@renderer/components/chat', () => ({
     </div>
   ),
   LoadingState: () => <div data-testid="loading-state" />
+}))
+
+vi.mock('@renderer/components/chat/messages/stream/useMessagePartsById', () => ({
+  useMessagePartsById: () => partsByMessageIdMock.value
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({
@@ -123,7 +133,13 @@ vi.mock('../components/AgentSessionInputbar', () => ({
 }))
 
 vi.mock('../components/AgentSessionMessages', () => ({
-  default: () => <div data-testid="agent-messages" />
+  default: ({ onOpenCitationsPanel }: { onOpenCitationsPanel: (payload: { citations: unknown[] }) => void }) => (
+    <div data-testid="agent-messages">
+      <button type="button" onClick={() => onOpenCitationsPanel({ citations: [{ number: 1 }] })}>
+        open citations
+      </button>
+    </div>
+  )
 }))
 
 vi.mock('../../chat-settings/SettingsPanel', () => ({
@@ -138,27 +154,39 @@ vi.mock('../../chat-settings/SettingsPanel', () => ({
   )
 }))
 
+vi.mock('../../chat-citations/CitationsPanel', () => ({
+  default: ({ open, onClose, citations }: { open: boolean; onClose: () => void; citations: unknown[] }) => (
+    <div data-testid="citations-panel" data-open={String(open)} data-count={citations.length}>
+      {open && (
+        <button type="button" onClick={onClose}>
+          close citations
+        </button>
+      )}
+    </div>
+  )
+}))
+
 vi.mock('../../home/Inputbar/components/PinnedTodoPanel', () => ({
   PinnedTodoPanel: () => <div data-testid="pinned-todo-panel" />
 }))
 
-vi.mock('../../home/Messages/ChatNavigation', () => ({
-  default: () => <div data-testid="chat-navigation" />
-}))
-
-vi.mock('../../home/Messages/ExecutionStreamCollector', () => ({
-  default: () => <div data-testid="execution-stream-collector" />
-}))
-
-vi.mock('../../home/Messages/NarrowLayout', () => ({
-  default: ({ children }: PropsWithChildren) => <>{children}</>
-}))
-
-vi.mock('../../home/uiToMessage', () => ({
-  uiToMessage: vi.fn()
-}))
-
 describe('AgentChat settings panel', () => {
+  beforeEach(() => {
+    partsByMessageIdMock.value = {}
+    toolApprovalRespondMock.mockReset()
+    toolApprovalRespondMock.mockResolvedValue({ ok: true })
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        ai: {
+          toolApproval: {
+            respond: toolApprovalRespondMock
+          }
+        }
+      }
+    })
+  })
+
   it('keeps the settings panel open when the settings button is clicked repeatedly', () => {
     render(<AgentChat />)
 
@@ -172,5 +200,164 @@ describe('AgentChat settings panel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'close settings' }))
     expect(screen.getByTestId('settings-panel')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('keeps settings and citations panels mutually exclusive', () => {
+    render(<AgentChat />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'open settings' }))
+    expect(screen.getByTestId('settings-panel')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'open citations' }))
+    expect(screen.getByTestId('settings-panel')).toHaveAttribute('data-open', 'false')
+    expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-count', '1')
+
+    fireEvent.click(screen.getByRole('button', { name: 'open settings' }))
+    expect(screen.getByTestId('settings-panel')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('replaces the agent inputbar with AskUserQuestionComposer for pending requests', () => {
+    partsByMessageIdMock.value = {
+      'message-1': [
+        {
+          type: 'dynamic-tool',
+          toolName: 'AskUserQuestion',
+          toolCallId: 'call-1',
+          state: 'approval-requested',
+          input: {
+            questions: [
+              {
+                question: 'Choose logger',
+                header: 'Logger',
+                options: [{ label: 'Winston' }],
+                multiSelect: false
+              }
+            ]
+          },
+          providerExecuted: true,
+          callProviderMetadata: { 'claude-code': { parentToolCallId: null } },
+          approval: { id: 'approval-1' }
+        }
+      ]
+    }
+
+    render(<AgentChat />)
+
+    expect(screen.getByText('Choose logger')).toBeInTheDocument()
+    expect(screen.queryByTestId('agent-inputbar')).not.toBeInTheDocument()
+  })
+
+  it('prioritizes AskUserQuestionComposer over regular permission requests', () => {
+    partsByMessageIdMock.value = {
+      'message-1': [
+        {
+          type: 'tool-Read',
+          toolName: 'Read',
+          toolCallId: 'call-read',
+          state: 'approval-requested',
+          input: { file_path: '/tmp/file.ts' },
+          approval: { id: 'approval-read' },
+          callProviderMetadata: {
+            'claude-code': {
+              rawInput: { file_path: '/tmp/file.ts' },
+              parentToolCallId: null
+            }
+          }
+        },
+        {
+          type: 'dynamic-tool',
+          toolName: 'AskUserQuestion',
+          toolCallId: 'call-ask',
+          state: 'approval-requested',
+          input: {
+            questions: [
+              {
+                question: 'Choose logger',
+                header: 'Logger',
+                options: [{ label: 'Winston' }],
+                multiSelect: false
+              }
+            ]
+          },
+          providerExecuted: true,
+          callProviderMetadata: { 'claude-code': { parentToolCallId: null } },
+          approval: { id: 'approval-ask' }
+        }
+      ]
+    }
+
+    render(<AgentChat />)
+
+    expect(screen.getByText('Choose logger')).toBeInTheDocument()
+    expect(screen.queryByText('Read')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('agent-inputbar')).not.toBeInTheDocument()
+  })
+
+  it('replaces the agent inputbar with PermissionRequestComposer for pending tool permissions', () => {
+    partsByMessageIdMock.value = {
+      'message-1': [
+        {
+          type: 'tool-CustomTool',
+          toolName: 'CustomTool',
+          toolCallId: 'call-1',
+          state: 'approval-requested',
+          input: { command: 'pnpm test' },
+          approval: { id: 'approval-1' },
+          callProviderMetadata: {
+            'claude-code': {
+              rawInput: { command: 'pnpm test' },
+              parentToolCallId: null
+            }
+          }
+        }
+      ]
+    }
+
+    render(<AgentChat />)
+
+    expect(screen.getAllByText('CustomTool')).toHaveLength(2)
+    expect(screen.queryByText('agent.toolPermission.confirmation')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'agent.toolPermission.button.allow' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'agent.toolPermission.button.deny' })).toBeInTheDocument()
+    expect(screen.queryByTestId('agent-inputbar')).not.toBeInTheDocument()
+  })
+
+  it('responds to agent-session approvals without topic anchor context', async () => {
+    partsByMessageIdMock.value = {
+      'message-1': [
+        {
+          type: 'tool-CustomTool',
+          toolName: 'CustomTool',
+          toolCallId: 'call-1',
+          state: 'approval-requested',
+          input: { command: 'pnpm test' },
+          approval: { id: 'approval-1' },
+          callProviderMetadata: {
+            'claude-code': {
+              rawInput: { command: 'pnpm test' },
+              parentToolCallId: null
+            }
+          }
+        }
+      ]
+    }
+
+    render(<AgentChat />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.toolPermission.button.allow' }))
+
+    await waitFor(() => expect(toolApprovalRespondMock).toHaveBeenCalledTimes(1))
+    const payload = toolApprovalRespondMock.mock.calls[0][0]
+    expect(payload).toMatchObject({
+      approvalId: 'approval-1',
+      approved: true,
+      reason: undefined,
+      updatedInput: undefined
+    })
+    expect(payload).not.toHaveProperty('topicId')
+    expect(payload).not.toHaveProperty('anchorId')
   })
 })

@@ -109,7 +109,7 @@ export class KnowledgeMigrator extends BaseMigrator {
   readonly id = 'knowledge'
   readonly name = 'KnowledgeBase'
   readonly description = 'Migrate knowledge base and knowledge item data'
-  readonly order = 3
+  readonly order = 1.8
 
   private sourceCount = 0
   private skippedCount = 0

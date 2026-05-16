@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "已回答",
+      "close": "关闭",
       "customPlaceholder": "输入您的回答...",
       "loading": "正在加载问题...",
       "multiSelect": "多选",
@@ -25,6 +26,8 @@
       "noQuestions": "暂无问题",
       "other": "其他",
       "previous": "上一个",
+      "progress": "{{current}} / {{total}}",
+      "skip": "跳过",
       "submit": "提交",
       "title": "来自 Agent 的问题"
     },
@@ -711,8 +714,10 @@
         "showDetails": "显示工具详情"
       },
       "button": {
+        "allow": "允许",
         "allowAll": "总是允许",
         "cancel": "取消",
+        "deny": "拒绝",
         "run": "运行"
       },
       "confirmation": "确定要运行此 Claude 工具吗?",
@@ -3160,6 +3165,7 @@
       "completed": "已完成",
       "error": "发生错误",
       "groupHeader": "{{count}} 个工具调用",
+      "groupHeaderWithMessages": "{{toolCount}} 个工具调用，{{messageCount}} 条消息",
       "invoking": "调用中",
       "labels": {
         "bash": "执行命令",
@@ -4790,6 +4796,14 @@
       "agentTodoList": {
         "title": "Agent 任务列表"
       },
+      "askUserQuestion": {
+        "currentRequest": "当前请求",
+        "description": "用示例 pending questions 预览底部 AskUserQuestion composer。",
+        "latestResponse": "最近一次提交",
+        "noResponse": "尚未提交",
+        "resetPreview": "重置预览",
+        "title": "AskUserQuestion 提问组件"
+      },
       "assistantSelector": {
         "clearSelection": "清空",
         "configDescription": "调整 props 预览组件行为",
@@ -4879,7 +4893,17 @@
         "triggerSelectedCount": "已选 {{count}} 个模型",
         "valueProp": "当前传入 value"
       },
-      "title": "开发环境组件测试"
+      "title": "开发环境组件测试",
+      "toolPermission": {
+        "builtinMode": "内置工具",
+        "currentRequest": "当前请求",
+        "description": "用内置工具和 MCP 工具请求预览底部权限审批 composer。",
+        "latestResponse": "最近一次提交",
+        "mcpMode": "MCP",
+        "noResponse": "尚未提交",
+        "resetPreview": "重置预览",
+        "title": "工具权限审批"
+      }
     },
     "data": {
       "app_data": {

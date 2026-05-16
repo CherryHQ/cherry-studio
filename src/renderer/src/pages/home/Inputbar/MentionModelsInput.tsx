@@ -5,7 +5,6 @@ import type { Model } from '@renderer/types'
 import { getFancyProviderName } from '@renderer/utils'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { FC } from 'react'
-import styled from 'styled-components'
 
 const MentionModelsInput: FC<{
   selectedModels: Model[]
@@ -19,7 +18,7 @@ const MentionModelsInput: FC<{
   }
 
   return (
-    <Container>
+    <div className="w-full px-[15px] py-[5px]">
       <HorizontalScrollContainer dependencies={[selectedModels]} expandable>
         {selectedModels.map((model) => (
           <CustomTag
@@ -32,13 +31,8 @@ const MentionModelsInput: FC<{
           </CustomTag>
         ))}
       </HorizontalScrollContainer>
-    </Container>
+    </div>
   )
 }
-
-const Container = styled.div`
-  width: 100%;
-  padding: 5px 15px 5px 15px;
-`
 
 export default MentionModelsInput

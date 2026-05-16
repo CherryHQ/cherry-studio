@@ -1,7 +1,16 @@
-import { ChatAppShell, type ChatPanePosition, LoadingState } from '@renderer/components/chat'
+import { ChatAppShell, type ChatPanePosition } from '@renderer/components/chat'
+import { ComposerContextProvider } from '@renderer/components/chat/composer/ComposerContext'
+import ComposerCore from '@renderer/components/chat/composer/ComposerCore'
+import { useToolApprovalComposerOverrides } from '@renderer/components/chat/composer/useToolApprovalComposerOverrides'
+import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
+import { MessageListInitialLoading } from '@renderer/components/chat/messages/layout/MessageListLoading'
+import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
+import { useMessagePartsById } from '@renderer/components/chat/messages/stream/useMessagePartsById'
+import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgent, useAgents } from '@renderer/hooks/agents/useAgentDataApi'
 import { useActiveSession } from '@renderer/hooks/agents/useSessionDataApi'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
@@ -11,23 +20,20 @@ import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import type { GetAgentResponse } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
+import ChatNavigation from '@renderer/pages/agents/components/ChatNavigation'
+import type { Citation, GetAgentResponse } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'
+import type { ModelSnapshot } from '@shared/data/types/message'
 import { motion } from 'motion/react'
 import type { PropsWithChildren, ReactNode } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import CitationsPanel from '../chat-citations/CitationsPanel'
 import SettingsPanel from '../chat-settings/SettingsPanel'
 import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
-import ChatNavigation from '../home/Messages/ChatNavigation'
-import ExecutionStreamCollector from '../home/Messages/ExecutionStreamCollector'
-import NarrowLayout from '../home/Messages/NarrowLayout'
-import { uiToMessage } from '../home/uiToMessage'
 import AgentChatNavbar from './components/AgentChatNavbar'
 import AgentSessionInputbar from './components/AgentSessionInputbar'
 import AgentSessionMessages from './components/AgentSessionMessages'
@@ -40,7 +46,8 @@ interface AgentChatProps {
 
 const AgentChat = ({ pane, paneOpen, panePosition }: AgentChatProps) => {
   const { t } = useTranslation()
-  const { messageNavigation, messageStyle } = useSettings()
+  const { messageStyle } = useSettings()
+  const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
 
   const { session: activeSession, isLoading: isSessionLoading, setActiveSessionId } = useActiveSession()
@@ -85,11 +92,7 @@ const AgentChat = ({ pane, paneOpen, panePosition }: AgentChatProps) => {
         pane={pane}
         paneOpen={paneOpen}
         panePosition={panePosition}
-        main={
-          <div className="flex h-full flex-1 flex-col items-center justify-center">
-            <LoadingState />
-          </div>
-        }
+        main={<MessageListInitialLoading />}
       />
     )
   }
@@ -174,18 +177,26 @@ const AgentChatInner = ({
   isMultiSelectMode
 }: InnerProps) => {
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
+  const [narrowMode] = usePreference('chat.narrow_mode')
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
-  const { messages: uiMessages, isLoading, hasOlder, loadOlder, refresh } = useAgentSessionParts(agentId, sessionId)
+  const {
+    messages: uiMessages,
+    isLoading,
+    hasOlder,
+    loadOlder,
+    refresh,
+    deleteMessage: deleteSessionMessage
+  } = useAgentSessionParts(agentId, sessionId)
   const chat = useChatWithHistory(sessionTopicId, uiMessages, refresh)
+  const deleteMessage = useCallback(
+    async (messageId: string) => {
+      await deleteSessionMessage(messageId)
+      chat.setMessages((current) => current.filter((message) => message.id !== messageId))
+    },
+    [chat, deleteSessionMessage]
+  )
 
-  // ── Rendering pipeline ────────────────────────────────────────────
-  //
-  // Mirrors V2ChatContent: uiMessages (agents.db snapshot) projected
-  // into renderer Messages; streaming parts overlaid via per-execution
-  // collectors. Main always tags chunks with the execution's modelId so
-  // the collector's useChat receives them; primary useChat here is a
-  // trigger-only wrapper (sendMessage/stop) and its `state.messages`
-  // does not drive the visible list.
   const fallbackSnapshot = useMemo<ModelSnapshot | undefined>(() => {
     const modelString = activeAgent?.model
     if (!modelString) return undefined
@@ -194,41 +205,70 @@ const AgentChatInner = ({
     return { id, name: id, provider }
   }, [activeAgent?.model])
 
-  const projectedMessages = useMemo<Message[]>(
-    () =>
-      uiMessages.map((m) =>
-        uiToMessage(m, {
-          assistantId: agentId,
-          topicId: sessionTopicId,
-          modelFallback: fallbackSnapshot
-        })
-      ),
-    [uiMessages, agentId, sessionTopicId, fallbackSnapshot]
-  )
-
-  const basePartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
-    const map: Record<string, CherryMessagePart[]> = {}
-    for (const m of uiMessages) map[m.id] = (m.parts ?? []) as CherryMessagePart[]
-    return map
-  }, [uiMessages])
-
   const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } = useExecutionMessages()
+  const partsByMessageId = useMessagePartsById(uiMessages, executionMessagesById)
+  const handleToolApprovalRespond = useCallback(
+    async ({ match, approved, reason, updatedInput }: MessageToolApprovalInput) => {
+      const approvalId = match.approvalId
+
+      const result = await window.api.ai.toolApproval.respond({
+        approvalId,
+        approved,
+        reason,
+        updatedInput
+      })
+
+      if (!result.ok) throw new Error('Tool approval response was not accepted')
+      await refresh()
+    },
+    [refresh]
+  )
+  const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
+    partsByMessageId,
+    onRespond: handleToolApprovalRespond
+  })
 
   const executionChats = useExecutionChats(sessionTopicId, chat.activeExecutions)
 
-  const mergedPartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
-    const next = { ...basePartsMap }
-    for (const execMessages of Object.values(executionMessagesById)) {
-      for (const uiMessage of execMessages) {
-        if (uiMessage.role === 'assistant' && uiMessage.parts?.length) {
-          next[uiMessage.id] = uiMessage.parts as CherryMessagePart[]
-        }
-      }
-    }
-    return next
-  }, [basePartsMap, executionMessagesById])
-
   const { isPending } = useTopicStreamStatus(sessionTopicId)
+  const citationsPanelOpen = citationPanelCitations !== null
+
+  const handleOpenSettings = useCallback(() => {
+    setCitationPanelCitations(null)
+    setSettingsOpen(true)
+  }, [])
+
+  const handleOpenCitationsPanel = useCallback(({ citations }: { citations: Citation[] }) => {
+    setSettingsOpen(false)
+    setCitationPanelCitations(citations)
+  }, [])
+
+  const composerContext = useMemo(
+    () => ({
+      overrides: toolApprovalComposerOverrides
+    }),
+    [toolApprovalComposerOverrides]
+  )
+
+  const bottomComposer = useMemo(() => {
+    if (isMultiSelectMode) return undefined
+
+    return (
+      <ComposerContextProvider value={composerContext}>
+        <ComposerCore
+          fallback={
+            <AgentSessionInputbar
+              agentId={agentId}
+              sessionId={sessionId}
+              sendMessage={chat.sendMessage}
+              stop={chat.stop}
+              isStreaming={isPending}
+            />
+          }
+        />
+      </ComposerContextProvider>
+    )
+  }, [agentId, chat.sendMessage, chat.stop, composerContext, isMultiSelectMode, isPending, sessionId])
 
   return (
     <AgentChatFrame
@@ -239,11 +279,7 @@ const AgentChatInner = ({
       topBar={
         activeAgent && (
           <div className="flex h-fit w-full min-w-0">
-            <AgentChatNavbar
-              className="min-w-0"
-              activeAgent={activeAgent}
-              onOpenSettings={() => setSettingsOpen(true)}
-            />
+            <AgentChatNavbar className="min-w-0" activeAgent={activeAgent} onOpenSettings={handleOpenSettings} />
           </div>
         )
       }
@@ -266,30 +302,36 @@ const AgentChatInner = ({
           <AgentSessionMessages
             agentId={agentId}
             sessionId={sessionId}
-            adaptedMessages={projectedMessages}
-            partsMap={mergedPartsMap}
+            messages={uiMessages}
+            activeAgent={activeAgent}
+            partsByMessageId={partsByMessageId}
+            modelFallback={fallbackSnapshot}
             isLoading={isLoading}
             hasOlder={hasOlder}
             loadOlder={loadOlder}
+            onOpenCitationsPanel={handleOpenCitationsPanel}
+            deleteMessage={deleteMessage}
+            respondToolApproval={handleToolApprovalRespond}
           />
           <div className="mt-auto px-4.5 pb-2">
-            <NarrowLayout>
-              <PinnedTodoPanel messages={projectedMessages} partsMap={mergedPartsMap} />
+            <NarrowLayout narrowMode={narrowMode}>
+              <PinnedTodoPanel messages={uiMessages} partsByMessageId={partsByMessageId} />
             </NarrowLayout>
           </div>
           {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
         </div>
       }
-      bottomComposer={
-        <AgentSessionInputbar
-          agentId={agentId}
-          sessionId={sessionId}
-          sendMessage={chat.sendMessage}
-          stop={chat.stop}
-          isStreaming={isPending}
-        />
+      bottomComposer={bottomComposer}
+      sidePanel={
+        <>
+          <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} mode="agent" />
+          <CitationsPanel
+            open={citationsPanelOpen}
+            onClose={() => setCitationPanelCitations(null)}
+            citations={citationPanelCitations ?? []}
+          />
+        </>
       }
-      sidePanel={<SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} mode="agent" />}
     />
   )
 }

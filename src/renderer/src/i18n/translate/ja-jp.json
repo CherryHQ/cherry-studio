@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "回答済み",
+      "close": "閉じる",
       "customPlaceholder": "答えを入力してください...",
       "loading": "質問を読み込んでいます…",
       "multiSelect": "複数選択",
@@ -25,6 +26,8 @@
       "noQuestions": "利用可能な質問はありません",
       "other": "その他",
       "previous": "前",
+      "progress": "{{current}} / {{total}}",
+      "skip": "スキップ",
       "submit": "送信",
       "title": "エージェントからの質問"
     },
@@ -689,8 +692,10 @@
         "showDetails": "ツールの詳細を表示"
       },
       "button": {
+        "allow": "許可",
         "allowAll": "常に許可",
         "cancel": "キャンセル",
+        "deny": "Deny",
         "run": "走る"
       },
       "confirmation": "このClaudeツールを実行してもよろしいですか？",
@@ -3043,6 +3048,7 @@
       "completed": "完了",
       "error": "エラーが発生しました",
       "groupHeader": "{{count}}ツール呼び出し",
+      "groupHeaderWithMessages": "{{toolCount}}ツール呼び出し、{{messageCount}}メッセージ",
       "invoking": "呼び出し中",
       "labels": {
         "bash": "バッシュ",
@@ -4659,6 +4665,14 @@
       "agentTodoList": {
         "title": "[to be translated]:Agent Todo List"
       },
+      "askUserQuestion": {
+        "currentRequest": "現在のリクエスト",
+        "description": "サンプルの pending questions で下部 AskUserQuestion composer をプレビューします。",
+        "latestResponse": "最新のレスポンス",
+        "noResponse": "まだレスポンスは送信されていません",
+        "resetPreview": "プレビューをリセット",
+        "title": "Ask User Question"
+      },
       "assistantSelector": {
         "clearSelection": "クリア",
         "configDescription": "プロパティを切り替えてコンポーネントの動作をプレビューする",
@@ -4711,7 +4725,17 @@
         "triggerSelectedCount": "{{count}}件のモデルが選択されています",
         "valueProp": "現在のバリュープロポジション"
       },
-      "title": "開発コンポーネントラボ"
+      "title": "開発コンポーネントラボ",
+      "toolPermission": {
+        "builtinMode": "Built-in",
+        "currentRequest": "Current request",
+        "description": "Preview the bottom tool permission composer with built-in and MCP tool requests.",
+        "latestResponse": "Latest response",
+        "mcpMode": "MCP",
+        "noResponse": "No response submitted yet",
+        "resetPreview": "Reset preview",
+        "title": "Tool Permission"
+      }
     },
     "data": {
       "app_data": {

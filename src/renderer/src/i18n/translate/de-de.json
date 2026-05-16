@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "beantwortet",
+      "close": "Schließen",
       "customPlaceholder": "Gib deine Antwort ein...",
       "loading": "Fragen werden geladen...",
       "multiSelect": "Mehrfachauswahl",
@@ -25,6 +26,8 @@
       "noQuestions": "Keine Fragen verfügbar",
       "other": "Andere",
       "previous": "Vorherige",
+      "progress": "{{current}} von {{total}}",
+      "skip": "Überspringen",
       "submit": "Einreichen",
       "title": "Fragen vom Agenten"
     },
@@ -689,8 +692,10 @@
         "showDetails": "Zeige Werkzeugdetails"
       },
       "button": {
+        "allow": "Zulassen",
         "allowAll": "Immer erlauben",
         "cancel": "Abbrechen",
+        "deny": "Deny",
         "run": "Laufen"
       },
       "confirmation": "Bist du sicher, dass du dieses Claude-Tool ausführen möchtest?",
@@ -3043,6 +3048,7 @@
       "completed": "Abgeschlossen",
       "error": "Fehler aufgetreten",
       "groupHeader": "{{count}} Toolaufrufe",
+      "groupHeaderWithMessages": "{{toolCount}} Toolaufrufe, {{messageCount}} Nachrichten",
       "invoking": "Wird aufgerufen",
       "labels": {
         "bash": "Bash",
@@ -4659,6 +4665,14 @@
       "agentTodoList": {
         "title": "[to be translated]:Agent Todo List"
       },
+      "askUserQuestion": {
+        "currentRequest": "Aktuelle Anfrage",
+        "description": "Vorschau des unteren AskUserQuestion-Composers mit Beispiel-Fragen.",
+        "latestResponse": "Neueste Antwort",
+        "noResponse": "Noch keine Antwort gesendet",
+        "resetPreview": "Vorschau zurücksetzen",
+        "title": "Ask User Question"
+      },
       "assistantSelector": {
         "clearSelection": "Klar",
         "configDescription": "Schalten Sie Props um, um das Verhalten der Komponente in der Vorschau anzuzeigen",
@@ -4711,7 +4725,17 @@
         "triggerSelectedCount": "{{count}} Modelle ausgewählt",
         "valueProp": "Aktueller Wertvorschlag"
       },
-      "title": "Entwicklungskomponentenlabor"
+      "title": "Entwicklungskomponentenlabor",
+      "toolPermission": {
+        "builtinMode": "Built-in",
+        "currentRequest": "Current request",
+        "description": "Preview the bottom tool permission composer with built-in and MCP tool requests.",
+        "latestResponse": "Latest response",
+        "mcpMode": "MCP",
+        "noResponse": "No response submitted yet",
+        "resetPreview": "Reset preview",
+        "title": "Tool Permission"
+      }
     },
     "data": {
       "app_data": {

@@ -27,7 +27,7 @@ export const messageTable = sqliteTable(
     role: text().notNull(),
     // Main content - contains blocks[] (inline JSON)
     data: text({ mode: 'json' }).$type<MessageData>().notNull(),
-    // Searchable text extracted from data.blocks (populated by trigger, used for FTS5)
+    // Searchable text extracted from data.parts / legacy data.blocks (populated by trigger, used for FTS5)
     searchableText: text().notNull().default(''),
     // Final status: SUCCESS, ERROR, PAUSED
     status: text().notNull(),
@@ -77,8 +77,51 @@ export const messageTable = sqliteTable(
  * Custom SQL statements that Drizzle cannot manage
  * These are executed after every migration via DbService.runCustomMigrations()
  *
- * All statements should use IF NOT EXISTS to be idempotent.
+ * All statements should be idempotent (IF NOT EXISTS / DROP IF EXISTS / rebuild-safe).
  */
+const searchableTextExpression = (dataExpression: string) => `COALESCE((
+  SELECT group_concat(text, ' ')
+  FROM (
+    SELECT json_extract(value, '$.text') AS text
+    FROM json_each(json_extract(${dataExpression}, '$.parts'))
+    WHERE json_extract(value, '$.type') = 'text'
+      AND json_extract(value, '$.text') IS NOT NULL
+      AND trim(json_extract(value, '$.text')) != ''
+
+    UNION ALL
+
+    SELECT json_extract(value, '$.data.content') AS text
+    FROM json_each(json_extract(${dataExpression}, '$.parts'))
+    WHERE json_extract(value, '$.type') IN ('data-code', 'data-translation', 'data-compact')
+      AND json_extract(value, '$.data.content') IS NOT NULL
+      AND trim(json_extract(value, '$.data.content')) != ''
+
+    UNION ALL
+
+    SELECT json_extract(value, '$.data.compactedContent') AS text
+    FROM json_each(json_extract(${dataExpression}, '$.parts'))
+    WHERE json_extract(value, '$.type') = 'data-compact'
+      AND json_extract(value, '$.data.compactedContent') IS NOT NULL
+      AND trim(json_extract(value, '$.data.compactedContent')) != ''
+
+    UNION ALL
+
+    SELECT json_extract(value, '$.data.message') AS text
+    FROM json_each(json_extract(${dataExpression}, '$.parts'))
+    WHERE json_extract(value, '$.type') = 'data-error'
+      AND json_extract(value, '$.data.message') IS NOT NULL
+      AND trim(json_extract(value, '$.data.message')) != ''
+
+    UNION ALL
+
+    SELECT json_extract(value, '$.content') AS text
+    FROM json_each(json_extract(${dataExpression}, '$.blocks'))
+    WHERE json_extract(value, '$.type') = 'main_text'
+      AND json_extract(value, '$.content') IS NOT NULL
+      AND trim(json_extract(value, '$.content')) != ''
+  )
+), '')`
+
 export const MESSAGE_FTS_STATEMENTS: string[] = [
   // FTS5 virtual table, Links to message table's searchable_text column
   `CREATE VIRTUAL TABLE IF NOT EXISTS message_fts USING fts5(
@@ -88,50 +131,50 @@ export const MESSAGE_FTS_STATEMENTS: string[] = [
     tokenize='trigram'
   )`,
 
+  // Replace old trigger bodies when the searchable-text expression changes.
+  `DROP TRIGGER IF EXISTS message_ai`,
+  `DROP TRIGGER IF EXISTS message_ad`,
+  `DROP TRIGGER IF EXISTS message_au`,
+
   // Trigger: populate searchable_text and sync FTS on INSERT.
-  // COALESCE wraps group_concat because group_concat returns NULL when no main_text
-  // blocks match (e.g. tool-only or empty messages); searchable_text is NOT NULL.
-  `CREATE TRIGGER IF NOT EXISTS message_ai AFTER INSERT ON message BEGIN
-    UPDATE message SET searchable_text = COALESCE((
-      SELECT group_concat(json_extract(value, '$.content'), ' ')
-      FROM json_each(json_extract(NEW.data, '$.blocks'))
-      WHERE json_extract(value, '$.type') = 'main_text'
-    ), '') WHERE id = NEW.id;
+  // COALESCE wraps group_concat because group_concat returns NULL when no text
+  // parts / main_text blocks match (e.g. tool-only or empty messages).
+  `CREATE TRIGGER message_ai AFTER INSERT ON message BEGIN
+    UPDATE message SET searchable_text = ${searchableTextExpression('NEW.data')} WHERE id = NEW.id;
     INSERT INTO message_fts(rowid, searchable_text)
     SELECT rowid, searchable_text FROM message WHERE id = NEW.id;
   END`,
 
   // Trigger: sync FTS on DELETE
-  `CREATE TRIGGER IF NOT EXISTS message_ad AFTER DELETE ON message BEGIN
+  `CREATE TRIGGER message_ad AFTER DELETE ON message BEGIN
     INSERT INTO message_fts(message_fts, rowid, searchable_text)
     VALUES ('delete', OLD.rowid, OLD.searchable_text);
   END`,
 
   // Trigger: update searchable_text and sync FTS on UPDATE OF data.
   // COALESCE: see message_ai above for rationale.
-  `CREATE TRIGGER IF NOT EXISTS message_au AFTER UPDATE OF data ON message BEGIN
+  `CREATE TRIGGER message_au AFTER UPDATE OF data ON message BEGIN
     INSERT INTO message_fts(message_fts, rowid, searchable_text)
     VALUES ('delete', OLD.rowid, OLD.searchable_text);
-    UPDATE message SET searchable_text = COALESCE((
-      SELECT group_concat(json_extract(value, '$.content'), ' ')
-      FROM json_each(json_extract(NEW.data, '$.blocks'))
-      WHERE json_extract(value, '$.type') = 'main_text'
-    ), '') WHERE id = NEW.id;
+    UPDATE message SET searchable_text = ${searchableTextExpression('NEW.data')} WHERE id = NEW.id;
     INSERT INTO message_fts(rowid, searchable_text)
     SELECT rowid, searchable_text FROM message WHERE id = NEW.id;
-  END`
+  END`,
+
+  `UPDATE message
+   SET searchable_text = ${searchableTextExpression('data')}
+   WHERE searchable_text = '' AND deleted_at IS NULL`,
+
+  `INSERT INTO message_fts(message_fts) VALUES ('rebuild')`
 ]
 
 /** Examples */
 
 /**
- * SQL expression to extract searchable text from data.blocks
- * Concatenates content from all main_text type blocks
+ * SQL expression to extract searchable text from data.parts / legacy data.blocks.
  */
 // export const SEARCHABLE_TEXT_EXPRESSION = `
-//   (SELECT group_concat(json_extract(value, '$.content'), ' ')
-//    FROM json_each(json_extract(NEW.data, '$.blocks'))
-//    WHERE json_extract(value, '$.type') = 'main_text')
+//   ${searchableTextExpression('NEW.data')}
 // `
 
 /**

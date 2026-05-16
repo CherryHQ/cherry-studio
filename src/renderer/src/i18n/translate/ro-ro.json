@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "răspuns",
+      "close": "Închide",
       "customPlaceholder": "Introdu răspunsul tău...",
       "loading": "Se încarcă întrebările...",
       "multiSelect": "Selecție multiplă",
@@ -25,6 +26,8 @@
       "noQuestions": "Nu sunt disponibile întrebări",
       "other": "Altele",
       "previous": "Anterior",
+      "progress": "{{current}} din {{total}}",
+      "skip": "Omite",
       "submit": "Trimite",
       "title": "Întrebări de la Agent"
     },
@@ -689,8 +692,10 @@
         "showDetails": "Afișează detaliile instrumentului"
       },
       "button": {
+        "allow": "Permite",
         "allowAll": "Permiteți întotdeauna",
         "cancel": "Anulează",
+        "deny": "Deny",
         "run": "Rulează"
       },
       "confirmation": "Ești sigur că vrei să rulezi acest instrument Claude?",
@@ -3043,6 +3048,7 @@
       "completed": "Finalizat",
       "error": "A apărut o eroare",
       "groupHeader": "{{count}} apeluri de instrumente",
+      "groupHeaderWithMessages": "{{toolCount}} apeluri de instrumente, {{messageCount}} mesaje",
       "invoking": "Se invocă",
       "labels": {
         "bash": "Bash",
@@ -4659,6 +4665,14 @@
       "agentTodoList": {
         "title": "[to be translated]:Agent Todo List"
       },
+      "askUserQuestion": {
+        "currentRequest": "Cererea curentă",
+        "description": "Previzualizează composerul AskUserQuestion de jos cu întrebări exemplu.",
+        "latestResponse": "Cel mai recent răspuns",
+        "noResponse": "Niciun răspuns trimis încă",
+        "resetPreview": "Resetează previzualizarea",
+        "title": "Ask User Question"
+      },
       "assistantSelector": {
         "clearSelection": "Clar",
         "configDescription": "Comută proprietățile pentru a previzualiza comportamentul componentei",
@@ -4711,7 +4725,17 @@
         "triggerSelectedCount": "{{count}} modele selectate",
         "valueProp": "Propunerea de valoare actuală"
       },
-      "title": "Componenta Laborator Dezvoltare"
+      "title": "Componenta Laborator Dezvoltare",
+      "toolPermission": {
+        "builtinMode": "Built-in",
+        "currentRequest": "Current request",
+        "description": "Preview the bottom tool permission composer with built-in and MCP tool requests.",
+        "latestResponse": "Latest response",
+        "mcpMode": "MCP",
+        "noResponse": "No response submitted yet",
+        "resetPreview": "Reset preview",
+        "title": "Tool Permission"
+      }
     },
     "data": {
       "app_data": {

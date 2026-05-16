@@ -144,15 +144,14 @@ describe('MessageActionRegistry', () => {
     const message = {
       id: 'message-1',
       role: 'assistant',
+      topicId: 'topic-1',
       status: 'success',
-      createdAt: '2026-01-01T00:00:00.000Z',
-      parts: [],
-      blocks: []
+      createdAt: '2026-01-01T00:00:00.000Z'
     } as const
 
     registry.register({
-      id: 'legacy',
-      resolve: ({ message }) => [{ id: `legacy:${message.id}`, label: 'Legacy' }]
+      id: 'provider',
+      resolve: ({ message }) => [{ id: `provider:${message.id}`, label: 'Provider action' }]
     })
     registry.registerCommand({
       id: 'copy',
@@ -165,13 +164,13 @@ describe('MessageActionRegistry', () => {
     })
 
     expect(registry.resolve({ message })).toMatchObject([
-      { id: 'legacy:message-1', label: 'Legacy' },
+      { id: 'provider:message-1', label: 'Provider action' },
       { id: 'copy-action', label: 'Copy' }
     ])
     await expect(registry.execute('copy-action', { message })).resolves.toBe(true)
     expect(run).toHaveBeenCalledWith('copy')
 
     registry.unregister('copy-action')
-    expect(registry.resolve({ message })).toMatchObject([{ id: 'legacy:message-1', label: 'Legacy' }])
+    expect(registry.resolve({ message })).toMatchObject([{ id: 'provider:message-1', label: 'Provider action' }])
   })
 })

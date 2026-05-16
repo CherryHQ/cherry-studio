@@ -1,7 +1,8 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
-const RENDERER_DIR = path.join(__dirname, '../src/renderer/src')
+const REPO_ROOT = path.join(__dirname, '..')
+const RENDERER_DIR = path.join(REPO_ROOT, 'src/renderer/src')
 const CHECK_EXTENSIONS = new Set(['.css', '.ts', '.tsx'])
 const IGNORED_DIR_NAMES = new Set(['node_modules', 'dist', 'out'])
 const IGNORED_FILE_PATTERNS = [/\.test\.(ts|tsx)$/, /\.spec\.(ts|tsx)$/, /\.snap$/]
@@ -67,13 +68,65 @@ export const LEGACY_VARS = [
 
 const LEGACY_VAR_SET = new Set(LEGACY_VARS)
 const OCCURRENCE_PATTERN = new RegExp(`(${LEGACY_VARS.map(escapeRegExp).join('|')})(?![\\w-])`, 'g')
-const STRICT = process.argv.includes('--strict') || process.env.LEGACY_CSS_VARS_STRICT === 'true'
+const AUTO_FIX_REPLACEMENTS: Partial<Record<(typeof LEGACY_VARS)[number], string>> = {
+  '--color-text-1': '--color-foreground',
+  '--color-text-2': '--color-foreground-secondary',
+  '--color-text-3': '--color-foreground-muted',
+  '--color-text': '--color-foreground',
+  '--color-text-secondary': '--color-foreground-secondary',
+  '--color-text-soft': '--color-foreground-secondary',
+  '--color-text-light': '--color-foreground',
+  '--color-background-soft': '--color-muted',
+  '--color-background-mute': '--color-accent',
+  '--color-background-opacity': '--color-background',
+  '--color-border-soft': '--color-border',
+  '--color-border-mute': '--color-border',
+  '--color-error': '--color-error-base',
+  '--color-link': '--color-primary',
+  '--color-primary-bg': '--color-primary-soft',
+  '--color-fill-secondary': '--color-muted',
+  '--color-fill-2': '--color-muted',
+  '--color-bg-base': '--color-background',
+  '--color-bg-1': '--color-muted',
+  '--color-hover': '--color-accent',
+  '--color-active': '--color-muted',
+  '--color-frame-border': '--color-border',
+  '--color-group-background': '--color-muted',
+  '--color-reference': '--color-primary-soft',
+  '--color-reference-text': '--color-primary',
+  '--color-reference-background': '--color-primary-soft',
+  '--color-list-item': '--color-background',
+  '--color-list-item-hover': '--color-accent',
+  '--navbar-background': '--color-background',
+  '--modal-background': '--color-card',
+  '--chat-background-user': '--color-muted',
+  '--chat-text-user': '--color-foreground',
+  '--list-item-border-radius': '--radius-lg',
+  '--color-primary-1': '--color-primary-soft',
+  '--color-primary-6': '--color-primary',
+  '--color-status-success': '--color-success',
+  '--color-status-error': '--color-error-base',
+  '--color-status-warning': '--color-warning'
+}
+
+type WritableStream = Pick<typeof process.stdout, 'write'>
+
+interface RunCliOptions {
+  env?: NodeJS.ProcessEnv
+  stdout?: WritableStream
+  stderr?: WritableStream
+}
 
 export interface Finding {
   file: string
   line: number
   variable: string
   lineText: string
+}
+
+export interface FixSummary {
+  filesChanged: number
+  replacements: number
 }
 
 function escapeRegExp(value: string): string {
@@ -107,6 +160,20 @@ function collectFiles(dir: string): string[] {
   }
 
   return files
+}
+
+export function collectTargetFiles(targetPath = RENDERER_DIR): string[] {
+  const stats = fs.statSync(targetPath)
+
+  if (stats.isDirectory()) {
+    return collectFiles(targetPath)
+  }
+
+  if (!stats.isFile()) return []
+  if (!CHECK_EXTENSIONS.has(path.extname(targetPath))) return []
+  if (shouldIgnoreFile(targetPath)) return []
+
+  return [targetPath]
 }
 
 function isVariableDefinitionLine(line: string, variable: string): boolean {
@@ -153,18 +220,52 @@ export function findLegacyVarHitsInContent(content: string, filePath: string): F
   return findings
 }
 
+export function fixLegacyVarsInContent(content: string): { content: string; replacements: number } {
+  const lines = content.split(/\r?\n/)
+  let replacements = 0
+
+  const nextLines = lines.map((line) => {
+    const variables = new Set(findLegacyVarsInLine(line))
+    let nextLine = line
+
+    for (const variable of variables) {
+      const replacement = AUTO_FIX_REPLACEMENTS[variable as (typeof LEGACY_VARS)[number]]
+      if (!replacement) continue
+
+      const pattern = new RegExp(`${escapeRegExp(variable)}(?![\\w-])`, 'g')
+      nextLine = nextLine.replace(pattern, () => {
+        replacements += 1
+        return replacement
+      })
+    }
+
+    return nextLine
+  })
+
+  return { content: nextLines.join('\n'), replacements }
+}
+
 function findLegacyVarHits(filePath: string): Finding[] {
   const content = fs.readFileSync(filePath, 'utf8')
   return findLegacyVarHitsInContent(content, filePath)
 }
 
-function toRepoRelative(filePath: string): string {
-  return path.relative(path.join(__dirname, '..'), filePath)
+function fixLegacyVarHits(filePath: string): number {
+  const content = fs.readFileSync(filePath, 'utf8')
+  const result = fixLegacyVarsInContent(content)
+  if (result.replacements > 0) {
+    fs.writeFileSync(filePath, result.content)
+  }
+  return result.replacements
 }
 
-function printResults(findings: Finding[]): void {
+function toRepoRelative(filePath: string): string {
+  return path.relative(REPO_ROOT, filePath)
+}
+
+function printResults(findings: Finding[], stdout: WritableStream, stderr: WritableStream): void {
   if (findings.length === 0) {
-    console.log('No legacy renderer CSS variable usages found.')
+    stdout.write('No legacy renderer CSS variable usages found.\n')
     return
   }
 
@@ -174,39 +275,84 @@ function printResults(findings: Finding[]): void {
     byVariable.set(finding.variable, (byVariable.get(finding.variable) ?? 0) + 1)
   }
 
-  console.warn('Legacy renderer CSS variable usages detected:')
-  console.warn('')
+  stderr.write('Legacy renderer CSS variable usages detected:\n')
+  stderr.write('\n')
 
   for (const finding of findings) {
-    console.warn(`  ${toRepoRelative(finding.file)}:${finding.line}`)
-    console.warn(`    ${finding.variable}`)
-    console.warn(`    ${finding.lineText}`)
+    stderr.write(`  ${toRepoRelative(finding.file)}:${finding.line}\n`)
+    stderr.write(`    ${finding.variable}\n`)
+    stderr.write(`    ${finding.lineText}\n`)
   }
 
-  console.warn('')
-  console.warn('Usage summary:')
+  stderr.write('\n')
+  stderr.write('Usage summary:\n')
 
   for (const [variable, count] of [...byVariable.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
-    console.warn(`  ${variable}: ${count}`)
+    stderr.write(`  ${variable}: ${count}\n`)
   }
 
-  console.warn('')
-  console.warn(
-    'Prefer @cherrystudio/ui theme contract variables and Tailwind semantic utilities instead of adding new legacy var usages.'
+  stderr.write('\n')
+  stderr.write(
+    'Prefer @cherrystudio/ui theme contract variables and Tailwind semantic utilities instead of adding new legacy var usages.\n'
   )
 }
 
-function main(): void {
-  const files = collectFiles(RENDERER_DIR)
+function printUsage(stderr: WritableStream): void {
+  stderr.write('Usage: pnpm styles:legacy-vars [path] [--strict] [--fix]\n')
+}
+
+function printFixSummary(summary: FixSummary, stdout: WritableStream): void {
+  stdout.write(
+    `Legacy renderer CSS variable auto-fix: changed ${summary.filesChanged} files, replaced ${summary.replacements} usages.\n`
+  )
+}
+
+export function runCli(argv = process.argv.slice(2), options: RunCliOptions = {}): number {
+  const stdout = options.stdout ?? process.stdout
+  const stderr = options.stderr ?? process.stderr
+  const env = options.env ?? process.env
+  const strict = argv.includes('--strict') || env.LEGACY_CSS_VARS_STRICT === 'true'
+  const fix = argv.includes('--fix')
+  const pathArgs = argv.filter((arg) => arg !== '--strict' && arg !== '--fix')
+
+  if (pathArgs.length > 1) {
+    printUsage(stderr)
+    return 1
+  }
+
+  const targetInput = pathArgs[0]
+  const targetPath = targetInput ? path.resolve(REPO_ROOT, targetInput) : RENDERER_DIR
+
+  if (!fs.existsSync(targetPath)) {
+    stderr.write(`Path does not exist: ${targetInput}\n`)
+    return 1
+  }
+
+  const files = collectTargetFiles(targetPath)
+
+  if (fix) {
+    const fixSummary: FixSummary = {
+      filesChanged: 0,
+      replacements: 0
+    }
+
+    for (const file of files) {
+      const replacements = fixLegacyVarHits(file)
+      if (replacements === 0) continue
+      fixSummary.filesChanged += 1
+      fixSummary.replacements += replacements
+    }
+
+    printFixSummary(fixSummary, stdout)
+  }
+
   const findings = files.flatMap(findLegacyVarHits)
 
-  printResults(findings)
+  printResults(findings, stdout, stderr)
 
-  if (STRICT && findings.length > 0) {
-    process.exitCode = 1
-  }
+  return strict && findings.length > 0 ? 1 : 0
 }
 
 if (require.main === module) {
-  main()
+  process.exitCode = runCli()
 }

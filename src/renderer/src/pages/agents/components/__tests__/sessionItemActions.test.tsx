@@ -44,9 +44,9 @@ describe('session item actions', () => {
       destructive: true
     })
 
-    await executeSessionMenuAction(actions[0]!, actionContext)
-    await executeSessionMenuAction(actions[1]!, actionContext)
-    await executeSessionMenuAction(actions[2]!, actionContext)
+    await executeSessionMenuAction(actions[0], actionContext)
+    await executeSessionMenuAction(actions[1], actionContext)
+    await executeSessionMenuAction(actions[2], actionContext)
 
     expect(startEdit).toHaveBeenCalledWith('Session title')
     expect(onTogglePin).toHaveBeenCalled()

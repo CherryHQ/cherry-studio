@@ -1,0 +1,66 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
+<div
+  class="rounded-[8px] border border-border bg-card p-3 text-foreground dark:bg-card dark:text-foreground"
+  data-testid="tooltip-wrapper"
+>
+  <span>
+    Test content
+  </span>
+  <div
+    data-testid="tooltip-content"
+  >
+    <div
+      style="user-select: text;"
+    >
+      <a
+        aria-label="Open Example Article in new tab"
+        class="mb-2 flex cursor-pointer items-center gap-2 hover:opacity-80"
+        href="https://example.com/article"
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        <div
+          alt="Example Article"
+          data-testid="mock-favicon"
+          hostname="example.com"
+        />
+        <div
+          aria-level="3"
+          class="overflow-hidden text-ellipsis whitespace-nowrap text-foreground text-sm leading-[1.4]"
+          role="heading"
+          title="Example Article"
+        >
+          <div
+            class="overflow-hidden whitespace-nowrap"
+          >
+            <div
+              class="inline-block whitespace-nowrap"
+            >
+              Example Article
+            </div>
+          </div>
+        </div>
+      </a>
+      <div
+        aria-label="Citation content"
+        class="mb-2 overflow-hidden text-[13px] text-foreground-secondary leading-normal [-webkit-box-orient:vertical] [-webkit-line-clamp:3] [display:-webkit-box]"
+        role="article"
+        style="display: -webkit-box; overflow: hidden; -webkit-line-clamp: 3;"
+      >
+        This is the article content for testing purposes.
+      </div>
+      <a
+        aria-label="Visit example.com"
+        class="cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-primary text-xs hover:underline"
+        href="https://example.com/article"
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        example.com
+      </a>
+    </div>
+  </div>
+</div>
+`;

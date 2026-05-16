@@ -1,216 +1,110 @@
+import { Button, Scrollbar, SegmentedControl } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { dataApiService } from '@data/DataApiService'
+import { loggerService } from '@logger'
 import { LoadingIcon } from '@renderer/components/Icons'
-import db from '@renderer/databases'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
-import { mapApiTopicToRendererTopic, useAllTopics } from '@renderer/hooks/useTopicDataApi'
 import type { Topic } from '@renderer/types'
-import { type Message, MessageBlockType } from '@renderer/types/newMessage'
-import {
-  buildKeywordRegexes,
-  buildKeywordUnionRegex,
-  type KeywordMatchMode,
-  splitKeywordsToTerms
-} from '@renderer/utils/keywordSearch'
-import { List, Segmented, Spin, Typography } from 'antd'
-import { useLiveQuery } from 'dexie-react-hooks'
+import type {
+  SearchMessageResult,
+  SearchMessagesQueryParams,
+  SearchMessagesResponse
+} from '@shared/data/api/schemas/messages'
+import { buildKeywordUnionRegex, type KeywordMatchMode, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
 import type { FC } from 'react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
-const { Text, Title } = Typography
+const logger = loggerService.withContext('HistorySearchResults')
+const SEARCH_PAGE_SIZE = 1000
+const SEARCH_RESULT_PAGE_SIZE = 10
 
-type SearchResult = {
-  message: Message
-  topic: Topic
-  content: string
-  snippet: string
+type SearchMessagesFetcher = (query: SearchMessagesQueryParams) => Promise<SearchMessagesResponse>
+const fetchMessageSearchPage: SearchMessagesFetcher = (pageQuery) =>
+  dataApiService.get('/messages/search', { query: pageQuery })
+
+export async function loadAllMessageSearchResults(
+  query: Omit<SearchMessagesQueryParams, 'cursor' | 'limit'>,
+  fetchPage: SearchMessagesFetcher = fetchMessageSearchPage,
+  shouldContinue: () => boolean = () => true
+): Promise<SearchMessageResult[]> {
+  const results: SearchMessageResult[] = []
+  let cursor: string | undefined
+
+  do {
+    if (!shouldContinue()) break
+
+    const page = await fetchPage({
+      ...query,
+      limit: SEARCH_PAGE_SIZE,
+      ...(cursor ? { cursor } : {})
+    })
+    if (!shouldContinue()) break
+
+    results.push(...page.items)
+    cursor = page.nextCursor
+  } while (cursor)
+
+  return results
 }
 
-interface Props extends React.HTMLAttributes<HTMLDivElement> {
+function searchResultToTopic(result: SearchMessageResult): Topic {
+  return {
+    id: result.topicId,
+    assistantId: result.topicAssistantId,
+    name: result.topicName,
+    createdAt: result.topicCreatedAt,
+    updatedAt: result.topicUpdatedAt,
+    messages: [],
+    pinned: false
+  }
+}
+
+type SearchResult = SearchMessageResult & {
+  topic: Topic
+}
+
+interface Props extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onScroll'> {
   keywords: string
-  onMessageClick: (message: Message) => void
+  onMessageClick: (message: { messageId: string; topicId: string }) => void
   onTopicClick: (topic: Topic) => void
 }
 
-const SEARCH_SNIPPET_CONTEXT_LINES = 1
-const SEARCH_SNIPPET_MAX_LINES = 12
-const SEARCH_SNIPPET_MAX_LINE_LENGTH = 160
-const SEARCH_SNIPPET_LINE_FRAGMENT_RADIUS = 40
-const SEARCH_SNIPPET_MAX_LINE_FRAGMENTS = 3
-
 type ResultSortOrder = 'newest' | 'oldest'
-
-const stripMarkdownFormatting = (text: string) => {
-  return text
-    .replace(/```(?:[^\n]*\n)?([\s\S]*?)```/g, '$1')
-    .replace(/!\[(.*?)\]\((.*?)\)/g, '$1')
-    .replace(/\[(.*?)\]\((.*?)\)/g, '$1')
-    .replace(/\*\*(.*?)\*\*/g, '$1')
-    .replace(/\*(.*?)\*/g, '$1')
-    .replace(/`(.*?)`/g, '$1')
-    .replace(/#+\s/g, '')
-    .replace(/<[^>]*>/g, '')
-}
-
-const normalizeText = (text: string) => text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-
-const mergeRanges = (ranges: Array<[number, number]>) => {
-  const sorted = ranges.slice().sort((a, b) => a[0] - b[0])
-  const merged: Array<[number, number]> = []
-  for (const range of sorted) {
-    const last = merged[merged.length - 1]
-    if (!last || range[0] > last[1] + 1) {
-      merged.push([range[0], range[1]])
-      continue
-    }
-    last[1] = Math.max(last[1], range[1])
-  }
-  return merged
-}
-
-const buildLineSnippet = (line: string, regexes: RegExp[]) => {
-  if (line.length <= SEARCH_SNIPPET_MAX_LINE_LENGTH) {
-    return line
-  }
-
-  const matchRanges: Array<[number, number]> = []
-  for (const regex of regexes) {
-    regex.lastIndex = 0
-    let match: RegExpExecArray | null
-    while ((match = regex.exec(line)) !== null) {
-      matchRanges.push([match.index, match.index + match[0].length])
-      if (match[0].length === 0) {
-        regex.lastIndex += 1
-      }
-    }
-  }
-
-  if (matchRanges.length === 0) {
-    return `${line.slice(0, SEARCH_SNIPPET_MAX_LINE_LENGTH)}...`
-  }
-
-  const expandedRanges: Array<[number, number]> = matchRanges.map(([start, end]) => [
-    Math.max(0, start - SEARCH_SNIPPET_LINE_FRAGMENT_RADIUS),
-    Math.min(line.length, end + SEARCH_SNIPPET_LINE_FRAGMENT_RADIUS)
-  ])
-  const mergedRanges = mergeRanges(expandedRanges)
-  const limitedRanges = mergedRanges.slice(0, SEARCH_SNIPPET_MAX_LINE_FRAGMENTS)
-
-  let result = limitedRanges.map(([start, end]) => line.slice(start, end)).join(' ... ')
-  // 片段未从行首开始，补前置省略号。
-  if (limitedRanges[0][0] > 0) {
-    result = `...${result}`
-  }
-  // 片段未覆盖到行尾，补后置省略号。
-  if (limitedRanges[limitedRanges.length - 1][1] < line.length) {
-    result = `${result}...`
-  }
-  // 还有未展示的匹配片段，提示省略。
-  if (mergedRanges.length > SEARCH_SNIPPET_MAX_LINE_FRAGMENTS) {
-    result = `${result}...`
-  }
-  // 最终长度超限，强制截断并补省略号。
-  if (result.length > SEARCH_SNIPPET_MAX_LINE_LENGTH) {
-    result = `${result.slice(0, SEARCH_SNIPPET_MAX_LINE_LENGTH)}...`
-  }
-  return result
-}
-
-const buildSearchSnippet = (text: string, terms: string[], matchMode: KeywordMatchMode) => {
-  const normalized = normalizeText(stripMarkdownFormatting(text))
-  const lines = normalized.split('\n')
-  if (lines.length === 0) {
-    return ''
-  }
-
-  const nonEmptyTerms = terms.filter((term) => term.length > 0)
-  const regexes = buildKeywordRegexes(nonEmptyTerms, { matchMode, flags: 'gi' })
-  const matchedLineIndexes: number[] = []
-
-  if (regexes.length > 0) {
-    for (let i = 0; i < lines.length; i += 1) {
-      const line = lines[i]
-      const isMatch = regexes.some((regex) => {
-        regex.lastIndex = 0
-        return regex.test(line)
-      })
-      if (isMatch) {
-        matchedLineIndexes.push(i)
-      }
-    }
-  }
-
-  const ranges: Array<[number, number]> =
-    matchedLineIndexes.length > 0
-      ? mergeRanges(
-          matchedLineIndexes.map((index) => [
-            Math.max(0, index - SEARCH_SNIPPET_CONTEXT_LINES),
-            Math.min(lines.length - 1, index + SEARCH_SNIPPET_CONTEXT_LINES)
-          ])
-        )
-      : [[0, Math.min(lines.length - 1, SEARCH_SNIPPET_MAX_LINES - 1)]]
-
-  const outputLines: string[] = []
-  let truncated = false
-
-  if (ranges[0][0] > 0) {
-    outputLines.push('...')
-  }
-
-  for (const [start, end] of ranges) {
-    if (outputLines.length >= SEARCH_SNIPPET_MAX_LINES) {
-      truncated = true
-      break
-    }
-    if (outputLines.length > 0 && outputLines[outputLines.length - 1] !== '...') {
-      outputLines.push('...')
-    }
-    for (let i = start; i <= end; i += 1) {
-      if (outputLines.length >= SEARCH_SNIPPET_MAX_LINES) {
-        truncated = true
-        break
-      }
-      outputLines.push(buildLineSnippet(lines[i], regexes))
-    }
-    if (truncated) {
-      break
-    }
-  }
-
-  if ((truncated || ranges[ranges.length - 1][1] < lines.length - 1) && outputLines.at(-1) !== '...') {
-    outputLines.push('...')
-  }
-
-  return outputLines.join('\n')
-}
 
 const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...props }) => {
   const { t } = useTranslation()
   const { handleScroll, containerRef } = useScrollPosition('SearchResults')
-  const observerRef = useRef<MutationObserver | null>(null)
+  const searchRequestRef = useRef(0)
+  const lastScrollTopRef = useRef(0)
+  const isVisible = props.style?.display !== 'none'
 
   const [matchMode, setMatchMode] = useState<KeywordMatchMode>('whole-word')
   const [sortOrder, setSortOrder] = useState<ResultSortOrder>('newest')
   const [searchTerms, setSearchTerms] = useState<string[]>(splitKeywordsToTerms(keywords))
 
-  const topics = useLiveQuery(() => db.topics.toArray(), [])
-  const { topics: apiAllTopics } = useAllTopics({ loadAll: true })
-  const allTopics = useMemo(() => apiAllTopics.map(mapApiTopicToRendererTopic), [apiAllTopics])
-  const storeTopicsMap = useMemo(() => {
-    const map = new Map<string, Topic>()
-    for (const t of allTopics) {
-      map.set(t.id, t)
-    }
-    return map
-  }, [allTopics])
-
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [searchStats, setSearchStats] = useState({ count: 0, time: 0 })
   const [isLoading, setIsLoading] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+
+  const scrollToTop = useCallback(() => {
+    lastScrollTopRef.current = 0
+    containerRef.current?.scrollTo({ top: 0 })
+  }, [containerRef])
+
+  const handleResultScroll = useCallback(() => {
+    if (!isVisible) return
+    lastScrollTopRef.current = containerRef.current?.scrollTop ?? 0
+    handleScroll()
+  }, [containerRef, handleScroll, isVisible])
 
   const onSearch = useCallback(async () => {
+    const requestId = searchRequestRef.current + 1
+    searchRequestRef.current = requestId
     setSearchResults([])
     setIsLoading(true)
+    scrollToTop()
 
     if (keywords.length === 0) {
       setSearchStats({ count: 0, time: 0 })
@@ -221,60 +115,56 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
 
     const startTime = performance.now()
     const newSearchTerms = splitKeywordsToTerms(keywords)
-    const searchRegexes = buildKeywordRegexes(newSearchTerms, { matchMode, flags: 'i' })
+    try {
+      const apiResults = await loadAllMessageSearchResults(
+        { q: keywords, matchMode },
+        fetchMessageSearchPage,
+        () => requestId === searchRequestRef.current
+      )
+      const results = apiResults.map((result) => ({ ...result, topic: searchResultToTopic(result) }))
 
-    const blocks = (await db.message_blocks.toArray())
-      .filter((block) => block.type === MessageBlockType.MAIN_TEXT)
-      .filter((block) => {
-        const searchableContent = stripMarkdownFormatting(block.content)
-        return searchRegexes.every((regex) => regex.test(searchableContent))
+      if (requestId !== searchRequestRef.current) return
+
+      const endTime = performance.now()
+      setSearchResults(results)
+      setCurrentPage(1)
+      setSearchStats({
+        count: results.length,
+        time: (endTime - startTime) / 1000
       })
-
-    const messages = topics?.flatMap((topic) => topic.messages)
-
-    const results = await Promise.all(
-      blocks.map(async (block) => {
-        const message = messages?.find((message) => message.id === block.messageId)
-        if (message) {
-          const topic = storeTopicsMap.get(message.topicId)
-          if (topic) {
-            return {
-              message,
-              topic,
-              content: block.content,
-              snippet: buildSearchSnippet(block.content, newSearchTerms, matchMode)
-            }
-          }
-        }
-        return null
-      })
-    ).then((results) => results.filter(Boolean) as SearchResult[])
-
-    const endTime = performance.now()
-    setSearchResults(results)
-    setSearchStats({
-      count: results.length,
-      time: (endTime - startTime) / 1000
-    })
-    setSearchTerms(newSearchTerms)
-    setIsLoading(false)
-  }, [keywords, matchMode, storeTopicsMap, topics])
+      setSearchTerms(newSearchTerms)
+    } catch (error) {
+      if (requestId !== searchRequestRef.current) return
+      logger.error('History message search failed', error as Error)
+      setSearchResults([])
+      setCurrentPage(1)
+      setSearchStats({ count: 0, time: 0 })
+      setSearchTerms(newSearchTerms)
+    } finally {
+      if (requestId === searchRequestRef.current) setIsLoading(false)
+    }
+  }, [keywords, matchMode, scrollToTop])
 
   const sortedSearchResults = useMemo(() => {
     const results = [...searchResults]
     results.sort((a, b) => {
-      const timeA = Date.parse(a.message.createdAt) || 0
-      const timeB = Date.parse(b.message.createdAt) || 0
+      const timeA = Date.parse(a.createdAt) || 0
+      const timeB = Date.parse(b.createdAt) || 0
       if (timeA !== timeB) {
         return sortOrder === 'newest' ? timeB - timeA : timeA - timeB
       }
-      return a.message.id.localeCompare(b.message.id)
+      return a.messageId.localeCompare(b.messageId)
     })
     return results
   }, [searchResults, sortOrder])
+  const totalPages = Math.max(1, Math.ceil(sortedSearchResults.length / SEARCH_RESULT_PAGE_SIZE))
+  const pagedSearchResults = useMemo(() => {
+    const start = (currentPage - 1) * SEARCH_RESULT_PAGE_SIZE
+    return sortedSearchResults.slice(start, start + SEARCH_RESULT_PAGE_SIZE)
+  }, [currentPage, sortedSearchResults])
+  const showPagination = sortedSearchResults.length > SEARCH_RESULT_PAGE_SIZE
 
   const highlightText = (text: string) => {
-    // Escape HTML entities to prevent XSS from LLM response content
     const escapeHtml = (s: string) =>
       s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
     const safeText = escapeHtml(text)
@@ -291,108 +181,118 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
   }, [onSearch])
 
   useEffect(() => {
-    if (!containerRef.current) return
+    setCurrentPage((page) => Math.min(page, totalPages))
+  }, [totalPages])
 
-    observerRef.current = new MutationObserver(() => {
-      containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
-    })
+  useLayoutEffect(() => {
+    if (!isVisible) return
 
-    observerRef.current.observe(containerRef.current, {
-      childList: true,
-      subtree: true
-    })
-
-    return () => observerRef.current?.disconnect()
-  }, [containerRef])
+    containerRef.current?.scrollTo({ top: lastScrollTopRef.current })
+  }, [containerRef, isVisible])
 
   return (
-    <Container ref={containerRef} {...props} onScroll={handleScroll}>
-      <Spin spinning={isLoading} indicator={<LoadingIcon color="var(--color-text-2)" />}>
-        <SearchToolbar>
-          <Segmented
-            shape="round"
-            size="small"
-            value={sortOrder}
-            onChange={(value) => setSortOrder(value as ResultSortOrder)}
-            options={[
-              { label: t('history.search.sort.newest'), value: 'newest' },
-              { label: t('history.search.sort.oldest'), value: 'oldest' }
-            ]}
-          />
-          <Segmented
-            shape="round"
-            size="small"
-            value={matchMode}
-            onChange={(value) => setMatchMode(value as KeywordMatchMode)}
-            options={[
-              { label: t('history.search.match.whole_word'), value: 'whole-word' },
-              { label: t('history.search.match.substring'), value: 'substring' }
-            ]}
-          />
-        </SearchToolbar>
-        {sortedSearchResults.length > 0 && (
-          <SearchStats>
-            Found {searchStats.count} results in {searchStats.time.toFixed(3)} seconds
-          </SearchStats>
-        )}
-        <List
-          itemLayout="vertical"
-          dataSource={sortedSearchResults}
-          pagination={{
-            pageSize: 10,
-            hideOnSinglePage: true
+    <Scrollbar
+      ref={containerRef}
+      {...props}
+      className={cn('flex min-h-0 w-full flex-1 flex-col px-9 py-5', props.className)}
+      onScroll={handleResultScroll}>
+      <div className="mb-2 flex w-full flex-row items-center justify-start gap-2.5">
+        <SegmentedControl<ResultSortOrder>
+          size="sm"
+          value={sortOrder}
+          onValueChange={(value) => {
+            setSortOrder(value)
+            scrollToTop()
           }}
-          style={{ opacity: isLoading ? 0 : 1 }}
-          renderItem={({ message, topic, snippet }) => (
-            <List.Item>
-              <Title
-                level={5}
-                style={{ color: 'var(--color-primary)', cursor: 'pointer' }}
-                onClick={() => onTopicClick(topic)}>
-                {topic.name}
-              </Title>
-              <div style={{ cursor: 'pointer' }} onClick={() => onMessageClick(message)}>
-                <Text style={{ whiteSpace: 'pre-line' }}>{highlightText(snippet)}</Text>
-              </div>
-              <SearchResultTime>
-                <Text type="secondary">{new Date(message.createdAt).toLocaleString()}</Text>
-              </SearchResultTime>
-            </List.Item>
-          )}
+          options={[
+            { label: t('history.search.sort.newest'), value: 'newest' },
+            { label: t('history.search.sort.oldest'), value: 'oldest' }
+          ]}
         />
-        <div style={{ minHeight: 30 }}></div>
-      </Spin>
-    </Container>
+        <SegmentedControl<KeywordMatchMode>
+          size="sm"
+          value={matchMode}
+          onValueChange={(value) => {
+            setMatchMode(value)
+            scrollToTop()
+          }}
+          options={[
+            { label: t('history.search.match.whole_word'), value: 'whole-word' },
+            { label: t('history.search.match.substring'), value: 'substring' }
+          ]}
+        />
+      </div>
+      <div className="relative min-h-0 flex-1">
+        {isLoading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center">
+            <LoadingIcon color="var(--color-foreground-muted)" />
+          </div>
+        )}
+        <div className={cn('flex min-h-0 flex-1 flex-col', isLoading && 'opacity-0')}>
+          {sortedSearchResults.length > 0 && (
+            <div className="text-[13px] text-foreground-muted">
+              Found {searchStats.count} results in {searchStats.time.toFixed(3)} seconds
+            </div>
+          )}
+          {pagedSearchResults.length > 0 ? (
+            <div className="flex flex-col divide-y divide-border-subtle">
+              {pagedSearchResults.map(({ messageId, topicId, topic, snippet, createdAt }) => (
+                <div key={messageId} className="py-3">
+                  <button
+                    type="button"
+                    className="mb-2 cursor-pointer text-left font-medium text-[15px] text-primary hover:underline"
+                    onClick={() => onTopicClick(topic)}>
+                    {topic.name}
+                  </button>
+                  <button
+                    type="button"
+                    className="block w-full cursor-pointer whitespace-pre-line text-left text-foreground text-sm leading-5"
+                    onClick={() => onMessageClick({ messageId, topicId })}>
+                    {highlightText(snippet)}
+                  </button>
+                  <div className="mt-2.5 text-right text-foreground-muted text-xs">
+                    {new Date(createdAt).toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            !isLoading && <div className="py-6 text-center text-foreground-muted text-sm">{t('common.no_results')}</div>
+          )}
+          {showPagination && (
+            <div className="mt-4 flex items-center justify-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={currentPage === 1}
+                onClick={() => {
+                  setCurrentPage((page) => Math.max(1, page - 1))
+                  scrollToTop()
+                }}>
+                {t('common.previous')}
+              </Button>
+              <span className="min-w-12 text-center text-foreground-muted text-xs">
+                {currentPage} / {totalPages}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={currentPage === totalPages}
+                onClick={() => {
+                  setCurrentPage((page) => Math.min(totalPages, page + 1))
+                  scrollToTop()
+                }}>
+                {t('common.next')}
+              </Button>
+            </div>
+          )}
+          <div className="min-h-7.5" />
+        </div>
+      </div>
+    </Scrollbar>
   )
 }
-
-const Container = styled.div`
-  width: 100%;
-  height: 100%;
-  padding: 20px 36px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-`
-
-const SearchStats = styled.div`
-  font-size: 13px;
-  color: var(--color-text-3);
-`
-
-const SearchToolbar = styled.div`
-  width: 100%;
-  display: flex;
-  flex-direction: row;
-  justify-content: flex-start;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
-`
-
-const SearchResultTime = styled.div`
-  margin-top: 10px;
-  text-align: right;
-`
 
 export default memo(SearchResults)
