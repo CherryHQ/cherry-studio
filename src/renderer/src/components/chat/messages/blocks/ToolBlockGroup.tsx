@@ -157,7 +157,7 @@ interface ToolListContentProps {
 }
 
 const ToolListContent = React.memo(({ items, scrollRef }: ToolListContentProps) => (
-  <div ref={scrollRef} className="flex max-h-75 flex-col gap-px overflow-y-auto">
+  <div ref={scrollRef} className="flex max-h-75 flex-col gap-2.5 overflow-y-auto">
     {items.map((item) => {
       const status = item.toolResponse.status
       const isCompleted = isCompletedStatus(status)
@@ -210,7 +210,7 @@ const ToolBlockGroup: React.FC<Props> = ({ items }) => {
           <AccordionTrigger className="justify-start gap-1.5 py-0 hover:no-underline [&>svg]:text-foreground-muted [&>svg]:opacity-0 [&>svg]:transition-opacity [&>svg]:duration-150 group-hover/tool-group:[&>svg]:opacity-100">
             <GroupHeaderContent items={items} allCompleted={allCompleted} />
           </AccordionTrigger>
-          <AccordionContent className="ml-2 border-border border-l pt-0.5 pr-0 pb-0 pl-6.5">
+          <AccordionContent className="pt-2.5 pr-0 pb-0 pl-0">
             <ToolListContent items={items} scrollRef={scrollRef} />
           </AccordionContent>
         </AccordionItem>
