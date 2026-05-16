@@ -116,11 +116,11 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
 
   const diagnosisContext = useMemo(
     () => ({
-      errorSource: 'chat' as const,
+      errorSource: block.error?.source === 'knowledge' ? ('knowledge' as const) : ('chat' as const),
       providerName: block.error?.providerId as string | undefined,
       modelId: block.error?.modelId as string | undefined
     }),
-    [block.error?.providerId, block.error?.modelId]
+    [block.error?.source, block.error?.providerId, block.error?.modelId]
   )
 
   const onRemoveBlock = useCallback(

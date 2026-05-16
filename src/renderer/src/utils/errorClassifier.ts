@@ -33,10 +33,21 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   const msg = ((error.message as string) || '').toLowerCase()
   const providerSuffix = providerId ? `?id=${providerId}` : ''
 
-  // Knowledge base auth errors — must take priority over generic auth
-  // so users are directed to knowledge settings, not chat model provider
+  // Knowledge base errors — intercept before generic auth to direct users
+  // to knowledge settings. Only auth-type errors get knowledge_auth;
+  // other knowledge errors fall through to generic classifiers below.
   if ((error as Record<string, unknown>).source === 'knowledge') {
-    return { category: 'knowledge_auth', i18nKey: 'error.diagnosis.knowledge_auth', navTarget: '/knowledge' }
+    const isAuth =
+      numStatus === 401 ||
+      numStatus === 403 ||
+      msg.includes('invalid_api_key') ||
+      msg.includes('authentication') ||
+      msg.includes('unauthorized') ||
+      msg.includes('forbidden')
+    if (isAuth) {
+      return { category: 'knowledge_auth', i18nKey: 'error.diagnosis.knowledge_auth', navTarget: '/knowledge' }
+    }
+    return { category: 'knowledge', i18nKey: 'error.diagnosis.knowledge', navTarget: '/knowledge' }
   }
 
   // Auth errors (401/403)
