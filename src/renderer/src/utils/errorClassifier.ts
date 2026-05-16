@@ -14,6 +14,7 @@ export interface ErrorClassification {
     | 'server'
     | 'deprecated'
     | 'knowledge'
+    | 'knowledge_auth'
     | 'ocr'
     | 'mcp'
     | 'parse'
@@ -31,6 +32,21 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   const numStatus = typeof status === 'number' ? status : typeof status === 'string' ? parseInt(status, 10) : undefined
   const msg = ((error.message as string) || '').toLowerCase()
   const providerSuffix = providerId ? `?id=${providerId}` : ''
+
+  // Knowledge base auth errors — intercept before generic auth to direct users
+  // to knowledge settings. Non-auth knowledge errors fall through to
+  // existing classifiers (quota, network, server, etc.) for accurate messaging.
+  if (
+    (error as Record<string, unknown>).source === 'knowledge' &&
+    (numStatus === 401 ||
+      numStatus === 403 ||
+      msg.includes('invalid_api_key') ||
+      msg.includes('authentication') ||
+      msg.includes('unauthorized') ||
+      msg.includes('forbidden'))
+  ) {
+    return { category: 'knowledge_auth', i18nKey: 'error.diagnosis.knowledge_auth', navTarget: '/knowledge' }
+  }
 
   // Auth errors (401/403)
   if (
