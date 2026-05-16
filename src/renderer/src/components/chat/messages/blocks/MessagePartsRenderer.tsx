@@ -16,8 +16,10 @@ import { FILE_TYPE } from '@renderer/types/file'
 import { convertReferencesToCitationReferences, convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ErrorPartData, VideoPartData } from '@shared/data/types/uiParts'
+import { ChevronDown } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import MessageAttachments from '../frame/MessageAttachments'
 import MessageVideo from '../frame/MessageVideo'
@@ -133,9 +135,7 @@ function getVideoFilePath(part: CherryMessagePart): string | undefined {
 type PartEntry = { part: CherryMessagePart; index: number }
 type GroupedEntry = PartEntry | PartEntry[]
 
-function groupSimilarParts(parts: CherryMessagePart[]): GroupedEntry[] {
-  const entries: PartEntry[] = parts.map((part, index) => ({ part, index }))
-
+function groupPartEntries(entries: readonly PartEntry[]): GroupedEntry[] {
   return entries.reduce<GroupedEntry[]>((acc, entry) => {
     const { part } = entry
 
@@ -169,6 +169,43 @@ function groupSimilarParts(parts: CherryMessagePart[]): GroupedEntry[] {
 
     return acc
   }, [])
+}
+
+function isSummaryMessagePart(part: CherryMessagePart): boolean {
+  const partType = part.type as string
+  if (partType === 'text') {
+    return !!(part as { text?: string }).text?.trim()
+  }
+  if (partType === 'data-code') {
+    return !!(part as { data?: { content?: string } }).data?.content?.trim()
+  }
+  if (partType === 'data-compact' || partType === 'data-translation') {
+    return !!(part as { data?: { content?: string } }).data?.content?.trim()
+  }
+  return false
+}
+
+function isReasoningMessagePart(part: CherryMessagePart): boolean {
+  return (part.type as string) === 'reasoning' && !!(part as ReasoningUIPart).text?.trim()
+}
+
+function isCollapsedMessagePart(part: CherryMessagePart): boolean {
+  return isSummaryMessagePart(part) || isReasoningMessagePart(part)
+}
+
+function isResultPart(part: CherryMessagePart): boolean {
+  const partType = part.type as string
+  return isSummaryMessagePart(part) || partType === 'data-error' || partType === 'file' || partType === 'data-video'
+}
+
+function shouldCollapseAfterLastTool(part: CherryMessagePart): boolean {
+  const partType = part.type as string
+  return (
+    isReasoningMessagePart(part) ||
+    partType === 'step-start' ||
+    partType === 'source-url' ||
+    partType === 'data-citation'
+  )
 }
 
 // ============================================================================
@@ -392,6 +429,152 @@ const ToolGroupView = React.memo(
   }
 )
 
+const CompletedToolHistoryGroup = React.memo(function CompletedToolHistoryGroup({
+  entries,
+  message,
+  toolCount,
+  messageCount
+}: {
+  entries: readonly PartEntry[]
+  message: MessageListItem
+  toolCount: number
+  messageCount: number
+}) {
+  const { t } = useTranslation()
+  const [isExpanded, setIsExpanded] = React.useState(false)
+  const contentId = React.useId()
+
+  const groupedEntries = useMemo(() => groupPartEntries(entries), [entries])
+  const summary =
+    messageCount > 0
+      ? t('message.tools.groupHeaderWithMessages', { toolCount, messageCount })
+      : t('message.tools.groupHeader', { count: toolCount })
+
+  return (
+    <div className={`group/completed-tool-history max-w-full ${isExpanded ? 'w-full' : 'w-fit'}`}>
+      <button
+        type="button"
+        aria-expanded={isExpanded}
+        aria-controls={contentId}
+        className="flex w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent p-0 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        onClick={() => setIsExpanded((expanded) => !expanded)}>
+        <ChevronDown
+          size={16}
+          className={`shrink-0 text-foreground-muted transition-transform duration-150 ${isExpanded ? 'rotate-180' : '-rotate-90'}`}
+        />
+        <span className="truncate font-normal text-[13px] text-foreground-secondary transition-colors duration-150 group-hover/completed-tool-history:text-foreground">
+          {summary}
+        </span>
+      </button>
+      {isExpanded && (
+        <div
+          id={contentId}
+          className="mt-2 flex w-full flex-col gap-3 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper]:mt-0!">
+          {groupedEntries.map((entry) => renderGroupedEntry(entry, message, false))}
+        </div>
+      )}
+    </div>
+  )
+})
+
+function getCompletedToolHistory(
+  entries: readonly PartEntry[],
+  message: MessageListItem,
+  isProcessing: boolean
+): { collapsedEntries: PartEntry[]; resultEntries: PartEntry[]; toolCount: number; messageCount: number } | null {
+  if (message.role !== 'assistant' || message.status !== 'success' || isProcessing) return null
+
+  let lastToolIndex = -1
+  for (let index = entries.length - 1; index >= 0; index--) {
+    if (isToolPart(entries[index].part)) {
+      lastToolIndex = index
+      break
+    }
+  }
+
+  if (lastToolIndex < 0 || lastToolIndex === entries.length - 1) return null
+
+  let collapsedEndIndex = lastToolIndex
+  for (let index = lastToolIndex + 1; index < entries.length; index++) {
+    if (!shouldCollapseAfterLastTool(entries[index].part)) break
+    collapsedEndIndex = index
+  }
+
+  const collapsedEntries = entries.slice(0, collapsedEndIndex + 1)
+  const resultEntries = entries.slice(collapsedEndIndex + 1)
+  if (!resultEntries.some((entry) => isResultPart(entry.part))) return null
+
+  const toolCount = collapsedEntries.filter((entry) => isToolPart(entry.part)).length
+  if (toolCount === 0) return null
+
+  return {
+    collapsedEntries,
+    resultEntries,
+    toolCount,
+    messageCount: collapsedEntries.filter((entry) => isCollapsedMessagePart(entry.part)).length
+  }
+}
+
+function renderGroupedEntry(entry: GroupedEntry, message: MessageListItem, isStreaming: boolean): React.ReactNode {
+  if (Array.isArray(entry)) {
+    const groupKey = entry.map((e) => `${message.id}-part-${e.index}`).join('-')
+    const firstPart = entry[0].part
+
+    if (isImageFilePart(firstPart)) {
+      const images = entry.map((e) => extractImageUrl(e.part)).filter(Boolean) as string[]
+      if (images.length === 0) return null
+
+      if (images.length === 1) {
+        return (
+          <AnimatedBlockWrapper key={groupKey} enableAnimation={isStreaming}>
+            <ImageBlock images={images} isSingle={true} />
+          </AnimatedBlockWrapper>
+        )
+      }
+      return (
+        <AnimatedBlockWrapper key={groupKey} enableAnimation={isStreaming}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, maxWidth: '100%' }}>
+            {images.map((src, i) => (
+              <ImageBlock key={`${groupKey}-img-${i}`} images={[src]} isSingle={false} />
+            ))}
+          </div>
+        </AnimatedBlockWrapper>
+      )
+    }
+
+    if (isToolPart(firstPart)) {
+      const stableGroupKey = `tool-group-${message.id}-part-${entry[0].index}`
+      return (
+        <AnimatedBlockWrapper key={stableGroupKey} enableAnimation={isStreaming}>
+          <ToolGroupView entries={entry} messageId={message.id} />
+        </AnimatedBlockWrapper>
+      )
+    }
+
+    if (isVideoDataPart(firstPart)) {
+      const firstEntry = entry[0]
+      const partId = `${message.id}-part-${firstEntry.index}`
+      return (
+        <AnimatedBlockWrapper key={groupKey} enableAnimation={isStreaming}>
+          {renderPart(firstEntry.part, partId, message, isStreaming)}
+        </AnimatedBlockWrapper>
+      )
+    }
+
+    return null
+  }
+
+  const partId = `${message.id}-part-${entry.index}`
+  const rendered = renderPart(entry.part, partId, message, isStreaming)
+  if (!rendered) return null
+
+  return (
+    <AnimatedBlockWrapper key={partId} enableAnimation={isStreaming}>
+      {rendered}
+    </AnimatedBlockWrapper>
+  )
+}
+
 // ============================================================================
 // Main component
 // ============================================================================
@@ -403,17 +586,24 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   const activityState = getMessageActivityState?.(message)
   const isStreaming = !!activityState?.isProcessing && message.status === 'pending'
 
-  const grouped = useMemo(() => {
-    if (messageParts.length === 0) return []
-    return groupSimilarParts(messageParts)
-  }, [messageParts])
-
   // Beat loader visible while the assistant turn is still active —
   // either streaming (status pending/processing/searching) or paused
   // on a tool-approval-request waiting for the user. The latter is
   // semantically "expecting input", which the loader's pulse conveys
   // better than "frozen with no UI cue".
   const isProcessing = isMessageListItemProcessing(message) || isMessageListItemAwaitingApproval(message, messageParts)
+
+  const partEntries = useMemo(() => messageParts.map((part, index) => ({ part, index })), [messageParts])
+  const completedToolHistory = useMemo(
+    () => getCompletedToolHistory(partEntries, message, isProcessing),
+    [partEntries, message, isProcessing]
+  )
+  const visibleEntries = completedToolHistory?.resultEntries ?? partEntries
+
+  const grouped = useMemo(() => {
+    if (visibleEntries.length === 0) return []
+    return groupPartEntries(visibleEntries)
+  }, [visibleEntries])
 
   // No parts to render — normal for user messages (content is in message text, not parts)
   // But if the message is processing (pending/streaming), show the loading placeholder
@@ -432,68 +622,18 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
 
   return (
     <AnimatePresence mode="sync">
+      {completedToolHistory && (
+        <AnimatedBlockWrapper key={`completed-tool-history-${message.id}`} enableAnimation={false}>
+          <CompletedToolHistoryGroup
+            entries={completedToolHistory.collapsedEntries}
+            message={message}
+            toolCount={completedToolHistory.toolCount}
+            messageCount={completedToolHistory.messageCount}
+          />
+        </AnimatedBlockWrapper>
+      )}
       {grouped.map((entry) => {
-        if (Array.isArray(entry)) {
-          // Grouped parts (images, tools, videos)
-          const groupKey = entry.map((e) => `${message.id}-part-${e.index}`).join('-')
-          const firstPart = entry[0].part
-
-          if (isImageFilePart(firstPart)) {
-            // Extract image URLs directly from file parts
-            const images = entry.map((e) => extractImageUrl(e.part)).filter(Boolean) as string[]
-            if (images.length === 0) return null
-
-            if (images.length === 1) {
-              return (
-                <AnimatedBlockWrapper key={groupKey} enableAnimation={isStreaming}>
-                  <ImageBlock images={images} isSingle={true} />
-                </AnimatedBlockWrapper>
-              )
-            }
-            return (
-              <AnimatedBlockWrapper key={groupKey} enableAnimation={isStreaming}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, maxWidth: '100%' }}>
-                  {images.map((src, i) => (
-                    <ImageBlock key={`${groupKey}-img-${i}`} images={[src]} isSingle={false} />
-                  ))}
-                </div>
-              </AnimatedBlockWrapper>
-            )
-          }
-
-          if (isToolPart(firstPart)) {
-            const stableGroupKey = `tool-group-${message.id}-part-${entry[0].index}`
-            return (
-              <AnimatedBlockWrapper key={stableGroupKey} enableAnimation={isStreaming}>
-                <ToolGroupView entries={entry} messageId={message.id} />
-              </AnimatedBlockWrapper>
-            )
-          }
-
-          if (isVideoDataPart(firstPart)) {
-            // Video group — render first only (dedup by filePath)
-            const firstEntry = entry[0]
-            const partId = `${message.id}-part-${firstEntry.index}`
-            return (
-              <AnimatedBlockWrapper key={groupKey} enableAnimation={isStreaming}>
-                {renderPart(firstEntry.part, partId, message, isStreaming)}
-              </AnimatedBlockWrapper>
-            )
-          }
-
-          return null
-        }
-
-        // Single part
-        const partId = `${message.id}-part-${entry.index}`
-        const rendered = renderPart(entry.part, partId, message, isStreaming)
-        if (!rendered) return null
-
-        return (
-          <AnimatedBlockWrapper key={partId} enableAnimation={isStreaming}>
-            {rendered}
-          </AnimatedBlockWrapper>
-        )
+        return renderGroupedEntry(entry, message, isStreaming)
       })}
       {isProcessing && (
         <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>

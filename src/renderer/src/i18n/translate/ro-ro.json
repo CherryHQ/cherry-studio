@@ -3048,6 +3048,7 @@
       "completed": "Finalizat",
       "error": "A apărut o eroare",
       "groupHeader": "{{count}} apeluri de instrumente",
+      "groupHeaderWithMessages": "{{toolCount}} apeluri de instrumente, {{messageCount}} mesaje",
       "invoking": "Se invocă",
       "labels": {
         "bash": "Bash",

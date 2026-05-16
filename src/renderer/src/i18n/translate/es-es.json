@@ -3048,6 +3048,7 @@
       "completed": "Completado",
       "error": "Se ha producido un error",
       "groupHeader": "{{count}} llamadas a herramientas",
+      "groupHeaderWithMessages": "{{toolCount}} llamadas a herramientas, {{messageCount}} mensajes",
       "invoking": "En llamada",
       "labels": {
         "bash": "Bash",

@@ -3048,6 +3048,7 @@
       "completed": "Abgeschlossen",
       "error": "Fehler aufgetreten",
       "groupHeader": "{{count}} Toolaufrufe",
+      "groupHeaderWithMessages": "{{toolCount}} Toolaufrufe, {{messageCount}} Nachrichten",
       "invoking": "Wird aufgerufen",
       "labels": {
         "bash": "Bash",

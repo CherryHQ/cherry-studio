@@ -3048,6 +3048,7 @@
       "completed": "Hoàn thành",
       "error": "Đã xảy ra lỗi",
       "groupHeader": "{{count}} appels d’outil",
+      "groupHeaderWithMessages": "{{toolCount}} cuộc gọi công cụ, {{messageCount}} tin nhắn",
       "invoking": "Invocando",
       "labels": {
         "bash": "Bash",

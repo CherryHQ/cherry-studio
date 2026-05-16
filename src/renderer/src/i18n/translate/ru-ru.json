@@ -3048,6 +3048,7 @@
       "completed": "Завершено",
       "error": "Произошла ошибка",
       "groupHeader": "{{count}} вызовов инструментов",
+      "groupHeaderWithMessages": "{{toolCount}} вызовов инструментов, {{messageCount}} сообщений",
       "invoking": "Вызов",
       "labels": {
         "bash": "Баш",

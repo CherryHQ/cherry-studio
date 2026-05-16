@@ -3165,6 +3165,7 @@
       "completed": "已完成",
       "error": "发生错误",
       "groupHeader": "{{count}} 个工具调用",
+      "groupHeaderWithMessages": "{{toolCount}} 个工具调用，{{messageCount}} 条消息",
       "invoking": "调用中",
       "labels": {
         "bash": "执行命令",

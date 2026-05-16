@@ -3165,6 +3165,7 @@
       "completed": "Completed",
       "error": "Error occurred",
       "groupHeader": "{{count}} tool calls",
+      "groupHeaderWithMessages": "{{toolCount}} tool calls, {{messageCount}} messages",
       "invoking": "Invoking",
       "labels": {
         "bash": "Bash",

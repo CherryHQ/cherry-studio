@@ -3048,6 +3048,7 @@
       "completed": "Ολοκληρώθηκε",
       "error": "Προέκυψε σφάλμα",
       "groupHeader": "{{count}} κλήσεις εργαλείων",
+      "groupHeaderWithMessages": "{{toolCount}} κλήσεις εργαλείων, {{messageCount}} μηνύματα",
       "invoking": "κλήση σε εξέλιξη",
       "labels": {
         "bash": "Μπας",

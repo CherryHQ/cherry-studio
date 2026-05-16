@@ -3048,6 +3048,7 @@
       "completed": "完了",
       "error": "エラーが発生しました",
       "groupHeader": "{{count}}ツール呼び出し",
+      "groupHeaderWithMessages": "{{toolCount}}ツール呼び出し、{{messageCount}}メッセージ",
       "invoking": "呼び出し中",
       "labels": {
         "bash": "バッシュ",
