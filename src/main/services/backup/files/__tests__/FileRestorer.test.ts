@@ -139,4 +139,103 @@ describe('FileRestorer', () => {
 
     expect(result).toEqual({ restored: 0, skipped: 0 })
   })
+
+  describe('restoreKnowledgeBases', () => {
+    let kbLiveDir: string
+
+    beforeEach(async () => {
+      kbLiveDir = path.join(tmpDir, 'kb-live')
+      await fsp.mkdir(kbLiveDir, { recursive: true })
+
+      const { application } = await import('@application')
+      vi.mocked(application.getPath).mockImplementation((key: string) => {
+        if (key === 'feature.files.data') return liveDir
+        if (key === 'feature.knowledgebase.data') return kbLiveDir
+        return liveDir
+      })
+
+      const mod = await import('../FileRestorer')
+      FileRestorer = mod.FileRestorer
+    })
+
+    it('restores new KB directories', async () => {
+      const extractDir = path.join(tmpDir, 'extract')
+      const kbDir = path.join(extractDir, 'knowledge', 'kb-1')
+      await fsp.mkdir(kbDir, { recursive: true })
+      await fsp.writeFile(path.join(kbDir, 'data.db'), 'vector-data')
+
+      const restorer = new FileRestorer(extractDir, createMockTracker() as never, createMockToken() as never)
+      const result = await restorer.restoreKnowledgeBases(ConflictStrategy.OVERWRITE)
+
+      expect(result.restored).toBe(1)
+      expect(result.skipped).toBe(0)
+      const content = await fsp.readFile(path.join(kbLiveDir, 'kb-1', 'data.db'), 'utf-8')
+      expect(content).toBe('vector-data')
+    })
+
+    it('skips KB directories when total byte size matches', async () => {
+      const extractDir = path.join(tmpDir, 'extract')
+      const kbDir = path.join(extractDir, 'knowledge', 'kb-1')
+      await fsp.mkdir(kbDir, { recursive: true })
+      await fsp.writeFile(path.join(kbDir, 'data.db'), 'AAAA')
+
+      const liveKbDir = path.join(kbLiveDir, 'kb-1')
+      await fsp.mkdir(liveKbDir, { recursive: true })
+      await fsp.writeFile(path.join(liveKbDir, 'data.db'), 'BBBB')
+
+      const restorer = new FileRestorer(extractDir, createMockTracker() as never, createMockToken() as never)
+      const result = await restorer.restoreKnowledgeBases(ConflictStrategy.OVERWRITE)
+
+      // Same total byte size → skip
+      expect(result.skipped).toBe(1)
+      expect(result.restored).toBe(0)
+      const content = await fsp.readFile(path.join(kbLiveDir, 'kb-1', 'data.db'), 'utf-8')
+      expect(content).toBe('BBBB')
+    })
+
+    it('overwrites KB directories when sizes differ', async () => {
+      const extractDir = path.join(tmpDir, 'extract')
+      const kbDir = path.join(extractDir, 'knowledge', 'kb-1')
+      await fsp.mkdir(kbDir, { recursive: true })
+      await fsp.writeFile(path.join(kbDir, 'data.db'), 'LARGER DATA')
+
+      const liveKbDir = path.join(kbLiveDir, 'kb-1')
+      await fsp.mkdir(liveKbDir, { recursive: true })
+      await fsp.writeFile(path.join(liveKbDir, 'data.db'), 'SM')
+
+      const restorer = new FileRestorer(extractDir, createMockTracker() as never, createMockToken() as never)
+      const result = await restorer.restoreKnowledgeBases(ConflictStrategy.OVERWRITE)
+
+      expect(result.restored).toBe(1)
+      const content = await fsp.readFile(path.join(kbLiveDir, 'kb-1', 'data.db'), 'utf-8')
+      expect(content).toBe('LARGER DATA')
+    })
+
+    it('skips existing KB directories with SKIP strategy', async () => {
+      const extractDir = path.join(tmpDir, 'extract')
+      const kbDir = path.join(extractDir, 'knowledge', 'kb-1')
+      await fsp.mkdir(kbDir, { recursive: true })
+      await fsp.writeFile(path.join(kbDir, 'data.db'), 'X')
+
+      const liveKbDir = path.join(kbLiveDir, 'kb-1')
+      await fsp.mkdir(liveKbDir, { recursive: true })
+      await fsp.writeFile(path.join(liveKbDir, 'data.db'), 'Y')
+
+      const restorer = new FileRestorer(extractDir, createMockTracker() as never, createMockToken() as never)
+      const result = await restorer.restoreKnowledgeBases(ConflictStrategy.SKIP)
+
+      expect(result.skipped).toBe(1)
+      expect(result.restored).toBe(0)
+    })
+
+    it('returns zero when knowledge directory does not exist', async () => {
+      const emptyExtract = path.join(tmpDir, 'empty-extract')
+      await fsp.mkdir(emptyExtract, { recursive: true })
+
+      const restorer = new FileRestorer(emptyExtract, createMockTracker() as never, createMockToken() as never)
+      const result = await restorer.restoreKnowledgeBases(ConflictStrategy.OVERWRITE)
+
+      expect(result).toEqual({ restored: 0, skipped: 0 })
+    })
+  })
 })

@@ -157,6 +157,8 @@ export class BackupValidatorImpl {
     errors: ValidationResult['errors'],
     warnings: ValidationResult['warnings']
   ): Promise<void> {
+    if (!manifest.schemaVersion?.hash) return
+
     const live = await this.getLiveSchemaVersion()
     const backupHash = manifest.schemaVersion.hash
 

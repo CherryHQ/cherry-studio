@@ -35,11 +35,11 @@ export class FileRestorer {
       const targetPath = path.join(targetDir, entry.name)
 
       if (fs.existsSync(targetPath)) {
-        const srcSize = fs.statSync(sourcePath).size
-        const tgtSize = fs.statSync(targetPath).size
+        const srcStat = await fsp.stat(sourcePath)
+        const tgtStat = await fsp.stat(targetPath)
 
         // Same name + same size → skip regardless of strategy (spec §7.3)
-        if (srcSize === tgtSize) {
+        if (srcStat.size === tgtStat.size) {
           skipped++
           continue
         }
@@ -83,11 +83,11 @@ export class FileRestorer {
       const targetPath = path.join(targetDir, entry.name)
 
       if (fs.existsSync(targetPath)) {
-        // For KB directories, compare total file count as a proxy for size
-        const srcFiles = await this.countFilesRecursive(sourcePath)
-        const tgtFiles = await this.countFilesRecursive(targetPath)
+        // Compare total byte size of directories as a proxy for content equivalence (spec §7.3)
+        const srcSize = await this.directorySizeRecursive(sourcePath)
+        const tgtSize = await this.directorySizeRecursive(targetPath)
 
-        if (srcFiles === tgtFiles) {
+        if (srcSize === tgtSize) {
           skipped++
           continue
         }
@@ -107,16 +107,19 @@ export class FileRestorer {
     return { restored, skipped }
   }
 
-  private async countFilesRecursive(dir: string): Promise<number> {
-    let count = 0
+  /** Sum of all file sizes in a directory tree (bytes). */
+  private async directorySizeRecursive(dir: string): Promise<number> {
+    let total = 0
     const entries = await fsp.readdir(dir, { withFileTypes: true })
     for (const entry of entries) {
+      const full = path.join(dir, entry.name)
       if (entry.isDirectory()) {
-        count += await this.countFilesRecursive(path.join(dir, entry.name))
+        total += await this.directorySizeRecursive(full)
       } else {
-        count++
+        const stat = await fsp.stat(full)
+        total += stat.size
       }
     }
-    return count
+    return total
   }
 }
