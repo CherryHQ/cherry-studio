@@ -710,6 +710,7 @@ class StreamingService {
             promptTokens: task.message.usage?.prompt_tokens,
             completionTokens: task.message.usage?.completion_tokens,
             totalTokens: task.message.usage?.total_tokens,
+            cachedTokens: task.message.usage?.prompt_tokens_details?.cached_tokens,
             timeFirstTokenMs: task.message.metrics?.time_first_token_millsec,
             timeCompletionMs: task.message.metrics?.time_completion_millsec
           }

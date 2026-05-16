@@ -11,6 +11,9 @@ export const MessageStatsSchema = z.strictObject({
   totalTokens: z.number().optional(),
   thoughtsTokens: z.number().optional(),
 
+  // Cache hit tokens from API (e.g. prompt_tokens_details.cached_tokens)
+  cachedTokens: z.number().optional(),
+
   // Cost (calculated at message completion time)
   cost: z.number().optional(),
 

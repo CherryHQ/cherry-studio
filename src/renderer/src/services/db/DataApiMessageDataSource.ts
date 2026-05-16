@@ -117,7 +117,10 @@ function convertSharedMessage(
       usage: {
         prompt_tokens: shared.stats.promptTokens ?? 0,
         completion_tokens: shared.stats.completionTokens ?? 0,
-        total_tokens: shared.stats.totalTokens ?? 0
+        total_tokens: shared.stats.totalTokens ?? 0,
+        ...(shared.stats.cachedTokens !== undefined && {
+          prompt_tokens_details: { cached_tokens: shared.stats.cachedTokens }
+        })
       },
       metrics: {
         completion_tokens: shared.stats.completionTokens ?? 0,
