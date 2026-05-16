@@ -166,9 +166,12 @@ describe('autoRenameTopic', () => {
     ;(window as unknown as { toast: { error: ReturnType<typeof vi.fn> } }).toast = { error: vi.fn() }
   })
 
-  it('does not rename or request a summary when auto topic naming is disabled', async () => {
+  it('uses first-message fallback but skips LLM when auto topic naming is disabled', async () => {
     const topic = createTopic()
     const assistant = setupTopic(topic)
+    await act(async () => {
+      renderHook(() => useActiveTopic(assistant.id, topic))
+    })
     mockGetStoreSetting.mockImplementation((key: string) => {
       if (key === 'enableTopicNaming') return false
       return undefined
@@ -177,9 +180,12 @@ describe('autoRenameTopic', () => {
     await autoRenameTopic(assistant, topic.id)
 
     expect(mockFetchMessagesSummary).not.toHaveBeenCalled()
-    expect(mockUpdateTopic).not.toHaveBeenCalled()
-    expect(mockSetRenamingTopics).not.toHaveBeenCalled()
-    expect(mockSetNewlyRenamedTopics).not.toHaveBeenCalled()
+    expect(mockUpdateTopic).toHaveBeenCalledWith({
+      assistantId: assistant.id,
+      topic: expect.objectContaining({ name: 'First user message' })
+    })
+    expect(mockSetRenamingTopics).toHaveBeenCalledWith([topic.id])
+    expect(mockSetNewlyRenamedTopics).toHaveBeenCalledWith([topic.id])
   })
 
   it('still requests a summary and updates eligible topics when auto topic naming is enabled', async () => {
