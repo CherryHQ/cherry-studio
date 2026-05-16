@@ -101,7 +101,7 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 // Mock dependencies
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: () => ({ provider: { id: 'test-provider', name: 'Test Provider' } })
 }))
 

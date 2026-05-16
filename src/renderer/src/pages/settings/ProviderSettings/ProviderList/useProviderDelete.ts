@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { useProviderActions } from '@renderer/hooks/useProviders'
+import { useProviderActions } from '@renderer/hooks/useProvider'
 import type { Provider } from '@shared/data/types/provider'
 import { useCallback } from 'react'
 

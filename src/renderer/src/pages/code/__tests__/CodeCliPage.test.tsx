@@ -79,7 +79,7 @@ vi.mock('@renderer/hooks/useCodeCli', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: () => ({ providers: [] }),
   getProviderDisplayName: (provider: { name?: string; id?: string }) => provider?.name ?? provider?.id ?? ''
 }))

@@ -1,7 +1,7 @@
 import { Button, Input, Slider, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useCopilot } from '@renderer/hooks/useCopilot'
-import { useProvider } from '@renderer/hooks/useProviders'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { cn } from '@renderer/utils'
 import { CheckCircle2, CircleAlert, Copy } from 'lucide-react'
 import type { FC } from 'react'

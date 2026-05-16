@@ -1,6 +1,6 @@
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import CustomTag from '@renderer/components/Tags/CustomTag'
-import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProviders'
+import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
 import type { Model } from '@shared/data/types/model'
 import type { FC } from 'react'
 import styled from 'styled-components'

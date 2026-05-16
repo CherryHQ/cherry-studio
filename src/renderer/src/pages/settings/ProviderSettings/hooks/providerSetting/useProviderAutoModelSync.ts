@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModels'
-import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProviders'
+import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { getProviderHostTopology } from '@renderer/pages/settings/ProviderSettings/utils/providerTopology'
 import { useEffect, useMemo, useRef } from 'react'
 

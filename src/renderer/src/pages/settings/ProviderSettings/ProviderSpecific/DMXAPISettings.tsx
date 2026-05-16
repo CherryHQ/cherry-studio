@@ -1,6 +1,6 @@
 import { Label, RadioGroup, RadioGroupItem } from '@cherrystudio/ui'
 import { Dmxapi } from '@cherrystudio/ui/icons'
-import { useProvider } from '@renderer/hooks/useProviders'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { replaceEndpointConfigDomain } from '@renderer/pages/settings/ProviderSettings/utils/provider'
 import type { Provider } from '@shared/data/types/provider'
 import type { FC } from 'react'

@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { useProviders } from '@renderer/hooks/useProviders'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { useAppDispatch } from '@renderer/store'
 import { setDefaultPaintingProvider } from '@renderer/store/settings'
 import { updateTab } from '@renderer/store/tabs'

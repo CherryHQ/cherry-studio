@@ -1,5 +1,5 @@
 import { Button, Input, Switch, Tooltip } from '@cherrystudio/ui'
-import { useProvider } from '@renderer/hooks/useProviders'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { cn } from '@renderer/utils'
 import type { Provider, RuntimeApiFeatures } from '@shared/data/types/provider'
 import { Info } from 'lucide-react'

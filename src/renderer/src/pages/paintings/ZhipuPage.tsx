@@ -6,7 +6,7 @@ import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navb
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { useProviders } from '@renderer/hooks/useProviders'
+import { useProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'

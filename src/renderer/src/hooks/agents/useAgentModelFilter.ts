@@ -15,7 +15,7 @@
  */
 
 import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
-import { useProviders } from '@renderer/hooks/useProviders'
+import { useProviders } from '@renderer/hooks/useProvider'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'

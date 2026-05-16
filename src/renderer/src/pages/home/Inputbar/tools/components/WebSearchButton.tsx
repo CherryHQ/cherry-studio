@@ -1,6 +1,6 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useProvider } from '@renderer/hooks/useProviders'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { getWebSearchProviderLogo } from '@renderer/pages/settings/WebSearchSettings/utils/webSearchProviderMeta'

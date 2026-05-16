@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { useProviderActions, useProviders } from '@renderer/hooks/useProviders'
+import { useProviderActions, useProviders } from '@renderer/hooks/useProvider'
 import { uuid } from '@renderer/utils'
 import type { EndpointType } from '@shared/data/types/model'
 import type { AuthConfig, Provider } from '@shared/data/types/provider'

@@ -1,5 +1,5 @@
 import { useReorder } from '@data/hooks/useReorder'
-import { useProviders } from '@renderer/hooks/useProviders'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import {
   canManageProvider,

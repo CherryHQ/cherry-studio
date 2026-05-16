@@ -1,5 +1,5 @@
 import Selector from '@renderer/components/Selector'
-import { useProvider } from '@renderer/hooks/useProviders'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { SettingRow } from '@renderer/pages/settings'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'
 import type { Model } from '@shared/data/types/model'

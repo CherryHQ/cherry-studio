@@ -1,7 +1,7 @@
 import { Button, Skeleton } from '@cherrystudio/ui'
 import { Cherryin } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
-import { useProvider, useProviderAuthConfig } from '@renderer/hooks/useProviders'
+import { useProvider, useProviderAuthConfig } from '@renderer/hooks/useProvider'
 import { oauthCardClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { hasApiKeys } from '@renderer/pages/settings/ProviderSettings/utils/provider'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'

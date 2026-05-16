@@ -1,6 +1,6 @@
 import { Input, Label, RadioGroup, RadioGroupItem, RowFlex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { useProvider, useProviderAuthConfig } from '@renderer/hooks/useProviders'
+import { useProvider, useProviderAuthConfig } from '@renderer/hooks/useProvider'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'

@@ -1,6 +1,6 @@
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
-import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProviders'
+import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { Select } from 'antd'
 import type { FC } from 'react'

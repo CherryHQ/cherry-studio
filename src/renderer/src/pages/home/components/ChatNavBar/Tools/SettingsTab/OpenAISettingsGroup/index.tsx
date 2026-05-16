@@ -1,4 +1,4 @@
-import { useProvider } from '@renderer/hooks/useProviders'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { SettingDivider } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import { SystemProviderIds } from '@renderer/types'

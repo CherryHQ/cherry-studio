@@ -18,7 +18,7 @@ vi.mock('../../../utils/providerSettingsSideEffects', () => ({
   applyProviderApiKeySideEffects: vi.fn()
 }))
 
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args),
   useProviderApiKeys: (...args: any[]) => useProviderApiKeysMock(...args),
   useProviderMutations: (...args: any[]) => useProviderMutationsMock(...args)

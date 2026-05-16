@@ -12,7 +12,7 @@ import {
   useProviderDisplayName,
   useProviderMutations,
   useProviders
-} from '../useProviders'
+} from '../useProvider'
 
 // ─── Mock data ────────────────────────────────────────────────────────
 const mockProvider1: any = {

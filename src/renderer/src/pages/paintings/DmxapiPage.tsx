@@ -6,7 +6,7 @@ import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navb
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { useProviderApiKeys, useProviders } from '@renderer/hooks/useProviders'
+import { useProviderApiKeys, useProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types'
 import { convertToBase64, uuid } from '@renderer/utils'

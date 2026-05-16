@@ -12,7 +12,7 @@ import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useModels } from '@renderer/hooks/useModels'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { useProviderApiKeys, useProviders } from '@renderer/hooks/useProviders'
+import { useProviderApiKeys, useProviders } from '@renderer/hooks/useProvider'
 import {
   getPaintingsBackgroundOptionsLabel,
   getPaintingsImageSizeOptionsLabel,

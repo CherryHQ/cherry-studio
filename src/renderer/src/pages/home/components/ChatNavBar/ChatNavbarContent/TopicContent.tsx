@@ -5,7 +5,7 @@ import HorizontalScrollContainer from '@renderer/components/HorizontalScrollCont
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { AssistantSelector } from '@renderer/components/ResourceSelector'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useProviderDisplayName } from '@renderer/hooks/useProviders'
+import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
 import { getLeadingEmoji } from '@renderer/utils'
 import type { Model as SharedModel } from '@shared/data/types/model'

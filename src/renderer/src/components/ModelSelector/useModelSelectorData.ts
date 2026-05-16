@@ -1,6 +1,6 @@
 import { useModels } from '@renderer/hooks/useModels'
 import { usePins } from '@renderer/hooks/usePins'
-import { useProviders } from '@renderer/hooks/useProviders'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { sortBy } from 'lodash'

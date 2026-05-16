@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModels'
-import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProviders'
+import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n'
 import { checkModelsHealth } from '@renderer/pages/settings/ProviderSettings/ModelList/checkModelsHealth'
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
