@@ -203,3 +203,10 @@ export const isSupportAnthropicPromptCacheProvider = (provider: Provider) => {
     isAzureOpenAIProvider(provider)
   )
 }
+
+// Providers that run locally and don't require network round-trips
+export const LOCAL_MODEL_SERVER_IDS: readonly SystemProviderId[] = ['ollama', 'lmstudio', 'ovms'] as const
+
+export const isLocalModelServer = (provider: Provider): boolean => {
+  return (LOCAL_MODEL_SERVER_IDS as readonly string[]).includes(provider.id)
+}
