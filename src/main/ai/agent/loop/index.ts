@@ -61,7 +61,7 @@ export interface AgentLoopHooks {
   prepareStep?: PrepareStepFunction
 
   /** Forwarded to AI SDK onStepFinish. Use for: progress push, otel step span */
-  onStepFinish?: (step: StepResult<ToolSet>) => void
+  onStepFinish?: (step: StepResult<ToolSet>) => Promise<void> | void
 
   /** Fires before a tool's `execute` runs. Use for: progress push, otel tool span start. */
   onToolExecutionStart?: (event: ToolExecutionStartEvent) => Promise<void> | void
