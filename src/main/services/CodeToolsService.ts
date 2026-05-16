@@ -1010,21 +1010,22 @@ class CodeToolsService {
     }
 
     // Add configuration parameters for OpenAI Codex using command line args
-    if (cliTool === codeTools.openaiCodex && env.OPENAI_MODEL_PROVIDER) {
-      const providerId = env.OPENAI_MODEL_PROVIDER
-      const providerName = env.OPENAI_MODEL_PROVIDER_NAME || providerId
-      const normalizedBaseUrl = env.OPENAI_BASE_URL.replace(/\/$/, '')
+    if (cliTool === codeTools.openaiCodex && env.CHERRY_CODEX_PROVIDER_ID) {
+      const providerId = env.CHERRY_CODEX_PROVIDER_ID
+      const providerName = env.CHERRY_CODEX_PROVIDER_NAME || providerId
+      const normalizedBaseUrl = env.CHERRY_CODEX_BASE_URL.replace(/\/$/, '')
       const model = _model
-
+      // All Codex providers use Cherry- prefix to avoid conflicts with built-in provider IDs
+      const cherryProviderKey = `Cherry-${providerName.replace(/\./g, '-')}`
       const configParams = [
-        `--config model_provider="${providerId}"`,
-        `--config model_providers.${providerId}.name="${providerName}"`,
-        `--config model_providers.${providerId}.base_url="${normalizedBaseUrl}"`,
-        `--config model_providers.${providerId}.env_key="OPENAI_API_KEY"`,
-        `--config model_providers.${providerId}.wire_api="responses"`,
+        `--config model_provider="${cherryProviderKey}"`,
+        `--config model_providers.${cherryProviderKey}.name="${providerName}"`,
+        `--config model_providers.${cherryProviderKey}.base_url="${normalizedBaseUrl}"`,
+        `--config model_providers.${cherryProviderKey}.env_key="CHERRY_CODEX_API_KEY"`,
+        `--config model_providers.${cherryProviderKey}.wire_api="responses"`,
         `--config model="${model}"`
-      ].join(' ')
-      baseCommand = `${baseCommand} ${configParams}`
+      ]
+      baseCommand = `${baseCommand} ${configParams.join(' ')}`
     }
 
     // Special handling for OpenCode: generate config file and add --model flag
