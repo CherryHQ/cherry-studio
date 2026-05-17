@@ -111,6 +111,7 @@ const ThinkModelTypes = [
   'gpt_oss',
   'grok',
   'grok4_fast',
+  'grok_4_3',
   'gemini2_flash',
   'gemini2_pro',
   'gemini3_flash',
