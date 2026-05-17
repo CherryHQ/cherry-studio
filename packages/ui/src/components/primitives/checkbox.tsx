@@ -15,7 +15,7 @@ const checkboxVariants = cva(
     'focus-visible:ring-3 focus-visible:ring-primary/20',
     'aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive',
     'disabled:cursor-not-allowed disabled:border-gray-500/10 disabled:bg-background-subtle',
-    'bg-white/10 shadow-xs'
+    'bg-white/10'
   ),
   {
     variants: {
