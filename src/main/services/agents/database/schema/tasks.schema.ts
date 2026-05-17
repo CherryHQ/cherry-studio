@@ -17,6 +17,7 @@ export const scheduledTasksTable = sqliteTable('scheduled_tasks', {
   next_run: text('next_run'),
   last_run: text('last_run'),
   last_result: text('last_result'),
+  timezone: text('timezone'), // IANA timezone, e.g. 'Asia/Shanghai'. null = UTC for cron
   status: text('status').notNull().default('active'), // 'active' | 'paused' | 'completed'
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull()

@@ -56,6 +56,13 @@
       "when": 1776236285350,
       "tag": "0007_strange_galactus",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1778361600000,
+      "tag": "0008_add_task_timezone",
+      "breakpoints": true
     }
   ],
   "version": "7"

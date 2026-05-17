@@ -110,6 +110,7 @@ const TaskDetail: FC<{
   const [agentId, setAgentId] = useState(task.agent_id)
   const [scheduleType, setScheduleType] = useState(task.schedule_type)
   const [scheduleValue, setScheduleValue] = useState(task.schedule_value)
+  const [timezone, setTimezone] = useState(task.timezone ?? '')
   const [timeoutMinutes, setTimeoutMinutes] = useState<string>(task.timeout_minutes?.toString() ?? '')
   const [channelIds, setChannelIds] = useState<string[]>(task.channel_ids ?? [])
 
@@ -119,6 +120,7 @@ const TaskDetail: FC<{
     setAgentId(task.agent_id)
     setScheduleType(task.schedule_type)
     setScheduleValue(task.schedule_value)
+    setTimezone(task.timezone ?? '')
     setTimeoutMinutes(task.timeout_minutes?.toString() ?? '')
     setChannelIds(task.channel_ids ?? [])
   }, [task])
@@ -147,7 +149,9 @@ const TaskDetail: FC<{
   }
 
   const formatScheduleValue = () => {
-    if (task.schedule_type === 'cron') return task.schedule_value
+    if (task.schedule_type === 'cron') {
+      return task.timezone ? `${task.schedule_value} (${task.timezone})` : `${task.schedule_value} (UTC)`
+    }
     if (task.schedule_type === 'interval') return `${task.schedule_value} ${t('agent.cherryClaw.tasks.intervalUnit')}`
     if (task.schedule_type === 'once' && task.schedule_value) {
       return formatDateTime(task.schedule_value)
@@ -363,6 +367,26 @@ const TaskDetail: FC<{
             />
           </div>
         </div>
+        {scheduleType === 'cron' && (
+          <>
+            <SettingDivider />
+            <SettingRow style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+              <SettingRowTitle>{t('agent.cherryClaw.tasks.timezone.label', 'Timezone')}</SettingRowTitle>
+              <Input
+                size="small"
+                value={timezone}
+                onChange={(e) => setTimezone(e.target.value)}
+                onBlur={() => {
+                  const val = timezone.trim() || null
+                  const prev = task.timezone ?? null
+                  if (val !== prev) saveField({ timezone: val })
+                }}
+                placeholder="e.g. Asia/Shanghai, America/New_York (default: UTC)"
+                disabled={isCompleted}
+              />
+            </SettingRow>
+          </>
+        )}
         <TaskChannelSelector
           channels={channels}
           channelIds={channelIds}
@@ -580,6 +604,7 @@ const CreateForm: FC<{
   const [promptModalOpen, setPromptModalOpen] = useState(false)
   const [scheduleType, setScheduleType] = useState<'cron' | 'interval' | 'once'>('interval')
   const [scheduleValue, setScheduleValue] = useState('')
+  const [timezone, setTimezone] = useState('')
   const [timeoutMinutes, setTimeoutMinutes] = useState('')
   const [channelIds, setChannelIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
@@ -597,12 +622,13 @@ const CreateForm: FC<{
         schedule_type: scheduleType,
         schedule_value: scheduleValue.trim(),
         timeout_minutes: timeout && timeout > 0 ? timeout : undefined,
+        timezone: timezone.trim() || undefined,
         channel_ids: channelIds.length > 0 ? channelIds : undefined
       })
     } finally {
       setSaving(false)
     }
-  }, [agentId, name, prompt, scheduleType, scheduleValue, timeoutMinutes, channelIds, onCreate])
+  }, [agentId, name, prompt, scheduleType, scheduleValue, timezone, timeoutMinutes, channelIds, onCreate])
 
   return (
     <SettingContainer theme={theme}>
@@ -741,6 +767,17 @@ const CreateForm: FC<{
             />
           </div>
         </div>
+        {scheduleType === 'cron' && (
+          <SettingRow style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+            <SettingRowTitle>{t('agent.cherryClaw.tasks.timezone.label', 'Timezone')}</SettingRowTitle>
+            <Input
+              size="small"
+              value={timezone}
+              onChange={(e) => setTimezone(e.target.value)}
+              placeholder="e.g. Asia/Shanghai, America/New_York (default: UTC)"
+            />
+          </SettingRow>
+        )}
         <TaskChannelSelector channels={channels} channelIds={channelIds} onChange={setChannelIds} />
         <SettingDivider />
 

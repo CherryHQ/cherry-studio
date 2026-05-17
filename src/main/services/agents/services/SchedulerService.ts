@@ -213,6 +213,10 @@ class SchedulerService {
 
       // For heartbeat tasks, read prompt from workspace heartbeat.md file
       let fullPrompt = task.prompt
+      // Inject timezone context so the agent uses correct dates/times during execution
+      if (task.timezone && task.schedule_type === 'cron') {
+        fullPrompt = `[Scheduled task timezone: ${task.timezone}]\n\n${fullPrompt}`
+      }
       if (task.name === 'heartbeat') {
         if (config.heartbeat_enabled === false || !workspacePath) {
           logger.debug('Heartbeat task skipped (disabled or no workspace)', { taskId: task.id })
