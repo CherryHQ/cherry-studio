@@ -3,10 +3,6 @@ import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@renderer/hooks/useStore', () => ({
-  getStoreProviders: vi.fn(() => [])
-}))
-
 vi.mock('@renderer/store', () => ({
   __esModule: true,
   default: {

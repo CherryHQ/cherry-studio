@@ -30,10 +30,6 @@ const isPureGenerateImageModel = adapt(_isPureGenerateImageModel)
 const isTextToImageModel = adapt(_isTextToImageModel)
 const isVisionModel = adapt(_isVisionModel)
 
-vi.mock('@renderer/hooks/useStore', () => ({
-  getStoreProviders: vi.fn(() => [])
-}))
-
 vi.mock('@renderer/store', () => ({
   __esModule: true,
   default: {

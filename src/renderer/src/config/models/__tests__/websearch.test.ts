@@ -10,10 +10,6 @@ vi.mock('@renderer/services/AssistantService', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useStore', () => ({
-  getStoreProviders: vi.fn(() => [])
-}))
-
 vi.mock('@renderer/store', () => ({
   __esModule: true,
   default: {

@@ -28,10 +28,6 @@ vi.mock('@renderer/store', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useStore', () => ({
-  getStoreProviders: vi.fn(() => [])
-}))
-
 const createModel = (overrides: Partial<V1Model> = {}): Model =>
   toSharedCompatModel({ id: 'gpt-4o', name: 'gpt-4o', provider: 'openai', group: 'OpenAI', ...overrides } as V1Model)
 

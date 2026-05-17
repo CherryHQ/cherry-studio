@@ -26,12 +26,12 @@ import { allMiniApps } from '@renderer/config/miniApps'
 import { isFunctionCallingModel, isNotSupportTextDeltaModel, qwenModel, SYSTEM_MODELS } from '@renderer/config/models'
 import { toSharedCompatModel } from '@renderer/config/models/_bridge'
 import { BUILTIN_OCR_PROVIDERS, BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
-import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
+import { CHERRYAI_PROVIDER, SYSTEM_PROVIDERS } from '@renderer/config/providers'
 // import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import db from '@renderer/databases'
-import { getStoreProviders } from '@renderer/hooks/useStore'
 import i18n from '@renderer/i18n'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
+import store from '@renderer/store'
 import { defaultPreprocessProviders } from '@renderer/store/preprocess'
 import type {
   BuiltinOcrProvider,
@@ -3090,7 +3090,10 @@ const migrateConfig = {
       // @ts-ignore
       const memoryEmbeddingApiClient = state?.memory?.memoryConfig?.embedderApiClient
 
-      const allModels = getStoreProviders().flatMap((p) => p.models)
+      const allModels = store
+        .getState()
+        .llm.providers.concat([CHERRYAI_PROVIDER])
+        .flatMap((p) => p.models)
       const findModel = (id: string, provider: string) => allModels.find((m) => m.id === id && m.provider === provider)
 
       if (memoryLlmApiClient) {
