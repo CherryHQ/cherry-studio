@@ -541,8 +541,94 @@ describe('StreamEventManager', () => {
       })
     })
 
-    it('should warn when no fullStream is found', async () => {
-      const warnSpy = vi.spyOn(console, 'warn')
+    it('should pipe recursive stream-like results', async () => {
+      const controller = createMockStreamController()
+      const enqueuedChunks: TextStreamPart<EmptyToolSet>[] = []
+      controller.enqueue.mockImplementation((chunk: TextStreamPart<EmptyToolSet>) => {
+        enqueuedChunks.push(chunk)
+      })
+
+      const reader = {
+        read: vi
+          .fn()
+          .mockResolvedValueOnce({ done: false, value: { type: 'start' as const } })
+          .mockResolvedValueOnce({
+            done: false,
+            value: { type: 'text-delta' as const, id: 'chunk-1', text: 'recursive' }
+          })
+          .mockResolvedValueOnce({
+            done: false,
+            value: { type: 'finish' as const, finishReason: 'stop', rawFinishReason: 'stop' }
+          })
+          .mockResolvedValueOnce({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+        cancel: vi.fn().mockResolvedValue(undefined)
+      }
+
+      const streamLike = {
+        getReader: vi.fn(() => reader)
+      }
+
+      const context = createMockContext({
+        hasExecutedToolsInCurrentStep: true,
+        recursiveCall: vi.fn().mockResolvedValue({
+          fullStream: streamLike
+        })
+      })
+
+      await manager.handleRecursiveCall(controller, {}, context)
+
+      expect(enqueuedChunks).toEqual([{ type: 'text-delta', id: 'chunk-1', text: 'recursive' }])
+      expect(reader.releaseLock).toHaveBeenCalled()
+    })
+
+    it('should pipe recursive results even when fullStream is inherited', async () => {
+      const controller = createMockStreamController()
+      const enqueuedChunks: TextStreamPart<EmptyToolSet>[] = []
+      controller.enqueue.mockImplementation((chunk: TextStreamPart<EmptyToolSet>) => {
+        enqueuedChunks.push(chunk)
+      })
+
+      const reader = {
+        read: vi
+          .fn()
+          .mockResolvedValueOnce({ done: false, value: { type: 'start' as const } })
+          .mockResolvedValueOnce({
+            done: false,
+            value: { type: 'text-delta' as const, id: 'chunk-1', text: 'recursive' }
+          })
+          .mockResolvedValueOnce({
+            done: false,
+            value: { type: 'finish' as const, finishReason: 'stop', rawFinishReason: 'stop' }
+          })
+          .mockResolvedValueOnce({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+        cancel: vi.fn().mockResolvedValue(undefined)
+      }
+
+      const streamLike = {
+        getReader: vi.fn(() => reader)
+      }
+
+      const recursiveResult = Object.create({
+        fullStream: streamLike
+      })
+
+      expect(Object.keys(recursiveResult)).toEqual([])
+
+      const context = createMockContext({
+        hasExecutedToolsInCurrentStep: true,
+        recursiveCall: vi.fn().mockResolvedValue(recursiveResult)
+      })
+
+      await manager.handleRecursiveCall(controller, {}, context)
+
+      expect(enqueuedChunks).toEqual([{ type: 'text-delta', id: 'chunk-1', text: 'recursive' }])
+      expect(reader.releaseLock).toHaveBeenCalled()
+    })
+
+    it('should enqueue error event when recursive result has no fullStream', async () => {
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       const controller = createMockStreamController()
 
       const context = createMockContext({
@@ -555,12 +641,157 @@ describe('StreamEventManager', () => {
 
       await manager.handleRecursiveCall(controller, {}, context)
 
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[MCP Prompt] No fullstream found'),
-        expect.any(Object)
-      )
+      expect(errorSpy).toHaveBeenCalledWith('[MCP Prompt] Recursive call failed:', expect.any(Error))
+      expect(controller.enqueue).toHaveBeenCalledWith({
+        type: 'error',
+        error: expect.objectContaining({
+          message: 'Recursive result did not include a readable fullStream'
+        })
+      })
 
-      warnSpy.mockRestore()
+      errorSpy.mockRestore()
+    })
+
+    it('should enqueue error event when recursiveCall rejects', async () => {
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const controller = createMockStreamController()
+      const testError = new Error('Provider connection failed')
+
+      const context = createMockContext({
+        hasExecutedToolsInCurrentStep: true,
+        recursiveCall: vi.fn().mockRejectedValue(testError)
+      })
+
+      await manager.handleRecursiveCall(controller, {}, context)
+
+      expect(errorSpy).toHaveBeenCalledWith('[MCP Prompt] Recursive call failed:', testError)
+      expect(controller.enqueue).toHaveBeenCalledWith({
+        type: 'error',
+        error: testError
+      })
+      // Should not enqueue any other events (no finish-step, no text-delta)
+      expect(controller.enqueue).toHaveBeenCalledTimes(1)
+
+      errorSpy.mockRestore()
+    })
+
+    it('should enqueue error event when recursive stream read stalls', async () => {
+      vi.useFakeTimers()
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const controller = createMockStreamController()
+
+      // The recursive stream yields one chunk and then stalls on the next read.
+      const hangingStream = new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: 'text-delta', id: '1', text: 'hello' })
+        },
+        pull() {
+          return new Promise(() => {})
+        }
+      })
+
+      const context = createMockContext({
+        hasExecutedToolsInCurrentStep: true,
+        recursiveCall: vi.fn().mockResolvedValue({
+          fullStream: hangingStream
+        })
+      })
+
+      try {
+        const promise = manager.handleRecursiveCall(controller, {}, context)
+
+        // Advance past the 120s read timeout.
+        await vi.advanceTimersByTimeAsync(120_001)
+        await promise
+
+        expect(controller.enqueue).toHaveBeenCalledWith({
+          type: 'error',
+          error: expect.objectContaining({
+            message: 'Recursive stream read timed out'
+          })
+        })
+      } finally {
+        errorSpy.mockRestore()
+        vi.useRealTimers()
+      }
+    })
+
+    it('should enqueue error event when pipeRecursiveStream encounters a read error', async () => {
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const controller = createMockStreamController()
+
+      // Create a stream that throws on read
+      const throwingStream = new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: 'text-delta', id: '1', text: 'hello' })
+        },
+        pull() {
+          throw new Error('Stream read failure')
+        }
+      })
+
+      const context = createMockContext({
+        hasExecutedToolsInCurrentStep: true,
+        recursiveCall: vi.fn().mockResolvedValue({
+          fullStream: throwingStream
+        })
+      })
+
+      await manager.handleRecursiveCall(controller, {}, context)
+
+      expect(errorSpy).toHaveBeenCalledWith('[MCP Prompt] Error piping recursive stream:', expect.any(Error))
+      expect(controller.enqueue).toHaveBeenCalledWith({
+        type: 'error',
+        error: expect.objectContaining({
+          message: 'Stream read failure'
+        })
+      })
+
+      errorSpy.mockRestore()
+    })
+
+    it('should enqueue recursive stream read errors before reader.cancel settles', async () => {
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const controller = createMockStreamController()
+      const callOrder: string[] = []
+
+      const reader = {
+        read: vi.fn().mockRejectedValue(new Error('Stream read failure')),
+        releaseLock: vi.fn(),
+        cancel: vi.fn().mockImplementation(() => {
+          callOrder.push('cancel')
+          return new Promise(() => {})
+        })
+      }
+
+      controller.enqueue.mockImplementation((chunk: TextStreamPart<EmptyToolSet>) => {
+        callOrder.push(chunk.type)
+      })
+
+      const streamLike = {
+        getReader: vi.fn(() => reader)
+      }
+
+      const context = createMockContext({
+        hasExecutedToolsInCurrentStep: true,
+        recursiveCall: vi.fn().mockResolvedValue({
+          fullStream: streamLike
+        })
+      })
+
+      let resolved = false
+      void manager.handleRecursiveCall(controller, {}, context).then(() => {
+        resolved = true
+      })
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(callOrder[0]).toBe('error')
+      expect(callOrder[1]).toBe('cancel')
+      expect(resolved).toBe(true)
+      expect(reader.releaseLock).toHaveBeenCalled()
+
+      errorSpy.mockRestore()
     })
   })
 })
