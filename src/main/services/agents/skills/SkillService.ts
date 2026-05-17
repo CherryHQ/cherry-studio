@@ -5,7 +5,7 @@ import * as path from 'node:path'
 import { loggerService } from '@logger'
 import { getDataPath } from '@main/utils'
 import { directoryExists } from '@main/utils/file'
-import { deleteDirectoryRecursive } from '@main/utils/fileOperations'
+import { copyDirectoryRecursive, deleteDirectoryRecursive } from '@main/utils/fileOperations'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { executeCommand, findExecutableInEnv } from '@main/utils/process'
 import type {
@@ -34,6 +34,15 @@ const CLAUDE_PLUGINS_API = 'https://api.claude-plugins.dev'
 const MAX_EXTRACTED_SIZE = 100 * 1024 * 1024 // 100MB
 const MAX_FILES_COUNT = 1000
 const MAX_FOLDER_NAME_LENGTH = 80
+
+// Marker file written into copy-fallback directories so we can later
+// distinguish Cherry-Studio-managed copies from user-authored local skills
+// living under `.claude/skills/{folderName}`. Only directories containing
+// this marker (with the expected `managedBy` value) are eligible for
+// automatic removal during relink/unlink — anything else is treated as
+// user content and left untouched.
+const SKILL_COPY_MARKER_FILE = '.cherry-studio-skill.json'
+const SKILL_COPY_MARKER_VALUE = 'cherry-studio'
 
 /**
  * Skill management service.
@@ -397,6 +406,13 @@ export class SkillService {
   /**
    * Create a symlink from `{workspace}/.claude/skills/{folderName}` →
    * global skills storage (`{dataPath}/Skills/{folderName}`).
+   *
+   * On filesystems that do not support symlinks or junctions (e.g. Windows
+   * network/Samba shares), falls back to copying the skill directory so the
+   * skill remains usable from shared workspaces. The fallback drops a marker
+   * file (`SKILL_COPY_MARKER_FILE`) so subsequent (un)link calls can
+   * distinguish Cherry-Studio-managed copies from user-authored local skills
+   * sharing the same folder name.
    */
   async linkSkill(folderName: string, workspace: string): Promise<void> {
     const target = this.getSkillStoragePath(folderName)
@@ -406,22 +422,59 @@ export class SkillService {
       // Ensure .claude/skills/ directory exists
       await fs.promises.mkdir(path.dirname(linkPath), { recursive: true })
 
-      // Remove existing symlink if present; refuse to overwrite real directories
-      // to avoid destroying user-authored content.
+      // Decide what to do with whatever currently sits at linkPath.
+      //
+      // Symlinks: always safe to remove and recreate (we own them).
+      // Real directories: only safe to remove when the marker file
+      //   confirms this is a previous Cherry Studio copy fallback. Without
+      //   the marker, the directory is treated as user content (e.g. a
+      //   manually placed local skill that `listLocal` would surface,
+      //   matching the conservative policy in `migrateSkillsPerAgent`)
+      //   and we refuse to touch it. Surfacing this as an error keeps the
+      //   DB rollback path in `toggle()` honest, so the user is informed
+      //   instead of silently losing their content.
       try {
         const stat = await fs.promises.lstat(linkPath)
         if (stat.isSymbolicLink()) {
           await fs.promises.rm(linkPath)
         } else if (stat.isDirectory()) {
-          logger.warn('Refusing to overwrite non-symlink directory for skill', { folderName, linkPath })
-          return
+          if (await this.isCherryStudioCopyDir(linkPath)) {
+            await deleteDirectoryRecursive(linkPath)
+            logger.debug('Removed previous skill copy before relinking', { folderName, linkPath })
+          } else {
+            throw new Error(
+              `Refusing to overwrite ${linkPath}: directory is not a Cherry Studio copy ` +
+                `(missing ${SKILL_COPY_MARKER_FILE} marker). It looks like a user-authored ` +
+                `local skill — remove or rename it manually before enabling the library skill.`
+            )
+          }
         }
-      } catch {
-        // Does not exist, fine
+      } catch (err) {
+        // lstat ENOENT means the path is free; anything else (including the
+        // refusal thrown above) propagates to the outer catch.
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
       }
 
-      await fs.promises.symlink(target, linkPath, 'junction')
-      logger.info('Skill linked', { folderName, target, linkPath })
+      try {
+        await fs.promises.symlink(target, linkPath, 'junction')
+        logger.info('Skill linked', { folderName, target, linkPath })
+      } catch (symlinkError) {
+        const code = (symlinkError as NodeJS.ErrnoException).code
+        // Network drives (e.g. Samba on Windows) do not support junctions and
+        // return EPERM or ENOTSUP. Fall back to a directory copy so the skill
+        // remains discoverable by Claude Code from a shared workspace.
+        if (code === 'EPERM' || code === 'ENOTSUP') {
+          await copyDirectoryRecursive(target, linkPath)
+          await this.writeSkillCopyMarker(linkPath, folderName, target)
+          logger.info('Skill copied as fallback (symlink not supported on this filesystem)', {
+            folderName,
+            target,
+            linkPath
+          })
+        } else {
+          throw symlinkError
+        }
+      }
     } catch (error) {
       logger.error('Failed to link skill', {
         folderName,
@@ -434,6 +487,13 @@ export class SkillService {
 
   /**
    * Remove the symlink at `{workspace}/.claude/skills/{folderName}`.
+   *
+   * Also handles the copy-fallback case: when the skill was installed as a
+   * plain directory (because the filesystem does not support symlinks) and
+   * still carries the Cherry Studio marker, the directory is removed so the
+   * skill is no longer visible to Claude Code. Plain directories without
+   * the marker are treated as user content and left in place (the user's
+   * library-skill toggle still flips, but the local skill remains).
    */
   async unlinkSkill(folderName: string, workspace: string): Promise<void> {
     const linkPath = this.getSkillLinkPath(folderName, workspace)
@@ -443,6 +503,20 @@ export class SkillService {
       if (stat.isSymbolicLink()) {
         await fs.promises.unlink(linkPath)
         logger.info('Skill unlinked', { folderName, linkPath })
+      } else if (stat.isDirectory()) {
+        if (await this.isCherryStudioCopyDir(linkPath)) {
+          // Skill was installed as a plain directory copy (symlink not supported).
+          await deleteDirectoryRecursive(linkPath)
+          logger.info('Skill copy removed', { folderName, linkPath })
+        } else {
+          // Looks like a user-authored local skill that happens to share the
+          // folder name. Keep it — disabling a library skill must never
+          // touch user content.
+          logger.warn('Skipping unlink: directory is not a Cherry Studio copy', {
+            folderName,
+            linkPath
+          })
+        }
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
@@ -454,6 +528,49 @@ export class SkillService {
         throw error
       }
       // Link doesn't exist, nothing to do
+    }
+  }
+
+  /**
+   * Drop a JSON marker inside a copy-fallback directory so future
+   * (un)link calls can recognise it as Cherry Studio managed. The marker
+   * is intentionally a regular file so `copyDirectoryRecursive` callers
+   * (which do not preserve any extended attributes / metadata reliably
+   * across platforms) cannot accidentally lose this signal.
+   */
+  private async writeSkillCopyMarker(linkPath: string, folderName: string, target: string): Promise<void> {
+    const markerPath = path.join(linkPath, SKILL_COPY_MARKER_FILE)
+    const payload = {
+      managedBy: SKILL_COPY_MARKER_VALUE,
+      folderName,
+      source: target,
+      createdAt: Date.now(),
+      version: 1
+    }
+    try {
+      await fs.promises.writeFile(markerPath, JSON.stringify(payload, null, 2), 'utf-8')
+    } catch (error) {
+      logger.warn('Failed to write skill copy marker — directory will not be auto-cleaned later', {
+        folderName,
+        markerPath,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+  }
+
+  /**
+   * Returns true only when `dirPath` contains a Cherry Studio marker file
+   * with the expected `managedBy` value. Any read or parse failure is
+   * treated as "not ours" — we err on the side of preserving user data.
+   */
+  private async isCherryStudioCopyDir(dirPath: string): Promise<boolean> {
+    const markerPath = path.join(dirPath, SKILL_COPY_MARKER_FILE)
+    try {
+      const raw = await fs.promises.readFile(markerPath, 'utf-8')
+      const parsed = JSON.parse(raw) as { managedBy?: unknown }
+      return parsed.managedBy === SKILL_COPY_MARKER_VALUE
+    } catch {
+      return false
     }
   }
 
