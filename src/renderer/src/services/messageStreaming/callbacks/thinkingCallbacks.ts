@@ -17,6 +17,8 @@ export const createThinkingCallbacks = (deps: ThinkingCallbacksDependencies) => 
   // 内部维护的状态
   let thinkingBlockId: string | null = null
   let thinking_millsec_now: number = 0
+  let lastCompletedThinkingBlockId: string | null = null
+  let thinkingPrefix = ''
 
   return {
     // 获取当前思考时间（用于停止回复时保留思考时间）
@@ -39,13 +41,31 @@ export const createThinkingCallbacks = (deps: ThinkingCallbacksDependencies) => 
           thinking_millsec: 0
         }
         thinkingBlockId = blockManager.initialPlaceholderBlockId!
+        lastCompletedThinkingBlockId = null
+        thinkingPrefix = ''
         blockManager.smartBlockUpdate(thinkingBlockId, changes, MessageBlockType.THINKING, true)
+      } else if (
+        !thinkingBlockId &&
+        blockManager.lastBlockType === MessageBlockType.THINKING &&
+        lastCompletedThinkingBlockId
+      ) {
+        thinkingBlockId = lastCompletedThinkingBlockId
+        blockManager.smartBlockUpdate(
+          thinkingBlockId,
+          {
+            status: MessageBlockStatus.STREAMING,
+            thinking_millsec: 0
+          },
+          MessageBlockType.THINKING
+        )
       } else if (!thinkingBlockId) {
         const newBlock = createThinkingBlock(assistantMsgId, '', {
           status: MessageBlockStatus.STREAMING,
           thinking_millsec: 0
         })
         thinkingBlockId = newBlock.id
+        lastCompletedThinkingBlockId = null
+        thinkingPrefix = ''
         await blockManager.handleBlockTransition(newBlock, MessageBlockType.THINKING)
       }
     },
@@ -53,7 +73,7 @@ export const createThinkingCallbacks = (deps: ThinkingCallbacksDependencies) => 
     onThinkingChunk: async (text: string) => {
       if (thinkingBlockId) {
         const blockChanges: Partial<MessageBlock> = {
-          content: text,
+          content: thinkingPrefix + text,
           status: MessageBlockStatus.STREAMING,
           thinking_millsec: thinking_millsec_now > 0 ? performance.now() - thinking_millsec_now : 0
         }
@@ -64,12 +84,15 @@ export const createThinkingCallbacks = (deps: ThinkingCallbacksDependencies) => 
     onThinkingComplete: (finalText: string) => {
       if (thinkingBlockId) {
         const now = performance.now()
+        const content = thinkingPrefix + finalText
         const changes: Partial<MessageBlock> = {
-          content: finalText,
+          content,
           status: MessageBlockStatus.SUCCESS,
           thinking_millsec: now - thinking_millsec_now
         }
         blockManager.smartBlockUpdate(thinkingBlockId, changes, MessageBlockType.THINKING, true)
+        lastCompletedThinkingBlockId = thinkingBlockId
+        thinkingPrefix = content
         thinkingBlockId = null
         thinking_millsec_now = 0
       } else {

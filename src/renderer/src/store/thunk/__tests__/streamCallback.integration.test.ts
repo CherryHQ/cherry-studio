@@ -473,6 +473,32 @@ describe('streamCallback Integration Tests', () => {
     expect((thinkingBlock as any)?.thinking_millsec).toBeGreaterThanOrEqual(0)
   })
 
+  it('should merge adjacent thinking segments into one block', async () => {
+    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
+
+    const chunks: Chunk[] = [
+      { type: ChunkType.LLM_RESPONSE_CREATED },
+      { type: ChunkType.THINKING_START },
+      { type: ChunkType.THINKING_DELTA, text: 'First part ' },
+      { type: ChunkType.THINKING_COMPLETE, text: 'First part ' },
+      { type: ChunkType.THINKING_START },
+      { type: ChunkType.THINKING_DELTA, text: 'second part' },
+      { type: ChunkType.THINKING_COMPLETE, text: 'second part' },
+      { type: ChunkType.BLOCK_COMPLETE }
+    ]
+
+    await processChunks(chunks, callbacks)
+
+    const state = getState()
+    const thinkingBlocks = Object.values(state.messageBlocks.entities).filter(
+      (block) => block.type === MessageBlockType.THINKING
+    )
+
+    expect(thinkingBlocks).toHaveLength(1)
+    expect(thinkingBlocks[0]?.content).toBe('First part second part')
+    expect(thinkingBlocks[0]?.status).toBe(MessageBlockStatus.SUCCESS)
+  })
+
   it('should handle tool call flow', async () => {
     const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
 
