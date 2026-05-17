@@ -199,7 +199,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
         if (!cancelled) {
           Modal.error({
             title: t('ovms.download.error'),
-            content: <div dangerouslySetInnerHTML={{ __html: result.message }}></div>,
+            content: <div style={{ whiteSpace: 'pre-line' }}>{result.message}</div>,
             onOk: () => {
               // Keep the form open for retry
             }
