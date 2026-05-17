@@ -22,6 +22,7 @@ import { trackTokenUsage } from '@renderer/utils/analytics'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/assistant'
 import { getErrorMessage, isAbortError } from '@renderer/utils/error'
+import { extractAspectRatioFromPrompt } from '@renderer/utils/imageGeneration'
 import { purifyMarkdownImages } from '@renderer/utils/markdown'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
@@ -397,7 +398,7 @@ export async function fetchImageGeneration({
 
     // 调用 generateImage 或 editImage
     // 使用默认图像生成配置
-    const imageSize = '1024x1024'
+    const imageSize = extractAspectRatioFromPrompt(prompt) || '1024x1024'
     const batchSize = 1
 
     let images: string[]
