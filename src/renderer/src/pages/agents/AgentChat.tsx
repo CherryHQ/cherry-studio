@@ -1,7 +1,7 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useCache } from '@renderer/data/hooks/useCache'
-import { useAgent, useAgents } from '@renderer/hooks/agents/useAgentDataApi'
+import { useAgent, useAgents } from '@renderer/hooks/agents/useAgent'
 import { useActiveSession } from '@renderer/hooks/agents/useSession'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'

@@ -1,5 +1,5 @@
 import { permissionModeCards } from '@renderer/config/agent'
-import { useAgent } from '@renderer/hooks/agents/useAgentDataApi'
+import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { AgentSettingsPopup } from '@renderer/pages/agents/AgentSettings'
 import type { PermissionMode } from '@renderer/types'
 import { FileEdit, Lightbulb, Shield, ShieldOff } from 'lucide-react'

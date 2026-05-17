@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { cacheService } from '@renderer/data/CacheService'
-import { useAgent } from '@renderer/hooks/agents/useAgentDataApi'
+import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSessions } from '@renderer/hooks/agents/useSession'
 import type { CreateSessionForm } from '@renderer/types'
 import { useCallback, useState } from 'react'

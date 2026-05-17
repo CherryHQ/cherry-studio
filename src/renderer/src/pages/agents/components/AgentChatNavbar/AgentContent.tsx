@@ -5,7 +5,7 @@ import HorizontalScrollContainer from '@renderer/components/HorizontalScrollCont
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { AgentSelector } from '@renderer/components/ResourceSelector'
-import { useUpdateAgent } from '@renderer/hooks/agents/useAgentDataApi'
+import { useUpdateAgent } from '@renderer/hooks/agents/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
 import { useActiveSession, useUpdateSession } from '@renderer/hooks/agents/useSession'
 import { useModelById } from '@renderer/hooks/useModels'

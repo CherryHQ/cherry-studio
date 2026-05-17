@@ -1,6 +1,6 @@
 import { TopView } from '@renderer/components/TopView'
-import { useAgent } from '@renderer/hooks/agents/useAgentDataApi'
-import { useUpdateAgent } from '@renderer/hooks/agents/useAgentDataApi'
+import { useAgent } from '@renderer/hooks/agents/useAgent'
+import { useUpdateAgent } from '@renderer/hooks/agents/useAgent'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 

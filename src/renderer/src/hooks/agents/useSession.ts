@@ -3,7 +3,7 @@
  *
  * Sessions are pure agent instances — only `id / agentId / name / description /
  * orderKey / timestamps` live here. For config (model / instructions /
- * configuration / ...) call {@link import('./useAgentDataApi').useAgent}
+ * configuration / ...) call {@link import('./useAgent').useAgent}
  * with `session.agentId`.
  *
  * Companion hooks for derived/lifecycle state (not CRUD):
@@ -179,7 +179,7 @@ export const useSessions = (agentId?: string | null, pageSize = DEFAULT_SESSION_
 /**
  * Patch session-level fields (only `name`, `description`). Config fields
  * (model, instructions, configuration, ...) live on the parent agent — use
- * {@link import('./useAgentDataApi').useUpdateAgent} for those.
+ * {@link import('./useAgent').useUpdateAgent} for those.
  */
 export const useUpdateSession = (agentId: string | null) => {
   const { t } = useTranslation()

@@ -21,7 +21,7 @@ import {
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useAgents } from '@renderer/hooks/agents/useAgentDataApi'
+import { useAgents } from '@renderer/hooks/agents/useAgent'
 import { useChannels } from '@renderer/hooks/agents/useChannels'
 import { isSoulModeEnabled } from '@renderer/pages/agents/AgentSettings/shared'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'

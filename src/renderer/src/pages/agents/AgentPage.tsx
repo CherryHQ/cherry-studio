@@ -1,7 +1,7 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { useAgents } from '@renderer/hooks/agents/useAgentDataApi'
+import { useAgents } from '@renderer/hooks/agents/useAgent'
 import { useAgentSessionInitializer } from '@renderer/hooks/agents/useAgentSessionInitializer'
 import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
