@@ -41,7 +41,9 @@ const initialState: PaintingsState = {
   ovms_paintings: [],
   // PPIO
   ppio_draw: [],
-  ppio_edit: []
+  ppio_edit: [],
+  // Vercel Gateway
+  vercel_gateway_paintings: []
 }
 
 const paintingsSlice = createSlice({

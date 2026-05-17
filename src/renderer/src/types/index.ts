@@ -448,6 +448,72 @@ export interface TokenFluxPainting extends PaintingParams {
   status?: 'starting' | 'processing' | 'succeeded' | 'failed' | 'cancelled'
 }
 
+export interface VercelGatewayPainting {
+  id: string
+  urls: string[]
+  files: FileMetadata[]
+  providerId?: string
+  model?: string
+  prompt?: string
+  inputParams?: Record<string, any>
+  status?: 'starting' | 'processing' | 'succeeded' | 'failed' | 'cancelled'
+  size?: string
+  quality?: string
+  background?: string
+  n?: number
+  moderation?: string
+  metadata?: {
+    xai: {
+      images: any[]
+      costInUsdTicks: number
+    }
+    gateway: {
+      routing: {
+        originalModelId: string
+        resolvedProvider: string
+        resolvedProviderApiModelId: string
+        fallbacksAvailable: any[]
+        planningReasoning: string
+        canonicalSlug: string
+        finalProvider: string
+        modelAttemptCount: number
+        modelAttempts: [
+          {
+            modelId: string
+            canonicalSlug: string
+            success: boolean
+            providerAttemptCount: number
+            providerAttempts: [
+              {
+                provider: string
+                internalModelId: string
+                providerApiModelId: string
+                credentialType: string
+                success: boolean
+                startTime: number
+                endTime: number
+                statusCode: number
+              }
+            ]
+          }
+        ]
+        totalProviderAttemptCount: number
+      }
+      cost: string
+      marketCost: string
+      inferenceCost: string
+      inputInferenceCost: string
+      outputInferenceCost: string
+      generationId: string
+    }
+  }
+  usage?: {
+    total_tokens: number
+    input_tokens: number
+    output_tokens: number
+  }
+}
+
 export interface OvmsPainting extends PaintingParams {
   model?: string
   prompt?: string
@@ -484,7 +550,8 @@ export type PaintingAction = Partial<
     DmxapiPainting &
     TokenFluxPainting &
     OvmsPainting &
-    PpioPainting
+    PpioPainting &
+    VercelGatewayPainting
 > &
   PaintingParams
 
@@ -510,6 +577,8 @@ export interface PaintingsState {
   // PPIO
   ppio_draw: PpioPainting[]
   ppio_edit: PpioPainting[]
+  // Vercel Gateway
+  vercel_gateway_paintings: VercelGatewayPainting[]
 }
 
 export type MinAppType = {
