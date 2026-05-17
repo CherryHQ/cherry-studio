@@ -119,17 +119,7 @@ export class AiSdkToChunkAdapter {
         this.idleTimeout?.reset()
 
         if (done) {
-          // Flush any remaining content from link converter buffer if web search is enabled
-          if (this.enableWebSearch) {
-            const remainingText = flushLinkConverterBuffer()
-            if (remainingText) {
-              this.markFirstTokenIfNeeded()
-              this.onChunk({
-                type: ChunkType.TEXT_DELTA,
-                text: remainingText
-              })
-            }
-          }
+          this.flushWebSearchBuffer(final)
           break
         }
 
@@ -157,6 +147,24 @@ export class AiSdkToChunkAdapter {
       })
       final.reasoningContent = ''
     }
+  }
+
+  private flushWebSearchBuffer(final: { text: string }): void {
+    if (!this.enableWebSearch) {
+      return
+    }
+
+    const remainingText = flushLinkConverterBuffer()
+    if (!remainingText) {
+      return
+    }
+
+    this.markFirstTokenIfNeeded()
+    final.text += remainingText
+    this.onChunk({
+      type: ChunkType.TEXT_DELTA,
+      text: remainingText
+    })
   }
 
   /**
@@ -352,6 +360,8 @@ export class AiSdkToChunkAdapter {
       }
 
       case 'finish': {
+        this.flushWebSearchBuffer(final)
+
         // Check if session was cleared (e.g., /clear command) and no text was output
         const sessionCleared = this.getSessionWasCleared?.() ?? false
         if (sessionCleared && !this.hasTextContent) {
