@@ -185,7 +185,7 @@ export const useUpdateSession = (agentId: string | null) => {
   const { t } = useTranslation()
   const { trigger: updateTrigger } = useMutation('PATCH', '/sessions/:sessionId', {
     // `args.params.sessionId` is always supplied by `updateSession` below.
-    // The non-null assertion mirrors useTopicDataApi.ts and crashes loud
+    // The non-null assertion mirrors useTopic.ts and crashes loud
     // if the contract is ever broken instead of silently producing
     // '/sessions/undefined' (which would miss every cache entry).
     refresh: ({ args }) => ['/sessions', `/sessions/${args!.params.sessionId}`]

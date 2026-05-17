@@ -1,7 +1,7 @@
 import { LoadingIcon } from '@renderer/components/Icons'
 import db from '@renderer/databases'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
-import { mapApiTopicToRendererTopic, useAllTopics } from '@renderer/hooks/useTopicDataApi'
+import { mapApiTopicToRendererTopic, useAllTopics } from '@renderer/hooks/useTopic'
 import type { Topic } from '@renderer/types'
 import { type Message, MessageBlockType } from '@renderer/types/newMessage'
 import {

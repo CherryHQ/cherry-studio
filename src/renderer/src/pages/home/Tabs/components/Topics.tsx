@@ -26,8 +26,14 @@ import { isMac } from '@renderer/config/constant'
 import { prefetch } from '@renderer/data/hooks/useDataApi'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { finishTopicRenaming, getTopicMessages, startTopicRenaming } from '@renderer/hooks/useTopic'
-import { mapApiTopicToRendererTopic, useAllTopics, useTopicMutations } from '@renderer/hooks/useTopicDataApi'
+import {
+  finishTopicRenaming,
+  getTopicMessages,
+  mapApiTopicToRendererTopic,
+  startTopicRenaming,
+  useAllTopics,
+  useTopicMutations
+} from '@renderer/hooks/useTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'

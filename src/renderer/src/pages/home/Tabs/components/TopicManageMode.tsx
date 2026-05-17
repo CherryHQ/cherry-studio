@@ -1,4 +1,4 @@
-import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
+import { useTopicMutations } from '@renderer/hooks/useTopic'
 import type { Topic } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { Tooltip } from 'antd'
