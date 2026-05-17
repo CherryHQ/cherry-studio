@@ -39,6 +39,6 @@ const SearchWrapper = styled.div`
   gap: 4px;
   /* font-size: 14px; */
   padding: 0px;
-  /* padding-left: 0; */
+  /* padding-inline-start: 0; */
 `
 const Searching = motion.create(SearchWrapper)

@@ -117,7 +117,7 @@ const MinAppTabsPool: React.FC = () => {
 
 const PoolContainer = styled.div`
   position: absolute;
-  left: 0;
+  inset-inline-start: 0;
   right: 0;
   bottom: 0;
   /* top 在运行时通过 style 注入 (toolbarHeight) */

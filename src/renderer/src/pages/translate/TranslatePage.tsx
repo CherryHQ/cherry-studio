@@ -912,7 +912,7 @@ const InputContainerDraggingHintContainer = styled.div`
   width: 100%;
   height: 100%;
   top: 0;
-  left: 0;
+  inset-inline-start: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -966,7 +966,7 @@ const OutputContainer = styled.div`
 const CopyButton = styled(Button)`
   position: absolute;
   top: 8px;
-  right: 8px;
+  inset-inline-end: 8px;
   z-index: 10;
   opacity: 0;
   visibility: hidden;

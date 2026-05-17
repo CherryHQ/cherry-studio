@@ -75,7 +75,7 @@ const SessionWorkspaceMeta = ({ agent, session }: SessionWorkspaceMetaProps) => 
     return null
   }
 
-  return <div className="ml-2 flex items-center gap-2">{infoItems}</div>
+  return <div className="ms-2 flex items-center gap-2">{infoItems}</div>
 }
 
 export default SessionWorkspaceMeta

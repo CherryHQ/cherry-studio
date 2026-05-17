@@ -143,7 +143,7 @@ const SearchIcon = styled.div`
   justify-content: center;
   align-items: center;
   background-color: var(--color-background-soft);
-  margin-right: 2px;
+  margin-inline-end: 2px;
   &.back-icon {
     cursor: pointer;
     transition: background-color 0.2s;

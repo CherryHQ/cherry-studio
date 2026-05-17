@@ -25,7 +25,7 @@ const Container = styled.div`
 
 const Icon = styled(ImageIcon)`
   color: var(--color-primary);
-  margin-right: 6px;
+  margin-inline-end: 6px;
 `
 
 export default VisionIcon

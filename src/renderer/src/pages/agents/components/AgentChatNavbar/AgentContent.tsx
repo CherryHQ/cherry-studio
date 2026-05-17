@@ -39,7 +39,7 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
   )
 
   return (
-    <div className="flex w-full justify-between pr-2">
+    <div className="flex w-full justify-between pe-2">
       <div className="flex min-w-0 shrink items-center">
         {isTopNavbar && showAssistants && (
           <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
@@ -68,7 +68,7 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
             </motion.div>
           )}
         </AnimatePresence>
-        <HorizontalScrollContainer className="ml-2 min-w-0 flex-initial shrink">
+        <HorizontalScrollContainer className="ms-2 min-w-0 flex-initial shrink">
           <div className="flex flex-nowrap items-center gap-2">
             {/* Agent Label */}
             <div
@@ -121,7 +121,7 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
       <div className="flex items-center">
         {/* Open External Apps */}
         {activeSession && activeSession.accessible_paths?.[0] && (
-          <OpenExternalAppButton workdir={activeSession.accessible_paths[0]} className="mr-2" />
+          <OpenExternalAppButton workdir={activeSession.accessible_paths[0]} className="me-2" />
         )}
         <Tools />
       </div>

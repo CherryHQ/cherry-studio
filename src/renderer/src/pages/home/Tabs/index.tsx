@@ -153,7 +153,7 @@ const Container = styled.div`
   overflow: hidden;
   .collapsed {
     width: 0;
-    border-left: none;
+    border-inline-start: none;
   }
 `
 
@@ -206,7 +206,7 @@ const TabItem = styled.button<{ active: boolean }>`
     content: '';
     position: absolute;
     bottom: -8px;
-    left: 50%;
+    inset-inline-start: 50%;
     transform: translateX(-50%);
     width: ${(props) => (props.active ? '30px' : '0')};
     height: 3px;

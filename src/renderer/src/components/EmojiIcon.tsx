@@ -28,7 +28,7 @@ const Container = styled.div<{ $size: number; $fontSize: number }>`
   font-size: ${({ $fontSize }) => $fontSize}px;
   position: relative;
   overflow: hidden;
-  margin-right: 3px;
+  margin-inline-end: 3px;
 `
 
 const EmojiBackground = styled.div`

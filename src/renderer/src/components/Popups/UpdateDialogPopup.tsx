@@ -183,7 +183,7 @@ const ReleaseNotesWrapper = styled.div`
   ul,
   ol {
     margin: 8px 0;
-    padding-left: 24px;
+    padding-inline-start: 24px;
     color: var(--color-text-2);
   }
 

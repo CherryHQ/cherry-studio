@@ -12,7 +12,7 @@ exports[`EmojiIcon > should match snapshot 1`] = `
   font-size: 15px;
   position: relative;
   overflow: hidden;
-  margin-right: 3px;
+  margin-inline-end: 3px;
 }
 
 .c1 {

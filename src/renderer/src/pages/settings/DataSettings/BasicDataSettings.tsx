@@ -562,11 +562,11 @@ const BasicDataSettings: React.FC = () => {
 const CacheText = styled(Typography.Text)`
   color: var(--color-text-3);
   font-size: 12px;
-  margin-left: 5px;
+  margin-inline-start: 5px;
   line-height: 16px;
   display: inline-block;
   vertical-align: middle;
-  text-align: left;
+  text-align: start;
 `
 
 const PathText = styled(Typography.Text)`
@@ -577,8 +577,8 @@ const PathText = styled(Typography.Text)`
   white-space: nowrap;
   display: inline-block;
   vertical-align: middle;
-  text-align: right;
-  margin-left: 5px;
+  text-align: end;
+  margin-inline-start: 5px;
   cursor: pointer
 `
 

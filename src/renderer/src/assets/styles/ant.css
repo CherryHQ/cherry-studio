@@ -189,7 +189,7 @@
 }
 
 .ant-modal:not(.ant-modal-confirm) .ant-modal-content .ant-modal-close {
-  margin-right: 2px;
+  margin-inline-end: 2px;
 }
 
 .ant-modal:not(.ant-modal-confirm) .ant-modal-content .ant-modal-header {

@@ -1,4 +1,4 @@
-import { ArrowLeftOutlined, LoadingOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, ArrowRightOutlined, LoadingOutlined } from '@ant-design/icons'
 import { Tag as AntdTag, Tooltip } from 'antd'
 import { CircleArrowLeft, Copy, Pin } from 'lucide-react'
 import type { FC } from 'react'
@@ -42,6 +42,9 @@ const Footer: FC<FooterProps> = ({
     onCopy()
   }
 
+  // Check if the page is in RTL direction
+  const isRTL = document.documentElement.dir === 'rtl'
+
   return (
     <WindowFooter className="drag">
       <FooterText>
@@ -64,16 +67,18 @@ const Footer: FC<FooterProps> = ({
                 : t('miniwindow.footer.esc_back')
           })}
         </Tag>
+
         {route === 'home' && !canUseBackspace && (
           <Tag
             bordered={false}
-            icon={<ArrowLeftOutlined />}
+            icon={isRTL ? <ArrowRightOutlined /> : <ArrowLeftOutlined />} // Conditional rendering of the arrow icon based on RTL/LTR
             style={{ cursor: 'pointer' }}
             className="nodrag"
             onClick={() => clearClipboard!()}>
             {t('miniwindow.footer.backspace_clear')}
           </Tag>
         )}
+
         {route !== 'home' && !loading && (
           <Tag
             bordered={false}
@@ -122,7 +127,7 @@ const PinButtonArea = styled.div`
   cursor: pointer;
   display: flex;
   align-items: center;
-  margin-right: 5px;
+  margin-inline-end: 5px;
 `
 
 const Tag = styled(AntdTag)`

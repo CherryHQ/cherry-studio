@@ -159,7 +159,7 @@ export const SettingsContainer: React.FC<React.ComponentPropsWithRef<'div'> & Sc
 
 export const LeftMenu = styled.div`
   height: 100%;
-  border-right: 0.5px solid var(--color-border);
+  border-inline-end: 0.5px solid var(--color-border);
 `
 
 export const Settings = styled.div`
@@ -176,7 +176,7 @@ export const StyledModal = styled(Modal)`
   }
   .ant-modal-close {
     top: 4px;
-    right: 4px;
+    inset-inline-end: 4px;
   }
   .ant-menu-item {
     height: 36px;

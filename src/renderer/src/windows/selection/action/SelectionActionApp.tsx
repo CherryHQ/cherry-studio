@@ -288,11 +288,11 @@ const TitleBarIcon = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-left: 4px;
+  margin-inline-start: 4px;
 `
 
 const TitleBarCaption = styled.div`
-  margin-left: 8px;
+  margin-inline-start: 8px;
   font-size: 14px;
   font-weight: 400;
   flex: 1;
@@ -390,7 +390,7 @@ const Content = styled.div`
 
 const OpacitySlider = styled.div`
   position: absolute;
-  left: 42px;
+  inset-inline-start: 42px;
   top: 100%;
   margin-top: 8px;
   background-color: var(--color-background-mute);

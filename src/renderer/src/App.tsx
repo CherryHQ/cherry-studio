@@ -1,9 +1,12 @@
 import '@renderer/databases'
 
 import { loggerService } from '@logger'
+import type { RootState } from '@renderer/store'
 import store, { persistor } from '@renderer/store'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Provider } from 'react-redux'
+import { ConfigProvider } from 'antd'
+import { useEffect } from 'react'
+import { Provider, useSelector } from 'react-redux'
 import { PersistGate } from 'redux-persist/integration/react'
 
 import TopViewContainer from './components/TopView'
@@ -20,33 +23,65 @@ const logger = loggerService.withContext('App.tsx')
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      staleTime: 5 * 60 * 1000,
       refetchOnWindowFocus: false
     }
   }
 })
 
-function App(): React.ReactElement {
-  logger.info('App initialized')
+// RTL language list
+const RTL_LANGS = ['ar', 'he', 'fa', 'ur']
 
+function isRTL(lang: string): boolean {
+  if (!lang) return false
+  return RTL_LANGS.includes(lang.split('-')[0])
+}
+
+/**
+ * Inner app that has access to Redux state
+ */
+function AppContent(): React.ReactElement {
+  const lang = useSelector((state: RootState) => state.settings.language) ?? navigator.language ?? 'en'
+
+  const direction = isRTL(lang) ? 'rtl' : 'ltr'
+
+  useEffect(() => {
+    document.documentElement.setAttribute('dir', direction)
+    document.documentElement.setAttribute('lang', lang)
+  }, [lang, direction])
+
+  logger.info(`App initialized (lang=${lang}, dir=${direction})`)
+
+  return (
+    <ConfigProvider direction={direction}>
+      {/* NOTE: removed invalid `direction` prop */}
+      <StyleSheetManager>
+        <ThemeProvider>
+          <AntdProvider>
+            <NotificationProvider>
+              <CodeStyleProvider>
+                <PersistGate loading={null} persistor={persistor}>
+                  <TopViewContainer>
+                    <Router />
+                  </TopViewContainer>
+                </PersistGate>
+              </CodeStyleProvider>
+            </NotificationProvider>
+          </AntdProvider>
+        </ThemeProvider>
+      </StyleSheetManager>
+    </ConfigProvider>
+  )
+}
+
+/**
+ * Root App wrapper
+ */
+function App(): React.ReactElement {
   return (
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
-        <StyleSheetManager>
-          <ThemeProvider>
-            <AntdProvider>
-              <NotificationProvider>
-                <CodeStyleProvider>
-                  <PersistGate loading={null} persistor={persistor}>
-                    <TopViewContainer>
-                      <Router />
-                    </TopViewContainer>
-                  </PersistGate>
-                </CodeStyleProvider>
-              </NotificationProvider>
-            </AntdProvider>
-          </ThemeProvider>
-        </StyleSheetManager>
+        <AppContent />
       </QueryClientProvider>
     </Provider>
   )

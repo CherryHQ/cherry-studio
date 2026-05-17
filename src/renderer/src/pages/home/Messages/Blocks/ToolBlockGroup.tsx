@@ -42,7 +42,7 @@ const Container = styled.div`
 
         .ant-collapse-expand-icon {
           padding: 0 !important;
-          margin-left: 8px;
+          margin-inline-start: 8px;
           height: auto !important;
         }
       }

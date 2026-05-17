@@ -76,7 +76,7 @@ const Container = styled(Scrollbar)`
   padding: 10px;
   background-color: var(--color-background);
   max-width: 100px;
-  border-left: 0.5px solid var(--color-border);
+  border-inline-start: 0.5px solid var(--color-border);
   height: calc(100vh - var(--navbar-height));
   overflow-x: hidden;
 `
@@ -120,7 +120,7 @@ const ThumbnailImage = styled.img`
 const DeleteButton = styled.div.attrs({ className: 'delete-button' })`
   position: absolute;
   top: 4px;
-  right: 4px;
+  inset-inline-end: 4px;
   opacity: 0;
   transition: opacity 0.2s ease;
   border-radius: 50%;

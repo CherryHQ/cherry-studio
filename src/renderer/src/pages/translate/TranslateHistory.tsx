@@ -243,7 +243,7 @@ const HistoryContainer = styled.div`
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding-right: 2px;
+  padding-inline-end: 2px;
   padding-bottom: 5px;
 `
 

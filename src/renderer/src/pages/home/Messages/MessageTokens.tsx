@@ -106,7 +106,7 @@ const MessageMetadata = styled.div`
   color: var(--color-text-3);
   user-select: text;
   cursor: pointer;
-  text-align: right;
+  text-align: end;
 
   .tokens span {
     padding: 0 2px;

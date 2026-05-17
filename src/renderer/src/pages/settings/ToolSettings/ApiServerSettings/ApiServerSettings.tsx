@@ -301,7 +301,7 @@ const StyledInputNumber = styled(InputNumber)`
   width: 80px;
   border-radius: 6px;
   border: 1.5px solid var(--color-border);
-  margin-right: 5px;
+  margin-inline-end: 5px;
 `
 
 const StartButton = styled.div<{ $loading: boolean }>`

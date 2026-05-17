@@ -594,7 +594,7 @@ const LeftContainer = styled(Scrollbar)`
   padding: 20px;
   background-color: var(--color-background);
   max-width: var(--assistants-width);
-  border-right: 0.5px solid var(--color-border);
+  border-inline-end: 0.5px solid var(--color-border);
 `
 
 const MainContainer = styled.div`
@@ -644,7 +644,7 @@ const ToolbarMenu = styled.div`
 `
 
 const InfoIcon = styled(Info)`
-  margin-left: 5px;
+  margin-inline-start: 5px;
   cursor: help;
   color: var(--color-text-2);
   opacity: 0.6;

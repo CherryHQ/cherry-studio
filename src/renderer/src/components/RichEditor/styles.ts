@@ -207,7 +207,7 @@ export const TableOfContentsWrapper = styled.div`
 
     > div {
       border-radius: 0.25rem;
-      padding-left: calc(0.4rem * (var(--level, 1) - 1));
+      padding-inline-start: calc(0.4rem * (var(--level, 1) - 1));
       transition: all 0.2s cubic-bezier(0.65, 0.05, 0.36, 1);
 
       &:hover {
@@ -241,7 +241,7 @@ export const TableOfContentsWrapper = styled.div`
   }
 
   .toc-item {
-    margin-left: 0.25rem;
+    margin-inline-start: 0.25rem;
     margin-bottom: 0.25rem;
 
     a {
@@ -292,7 +292,7 @@ export const ToCDock = styled.div`
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding-right: 4px;
+  padding-inline-end: 4px;
   pointer-events: auto; /* allow interacting with rail/panel */
 
   /* Show panel when hovering anywhere within the dock */
@@ -388,7 +388,7 @@ export const ToCDock = styled.div`
     border-radius: 8px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
     padding: 8px 8px 0;
-    padding-left: 0;
+    padding-inline-start: 0;
     overflow: auto;
     opacity: 0;
     visibility: hidden;

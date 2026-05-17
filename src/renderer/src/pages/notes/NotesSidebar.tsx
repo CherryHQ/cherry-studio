@@ -447,7 +447,7 @@ export const SidebarContainer = styled.div`
   min-width: 250px;
   height: calc(100vh - var(--navbar-height));
   background-color: var(--color-background);
-  border-right: 0.5px solid var(--color-border);
+  border-inline-end: 0.5px solid var(--color-border);
   border-top-left-radius: 10px;
   display: flex;
   flex-direction: column;
@@ -466,9 +466,9 @@ export const NotesTreeContainer = styled.div`
 export const DragOverIndicator = styled.div`
   position: absolute;
   top: 0;
-  right: 0;
+  inset-inline-end: 0;
   bottom: 0;
-  left: 0;
+  inset-inline-start: 0;
   background-color: rgba(0, 123, 255, 0.1);
   border: 2px dashed rgba(0, 123, 255, 0.6);
   border-radius: 4px;
@@ -507,7 +507,7 @@ export const SearchStatusBar = styled.div`
 `
 
 export const CancelButton = styled.button`
-  margin-left: auto;
+  margin-inline-start: auto;
   display: flex;
   align-items: center;
   justify-content: center;

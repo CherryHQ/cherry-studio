@@ -36,8 +36,8 @@
 html,
 body,
 #root {
-  height: 100%;
-  width: 100%;
+  block-size: 100%;
+  inline-size: 100%;
   margin: 0;
 }
 
@@ -49,7 +49,7 @@ body,
 
 body {
   display: flex;
-  min-height: 100vh;
+  min-block-size: 100vh;
   color: var(--color-text);
   font-size: 14px;
   line-height: 1.6;
@@ -91,8 +91,8 @@ ul {
 }
 
 .loader {
-  width: 16px;
-  height: 16px;
+  inline-size: 16px;
+  block-size: 16px;
   border-radius: 50%;
   background-color: #000;
   box-shadow:
@@ -126,45 +126,45 @@ ul {
 }
 
 .bubble:not(.multi-select-mode) .block-wrapper:last-child > *:last-child {
-  margin-bottom: 0;
+  margin-block-end: 0;
 }
 
 .bubble:not(.multi-select-mode) .message-content-container > *:last-child {
-  margin-bottom: 0;
+  margin-block-end: 0;
 }
 
 .bubble:not(.multi-select-mode) .message-thought-container {
-  margin-top: 8px;
+  margin-block-start: 8px;
 }
 
 .bubble:not(.multi-select-mode) .message-user .message-header {
   flex-direction: row-reverse;
-  text-align: right;
+  text-align: end;
 }
 
 .bubble:not(.multi-select-mode) .message-user .message-header .message-header-info-wrap {
   flex-direction: row-reverse;
-  text-align: right;
+  text-align: end;
 }
 
 .bubble:not(.multi-select-mode) .message-user .message-content-container {
   border-radius: 10px;
-  padding: 10px 16px 10px 16px;
+  padding: 10px 16px;
   background-color: var(--chat-background-user);
-  align-self: self-end;
+  align-self: flex-end;
 }
 
 .bubble:not(.multi-select-mode) .message-user .MessageFooter {
-  margin-top: 2px;
-  align-self: self-end;
+  margin-block-start: 2px;
+  align-self: flex-end;
 }
 
 .bubble:not(.multi-select-mode) .message-assistant .message-content-container {
-  padding-left: 0;
+  padding-inline-start: 0;
 }
 
 .bubble:not(.multi-select-mode) .message-assistant .MessageFooter {
-  margin-left: 0;
+  margin-inline-start: 0;
 }
 
 .bubble:not(.multi-select-mode) code {

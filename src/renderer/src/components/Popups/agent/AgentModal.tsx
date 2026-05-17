@@ -595,7 +595,7 @@ const FormContent = styled(Scrollbar)`
   flex-direction: column;
   gap: 16px;
   max-height: 60vh;
-  padding-right: 8px;
+  padding-inline-end: 8px;
 `
 
 const FormRow = styled.div`
@@ -632,7 +632,7 @@ const Label = styled.label`
 
 const RequiredMark = styled.span`
   color: #ff4d4f;
-  margin-left: 4px;
+  margin-inline-start: 4px;
 `
 
 const HelpText = styled.div`

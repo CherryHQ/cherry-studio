@@ -54,7 +54,7 @@ const PrepareToolWrapper = styled.span`
   gap: 4px;
   font-size: 14px;
   padding: 5px;
-  padding-left: 0;
+  padding-inline-start: 0;
 `
 
 const MessageWebSearchToolTitleTextWrapper = styled(Text)`

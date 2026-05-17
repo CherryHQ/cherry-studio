@@ -49,7 +49,7 @@ const SelectModelSearchBar: React.FC<SelectModelSearchBarProps> = ({ onSearch })
         allowClear
         autoFocus
         spellCheck={false}
-        style={{ paddingLeft: 0 }}
+        className="ps-0"
         variant="borderless"
         size="middle"
         onKeyDown={(e) => {
@@ -72,7 +72,7 @@ const SearchIcon = styled.div`
   justify-content: center;
   align-items: center;
   background-color: var(--color-background-soft);
-  margin-right: 2px;
+  margin-inline-end: 2px;
 `
 
 export default memo(SelectModelSearchBar)

@@ -3,7 +3,7 @@
 exports[`TagFilterSection > rendering > should match snapshot 1`] = `
 .c0 {
   padding: 8px;
-  padding-left: 18px;
+  padding-inline-start: 18px;
 }
 
 .c1 {

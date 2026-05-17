@@ -110,7 +110,7 @@ const Container = styled.div`
   flex-direction: column;
   flex: 1;
   padding: 12px;
-  /* padding-right: 0; */
+  /* padding-inline-end: 0; */
   overflow: hidden;
   -webkit-app-region: none;
 `

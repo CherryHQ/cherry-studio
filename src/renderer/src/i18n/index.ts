@@ -1,3 +1,4 @@
+import 'dayjs/locale/ar'
 import 'dayjs/locale/de'
 import 'dayjs/locale/el'
 import 'dayjs/locale/es'
@@ -16,6 +17,7 @@ import dayjs from 'dayjs'
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
+import arYE from './locales/ar-ye.json'
 // Original translation
 import enUS from './locales/en-us.json'
 import zhCN from './locales/zh-cn.json'
@@ -35,6 +37,7 @@ const logger = loggerService.withContext('I18N')
 
 const resources = Object.fromEntries(
   [
+    ['ar-YE', arYE],
     ['en-US', enUS],
     ['ja-JP', jaJP],
     ['ru-RU', ruRU],
@@ -60,6 +63,7 @@ export const getLanguageCode = () => {
 
 // Map i18n language codes to dayjs locale codes
 const dayjsLocaleMap: Record<string, string> = {
+  'ar-YE': 'ar',
   'en-US': 'en',
   'ja-JP': 'ja',
   'ru-RU': 'ru',
@@ -72,6 +76,12 @@ const dayjsLocaleMap: Record<string, string> = {
   'pt-PT': 'pt',
   'ro-RO': 'ro',
   'vi-VN': 'vi'
+}
+
+const rtlLanguages = ['ar-YE']
+
+export const isRTL = (language: string) => {
+  return rtlLanguages.includes(language)
 }
 
 export const setDayjsLocale = (language: string) => {

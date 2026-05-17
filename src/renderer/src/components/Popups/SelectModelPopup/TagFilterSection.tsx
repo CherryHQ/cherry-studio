@@ -72,7 +72,7 @@ const TagFilterSection: React.FC<TagFilterSectionProps> = ({ availableTags, tagS
 
 const FilterContainer = styled.div`
   padding: 8px;
-  padding-left: 18px;
+  padding-inline-start: 18px;
 `
 
 const FilterText = styled.span`

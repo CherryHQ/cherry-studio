@@ -37,5 +37,5 @@ const MessageWebSearchToolTitleTextWrapper = styled(Text)`
   align-items: center;
   gap: 4px;
   padding: 5px;
-  padding-left: 0;
+  padding-inline-start: 0;
 `

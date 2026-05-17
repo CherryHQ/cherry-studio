@@ -106,10 +106,10 @@ const MessageOutlineContainer = styled.div`
   z-index: 999;
   pointer-events: none;
   & ~ .message-content-container {
-    padding-left: 46px !important;
+    padding-inline-start: 46px !important;
   }
   & ~ .MessageFooter {
-    margin-left: 46px !important;
+    margin-inline-start: 46px !important;
   }
 `
 
@@ -118,7 +118,7 @@ const MessageOutlineItemDot = styled.div<{ $level: number }>`
   height: 4px;
   background: var(--color-border);
   border-radius: 2px;
-  margin-right: 4px;
+  margin-inline-end: 4px;
   flex-shrink: 0;
   transition: background 0.2s ease;
 `
@@ -130,7 +130,7 @@ const MessageOutlineItemText = styled.div<{ $level: number; $miniLevel: number }
   display: none;
   transition: opacity 0.2s ease;
   padding: 2px 8px;
-  padding-left: ${({ $level, $miniLevel }) => ($level - $miniLevel) * 8}px;
+  padding-inline-start: ${({ $level, $miniLevel }) => ($level - $miniLevel) * 8}px;
   font-size: ${({ $level }) => 16 - $level}px;
   white-space: nowrap;
   overflow: hidden;
