@@ -699,3 +699,82 @@ export function getGitBashPathInfo(): GitBashPathInfo {
 
   return { path, source }
 }
+
+/**
+ * Validate that a path points to an actual pwsh.exe file (not a directory or
+ * differently-named executable). Returns true only for absolute paths whose
+ * basename is `pwsh.exe` and which point to a regular file.
+ */
+function isValidPwshPath(candidate: string): boolean {
+  try {
+    if (!path.isAbsolute(candidate)) return false
+    if (path.basename(candidate).toLowerCase() !== 'pwsh.exe') return false
+    if (!fs.existsSync(candidate)) return false
+    const stat = fs.statSync(candidate)
+    return stat.isFile()
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Find PowerShell 7 (pwsh.exe) on Windows via pure discovery (no persistence).
+ * Checks env override, PATH, and known install paths.
+ */
+export function findPwsh(): string | null {
+  if (!isWin) {
+    return null
+  }
+
+  // 1. Check environment variable override
+  const envOverride = process.env.CLAUDE_CODE_PWSH_PATH
+  if (envOverride && isValidPwshPath(envOverride)) {
+    return envOverride
+  }
+
+  // 2. Check PATH for pwsh.exe
+  const pathResult = findExecutable('pwsh', { extensions: ['.exe'] })
+  if (pathResult) {
+    return pathResult
+  }
+
+  // 3. Check known PowerShell 7 install paths
+  const knownPaths = [
+    path.join(process.env.ProgramFiles ?? '', 'PowerShell', '7', 'pwsh.exe'),
+    path.join(process.env['ProgramFiles(x86)'] ?? '', 'PowerShell', '7', 'pwsh.exe'),
+    path.join(process.env.LOCALAPPDATA ?? '', 'Microsoft', 'WindowsApps', 'pwsh.exe')
+  ]
+
+  for (const candidate of knownPaths) {
+    if (candidate && isValidPwshPath(candidate)) {
+      return candidate
+    }
+  }
+
+  return null
+}
+
+/**
+ * Find Windows PowerShell 5.1 (powershell.exe) on Windows via pure discovery.
+ * System32 path always exists on Windows, so this should never return null.
+ */
+export function findPowerShell(): string | null {
+  if (!isWin) {
+    return null
+  }
+
+  // System32 PowerShell is always present on Windows
+  const systemPath = path.join(
+    process.env.SystemRoot ?? 'C:\\Windows',
+    'System32',
+    'WindowsPowerShell',
+    'v1.0',
+    'powershell.exe'
+  )
+  if (fs.existsSync(systemPath)) {
+    return systemPath
+  }
+
+  // Fallback: check PATH
+  return findExecutable('powershell', { extensions: ['.exe'] })
+}

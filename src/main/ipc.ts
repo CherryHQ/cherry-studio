@@ -11,6 +11,7 @@ import { anthropicService } from '@main/services/AnthropicService'
 import { getIpCountry } from '@main/utils/ipService'
 import {
   autoDiscoverGitBash,
+  findPwsh,
   getBinaryPath,
   getGitBashPathInfo,
   isBinaryExists,
@@ -359,6 +360,11 @@ export async function registerIpc() {
   // Returns { path, source } where source is 'manual' | 'auto' | null
   ipcMain.handle(IpcChannel.System_GetGitBashPathInfo, () => {
     return getGitBashPathInfo()
+  })
+
+  ipcMain.handle(IpcChannel.System_CheckPwshAvailable, () => {
+    if (!isWin) return false
+    return findPwsh() !== null
   })
 
   ipcMain.handle(IpcChannel.System_SetGitBashPath, (_, newPath: string | null) => {

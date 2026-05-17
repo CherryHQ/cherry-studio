@@ -67,6 +67,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
 
   const [form, setForm] = useState<BaseAgentForm>(() => buildAgentForm(agent))
   const [gitBashPathInfo, setGitBashPathInfo] = useState<GitBashPathInfo>({ path: null, source: null })
+  const [pwshDetected, setPwshDetected] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -87,6 +88,14 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
   useEffect(() => {
     void checkGitBash()
   }, [checkGitBash])
+
+  useEffect(() => {
+    if (!isWin) return
+    window.api.system
+      .checkPwshAvailable()
+      .then(setPwshDetected)
+      .catch(() => setPwshDetected(false))
+  }, [])
 
   const selectedPermissionMode = form.configuration?.permission_mode ?? 'default'
 
@@ -172,6 +181,30 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
         configuration: nextConfig
       }
     })
+  }, [])
+
+  const enablePowershell = form.configuration?.enable_powershell ?? false
+  const powershellVersion = form.configuration?.powershell_version ?? 'ps7'
+
+  const onEnablePowershellChange = useCallback((checked: boolean) => {
+    setForm((prev) => ({
+      ...prev,
+      configuration: {
+        ...AgentConfigurationSchema.parse(prev.configuration ?? {}),
+        enable_powershell: checked,
+        powershell_version: checked ? (prev.configuration?.powershell_version ?? 'ps7') : undefined
+      }
+    }))
+  }, [])
+
+  const onPowershellVersionChange = useCallback((value: 'ps5' | 'ps7') => {
+    setForm((prev) => ({
+      ...prev,
+      configuration: {
+        ...AgentConfigurationSchema.parse(prev.configuration ?? {}),
+        powershell_version: value
+      }
+    }))
   }, [])
 
   const onNameChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
@@ -302,6 +335,14 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
         return
       }
 
+      if (isWin && enablePowershell && powershellVersion === 'ps7' && !pwshDetected) {
+        window.toast.error(
+          t('agent.shell.ps7NotDetected', 'PowerShell 7 not detected. Install it or select Windows PowerShell.')
+        )
+        loadingRef.current = false
+        return
+      }
+
       if (isEditing(agent)) {
         if (!agent) {
           loadingRef.current = false
@@ -362,7 +403,10 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
       updateAgent,
       afterSubmit,
       addAgent,
-      gitBashPathInfo.path
+      gitBashPathInfo.path,
+      enablePowershell,
+      powershellVersion,
+      pwshDetected
     ]
   )
 
@@ -451,6 +495,47 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
                 </GitBashInputWrapper>
                 {gitBashPathInfo.path && gitBashPathInfo.source === 'auto' && (
                   <SourceHint>{t('agent.gitBash.autoDiscoveredHint', 'Auto-discovered')}</SourceHint>
+                )}
+              </FormItem>
+            )}
+
+            {isWin && (
+              <FormItem>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Label>{t('agent.shell.enablePowerShell', 'Enable PowerShell tool')}</Label>
+                    <HelpTooltip
+                      title={t(
+                        'agent.shell.enablePowerShellTooltip',
+                        'Adds PowerShell as an additional shell tool alongside Bash. The agent can use both.'
+                      )}
+                    />
+                  </div>
+                  <Switch checked={enablePowershell} size="sm" onCheckedChange={onEnablePowershellChange} />
+                </div>
+                {enablePowershell && (
+                  <div className="mt-2">
+                    <Select
+                      value={powershellVersion}
+                      onChange={onPowershellVersionChange}
+                      style={{ width: '100%' }}
+                      options={[
+                        {
+                          value: 'ps7',
+                          label: t('agent.shell.ps7', 'PowerShell 7') + (pwshDetected ? ' ✓' : '')
+                        },
+                        { value: 'ps5', label: t('agent.shell.ps5', 'Windows PowerShell (Built-in)') }
+                      ]}
+                    />
+                    {powershellVersion === 'ps7' && !pwshDetected && (
+                      <SourceHint style={{ color: '#ff4d4f' }}>
+                        {t(
+                          'agent.shell.ps7NotDetected',
+                          'PowerShell 7 not detected. Install from github.com/PowerShell/PowerShell or select Windows PowerShell.'
+                        )}
+                      </SourceHint>
+                    )}
+                  </div>
                 )}
               </FormItem>
             )}
@@ -549,7 +634,10 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
               type="primary"
               htmlType="submit"
               loading={loadingRef.current}
-              disabled={isWin && !gitBashPathInfo.path}>
+              disabled={
+                (isWin && !gitBashPathInfo.path) ||
+                (isWin && enablePowershell && powershellVersion === 'ps7' && !pwshDetected)
+              }>
               {isEditing(agent) ? t('common.confirm') : t('common.add')}
             </Button>
           </FormFooter>

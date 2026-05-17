@@ -38,9 +38,9 @@ import {
 } from '@main/services/proxy/nodeProxy'
 import { toAsarUnpackedPath } from '@main/utils'
 import { getAppLanguage } from '@main/utils/language'
-import { autoDiscoverGitBash, getBinaryPath } from '@main/utils/process'
+import { autoDiscoverGitBash, findPowerShell, findPwsh, getBinaryPath } from '@main/utils/process'
 import { rtkRewrite } from '@main/utils/rtk'
-import getLoginShellEnvironment from '@main/utils/shell-env'
+import getLoginShellEnvironment, { getPowerShellProfileEnvironment } from '@main/utils/shell-env'
 import {
   CHANNEL_SECURITY_PROMPT,
   GLOBALLY_DISALLOWED_TOOLS,
@@ -184,6 +184,18 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     // Auto-discover Git Bash path on Windows (already logs internally)
     const customGitBashPath = isWin ? autoDiscoverGitBash() : null
+
+    // PowerShell tool: load PS profile environment when enabled
+    const enablePwsh = isWin && (session.configuration?.enable_powershell ?? false)
+    const psVersion = session.configuration?.powershell_version ?? 'ps7'
+    let psProfileEnv: Record<string, string> = {}
+    if (enablePwsh) {
+      const psExePath = psVersion === 'ps7' ? findPwsh() : findPowerShell()
+      if (psExePath) {
+        psProfileEnv = await getPowerShellProfileEnvironment(psExePath, loginShellEnv)
+      }
+    }
+
     const bunPath = await getBinaryPath('bun')
 
     // Claude Agent SDK builds the final endpoint as `${ANTHROPIC_BASE_URL}/v1/messages`.
@@ -202,6 +214,7 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     const env = {
       ...loginShellEnv,
+      ...psProfileEnv,
       ...getProxyEnvironment(process.env),
       // prevent claude agent sdk using bedrock api
       CLAUDE_CODE_USE_BEDROCK: '0',
@@ -227,7 +240,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       CLAUDE_CONFIG_DIR: application.getPath('feature.agents.claude.root'),
       ENABLE_TOOL_SEARCH: 'auto',
       CHERRY_STUDIO_BUN_PATH: bunPath,
-      ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
+      ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {}),
+      ...(enablePwsh ? { CLAUDE_CODE_USE_POWERSHELL_TOOL: '1' } : {})
     }
 
     // Merge user-defined environment variables from session configuration
@@ -246,6 +260,7 @@ class ClaudeCodeService implements AgentServiceInterface {
         'CLAUDE_CONFIG_DIR',
         'CLAUDE_CODE_USE_BEDROCK',
         'CLAUDE_CODE_GIT_BASH_PATH',
+        'CLAUDE_CODE_USE_POWERSHELL_TOOL',
         'CHERRY_STUDIO_NODE_PROXY_RULES',
         'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
         'NODE_OPTIONS',

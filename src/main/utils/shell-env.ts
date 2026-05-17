@@ -295,6 +295,110 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
   })
 }
 
+/**
+ * Capture environment variables from a PowerShell profile session.
+ *
+ * Spawns PowerShell WITHOUT `-NoProfile` so the user's `$PROFILE` is loaded,
+ * then reads the resulting environment. This is a separate function from
+ * `getLoginShellEnvironment()` to avoid contaminating the module-level cache
+ * that is shared by MCP and other consumers.
+ *
+ * On timeout or error, returns `{}` (empty overlay — callers merge on top of
+ * the base env, so empty means no additions).
+ */
+export async function getPowerShellProfileEnvironment(
+  psExePath: string,
+  baseEnv?: Record<string, string>
+): Promise<Record<string, string>> {
+  return new Promise((resolve) => {
+    const spawnEnv =
+      baseEnv ??
+      (() => {
+        const env: Record<string, string> = {}
+        for (const key in process.env) {
+          env[key] = process.env[key] || ''
+        }
+        return env
+      })()
+
+    let settled = false
+    let timeoutId: NodeJS.Timeout | undefined
+
+    const cleanup = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+        timeoutId = undefined
+      }
+    }
+
+    const resolveOnce = (value: Record<string, string>) => {
+      if (settled) return
+      settled = true
+      cleanup()
+      resolve(value)
+    }
+
+    // ForEach-Object produces NAME=VALUE lines, same format as Unix `env`
+    const command = 'Get-ChildItem Env: | ForEach-Object { "$($_.Name)=$($_.Value)" }'
+
+    const child = spawn(psExePath, ['-NoLogo', '-Command', command], {
+      cwd: os.homedir(),
+      detached: false,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      shell: false,
+      env: spawnEnv
+    })
+
+    let output = ''
+    let errorOutput = ''
+
+    timeoutId = setTimeout(() => {
+      logger.warn(`PowerShell profile capture timed out after ${SHELL_ENV_TIMEOUT_MS}ms`)
+      child.kill()
+      resolveOnce({})
+    }, SHELL_ENV_TIMEOUT_MS)
+
+    child.stdout.on('data', (data) => {
+      output += data.toString()
+    })
+
+    child.stderr.on('data', (data) => {
+      errorOutput += data.toString()
+    })
+
+    child.on('error', (error) => {
+      logger.error('Failed to spawn PowerShell for profile capture', error)
+      resolveOnce({})
+    })
+
+    child.on('close', (code) => {
+      if (settled) return
+
+      if (code !== 0) {
+        logger.warn('PowerShell profile capture exited non-zero', {
+          code,
+          stderr: errorOutput.trim()
+        })
+        return resolveOnce({})
+      }
+
+      const env: Record<string, string> = {}
+      const lines = output.split(/\r?\n/)
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (!trimmed) continue
+        const sep = trimmed.indexOf('=')
+        if (sep > 0) {
+          env[trimmed.substring(0, sep)] = trimmed.substring(sep + 1)
+        }
+      }
+
+      appendCherryBinToPath(env)
+      resolveOnce(env)
+    })
+  })
+}
+
 let cachedEnv: Record<string, string> | null = null
 
 async function fetchShellEnv(): Promise<Record<string, string>> {
