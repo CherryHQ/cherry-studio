@@ -746,7 +746,7 @@ const fetchAndProcessAgentResponseImpl = async (
     const adapter = new AiSdkToChunkAdapter(
       streamProcessorCallbacks,
       [],
-      false,
+      true,
       false,
       (sessionId) => {
         void persistAgentSessionId(sessionId)
@@ -2227,7 +2227,7 @@ export const setupChannelStream = (
   const streamProcessorCallbacks = createStreamProcessor(callbacks)
   streamProcessorCallbacks({ type: ChunkType.LLM_RESPONSE_CREATED })
 
-  const adapter = new AiSdkToChunkAdapter(streamProcessorCallbacks, [], false, false)
+  const adapter = new AiSdkToChunkAdapter(streamProcessorCallbacks, [], true, false)
   adapter
     .processStream({
       fullStream: stream,
