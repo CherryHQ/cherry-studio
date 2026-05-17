@@ -91,7 +91,9 @@ const providerKeyMap = {
   cerebras: 'provider.cerebras',
   mimo: 'provider.mimo',
   'minimax-global': 'provider.minimax-global',
-  zai: 'provider.zai'
+  zai: 'provider.zai',
+  'volcano-coding': 'provider.volcano-coding',
+  'byteplus-coding': 'provider.byteplus-coding'
 } as const
 
 /**

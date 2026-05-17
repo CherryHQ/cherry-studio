@@ -201,7 +201,9 @@ export const SystemProviderIdSchema = z.enum([
   'cerebras',
   'mimo',
   'minimax-global',
-  'zai'
+  'zai',
+  'volcano-coding',
+  'byteplus-coding'
 ])
 
 export type SystemProviderId = z.infer<typeof SystemProviderIdSchema>
@@ -239,6 +241,8 @@ export const SystemProviderIds = {
   vertexai: 'vertexai',
   github: 'github',
   copilot: 'copilot',
+  'volcano-coding': 'volcano-coding',
+  'byteplus-coding': 'byteplus-coding',
   zhipu: 'zhipu',
   yi: 'yi',
   moonshot: 'moonshot',
