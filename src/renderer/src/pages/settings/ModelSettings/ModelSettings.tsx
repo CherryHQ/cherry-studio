@@ -1,4 +1,3 @@
-import { RedoOutlined } from '@ant-design/icons'
 import {
   Button,
   Dialog,
@@ -20,7 +19,7 @@ import { TranslateSettingsPanelContent } from '@renderer/pages/translate/Transla
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import type { Model } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
-import { Languages, MessageSquareMore, PlusIcon, Rocket, Settings2 } from 'lucide-react'
+import { Languages, MessageSquareMore, PlusIcon, Rocket, RotateCcw, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -160,9 +159,9 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                 <Settings2 size={16} />
               </Button>
               {translateModelPrompt !== TRANSLATE_PROMPT && (
-                <Tooltip title={t('common.reset')}>
+                <Tooltip content={t('common.reset')}>
                   <Button className="ml-2" onClick={onResetTranslatePrompt} size="icon">
-                    <RedoOutlined size={16} />
+                    <RotateCcw size={16} />
                   </Button>
                 </Tooltip>
               )}
