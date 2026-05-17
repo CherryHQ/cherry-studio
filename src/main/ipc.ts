@@ -16,6 +16,7 @@ import {
   runInstallScript,
   validateGitBashPath
 } from '@main/utils/process'
+import { refreshShellEnv } from '@main/utils/shell-env'
 import { handleZoomFactor } from '@main/utils/zoom'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import type { UpgradeChannel } from '@shared/config/constant'
@@ -556,6 +557,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
       configManager.set(ConfigKeys.GitBashPathSource, null)
       // Re-run auto-discovery to restore auto-discovered path if available
       autoDiscoverGitBash()
+      refreshShellEnv().catch(() => {})
       return true
     }
 
@@ -567,6 +569,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     // Set path with 'manual' source
     configManager.set(ConfigKeys.GitBashPath, validated)
     configManager.set(ConfigKeys.GitBashPathSource, 'manual')
+    refreshShellEnv().catch(() => {})
     return true
   })
 

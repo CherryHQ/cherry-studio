@@ -3,6 +3,8 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/constant'
+import { ConfigKeys, configManager } from '@main/services/ConfigManager'
+import { findGitBash } from '@main/utils/git-bash'
 import { execFileSync, spawn } from 'child_process'
 
 const logger = loggerService.withContext('ShellEnv')
@@ -139,45 +141,147 @@ function getWindowsEnvironment(): Record<string, string> {
 }
 
 /**
- * Spawns a login shell in the user's home directory to capture its environment variables.
- *
- * We explicitly run a login + interactive shell so it sources the same init files that a user
- * would typically rely on inside their terminal. Many CLIs export PATH or other variables from
- * these scripts; capturing them keeps spawned processes aligned with the user’s expectations.
- *
- * Timeout handling is important because profile scripts might block forever (e.g. misconfigured
- * `read` or prompts). We proactively kill the shell and surface an error in that case so that
- * the app does not hang.
- * @returns {Promise<Object>} A promise that resolves with an object containing
- * the environment variables, or rejects with an error.
+ * Merge registry PATH segments into a bash-captured environment.
+ * Ensures Windows system-level paths (e.g. System32) are not lost
+ * when the environment was captured from Git Bash.
  */
-function getLoginShellEnvironment(): Promise<Record<string, string>> {
-  // On Windows, skip the shell spawn entirely — `cmd.exe /c set` just inherits
-  // the (potentially stale) parent process env. Instead, read the current PATH
-  // straight from the Windows registry.
-  if (isWin) {
-    return Promise.resolve(getWindowsEnvironment())
+function mergeWithRegistryPath(env: Record<string, string>): Record<string, string> {
+  const registryPath = readWindowsRegistryPath(env)
+  if (!registryPath) {
+    return { ...env }
   }
 
-  return new Promise((resolve, reject) => {
-    const homeDirectory =
-      process.env.HOME || process.env.Home || process.env.USERPROFILE || process.env.UserProfile || os.homedir()
-    if (!homeDirectory) {
-      return reject(new Error("Could not determine user's home directory."))
+  // Find the PATH key in env (case-insensitive on Windows)
+  const pathKey = Object.keys(env).find((k) => k.toLowerCase() === 'path')
+  const canonicalKey = pathKey || 'Path'
+  const existingPath = env[canonicalKey] || ''
+
+  const normaliseSegment = (segment: string) => path.normalize(segment).toLowerCase()
+  const seenSegments = new Set(existingPath.split(';').map(normaliseSegment))
+
+  const registrySegments = registryPath.split(';').filter((segment) => {
+    const trimmed = segment.trim()
+    if (!trimmed) return false
+    const normalised = normaliseSegment(trimmed)
+    if (seenSegments.has(normalised)) return false
+    seenSegments.add(normalised)
+    return true
+  })
+
+  if (registrySegments.length > 0) {
+    return { ...env, [canonicalKey]: existingPath + ';' + registrySegments.join(';') }
+  }
+
+  return { ...env }
+}
+
+/**
+ * Convert MSYS/POSIX-style PATH and HOME to Windows-style.
+ * Git Bash outputs paths like /c/Users/... which need conversion.
+ */
+function normaliseBashEnvToWindows(env: Record<string, string>): Record<string, string> {
+  // Start with a copy to avoid mutation
+  const windowsEnv: Record<string, string> = { ...env }
+
+  // Convert HOME if present (MSYS format /c/Users/... → C:\Users\...)
+  const homeKey = Object.keys(windowsEnv).find((k) => k.toLowerCase() === 'home')
+  if (homeKey && windowsEnv[homeKey]) {
+    const homeValue = windowsEnv[homeKey]
+    const msysHomeMatch = /^\/([a-z])(\/.*)$/i.exec(homeValue)
+    if (msysHomeMatch) {
+      const driveLetter = msysHomeMatch[1].toUpperCase()
+      const rest = msysHomeMatch[2].replace(/\//g, '\\')
+      windowsEnv[homeKey] = `${driveLetter}:${rest}`
+    }
+  }
+
+  // Find PATH key (case-insensitive)
+  const pathKey = Object.keys(windowsEnv).find((k) => k.toLowerCase() === 'path')
+  if (!pathKey) {
+    return windowsEnv
+  }
+
+  const pathValue = windowsEnv[pathKey]
+  if (!pathValue) {
+    return windowsEnv
+  }
+
+  // Already Windows format (has ';' separator) - no conversion needed
+  if (pathValue.includes(';')) {
+    return windowsEnv
+  }
+
+  // POSIX format - split on ':' and convert each segment
+  // Handle edge case: Windows paths like C:/path contain ':' which shouldn't split
+  // Strategy: split on ':', then recombine drive letter fragments
+  const rawSegments = pathValue.split(':')
+  const segments: string[] = []
+
+  for (let i = 0; i < rawSegments.length; i++) {
+    const current = rawSegments[i].trim()
+    if (!current) continue
+
+    // Check if this looks like a drive letter (single letter)
+    // and next segment starts with / or \ (Windows-style path in POSIX PATH)
+    if (/^[A-Za-z]$/.test(current) && i + 1 < rawSegments.length) {
+      const next = rawSegments[i + 1].trim()
+      if (next.startsWith('/') || next.startsWith('\\')) {
+        // Combine: C + /Python39 → C:/Python39
+        segments.push(`${current}:${next}`)
+        i++ // Skip next segment since we combined it
+        continue
+      }
     }
 
-    let shellPath = process.env.SHELL
+    segments.push(current)
+  }
 
-    if (!shellPath) {
-      if (isMac) {
-        logger.warn(
-          "process.env.SHELL is not set. Defaulting to /bin/zsh for macOS. This might not be the user's login shell."
-        )
-        shellPath = '/bin/zsh'
-      } else {
-        logger.warn("process.env.SHELL is not set. Defaulting to /bin/bash. This might not be the user's login shell.")
-        shellPath = '/bin/bash'
-      }
+  const windowsSegments: string[] = []
+
+  for (const segment of segments) {
+    const trimmed = segment.trim()
+    if (!trimmed) {
+      continue
+    }
+
+    // MSYS path: /c/Users/... → C:\Users\...
+    const msysMatch = /^\/([a-z])(\/.*)$/i.exec(trimmed)
+    if (msysMatch) {
+      const driveLetter = msysMatch[1].toUpperCase()
+      const rest = msysMatch[2].replace(/\//g, '\\')
+      windowsSegments.push(`${driveLetter}:${rest}`)
+    } else if (/^[A-Za-z]:[\\/]/.test(trimmed)) {
+      // Already Windows-style (e.g., C:/Python39), normalize slashes to backslashes
+      windowsSegments.push(trimmed.replace(/\//g, '\\'))
+    } else if (/^\//.test(trimmed)) {
+      // MSYS-internal path (e.g., /usr/bin, /mingw64/bin, /bin, /cmd)
+      // These are virtual filesystem paths with no Windows equivalent.
+      // Git for Windows adds its cmd/ directory to the real Windows PATH
+      // during installation, so git.cmd remains accessible via registry merge.
+      logger.debug(`Filtering out MSYS-internal PATH segment: ${trimmed}`)
+    } else {
+      // Relative paths or unusual entries — preserve as-is
+      windowsSegments.push(trimmed)
+    }
+  }
+
+  const windowsPath = windowsSegments.join(';')
+  windowsEnv[pathKey] = windowsPath
+  return windowsEnv
+}
+
+/**
+ * Spawn a login shell and capture its environment variables.
+ * Works with any POSIX-compatible shell (bash, zsh, etc.) on any platform.
+ */
+function spawnShellEnv(shellPath: string): Promise<Record<string, string>> {
+  return new Promise((resolve, reject) => {
+    // On Windows, prefer USERPROFILE (native path) over HOME (may be MSYS format /c/...)
+    const homeDirectory = isWin
+      ? process.env.USERPROFILE || process.env.UserProfile || process.env.HOME || process.env.Home || os.homedir()
+      : process.env.HOME || process.env.Home || process.env.USERPROFILE || process.env.UserProfile || os.homedir()
+    if (!homeDirectory) {
+      return reject(new Error("Could not determine user's home directory."))
     }
 
     const commandArgs = ['-ilc', 'env']
@@ -212,17 +316,34 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
       reject(error)
     }
 
+    // Build spawn environment — on Windows, merge fresh registry PATH so that
+    // profile scripts can find tools installed after app launch.
+    let spawnEnv: Record<string, string> | undefined
+    if (isWin) {
+      spawnEnv = { ...(process.env as Record<string, string>) }
+      const freshRegistryPath = readWindowsRegistryPath(spawnEnv)
+      if (freshRegistryPath) {
+        const pathKeys = Object.keys(spawnEnv).filter((k) => k.toLowerCase() === 'path')
+        for (const key of pathKeys) {
+          spawnEnv[key] = freshRegistryPath
+        }
+        if (pathKeys.length === 0) {
+          spawnEnv.Path = freshRegistryPath
+        }
+      }
+    }
+
     const child = spawn(shellPath, commandArgs, {
-      cwd: homeDirectory, // Run the command in the user's home directory
-      detached: false, // Stay attached so we can clean up reliably
-      stdio: ['ignore', 'pipe', 'pipe'], // stdin, stdout, stderr
-      shell: false // We are specifying the shell command directly
+      cwd: homeDirectory,
+      detached: false,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      shell: false,
+      ...(spawnEnv ? { env: spawnEnv } : {})
     })
 
     let output = ''
     let errorOutput = ''
 
-    // Protects against shells that wait for user input or hang during profile sourcing.
     timeoutId = setTimeout(() => {
       const errorMessage = `Timed out after ${SHELL_ENV_TIMEOUT_MS}ms while retrieving shell environment. Shell: ${shellPath}. Args: ${commandArgs.join(
         ' '
@@ -257,12 +378,9 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
       }
 
       if (errorOutput.trim()) {
-        // Some shells might output warnings or non-fatal errors to stderr
-        // during profile loading. Log it, but proceed if exit code is 0.
         logger.warn(`Shell process stderr output (even with exit code 0):\n${errorOutput.trim()}`)
       }
 
-      // Convert each VAR=VALUE line into our env map.
       const env: Record<string, string> = {}
       const lines = output.split(/\r?\n/)
 
@@ -271,7 +389,6 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
         if (trimmedLine) {
           const separatorIndex = trimmedLine.indexOf('=')
           if (separatorIndex > 0) {
-            // Ensure '=' is present and it's not the first character
             const key = trimmedLine.substring(0, separatorIndex)
             const value = trimmedLine.substring(separatorIndex + 1)
             env[key] = value
@@ -280,18 +397,76 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
       })
 
       if (Object.keys(env).length === 0 && output.length < 100) {
-        // Arbitrary small length check
-        // This might indicate an issue if no env vars were parsed or output was minimal
         logger.warn(
           'Parsed environment is empty or output was very short. This might indicate an issue with shell execution or environment variable retrieval.'
         )
         logger.warn(`Raw output from shell:\n${output}`)
       }
 
-      appendCherryBinToPath(env)
-
+      // Note: appendCherryBinToPath is called after normaliseBashEnvToWindows
+      // to ensure PATH is in Windows format first
       resolveOnce(env)
     })
+  })
+}
+
+/**
+ * Detect the user's default shell on macOS/Linux.
+ */
+function detectUnixShell(): string {
+  let shellPath = process.env.SHELL
+
+  if (!shellPath) {
+    if (isMac) {
+      logger.warn(
+        "process.env.SHELL is not set. Defaulting to /bin/zsh for macOS. This might not be the user's login shell."
+      )
+      shellPath = '/bin/zsh'
+    } else {
+      logger.warn("process.env.SHELL is not set. Defaulting to /bin/bash. This might not be the user's login shell.")
+      shellPath = '/bin/bash'
+    }
+  }
+
+  return shellPath
+}
+
+/**
+ * Spawns a login shell in the user's home directory to capture its environment variables.
+ *
+ * On Windows with Git Bash installed, spawns bash.exe to source profile files.
+ * On macOS/Linux, spawns the user's default login shell.
+ * Falls back to registry-based PATH on Windows when Git Bash is unavailable or spawn fails.
+ */
+function getLoginShellEnvironment(): Promise<Record<string, string>> {
+  // On Windows, try Git Bash first to source profile files
+  if (isWin) {
+    // Read configured Git Bash path from settings (P2 fix)
+    const configuredPath = configManager.get<string | undefined>(ConfigKeys.GitBashPath)
+    const gitBashPath = findGitBash(configuredPath)
+    if (gitBashPath) {
+      return spawnShellEnv(gitBashPath)
+        .then((bashEnv) => normaliseBashEnvToWindows(bashEnv))
+        .then((bashEnv) => mergeWithRegistryPath(bashEnv))
+        .then((env) => {
+          appendCherryBinToPath(env)
+          return env
+        })
+        .catch((error: unknown) => {
+          const msg = error instanceof Error ? error.message : String(error)
+          logger.warn('Git Bash spawn failed, falling back to registry PATH', { error: msg })
+          return getWindowsEnvironment()
+        })
+    }
+    // No Git Bash found — fallback to registry-based PATH
+    return Promise.resolve(getWindowsEnvironment())
+  }
+
+  // macOS/Linux: spawn the user's default login shell
+  const shellPath = detectUnixShell()
+  return spawnShellEnv(shellPath).then((env) => {
+    appendCherryBinToPath(env)
+    return env
   })
 }
 
