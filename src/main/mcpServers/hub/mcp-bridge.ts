@@ -119,13 +119,13 @@ export const abortMcpTool = async (callId: string): Promise<boolean> => {
 }
 
 function extractToolResult(result: MCPCallToolResponse): unknown {
-  // Some MCP tools deliver their payload exclusively via structuredContent
-  // with an empty content array; surface it instead of returning null.
-  if (result.structuredContent !== undefined && result.structuredContent !== null) {
-    return result.structuredContent
-  }
-
   if (!result.content || result.content.length === 0) {
+    // Some MCP tools deliver their payload exclusively via structuredContent
+    // with an empty content array; surface it instead of returning null.
+    if (result.structuredContent !== undefined && result.structuredContent !== null) {
+      return result.structuredContent
+    }
+
     return null
   }
 

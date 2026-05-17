@@ -244,13 +244,13 @@ describe('callMcpTool result extraction', () => {
     expect(result).toEqual({ result: [{ id: 'x' }, { id: 'y' }] })
   })
 
-  it('prefers structuredContent over the content array when both are present', async () => {
+  it('preserves the content array when structuredContent is also present', async () => {
     const result = await callWithMockedResponse({
       content: [{ type: 'text', text: '{"fromContent":true}' }],
       structuredContent: { fromStructured: true }
     })
 
-    expect(result).toEqual({ fromStructured: true })
+    expect(result).toEqual({ fromContent: true })
   })
 
   it('returns null when both content and structuredContent are empty', async () => {
