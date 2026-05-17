@@ -194,5 +194,29 @@ describe('shiki', () => {
 
       expect(result).toEqual({})
     })
+
+    it('should use readable text color for white tokens in light themes', () => {
+      const token = createThemedToken({
+        content: 'LogPage',
+        offset: 0,
+        color: 'white'
+      })
+
+      const result = getReactStyleFromToken(token, { isDarkTheme: false })
+
+      expect(result.color).toBe('var(--color-text)')
+    })
+
+    it('should preserve white tokens in dark themes', () => {
+      const token = createThemedToken({
+        content: 'LogPage',
+        offset: 0,
+        color: 'white'
+      })
+
+      const result = getReactStyleFromToken(token, { isDarkTheme: true })
+
+      expect(result.color).toBe('white')
+    })
   })
 })
