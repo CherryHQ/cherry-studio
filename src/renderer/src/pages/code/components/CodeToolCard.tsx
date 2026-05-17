@@ -27,7 +27,7 @@ export function CodeToolCard({ icon: Icon, title, subtitle, selected = false, on
       <div
         className="flex shrink-0 items-center justify-center overflow-hidden"
         style={{ width: ICON_BOX_SIZE, height: ICON_BOX_SIZE, borderRadius: ICON_BOX_RADIUS }}>
-        <Icon width={ICON_BOX_SIZE} height={ICON_BOX_SIZE} aria-label={title} />
+        <Icon width={ICON_BOX_SIZE} height={ICON_BOX_SIZE} className="text-foreground" aria-label={title} />
       </div>
       <p className="mt-4 self-stretch truncate font-medium text-foreground text-sm">{title}</p>
       {subtitle && (

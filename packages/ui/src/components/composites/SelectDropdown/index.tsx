@@ -2,7 +2,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui/compon
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronDown, X } from 'lucide-react'
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { useEffect, useRef, useState } from 'react'
 
 export interface SelectDropdownProps<T extends { id: string }> {
@@ -32,6 +32,52 @@ export interface SelectDropdownProps<T extends { id: string }> {
 const scrollbarClass =
   'overflow-y-auto [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-0.75'
 
+function getWheelDeltaY(event: WheelEvent, el: HTMLElement) {
+  if (event.deltaMode === 1) {
+    return event.deltaY * 16
+  }
+  if (event.deltaMode === 2) {
+    return event.deltaY * el.clientHeight
+  }
+  return event.deltaY
+}
+
+function useModalPopoverWheel(ref: RefObject<HTMLDivElement | null>) {
+  // 当 Popover Portal 到 body 而外层是 Radix modal Dialog 时，body 的 react-remove-scroll
+  // 会吞掉 portal'd 内容上的 wheel 事件。手动处理 wheel，绕过外层拦截。
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const handleWheel = (e: WheelEvent) => {
+      if (el.scrollHeight <= el.clientHeight) return
+      e.preventDefault()
+      e.stopPropagation()
+      el.scrollTop += getWheelDeltaY(e, el)
+    }
+    el.addEventListener('wheel', handleWheel, { passive: false })
+    return () => el.removeEventListener('wheel', handleWheel)
+  }, [ref])
+}
+
+function ScrollContainer({
+  children,
+  className,
+  maxHeight
+}: {
+  children: ReactNode
+  className?: string
+  maxHeight: number
+}) {
+  const scrollerRef = useRef<HTMLDivElement>(null)
+  useModalPopoverWheel(scrollerRef)
+
+  return (
+    <div ref={scrollerRef} className={cn(scrollbarClass, className)} style={{ maxHeight }}>
+      {children}
+    </div>
+  )
+}
+
 function VirtualRows<T extends { id: string }>({
   items,
   itemHeight,
@@ -46,27 +92,13 @@ function VirtualRows<T extends { id: string }>({
   renderRow: (item: T) => ReactNode
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null)
+  useModalPopoverWheel(scrollerRef)
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollerRef.current,
     estimateSize: () => itemHeight,
     overscan
   })
-
-  // 当 Popover Portal 到 body 而外层是 Radix modal Dialog 时，body 的 react-remove-scroll
-  // 会吞掉 portal'd 内容上的 wheel 事件。手动处理 wheel，绕过外层拦截。
-  useEffect(() => {
-    const el = scrollerRef.current
-    if (!el) return
-    const handleWheel = (e: WheelEvent) => {
-      if (el.scrollHeight <= el.clientHeight) return
-      e.preventDefault()
-      e.stopPropagation()
-      el.scrollTop += e.deltaY
-    }
-    el.addEventListener('wheel', handleWheel, { passive: false })
-    return () => el.removeEventListener('wheel', handleWheel)
-  }, [])
 
   return (
     <div ref={scrollerRef} className={scrollbarClass} style={{ maxHeight }}>
@@ -114,7 +146,7 @@ export function SelectDropdown<T extends { id: string }>({
         <div
           className={cn(
             'flex items-center gap-1 rounded-md pr-1 transition-colors',
-            isSelected && 'bg-accent text-foreground'
+            isSelected && 'bg-primary/10 text-primary'
           )}>
           <button
             type="button"
@@ -144,7 +176,7 @@ export function SelectDropdown<T extends { id: string }>({
         }}
         className={cn(
           'w-full rounded-md px-2.5 py-1.5 text-left text-sm transition-colors',
-          isSelected ? 'bg-accent text-foreground' : 'text-foreground hover:bg-muted'
+          isSelected ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-muted'
         )}>
         {renderItem(item, isSelected)}
       </button>
@@ -190,11 +222,11 @@ export function SelectDropdown<T extends { id: string }>({
             renderRow={renderRow}
           />
         ) : (
-          <div className={cn(scrollbarClass, onRemove && 'space-y-1')} style={{ maxHeight }}>
+          <ScrollContainer className={cn(onRemove && 'space-y-1')} maxHeight={maxHeight}>
             {items.map((item) => (
               <div key={item.id}>{renderRow(item)}</div>
             ))}
-          </div>
+          </ScrollContainer>
         )}
       </PopoverContent>
     </Popover>

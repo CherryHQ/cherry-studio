@@ -5,6 +5,14 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const testState = vi.hoisted(() => ({
+  isBunInstalled: true,
+  selectedCliTool: 'github-copilot-cli',
+  canLaunch: true,
+  codeCliRun: vi.fn(),
+  setTimeoutTimer: vi.fn()
+}))
+
 import CodeCliPage from '../CodeCliPage'
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -81,18 +89,18 @@ vi.mock('@renderer/config/models', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  usePersistCache: () => [true, vi.fn()]
+  usePersistCache: () => [testState.isBunInstalled, vi.fn()]
 }))
 
 vi.mock('@renderer/hooks/useCodeCli', () => ({
   useCodeCli: () => ({
-    selectedCliTool: codeCLI.openaiCodex,
+    selectedCliTool: testState.selectedCliTool as codeCLI,
     selectedModel: null,
     selectedTerminal: terminalApps.systemDefault,
     environmentVariables: '',
     directories: [],
     currentDirectory: '',
-    canLaunch: true,
+    canLaunch: testState.canLaunch,
     setCliTool: vi.fn().mockResolvedValue(undefined),
     setModel: vi.fn().mockResolvedValue(undefined),
     setTerminal: vi.fn(),
@@ -108,7 +116,7 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTimer', () => ({
-  useTimer: () => ({ setTimeoutTimer: vi.fn() })
+  useTimer: () => ({ setTimeoutTimer: testState.setTimeoutTimer })
 }))
 
 vi.mock('@renderer/services/AssistantService', () => ({
@@ -172,12 +180,16 @@ vi.mock('../components/FieldLabel', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
+  testState.isBunInstalled = true
+  testState.selectedCliTool = codeCLI.githubCopilotCli
+  testState.canLaunch = true
+  testState.codeCliRun.mockResolvedValue({ success: true })
   Object.assign(window, {
     api: {
       isBinaryExist: vi.fn().mockResolvedValue(true),
       codeCli: {
         getAvailableTerminals: vi.fn().mockResolvedValue([]),
-        run: vi.fn().mockResolvedValue({ success: true })
+        run: testState.codeCliRun
       }
     },
     toast: {
@@ -188,17 +200,78 @@ beforeEach(() => {
   })
 })
 
+async function openCodeToolDialog() {
+  render(<CodeCliPage />)
+  fireEvent.click(screen.getByRole('button', { name: 'open tool' }))
+  await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
+}
+
 describe('CodeCliPage', () => {
   it('keeps the auto-update checkbox neutral instead of primary themed', async () => {
-    render(<CodeCliPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'open tool' }))
+    await openCodeToolDialog()
 
     const checkbox = await screen.findByRole('checkbox')
-    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
 
     // Behavioral guard: page must not theme the auto-update checkbox with the global primary token.
     expect(checkbox.className).not.toMatch(/primary/)
     expect(screen.getByText('code.auto_update_to_latest')).toHaveClass('font-normal')
+  })
+
+  it('disables launch when the tool cannot launch', async () => {
+    testState.canLaunch = false
+
+    await openCodeToolDialog()
+
+    expect(screen.getByRole('button', { name: 'code.launch.label' })).toBeDisabled()
+  })
+
+  it('disables launch when bun is not installed', async () => {
+    testState.isBunInstalled = false
+
+    await openCodeToolDialog()
+
+    expect(screen.getByRole('button', { name: 'code.launch.label' })).toBeDisabled()
+  })
+
+  it('shows launching state and prevents duplicate launch submissions', async () => {
+    let resolveRun!: (value: { success: boolean }) => void
+    testState.codeCliRun.mockReturnValue(
+      new Promise<{ success: boolean }>((resolve) => {
+        resolveRun = resolve
+      })
+    )
+
+    await openCodeToolDialog()
+
+    const launchButton = screen.getByRole('button', { name: 'code.launch.label' })
+    fireEvent.click(launchButton)
+
+    const launchingButton = await screen.findByRole('button', { name: 'code.launching' })
+    expect(launchingButton).toBeDisabled()
+    fireEvent.click(launchingButton)
+    expect(testState.codeCliRun).toHaveBeenCalledTimes(1)
+
+    resolveRun({ success: true })
+    await waitFor(() => expect(window.toast.success).toHaveBeenCalledWith('code.launch.success'))
+  })
+
+  it('shows launched state after a successful launch and schedules reset', async () => {
+    await openCodeToolDialog()
+
+    fireEvent.click(screen.getByRole('button', { name: 'code.launch.label' }))
+
+    expect(await screen.findByRole('button', { name: /code.launch.launched/ })).toBeEnabled()
+    expect(testState.setTimeoutTimer).toHaveBeenCalledWith('launchSuccess', expect.any(Function), 2500)
+  })
+
+  it('returns to idle and shows an error when launch fails', async () => {
+    testState.codeCliRun.mockResolvedValue({ success: false, message: 'launch failed' })
+
+    await openCodeToolDialog()
+
+    fireEvent.click(screen.getByRole('button', { name: 'code.launch.label' }))
+
+    await waitFor(() => expect(window.toast.error).toHaveBeenCalledWith('launch failed'))
+    expect(screen.getByRole('button', { name: 'code.launch.label' })).toBeEnabled()
   })
 })

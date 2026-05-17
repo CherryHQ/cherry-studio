@@ -30,16 +30,19 @@
 
   /* Border */
   --cs-border: oklch(0 0 0 / 0.1);
+  --cs-border-muted: oklch(0 0 0 / 0.06);
+  --cs-border-subtle: oklch(0 0 0 / 0.04);
   --cs-border-hover: oklch(0 0 0 / 0.2);
   --cs-border-active: oklch(0 0 0 / 0.3);
+  --cs-frame-border: oklch(0 0 0 / 0.12);
 
   /* Ring (Focus) */
   --cs-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);
 
   /* UI Element Colors */
-  --cs-secondary: #f5f5f5; /* Secondary Button Background */
-  --cs-secondary-hover: #ebebeb;
-  --cs-secondary-active: #e0e0e0;
+  --cs-secondary: oklch(0 0 0 / 0.05); /* Secondary Button Background */
+  --cs-secondary-hover: oklch(0 0 0 / 0.1);
+  --cs-secondary-active: oklch(0 0 0 / 0.15);
   --cs-muted: oklch(0 0 0 / 0.05); /* Muted/Subtle Background */
   --cs-accent: oklch(0 0 0 / 0.05); /* Accent Background */
   --cs-ghost-hover: oklch(0 0 0 / 0.05); /* Ghost Button Hover */
@@ -72,16 +75,19 @@
 
   /* Border */
   --cs-border: oklch(1 0 0 / 0.1);
+  --cs-border-muted: oklch(1 0 0 / 0.08);
+  --cs-border-subtle: oklch(1 0 0 / 0.05);
   --cs-border-hover: oklch(1 0 0 / 0.2);
   --cs-border-active: oklch(1 0 0 / 0.3);
+  --cs-frame-border: oklch(1 0 0 / 0.14);
 
   /* Ring (Focus) - 保持不变 */
   --cs-ring: oklch(0.76 0.204 131 / 0.4);
 
   /* UI Element Colors - Dark Mode */
-  --cs-secondary: #262626; /* Secondary Button Background */
-  --cs-secondary-hover: #333333;
-  --cs-secondary-active: #404040;
+  --cs-secondary: oklch(1 0 0 / 0.1); /* Secondary Button Background */
+  --cs-secondary-hover: oklch(1 0 0 / 0.2);
+  --cs-secondary-active: oklch(1 0 0 / 0.25);
   --cs-muted: oklch(1 0 0 / 0.1); /* Muted/Subtle Background */
   --cs-accent: oklch(1 0 0 / 0.1); /* Accent Background */
   --cs-ghost-hover: oklch(1 0 0 / 0.1); /* Ghost Button Hover */

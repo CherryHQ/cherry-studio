@@ -21,6 +21,7 @@ const buttonVariants = cva(
         destructive: 'bg-destructive text-white hover:bg-destructive-hover focus-visible:ring-destructive/20',
         outline: 'border border-border bg-transparent text-foreground shadow-none hover:bg-accent',
         secondary: 'rounded-lg bg-secondary text-secondary-foreground shadow-none hover:bg-secondary-hover',
+        /** Dialog primary action style: same color hierarchy as default, with a flatter v2 shell. */
         emphasis:
           'rounded-lg bg-neutral-900 text-white shadow-none hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200',
         ghost: 'text-neutral-900 shadow-none hover:bg-accent hover:text-accent-foreground dark:text-neutral-100',
@@ -97,4 +98,6 @@ function Button({
   )
 }
 
-export { Button, buttonVariants }
+type ButtonVariant = NonNullable<VariantProps<typeof buttonVariants>['variant']>
+
+export { Button, type ButtonVariant, buttonVariants }

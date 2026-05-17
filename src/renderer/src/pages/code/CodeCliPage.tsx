@@ -48,6 +48,7 @@ import type { CodeToolMeta } from './components/types'
 const logger = loggerService.withContext('CodeCliPage')
 
 type CliToolOption = (typeof CLI_TOOLS)[number]
+type LaunchStatus = 'idle' | 'launching' | 'success'
 
 const toMeta = (tool: CliToolOption): CodeToolMeta => ({
   id: tool.value,
@@ -96,8 +97,7 @@ const CodeCliPage: FC = () => {
     return getAssistantSettings(defaultAssistant)
   }, [defaultAssistant])
 
-  const [isLaunching, setIsLaunching] = useState(false)
-  const [launchSuccess, setLaunchSuccess] = useState(false)
+  const [launchStatus, setLaunchStatus] = useState<LaunchStatus>('idle')
   const [isInstallingBun, setIsInstallingBun] = useState(false)
   const [autoUpdateToLatest, setAutoUpdateToLatest] = useState(false)
   const [availableTerminals, setAvailableTerminals] = useState<TerminalConfig[]>([])
@@ -312,12 +312,12 @@ const CodeCliPage: FC = () => {
     return { env: { ...toolEnv, ...userEnv } }
   }
 
-  const executeLaunch = async (env: Record<string, string>) => {
+  const executeLaunch = async (env: Record<string, string>): Promise<boolean> => {
     const resolvedModel = selectedModel ? resolveModel(selectedModel) : null
     if (selectedCliTool !== codeCLI.githubCopilotCli && !resolvedModel) {
       logger.warn('Cannot launch: model could not be resolved')
       window.toast.error(t('code.model_required'))
-      return
+      return false
     }
     const modelId = selectedCliTool === codeCLI.githubCopilotCli ? '' : (resolvedModel?.id ?? '')
 
@@ -329,15 +329,23 @@ const CodeCliPage: FC = () => {
     try {
       const result = await window.api.codeCli.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
       if (result && result.success) {
-        setLaunchSuccess(true)
-        setTimeoutTimer('launchSuccess', () => setLaunchSuccess(false), 2500)
+        setLaunchStatus('success')
+        setTimeoutTimer(
+          'launchSuccess',
+          () => {
+            setLaunchStatus((current) => (current === 'success' ? 'idle' : current))
+          },
+          2500
+        )
         window.toast.success(t('code.launch.success'))
-      } else {
-        window.toast.error(result?.message || t('code.launch.error'))
+        return true
       }
+      window.toast.error(result?.message || t('code.launch.error'))
+      return false
     } catch (error) {
       logger.error('codeTools.run failed:', error as Error)
       window.toast.error(t('code.launch.error'))
+      return false
     }
   }
 
@@ -372,22 +380,24 @@ const CodeCliPage: FC = () => {
       return
     }
 
-    setIsLaunching(true)
-    setLaunchSuccess(false)
+    setLaunchStatus('launching')
 
     try {
       const result = await prepareLaunchEnvironment()
       if (!result) {
         window.toast.error(t('code.model_required'))
+        setLaunchStatus('idle')
         return
       }
 
-      await executeLaunch(result.env)
+      const launched = await executeLaunch(result.env)
+      if (!launched) {
+        setLaunchStatus('idle')
+      }
     } catch (error) {
       logger.error('start code tools failed:', error as Error)
       window.toast.error(t('code.launch.error'))
-    } finally {
-      setIsLaunching(false)
+      setLaunchStatus('idle')
     }
   }
 
@@ -426,6 +436,8 @@ const CodeCliPage: FC = () => {
     selectedTerminal !== terminalApps.windowsTerminal
 
   const activeToolValue = dialogOpen ? selectedCliTool : undefined
+  const isLaunching = launchStatus === 'launching'
+  const launchSuccess = launchStatus === 'success'
 
   return (
     <div className="flex flex-1 flex-col text-foreground">
