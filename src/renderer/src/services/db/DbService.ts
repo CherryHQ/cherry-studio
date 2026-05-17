@@ -20,6 +20,7 @@ import type { Message, MessageBlock } from '@renderer/types/newMessage'
 
 import { AgentMessageDataSource } from './AgentMessageDataSource'
 import { DexieMessageDataSource } from './DexieMessageDataSource'
+import { normalizeLoadedBlocks, normalizeLoadedMessages } from './normalizeLoadedData'
 import type { MessageDataSource } from './types'
 import { buildAgentSessionTopicId, isAgentSessionTopicId } from './types'
 
@@ -94,7 +95,12 @@ class DbService implements MessageDataSource {
     blocks: MessageBlock[]
   }> {
     const source = this.getDataSource(topicId)
-    return source.fetchMessages(topicId, forceReload)
+    const { messages, blocks } = await source.fetchMessages(topicId, forceReload)
+
+    const normalizedMessages = normalizeLoadedMessages(messages)
+    const normalizedBlocks = normalizeLoadedBlocks(blocks)
+
+    return { messages: normalizedMessages, blocks: normalizedBlocks }
   }
 
   // ============ Write Operations ============
