@@ -336,9 +336,10 @@ const ToolResponseContent: FC<{
     return Object.entries(parsedArgs)
   }
   const entries = getEntries()
+  const hasArgsSection = entries.length > 0 || isStreaming
 
   const renderArgsTable = (): React.ReactNode => {
-    if (entries.length === 0) return null
+    if (!hasArgsSection) return null
     return (
       <ArgsSection>
         <ArgsSectionTitle>Arguments</ArgsSectionTitle>
@@ -366,52 +367,59 @@ const ToolResponseContent: FC<{
     )
   }
 
+  const responseSection = response !== undefined &&
+    response !== null &&
+    (highlightedResponse || responseImages.length > 0) && (
+      <McpResponseSection $isFirstSection={!hasArgsSection}>
+        <ArgsSectionTitle>Response</ArgsSectionTitle>
+        {highlightedResponse && (
+          <MarkdownContainer className="markdown" dangerouslySetInnerHTML={{ __html: highlightedResponse }} />
+        )}
+        {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
+        {responseImages.map((img, idx) => (
+          <img
+            key={idx}
+            src={`data:${img.mimeType};base64,${img.data}`}
+            alt="Tool output"
+            style={{ maxWidth: 300, borderRadius: 4, marginTop: 8 }}
+          />
+        ))}
+      </McpResponseSection>
+    )
+
   return (
     <div>
-      {/* Arguments Table */}
-      {renderArgsTable()}
-
-      {/* Response */}
-      {response !== undefined && response !== null && (highlightedResponse || responseImages.length > 0) && (
-        <ResponseSection>
-          <ArgsSectionTitle>Response</ArgsSectionTitle>
-          {highlightedResponse && (
-            <MarkdownContainer className="markdown" dangerouslySetInnerHTML={{ __html: highlightedResponse }} />
-          )}
-          {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
-          {responseImages.map((img, idx) => (
-            <img
-              key={idx}
-              src={`data:${img.mimeType};base64,${img.data}`}
-              alt="Tool output"
-              style={{ maxWidth: 300, borderRadius: 4, marginTop: 8 }}
-            />
-          ))}
-        </ResponseSection>
-      )}
+      {hasArgsSection && <FirstBodySection>{renderArgsTable()}</FirstBodySection>}
+      {responseSection && (!hasArgsSection ? <FirstBodySection>{responseSection}</FirstBodySection> : responseSection)}
     </div>
   )
 }
 
 const ToolContentWrapper = styled.div`
-  padding: 1px;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
+  background-color: var(--color-background);
   overflow: hidden;
 
-  .ant-collapse {
-    border: 1px solid var(--color-border);
+  && .ant-collapse {
+    border: none;
+    border-radius: 0;
+    background: transparent !important;
+  }
+
+  && .ant-collapse-item {
+    border: none !important;
+    background: transparent;
   }
 
   &.pending {
     background-color: var(--color-background-soft);
-    .ant-collapse {
-      border: none;
-    }
   }
 `
 
 const ActionsBar = styled.div`
   padding: 8px;
+  border-top: 1px solid var(--color-border);
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -437,17 +445,24 @@ const CollapseContainer = styled(Collapse)`
   --status-color-invoking: var(--color-primary);
   --status-color-error: var(--color-status-error, #ff4d4f);
   --status-color-success: var(--color-primary, green);
-  border-radius: 7px;
   border: none;
-  background-color: var(--color-background);
-  overflow: hidden;
+  border-radius: 0;
+  background: transparent !important;
 
-  .ant-collapse-header {
+  && .ant-collapse-header {
     padding: 8px 10px !important;
     align-items: center !important;
+    background-color: transparent !important;
+    background: transparent !important;
   }
 
-  .ant-collapse-content-box {
+  && .ant-collapse-content {
+    border-radius: 0 !important;
+    background-color: transparent !important;
+    background: transparent !important;
+  }
+
+  && .ant-collapse-content-box {
     padding: 0 !important;
   }
 `
@@ -545,11 +560,19 @@ const ActionButton = styled.button`
 `
 
 const ToolResponseContainer = styled.div`
-  border-radius: 0 0 4px 4px;
+  border-radius: 0;
   overflow: auto;
   max-height: 300px;
   border-top: none;
   position: relative;
+`
+
+const FirstBodySection = styled.div`
+  border-top: 1px solid var(--color-border);
+`
+
+const McpResponseSection = styled(ResponseSection)<{ $isFirstSection?: boolean }>`
+  border-top: ${({ $isFirstSection }) => ($isFirstSection ? 'none' : '1px solid var(--color-border)')};
 `
 
 export default memo(MessageMcpTool)
