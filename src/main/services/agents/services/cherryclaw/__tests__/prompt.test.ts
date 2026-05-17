@@ -22,6 +22,9 @@ const baseConfig: CherryClawConfiguration = {
   permission_mode: 'bypassPermissions',
   max_turns: 100,
   env_vars: {},
+  worker_instance_role: 'member',
+  worker_model_source: 'worker',
+  style_mode: 'normal',
   soul_enabled: true
 }
 

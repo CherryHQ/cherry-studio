@@ -361,7 +361,7 @@ class SchedulerService {
         switch (value.type) {
           case 'text-delta':
             if (value.text) {
-              currentBlockText = value.text
+              currentBlockText += value.text
               const fullText = completedText + currentBlockText
               // Stream to all channel adapters
               for (const { adapter, chatId } of adapterChats) {

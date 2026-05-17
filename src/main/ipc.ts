@@ -59,6 +59,7 @@ import { lanTransferClientService } from './services/lanTransfer'
 import { localTransferService } from './services/LocalTransferService'
 import mcpService from './services/MCPService'
 import MemoryService from './services/memory/MemoryService'
+import { mobileToolbarService } from './services/MobileToolbarService'
 import { openTraceWindow, setTraceWindowTitle } from './services/NodeTraceService'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
@@ -925,6 +926,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // store sync
   storeSyncService.registerIpcHandler()
+  mobileToolbarService.registerIpcHandler()
 
   // selection assistant
   SelectionService.registerIpcHandler()

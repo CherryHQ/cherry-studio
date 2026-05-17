@@ -109,7 +109,7 @@ export const hubMCPServer: BuiltinMCPServer = {
  * - It's designed for LLM code mode, not direct user interaction
  * - It should be auto-enabled internally when needed, not manually installed
  */
-export const builtinMCPServers: BuiltinMCPServer[] = [
+export const builtinMCPServers: MCPServer[] = [
   {
     id: nanoid(),
     name: BuiltinMCPServerNames.flomo,
@@ -231,6 +231,57 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
     type: 'inMemory',
     isActive: false,
     provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
+  },
+  {
+    id: nanoid(),
+    name: 'GitHub',
+    description: '连接你的 GitHub 仓库、Issue、PR 和 Actions。填入 GitHub PAT 后即可直接使用。',
+    reference: 'https://github.com/github/github-mcp-server',
+    type: 'streamableHttp',
+    baseUrl: 'https://api.githubcopilot.com/mcp/',
+    headers: {
+      Authorization: 'Bearer YOUR_GITHUB_PERSONAL_ACCESS_TOKEN'
+    },
+    shouldConfig: true,
+    isActive: false,
+    provider: 'GitHub',
+    installSource: 'builtin',
+    isTrusted: true
+  },
+  {
+    id: nanoid(),
+    name: 'Gmail',
+    description: '连接你的 Gmail 收件箱与发信能力。首次配置后可读邮件、搜索邮件、发送邮件。',
+    reference: 'https://www.npmjs.com/package/@mjamei/gmail-mcp',
+    type: 'stdio',
+    command: 'npx',
+    args: ['-y', '@mjamei/gmail-mcp'],
+    env: {
+      GOOGLE_CLIENT_ID: 'YOUR_GOOGLE_CLIENT_ID',
+      GOOGLE_CLIENT_SECRET: 'YOUR_GOOGLE_CLIENT_SECRET'
+    },
+    shouldConfig: true,
+    isActive: false,
+    provider: 'Google',
+    installSource: 'builtin',
+    isTrusted: true
+  },
+  {
+    id: nanoid(),
+    name: 'Hugging Face',
+    description: '连接你的 Hugging Face 账号与推理能力。填入 Access Token 后即可调用相关工具。',
+    reference: 'https://npm.io/package/huggingface-mcp-server',
+    type: 'stdio',
+    command: 'npx',
+    args: ['-y', 'huggingface-mcp-server', '--transport', 'stdio'],
+    env: {
+      HUGGINGFACE_API_KEY: 'YOUR_HUGGINGFACE_API_KEY'
+    },
+    shouldConfig: true,
+    isActive: false,
+    provider: 'Hugging Face',
     installSource: 'builtin',
     isTrusted: true
   },

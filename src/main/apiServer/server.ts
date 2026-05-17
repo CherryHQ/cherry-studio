@@ -30,6 +30,7 @@ export class ApiServer {
 
     // Load config
     const { port, host } = await config.load()
+    const listenHost = host === '127.0.0.1' || host === 'localhost' ? '0.0.0.0' : host
 
     // Create server with Express app
     this.server = createServer(app)
@@ -37,8 +38,8 @@ export class ApiServer {
 
     // Start server
     return new Promise((resolve, reject) => {
-      this.server!.listen(port, host, () => {
-        logger.info('API server started', { host, port })
+      this.server!.listen(port, listenHost, () => {
+        logger.info('API server started', { host, listenHost, port })
 
         // Notify renderer that API server is ready
         const mainWindow = windowService.getMainWindow()

@@ -12,6 +12,7 @@ import SelectAgentBaseModelButton from '@renderer/pages/agents/components/Select
 import type {
   AddAgentForm,
   AgentEntity,
+  AgentType,
   ApiModel,
   BaseAgentForm,
   PermissionMode,
@@ -32,6 +33,52 @@ import styled from 'styled-components'
 const { TextArea } = Input
 
 const logger = loggerService.withContext('AddAgentPopup')
+const EXTERNAL_WORKER_MODEL_ID = 'worker:external'
+const agentTypeOptions: Array<{ value: AgentType; label: string }> = [
+  { value: 'claude-code', label: 'Claude Code' },
+  { value: 'codex', label: 'Codex CLI' },
+  { value: 'opencode', label: 'OpenCode CLI' },
+  { value: 'gemini-cli', label: 'Gemini CLI' },
+  { value: 'hermes', label: 'Hermes CLI' },
+  { value: 'aider', label: 'Aider' },
+  { value: 'shell-script', label: 'Shell Script' }
+]
+const workerTypePresets: Partial<
+  Record<
+    AgentType,
+    {
+      binaryName: string
+      fallbackCommand: string
+      args: string[]
+      tags: string[]
+    }
+  >
+> = {
+  codex: {
+    binaryName: 'codex',
+    fallbackCommand: 'codex',
+    args: ['exec', '--skip-git-repo-check', '{{prompt}}'],
+    tags: ['code', 'cli']
+  },
+  opencode: {
+    binaryName: 'opencode',
+    fallbackCommand: 'opencode',
+    args: ['run', '{{prompt}}'],
+    tags: ['code', 'agent', 'cli']
+  },
+  'gemini-cli': {
+    binaryName: 'gemini',
+    fallbackCommand: 'gemini',
+    args: ['-p', '{{prompt}}'],
+    tags: ['research', 'code', 'cli']
+  },
+  hermes: {
+    binaryName: 'hermes',
+    fallbackCommand: 'hermes',
+    args: [],
+    tags: ['local', 'music', 'agent']
+  }
+}
 
 type AgentWithTools = AgentEntity & { tools?: Tool[] }
 
@@ -88,6 +135,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
   }, [checkGitBash])
 
   const selectedPermissionMode = form.configuration?.permission_mode ?? 'default'
+  const needsModelSelection = form.type === 'claude-code'
 
   const handlePickGitBash = useCallback(async () => {
     try {
@@ -179,6 +227,65 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
       name: e.target.value
     }))
   }, [])
+
+  const applyWorkerPreset = useCallback(async (value: AgentType) => {
+    const preset = workerTypePresets[value]
+    if (!preset) return
+
+    let command = preset.fallbackCommand
+    try {
+      const detected = await window.api.getBinaryPath(preset.binaryName)
+      if (detected) {
+        command = detected
+      }
+    } catch (error) {
+      logger.warn('Failed to detect worker binary path', {
+        type: value,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+
+    setForm((prev) => {
+      const parsedConfiguration = AgentConfigurationSchema.parse(prev.configuration ?? {})
+      if (prev.type !== value) {
+        return prev
+      }
+      const nextConfiguration = {
+        ...parsedConfiguration,
+        worker_command: parsedConfiguration.worker_command || command,
+        worker_args:
+          Array.isArray(parsedConfiguration.worker_args) && parsedConfiguration.worker_args.length > 0
+            ? parsedConfiguration.worker_args
+            : preset.args,
+        worker_capability_tags:
+          Array.isArray(parsedConfiguration.worker_capability_tags) &&
+          parsedConfiguration.worker_capability_tags.length > 0
+            ? parsedConfiguration.worker_capability_tags
+            : preset.tags
+      }
+      return {
+        ...prev,
+        configuration: nextConfiguration
+      }
+    })
+  }, [])
+
+  const onTypeChange = useCallback(
+    (value: AgentType) => {
+      setForm((prev) => ({
+        ...prev,
+        type: value,
+        model:
+          value === 'claude-code'
+            ? prev.model === EXTERNAL_WORKER_MODEL_ID
+              ? ''
+              : prev.model
+            : prev.model || EXTERNAL_WORKER_MODEL_ID
+      }))
+      void applyWorkerPreset(value)
+    },
+    [applyWorkerPreset]
+  )
 
   // const onDescChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
   //   setForm((prev) => ({
@@ -289,7 +396,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
         loadingRef.current = false
         return
       }
-      if (!form.model) {
+      if (needsModelSelection && !form.model) {
         window.toast.error(t('error.model.not_exists'))
         loadingRef.current = false
         return
@@ -312,7 +419,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
           name: form.name,
           description: form.description,
           instructions: form.instructions,
-          model: form.model,
+          model: needsModelSelection ? form.model : form.model || EXTERNAL_WORKER_MODEL_ID,
           accessible_paths: [...form.accessible_paths],
           allowed_tools: [...form.allowed_tools],
           configuration: form.configuration ? { ...form.configuration } : undefined
@@ -331,7 +438,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
           name: form.name,
           description: form.description,
           instructions: form.instructions,
-          model: form.model,
+          model: needsModelSelection ? form.model : form.model || EXTERNAL_WORKER_MODEL_ID,
           accessible_paths: [...form.accessible_paths],
           allowed_tools: [...form.allowed_tools],
           configuration: form.configuration ? { ...form.configuration } : undefined
@@ -356,6 +463,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
       form.instructions,
       form.allowed_tools,
       form.configuration,
+      needsModelSelection,
       agent,
       t,
       updateAgent,
@@ -389,36 +497,52 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
               </FormItem>
             </FormRow>
 
-            <FormItem>
-              <div className="flex items-center gap-2">
+            {!isEditing(agent) && (
+              <FormItem>
                 <Label>
-                  {t('common.model')} <RequiredMark>*</RequiredMark>
+                  {t('agent.add.type.label', 'Agent Type')} <RequiredMark>*</RequiredMark>
                 </Label>
-                <AnthropicProviderListPopover
-                  useWindowNavigate
-                  filterProviders={getAnthropicSupportedProviders}
-                  onProviderClick={() => {
-                    setOpen(false)
-                    resolve(undefined)
-                  }}
+                <Select
+                  value={form.type}
+                  onChange={onTypeChange}
+                  style={{ width: '100%' }}
+                  options={agentTypeOptions}
                 />
-              </div>
-              <SelectAgentBaseModelButton
-                agentBase={tempAgentBase}
-                onSelect={handleModelSelect}
-                fontSize={14}
-                avatarSize={24}
-                iconSize={16}
-                buttonStyle={{
-                  padding: '3px 8px',
-                  width: '100%',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 6,
-                  height: 'auto'
-                }}
-                containerClassName="flex items-center justify-between w-full"
-              />
-            </FormItem>
+              </FormItem>
+            )}
+
+            {needsModelSelection && (
+              <FormItem>
+                <div className="flex items-center gap-2">
+                  <Label>
+                    {t('common.model')} <RequiredMark>*</RequiredMark>
+                  </Label>
+                  <AnthropicProviderListPopover
+                    useWindowNavigate
+                    filterProviders={getAnthropicSupportedProviders}
+                    onProviderClick={() => {
+                      setOpen(false)
+                      resolve(undefined)
+                    }}
+                  />
+                </div>
+                <SelectAgentBaseModelButton
+                  agentBase={tempAgentBase}
+                  onSelect={handleModelSelect}
+                  fontSize={14}
+                  avatarSize={24}
+                  iconSize={16}
+                  buttonStyle={{
+                    padding: '3px 8px',
+                    width: '100%',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 6,
+                    height: 'auto'
+                  }}
+                  containerClassName="flex items-center justify-between w-full"
+                />
+              </FormItem>
+            )}
 
             {isWin && (
               <FormItem>

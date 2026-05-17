@@ -1,3 +1,4 @@
+import type { MobileAccessInfo } from '@renderer/api/collaboration'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useApiServer } from '@renderer/hooks/useApiServer'
 import type { RootState } from '@renderer/store'
@@ -8,6 +9,7 @@ import { API_SERVER_DEFAULTS } from '@shared/config/constant'
 import { Alert, Button, Input, InputNumber, Tooltip, Typography } from 'antd'
 import { Copy, ExternalLink, Play, RotateCcw, Square } from 'lucide-react'
 import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -26,6 +28,7 @@ const ApiServerSettings: FC = () => {
   const apiServerConfig = useSelector((state: RootState) => state.settings.apiServer)
   const { apiServerRunning, apiServerLoading, startApiServer, stopApiServer, restartApiServer, setApiServerEnabled } =
     useApiServer()
+  const [accessInfo, setAccessInfo] = useState<MobileAccessInfo | null>(null)
 
   const handleApiServerToggle = async (enabled: boolean) => {
     try {
@@ -70,6 +73,34 @@ const ApiServerSettings: FC = () => {
       window.open(`http://${host}:${port}/api-docs`, '_blank')
     }
   }
+
+  const copyText = (value: string, successMessage: string) => {
+    void navigator.clipboard.writeText(value)
+    window.toast.success(successMessage)
+  }
+
+  useEffect(() => {
+    if (!apiServerRunning || !apiServerConfig.apiKey) {
+      setAccessInfo(null)
+      return
+    }
+
+    const controller = new AbortController()
+    const port = apiServerConfig.port || API_SERVER_DEFAULTS.PORT
+    fetch(`http://127.0.0.1:${port}/mobile/api/info?token=${encodeURIComponent(apiServerConfig.apiKey)}`, {
+      signal: controller.signal
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Failed to load access info: ${response.status}`)
+        }
+        return response.json() as Promise<MobileAccessInfo>
+      })
+      .then((info) => setAccessInfo(info))
+      .catch(() => setAccessInfo(null))
+
+    return () => controller.abort()
+  }, [apiServerConfig.apiKey, apiServerConfig.port, apiServerRunning])
 
   return (
     <Container theme={theme}>
@@ -186,6 +217,47 @@ const ApiServerSettings: FC = () => {
           />
         </AuthHeaderSection>
       </ConfigurationField>
+
+      {apiServerRunning && (
+        <AccessCard>
+          <FieldLabel>手机连接建议</FieldLabel>
+          <FieldDescription>优先把下面的 Tailscale 地址填进 CherryMobileMirror 的“服务地址”。</FieldDescription>
+
+          <AccessRow>
+            <AccessLabel>本机地址</AccessLabel>
+            <AccessValue>
+              {accessInfo?.localUrl ?? `http://127.0.0.1:${apiServerConfig.port || API_SERVER_DEFAULTS.PORT}`}
+            </AccessValue>
+            <InputButton
+              icon={<Copy size={14} />}
+              onClick={() =>
+                copyText(
+                  accessInfo?.localUrl ?? `http://127.0.0.1:${apiServerConfig.port || API_SERVER_DEFAULTS.PORT}`,
+                  '本机地址已复制'
+                )
+              }
+            />
+          </AccessRow>
+
+          <AccessRow>
+            <AccessLabel>Tailscale 地址</AccessLabel>
+            <AccessValue>{accessInfo?.recommendedServiceUrl ?? '当前未检测到 Tailscale 地址'}</AccessValue>
+            <InputButton
+              icon={<Copy size={14} />}
+              disabled={!accessInfo?.recommendedServiceUrl}
+              onClick={() =>
+                accessInfo?.recommendedServiceUrl && copyText(accessInfo.recommendedServiceUrl, 'Tailscale 地址已复制')
+              }
+            />
+          </AccessRow>
+
+          <AccessRow>
+            <AccessLabel>Token</AccessLabel>
+            <AccessValue>{apiServerConfig.apiKey}</AccessValue>
+            <InputButton icon={<Copy size={14} />} onClick={() => copyText(apiServerConfig.apiKey, 'Token 已复制')} />
+          </AccessRow>
+        </AccessCard>
+      )}
     </Container>
   )
 }
@@ -385,6 +457,37 @@ const AuthHeaderSection = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
+`
+
+const AccessCard = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  background: var(--color-background);
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  margin-top: 16px;
+`
+
+const AccessRow = styled.div`
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+`
+
+const AccessLabel = styled.div`
+  font-size: 12px;
+  color: var(--color-text-3);
+`
+
+const AccessValue = styled.div`
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--color-text-1);
 `
 
 export default ApiServerSettings

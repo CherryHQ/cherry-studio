@@ -570,6 +570,7 @@
       }
     },
     "sidebar_title": "智能体",
+    "private_chat_title": "私聊",
     "todo": {
       "panel": {
         "title": "已完成 {{completed}}/{{total}} 个任务"
@@ -771,6 +772,9 @@
     "zoom": "缩放",
     "zoomIn": "放大",
     "zoomOut": "缩小"
+  },
+  "collaboration": {
+    "title": "协作"
   },
   "assistants": {
     "abbr": "助手",

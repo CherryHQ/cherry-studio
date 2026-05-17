@@ -13,6 +13,14 @@ const BuiltinMCPServerList: FC = () => {
   const { t } = useTranslation()
   const { addMCPServer, mcpServers } = useMCPServers()
 
+  const getServerDescription = (server: (typeof builtinMCPServers)[number]) => {
+    const translated = getBuiltInMcpServerDescriptionLabel(server.name)
+    if (translated && translated !== t('settings.mcp.builtinServersDescriptions.no')) {
+      return translated
+    }
+    return server.description || t('settings.mcp.builtinServersDescriptions.no')
+  }
+
   return (
     <>
       <SettingTitle style={{ gap: 3, marginBottom: 10 }}>{t('settings.mcp.builtinServers')}</SettingTitle>
@@ -46,7 +54,7 @@ const BuiltinMCPServerList: FC = () => {
               <Popover
                 content={
                   <PopoverContent>
-                    {getBuiltInMcpServerDescriptionLabel(server.name)}
+                    {getServerDescription(server)}
                     {server.reference && <ReferenceLink href={server.reference}>{server.reference}</ReferenceLink>}
                   </PopoverContent>
                 }
@@ -54,7 +62,7 @@ const BuiltinMCPServerList: FC = () => {
                 trigger="hover"
                 placement="topLeft"
                 overlayStyle={{ maxWidth: 400 }}>
-                <ServerDescription>{getBuiltInMcpServerDescriptionLabel(server.name)}</ServerDescription>
+                <ServerDescription>{getServerDescription(server)}</ServerDescription>
               </Popover>
               <ServerFooter>
                 <Tag color="processing" style={{ borderRadius: 20, margin: 0, fontWeight: 500 }}>

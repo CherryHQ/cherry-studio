@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { formatAgentServerError } from '@renderer/utils/error'
 import type {
   AddAgentForm,
+  AgentStyleMode,
   ApiModelsFilter,
   ApiModelsResponse,
   CreateAgentRequest,
@@ -202,6 +203,20 @@ export class AgentApiClient {
       return data
     } catch (error) {
       throw processError(error, 'Failed to updateAgent.')
+    }
+  }
+
+  public async updateAgentStyleMode(id: string, styleMode: AgentStyleMode): Promise<UpdateAgentResponse> {
+    const url = `${this.agentPaths.withId(id)}/style-mode`
+    try {
+      const response = await this.axios.patch(url, { style_mode: styleMode })
+      const data = UpdateAgentResponseSchema.parse(response.data)
+      if (data.id !== id) {
+        throw new Error('Agent ID mismatch in response')
+      }
+      return data
+    } catch (error) {
+      throw processError(error, 'Failed to update agent style mode.')
     }
   }
 
