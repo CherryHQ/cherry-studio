@@ -91,9 +91,8 @@
 }
 
 .floating {
-  position: fixed;
-  top: 40px;
-  left: 0px;
+  position: sticky;
+  top: 0;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
   transition: all 0.3s ease;
   opacity: 0.9;
@@ -153,7 +152,7 @@
 
 .scroll-container {
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
   height: calc(100vh - 40px);
 }
 
@@ -231,4 +230,13 @@
 .footer-link:hover {
   color: #062afb;
   text-decoration: underline;
+}
+
+.text-ellipsis {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  max-width: 100%;
+  min-width: 0;
 }
