@@ -3356,6 +3356,7 @@
     },
     "stream_output": "Потоковый вывод",
     "type": {
+      "audio": "[to be translated]:Audio",
       "embedding": "Встраиваемые",
       "free": "Бесплатные",
       "function_calling": "Инструкция",
@@ -3363,6 +3364,7 @@
       "rerank": "Переупорядочить",
       "select": "Выберите тип модели",
       "text": "Текст",
+      "video": "[to be translated]:Video",
       "vision": "Визуальные",
       "websearch": "Веб-поисковые"
     }

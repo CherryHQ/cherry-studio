@@ -3356,6 +3356,7 @@
     },
     "stream_output": "Ieșire flux",
     "type": {
+      "audio": "[to be translated]:Audio",
       "embedding": "Embedding",
       "free": "Gratuit",
       "function_calling": "Instrument",
@@ -3363,6 +3364,7 @@
       "rerank": "Reranker",
       "select": "Tipuri de modele",
       "text": "Text",
+      "video": "[to be translated]:Video",
       "vision": "Vizual",
       "websearch": "Căutare Web"
     }

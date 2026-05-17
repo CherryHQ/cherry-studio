@@ -3,7 +3,8 @@ import type { File, Files } from '@google/genai'
 import { FileState, GoogleGenAI } from '@google/genai'
 import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
-import type { FileListResponse, FileMetadata, FileUploadResponse, Provider } from '@types'
+import { formatApiHost } from '@shared/utils/api'
+import type { FileListResponse, FileMetadata, FileUploadResponse } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
 import { BaseFileService } from './BaseFileService'
@@ -17,14 +18,13 @@ export class GeminiService extends BaseFileService {
 
   protected readonly fileManager: Files
 
-  constructor(provider: Provider) {
-    super(provider)
+  constructor(apiKey: string, apiHost: string | undefined) {
+    super(apiKey, apiHost)
+    const baseUrl = formatApiHost(apiHost, true, 'v1beta')
     this.fileManager = new GoogleGenAI({
       vertexai: false,
-      apiKey: provider.apiKey,
-      httpOptions: {
-        baseUrl: provider.apiHost
-      }
+      apiKey,
+      httpOptions: baseUrl ? { baseUrl } : undefined
     }).files
   }
 

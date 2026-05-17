@@ -2,18 +2,18 @@ import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
-import { isGemini3Model, isGeminiModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
-import { getProviderByModel } from '@renderer/services/AssistantService'
 import { EventEmitter } from '@renderer/services/EventService'
-import type { McpMode, MCPPrompt, MCPResource } from '@renderer/types'
+import type { AssistantSettings, McpMode, MCPPrompt, MCPResource } from '@renderer/types'
 import { getEffectiveMcpMode } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
-import { isGeminiWebSearchProvider, isSupportUrlContextProvider } from '@renderer/utils/provider'
 import type { MCPServer } from '@shared/data/types/mcpServer'
+import { isGemini3Model, isGeminiModel } from '@shared/utils/model'
+import { isGeminiWebSearchProvider } from '@shared/utils/provider'
 import { useNavigate } from '@tanstack/react-router'
 import { Form, Input } from 'antd'
 import { CircleX, Hammer, Plus, Sparkles } from 'lucide-react'
@@ -120,8 +120,8 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
   const navigate = useNavigate()
   const [form] = Form.useForm()
 
-  const { assistant, updateAssistant } = useAssistant(assistantId)
-  const model = assistant.model
+  const { assistant, model, updateAssistant } = useAssistant(assistantId)
+  const { provider: modelProvider } = useProvider(model?.providerId ?? '')
   const { setTimeoutTimer } = useTimer()
 
   const isMountedRef = useRef(true)
@@ -132,57 +132,60 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
     }
   }, [])
 
-  const currentMode = useMemo(() => getEffectiveMcpMode(assistant), [assistant])
+  const currentMode = useMemo(() => (assistant ? getEffectiveMcpMode(assistant) : 'disabled'), [assistant])
 
-  const mcpServers = useMemo(() => assistant.mcpServers || [], [assistant.mcpServers])
-  const mcpServerIds = useMemo(() => new Set(mcpServers.map((s) => s.id)), [mcpServers])
-  const assistantMcpServers = useMemo(
-    () => activedMcpServers.filter((server) => mcpServerIds.has(server.id)),
-    [activedMcpServers, mcpServerIds]
+  const mcpServerIds = useMemo(() => new Set(assistant?.mcpServerIds ?? []), [assistant?.mcpServerIds])
+
+  const mergeSettings = useCallback(
+    (patch: Partial<AssistantSettings>): AssistantSettings | undefined => {
+      if (!assistant?.settings) return undefined
+      return { ...assistant.settings, ...patch }
+    },
+    [assistant?.settings]
   )
 
   const handleModeChange = useCallback(
     (mode: McpMode) => {
       setTimeoutTimer(
         'updateMcpMode',
-        () => {
-          updateAssistant({
-            ...assistant,
-            mcpMode: mode
-          })
+        async () => {
+          const next = mergeSettings({ mcpMode: mode })
+          if (next) await updateAssistant({ settings: next })
         },
         200
       )
     },
-    [assistant, setTimeoutTimer, updateAssistant]
+    [mergeSettings, setTimeoutTimer, updateAssistant]
   )
 
   const handleMcpServerSelect = useCallback(
     (server: MCPServer) => {
-      const update = { ...assistant }
-      if (assistantMcpServers.some((s) => s.id === server.id)) {
-        update.mcpServers = mcpServers.filter((s) => s.id !== server.id)
-      } else {
-        update.mcpServers = [...mcpServers, server]
-      }
+      const nextServerIds = mcpServerIds.has(server.id)
+        ? Array.from(mcpServerIds).filter((id) => id !== server.id)
+        : [...Array.from(mcpServerIds), server.id]
 
-      if (update.mcpServers.length > 0 && isGeminiModel(model) && isToolUseModeFunction(assistant)) {
-        const provider = getProviderByModel(model)
-        if (isSupportUrlContextProvider(provider) && assistant.enableUrlContext) {
-          window.toast.warning(t('chat.mcp.warning.url_context'))
-          update.enableUrlContext = false
-        }
+      const settingsPatch: Partial<AssistantSettings> = { mcpMode: 'manual' }
+      if (nextServerIds.length > 0 && model && isGeminiModel(model) && assistant && isToolUseModeFunction(assistant)) {
         // Gemini 3+ supports combining built-in tools with function calling
-        if (isGeminiWebSearchProvider(provider) && assistant.enableWebSearch && !isGemini3Model(model)) {
+        if (
+          modelProvider &&
+          isGeminiWebSearchProvider(modelProvider) &&
+          assistant.settings?.enableWebSearch &&
+          !isGemini3Model(model)
+        ) {
           window.toast.warning(t('chat.mcp.warning.gemini_web_search'))
-          update.enableWebSearch = false
+          settingsPatch.enableWebSearch = false
         }
       }
 
-      update.mcpMode = 'manual'
-      updateAssistant(update)
+      const nextSettings = mergeSettings(settingsPatch)
+      if (!nextSettings) return
+      void updateAssistant({
+        mcpServerIds: nextServerIds,
+        settings: nextSettings
+      })
     },
-    [assistant, assistantMcpServers, mcpServers, model, t, updateAssistant]
+    [assistant, mcpServerIds, model, modelProvider, mergeSettings, t, updateAssistant]
   )
 
   const handleMcpServerSelectRef = useRef(handleMcpServerSelect)

@@ -1,15 +1,14 @@
-import store from '@renderer/store'
-import { messageBlocksSelectors } from '@renderer/store/messageBlock'
-import type { Message } from '@renderer/types/newMessage' // Assuming correct Message type import
-import { MessageBlockType } from '@renderer/types/newMessage'
-// May need Block types if refactoring to use them
-// import type { MessageBlock, MainTextMessageBlock } from '@renderer/types/newMessageTypes';
-import { remove, takeRight } from 'lodash'
-import { isEmpty } from 'lodash'
-// Assuming getGroupedMessages is also moved here or imported
-// import { getGroupedMessages } from './path/to/getGroupedMessages';
+import type { Message } from '@renderer/types/newMessage'
+import type { CherryMessagePart } from '@shared/data/types/message'
+import { isEmpty, remove } from 'lodash'
 
-// const logger = loggerService.withContext('Utils.filter')
+function getParts(message: Message): CherryMessagePart[] {
+  return message.parts ?? []
+}
+
+function partsHaveText(parts: CherryMessagePart[]): boolean {
+  return parts.some((p) => p.type === 'text' && !isEmpty(((p as { text?: string }).text ?? '').trim()))
+}
 
 /**
  * Filters out messages of type '@' or 'clear' and messages without main text content.
@@ -17,13 +16,7 @@ import { isEmpty } from 'lodash'
 export const filterMessages = (messages: Message[]) => {
   return messages
     .filter((message) => !['@', 'clear'].includes(message.type!))
-    .filter((message) => {
-      const state = store.getState()
-      const mainTextBlock = message.blocks
-        ?.map((blockId) => messageBlocksSelectors.selectById(state, blockId))
-        .find((block) => block?.type === MessageBlockType.MAIN_TEXT)
-      return !isEmpty((mainTextBlock as any)?.content?.trim()) // Type assertion needed
-    })
+    .filter((message) => partsHaveText(getParts(message)))
 }
 
 /**
@@ -54,49 +47,37 @@ export function filterUserRoleStartMessages(messages: Message[]): Message[] {
 }
 
 /**
- * Filters out messages considered "empty" based on block content.
+ * Filters out messages considered "empty". A message has content if any
+ * part holds non-empty text, or carries a file, tool call, or data-code
+ * block. Citations live on text parts via `providerMetadata.cherry.references`
+ * so they don't need a separate branch here — a text part with a citation
+ * also carries the text body.
  */
 export function filterEmptyMessages(messages: Message[]): Message[] {
   return messages.filter((message) => {
-    const state = store.getState()
-    let hasContent = false
-    for (const blockId of message.blocks) {
-      const block = messageBlocksSelectors.selectById(state, blockId)
-      if (!block) continue
-      if (block.type === MessageBlockType.MAIN_TEXT && !isEmpty((block as any).content?.trim())) {
-        // Type assertion needed
-        hasContent = true
-        break
-      }
-      if (
-        [
-          MessageBlockType.IMAGE,
-          MessageBlockType.FILE,
-          MessageBlockType.CODE,
-          MessageBlockType.TOOL,
-          MessageBlockType.CITATION
-        ].includes(block.type)
-      ) {
-        hasContent = true
-        break
-      }
+    for (const part of getParts(message)) {
+      if (part.type === 'text' && !isEmpty(((part as { text?: string }).text ?? '').trim())) return true
+      if (part.type === 'file') return true
+      if (part.type === 'data-code') return true
+      const t = part.type as string
+      if (t.startsWith('tool-') || t === 'dynamic-tool') return true
     }
-    return hasContent
+    return false
   })
 }
 
 /**
  * Groups messages by user message ID or assistant askId.
  */
-export function getGroupedMessages(messages: Message[]): { [key: string]: (Message & { index: number })[] } {
-  const groups: { [key: string]: (Message & { index: number })[] } = {}
-  messages.forEach((message, index) => {
+export function getGroupedMessages(messages: Message[]): { [key: string]: Message[] } {
+  const groups: { [key: string]: Message[] } = {}
+  messages.forEach((message) => {
     // Use askId if available (should be on assistant messages), otherwise group user messages individually
     const key = message.role === 'assistant' && message.askId ? 'assistant' + message.askId : message.role + message.id
     if (key && !groups[key]) {
       groups[key] = []
     }
-    groups[key].push({ ...message, index }) // Add message with its original index
+    groups[key].push(message)
   })
   return groups
 }
@@ -132,15 +113,6 @@ export function filterUsefulMessages(messages: Message[]): Message[] {
   return _messages
 }
 
-export function filterLastAssistantMessage(messages: Message[]): Message[] {
-  const _messages = [...messages]
-  // Remove trailing assistant messages
-  while (_messages.length > 0 && _messages[_messages.length - 1].role === 'assistant') {
-    _messages.pop()
-  }
-  return _messages
-}
-
 export function filterAdjacentUserMessaegs(messages: Message[]): Message[] {
   // Filter adjacent user messages, keeping only the last one
   return messages.filter((message, index, origin) => {
@@ -149,34 +121,26 @@ export function filterAdjacentUserMessaegs(messages: Message[]): Message[] {
 }
 
 /**
- * Filters out assistant messages that only contain ErrorBlocks and their associated user messages.
- * An assistant message is associated with a user message via the askId field.
+ * Filters out assistant messages that contain only error content (and their
+ * associated user messages). An assistant message qualifies when it has at
+ * least one `data-error` part and no other content-bearing parts.
+ * `step-start` (AI SDK boundary marker) is ignored. Associated user messages
+ * are matched via the `askId` field.
  */
 export function filterErrorOnlyMessagesWithRelated(messages: Message[]): Message[] {
-  const state = store.getState()
-
-  // Find all assistant messages that only contain ErrorBlocks
   const errorOnlyAskIds = new Set<string>()
 
   for (const message of messages) {
-    if (message.role !== 'assistant' || !message.askId) {
-      continue
+    if (message.role !== 'assistant' || !message.askId) continue
+
+    let hasError = false
+    let hasNonError = false
+    for (const part of getParts(message)) {
+      if (part.type === 'data-error') hasError = true
+      else if (part.type !== ('step-start' as string)) hasNonError = true
+      if (hasError && hasNonError) break
     }
-
-    // Check if this assistant message only contains ErrorBlocks
-    let hasNonErrorBlock = false
-    for (const blockId of message.blocks) {
-      const block = messageBlocksSelectors.selectById(state, blockId)
-      if (!block) continue
-
-      if (block.type !== MessageBlockType.ERROR) {
-        hasNonErrorBlock = true
-        break
-      }
-    }
-
-    // If only ErrorBlocks (or no blocks), mark this askId for removal
-    if (!hasNonErrorBlock && message.blocks.length > 0) {
+    if (hasError && !hasNonError) {
       errorOnlyAskIds.add(message.askId)
     }
   }
@@ -210,27 +174,3 @@ export function filterErrorOnlyMessagesWithRelated(messages: Message[]): Message
 //   })
 //   return groups
 // }
-
-/**
- * Filters and processes messages based on context requirements
- * @param messages - Array of messages to be filtered
- * @param contextCount - Number of messages to keep in context (excluding new user and assistant messages)
- * @returns Filtered array of messages that:
- * 1. Only includes messages after the last context clear
- * 2. Only includes useful message in a group (based on useful flag)
- * 3. Limited to contextCount + 2 messages (including space for new user/assistant messages)
- * 4. Starts from first user message
- * 5. Excludes empty messages
- */
-export function filterContextMessages(messages: Message[], contextCount: number): Message[] {
-  // NOTE: 和 fetchCompletions 中过滤消息的逻辑相同。
-  // 按理说 fetchCompletions 也可以复用这个函数，不过 fetchCompletions 不敢随便乱改，后面再考虑重构吧
-  const afterContextClearMsgs = filterAfterContextClearMessages(messages)
-  const usefulMsgs = filterUsefulMessages(afterContextClearMsgs)
-  const adjacentRemovedMsgs = filterAdjacentUserMessaegs(usefulMsgs)
-  const filteredMessages = filterUserRoleStartMessages(
-    filterEmptyMessages(takeRight(adjacentRemovedMsgs, contextCount))
-  )
-
-  return filteredMessages
-}

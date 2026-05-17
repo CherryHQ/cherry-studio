@@ -34,10 +34,6 @@ vi.mock('@renderer/store', () => ({
   default: mocks.store
 }))
 
-vi.mock('@renderer/store/messageBlock', () => ({
-  messageBlocksSelectors: mocks.messageBlocksSelectors
-}))
-
 vi.mock('@renderer/components/Icons', () => ({
   CopyIcon: ({ size }: { size: number }) => <div data-testid="copy-icon" style={{ width: size, height: size }} />
 }))
@@ -71,6 +67,11 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </div>
   )
+}))
+
+// Mock V2 contexts — returns null (V1 mode) by default
+vi.mock('@renderer/pages/home/Messages/Blocks', () => ({
+  useResolveBlock: vi.fn(() => null)
 }))
 
 Object.assign(window, {

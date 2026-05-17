@@ -2,9 +2,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { Navbar, NavbarCenter, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { modelGenerating } from '@renderer/hooks/useModel'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Menu, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
@@ -15,8 +13,8 @@ import UpdateAppButton from '../home/components/UpdateAppButton'
 import AgentSidePanelDrawer from './components/AgentSidePanelDrawer'
 
 const AgentNavbar = () => {
-  const { showAssistants, toggleShowAssistants } = useShowAssistants()
-  const { showTopics, toggleShowTopics } = useShowTopics()
+  const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
+  const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
   const [narrowMode, setNarrowMode] = usePreference('chat.narrow_mode')
   const [topicPosition] = usePreference('topic.position')
 
@@ -24,15 +22,14 @@ const AgentNavbar = () => {
     void SearchPopup.show()
   })
 
-  const handleNarrowModeToggle = async () => {
-    await modelGenerating()
+  const handleNarrowModeToggle = () => {
     void setNarrowMode(!narrowMode)
   }
 
   return (
     <Navbar className="agent-navbar">
       <AnimatePresence initial={false}>
-        {showAssistants && (
+        {showSidebar && (
           <motion.div
             initial={{ width: 0, opacity: 0 }}
             animate={{ width: 'auto', opacity: 1 }}
@@ -41,7 +38,7 @@ const AgentNavbar = () => {
             style={{ overflow: 'hidden', display: 'flex', flexDirection: 'row' }}>
             <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
               <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
-                <NavbarIcon onClick={toggleShowAssistants}>
+                <NavbarIcon onClick={toggleShowSidebar}>
                   <PanelLeftClose size={18} />
                 </NavbarIcon>
               </Tooltip>
@@ -49,7 +46,7 @@ const AgentNavbar = () => {
           </motion.div>
         )}
       </AnimatePresence>
-      {!showAssistants && (
+      {!showSidebar && (
         <NavbarLeft
           style={{
             justifyContent: 'flex-start',
@@ -59,7 +56,7 @@ const AgentNavbar = () => {
             minWidth: 'auto'
           }}>
           <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8} placement="right">
-            <NavbarIcon onClick={() => toggleShowAssistants()}>
+            <NavbarIcon onClick={toggleShowSidebar}>
               <PanelRightClose size={18} />
             </NavbarIcon>
           </Tooltip>
@@ -90,17 +87,10 @@ const AgentNavbar = () => {
               <i className="iconfont icon-icon-adaptive-width"></i>
             </NarrowIcon>
           </Tooltip>
-          {topicPosition === 'right' && !showTopics && (
-            <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
-              <NavbarIcon onClick={toggleShowTopics}>
-                <PanelLeftClose size={18} />
-              </NavbarIcon>
-            </Tooltip>
-          )}
-          {topicPosition === 'right' && showTopics && (
-            <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={2}>
-              <NavbarIcon onClick={toggleShowTopics}>
-                <PanelRightClose size={18} />
+          {topicPosition === 'right' && (
+            <Tooltip title={showSidebar ? t('navbar.hide_sidebar') : t('navbar.show_sidebar')} mouseEnterDelay={2}>
+              <NavbarIcon onClick={toggleShowSidebar}>
+                {showSidebar ? <PanelRightClose size={18} /> : <PanelLeftClose size={18} />}
               </NavbarIcon>
             </Tooltip>
           )}

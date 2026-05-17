@@ -1,4 +1,3 @@
-import { MessageBlockStatus } from '@renderer/types/newMessage'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -11,7 +10,6 @@ const mocks = vi.hoisted(() => ({
   },
   getCodeBlockId: vi.fn(),
   isOpenFenceBlock: vi.fn(),
-  selectById: vi.fn(),
   useSettings: vi.fn().mockReturnValue({ codeFancyBlock: true }),
   isWin: false,
   CodeBlockView: vi.fn(({ onSave, children }) => (
@@ -49,12 +47,6 @@ vi.mock('@renderer/store', () => ({
   }
 }))
 
-vi.mock('@renderer/store/messageBlock', () => ({
-  messageBlocksSelectors: {
-    selectById: mocks.selectById
-  }
-}))
-
 vi.mock('@renderer/hooks/useSettings', () => ({
   useSettings: () => mocks.useSettings()
 }))
@@ -64,10 +56,9 @@ vi.mock('@renderer/components/CodeBlockView', () => ({
   HtmlArtifactsCard: mocks.HtmlArtifactsCard
 }))
 
-vi.mock('@renderer/config/constant', () => ({
-  get isWin() {
-    return mocks.isWin
-  }
+// Mock V2 contexts — returns null (V1 mode) by default
+vi.mock('@renderer/pages/home/Messages/Blocks', () => ({
+  useResolveBlock: vi.fn(() => null)
 }))
 
 // Mock ClickableFilePath
@@ -95,10 +86,6 @@ describe('CodeBlock', () => {
     // Default mock return values
     mocks.getCodeBlockId.mockReturnValue('test-code-block-id')
     mocks.isOpenFenceBlock.mockReturnValue(false)
-    mocks.selectById.mockReturnValue({
-      id: 'test-msg-block-id',
-      status: MessageBlockStatus.SUCCESS
-    })
   })
 
   describe('rendering', () => {

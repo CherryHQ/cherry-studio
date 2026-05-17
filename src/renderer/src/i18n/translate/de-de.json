@@ -3356,6 +3356,7 @@
     },
     "stream_output": "Stream-Ausgabe",
     "type": {
+      "audio": "[to be translated]:Audio",
       "embedding": "Embedding",
       "free": "Kostenlos",
       "function_calling": "Tools",
@@ -3363,6 +3364,7 @@
       "rerank": "Rerank",
       "select": "Modelltyp",
       "text": "Text",
+      "video": "[to be translated]:Video",
       "vision": "Vision",
       "websearch": "Online"
     }

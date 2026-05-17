@@ -111,10 +111,6 @@ export function isSupportVerbosityProvider(provider: Provider): boolean {
   return provider.apiFeatures.verbosity
 }
 
-export function isSupportEnableThinkingProvider(provider: Provider): boolean {
-  return provider.apiFeatures.enableThinking
-}
-
 export function isProviderSupportAuth(provider: Pick<Provider, 'id'>): boolean {
   const supportProviders = ['302ai', 'silicon', 'aihubmix', 'ppio', 'tokenflux', 'aionly']
   return supportProviders.includes(provider.id)

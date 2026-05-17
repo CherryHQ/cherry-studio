@@ -1,27 +1,29 @@
 import { MessageOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
-import { modelGenerating } from '@renderer/hooks/useModel'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getTopicById } from '@renderer/hooks/useTopic'
-import { getAssistantById } from '@renderer/services/AssistantService'
+import { PartsProvider } from '@renderer/pages/home/Messages/Blocks'
+import MessageGroup from '@renderer/pages/home/Messages/MessageGroup'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { locateToMessage } from '@renderer/services/MessagesService'
+import { getGroupedMessages, locateToMessage } from '@renderer/services/MessagesService'
 import type { Topic } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
 import { classNames, runAsyncFunction } from '@renderer/utils'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { useNavigate } from '@tanstack/react-router'
 import { Divider, Empty } from 'antd'
 import { t } from 'i18next'
 import { Forward } from 'lucide-react'
 import type { FC } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import styled from 'styled-components'
 
-import { default as MessageItem } from '../../home/Messages/Message'
 interface Props extends React.HTMLAttributes<HTMLDivElement> {
   topic?: Topic
 }
@@ -36,6 +38,7 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
   const [topic, setTopic] = useState<Topic | undefined>(_topic)
 
   useEffect(() => {
+    setTopic(_topic ? { ..._topic, messages: [] } : undefined)
     if (!_topic) return
 
     void runAsyncFunction(async () => {
@@ -45,46 +48,74 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
   }, [_topic])
 
   const isEmpty = (topic?.messages || []).length === 0
+  const groupedMessages = useMemo(() => {
+    if (!topic?.messages?.length) return []
+    return Object.entries(getGroupedMessages(topic.messages))
+  }, [topic?.messages])
+
+  const partsMap = useMemo(() => {
+    const map: Record<string, CherryMessagePart[]> = {}
+    for (const message of topic?.messages || []) {
+      const parts = message.parts ?? []
+      if (parts.length > 0) map[message.id] = parts
+    }
+    return map
+  }, [topic?.messages])
 
   if (!topic) {
     return null
   }
 
   const onContinueChat = async (topic: Topic) => {
-    await modelGenerating()
     SearchPopup.hide()
-    const assistant = getAssistantById(topic.assistantId)
-    void navigate({ to: '/app/chat', search: { assistantId: assistant?.id, topicId: topic.id } })
+    // Validate `topic.assistantId` against DataApi so a deleted assistant
+    // doesn't leak a dangling id into the route. Falls back to undefined.
+    const assistantId = topic.assistantId
+      ? await dataApiService
+          .get(`/assistants/${topic.assistantId}`)
+          .then((a) => a?.id)
+          .catch(() => undefined)
+      : undefined
+    void navigate({ to: '/app/chat', search: { assistantId, topicId: topic.id } })
     setTimeoutTimer('onContinueChat', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 100)
   }
 
   return (
     <MessageEditingProvider>
-      <MessagesContainer {...props} ref={containerRef} onScroll={handleScroll}>
-        <ContainerWrapper className={messageStyle}>
-          {topic?.messages.map((message) => (
-            <MessageWrapper key={message.id} className={classNames([messageStyle, message.role])}>
-              <MessageItem message={message} topic={topic} hideMenuBar={true} />
-              <Button
-                variant="ghost"
-                className="absolute top-[5px] right-0 text-[var(--color-text-3)]"
-                onClick={() => locateToMessage(navigate, message)}>
-                <Forward size={16} />
-              </Button>
-              <Divider style={{ margin: '8px auto 15px' }} variant="dashed" />
-            </MessageWrapper>
-          ))}
-          {isEmpty && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />}
-          {!isEmpty && (
-            <RowFlex className="justify-center">
-              <Button onClick={() => onContinueChat(topic)}>
-                <MessageOutlined />
-                {t('history.continue_chat')}
-              </Button>
-            </RowFlex>
-          )}
-        </ContainerWrapper>
-      </MessagesContainer>
+      <PartsProvider value={partsMap}>
+        <MessagesContainer {...props} ref={containerRef} onScroll={handleScroll}>
+          <ContainerWrapper className={messageStyle}>
+            {groupedMessages.map(([key, groupMessages]) => {
+              const locateMessage = groupMessages[0] as Message | undefined
+              const wrapperRole = groupMessages[0]?.role
+
+              return (
+                <MessageWrapper key={key} className={classNames([messageStyle, wrapperRole])}>
+                  <MessageGroup messages={groupMessages} topic={topic} />
+                  {locateMessage && (
+                    <Button
+                      variant="ghost"
+                      className="absolute top-[5px] right-0 text-(--color-text-3)"
+                      onClick={() => locateToMessage(navigate, locateMessage)}>
+                      <Forward size={16} />
+                    </Button>
+                  )}
+                  <Divider style={{ margin: '8px auto 15px' }} variant="dashed" />
+                </MessageWrapper>
+              )
+            })}
+            {isEmpty && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />}
+            {!isEmpty && (
+              <RowFlex className="justify-center">
+                <Button onClick={() => onContinueChat(topic)}>
+                  <MessageOutlined />
+                  {t('history.continue_chat')}
+                </Button>
+              </RowFlex>
+            )}
+          </ContainerWrapper>
+        </MessagesContainer>
+      </PartsProvider>
     </MessageEditingProvider>
   )
 }

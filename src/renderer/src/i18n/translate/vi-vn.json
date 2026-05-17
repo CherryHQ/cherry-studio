@@ -3356,6 +3356,7 @@
     },
     "stream_output": "Salida de transmisión",
     "type": {
+      "audio": "[to be translated]:Audio",
       "embedding": "Nhúng",
       "free": "Libre",
       "function_calling": "Herramienta",
@@ -3363,6 +3364,7 @@
       "rerank": "Công cụ sắp xếp lại",
       "select": "Các Loại Mô Hình",
       "text": "Văn bản",
+      "video": "[to be translated]:Video",
       "vision": "Tầm nhìn",
       "websearch": "Tìm kiếm Web"
     }

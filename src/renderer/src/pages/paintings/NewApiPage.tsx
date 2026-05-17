@@ -1,10 +1,8 @@
 import { PlusOutlined } from '@ant-design/icons'
 import { Button } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { AiProvider } from '@renderer/aiCore'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -12,8 +10,9 @@ import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useModels } from '@renderer/hooks/useModel'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { useAllProviders } from '@renderer/hooks/useProvider'
+import { useProviderApiKeys, useProviders } from '@renderer/hooks/useProvider'
 import {
   getPaintingsBackgroundOptionsLabel,
   getPaintingsImageSizeOptionsLabel,
@@ -27,8 +26,9 @@ import { translateText } from '@renderer/services/TranslateService'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 import type { FileMetadata } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { isNewApiProvider } from '@renderer/utils/provider'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
+import { parseUniqueModelId } from '@shared/data/types/model'
+import { isNewApiProvider } from '@shared/utils/provider'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { Empty, InputNumber, Segmented, Select, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
@@ -69,22 +69,31 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const providers = useAllProviders()
+  const { providers } = useProviders()
   const location = useLocation()
   const routeName = location.pathname.split('/').pop() || 'new-api'
   const newApiProviders = providers.filter((p) => isNewApiProvider(p))
 
-  const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
   const newApiProvider = newApiProviders.find((p) => p.id === routeName) || newApiProviders[0]
+  const npId = newApiProvider?.id ?? ''
+  const { models: allV2Models } = useModels()
+  const { data: npKeyData } = useProviderApiKeys(npId)
+  const npApiKey = npKeyData?.keys.find((k) => k.isEnabled)?.key ?? ''
+  const npApiHost =
+    newApiProvider?.endpointConfigs?.[newApiProvider.defaultChatEndpoint ?? 'openai-chat-completions']?.baseUrl ?? ''
+  const npImageModels = useMemo(
+    () => allV2Models.filter((m) => m.providerId === npId && m.capabilities.includes('image-generation')),
+    [allV2Models, npId]
+  )
 
   const filteredPaintings = useMemo(
-    () => (newApiPaintings[mode] || []).filter((p) => p.providerId === newApiProvider.id),
-    [newApiPaintings, mode, newApiProvider.id]
+    () => (newApiPaintings[mode] || []).filter((p) => p.providerId === npId),
+    [newApiPaintings, mode, npId]
   )
-  const [painting, setPainting] = useState<PaintingAction>({ ...DEFAULT_PAINTING, providerId: newApiProvider.id })
+  const [painting, setPainting] = useState<PaintingAction>({ ...DEFAULT_PAINTING, providerId: npId })
 
   const modeOptions = [
     { label: t('paintings.mode.generate'), value: 'openai_image_generate' },
@@ -143,27 +152,28 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const updatePaintingState = useCallback(
     (updates: Partial<PaintingAction>) => {
-      const updatedPainting = { ...painting, providerId: newApiProvider.id, ...updates }
+      const updatedPainting = { ...painting, providerId: npId, ...updates }
       setPainting(updatedPainting)
       updatePainting(mode, updatedPainting)
     },
-    [painting, newApiProvider.id, mode, updatePainting]
+    [painting, npId, mode, updatePainting]
   )
 
   // ---------------- Model Related Configurations ----------------
   // const modelOptions = MODELS.map((m) => ({ label: m.name, value: m.name }))
 
   const modelOptions = useMemo(() => {
-    const customModels = newApiProvider.models
-      .filter((m) => m.endpoint_type && m.endpoint_type === 'image-generation')
-      .map((m) => ({
+    const customModels = npImageModels.map((m) => {
+      const rawId = m.apiModelId ?? parseUniqueModelId(m.id).modelId
+      return {
         label: m.name,
-        value: m.id,
-        custom: !SUPPORTED_MODELS.includes(m.id),
-        group: m.group
-      }))
+        value: rawId,
+        custom: !SUPPORTED_MODELS.includes(rawId),
+        group: m.group ?? ''
+      }
+    })
     return [...customModels]
-  }, [newApiProvider.models])
+  }, [npImageModels])
 
   // 根据 group 将模型进行分组，便于在下拉列表中分组渲染
   const groupedModelOptions = useMemo(() => {
@@ -182,9 +192,9 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       ...DEFAULT_PAINTING,
       model: painting.model || modelOptions[0]?.value || '',
       id: uuid(),
-      providerId: newApiProvider.id
+      providerId: npId
     }
-  }, [modelOptions, painting.model, newApiProvider.id])
+  }, [modelOptions, painting.model, npId])
 
   const selectedModelConfig = useMemo(
     () => MODELS.find((m) => m.name === painting.model) || MODELS[0],
@@ -263,6 +273,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onGenerate = async () => {
+    if (!newApiProvider) return
     await checkProviderEnabled(newApiProvider, t)
 
     if (painting.files.length > 0) {
@@ -278,9 +289,9 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
     updatePaintingState({ prompt })
 
-    const AI = new AiProvider(newApiProvider)
+    const apiKey = npApiKey
 
-    if (!AI.getApiKey()) {
+    if (!apiKey) {
       window.modal.error({
         content: t('error.no_api_key'),
         centered: true
@@ -295,19 +306,18 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     const controller = new AbortController()
     setAbortController(controller)
     setIsLoading(true)
-    setGenerating(true)
 
     let body: string | FormData = ''
     const headers: Record<string, string> = {
-      Authorization: `Bearer ${AI.getApiKey()}`
+      Authorization: `Bearer ${apiKey}`
     }
     // NOTE: Cherry Studio当下 newapi只接受v1/images/xxx的请求
     // TODO: support gemini https://www.newapi.ai/zh/docs/api/ai-model/images/gemini/geminirelayv1beta-383837589
-    let url = newApiProvider.apiHost.replace(/\/v1$/, '') + `/v1/images/generations`
-    let editUrl = newApiProvider.apiHost.replace(/\/v1$/, '') + `/v1/images/edits`
-    if (newApiProvider.id === 'aionly') {
-      url = newApiProvider.apiHost.replace(/\/v1$/, '') + `/openai/v1/images/generations`
-      editUrl = newApiProvider.apiHost.replace(/\/v1$/, '') + `/openai/v1/images/edits`
+    let url = npApiHost.replace(/\/v1$/, '') + `/v1/images/generations`
+    let editUrl = npApiHost.replace(/\/v1$/, '') + `/v1/images/edits`
+    if (npId === 'aionly') {
+      url = npApiHost.replace(/\/v1$/, '') + `/openai/v1/images/generations`
+      editUrl = npApiHost.replace(/\/v1$/, '') + `/openai/v1/images/edits`
     }
 
     try {
@@ -393,7 +403,6 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       handleError(error)
     } finally {
       setIsLoading(false)
-      setGenerating(false)
       setAbortController(null)
     }
   }
@@ -498,11 +507,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     setMode(nextMode)
 
     if (nextMode === 'openai_image_edit' && mode === 'openai_image_generate' && painting.files.length > 0) {
-      const existingEditPainting = findPaintingByFiles(
-        newApiPaintings.openai_image_edit || [],
-        newApiProvider.id,
-        painting.files
-      )
+      const existingEditPainting = findPaintingByFiles(newApiPaintings.openai_image_edit || [], npId, painting.files)
 
       if (existingEditPainting) {
         setPainting(existingEditPainting)
@@ -512,7 +517,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       const seededPainting = {
         ...painting,
         id: uuid(),
-        providerId: newApiProvider.id
+        providerId: npId
       }
 
       addPainting(nextMode, seededPainting)
@@ -520,13 +525,13 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       return
     }
 
-    const list = (newApiPaintings[nextMode] || []).filter((p) => p.providerId === newApiProvider.id)
-    setPainting(list[0] || { ...DEFAULT_PAINTING, providerId: newApiProvider.id })
+    const list = (newApiPaintings[nextMode] || []).filter((p) => p.providerId === npId)
+    setPainting(list[0] || { ...DEFAULT_PAINTING, providerId: npId })
   }
 
   // 渲染配置项的函数
   const onSelectPainting = (newPainting: PaintingAction) => {
-    if (generating) return
+    if (isLoading) return
     setPainting(newPainting)
     setCurrentImageIndex(0)
   }
@@ -538,7 +543,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   // 当 modelOptions 为空时，引导用户跳转到 Provider 设置页面，新增 image-generation 端点模型
   const handleShowAddModelPopup = () => {
-    void navigate({ to: `/settings/provider?id=${newApiProvider.id}` })
+    void navigate({ to: `/settings/provider?id=${npId}` })
   }
 
   useEffect(() => {
@@ -592,16 +597,16 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
             <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
             <SettingHelpLink
               target="_blank"
-              href={PROVIDER_URLS[newApiProvider.id]?.websites?.docs || 'https://docs.newapi.pro/apps/cherry-studio/'}>
+              href={PROVIDER_URLS[npId]?.websites?.docs || 'https://docs.newapi.pro/apps/cherry-studio/'}>
               {t('paintings.learn_more')}
               {(() => {
-                const Icon = resolveProviderIcon(newApiProvider.id)
+                const Icon = resolveProviderIcon(npId)
                 return Icon ? <Icon.Avatar size={16} className="ml-1.25" /> : null
               })()}
             </SettingHelpLink>
           </ProviderTitleContainer>
 
-          <ProviderSelect provider={newApiProvider} options={Options} onChange={handleProviderChange} />
+          <ProviderSelect provider={newApiProvider ?? { id: npId }} options={Options} onChange={handleProviderChange} />
 
           {/* 当没有可用的 Image Generation 模型时，提示用户先去新增 */}
           {modelOptions.length === 0 && (

@@ -1,10 +1,9 @@
 //TODO [v2] 类型将转移至 packages/shared/data/types/message.ts。 转移后此文件将废弃(deprecated)
 
-import type { CompletionUsage } from '@cherrystudio/openai/resources'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ProviderMetadata } from 'ai'
 
 import type {
-  Assistant,
   FileMetadata,
   GenerateImageResponse,
   KnowledgeReference,
@@ -14,7 +13,6 @@ import type {
   Metrics,
   Model,
   NormalToolResponse,
-  Topic,
   Usage,
   WebSearchResponse,
   WebSearchSource
@@ -186,7 +184,7 @@ export enum AssistantMessageStatus {
 export type Message = {
   id: string
   role: 'user' | 'assistant' | 'system'
-  assistantId: string
+  assistantId: string | undefined
   topicId: string
   createdAt: string
   updatedAt?: string
@@ -198,6 +196,7 @@ export type Message = {
   type?: 'clear'
   useful?: boolean
   askId?: string // 关联的问题消息ID
+  siblingsGroupId?: number
   mentions?: Model[]
   /**
    * @deprecated
@@ -211,8 +210,10 @@ export type Message = {
   multiModelMessageStyle?: 'horizontal' | 'vertical' | 'fold' | 'grid'
   foldSelected?: boolean
 
-  // 块集合
+  // 块集合 (v1 — 仅 v1 路径填充，v2 全靠 parts)
   blocks: MessageBlock['id'][]
+
+  parts?: CherryMessagePart[]
 
   // 跟踪Id
   traceId?: string
@@ -238,17 +239,3 @@ export interface Response {
 
 // FIXME: Weak type safety. It may be a specific class instance which inherits Error in runtime.
 export type ResponseError = Record<string, any>
-
-export interface MessageInputBaseParams {
-  assistant: Assistant
-  topic: Topic
-  content?: string
-  files?: FileMetadata[]
-  knowledgeBaseIds?: string[]
-  mentions?: Model[]
-  /**
-   * @deprecated
-   */
-  enabledMCPs?: MCPServer[]
-  usage?: CompletionUsage
-}

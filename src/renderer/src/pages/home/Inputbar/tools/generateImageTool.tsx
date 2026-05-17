@@ -1,18 +1,17 @@
 import { isGenerateImageModel } from '@renderer/config/models'
-import { useAssistant } from '@renderer/hooks/useAssistant'
 import GenerateImageButton from '@renderer/pages/home/Inputbar/tools/components/GenerateImageButton'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 
 const GenerateImageTool = ({ context }) => {
-  const { assistant, model } = context
-  const { updateAssistant } = useAssistant(assistant.id)
+  const { model } = context
+  const [enabled, setEnabled] = useState(false)
 
   const handleToggle = useCallback(() => {
-    updateAssistant({ ...assistant, enableGenerateImage: !assistant.enableGenerateImage })
-  }, [assistant, updateAssistant])
+    setEnabled((prev) => !prev)
+  }, [])
 
-  return <GenerateImageButton assistant={assistant} model={model} onEnableGenerateImage={handleToggle} />
+  return <GenerateImageButton enabled={enabled} model={model} onEnableGenerateImage={handleToggle} />
 }
 
 const generateImageTool = defineTool({

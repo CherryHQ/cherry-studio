@@ -51,13 +51,12 @@ import {
   type MCPPrompt,
   type MCPResource,
   type MCPServer,
-  type MCPTool,
-  MCPToolInputSchema,
-  MCPToolOutputSchema
+  type MCPTool
 } from '@types'
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
 import { v4 as uuidv4 } from 'uuid'
+import * as z from 'zod'
 
 import DxtService from '../DxtService'
 import { fileStorage } from '../FileStorage'
@@ -71,6 +70,32 @@ type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
 type CallToolArgs = { server: MCPServer; name: string; args: any; callId?: string }
 
 const logger = loggerService.withContext('McpService')
+
+/** JSON-Schema validator for MCP tool input/output schemas. `loose()` keeps
+ *  any extra fields the protocol may add; the input transform guarantees
+ *  `properties`/`required` are populated so renderers can read them without
+ *  nullish chaining. Output keeps the raw shape — only forwarded, not read
+ *  by current renderers. */
+const MCP_TOOL_INPUT_SCHEMA = z
+  .object({
+    type: z.literal('object'),
+    properties: z.object({}).loose().optional(),
+    required: z.array(z.string()).optional()
+  })
+  .loose()
+  .transform((schema) => {
+    if (!schema.properties) schema.properties = {}
+    if (!schema.required) schema.required = []
+    return schema
+  })
+
+const MCP_TOOL_OUTPUT_SCHEMA = z
+  .object({
+    type: z.literal('object'),
+    properties: z.object({}).loose().optional(),
+    required: z.array(z.string()).optional()
+  })
+  .loose()
 
 // Minimum timeout for the MCP `initialize` request. Connect runs once per activation,
 // so a generous floor avoids false positives on slow SSE/streamableHttp handshakes while
@@ -189,10 +214,6 @@ export class McpService extends BaseService {
     this.ipcHandle(IpcChannel.Mcp_AbortTool, (_e, callId) => this.abortTool(callId))
     this.ipcHandle(IpcChannel.Mcp_GetServerVersion, (_e, server) => this.getServerVersion(server))
     this.ipcHandle(IpcChannel.Mcp_GetServerLogs, (_e, server) => this.getServerLogs(server))
-    this.ipcHandle(IpcChannel.Mcp_ResolveHubTool, async (_event, nameOrId: string) => {
-      const { resolveHubToolName } = await import('@main/mcpServers/hub/mcp-bridge')
-      return resolveHubToolName(nameOrId)
-    })
     this.ipcHandle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
       try {
         const tempPath = await fileStorage.createTempFile(event, fileName)
@@ -206,36 +227,6 @@ export class McpService extends BaseService {
         }
       }
     })
-  }
-
-  /**
-   * List all tools from all active MCP servers (excluding hub).
-   * Used by Hub server's tool registry.
-   */
-  public async listAllActiveServerTools(): Promise<MCPTool[]> {
-    const { items: activeServers } = await mcpServerService.list({ isActive: true })
-
-    const results = await Promise.allSettled(
-      activeServers.map(async (server) => {
-        const tools = await this.listToolsImpl(server)
-        const disabledTools = new Set(server.disabledTools ?? [])
-        return disabledTools.size > 0 ? tools.filter((tool) => !disabledTools.has(tool.name)) : tools
-      })
-    )
-
-    const allTools: MCPTool[] = []
-    results.forEach((result, index) => {
-      if (result.status === 'fulfilled') {
-        allTools.push(...result.value)
-      } else {
-        logger.error(
-          `[listAllActiveServerTools] Failed to list tools from ${activeServers[index].name}:`,
-          result.reason as Error
-        )
-      }
-    })
-
-    return allTools
   }
 
   /**
@@ -912,8 +903,8 @@ export class McpService extends BaseService {
       tools.map((tool: SDKTool) => {
         const serverTool: MCPTool = {
           ...tool,
-          inputSchema: MCPToolInputSchema.parse(tool.inputSchema),
-          outputSchema: tool.outputSchema ? MCPToolOutputSchema.parse(tool.outputSchema) : undefined,
+          inputSchema: MCP_TOOL_INPUT_SCHEMA.parse(tool.inputSchema),
+          outputSchema: tool.outputSchema ? MCP_TOOL_OUTPUT_SCHEMA.parse(tool.outputSchema) : undefined,
           id: buildFunctionCallToolName(server.name, tool.name),
           serverId: server.id,
           serverName: server.name,

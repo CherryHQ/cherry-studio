@@ -1,33 +1,27 @@
 import { application } from '@application'
+import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { getMcpApiService } from '@main/apiServer/services/mcp'
-import { type ModelValidationError, validateModelId } from '@main/apiServer/utils'
+import type { AgentTool as Tool } from '@shared/data/api/schemas/agents'
+import type { AgentType } from '@shared/data/types/agent'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { buildFunctionCallToolName } from '@shared/mcp'
-import type { AgentType, SlashCommand, SystemProviderId, Tool } from '@types'
+import type { SystemProviderId } from '@types'
 import fs from 'fs'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 
 import { type AgentModelField, AgentModelValidationError } from './errors'
-import { builtinSlashCommands } from './services/claudecode/commands'
 import { builtinTools } from './services/claudecode/tools'
 
 const logger = loggerService.withContext('agentUtils')
 
-const MCP_TOOL_ID_PREFIX = 'mcp__'
-const MCP_TOOL_LEGACY_PREFIX = 'mcp_'
-
-const buildMcpToolId = (serverId: string, toolName: string) => `${MCP_TOOL_ID_PREFIX}${serverId}__${toolName}`
-
-const toLegacyMcpToolId = (toolId: string): string | null => {
-  if (!toolId.startsWith(MCP_TOOL_ID_PREFIX)) {
-    return null
-  }
-  const rawId = toolId.slice(MCP_TOOL_ID_PREFIX.length)
-  return `${MCP_TOOL_LEGACY_PREFIX}${rawId.replace(/__/g, '_')}`
-}
-
-export function ensurePathsExist(paths?: string[]): string[] {
+/**
+ * Walk a list of absolute workspace paths: skip empty/duplicate entries,
+ * auto-create missing parent directories, and return the deduplicated result.
+ * Rejects relative paths to keep Claude Code's `cwd` hermetic.
+ */
+function ensurePathsExist(paths?: string[]): string[] {
   if (!paths?.length) {
     return []
   }
@@ -92,6 +86,44 @@ export function resolveAccessiblePaths(paths?: string[]): string[] {
   return ensurePathsExist(paths)
 }
 
+export async function listMcpTools(agentType: AgentType, ids?: string[]): Promise<Tool[]> {
+  const tools: Tool[] = []
+  if (agentType === 'claude-code') {
+    tools.push(...builtinTools)
+  }
+  if (!ids?.length) {
+    return tools
+  }
+  for (const id of ids) {
+    try {
+      const server = await getMcpApiService().getServerInfo(id)
+      if (!server) {
+        continue
+      }
+      for (const tool of server.tools) {
+        tools.push({
+          id: buildFunctionCallToolName(server.name, tool.name),
+          name: tool.name,
+          type: 'mcp',
+          description: tool.description || '',
+          requirePermissions: true
+        })
+      }
+    } catch (error) {
+      logger.warn('Failed to list MCP tools', { id, error: error as Error })
+    }
+  }
+  return tools
+}
+
+/**
+ * Validate that each model string is a UniqueModelId whose provider exists in
+ * the DataApi provider registry and has at least one enabled API key (or is
+ * a local provider that doesn't require one: ollama / lmstudio).
+ *
+ * Throws `AgentModelValidationError` on the first failure so the caller can
+ * surface it as a typed field error.
+ */
 export async function validateAgentModels(
   agentType: AgentType,
   models: Partial<Record<AgentModelField, string | undefined>>
@@ -109,179 +141,39 @@ export async function validateAgentModels(
     }
 
     const modelValue = rawValue
-    const validation = await validateModelId(modelValue)
 
-    if (!validation.valid || !validation.provider) {
-      const detail: ModelValidationError = validation.error ?? {
-        type: 'invalid_format',
-        message: 'Unknown model validation error',
-        code: 'validation_error'
-      }
-
-      throw new AgentModelValidationError({ agentType, field, model: modelValue }, detail)
+    // Parse UniqueModelId and resolve provider
+    let providerId: string
+    try {
+      const parsed = parseUniqueModelId(modelValue as UniqueModelId)
+      providerId = parsed.providerId
+    } catch {
+      throw new AgentModelValidationError(
+        { agentType, field, model: modelValue },
+        { type: 'invalid_format', message: `Invalid model format: ${modelValue}`, code: 'invalid_model_format' }
+      )
     }
 
-    const requiresApiKey = !localProvidersWithoutApiKey.includes(validation.provider.id)
-
-    if (!validation.provider.apiKey) {
-      if (requiresApiKey) {
-        throw new AgentModelValidationError(
-          { agentType, field, model: modelValue },
-          {
-            type: 'invalid_format',
-            message: `Provider '${validation.provider.id}' is missing an API key`,
-            code: 'provider_api_key_missing'
-          }
-        )
-      } else {
-        validation.provider.apiKey = validation.provider.id
-      }
+    const provider = await providerService.getByProviderId(providerId).catch(() => null)
+    if (!provider) {
+      throw new AgentModelValidationError(
+        { agentType, field, model: modelValue },
+        { type: 'provider_not_found', message: `Provider '${providerId}' not found`, code: 'provider_not_found' }
+      )
     }
-  }
-}
 
-export async function listMcpTools(
-  agentType: AgentType,
-  ids?: string[]
-): Promise<{ tools: Tool[]; legacyIdMap: Map<string, string> }> {
-  const tools: Tool[] = []
-  const legacyIdMap = new Map<string, string>()
+    const requiresApiKey = !localProvidersWithoutApiKey.includes(provider.id)
+    const hasApiKey = provider.apiKeys?.some((k) => k.isEnabled)
 
-  if (agentType === 'claude-code') {
-    tools.push(...builtinTools)
-  }
-
-  if (ids && ids.length > 0) {
-    for (const id of ids) {
-      try {
-        const server = await getMcpApiService().getServerInfo(id)
-        if (server) {
-          server.tools.forEach((tool) => {
-            const canonicalId = buildFunctionCallToolName(server.name, tool.name)
-            const serverIdBasedId = buildMcpToolId(id, tool.name)
-            const legacyId = toLegacyMcpToolId(serverIdBasedId)
-
-            tools.push({
-              id: canonicalId,
-              name: tool.name,
-              type: 'mcp',
-              description: tool.description || '',
-              requirePermissions: true
-            })
-            legacyIdMap.set(serverIdBasedId, canonicalId)
-            if (legacyId) {
-              legacyIdMap.set(legacyId, canonicalId)
-            }
-          })
+    if (!hasApiKey && requiresApiKey) {
+      throw new AgentModelValidationError(
+        { agentType, field, model: modelValue },
+        {
+          type: 'invalid_format',
+          message: `Provider '${provider.id}' is missing an API key`,
+          code: 'provider_api_key_missing'
         }
-      } catch (error) {
-        logger.warn('Failed to list MCP tools', {
-          id,
-          error: error as Error
-        })
-      }
+      )
     }
   }
-
-  return { tools, legacyIdMap }
-}
-
-type McpServerInfo = Awaited<ReturnType<ReturnType<typeof getMcpApiService>['getServerInfo']>>
-
-export async function prefetchMcpServers(ids: string[]): Promise<Map<string, McpServerInfo>> {
-  const cache = new Map<string, McpServerInfo>()
-  await Promise.all(
-    ids.map(async (id) => {
-      try {
-        cache.set(id, await getMcpApiService().getServerInfo(id))
-      } catch (error) {
-        logger.warn('Failed to prefetch MCP server', { id, error: error as Error })
-        cache.set(id, null)
-      }
-    })
-  )
-  return cache
-}
-
-export function listMcpToolsFromCache(
-  agentType: AgentType,
-  ids: string[] | undefined,
-  serverCache: Map<string, McpServerInfo>
-): { tools: Tool[]; legacyIdMap: Map<string, string> } {
-  const tools: Tool[] = []
-  const legacyIdMap = new Map<string, string>()
-
-  if (agentType === 'claude-code') {
-    tools.push(...builtinTools)
-  }
-
-  if (ids && ids.length > 0) {
-    for (const id of ids) {
-      const server = serverCache.get(id)
-      if (server) {
-        server.tools.forEach((tool) => {
-          const canonicalId = buildFunctionCallToolName(server.name, tool.name)
-          const serverIdBasedId = buildMcpToolId(id, tool.name)
-          const legacyId = toLegacyMcpToolId(serverIdBasedId)
-
-          tools.push({
-            id: canonicalId,
-            name: tool.name,
-            type: 'mcp',
-            description: tool.description || '',
-            requirePermissions: true
-          })
-          legacyIdMap.set(serverIdBasedId, canonicalId)
-          if (legacyId) {
-            legacyIdMap.set(legacyId, canonicalId)
-          }
-        })
-      }
-    }
-  }
-
-  return { tools, legacyIdMap }
-}
-
-export function normalizeAllowedTools(
-  allowedTools: string[] | undefined,
-  tools: Tool[],
-  legacyIdMap?: Map<string, string>
-): string[] | undefined {
-  if (!allowedTools || allowedTools.length === 0) {
-    return allowedTools
-  }
-
-  const resolvedLegacyIdMap = new Map<string, string>()
-
-  if (legacyIdMap) {
-    for (const [legacyId, canonicalId] of legacyIdMap) {
-      resolvedLegacyIdMap.set(legacyId, canonicalId)
-    }
-  }
-
-  for (const tool of tools) {
-    if (tool.type !== 'mcp') {
-      continue
-    }
-    const legacyId = toLegacyMcpToolId(tool.id)
-    if (!legacyId) {
-      continue
-    }
-    resolvedLegacyIdMap.set(legacyId, tool.id)
-  }
-
-  if (resolvedLegacyIdMap.size === 0) {
-    return allowedTools
-  }
-
-  const normalized = allowedTools.map((toolId) => resolvedLegacyIdMap.get(toolId) ?? toolId)
-  return Array.from(new Set(normalized))
-}
-
-export async function listSlashCommands(agentType: AgentType): Promise<SlashCommand[]> {
-  if (agentType === 'claude-code') {
-    return builtinSlashCommands
-  }
-  return []
 }

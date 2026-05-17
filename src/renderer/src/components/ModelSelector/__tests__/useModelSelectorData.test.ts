@@ -11,10 +11,10 @@ const mockUseModelsFn = vi.fn()
 const mockUseProvidersFn = vi.fn()
 const mockUsePinsFn = vi.fn()
 
-vi.mock('@renderer/hooks/useModels', () => ({
+vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: unknown[]) => mockUseModelsFn(...args)
 }))
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: (...args: unknown[]) => mockUseProvidersFn(...args)
 }))
 vi.mock('@renderer/hooks/usePins', () => ({

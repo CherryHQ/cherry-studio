@@ -83,7 +83,6 @@ export enum IpcChannel {
   Mcp_CheckConnectivity = 'mcp:check-connectivity',
   Mcp_UploadDxt = 'mcp:upload-dxt',
   Mcp_AbortTool = 'mcp:abort-tool',
-  Mcp_ResolveHubTool = 'mcp:resolve-hub-tool',
   Mcp_GetServerVersion = 'mcp:get-server-version',
   Mcp_Progress = 'mcp:progress',
   Mcp_GetServerLogs = 'mcp:get-server-logs',
@@ -92,21 +91,6 @@ export enum IpcChannel {
   Python_Execute = 'python:execute',
   Python_ExecutionRequest = 'python:execution-request',
   Python_ExecutionResponse = 'python:execution-response',
-
-  // agent messages
-  AgentMessage_PersistExchange = 'agent-message:persist-exchange',
-  AgentMessage_GetHistory = 'agent-message:get-history',
-
-  AgentToolPermission_Request = 'agent-tool-permission:request',
-  AgentToolPermission_Response = 'agent-tool-permission:response',
-  AgentToolPermission_Result = 'agent-tool-permission:result',
-
-  // Agent session stream (IM channel -> renderer real-time)
-  AgentSessionStream_Subscribe = 'agent-session-stream:subscribe',
-  AgentSessionStream_Unsubscribe = 'agent-session-stream:unsubscribe',
-  AgentSessionStream_Abort = 'agent-session-stream:abort',
-  AgentSessionStream_Chunk = 'agent-session-stream:chunk',
-  AgentSession_Changed = 'agent-session:changed',
 
   // WeChat channel
   WeChat_QrLogin = 'wechat:qr-login',
@@ -187,13 +171,7 @@ export enum IpcChannel {
   Tab_TryAttach = 'tab:try-attach',
   Tab_DragEnd = 'tab:drag-end',
 
-  KnowledgeBase_Create = 'knowledge-base:create',
-  KnowledgeBase_Reset = 'knowledge-base:reset',
   KnowledgeBase_Delete = 'knowledge-base:delete',
-  KnowledgeBase_Add = 'knowledge-base:add',
-  KnowledgeBase_Remove = 'knowledge-base:remove',
-  KnowledgeBase_Search = 'knowledge-base:search',
-  KnowledgeBase_Rerank = 'knowledge-base:rerank',
   KnowledgeRuntime_CreateBase = 'knowledge-runtime:create-base',
   KnowledgeRuntime_RestoreBase = 'knowledge-runtime:restore-base',
   KnowledgeRuntime_DeleteBase = 'knowledge-runtime:delete-base',
@@ -347,6 +325,7 @@ export enum IpcChannel {
   // Web Search
   WebSearch_SearchKeywords = 'web-search:search-keywords',
   WebSearch_FetchUrls = 'web-search:fetch-urls',
+  WebSearch_CheckProvider = 'web-search:check-provider',
 
   //Selection Assistant
   Selection_TextSelected = 'selection:text-selected',
@@ -477,6 +456,28 @@ export enum IpcChannel {
   // Analytics
   Analytics_TrackTokenUsage = 'analytics:track-token-usage',
 
+  // AI Stream (AiStreamManager)
+  Ai_StreamChunk = 'ai:stream-chunk',
+  Ai_StreamDone = 'ai:stream-done',
+  Ai_StreamError = 'ai:stream-error',
+  Ai_Translate_Open = 'ai:translate:open',
+  /** Renderer → Main: send message (AiStreamManager routes to start or steer) */
+  Ai_Stream_Open = 'ai:stream:open',
+  /** Renderer → Main: subscribe to a topic's stream state */
+  Ai_Stream_Attach = 'ai:stream:attach',
+  /** Renderer → Main: unsubscribe from a topic (stream continues in Main) */
+  Ai_Stream_Detach = 'ai:stream:detach',
+  /** Renderer → Main: abort the active generation on a topic */
+  Ai_Stream_Abort = 'ai:stream:abort',
+  Ai_ToolApproval_Respond = 'ai:tool-approval:respond',
+
+  // AI Non-streaming
+  Ai_GenerateText = 'ai:generate-text',
+  Ai_CheckModel = 'ai:check-model',
+  Ai_EmbedMany = 'ai:embed-many',
+  Ai_GenerateImage = 'ai:generate-image',
+  Ai_ListModels = 'ai:list-models',
+
   // WindowManager
   SettingsWindow_Open = 'settings-window:open',
   WindowManager_Open = 'window-manager:open',
@@ -498,7 +499,6 @@ export enum IpcChannel {
 
   // Agent operations
   Agent_RunTask = 'agent:run-task',
-  Agent_GetModels = 'agent:get-models',
   Agent_ListTools = 'agent:list-tools'
 
   // ──────────────────────────────────────────────────────────────

@@ -1,7 +1,6 @@
 import { W3CTraceContextPropagator } from '@opentelemetry/core'
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import type { SpanProcessor } from '@opentelemetry/sdk-trace-base'
-import { BatchSpanProcessor, ConsoleSpanExporter } from '@opentelemetry/sdk-trace-base'
+import { ConsoleSpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base'
 import { WebTracerProvider } from '@opentelemetry/sdk-trace-web'
 
 import type { TraceConfig } from '../trace-core/types/config'
@@ -21,7 +20,11 @@ export class WebTracer {
       defaultConfig.headers = config.headers || defaultConfig.headers
       defaultConfig.defaultTracerName = config.defaultTracerName || defaultConfig.defaultTracerName
     }
-    this.processor = spanProcessor || new BatchSpanProcessor(this.getExporter())
+    // Callers are expected to pass a processor. The dev-only fallback logs
+    // spans to the console so that a misconfigured caller doesn't silently
+    // lose data — renderer → main IPC persistence flows through the injected
+    // processor (see WebTraceService.init).
+    this.processor = spanProcessor || new SimpleSpanProcessor(new ConsoleSpanExporter())
     this.provider = new WebTracerProvider({
       spanProcessors: [this.processor]
     })
@@ -29,16 +32,6 @@ export class WebTracer {
       propagator: new W3CTraceContextPropagator(),
       contextManager: contextManager
     })
-  }
-
-  private static getExporter() {
-    if (defaultConfig.endpoint) {
-      return new OTLPTraceExporter({
-        url: `${defaultConfig.endpoint}/v1/traces`,
-        headers: defaultConfig.headers
-      })
-    }
-    return new ConsoleSpanExporter()
   }
 }
 

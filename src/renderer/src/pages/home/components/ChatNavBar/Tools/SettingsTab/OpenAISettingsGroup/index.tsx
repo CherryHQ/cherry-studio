@@ -1,14 +1,9 @@
-import { isSupportedReasoningEffortOpenAIModel, isSupportVerbosityModel } from '@renderer/config/models'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { SettingDivider } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
-import type { Model } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
-import {
-  isSupportServiceTierProvider,
-  isSupportStreamOptionsProvider,
-  isSupportVerbosityProvider
-} from '@renderer/utils/provider'
+import type { Model } from '@shared/data/types/model'
+import { isSupportedReasoningEffortOpenAIModel, isSupportVerbosityModel } from '@shared/utils/model'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -31,11 +26,13 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
   const showSummarySetting =
     isSupportedReasoningEffortOpenAIModel(model) &&
     !model.id.includes('o1-pro') &&
-    (provider.type === 'openai-response' || model.endpoint_type === 'openai-response' || provider.id === 'aihubmix')
-  const showVerbositySetting = isSupportVerbosityModel(model) && isSupportVerbosityProvider(provider)
-  const isSupportServiceTier = isSupportServiceTierProvider(provider)
+    (provider?.defaultChatEndpoint === 'openai-responses' ||
+      model.endpointTypes?.includes('openai-responses') ||
+      provider?.id === 'aihubmix')
+  const showVerbositySetting = isSupportVerbosityModel(model) && (provider?.apiFeatures?.verbosity ?? false)
+  const isSupportServiceTier = provider?.apiFeatures?.serviceTier ?? false
   const showServiceTierSetting = isSupportServiceTier && providerId !== SystemProviderIds.groq
-  const showStreamOptionsSetting = isSupportStreamOptionsProvider(provider)
+  const showStreamOptionsSetting = provider?.apiFeatures?.streamOptions ?? false
 
   if (!showSummarySetting && !showServiceTierSetting && !showVerbositySetting && !showStreamOptionsSetting) {
     return null

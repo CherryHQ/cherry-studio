@@ -1,40 +1,39 @@
-import { Button, Divider, HelpTooltip, RowFlex, Switch } from '@cherrystudio/ui'
+import { Button, HelpTooltip, RowFlex, Switch } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import CodeEditor from '@renderer/components/CodeEditor'
 import EditableNumber from '@renderer/components/EditableNumber'
 import { DeleteIcon, ResetIcon } from '@renderer/components/Icons'
-import { SelectChatModelPopup } from '@renderer/components/Popups/SelectModelPopup'
+import { ModelSelector } from '@renderer/components/ModelSelector'
 import Selector from '@renderer/components/Selector'
-import {
-  DEFAULT_CONTEXTCOUNT,
-  DEFAULT_TEMPERATURE,
-  MAX_CONTEXT_COUNT,
-  MAX_TOOL_CALLS,
-  MIN_TOOL_CALLS
-} from '@renderer/config/constant'
-import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
+import { DEFAULT_TEMPERATURE, MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@renderer/config/constant'
+import { useModelById } from '@renderer/hooks/useModel'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { SettingRow } from '@renderer/pages/settings'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
-import type { Assistant, AssistantSettingCustomParameters, AssistantSettings, Model } from '@renderer/types'
-import { cn, modalConfirm } from '@renderer/utils'
-import { Col, Input, InputNumber, Row, Select, Slider } from 'antd'
+import type { Assistant, AssistantSettings } from '@renderer/types'
+import { modalConfirm } from '@renderer/utils'
+import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/modelReconcile'
+import type { UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
+import { type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
+import { isNonChatModel } from '@shared/utils/model'
+import { Col, Divider, Input, InputNumber, Row, Select, Slider } from 'antd'
 import { isNull } from 'lodash'
 import { PlusIcon } from 'lucide-react'
-import type React from 'react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
+
+type CustomParameter = AssistantSettings['customParameters'][number]
 
 interface Props {
   assistant: Assistant
-  updateAssistant: (assistant: Assistant) => void
+  updateAssistant: (patch: UpdateAssistantDto) => void
   updateAssistantSettings: (settings: Partial<AssistantSettings>) => void
 }
 
 const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateAssistantSettings }) => {
   const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
-  const [contextCount, setContextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
   const enableMaxTokens = useMemo(
     () => assistant?.settings?.enableMaxTokens ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens,
     [assistant?.settings?.enableMaxTokens]
@@ -53,16 +52,13 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     () => assistant?.settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls,
     [assistant?.settings?.enableMaxToolCalls]
   )
-  const defaultModel = useMemo(
-    () => assistant?.defaultModel ?? DEFAULT_ASSISTANT_SETTINGS.defaultModel,
-    [assistant?.defaultModel]
-  )
+  const { model: defaultModel } = useModelById(assistant?.modelId as UniqueModelId)
   const [topP, setTopP] = useState(assistant?.settings?.topP ?? 1)
   const enableTopP = useMemo(
     () => assistant?.settings?.enableTopP ?? DEFAULT_ASSISTANT_SETTINGS.enableTopP,
     [assistant?.settings?.enableTopP]
   )
-  const [customParameters, setCustomParameters] = useState<AssistantSettingCustomParameters[]>(
+  const [customParameters, setCustomParameters] = useState<CustomParameter[]>(
     assistant?.settings?.customParameters ?? []
   )
   const enableTemperature = useMemo(
@@ -80,12 +76,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   const onTemperatureChange = (value) => {
     if (!isNaN(value as number)) {
       updateAssistantSettings({ temperature: value })
-    }
-  }
-
-  const onContextCountChange = (value) => {
-    if (!isNaN(value as number)) {
-      updateAssistantSettings({ contextCount: value })
     }
   }
 
@@ -140,7 +130,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         return (
           <InputNumber
             style={{ width: '100%' }}
-            value={param.value as number}
+            value={param.value}
             onChange={(value) => onUpdateCustomParameter(index, 'value', value || 0)}
             step={0.01}
           />
@@ -148,7 +138,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       case 'boolean':
         return (
           <Select
-            value={param.value as boolean}
+            value={param.value}
             onChange={(value) => onUpdateCustomParameter(index, 'value', value)}
             style={{ width: '100%' }}
             options={[
@@ -181,11 +171,11 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
               style={{
                 borderRadius: 6,
                 overflow: 'hidden',
-                border: `1px solid ${hasJsonError ? 'var(--color-error-base)' : 'var(--color-border)'}`
+                border: `1px solid ${hasJsonError ? 'var(--color-error)' : 'var(--color-border)'}`
               }}
             />
             {hasJsonError && (
-              <div style={{ color: 'var(--color-error-base)', fontSize: 12, marginTop: 4 }}>
+              <div style={{ color: 'var(--color-error)', fontSize: 12, marginTop: 4 }}>
                 {t('models.json_parse_error')}
               </div>
             )}
@@ -193,12 +183,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         )
       }
       default:
-        return (
-          <Input
-            value={param.value as string}
-            onChange={(e) => onUpdateCustomParameter(index, 'value', e.target.value)}
-          />
-        )
+        return <Input value={param.value} onChange={(e) => onUpdateCustomParameter(index, 'value', e.target.value)} />
     }
   }
 
@@ -210,60 +195,62 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
 
   const onReset = () => {
     setTemperature(DEFAULT_ASSISTANT_SETTINGS.temperature)
-    setContextCount(DEFAULT_ASSISTANT_SETTINGS.contextCount)
     setMaxTokens(DEFAULT_ASSISTANT_SETTINGS.maxTokens)
     setTopP(DEFAULT_ASSISTANT_SETTINGS.topP)
     setCustomParameters(DEFAULT_ASSISTANT_SETTINGS.customParameters)
     setMaxToolCalls(DEFAULT_ASSISTANT_SETTINGS.maxToolCalls)
     updateAssistantSettings(DEFAULT_ASSISTANT_SETTINGS)
   }
-  const modelFilter = (model: Model) => !isEmbeddingModel(model) && !isRerankModel(model)
+  const modelFilter = useCallback((m: SharedModel) => !isNonChatModel(m), [])
 
-  const onSelectModel = useCallback(async () => {
-    const currentModel = defaultModel ? assistant?.model : undefined
-    const selectedModel = await SelectChatModelPopup.show({ model: currentModel, filter: modelFilter })
-    if (selectedModel) {
-      updateAssistant({
-        ...assistant,
-        model: selectedModel,
-        defaultModel: selectedModel
-      })
-      // TODO: 移除根据模型自动修改参数的逻辑
-      if (selectedModel.name.includes('kimi-k2')) {
-        setTemperature(0.6)
-        setTimeoutTimer('onSelectModel_1', () => updateAssistantSettings({ temperature: 0.6 }), 500)
-      } else if (selectedModel.name.includes('moonshot')) {
-        setTemperature(0.3)
-        setTimeoutTimer('onSelectModel_2', () => updateAssistantSettings({ temperature: 0.3 }), 500)
-      }
-    }
-  }, [assistant, defaultModel, setTimeoutTimer, updateAssistant, updateAssistantSettings])
+  const onSelectModel = useCallback(
+    (selected: SharedModel | undefined) => {
+      if (!selected) return
+      // reconcile* are v2-native; selected.id is already the UniqueModelId.
+      const reasoning = reconcileReasoningEffortForModel(selected, assistant.settings.reasoning_effort, assistant.id)
+      const webSearch = reconcileWebSearchForModel(selected, assistant.settings)
+      updateAssistant(
+        reasoning || webSearch
+          ? {
+              modelId: selected.id,
+              settings: { ...assistant.settings, ...reasoning, ...webSearch }
+            }
+          : { modelId: selected.id }
+      )
+    },
+    [assistant.settings, assistant.id, updateAssistant]
+  )
 
   useEffect(() => {
     return () => updateAssistantSettings({ customParameters: customParametersRef.current })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const formatSliderTooltip = (value?: number) => {
-    if (value === undefined) return ''
-    return value.toString()
-  }
-
   return (
     <Container>
       <RowFlex className="mb-2.5 items-center justify-between">
         <Label>{t('assistants.settings.default_model')}</Label>
-        <RowFlex className="items-center gap-1.25">
-          <ModelSelectButton onClick={onSelectModel}>
-            {defaultModel ? <ModelAvatar model={defaultModel} size={20} /> : <PlusIcon size={18} />}
-            <ModelName>{defaultModel ? defaultModel.name : t('assistants.presets.edit.model.select.title')}</ModelName>
-          </ModelSelectButton>
+        <RowFlex className="items-center gap-[5px]">
+          <ModelSelector
+            multiple={false}
+            value={defaultModel}
+            onSelect={onSelectModel}
+            filter={modelFilter}
+            trigger={
+              <ModelSelectButton>
+                {defaultModel ? <ModelAvatar model={defaultModel} size={20} /> : <PlusIcon size={18} />}
+                <ModelName>
+                  {defaultModel ? defaultModel.name : t('assistants.presets.edit.model.select.title')}
+                </ModelName>
+              </ModelSelectButton>
+            }
+          />
           {defaultModel && (
             <Button
               variant="destructive"
               size="icon"
               onClick={() => {
-                updateAssistant({ ...assistant, defaultModel: undefined })
+                updateAssistant({ modelId: null })
               }}>
               <DeleteIcon size={14} className="lucide-custom" />
             </Button>
@@ -278,7 +265,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             {t('chat.settings.temperature.label')}
             <HelpTooltip
               content={t('chat.settings.temperature.tip')}
-              iconProps={{ className: 'cursor-pointer text-[var(--color-foreground-muted)]' }}
+              iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
             />
           </Label>
         </RowFlex>
@@ -327,7 +314,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           <Label>{t('chat.settings.top_p.label')}</Label>
           <HelpTooltip
             content={t('chat.settings.top_p.tip')}
-            iconProps={{ className: 'cursor-pointer text-[var(--color-foreground-muted)]' }}
+            iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
           />
         </RowFlex>
         <Switch
@@ -369,64 +356,12 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         </Row>
       )}
       <Divider style={{ margin: '10px 0' }} />
-
-      <Row align="middle">
-        <Col span={20}>
-          <Label>
-            {t('chat.settings.context_count.label')}{' '}
-            <HelpTooltip
-              content={t('chat.settings.context_count.tip')}
-              iconProps={{ className: 'cursor-pointer text-[var(--color-foreground-muted)]' }}
-            />
-          </Label>
-        </Col>
-        <Col span={4}>
-          <EditableNumber
-            min={0}
-            max={MAX_CONTEXT_COUNT}
-            step={1}
-            value={contextCount}
-            changeOnBlur
-            onChange={(value) => {
-              if (!isNull(value)) {
-                setContextCount(value)
-                setTimeoutTimer('contextCount_onChange', () => updateAssistantSettings({ contextCount: value }), 500)
-              }
-            }}
-            formatter={(value) => (value === MAX_CONTEXT_COUNT ? t('chat.settings.max') : (value ?? ''))}
-            style={{ width: '100%' }}
-          />
-        </Col>
-      </Row>
-      <Row align="middle" gutter={24}>
-        <Col span={24}>
-          <ContextSliderWrapper>
-            <Slider
-              min={0}
-              max={MAX_CONTEXT_COUNT}
-              onChange={setContextCount}
-              onChangeComplete={onContextCountChange}
-              value={typeof contextCount === 'number' ? contextCount : 0}
-              marks={{
-                0: '0',
-                25: '25',
-                50: '50',
-                75: '75',
-                100: <span style={{ position: 'absolute', right: -2 }}>{t('chat.settings.max')}</span>
-              }}
-              step={1}
-              tooltip={{ formatter: formatSliderTooltip, open: false }}
-            />
-          </ContextSliderWrapper>
-        </Col>
-      </Row>
-      <Divider style={{ margin: '10px 0' }} />
       <SettingRow style={{ minHeight: 30 }}>
         <RowFlex className="items-center">
           <Label>{t('chat.settings.max_tokens.label')}</Label>
           <HelpTooltip
             content={t('chat.settings.max_tokens.tip')}
-            iconProps={{ className: 'cursor-pointer text-[var(--color-foreground-muted)]' }}
+            iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
           />
         </RowFlex>
         <Switch
@@ -498,7 +433,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           <Label>{t('assistants.settings.max_tool_calls.label')}</Label>
           <HelpTooltip
             content={t('assistants.settings.max_tool_calls.tip')}
-            iconProps={{ className: 'cursor-pointer text-[var(--color-foreground-muted)]' }}
+            iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
           />
         </RowFlex>
         <Switch
@@ -577,24 +512,37 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   )
 }
 
-const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex flex-1 flex-col p-1.25', className)} {...props} />
-)
+const Container = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 5px;
+`
 
-const Label = ({ className, ...props }: React.ComponentPropsWithoutRef<'p'>) => (
-  <p className={cn('mr-1.25 flex shrink-0 items-center gap-1.25 font-medium', className)} {...props} />
-)
+const Label = styled.p`
+  margin-right: 5px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+`
 
-const ModelSelectButton = ({ className, ...props }: React.ComponentProps<typeof Button>) => (
-  <Button className={cn('max-w-[300px] justify-start [&_.ant-btn-icon]:shrink-0', className)} {...props} />
-)
+const ModelSelectButton = styled(Button)`
+  max-width: 300px;
+  justify-content: flex-start;
 
-const ModelName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('inline-block max-w-full truncate', className)} {...props} />
-)
+  .ant-btn-icon {
+    flex-shrink: 0;
+  }
+`
 
-const ContextSliderWrapper = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('pb-1.25', className)} {...props} />
-)
+const ModelName = styled.span`
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+`
 
 export default AssistantModelSettings

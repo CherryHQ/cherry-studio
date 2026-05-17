@@ -1,14 +1,17 @@
+import { randomUUID } from 'node:crypto'
+
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
-import { agentSessionService as sessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
+import { sessionService } from '@data/services/SessionService'
 import { loggerService } from '@logger'
-import { sessionMessageOrchestrator } from '@main/services/agents/services/SessionMessageOrchestrator'
-import type { GetAgentSessionResponse, ScheduledTaskEntity } from '@types'
+import { buildAgentSessionTopicId, parseAgentSessionModel } from '@main/ai/provider/claudeCodeSettingsBuilder'
+import { ChannelAdapterListener, type StreamListener } from '@main/ai/stream-manager'
+import type { AiStreamManager } from '@main/ai/stream-manager/AiStreamManager'
+import { application } from '@main/core/application'
+import type { ScheduledTaskEntity } from '@shared/data/types/agent'
 
-import type { ChannelAdapter } from './channels'
 import { channelManager } from './channels/ChannelManager'
-import { broadcastSessionChanged } from './channels/sessionStreamIpc'
 import { readHeartbeat } from './cherryclaw/heartbeat'
 
 const logger = loggerService.withContext('SchedulerService')
@@ -211,7 +214,26 @@ class SchedulerService {
       }
 
       const config = agent.configuration ?? {}
-      const workspacePath = agent.accessiblePaths?.[0]
+
+      // Resolve subscribed channels
+      subscribedChannels = await channelService.getSubscribedChannels(task.id)
+
+      // Resolve session BEFORE reading workspace — workspace now lives on the
+      // session (CMA Environment binding). createSession inherits accessiblePaths
+      // from the latest sibling session of the same agent when omitted.
+      const lastSessionId = await taskService.getLastRunSessionId(task.id)
+      let session = lastSessionId ? await sessionService.getById(lastSessionId).catch(() => null) : null
+
+      if (session) {
+        sessionId = session.id
+        logger.debug('Reusing session from last run', { taskId: task.id, sessionId })
+      } else {
+        session = await sessionService.createSession({ agentId: task.agentId, name: task.name || 'Scheduled run' })
+        sessionId = session.id
+        logger.debug('Created new session for task', { taskId: task.id, sessionId })
+      }
+
+      const workspacePath = session.accessiblePaths?.[0]
 
       // For heartbeat tasks, read prompt from workspace heartbeat.md file
       let fullPrompt = task.prompt
@@ -242,50 +264,79 @@ class SchedulerService {
         ].join('\n')
       }
 
-      // Resolve subscribed channels
-      subscribedChannels = await channelService.getSubscribedChannels(task.id)
-
-      // Try to reuse the session from the last successful run for context continuity
-      const lastSessionId = await taskService.getLastRunSessionId(task.id)
-      let session = lastSessionId ? await sessionService.getSession(task.agentId, lastSessionId) : null
-
-      if (session) {
-        sessionId = session.id
-        logger.debug('Reusing session from last run', { taskId: task.id, sessionId })
-      } else {
-        session = await sessionService.createSession(task.agentId, { name: task.name })
-        if (!session) {
-          throw new Error(`Failed to create session for task ${task.id}`)
-        }
-        sessionId = session.id
-        logger.debug('Created new session for task', { taskId: task.id, sessionId })
+      if (!agent.model) {
+        throw new Error(`Agent ${task.agentId} has no model configured`)
       }
 
-      // Send as user message (triggers agent response)
-      const { stream, completion } = await sessionMessageOrchestrator.createSessionMessage(
-        session as GetAgentSessionResponse,
-        { content: fullPrompt },
-        abortController,
-        { persist: true }
-      )
-
-      // Collect the response text and stream to subscribed channels only
-      const targetAdapters = subscribedChannels
+      // Build listeners: ChannelAdapterListener per subscribed channel + completion sentinel
+      const listeners: StreamListener[] = subscribedChannels
         .map((ch) => {
           const adapter = channelManager.getAdapter(ch.id)
-          logger.info('Task stream channel check', {
-            channelId: ch.id,
-            hasAdapter: !!adapter,
-            notifyChatIds: adapter?.notifyChatIds ?? []
-          })
-          return adapter
+          if (!adapter) return undefined
+          return adapter.notifyChatIds.map((chatId) => new ChannelAdapterListener(adapter, chatId))
         })
-        .filter((a) => a !== undefined)
-      const responseText = await this.collectAndStreamResponse(stream, targetAdapters)
-      await completion
+        .flat()
+        .filter((l) => l !== undefined)
 
-      // Notify renderer so the session list refreshes and messages can be loaded
-      broadcastSessionChanged(task.agentId, sessionId, true)
+      // Completion tracking via sentinel listener
+      let resolveExecution!: (text: string) => void
+      let rejectExecution!: (err: unknown) => void
+      const executionDone = new Promise<string>((resolve, reject) => {
+        resolveExecution = resolve
+        rejectExecution = reject
+      })
+      let accumulatedText = ''
+      const sentinel: StreamListener = {
+        id: `scheduler:${task.id}`,
+        onChunk(chunk) {
+          const c = chunk as { type: string; text?: string }
+          if (c.type === 'text-delta' && c.text) accumulatedText += c.text
+        },
+        onDone() {
+          resolveExecution(accumulatedText.trim())
+        },
+        onPaused() {
+          // If we're paused because the task was aborted (e.g. timeout fired),
+          // surface that as a rejection — otherwise the post-await abort
+          // check below would race against `await executionDone` resolving
+          // with the partial text and we'd record a successful run.
+          if (abortController.signal.aborted) {
+            const reason = abortController.signal.reason
+            rejectExecution(reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted')))
+            return
+          }
+          resolveExecution(accumulatedText.trim())
+        },
+        onError(result) {
+          rejectExecution(new Error(result.error.message ?? 'Execution failed'))
+        },
+        isAlive: () => !abortController.signal.aborted
+      }
+      listeners.push(sentinel)
+
+      // Start execution via AiStreamManager
+      const topicId = buildAgentSessionTopicId(session.id)
+      const uniqueModelId = parseAgentSessionModel(agent.model)
+
+      const aiStreamManager = application.get('AiStreamManager') as unknown as AiStreamManager
+      aiStreamManager.send({
+        topicId,
+        models: [
+          {
+            modelId: uniqueModelId,
+            request: {
+              chatId: topicId,
+              trigger: 'submit-message',
+              assistantId: task.agentId,
+              uniqueModelId,
+              messages: [{ id: randomUUID(), role: 'user', parts: [{ type: 'text', text: fullPrompt }] }]
+            }
+          }
+        ],
+        listeners
+      })
+
+      const responseText = await executionDone
 
       // Check if the task was aborted (e.g. by timeout)
       if (abortController.signal.aborted) {
@@ -335,79 +386,6 @@ class SchedulerService {
     // Send error notification or final response to channels
     if (error) {
       await this.notifyTaskError(task, durationMs, error, subscribedChannels)
-    }
-  }
-
-  /**
-   * Collect the stream response text and simultaneously stream to channel adapters.
-   * Mirrors the logic in ChannelMessageHandler.collectStreamResponse.
-   */
-  private async collectAndStreamResponse(stream: ReadableStream, adapters: ChannelAdapter[]): Promise<string> {
-    const reader = stream.getReader()
-    let completedText = ''
-    let currentBlockText = ''
-
-    // Pick the first notifyChatId from each adapter for streaming
-    const adapterChats = adapters.flatMap((a) => a.notifyChatIds.map((chatId) => ({ adapter: a, chatId })))
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        // Skip user message echoes
-        const rawType = value.providerMetadata?.raw?.type
-        if (rawType === 'user') continue
-
-        switch (value.type) {
-          case 'text-delta':
-            if (value.text) {
-              currentBlockText = value.text
-              const fullText = completedText + currentBlockText
-              // Stream to all channel adapters
-              for (const { adapter, chatId } of adapterChats) {
-                adapter
-                  .onTextUpdate(chatId, fullText)
-                  .catch((err) => logger.debug('Adapter onTextUpdate error', { channelId: adapter.channelId, err }))
-              }
-            }
-            break
-          case 'text-end':
-            if (currentBlockText) {
-              completedText += currentBlockText + '\n\n'
-              currentBlockText = ''
-            }
-            break
-        }
-      }
-
-      const finalText = (completedText + currentBlockText).replace(/\n+$/, '')
-
-      // Finalize streaming on all adapters, fall back to sendMessage if not handled
-      for (const { adapter, chatId } of adapterChats) {
-        try {
-          const handled = await adapter.onStreamComplete(chatId, finalText)
-          if (!handled && finalText) {
-            await adapter.sendMessage(chatId, finalText)
-          }
-        } catch (err) {
-          logger.warn('Failed to send task response to channel', {
-            channelId: adapter.channelId,
-            chatId,
-            error: err instanceof Error ? err.message : String(err)
-          })
-        }
-      }
-
-      return finalText
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error)
-      for (const { adapter, chatId } of adapterChats) {
-        adapter
-          .onStreamError(chatId, errorMsg)
-          .catch((err) => logger.debug('Adapter onStreamError error', { channelId: adapter.channelId, err }))
-      }
-      throw error
     }
   }
 

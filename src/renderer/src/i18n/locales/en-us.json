@@ -3356,6 +3356,7 @@
     },
     "stream_output": "Stream output",
     "type": {
+      "audio": "Audio",
       "embedding": "Embedding",
       "free": "Free",
       "function_calling": "Tool",
@@ -3363,6 +3364,7 @@
       "rerank": "Reranker",
       "select": "Model Types",
       "text": "Text",
+      "video": "Video",
       "vision": "Vision",
       "websearch": "WebSearch"
     }

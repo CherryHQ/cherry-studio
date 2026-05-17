@@ -4,7 +4,6 @@ import {
   EmojiAvatar,
   Field,
   FieldContent,
-  FieldDescription,
   FieldError,
   FieldSeparator,
   FieldSet,
@@ -15,19 +14,15 @@ import {
   Switch,
   Textarea
 } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { Plus, Trash2 } from 'lucide-react'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import type { FC } from 'react'
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FieldHeader } from '../../FieldHeader'
 import { ModelSelectorField } from '../../ModelSelectorField'
 import type { AgentFormState } from '../descriptor'
-
-const logger = loggerService.withContext('AgentConfig:BasicSection')
 
 interface Props {
   form: AgentFormState
@@ -70,26 +65,6 @@ function isSelectableAgentModel(model: Model): boolean {
 const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
   const { t } = useTranslation()
   const [emojiOpen, setEmojiOpen] = useState(false)
-
-  const removePath = (path: string) => {
-    onChange({ accessiblePaths: form.accessiblePaths.filter((p) => p !== path) })
-  }
-  // Legacy `AccessibleDirsSetting` parity: use the IPC folder selector, dedupe
-  // against the current list, and toast on both duplicate + select failure.
-  const addPath = useCallback(async () => {
-    try {
-      const selected = await window.api.file.selectFolder()
-      if (!selected) return
-      if (form.accessiblePaths.includes(selected)) {
-        window.toast.warning(t('agent.session.accessible_paths.duplicate'))
-        return
-      }
-      onChange({ accessiblePaths: [...form.accessiblePaths, selected] })
-    } catch (error) {
-      logger.error('Failed to select accessible path:', error as Error)
-      window.toast.error(t('agent.session.accessible_paths.select_failed'))
-    }
-  }, [form.accessiblePaths, onChange, t])
 
   return (
     <div className="flex flex-col gap-5">
@@ -184,47 +159,6 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
         />
       </ModelSubsection>
 
-      <Field className="gap-1.5">
-        <FieldHeader
-          label={t('library.config.agent.field.accessible_paths.label')}
-          hint={t('library.config.agent.field.accessible_paths.hint')}
-        />
-        <FieldContent>
-          <div className="flex flex-col gap-1.5">
-            {form.accessiblePaths.length === 0 ? (
-              <FieldDescription className="text-muted-foreground/80 text-xs">
-                {t('library.config.agent.field.accessible_paths.empty')}
-              </FieldDescription>
-            ) : null}
-            {form.accessiblePaths.map((p) => (
-              <div
-                key={p}
-                className="flex items-center gap-2 rounded-xs border border-border/30 bg-accent/15 px-3 py-2">
-                <span className="min-w-0 flex-1 truncate font-mono text-foreground/80 text-xs" title={p}>
-                  {p}
-                </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => removePath(p)}
-                  className="shrink-0 text-muted-foreground/80 hover:text-destructive">
-                  <Trash2 size={12} />
-                </Button>
-              </div>
-            ))}
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => void addPath()}
-              className="mt-1 h-auto min-h-0 w-fit rounded-2xs border border-border/20 border-dashed px-2.5 py-1 font-normal text-muted-foreground/80 text-xs shadow-none transition hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
-              <Plus size={10} className="mr-1" />
-              {t('library.config.agent.field.accessible_paths.add')}
-            </Button>
-          </div>
-        </FieldContent>
-      </Field>
-
       <SwitchRow
         label={t('library.config.agent.field.soul_enabled.label')}
         hint={t('library.config.agent.field.soul_enabled.help')}
@@ -283,7 +217,7 @@ function ModelSubsection({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation()
   return (
     <FieldSet className="gap-3">
-      <FieldSeparator className="font-medium text-foreground [&>[data-slot=field-separator-content]]:bg-background [&>[data-slot=field-separator-content]]:font-medium">
+      <FieldSeparator className="font-medium text-foreground *:data-[slot=field-separator-content]:bg-background [&>[data-slot=field-separator-content]]:font-medium">
         {t('library.config.agent.model_config')}
       </FieldSeparator>
       {children}
@@ -304,7 +238,7 @@ function ModelField({
   value: string
   allowClear?: boolean
   errorMessage?: string
-  onSelect: (modelId: string | null) => void
+  onSelect: (modelId: UniqueModelId | null) => void
 }) {
   return (
     <ModelSelectorField

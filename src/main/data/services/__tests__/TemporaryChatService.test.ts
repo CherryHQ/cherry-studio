@@ -144,11 +144,11 @@ describe('TemporaryChatService', () => {
       await service.appendMessage(topic.id, { role: 'user', data: mainText('a') })
       const list1 = await service.listMessages(topic.id)
       expect(list1).toHaveLength(1)
-      const block = list1[0].data.blocks[0]
+      const block = list1[0].data.blocks![0]
       if (block.type === BlockType.MAIN_TEXT) block.content = 'mutated'
       const list2 = await service.listMessages(topic.id)
       expect(list2).toHaveLength(1)
-      const fresh = list2[0].data.blocks[0]
+      const fresh = list2[0].data.blocks![0]
       expect(fresh.type).toBe(BlockType.MAIN_TEXT)
       if (fresh.type === BlockType.MAIN_TEXT) {
         expect(fresh.content).toBe('a')

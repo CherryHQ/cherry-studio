@@ -1,9 +1,7 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { Button, ColFlex, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
-import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { AiProvider } from '@renderer/aiCore'
 import ImageSize1_1 from '@renderer/assets/images/paintings/image-size-1-1.svg'
 import ImageSize1_2 from '@renderer/assets/images/paintings/image-size-1-2.svg'
 import ImageSize3_2 from '@renderer/assets/images/paintings/image-size-3-2.svg'
@@ -16,11 +14,10 @@ import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { useAllProviders } from '@renderer/hooks/useProvider'
-import { getProviderByModel } from '@renderer/services/AssistantService'
+import { useProviderApiKeys, useProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
-import type { FileMetadata, Painting } from '@renderer/types'
+import type { Painting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
 import { useLocation, useNavigate } from '@tanstack/react-router'
@@ -37,6 +34,7 @@ import Artboard from './components/Artboard'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { checkProviderEnabled } from './utils'
+import { persistGeneratedImages } from './utils/persistGeneratedImages'
 
 export const TEXT_TO_IMAGES_MODELS = [
   {
@@ -110,14 +108,15 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { siliconflow_paintings, addPainting, removePainting, updatePainting } = usePaintings()
   const [painting, setPainting] = useState<Painting>(siliconflow_paintings[0] || DEFAULT_PAINTING)
   const { theme } = useTheme()
-  const providers = useAllProviders()
+  const { providers } = useProviders()
 
-  const siliconFlowProvider = providers.find((p) => p.id === 'silicon')!
+  const siliconFlowProvider = providers.find((p) => p.id === 'silicon')
+  const { data: siliconKeyData } = useProviderApiKeys('silicon')
+  const siliconApiKey = siliconKeyData?.keys.find((k) => k.isEnabled)?.key ?? ''
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
   const [isLoading, setIsLoading] = useState(false)
-  const [abortController, setAbortController] = useState<AbortController | null>(null)
-  const [generating, setGenerating] = useCache('chat.generating')
+  const abortControllerRef = useRef<AbortController | null>(null)
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -151,6 +150,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onGenerate = async () => {
+    if (!siliconFlowProvider) return
     await checkProviderEnabled(siliconFlowProvider, t)
 
     if (painting.files.length > 0) {
@@ -170,10 +170,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     updatePaintingState({ prompt })
 
-    const model = TEXT_TO_IMAGES_MODELS.find((m) => m.id === painting.model)
-    const provider = getProviderByModel(model)
-
-    if (!provider.apiKey) {
+    if (!siliconFlowProvider || !siliconApiKey) {
       window.modal.error({
         content: t('error.no_api_key'),
         centered: true
@@ -181,58 +178,41 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
       return
     }
 
+    // TODO: extract to hook
     const controller = new AbortController()
-    setAbortController(controller)
+    abortControllerRef.current = controller
     setIsLoading(true)
-    setGenerating(true)
-    const AI = new AiProvider(provider)
 
     if (!painting.model) {
       return
     }
 
     try {
-      const urls = await AI.generateImage({
-        model: painting.model,
-        prompt,
-        negativePrompt: painting.negativePrompt || '',
-        imageSize: painting.imageSize || '1024x1024',
-        batchSize: painting.numImages || 1,
-        seed: painting.seed || undefined,
-        numInferenceSteps: painting.steps || 25,
-        guidanceScale: painting.guidanceScale || 4.5,
-        signal: controller.signal,
-        promptEnhancement: painting.promptEnhancement || false
-      })
+      const result = await window.api.ai.generateImage(
+        {
+          uniqueModelId: `${siliconFlowProvider.id}::${painting.model}`,
+          prompt,
+          negativePrompt: painting.negativePrompt || undefined,
+          size: painting.imageSize || '1024x1024',
+          n: painting.numImages || 1,
+          seed: painting.seed ? Number(painting.seed) : undefined,
+          numInferenceSteps: painting.steps || 25,
+          guidanceScale: painting.guidanceScale || 4.5,
+          promptEnhancement: painting.promptEnhancement || false
+        },
+        controller.signal
+      )
 
-      if (urls.length > 0) {
-        const downloadedFiles = await Promise.all(
-          urls.map(async (url) => {
-            try {
-              if (!url || url.trim() === '') {
-                logger.error('图像URL为空，可能是提示词违禁')
-                window.toast.warning(t('message.empty_url'))
-                return null
-              }
-              return await window.api.file.download(url)
-            } catch (error) {
-              logger.error('Failed to download image:', error as Error)
-              if (
-                error instanceof Error &&
-                (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
-              ) {
-                window.toast.warning(t('message.empty_url'))
-              }
-              return null
-            }
-          })
-        )
+      if (controller.signal.aborted) return
 
-        const validFiles = downloadedFiles.filter((file): file is FileMetadata => file !== null)
+      if (result.images.length > 0) {
+        const validFiles = await persistGeneratedImages(result.images)
+
+        if (controller.signal.aborted) return
 
         await FileManager.addFiles(validFiles)
 
-        updatePaintingState({ files: validFiles, urls })
+        updatePaintingState({ files: validFiles, urls: [] })
       }
     } catch (error: unknown) {
       if (error instanceof Error && error.name !== 'AbortError') {
@@ -242,14 +222,17 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
         })
       }
     } finally {
-      setIsLoading(false)
-      setGenerating(false)
-      setAbortController(null)
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null
+        setIsLoading(false)
+      }
     }
   }
 
   const onCancel = () => {
-    abortController?.abort()
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = null
+    setIsLoading(false)
   }
 
   const onSelectImageSize = (v: string) => {
@@ -280,7 +263,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onSelectPainting = (newPainting: Painting) => {
-    if (generating) return
+    if (isLoading) return
     setPainting(newPainting)
     setCurrentImageIndex(0)
   }
@@ -370,7 +353,11 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
       <ContentContainer id="content-container">
         <LeftContainer>
           <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
-          <ProviderSelect provider={siliconFlowProvider} options={Options} onChange={handleProviderChange} />
+          <ProviderSelect
+            provider={siliconFlowProvider ?? { id: 'silicon' }}
+            options={Options}
+            onChange={handleProviderChange}
+          />
           <SettingTitle className="mt-4 mb-1">{t('common.model')}</SettingTitle>
           <Select value={painting.model} options={modelOptions} onChange={onSelectModel} />
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.image.size')}</SettingTitle>

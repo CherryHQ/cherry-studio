@@ -1,8 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import NavbarIcon from '@renderer/components/NavbarIcon'
-import { modelGenerating } from '@renderer/hooks/useModel'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
-import { useShowTopics } from '@renderer/hooks/useStore'
 import { Tooltip } from 'antd'
 import { PanelLeftClose, PanelRightClose } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -12,13 +10,13 @@ import SettingsButton from './SettingsButton'
 
 const Tools = () => {
   const { t } = useTranslation()
-  const { showTopics, toggleShowTopics } = useShowTopics()
+  const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
+  const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
   const { isTopNavbar } = useNavbarPosition()
   const [topicPosition] = usePreference('topic.position')
   const [narrowMode, setNarrowMode] = usePreference('chat.narrow_mode')
 
-  const handleNarrowModeToggle = async () => {
-    await modelGenerating()
+  const handleNarrowModeToggle = () => {
     void setNarrowMode(!narrowMode)
   }
 
@@ -33,17 +31,10 @@ const Tools = () => {
         </Tooltip>
       )}
       {/* TODO: Add search button back when global search supports agent messages */}
-      {isTopNavbar && topicPosition === 'right' && !showTopics && (
-        <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
-          <NavbarIcon onClick={toggleShowTopics}>
-            <PanelLeftClose size={18} />
-          </NavbarIcon>
-        </Tooltip>
-      )}
-      {isTopNavbar && topicPosition === 'right' && showTopics && (
-        <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={2}>
-          <NavbarIcon onClick={toggleShowTopics}>
-            <PanelRightClose size={18} />
+      {isTopNavbar && topicPosition === 'right' && (
+        <Tooltip title={showSidebar ? t('navbar.hide_sidebar') : t('navbar.show_sidebar')} mouseEnterDelay={2}>
+          <NavbarIcon onClick={toggleShowSidebar}>
+            {showSidebar ? <PanelRightClose size={18} /> : <PanelLeftClose size={18} />}
           </NavbarIcon>
         </Tooltip>
       )}

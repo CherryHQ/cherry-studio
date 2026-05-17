@@ -39,27 +39,26 @@
  * @since v2.0.0
  */
 
+import type { JSONObject } from '@ai-sdk/provider'
 import type {
-  BlockType,
+  CherryMessagePart,
   CitationReference,
   CitationType,
-  CodeBlock,
-  CompactBlock,
   ContentReference,
-  ErrorBlock,
-  FileBlock,
-  ImageBlock,
-  MainTextBlock,
+  DataUIPart,
+  DynamicToolUIPart,
+  FileUIPart,
   MessageData,
-  MessageDataBlock,
   MessageStats,
   ModelSnapshot,
+  ReasoningUIPart,
   ReferenceCategory,
-  ThinkingBlock,
-  ToolBlock,
-  TranslationBlock,
-  VideoBlock
+  SerializedErrorData,
+  TextUIPart
 } from '@shared/data/types/message'
+import type { CherryDataPartTypes, CherryProviderMetadata } from '@shared/data/types/uiParts'
+import type { FileMetadata } from '@types'
+import type { ProviderMetadata, SourceUrlUIPart } from 'ai'
 
 import { legacyModelToUniqueId } from '../transformers/ModelTransformers'
 
@@ -199,7 +198,7 @@ export interface OldMessageBlock {
   status: string // Dropped in new schema
   model?: OldModel // Dropped in new schema
   metadata?: Record<string, unknown>
-  error?: unknown
+  error?: SerializedErrorData
 }
 
 /**
@@ -250,7 +249,7 @@ export interface OldCodeBlock extends OldMessageBlock {
 export interface OldImageBlock extends OldMessageBlock {
   type: 'image'
   url?: string
-  file?: { id: string; [key: string]: unknown } // file.id → fileId
+  file?: FileMetadata
 }
 
 /**
@@ -258,7 +257,7 @@ export interface OldImageBlock extends OldMessageBlock {
  */
 export interface OldFileBlock extends OldMessageBlock {
   type: 'file'
-  file: { id: string; [key: string]: unknown } // file.id → fileId
+  file: FileMetadata
 }
 
 /**
@@ -278,7 +277,24 @@ export interface OldToolBlock extends OldMessageBlock {
   toolId: string
   toolName?: string
   arguments?: Record<string, unknown>
-  content?: string | object
+  /** MCP CallToolResult format: { content: [{type, text}], isError: boolean } */
+  content?:
+    | {
+        content?: Array<{ type: string; text?: string; data?: string; mimeType?: string }>
+        isError?: boolean
+      }
+    | string
+  metadata?: Record<string, unknown> & {
+    /** Full MCPToolResponse preserved at save time */
+    rawMcpToolResponse?: {
+      id: string
+      tool: { id: string; name: string; type: string; serverId?: string; serverName?: string; description?: string }
+      arguments?: Record<string, unknown>
+      status: string
+      response?: unknown
+      toolCallId: string
+    }
+  }
 }
 
 /**
@@ -483,18 +499,26 @@ export function transformMessage(
   blocks: OldBlock[],
   correctTopicId: string
 ): NewMessage {
-  // Transform blocks and merge citations into references
-  const { dataBlocks, citationReferences, searchableText } = transformBlocks(blocks)
+  // Transform blocks to AI SDK UIMessage.parts format
+  const { parts, citationReferences, searchableText } = transformBlocksToParts(blocks)
 
   // Mentions are NOT migrated. In the new tree-based architecture, which models
   // responded to a user message can be derived from sibling response messages'
   // modelId + siblingsGroupId, making stored mentions redundant.
 
-  // Find the MainTextBlock and add citation references if any exist
+  // Merge citations into the first TextUIPart's providerMetadata.cherry.references
   if (citationReferences.length > 0) {
-    const mainTextBlock = dataBlocks.find((b) => b.type === 'main_text')
-    if (mainTextBlock) {
-      mainTextBlock.references = citationReferences
+    const textPartIndex = parts.findIndex((p): p is TextUIPart => p.type === 'text')
+    if (textPartIndex >= 0) {
+      const textPart = parts[textPartIndex] as TextUIPart
+      const existingCherry = (textPart.providerMetadata?.cherry ?? {}) as CherryProviderMetadata
+      parts[textPartIndex] = {
+        ...textPart,
+        providerMetadata: {
+          ...textPart.providerMetadata,
+          cherry: { ...existingCherry, references: citationReferences } as unknown as JSONObject
+        }
+      }
     }
   }
 
@@ -503,7 +527,7 @@ export function transformMessage(
     parentId,
     topicId: correctTopicId,
     role: oldMessage.role,
-    data: { blocks: dataBlocks },
+    data: { parts },
     searchableText: searchableText || '',
     status: normalizeStatus(oldMessage.status),
     siblingsGroupId,
@@ -613,252 +637,273 @@ export function mergeStats(usage?: OldUsage, metrics?: OldMetrics): MessageStats
 }
 
 // ============================================================================
-// Block Transformation Functions
+// Block → UIMessage.parts Transformation (v2 target format)
 // ============================================================================
 
 /**
- * Transform old blocks to new format and extract citation references
+ * Transform old blocks to AI SDK UIMessage.parts format.
  *
- * This function:
- * 1. Converts each old block to new format (removing id, messageId, status)
- * 2. Extracts CitationMessageBlocks and converts to ContentReference[]
- * 3. Extracts searchable text from text-based blocks
- *
- * @param oldBlocks - Array of old blocks from message_blocks table
- * @returns Object containing:
- *   - dataBlocks: Transformed blocks (excluding CitationBlocks)
- *   - citationReferences: Extracted citation references
- *   - searchableText: Combined searchable text
- *
- * ## Block Type Mapping:
- * | Old Type | New Type | Notes |
- * |----------|----------|-------|
- * | main_text | MainTextBlock | Direct, references added later |
- * | thinking | ThinkingBlock | thinking_millsec → thinkingMs |
- * | translation | TranslationBlock | Direct copy |
- * | code | CodeBlock | Direct copy |
- * | image | ImageBlock | file.id → fileId |
- * | file | FileBlock | file.id → fileId |
- * | video | VideoBlock | Direct copy |
- * | tool | ToolBlock | Direct copy |
- * | citation | (removed) | Converted to MainTextBlock.references |
- * | error | ErrorBlock | Direct copy |
- * | compact | CompactBlock | Direct copy |
- * | unknown | (skipped) | Placeholder blocks are dropped |
+ * ## Block → Part Mapping:
+ * | Old Block      | New Part                | Notes                                    |
+ * |----------------|-------------------------|------------------------------------------|
+ * | main_text      | TextUIPart         | content → text, references in metadata   |
+ * | thinking       | ReasoningUIPart    | thinkingMs in providerMetadata.cherry     |
+ * | tool           | DynamicToolUIPart         | dynamic-tool with output-available state  |
+ * | image          | FileUIPart         | fileId resolved to file:// URL            |
+ * | file           | FileUIPart         | fileId resolved to file:// URL            |
+ * | error          | DataUIPart<CherryDataPartTypes>         | data-error with name/message              |
+ * | translation    | DataUIPart<CherryDataPartTypes>         | data-translation                          |
+ * | video          | DataUIPart<CherryDataPartTypes>         | data-video                                |
+ * | compact        | DataUIPart<CherryDataPartTypes>         | data-compact                              |
+ * | code           | DataUIPart<CherryDataPartTypes>         | data-code                                 |
+ * | citation (web) | SourceUrlUIPart         | Each web result → source-url part          |
+ * | citation (kb)  | (merged into TextPart)  | Knowledge/memory → providerMetadata refs  |
+ * | unknown        | (skipped)               | Placeholder blocks are dropped            |
  */
-export function transformBlocks(oldBlocks: OldBlock[]): {
-  dataBlocks: MessageDataBlock[]
+export function transformBlocksToParts(oldBlocks: OldBlock[]): {
+  parts: CherryMessagePart[]
   citationReferences: ContentReference[]
   searchableText: string
 } {
-  const dataBlocks: MessageDataBlock[] = []
+  const parts: CherryMessagePart[] = []
   const citationReferences: ContentReference[] = []
   const searchableTexts: string[] = []
 
   for (const oldBlock of oldBlocks) {
-    const transformed = transformSingleBlock(oldBlock)
+    const result = transformSingleBlockToPart(oldBlock)
 
-    if (transformed.block) {
-      dataBlocks.push(transformed.block)
+    if (result.part) {
+      parts.push(result.part)
     }
 
-    if (transformed.citations) {
-      citationReferences.push(...transformed.citations)
+    if (result.extraParts) {
+      parts.push(...result.extraParts)
     }
 
-    if (transformed.searchableText) {
-      searchableTexts.push(transformed.searchableText)
+    if (result.citations) {
+      citationReferences.push(...result.citations)
+    }
+
+    if (result.searchableText) {
+      searchableTexts.push(result.searchableText)
     }
   }
 
   return {
-    dataBlocks,
+    parts,
     citationReferences,
     searchableText: searchableTexts.join('\n')
   }
 }
 
 /**
- * Transform a single old block to new format
- *
- * @param oldBlock - Single old block
- * @returns Transformed block and extracted data
+ * Build Cherry-specific providerMetadata from old block fields.
  */
-function transformSingleBlock(oldBlock: OldBlock): {
-  block: MessageDataBlock | null
+function buildCherryMetadata(oldBlock: OldMessageBlock): ProviderMetadata {
+  const cherry: JSONObject = {
+    createdAt: parseTimestamp(oldBlock.createdAt)
+  }
+  if (oldBlock.updatedAt) {
+    cherry.updatedAt = parseTimestamp(oldBlock.updatedAt)
+  }
+  if (oldBlock.metadata && Object.keys(oldBlock.metadata).length > 0) {
+    cherry.metadata = oldBlock.metadata as JSONObject
+  }
+  if (oldBlock.error) {
+    const { cause, ...errorWithoutCause } = oldBlock.error
+    void cause // intentionally unused — cause: unknown is not JSON-serializable
+    cherry.error = errorWithoutCause
+  }
+  return { cherry }
+}
+
+/**
+ * Transform a single old block to UIMessage part(s).
+ * Most blocks produce a single part, but citation blocks may produce multiple
+ * (SourceUrlUIPart for web results + DataUIPart for knowledge/memory).
+ */
+function transformSingleBlockToPart(oldBlock: OldBlock): {
+  part: CherryMessagePart | null
+  extraParts: CherryMessagePart[] | null
   citations: ContentReference[] | null
   searchableText: string | null
 } {
-  const baseFields = {
-    createdAt: parseTimestamp(oldBlock.createdAt),
-    updatedAt: oldBlock.updatedAt ? parseTimestamp(oldBlock.updatedAt) : undefined,
-    metadata: oldBlock.metadata,
-    error: oldBlock.error as MessageDataBlock['error']
-  }
-
   switch (oldBlock.type) {
     case 'main_text': {
       const block = oldBlock as OldMainTextBlock
-      return {
-        block: {
-          type: 'main_text' as BlockType.MAIN_TEXT,
-          content: block.content,
-          ...baseFields
-          // knowledgeBaseIds and citationReferences are intentionally dropped
-          // References will be added from CitationBlocks and mentions
-        } as MainTextBlock,
-        citations: null,
-        searchableText: block.content
+      const part: TextUIPart = {
+        type: 'text',
+        text: block.content,
+        state: 'done',
+        providerMetadata: buildCherryMetadata(oldBlock)
       }
+      return { part, extraParts: null, citations: null, searchableText: block.content }
     }
 
     case 'thinking': {
       const block = oldBlock as OldThinkingBlock
-      return {
-        block: {
-          type: 'thinking' as BlockType.THINKING,
-          content: block.content,
-          thinkingMs: block.thinking_millsec, // Field rename
-          ...baseFields
-        } as ThinkingBlock,
-        citations: null,
-        searchableText: block.content
+      const metadata = buildCherryMetadata(oldBlock)
+      metadata.cherry.thinkingMs = block.thinking_millsec
+      const part: ReasoningUIPart = {
+        type: 'reasoning',
+        text: block.content,
+        state: 'done',
+        providerMetadata: metadata
       }
-    }
-
-    case 'translation': {
-      const block = oldBlock as OldTranslationBlock
-      return {
-        block: {
-          type: 'translation' as BlockType.TRANSLATION,
-          content: block.content,
-          sourceBlockId: block.sourceBlockId,
-          sourceLanguage: block.sourceLanguage,
-          targetLanguage: block.targetLanguage,
-          ...baseFields
-        } as TranslationBlock,
-        citations: null,
-        searchableText: block.content
-      }
-    }
-
-    case 'code': {
-      const block = oldBlock as OldCodeBlock
-      return {
-        block: {
-          type: 'code' as BlockType.CODE,
-          content: block.content,
-          language: block.language,
-          ...baseFields
-        } as CodeBlock,
-        citations: null,
-        searchableText: block.content
-      }
-    }
-
-    case 'image': {
-      const block = oldBlock as OldImageBlock
-      return {
-        block: {
-          type: 'image' as BlockType.IMAGE,
-          url: block.url,
-          fileId: block.file?.id, // file.id → fileId
-          ...baseFields
-        } as ImageBlock,
-        citations: null,
-        searchableText: null
-      }
-    }
-
-    case 'file': {
-      const block = oldBlock as OldFileBlock
-      return {
-        block: {
-          type: 'file' as BlockType.FILE,
-          fileId: block.file.id, // file.id → fileId
-          ...baseFields
-        } as FileBlock,
-        citations: null,
-        searchableText: null
-      }
-    }
-
-    case 'video': {
-      const block = oldBlock as OldVideoBlock
-      return {
-        block: {
-          type: 'video' as BlockType.VIDEO,
-          url: block.url,
-          filePath: block.filePath,
-          ...baseFields
-        } as VideoBlock,
-        citations: null,
-        searchableText: null
-      }
+      return { part, extraParts: null, citations: null, searchableText: block.content }
     }
 
     case 'tool': {
       const block = oldBlock as OldToolBlock
-      return {
-        block: {
-          type: 'tool' as BlockType.TOOL,
-          toolId: block.toolId,
-          toolName: block.toolName,
-          arguments: block.arguments,
-          content: block.content,
-          ...baseFields
-        } as ToolBlock,
-        citations: null,
-        searchableText: null
-      }
+      const raw = block.metadata?.rawMcpToolResponse
+      const contentObj = typeof block.content === 'object' ? block.content : null
+
+      const rawName = block.toolName || raw?.tool?.name || 'unknown'
+      const serverName = raw?.tool?.serverName
+      const toolName = serverName ? `${serverName}: ${rawName}` : rawName
+      const input = block.arguments ?? raw?.arguments ?? {}
+      const output = raw?.response ?? block.content
+      const isError = contentObj?.isError === true || raw?.status === 'error'
+
+      const base = { type: 'dynamic-tool' as const, toolName, toolCallId: block.toolId, input }
+
+      const part: DynamicToolUIPart = isError
+        ? { ...base, state: 'output-error', errorText: typeof output === 'string' ? output : JSON.stringify(output) }
+        : { ...base, state: 'output-available', output }
+
+      return { part, extraParts: null, citations: null, searchableText: null }
     }
 
-    case 'citation': {
-      // CitationBlocks are NOT converted to blocks
-      // Instead, their content is extracted as ContentReferences
-      const block = oldBlock as OldCitationBlock
-      const citations = extractCitationReferences(block)
-      return {
-        block: null, // No block output
-        citations,
-        searchableText: null
+    case 'image': {
+      const block = oldBlock as OldImageBlock
+      const part: FileUIPart = {
+        type: 'file',
+        mediaType: inferMediaType(block.file?.ext, 'image/png'),
+        url: block.url || (block.file?.path ? `file://${block.file.path}` : ''),
+        ...(block.file?.origin_name ? { filename: block.file.origin_name } : {}),
+        providerMetadata: buildCherryMetadata(oldBlock)
       }
+      return { part, extraParts: null, citations: null, searchableText: null }
+    }
+
+    case 'file': {
+      const block = oldBlock as OldFileBlock
+      const part: FileUIPart = {
+        type: 'file',
+        mediaType: inferMediaType(block.file.ext, 'application/octet-stream'),
+        url: block.file.path ? `file://${block.file.path}` : '',
+        ...(block.file.origin_name ? { filename: block.file.origin_name } : {}),
+        providerMetadata: buildCherryMetadata(oldBlock)
+      }
+      return { part, extraParts: null, citations: null, searchableText: null }
     }
 
     case 'error': {
-      return {
-        block: {
-          type: 'error' as BlockType.ERROR,
-          ...baseFields
-        } as ErrorBlock,
-        citations: null,
-        searchableText: null
+      const part: DataUIPart<CherryDataPartTypes> = {
+        type: 'data-error',
+        data: {
+          name: oldBlock.error?.name ?? null,
+          message: oldBlock.error?.message ?? null
+        }
       }
+      return { part, extraParts: null, citations: null, searchableText: null }
+    }
+
+    case 'translation': {
+      const block = oldBlock as OldTranslationBlock
+      const part: DataUIPart<CherryDataPartTypes> = {
+        type: 'data-translation',
+        data: {
+          content: block.content,
+          targetLanguage: block.targetLanguage,
+          ...(block.sourceLanguage ? { sourceLanguage: block.sourceLanguage } : {}),
+          ...(block.sourceBlockId ? { sourceBlockId: block.sourceBlockId } : {})
+        }
+      }
+      return { part, extraParts: null, citations: null, searchableText: block.content }
+    }
+
+    case 'video': {
+      const block = oldBlock as OldVideoBlock
+      const part: DataUIPart<CherryDataPartTypes> = {
+        type: 'data-video',
+        data: {
+          ...(block.url ? { url: block.url } : {}),
+          ...(block.filePath ? { filePath: block.filePath } : {})
+        }
+      }
+      return { part, extraParts: null, citations: null, searchableText: null }
     }
 
     case 'compact': {
       const block = oldBlock as OldCompactBlock
-      return {
-        block: {
-          type: 'compact' as BlockType.COMPACT,
+      const part: DataUIPart<CherryDataPartTypes> = {
+        type: 'data-compact',
+        data: {
           content: block.content,
-          compactedContent: block.compactedContent,
-          ...baseFields
-        } as CompactBlock,
-        citations: null,
-        searchableText: block.content
+          compactedContent: block.compactedContent
+        }
       }
+      return { part, extraParts: null, citations: null, searchableText: block.content }
+    }
+
+    case 'code': {
+      const block = oldBlock as OldCodeBlock
+      const part: DataUIPart<CherryDataPartTypes> = {
+        type: 'data-code',
+        data: {
+          content: block.content,
+          language: block.language
+        }
+      }
+      return { part, extraParts: null, citations: null, searchableText: block.content }
+    }
+
+    case 'citation': {
+      const block = oldBlock as OldCitationBlock
+      const citations = extractCitationReferences(block)
+      const sourceParts = extractSourceUrlParts(block)
+
+      return { part: null, extraParts: sourceParts.length > 0 ? sourceParts : null, citations, searchableText: null }
     }
 
     case 'unknown':
     default:
-      // Skip unknown/placeholder blocks
-      return {
-        block: null,
-        citations: null,
-        searchableText: null
-      }
+      return { part: null, extraParts: null, citations: null, searchableText: null }
   }
+}
+
+/**
+ * Extract SourceUrlUIPart[] from web search results in a CitationBlock.
+ *
+ * Web search results that have a URL are converted to AI SDK's native
+ * SourceUrlUIPart, which useChat can render directly.
+ */
+function extractSourceUrlParts(citationBlock: OldCitationBlock): CherryMessagePart[] {
+  const parts: CherryMessagePart[] = []
+
+  if (!citationBlock.response?.results) return parts
+
+  const results = citationBlock.response.results
+  if (!Array.isArray(results)) return parts
+
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i]
+    if (typeof result !== 'object' || result === null) continue
+    const entry = result as Record<string, unknown>
+    const url = typeof entry.url === 'string' ? entry.url : undefined
+    if (!url) continue
+
+    const sourcePart: SourceUrlUIPart = {
+      type: 'source-url',
+      sourceId: `citation-${i}`,
+      url,
+      title: typeof entry.title === 'string' ? entry.title : undefined
+    }
+    parts.push(sourcePart)
+  }
+
+  return parts
 }
 
 /**
@@ -1082,6 +1127,42 @@ export function findActiveNodeId(messages: OldMessage[]): string | null {
 // ============================================================================
 // Utility Functions
 // ============================================================================
+
+/**
+ * Infer MIME type from file extension.
+ */
+function inferMediaType(ext: string | undefined, fallback: string): string {
+  if (!ext) return fallback
+  const normalized = ext.startsWith('.') ? ext.slice(1).toLowerCase() : ext.toLowerCase()
+  const mimeMap: Record<string, string> = {
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    svg: 'image/svg+xml',
+    bmp: 'image/bmp',
+    ico: 'image/x-icon',
+    pdf: 'application/pdf',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ppt: 'application/vnd.ms-powerpoint',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    txt: 'text/plain',
+    md: 'text/markdown',
+    csv: 'text/csv',
+    json: 'application/json',
+    xml: 'application/xml',
+    zip: 'application/zip',
+    mp3: 'audio/mpeg',
+    wav: 'audio/wav',
+    mp4: 'video/mp4',
+    webm: 'video/webm'
+  }
+  return mimeMap[normalized] ?? fallback
+}
 
 /**
  * Parse ISO timestamp string to Unix timestamp (milliseconds)

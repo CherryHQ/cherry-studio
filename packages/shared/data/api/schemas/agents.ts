@@ -6,16 +6,17 @@
  * a response payload and an entity). DTOs are derived via .pick().
  */
 
+import { UniqueModelIdSchema } from '@shared/data/types/model'
 import * as z from 'zod'
 
 import type { OffsetPaginationResponse } from '../apiTypes'
+import type { OrderEndpoints } from './_endpointHelpers'
 
 // ============================================================================
 // Field atoms (shared validators reused across entity and DTO schemas)
 // ============================================================================
 
 export const AgentNameAtomSchema = z.string().min(1)
-export const ModelIdAtomSchema = z.string().min(1)
 export const ScheduleTypeAtomSchema = z.enum(['cron', 'interval', 'once'])
 export const ScheduleValueAtomSchema = z.string().min(1)
 export const TimeoutMinutesAtomSchema = z.number().min(1).nullable().optional()
@@ -29,7 +30,12 @@ export type SlashCommand = z.infer<typeof SlashCommandSchema>
 export const AgentToolSchema = z.strictObject({
   id: z.string(),
   name: z.string(),
-  description: z.string().optional()
+  description: z.string().optional(),
+  /** Source of the tool — set on builtin / MCP / user-custom catalog entries.
+   *  API responses currently omit this; settings UIs / claudecode catalog read it. */
+  type: z.enum(['builtin', 'mcp', 'custom']).optional(),
+  /** Requires user approval before invocation (UI-only hint). */
+  requirePermissions: z.boolean().optional()
 })
 export type AgentTool = z.infer<typeof AgentToolSchema>
 
@@ -99,13 +105,14 @@ export function sanitizeAgentConfiguration(raw: unknown): {
 // Agent entity schemas (Rule C: entity schemas live in packages/shared/data/api/schemas/)
 // ============================================================================
 
-/** Core mutable fields shared between agent and session rows. */
+/** Core mutable fields on an agent (the cognitive blueprint). Workspace
+ *  (`accessiblePaths`) is intentionally NOT here — that's bound to a session at
+ *  create time, see `AgentSessionEntitySchema.accessiblePaths`. */
 export const AgentBaseSchema = z.strictObject({
   name: AgentNameAtomSchema,
   description: z.string().optional(),
-  accessiblePaths: z.array(z.string()),
   instructions: z.string().optional(),
-  model: ModelIdAtomSchema,
+  model: UniqueModelIdSchema,
   planModel: z.string().optional(),
   smallModel: z.string().optional(),
   mcps: z.array(z.string()).optional(),
@@ -118,7 +125,6 @@ export type AgentBase = z.infer<typeof AgentBaseSchema>
 export const AGENT_MUTABLE_FIELDS = {
   name: true,
   description: true,
-  accessiblePaths: true,
   instructions: true,
   model: true,
   planModel: true,
@@ -128,15 +134,10 @@ export const AGENT_MUTABLE_FIELDS = {
   configuration: true
 } as const
 
-/** Pick-set for session mutable fields — superset of AGENT_MUTABLE_FIELDS. */
-export const SESSION_MUTABLE_FIELDS = {
-  ...AGENT_MUTABLE_FIELDS,
-  slashCommands: true
-} as const
-
 export const AgentEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
   type: z.enum(['claude-code']),
+  model: UniqueModelIdSchema.optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
   /**
@@ -151,31 +152,6 @@ export const AgentDetailSchema = AgentEntitySchema.extend({
   tools: z.array(AgentToolSchema).optional()
 })
 export type AgentDetail = z.infer<typeof AgentDetailSchema>
-
-export const AgentSessionEntitySchema = AgentBaseSchema.extend({
-  id: z.string(),
-  agentId: z.string(),
-  agentType: z.enum(['claude-code']),
-  slashCommands: z.array(SlashCommandSchema).optional(),
-  createdAt: z.string(),
-  updatedAt: z.string()
-})
-export type AgentSessionEntity = z.infer<typeof AgentSessionEntitySchema>
-
-export const AgentSessionDetailSchema = AgentSessionEntitySchema.extend({
-  tools: z.array(AgentToolSchema).optional(),
-  messages: z.array(z.unknown()).optional(),
-  plugins: z
-    .array(
-      z.strictObject({
-        filename: z.string(),
-        type: z.enum(['agent', 'command', 'skill']),
-        metadata: z.record(z.string(), z.unknown())
-      })
-    )
-    .optional()
-})
-export type AgentSessionDetail = z.infer<typeof AgentSessionDetailSchema>
 
 export const AgentSessionMessageEntitySchema = z.strictObject({
   id: z.string(),
@@ -241,10 +217,9 @@ export type InstalledSkill = z.infer<typeof InstalledSkillSchema>
 // Agent DTOs (derived via .pick() from AgentEntitySchema — Rule C)
 // ============================================================================
 
-// accessiblePaths is optional at create time — AgentService.computeWorkspacePaths()
-// fills the default from the agent's workspace path, which is the single runtime source.
+// `model` re-required because the picked entity field is optional (FK SET NULL).
 export const CreateAgentSchema = AgentEntitySchema.pick({ type: true, ...AGENT_MUTABLE_FIELDS }).extend({
-  accessiblePaths: z.array(z.string()).optional()
+  model: UniqueModelIdSchema
 })
 export type CreateAgentDto = z.infer<typeof CreateAgentSchema>
 
@@ -252,15 +227,7 @@ export type CreateAgentDto = z.infer<typeof CreateAgentSchema>
 export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial()
 export type UpdateAgentDto = z.infer<typeof UpdateAgentSchema>
 
-// ============================================================================
-// Session DTOs (derived via .pick() from AgentSessionEntitySchema — Rule C)
-// ============================================================================
-
-export const CreateSessionSchema = AgentSessionEntitySchema.pick(SESSION_MUTABLE_FIELDS).partial()
-export type CreateSessionDto = z.infer<typeof CreateSessionSchema>
-
-export const UpdateSessionSchema = CreateSessionSchema
-export type UpdateSessionDto = z.infer<typeof UpdateSessionSchema>
+// Session DTOs / list query / route schemas live in `./sessions.ts`.
 
 // ============================================================================
 // Task DTOs
@@ -285,11 +252,16 @@ export type UpdateTaskDto = z.infer<typeof UpdateTaskSchema>
 // Common query types
 // ============================================================================
 
+export const LIST_QUERY_DEFAULT_PAGE = 1
+export const LIST_QUERY_DEFAULT_LIMIT = 50
+export const LIST_QUERY_MAX_LIMIT = 500
+
 export const ListQuerySchema = z.strictObject({
-  page: z.number().int().positive().optional(),
-  limit: z.number().int().positive().max(500).optional()
+  page: z.number().int().positive().default(LIST_QUERY_DEFAULT_PAGE),
+  limit: z.number().int().positive().max(LIST_QUERY_MAX_LIMIT).default(LIST_QUERY_DEFAULT_LIMIT)
 })
-export type ListQuery = z.infer<typeof ListQuerySchema>
+/** Wire-side (caller) shape — page/limit optional, defaults applied on parse. */
+export type ListQuery = z.input<typeof ListQuerySchema>
 
 export const AGENTS_DEFAULT_PAGE = 1
 export const AGENTS_DEFAULT_LIMIT = 100
@@ -361,54 +333,6 @@ export type AgentSchemas = {
     }
   }
 
-  /** List sessions for an agent, create a new session */
-  '/agents/:agentId/sessions': {
-    GET: {
-      params: { agentId: string }
-      query?: ListQuery
-      response: OffsetPaginationResponse<AgentSessionEntity>
-    }
-    POST: {
-      params: { agentId: string }
-      body: CreateSessionDto
-      response: AgentSessionEntity
-    }
-  }
-
-  /** Get, update, or delete a specific session */
-  '/agents/:agentId/sessions/:sessionId': {
-    GET: {
-      params: { agentId: string; sessionId: string }
-      response: AgentSessionEntity
-    }
-    PATCH: {
-      params: { agentId: string; sessionId: string }
-      body: UpdateSessionDto
-      response: AgentSessionEntity
-    }
-    DELETE: {
-      params: { agentId: string; sessionId: string }
-      response: void
-    }
-  }
-
-  /** List session messages (paginated) */
-  '/agents/:agentId/sessions/:sessionId/messages': {
-    GET: {
-      params: { agentId: string; sessionId: string }
-      query?: ListQuery
-      response: OffsetPaginationResponse<AgentSessionMessageEntity>
-    }
-  }
-
-  /** Delete a specific session message */
-  '/agents/:agentId/sessions/:sessionId/messages/:messageId': {
-    DELETE: {
-      params: { agentId: string; sessionId: string; messageId: string }
-      response: void
-    }
-  }
-
   /** List tasks for an agent, create a new task */
   '/agents/:agentId/tasks': {
     GET: {
@@ -464,4 +388,4 @@ export type AgentSchemas = {
       response: OffsetPaginationResponse<TaskRunLogEntity>
     }
   }
-}
+} & OrderEndpoints<'/agents'>

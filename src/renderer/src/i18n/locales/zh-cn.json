@@ -3356,6 +3356,7 @@
     },
     "stream_output": "流式输出",
     "type": {
+      "audio": "音频",
       "embedding": "嵌入",
       "free": "免费",
       "function_calling": "工具",
@@ -3363,6 +3364,7 @@
       "rerank": "重排",
       "select": "模型类型",
       "text": "文本",
+      "video": "视频",
       "vision": "视觉",
       "websearch": "联网"
     }

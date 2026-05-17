@@ -3356,6 +3356,7 @@
     },
     "stream_output": "Sortie en flux",
     "type": {
+      "audio": "[to be translated]:Audio",
       "embedding": "Incorporation",
       "free": "Gratuit",
       "function_calling": "Appel de fonction",
@@ -3363,6 +3364,7 @@
       "rerank": "Reclasser",
       "select": "Types de modèle",
       "text": "Texte",
+      "video": "[to be translated]:Video",
       "vision": "Image",
       "websearch": "Recherche web"
     }

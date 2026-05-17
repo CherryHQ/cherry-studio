@@ -6,7 +6,7 @@
  */
 
 import type { CursorPaginationParams } from '@shared/data/api/apiTypes'
-import type { BranchMessagesResponse, Message, TreeResponse } from '@shared/data/types/message'
+import type { BranchMessagesResponse, Message, MessageData, TreeResponse } from '@shared/data/types/message'
 import {
   MessageDataSchema,
   MessageRoleSchema,
@@ -148,6 +148,15 @@ export const DeleteMessageQuerySchema = z.strictObject({
 })
 export type DeleteMessageQuery = z.infer<typeof DeleteMessageQuerySchema>
 
+/**
+ * Query parameters for GET /topics/:topicId/path
+ */
+export const PathThroughQuerySchema = z.strictObject({
+  /** Node the returned path must pass through. */
+  nodeId: z.string().min(1)
+})
+export type PathThroughQueryParams = z.infer<typeof PathThroughQuerySchema>
+
 // ============================================================================
 // API Schema Definitions
 // ============================================================================
@@ -195,6 +204,24 @@ export type MessageSchemas = {
   }
 
   /**
+   * Read-only path query passing through a given node.
+   *
+   * Returns root → leaf where leaf is the most recently created live
+   * descendant of `nodeId` (or `nodeId` itself if it has no live children).
+   * Does not modify topic state — use PUT /topics/:id/active-node to
+   * persist a chosen path.
+   *
+   * @example GET /topics/abc123/path?nodeId=msg42
+   */
+  '/topics/:topicId/path': {
+    GET: {
+      params: { topicId: string }
+      query: PathThroughQueryParams
+      response: Message[]
+    }
+  }
+
+  /**
    * Individual message endpoint
    * @example GET /messages/msg123
    * @example PATCH /messages/msg123 { "data": {...} }
@@ -223,6 +250,27 @@ export type MessageSchemas = {
       params: { id: string }
       query?: DeleteMessageQuery
       response: DeleteMessageResponse
+    }
+  }
+
+  /**
+   * Siblings sub-resource of a message — POST creates a new sibling under the
+   * same parent (edit-and-resend branching flow).
+   *
+   * Atomically (single DB transaction):
+   * 1. If the source has `siblingsGroupId = 0`, allocate a new group id and
+   *    backfill the source so it and the new sibling belong to the same group.
+   * 2. Insert the new message with `parentId = source.parentId`, the shared
+   *    `siblingsGroupId`, and `role = source.role`.
+   * 3. Set the topic's `activeNodeId` to the new message.
+   *
+   * @example POST /messages/msg123/siblings { "data": { "parts": [...] } }
+   */
+  '/messages/:id/siblings': {
+    POST: {
+      params: { id: string }
+      body: MessageData
+      response: Message
     }
   }
 }

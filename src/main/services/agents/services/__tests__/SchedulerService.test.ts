@@ -13,17 +13,25 @@ vi.mock('@data/services/AgentService', () => ({
   }
 }))
 
-vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: {
-    listSessions: vi.fn().mockResolvedValue({ sessions: [], total: 0 }),
-    getSession: vi.fn(),
+vi.mock('@data/services/SessionService', () => ({
+  sessionService: {
+    getById: vi.fn(),
     createSession: vi.fn().mockResolvedValue({ id: 'session-1' })
   }
 }))
 
-vi.mock('@main/services/agents/services/SessionMessageOrchestrator', () => ({
-  sessionMessageOrchestrator: {
-    createSessionMessage: vi.fn()
+vi.mock('@shared/data/types/model', async (importOriginal) => {
+  const actual = (await importOriginal()) as any
+  return {
+    ...actual,
+    createUniqueModelId: vi.fn((providerId: string, modelId: string) => `${providerId}::${modelId}`)
+  }
+})
+
+const { mockSend } = vi.hoisted(() => ({ mockSend: vi.fn() }))
+vi.mock('@main/core/application', () => ({
+  application: {
+    get: vi.fn().mockReturnValue({ send: mockSend })
   }
 }))
 
@@ -55,10 +63,6 @@ vi.mock('../channels/ChannelManager', () => ({
   }
 }))
 
-vi.mock('../channels/sessionStreamIpc', () => ({
-  broadcastSessionChanged: vi.fn()
-}))
-
 vi.mock('../cherryclaw/heartbeat', () => ({
   readHeartbeat: vi.fn().mockResolvedValue(undefined)
 }))
@@ -69,6 +73,14 @@ describe('SchedulerService', () => {
   beforeEach(async () => {
     vi.useFakeTimers()
     vi.resetModules()
+    // Default: send() triggers sentinel onDone immediately
+    mockSend.mockImplementation(({ listeners }) => {
+      const sentinel = listeners.find((l: { id: string }) => l.id.startsWith('scheduler:'))
+      if (sentinel) {
+        sentinel.onDone({ status: 'success' })
+      }
+      return { mode: 'started', executionIds: [] }
+    })
     SchedulerServiceModule = await import('../SchedulerService')
   })
 
@@ -130,8 +142,7 @@ describe('SchedulerService', () => {
   it('tick processes due tasks', async () => {
     const { agentTaskService: taskService } = await import('@data/services/AgentTaskService')
     const { agentService } = await import('@data/services/AgentService')
-    const { agentSessionService: sessionService } = await import('@data/services/AgentSessionService')
-    const { sessionMessageOrchestrator } = await import('@main/services/agents/services/SessionMessageOrchestrator')
+    const { sessionService } = await import('@data/services/SessionService')
 
     const mockTask = {
       id: 'task-1',
@@ -150,28 +161,31 @@ describe('SchedulerService', () => {
     }
 
     vi.mocked(taskService.getDueTasks).mockResolvedValueOnce([mockTask])
-    vi.mocked(agentService.getAgent).mockResolvedValueOnce({
+    vi.mocked(agentService.getAgent).mockResolvedValue({
       id: 'agent-1',
       type: 'claude-code',
       name: 'Test',
-      model: 'claude-3',
-      accessiblePaths: ['/tmp/test'],
+      model: 'anthropic::claude-3',
       configuration: { heartbeat_enabled: true },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     } as any)
-    vi.mocked(sessionService.listSessions).mockResolvedValueOnce({
-      sessions: [{ id: 'session-1' }] as any,
-      total: 1
-    })
-    vi.mocked(sessionService.getSession).mockResolvedValueOnce({
+    vi.mocked(sessionService.createSession).mockResolvedValueOnce({
       id: 'session-1',
-      agentId: 'agent-1'
+      agentId: 'agent-1',
+      name: 'Scheduled run',
+      accessiblePaths: ['/tmp/test']
     } as any)
-    vi.mocked(sessionMessageOrchestrator.createSessionMessage).mockResolvedValueOnce({
-      stream: new ReadableStream({ start: (c) => c.close() }),
-      completion: Promise.resolve({})
-    } as any)
+
+    // Simulate AiStreamManager completing the execution so the scheduler's
+    // `await executionDone` resolves and the task flow reaches updateTaskAfterRun.
+    mockSend.mockImplementationOnce(
+      ({ listeners }: { listeners: Array<{ id: string; onDone?: (r: { status: string }) => void }> }) => {
+        const sentinel = listeners.find((l) => l.id.startsWith('scheduler:'))
+        sentinel?.onDone?.({ status: 'success' })
+        return { mode: 'started', executionIds: [] }
+      }
+    )
 
     const service = SchedulerServiceModule.schedulerService
     service.startLoop()

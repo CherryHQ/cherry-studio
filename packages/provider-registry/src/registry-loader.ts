@@ -164,6 +164,11 @@ export class RegistryLoader {
     return this.modelById!.get(modelId) ?? this.modelByNormId!.get(normalizeModelId(modelId)) ?? null
   }
 
+  findProvider(providerId: string): ProviderConfig | null {
+    const providers = this.loadProviders()
+    return providers.find((p) => p.id === providerId) ?? null
+  }
+
   findOverride(providerId: string, modelId: string): ProviderModelOverride | null {
     this.loadProviderModels()
     const key = `${providerId}::${modelId}`

@@ -3,7 +3,6 @@ import { TopicType } from '@renderer/types'
 export type MessageMenubarScope = TopicType
 
 export type MessageMenubarButtonId =
-  | 'user-regenerate'
   | 'user-edit'
   | 'copy'
   | 'assistant-regenerate'
@@ -25,7 +24,6 @@ export type MessageMenubarScopeConfig = {
 export const DEFAULT_MESSAGE_MENUBAR_SCOPE: MessageMenubarScope = TopicType.Chat
 
 export const DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS: MessageMenubarButtonId[] = [
-  'user-regenerate',
   'user-edit',
   'copy',
   'assistant-regenerate',
@@ -46,6 +44,12 @@ export const SESSION_MESSAGE_MENUBAR_BUTTON_IDS: MessageMenubarButtonId[] = [
   'delete',
   'more-menu'
 ]
+
+export const STREAMING_DISABLED_BUTTON_IDS: ReadonlySet<MessageMenubarButtonId> = new Set([
+  'user-edit',
+  'delete',
+  'assistant-regenerate'
+])
 
 const messageMenubarRegistry = new Map<MessageMenubarScope, MessageMenubarScopeConfig>([
   [DEFAULT_MESSAGE_MENUBAR_SCOPE, { buttonIds: [...DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS] }],

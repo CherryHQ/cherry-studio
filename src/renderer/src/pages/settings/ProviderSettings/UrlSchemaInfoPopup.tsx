@@ -9,7 +9,7 @@ import {
 } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
 import { TopView } from '@renderer/components/TopView'
-import { useProviders } from '@renderer/hooks/useProviders'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { getFancyProviderName } from '@renderer/pages/settings/ProviderSettings/utils/provider'
 import { getProviderHostTopology } from '@renderer/pages/settings/ProviderSettings/utils/providerTopology'
 import type { ProviderType } from '@renderer/types'

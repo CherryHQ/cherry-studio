@@ -2,57 +2,39 @@ import { RowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { Navbar, NavbarCenter, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { modelGenerating } from '@renderer/hooks/useModel'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
-import type { Assistant, Topic } from '@renderer/types'
 import { t } from 'i18next'
-import { Menu, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
+import { PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 import styled from 'styled-components'
 
 import NavbarIcon from '../../components/NavbarIcon'
-import AssistantsDrawer from './components/AssistantsDrawer'
 import UpdateAppButton from './components/UpdateAppButton'
 
 interface Props {
-  activeAssistant: Assistant
-  activeTopic: Topic
-  setActiveTopic: (topic: Topic) => void
-  setActiveAssistant: (assistant: Assistant) => void
   position: 'left' | 'right'
 }
 
-const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTopic, setActiveTopic }) => {
+const HeaderNavbar: FC<Props> = () => {
   const [narrowMode, setNarrowMode] = usePreference('chat.narrow_mode')
   const [topicPosition] = usePreference('topic.position')
-
-  const { showAssistants, toggleShowAssistants } = useShowAssistants()
-  const { showTopics, toggleShowTopics } = useShowTopics()
+  // Single source of truth for the topics sidebar (the only sidebar in v2).
+  const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
+  const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
 
   useShortcut('general.search', () => {
     void SearchPopup.show()
   })
 
-  const handleNarrowModeToggle = async () => {
-    await modelGenerating()
+  const handleNarrowModeToggle = () => {
     void setNarrowMode(!narrowMode)
-  }
-
-  const onShowAssistantsDrawer = () => {
-    void AssistantsDrawer.show({
-      activeAssistant,
-      setActiveAssistant,
-      activeTopic,
-      setActiveTopic
-    })
   }
 
   return (
     <Navbar className="home-navbar">
       <AnimatePresence initial={false}>
-        {showAssistants && (
+        {showSidebar && (
           <motion.div
             initial={{ width: 0, opacity: 0 }}
             animate={{ width: 'auto', opacity: 1 }}
@@ -61,7 +43,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
             style={{ overflow: 'hidden', display: 'flex', flexDirection: 'row' }}>
             <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
               <Tooltip placement="bottom" content={t('navbar.hide_sidebar')} delay={800}>
-                <NavbarIcon onClick={toggleShowAssistants}>
+                <NavbarIcon onClick={toggleShowSidebar}>
                   <PanelLeftClose size={18} />
                 </NavbarIcon>
               </Tooltip>
@@ -69,7 +51,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
           </motion.div>
         )}
       </AnimatePresence>
-      {!showAssistants && (
+      {!showSidebar && (
         <NavbarLeft
           style={{
             justifyContent: 'flex-start',
@@ -79,22 +61,10 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
             minWidth: 'auto'
           }}>
           <Tooltip placement="bottom" content={t('navbar.show_sidebar')} delay={800}>
-            <NavbarIcon onClick={() => toggleShowAssistants()}>
+            <NavbarIcon onClick={toggleShowSidebar}>
               <PanelRightClose size={18} />
             </NavbarIcon>
           </Tooltip>
-          <AnimatePresence initial={false}>
-            <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 'auto', opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: 'easeInOut' }}
-              style={{ overflow: 'hidden' }}>
-              <NavbarIcon onClick={onShowAssistantsDrawer} style={{ marginLeft: 8 }}>
-                <Menu size={18} />
-              </NavbarIcon>
-            </motion.div>
-          </AnimatePresence>
         </NavbarLeft>
       )}
       <NavbarCenter></NavbarCenter>
@@ -118,17 +88,13 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
               <i className="iconfont icon-icon-adaptive-width"></i>
             </NarrowIcon>
           </Tooltip>
-          {topicPosition === 'right' && !showTopics && (
-            <Tooltip placement="bottom" content={t('navbar.show_sidebar')} delay={2000}>
-              <NavbarIcon onClick={toggleShowTopics}>
-                <PanelLeftClose size={18} />
-              </NavbarIcon>
-            </Tooltip>
-          )}
-          {topicPosition === 'right' && showTopics && (
-            <Tooltip placement="bottom" content={t('navbar.hide_sidebar')} delay={2000}>
-              <NavbarIcon onClick={toggleShowTopics}>
-                <PanelRightClose size={18} />
+          {topicPosition === 'right' && (
+            <Tooltip
+              placement="bottom"
+              content={showSidebar ? t('navbar.hide_sidebar') : t('navbar.show_sidebar')}
+              delay={2000}>
+              <NavbarIcon onClick={toggleShowSidebar}>
+                {showSidebar ? <PanelRightClose size={18} /> : <PanelLeftClose size={18} />}
               </NavbarIcon>
             </Tooltip>
           )}

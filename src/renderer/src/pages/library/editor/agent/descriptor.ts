@@ -8,6 +8,7 @@ import {
 import type { Tool } from '@renderer/types'
 import type { CreateAgentDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentConfiguration, AgentDetail, AgentType } from '@shared/data/types/agent'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { FileText, Settings, Shield, SlidersHorizontal, Wrench } from 'lucide-react'
 
 import type { SectionDescriptor } from '../ConfigEditorShell'
@@ -65,14 +66,13 @@ export const AGENT_CONFIG_SECTIONS: readonly SectionDescriptor<AgentConfigSectio
  * `UpdateAgentDto`.
  */
 export interface AgentFormState {
-  // AgentBase primitives
   name: string
   description: string
-  model: string
+  /** `''` is the explicit "no model selected yet" draft sentinel; once chosen it is always a valid UniqueModelId. */
+  model: UniqueModelId | ''
   planModel: string
   smallModel: string
   instructions: string
-  accessiblePaths: string[]
   mcps: string[]
   allowedTools: string[]
 
@@ -159,7 +159,6 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null): AgentFor
     planModel: agent?.planModel ?? '',
     smallModel: agent?.smallModel ?? '',
     instructions: agent?.instructions ?? '',
-    accessiblePaths: [...(agent?.accessiblePaths ?? [])],
     mcps: [...(agent?.mcps ?? [])],
     allowedTools: [...(agent?.allowedTools ?? [])],
     avatar: asString(cfg.avatar),
@@ -235,8 +234,9 @@ export function buildCreateAgentPayload(form: AgentFormState, type: AgentType = 
   return {
     type,
     name: form.name.trim(),
-    model: form.model.trim(),
-    accessiblePaths: form.accessiblePaths,
+    // Create is gated by validateAgentCreateForm (modelMissing=false), so the
+    // trimmed draft value is a real UniqueModelId here.
+    model: form.model.trim() as UniqueModelId,
     description: form.description || undefined,
     instructions: form.instructions || undefined,
     planModel: form.planModel || undefined,
@@ -304,7 +304,7 @@ export function diffAgentUpdate(
     dirty = true
   }
   if (baseline.model !== next.model) {
-    dto.model = next.model
+    if (next.model) dto.model = next.model
     dirty = true
   }
   if (baseline.planModel !== next.planModel) {
@@ -317,10 +317,6 @@ export function diffAgentUpdate(
   }
   if (baseline.instructions !== next.instructions) {
     dto.instructions = next.instructions
-    dirty = true
-  }
-  if (!arraysEqual(baseline.accessiblePaths, next.accessiblePaths)) {
-    dto.accessiblePaths = next.accessiblePaths
     dirty = true
   }
   if (!arraysEqual(baseline.mcps, next.mcps)) {

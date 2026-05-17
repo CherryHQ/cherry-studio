@@ -9,7 +9,7 @@ const isAnthropicSupportedProviderMock = vi.fn()
 const isAzureOpenAIProviderMock = vi.fn()
 const isOpenAICompatibleProviderMock = vi.fn()
 
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: unknown[]) => useProviderMock(...args)
 }))
 

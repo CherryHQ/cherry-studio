@@ -1,0 +1,326 @@
+/**
+ * PersistentChatContextProvider — the default provider for regular (SQLite-backed) topics.
+ *
+ * Responsibilities for a single `Ai_Stream_Open` request:
+ *  - read the topic + assistant + model from SQLite
+ *  - persist the user message (or resolve it when regenerating)
+ *  - create one `pending` assistant placeholder per execution
+ *  - build the conversation history from the tree path
+ *  - assemble per-execution PersistenceListeners
+ *
+ * This provider intentionally handles "any topicId that isn't claimed by another provider".
+ * Keep it last in the dispatcher providers array (see `./dispatch.ts`).
+ */
+
+import { topicService } from '@data/services/TopicService'
+import { application } from '@main/core/application'
+import { messageService } from '@main/data/services/MessageService'
+import { topicNamingService } from '@main/services/TopicNamingService'
+import { type Span, trace } from '@opentelemetry/api'
+import { applyApprovalDecisions } from '@shared/ai/transport'
+import type { Model } from '@shared/data/types/model'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+
+import { AdapterTracer, TRACER_NAME } from '../../trace'
+import type { AiStreamRequest } from '../../types/requests'
+import { PersistenceListener } from '../listeners/PersistenceListener'
+import { MessageServiceBackend } from '../persistence/backends/MessageServiceBackend'
+import type { CherryUIMessage, StreamListener } from '../types'
+import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvider'
+import type { MainContinueConversationRequest, MainDispatchRequest } from './dispatch'
+import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
+
+const rawTracer = trace.getTracer(TRACER_NAME)
+
+/**
+ * Create one OTel root span per execution. The span's `traceId` is the
+ * source of truth for `Message.traceId` written below; the span is then
+ * threaded through `PreparedDispatch.models[i].rootSpan` and stream-manager
+ * sets it as active context around `runExecutionLoop` so AI SDK spans
+ * become children sharing the traceId.
+ *
+ * Each root span is also registered in `SpanCacheService.topicMap` so
+ * `getSpans(topicId, traceId)` can shard correctly when the viewer queries.
+ */
+function startTurnRootSpans(
+  topicId: string,
+  trigger: string,
+  models: Model[]
+): Array<{ model: Model; span: Span; traceId: string }> {
+  const spanCache = application.get('SpanCacheService')
+  return models.map((model) => {
+    const modelName = model.name ?? model.id
+    const adapterTracer = new AdapterTracer(rawTracer, topicId, modelName)
+    const span = adapterTracer.startSpan('chat.turn', {
+      attributes: {
+        'cs.topic_id': topicId,
+        'cs.trigger': trigger,
+        'cs.model_id': model.id,
+        'cs.role': 'assistant'
+      }
+    })
+    const traceId = span.spanContext().traceId
+    spanCache.setTopicId(traceId, topicId)
+    return { model, span, traceId }
+  })
+}
+
+export class PersistentChatContextProvider implements ChatContextProvider {
+  readonly name = 'persistent'
+
+  /** Default provider — matches any topic not claimed by a more specific provider. */
+  canHandle(): boolean {
+    return true
+  }
+
+  async prepareDispatch(subscriber: StreamListener, req: MainDispatchRequest): Promise<PreparedDispatch> {
+    // 1. Resolve context
+    const topic = await topicService.getById(req.topicId)
+    const { assistantId, defaultModelId } = await resolveAssistantModelId(topic?.assistantId)
+
+    // 2. continue-conversation takes a separate code path:
+    //    no new placeholder is created — the existing assistant anchor is
+    //    reused. Multi-model isn't meaningful here either (the approval
+    //    belongs to one specific assistant turn).
+    if (req.trigger === 'continue-conversation') {
+      return this.prepareContinueDispatch(subscriber, req, assistantId, defaultModelId)
+    }
+
+    // 3. Models (single or multi)
+    const isRegenerate = req.trigger === 'regenerate-message'
+    const models = await resolveModels(req.mentionedModelIds, defaultModelId)
+    const isMultiModel = models.length > 1
+
+    if (isRegenerate && !req.parentAnchorId) {
+      throw new Error(`'regenerate-message' requires parentAnchorId`)
+    }
+
+    // 4. Siblings group (pure compute — backfill happens inside the reservation tx).
+    //    For non-regenerate this reads no children (resolver short-circuits on
+    //    models.length > 1 or single-model fresh turn), so passing parentAnchorId
+    //    even when undefined is harmless.
+    const siblingsGroupId = await resolvePersistentSiblingsGroupId(models, isRegenerate, req.parentAnchorId ?? '')
+
+    // 5. Atomically reserve user message + N placeholders in one transaction.
+    //    On any failure SQLite rolls back everything — no compensation logic
+    //    needed. Main owns all message ids; the renderer reconciles by
+    //    replacing `useChat.state.messages` with the DB snapshot on
+    //    stream-done (see `useChatWithHistory.refreshAndReplace`).
+    const userMessageInput =
+      req.trigger === 'submit-message'
+        ? ({
+            mode: 'create' as const,
+            dto: {
+              role: 'user' as const,
+              parentId: req.parentAnchorId,
+              data: { parts: req.userMessageParts },
+              status: 'success' as const,
+              modelId: defaultModelId,
+              modelSnapshot: (() => {
+                const { providerId, modelId: rawModelId } = parseUniqueModelId(defaultModelId)
+                return { id: rawModelId, name: rawModelId, provider: providerId }
+              })()
+            }
+          } as const)
+        : ({ mode: 'existing' as const, id: req.parentAnchorId } as const)
+
+    // Each execution gets its own OTel root span; the span's traceId is the
+    // canonical identifier the trace viewer keys on (Message.traceId === span.traceId).
+    const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, models)
+
+    const { userMessage, placeholders } = await messageService.reserveAssistantTurn({
+      topicId: req.topicId,
+      userMessage: userMessageInput,
+      siblingsGroupId,
+      placeholders: turnRootSpans.map(({ model, traceId }) => ({
+        role: 'assistant',
+        data: { parts: [] },
+        status: 'pending',
+        modelId: model.id,
+        modelSnapshot: {
+          id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
+          name: model.name,
+          provider: model.providerId
+        },
+        traceId
+      }))
+    })
+
+    const shouldAutoNameInitialTurn = !isRegenerate && !req.parentAnchorId
+    if (shouldAutoNameInitialTurn) {
+      void topicNamingService.maybeRenameFromFirstUserMessage(req.topicId, userMessage.id)
+    }
+
+    const assistantPlaceholders = turnRootSpans.map(({ model, span }, i) => ({
+      model,
+      placeholder: placeholders[i],
+      rootSpan: span
+    }))
+
+    // 6. Build listeners: 1 subscriber + N persistence listeners (one per model).
+    //    Each listener wraps a MessageServiceBackend that finalizes a single
+    //    placeholder. Auto-rename (the only afterPersist hook today) is attached
+    //    to *one* backend so it fires exactly once even in multi-model turns.
+    const listeners: StreamListener[] = [subscriber]
+    for (let i = 0; i < assistantPlaceholders.length; i++) {
+      const { model, placeholder } = assistantPlaceholders[i]
+      const attachAutoRename = shouldAutoNameInitialTurn && i === 0
+      listeners.push(
+        new PersistenceListener({
+          topicId: req.topicId,
+          modelId: model.id,
+          backend: new MessageServiceBackend({
+            assistantMessageId: placeholder.id,
+            modelSnapshot: {
+              id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
+              name: model.name,
+              provider: model.providerId
+            },
+            afterPersist: attachAutoRename
+              ? async (finalMessage) => {
+                  await topicNamingService.maybeRenameFromConversationSummary(
+                    req.topicId,
+                    assistantId,
+                    userMessage.id,
+                    finalMessage
+                  )
+                }
+              : undefined
+          })
+        })
+      )
+    }
+
+    // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
+    const history = await this.buildHistory(userMessage.id)
+    const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
+      modelId: model.id,
+      request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, placeholder.id),
+      rootSpan
+    }))
+
+    return {
+      topicId: req.topicId,
+      models: models_,
+      listeners,
+      siblingsGroupId,
+      isMultiModel
+    }
+  }
+
+  /**
+   * `continue-conversation` path: resume an assistant turn that paused on
+   * a tool-approval-request. We reuse the existing assistant row — no new
+   * placeholder, no sibling group, no user message.
+   *
+   * Renderer sends only the user's *decisions* (which approvalIds were
+   * approved/cancelled, with optional reason). Main reads its own DB
+   * snapshot of the anchor, applies those decisions itself, and writes the
+   * result back — preserving the invariant that Main is the single writer
+   * of message rows. (Cherry's DB is source of truth, unlike AI SDK's
+   * default client-owned-history model.)
+   *
+   * Persistence reuses the same `MessageServiceBackend` that finalized
+   * the original placeholder — `assistantMessageId === anchor.id` makes
+   * the next stream's terminal write an update, not an insert.
+   */
+  private async prepareContinueDispatch(
+    subscriber: StreamListener,
+    req: MainContinueConversationRequest,
+    assistantId: string | undefined,
+    defaultModelId: UniqueModelId
+  ): Promise<PreparedDispatch> {
+    const anchor = await messageService.getById(req.parentAnchorId)
+    if (anchor.role !== 'assistant') {
+      throw new Error(`'continue-conversation' anchor must be an assistant message (got '${anchor.role}')`)
+    }
+    if (anchor.topicId !== req.topicId) {
+      throw new Error(`'continue-conversation' anchor does not belong to topic ${req.topicId}`)
+    }
+
+    // Apply renderer-supplied decisions to the DB-authoritative parts and
+    // flip the row back to `pending`. Subsequent reads (including buildHistory
+    // below) now see the approved state.
+    const beforeParts = anchor.data.parts ?? []
+    const updatedParts = applyApprovalDecisions(beforeParts, req.approvalDecisions)
+    await messageService.update(req.parentAnchorId, {
+      data: { parts: updatedParts },
+      status: 'pending'
+    })
+
+    // Single execution: continue uses the model the original assistant was
+    // generated with. `mentionedModelIds` is intentionally ignored — switching
+    // models mid-approval would invalidate the approval semantics.
+    const continueModelId = (anchor.modelId as UniqueModelId | undefined) ?? defaultModelId
+    const [model] = await resolveModels([continueModelId], defaultModelId)
+
+    const [{ span: rootSpan }] = startTurnRootSpans(req.topicId, req.trigger, [model])
+
+    const listeners: StreamListener[] = [
+      subscriber,
+      new PersistenceListener({
+        topicId: req.topicId,
+        modelId: model.id,
+        backend: new MessageServiceBackend({
+          assistantMessageId: anchor.id,
+          modelSnapshot: anchor.modelSnapshot ?? {
+            id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
+            name: model.name,
+            provider: model.providerId
+          }
+        })
+      })
+    ]
+
+    const history = await this.buildHistory(anchor.id)
+    return {
+      topicId: req.topicId,
+      models: [
+        {
+          modelId: model.id,
+          request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, anchor.id),
+          rootSpan
+        }
+      ],
+      listeners,
+      siblingsGroupId: undefined,
+      isMultiModel: false
+    }
+  }
+
+  /**
+   * Read conversation history along the active path from root → anchor.
+   * Anchor is whatever message the resumed/new turn hangs off of:
+   *  - user msg for submit/regenerate
+   *  - assistant msg for continue-conversation (history then includes
+   *    that assistant's parts so the model sees approval-responded state)
+   * Pulled out of AiStreamManager so the registry stays free of data-layer dependencies.
+   */
+  private async buildHistory(anchorMessageId: string): Promise<CherryUIMessage[]> {
+    const messagePath = await messageService.getPathToNode(anchorMessageId)
+    return messagePath.map((msg) => ({
+      id: msg.id,
+      role: msg.role,
+      parts: msg.data.parts ?? []
+    }))
+  }
+
+  private buildStreamRequest(
+    topicId: string,
+    assistantId: string | undefined,
+    uniqueModelId: UniqueModelId,
+    history: CherryUIMessage[],
+    messageId: string
+  ): AiStreamRequest {
+    return {
+      chatId: topicId,
+      trigger: 'submit-message',
+      assistantId,
+      uniqueModelId,
+      messages: history,
+      messageId
+    }
+  }
+}
+
+export const persistentChatContextProvider = new PersistentChatContextProvider()

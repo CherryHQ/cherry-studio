@@ -17,12 +17,12 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAssistants, useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setQuickAssistantId } from '@renderer/store/llm'
+import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { useDefaultModel } from '@renderer/hooks/useModel'
 import type { Assistant } from '@renderer/types'
 import { cn } from '@renderer/utils/style'
 import HomeWindow from '@renderer/windows/quickAssistant/home/HomeWindow'
+import type { Model } from '@shared/data/types/model'
 import { Check, ChevronDown, Info } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
@@ -40,13 +40,12 @@ const QuickAssistantSettings: FC = () => {
     'feature.quick_assistant.read_clipboard_at_startup'
   )
   const [, setTray] = usePreference('app.tray.enabled')
+  const [quickAssistantId, setQuickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
 
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
   const { assistants } = useAssistants()
-  const { quickAssistantId } = useAppSelector((state) => state.llm)
-  const { defaultAssistant: _defaultAssistant } = useDefaultAssistant()
+  const { assistant: _defaultAssistant } = useDefaultAssistant()
   const { defaultModel } = useDefaultModel()
   const [assistantSelectOpen, setAssistantSelectOpen] = useState(false)
 
@@ -61,7 +60,7 @@ const QuickAssistantSettings: FC = () => {
   )
   const selectedAssistant = assistantOptions.find((assistant) => assistant.id === quickAssistantId) || defaultAssistant
   const handleAssistantSelect = (assistantId: string) => {
-    dispatch(setQuickAssistantId(assistantId))
+    void setQuickAssistantId(assistantId)
   }
 
   const handleEnableQuickAssistant = async (enable: boolean) => {
@@ -198,14 +197,14 @@ const QuickAssistantSettings: FC = () => {
                   className="min-w-20"
                   variant={quickAssistantId ? 'default' : 'outline'}
                   onClick={() => {
-                    dispatch(setQuickAssistantId(defaultAssistant.id))
+                    void setQuickAssistantId(defaultAssistant.id)
                   }}>
                   {t('settings.models.use_assistant')}
                 </Button>
                 <Button
                   className="min-w-20"
                   variant={!quickAssistantId ? 'default' : 'outline'}
-                  onClick={() => dispatch(setQuickAssistantId(''))}>
+                  onClick={() => void setQuickAssistantId('')}>
                   {t('settings.models.use_model')}
                 </Button>
               </ButtonGroup>
@@ -229,14 +228,14 @@ const AssistantOption = ({
 }: {
   assistant: Assistant
   defaultAssistantId: string
-  defaultModel: Assistant['model']
+  defaultModel: Model | undefined
 }) => {
   const { t } = useTranslation()
   const isDefault = assistant.id === defaultAssistantId
 
   return (
     <AssistantItem>
-      <ModelAvatar model={assistant.model || defaultModel} size={18} />
+      <ModelAvatar model={defaultModel} size={18} />
       <AssistantName>{assistant.name}</AssistantName>
       <Spacer />
       {isDefault && <DefaultTag isCurrent={true}>{t('settings.models.quick_assistant_default_tag')}</DefaultTag>}

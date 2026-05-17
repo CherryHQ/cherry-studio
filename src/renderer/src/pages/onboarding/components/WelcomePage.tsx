@@ -1,9 +1,12 @@
+import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import CherryStudioLogo from '@renderer/assets/images/logo.png'
+import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { fetchModels } from '@renderer/services/ApiService'
-import { useAppStore } from '@renderer/store'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'
+import type { CreateModelDto } from '@shared/data/api/schemas/models'
+import { parseUniqueModelId } from '@shared/data/types/model'
 import { Button, Divider } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useState } from 'react'
@@ -23,25 +26,34 @@ interface WelcomePageProps {
 
 const WelcomePage: FC<WelcomePageProps> = ({ setStep, setCherryInLoggedIn }) => {
   const { t } = useTranslation()
-  const { provider, updateProvider, addModel } = useProvider('cherryin')
-  const store = useAppStore()
+  const { provider, updateProvider, addApiKey } = useProvider('cherryin')
+  const { createModels } = useModelMutations()
   const [isAddingModels, setIsAddingModels] = useState(false)
 
   const handleCherryInLogin = useCallback(async () => {
     try {
       await oauthWithCherryIn(
         async (apiKeys: string) => {
-          updateProvider({ apiKey: apiKeys, enabled: true })
+          // Persist the OAuth key + enable the provider via DataApi. Main reads
+          // the key from DB on the subsequent listModels IPC.
+          await addApiKey(apiKeys, 'OAuth')
+          await updateProvider({ isEnabled: true })
 
-          // Fetch and add models
           setIsAddingModels(true)
-
           try {
-            const updatedProvider = { ...provider, apiKey: apiKeys, enabled: true }
-            const models = await fetchModels(updatedProvider)
-            if (models.length > 0) {
-              models.forEach((model) => addModel(model))
-              logger.info(`Auto-added ${models.length} models from CherryIN`)
+            const models = provider ? await fetchModels(provider) : []
+            const dtos: CreateModelDto[] = models
+              .filter((m): m is typeof m & { id: string } => Boolean(m.id))
+              .map((m) => ({
+                providerId: 'cherryin',
+                modelId: m.apiModelId ?? parseUniqueModelId(m.id).modelId,
+                name: m.name,
+                group: m.group,
+                ...(m.endpointTypes ? { endpointTypes: m.endpointTypes } : {})
+              }))
+            if (dtos.length > 0) {
+              await createModels(dtos)
+              logger.info(`Auto-added ${dtos.length} models from CherryIN`)
             }
           } catch (fetchError) {
             logger.warn('Failed to auto-fetch models:', fetchError as Error)
@@ -60,12 +72,15 @@ const WelcomePage: FC<WelcomePageProps> = ({ setStep, setCherryInLoggedIn }) => 
     } catch (error) {
       logger.error('OAuth Error:', error as Error)
     }
-  }, [provider, updateProvider, addModel, setCherryInLoggedIn, setStep, t])
+  }, [provider, updateProvider, addApiKey, createModels, setCherryInLoggedIn, setStep, t])
 
   const handleSelectProvider = async () => {
     await ProviderPopup.show()
-    const hasAvailableProvider = store.getState().llm.providers.some((p) => p.enabled && p.models.length > 0)
-    hasAvailableProvider && setStep('select-model')
+    // One-shot fresh read for the gate — SWR cache would be stale this tick.
+    const enabled = await dataApiService.get('/providers', { query: { enabled: true } })
+    if (enabled.length > 0) {
+      setStep('select-model')
+    }
   }
 
   return (

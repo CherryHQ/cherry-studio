@@ -3356,6 +3356,7 @@
     },
     "stream_output": "Διαρκής Εξόδος",
     "type": {
+      "audio": "[to be translated]:Audio",
       "embedding": "ενσωμάτωση",
       "free": "δωρεάν",
       "function_calling": "κλήση συνάρτησης",
@@ -3363,6 +3364,7 @@
       "rerank": "Τακτοποιώ",
       "select": "Τύποι μοντέλου",
       "text": "κείμενο",
+      "video": "[to be translated]:Video",
       "vision": "εικόνα",
       "websearch": "δικτύωση"
     }

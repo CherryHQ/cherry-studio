@@ -5,7 +5,8 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { buildRuntimeEndpointConfigs, lookupRegistryModel } from '../registry-utils'
+import { buildRuntimeEndpointConfigs, inferAdapterFamily, lookupRegistryModel } from '../registry-utils'
+import { ENDPOINT_TYPE } from '../schemas/enums'
 import type { ModelConfig } from '../schemas/model'
 import type { RegistryEndpointConfig } from '../schemas/provider'
 import type { ProviderModelOverride } from '../schemas/provider-models'
@@ -186,5 +187,59 @@ describe('buildRuntimeEndpointConfigs', () => {
       'anthropic-messages': {}
     } as Record<string, RegistryEndpointConfig>)
     expect(result).toBeNull()
+  })
+
+  it('copies adapterFamily through to runtime config', () => {
+    const result = buildRuntimeEndpointConfigs({
+      'openai-chat-completions': { baseUrl: 'https://x', adapterFamily: 'openai-compatible' },
+      'anthropic-messages': { baseUrl: 'https://y', adapterFamily: 'anthropic' }
+    } as Record<string, RegistryEndpointConfig>)
+
+    expect(result!['openai-chat-completions'].adapterFamily).toBe('openai-compatible')
+    expect(result!['anthropic-messages'].adapterFamily).toBe('anthropic')
+  })
+
+  it('adapterFamily alone is enough to retain an endpoint config', () => {
+    const result = buildRuntimeEndpointConfigs({
+      'openai-chat-completions': { adapterFamily: 'openai-compatible' }
+    } as Record<string, RegistryEndpointConfig>)
+
+    expect(result!['openai-chat-completions'].adapterFamily).toBe('openai-compatible')
+    expect(result!['openai-chat-completions'].baseUrl).toBeUndefined()
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// inferAdapterFamily
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('inferAdapterFamily', () => {
+  it('catalog adapterFamily wins over endpoint default', () => {
+    expect(inferAdapterFamily(ENDPOINT_TYPE.ANTHROPIC_MESSAGES, { adapterFamily: 'aihubmix' })).toBe('aihubmix')
+  })
+
+  it('falls back to endpoint default when catalog has no adapterFamily', () => {
+    expect(inferAdapterFamily(ENDPOINT_TYPE.ANTHROPIC_MESSAGES, {})).toBe('anthropic')
+  })
+
+  it('falls back to endpoint default when catalog is absent', () => {
+    expect(inferAdapterFamily(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe('anthropic')
+    expect(inferAdapterFamily(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)).toBe('google')
+    expect(inferAdapterFamily(ENDPOINT_TYPE.OLLAMA_CHAT)).toBe('ollama')
+    expect(inferAdapterFamily(ENDPOINT_TYPE.OLLAMA_GENERATE)).toBe('ollama')
+    expect(inferAdapterFamily(ENDPOINT_TYPE.JINA_RERANK)).toBe('jina-rerank')
+    expect(inferAdapterFamily(ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe('openai')
+  })
+
+  it('falls back to openai-compatible for endpoints with no specific default', () => {
+    // openai-chat-completions is intentionally generic — many vendors speak it
+    expect(inferAdapterFamily(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe('openai-compatible')
+    expect(inferAdapterFamily(ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION)).toBe('openai-compatible')
+  })
+
+  it('accepts both RegistryEndpointConfig and RuntimeEndpointConfig shapes', () => {
+    // Both schemas have adapterFamily — the function only needs to peek that
+    // one field so the input type is structural.
+    expect(inferAdapterFamily(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, { adapterFamily: 'groq' })).toBe('groq')
   })
 })

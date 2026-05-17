@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
-import type { CreateTaskRequest, ScheduledTaskEntity, UpdateTaskRequest } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import type { CreateTaskRequest, ScheduledTaskEntity, UpdateTaskRequest } from '@shared/data/types/agent'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 

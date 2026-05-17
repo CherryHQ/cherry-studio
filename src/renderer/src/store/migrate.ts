@@ -24,17 +24,18 @@ import {
 } from '@renderer/config/constant'
 import { allMiniApps } from '@renderer/config/miniApps'
 import { isFunctionCallingModel, isNotSupportTextDeltaModel, qwenModel, SYSTEM_MODELS } from '@renderer/config/models'
+import { toSharedCompatModel } from '@renderer/config/models/_bridge'
 import { BUILTIN_OCR_PROVIDERS, BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
-import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
+import { CHERRYAI_PROVIDER, SYSTEM_PROVIDERS } from '@renderer/config/providers'
 // import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import db from '@renderer/databases'
-import { getModel } from '@renderer/hooks/useModel'
 import i18n from '@renderer/i18n'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
+import store from '@renderer/store'
 import { defaultPreprocessProviders } from '@renderer/store/preprocess'
 import type {
-  Assistant,
   BuiltinOcrProvider,
+  LegacyAssistant as Assistant,
   Model,
   Provider,
   ProviderApiOptions,
@@ -1946,7 +1947,11 @@ const migrateConfig = {
       }
 
       for (const assistant of state.assistants.assistants) {
-        if (assistant.settings?.toolUseMode === 'prompt' && isFunctionCallingModel(assistant.model)) {
+        if (
+          assistant.settings?.toolUseMode === 'prompt' &&
+          assistant.model &&
+          isFunctionCallingModel(toSharedCompatModel(assistant.model))
+        ) {
           assistant.settings.toolUseMode = 'function'
         }
       }
@@ -2007,7 +2012,7 @@ const migrateConfig = {
       const updateModelTextDelta = (model?: Model) => {
         if (model) {
           model.supported_text_delta = true
-          if (isNotSupportTextDeltaModel(model)) {
+          if (model && isNotSupportTextDeltaModel(toSharedCompatModel(model))) {
             model.supported_text_delta = false
           }
         }
@@ -3009,7 +3014,7 @@ const migrateConfig = {
       // Reset toolUseMode to function for assistants
       state.assistants.assistants.forEach((assistant) => {
         if (assistant.settings?.toolUseMode === 'prompt') {
-          if (assistant.model && isFunctionCallingModel(assistant.model)) {
+          if (assistant.model && isFunctionCallingModel(toSharedCompatModel(assistant.model))) {
             assistant.settings.toolUseMode = 'function'
           }
         }
@@ -3085,14 +3090,20 @@ const migrateConfig = {
       // @ts-ignore
       const memoryEmbeddingApiClient = state?.memory?.memoryConfig?.embedderApiClient
 
+      const allModels = store
+        .getState()
+        .llm.providers.concat([CHERRYAI_PROVIDER])
+        .flatMap((p) => p.models)
+      const findModel = (id: string, provider: string) => allModels.find((m) => m.id === id && m.provider === provider)
+
       if (memoryLlmApiClient) {
-        state.memory.memoryConfig.llmModel = getModel(memoryLlmApiClient.model, memoryLlmApiClient.provider)
+        state.memory.memoryConfig.llmModel = findModel(memoryLlmApiClient.model, memoryLlmApiClient.provider)
         // @ts-ignore
         delete state.memory.memoryConfig.llmApiClient
       }
 
       if (memoryEmbeddingApiClient) {
-        state.memory.memoryConfig.embeddingModel = getModel(
+        state.memory.memoryConfig.embeddingModel = findModel(
           memoryEmbeddingApiClient.model,
           memoryEmbeddingApiClient.provider
         )

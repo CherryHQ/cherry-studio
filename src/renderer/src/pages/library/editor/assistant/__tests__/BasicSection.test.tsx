@@ -71,11 +71,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
-vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: () => ({ providers: [] })
-}))
-
-vi.mock('@renderer/hooks/useModels', () => ({
+vi.mock('@renderer/hooks/useModel', () => ({
   useModels: () => ({ models, isLoading: false })
 }))
 
@@ -126,7 +122,6 @@ function createForm(overrides: Partial<AssistantFormState> = {}): AssistantFormS
     enableTopP: false,
     maxTokens: 4096,
     enableMaxTokens: false,
-    contextCount: 5,
     streamOutput: true,
     toolUseMode: 'function',
     maxToolCalls: 20,

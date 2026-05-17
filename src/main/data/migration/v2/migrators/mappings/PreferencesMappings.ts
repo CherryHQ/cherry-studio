@@ -79,10 +79,6 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'app.developer_mode.enabled'
     },
     {
-      originalKey: 'showAssistants',
-      targetKey: 'assistant.tab.show'
-    },
-    {
       originalKey: 'showTopics',
       targetKey: 'topic.tab.show'
     },
@@ -831,11 +827,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 184
+ * - Redux Store项: 185
  * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
  * - DexieSettings项: 4
  * - localStorage项: 0
- * - 总配置项: 189
+ * - 总配置项: 190
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

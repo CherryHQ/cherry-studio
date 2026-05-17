@@ -15,7 +15,7 @@ vi.mock('@data/DataApiService', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useModels', () => ({
+vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: any[]) => useModelsMock(...args),
   useModelMutations: () => ({
     createModels: createModelsMock,
@@ -45,7 +45,7 @@ describe('useProviderModelSync', () => {
     const { result } = renderHook(() => useProviderModelSync('openai', { existingModels }))
 
     await act(async () => {
-      await result.current.syncProviderModels({ id: 'openai' } as any)
+      await result.current.syncProviderModels()
     })
 
     expect(useModelsMock).toHaveBeenCalledWith(
@@ -67,7 +67,7 @@ describe('useProviderModelSync', () => {
     const { result } = renderHook(() => useProviderModelSync('zhipu', { existingModels: [] }))
 
     await act(async () => {
-      const synced = await result.current.syncProviderModels({ id: 'zhipu' } as any)
+      const synced = await result.current.syncProviderModels()
       expect(synced).toEqual(serverModels)
     })
 
@@ -88,7 +88,7 @@ describe('useProviderModelSync', () => {
     const { result } = renderHook(() => useProviderModelSync('openai', { existingModels: [] }))
 
     await act(async () => {
-      await result.current.syncProviderModels({ id: 'openai' } as any)
+      await result.current.syncProviderModels()
     })
 
     expect(dataApiGetMock).toHaveBeenCalledWith('/models', {

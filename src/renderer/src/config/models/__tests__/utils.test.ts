@@ -1,7 +1,9 @@
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models/embedding'
-import type { Model } from '@renderer/types'
+import type { Model as V1Model } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { toSharedCompatModel } from '../_bridge'
 import { isOpenAIReasoningModel } from '../openai'
 import { isQwenMTModel } from '../qwen'
 import {
@@ -22,20 +24,12 @@ import {
   isNotSupportSystemMessageModel,
   isNotSupportTextDeltaModel,
   isSupportedFlexServiceTier,
-  isSupportedModel,
   isSupportFlexServiceTierModel,
-  isSupportTemperatureModel,
-  isSupportTopPModel,
-  isTemperatureTopPMutuallyExclusiveModel,
   isVisionModels,
   isZhipuModel
 } from '../utils'
 import { isGenerateImageModel, isTextToImageModel, isVisionModel } from '../vision'
 import { isOpenAIWebSearchChatCompletionOnlyModel } from '../websearch'
-
-vi.mock('@renderer/hooks/useStore', () => ({
-  getStoreProviders: vi.fn(() => [])
-}))
 
 vi.mock('@renderer/store', () => ({
   __esModule: true,
@@ -94,13 +88,8 @@ vi.mock('../websearch', () => ({
   isOpenAIWebSearchChatCompletionOnlyModel: vi.fn()
 }))
 
-const createModel = (overrides: Partial<Model> = {}): Model => ({
-  id: 'gpt-4o',
-  name: 'gpt-4o',
-  provider: 'openai',
-  group: 'OpenAI',
-  ...overrides
-})
+const createModel = (overrides: Partial<V1Model> = {}): Model =>
+  toSharedCompatModel({ id: 'gpt-4o', name: 'gpt-4o', provider: 'openai', group: 'OpenAI', ...overrides } as V1Model)
 
 const embeddingMock = vi.mocked(isEmbeddingModel)
 const rerankMock = vi.mocked(isRerankModel)
@@ -195,149 +184,6 @@ describe('model utils', () => {
     describe('isSupportedFlexServiceTier', () => {
       it('returns false for non-flex models', () => {
         expect(isSupportedFlexServiceTier(createModel({ id: 'gpt-4o' }))).toBe(false)
-      })
-    })
-  })
-
-  describe('Temperature and top-p support', () => {
-    describe('isSupportTemperatureModel', () => {
-      it('returns false for reasoning models (non-open weight)', () => {
-        const model = createModel({ id: 'o1' })
-        reasoningMock.mockReturnValue(true)
-        expect(isSupportTemperatureModel(model)).toBe(false)
-      })
-
-      it('returns true for open weight models', () => {
-        const openWeight = createModel({ id: 'gpt-oss-debug' })
-        expect(isSupportTemperatureModel(openWeight)).toBe(true)
-      })
-
-      it('returns false for chat-only models', () => {
-        const chatOnly = createModel({ id: 'o1-preview' })
-        expect(isSupportTemperatureModel(chatOnly)).toBe(false)
-      })
-
-      it('returns false for Qwen MT models', () => {
-        const qwenMt = createModel({ id: 'qwen-mt-large', provider: 'aliyun' })
-        expect(isSupportTemperatureModel(qwenMt)).toBe(false)
-      })
-
-      it('returns false for Kimi K2.5+ and K3+ models', () => {
-        expect(isSupportTemperatureModel(createModel({ id: 'kimi-k2.5' }))).toBe(false)
-        expect(isSupportTemperatureModel(createModel({ id: 'Kimi-K2.5' }))).toBe(false)
-        expect(isSupportTemperatureModel(createModel({ id: 'moonshot/kimi-k2.5' }))).toBe(false)
-        expect(isSupportTemperatureModel(createModel({ id: 'kimi-k2.6' }))).toBe(false)
-        expect(isSupportTemperatureModel(createModel({ id: 'Kimi-K2.6' }))).toBe(false)
-        expect(isSupportTemperatureModel(createModel({ id: 'moonshot/kimi-k2.6' }))).toBe(false)
-        expect(isSupportTemperatureModel(createModel({ id: 'kimi-k2.7' }))).toBe(false)
-        expect(isSupportTemperatureModel(createModel({ id: 'kimi-k3' }))).toBe(false)
-        expect(isSupportTemperatureModel(createModel({ id: 'kimi-k3.5' }))).toBe(false)
-        expect(isSupportTemperatureModel(createModel({ id: 'kimi-k4' }))).toBe(false)
-      })
-
-      it('returns true for older Kimi models', () => {
-        expect(isSupportTemperatureModel(createModel({ id: 'kimi-k2' }))).toBe(true)
-        expect(isSupportTemperatureModel(createModel({ id: 'kimi-k2-thinking' }))).toBe(true)
-        expect(isSupportTemperatureModel(createModel({ id: 'kimi-k2-0711-preview' }))).toBe(true)
-        expect(isSupportTemperatureModel(createModel({ id: 'kimi-k2-turbo-preview' }))).toBe(true)
-      })
-
-      it('returns false for null/undefined models', () => {
-        expect(isSupportTemperatureModel(null)).toBe(false)
-        expect(isSupportTemperatureModel(undefined)).toBe(false)
-      })
-
-      it('returns true for regular GPT models', () => {
-        const model = createModel({ id: 'gpt-4' })
-        expect(isSupportTemperatureModel(model)).toBe(true)
-      })
-    })
-
-    describe('isSupportTopPModel', () => {
-      it('returns false for reasoning models (non-open weight)', () => {
-        const model = createModel({ id: 'o1' })
-        reasoningMock.mockReturnValue(true)
-        expect(isSupportTopPModel(model)).toBe(false)
-      })
-
-      it('returns true for open weight models', () => {
-        const openWeight = createModel({ id: 'gpt-oss-debug' })
-        expect(isSupportTopPModel(openWeight)).toBe(true)
-      })
-
-      it('returns false for chat-only models', () => {
-        const chatOnly = createModel({ id: 'o1-preview' })
-        expect(isSupportTopPModel(chatOnly)).toBe(false)
-      })
-
-      it('returns false for Qwen MT models', () => {
-        const qwenMt = createModel({ id: 'qwen-mt-large', provider: 'aliyun' })
-        expect(isSupportTopPModel(qwenMt)).toBe(false)
-      })
-
-      it('returns false for Kimi K2.5+ and K3+ models', () => {
-        expect(isSupportTopPModel(createModel({ id: 'kimi-k2.5' }))).toBe(false)
-        expect(isSupportTopPModel(createModel({ id: 'Kimi-K2.5' }))).toBe(false)
-        expect(isSupportTopPModel(createModel({ id: 'moonshot/kimi-k2.5' }))).toBe(false)
-        expect(isSupportTopPModel(createModel({ id: 'kimi-k2.6' }))).toBe(false)
-        expect(isSupportTopPModel(createModel({ id: 'Kimi-K2.6' }))).toBe(false)
-        expect(isSupportTopPModel(createModel({ id: 'moonshot/kimi-k2.6' }))).toBe(false)
-        expect(isSupportTopPModel(createModel({ id: 'kimi-k2.7' }))).toBe(false)
-        expect(isSupportTopPModel(createModel({ id: 'kimi-k3' }))).toBe(false)
-        expect(isSupportTopPModel(createModel({ id: 'kimi-k3.5' }))).toBe(false)
-        expect(isSupportTopPModel(createModel({ id: 'kimi-k4' }))).toBe(false)
-      })
-
-      it('returns true for older Kimi models', () => {
-        expect(isSupportTopPModel(createModel({ id: 'kimi-k2' }))).toBe(true)
-        expect(isSupportTopPModel(createModel({ id: 'kimi-k2-thinking' }))).toBe(true)
-        expect(isSupportTopPModel(createModel({ id: 'kimi-k2-0711-preview' }))).toBe(true)
-        expect(isSupportTopPModel(createModel({ id: 'kimi-k2-turbo-preview' }))).toBe(true)
-      })
-
-      it('returns false for null/undefined models', () => {
-        expect(isSupportTopPModel(null)).toBe(false)
-        expect(isSupportTopPModel(undefined)).toBe(false)
-      })
-
-      it('returns true for regular GPT models', () => {
-        const model = createModel({ id: 'gpt-4' })
-        expect(isSupportTopPModel(model)).toBe(true)
-      })
-    })
-
-    describe('isTemperatureTopPMutuallyExclusiveModel', () => {
-      it('returns true for Claude 4.5 reasoning models', () => {
-        const claude45Sonnet = createModel({ id: 'claude-sonnet-4.5-20250514' })
-        expect(isTemperatureTopPMutuallyExclusiveModel(claude45Sonnet)).toBe(true)
-
-        const claude45Opus = createModel({ id: 'claude-opus-4.5-20250514' })
-        expect(isTemperatureTopPMutuallyExclusiveModel(claude45Opus)).toBe(true)
-      })
-
-      it('returns false for Claude 4 models', () => {
-        const claude4Sonnet = createModel({ id: 'claude-sonnet-4-20250514' })
-        expect(isTemperatureTopPMutuallyExclusiveModel(claude4Sonnet)).toBe(false)
-      })
-
-      it('returns false for Claude 3.x models', () => {
-        const claude35Sonnet = createModel({ id: 'claude-3-5-sonnet-20241022' })
-        expect(isTemperatureTopPMutuallyExclusiveModel(claude35Sonnet)).toBe(false)
-
-        const claude3Opus = createModel({ id: 'claude-3-opus-20240229' })
-        expect(isTemperatureTopPMutuallyExclusiveModel(claude3Opus)).toBe(false)
-      })
-
-      it('returns false for other AI models', () => {
-        expect(isTemperatureTopPMutuallyExclusiveModel(createModel({ id: 'gpt-4o' }))).toBe(false)
-        expect(isTemperatureTopPMutuallyExclusiveModel(createModel({ id: 'o1' }))).toBe(false)
-        expect(isTemperatureTopPMutuallyExclusiveModel(createModel({ id: 'gemini-2.0-flash' }))).toBe(false)
-        expect(isTemperatureTopPMutuallyExclusiveModel(createModel({ id: 'qwen-max' }))).toBe(false)
-      })
-
-      it('returns false for null/undefined models', () => {
-        expect(isTemperatureTopPMutuallyExclusiveModel(null)).toBe(false)
-        expect(isTemperatureTopPMutuallyExclusiveModel(undefined)).toBe(false)
       })
     })
   })
@@ -631,16 +477,6 @@ describe('model utils', () => {
   })
 
   describe('Model filtering', () => {
-    describe('isSupportedModel', () => {
-      it('filters supported OpenAI catalog entries', () => {
-        expect(isSupportedModel({ id: 'gpt-4', object: 'model' } as any)).toBe(true)
-      })
-
-      it('filters unsupported OpenAI catalog entries', () => {
-        expect(isSupportedModel({ id: 'tts-1', object: 'model' } as any)).toBe(false)
-      })
-    })
-
     describe('agentModelFilter', () => {
       it('returns true for regular models', () => {
         expect(agentModelFilter(createModel())).toBe(true)

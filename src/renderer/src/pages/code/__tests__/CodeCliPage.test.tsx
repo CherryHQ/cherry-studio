@@ -42,17 +42,6 @@ vi.mock('@cherrystudio/ui', async () => {
   }
 })
 
-vi.mock('@renderer/aiCore', () => ({
-  AiProvider: class {
-    getBaseURL() {
-      return ''
-    }
-    getApiKey() {
-      return ''
-    }
-  }
-}))
-
 vi.mock('@renderer/components/app/Navbar', () => ({
   Navbar: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   NavbarCenter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>
@@ -65,12 +54,6 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
 vi.mock('@renderer/config/constant', () => ({
   isMac: false,
   isWin: false
-}))
-
-vi.mock('@renderer/config/models', () => ({
-  isEmbeddingModel: () => false,
-  isRerankModel: () => false,
-  isTextToImageModel: () => false
 }))
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
@@ -97,7 +80,12 @@ vi.mock('@renderer/hooks/useCodeCli', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: () => ({ providers: [] })
+  useProviders: () => ({ providers: [] }),
+  getProviderDisplayName: (provider: { name?: string; id?: string }) => provider?.name ?? provider?.id ?? ''
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModels: () => ({ models: [] })
 }))
 
 vi.mock('@renderer/hooks/useTimer', () => ({
@@ -105,8 +93,7 @@ vi.mock('@renderer/hooks/useTimer', () => ({
 }))
 
 vi.mock('@renderer/services/AssistantService', () => ({
-  getAssistantSettings: () => ({}),
-  getProviderByModel: vi.fn()
+  getAssistantSettings: () => ({})
 }))
 
 vi.mock('@renderer/services/LoggerService', () => ({

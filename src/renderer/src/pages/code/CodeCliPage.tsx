@@ -1,22 +1,32 @@
 import { Button, Checkbox, Label, SelectDropdown, Textarea } from '@cherrystudio/ui'
-import { AiProvider } from '@renderer/aiCore'
+import { dataApiService } from '@data/DataApiService'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { isMac, isWin } from '@renderer/config/constant'
-import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
+import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
-import { useProviders } from '@renderer/hooks/useProvider'
+import { useModels } from '@renderer/hooks/useModel'
+import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
 import { loggerService } from '@renderer/services/LoggerService'
-import { getModelUniqId } from '@renderer/services/ModelService'
-import { useAppSelector } from '@renderer/store'
-import type { EndpointType, Model, Provider } from '@renderer/types'
-import { getFancyProviderName } from '@renderer/utils/naming'
+import { EFFORT_RATIO } from '@renderer/types'
+import { getThinkingBudget } from '@shared/ai/reasoningBudget'
 import type { TerminalConfig } from '@shared/config/constant'
 import { codeCLI, terminalApps } from '@shared/config/constant'
 import { CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS, isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
+import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import type { ApiKeyEntry } from '@shared/data/types/provider'
+import type { Provider } from '@shared/data/types/provider'
+import {
+  isEmbeddingModel,
+  isReasoningModel,
+  isRerankModel,
+  isSupportedReasoningEffortModel,
+  isSupportedThinkingTokenClaudeModel,
+  isTextToImageModel
+} from '@shared/utils/model'
+import { isAnthropicProvider, isOpenAIProvider } from '@shared/utils/provider'
 import { Check, FolderOpen } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -58,6 +68,8 @@ interface TerminalItem {
 const CodeCliPage: FC = () => {
   const { t } = useTranslation()
   const { providers } = useProviders()
+  const { models } = useModels()
+  const providerMap = useMemo(() => new Map(providers.map((p) => [p.id, p])), [providers])
   const [isBunInstalled, setIsBunInstalled] = usePersistCache('feature.mcp.is_bun_installed')
   const {
     selectedCliTool,
@@ -77,13 +89,8 @@ const CodeCliPage: FC = () => {
   } = useCodeCli()
   const { setTimeoutTimer } = useTimer()
 
-  const defaultAssistant = useAppSelector((state) => state.assistants.defaultAssistant)
-  const { maxTokens, reasoning_effort } = useMemo(() => {
-    if (!defaultAssistant) {
-      return { maxTokens: undefined, reasoning_effort: undefined }
-    }
-    return getAssistantSettings(defaultAssistant)
-  }, [defaultAssistant])
+  const { assistant: defaultAssistant } = useDefaultAssistant()
+  const { maxTokens, reasoning_effort } = useMemo(() => defaultAssistant.settings, [defaultAssistant])
 
   const [isLaunching, setIsLaunching] = useState(false)
   const [launchSuccess, setLaunchSuccess] = useState(false)
@@ -94,48 +101,54 @@ const CodeCliPage: FC = () => {
 
   const [dialogOpen, setDialogOpen] = useState(false)
 
+  const rawModelId = useCallback((m: Model) => m.apiModelId ?? parseUniqueModelId(m.id).modelId, [])
+
   const modelPredicate = useCallback(
     (m: Model) => {
       if (isEmbeddingModel(m) || isRerankModel(m) || isTextToImageModel(m)) {
         return false
       }
 
-      if (m.provider === 'cherryai') {
+      if (m.providerId === 'cherryai') {
         return false
       }
 
+      const provider = providerMap.get(m.providerId)
+      if (!provider) {
+        return false
+      }
+
+      const eps = m.endpointTypes ?? []
+      const id = rawModelId(m)
+
       if (selectedCliTool === codeCLI.claudeCode) {
-        if (m.supported_endpoint_types) {
-          return m.supported_endpoint_types.includes('anthropic')
+        if (eps.length) {
+          return eps.includes('anthropic-messages')
         }
-        if (m.provider === 'silicon') {
-          return isSiliconAnthropicCompatibleModel(m.id)
+        if (m.providerId === 'silicon') {
+          return isSiliconAnthropicCompatibleModel(id)
         }
-        const modelProvider = providers.find((p) => p.id === m.provider)
-        if (modelProvider?.type === 'anthropic' || modelProvider?.anthropicApiHost) {
+        if (isAnthropicProvider(provider)) {
           return true
         }
-        return m.id.includes('claude') || CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS.includes(m.provider)
+        return id.includes('claude') || CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS.includes(m.providerId)
       }
 
       if (selectedCliTool === codeCLI.geminiCli) {
-        if (m.supported_endpoint_types) {
-          return m.supported_endpoint_types.includes('gemini')
+        if (eps.length) {
+          return eps.includes('google-generate-content')
         }
-        return m.id.includes('gemini')
+        return id.includes('gemini')
       }
 
       if (selectedCliTool === codeCLI.openaiCodex) {
-        if (m.supported_endpoint_types) {
-          return ['openai', 'openai-response'].some((type) =>
-            m.supported_endpoint_types?.includes(type as EndpointType)
-          )
+        if (eps.length) {
+          return eps.includes('openai-chat-completions') || eps.includes('openai-responses')
         }
-        const openaiProvider = providers.find((p) => p.id === m.provider)
-        if (openaiProvider?.type === 'openai-response') {
+        if (isOpenAIProvider(provider)) {
           return true
         }
-        return m.id.includes('openai') || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(m.provider)
+        return id.includes('openai') || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(m.providerId)
       }
 
       if (selectedCliTool === codeCLI.githubCopilotCli) {
@@ -143,27 +156,26 @@ const CodeCliPage: FC = () => {
       }
 
       if (selectedCliTool === codeCLI.qwenCode || selectedCliTool === codeCLI.iFlowCli) {
-        if (m.supported_endpoint_types) {
-          return ['openai', 'openai-response'].some((type) =>
-            m.supported_endpoint_types?.includes(type as EndpointType)
-          )
+        if (eps.length) {
+          return eps.includes('openai-chat-completions') || eps.includes('openai-responses')
         }
         return true
       }
 
       if (selectedCliTool === codeCLI.openCode) {
-        if (m.supported_endpoint_types) {
-          return ['openai', 'openai-response', 'anthropic'].some((type) =>
-            m.supported_endpoint_types?.includes(type as EndpointType)
+        if (eps.length) {
+          return (
+            eps.includes('openai-chat-completions') ||
+            eps.includes('openai-responses') ||
+            eps.includes('anthropic-messages')
           )
         }
-        const provider = providers.find((p) => p.id === m.provider)
-        return !!['openai', 'openai-response', 'anthropic'].includes(provider?.type ?? '')
+        return isOpenAIProvider(provider) || isAnthropicProvider(provider)
       }
 
       return true
     },
-    [selectedCliTool, providers]
+    [selectedCliTool, providerMap, rawModelId]
   )
 
   const availableProviders = useMemo(() => {
@@ -172,15 +184,17 @@ const CodeCliPage: FC = () => {
   }, [providers, selectedCliTool])
 
   const modelItems = useMemo<ModelItem[]>(() => {
+    const allowed = new Set(availableProviders.map((p) => p.id))
     const items: ModelItem[] = []
-    for (const provider of availableProviders) {
-      for (const m of provider.models || []) {
-        if (!modelPredicate(m)) continue
-        items.push({ id: getModelUniqId(m), model: m, provider })
-      }
+    for (const m of models) {
+      if (!allowed.has(m.providerId)) continue
+      const provider = providerMap.get(m.providerId)
+      if (!provider) continue
+      if (!modelPredicate(m)) continue
+      items.push({ id: m.id, model: m, provider })
     }
     return items
-  }, [availableProviders, modelPredicate])
+  }, [availableProviders, models, providerMap, modelPredicate])
 
   const terminalItems = useMemo<TerminalItem[]>(
     () => availableTerminals.map((terminal) => ({ id: terminal.id, name: terminal.name })),
@@ -191,14 +205,12 @@ const CodeCliPage: FC = () => {
 
   const resolveModel = useCallback(
     (modelIdStr: string): Model | null => {
-      for (const provider of providers || []) {
-        const model = provider.models.find((m) => getModelUniqId(m) === modelIdStr)
-        if (model) return model
-      }
+      const model = models.find((m) => m.id === modelIdStr)
+      if (model) return model
       logger.warn(`Model not found for ID: ${modelIdStr}`)
       return null
     },
-    [providers]
+    [models]
   )
 
   const handleModelChange = (value: string) => {
@@ -282,18 +294,48 @@ const CodeCliPage: FC = () => {
     const resolvedModel = resolveModel(selectedModel)
     if (!resolvedModel) return null
 
-    const modelProvider = getProviderByModel(resolvedModel)
-    const aiProvider = new AiProvider(modelProvider)
-    const baseUrl = aiProvider.getBaseURL()
-    const apiKey = aiProvider.getApiKey()
+    const modelProvider = providerMap.get(resolvedModel.providerId)
+    if (!modelProvider) {
+      logger.warn(`Provider not found for model: ${resolvedModel.id}`)
+      return null
+    }
+
+    const isAnthropic = isAnthropicProvider(modelProvider)
+    const defaultEndpoint = modelProvider.defaultChatEndpoint ?? 'openai-chat-completions'
+    const baseUrl = modelProvider.endpointConfigs?.[defaultEndpoint]?.baseUrl ?? ''
+    const anthropicBaseUrl = modelProvider.endpointConfigs?.['anthropic-messages']?.baseUrl
+
+    let apiKey = ''
+    try {
+      const { keys } = (await dataApiService.get(`/providers/${modelProvider.id}/api-keys`)) as {
+        keys: ApiKeyEntry[]
+      }
+      apiKey = keys.find((k) => k.isEnabled)?.key ?? keys[0]?.key ?? ''
+    } catch (error) {
+      logger.error(`Failed to load api keys for provider: ${modelProvider.id}`, error as Error)
+    }
+
+    const id = resolvedModel.apiModelId ?? parseUniqueModelId(resolvedModel.id).modelId
+    const reasoning = {
+      isReasoning: isReasoningModel(resolvedModel),
+      supportsReasoningEffort: isSupportedReasoningEffortModel(resolvedModel),
+      budgetTokens: isSupportedThinkingTokenClaudeModel(resolvedModel)
+        ? getThinkingBudget(maxTokens, reasoning_effort, id, EFFORT_RATIO, { fallbackOnUnknown: true })
+        : undefined
+    }
 
     const { env: toolEnv } = generateToolEnvironment({
       tool: selectedCliTool,
-      model: resolvedModel,
-      modelProvider,
+      rawModelId: id,
+      modelName: resolvedModel.name,
+      endpointType: resolvedModel.endpointTypes?.[0],
+      providerId: modelProvider.id,
+      fancyProviderName: getProviderDisplayName(modelProvider),
+      isAnthropic,
+      anthropicBaseUrl,
       apiKey,
       baseUrl,
-      context: { maxTokens, reasoningEffort: reasoning_effort }
+      reasoning
     })
 
     const userEnv = parseEnvironmentVariables(environmentVariables)
@@ -308,7 +350,10 @@ const CodeCliPage: FC = () => {
       window.toast.error(t('code.model_required'))
       return
     }
-    const modelId = selectedCliTool === codeCLI.githubCopilotCli ? '' : (resolvedModel?.id ?? '')
+    const modelId =
+      selectedCliTool === codeCLI.githubCopilotCli || !resolvedModel
+        ? ''
+        : (resolvedModel.apiModelId ?? parseUniqueModelId(resolvedModel.id).modelId)
 
     const runOptions = {
       autoUpdateToLatest,
@@ -461,7 +506,7 @@ const CodeCliPage: FC = () => {
                       <ModelAvatar model={item.model} size={18} />
                       <span className="flex-1 truncate">{item.model.name || item.model.id}</span>
                       <span className="shrink-0 text-muted-foreground text-xs">
-                        {getFancyProviderName(item.provider)}
+                        {getProviderDisplayName(item.provider)}
                       </span>
                       {isSelected && <Check size={11} className="ml-0.5 shrink-0 text-foreground" />}
                     </div>

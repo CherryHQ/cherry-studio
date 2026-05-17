@@ -2,8 +2,8 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentTaskTable, type InsertAgentTaskRow } from '@data/db/schemas/agentTask'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { ErrorCode } from '@shared/data/api'
+import type { CreateTaskRequest } from '@shared/data/types/agent'
 import { setupTestDatabase } from '@test-helpers/db'
-import type { CreateTaskRequest } from '@types'
 import { describe, expect, it } from 'vitest'
 
 describe('TaskService', () => {
@@ -15,10 +15,10 @@ describe('TaskService', () => {
       type: 'claude-code',
       name: 'Test Agent',
       instructions: 'You are a helpful assistant.',
-      model: 'claude-3-5-sonnet',
-      sortOrder: 0,
+      model: null,
       // Soul mode required for createTask to pass assertAutonomous
       configuration: { soul_enabled: true },
+      orderKey: 'a0',
       ...overrides,
       id
     })

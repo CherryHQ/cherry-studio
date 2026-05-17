@@ -1,43 +1,51 @@
 import { Flex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { getModelUniqId } from '@renderer/services/ModelService'
-import type { RootState } from '@renderer/store'
-import { selectFormattedCitationsByBlockId } from '@renderer/store/messageBlock'
-import { type Model } from '@renderer/types'
-import type { MainTextMessageBlock, Message } from '@renderer/types/newMessage'
+import type { Citation, Model, WebSearchSource } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
 import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
+import { createUniqueModelId } from '@shared/data/types/model'
 import React, { useCallback } from 'react'
-import { useSelector } from 'react-redux'
-import styled from 'styled-components'
 
+import type { MarkdownSource } from '../../Markdown/Markdown'
 import Markdown from '../../Markdown/Markdown'
+import CitationsList from '../CitationsList'
 
 interface Props {
-  block: MainTextMessageBlock
-  citationBlockId?: string
+  id: string
+  content: string
+  isStreaming: boolean
+  citations?: Citation[]
+  citationReferences?: { citationBlockId?: string; citationBlockSource?: WebSearchSource }[]
   mentions?: Model[]
   role: Message['role']
 }
 
-const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions = [] }) => {
-  // Use the passed citationBlockId directly in the selector
+const MainTextBlock: React.FC<Props> = ({
+  id,
+  content,
+  isStreaming,
+  citations = [],
+  citationReferences,
+  role,
+  mentions = []
+}) => {
   const [renderInputMessageAsMarkdown] = usePreference('chat.message.render_as_markdown')
 
-  const rawCitations = useSelector((state: RootState) => selectFormattedCitationsByBlockId(state, citationBlockId))
+  const block: MarkdownSource = { id, content, status: isStreaming ? 'streaming' : 'success' }
 
   // 创建引用处理函数，传递给 Markdown 组件在流式渲染中使用
   const processContent = useCallback(
     (rawText: string) => {
-      if (!block.citationReferences?.length || !citationBlockId || rawCitations.length === 0) {
+      if (!citationReferences?.length || citations.length === 0) {
         return rawText
       }
 
       // 确定最适合的 source
-      const sourceType = determineCitationSource(block.citationReferences)
+      const sourceType = determineCitationSource(citationReferences)
 
-      return withCitationTags(rawText, rawCitations, sourceType)
+      return withCitationTags(rawText, citations, sourceType)
     },
-    [block.citationReferences, citationBlockId, rawCitations]
+    [citationReferences, citations]
   )
 
   return (
@@ -46,23 +54,26 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
       {mentions && mentions.length > 0 && (
         <Flex className="mb-2.5 flex-wrap gap-2">
           {mentions.map((m) => (
-            <MentionTag key={getModelUniqId(m)}>{'@' + m.name}</MentionTag>
+            <span key={createUniqueModelId(m.provider, m.id)} className="text-(--color-link)">
+              {'@' + m.name}
+            </span>
           ))}
         </Flex>
       )}
       {role === 'user' && !renderInputMessageAsMarkdown ? (
         <p className="markdown" style={{ whiteSpace: 'pre-wrap' }}>
-          {block.content}
+          {content}
         </p>
       ) : (
         <Markdown block={block} postProcess={processContent} />
       )}
+      {/* Source list rendered under each text part with citations. V1's
+          `CitationBlock` did the same thing once per message; V2 stores
+          citation refs per text part (`providerMetadata.cherry.references`)
+          so the list ends up scoped to the text segment that produced it. */}
+      {citations.length > 0 && <CitationsList citations={citations} />}
     </>
   )
 }
-
-const MentionTag = styled.span`
-  color: var(--color-link);
-`
 
 export default React.memo(MainTextBlock)

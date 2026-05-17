@@ -167,18 +167,6 @@ describe('assistant create flow helpers', () => {
 
     expect(buildCreateAssistantPayload(form).modelId).toBe('anthropic::claude-sonnet-4-5')
   })
-
-  it('keeps contextCount positive when building the create settings payload', () => {
-    const baseline = buildCreateAssistantFormState()
-    const form = {
-      ...baseline,
-      name: 'Assistant',
-      prompt: 'You are helpful.',
-      contextCount: 0
-    }
-
-    expect(buildCreateAssistantPayload(form).settings?.contextCount).toBe(1)
-  })
 })
 
 describe('diffAssistantUpdate', () => {

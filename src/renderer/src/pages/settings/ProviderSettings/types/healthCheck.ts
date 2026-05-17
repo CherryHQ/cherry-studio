@@ -1,7 +1,6 @@
 import type { SerializedError } from '@renderer/types/error'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import type { Model } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 
 export { HealthStatus }
 
@@ -82,7 +81,6 @@ export type ModelWithStatus =
     }
 
 export interface ModelCheckOptions {
-  provider: Provider
   models: Model[]
   apiKeys: string[]
   isConcurrent: boolean

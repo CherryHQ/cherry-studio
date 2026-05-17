@@ -31,10 +31,8 @@ export const ApiFeaturesSchema = z.object({
   developerRole: z.boolean().default(false),
   /** Whether the provider supports service tier selection (OpenAI/Groq-specific) */
   serviceTier: z.boolean().default(false),
-  /** Whether the provider supports verbosity settings (Gemini-specific) */
-  verbosity: z.boolean().default(false),
-  /** Whether the provider supports enable_thinking parameter */
-  enableThinking: z.boolean().default(true)
+  /** Whether the provider supports verbosity settings (OpenAI-specific) */
+  verbosity: z.boolean().default(false)
 })
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -197,7 +195,13 @@ export const RegistryEndpointConfigSchema = z.object({
     })
     .optional(),
   /** How this endpoint type expects reasoning parameters to be formatted */
-  reasoningFormat: ProviderReasoningFormatSchema.optional()
+  reasoningFormat: ProviderReasoningFormatSchema.optional(),
+  /**
+   * AI SDK adapter family that handles this endpoint. Aligns with the IDs
+   * registered in `appProviderIds`. Resolvers should prefer this over
+   * heuristic id/baseUrl inference when present.
+   */
+  adapterFamily: z.string().optional()
 })
 
 export const ProviderConfigSchema = z

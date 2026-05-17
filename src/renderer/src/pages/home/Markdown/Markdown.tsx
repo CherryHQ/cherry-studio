@@ -7,16 +7,11 @@ import { usePreference } from '@data/hooks/usePreference'
 import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
-import type {
-  CompactMessageBlock,
-  MainTextMessageBlock,
-  ThinkingMessageBlock,
-  TranslationMessageBlock
-} from '@renderer/types/newMessage'
+import type { MessageBlockStatus } from '@renderer/types/newMessage'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { processLatexBrackets } from '@renderer/utils/markdown'
 import { isEmpty } from 'lodash'
-import { type FC, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, type FC, memo, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown, { type Components, defaultUrlTransform } from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
@@ -41,10 +36,33 @@ const ALLOWED_ELEMENTS =
   /<(style|p|div|span|b|i|strong|em|ul|ol|li|table|tr|td|th|thead|tbody|h[1-6]|blockquote|pre|code|br|hr|svg|path|circle|rect|line|polyline|polygon|text|g|defs|title|desc|tspan|sub|sup|details|summary)/i
 const DISALLOWED_ELEMENTS = ['iframe', 'script']
 
+/**
+ * Lightweight interface for Markdown rendering source.
+ * Only requires id, content, and status — no dependency on MessageBlock types.
+ */
+export interface MarkdownSource {
+  id: string
+  content: string
+  status: MessageBlockStatus | string
+}
+
+/**
+ * Context providing raw markdown content and streaming state to sub-components
+ * (CodeBlock, Table) so they don't need useResolveBlock or Redux lookups.
+ */
+export interface MarkdownBlockContextValue {
+  content: string
+  isStreaming: boolean
+}
+
+export const MarkdownBlockContext = createContext<MarkdownBlockContextValue | null>(null)
+
+export function useMarkdownBlockContext(): MarkdownBlockContextValue | null {
+  return use(MarkdownBlockContext)
+}
+
 interface Props {
-  // message: Message & { content: string }
-  block: MainTextMessageBlock | TranslationMessageBlock | ThinkingMessageBlock | CompactMessageBlock
-  // 可选的后处理函数，用于在流式渲染过程中处理文本（如引用标签转换）
+  block: MarkdownSource
   postProcess?: (text: string) => string
 }
 
@@ -52,48 +70,6 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
   const { t } = useTranslation()
   const [mathEngine] = usePreference('chat.message.math.engine')
   const [mathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
-
-  const isTrulyDone = 'status' in block && block.status === 'success'
-  const [displayedContent, setDisplayedContent] = useState(postProcess ? postProcess(block.content) : block.content)
-  const [isStreamDone, setIsStreamDone] = useState(isTrulyDone)
-
-  const prevContentRef = useRef(block.content)
-  const prevBlockIdRef = useRef(block.id)
-
-  const { addChunk, reset } = useSmoothStream({
-    onUpdate: (rawText) => {
-      // 如果提供了后处理函数就调用，否则直接使用原始文本
-      const finalText = postProcess ? postProcess(rawText) : rawText
-      setDisplayedContent(finalText)
-    },
-    streamDone: isStreamDone,
-    initialText: block.content
-  })
-
-  useEffect(() => {
-    const newContent = block.content || ''
-    const oldContent = prevContentRef.current || ''
-
-    const isDifferentBlock = block.id !== prevBlockIdRef.current
-
-    const isContentReset = oldContent && newContent && !newContent.startsWith(oldContent)
-
-    if (isDifferentBlock || isContentReset) {
-      reset(newContent)
-    } else {
-      const delta = newContent.substring(oldContent.length)
-      if (delta) {
-        addChunk(delta)
-      }
-    }
-
-    prevContentRef.current = newContent
-    prevBlockIdRef.current = block.id
-
-    // 更新 stream 状态
-    const isStreaming = block.status === 'streaming'
-    setIsStreamDone(!isStreaming)
-  }, [block.content, block.id, block.status, addChunk, reset])
 
   const remarkPlugins = useMemo(() => {
     const plugins = [
@@ -108,12 +84,57 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
     return plugins
   }, [mathEngine, mathEnableSingleDollar])
 
+  // `block.status === 'streaming'` is set by callers when (and only when)
+  // the topic-level ActiveStream is live for this message — see
+  // `PartsRenderer`, which derives the streaming flag from
+  // `useTopicStreamStatus` and threads it down through MainTextBlock /
+  // ThinkingBlock.
+  const isStreaming = block.status === 'streaming'
+  const [displayedContent, setDisplayedContent] = useState(postProcess ? postProcess(block.content) : block.content)
+  const [isStreamDone, setIsStreamDone] = useState(!isStreaming)
+  const prevContentRef = useRef(block.content)
+  const prevBlockIdRef = useRef(block.id)
+
+  const { addChunk, reset } = useSmoothStream({
+    onUpdate: (rawText) => {
+      const finalText = postProcess ? postProcess(rawText) : rawText
+      setDisplayedContent(finalText)
+    },
+    streamDone: isStreamDone,
+    initialText: block.content
+  })
+
+  useEffect(() => {
+    const newContent = block.content || ''
+    const oldContent = prevContentRef.current || ''
+
+    const isDifferentBlock = block.id !== prevBlockIdRef.current
+    // Treat any non-extension as a reset, including content shrinking back to
+    // empty (e.g. a second translation seeds `content: ''` after the previous
+    // result was already displayed). Without the reset, the smooth-stream's
+    // `displayedTextRef` would carry "stale + new" — chunks would visibly
+    // append onto the previous translation instead of starting fresh.
+    const isContentReset = oldContent.length > 0 && !newContent.startsWith(oldContent)
+
+    if (isDifferentBlock || isContentReset) {
+      reset(newContent)
+    } else {
+      const delta = newContent.substring(oldContent.length)
+      if (delta) addChunk(delta)
+    }
+
+    prevContentRef.current = newContent
+    prevBlockIdRef.current = block.id
+
+    setIsStreamDone(!isStreaming)
+  }, [block.content, block.id, isStreaming, addChunk, reset])
+
   const messageContent = useMemo(() => {
-    if ('status' in block && block.status === 'paused' && isEmpty(block.content)) {
+    if (block.status === 'paused' && isEmpty(block.content)) {
       return t('message.chat.completion.paused')
     }
     return removeSvgEmptyLines(processLatexBrackets(displayedContent))
-  }, [block, displayedContent, t])
+  }, [block.status, block.content, displayedContent, t])
 
   const rehypePlugins = useMemo(() => {
     const plugins: Pluggable[] = []
@@ -154,22 +175,29 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
     return defaultUrlTransform(value)
   }, [])
 
+  const markdownCtx = useMemo<MarkdownBlockContextValue>(
+    () => ({ content: block.content, isStreaming: block.status === 'streaming' }),
+    [block.content, block.status]
+  )
+
   return (
-    <div className="markdown">
-      <ReactMarkdown
-        rehypePlugins={rehypePlugins}
-        remarkPlugins={remarkPlugins}
-        components={components}
-        disallowedElements={DISALLOWED_ELEMENTS}
-        urlTransform={urlTransform}
-        remarkRehypeOptions={{
-          footnoteLabel: t('common.footnotes'),
-          footnoteLabelTagName: 'h4',
-          footnoteBackContent: ' '
-        }}>
-        {messageContent}
-      </ReactMarkdown>
-    </div>
+    <MarkdownBlockContext value={markdownCtx}>
+      <div className="markdown">
+        <ReactMarkdown
+          rehypePlugins={rehypePlugins}
+          remarkPlugins={remarkPlugins}
+          components={components}
+          disallowedElements={DISALLOWED_ELEMENTS}
+          urlTransform={urlTransform}
+          remarkRehypeOptions={{
+            footnoteLabel: t('common.footnotes'),
+            footnoteLabelTagName: 'h4',
+            footnoteBackContent: ' '
+          }}>
+          {messageContent}
+        </ReactMarkdown>
+      </div>
+    </MarkdownBlockContext>
   )
 }
 

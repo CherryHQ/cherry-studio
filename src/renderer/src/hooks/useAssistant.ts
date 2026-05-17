@@ -1,221 +1,244 @@
-import { loggerService } from '@logger'
-import {
-  getThinkModelType,
-  isSupportedReasoningEffortModel,
-  isSupportedThinkingTokenModel,
-  MODEL_SUPPORTED_OPTIONS,
-  MODEL_SUPPORTED_REASONING_EFFORT
-} from '@renderer/config/models'
-import { cacheService } from '@renderer/data/CacheService'
-import { db } from '@renderer/databases'
-import { getDefaultTopic } from '@renderer/services/AssistantService'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import {
-  addAssistant,
-  addTopic,
-  insertAssistant,
-  removeAllTopics,
-  removeAssistant,
-  removeTopic,
-  setModel,
-  updateAssistant,
-  updateAssistants,
-  updateAssistantSettings as _updateAssistantSettings,
-  updateDefaultAssistant,
-  updateTopic,
-  updateTopics
-} from '@renderer/store/assistants'
-import { setDefaultModel, setQuickModel, setTranslateModel } from '@renderer/store/llm'
-import type { Assistant, AssistantSettings, Model, ThinkingOption, Topic } from '@renderer/types'
-import { uuid } from '@renderer/utils'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
+/**
+ * Assistant data layer — three tiers in one module:
+ *
+ *  1. `composeDefaultAssistant` — pure, non-React synthesis of the default
+ *     assistant template (also imported by `services/AssistantService`).
+ *  2. DataApi tier — raw SQLite-backed queries/mutations
+ *     (`useAssistantsApi` / `useAssistantApiById` / `useAssistantMutations`).
+ *  3. Composed hooks — `useAssistants` / `useDefaultAssistant` / `useAssistant`.
+ *
+ * Returns the canonical {@link Assistant} entity straight from SQLite via
+ * `/assistants`. No v1 shape adaptation — consumers use the v2 shape
+ * directly (`modelId`, `mcpServerIds`, `knowledgeBaseIds`).
+ *
+ * Companion hooks for the entities Assistant references:
+ *  - {@link import('./useTopic').useTopicsByAssistant} for topics
+ *  - {@link import('./useModel').useModelById} for the model
+ *  - {@link import('./useMCPServers').useMCPServer} for MCP servers
+ *  - {@link import('./useKnowledgeBaseDataApi').useKnowledgeBaseById} for KBs
+ */
 
-import { TopicManager } from './useTopic'
+import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
+import { useDefaultModel, useModelById } from '@renderer/hooks/useModel'
+import i18n from '@renderer/i18n'
+import type { Assistant, AssistantSettings } from '@renderer/types'
+import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/modelReconcile'
+import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
+import type { CreateAssistantDto, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
+import { DEFAULT_ASSISTANT_ID, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import type { Model } from '@shared/data/types/model'
+import { type UniqueModelId } from '@shared/data/types/model'
+import { useCallback, useMemo } from 'react'
+
+const logger = loggerService.withContext('useAssistant')
+
+// ─── Tier 1: pure default-assistant composition ───────────────────────────
+
+const DEFAULT_ASSISTANT_TIMESTAMP = new Date(0).toISOString()
+
+/**
+ * Pure runtime composition of the default assistant. v2 has no `id='default'`
+ * row in SQLite (legacy `'default'` was remapped to a UUID by AssistantMigrator);
+ * the default assistant is always synthesized from a static template plus the
+ * caller-supplied `modelId` (sourced from `chat.default_model_id` preference).
+ *
+ * React contexts: prefer `useDefaultAssistant()` below.
+ */
+export function composeDefaultAssistant(modelId: UniqueModelId | null): Assistant {
+  return {
+    id: DEFAULT_ASSISTANT_ID,
+    name: i18n.t('chat.default.name'),
+    emoji: '😀',
+    prompt: '',
+    description: '',
+    settings: DEFAULT_ASSISTANT_SETTINGS,
+    modelId,
+    modelName: null,
+    mcpServerIds: [],
+    knowledgeBaseIds: [],
+    tags: [],
+    createdAt: DEFAULT_ASSISTANT_TIMESTAMP,
+    updatedAt: DEFAULT_ASSISTANT_TIMESTAMP
+  }
+}
+
+// ─── Tier 2: raw DataApi queries/mutations ────────────────────────────────
+
+const ASSISTANTS_LIST_LIMIT = 500
+
+const EMPTY_ASSISTANTS: readonly Assistant[] = Object.freeze([])
+
+const ASSISTANTS_REFRESH_KEYS: ConcreteApiPaths[] = ['/assistants', '/assistants/*']
+
+/**
+ * List all assistants from SQLite via DataApi.
+ *
+ * Returns up to {@link ASSISTANTS_LIST_LIMIT} assistants in a single fetch
+ * (matches the schema's hard cap). Paginated UI would need a different
+ * consumer.
+ */
+export function useAssistantsApi() {
+  const { data, isLoading, error, refetch, mutate } = useQuery('/assistants', {
+    query: { limit: ASSISTANTS_LIST_LIMIT }
+  })
+
+  return {
+    assistants: data?.items ?? EMPTY_ASSISTANTS,
+    total: data?.total ?? 0,
+    isLoading,
+    error,
+    refetch,
+    mutate
+  }
+}
+
+/**
+ * Fetch a single assistant by id from SQLite via DataApi.
+ */
+export function useAssistantApiById(id: string | undefined) {
+  const { data, isLoading, error, refetch, mutate } = useQuery('/assistants/:id', {
+    params: { id: id ?? '' },
+    enabled: !!id
+  })
+
+  return {
+    assistant: data,
+    isLoading,
+    error,
+    refetch,
+    mutate
+  }
+}
+
+/**
+ * Assistant mutations (create / update / delete) backed by DataApi.
+ */
+export function useAssistantMutations() {
+  const { trigger: createTrigger, isLoading: isCreating } = useMutation('POST', '/assistants', {
+    refresh: ASSISTANTS_REFRESH_KEYS
+  })
+  const { trigger: updateTrigger, isLoading: isUpdating } = useMutation('PATCH', '/assistants/:id', {
+    refresh: ASSISTANTS_REFRESH_KEYS
+  })
+  const { trigger: deleteTrigger, isLoading: isDeleting } = useMutation('DELETE', '/assistants/:id', {
+    refresh: ASSISTANTS_REFRESH_KEYS
+  })
+
+  const createAssistant = useCallback(
+    async (dto: CreateAssistantDto): Promise<Assistant> => {
+      const created = await createTrigger({ body: dto })
+      logger.info('Created assistant', { id: created.id })
+      return created
+    },
+    [createTrigger]
+  )
+
+  const updateAssistant = useCallback(
+    async (id: string, dto: UpdateAssistantDto): Promise<Assistant> => {
+      if (!id) {
+        throw new Error('updateAssistant called with empty id; refusing to issue PATCH /assistants/')
+      }
+      const updated = await updateTrigger({ params: { id }, body: dto })
+      logger.info('Updated assistant', { id })
+      return updated
+    },
+    [updateTrigger]
+  )
+
+  const deleteAssistant = useCallback(
+    async (id: string): Promise<void> => {
+      await deleteTrigger({ params: { id } })
+      logger.info('Deleted assistant', { id })
+    },
+    [deleteTrigger]
+  )
+
+  return {
+    createAssistant,
+    updateAssistant,
+    deleteAssistant,
+    isCreating,
+    isUpdating,
+    isDeleting
+  }
+}
+
+// ─── Tier 3: composed hooks ───────────────────────────────────────────────
 
 export function useAssistants() {
-  const { t } = useTranslation()
-  const { assistants } = useAppSelector((state) => state.assistants)
-  const dispatch = useAppDispatch()
-  const logger = loggerService.withContext('useAssistants')
+  const { assistants, isLoading, error, refetch } = useAssistantsApi()
+  const { createAssistant, deleteAssistant, updateAssistant } = useAssistantMutations()
 
   return {
     assistants,
-    updateAssistants: (assistants: Assistant[]) => dispatch(updateAssistants(assistants)),
-    addAssistant: (assistant: Assistant) => dispatch(addAssistant(assistant)),
-    insertAssistant: (index: number, assistant: Assistant) => dispatch(insertAssistant({ index, assistant })),
-    copyAssistant: (assistant: Assistant): Assistant | undefined => {
-      if (!assistant) {
-        logger.error("assistant doesn't exists.")
-        return
-      }
-      const index = assistants.findIndex((_assistant) => _assistant.id === assistant.id)
-      const _assistant: Assistant = { ...assistant, id: uuid(), topics: [getDefaultTopic(assistant.id)] }
-      if (index === -1) {
-        logger.warn("Origin assistant's id not found. Fallback to addAssistant.")
-        dispatch(addAssistant(_assistant))
-      } else {
-        // 插入到后面
-        try {
-          dispatch(insertAssistant({ index: index + 1, assistant: _assistant }))
-        } catch (e) {
-          logger.error('Failed to insert assistant', e as Error)
-          window.toast.error(t('message.error.copy'))
-        }
-      }
-      return _assistant
-    },
-    removeAssistant: (id: string) => {
-      dispatch(removeAssistant({ id }))
-      const assistant = assistants.find((a) => a.id === id)
-      const topics = assistant?.topics || []
-      topics.forEach(({ id }) => TopicManager.removeTopic(id))
-    }
+    isLoading,
+    error,
+    refetch,
+    addAssistant: (dto: CreateAssistantDto) => createAssistant(dto),
+    removeAssistant: (id: string) => deleteAssistant(id),
+    updateAssistant: (id: string, patch: UpdateAssistantDto) => updateAssistant(id, patch)
   }
 }
 
-export function useAssistant(id: string) {
-  const assistant = useAppSelector((state) => state.assistants.assistants.find((a) => a.id === id) as Assistant)
-  const dispatch = useAppDispatch()
+/**
+ * Returns the runtime-composed default-assistant template. Use this only at
+ * UI sites that need to render the "Default" preset card or seed a new
+ * assistant from the template (e.g. settings pages). It is
+ * NOT meant for chat call sites — a topic without an assistant should be
+ * rendered by handling `useAssistant(...).assistant === undefined` directly,
+ * not by faking up an Assistant.
+ */
+export function useDefaultAssistant(): { assistant: Assistant } {
+  const [defaultModelId] = usePreference('chat.default_model_id')
+  const modelId = (defaultModelId ?? null) as UniqueModelId | null
+  const assistant = useMemo(() => composeDefaultAssistant(modelId), [modelId])
+  return { assistant }
+}
+
+/**
+ * Hook for a single persisted assistant. Returns `assistant: undefined` when
+ * `id` is empty / null — callers should fall back to UI defaults (e.g.
+ * `assistant?.name ?? t('chat.default.name')`) rather than receiving a
+ * synthesised default Assistant. There is no special-case branch for the
+ * "default assistant" — a topic with no assistant carries
+ * `assistantId: undefined`, not a sentinel.
+ */
+export function useAssistant(id: string | null | undefined) {
+  const { assistant } = useAssistantApiById(id ?? undefined)
+  const { updateAssistant: patchAssistant } = useAssistantMutations()
   const { defaultModel } = useDefaultModel()
 
-  const model = useMemo(() => assistant?.model ?? assistant?.defaultModel ?? defaultModel, [assistant, defaultModel])
-  if (assistant && !model) {
-    throw new Error(`Assistant model is not set for assistant with name: ${assistant?.name ?? 'unknown'}`)
-  }
-
-  const normalizedTopics = useMemo(
-    () => (Array.isArray(assistant?.topics) ? assistant.topics : []),
-    [assistant?.topics]
-  )
-  const assistantWithModel = useMemo(
-    () => ({ ...assistant, model, topics: normalizedTopics }),
-    [assistant, model, normalizedTopics]
-  )
-
-  const settingsRef = useRef(assistant?.settings)
-
-  useEffect(() => {
-    settingsRef.current = assistant?.settings
-  }, [assistant?.settings])
+  const modelId = (assistant?.modelId ?? defaultModel?.id) as UniqueModelId
+  const { model } = useModelById(modelId)
 
   const updateAssistantSettings = useCallback(
     (settings: Partial<AssistantSettings>) => {
-      assistant?.id && dispatch(_updateAssistantSettings({ assistantId: assistant.id, settings }))
+      if (!id || !assistant) return
+      void patchAssistant(id, { settings })
     },
-    [assistant?.id, dispatch]
+    [assistant, id, patchAssistant]
   )
 
-  // 当model变化时，同步reasoning effort为模型支持的合法值
-  useEffect(() => {
-    const settings = settingsRef.current
-    if (settings) {
-      const currentReasoningEffort = settings.reasoning_effort
-      const cacheKey = `assistant.reasoning_effort_cache.${assistant.id}` as const
-
-      if (isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) {
-        const modelType = getThinkModelType(model)
-        const supportedOptions = MODEL_SUPPORTED_OPTIONS[modelType]
-        if (supportedOptions.every((option) => option !== currentReasoningEffort)) {
-          const cache = cacheService.get(cacheKey) as ThinkingOption | undefined
-          let fallbackOption: ThinkingOption
-
-          // 选项不支持时，首先尝试恢复到上次使用的值
-          if (cache && supportedOptions.includes(cache)) {
-            fallbackOption = cache
-          } else {
-            // 灵活回退到支持的值
-            // 注意：这里假设可用的options不会为空
-            const enableThinking = currentReasoningEffort !== undefined
-            fallbackOption = enableThinking
-              ? MODEL_SUPPORTED_REASONING_EFFORT[modelType][0]
-              : MODEL_SUPPORTED_OPTIONS[modelType][0]
-          }
-
-          cacheService.set(cacheKey, fallbackOption === 'none' ? undefined : fallbackOption)
-          updateAssistantSettings({
-            reasoning_effort: fallbackOption === 'none' ? undefined : fallbackOption,
-            qwenThinkMode: fallbackOption === 'none' ? undefined : true
-          })
-        } else {
-          // 对于支持的选项, 不再更新 cache.
-        }
-      } else {
-        // 切换到非思考模型时保留cache
-        if (currentReasoningEffort !== undefined) {
-          cacheService.set(cacheKey, currentReasoningEffort)
-        }
-        updateAssistantSettings({
-          reasoning_effort: undefined,
-          qwenThinkMode: undefined
-        })
-      }
-    }
-  }, [model, assistant?.id, updateAssistantSettings])
-
   return {
-    assistant: assistantWithModel,
+    assistant,
     model,
-    addTopic: (topic: Topic) => dispatch(addTopic({ assistantId: assistant.id, topic })),
-    removeTopic: (topic: Topic) => {
-      void TopicManager.removeTopic(topic.id)
-      dispatch(removeTopic({ assistantId: assistant.id, topic }))
+    setModel: (next: Model, extraSettings?: Partial<AssistantSettings>) => {
+      if (!id || !assistant) return
+      // reconcile* are v2-native; next.id is the UniqueModelId.
+      const reasoning = reconcileReasoningEffortForModel(next, assistant.settings.reasoning_effort, id)
+      const webSearch = reconcileWebSearchForModel(next, assistant.settings)
+      const settingsPatch =
+        extraSettings || reasoning || webSearch
+          ? { ...assistant.settings, ...extraSettings, ...reasoning, ...webSearch }
+          : undefined
+      void patchAssistant(id, settingsPatch ? { modelId: next.id, settings: settingsPatch } : { modelId: next.id })
     },
-    moveTopic: (topic: Topic, toAssistant: Assistant) => {
-      dispatch(addTopic({ assistantId: toAssistant.id, topic: { ...topic, assistantId: toAssistant.id } }))
-      dispatch(removeTopic({ assistantId: assistant.id, topic }))
-      // update topic messages in database
-      void db.topics
-        .where('id')
-        .equals(topic.id)
-        .modify((dbTopic) => {
-          if (dbTopic.messages) {
-            dbTopic.messages = dbTopic.messages.map((message) => ({
-              ...message,
-              assistantId: toAssistant.id
-            }))
-          }
-        })
+    updateAssistant: (patch: UpdateAssistantDto) => {
+      if (!id) return Promise.resolve(undefined)
+      return patchAssistant(id, patch)
     },
-    updateTopic: (topic: Topic) => dispatch(updateTopic({ assistantId: assistant.id, topic })),
-    updateTopics: (topics: Topic[]) => dispatch(updateTopics({ assistantId: assistant.id, topics })),
-    removeAllTopics: () => dispatch(removeAllTopics({ assistantId: assistant.id })),
-    setModel: useCallback(
-      (model: Model) => assistant && dispatch(setModel({ assistantId: assistant?.id, model })),
-      [assistant, dispatch]
-    ),
-    updateAssistant: useCallback(
-      (update: Partial<Omit<Assistant, 'id'>>) => dispatch(updateAssistant({ id, ...update })),
-      [dispatch, id]
-    ),
     updateAssistantSettings
-  }
-}
-
-export function useDefaultAssistant() {
-  const defaultAssistant = useAppSelector((state) => state.assistants.defaultAssistant)
-  const dispatch = useAppDispatch()
-  const memoizedTopics = useMemo(() => [getDefaultTopic(defaultAssistant.id)], [defaultAssistant.id])
-
-  return {
-    defaultAssistant: {
-      ...defaultAssistant,
-      topics: memoizedTopics
-    },
-    updateDefaultAssistant: (assistant: Assistant) => dispatch(updateDefaultAssistant({ assistant }))
-  }
-}
-
-export function useDefaultModel() {
-  const { defaultModel, quickModel, translateModel } = useAppSelector((state) => state.llm)
-  const dispatch = useAppDispatch()
-
-  return {
-    defaultModel,
-    quickModel,
-    translateModel,
-    setDefaultModel: (model: Model) => dispatch(setDefaultModel({ model })),
-    setQuickModel: (model: Model) => dispatch(setQuickModel({ model })),
-    setTranslateModel: (model: Model) => dispatch(setTranslateModel({ model }))
   }
 }

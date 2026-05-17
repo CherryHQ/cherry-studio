@@ -1,21 +1,34 @@
-import { getProviderByModel } from '@renderer/services/AssistantService'
-import type { Model } from '@renderer/types'
+import type { Model as V1Model } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { toSharedCompatModel } from '../_bridge'
 import { isEmbeddingModel, isRerankModel } from '../embedding'
 import {
-  isAutoEnableImageGenerationModel,
-  isDedicatedImageGenerationModel,
-  isGenerateImageModel,
-  isImageEnhancementModel,
-  isPureGenerateImageModel,
-  isTextToImageModel,
-  isVisionModel
+  isAutoEnableImageGenerationModel as _isAutoEnableImageGenerationModel,
+  isDedicatedImageGenerationModel as _isDedicatedImageGenerationModel,
+  isGenerateImageModel as _isGenerateImageModel,
+  isImageEnhancementModel as _isImageEnhancementModel,
+  isPureGenerateImageModel as _isPureGenerateImageModel,
+  isTextToImageModel as _isTextToImageModel,
+  isVisionModel as _isVisionModel
 } from '../vision'
 
-vi.mock('@renderer/hooks/useStore', () => ({
-  getStoreProviders: vi.fn(() => [])
-}))
+// Adapter: route v1-shape test fixtures through the same id→capability
+// inference the registry uses (`toSharedCompatModel`), so the wrappers stay
+// pure v2 while every existing assertion keeps its id→behaviour contract.
+const adapt =
+  <R>(fn: (m: Model) => R) =>
+  (m: Partial<V1Model>): R =>
+    fn(toSharedCompatModel(m as V1Model))
+const isAutoEnableImageGenerationModel = adapt(_isAutoEnableImageGenerationModel)
+const isDedicatedImageGenerationModel = adapt(_isDedicatedImageGenerationModel)
+const isGenerateImageModel = adapt(_isGenerateImageModel)
+const isImageEnhancementModel = adapt(_isImageEnhancementModel)
+const isPureGenerateImageModel = adapt(_isPureGenerateImageModel)
+const isTextToImageModel = adapt(_isTextToImageModel)
+const isVisionModel = adapt(_isVisionModel)
 
 vi.mock('@renderer/store', () => ({
   __esModule: true,
@@ -51,57 +64,30 @@ vi.mock('@renderer/hooks/useSettings', () => ({
   getStoreSetting: vi.fn()
 }))
 
-vi.mock('@renderer/services/AssistantService', () => ({
-  getProviderByModel: vi.fn()
-}))
-
 vi.mock('../embedding', () => ({
   isEmbeddingModel: vi.fn(),
   isRerankModel: vi.fn()
 }))
 
-const createModel = (overrides: Partial<Model> = {}): Model => ({
-  id: 'gpt-4o',
-  name: 'gpt-4o',
-  provider: 'openai',
-  group: 'OpenAI',
-  ...overrides
-})
+const createModel = (overrides: Partial<V1Model> = {}): V1Model =>
+  ({ id: 'gpt-4o', name: 'gpt-4o', provider: 'openai', group: 'OpenAI', ...overrides }) as V1Model
 
-const providerMock = vi.mocked(getProviderByModel)
 const embeddingMock = vi.mocked(isEmbeddingModel)
 const rerankMock = vi.mocked(isRerankModel)
 
 describe('vision helpers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    providerMock.mockReturnValue({ type: 'openai-response' } as any)
     embeddingMock.mockReturnValue(false)
     rerankMock.mockReturnValue(false)
   })
 
   describe('isGenerateImageModel', () => {
-    it('returns false for embedding/rerank models or missing providers', () => {
-      embeddingMock.mockReturnValueOnce(true)
-      expect(isGenerateImageModel(createModel({ id: 'gpt-image-1' }))).toBe(false)
-
-      embeddingMock.mockReturnValue(false)
-      rerankMock.mockReturnValueOnce(true)
-      expect(isGenerateImageModel(createModel({ id: 'gpt-image-1' }))).toBe(false)
-
-      rerankMock.mockReturnValue(false)
-      providerMock.mockReturnValueOnce(undefined as any)
-      expect(isGenerateImageModel(createModel({ id: 'gpt-image-1' }))).toBe(false)
-    })
-
-    it('detects OpenAI and third-party generative image models', () => {
-      expect(isGenerateImageModel(createModel({ id: 'gpt-4o-mini' }))).toBe(true)
-
-      providerMock.mockReturnValue({ type: 'custom' } as any)
+    it('detects third-party generative image models via capability', () => {
       expect(isGenerateImageModel(createModel({ id: 'gemini-2.5-flash-image' }))).toBe(true)
     })
 
-    it('returns false when openai-response model is not on allow list', () => {
+    it('returns false for non-image models', () => {
       expect(isGenerateImageModel(createModel({ id: 'gpt-4.2-experimental' }))).toBe(false)
     })
   })
@@ -138,42 +124,27 @@ describe('vision helpers', () => {
 })
 
 describe('isVisionModel', () => {
-  it('returns false for embedding/rerank models and honors overrides', () => {
-    embeddingMock.mockReturnValueOnce(true)
-    expect(isVisionModel(createModel({ id: 'gpt-4o' }))).toBe(false)
+  it('reads the authoritative v2 capabilities array', () => {
+    const disabled: Model = {
+      ...toSharedCompatModel(createModel({ id: 'gpt-4o' })),
+      capabilities: [],
+      inputModalities: []
+    }
+    expect(_isVisionModel(disabled)).toBe(false)
 
-    embeddingMock.mockReturnValue(false)
-    const disabled = createModel({
-      id: 'gpt-4o',
-      capabilities: [{ type: 'vision', isUserSelected: false }]
-    })
-    expect(isVisionModel(disabled)).toBe(false)
-
-    const forced = createModel({
-      id: 'gpt-4o',
-      capabilities: [{ type: 'vision', isUserSelected: true }]
-    })
-    expect(isVisionModel(forced)).toBe(true)
+    const forced: Model = {
+      ...toSharedCompatModel(createModel({ id: 'gpt-4o' })),
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION]
+    }
+    expect(_isVisionModel(forced)).toBe(true)
   })
 
-  it('matches doubao models by name and general regexes by id', () => {
-    const doubao = createModel({
-      id: 'custom-id',
-      provider: 'doubao',
-      name: 'Doubao-Seed-1-6-Lite-251015'
-    })
-    expect(isVisionModel(doubao)).toBe(true)
-
+  it('detects vision via id', () => {
     expect(isVisionModel(createModel({ id: 'gpt-4o-mini' }))).toBe(true)
   })
 
   it('leverages image enhancement regex when standard vision regex does not match', () => {
     expect(isVisionModel(createModel({ id: 'qwen-image-edit' }))).toBe(true)
-  })
-
-  it('returns false for doubao models that fail regex checks', () => {
-    const doubao = createModel({ id: 'doubao-standard', provider: 'doubao', name: 'basic' })
-    expect(isVisionModel(doubao)).toBe(false)
   })
 
   describe('Gemini Models', () => {
@@ -373,52 +344,42 @@ describe('isVisionModel', () => {
 
 describe('Doubao Seed 2.0 Models', () => {
   it('should identify doubao-seed-2-0-pro-260215 as vision model', () => {
-    const model: Model = {
+    const model = createModel({
       id: 'doubao-seed-2-0-pro-260215',
       name: 'doubao-seed-2-0-pro',
       provider: 'doubao',
       group: 'Doubao-Seed-2.0'
-    }
+    })
     expect(isVisionModel(model)).toBe(true)
   })
 
   it('should identify doubao-seed-2-0-lite-260215 as vision model', () => {
-    const model: Model = {
+    const model = createModel({
       id: 'doubao-seed-2-0-lite-260215',
       name: 'doubao-seed-2-0-lite',
       provider: 'doubao',
       group: 'Doubao-Seed-2.0'
-    }
+    })
     expect(isVisionModel(model)).toBe(true)
   })
 
   it('should identify doubao-seed-2-0-code-preview-260215 as vision model', () => {
-    const model: Model = {
+    const model = createModel({
       id: 'doubao-seed-2-0-code-preview-260215',
       name: 'doubao-seed-2-0-code-preview',
       provider: 'doubao',
       group: 'Doubao-Seed-2.0'
-    }
+    })
     expect(isVisionModel(model)).toBe(true)
   })
 
   it('should identify doubao-seed-2-0-mini-260215 as vision model', () => {
-    const model: Model = {
+    const model = createModel({
       id: 'doubao-seed-2-0-mini-260215',
       name: 'doubao-seed-2-0-mini',
       provider: 'doubao',
       group: 'Doubao-Seed-2.0'
-    }
-    expect(isVisionModel(model)).toBe(true)
-  })
-
-  it('should identify doubao-seed-2.0 models by provider and name', () => {
-    const model: Model = {
-      id: 'custom-id',
-      name: 'doubao-seed-2.0-pro-260215',
-      provider: 'doubao',
-      group: 'Doubao-Seed-2.0'
-    }
+    })
     expect(isVisionModel(model)).toBe(true)
   })
 })

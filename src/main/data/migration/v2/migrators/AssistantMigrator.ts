@@ -13,6 +13,7 @@ import { sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
+import { assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import { type AssistantTransformResult, type OldAssistant, transformAssistant } from './mappings/AssistantMappings'
 import { resolveModelReference } from './transformers/ModelTransformers'
@@ -236,9 +237,14 @@ export class AssistantMigrator extends BaseMigrator {
         return { ...row, modelId: null }
       })
 
+      // Replace transformAssistant's `''` orderKey placeholders with real
+      // fractional-indexing keys, ordered by transform/insert sequence.
+      // Uses the migrator-side helper per data-ordering-guide.md §5.
+      const orderedAssistantRows = assignOrderKeysInSequence(sanitizedAssistantRows)
+
       await ctx.db.transaction(async (tx) => {
-        for (let i = 0; i < sanitizedAssistantRows.length; i += BATCH_SIZE) {
-          const batch = sanitizedAssistantRows.slice(i, i + BATCH_SIZE)
+        for (let i = 0; i < orderedAssistantRows.length; i += BATCH_SIZE) {
+          const batch = orderedAssistantRows.slice(i, i + BATCH_SIZE)
           await tx.insert(assistantTable).values(batch)
           processed += batch.length
         }

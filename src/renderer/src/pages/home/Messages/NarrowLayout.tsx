@@ -1,6 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
 import type { FC, HTMLAttributes } from 'react'
-import styled from 'styled-components'
 
 interface Props extends HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode
@@ -10,22 +9,12 @@ const NarrowLayout: FC<Props> = ({ children, ...props }) => {
   const [narrowMode] = usePreference('chat.narrow_mode')
 
   return (
-    <Container className={`narrow-mode ${narrowMode ? 'active' : ''}`} {...props}>
+    <div
+      className={`narrow-mode relative mx-auto w-full max-w-full transition-[max-width] duration-300 ease-in-out ${narrowMode ? 'active max-w-[800px]' : ''}`}
+      {...props}>
       {children}
-    </Container>
+    </div>
   )
 }
-
-const Container = styled.div`
-  max-width: 100%;
-  width: 100%;
-  margin: 0 auto;
-  position: relative;
-  transition: max-width 0.3s ease-in-out;
-
-  &.active {
-    max-width: 800px;
-  }
-`
 
 export default NarrowLayout

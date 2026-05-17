@@ -1,4 +1,4 @@
-import type { Tool } from '@types'
+import type { AgentTool as Tool } from '@shared/data/api/schemas/agents'
 
 // https://docs.anthropic.com/en/docs/claude-code/settings#tools-available-to-claude
 export const builtinTools: Tool[] = [

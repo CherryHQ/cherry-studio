@@ -1,5 +1,3 @@
-import path from 'node:path'
-
 import { agentTable } from '@data/db/schemas/agent'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -8,7 +6,7 @@ import { pinService } from '@data/services/PinService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@main/apiServer/services/mcp', () => ({
   mcpApiService: {
@@ -42,7 +40,6 @@ vi.mock('@main/services/agents/agentUtils', async (importOriginal) => {
   const actual = await importOriginal()
   return {
     ...(actual as object),
-    listMcpTools: vi.fn().mockResolvedValue({ tools: [], legacyIdMap: {} }),
     validateAgentModels: vi.fn().mockResolvedValue(undefined),
     resolveAccessiblePaths: vi.fn((paths: string[]) => paths)
   }
@@ -52,14 +49,35 @@ describe('AgentService', () => {
   const dbh = setupTestDatabase()
   const uuidV4Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
+  // Seed a user_model row whose id is the canonical FK form, so createAgent
+  // calls with `model: <canonical id>` satisfy the FK.
+  const TEST_MODEL_ID = 'anthropic::claude-3-5-sonnet'
+  beforeEach(async () => {
+    await dbh.db
+      .insert(userProviderTable)
+      .values({ providerId: 'anthropic', name: 'anthropic', orderKey: generateOrderKeyBetween(null, null) })
+      .onConflictDoNothing()
+    await dbh.db
+      .insert(userModelTable)
+      .values({
+        id: TEST_MODEL_ID,
+        providerId: 'anthropic',
+        modelId: 'claude-3-5-sonnet',
+        name: 'claude-3-5-sonnet',
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+      .onConflictDoNothing()
+  })
+
   async function insertAgent(overrides: Partial<typeof agentTable.$inferInsert> = {}): Promise<{ id: string }> {
     const id = overrides.id ?? `agent_test_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
     const base: typeof agentTable.$inferInsert = {
       type: 'claude-code',
       name: 'Test Agent',
       instructions: 'You are a helpful assistant.',
-      model: 'claude-3-5-sonnet',
-      sortOrder: 0,
+      // FK to user_model.id; tests insert NULL since they don't exercise model behavior.
+      model: null,
+      orderKey: 'a0',
       ...overrides,
       id
     }
@@ -90,34 +108,20 @@ describe('AgentService', () => {
       const agent = await agentService.createAgent({
         type: 'claude-code',
         name: 'UUID ID Test',
-        model: 'claude-3-5-sonnet'
+        model: TEST_MODEL_ID
       })
 
       expect(agent.id).toMatch(uuidV4Pattern)
     })
 
-    it('uses a UUID workspace directory instead of deriving it from the agent id', async () => {
-      const agent = await agentService.createAgent({
-        type: 'claude-code',
-        name: 'Workspace Test',
-        model: 'claude-3-5-sonnet'
-      })
-
-      expect(agent.accessiblePaths).toHaveLength(1)
-      const workspace = agent.accessiblePaths[0]
-      expect(path.dirname(workspace)).toBe('/mock/feature.agents.workspaces')
-      expect(path.basename(workspace)).toMatch(uuidV4Pattern)
-      expect(path.basename(workspace)).not.toBe(agent.id.slice(-9))
-    })
-
-    it('places newly created agents at the top of asc(sortOrder) listings', async () => {
-      await insertAgent({ id: 'agent_existing_a', sortOrder: 0 })
-      await insertAgent({ id: 'agent_existing_b', sortOrder: 1 })
+    it('places newly created agents first under default sort (createdAt desc)', async () => {
+      await insertAgent({ id: 'agent_existing_a' })
+      await insertAgent({ id: 'agent_existing_b' })
 
       const created = await agentService.createAgent({
         type: 'claude-code',
         name: 'Newest',
-        model: 'claude-3-5-sonnet'
+        model: TEST_MODEL_ID
       })
 
       const { agents } = await agentService.listAgents()
@@ -152,7 +156,7 @@ describe('AgentService', () => {
   describe('listAgents', () => {
     it('respects limit and offset', async () => {
       for (let i = 0; i < 5; i++) {
-        await insertAgent({ name: `Agent ${i}`, sortOrder: i })
+        await insertAgent({ name: `Agent ${i}` })
       }
 
       const page1 = await agentService.listAgents({ limit: 2, offset: 0 })
@@ -168,9 +172,9 @@ describe('AgentService', () => {
     })
 
     it('sorts by name ascending when sortBy=name and orderBy=asc', async () => {
-      await insertAgent({ name: 'Zebra', sortOrder: 0 })
-      await insertAgent({ name: 'Alpha', sortOrder: 1 })
-      await insertAgent({ name: 'Mango', sortOrder: 2 })
+      await insertAgent({ name: 'Zebra' })
+      await insertAgent({ name: 'Alpha' })
+      await insertAgent({ name: 'Mango' })
 
       const { agents } = await agentService.listAgents({ sortBy: 'name', orderBy: 'asc' })
 

@@ -7,7 +7,7 @@ import RestoreKnowledgeBaseDialog from '../RestoreKnowledgeBaseDialog'
 
 const mockUseModels = vi.fn()
 
-vi.mock('@renderer/hooks/useModels', () => ({
+vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: unknown[]) => mockUseModels(...args)
 }))
 

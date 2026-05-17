@@ -5,20 +5,21 @@ import {
   isPerplexityProvider,
   isVertexProvider
 } from '@renderer/pages/settings/ProviderSettings/utils/provider'
-import { toV1ProviderShim } from '@renderer/pages/settings/ProviderSettings/utils/v1ProviderShim'
 import { formatApiHost } from '@renderer/utils'
 import { formatOllamaApiHost, formatVertexApiHost, isWithTrailingSharp } from '@renderer/utils/api'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import type { AuthConfig, Provider } from '@shared/data/types/provider'
 
 export function buildHostEndpointPreviews(params: {
   provider: Provider
+  /** Vertex-only: provider's iam-gcp authConfig from `/providers/:id/auth-config`. */
+  authConfig?: AuthConfig | null
   primaryEndpoint: EndpointType
   apiHost: string
   anthropicApiHost: string
   providerAnthropicHost: string
 }) {
-  const { provider, primaryEndpoint, apiHost, anthropicApiHost, providerAnthropicHost } = params
+  const { provider, authConfig, primaryEndpoint, apiHost, anthropicApiHost, providerAnthropicHost } = params
   const appendVersion = !isWithTrailingSharp(apiHost)
   let formattedHost: string
 
@@ -38,10 +39,12 @@ export function buildHostEndpointPreviews(params: {
   } else if (primaryEndpoint === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) {
     formattedHost = formatApiHost(apiHost, appendVersion, 'v1beta')
   } else if (isVertexProvider(provider)) {
-    // Transitional bridge: Vertex host formatting still reuses a legacy helper
-    // that accepts the old provider shape. Drop the shim when that formatter is
-    // updated to read the runtime/Data API provider contract directly.
-    formattedHost = formatVertexApiHost(toV1ProviderShim(provider, { apiHost }) as never)
+    // Vertex project/location live on the `iam-gcp` authConfig discriminator.
+    // Empty fallbacks keep the formatter resilient when authConfig is unset
+    // during onboarding — formatVertexApiHost still produces a usable preview.
+    const project = authConfig?.type === 'iam-gcp' ? authConfig.project : ''
+    const location = authConfig?.type === 'iam-gcp' ? authConfig.location : ''
+    formattedHost = formatVertexApiHost({ apiHost, project, location })
   } else {
     formattedHost = formatApiHost(apiHost, appendVersion)
   }

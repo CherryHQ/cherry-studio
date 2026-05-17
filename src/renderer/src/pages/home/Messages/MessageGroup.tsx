@@ -1,10 +1,12 @@
+import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
+import { updateMessageUiState } from '@renderer/hooks/useMessage'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { useV2Chat } from '@renderer/hooks/V2ChatContext'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
@@ -21,31 +23,42 @@ import MessageGroupMenuBar from './MessageGroupMenuBar'
 
 const logger = loggerService.withContext('MessageGroup')
 interface Props {
-  messages: (Message & { index: number })[]
+  messages: Message[]
   topic: Topic
   registerMessageElement?: (id: string, element: HTMLElement | null) => void
 }
+
+/**
+ * Read initial message UI state from cache (one-time, used for useState initializer).
+ */
+const getMessageUiFromCache = (messageId: string) =>
+  (cacheService.get(`message.ui.${messageId}` as const) || {}) as {
+    foldSelected?: boolean
+    multiModelMessageStyle?: string
+    useful?: boolean
+  }
 
 const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const messageLength = messages.length
 
   // Hooks
-  const { editMessage } = useMessageOperations(topic)
   const [multiModelMessageStyleSetting] = usePreference('chat.message.multi_model.style')
   const [gridColumns] = usePreference('chat.message.multi_model.grid_columns')
   const [gridPopoverTrigger] = usePreference('chat.message.multi_model.grid_popover_trigger')
-  const { isMultiSelectMode } = useChatContext(topic)
+  const { isMultiSelectMode } = useChatContext()
   const { setTimeoutTimer } = useTimer()
+  const v2Chat = useV2Chat()
 
   const isGrouped = isMultiSelectMode ? false : messageLength > 1 && messages.every((m) => m.role === 'assistant')
 
-  // States
+  // States — initialize from Cache, then tracked in React state
   const [_multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(
-    messages[0].multiModelMessageStyle || multiModelMessageStyleSetting
+    () =>
+      (getMessageUiFromCache(messages[0]?.id).multiModelMessageStyle as MultiModelMessageStyle) ||
+      multiModelMessageStyleSetting
   )
   const [selectedIndex, setSelectedIndex] = useState(messageLength - 1)
 
-  // 对于单模型消息，采用简单的样式，避免 overflow 影响内部的 sticky 效果
   const multiModelMessageStyle = useMemo(
     () => (messageLength < 2 ? 'fold' : _multiModelMessageStyle),
     [_multiModelMessageStyle, messageLength]
@@ -53,21 +66,46 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
 
   const isGrid = multiModelMessageStyle === 'grid'
 
-  const selectedMessageId = useMemo(() => {
+  // Track selected and useful message IDs in React state
+  const [selectedMessageId, setSelectedMessageIdState] = useState<string>(() => {
     if (messages.length === 1) return messages[0]?.id
-    const selectedMessage = messages.find((message) => message.foldSelected)
-    if (selectedMessage) {
-      return selectedMessage.id
+    const selected = messages.find((m) => getMessageUiFromCache(m.id).foldSelected)
+    return selected?.id ?? messages[0]?.id
+  })
+
+  const [usefulMessageId, setUsefulMessageIdState] = useState<string | null>(() => {
+    const useful = messages.find((m) => getMessageUiFromCache(m.id).useful)
+    return useful?.id ?? null
+  })
+
+  // Re-sync selected/useful ids when the group's membership changes
+  // (e.g., retry adds a new sibling and flips activeNodeId, so the old
+  // selected id falls off-path). Without this, `selectedMessageId` can
+  // point to a message no longer in `messages`, and the fold-mode CSS
+  // renders NOTHING (no wrapper gets the `selected` class) — the whole
+  // group looks empty until the component re-mounts on topic switch.
+  useEffect(() => {
+    const hasSelected = messages.some((m) => m.id === selectedMessageId)
+    if (!hasSelected) {
+      const next = messages.find((m) => getMessageUiFromCache(m.id).foldSelected)?.id ?? messages[0]?.id
+      if (next) setSelectedMessageIdState(next)
     }
-    return messages[0]?.id
-  }, [messages])
+    if (usefulMessageId && !messages.some((m) => m.id === usefulMessageId)) {
+      setUsefulMessageIdState(null)
+    }
+  }, [messages, selectedMessageId, usefulMessageId])
 
   const setSelectedMessage = useCallback(
     (message: Message) => {
       // 前一个
-      void editMessage(selectedMessageId, { foldSelected: false })
+      updateMessageUiState(selectedMessageId, { foldSelected: false })
       // 当前选中的消息
-      void editMessage(message.id, { foldSelected: true })
+      updateMessageUiState(message.id, { foldSelected: true })
+      setSelectedMessageIdState(message.id)
+
+      if (message.role === 'assistant' && message.id !== selectedMessageId) {
+        void v2Chat?.setActiveBranch(message.id)
+      }
 
       setTimeoutTimer(
         'setSelectedMessage',
@@ -80,7 +118,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
         200
       )
     },
-    [editMessage, selectedMessageId, setTimeoutTimer]
+    [selectedMessageId, setTimeoutTimer, v2Chat]
   )
   // 添加对流程图节点点击事件的监听
   useEffect(() => {
@@ -166,35 +204,31 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
         logger.error("the message to update doesn't exist in this group")
         return
       }
-      if (message.useful) {
-        void editMessage(msgId, { useful: undefined })
-        return
+      if (usefulMessageId === msgId) {
+        updateMessageUiState(msgId, { useful: undefined })
+        setUsefulMessageIdState(null)
       } else {
-        const toResetUsefulMsgs = messages.filter((msg) => msg.id !== msgId && msg.useful)
-        toResetUsefulMsgs.forEach(async (msg) => {
-          void editMessage(msg.id, {
-            useful: undefined
-          })
-        })
-        void editMessage(msgId, { useful: true })
+        // Reset previous useful message
+        if (usefulMessageId) {
+          updateMessageUiState(usefulMessageId, { useful: undefined })
+        }
+        updateMessageUiState(msgId, { useful: true })
+        setUsefulMessageIdState(msgId)
       }
     },
-    [editMessage, messages]
+    [messages, usefulMessageId]
   )
 
   const groupContextMessageId = useMemo(() => {
-    // NOTE: 旧数据可能存在一组消息有多个useful的情况，只取第一个，不再另作迁移
-    // find first useful
-    const usefulMsg = messages.find((msg) => msg.useful)
-    if (usefulMsg) {
-      return usefulMsg.id
+    if (usefulMessageId && messages.some((msg) => msg.id === usefulMessageId)) {
+      return usefulMessageId
     } else if (messages.length > 0) {
       return messages[0].id
     } else {
       logger.warn('Empty message group')
       return ''
     }
-  }, [messages])
+  }, [messages, usefulMessageId])
 
   const handleHorizontalGroupWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement | null
@@ -224,14 +258,14 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   }, [])
 
   const renderMessage = useCallback(
-    (message: Message & { index: number }) => {
+    (message: Message, index: number) => {
       const isGridGroupMessage = isGrid && message.role === 'assistant' && isGrouped
       const messageProps = {
         isGrouped,
         isHorizontalMultiModelLayout: multiModelMessageStyle === 'horizontal',
         message,
         topic,
-        index: message.index
+        index
       } satisfies ComponentProps<typeof MessageItem>
 
       const messageContent = (
@@ -312,13 +346,12 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
             setMultiModelMessageStyle={(style) => {
               setMultiModelMessageStyle(style)
               messages.forEach((message) => {
-                void editMessage(message.id, { multiModelMessageStyle: style })
+                updateMessageUiState(message.id, { multiModelMessageStyle: style })
               })
             }}
             messages={messages}
             selectMessageId={selectedMessageId}
             setSelectedMessage={setSelectedMessage}
-            topic={topic}
           />
         )}
       </GroupContainer>

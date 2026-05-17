@@ -23,6 +23,7 @@ import type {
   BranchMessage,
   BranchMessagesResponse,
   Message,
+  MessageData,
   SiblingsGroup,
   TreeNode,
   TreeResponse
@@ -30,9 +31,42 @@ import type {
 import type { UniqueModelId } from '@shared/data/types/model'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 
+import { topicService } from './TopicService'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MessageService')
+
+/**
+ * Input for `reserveAssistantTurn` — one "chat turn" reservation.
+ *
+ * Placeholders have `parentId` and `siblingsGroupId` intentionally omitted:
+ * both are derived by the reservation (placeholders always hang off the user
+ * message, and share the turn's group).
+ *
+ * An optional `id` on each placeholder lets callers (notably the AI stream
+ * pipeline) pre-generate the UUID on the renderer and thread it through so
+ * `useChat.activeResponse` and the DB row agree — eliminating the
+ * duplicate-assistant-message bug caused by client/DB id divergence.
+ */
+export interface ReserveAssistantTurnPlaceholder
+  extends Omit<CreateMessageDto, 'parentId' | 'siblingsGroupId' | 'setAsActive'> {
+  /** Optional caller-supplied UUID; falls back to the schema default when omitted. */
+  id?: string
+}
+
+export interface ReserveAssistantTurnInput {
+  topicId: string
+  userMessage: { mode: 'create'; dto: CreateMessageDto } | { mode: 'existing'; id: string }
+  /** If set, placeholders use this group and existing children with groupId=0 are backfilled. */
+  siblingsGroupId?: number
+  placeholders: ReserveAssistantTurnPlaceholder[]
+}
+
+export interface ReserveAssistantTurnResult {
+  userMessage: Message
+  /** In the same order as `input.placeholders`. */
+  placeholders: Message[]
+}
 
 /**
  * Preview length for tree nodes
@@ -379,7 +413,7 @@ export class MessageService {
 
     // Return empty if no active node
     if (!nodeId) {
-      return { items: [], nextCursor: undefined, activeNodeId: null }
+      return { items: [], nextCursor: undefined, activeNodeId: null, assistantId: topic.assistantId }
     }
 
     // Use recursive CTE to collect path IDs from nodeId to root (single-column
@@ -434,13 +468,17 @@ export class MessageService {
     const result: BranchMessage[] = []
 
     if (includeSiblings) {
-      // Collect unique (parentId, siblingsGroupId) pairs that need siblings
+      // Collect unique (parentId, siblingsGroupId) pairs that need siblings.
+      // `parentId` may be null for root siblings (multi-root branches created
+      // by forking the first user message), so `null` is a valid group key.
       const uniqueGroups = new Set<string>()
-      const groupsToQuery: Array<{ parentId: string; siblingsGroupId: number }> = []
+      const groupsToQuery: Array<{ parentId: string | null; siblingsGroupId: number }> = []
+      const groupKeyFor = (parentId: string | null, siblingsGroupId: number) =>
+        `${parentId ?? '__root__'}-${siblingsGroupId}`
 
       for (const msg of paginatedPath) {
-        if (msg.siblingsGroupId && msg.siblingsGroupId !== 0 && msg.parentId) {
-          const key = `${msg.parentId}-${msg.siblingsGroupId}`
+        if (msg.siblingsGroupId && msg.siblingsGroupId !== 0) {
+          const key = groupKeyFor(msg.parentId, msg.siblingsGroupId)
           if (!uniqueGroups.has(key)) {
             uniqueGroups.add(key)
             groupsToQuery.push({ parentId: msg.parentId, siblingsGroupId: msg.siblingsGroupId })
@@ -452,9 +490,12 @@ export class MessageService {
       const siblingsMap = new Map<string, Message[]>()
 
       if (groupsToQuery.length > 0) {
-        // Build OR conditions for batch query
+        // `eq(col, null)` never matches in SQL — use `isNull` for root siblings.
         const orConditions = groupsToQuery.map((g) =>
-          and(eq(messageTable.parentId, g.parentId), eq(messageTable.siblingsGroupId, g.siblingsGroupId))
+          and(
+            g.parentId === null ? isNull(messageTable.parentId) : eq(messageTable.parentId, g.parentId),
+            eq(messageTable.siblingsGroupId, g.siblingsGroupId)
+          )
         )
 
         const siblingsRows = await db
@@ -462,9 +503,8 @@ export class MessageService {
           .from(messageTable)
           .where(and(isNull(messageTable.deletedAt), or(...orConditions)))
 
-        // Group results by parentId-siblingsGroupId
         for (const row of siblingsRows) {
-          const key = `${row.parentId}-${row.siblingsGroupId}`
+          const key = groupKeyFor(row.parentId, row.siblingsGroupId ?? 0)
           if (!siblingsMap.has(key)) siblingsMap.set(key, [])
           siblingsMap.get(key)!.push(rowToMessage(row))
         }
@@ -475,8 +515,8 @@ export class MessageService {
         const message = rowToMessage(msg)
         let siblingsGroup: Message[] | undefined
 
-        if (msg.siblingsGroupId !== 0 && msg.parentId) {
-          const key = `${msg.parentId}-${msg.siblingsGroupId}`
+        if (msg.siblingsGroupId != null && msg.siblingsGroupId !== 0) {
+          const key = groupKeyFor(msg.parentId, msg.siblingsGroupId)
           const group = siblingsMap.get(key)
           if (group && group.length > 1) {
             siblingsGroup = group.filter((m) => m.id !== message.id)
@@ -495,7 +535,8 @@ export class MessageService {
     return {
       items: result,
       nextCursor,
-      activeNodeId: topic.activeNodeId
+      activeNodeId: topic.activeNodeId,
+      assistantId: topic.assistantId
     }
   }
 
@@ -516,6 +557,80 @@ export class MessageService {
     }
 
     return rowToMessage(row)
+  }
+
+  /** Get all children of a message (messages whose parentId = given id). */
+  async getChildrenByParentId(parentId: string): Promise<Message[]> {
+    const db = application.get('DbService').getDb()
+    const rows = await db
+      .select()
+      .from(messageTable)
+      .where(and(eq(messageTable.parentId, parentId), isNull(messageTable.deletedAt)))
+    return rows.map(rowToMessage)
+  }
+
+  /** Update siblingsGroupId for a single message. */
+  async updateSiblingsGroupId(id: string, siblingsGroupId: number): Promise<void> {
+    const db = application.get('DbService').getDb()
+    await db.update(messageTable).set({ siblingsGroupId }).where(eq(messageTable.id, id))
+  }
+
+  /**
+   * Create a new sibling of an existing message.
+   *
+   * Used by edit-and-resend flows where the user wants to branch the
+   * conversation rather than overwrite the previous turn. Runs in a single
+   * transaction so the source's `siblingsGroupId` backfill (when needed) and
+   * the new row's insert are atomic.
+   *
+   * Behavior:
+   * - Allocates a new `siblingsGroupId` (`Date.now()`) only if the source is
+   *   still ungrouped (`= 0`); otherwise joins the source's existing group.
+   * - The new message inherits the source's `role` and `topicId`, hangs off
+   *   the same `parentId`, and always becomes the topic's active node.
+   * - Root messages (`parentId = null`) are allowed: the single-root rule in
+   *   `create()` exists for plain creation ergonomics, but a topic can carry
+   *   multiple roots as long as they share a `siblingsGroupId`. This is how
+   *   we let the user branch the *first* user message.
+   */
+  async createSibling(sourceId: string, data: MessageData): Promise<Message> {
+    const db = application.get('DbService').getDb()
+
+    return await db.transaction(async (tx) => {
+      const [source] = await tx.select().from(messageTable).where(eq(messageTable.id, sourceId)).limit(1)
+      if (!source) {
+        throw DataApiErrorFactory.notFound('Message', sourceId)
+      }
+
+      let siblingsGroupId = source.siblingsGroupId ?? 0
+      if (siblingsGroupId === 0) {
+        siblingsGroupId = Date.now()
+        await tx.update(messageTable).set({ siblingsGroupId }).where(eq(messageTable.id, sourceId))
+      }
+
+      const [row] = await tx
+        .insert(messageTable)
+        .values({
+          topicId: source.topicId,
+          parentId: source.parentId,
+          role: source.role,
+          data,
+          status: 'pending',
+          siblingsGroupId
+        })
+        .returning()
+
+      await topicService.setActiveNodeTx(tx, source.topicId, row.id, { assumeValid: true })
+
+      logger.info('Created sibling message', {
+        sourceId,
+        newId: row.id,
+        parentId: source.parentId,
+        siblingsGroupId
+      })
+
+      return rowToMessage(row)
+    })
   }
 
   /**
@@ -546,33 +661,26 @@ export class MessageService {
       let resolvedParentId: string | null
 
       if (dto.parentId === undefined) {
-        // Auto-resolution mode: Determine parentId based on topic's current state.
-        // This provides convenience for callers who want to "append" to the conversation
-        // without needing to know the tree structure.
-
-        // Check if topic has any existing messages by querying for at least one.
-        const [existingMessage] = await tx
-          .select({ id: messageTable.id })
-          .from(messageTable)
-          .where(eq(messageTable.topicId, topicId))
-          .limit(1)
-
-        if (!existingMessage) {
-          // Topic is empty: This will be the first message, so it becomes the root.
-          // Root messages have parentId = null.
-          resolvedParentId = null
-        } else if (topic.activeNodeId) {
-          // Topic has messages and an active node: Attach new message as child of activeNodeId.
-          // This is the typical case for continuing a conversation.
+        // Auto-resolution: `activeNodeId` is the authoritative "where we are
+        // in this conversation" marker. When set, append there; otherwise
+        // the topic must be empty and we create the root.
+        if (topic.activeNodeId) {
           resolvedParentId = topic.activeNodeId
         } else {
-          // Topic has messages but no activeNodeId: This is an ambiguous state.
-          // We cannot auto-resolve because we don't know where in the tree to attach.
-          // Require explicit parentId from caller to resolve the ambiguity.
-          throw DataApiErrorFactory.invalidOperation(
-            'create message',
-            'Topic has messages but no activeNodeId. Please specify parentId explicitly.'
-          )
+          // No active node → topic should be empty. If a root already exists
+          // in some ambiguous state, require the caller to be explicit.
+          const [existingRoot] = await tx
+            .select({ id: messageTable.id })
+            .from(messageTable)
+            .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.parentId)))
+            .limit(1)
+          if (existingRoot) {
+            throw DataApiErrorFactory.invalidOperation(
+              'create message',
+              'Topic has messages but no activeNodeId. Please specify parentId explicitly.'
+            )
+          }
+          resolvedParentId = null
         }
       } else if (dto.parentId === null) {
         // Explicit root creation: Caller wants to create a root message.
@@ -592,18 +700,15 @@ export class MessageService {
         }
         resolvedParentId = null
       } else {
-        // Explicit parent ID provided: Validate the parent exists and belongs to this topic.
-        // This ensures referential integrity within the message tree.
-
+        // Explicit parent ID: verify existence and topic membership. Each
+        // topic's message tree is self-contained — cross-topic parent refs
+        // aren't a supported shape.
         const [parent] = await tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1)
 
         if (!parent) {
-          // Parent message not found: Cannot attach to non-existent message.
           throw DataApiErrorFactory.notFound('Message', dto.parentId)
         }
         if (parent.topicId !== topicId) {
-          // Parent belongs to different topic: Cross-topic references are not allowed.
-          // Each topic's message tree must be self-contained.
           throw DataApiErrorFactory.invalidOperation('create message', 'Parent message does not belong to this topic')
         }
         resolvedParentId = dto.parentId
@@ -628,12 +733,147 @@ export class MessageService {
 
       // Update activeNodeId if setAsActive is not explicitly false
       if (dto.setAsActive !== false) {
-        await tx.update(topicTable).set({ activeNodeId: row.id }).where(eq(topicTable.id, topicId))
+        await topicService.setActiveNodeTx(tx, topicId, row.id, { assumeValid: true })
       }
 
       logger.info('Created message', { id: row.id, topicId, role: dto.role, setAsActive: dto.setAsActive !== false })
 
       return rowToMessage(row)
+    })
+  }
+
+  /**
+   * Atomically reserve an assistant turn: insert (or resolve) one user message,
+   * optionally backfill existing siblings with groupId=0, and insert N assistant
+   * placeholders as children, then point topic.activeNodeId at the last placeholder.
+   *
+   * The whole operation runs in a single DB transaction, so a failure anywhere
+   * rolls back everything — callers don't need compensation logic. Designed for
+   * the AI Stream reservation phase where multi-model / regenerate turns must be
+   * written as one unit to avoid orphaned user messages or pending placeholders.
+   *
+   * User message handling:
+   * - `mode: 'create'`: caller supplies a CreateMessageDto; parentId must be null
+   *   (for root) or an existing message id in this topic. Auto-resolve is not
+   *   supported here — this API is for chat reservation, not general inserts.
+   * - `mode: 'existing'`: caller supplies the id of an already-persisted user
+   *   message (regenerate scenario).
+   *
+   * Siblings backfill: if `siblingsGroupId` is provided, any existing children
+   * of the user message whose `siblingsGroupId = 0` are backfilled to it. This
+   * is a no-op when there are no existing children (fresh turn) or when they
+   * already belong to a group (inherit case).
+   */
+  async reserveAssistantTurn(input: ReserveAssistantTurnInput): Promise<ReserveAssistantTurnResult> {
+    const db = application.get('DbService').getDb()
+
+    return await db.transaction(async (tx) => {
+      // Validate topic
+      const [topic] = await tx.select().from(topicTable).where(eq(topicTable.id, input.topicId)).limit(1)
+      if (!topic) {
+        throw DataApiErrorFactory.notFound('Topic', input.topicId)
+      }
+
+      // 1. Resolve user message — insert new, or fetch existing
+      let userMessage: Message
+      if (input.userMessage.mode === 'create') {
+        const dto = input.userMessage.dto
+        let resolvedParentId: string | null
+
+        if (dto.parentId === undefined || dto.parentId === null) {
+          // Explicit/default root: enforce single-root invariant
+          const [existingRoot] = await tx
+            .select({ id: messageTable.id })
+            .from(messageTable)
+            .where(and(eq(messageTable.topicId, input.topicId), isNull(messageTable.parentId)))
+            .limit(1)
+          if (existingRoot) {
+            throw DataApiErrorFactory.invalidOperation('create root message', 'Topic already has a root message')
+          }
+          resolvedParentId = null
+        } else {
+          const [parent] = await tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1)
+          if (!parent) {
+            throw DataApiErrorFactory.notFound('Message', dto.parentId)
+          }
+          if (parent.topicId !== input.topicId) {
+            throw DataApiErrorFactory.invalidOperation('create message', 'Parent message does not belong to this topic')
+          }
+          resolvedParentId = dto.parentId
+        }
+
+        const [row] = await tx
+          .insert(messageTable)
+          .values({
+            topicId: input.topicId,
+            parentId: resolvedParentId,
+            role: dto.role,
+            data: dto.data,
+            status: dto.status ?? 'pending',
+            siblingsGroupId: dto.siblingsGroupId ?? 0,
+            modelId: dto.modelId,
+            modelSnapshot: dto.modelSnapshot,
+            traceId: dto.traceId,
+            stats: dto.stats
+          })
+          .returning()
+        userMessage = rowToMessage(row)
+      } else {
+        const [row] = await tx.select().from(messageTable).where(eq(messageTable.id, input.userMessage.id)).limit(1)
+        if (!row) {
+          throw DataApiErrorFactory.notFound('Message', input.userMessage.id)
+        }
+        if (row.topicId !== input.topicId) {
+          throw DataApiErrorFactory.invalidOperation(
+            'reserve assistant turn',
+            'User message does not belong to this topic'
+          )
+        }
+        userMessage = rowToMessage(row)
+      }
+
+      // 2. Backfill siblings with groupId=0 under the user message
+      if (input.siblingsGroupId != null) {
+        await tx
+          .update(messageTable)
+          .set({ siblingsGroupId: input.siblingsGroupId })
+          .where(and(eq(messageTable.parentId, userMessage.id), eq(messageTable.siblingsGroupId, 0)))
+      }
+
+      // 3. Insert placeholders (preserving input order)
+      const placeholders: Message[] = []
+      for (const p of input.placeholders) {
+        const [row] = await tx
+          .insert(messageTable)
+          .values({
+            ...(p.id && { id: p.id }),
+            topicId: input.topicId,
+            parentId: userMessage.id,
+            role: p.role,
+            data: p.data,
+            status: p.status ?? 'pending',
+            siblingsGroupId: input.siblingsGroupId ?? 0,
+            modelId: p.modelId,
+            modelSnapshot: p.modelSnapshot,
+            traceId: p.traceId,
+            stats: p.stats
+          })
+          .returning()
+        placeholders.push(rowToMessage(row))
+      }
+
+      // 4. Point activeNodeId at the last placeholder (or user message if N=0)
+      const newActiveNodeId = placeholders.at(-1)?.id ?? userMessage.id
+      await topicService.setActiveNodeTx(tx, input.topicId, newActiveNodeId, { assumeValid: true })
+
+      logger.info('Reserved assistant turn', {
+        topicId: input.topicId,
+        userMessageId: userMessage.id,
+        placeholderIds: placeholders.map((p) => p.id),
+        siblingsGroupId: input.siblingsGroupId
+      })
+
+      return { userMessage, placeholders }
     })
   }
 
@@ -793,7 +1033,13 @@ export class MessageService {
 
       // Update topic.activeNodeId if needed
       if (newActiveNodeId !== undefined) {
-        await tx.update(topicTable).set({ activeNodeId: newActiveNodeId }).where(eq(topicTable.id, message.topicId))
+        if (newActiveNodeId === null) {
+          // No remaining message to anchor to — clear directly. setActiveNodeTx
+          // would reject null because it can't validate "no message".
+          await tx.update(topicTable).set({ activeNodeId: null }).where(eq(topicTable.id, message.topicId))
+        } else {
+          await topicService.setActiveNodeTx(tx, message.topicId, newActiveNodeId, { assumeValid: true })
+        }
 
         logger.info('Updated topic activeNodeId after message deletion', {
           topicId: message.topicId,
@@ -865,6 +1111,50 @@ export class MessageService {
     const ordered = ancestorRows.sort((a, b) => ancestorOrder.get(a.id)! - ancestorOrder.get(b.id)!)
 
     return ordered.reverse().map(rowToMessage)
+  }
+
+  /**
+   * Read-only path query for branch-aware UI.
+   *
+   * Returns the conversation path that passes through `nodeId` and
+   * descends into its subtree to the leaf with the greatest `created_at`
+   * (skipping deleted nodes). If `nodeId` has no live children, the leaf
+   * is `nodeId` itself.
+   *
+   * Pure read — does not touch `topic.activeNodeId`. Callers that want to
+   * persist a navigation result should follow up with `setActiveNode`.
+   */
+  async getPathThrough(topicId: string, nodeId: string): Promise<Message[]> {
+    const db = application.get('DbService').getDb()
+
+    const [node] = await db
+      .select()
+      .from(messageTable)
+      .where(and(eq(messageTable.id, nodeId), eq(messageTable.topicId, topicId), isNull(messageTable.deletedAt)))
+      .limit(1)
+    if (!node) {
+      throw DataApiErrorFactory.notFound('Message', nodeId)
+    }
+
+    const [leaf] = await db.all<{ id: string }>(sql`
+      WITH RECURSIVE subtree AS (
+        SELECT id, created_at FROM message
+          WHERE id = ${nodeId} AND topic_id = ${topicId} AND deleted_at IS NULL
+        UNION ALL
+        SELECT m.id, m.created_at FROM message m
+          INNER JOIN subtree s ON m.parent_id = s.id
+          WHERE m.deleted_at IS NULL
+      )
+      SELECT s.id FROM subtree s
+      WHERE NOT EXISTS (
+        SELECT 1 FROM message c
+        WHERE c.parent_id = s.id AND c.deleted_at IS NULL
+      )
+      ORDER BY s.created_at DESC
+      LIMIT 1
+    `)
+
+    return await this.getPathToNode(leaf?.id ?? nodeId)
   }
 }
 

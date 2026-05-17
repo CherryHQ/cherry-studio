@@ -18,12 +18,32 @@
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSelector, createSlice } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
-import { TopicManager } from '@renderer/hooks/useTopic'
-import { DEFAULT_ASSISTANT_SETTINGS, getDefaultAssistant, getDefaultTopic } from '@renderer/services/AssistantService'
-import type { Assistant, AssistantPreset, AssistantSettings, Model, Topic } from '@renderer/types'
+import i18n from '@renderer/i18n'
+import { DEFAULT_ASSISTANT_SETTINGS, getDefaultAssistant } from '@renderer/services/AssistantService'
+import type { LegacyAssistant as Assistant, LegacyAssistant as AssistantPreset, Model, Topic } from '@renderer/types'
 import { isEmpty, uniqBy } from 'lodash'
+import { v4 as uuid } from 'uuid'
+
+// v1 helper inlined here — the only remaining consumer is `removeAllTopics`
+// below. AssistantService dropped the export when the topic shape moved to
+// DataApi; keeping the helper colocated keeps the v1-only rot contained to
+// this deprecated slice.
+function getDefaultTopic(assistantId: string): Topic {
+  const now = new Date().toISOString()
+  return {
+    id: uuid(),
+    assistantId,
+    createdAt: now,
+    updatedAt: now,
+    name: i18n.t('chat.default.topic.name'),
+    messages: [],
+    isNameManuallyEdited: false
+  }
+}
 
 import type { RootState } from '.'
+
+type AssistantSettings = Assistant['settings']
 
 export interface AssistantsState {
   defaultAssistant: Assistant
@@ -176,7 +196,6 @@ const assistantsSlice = createSlice({
     removeAllTopics: (state, action: PayloadAction<{ assistantId: string }>) => {
       state.assistants = state.assistants.map((assistant) => {
         if (assistant.id === action.payload.assistantId) {
-          normalizeTopics(assistant.topics).forEach((topic) => TopicManager.removeTopic(topic.id))
           return {
             ...assistant,
             topics: [getDefaultTopic(assistant.id)]

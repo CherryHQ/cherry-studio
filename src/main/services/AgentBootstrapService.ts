@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import { modelsService } from '@main/apiServer/services/models'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
 import * as z from 'zod'
@@ -7,29 +6,9 @@ import * as z from 'zod'
 import { extractRtkBinaries } from '../utils/rtk'
 import { listMcpTools } from './agents/agentUtils'
 import { channelManager } from './agents/services/channels'
-import { registerSessionStreamIpc } from './agents/services/channels/sessionStreamIpc'
 import { schedulerService } from './agents/services/SchedulerService'
 
 const logger = loggerService.withContext('AgentBootstrapService')
-const ProviderTypeSchema = z.enum([
-  'openai',
-  'openai-response',
-  'anthropic',
-  'gemini',
-  'azure-openai',
-  'vertexai',
-  'mistral',
-  'aws-bedrock',
-  'vertex-anthropic',
-  'new-api',
-  'gateway',
-  'ollama'
-])
-const ModelsFilterSchema = z.strictObject({
-  providerType: ProviderTypeSchema.optional(),
-  offset: z.coerce.number().min(0).default(0).optional(),
-  limit: z.coerce.number().min(1).default(20).optional()
-})
 const RunTaskArgsSchema = z.strictObject({
   agentId: z.string().min(1),
   taskId: z.string().min(1)
@@ -42,10 +21,6 @@ const ListToolsArgsSchema = z.strictObject({
 
 export function validateRunTaskArgs(agentId: string, taskId: string) {
   return RunTaskArgsSchema.parse({ agentId, taskId })
-}
-
-export function validateGetModelsFilter(filter: unknown) {
-  return ModelsFilterSchema.parse(filter ?? {})
 }
 
 export function validateListToolsArgs(args: unknown) {
@@ -69,21 +44,14 @@ export class AgentBootstrapService extends BaseService {
     await schedulerService.restoreSchedulers()
     logger.info('Schedulers restored')
 
-    registerSessionStreamIpc()
-    logger.info('Session stream IPC registered')
-
     this.ipcHandle(IpcChannel.Agent_RunTask, async (_, agentId: string, taskId: string) => {
       const parsed = validateRunTaskArgs(agentId, taskId)
       await schedulerService.runTaskNow(parsed.agentId, parsed.taskId)
     })
 
-    this.ipcHandle(IpcChannel.Agent_GetModels, async (_, filter: Parameters<typeof modelsService.getModels>[0]) => {
-      return modelsService.getModels(validateGetModelsFilter(filter))
-    })
-
     this.ipcHandle(IpcChannel.Agent_ListTools, async (_, args: unknown) => {
       const parsed = validateListToolsArgs(args)
-      const { tools } = await listMcpTools(parsed.type, parsed.mcps)
+      const tools = await listMcpTools(parsed.type, parsed.mcps)
       return tools
     })
 
@@ -91,7 +59,10 @@ export class AgentBootstrapService extends BaseService {
     logger.info('Channel manager started')
   }
 
-  protected async onDestroy(): Promise<void> {
+  protected async onStop(): Promise<void> {
+    // Cleanup belongs to onStop (not onDestroy) so the service is restartable:
+    // a restart after `application.stop('AgentBootstrapService')` would
+    // otherwise leak two scheduler poll loops + channel adapter sets.
     schedulerService.stopAll()
     logger.info('Schedulers stopped')
 

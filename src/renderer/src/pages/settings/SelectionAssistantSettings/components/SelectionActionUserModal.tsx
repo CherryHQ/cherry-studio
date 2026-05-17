@@ -19,7 +19,7 @@ import {
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import CopyButton from '@renderer/components/CopyButton'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
-import { getDefaultModel } from '@renderer/services/AssistantService'
+import { useDefaultModel } from '@renderer/hooks/useModel'
 import { cn } from '@renderer/utils/style'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { CircleHelp, Dices, OctagonX } from 'lucide-react'
@@ -44,7 +44,8 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
 }) => {
   const { t } = useTranslation()
   const { assistants: userPredefinedAssistants } = useAssistants()
-  const { defaultAssistant } = useDefaultAssistant()
+  const { assistant: defaultAssistant } = useDefaultAssistant()
+  const { defaultModel } = useDefaultModel()
 
   const [formData, setFormData] = useState<Partial<SelectionActionItem>>({})
   const [errors, setErrors] = useState<Partial<Record<keyof SelectionActionItem, string>>>({})
@@ -219,7 +220,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                 <SelectContent>
                   <SelectItem key={defaultAssistant.id} value={defaultAssistant.id}>
                     <AssistantItem>
-                      <ModelAvatar model={defaultAssistant.model || getDefaultModel()} size={18} />
+                      <ModelAvatar model={defaultModel} size={18} />
                       <AssistantName>{defaultAssistant.name}</AssistantName>
                       <Spacer />
                       <CurrentTag isCurrent={true}>{t('selection.settings.user_modal.assistant.default')}</CurrentTag>
@@ -230,7 +231,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                     .map((a) => (
                       <SelectItem key={a.id} value={a.id}>
                         <AssistantItem>
-                          <ModelAvatar model={a.model || getDefaultModel()} size={18} />
+                          <ModelAvatar model={defaultModel} size={18} />
                           <AssistantName>{a.name}</AssistantName>
                           <Spacer />
                         </AssistantItem>

@@ -1,16 +1,15 @@
-import { Box, EmptyState, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
+import { Box, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { Assistant, McpMode } from '@renderer/types'
 import { getEffectiveMcpMode } from '@renderer/types'
-import { cn } from '@renderer/utils'
-import type { MCPServer } from '@shared/data/types/mcpServer'
-import { Radio } from 'antd'
-import type React from 'react'
+import type { UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
+import { Empty, Radio } from 'antd'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 
 interface Props {
   assistant: Assistant
-  updateAssistant: (assistant: Assistant) => void
+  updateAssistant: (patch: UpdateAssistantDto) => void
 }
 
 const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) => {
@@ -18,30 +17,29 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
   const { mcpServers: allMcpServers } = useMCPServers()
 
   const currentMode = getEffectiveMcpMode(assistant)
+  const enabledServerIds = assistant.mcpServerIds ?? []
 
   const handleModeChange = (mode: McpMode) => {
-    updateAssistant({ ...assistant, mcpMode: mode })
+    updateAssistant({ settings: { ...assistant.settings, mcpMode: mode } })
   }
 
   const onUpdate = (ids: string[]) => {
-    const mcpServers = ids
-      .map((id) => allMcpServers.find((server) => server.id === id))
-      .filter((server): server is MCPServer => server !== undefined && server.isActive)
-
-    updateAssistant({ ...assistant, mcpServers, mcpMode: 'manual' })
+    const activeIds = ids.filter((id) => allMcpServers.find((server) => server.id === id && server.isActive))
+    updateAssistant({
+      mcpServerIds: activeIds,
+      settings: { ...assistant.settings, mcpMode: 'manual' }
+    })
   }
 
   const handleServerToggle = (serverId: string) => {
-    const currentServerIds = assistant.mcpServers?.map((server) => server.id) || []
-
-    if (currentServerIds.includes(serverId)) {
-      onUpdate(currentServerIds.filter((id) => id !== serverId))
+    if (enabledServerIds.includes(serverId)) {
+      onUpdate(enabledServerIds.filter((id) => id !== serverId))
     } else {
-      onUpdate([...currentServerIds, serverId])
+      onUpdate([...enabledServerIds, serverId])
     }
   }
 
-  const enabledCount = assistant.mcpServers?.length || 0
+  const enabledCount = enabledServerIds.length
 
   return (
     <Container>
@@ -89,7 +87,7 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
           {allMcpServers.length > 0 ? (
             <ServerList>
               {allMcpServers.map((server) => {
-                const isEnabled = assistant.mcpServers?.some((s) => s.id === server.id) || false
+                const isEnabled = enabledServerIds.includes(server.id)
 
                 return (
                   <ServerItem key={server.id} isEnabled={isEnabled}>
@@ -116,10 +114,9 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
             </ServerList>
           ) : (
             <EmptyContainer>
-              <EmptyState
-                compact
-                preset="no-resource"
+              <Empty
                 description={t('assistants.settings.mcp.noServersAvailable', 'No MCP servers available')}
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
               />
             </EmptyContainer>
           )}
@@ -129,77 +126,121 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
   )
 }
 
-const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex min-h-0 flex-1 flex-col', className)} {...props} />
-)
+const Container = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+`
 
-const HeaderContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mb-4 flex items-center justify-between', className)} {...props} />
-)
+const HeaderContainer = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+`
 
-const ModeSelector = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={cn(
-      'mb-4 [&_.ant-radio-button-wrapper:not(:first-child)::before]:hidden [&_.ant-radio-button-wrapper]:h-auto [&_.ant-radio-button-wrapper]:rounded-lg [&_.ant-radio-button-wrapper]:border [&_.ant-radio-button-wrapper]:border-border [&_.ant-radio-button-wrapper]:px-4 [&_.ant-radio-button-wrapper]:py-3 [&_.ant-radio-group]:flex [&_.ant-radio-group]:flex-col [&_.ant-radio-group]:gap-2',
-      className
-    )}
-    {...props}
-  />
-)
+const ModeSelector = styled.div`
+  margin-bottom: 16px;
 
-const ModeOption = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex flex-col gap-0.5', className)} {...props} />
-)
+  .ant-radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
 
-const ModeLabel = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('font-semibold', className)} {...props} />
-)
+  .ant-radio-button-wrapper {
+    height: auto;
+    padding: 12px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
 
-const ModeDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('text-foreground-secondary text-xs', className)} {...props} />
-)
+    &:not(:first-child)::before {
+      display: none;
+    }
 
-const EnabledCount = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('mb-2 text-foreground-secondary text-xs', className)} {...props} />
-)
+    &:first-child {
+      border-radius: 8px;
+    }
 
-const EmptyContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex flex-1 items-center justify-center py-10', className)} {...props} />
-)
+    &:last-child {
+      border-radius: 8px;
+    }
+  }
+`
 
-const ServerList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex flex-col gap-2 overflow-y-auto', className)} {...props} />
-)
+const ModeOption = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+`
 
-const ServerItem = ({
-  className,
-  isEnabled,
-  ...props
-}: React.ComponentPropsWithoutRef<'div'> & { isEnabled: boolean }) => (
-  <div
-    className={cn(
-      'flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3 transition-all',
-      isEnabled ? 'opacity-100' : 'opacity-70',
-      className
-    )}
-    {...props}
-  />
-)
+const ModeLabel = styled.span`
+  font-weight: 600;
+`
 
-const ServerInfo = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex flex-1 flex-col overflow-hidden', className)} {...props} />
-)
+const ModeDescription = styled.span`
+  font-size: 12px;
+  color: var(--color-text-2);
+`
 
-const ServerName = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mb-1 font-semibold', className)} {...props} />
-)
+const EnabledCount = styled.span`
+  font-size: 12px;
+  color: var(--color-text-2);
+  margin-bottom: 8px;
+`
 
-const ServerDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mb-0.75 text-[0.85rem] text-foreground-secondary', className)} {...props} />
-)
+const EmptyContainer = styled.div`
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 0;
+`
 
-const ServerUrl = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('truncate text-[0.8rem] text-foreground-muted', className)} {...props} />
-)
+const ServerList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+`
+
+const ServerItem = styled.div<{ isEnabled: boolean }>`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background-color: var(--color-background-mute);
+  border: 1px solid var(--color-border);
+  transition: all 0.2s ease;
+  opacity: ${(props) => (props.isEnabled ? 1 : 0.7)};
+`
+
+const ServerInfo = styled.div`
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+`
+
+const ServerName = styled.div`
+  font-weight: 600;
+  margin-bottom: 4px;
+`
+
+const ServerDescription = styled.div`
+  font-size: 0.85rem;
+  color: var(--color-text-2);
+  margin-bottom: 3px;
+`
+
+const ServerUrl = styled.div`
+  font-size: 0.8rem;
+  color: var(--color-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`
 
 export default AssistantMCPSettings

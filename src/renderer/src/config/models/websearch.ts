@@ -1,194 +1,60 @@
-import { getProviderByModel } from '@renderer/services/AssistantService'
-import type { Model } from '@renderer/types'
-import { SystemProviderIds } from '@renderer/types'
-import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
+/**
+ * Web-search capability checks.
+ *
+ * `isWebSearchModel` reads shared's `WEB_SEARCH` capability. Provider-host
+ * nuances (Bedrock disabling Claude search, Vertex allowing only 4-series,
+ * etc.) belong at the provider-routing layer — not in this model-identity
+ * check.
+ *
+ * `isMandatoryWebSearchModel` / `isOpenRouterBuiltInWebSearchModel` remain
+ * provider-aware because they answer "is this host forcing the search on?" —
+ * a routing concern. v2 `Model.id` is a `providerId::modelId` pair, so the
+ * provider is derived directly from the id (no v1 ProviderService lookup).
+ */
+import { getLowerBaseModelName } from '@renderer/utils'
+import type { Model } from '@shared/data/types/model'
+import { parseUniqueModelId } from '@shared/data/types/model'
 import {
-  isAzureOpenAIProvider,
-  isGeminiProvider,
-  isNewApiProvider,
-  isOpenAICompatibleProvider,
-  isOpenAIProvider,
-  isVertexProvider
-} from '@renderer/utils/provider'
+  isHunyuanSearchModel as sharedIsHunyuanSearchModel,
+  isOpenAIWebSearchChatCompletionOnlyModel as sharedIsOpenAIWebSearchChatCompletionOnlyModel,
+  isOpenAIWebSearchModel as sharedIsOpenAIWebSearchModel,
+  isWebSearchModel as sharedIsWebSearchModel
+} from '@shared/utils/model'
 
 export { GEMINI_FLASH_MODEL_REGEX } from './utils'
 
-import { isEmbeddingModel, isRerankModel } from './embedding'
-import { isClaude4SeriesModel } from './reasoning'
-import { isAnthropicModel } from './utils'
-import { isTextToImageModel } from './vision'
+const PERPLEXITY_SEARCH_MODELS = ['sonar-pro', 'sonar', 'sonar-reasoning', 'sonar-reasoning-pro', 'sonar-deep-research']
 
-const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
-  `\\b(?:claude-3(-|\\.)(7|5)-sonnet(?:-[\\w-]+)|claude-3(-|\\.)5-haiku(?:-[\\w-]+)|claude-(haiku|sonnet|opus)-4(?:-[\\w-]+)?)\\b`,
-  'i'
-)
+// ── Pure ID / capability checks delegated to shared ────────────────────────
+export const isOpenAIWebSearchModel = (model: Model): boolean => sharedIsOpenAIWebSearchModel(model)
 
-export const GEMINI_SEARCH_REGEX = new RegExp(
-  'gemini-(?:2(?!.*-image-preview).*(?:-latest)?|3(?:\\.\\d+)?-(?:flash|pro)(?:-(?:image-)?preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\\w-]+)*$',
-  'i'
-)
+export const isOpenAIWebSearchChatCompletionOnlyModel = (model: Model): boolean =>
+  sharedIsOpenAIWebSearchChatCompletionOnlyModel(model)
 
-export const PERPLEXITY_SEARCH_MODELS = [
-  'sonar-pro',
-  'sonar',
-  'sonar-reasoning',
-  'sonar-reasoning-pro',
-  'sonar-deep-research'
-]
+export const isHunyuanSearchModel = (model?: Model): boolean => (model ? sharedIsHunyuanSearchModel(model) : false)
 
+/**
+ * Web-search-capable model. Reads the `WEB_SEARCH` capability. v2
+ * `Model.capabilities` is authoritative (registry inference + baked-in user
+ * overrides merged by `ModelService`).
+ */
 export function isWebSearchModel(model: Model): boolean {
-  if (!model || isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
-    return false
-  }
-
-  if (isUserSelectedModelType(model, 'web_search') !== undefined) {
-    return isUserSelectedModelType(model, 'web_search')!
-  }
-
-  const provider = getProviderByModel(model)
-
-  if (!provider) {
-    return false
-  }
-
-  const modelId = getLowerBaseModelName(model.id, '/')
-
-  // bedrock不支持, azure支持
-  if (isAnthropicModel(model) && !(provider.id === SystemProviderIds['aws-bedrock'])) {
-    if (isVertexProvider(provider)) {
-      return isClaude4SeriesModel(model)
-    }
-    return CLAUDE_SUPPORTED_WEBSEARCH_REGEX.test(modelId)
-  }
-
-  // TODO: 当其他供应商采用Response端点时，这个地方逻辑需要改进
-  // azure现在也支持了websearch
-  if (isOpenAIProvider(provider) || isAzureOpenAIProvider(provider)) {
-    if (isOpenAIWebSearchModel(model)) {
-      return true
-    }
-
-    // v2
-    if (provider.id === SystemProviderIds.grok) {
-      return true
-    }
-
-    return false
-  }
-
-  if (provider.id === SystemProviderIds.perplexity) {
-    return PERPLEXITY_SEARCH_MODELS.includes(modelId)
-  }
-
-  if (provider.id === SystemProviderIds.aihubmix) {
-    // modelId 不以-search结尾
-    if (!modelId.endsWith('-search') && GEMINI_SEARCH_REGEX.test(modelId)) {
-      return true
-    }
-
-    if (isOpenAIWebSearchModel(model)) {
-      return true
-    }
-
-    return false
-  }
-
-  if (isOpenAICompatibleProvider(provider) || isNewApiProvider(provider)) {
-    if (GEMINI_SEARCH_REGEX.test(modelId) || isOpenAIWebSearchModel(model)) {
-      return true
-    }
-  }
-
-  if (isGeminiProvider(provider) || isVertexProvider(provider)) {
-    return GEMINI_SEARCH_REGEX.test(modelId)
-  }
-
-  if (provider.id === 'hunyuan') {
-    return modelId !== 'hunyuan-lite'
-  }
-
-  if (provider.id === 'zhipu') {
-    return false
-  }
-
-  if (provider.id === 'dashscope') {
-    const models = ['qwen-turbo', 'qwen-max', 'qwen-plus', 'qwq', 'qwen-flash', 'qwen3-max']
-    // matches id like qwen-max-0919, qwen-max-latest
-    return models.some((i) => modelId.startsWith(i))
-  }
-
-  if (provider.id === 'openrouter') {
-    return true
-  }
-
-  return false
+  if (!model) return false
+  return sharedIsWebSearchModel(model)
 }
 
+/** Provider-host forces web search on every request (Perplexity / OpenRouter sonar). */
 export function isMandatoryWebSearchModel(model: Model): boolean {
-  if (!model) {
-    return false
-  }
-
-  const provider = getProviderByModel(model)
-
-  if (!provider) {
-    return false
-  }
-
-  const modelId = getLowerBaseModelName(model.id)
-
-  if (provider.id === 'perplexity' || provider.id === 'openrouter') {
-    return PERPLEXITY_SEARCH_MODELS.includes(modelId)
-  }
-
-  return false
+  if (!model) return false
+  const { providerId, modelId } = parseUniqueModelId(model.id)
+  if (providerId !== 'perplexity' && providerId !== 'openrouter') return false
+  return PERPLEXITY_SEARCH_MODELS.includes(getLowerBaseModelName(modelId))
 }
 
+/** OpenRouter exposes native web search for OpenAI's search-preview SKUs and sonar. */
 export function isOpenRouterBuiltInWebSearchModel(model: Model): boolean {
-  if (!model) {
-    return false
-  }
-
-  const provider = getProviderByModel(model)
-
-  if (provider.id !== 'openrouter') {
-    return false
-  }
-
-  const modelId = getLowerBaseModelName(model.id)
-
-  return isOpenAIWebSearchChatCompletionOnlyModel(model) || modelId.includes('sonar')
-}
-
-export function isOpenAIWebSearchChatCompletionOnlyModel(model: Model): boolean {
-  const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('gpt-4o-search-preview') || modelId.includes('gpt-4o-mini-search-preview')
-}
-
-export function isOpenAIWebSearchModel(model: Model): boolean {
-  const modelId = getLowerBaseModelName(model.id)
-
-  return (
-    modelId.includes('gpt-4o-search-preview') ||
-    modelId.includes('gpt-4o-mini-search-preview') ||
-    (modelId.includes('gpt-4.1') && !modelId.includes('gpt-4.1-nano')) ||
-    (modelId.includes('gpt-4o') && !modelId.includes('gpt-4o-image')) ||
-    modelId.includes('o3') ||
-    modelId.includes('o4') ||
-    (modelId.includes('gpt-5') && !modelId.includes('chat'))
-  )
-}
-
-export function isHunyuanSearchModel(model?: Model): boolean {
-  if (!model) {
-    return false
-  }
-
-  const modelId = getLowerBaseModelName(model.id)
-
-  if (model.provider === 'hunyuan') {
-    return modelId !== 'hunyuan-lite'
-  }
-
-  return false
+  if (!model) return false
+  const { providerId, modelId } = parseUniqueModelId(model.id)
+  if (providerId !== 'openrouter') return false
+  return isOpenAIWebSearchChatCompletionOnlyModel(model) || getLowerBaseModelName(modelId).includes('sonar')
 }

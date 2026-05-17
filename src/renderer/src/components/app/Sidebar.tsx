@@ -2,7 +2,6 @@ import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { AppLogo } from '@renderer/config/env'
 import useAvatar from '@renderer/hooks/useAvatar'
-import { modelGenerating } from '@renderer/hooks/useModel'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getSidebarIconLabel } from '@renderer/i18n/label'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
@@ -20,7 +19,7 @@ import {
   Sparkle
 } from 'lucide-react'
 import type { Ref } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useTabs } from '../../hooks/useTabs'
@@ -36,7 +35,7 @@ const noop = () => {}
 const routePrefixMap: Record<SidebarIconType, string> = {
   assistants: '/app/chat',
   agents: '/app/agents',
-  store: '/app/assistant',
+  store: '/app/library',
   paintings: '/app/paintings',
   translate: '/app/translate',
   mini_app: '/app/mini-app',
@@ -82,15 +81,17 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { activeTab, updateTab, openTab } = useTabs()
   const { defaultPaintingProvider } = useSettings()
 
-  // Sidebar width — persisted across restarts
-  const [persistedWidth, setPersistedWidth] = usePersistCache('ui.sidebar.width')
-  const [sidebarWidth, setSidebarWidth] = useState(persistedWidth)
+  // Sidebar width — persisted across restarts. Drive the CSS variable
+  // straight from the cached value so:
+  //   (1) cross-window updates flow without a local-state mirror
+  //   (2) the resize handler writes to the cache directly (event-handler
+  //       semantics) instead of via an effect on derived state, which
+  //       would loop on revalidation per the SWR write-back antipattern.
+  const [sidebarWidth, setSidebarWidth] = usePersistCache('ui.sidebar.width')
 
-  // Sync local width to CSS variable and persist cache
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.style.setProperty('--sidebar-width', `${sidebarWidth}px`)
-    setPersistedWidth(sidebarWidth)
-  }, [sidebarWidth, setPersistedWidth])
+  }, [sidebarWidth])
 
   // User avatar
   const avatar = useAvatar()
@@ -136,12 +137,6 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       const menuId = menuItemId as SidebarIconType
       const path = getMenuPath(menuId, defaultPaintingProvider)
       if (!path) return
-
-      try {
-        await modelGenerating()
-      } catch {
-        return
-      }
 
       if (activeTab?.isPinned) {
         openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })

@@ -343,10 +343,9 @@ function buildApiFeatures(legacy: LegacyProvider): ApiFeatures | null {
     hasValue = true
   }
 
-  if (apiOptions?.isNotSupportEnableThinking != null) {
-    features.enableThinking = !apiOptions.isNotSupportEnableThinking
-    hasValue = true
-  }
+  // enableThinking was removed from ApiFeatures on HEAD (commit 741d9eb24 —
+  // refactor: route AI SDK adapter via endpoint adapterFamily). Legacy v1
+  // `isNotSupportEnableThinking` no longer maps to a v2 field; drop on migrate.
 
   if (apiOptions?.isNotSupportVerbosity != null) {
     features.verbosity = !apiOptions.isNotSupportVerbosity

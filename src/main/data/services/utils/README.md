@@ -101,6 +101,22 @@ Backs every Service's reorder write path and POST-create. Encapsulates the `frac
 - **External imports of `fractional-indexing` are forbidden**: always go through the three generator wrappers above.
 - **Character set is locked to base62** (library default); no `digits` parameter is exposed. Changing the alphabet requires a whole-database migration, and the source-of-truth constant lives at the top of `orderKey.ts`.
 
+### `cursor.ts` — Opaque pagination cursor encode/decode
+
+Backs cursor-based list endpoints whose wire format is `<key>:<id>`. The first `:` is the separator; `id` is read raw and may itself contain `:`. `key` is the sort key (e.g. `orderKey` for `SessionService`, `createdAt` ms for `AgentSessionMessageService`); callers parse it into the column type they need.
+
+**Exports:**
+
+- `encodeCursor(key, id)` — produces the opaque token a service returns as `nextCursor`.
+- `decodeCursor(raw)` — strict parse. Returns `{ key, id }` only when both segments are non-empty; on missing separator or empty segment, `logger.warn`s and returns `null`. Use for standard pagination cursors.
+- `splitCursor(raw)` — permissive primitive. Returns `{ key, id }` whenever a `:` is present, **including when `id` is empty** (so sentinel forms like `topic:` parse cleanly). No logging. Used by multi-section consumers that want to attach their own warn semantics.
+
+**Design boundaries:**
+
+- **Stale/legacy tokens fall back, not fail**: cursors are opaque server-issued strings; throwing `VALIDATION_ERROR` would lock out renderers that hold a pre-upgrade token. Callers treat `null` as "start from first page".
+- **Single-segment split only**: covers exactly one `:` split per call. Multi-section cursors (e.g. `TopicService`'s `<section>:<orderKey>:<id>`) call `splitCursor` twice — once for the section, once for the inner key/id — rather than the utility growing a multi-segment splitter.
+- **`splitCursor` is permissive on purpose**: empty `id` is a valid sentinel (e.g. `topic:` = "pin section exhausted, start topic from first page"); rejecting it would force callers to special-case the sentinel before parsing.
+
 ## Criteria for Adding a New Utility
 
 Before adding a new utility to this directory, confirm:

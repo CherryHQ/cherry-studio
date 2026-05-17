@@ -7,14 +7,6 @@ const {
   getAgentMock,
   updateAgentMock,
   deleteAgentMock,
-  listSessionsMock,
-  createSessionMock,
-  getSessionMock,
-  updateSessionMock,
-  deleteSessionMock,
-  sessionExistsMock,
-  listSessionMessagesMock,
-  deleteSessionMessageMock,
   listTasksMock,
   createTaskMock,
   getTaskMock,
@@ -31,14 +23,6 @@ const {
   getAgentMock: vi.fn(),
   updateAgentMock: vi.fn(),
   deleteAgentMock: vi.fn(),
-  listSessionsMock: vi.fn(),
-  createSessionMock: vi.fn(),
-  getSessionMock: vi.fn(),
-  updateSessionMock: vi.fn(),
-  deleteSessionMock: vi.fn(),
-  sessionExistsMock: vi.fn(),
-  listSessionMessagesMock: vi.fn(),
-  deleteSessionMessageMock: vi.fn(),
   listTasksMock: vi.fn(),
   createTaskMock: vi.fn(),
   getTaskMock: vi.fn(),
@@ -58,24 +42,6 @@ vi.mock('@data/services/AgentService', () => ({
     getAgent: getAgentMock,
     updateAgent: updateAgentMock,
     deleteAgent: deleteAgentMock
-  }
-}))
-
-vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: {
-    listSessions: listSessionsMock,
-    createSession: createSessionMock,
-    getSession: getSessionMock,
-    updateSession: updateSessionMock,
-    deleteSession: deleteSessionMock,
-    sessionExists: sessionExistsMock
-  }
-}))
-
-vi.mock('@data/services/AgentSessionMessageService', () => ({
-  agentSessionMessageService: {
-    listSessionMessages: listSessionMessagesMock,
-    deleteSessionMessage: deleteSessionMessageMock
   }
 }))
 
@@ -110,13 +76,10 @@ vi.mock('@main/services/agents/services/channels', () => ({ channelManager: {} }
 import { agentHandlers } from '../agents'
 
 const AGENT_ID = 'agent_1234567890_abcdefghi'
-const SESSION_ID = 'session_1234567890_abcdefghi'
 const TASK_ID = 'task_1234567890_abcdefghi'
 const SKILL_ID = 'skill-abc-123'
-const MESSAGE_ID = '42'
 
 const mockAgent = { id: AGENT_ID, name: 'Test', type: 'claude-code', model: 'claude-3-5-sonnet' }
-const mockSession = { id: SESSION_ID, agentId: AGENT_ID, model: 'claude-3-5-sonnet' }
 const mockTask = { id: TASK_ID, agentId: AGENT_ID, name: 'Daily', prompt: 'Hello' }
 const mockSkill = { id: SKILL_ID, name: 'my-skill', isEnabled: true }
 
@@ -278,148 +241,6 @@ describe('agentHandlers', () => {
       await expect(
         agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
-    })
-  })
-
-  // ── /agents/:agentId/sessions ─────────────────────────────────────────────
-
-  describe('/agents/:agentId/sessions', () => {
-    it('delegates GET to sessionService.listSessions', async () => {
-      listSessionsMock.mockResolvedValueOnce({ sessions: [mockSession], total: 1 })
-
-      const result = await agentHandlers['/agents/:agentId/sessions'].GET({
-        params: { agentId: AGENT_ID },
-        query: {}
-      } as never)
-
-      expect(listSessionsMock).toHaveBeenCalledWith(AGENT_ID, { limit: 50, offset: 0 })
-      expect(result).toMatchObject({ items: [mockSession], total: 1, page: 1 })
-    })
-
-    it('delegates POST to sessionService.createSession', async () => {
-      createSessionMock.mockResolvedValueOnce(mockSession)
-
-      const result = await agentHandlers['/agents/:agentId/sessions'].POST({
-        params: { agentId: AGENT_ID },
-        body: { model: 'claude-3-5-sonnet' }
-      } as never)
-
-      expect(createSessionMock).toHaveBeenCalledWith(AGENT_ID, { model: 'claude-3-5-sonnet' })
-      expect(result).toMatchObject({ id: SESSION_ID })
-    })
-
-    it('rejects invalid pagination query', async () => {
-      await expect(
-        agentHandlers['/agents/:agentId/sessions'].GET({ params: { agentId: AGENT_ID }, query: { limit: 0 } } as never)
-      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
-
-      expect(listSessionsMock).not.toHaveBeenCalled()
-    })
-  })
-
-  // ── /agents/:agentId/sessions/:sessionId ──────────────────────────────────
-
-  describe('/agents/:agentId/sessions/:sessionId', () => {
-    it('delegates GET and throws notFound when session is missing', async () => {
-      getSessionMock.mockResolvedValueOnce(mockSession)
-      const result = await agentHandlers['/agents/:agentId/sessions/:sessionId'].GET({
-        params: { agentId: AGENT_ID, sessionId: SESSION_ID }
-      } as never)
-      expect(result).toMatchObject({ id: SESSION_ID })
-
-      getSessionMock.mockResolvedValueOnce(null)
-      await expect(
-        agentHandlers['/agents/:agentId/sessions/:sessionId'].GET({
-          params: { agentId: AGENT_ID, sessionId: SESSION_ID }
-        } as never)
-      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
-    })
-
-    it('delegates PATCH and returns updated session', async () => {
-      updateSessionMock.mockResolvedValueOnce({ ...mockSession, name: 'Updated' })
-
-      const result = await agentHandlers['/agents/:agentId/sessions/:sessionId'].PATCH({
-        params: { agentId: AGENT_ID, sessionId: SESSION_ID },
-        body: { name: 'Updated' }
-      } as never)
-
-      expect(updateSessionMock).toHaveBeenCalledWith(AGENT_ID, SESSION_ID, expect.objectContaining({ name: 'Updated' }))
-      expect(result).toMatchObject({ name: 'Updated' })
-    })
-
-    it('throws notFound when session does not exist on PATCH', async () => {
-      updateSessionMock.mockResolvedValueOnce(null)
-
-      await expect(
-        agentHandlers['/agents/:agentId/sessions/:sessionId'].PATCH({
-          params: { agentId: AGENT_ID, sessionId: SESSION_ID },
-          body: {}
-        } as never)
-      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
-    })
-
-    it('delegates DELETE', async () => {
-      deleteSessionMock.mockResolvedValueOnce(true)
-
-      await expect(
-        agentHandlers['/agents/:agentId/sessions/:sessionId'].DELETE({
-          params: { agentId: AGENT_ID, sessionId: SESSION_ID }
-        } as never)
-      ).resolves.toBeUndefined()
-    })
-  })
-
-  // ── /agents/:agentId/sessions/:sessionId/messages ─────────────────────────
-
-  describe('/agents/:agentId/sessions/:sessionId/messages', () => {
-    it('delegates GET to sessionMessageService.listSessionMessages', async () => {
-      listSessionMessagesMock.mockResolvedValueOnce({ messages: [], total: 0 })
-
-      const result = await agentHandlers['/agents/:agentId/sessions/:sessionId/messages'].GET({
-        params: { agentId: AGENT_ID, sessionId: SESSION_ID },
-        query: { limit: 20 }
-      } as never)
-
-      expect(listSessionMessagesMock).toHaveBeenCalledWith(AGENT_ID, SESSION_ID, { limit: 20, offset: 0 })
-      expect(result).toEqual({ items: [], total: 0, page: 1 })
-    })
-
-    it('computes offset from page and limit on GET', async () => {
-      listSessionMessagesMock.mockResolvedValueOnce({ messages: [], total: 0 })
-
-      await agentHandlers['/agents/:agentId/sessions/:sessionId/messages'].GET({
-        params: { agentId: AGENT_ID, sessionId: SESSION_ID },
-        query: { page: 2, limit: 10 }
-      } as never)
-
-      expect(listSessionMessagesMock).toHaveBeenCalledWith(AGENT_ID, SESSION_ID, { limit: 10, offset: 10 })
-    })
-
-    it('rejects invalid pagination query', async () => {
-      await expect(
-        agentHandlers['/agents/:agentId/sessions/:sessionId/messages'].GET({
-          params: { agentId: AGENT_ID, sessionId: SESSION_ID },
-          query: { page: 0 }
-        } as never)
-      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
-
-      expect(listSessionMessagesMock).not.toHaveBeenCalled()
-    })
-  })
-
-  // ── /agents/:agentId/sessions/:sessionId/messages/:messageId ─────────────
-
-  describe('/agents/:agentId/sessions/:sessionId/messages/:messageId', () => {
-    it('delegates DELETE to deleteSessionMessage and returns undefined', async () => {
-      deleteSessionMessageMock.mockResolvedValueOnce(undefined)
-
-      await expect(
-        agentHandlers['/agents/:agentId/sessions/:sessionId/messages/:messageId'].DELETE({
-          params: { agentId: AGENT_ID, sessionId: SESSION_ID, messageId: MESSAGE_ID }
-        } as never)
-      ).resolves.toBeUndefined()
-
-      expect(deleteSessionMessageMock).toHaveBeenCalledWith(AGENT_ID, SESSION_ID, MESSAGE_ID)
     })
   })
 

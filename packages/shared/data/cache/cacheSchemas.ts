@@ -1,5 +1,6 @@
 import type { MiniAppRegion } from '@shared/data/types/miniApp'
 
+import type { TopicStatusSnapshotEntry } from '../../ai/transport'
 import type * as CacheValueTypes from './cacheValueTypes'
 
 /**
@@ -120,7 +121,6 @@ export type UseCacheSchema = {
   // Chat context
   'chat.multi_select_mode': boolean
   'chat.selected_message_ids': string[]
-  'chat.generating': boolean
   'chat.web_search.searching': boolean
 
   // Knowledge recall test query history (session-only)
@@ -137,10 +137,11 @@ export type UseCacheSchema = {
   'topic.active': CacheValueTypes.CacheTopic | null
   'topic.renaming': string[]
   'topic.newly_renamed': string[]
+  'topic.home.first_launch_temp_used': boolean
 
-  // Agent management
-  'agent.active_id': string | null
-  'agent.session.active_id_map': Record<string, string | null>
+  // Agent management — sessions are the user-facing primary; active agent is
+  // derived from the active session's `agentId`, so a single pointer is enough.
+  'agent.active_session_id': string | null
   'agent.session.waiting_id_map': Record<string, boolean>
 
   // Translate page state management
@@ -174,6 +175,17 @@ export type UseCacheSchema = {
   'message.streaming.content.${messageId}': any // Message (renderer format)
   'message.streaming.block.${blockId}': any // MessageBlock
   'message.streaming.siblings_counter.${topicId}': number
+  'message.streaming.chat_session.${topicId}': any // { chat: Chat<CherryUIMessage> } (renderer memory-only)
+  'message.ui.${messageId}': { foldSelected?: boolean; multiModelMessageStyle?: string; useful?: boolean }
+  /**
+   * Per-window "user has seen the terminal indicator" flag for a topic.
+   * Lives in the local cache because dismissal is per-window UX — one
+   * window seeing the fulfilled animation shouldn't hide it in another.
+   * Pairs with `topic.stream.status.*` in the shared cache: the shared
+   * entry is the authoritative status, this entry is each window's local
+   * "already animated" flag.
+   */
+  'topic.stream.seen.${topicId}': boolean
 }
 
 export const DefaultUseCache: UseCacheSchema = {
@@ -194,7 +206,6 @@ export const DefaultUseCache: UseCacheSchema = {
   // Chat context
   'chat.multi_select_mode': false,
   'chat.selected_message_ids': [],
-  'chat.generating': false,
   'chat.web_search.searching': false,
   'knowledge.recall.search_queries': {},
 
@@ -209,10 +220,10 @@ export const DefaultUseCache: UseCacheSchema = {
   'topic.active': null,
   'topic.renaming': [],
   'topic.newly_renamed': [],
+  'topic.home.first_launch_temp_used': false,
 
   // Agent management
-  'agent.active_id': null,
-  'agent.session.active_id_map': {},
+  'agent.active_session_id': null,
   'agent.session.waiting_id_map': {},
 
   // Translate page state management
@@ -236,7 +247,10 @@ export const DefaultUseCache: UseCacheSchema = {
   'message.streaming.topic_tasks.${topicId}': [],
   'message.streaming.content.${messageId}': null,
   'message.streaming.block.${blockId}': null,
-  'message.streaming.siblings_counter.${topicId}': 0
+  'message.streaming.siblings_counter.${topicId}': 0,
+  'message.streaming.chat_session.${topicId}': null,
+  'message.ui.${messageId}': {},
+  'topic.stream.seen.${topicId}': false
 }
 
 /**
@@ -244,6 +258,9 @@ export const DefaultUseCache: UseCacheSchema = {
  */
 export type SharedCacheSchema = {
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
+  'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
+  'topic.cache_version': number
+  'agent_session.cache_version': number
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
   // API key rotation state (cross-window, tracks last used key per provider)
   'web_search.provider.last_used_key.${providerId}': string
@@ -252,6 +269,9 @@ export type SharedCacheSchema = {
 
 export const DefaultSharedCache: SharedCacheSchema = {
   'chat.web_search.active_searches': {},
+  'topic.stream.statuses.${topicId}': null,
+  'topic.cache_version': 0,
+  'agent_session.cache_version': 0,
   'feature.openclaw.gateway_status': 'stopped',
   'web_search.provider.last_used_key.${providerId}': '',
   'ocr.provider.last_used_key.${providerId}': ''

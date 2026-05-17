@@ -27,8 +27,11 @@ vi.mock('@renderer/store', () => ({
   useAppDispatch: () => vi.fn()
 }))
 
-vi.mock('@renderer/store/toolPermissions', () => ({
-  selectPendingPermission: vi.fn()
+// Parts map drives approval state post-migration. Default: no pending approvals.
+const mockPartsMap = vi.hoisted(() => vi.fn((): Record<string, unknown[]> | null => null))
+
+vi.mock('@renderer/pages/home/Messages/Blocks', () => ({
+  usePartsMap: () => mockPartsMap()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -167,6 +170,7 @@ describe('MessageAgentTools', () => {
 
   beforeEach(() => {
     mockUseAppSelector.mockReturnValue(null) // No pending permission
+    mockPartsMap.mockReturnValue(null) // V2 PartsContext: no pending approval
     mockUseTranslation.mockReturnValue({
       t: (key: string, options?: string | { count?: number }) => {
         // Handle plural keys with count option
@@ -326,11 +330,23 @@ describe('MessageAgentTools', () => {
 
   describe('pending without streaming', () => {
     it('should show permission card when pending permission exists', () => {
-      mockUseAppSelector.mockReturnValue({ toolCallId: 'call-123' }) // Has pending permission
-
       const toolResponse = createToolResponse({
         status: 'pending',
         partialArguments: undefined
+      })
+
+      // Simulate an AI-SDK-v6 `approval-requested` ToolUIPart in the
+      // current message's parts.
+      mockPartsMap.mockReturnValue({
+        msg1: [
+          {
+            type: 'tool-Read',
+            toolCallId: toolResponse.toolCallId,
+            state: 'approval-requested',
+            approval: { id: 'approval-1' },
+            input: toolResponse.arguments
+          }
+        ]
       })
 
       render(<MessageAgentTools toolResponse={toolResponse} />)

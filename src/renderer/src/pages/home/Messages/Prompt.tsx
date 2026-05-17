@@ -1,7 +1,8 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import AssistantSettingsPopup from '@renderer/pages/home/AssistantSettings'
-import type { Assistant, Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types'
 import { containsSupportedVariables } from '@renderer/utils/prompt'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -9,19 +10,19 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface Props {
-  assistant: Assistant
-  topic?: Topic
+  topic: Topic
 }
 
-const Prompt: FC<Props> = ({ assistant, topic }) => {
+const Prompt: FC<Props> = ({ topic }) => {
   const { t } = useTranslation()
   const { theme } = useTheme()
+  const { assistant, model } = useAssistant(topic.assistantId)
 
-  const prompt = assistant.prompt || t('chat.default.description')
-  const topicPrompt = topic?.prompt || ''
+  const prompt = assistant?.prompt || t('chat.default.description')
+  const topicPrompt = topic.prompt || ''
   const isDark = theme === 'dark'
 
-  const processedPrompt = usePromptProcessor({ prompt, modelName: assistant.model?.name })
+  const processedPrompt = usePromptProcessor({ prompt, modelName: model?.name })
 
   // 用于控制显示的状态
   const [displayText, setDisplayText] = useState(prompt)
@@ -65,7 +66,7 @@ const Prompt: FC<Props> = ({ assistant, topic }) => {
   return (
     <Container
       className="system-prompt"
-      onClick={() => AssistantSettingsPopup.show({ assistant, tab: 'prompt' })}
+      onClick={() => assistant && AssistantSettingsPopup.show({ assistant, tab: 'prompt' })}
       $isDark={isDark}>
       <Text $isVisible={isVisible}>{displayText}</Text>
     </Container>

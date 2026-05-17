@@ -1,48 +1,31 @@
 import { cacheService } from '@data/CacheService'
-import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import {
-  isAutoEnableImageGenerationModel,
-  isGenerateImageModel,
-  isGenerateImageModels,
-  isVisionModel,
-  isVisionModels
-} from '@renderer/config/models'
+import { isGenerateImageModel, isGenerateImageModels, isVisionModel, isVisionModels } from '@renderer/config/models'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useInputText } from '@renderer/hooks/useInputText'
-import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
+import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBaseDataApi'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
+import { useTopicAwaitingApproval } from '@renderer/hooks/useTopicAwaitingApproval'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { useV2Chat } from '@renderer/hooks/V2ChatContext'
 import {
   InputbarToolsProvider,
   useInputbarToolsDispatch,
   useInputbarToolsInternalDispatch,
   useInputbarToolsState
 } from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
-import { getDefaultTopic, mapLegacyTopicToDto } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import FileManager from '@renderer/services/FileManager'
-import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
-import { spanManagerService } from '@renderer/services/SpanManagerService'
-import { estimateTextTokens as estimateTxtTokens, estimateUserPromptUsage } from '@renderer/services/TokenService'
-import { useAppDispatch } from '@renderer/store'
-import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
-import {
-  type Assistant,
-  type FileMetadata,
-  type KnowledgeBase,
-  type Model,
-  type Topic,
-  TopicType
-} from '@renderer/types'
-import type { MessageInputBaseParams } from '@renderer/types/newMessage'
+import { type FileMetadata, type KnowledgeBase, type Topic, TopicType } from '@renderer/types'
 import { delay } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
-import { debounce } from 'lodash'
+import type { Model } from '@shared/data/types/model'
+import { type UniqueModelId } from '@shared/data/types/model'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -52,25 +35,28 @@ import InputbarTools from './InputbarTools'
 import KnowledgeBaseInput from './KnowledgeBaseInput'
 import MentionModelsInput from './MentionModelsInput'
 import { getInputbarConfig } from './registry'
-import TokenCount from './TokenCount'
 
 const logger = loggerService.withContext('Inputbar')
 
 const INPUTBAR_DRAFT_CACHE_KEY = 'inputbar-draft'
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
 
-const getMentionedModelsCacheKey = (assistantId: string) => `inputbar-mentioned-models-${assistantId}`
+const getMentionedModelsCacheKey = (assistantId: string | undefined) =>
+  `inputbar-mentioned-models-${assistantId ?? 'no-assistant'}`
 
-const getValidatedCachedModels = (assistantId: string): Model[] => {
+const getValidatedCachedModels = (assistantId: string | undefined): Model[] => {
   const cached = cacheService.getCasual<Model[]>(getMentionedModelsCacheKey(assistantId))
   if (!Array.isArray(cached)) return []
   return cached.filter((model) => model?.id && model?.name)
 }
 
 interface Props {
-  assistant: Assistant
   setActiveTopic: (topic: Topic) => void
   topic: Topic
+  onSend: (
+    text: string,
+    options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[] }
+  ) => void | Promise<void>
 }
 
 type ProviderActionHandlers = {
@@ -86,7 +72,7 @@ interface InputbarInnerProps extends Props {
   actionsRef: React.RefObject<ProviderActionHandlers>
 }
 
-const Inputbar: FC<Props> = ({ assistant: initialAssistant, setActiveTopic, topic }) => {
+const Inputbar: FC<Props> = ({ setActiveTopic, topic, onSend: onSendProp }) => {
   const actionsRef = useRef<ProviderActionHandlers>({
     resizeTextArea: () => {},
     addNewTopic: () => {},
@@ -96,18 +82,18 @@ const Inputbar: FC<Props> = ({ assistant: initialAssistant, setActiveTopic, topi
     toggleExpanded: () => {}
   })
 
-  const [initialMentionedModels] = useState(() => getValidatedCachedModels(initialAssistant.id))
+  const [initialMentionedModels] = useState(() => getValidatedCachedModels(topic.assistantId))
 
   const initialState = useMemo(
     () => ({
       files: [] as FileMetadata[],
       mentionedModels: initialMentionedModels,
-      selectedKnowledgeBases: initialAssistant.knowledge_bases ?? [],
+      selectedKnowledgeBases: [] as KnowledgeBase[],
       isExpanded: false,
       couldAddImageFile: false,
       extensions: [] as string[]
     }),
-    [initialMentionedModels, initialAssistant.knowledge_bases]
+    [initialMentionedModels]
   )
 
   return (
@@ -121,17 +107,14 @@ const Inputbar: FC<Props> = ({ assistant: initialAssistant, setActiveTopic, topi
         onTextChange: (updater) => actionsRef.current.onTextChange(updater),
         toggleExpanded: (next) => actionsRef.current.toggleExpanded(next)
       }}>
-      <InputbarInner
-        assistant={initialAssistant}
-        setActiveTopic={setActiveTopic}
-        topic={topic}
-        actionsRef={actionsRef}
-      />
+      <InputbarInner setActiveTopic={setActiveTopic} topic={topic} actionsRef={actionsRef} onSend={onSendProp} />
     </InputbarToolsProvider>
   )
 }
 
-const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, setActiveTopic, topic, actionsRef }) => {
+const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsRef, onSend: onSendProp }) => {
+  const awaitingApproval = useTopicAwaitingApproval(topic.id)
+
   const scope = topic.type ?? TopicType.Chat
   const config = getInputbarConfig(scope)
 
@@ -156,19 +139,25 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
     minHeight: 30
   })
 
-  const { assistant, addTopic, model, setModel, updateAssistant } = useAssistant(initialAssistant.id)
-  const [showInputEstimatedTokens] = usePreference('chat.input.show_estimated_tokens')
+  const { assistant, model, updateAssistant } = useAssistant(topic.assistantId)
+  const { createTopic } = useTopicMutations()
+  const { knowledgeBases: allKnowledgeBases } = useKnowledgeBases()
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [enableQuickPanelTriggers] = usePreference('chat.input.quick_panel.triggers_enabled')
-  const [estimateTokenCount, setEstimateTokenCount] = useState(0)
-  const [contextCount, setContextCount] = useState({ current: 0, max: 0 })
 
   const { t } = useTranslation()
-  const { pauseMessages } = useMessageOperations(topic)
-  const loading = useTopicLoading(topic)
-  const dispatch = useAppDispatch()
-  const isVisionAssistant = useMemo(() => isVisionModel(model), [model])
-  const isGenerateImageAssistant = useMemo(() => isGenerateImageModel(model), [model])
+  const v2Chat = useV2Chat()
+  const { isPending } = useTopicStreamStatus(topic.id)
+  const [isSending, setIsSending] = useState(false)
+  useEffect(() => {
+    if (isPending) setIsSending(false)
+  }, [isPending])
+  useEffect(() => {
+    setIsSending(false)
+  }, [topic.id])
+  const loading = isPending || isSending || awaitingApproval
+  const isVisionAssistant = useMemo(() => (model ? isVisionModel(model) : false), [model])
+  const isGenerateImageAssistant = useMemo(() => (model ? isGenerateImageModel(model) : false), [model])
   const { setTimeoutTimer } = useTimer()
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
 
@@ -214,14 +203,14 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
     setCouldAddImageFile(canAddImageFile)
   }, [canAddImageFile, setCouldAddImageFile])
 
-  const onUnmount = useEffectEvent((id: string) => {
+  const onUnmount = useEffectEvent((id: string | undefined) => {
     cacheService.setCasual(getMentionedModelsCacheKey(id), mentionedModels, DRAFT_CACHE_TTL)
   })
 
   useEffect(() => {
-    return () => onUnmount(assistant.id)
+    return () => onUnmount(topic.assistantId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assistant.id])
+  }, [topic.assistantId])
 
   const placeholderText = enableQuickPanelTriggers
     ? t('chat.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) })
@@ -233,79 +222,37 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       })
 
   const sendMessage = useCallback(async () => {
-    if (checkRateLimit(assistant)) {
-      return
-    }
-
-    logger.info('Starting to send message')
-
-    const parent = await spanManagerService.startTrace(
-      { topicId: topic.id, name: 'sendMessage', inputs: text },
-      mentionedModels.length > 0 ? mentionedModels : [assistant.model]
-    )
-    void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: topic.id, traceId: parent?.spanContext().traceId })
-
+    const text_ = text.trim()
+    if (!text_) return
+    setIsSending(true)
+    setText('')
+    setFiles([])
+    setTimeoutTimer('sendMessage', () => resizeTextArea(), 0)
+    focusTextarea()
+    // Await `onSendProp` in a try/finally so `isSending` clears on any
+    // terminal state — success path relies on the `pending` broadcast
+    // effect above, but sync/async failures (validation, IPC reject,
+    // transport error) never reach `pending` and would otherwise
+    // strand the input bar in pause mode.
     try {
-      const uploadedFiles = await FileManager.uploadFiles(files)
-
-      const baseUserMessage: MessageInputBaseParams = { assistant, topic, content: text }
-      if (uploadedFiles) {
-        baseUserMessage.files = uploadedFiles
-      }
-      if (mentionedModels.length) {
-        baseUserMessage.mentions = mentionedModels
-      }
-
-      baseUserMessage.usage = await estimateUserPromptUsage(baseUserMessage)
-
-      const { message, blocks } = getUserMessage(baseUserMessage)
-      message.traceId = parent?.spanContext().traceId
-
-      void dispatch(_sendMessage(message, blocks, assistant, topic.id))
-
-      setText('')
-      setFiles([])
-      setTimeoutTimer('sendMessage_1', () => setText(''), 500)
-      setTimeoutTimer('sendMessage_2', () => resizeTextArea(), 0)
-      // Restore focus to textarea after sending to maintain IME state (fcitx5 issue)
-      focusTextarea()
+      await onSendProp(text_, {
+        files: files.length > 0 ? files : undefined,
+        mentionedModels: mentionedModels.length > 0 ? mentionedModels.map((model) => model.id) : undefined
+      })
     } catch (error) {
-      logger.warn('Failed to send message:', error as Error)
-      parent?.recordException(error as Error)
+      logger.warn('send failed', { error })
+    } finally {
+      setIsSending(false)
     }
-  }, [
-    assistant,
-    topic,
-    text,
-    mentionedModels,
-    files,
-    dispatch,
-    setText,
-    setFiles,
-    setTimeoutTimer,
-    resizeTextArea,
-    focusTextarea
-  ])
+  }, [onSendProp, text, mentionedModels, files, setText, setFiles, setTimeoutTimer, resizeTextArea, focusTextarea])
 
-  const tokenCountProps = useMemo(() => {
-    if (!config.showTokenCount || estimateTokenCount === undefined || !showInputEstimatedTokens) {
-      return undefined
-    }
-
-    return {
-      estimateTokenCount,
-      inputTokenCount: estimateTokenCount,
-      contextCount
-    }
-  }, [config.showTokenCount, contextCount, estimateTokenCount, showInputEstimatedTokens])
-
-  const onPause = useCallback(async () => {
-    await pauseMessages()
-  }, [pauseMessages])
+  const onPause = useCallback(() => {
+    v2Chat?.pause()
+  }, [v2Chat])
 
   const clearTopic = useCallback(async () => {
     if (loading) {
-      await onPause()
+      onPause()
       await delay(1)
     }
 
@@ -315,33 +262,19 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
 
   const onNewContext = useCallback(() => {
     if (loading) {
-      void onPause()
+      onPause()
       return
     }
     void EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
   }, [loading, onPause])
 
   const addNewTopic = useCallback(async () => {
-    const newTopic = getDefaultTopic(assistant.id)
-
-    // Create topic via Data API and use server-returned data
-    const createdTopic = await dataApiService.post('/topics', {
-      body: mapLegacyTopicToDto(newTopic)
-    })
-
-    logger.silly('create topic in sqlite', { id: createdTopic.id })
-
-    if (assistant.defaultModel) {
-      setModel(assistant.defaultModel)
-    }
-
-    // @ts-ignore TODO: #13748
-    addTopic(createdTopic)
-    // @ts-ignore
-    setActiveTopic(createdTopic)
+    const persisted = await createTopic({ assistantId: topic.assistantId, name: t('chat.default.topic.name') })
+    if (!persisted) return
+    setActiveTopic(mapApiTopicToRendererTopic(persisted))
 
     setTimeoutTimer('addNewTopic', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
-  }, [addTopic, assistant.defaultModel, assistant.id, setActiveTopic, setModel, setTimeoutTimer])
+  }, [createTopic, topic.assistantId, t, setActiveTopic, setTimeoutTimer])
 
   const handleRemoveModel = useCallback(
     (modelToRemove: Model) => {
@@ -352,11 +285,11 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
 
   const handleRemoveKnowledgeBase = useCallback(
     (knowledgeBase: KnowledgeBase) => {
-      const nextKnowledgeBases = assistant.knowledge_bases?.filter((kb) => kb.id !== knowledgeBase.id)
-      updateAssistant({ ...assistant, knowledge_bases: nextKnowledgeBases })
-      setSelectedKnowledgeBases(nextKnowledgeBases ?? [])
+      const nextIds = (assistant?.knowledgeBaseIds ?? []).filter((id) => id !== knowledgeBase.id)
+      void updateAssistant({ knowledgeBaseIds: nextIds })
+      setSelectedKnowledgeBases(allKnowledgeBases.filter((kb) => nextIds.includes(kb.id)) as unknown as KnowledgeBase[])
     },
-    [assistant, setSelectedKnowledgeBases, updateAssistant]
+    [assistant?.knowledgeBaseIds, allKnowledgeBases, setSelectedKnowledgeBases, updateAssistant]
   )
 
   const handleToggleExpanded = useCallback(
@@ -395,31 +328,11 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
   })
 
   useEffect(() => {
-    const _setEstimateTokenCount = debounce(setEstimateTokenCount, 100, { leading: false, trailing: true })
-    const unsubscribes = [
-      EventEmitter.on(EVENT_NAMES.ESTIMATED_TOKEN_COUNT, ({ tokensCount, contextCount }) => {
-        _setEstimateTokenCount(tokensCount)
-        setContextCount({ current: contextCount.current, max: contextCount.max })
-      }),
-      ...[EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic)]
-    ]
-
+    const unsubscribes = [EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic)]
     return () => {
       unsubscribes.forEach((unsubscribe) => unsubscribe())
     }
   }, [addNewTopic])
-
-  useEffect(() => {
-    const debouncedEstimate = debounce((value: string) => {
-      if (showInputEstimatedTokens) {
-        const count = estimateTxtTokens(value) || 0
-        setEstimateTokenCount(count)
-      }
-    }, 500)
-
-    debouncedEstimate(text)
-    return () => debouncedEstimate.cancel()
-  }, [showInputEstimatedTokens, text])
 
   useEffect(() => {
     if (!document.querySelector('.topview-fullscreen-container')) {
@@ -427,28 +340,21 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
     }
   }, [
     topic.id,
-    assistant.mcpServers,
-    assistant.knowledge_bases,
-    assistant.enableWebSearch,
+    assistant?.mcpServerIds,
+    assistant?.knowledgeBaseIds,
+    assistant?.settings.enableWebSearch,
     mentionedModels,
     focusTextarea
   ])
 
-  // TODO: Just use assistant.knowledge_bases as selectedKnowledgeBases. context state is overdesigned.
   useEffect(() => {
-    setSelectedKnowledgeBases(assistant.knowledge_bases ?? [])
-  }, [assistant.knowledge_bases, setSelectedKnowledgeBases])
-
-  useEffect(() => {
-    // Auto-enable/disable image generation based on model capabilities
-    if (isGenerateImageModel(model)) {
-      if (isAutoEnableImageGenerationModel(model) && !assistant.enableGenerateImage) {
-        updateAssistant({ ...assistant, enableGenerateImage: true })
-      }
-    } else if (assistant.enableGenerateImage) {
-      updateAssistant({ ...assistant, enableGenerateImage: false })
+    const ids = assistant?.knowledgeBaseIds ?? []
+    if (ids.length === 0) {
+      setSelectedKnowledgeBases([])
+      return
     }
-  }, [assistant, model, updateAssistant])
+    setSelectedKnowledgeBases(allKnowledgeBases.filter((kb) => ids.includes(kb.id)) as unknown as KnowledgeBase[])
+  }, [assistant?.knowledgeBaseIds, allKnowledgeBases, setSelectedKnowledgeBases])
 
   if (isMultiSelectMode) {
     return null
@@ -471,21 +377,8 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
   )
 
   // leftToolbar: 左侧工具栏
-  const leftToolbar = config.showTools ? <InputbarTools scope={scope} assistant={assistant} model={model} /> : null
-
-  // rightToolbar: 右侧工具栏
-  const rightToolbar = (
-    <>
-      {tokenCountProps && (
-        <TokenCount
-          estimateTokenCount={tokenCountProps.estimateTokenCount}
-          inputTokenCount={tokenCountProps.inputTokenCount}
-          contextCount={tokenCountProps.contextCount}
-          onClick={onNewContext}
-        />
-      )}
-    </>
-  )
+  const leftToolbar =
+    config.showTools && assistant && model ? <InputbarTools scope={scope} assistant={assistant} model={model} /> : null
 
   return (
     <InputbarCore
@@ -503,7 +396,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       onPause={onPause}
       handleSendMessage={sendMessage}
       leftToolbar={leftToolbar}
-      rightToolbar={rightToolbar}
+      primaryActionMode={loading ? 'pause' : 'send'}
       topContent={topContent}
     />
   )

@@ -1,13 +1,12 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import { useCache } from '@data/hooks/useCache'
 import DMXAPIToImg from '@renderer/assets/images/providers/DMXAPI-to-img.webp'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { useAllProviders } from '@renderer/hooks/useProvider'
+import { useProviderApiKeys, useProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types'
 import { convertToBase64, uuid } from '@renderer/utils'
@@ -43,9 +42,13 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { dmxapi_paintings, addPainting, removePainting, updatePainting } = usePaintings()
   const [painting, setPainting] = useState<DmxapiPainting>(dmxapi_paintings?.[0] || DEFAULT_PAINTING)
   const { t } = useTranslation()
-  const providers = useAllProviders()
+  const { providers } = useProviders()
 
-  const dmxapiProvider = providers.find((p) => p.id === 'dmxapi')!
+  const dmxapiProvider = providers.find((p) => p.id === 'dmxapi')
+  const { data: dmxapiKeyData } = useProviderApiKeys('dmxapi')
+  const dmxapiApiKey = dmxapiKeyData?.keys.find((k) => k.isEnabled)?.key ?? ''
+  const dmxapiApiHost =
+    dmxapiProvider?.endpointConfigs?.[dmxapiProvider.defaultChatEndpoint ?? 'openai-chat-completions']?.baseUrl ?? ''
 
   // 动态模型数据状态
   const [dynamicModelGroups, setDynamicModelGroups] = useState<any>(null)
@@ -55,7 +58,6 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [abortController, setAbortController] = useState<AbortController | null>(null)
-  const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -332,11 +334,11 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   // 检查提供者状态函数
   const checkProviderStatus = () => {
-    if (!dmxapiProvider.enabled) {
+    if (!dmxapiProvider?.isEnabled) {
       throw new Error('error.provider_disabled')
     }
 
-    if (!dmxapiProvider.apiKey) {
+    if (!dmxapiApiKey) {
       throw new Error('error.no_api_key')
     }
 
@@ -396,7 +398,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     return {
       body: JSON.stringify(params),
       headerExpand: headerExpand,
-      endpoint: `${dmxapiProvider.apiHost}/v1/images/generations`
+      endpoint: `${dmxapiApiHost}/v1/images/generations`
     }
   }
 
@@ -431,7 +433,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     return {
       body: formData,
-      endpoint: `${dmxapiProvider.apiHost}/v1/images/edits`
+      endpoint: `${dmxapiApiHost}/v1/images/edits`
     }
   }
 
@@ -444,7 +446,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     const headers = {
       Accept: 'application/json',
-      Authorization: `Bearer ${dmxapiProvider.apiKey}`,
+      Authorization: `Bearer ${dmxapiApiKey}`,
       'User-Agent': 'DMXAPI/1.0.0 (https://www.dmxapi.com)',
       ...headerExpand
     }
@@ -532,8 +534,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       return
     }
 
-    if (!dmxapiProvider.enabled) {
-      void checkProviderEnabled(dmxapiProvider, t)
+    if (!dmxapiProvider?.isEnabled) {
+      if (dmxapiProvider) void checkProviderEnabled(dmxapiProvider, t)
       return
     }
 
@@ -559,7 +561,6 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       // 设置请求状态
       const controller = new AbortController()
       setAbortController(controller)
-      setGenerating(true)
 
       // 准备请求配置
       const requestConfig = await prepareRequestConfig(prompt, painting)
@@ -603,7 +604,6 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     } finally {
       // 清理状态
       setIsLoading(false)
-      setGenerating(false)
       setAbortController(null)
     }
   }
@@ -644,7 +644,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onSelectPainting = (newPainting: DmxapiPainting) => {
-    if (generating) return
+    if (isLoading) return
     clearImages()
     setPainting(newPainting)
     setCurrentImageIndex(0)
@@ -802,13 +802,13 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
                 {t('paintings.top_up')}
               </SettingHelpLink>
               {(() => {
-                const Icon = resolveProviderIcon(dmxapiProvider.id)
+                const Icon = resolveProviderIcon(dmxapiProvider?.id ?? 'dmxapi')
                 return Icon ? <Icon.Avatar size={16} className="ml-1" /> : null
               })()}
             </div>
           </ProviderTitleContainer>
           <ProviderSelect
-            provider={dmxapiProvider}
+            provider={dmxapiProvider ?? { id: 'dmxapi' }}
             options={Options}
             onChange={handleProviderChange}
             className="mb-4"

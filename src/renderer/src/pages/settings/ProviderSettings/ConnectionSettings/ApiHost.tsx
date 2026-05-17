@@ -1,4 +1,4 @@
-import { useProvider, useProviderMutations } from '@renderer/hooks/useProviders'
+import { useProvider, useProviderMutations } from '@renderer/hooks/useProvider'
 import { getProviderHostTopology } from '@renderer/pages/settings/ProviderSettings/utils/providerTopology'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { useState } from 'react'

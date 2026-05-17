@@ -1,10 +1,8 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { AiProvider } from '@renderer/aiCore'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -12,7 +10,7 @@ import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { useAllProviders } from '@renderer/hooks/useProvider'
+import { useProviderApiKeys, useProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata } from '@renderer/types'
@@ -34,6 +32,7 @@ import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { type ConfigItem, createModeConfigs, DEFAULT_PAINTING } from './config/aihubmixConfig'
 import { checkProviderEnabled } from './utils'
+import { persistGeneratedImages } from './utils/persistGeneratedImages'
 
 const logger = loggerService.withContext('AihubmixPage')
 
@@ -65,20 +64,24 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [painting, setPainting] = useState<PaintingAction>(filteredPaintings[0] || DEFAULT_PAINTING)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
-  const [abortController, setAbortController] = useState<AbortController | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const [isTranslating, setIsTranslating] = useState(false)
   const [fileMap, setFileMap] = useState<{ [key: string]: FileMetadata }>({})
 
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const providers = useAllProviders()
-  const [generating, setGenerating] = useCache('chat.generating')
+  const { providers } = useProviders()
   const navigate = useNavigate()
   const location = useLocation()
   const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
-  const aihubmixProvider = providers.find((p) => p.id === 'aihubmix')!
+  const aihubmixProvider = providers.find((p) => p.id === 'aihubmix')
+  const { data: aihubmixKeyData } = useProviderApiKeys('aihubmix')
+  const aihubmixApiKey = aihubmixKeyData?.keys.find((k) => k.isEnabled)?.key ?? ''
+  const aihubmixApiHost =
+    aihubmixProvider?.endpointConfigs?.[aihubmixProvider.defaultChatEndpoint ?? 'openai-chat-completions']?.baseUrl ??
+    ''
 
   const modeOptions = [
     { label: t('paintings.mode.generate'), value: 'aihubmix_image_generate' },
@@ -138,6 +141,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onGenerate = async () => {
+    if (!aihubmixProvider) return
     await checkProviderEnabled(aihubmixProvider, t)
 
     if (painting.files.length > 0) {
@@ -153,7 +157,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
     updatePaintingState({ prompt })
 
-    if (!aihubmixProvider.apiKey) {
+    if (!aihubmixApiKey) {
       window.modal.error({
         content: t('error.no_api_key'),
         centered: true
@@ -166,42 +170,47 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     const controller = new AbortController()
-    setAbortController(controller)
+    abortControllerRef.current = controller
     setIsLoading(true)
-    setGenerating(true)
 
     let body: string | FormData = ''
     let headers: Record<string, string> = {
-      'Api-Key': aihubmixProvider.apiKey
+      'Api-Key': aihubmixApiKey
     }
-    let url = aihubmixProvider.apiHost + `/ideogram/` + mode
+    let url = aihubmixApiHost + `/ideogram/` + mode
 
     try {
       if (mode === 'aihubmix_image_generate') {
+        // TODO(renderer/aiCore-cleanup): the remaining Gemini/Ideogram/custom fetch branches should move behind main AI/image IPC so this page no longer owns provider-specific transport logic.
         if (painting.model.startsWith('imagen-')) {
-          const AI = new AiProvider(aihubmixProvider)
-          const base64s = await AI.generateImage({
-            prompt,
-            model: painting.model,
-            imageSize: painting.aspectRatio?.replace('ASPECT_', '').replace('_', ':') || '1:1',
-            batchSize: painting.model.startsWith('imagen-4.0-ultra-generate') ? 1 : painting.numberOfImages || 1,
-            personGeneration: painting.personGeneration
-          })
-          if (base64s?.length > 0) {
-            const validFiles = await Promise.all(
-              base64s.map(async (base64) => {
-                return await window.api.file.saveBase64Image(base64)
-              })
-            )
+          const result = await window.api.ai.generateImage(
+            {
+              uniqueModelId: `${aihubmixProvider.id}::${painting.model}`,
+              prompt,
+              size: painting.aspectRatio?.replace('ASPECT_', '').replace('_', ':') || '1:1',
+              n: painting.model.startsWith('imagen-4.0-ultra-generate') ? 1 : painting.numberOfImages || 1,
+              personGeneration: painting.personGeneration
+            },
+            controller.signal
+          )
+
+          if (controller.signal.aborted) return
+
+          if (result.images.length > 0) {
+            const validFiles = await persistGeneratedImages(result.images)
+
+            if (controller.signal.aborted) return
+
             await FileManager.addFiles(validFiles)
             updatePaintingState({ files: validFiles, urls: [] })
           }
+
           return
         } else if (painting.model === 'gemini-3-pro-image-preview') {
-          const geminiUrl = `${aihubmixProvider.apiHost}/gemini/v1beta/models/gemini-3-pro-image-preview:streamGenerateContent`
+          const geminiUrl = `${aihubmixApiHost}/gemini/v1beta/models/gemini-3-pro-image-preview:streamGenerateContent`
           const geminiHeaders = {
             'Content-Type': 'application/json',
-            'x-goog-api-key': aihubmixProvider.apiKey
+            'x-goog-api-key': aihubmixApiKey
           }
 
           const requestBody = {
@@ -320,42 +329,34 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           body = formData
           // For V3 endpoints - 使用模板字符串而不是字符串连接
-          logger.silly(`API 端点: ${aihubmixProvider.apiHost}/ideogram/v1/ideogram-v3/generate`)
+          logger.silly(`API 端点: ${aihubmixApiHost}/ideogram/v1/ideogram-v3/generate`)
 
           // 调整请求头，可能需要指定multipart/form-data
           // 注意：FormData会自动设置Content-Type，不应手动设置
-          const apiHeaders = { 'Api-Key': aihubmixProvider.apiKey }
+          const apiHeaders = { 'Api-Key': aihubmixApiKey }
 
-          try {
-            const response = await fetch(`${aihubmixProvider.apiHost}/ideogram/v1/ideogram-v3/generate`, {
-              method: 'POST',
-              headers: apiHeaders,
-              body
-            })
+          const response = await fetch(`${aihubmixApiHost}/ideogram/v1/ideogram-v3/generate`, {
+            method: 'POST',
+            headers: apiHeaders,
+            body
+          })
 
-            if (!response.ok) {
-              const errorData = await response.json()
-              logger.error('V3 API错误:', errorData)
-              throw new Error(errorData.error?.message || t('paintings.generate_failed'))
-            }
-
-            const data = await response.json()
-            logger.silly(`V3 API响应: ${data}`)
-            const urls = data.data.map((item) => item.url)
-
-            if (urls.length > 0) {
-              const validFiles = await downloadImages(urls)
-              await FileManager.addFiles(validFiles)
-              updatePaintingState({ files: validFiles, urls })
-            }
-            return
-          } catch (error: unknown) {
-            handleError(error)
-          } finally {
-            setIsLoading(false)
-            setGenerating(false)
-            setAbortController(null)
+          if (!response.ok) {
+            const errorData = await response.json()
+            logger.error('V3 API错误:', errorData)
+            throw new Error(errorData.error?.message || t('paintings.generate_failed'))
           }
+
+          const data = await response.json()
+          logger.silly(`V3 API响应: ${data}`)
+          const urls = data.data.map((item) => item.url)
+
+          if (urls.length > 0) {
+            const validFiles = await downloadImages(urls)
+            await FileManager.addFiles(validFiles)
+            updatePaintingState({ files: validFiles, urls })
+          }
+          return
         } else {
           let requestData: any = {}
           if (painting.model === 'gpt-image-1' || painting.model === 'gpt-image-2') {
@@ -367,9 +368,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               quality: painting.quality,
               ...(painting.model === 'gpt-image-1' ? { moderation: painting.moderation } : {})
             }
-            url = aihubmixProvider.apiHost + `/v1/images/generations`
+            url = aihubmixApiHost + `/v1/images/generations`
             headers = {
-              Authorization: `Bearer ${aihubmixProvider.apiKey}`
+              Authorization: `Bearer ${aihubmixApiKey}`
             }
           } else if (painting.model === 'FLUX.1-Kontext-pro') {
             requestData = {
@@ -379,9 +380,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               // height: painting.height,
               safety_tolerance: painting.safetyTolerance || 6
             }
-            url = aihubmixProvider.apiHost + `/v1/images/generations`
+            url = aihubmixApiHost + `/v1/images/generations`
             headers = {
-              Authorization: `Bearer ${aihubmixProvider.apiKey}`
+              Authorization: `Bearer ${aihubmixApiKey}`
             }
           } else {
             // Existing V1/V2 API
@@ -455,9 +456,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           body = formData
           // For V3 Remix endpoint
-          const response = await fetch(`${aihubmixProvider.apiHost}/ideogram/v1/ideogram-v3/remix`, {
+          const response = await fetch(`${aihubmixApiHost}/ideogram/v1/ideogram-v3/remix`, {
             method: 'POST',
-            headers: { 'Api-Key': aihubmixProvider.apiKey },
+            headers: { 'Api-Key': aihubmixApiKey },
             body
           })
 
@@ -572,9 +573,12 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     } catch (error: unknown) {
       handleError(error)
     } finally {
-      setIsLoading(false)
-      setGenerating(false)
-      setAbortController(null)
+      // Only flip loading off if this controller is still the latest — a
+      // newer request may have replaced us via abortControllerRef.current.
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null
+        setIsLoading(false)
+      }
     }
   }
 
@@ -592,7 +596,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onCancel = () => {
-    abortController?.abort()
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = null
+    setIsLoading(false)
   }
 
   const nextImage = () => {
@@ -847,7 +853,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onSelectPainting = (newPainting: PaintingAction) => {
-    if (generating) return
+    if (isLoading) return
     setPainting(newPainting)
     setCurrentImageIndex(0)
   }
@@ -886,16 +892,16 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         <LeftContainer>
           <ProviderTitleContainer>
             <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
-            <SettingHelpLink target="_blank" href={aihubmixProvider.apiHost}>
+            <SettingHelpLink target="_blank" href={aihubmixApiHost}>
               {t('paintings.learn_more')}
               {(() => {
-                const Icon = resolveProviderIcon(aihubmixProvider.id)
+                const Icon = resolveProviderIcon(aihubmixProvider?.id ?? 'aihubmix')
                 return Icon ? <Icon.Avatar size={16} className="ml-1.25" /> : null
               })()}
             </SettingHelpLink>
           </ProviderTitleContainer>
           <ProviderSelect
-            provider={aihubmixProvider}
+            provider={aihubmixProvider ?? { id: 'aihubmix' }}
             options={Options}
             onChange={handleProviderChange}
             className={'mb-4'}

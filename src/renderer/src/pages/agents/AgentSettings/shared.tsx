@@ -3,16 +3,10 @@ import type { ScrollbarProps } from '@renderer/components/Scrollbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { computeModeDefaults, DEFAULT_MAX_TURNS, DEFAULT_PERMISSION_MODE } from '@renderer/hooks/agents/permissionMode'
 import { SettingDivider } from '@renderer/pages/settings'
-import type {
-  AgentConfiguration,
-  AgentEntity,
-  AgentSessionEntity,
-  GetAgentResponse,
-  GetAgentSessionResponse,
-  UpdateAgentFunction,
-  UpdateAgentSessionFunction
-} from '@renderer/types'
+import type { GetAgentResponse, UpdateAgentFunction } from '@renderer/types'
 import { cn } from '@renderer/utils'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentConfiguration, AgentEntity } from '@shared/data/types/agent'
 import type { ModalProps } from 'antd'
 import React, { type ReactNode } from 'react'
 
@@ -28,17 +22,14 @@ export const defaultConfiguration: AgentConfigurationState = {
 }
 
 /**
- * Unified props type for settings components that work with both Agent and Session
+ * Props for settings components. Sessions are pure agent instances and have no
+ * configuration of their own — both agent and session popups now feed the parent
+ * agent here, so the form always reads/writes agent-level fields.
  */
-export type AgentOrSessionSettingsProps =
-  | {
-      agentBase: GetAgentResponse | undefined | null
-      update: UpdateAgentFunction
-    }
-  | {
-      agentBase: GetAgentSessionResponse | undefined | null
-      update: UpdateAgentSessionFunction
-    }
+export type AgentOrSessionSettingsProps = {
+  agentBase: GetAgentResponse | undefined | null
+  update: UpdateAgentFunction
+}
 
 export interface SettingsTitleProps extends React.ComponentPropsWithRef<'div'> {
   contentAfter?: ReactNode

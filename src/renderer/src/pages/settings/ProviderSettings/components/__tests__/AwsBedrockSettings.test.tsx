@@ -29,7 +29,7 @@ vi.mock('../../primitives/ProviderSettingsPrimitives', () => ({
   ProviderSettingsSubtitle: ({ children }: any) => <div>{children}</div>
 }))
 
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args),
   useProviderAuthConfig: (...args: any[]) => useProviderAuthConfigMock(...args)
 }))

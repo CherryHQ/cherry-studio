@@ -1,32 +1,25 @@
+import { useChat } from '@ai-sdk/react'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useAssistant, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
+import { collectLiveAssistants, useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
+import { useDefaultModel } from '@renderer/hooks/useModel'
+import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import i18n from '@renderer/i18n'
-import { fetchChatCompletion } from '@renderer/services/ApiService'
-import { getDefaultTopic } from '@renderer/services/AssistantService'
-import { ConversationService } from '@renderer/services/ConversationService'
-import { getAssistantMessage, getUserMessage } from '@renderer/services/MessagesService'
-import store, { useAppSelector } from '@renderer/store'
-import { updateOneBlock, upsertManyBlocks, upsertOneBlock } from '@renderer/store/messageBlock'
-import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
-import { cancelThrottledBlockUpdate, throttledBlockUpdate } from '@renderer/store/thunk/messageThunk'
-import type { Topic } from '@renderer/types'
-import type { Chunk } from '@renderer/types/chunk'
-import { ChunkType } from '@renderer/types/chunk'
-import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
-import { abortCompletion } from '@renderer/utils/abortController'
-import { isAbortError } from '@renderer/utils/error'
-import { createMainTextBlock, createThinkingBlock } from '@renderer/utils/messageUtils/create'
-import { getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { replacePromptVariables } from '@renderer/utils/prompt'
+import ExecutionStreamCollector from '@renderer/pages/home/Messages/ExecutionStreamCollector'
+import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
+import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
+import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import { defaultLanguage } from '@shared/config/constant'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
-import { cloneDeep, isEmpty } from 'lodash'
-import { last } from 'lodash'
+import { isEmpty } from 'lodash'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -42,49 +35,53 @@ import InputBar from './components/InputBar'
 
 const logger = loggerService.withContext('HomeWindow')
 
+type MiniRoute = 'home' | 'chat' | 'translate' | 'summary' | 'explanation'
+
 const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const [readClipboardAtStartup] = usePreference('feature.quick_assistant.read_clipboard_at_startup')
+  const [quickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
   const [language] = usePreference('app.language')
   const [windowStyle] = usePreference('ui.window_style')
   const { theme } = useTheme()
   const { t } = useTranslation()
 
-  const [route, setRoute] = useState<'home' | 'chat' | 'translate' | 'summary' | 'explanation'>('home')
+  const [route, setRoute] = useState<MiniRoute>('home')
   const [isFirstMessage, setIsFirstMessage] = useState(true)
-
   const [userInputText, setUserInputText] = useState('')
-
   const [clipboardText, setClipboardText] = useState('')
-  const lastClipboardTextRef = useRef<string | null>(null)
-
   const [isPinned, setIsPinnedState] = useState(false)
 
   // Wraps setState with an eager IPC call so main's pin flag is updated
-  // synchronously inside the click handler — the previous useEffect-based
-  // sync deferred IPC by at least one render cycle, opening a race window
-  // where blur could fire with the main flag still stale.
+  // synchronously inside the click handler — a useEffect-based sync would
+  // defer IPC by at least one render, opening a race where blur fires with
+  // the main flag still stale.
   const setIsPinned = useCallback((next: boolean) => {
     void window.api.quickAssistant.setPin(next)
     setIsPinnedState(next)
   }, [])
 
-  // Indicator for loading(thinking/streaming)
-  const [isLoading, setIsLoading] = useState(false)
-  // Indicator for whether the first message is outputted
-  const [isOutputted, setIsOutputted] = useState(false)
-
-  const [error, setError] = useState<string | null>(null)
-
-  const { quickAssistantId } = useAppSelector((state) => state.llm)
-  const { assistant: currentAssistant } = useAssistant(quickAssistantId)
-
-  const currentTopic = useRef<Topic>(getDefaultTopic(currentAssistant.id))
-  const currentAskId = useRef('')
-
+  const lastClipboardTextRef = useRef<string | null>(null)
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
 
-  const referenceText = useMemo(() => clipboardText || userInputText, [clipboardText, userInputText])
+  const { assistant: defaultAssistant } = useDefaultAssistant()
+  const { defaultModel: defaultApiModel } = useDefaultModel()
+  const { assistant: chosenAssistant, model: chosenApiModel } = useAssistant(quickAssistantId ?? '')
+  const currentAssistant = chosenAssistant ?? defaultAssistant
+  const currentModel = chosenApiModel ?? defaultApiModel
+
+  // Lease a temporary topic for the quick-assistant conversation.
+  // Lifecycle is tied to this component; resetting the conversation drops and leases a new one.
+  // currentAssistant may be the synthesised default — only pass a real
+  // persisted id (chosenAssistant) so main treats it as "no assistant" when
+  // the user hasn't picked one.
+  const {
+    topicId: temporaryTopicId,
+    ready: isTopicReady,
+    reset: resetTemporaryTopic
+  } = useTemporaryTopic({ enabled: true, assistantId: chosenAssistant?.id })
+
+  const referenceText = clipboardText || userInputText
 
   const userContent = useMemo(() => {
     if (isFirstMessage) {
@@ -93,28 +90,155 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     return userInputText.trim()
   }, [isFirstMessage, referenceText, userInputText])
 
+  const [isPreparing, setIsPreparing] = useState(false)
+  const [flowError, setFlowError] = useState<string | null>(null)
+
+  const {
+    messages: chatMessages,
+    sendMessage,
+    stop: stopChat,
+    setMessages
+  } = useChat<CherryUIMessage>({
+    id: temporaryTopicId ?? 'pending-temp',
+    transport: ipcChatTransport,
+    experimental_throttle: 50,
+    onError: (err) => {
+      setIsPreparing(false)
+      setFlowError(err.message)
+    }
+  })
+
+  // Chunks are routed to the per-execution collector (Main tags every
+  // chunk with its modelId). Primary `useChat.state.messages`
+  // (chatMessages) only receives user messages pushed by `sendMessage` —
+  // no assistant content. We accumulate assistant turns across completed
+  // streams in `completedAssistants` so the multi-turn conversation
+  // renders properly. Cleared on `clear()` together with `setMessages([])`.
+  const { activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
+  const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose, resetExecutionMessages } =
+    useExecutionMessages()
+  const executionChats = useExecutionChats(temporaryTopicId ?? 'pending-temp', activeExecutions)
+  const [completedAssistants, setCompletedAssistants] = useState<CherryUIMessage[]>([])
+
+  const prevActiveCountRef = useRef(activeExecutions.length)
+  useEffect(() => {
+    const wasActive = prevActiveCountRef.current > 0
+    prevActiveCountRef.current = activeExecutions.length
+    if (activeExecutions.length === 0 && wasActive) {
+      const finalized = collectLiveAssistants(executionMessagesById)
+      if (finalized.length) {
+        setCompletedAssistants((done) => [...done, ...finalized])
+        resetExecutionMessages()
+      }
+    }
+  }, [activeExecutions, executionMessagesById, resetExecutionMessages])
+
+  useEffect(() => {
+    if (isPending) setIsPreparing(false)
+  }, [isPending])
+
+  const liveAssistants = useMemo(() => collectLiveAssistants(executionMessagesById), [executionMessagesById])
+
+  const allAssistants = useMemo<CherryUIMessage[]>(
+    () => [...completedAssistants, ...liveAssistants],
+    [completedAssistants, liveAssistants]
+  )
+
+  const partsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
+    const map: Record<string, CherryMessagePart[]> = {}
+    for (const m of chatMessages) map[m.id] = m.parts as CherryMessagePart[]
+    for (const m of allAssistants) map[m.id] = m.parts as CherryMessagePart[]
+    return map
+  }, [chatMessages, allAssistants])
+
+  // Interleave user messages (from state.messages) with assistant turns
+  // (accumulated completed + live). The assumption: users and assistants
+  // alternate strictly — user[i] precedes assistant[i]. Temporary topics
+  // are always a clean linear chat, no branches.
+  const adaptedMessages = useMemo(() => {
+    const users = chatMessages.filter((m) => m.role === 'user')
+    const latestAssistantId = liveAssistants[liveAssistants.length - 1]?.id
+    const out: {
+      id: string
+      role: 'user' | 'assistant'
+      assistantId: string
+      topicId: string
+      createdAt: string
+      status: UserMessageStatus | AssistantMessageStatus
+      blocks: never[]
+    }[] = []
+    const turns = Math.max(users.length, allAssistants.length)
+    for (let i = 0; i < turns; i++) {
+      const u = users[i]
+      if (u) {
+        out.push({
+          id: u.id,
+          role: 'user',
+          assistantId: '',
+          topicId: '',
+          createdAt: '',
+          status: UserMessageStatus.SUCCESS,
+          blocks: []
+        })
+      }
+      const a = allAssistants[i]
+      if (a) {
+        out.push({
+          id: a.id,
+          role: 'assistant',
+          assistantId: '',
+          topicId: '',
+          createdAt: '',
+          status:
+            a.id === latestAssistantId && isPending
+              ? AssistantMessageStatus.PROCESSING
+              : AssistantMessageStatus.SUCCESS,
+          blocks: []
+        })
+      }
+    }
+    return out
+  }, [chatMessages, allAssistants, liveAssistants, isPending])
+
+  const latestAssistantUIMsg = useMemo(() => allAssistants[allAssistants.length - 1], [allAssistants])
+
+  const content = useMemo(
+    () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),
+    [latestAssistantUIMsg]
+  )
+
+  const isStreaming = isPending
+
+  const clear = useCallback(() => {
+    void stopChat()
+    setMessages([])
+    setCompletedAssistants([])
+    resetExecutionMessages()
+    setFlowError(null)
+    setIsPreparing(false)
+  }, [stopChat, setMessages, resetExecutionMessages])
+
+  const isLoading = isPreparing || isStreaming
+  const isOutputted = adaptedMessages.some((message) => message.role === 'assistant')
+
   useEffect(() => {
     void i18n.changeLanguage(language || navigator.language || defaultLanguage)
   }, [language])
 
-  // Reset state when switching to home route
   useEffect(() => {
     if (route === 'home') {
       setIsFirstMessage(true)
-      setError(null)
+      setFlowError(null)
+      clear()
     }
-  }, [route])
+  }, [route, clear])
 
   const focusInput = useCallback(() => {
-    if (inputBarRef.current) {
-      const input = inputBarRef.current.querySelector('input')
-      if (input) {
-        input.focus()
-      }
-    }
+    if (!inputBarRef.current) return
+    const input = inputBarRef.current.querySelector('input')
+    input?.focus()
   }, [])
 
-  // Use useCallback with stable dependencies to avoid infinite loops
   const readClipboard = useCallback(async () => {
     if (!readClipboardAtStartup || !document.hasFocus()) return
 
@@ -124,9 +248,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         lastClipboardTextRef.current = text
         setClipboardText(text.trim())
       }
-    } catch (error) {
-      // Silently handle clipboard read errors (common in some environments)
-      logger.warn('Failed to read clipboard:', error as Error)
+    } catch (clipboardError) {
+      logger.warn('Failed to read clipboard:', clipboardError as Error)
     }
   }, [readClipboardAtStartup])
 
@@ -155,12 +278,62 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   const handleCloseWindow = useCallback(() => window.api.quickAssistant.hide(), [])
 
+  const handleSendMessage = useCallback(
+    async (prompt?: string) => {
+      if (isEmpty(userContent)) return
+      if (!isTopicReady || !temporaryTopicId) return
+
+      try {
+        setFlowError(null)
+        setIsFirstMessage(false)
+        setUserInputText('')
+        setIsPreparing(true)
+        // topicId comes from useChat id; Main resolves assistant/model from topic.assistantId.
+        void sendMessage({ text: [prompt, userContent].filter(Boolean).join('\n\n') })
+      } catch (streamError) {
+        const resolvedError = streamError instanceof Error ? streamError : new Error('An error occurred')
+        setFlowError(resolvedError.message)
+        logger.error('Error fetching result:', resolvedError)
+      }
+    },
+    [sendMessage, temporaryTopicId, isTopicReady, userContent]
+  )
+
+  const handlePause = useCallback(() => {
+    void stopChat()
+  }, [stopChat])
+
+  const resetConversation = useCallback(() => {
+    // Drop the current temporary topic and let useTemporaryTopic lease a fresh one.
+    resetTemporaryTopic()
+    clear()
+  }, [clear, resetTemporaryTopic])
+
+  const handleEsc = useCallback(() => {
+    if (isLoading) {
+      handlePause()
+      return
+    }
+
+    if (route === 'home') {
+      void handleCloseWindow()
+      return
+    }
+
+    resetConversation()
+    featureMenusRef.current?.resetSelectedIndex()
+    setFlowError(null)
+    setRoute('home')
+    setUserInputText('')
+  }, [handleCloseWindow, handlePause, isLoading, resetConversation, route])
+
+  const handleCopy = useCallback(() => {
+    if (!content) return
+    void navigator.clipboard.writeText(content)
+    window.toast.success(t('message.copy.success'))
+  }, [content, t])
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // 使用非直接输入法时（例如中文、日文输入法），存在输入法键入过程
-    // 键入过程不应有任何响应
-    // 例子，中文输入法候选词过程使用`Enter`直接上屏字母，日文输入法候选词过程使用`Enter`输入假名
-    // 输入法可以`Esc`终止候选词过程
-    // 这两个例子的`Enter`和`Esc`快捷助手都不应该响应
     if (e.nativeEvent.isComposing || e.key === 'Process') {
       return
     }
@@ -168,49 +341,37 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     switch (e.code) {
       case 'Enter':
       case 'NumpadEnter':
-        {
-          if (isLoading) return
-
-          e.preventDefault()
-          if (userContent) {
-            if (route === 'home') {
-              featureMenusRef.current?.useFeature()
-            } else {
-              // Currently text input is only available in 'chat' mode
-              setRoute('chat')
-              void handleSendMessage()
-              focusInput()
-            }
+        if (isLoading) return
+        e.preventDefault()
+        if (userContent) {
+          if (route === 'home') {
+            featureMenusRef.current?.useFeature()
+          } else {
+            setRoute('chat')
+            void handleSendMessage()
+            focusInput()
           }
         }
         break
       case 'Backspace':
-        {
-          if (userInputText.length === 0) {
-            void clearClipboard()
-          }
+        if (userInputText.length === 0) {
+          void clearClipboard()
         }
         break
       case 'ArrowUp':
-        {
-          if (route === 'home') {
-            e.preventDefault()
-            featureMenusRef.current?.prevFeature()
-          }
+        if (route === 'home') {
+          e.preventDefault()
+          featureMenusRef.current?.prevFeature()
         }
         break
       case 'ArrowDown':
-        {
-          if (route === 'home') {
-            e.preventDefault()
-            featureMenusRef.current?.nextFeature()
-          }
+        if (route === 'home') {
+          e.preventDefault()
+          featureMenusRef.current?.nextFeature()
         }
         break
       case 'Escape':
-        {
-          handleEsc()
-        }
+        handleEsc()
         break
     }
   }
@@ -219,314 +380,22 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     setUserInputText(e.target.value)
   }
 
-  const handleError = (error: Error) => {
-    setIsLoading(false)
-    setError(error.message)
-  }
-
-  const handleSendMessage = useCallback(
-    async (prompt?: string) => {
-      if (isEmpty(userContent) || !currentTopic.current) {
-        return
-      }
-
-      try {
-        const topicId = currentTopic.current.id
-
-        const { message: userMessage, blocks } = getUserMessage({
-          content: [prompt, userContent].filter(Boolean).join('\n\n'),
-          assistant: currentAssistant,
-          topic: currentTopic.current
-        })
-
-        store.dispatch(newMessagesActions.addMessage({ topicId, message: userMessage }))
-        store.dispatch(upsertManyBlocks(blocks))
-
-        const assistantMessage = getAssistantMessage({
-          assistant: currentAssistant,
-          topic: currentTopic.current
-        })
-        assistantMessage.askId = userMessage.id
-        currentAskId.current = userMessage.id
-
-        store.dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
-
-        const allMessagesForTopic = selectMessagesForTopic(store.getState(), topicId)
-        const userMessageIndex = allMessagesForTopic.findIndex((m) => m?.id === userMessage.id)
-
-        const messagesForContext = allMessagesForTopic
-          .slice(0, userMessageIndex + 1)
-          .filter((m) => m && !m.status?.includes('ing'))
-
-        let blockId: string | null = null
-        let thinkingBlockId: string | null = null
-        let thinkingStartTime: number | null = null
-
-        const resolveThinkingDuration = (duration?: number) => {
-          if (typeof duration === 'number' && Number.isFinite(duration)) {
-            return duration
-          }
-          if (thinkingStartTime !== null) {
-            return Math.max(0, performance.now() - thinkingStartTime)
-          }
-          return 0
-        }
-
-        setIsLoading(true)
-        setIsOutputted(false)
-        setError(null)
-
-        setIsFirstMessage(false)
-        setUserInputText('')
-
-        const newAssistant = cloneDeep(currentAssistant)
-        if (!newAssistant.settings) {
-          newAssistant.settings = {}
-        }
-        newAssistant.settings.streamOutput = true
-        // 显式关闭这些功能
-        newAssistant.enableWebSearch = false
-        newAssistant.mcpServers = undefined
-        newAssistant.knowledge_bases = undefined
-        // replace prompt vars
-        newAssistant.prompt = await replacePromptVariables(currentAssistant.prompt, currentAssistant?.model.name)
-        // logger.debug('newAssistant', newAssistant)
-
-        const { modelMessages, uiMessages } = await ConversationService.prepareMessagesForModel(
-          messagesForContext,
-          newAssistant
-        )
-
-        await fetchChatCompletion({
-          messages: modelMessages,
-          assistant: newAssistant,
-          requestOptions: {},
-          topicId,
-          uiMessages: uiMessages,
-          onChunkReceived: (chunk: Chunk) => {
-            switch (chunk.type) {
-              case ChunkType.THINKING_START:
-                {
-                  setIsOutputted(true)
-                  thinkingStartTime = performance.now()
-                  if (thinkingBlockId) {
-                    store.dispatch(
-                      updateOneBlock({ id: thinkingBlockId, changes: { status: MessageBlockStatus.STREAMING } })
-                    )
-                  } else {
-                    const block = createThinkingBlock(assistantMessage.id, '', {
-                      status: MessageBlockStatus.STREAMING
-                    })
-                    thinkingBlockId = block.id
-                    store.dispatch(
-                      newMessagesActions.updateMessage({
-                        topicId,
-                        messageId: assistantMessage.id,
-                        updates: { blockInstruction: { id: block.id } }
-                      })
-                    )
-                    store.dispatch(upsertOneBlock(block))
-                  }
-                }
-                break
-              case ChunkType.THINKING_DELTA:
-                {
-                  setIsOutputted(true)
-                  if (thinkingBlockId) {
-                    if (thinkingStartTime === null) {
-                      thinkingStartTime = performance.now()
-                    }
-                    const thinkingDuration = resolveThinkingDuration(chunk.thinking_millsec)
-                    throttledBlockUpdate(thinkingBlockId, {
-                      content: chunk.text,
-                      thinking_millsec: thinkingDuration
-                    })
-                  }
-                }
-                break
-              case ChunkType.THINKING_COMPLETE:
-                {
-                  if (thinkingBlockId) {
-                    const thinkingDuration = resolveThinkingDuration(chunk.thinking_millsec)
-                    cancelThrottledBlockUpdate(thinkingBlockId)
-                    store.dispatch(
-                      updateOneBlock({
-                        id: thinkingBlockId,
-                        changes: { status: MessageBlockStatus.SUCCESS, thinking_millsec: thinkingDuration }
-                      })
-                    )
-                  }
-                  thinkingStartTime = null
-                  thinkingBlockId = null
-                }
-                break
-              case ChunkType.TEXT_START:
-                {
-                  setIsOutputted(true)
-                  if (blockId) {
-                    store.dispatch(updateOneBlock({ id: blockId, changes: { status: MessageBlockStatus.STREAMING } }))
-                  } else {
-                    const block = createMainTextBlock(assistantMessage.id, '', {
-                      status: MessageBlockStatus.STREAMING
-                    })
-                    blockId = block.id
-                    store.dispatch(
-                      newMessagesActions.updateMessage({
-                        topicId,
-                        messageId: assistantMessage.id,
-                        updates: { blockInstruction: { id: block.id } }
-                      })
-                    )
-                    store.dispatch(upsertOneBlock(block))
-                  }
-                }
-                break
-              case ChunkType.TEXT_DELTA:
-                {
-                  setIsOutputted(true)
-                  if (blockId) {
-                    throttledBlockUpdate(blockId, { content: chunk.text })
-                  }
-                }
-                break
-
-              case ChunkType.TEXT_COMPLETE:
-                {
-                  if (blockId) {
-                    cancelThrottledBlockUpdate(blockId)
-                    store.dispatch(
-                      updateOneBlock({
-                        id: blockId,
-                        changes: { content: chunk.text, status: MessageBlockStatus.SUCCESS }
-                      })
-                    )
-                  }
-                }
-                break
-              case ChunkType.ERROR: {
-                //stop the thinking timer
-                const isAborted = isAbortError(chunk.error)
-                const possibleBlockId = thinkingBlockId || blockId
-                if (possibleBlockId) {
-                  store.dispatch(
-                    updateOneBlock({
-                      id: possibleBlockId,
-                      changes: {
-                        status: isAborted ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR
-                      }
-                    })
-                  )
-                  store.dispatch(
-                    newMessagesActions.updateMessage({
-                      topicId,
-                      messageId: assistantMessage.id,
-                      updates: {
-                        status: isAborted ? AssistantMessageStatus.PAUSED : AssistantMessageStatus.SUCCESS
-                      }
-                    })
-                  )
-                }
-                if (!isAborted) {
-                  throw new Error(chunk.error.message)
-                }
-                thinkingStartTime = null
-                thinkingBlockId = null
-              }
-              //fall through
-              case ChunkType.BLOCK_COMPLETE:
-                setIsLoading(false)
-                setIsOutputted(true)
-                currentAskId.current = ''
-                store.dispatch(
-                  newMessagesActions.updateMessage({
-                    topicId,
-                    messageId: assistantMessage.id,
-                    updates: { status: AssistantMessageStatus.SUCCESS }
-                  })
-                )
-                break
-            }
-          }
-        })
-      } catch (err) {
-        if (isAbortError(err)) return
-        handleError(err instanceof Error ? err : new Error('An error occurred'))
-        logger.error('Error fetching result:', err as Error)
-      } finally {
-        setIsLoading(false)
-        setIsOutputted(true)
-        currentAskId.current = ''
-      }
-    },
-    [userContent, currentAssistant]
-  )
-
-  const handlePause = useCallback(() => {
-    if (currentAskId.current) {
-      abortCompletion(currentAskId.current)
-      setIsLoading(false)
-      setIsOutputted(true)
-      currentAskId.current = ''
-    }
-  }, [])
-
-  const handleEsc = useCallback(() => {
-    if (isLoading) {
-      handlePause()
-    } else {
-      if (route === 'home') {
-        void handleCloseWindow()
-      } else {
-        // Clear the topic messages to reduce memory usage
-        if (currentTopic.current) {
-          store.dispatch(newMessagesActions.clearTopicMessages(currentTopic.current.id))
-        }
-
-        // Reset the topic
-        currentTopic.current = getDefaultTopic(currentAssistant.id)
-
-        // Reset selection only after using a feature and returning to home.
-        featureMenusRef.current?.resetSelectedIndex()
-        setError(null)
-        setRoute('home')
-        setUserInputText('')
-      }
-    }
-  }, [isLoading, route, handleCloseWindow, currentAssistant.id, handlePause])
-
-  const handleCopy = useCallback(() => {
-    if (!currentTopic.current) return
-
-    const messages = selectMessagesForTopic(store.getState(), currentTopic.current.id)
-    const lastMessage = last(messages)
-
-    if (lastMessage) {
-      const content = getMainTextContent(lastMessage)
-      void navigator.clipboard.writeText(content)
-      window.toast.success(t('message.copy.success'))
-    }
-  }, [currentTopic, t])
-
   const backgroundColor = useMemo(() => {
-    // ONLY MAC: when transparent style + light theme: use vibrancy effect
-    // because the dark style under mac's vibrancy effect has not been implemented
     if (isMac && windowStyle === 'transparent' && theme === ThemeMode.light) {
       return 'transparent'
     }
     return 'var(--color-background)'
   }, [windowStyle, theme])
 
-  // Memoize placeholder text
   const inputPlaceholder = useMemo(() => {
     if (referenceText && route === 'home') {
       return t('quickAssistant.input.placeholder.title')
     }
     return t('quickAssistant.input.placeholder.empty', {
-      model: quickAssistantId ? currentAssistant.name : currentAssistant.model.name
+      model: quickAssistantId ? (currentAssistant?.name ?? '') : (currentModel?.name ?? '')
     })
-  }, [referenceText, route, t, quickAssistantId, currentAssistant])
+  }, [referenceText, route, t, quickAssistantId, currentAssistant, currentModel])
 
-  // Memoize footer props
   const baseFooterProps = useMemo(
     () => ({
       route,
@@ -544,11 +413,12 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     case 'explanation':
       return (
         <Container style={{ backgroundColor }} $draggable={draggable}>
-          {route === 'chat' && (
+          {route === 'chat' && currentAssistant && (
             <>
               <InputBar
                 text={userInputText}
                 assistant={currentAssistant}
+                model={currentModel}
                 referenceText={referenceText}
                 placeholder={inputPlaceholder}
                 loading={isLoading}
@@ -564,13 +434,28 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
               <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
             </div>
           )}
+          {temporaryTopicId &&
+            activeExecutions.map(({ executionId }) => {
+              const execChat = executionChats.get(executionId)
+              if (!execChat) return null
+              return (
+                <ExecutionStreamCollector
+                  key={executionId}
+                  executionId={executionId}
+                  chat={execChat}
+                  onMessagesChange={handleExecutionMessagesChange}
+                  onDispose={handleExecutionDispose}
+                />
+              )
+            })}
           <ChatWindow
             route={route}
-            assistant={currentAssistant}
-            topic={currentTopic.current}
+            assistant={currentAssistant ?? null}
             isOutputted={isOutputted}
+            messages={adaptedMessages}
+            partsMap={partsMap}
           />
-          {error && <ErrorMsg>{error}</ErrorMsg>}
+          {flowError && <ErrorMsg>{flowError}</ErrorMsg>}
 
           <Divider style={{ margin: '10px 0' }} />
           <Footer key="footer" {...baseFooterProps} onCopy={handleCopy} />
@@ -586,20 +471,22 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         </Container>
       )
 
-    // Home
     default:
       return (
         <Container style={{ backgroundColor }} $draggable={draggable}>
-          <InputBar
-            text={userInputText}
-            assistant={currentAssistant}
-            referenceText={referenceText}
-            placeholder={inputPlaceholder}
-            loading={isLoading}
-            handleKeyDown={handleKeyDown}
-            handleChange={handleChange}
-            ref={inputBarRef}
-          />
+          {currentAssistant && (
+            <InputBar
+              text={userInputText}
+              assistant={currentAssistant}
+              model={currentModel}
+              referenceText={referenceText}
+              placeholder={inputPlaceholder}
+              loading={isLoading}
+              handleKeyDown={handleKeyDown}
+              handleChange={handleChange}
+              ref={inputBarRef}
+            />
+          )}
           <Divider style={{ margin: '10px 0' }} />
           <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
           <Main>
@@ -635,7 +522,6 @@ const Container = styled.div<{ $draggable: boolean }>`
 const Main = styled.main`
   display: flex;
   flex-direction: column;
-
   flex: 1;
   overflow: hidden;
 `

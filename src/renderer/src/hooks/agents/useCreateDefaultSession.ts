@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { cacheService } from '@renderer/data/CacheService'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
-import { useSessions } from '@renderer/hooks/agents/useSessions'
+import { useSessions } from '@renderer/hooks/agents/useSession'
 import type { CreateSessionForm } from '@renderer/types'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,19 +22,22 @@ export const useCreateDefaultSession = (agentId: string | null) => {
       return null
     }
 
+    if (!agent.model) {
+      window.toast.error(t('error.model.not_exists'))
+      return null
+    }
+
     setCreatingSession(true)
     try {
       const session = {
-        ...agent,
-        id: undefined,
+        agentId,
         name: t('common.unnamed')
       } satisfies CreateSessionForm
 
       const created = await createSession(session)
 
       if (created) {
-        const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
-        cacheService.set('agent.session.active_id_map', { ...currentMap, [agentId]: created.id })
+        cacheService.set('agent.active_session_id', created.id)
       }
 
       return created

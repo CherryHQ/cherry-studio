@@ -10,7 +10,6 @@ import DifyKnowledgeServer from './dify-knowledge'
 import FetchServer from './fetch'
 import FileSystemServer from './filesystem'
 import { resolveFilesystemBaseDir } from './filesystem/config'
-import HubServer from './hub'
 import MemoryServer from './memory'
 import PythonServer from './python'
 import ThinkingServer from './sequentialthinking'
@@ -53,9 +52,6 @@ export function createInMemoryMCPServer(
     }
     case BuiltinMCPServerNames.browser: {
       return new BrowserServer().server
-    }
-    case BuiltinMCPServerNames.hub: {
-      return new HubServer().server
     }
     default:
       throw new Error(`Unknown in-memory MCP server: ${name}`)

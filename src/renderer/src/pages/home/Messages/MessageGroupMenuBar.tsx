@@ -8,18 +8,18 @@ import {
 } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Button, Tooltip } from '@cherrystudio/ui'
-import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
-import type { Topic } from '@renderer/types'
+import { useV2Chat } from '@renderer/hooks/V2ChatContext'
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import { usePartsMap } from './Blocks'
 import MessageGroupModelList from './MessageGroupModelList'
 import MessageGroupSettings from './MessageGroupSettings'
 
@@ -29,7 +29,6 @@ interface Props {
   messages: Message[]
   selectMessageId: string
   setSelectedMessage: (message: Message) => void
-  topic: Topic
 }
 
 const MessageGroupMenuBar: FC<Props> = ({
@@ -37,12 +36,12 @@ const MessageGroupMenuBar: FC<Props> = ({
   setMultiModelMessageStyle,
   messages,
   selectMessageId,
-  setSelectedMessage,
-  topic
+  setSelectedMessage
 }) => {
   const { t } = useTranslation()
-  const { deleteGroupMessages, regenerateAssistantMessage } = useMessageOperations(topic)
-  const { assistant } = useAssistant(messages[0]?.assistantId)
+  const partsMap = usePartsMap()
+
+  const v2Chat = useV2Chat()
 
   const handleDeleteGroup = async () => {
     const askId = messages[0]?.askId
@@ -56,14 +55,15 @@ const MessageGroupMenuBar: FC<Props> = ({
         danger: true
       },
       okText: t('common.delete'),
-      onOk: () => deleteGroupMessages(askId)
+      onOk: () => v2Chat?.deleteMessageGroup(askId)
     })
   }
 
   const isFailedMessage = (m: Message) => {
     if (m.role !== 'assistant') return false
     const isError = (m.status || '').toLowerCase() === 'error'
-    const content = getMainTextContent(m)
+    const parts = partsMap?.[m.id]
+    const content = parts ? getTextFromParts(parts) : getMainTextContent(m)
     const noContent = !content || content.trim().length === 0
     const noBlocks = !m.blocks || m.blocks.length === 0
     return isError || noContent || noBlocks
@@ -86,7 +86,7 @@ const MessageGroupMenuBar: FC<Props> = ({
 
     for (const msg of candidates) {
       try {
-        await regenerateAssistantMessage(msg, assistant)
+        await v2Chat?.regenerate(msg.id)
       } catch (e) {
         // swallow per-item errors to continue others
       }

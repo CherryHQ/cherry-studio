@@ -9,7 +9,7 @@ import {
 import { loggerService } from '@logger'
 import { DeleteIcon } from '@renderer/components/Icons'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
-import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBases'
+import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBaseDataApi'
 import type { RootState } from '@renderer/store'
 import type { NotesTreeNode } from '@renderer/types/note'
 import { exportNote } from '@renderer/utils/export'
@@ -45,7 +45,7 @@ export const useNotesMenu = ({
   activeNode
 }: UseNotesMenuProps) => {
   const { t } = useTranslation()
-  const { bases } = useKnowledgeBases()
+  const { knowledgeBases: bases } = useKnowledgeBases()
   const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)
 
   const handleExportKnowledge = useCallback(

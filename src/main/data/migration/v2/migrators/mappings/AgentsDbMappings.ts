@@ -77,6 +77,21 @@ export type AgentsTableMigrationSpec = {
 }
 
 /**
+ * Resolve a legacy `provider:modelId` string into the matching `user_model.id`
+ * via attached-DB lookup. Same matching rule as `resolveUserModelId` in the
+ * runtime path; misses become NULL so the FK on agent.{model,plan_model,
+ * small_model} / agent_session.* holds.
+ */
+export function buildUserModelLookupExpr(sourceColumn: string): string {
+  return (
+    `(SELECT user_model.id FROM user_model ` +
+    `WHERE user_model.id = ${sourceColumn} ` +
+    `OR (user_model.provider_id || ':' || user_model.model_id) = ${sourceColumn} ` +
+    `LIMIT 1)`
+  )
+}
+
+/**
  * The order of entries in this array is load-bearing.
  *
  * Several specs use a `whereClause` that filters rows by whether their parent
@@ -98,15 +113,14 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'type',
       'name',
       notNullCol('description', "''"),
-      notNullCol('accessible_paths', "'[]'"),
-      notNullCol('instructions', "''"),
-      'model',
-      'plan_model',
-      'small_model',
+      'instructions',
+      { name: 'model', expr: buildUserModelLookupExpr('model'), sourceColumn: 'model' },
+      { name: 'plan_model', expr: buildUserModelLookupExpr('plan_model'), sourceColumn: 'plan_model' },
+      { name: 'small_model', expr: buildUserModelLookupExpr('small_model'), sourceColumn: 'small_model' },
       notNullCol('mcps', "'[]'"),
       notNullCol('allowed_tools', "'[]'"),
       notNullCol('configuration', "'{}'"),
-      notNullCol('sort_order', '0'),
+      notNullCol('order_key', "''"),
       {
         name: 'deleted_at',
         expr: "CASE WHEN deleted_at IS NULL THEN NULL ELSE CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 END",
@@ -129,20 +143,19 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
     targetTable: 'agent_session',
     columns: [
       'id',
-      'agent_type',
       'agent_id',
       'name',
       notNullCol('description', "''"),
-      notNullCol('accessible_paths', "'[]'"),
-      notNullCol('instructions', "''"),
-      'model',
-      'plan_model',
-      'small_model',
-      notNullCol('mcps', "'[]'"),
-      notNullCol('allowed_tools', "'[]'"),
-      notNullCol('slash_commands', "'[]'"),
-      notNullCol('configuration', "'{}'"),
-      notNullCol('sort_order', '0'),
+      {
+        name: 'accessible_paths',
+        expr: "COALESCE(accessible_paths, (SELECT a.accessible_paths FROM agents_legacy.agents a WHERE a.id = sessions.agent_id), '[]')",
+        sourceColumn: 'accessible_paths',
+        fallbackExpr:
+          "COALESCE((SELECT a.accessible_paths FROM agents_legacy.agents a WHERE a.id = sessions.agent_id), '[]')"
+      },
+      // Placeholder; AgentsMigrator backfills real fractional-indexing keys
+      // scoped by agentId, ordered by source `sort_order` after INSERT.
+      notNullCol('order_key', "''"),
       {
         name: 'created_at',
         expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000",

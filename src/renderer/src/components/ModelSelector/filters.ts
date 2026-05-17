@@ -1,3 +1,4 @@
+import { MODALITY } from '@cherrystudio/provider-registry'
 import { type Model, MODEL_CAPABILITY, type ModelTag } from '@shared/data/types/model'
 import { useCallback, useMemo, useState } from 'react'
 
@@ -5,6 +6,8 @@ type ModelPredict = (m: Model) => boolean
 
 export const MODEL_SELECTOR_TAGS = [
   MODEL_CAPABILITY.IMAGE_RECOGNITION,
+  MODEL_CAPABILITY.AUDIO_RECOGNITION,
+  MODEL_CAPABILITY.VIDEO_RECOGNITION,
   MODEL_CAPABILITY.EMBEDDING,
   MODEL_CAPABILITY.REASONING,
   MODEL_CAPABILITY.FUNCTION_CALL,
@@ -22,6 +25,12 @@ const initialTagSelection = Object.fromEntries(MODEL_SELECTOR_TAGS.map((tag) => 
 
 const capabilityTagPredicates: Record<Exclude<ModelSelectorTag, 'free'>, ModelPredict> = {
   [MODEL_CAPABILITY.IMAGE_RECOGNITION]: (model) => model.capabilities.includes(MODEL_CAPABILITY.IMAGE_RECOGNITION),
+  [MODEL_CAPABILITY.AUDIO_RECOGNITION]: (model) =>
+    model.capabilities.includes(MODEL_CAPABILITY.AUDIO_RECOGNITION) ||
+    !!model.inputModalities?.includes(MODALITY.AUDIO),
+  [MODEL_CAPABILITY.VIDEO_RECOGNITION]: (model) =>
+    model.capabilities.includes(MODEL_CAPABILITY.VIDEO_RECOGNITION) ||
+    !!model.inputModalities?.includes(MODALITY.VIDEO),
   [MODEL_CAPABILITY.EMBEDDING]: (model) => model.capabilities.includes(MODEL_CAPABILITY.EMBEDDING),
   [MODEL_CAPABILITY.REASONING]: (model) => model.capabilities.includes(MODEL_CAPABILITY.REASONING),
   [MODEL_CAPABILITY.FUNCTION_CALL]: (model) => model.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL),

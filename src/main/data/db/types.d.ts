@@ -5,6 +5,16 @@ export type DbType = LibSQLDatabase
 /** Structural alias accepted by both LibSQLDatabase and LibSQLTransaction. */
 export type DbOrTx = Pick<DbType, 'select' | 'update' | 'insert' | 'delete' | 'run' | 'transaction'>
 
+/** Service-layer pagination convention used by main-side list queries. */
+export interface ListOptions {
+  limit?: number
+  offset?: number
+  sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'orderKey'
+  orderBy?: 'asc' | 'desc'
+  /** LIKE %kw% match against name OR description (case-insensitive). */
+  search?: string
+}
+
 export interface ISeeder {
   /** Unique identifier for seed journal tracking (stored as `seed:<name>` in app_state) */
   readonly name: string

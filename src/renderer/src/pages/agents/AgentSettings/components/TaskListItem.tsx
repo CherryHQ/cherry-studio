@@ -1,5 +1,5 @@
 import { Tooltip } from '@cherrystudio/ui'
-import type { ScheduledTaskEntity } from '@renderer/types'
+import type { ScheduledTaskEntity } from '@shared/data/types/agent'
 import { Popconfirm, Tag } from 'antd'
 import { Clock, Edit2, History, Pause, Play, Trash2 } from 'lucide-react'
 import type { FC } from 'react'

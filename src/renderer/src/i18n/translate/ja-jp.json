@@ -3356,6 +3356,7 @@
     },
     "stream_output": "ストリーム出力",
     "type": {
+      "audio": "[to be translated]:Audio",
       "embedding": "埋め込み",
       "free": "無料",
       "function_calling": "ツール",
@@ -3363,6 +3364,7 @@
       "rerank": "再順序付け",
       "select": "モデルタイプ",
       "text": "テキスト",
+      "video": "[to be translated]:Video",
       "vision": "画像",
       "websearch": "ウェブ検索"
     }

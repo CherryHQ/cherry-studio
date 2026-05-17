@@ -2,7 +2,9 @@
 import { Box } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import AppModalProvider from '@renderer/components/AppModal'
+import { useAgentSessionSync } from '@renderer/hooks/agents/useAgentSessionSync'
 import { useAppInit } from '@renderer/hooks/useAppInit'
+import { useTopicSync } from '@renderer/hooks/useTopic'
 import type { PropsWithChildren } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -39,6 +41,8 @@ const TopViewContent: React.FC<Props> = ({ children }) => {
   const enableQuitFullScreen = exitFullscreenPref?.enabled !== false
 
   useAppInit()
+  useTopicSync()
+  useAgentSessionSync()
 
   const toast = useToasts()
 
@@ -81,7 +85,6 @@ const TopViewContent: React.FC<Props> = ({ children }) => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // logger.debug('keydown', e)
       if (!enableQuitFullScreen) return
 
       if (e.key === 'Escape' && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
@@ -92,7 +95,7 @@ const TopViewContent: React.FC<Props> = ({ children }) => {
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  })
+  }, [enableQuitFullScreen])
 
   return (
     <>

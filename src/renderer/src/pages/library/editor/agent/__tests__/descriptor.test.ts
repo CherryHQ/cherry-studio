@@ -2,6 +2,7 @@ import type { AgentDetail } from '@shared/data/types/agent'
 import { describe, expect, it } from 'vitest'
 
 import {
+  type AgentFormState,
   applyAgentFormPatch,
   buildCreateAgentPayload,
   buildInitialAgentFormState,
@@ -16,9 +17,8 @@ function createAgent(overrides: Partial<AgentDetail> = {}): AgentDetail {
     type: 'claude-code',
     name: 'Agent',
     description: '',
-    model: 'claude-sonnet-4-5',
+    model: 'anthropic::claude-sonnet-4-5',
     modelName: null,
-    accessiblePaths: [],
     instructions: '',
     mcps: [],
     allowedTools: [],
@@ -34,11 +34,10 @@ describe('buildInitialAgentFormState', () => {
     const agent = createAgent({
       name: 'Demo',
       description: 'd',
-      model: 'm-1',
+      model: 'p-1::m-1',
       planModel: 'p-1',
       smallModel: 's-1',
       instructions: 'hi',
-      accessiblePaths: ['/a', '/b'],
       mcps: ['mcp-1'],
       allowedTools: ['Read']
     })
@@ -46,11 +45,10 @@ describe('buildInitialAgentFormState', () => {
     expect(state).toMatchObject({
       name: 'Demo',
       description: 'd',
-      model: 'm-1',
+      model: 'p-1::m-1',
       planModel: 'p-1',
       smallModel: 's-1',
       instructions: 'hi',
-      accessiblePaths: ['/a', '/b'],
       mcps: ['mcp-1'],
       allowedTools: ['Read']
     })
@@ -106,13 +104,13 @@ describe('agent create flow helpers', () => {
 
     expect(isCreatePayloadValid(draft)).toBe(false)
     expect(isCreatePayloadValid({ ...draft, name: 'Planner' })).toBe(false)
-    expect(isCreatePayloadValid({ ...draft, model: 'claude-sonnet-4-5' })).toBe(false)
-    expect(isCreatePayloadValid({ ...draft, name: 'Planner', model: 'claude-sonnet-4-5' })).toBe(true)
+    expect(isCreatePayloadValid({ ...draft, model: 'anthropic::claude-sonnet-4-5' })).toBe(false)
+    expect(isCreatePayloadValid({ ...draft, name: 'Planner', model: 'anthropic::claude-sonnet-4-5' })).toBe(true)
   })
 
   it('preserves UniqueModelIds in the create payload without legacy conversion', () => {
     const draft = buildInitialAgentFormState()
-    const form = {
+    const form: AgentFormState = {
       ...draft,
       name: 'Planner',
       model: 'anthropic::claude-sonnet-4-5',
@@ -223,7 +221,7 @@ describe('diffAgentUpdate', () => {
       smallModel: 'anthropic::claude-opus-4-5'
     })
     const baseline = buildInitialAgentFormState(agent)
-    const next = {
+    const next: AgentFormState = {
       ...baseline,
       model: 'anthropic::claude-sonnet-4-6',
       planModel: 'anthropic::claude-haiku-4-6',
@@ -284,15 +282,6 @@ describe('diffAgentUpdate', () => {
         SPACED_KEY: 'value=with=equals'
       }
     })
-  })
-
-  it('emits the accessiblePaths array when list contents change', () => {
-    const agent = createAgent({ accessiblePaths: ['/a'] })
-    const baseline = buildInitialAgentFormState(agent)
-    const next = { ...baseline, accessiblePaths: ['/a', '/b'] }
-
-    const result = diffAgentUpdate(baseline, next, agent)
-    expect(result?.dto.accessiblePaths).toEqual(['/a', '/b'])
   })
 
   it('persists the explicit default permission mode when switching back from another mode', () => {

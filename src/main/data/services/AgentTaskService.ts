@@ -10,6 +10,7 @@ import {
   type InsertAgentTaskRunLogRow as InsertTaskRunLogRow
 } from '@data/db/schemas/agentTask'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
+import type { ListOptions } from '@data/db/types'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
@@ -19,7 +20,6 @@ import {
   type TaskRunLogEntity,
   type UpdateTaskDto
 } from '@shared/data/api/schemas/agents'
-import type { ListOptions } from '@types'
 import { CronExpressionParser } from 'cron-parser'
 import { and, asc, count, desc, eq, inArray, lte, ne } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'

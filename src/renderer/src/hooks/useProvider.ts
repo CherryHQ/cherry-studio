@@ -1,121 +1,298 @@
-import { createSelector } from '@reduxjs/toolkit'
-import { isNotSupportTextDeltaModel } from '@renderer/config/models'
-import { CHERRYAI_PROVIDER } from '@renderer/config/providers'
-import { getDefaultProvider } from '@renderer/services/AssistantService'
-import { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
-import {
-  addModel,
-  addProvider,
-  removeModel,
-  removeProvider,
-  updateModel,
-  updateProvider,
-  updateProviders
-} from '@renderer/store/llm'
-import type { Assistant, Model, Provider } from '@renderer/types'
-import { isSystemProvider } from '@renderer/types'
-import { withoutTrailingSlash } from '@renderer/utils/api'
-import { isNewApiProvider } from '@renderer/utils/provider'
-import { useCallback, useMemo } from 'react'
+import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { loggerService } from '@logger'
+import { getProviderLabel } from '@renderer/i18n/label'
+import { isSystemProviderId } from '@renderer/types/provider'
+import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
+import type {
+  CreateProviderDto,
+  ListProvidersQuery,
+  UpdateApiKeyDto,
+  UpdateProviderDto
+} from '@shared/data/api/schemas/providers'
+import type { ApiKeyEntry, AuthConfig, Provider } from '@shared/data/types/provider'
+import { isUndefined, omitBy } from 'lodash'
+import { useCallback } from 'react'
 
-import { useDefaultModel } from './useAssistant'
+const EMPTY_PROVIDERS: Provider[] = []
+const logger = loggerService.withContext('useProviders')
 
 /**
- * Normalizes provider apiHost by removing trailing slashes.
- * This ensures consistent URL concatenation across the application.
+ * All SWR cache keys that must revalidate after any mutation to a provider:
+ * - `/providers` — the list
+ * - `/providers/${id}` — the entity (useProvider)
+ * - `/providers/${id}/*` — all sub-resources (api-keys, auth-config, …)
+ *
+ * Concrete paths are only needed here for SWR refresh arrays — queries and mutations
+ * use schema template paths directly, so no `as ConcreteApiPaths` casts are needed there.
  */
-function normalizeProvider<T extends Provider>(provider: T): T {
-  return {
-    ...provider,
-    apiHost: withoutTrailingSlash(provider.apiHost)
-  }
+function providerRefreshPaths(providerId: string): ConcreteApiPaths[] {
+  return [
+    '/providers',
+    `/providers/${providerId}` as ConcreteApiPaths,
+    `/providers/${providerId}/*` as ConcreteApiPaths
+  ]
 }
 
-const selectProviders = (state: RootState) => state.llm.providers
+// ─── Layer 1: List + Create ────────────────────────────────────────────
+export function useProviders(query?: ListProvidersQuery) {
+  const filtered = query ? (omitBy(query, isUndefined) as ListProvidersQuery) : undefined
+  const queryOptions = filtered && Object.keys(filtered).length > 0 ? { query: filtered } : undefined
 
-const selectEnabledProviders = createSelector(selectProviders, (providers) =>
-  providers
-    .map(normalizeProvider)
-    .filter((p) => p.enabled)
-    .concat(CHERRYAI_PROVIDER)
-)
+  const { data, isLoading, refetch } = useQuery('/providers', queryOptions)
 
-const selectSystemProviders = createSelector(selectProviders, (providers) =>
-  providers.filter((p) => isSystemProvider(p)).map(normalizeProvider)
-)
+  const {
+    trigger: createTrigger,
+    isLoading: isCreating,
+    error: createError
+  } = useMutation('POST', '/providers', {
+    refresh: ['/providers']
+  })
 
-const selectUserProviders = createSelector(selectProviders, (providers) =>
-  providers.filter((p) => !isSystemProvider(p)).map(normalizeProvider)
-)
-
-const selectAllProviders = createSelector(selectProviders, (providers) => providers.map(normalizeProvider))
-
-const selectAllProvidersWithCherryAI = createSelector(selectProviders, (providers) =>
-  [...providers, CHERRYAI_PROVIDER].map(normalizeProvider)
-)
-
-export function useProviders() {
-  const providers: Provider[] = useAppSelector(selectEnabledProviders)
-  const dispatch = useAppDispatch()
-
-  return {
-    providers: providers || [],
-    addProvider: (provider: Provider) => dispatch(addProvider(provider)),
-    removeProvider: (provider: Provider) => dispatch(removeProvider(provider)),
-    updateProvider: (updates: Partial<Provider> & { id: string }) => dispatch(updateProvider(updates)),
-    updateProviders: (providers: Provider[]) => dispatch(updateProviders(providers))
-  }
-}
-
-export function useSystemProviders() {
-  return useAppSelector(selectSystemProviders)
-}
-
-export function useUserProviders() {
-  return useAppSelector(selectUserProviders)
-}
-
-export function useAllProviders() {
-  return useAppSelector(selectAllProviders)
-}
-
-export function useProvider(id: string) {
-  const allProviders = useAppSelector(selectAllProvidersWithCherryAI)
-  const provider = useMemo(() => allProviders.find((p) => p.id === id) || getDefaultProvider(), [allProviders, id])
-  const dispatch = useAppDispatch()
-
-  const handleAddModel = useCallback(
-    (model: Model) => {
-      let processedModel = { ...model, supported_text_delta: !isNotSupportTextDeltaModel(model) }
-
-      if (isNewApiProvider(provider)) {
-        const endpointTypes = model.supported_endpoint_types
-        if (endpointTypes && endpointTypes.length > 0) {
-          processedModel = {
-            ...processedModel,
-            endpoint_type: endpointTypes.includes('image-generation') ? 'image-generation' : endpointTypes[0]
-          }
-        }
+  const createProvider = useCallback(
+    async (dto: CreateProviderDto) => {
+      try {
+        return await createTrigger({ body: dto })
+      } catch (error) {
+        logger.error('Failed to create provider', { providerId: dto.providerId, error })
+        throw error
       }
-
-      dispatch(addModel({ providerId: id, model: processedModel }))
     },
-    [dispatch, id, provider]
+    [createTrigger]
+  )
+
+  const providers = data ?? EMPTY_PROVIDERS
+
+  return {
+    providers,
+    isLoading,
+    createProvider,
+    isCreating,
+    createError,
+    refetch
+  }
+}
+
+// ─── Layer 2: Single read + write + delete ────────────────────────────
+export function useProvider(providerId: string) {
+  const { data, isLoading, error, refetch } = useQuery('/providers/:providerId', { params: { providerId } })
+  const provider = data
+
+  const mutations = useProviderMutations(providerId)
+
+  return { provider, isLoading, error, refetch, ...mutations }
+}
+
+// ─── Layer 3: Pure mutations ──────────────────────────────────────────
+export function useProviderMutations(providerId: string) {
+  // P0: all mutations refresh list + entity + all sub-paths — no manual invalidate needed.
+  const refresh = providerRefreshPaths(providerId)
+
+  const {
+    trigger: patchTrigger,
+    isLoading: isUpdating,
+    error: updateError
+  } = useMutation('PATCH', '/providers/:providerId', { refresh })
+
+  const {
+    trigger: deleteTrigger,
+    isLoading: isDeleting,
+    error: deleteError
+  } = useMutation('DELETE', '/providers/:providerId', { refresh })
+
+  // addApiKey/deleteApiKey use template paths so body/response types are schema-inferred.
+  const {
+    trigger: addApiKeyTrigger,
+    isLoading: isAddingApiKey,
+    error: addApiKeyError
+  } = useMutation('POST', '/providers/:providerId/api-keys', { refresh })
+
+  const {
+    trigger: deleteApiKeyTrigger,
+    isLoading: isDeletingApiKey,
+    error: deleteApiKeyError
+  } = useMutation('DELETE', '/providers/:providerId/api-keys/:keyId', { refresh })
+
+  const {
+    trigger: updateApiKeyTrigger,
+    isLoading: isUpdatingApiKey,
+    error: updateApiKeyError
+  } = useMutation('PATCH', '/providers/:providerId/api-keys/:keyId', { refresh })
+
+  const { trigger: replaceApiKeysTrigger } = useMutation('PUT', '/providers/:providerId/api-keys', { refresh })
+
+  const updateProvider = useCallback(
+    async (updates: UpdateProviderDto) => {
+      try {
+        return await patchTrigger({ params: { providerId }, body: updates })
+      } catch (error) {
+        logger.error('Failed to update provider', { providerId, error })
+        throw error
+      }
+    },
+    [patchTrigger, providerId]
+  )
+
+  const deleteProvider = useCallback(async () => {
+    try {
+      return await deleteTrigger({ params: { providerId } })
+    } catch (error) {
+      logger.error('Failed to delete provider', { providerId, error })
+      throw error
+    }
+  }, [deleteTrigger, providerId])
+
+  const updateAuthConfig = useCallback(
+    async (authConfig: AuthConfig) => {
+      try {
+        await patchTrigger({ params: { providerId }, body: { authConfig } })
+      } catch (error) {
+        logger.error('Failed to update auth config', { providerId, error })
+        throw error
+      }
+    },
+    [patchTrigger, providerId]
+  )
+
+  const addApiKey = useCallback(
+    async (key: string, label?: string) => {
+      try {
+        await addApiKeyTrigger({ params: { providerId }, body: { key, label } })
+      } catch (error) {
+        logger.error('Failed to add API key', { providerId, error })
+        throw error
+      }
+    },
+    [addApiKeyTrigger, providerId]
+  )
+
+  const deleteApiKey = useCallback(
+    async (keyId: string) => {
+      try {
+        await deleteApiKeyTrigger({ params: { providerId, keyId } })
+      } catch (error) {
+        logger.error('Failed to delete API key', { providerId, keyId, error })
+        throw error
+      }
+    },
+    [deleteApiKeyTrigger, providerId]
+  )
+
+  const updateApiKeys = useCallback(
+    async (apiKeys: ApiKeyEntry[]) => {
+      try {
+        await replaceApiKeysTrigger({ params: { providerId }, body: { keys: apiKeys } })
+      } catch (error) {
+        logger.error('Failed to update API keys', { providerId, error })
+        throw error
+      }
+    },
+    [providerId, replaceApiKeysTrigger]
+  )
+
+  const updateApiKey = useCallback(
+    async (keyId: string, updates: UpdateApiKeyDto) => {
+      try {
+        await updateApiKeyTrigger({ params: { providerId, keyId }, body: updates })
+      } catch (error) {
+        logger.error('Failed to update API key', { providerId, keyId, error })
+        throw error
+      }
+    },
+    [providerId, updateApiKeyTrigger]
   )
 
   return {
-    provider,
-    models: provider?.models ?? [],
-    updateProvider: (updates: Partial<Provider>) => dispatch(updateProvider({ id, ...updates })),
-    addModel: handleAddModel,
-    removeModel: (model: Model) => dispatch(removeModel({ providerId: id, model })),
-    updateModel: (model: Model) => dispatch(updateModel({ providerId: id, model }))
+    updateProvider,
+    isUpdating,
+    updateError,
+    deleteProvider,
+    isDeleting,
+    deleteError,
+    updateAuthConfig,
+    addApiKey,
+    isAddingApiKey,
+    addApiKeyError,
+    deleteApiKey,
+    isDeletingApiKey,
+    deleteApiKeyError,
+    updateApiKeys,
+    updateApiKey,
+    isUpdatingApiKey,
+    updateApiKeyError
   }
 }
 
-export function useProviderByAssistant(assistant: Assistant) {
-  const { defaultModel } = useDefaultModel()
-  const model = assistant.model || defaultModel
-  const { provider } = useProvider(model.provider)
-  return provider
+// ─── Typed query helpers ─────────────────────────────────────────────
+export function useProviderAuthConfig(providerId: string) {
+  const result = useQuery('/providers/:providerId/auth-config', { params: { providerId } })
+  // Schema: GET /providers/:id/auth-config -> AuthConfig | null
+  return { ...result, data: result.data }
+}
+
+export function useProviderApiKeys(providerId: string) {
+  return useQuery('/providers/:providerId/api-keys', { params: { providerId } })
+}
+
+/**
+ * Pure resolver for a provider's display name. System providers get the
+ * i18n label; custom providers use their user-set name. Returns empty
+ * string when the provider is missing.
+ */
+export function getProviderDisplayName(provider: Provider | undefined): string {
+  if (!provider) return ''
+  return isSystemProviderId(provider.id) ? getProviderLabel(provider.id) : provider.name
+}
+
+/**
+ * Hook variant of {@link getProviderDisplayName} for callers that have a
+ * single provider id. For batch rendering (e.g. a dropdown of N providers),
+ * use `useProviders()` + `getProviderDisplayName` to avoid hook-in-loop.
+ */
+export function useProviderDisplayName(providerId: string | undefined): string {
+  const { data: provider } = useQuery('/providers/:providerId', {
+    params: { providerId: providerId ?? '' },
+    enabled: !!providerId
+  })
+  return getProviderDisplayName(provider)
+}
+
+// ─── Dynamic ID operations (for context menus, URL schema handlers) ──
+export function useProviderActions() {
+  // Template paths: providerId is supplied per-call via params, so one hook
+  // instance handles any provider ID without needing concrete-path rebinding.
+  const { trigger: updateTrigger } = useMutation('PATCH', '/providers/:providerId', {
+    // args is always present — callers always supply params.providerId
+    refresh: ({ args }) => providerRefreshPaths(args!.params.providerId)
+  })
+
+  const { trigger: deleteTrigger } = useMutation('DELETE', '/providers/:providerId', {
+    // args is always present — callers always supply params.providerId
+    refresh: ({ args }) => providerRefreshPaths(args!.params.providerId)
+  })
+
+  const updateProviderById = useCallback(
+    async (providerId: string, updates: UpdateProviderDto) => {
+      try {
+        return await updateTrigger({ params: { providerId }, body: updates })
+      } catch (error) {
+        logger.error('Failed to update provider', { providerId, error })
+        throw error
+      }
+    },
+    [updateTrigger]
+  )
+
+  const deleteProviderById = useCallback(
+    async (providerId: string) => {
+      try {
+        return await deleteTrigger({ params: { providerId } })
+      } catch (error) {
+        logger.error('Failed to delete provider', { providerId, error })
+        throw error
+      }
+    },
+    [deleteTrigger]
+  )
+
+  return { updateProviderById, deleteProviderById }
 }

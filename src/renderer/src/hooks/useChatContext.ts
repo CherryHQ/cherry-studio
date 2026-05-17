@@ -1,25 +1,56 @@
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
-import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
+import { useV2Chat } from '@renderer/hooks/V2ChatContext'
+import { usePartsMap } from '@renderer/pages/home/Messages/Blocks'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { RootState } from '@renderer/store'
-import { messageBlocksSelectors } from '@renderer/store/messageBlock'
-import { selectMessagesForTopic } from '@renderer/store/newMessage'
-// import { setActiveTopic, setSelectedMessageIds, toggleMultiSelectMode } from '@renderer/store/runtime'
 import type { Topic } from '@renderer/types'
-import { useCallback, useEffect, useState } from 'react'
+import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
+import { createContext, use, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useStore } from 'react-redux'
+
 const logger = loggerService.withContext('useChatContext')
 
-export const useChatContext = (activeTopic: Topic) => {
+export interface ChatContextValue {
+  isMultiSelectMode: boolean
+  selectedMessageIds: string[]
+  toggleMultiSelectMode: (value: boolean) => void
+  handleMultiSelectAction: (actionType: string, messageIds: string[]) => Promise<void>
+  handleSelectMessage: (messageId: string, selected: boolean) => void
+  activeTopic: Topic
+  locateMessage: (messageId: string) => void
+  messageRefs: Map<string, HTMLElement>
+  registerMessageElement: (id: string, element: HTMLElement | null) => void
+}
+
+const ChatContext = createContext<ChatContextValue | null>(null)
+
+export const ChatContextProvider = ChatContext.Provider
+
+/**
+ * Consumer hook — reads from the nearest ChatContextProvider.
+ * Must be rendered inside a ChatContextProvider.
+ */
+export const useChatContext = (): ChatContextValue => {
+  const ctx = use(ChatContext)
+  if (!ctx) {
+    throw new Error('useChatContext must be used within a ChatContextProvider')
+  }
+  return ctx
+}
+
+/**
+ * Provider-level hook — creates the ChatContext value.
+ *
+ * IMPORTANT: This hook reads the V2 chat context and PartsContext internally,
+ * so it must be called inside V2ChatOverridesProvider + PartsProvider.
+ */
+export const useChatContextProvider = (activeTopic: Topic): ChatContextValue => {
   const { t } = useTranslation()
-  const store = useStore<RootState>()
-  const { deleteMessage } = useMessageOperations(activeTopic)
+  const v2 = useV2Chat()
+  const partsMap = usePartsMap()
 
   const [isMultiSelectMode, setIsMultiSelectMode] = useCache('chat.multi_select_mode')
   const [selectedMessageIds, setSelectedMessageIds] = useCache('chat.selected_message_ids')
-  const [, setActiveTopic] = useCache('topic.active')
 
   const [messageRefs, setMessageRefs] = useState<Map<string, HTMLElement>>(new Map())
 
@@ -40,10 +71,6 @@ export const useChatContext = (activeTopic: Topic) => {
     return () => unsubscribe()
   }, [handleToggleMultiSelectMode])
 
-  useEffect(() => {
-    setActiveTopic(activeTopic)
-  }, [activeTopic, setActiveTopic])
-
   const registerMessageElement = useCallback((id: string, element: HTMLElement | null) => {
     setMessageRefs((prev) => {
       const newRefs = new Map(prev)
@@ -60,26 +87,10 @@ export const useChatContext = (activeTopic: Topic) => {
     (messageId: string) => {
       const messageElement = messageRefs.get(messageId)
       if (messageElement) {
-        // 检查消息是否可见
-        const display = window.getComputedStyle(messageElement).display
-
-        if (display === 'none') {
-          // 如果消息隐藏，需要处理显示逻辑
-          // 查找消息并设置为选中状态
-          const state = store.getState()
-          const messages = selectMessagesForTopic(state, activeTopic.id)
-          const message = messages.find((m) => m.id === messageId)
-          if (message) {
-            // 这里需要实现设置消息为选中状态的逻辑
-            // 可能需要调用其他函数或修改状态
-          }
-        }
-
-        // 滚动到消息位置
         messageElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
       }
     },
-    [messageRefs, store, activeTopic.id]
+    [messageRefs]
   )
 
   const handleSelectMessage = useCallback(
@@ -102,9 +113,11 @@ export const useChatContext = (activeTopic: Topic) => {
         return
       }
 
-      const state = store.getState()
-      const messages = selectMessagesForTopic(state, activeTopic.id)
-      const messageBlocks = messageBlocksSelectors.selectEntities(state)
+      const extractContent = (msgId: string): string => {
+        const parts = partsMap?.[msgId]
+        if (parts) return getTextFromParts(parts)
+        return ''
+      }
 
       switch (actionType) {
         case 'delete':
@@ -115,7 +128,7 @@ export const useChatContext = (activeTopic: Topic) => {
             centered: true,
             onOk: async () => {
               try {
-                await Promise.all(messageIds.map((messageId) => deleteMessage(messageId)))
+                await Promise.all(messageIds.map((messageId) => v2?.deleteMessage(messageId)))
                 window.toast.success(t('message.delete.success'))
                 handleToggleMultiSelectMode(false)
               } catch (error) {
@@ -126,50 +139,27 @@ export const useChatContext = (activeTopic: Topic) => {
           })
           break
         case 'save': {
-          // 筛选消息，实际并非assistant messages，而是可能包含user messages
-          const assistantMessages = messages.filter((msg) => messageIds.includes(msg.id))
-          if (assistantMessages.length > 0) {
-            const contentToSave = assistantMessages
-              .map((msg) => {
-                return msg.blocks
-                  .map((blockId) => {
-                    const block = messageBlocks[blockId]
-                    return block && 'content' in block ? block.content : ''
-                  })
-                  .filter(Boolean)
-                  .join('\n')
-                  .trim()
-              })
-              .join('\n\n---\n\n')
+          const contentToSave = messageIds
+            .map((id) => extractContent(id))
+            .filter(Boolean)
+            .join('\n\n---\n\n')
+          if (contentToSave) {
             const fileName = `chat_export_${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.md`
             await window.api.file.save(fileName, contentToSave)
             window.toast.success(t('message.save.success.title'))
             handleToggleMultiSelectMode(false)
-          } else {
-            // 这个分支不会进入 因为 messageIds.length === 0 已提前返回，需要简化掉
           }
           break
         }
         case 'copy': {
-          const assistantMessages = messages.filter((msg) => messageIds.includes(msg.id))
-          if (assistantMessages.length > 0) {
-            const contentToCopy = assistantMessages
-              .map((msg) => {
-                return msg.blocks
-                  .map((blockId) => {
-                    const block = messageBlocks[blockId]
-                    return block && 'content' in block ? block.content : ''
-                  })
-                  .filter(Boolean)
-                  .join('\n')
-                  .trim()
-              })
-              .join('\n\n---\n\n')
+          const contentToCopy = messageIds
+            .map((id) => extractContent(id))
+            .filter(Boolean)
+            .join('\n\n---\n\n')
+          if (contentToCopy) {
             void navigator.clipboard.writeText(contentToCopy)
             window.toast.success(t('message.copied'))
             handleToggleMultiSelectMode(false)
-          } else {
-            // 和上面一样
           }
           break
         }
@@ -177,7 +167,7 @@ export const useChatContext = (activeTopic: Topic) => {
           break
       }
     },
-    [t, store, activeTopic.id, deleteMessage, handleToggleMultiSelectMode]
+    [t, v2, handleToggleMultiSelectMode, partsMap]
   )
 
   return {

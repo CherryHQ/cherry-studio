@@ -14,7 +14,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
-import { useModelMutations, useModels } from '@renderer/hooks/useModels'
+import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType, parseUniqueModelId } from '@shared/data/types/model'

@@ -1,6 +1,5 @@
 import { Button } from '@cherrystudio/ui'
 import { getProviderLabel } from '@renderer/i18n/label'
-import type { Provider } from '@renderer/types'
 import {
   oauthWith302AI,
   oauthWithAihubmix,
@@ -13,7 +12,8 @@ import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props extends React.ComponentProps<typeof Button> {
-  provider: Provider
+  /** Only `provider.id` is read; accepts either v1 or v2 Provider shape. */
+  provider: { id: string }
   onSuccess?: (key: string) => void
 }
 

@@ -8,10 +8,12 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://open.cherryin.net"
+          "baseUrl": "https://open.cherryin.net",
+          "adapterFamily": "cherryin"
         },
         "anthropic-messages": {
-          "baseUrl": "https://open.cherryin.net"
+          "baseUrl": "https://open.cherryin.net",
+          "adapterFamily": "cherryin"
         }
       },
       "metadata": {
@@ -30,10 +32,12 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.siliconflow.cn"
+          "baseUrl": "https://api.siliconflow.cn/v1",
+          "adapterFamily": "openai-compatible"
         },
         "anthropic-messages": {
-          "baseUrl": "https://api.siliconflow.cn"
+          "baseUrl": "https://api.siliconflow.cn",
+          "adapterFamily": "anthropic"
         }
       },
       "metadata": {
@@ -52,10 +56,12 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://aihubmix.com"
+          "baseUrl": "https://aihubmix.com",
+          "adapterFamily": "aihubmix"
         },
         "anthropic-messages": {
-          "baseUrl": "https://aihubmix.com"
+          "baseUrl": "https://aihubmix.com",
+          "adapterFamily": "aihubmix"
         }
       },
       "metadata": {
@@ -73,7 +79,8 @@
       "description": "OpenVINO Model Server - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "http://localhost:8000/v3/"
+          "baseUrl": "http://localhost:8000/v3/",
+          "adapterFamily": "openai-compatible"
         }
       },
       "metadata": {
@@ -91,7 +98,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.ocoolai.com"
+          "baseUrl": "https://api.ocoolai.com",
+          "adapterFamily": "openai-compatible"
         }
       },
       "metadata": {
@@ -110,10 +118,12 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://open.bigmodel.cn/api/paas/v4/"
+          "baseUrl": "https://open.bigmodel.cn/api/paas/v4/",
+          "adapterFamily": "openai-compatible"
         },
         "anthropic-messages": {
-          "baseUrl": "https://open.bigmodel.cn/api/anthropic"
+          "baseUrl": "https://open.bigmodel.cn/api/anthropic",
+          "adapterFamily": "anthropic"
         }
       },
       "metadata": {
@@ -135,10 +145,12 @@
       },
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.deepseek.com"
+          "baseUrl": "https://api.deepseek.com",
+          "adapterFamily": "deepseek"
         },
         "anthropic-messages": {
-          "baseUrl": "https://api.deepseek.com/anthropic"
+          "baseUrl": "https://api.deepseek.com/anthropic",
+          "adapterFamily": "anthropic"
         }
       },
       "metadata": {
@@ -157,7 +169,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://deepseek.alayanew.com"
+          "baseUrl": "https://deepseek.alayanew.com",
+          "adapterFamily": "openai-compatible"
         }
       },
       "metadata": {
@@ -176,10 +189,12 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://www.dmxapi.cn"
+          "baseUrl": "https://www.dmxapi.cn",
+          "adapterFamily": "openai-compatible"
         },
         "anthropic-messages": {
-          "baseUrl": "https://www.dmxapi.cn"
+          "baseUrl": "https://www.dmxapi.cn",
+          "adapterFamily": "anthropic"
         }
       },
       "metadata": {
@@ -198,7 +213,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.aiionly.com"
+          "baseUrl": "https://api.aiionly.com",
+          "adapterFamily": "openai-compatible"
         }
       },
       "metadata": {
@@ -217,7 +233,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://ai.burncloud.com"
+          "baseUrl": "https://ai.burncloud.com",
+          "adapterFamily": "openai-compatible"
         }
       },
       "metadata": {
@@ -236,10 +253,12 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.tokenflux.ai/openai/v1"
+          "baseUrl": "https://api.tokenflux.ai/openai/v1",
+          "adapterFamily": "openai-compatible"
         },
         "anthropic-messages": {
-          "baseUrl": "https://api.tokenflux.ai/anthropic"
+          "baseUrl": "https://api.tokenflux.ai/anthropic",
+          "adapterFamily": "anthropic"
         }
       },
       "metadata": {
@@ -258,10 +277,12 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.302.ai"
+          "baseUrl": "https://api.302.ai",
+          "adapterFamily": "openai-compatible"
         },
         "anthropic-messages": {
-          "baseUrl": "https://api.302.ai"
+          "baseUrl": "https://api.302.ai",
+          "adapterFamily": "anthropic"
         }
       },
       "metadata": {
@@ -283,7 +304,8 @@
       },
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://cephalon.cloud/user-center/v1/model"
+          "baseUrl": "https://cephalon.cloud/user-center/v1/model",
+          "adapterFamily": "openai-compatible"
         }
       },
       "metadata": {
@@ -302,7 +324,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://maas-api.lanyun.net"
+          "baseUrl": "https://maas-api.lanyun.net",
+          "adapterFamily": "openai-compatible"
         }
       },
       "metadata": {
@@ -321,7 +344,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://ph8.co"
+          "baseUrl": "https://ph8.co",
+          "adapterFamily": "openai-compatible"
         }
       },
       "metadata": {
@@ -340,7 +364,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://www.sophnet.com/api/open-apis/v1"
+          "baseUrl": "https://www.sophnet.com/api/open-apis/v1",
+          "adapterFamily": "openai-compatible"
         }
       },
       "metadata": {
@@ -359,7 +384,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.ppinfra.com/v3/openai/"
+          "baseUrl": "https://api.ppinfra.com/v3/openai/",
+          "adapterFamily": "openai-compatible"
         }
       },
       "metadata": {
@@ -381,10 +407,12 @@
       },
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.qnaigc.com"
+          "baseUrl": "https://api.qnaigc.com",
+          "adapterFamily": "openai-compatible"
         },
         "anthropic-messages": {
-          "baseUrl": "https://api.qnaigc.com"
+          "baseUrl": "https://api.qnaigc.com",
+          "adapterFamily": "anthropic"
         }
       },
       "metadata": {
@@ -403,10 +431,12 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://openrouter.ai/api/v1/"
+          "baseUrl": "https://openrouter.ai/api/v1/",
+          "adapterFamily": "openrouter"
         },
         "anthropic-messages": {
-          "baseUrl": "https://openrouter.ai/api"
+          "baseUrl": "https://openrouter.ai/api",
+          "adapterFamily": "openrouter"
         }
       },
       "metadata": {
@@ -424,10 +454,12 @@
       "description": "Ollama - AI model provider",
       "endpointConfigs": {
         "ollama-chat": {
-          "baseUrl": "http://localhost:11434"
+          "baseUrl": "http://localhost:11434",
+          "adapterFamily": "ollama"
         },
         "anthropic-messages": {
-          "baseUrl": "http://localhost:11434"
+          "baseUrl": "http://localhost:11434",
+          "adapterFamily": "anthropic"
         }
       },
       "metadata": {
@@ -444,10 +476,12 @@
       "description": "New API - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "http://localhost:3000"
+          "baseUrl": "http://localhost:3000",
+          "adapterFamily": "newapi"
         },
         "anthropic-messages": {
-          "baseUrl": "http://localhost:3000"
+          "baseUrl": "http://localhost:3000",
+          "adapterFamily": "newapi"
         }
       },
       "metadata": {
@@ -463,10 +497,12 @@
       "description": "LM Studio - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "http://localhost:1234"
+          "baseUrl": "http://localhost:1234",
+          "adapterFamily": "openai-compatible"
         },
         "anthropic-messages": {
-          "baseUrl": "http://localhost:1234"
+          "baseUrl": "http://localhost:1234",
+          "adapterFamily": "anthropic"
         }
       },
       "metadata": {
@@ -484,7 +520,8 @@
       "defaultChatEndpoint": "anthropic-messages",
       "endpointConfigs": {
         "anthropic-messages": {
-          "baseUrl": "https://api.anthropic.com"
+          "baseUrl": "https://api.anthropic.com",
+          "adapterFamily": "anthropic"
         }
       },
       "metadata": {
@@ -506,7 +543,8 @@
       },
       "endpointConfigs": {
         "openai-responses": {
-          "baseUrl": "https://api.openai.com"
+          "baseUrl": "https://api.openai.com",
+          "adapterFamily": "openai"
         }
       },
       "metadata": {
@@ -522,6 +560,15 @@
       "id": "azure-openai",
       "name": "Azure OpenAI",
       "description": "Azure OpenAI - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "azure"
+        },
+        "openai-responses": {
+          "adapterFamily": "azure-responses"
+        }
+      },
       "metadata": {
         "website": {
           "official": "https://azure.microsoft.com/en-us/products/ai-services/openai-service",
@@ -538,7 +585,8 @@
       "defaultChatEndpoint": "google-generate-content",
       "endpointConfigs": {
         "google-generate-content": {
-          "baseUrl": "https://generativelanguage.googleapis.com"
+          "baseUrl": "https://generativelanguage.googleapis.com",
+          "adapterFamily": "google"
         }
       },
       "metadata": {
@@ -554,6 +602,15 @@
       "id": "vertexai",
       "name": "VertexAI",
       "description": "VertexAI - AI model provider",
+      "defaultChatEndpoint": "google-generate-content",
+      "endpointConfigs": {
+        "google-generate-content": {
+          "adapterFamily": "google-vertex"
+        },
+        "anthropic-messages": {
+          "adapterFamily": "google-vertex-anthropic"
+        }
+      },
       "metadata": {
         "website": {
           "official": "https://cloud.google.com/vertex-ai",
@@ -570,7 +627,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://models.github.ai/inference"
+          "baseUrl": "https://models.github.ai/inference",
+          "adapterFamily": "openai-compatible"
         }
       },
       "metadata": {
@@ -589,7 +647,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.githubcopilot.com/"
+          "baseUrl": "https://api.githubcopilot.com/",
+          "adapterFamily": "github-copilot-openai-compatible"
         }
       },
       "metadata": {
@@ -605,7 +664,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.lingyiwanwu.com"
+          "baseUrl": "https://api.lingyiwanwu.com",
+          "adapterFamily": "openai-compatible"
         }
       },
       "metadata": {
@@ -624,10 +684,12 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.moonshot.cn"
+          "baseUrl": "https://api.moonshot.cn",
+          "adapterFamily": "openai-compatible"
         },
         "anthropic-messages": {
-          "baseUrl": "https://api.moonshot.cn/anthropic"
+          "baseUrl": "https://api.moonshot.cn/anthropic",
+          "adapterFamily": "anthropic"
         }
       },
       "metadata": {
@@ -649,7 +711,8 @@
       },
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.baichuan-ai.com"
+          "baseUrl": "https://api.baichuan-ai.com",
+          "adapterFamily": "openai-compatible"
         }
       },
       "metadata": {
@@ -668,10 +731,12 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1/"
+          "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+          "adapterFamily": "openai-compatible"
         },
         "anthropic-messages": {
-          "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic"
+          "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
+          "adapterFamily": "anthropic"
         }
       },
       "metadata": {
@@ -690,7 +755,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.stepfun.com"
+          "baseUrl": "https://api.stepfun.com",
+          "adapterFamily": "openai-compatible"
         }
       },
       "metadata": {
@@ -709,7 +775,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://ark.cn-beijing.volces.com/api/v3/"
+          "baseUrl": "https://ark.cn-beijing.volces.com/api/v3/",
+          "adapterFamily": "openai-compatible"
         }
       },
       "metadata": {
@@ -728,7 +795,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://cloud.infini-ai.com/maas"
+          "baseUrl": "https://cloud.infini-ai.com/maas",
+          "adapterFamily": "openai-compatible"
         }
       },
       "metadata": {
@@ -750,10 +818,12 @@
       },
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.minimaxi.com/v1/"
+          "baseUrl": "https://api.minimaxi.com/v1/",
+          "adapterFamily": "openai-compatible"
         },
         "anthropic-messages": {
-          "baseUrl": "https://api.minimaxi.com/anthropic"
+          "baseUrl": "https://api.minimaxi.com/anthropic",
+          "adapterFamily": "anthropic"
         }
       },
       "metadata": {
@@ -772,7 +842,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.groq.com/openai"
+          "baseUrl": "https://api.groq.com/openai",
+          "adapterFamily": "groq"
         }
       },
       "metadata": {
@@ -791,7 +862,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.together.xyz"
+          "baseUrl": "https://api.together.xyz",
+          "adapterFamily": "togetherai"
         }
       },
       "metadata": {
@@ -810,7 +882,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.fireworks.ai/inference"
+          "baseUrl": "https://api.fireworks.ai/inference",
+          "adapterFamily": "openai-compatible"
         }
       },
       "metadata": {
@@ -829,7 +902,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://integrate.api.nvidia.com"
+          "baseUrl": "https://integrate.api.nvidia.com",
+          "adapterFamily": "openai-compatible"
         }
       },
       "metadata": {
@@ -845,10 +919,15 @@
       "id": "grok",
       "name": "Grok",
       "description": "Grok - AI model provider",
-      "defaultChatEndpoint": "openai-chat-completions",
+      "defaultChatEndpoint": "openai-responses",
       "endpointConfigs": {
+        "openai-responses": {
+          "baseUrl": "https://api.x.ai/v1",
+          "adapterFamily": "xai-responses"
+        },
         "openai-chat-completions": {
-          "baseUrl": "https://api.x.ai"
+          "baseUrl": "https://api.x.ai",
+          "adapterFamily": "xai"
         }
       },
       "metadata": {
@@ -866,7 +945,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.hyperbolic.xyz"
+          "baseUrl": "https://api.hyperbolic.xyz",
+          "adapterFamily": "openai-compatible"
         }
       },
       "metadata": {
@@ -888,7 +968,8 @@
       },
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.mistral.ai"
+          "baseUrl": "https://api.mistral.ai",
+          "adapterFamily": "mistral"
         }
       },
       "metadata": {
@@ -907,7 +988,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.jina.ai"
+          "baseUrl": "https://api.jina.ai",
+          "adapterFamily": "openai-compatible"
         }
       },
       "metadata": {
@@ -926,7 +1008,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.perplexity.ai/"
+          "baseUrl": "https://api.perplexity.ai/",
+          "adapterFamily": "perplexity"
         }
       },
       "metadata": {
@@ -945,10 +1028,12 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api-inference.modelscope.cn/v1/"
+          "baseUrl": "https://api-inference.modelscope.cn/v1/",
+          "adapterFamily": "openai-compatible"
         },
         "anthropic-messages": {
-          "baseUrl": "https://api-inference.modelscope.cn"
+          "baseUrl": "https://api-inference.modelscope.cn",
+          "adapterFamily": "anthropic"
         }
       },
       "metadata": {
@@ -970,7 +1055,8 @@
       },
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://wishub-x1.ctyun.cn"
+          "baseUrl": "https://wishub-x1.ctyun.cn",
+          "adapterFamily": "openai-compatible"
         }
       },
       "metadata": {
@@ -989,7 +1075,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.hunyuan.cloud.tencent.com"
+          "baseUrl": "https://api.hunyuan.cloud.tencent.com",
+          "adapterFamily": "openai-compatible"
         }
       },
       "metadata": {
@@ -1008,7 +1095,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.lkeap.cloud.tencent.com"
+          "baseUrl": "https://api.lkeap.cloud.tencent.com",
+          "adapterFamily": "openai-compatible"
         }
       },
       "metadata": {
@@ -1027,7 +1115,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://qianfan.baidubce.com/v2/"
+          "baseUrl": "https://qianfan.baidubce.com/v2/",
+          "adapterFamily": "openai-compatible"
         }
       },
       "metadata": {
@@ -1043,6 +1132,12 @@
       "id": "gpustack",
       "name": "GPUStack",
       "description": "GPUStack - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible"
+        }
+      },
       "metadata": {
         "website": {
           "official": "https://gpustack.ai/",
@@ -1058,7 +1153,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.voyageai.com"
+          "baseUrl": "https://api.voyageai.com",
+          "adapterFamily": "voyage"
         }
       },
       "metadata": {
@@ -1074,6 +1170,12 @@
       "id": "aws-bedrock",
       "name": "AWS Bedrock",
       "description": "AWS Bedrock - AI model provider",
+      "defaultChatEndpoint": "anthropic-messages",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "bedrock"
+        }
+      },
       "metadata": {
         "website": {
           "official": "https://aws.amazon.com/bedrock/",
@@ -1094,7 +1196,8 @@
       },
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.poe.com/v1/"
+          "baseUrl": "https://api.poe.com/v1/",
+          "adapterFamily": "openai-compatible"
         }
       },
       "metadata": {
@@ -1113,10 +1216,12 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.longcat.chat/openai"
+          "baseUrl": "https://api.longcat.chat/openai",
+          "adapterFamily": "openai-compatible"
         },
         "anthropic-messages": {
-          "baseUrl": "https://api.longcat.chat/anthropic"
+          "baseUrl": "https://api.longcat.chat/anthropic",
+          "adapterFamily": "anthropic"
         }
       },
       "metadata": {
@@ -1135,7 +1240,8 @@
       "defaultChatEndpoint": "openai-responses",
       "endpointConfigs": {
         "openai-responses": {
-          "baseUrl": "https://router.huggingface.co/v1/"
+          "baseUrl": "https://router.huggingface.co/v1/",
+          "adapterFamily": "huggingface"
         }
       },
       "metadata": {
@@ -1154,7 +1260,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://ai-gateway.vercel.sh/v1/ai"
+          "baseUrl": "https://ai-gateway.vercel.sh/v1/ai",
+          "adapterFamily": "gateway"
         }
       },
       "metadata": {
@@ -1173,7 +1280,8 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.cerebras.ai/v1"
+          "baseUrl": "https://api.cerebras.ai/v1",
+          "adapterFamily": "cerebras"
         }
       },
       "metadata": {
@@ -1192,10 +1300,12 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.xiaomimimo.com"
+          "baseUrl": "https://api.xiaomimimo.com",
+          "adapterFamily": "openai-compatible"
         },
         "anthropic-messages": {
-          "baseUrl": "https://api.xiaomimimo.com/anthropic"
+          "baseUrl": "https://api.xiaomimimo.com/anthropic",
+          "adapterFamily": "anthropic"
         }
       },
       "metadata": {
@@ -1213,10 +1323,12 @@
       "description": "zai - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.z.ai/api/paas/v4/"
+          "baseUrl": "https://api.z.ai/api/paas/v4/",
+          "adapterFamily": "openai-compatible"
         },
         "anthropic-messages": {
-          "baseUrl": "https://api.z.ai/api/anthropic"
+          "baseUrl": "https://api.z.ai/api/anthropic",
+          "adapterFamily": "anthropic"
         }
       },
       "defaultChatEndpoint": "openai-chat-completions",
@@ -1235,10 +1347,12 @@
       "description": "minimax-global - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.minimax.io/v1/"
+          "baseUrl": "https://api.minimax.io/v1/",
+          "adapterFamily": "openai-compatible"
         },
         "anthropic-messages": {
-          "baseUrl": "https://api.minimax.io/anthropic"
+          "baseUrl": "https://api.minimax.io/anthropic",
+          "adapterFamily": "anthropic"
         }
       },
       "defaultChatEndpoint": "openai-chat-completions",

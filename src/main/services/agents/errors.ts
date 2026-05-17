@@ -1,7 +1,12 @@
-import type { ModelValidationError } from '@main/apiServer/utils'
-import type { AgentType } from '@types'
+import type { AgentType } from '@shared/data/types/agent'
 
 export type AgentModelField = 'model' | 'planModel' | 'smallModel'
+
+export interface ModelValidationError {
+  type: string
+  message: string
+  code: string
+}
 
 export interface AgentModelValidationContext {
   agentType: AgentType

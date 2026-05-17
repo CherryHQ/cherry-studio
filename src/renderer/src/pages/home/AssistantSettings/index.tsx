@@ -1,12 +1,13 @@
-import { MenuItem, MenuList, RowFlex } from '@cherrystudio/ui'
+import { RowFlex } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useAssistantPreset } from '@renderer/hooks/useAssistantPresets'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import type { Assistant } from '@renderer/types'
-import { Modal } from 'antd'
+import type { UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
+import { Menu, Modal } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 
 import AssistantKnowledgeBaseSettings from './AssistantKnowledgeBaseSettings'
 import AssistantMCPSettings from './AssistantMCPSettings'
@@ -30,14 +31,11 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
   const [menu, setMenu] = useState<AssistantSettingPopupTab>(tab || 'model')
 
   const _useAssistant = useAssistant(props.assistant.id)
-  const _useAgent = useAssistantPreset(props.assistant.id)
-  const isAgent = props.assistant.type === 'agent'
 
-  const assistant = isAgent ? (_useAgent.preset ?? props.assistant) : _useAssistant.assistant
-  const updateAssistant = isAgent ? _useAgent.updateAssistantPreset : _useAssistant.updateAssistant
-  const updateAssistantSettings = isAgent
-    ? _useAgent.updateAssistantPresetSettings
-    : _useAssistant.updateAssistantSettings
+  const assistant: Assistant = _useAssistant.assistant ?? props.assistant
+
+  const updateAssistant: (patch: UpdateAssistantDto) => void = (patch) => void _useAssistant.updateAssistant(patch)
+  const updateAssistantSettings = _useAssistant.updateAssistantSettings
 
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
 
@@ -73,7 +71,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
   ].filter(Boolean) as { key: string; label: string }[]
 
   return (
-    <Modal
+    <StyledModal
       open={open}
       onOk={onOk}
       onCancel={onCancel}
@@ -92,25 +90,19 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
           padding: 0
         }
       }}
-      rootClassName="[&_.ant-modal-title]:text-sm [&_.ant-modal-close]:top-1 [&_.ant-modal-close]:right-1"
       width="min(900px, 70vw)"
       height="80vh"
       centered>
       <RowFlex>
-        <div className="h-[calc(80vh-20px)] border-border border-r-[0.5px]">
-          <MenuList className="mt-0.5 w-[220px] p-1.25">
-            {items.map((item) => (
-              <MenuItem
-                key={item.key}
-                label={item.label}
-                active={menu === item.key}
-                className="mb-1.75 font-medium last:mb-0"
-                onClick={() => setMenu(item.key as AssistantSettingPopupTab)}
-              />
-            ))}
-          </MenuList>
-        </div>
-        <div className="h-[calc(80vh-16px)] flex-1 overflow-y-scroll p-4">
+        <LeftMenu>
+          <StyledMenu
+            defaultSelectedKeys={[tab || 'model']}
+            mode="vertical"
+            items={items}
+            onSelect={({ key }) => setMenu(key as AssistantSettingPopupTab)}
+          />
+        </LeftMenu>
+        <Settings>
           {menu === 'model' && (
             <AssistantModelSettings
               assistant={assistant}
@@ -133,11 +125,66 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
             />
           )}
           {menu === 'mcp' && <AssistantMCPSettings assistant={assistant} updateAssistant={updateAssistant} />}
-        </div>
+        </Settings>
       </RowFlex>
-    </Modal>
+    </StyledModal>
   )
 }
+
+const LeftMenu = styled.div`
+  height: calc(80vh - 20px);
+  border-right: 0.5px solid var(--color-border);
+`
+
+const Settings = styled.div`
+  flex: 1;
+  padding: 16px 16px;
+  height: calc(80vh - 16px);
+  overflow-y: scroll;
+`
+
+const StyledModal = styled(Modal)`
+  .ant-modal-title {
+    font-size: 14px;
+  }
+  .ant-modal-close {
+    top: 4px;
+    right: 4px;
+  }
+  .ant-menu-item {
+    height: 36px;
+    color: var(--color-text-2);
+    display: flex;
+    align-items: center;
+    border: 0.5px solid transparent;
+    border-radius: 6px;
+    .ant-menu-title-content {
+      line-height: 36px;
+    }
+  }
+  .ant-menu-item-active {
+    background-color: var(--color-background-soft) !important;
+    transition: none;
+  }
+  .ant-menu-item-selected {
+    background-color: var(--color-background-soft);
+    border: 0.5px solid var(--color-border);
+    .ant-menu-title-content {
+      color: var(--color-text-1);
+      font-weight: 500;
+    }
+  }
+`
+
+const StyledMenu = styled(Menu)`
+  width: 220px;
+  padding: 5px;
+  background: transparent;
+  margin-top: 2px;
+  .ant-menu-item {
+    margin-bottom: 7px;
+  }
+`
 
 export default class AssistantSettingsPopup {
   static show(props: AssistantSettingPopupShowParams) {

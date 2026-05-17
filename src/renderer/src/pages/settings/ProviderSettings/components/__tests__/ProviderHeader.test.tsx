@@ -35,7 +35,7 @@ vi.mock('@renderer/pages/settings/ProviderSettings/components/ProviderAvatar', (
   ProviderAvatar: () => <div>provider-avatar</div>
 }))
 
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args)
 }))
 

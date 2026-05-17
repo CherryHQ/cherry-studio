@@ -77,9 +77,9 @@ export class TemporaryChatService {
       id: uuidv4(),
       name: dto.name ?? '',
       isNameManuallyEdited: false,
-      assistantId: dto.assistantId ?? null,
-      activeNodeId: null,
-      groupId: dto.groupId ?? null,
+      assistantId: dto.assistantId,
+      activeNodeId: undefined,
+      groupId: dto.groupId,
       // In-memory store has no real ordering — temp topics are scoped per
       // session and never reordered or paginated like persistent ones.
       orderKey: '',
@@ -189,13 +189,14 @@ export class TemporaryChatService {
         // pattern used for the other fields converts `null` to `undefined`
         // so Drizzle omits the column entirely, letting the DB default apply.
         const groupIdForScope = topic.groupId ?? null
+        const assistantId = topic.assistantId ?? undefined
         await insertWithOrderKey(
           tx,
           topicTable,
           {
             id: topic.id,
             name: topic.name ?? undefined,
-            assistantId: topic.assistantId ?? undefined,
+            assistantId,
             groupId: topic.groupId ?? undefined
           },
           {

@@ -71,7 +71,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
-vi.mock('@renderer/hooks/useModels', () => ({
+vi.mock('@renderer/hooks/useModel', () => ({
   useModels: () => ({ models, isLoading: false })
 }))
 
@@ -111,7 +111,6 @@ function createForm(overrides: Partial<AgentFormState> = {}): AgentFormState {
     planModel: '',
     smallModel: '',
     instructions: '',
-    accessiblePaths: [],
     mcps: [],
     allowedTools: [],
     avatar: '',

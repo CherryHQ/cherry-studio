@@ -1,0 +1,111 @@
+import type { AssistantSettings } from '@shared/data/types/assistant'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import { describe, expect, it } from 'vitest'
+
+import { makeAssistant as makeAssistantBase, makeModel, makeProvider } from '../../__tests__/fixtures'
+import { getMaxTokens, getTemperature, getTopP } from '../modelParameters'
+
+// modelParameters tests treat `enableTemperature: true` as the baseline,
+// unlike DEFAULT_ASSISTANT_SETTINGS which has it false. Local wrapper keeps
+// per-test settings calls terse.
+function makeAssistant(settings: Partial<AssistantSettings> = {}) {
+  return makeAssistantBase({ settings: { enableTemperature: true, ...settings } })
+}
+
+describe('getTemperature', () => {
+  it('returns undefined when enableTemperature is false', () => {
+    const a = makeAssistant({ enableTemperature: false, temperature: 0.7 })
+    expect(getTemperature(a, makeModel())).toBeUndefined()
+  })
+
+  it('returns the temperature when the model supports it', () => {
+    const a = makeAssistant({ temperature: 0.5 })
+    expect(getTemperature(a, makeModel())).toBe(0.5)
+  })
+
+  it('disables temperature on Claude reasoning models with non-default reasoning effort', () => {
+    const a = makeAssistant({ temperature: 0.8, reasoning_effort: 'high' })
+    // `isClaudeReasoningModel` = Anthropic vendor + REASONING capability
+    // (the registry sets the capability via `inferClaudeReasoningFromId`;
+    // tests have to populate it explicitly because they bypass the registry).
+    const model = makeModel({
+      id: 'anthropic::claude-sonnet-4-5-20250101',
+      providerId: 'anthropic',
+      capabilities: [MODEL_CAPABILITY.REASONING]
+    })
+    expect(getTemperature(a, model)).toBeUndefined()
+  })
+
+  it('keeps temperature on Claude reasoning models when reasoning_effort is default', () => {
+    const a = makeAssistant({ temperature: 0.8, reasoning_effort: 'default' })
+    const model = makeModel({
+      id: 'anthropic::claude-sonnet-4-5-20250101',
+      providerId: 'anthropic',
+      capabilities: [MODEL_CAPABILITY.REASONING]
+    })
+    expect(getTemperature(a, model)).toBe(0.8)
+  })
+
+  it('clamps temperature to 1 for isMaxTemperatureOneModel', () => {
+    // `isMaxTemperatureOneModel` first reads `parameterSupport.temperature.max`;
+    // its id-based fallback covers `claude/glm/kimi/moonshot` only — gpt-5
+    // is classified by the registry, not the fallback, so the test has to
+    // declare the parameter support explicitly.
+    const a = makeAssistant({ temperature: 1.5 })
+    const model = makeModel({
+      id: 'openai::gpt-5',
+      parameterSupport: {
+        temperature: { supported: true, min: 0, max: 1 },
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
+    })
+    expect(getTemperature(a, model)).toBe(1)
+  })
+})
+
+describe('getTopP', () => {
+  it('returns undefined when enableTopP is false', () => {
+    const a = makeAssistant({ enableTopP: false, topP: 0.9 })
+    expect(getTopP(a, makeModel())).toBeUndefined()
+  })
+
+  it('returns topP when enabled', () => {
+    const a = makeAssistant({ enableTopP: true, topP: 0.9 })
+    expect(getTopP(a, makeModel())).toBe(0.9)
+  })
+
+  it('clamps topP to [0.95, 1] on Claude reasoning models with reasoning effort', () => {
+    // `enableTemperature: false` — Claude 4.5 has mutually-exclusive
+    // temperature/topP (`isTemperatureTopPMutuallyExclusiveModel`); leaving
+    // both enabled would short-circuit topP via the exclusivity branch and
+    // never reach the reasoning-clamp path under test.
+    const a = makeAssistant({ enableTemperature: false, enableTopP: true, topP: 0.5, reasoning_effort: 'high' })
+    const model = makeModel({
+      id: 'anthropic::claude-sonnet-4-5-20250101',
+      providerId: 'anthropic',
+      capabilities: [MODEL_CAPABILITY.REASONING]
+    })
+    expect(getTopP(a, model)).toBe(0.95)
+  })
+})
+
+describe('getMaxTokens', () => {
+  it('returns undefined when enableMaxTokens is off', () => {
+    const a = makeAssistant({ enableMaxTokens: false, maxTokens: 2048 })
+    expect(getMaxTokens(a, makeModel(), makeProvider())).toBeUndefined()
+  })
+
+  it('returns maxTokens when enabled on non-Claude models', () => {
+    const a = makeAssistant({ enableMaxTokens: true, maxTokens: 2048 })
+    expect(getMaxTokens(a, makeModel(), makeProvider())).toBe(2048)
+  })
+
+  it('skips budget subtraction on Claude 4.6 series (adaptive thinking)', () => {
+    const a = makeAssistant({ enableMaxTokens: true, maxTokens: 8000, reasoning_effort: 'high' })
+    const model = makeModel({ id: 'anthropic::claude-sonnet-4-6-20260101', providerId: 'anthropic' })
+    const provider = makeProvider({ id: 'anthropic', presetProviderId: 'anthropic' })
+    expect(getMaxTokens(a, model, provider)).toBe(8000)
+  })
+})

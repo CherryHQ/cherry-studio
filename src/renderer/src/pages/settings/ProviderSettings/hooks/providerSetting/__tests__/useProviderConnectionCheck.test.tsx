@@ -27,11 +27,11 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args)
 }))
 
-vi.mock('@renderer/hooks/useModels', () => ({
+vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: any[]) => useModelsMock(...args)
 }))
 
@@ -49,11 +49,6 @@ vi.mock('../useProviderEndpoints', () => ({
 
 vi.mock('@renderer/services/ApiService', () => ({
   checkApi: (...args: any[]) => checkApiMock(...args)
-}))
-
-vi.mock('@renderer/pages/settings/ProviderSettings/utils/v1ProviderShim', () => ({
-  toV1ModelForCheckApi: (model: any) => model,
-  toV1ProviderShim: (_provider: any, options: any) => options
 }))
 
 vi.mock('@renderer/components/ErrorDetailModal', () => ({

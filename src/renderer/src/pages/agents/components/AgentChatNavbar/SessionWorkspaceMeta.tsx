@@ -1,21 +1,16 @@
-import type { AgentEntity, AgentSessionEntity } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import { Folder } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type SessionWorkspaceMetaProps = {
-  agent: AgentEntity
   session: AgentSessionEntity
 }
 
-const SessionWorkspaceMeta = ({ agent, session }: SessionWorkspaceMetaProps) => {
+const SessionWorkspaceMeta = ({ session }: SessionWorkspaceMetaProps) => {
   const { t } = useTranslation()
-
-  if (!session || !agent) {
-    return null
-  }
 
   const firstAccessiblePath = session.accessiblePaths?.[0]
 

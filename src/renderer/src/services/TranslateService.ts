@@ -1,101 +1,107 @@
-import { dataApiService } from '@data/DataApiService'
-import { loggerService } from '@logger'
-import type { AssistantSettings, FetchChatCompletionRequestOptions, ReasoningEffortOption } from '@renderer/types'
-import type { Chunk } from '@renderer/types/chunk'
-import { ChunkType } from '@renderer/types/chunk'
-import { readyToAbort } from '@renderer/utils/abortController'
-import { isAbortError } from '@renderer/utils/error'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import { NoOutputGeneratedError } from 'ai'
 import { t } from 'i18next'
+import { v4 as uuid } from 'uuid'
 
-import { fetchChatCompletion } from './ApiService'
-import { getDefaultTranslateAssistant } from './AssistantService'
-
-const logger = loggerService.withContext('TranslateService')
-
-type TranslateOptions = {
-  reasoningEffort: ReasoningEffortOption
-}
+/** Must stay in sync with main-side prefix (validated in `translateService.open`). */
+const TRANSLATE_STREAM_PREFIX = 'translate:'
 
 /**
- * Translate text into the target language via streaming chat completion.
- * @param text - The source text to translate
- * @param targetLanguage - Target language, either as a {@link TranslateLangCode} string or a {@link TranslateLanguage} object
- * @param onResponse - Streaming callback invoked on every chunk with the accumulated text and a completion flag
- * @param abortKey - Optional key used to abort the request via {@link readyToAbort}
- * @param options - Optional settings (e.g. reasoning effort)
- * @returns The trimmed translated text
- * @throws {Error} When translation is aborted, fails, or produces empty output
+ * Translate `text` to `targetLanguage` via main's `Ai_Translate_Open` IPC.
+ * Per-chunk `onResponse(accumulated, isComplete)` lets the caller pace the
+ * display (see `useSmoothStream`). `signal` aborts via `Ai_Stream_Abort`.
  */
 export const translateText = async (
   text: string,
   targetLanguage: TranslateLangCode | TranslateLanguage,
   onResponse?: (text: string, isComplete: boolean) => void,
-  abortKey?: string,
-  options?: TranslateOptions
-) => {
-  let error: unknown
-  const assistantSettings: Partial<AssistantSettings> | undefined = options
-    ? { reasoning_effort: options?.reasoningEffort }
-    : undefined
-
-  // TODO: modify here when aisdk is migrated to main process
-  if (typeof targetLanguage === 'string') {
-    if (!isTranslateLangCode(targetLanguage) || targetLanguage === 'unknown') {
-      throw new Error(`Invalid target language: ${targetLanguage}`)
-    }
-    const langDto = await dataApiService.get(`/translate/languages/${targetLanguage}`)
-    targetLanguage = langDto
+  signal?: AbortSignal
+): Promise<string> => {
+  if (signal?.aborted) {
+    throw new DOMException('Translation aborted before start', 'AbortError')
   }
-  const assistant = await getDefaultTranslateAssistant(targetLanguage, text, assistantSettings)
 
-  const signal = abortKey ? readyToAbort(abortKey) : undefined
+  const targetLangCode = typeof targetLanguage === 'string' ? targetLanguage : targetLanguage.langCode
+  if (!isTranslateLangCode(targetLangCode) || targetLangCode === 'unknown') {
+    throw new Error(`Invalid target language: ${targetLangCode}`)
+  }
 
-  let translatedText = ''
-  let completed = false
-  const onChunk = (chunk: Chunk) => {
-    if (chunk.type === ChunkType.TEXT_DELTA) {
-      translatedText = chunk.text
-    } else if (chunk.type === ChunkType.TEXT_COMPLETE) {
-      completed = true
-    } else if (chunk.type === ChunkType.ERROR) {
-      error = chunk.error
-      if (isAbortError(chunk.error)) {
-        completed = true
+  const streamId = `${TRANSLATE_STREAM_PREFIX}${uuid()}`
+
+  let accumulated = ''
+  let cleaned = false
+  const unsubscribers: Array<() => void> = []
+
+  let abortListener: (() => void) | undefined
+  const cleanup = () => {
+    if (cleaned) return
+    cleaned = true
+    for (const off of unsubscribers) {
+      try {
+        off()
+      } catch {
+        // listener unsub never throws meaningfully
       }
     }
-    onResponse?.(translatedText, completed)
+    if (signal && abortListener) signal.removeEventListener('abort', abortListener)
   }
 
-  const requestOptions = {
-    signal
-  } satisfies FetchChatCompletionRequestOptions
-
-  try {
-    await fetchChatCompletion({
-      prompt: assistant.content,
-      assistant,
-      requestOptions,
-      onChunkReceived: onChunk
-    })
-  } catch (e) {
-    if (!NoOutputGeneratedError.isInstance(e)) {
-      throw e
+  if (signal) {
+    abortListener = () => {
+      void window.api.ai.streamAbort({ topicId: streamId }).catch(() => {
+        // Already aborted / stream gone — main drives the final reject via onStreamError.
+      })
     }
-    logger.debug('Swallowed NoOutputGeneratedError', e as Error)
+    signal.addEventListener('abort', abortListener, { once: true })
   }
 
-  if (error !== undefined) {
-    throw error
-  }
+  return new Promise<string>((resolve, reject) => {
+    // Subscribe **before** calling main. Main starts the stream synchronously
+    // inside `translate.open`, so the first chunk can land between `open()`'s
+    // resolve and any post-await subscriber registration.
+    unsubscribers.push(
+      window.api.ai.onStreamChunk(({ topicId, chunk }) => {
+        if (topicId !== streamId) return
+        if (
+          chunk &&
+          (chunk as { type?: string }).type === 'text-delta' &&
+          typeof (chunk as { delta?: unknown }).delta === 'string'
+        ) {
+          accumulated += (chunk as { delta: string }).delta
+          onResponse?.(accumulated, false)
+        }
+      })
+    )
 
-  const trimmedText = translatedText.trim()
+    unsubscribers.push(
+      window.api.ai.onStreamDone(({ topicId }) => {
+        if (topicId !== streamId) return
+        const trimmed = accumulated.trim()
+        cleanup()
+        if (!trimmed) {
+          reject(new Error(t('translate.error.empty')))
+          return
+        }
+        onResponse?.(trimmed, true)
+        resolve(trimmed)
+      })
+    )
 
-  if (!trimmedText) {
-    return Promise.reject(new Error(t('translate.error.empty')))
-  }
+    unsubscribers.push(
+      window.api.ai.onStreamError(({ topicId, error }) => {
+        if (topicId !== streamId) return
+        cleanup()
+        // Preserve error.name (e.g. 'AbortError') so downstream
+        // `isAbortError(...)` classifies user stops correctly.
+        const err = new Error(error?.message ?? 'Translation stream error')
+        if (error?.name) err.name = error.name
+        reject(err)
+      })
+    )
 
-  return trimmedText
+    window.api.translate.open({ streamId, text, targetLangCode }).catch((openError: unknown) => {
+      cleanup()
+      reject(openError instanceof Error ? openError : new Error(String(openError)))
+    })
+  })
 }

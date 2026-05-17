@@ -1,7 +1,32 @@
-import type { AzureOpenAIProvider, ProviderType } from '@renderer/types'
+import type { AzureOpenAIProvider, ProviderType, VertexProvider } from '@renderer/types'
 import { isSystemProvider, type Provider, type SystemProviderId, SystemProviderIds } from '@renderer/types'
-import { isAzureOpenAIProvider } from '@shared/aiCore/provider/utils'
 import { CLAUDE_SUPPORTED_PROVIDERS } from '@shared/config/providers'
+
+// Provider type-guard helpers (previously exported from
+// `@shared/ai/provider/utils`, which was deleted in commit 7fc97636b).
+// Inlined here because the type-guard cluster is small and the only
+// consumers are this file (plus its re-exports).
+export function isAnthropicProvider(provider: Provider): boolean {
+  return provider.type === 'anthropic'
+}
+export function isOllamaProvider(provider: Provider): boolean {
+  return provider.type === 'ollama'
+}
+export function isGeminiProvider(provider: Provider): boolean {
+  return provider.type === 'gemini'
+}
+export function isAzureOpenAIProvider(provider: Provider): provider is AzureOpenAIProvider {
+  return provider.type === 'azure-openai'
+}
+export function isVertexProvider(provider: Provider): provider is VertexProvider {
+  return provider.type === 'vertexai'
+}
+export function isPerplexityProvider(provider: Provider): boolean {
+  return provider.id === 'perplexity'
+}
+export function isCherryAIProvider(provider: Provider): boolean {
+  return provider.id === 'cherryai'
+}
 
 export const isAzureResponsesEndpoint = (provider: AzureOpenAIProvider) => {
   return provider.apiVersion === 'preview' || provider.apiVersion === 'v1'
@@ -156,17 +181,6 @@ export function isOpenAIProvider(provider: Provider): boolean {
 export function isAwsBedrockProvider(provider: Provider): boolean {
   return provider.type === 'aws-bedrock'
 }
-
-// Re-export from shared, for backward compatibility
-export {
-  isAnthropicProvider,
-  isAzureOpenAIProvider,
-  isCherryAIProvider,
-  isGeminiProvider,
-  isOllamaProvider,
-  isPerplexityProvider,
-  isVertexProvider
-} from '@shared/aiCore/provider/utils'
 
 export function isAIGatewayProvider(provider: Provider): boolean {
   return provider.type === 'gateway'

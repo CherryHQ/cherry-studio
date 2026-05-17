@@ -4,6 +4,7 @@ import { application } from '@application'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
+import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
@@ -15,6 +16,7 @@ import { and, asc, desc, eq, gt, inArray, isNull, lt, notInArray, or, sql } from
 
 import { pinService } from './PinService'
 import { tagService } from './TagService'
+import { encodeCursor, splitCursor } from './utils/cursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { timestampToISO } from './utils/rowMappers'
 
@@ -30,9 +32,11 @@ function rowToTopic(row: TopicRow): Topic {
     id: row.id,
     name: row.name,
     isNameManuallyEdited: row.isNameManuallyEdited,
-    assistantId: row.assistantId,
-    activeNodeId: row.activeNodeId,
-    groupId: row.groupId,
+    // DB NULL ↔ domain `undefined` boundary — the domain shape uses
+    // optional fields rather than `T | null`, per data-api-in-main.md.
+    assistantId: row.assistantId ?? undefined,
+    activeNodeId: row.activeNodeId ?? undefined,
+    groupId: row.groupId ?? undefined,
     orderKey: row.orderKey,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
@@ -53,27 +57,26 @@ const FIRST_PAGE_CURSOR: Cursor = { section: 'pin', orderKey: '' }
 
 // Stale/legacy cursors fall back to first page (warn) instead of throwing —
 // cursors are opaque server-issued tokens, a 422 here would lock out renderers.
+// Uses `splitCursor` (permissive) so the `topic:` sentinel — a legitimate
+// "pin exhausted" marker with empty second segment — is not flagged as malformed.
 function decodeCursor(raw: string): Cursor {
-  const firstColon = raw.indexOf(':')
-  if (firstColon < 0) return warnAndFallback(raw, 'no section separator')
-  const section = raw.slice(0, firstColon)
-  const rest = raw.slice(firstColon + 1)
+  const outer = splitCursor(raw)
+  if (!outer) return warnAndFallback(raw, 'no section separator')
 
-  if (section === 'pin') {
-    return { section: 'pin', orderKey: rest }
+  if (outer.key === 'pin') {
+    return { section: 'pin', orderKey: outer.id }
   }
-  if (section === 'topic') {
-    if (rest === '') return { section: 'topic', updatedAt: null, id: null }
-    const sep = rest.indexOf(':')
-    if (sep < 0) return warnAndFallback(raw, 'malformed topic cursor (missing id separator)')
-    const updatedAt = Number(rest.slice(0, sep))
-    const id = rest.slice(sep + 1)
-    if (!Number.isFinite(updatedAt) || !id) {
-      return warnAndFallback(raw, 'malformed topic cursor (bad updatedAt or empty id)')
+  if (outer.key === 'topic') {
+    if (outer.id === '') return { section: 'topic', updatedAt: null, id: null }
+    const inner = splitCursor(outer.id)
+    if (!inner || !inner.id) return warnAndFallback(raw, 'malformed topic cursor (missing id separator)')
+    const updatedAt = Number(inner.key)
+    if (!Number.isFinite(updatedAt)) {
+      return warnAndFallback(raw, 'malformed topic cursor (bad updatedAt)')
     }
-    return { section: 'topic', updatedAt, id }
+    return { section: 'topic', updatedAt, id: inner.id }
   }
-  return warnAndFallback(raw, `unknown cursor section "${section}"`)
+  return warnAndFallback(raw, `unknown cursor section "${outer.key}"`)
 }
 
 function warnAndFallback(raw: string, reason: string): Cursor {
@@ -82,11 +85,11 @@ function warnAndFallback(raw: string, reason: string): Cursor {
 }
 
 function encodePinCursor(orderKey: string): string {
-  return `pin:${orderKey}`
+  return encodeCursor('pin', orderKey)
 }
 
 function encodeTopicCursor(updatedAt: number, id: string): string {
-  return `topic:${updatedAt}:${id}`
+  return `topic:${encodeCursor(String(updatedAt), id)}`
 }
 
 function encodeTopicSectionStart(): string {
@@ -212,8 +215,24 @@ export class TopicService {
 
   async setActiveNode(topicId: string, nodeId: string): Promise<{ activeNodeId: string }> {
     const db = application.get('DbService').getDb()
+    await db.transaction((tx) => this.setActiveNodeTx(tx, topicId, nodeId))
+    logger.info('Set active node', { topicId, activeNodeId: nodeId })
+    return { activeNodeId: nodeId }
+  }
 
-    await db.transaction(async (tx) => {
+  /**
+   * Tx-aware variant — composes inside a caller's transaction (e.g.
+   * MessageService.create / fork). Validates the topic is not soft-deleted
+   * and the message belongs to it. Skip validation by passing `assumeValid`
+   * when the caller has already verified the (topicId, nodeId) pair.
+   */
+  async setActiveNodeTx(
+    tx: DbOrTx,
+    topicId: string,
+    nodeId: string,
+    options: { assumeValid?: boolean } = {}
+  ): Promise<void> {
+    if (!options.assumeValid) {
       const [topic] = await tx
         .select({ id: topicTable.id })
         .from(topicTable)
@@ -229,18 +248,14 @@ export class TopicService {
       if (!message || message.topicId !== topicId) {
         throw DataApiErrorFactory.notFound('Message', nodeId)
       }
+    }
 
-      const updated = await tx
-        .update(topicTable)
-        .set({ activeNodeId: nodeId })
-        .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
-        .returning({ id: topicTable.id })
-      if (updated.length !== 1) throw DataApiErrorFactory.notFound('Topic', topicId)
-    })
-
-    logger.info('Set active node', { topicId, nodeId })
-
-    return { activeNodeId: nodeId }
+    const updated = await tx
+      .update(topicTable)
+      .set({ activeNodeId: nodeId })
+      .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
+      .returning({ id: topicTable.id })
+    if (updated.length !== 1) throw DataApiErrorFactory.notFound('Topic', topicId)
   }
 
   /**

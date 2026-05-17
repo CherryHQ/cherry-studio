@@ -1,5 +1,5 @@
 import { useReorder } from '@data/hooks/useReorder'
-import { useProvider, useProviderMutations } from '@renderer/hooks/useProviders'
+import { useProvider, useProviderMutations } from '@renderer/hooks/useProvider'
 import { useCallback } from 'react'
 
 /** Persists provider enable changes and moves newly enabled providers to the top. */

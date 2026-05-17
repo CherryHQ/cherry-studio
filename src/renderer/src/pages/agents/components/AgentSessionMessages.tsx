@@ -1,201 +1,69 @@
 import { loggerService } from '@logger'
 import { LoadingIcon } from '@renderer/components/Icons'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
-import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSession } from '@renderer/hooks/agents/useSession'
-import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
-import useScrollPosition from '@renderer/hooks/useScrollPosition'
+import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { PartsProvider } from '@renderer/pages/home/Messages/Blocks'
+import { ChatVirtualList, type ChatVirtualListHandle } from '@renderer/pages/home/Messages/ChatVirtualList'
 import MessageAnchorLine from '@renderer/pages/home/Messages/MessageAnchorLine'
 import MessageGroup from '@renderer/pages/home/Messages/MessageGroup'
 import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
-import { MessagesContainer, ScrollContainer } from '@renderer/pages/home/Messages/shared'
+import { MessagesContainer } from '@renderer/pages/home/Messages/shared'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getGroupedMessages } from '@renderer/services/MessagesService'
-import { useAppDispatch } from '@renderer/store'
-import {
-  addChannelUserMessage,
-  type ChannelStreamController,
-  loadTopicMessagesThunk,
-  setupChannelStream
-} from '@renderer/store/thunk/messageThunk'
-import { type Topic, TopicType } from '@renderer/types'
+import type { Topic, TopicType as TopicTypeEnum } from '@renderer/types'
+import { TopicType } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
-import { addAbortController } from '@renderer/utils/abortController'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { Spin } from 'antd'
+import type { PropsWithChildren } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import InfiniteScroll from 'react-infinite-scroll-component'
-import styled from 'styled-components'
 
 const logger = loggerService.withContext('AgentSessionMessages')
-
-// Agent messages are typically long, so load in smaller batches
-const AGENT_PAGE_SIZE = 5
 
 type Props = {
   agentId: string
   sessionId: string
+  adaptedMessages: Message[]
+  partsMap: Record<string, CherryMessagePart[]>
+  isLoading: boolean
+  /** Whether more older messages remain on the server (cursor pagination). */
+  hasOlder?: boolean
+  /** Trigger fetching the next older page. */
+  loadOlder?: () => void
 }
 
-const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
-  const { session } = useSession(agentId, sessionId)
+const AgentSessionMessages = ({
+  agentId,
+  sessionId,
+  adaptedMessages,
+  partsMap,
+  isLoading,
+  hasOlder = false,
+  loadOlder
+}: Props) => {
+  const { session } = useSession(sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
-  // Use the same hook as Messages.tsx for consistent behavior
-  const messages = useTopicMessages(sessionTopicId)
   const { messageNavigation } = useSettings()
-  const dispatch = useAppDispatch()
-
-  // Ensure messages are loaded when session changes (e.g. navigating from task logs)
-  useEffect(() => {
-    void dispatch(loadTopicMessagesThunk(sessionTopicId))
-  }, [dispatch, sessionTopicId])
-
-  // Use agent's model as fallback when session model is not yet available
-  const { agent } = useAgent(agentId)
-  const agentModelRef = useRef(agent?.model)
-  agentModelRef.current = agent?.model
-
-  // Subscribe to real-time IM channel stream chunks and render via BlockManager pipeline
-  const streamCtrlRef = useRef<ChannelStreamController | null>(null)
-  const sessionRef = useRef(session)
-  sessionRef.current = session
-
-  // Guard flag: once the current exchange is done (complete/error), prevent
-  // getOrCreateStream() from creating a second assistant message if any
-  // late-arriving chunk events are processed after the controller is cleared.
-  const exchangeDoneRef = useRef(false)
-
-  useEffect(() => {
-    let cancelled = false
-    let cleanupChunk: (() => void) | null = null
-    exchangeDoneRef.current = false
-
-    const getOrCreateStream = () => {
-      if (exchangeDoneRef.current) return streamCtrlRef.current
-      if (!streamCtrlRef.current) {
-        streamCtrlRef.current = setupChannelStream(
-          dispatch,
-          sessionTopicId,
-          agentId,
-          sessionRef.current?.model ?? agentModelRef.current
-        )
-      }
-      return streamCtrlRef.current
-    }
-
-    // Await subscribe before registering the chunk listener.
-    // This ensures the main-process bus subscription is active before any
-    // events can be published, eliminating the race where user-message is
-    // published before the subscriber exists.
-    const init = async () => {
-      await window.api.agentSessionStream.subscribe(sessionId)
-      if (cancelled) return
-
-      cleanupChunk = window.api.agentSessionStream.onChunk((event) => {
-        if (event.sessionId !== sessionId) return
-
-        if (event.type === 'user-message' && event.userMessage) {
-          // A new exchange starts — reset the done flag
-          exchangeDoneRef.current = false
-          addChannelUserMessage(dispatch, sessionTopicId, agentId, event.userMessage.text, event.userMessage.images)
-          const ctrl = getOrCreateStream()
-          if (ctrl) {
-            // Register abort callback so the input bar's stop button can abort the main process stream
-            addAbortController(ctrl.assistantMessageId, () => {
-              void window.api.agentSessionStream.abort(sessionId)
-            })
-          }
-        } else if (event.type === 'chunk' && event.chunk) {
-          getOrCreateStream()?.pushChunk(event.chunk)
-        } else if (event.type === 'complete') {
-          exchangeDoneRef.current = true
-          streamCtrlRef.current?.complete()
-          streamCtrlRef.current = null
-        } else if (event.type === 'error') {
-          exchangeDoneRef.current = true
-          // Push the error as a data chunk so the adapter can render it via
-          // onError, then close the stream normally. Using complete() instead
-          // of error() preserves any previously-enqueued chunks that the
-          // adapter hasn't read yet (ReadableStream.error() discards them).
-          if (streamCtrlRef.current) {
-            streamCtrlRef.current.pushChunk({
-              type: 'error',
-              error: new Error(event.error?.message ?? 'Stream error')
-            } as any)
-            streamCtrlRef.current.complete()
-          }
-          streamCtrlRef.current = null
-        }
-      })
-    }
-
-    void init()
-
-    return () => {
-      cancelled = true
-      cleanupChunk?.()
-      streamCtrlRef.current?.complete()
-      streamCtrlRef.current = null
-      void window.api.agentSessionStream.unsubscribe(sessionId)
-    }
-  }, [sessionId, sessionTopicId, agentId, dispatch])
-
-  const { containerRef: scrollContainerRef, handleScroll: handleScrollPosition } = useScrollPosition(
-    `agent-session-${sessionId}`
-  )
-
+  const chatListRef = useRef<ChatVirtualListHandle | null>(null)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
   const { setTimeoutTimer } = useTimer()
 
-  const [displayMessages, setDisplayMessages] = useState<Message[]>([])
-  const [hasMore, setHasMore] = useState(false)
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  // Group messages chronologically; ChatVirtualList renders entries in array
+  // order with scroll-to-bottom on first mount, so groups stay oldest-first.
+  const groupedMessages = useMemo(() => Object.entries(getGroupedMessages(adaptedMessages)), [adaptedMessages])
 
-  // Guard: suppress InfiniteScroll triggers during scroll position restoration
-  const isRestoringScrollRef = useRef(true)
-
-  useEffect(() => {
-    isRestoringScrollRef.current = true
-    const timer = setTimeout(() => {
-      isRestoringScrollRef.current = false
-    }, 150)
-    return () => clearTimeout(timer)
-  }, [sessionId])
-
-  useEffect(() => {
-    const newDisplayMessages = computeDisplayMessages(messages, 0, AGENT_PAGE_SIZE)
-    setDisplayMessages(newDisplayMessages)
-    setHasMore(messages.length > AGENT_PAGE_SIZE)
-  }, [messages])
-
-  // NOTE: displayMessages is reversed, so each group is also reversed — need to reverse back
-  const groupedMessages = useMemo(() => {
-    const grouped = Object.entries(getGroupedMessages(displayMessages))
-    const newGrouped: { [key: string]: (Message & { index: number })[] } = {}
-    grouped.forEach(([key, group]) => {
-      newGrouped[key] = group.toReversed()
-    })
-    return Object.entries(newGrouped)
-  }, [displayMessages])
-
-  const loadMoreMessages = useCallback(() => {
-    if (!hasMore || isLoadingMore || isRestoringScrollRef.current) return
-
+  const handleReachTop = useCallback(() => {
+    if (!hasOlder || isLoadingMore || !loadOlder) return
     setIsLoadingMore(true)
-    setTimeoutTimer(
-      'loadMoreMessages',
-      () => {
-        const currentLength = displayMessages.length
-        const newMessages = computeDisplayMessages(messages, currentLength, AGENT_PAGE_SIZE)
+    loadOlder()
+    setTimeoutTimer('agent-load-older-spinner', () => setIsLoadingMore(false), 600)
+  }, [hasOlder, isLoadingMore, loadOlder, setTimeoutTimer])
 
-        setDisplayMessages((prev) => [...prev, ...newMessages])
-        setHasMore(currentLength + AGENT_PAGE_SIZE < messages.length)
-        setIsLoadingMore(false)
-      },
-      300
-    )
-  }, [displayMessages.length, hasMore, isLoadingMore, messages, setTimeoutTimer])
+  // ── Derived topic for MessageGroup ──
 
   const sessionAssistantId = session?.agentId ?? agentId
   const sessionName = session?.name ?? sessionId
@@ -205,7 +73,7 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
   const derivedTopic = useMemo<Topic>(
     () => ({
       id: sessionTopicId,
-      type: TopicType.Session,
+      type: TopicType.Session as TopicTypeEnum,
       assistantId: sessionAssistantId,
       name: sessionName,
       createdAt: sessionCreatedAt,
@@ -215,108 +83,73 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
     [sessionTopicId, sessionAssistantId, sessionName, sessionCreatedAt, sessionUpdatedAt]
   )
 
-  logger.silly('Rendering agent session messages', {
-    sessionId,
-    messageCount: messages.length
-  })
+  // ── Scroll to bottom on send ──
 
-  // Scroll to bottom function
   const scrollToBottom = useCallback(() => {
-    if (scrollContainerRef.current) {
-      requestAnimationFrame(() => {
-        if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTo({ top: 0 })
-        }
-      })
-    }
-  }, [scrollContainerRef])
+    chatListRef.current?.scrollToBottom('instant')
+  }, [])
 
-  // Listen for send message events to auto-scroll to bottom
   useEffect(() => {
     const unsubscribes = [EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, scrollToBottom)]
     return () => unsubscribes.forEach((unsub) => unsub())
   }, [scrollToBottom])
 
+  logger.silly('Rendering agent session messages', {
+    sessionId,
+    messageCount: adaptedMessages.length,
+    hasOlder
+  })
+
+  if (isLoading && adaptedMessages.length === 0) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <Spin size="small" />
+      </div>
+    )
+  }
+
   return (
-    <MessagesContainer
-      id="messages"
-      className="messages-container"
-      ref={scrollContainerRef}
-      onScroll={handleScrollPosition}>
-      <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
-        <InfiniteScroll
-          dataLength={displayMessages.length}
-          next={loadMoreMessages}
-          hasMore={hasMore}
-          loader={null}
-          scrollableTarget="messages"
-          inverse
-          style={{ overflow: 'visible' }}>
-          <SelectionContextMenu>
-            <ScrollContainer>
-              {groupedMessages.length > 0 ? (
-                groupedMessages.map(([key, groupMessages]) => (
-                  <MessageGroup key={key} messages={groupMessages} topic={derivedTopic} />
-                ))
-              ) : !session ? (
-                <div className="flex items-center justify-center py-5">
-                  <Spin size="small" />
-                </div>
-              ) : null}
-              {isLoadingMore && (
-                <LoaderContainer>
-                  <LoadingIcon color="var(--color-text-2)" />
-                </LoaderContainer>
-              )}
-            </ScrollContainer>
-          </SelectionContextMenu>
-        </InfiniteScroll>
-      </NarrowLayout>
-      {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
-    </MessagesContainer>
+    <PartsProvider value={partsMap}>
+      <AgentSessionChatContextBridge topic={derivedTopic}>
+        <MessagesContainer id="messages" className="messages-container">
+          <NarrowLayout style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+            <SelectionContextMenu>
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+                <ChatVirtualList
+                  handleRef={chatListRef}
+                  items={groupedMessages}
+                  getItemKey={([key]) => key}
+                  estimateSize={400}
+                  overscan={6}
+                  hasMoreTop={hasOlder}
+                  onReachTop={handleReachTop}
+                  renderItem={([key, groupMessages]) => (
+                    <MessageGroup key={key} messages={groupMessages} topic={derivedTopic} />
+                  )}
+                  style={{ flex: 1, minHeight: 0 }}
+                />
+                {isLoadingMore && (
+                  <div
+                    className="pointer-events-none flex w-full justify-center py-2.5"
+                    style={{ background: 'var(--color-background)' }}>
+                    <LoadingIcon color="var(--color-text-2)" />
+                  </div>
+                )}
+              </div>
+            </SelectionContextMenu>
+          </NarrowLayout>
+          {messageNavigation === 'anchor' && <MessageAnchorLine messages={adaptedMessages} />}
+        </MessagesContainer>
+      </AgentSessionChatContextBridge>
+    </PartsProvider>
   )
 }
 
-const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
-
-const computeDisplayMessages = (messages: Message[], startIndex: number, displayCount: number) => {
-  if (messages.length - startIndex <= displayCount) {
-    const result: Message[] = []
-    for (let i = messages.length - 1 - startIndex; i >= 0; i--) {
-      result.push(messages[i])
-    }
-    return result
-  }
-  const userIdSet = new Set<string>()
-  const assistantIdSet = new Set<string>()
-  const displayMessages: Message[] = []
-
-  const processMessage = (message: Message) => {
-    if (!message) return
-    const idSet = message.role === 'user' ? userIdSet : assistantIdSet
-    const messageId = message.role === 'user' ? message.id : (message.askId ?? message.id)
-    if (!idSet.has(messageId)) {
-      idSet.add(messageId)
-      displayMessages.push(message)
-      return
-    }
-    displayMessages.push(message)
-  }
-
-  for (let i = messages.length - 1 - startIndex; i >= 0 && userIdSet.size + assistantIdSet.size < displayCount; i--) {
-    processMessage(messages[i])
-  }
-
-  return displayMessages
+const AgentSessionChatContextBridge = ({ topic, children }: PropsWithChildren<{ topic: Topic }>) => {
+  const chatContextValue = useChatContextProvider(topic)
+  return <ChatContextProvider value={chatContextValue}>{children}</ChatContextProvider>
 }
 
-const LoaderContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  padding: 10px;
-  width: 100%;
-  background: var(--color-background);
-  pointer-events: none;
-`
+const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
 
 export default memo(AgentSessionMessages)

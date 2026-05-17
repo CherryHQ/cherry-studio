@@ -5,10 +5,9 @@ import { loggerService } from '@logger'
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { CopyIcon } from '@renderer/components/Icons'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useIsToolAutoApproved } from '@renderer/hooks/useMCPServers'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { MCPToolResponse } from '@renderer/types'
-import type { ToolMessageBlock } from '@renderer/types/newMessage'
-import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import type { MCPProgressEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Collapse, ConfigProvider, Progress } from 'antd'
@@ -39,12 +38,12 @@ import { truncateOutput } from './shared/truncateOutput'
 import ToolApprovalActionsComponent from './ToolApprovalActions'
 
 interface Props {
-  block: ToolMessageBlock
+  toolResponse: MCPToolResponse
 }
 
 const logger = loggerService.withContext('MessageTools')
 
-const MessageMcpTool: FC<Props> = ({ block }) => {
+const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
   const [activeKeys, setActiveKeys] = useState<string[]>([])
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({})
   const { t } = useTranslation()
@@ -54,15 +53,15 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
   const { setTimeoutTimer } = useTimer()
 
   // Use the unified approval hook
-  const approval = useToolApproval(block)
-
-  const toolResponse = block.metadata?.rawMcpToolResponse as MCPToolResponse
+  const approval = useToolApproval(toolResponse)
 
   const { id, tool, status, response, partialArguments } = toolResponse
+  const autoApproved = useIsToolAutoApproved(tool)
   const isPending = status === 'pending'
   const isDone = status === 'done'
   const isError = status === 'error'
   const isStreaming = status === 'streaming'
+  const willAwaitApproval = approval.isWaiting || (!autoApproved && status === 'invoking')
 
   useEffect(() => {
     const removeListener = window.electron.ipcRenderer.on(
@@ -90,10 +89,6 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
       setActiveKeys((prev) => prev.filter((key) => key !== id))
     }
   }, [isStreaming, isDone, isError, id, isPending])
-
-  if (!toolResponse) {
-    return null
-  }
 
   const copyContent = (content: string, toolId: string) => {
     void navigator.clipboard.writeText(content)
@@ -137,7 +132,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
           <TitleContent>
             <ToolName className="items-center gap-1">
               {tool.serverName} : {tool.name}
-              {isToolAutoApproved(tool) && (
+              {autoApproved && (
                 <Tooltip content={t('message.tools.autoApproveEnabled')}>
                   <ShieldCheck size={14} color="var(--status-color-success)" />
                 </Tooltip>
@@ -148,7 +143,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
             {progress > 0 ? (
               <Progress type="circle" size={14} percent={Number((progress * 100)?.toFixed(0))} />
             ) : (
-              <ToolStatusIndicator status={getEffectiveStatus(status, approval.isWaiting)} hasError={hasError} />
+              <ToolStatusIndicator status={getEffectiveStatus(status, willAwaitApproval)} hasError={hasError} />
             )}
             {!isPending && (
               <Tooltip content={t('common.copy')} delay={500}>
@@ -213,7 +208,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
             {(isPending || approval.isWaiting || approval.isExecuting) && (
               <ActionsBar>
                 <ActionLabel>
-                  {approval.isWaiting
+                  {willAwaitApproval
                     ? t('settings.mcp.tools.autoApprove.tooltip.confirm')
                     : t('message.tools.invoking')}
                 </ActionLabel>

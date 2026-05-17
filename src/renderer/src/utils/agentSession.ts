@@ -1,5 +1,3 @@
-import type { AgentType, ApiModelsFilter } from '@renderer/types'
-
 const SESSION_TOPIC_PREFIX = 'agent-session:'
 
 export const buildAgentSessionTopicId = (sessionId: string): string => {
@@ -33,15 +31,4 @@ const CHANNEL_TYPE_ICONS: Record<string, string> = {
 export const getChannelTypeIcon = (channelType: string | undefined): string | undefined => {
   if (!channelType) return undefined
   return CHANNEL_TYPE_ICONS[channelType]
-}
-
-export const getModelFilterByAgentType = (type: AgentType): ApiModelsFilter => {
-  switch (type) {
-    case 'claude-code':
-      return {
-        providerType: 'anthropic'
-      }
-    default:
-      return {}
-  }
 }

@@ -1,4 +1,4 @@
-import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useAssistantMutations } from '@renderer/hooks/useAssistant'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
 import type { KnowledgeBase } from '@renderer/types'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/assistant'
@@ -15,11 +15,8 @@ import KnowledgeBaseButton from './components/KnowledgeBaseButton'
 const knowledgeBaseTool = defineTool({
   key: 'knowledge_base',
   label: (t) => t('chat.input.knowledge_base'),
-  // ✅ 移除 icon 属性，不在 ToolDefinition 类型中
-  // icon: FileSearch,
-
   visibleInScopes: [TopicType.Chat],
-  condition: ({ assistant }) => isSupportedToolUse(assistant) || isPromptToolUse(assistant),
+  condition: ({ assistant, model }) => isSupportedToolUse(assistant, model) || isPromptToolUse(assistant),
 
   dependencies: {
     state: ['selectedKnowledgeBases', 'files'] as const,
@@ -28,15 +25,14 @@ const knowledgeBaseTool = defineTool({
 
   render: function KnowledgeBaseToolRender(context) {
     const { assistant, state, actions, quickPanel } = context
-
-    const { updateAssistant } = useAssistant(assistant.id)
+    const { updateAssistant } = useAssistantMutations()
 
     const handleSelect = useCallback(
       (bases: KnowledgeBase[]) => {
-        updateAssistant({ knowledge_bases: bases })
+        void updateAssistant(assistant.id, { knowledgeBaseIds: bases.map((b) => b.id) })
         actions.setSelectedKnowledgeBases?.(bases)
       },
-      [updateAssistant, actions]
+      [updateAssistant, assistant.id, actions]
     )
 
     return (

@@ -1,9 +1,8 @@
+import { Checkbox } from '@cherrystudio/ui'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import type { Topic } from '@renderer/types'
-import { Checkbox } from 'antd'
 import type { FC, ReactNode } from 'react'
 import { useEffect, useRef } from 'react'
-import styled from 'styled-components'
 
 interface SelectableMessageProps {
   children: ReactNode
@@ -12,14 +11,14 @@ interface SelectableMessageProps {
   isClearMessage?: boolean
 }
 
-const SelectableMessage: FC<SelectableMessageProps> = ({ children, messageId, topic, isClearMessage = false }) => {
+const SelectableMessage: FC<SelectableMessageProps> = ({ children, messageId, isClearMessage = false }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const {
     registerMessageElement: contextRegister,
     isMultiSelectMode,
     selectedMessageIds,
     handleSelectMessage
-  } = useChatContext(topic)
+  } = useChatContext()
 
   const isSelected = selectedMessageIds?.includes(messageId)
 
@@ -34,34 +33,18 @@ const SelectableMessage: FC<SelectableMessageProps> = ({ children, messageId, to
   }, [messageId, contextRegister])
 
   return (
-    <Container ref={containerRef}>
+    <div ref={containerRef} className="relative flex w-full">
       {isMultiSelectMode && !isClearMessage && (
-        <CheckboxWrapper>
-          <Checkbox checked={isSelected} onChange={(e) => handleSelectMessage(messageId, e.target.checked)} />
-        </CheckboxWrapper>
+        <div className="mr-[-10px] flex items-start px-0 pt-[22px] pb-[10px] pl-5">
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={(checked) => handleSelectMessage(messageId, checked === true)}
+          />
+        </div>
       )}
-      <MessageContent isMultiSelectMode={isMultiSelectMode}>{children}</MessageContent>
-    </Container>
+      <div className={`min-w-0 flex-1 ${isMultiSelectMode ? 'ml-2' : ''}`}>{children}</div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  width: 100%;
-  position: relative;
-`
-
-const CheckboxWrapper = styled.div`
-  padding: 22px 0 10px 20px;
-  margin-right: -10px;
-  display: flex;
-  align-items: flex-start;
-`
-
-const MessageContent = styled.div<{ isMultiSelectMode: boolean }>`
-  flex: 1;
-  min-width: 0;
-  ${(props) => props.isMultiSelectMode && 'margin-left: 8px;'}
-`
 
 export default SelectableMessage

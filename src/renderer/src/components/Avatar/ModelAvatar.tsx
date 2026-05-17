@@ -1,12 +1,23 @@
 import { Avatar, AvatarFallback } from '@cherrystudio/ui'
 import { getModelLogo } from '@renderer/config/models'
-import type { Model } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { first } from 'lodash'
 import type { FC } from 'react'
 
+/**
+ * Structural minimum the avatar needs. `getModelLogo` is shape-agnostic
+ * (accepts both v1 `provider` and v2 `providerId`), so this component works
+ * with either Model shape — no v1 `@renderer/types` dependency.
+ */
+interface AvatarModel {
+  id: string
+  name: string
+  provider?: string
+  providerId?: string
+}
+
 interface Props {
-  model?: Model
+  model?: AvatarModel
   size: number
   className?: string
 }

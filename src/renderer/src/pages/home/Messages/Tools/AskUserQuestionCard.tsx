@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { selectPendingPermission, toolPermissionsActions } from '@renderer/store/toolPermissions'
+import { useToolApprovalRespond } from '@renderer/hooks/ToolApprovalContext'
+import { usePartsMap } from '@renderer/pages/home/Messages/Blocks'
 import type { NormalToolResponse } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { Button, Checkbox, Input, Radio, Tag } from 'antd'
@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next'
 
 import { SkeletonValue } from './MessageAgentTools/GenericTools'
 import { type AskUserQuestionItem, parseAskUserQuestionToolInput } from './MessageAgentTools/types'
+import { APPROVAL_REQUESTED, findToolPartByCallId } from './toolResponse'
 
 const logger = loggerService.withContext('AskUserQuestionCard')
 
@@ -261,32 +262,34 @@ function PendingContent({
 // ==================== Main Component ====================
 export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const { t } = useTranslation()
-  const dispatch = useAppDispatch()
-  const request = useAppSelector((state) => selectPendingPermission(state.toolPermissions, toolResponse.toolCallId))
+  const partsMap = usePartsMap()
+  const respondToolApproval = useToolApprovalRespond()
+  const match = useMemo(
+    () => findToolPartByCallId(partsMap, toolResponse.toolCallId),
+    [partsMap, toolResponse.toolCallId]
+  )
+  const isPending = match?.state === APPROVAL_REQUESTED
+  const pendingInput = match?.input
 
-  const isPending = toolResponse.status === 'pending' && !!request
-
-  // Parse from available sources - prefer request.input when pending, fall back to toolResponse.arguments
+  // Parse from available sources — while pending read the part's `input`
+  // (carries the freshly-streamed questions); after response fall back to
+  // the finalized `toolResponse.arguments`.
   const { questions, answers } = useMemo(() => {
-    const source = isPending ? request.input : toolResponse.arguments
+    const source = isPending ? pendingInput : toolResponse.arguments
     const parsed = parseAskUserQuestionToolInput(source)
-
-    // Debug: log data source
     if (!parsed?.questions?.length) {
       logger.debug('AskUserQuestion: no questions parsed', {
         isPending,
         status: toolResponse.status,
-        hasRequestInput: !!request?.input,
-        hasArguments: !!toolResponse.arguments,
-        source
+        hasPartInput: !!pendingInput,
+        hasArguments: !!toolResponse.arguments
       })
     }
-
     return {
       questions: parsed?.questions ?? [],
       answers: parsed?.answers ?? {}
     }
-  }, [isPending, request?.input, toolResponse.arguments, toolResponse.status])
+  }, [isPending, pendingInput, toolResponse.arguments, toolResponse.status])
 
   const [currentIndex, setCurrentIndex] = useState(0)
   // Use question index as key to avoid collision when questions have identical text
@@ -297,7 +300,7 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
 
   const displayAnswers = Object.keys(answers).length > 0 ? answers : submittedAnswers
 
-  const isSubmitting = request?.status === 'submitting-allow'
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const currentQuestion = questions[currentIndex]
   const totalQuestions = questions.length
   const isFirstQuestion = currentIndex === 0
@@ -355,8 +358,7 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
   }, [isLastQuestion])
 
   const handleSubmit = useCallback(async () => {
-    if (!request) return
-
+    if (!match?.approvalId || !respondToolApproval) return
     const collectedAnswers: Record<string, string> = {}
     questions.forEach((q, idx) => {
       const selected = selectedAnswers[idx] ?? []
@@ -370,22 +372,26 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
     })
 
     setSubmittedAnswers(collectedAnswers)
-    dispatch(toolPermissionsActions.submissionSent({ requestId: request.requestId, behavior: 'allow' }))
+    setIsSubmitting(true)
 
+    // Push `updatedInput` through the ToolApprovalRegistry. The Claude
+    // Agent `canUseTool` resolves with `{behavior:'allow', updatedInput:{
+    // ...originalInput, answers}}` and the same stream continues —
+    // AskUserQuestion reads `answers` as its tool output source.
+    const baseInput = (pendingInput as Record<string, unknown>) ?? {}
     try {
-      const response = await window.api.agentTools.respondToPermission({
-        requestId: request.requestId,
-        behavior: 'allow' as const,
-        updatedInput: { ...request.input, answers: collectedAnswers }
+      await respondToolApproval({
+        match,
+        approved: true,
+        updatedInput: { ...baseInput, answers: collectedAnswers }
       })
-
-      if (!response?.success) throw new Error('Response rejected by main process')
     } catch (error) {
-      logger.error('Failed to submit AskUserQuestion answers', { error })
+      logger.error('AskUserQuestion submit failed', error as Error)
       window.toast?.error?.(t('agent.toolPermission.error.sendFailed'))
-      dispatch(toolPermissionsActions.submissionFailed({ requestId: request.requestId }))
+    } finally {
+      setIsSubmitting(false)
     }
-  }, [dispatch, request, questions, selectedAnswers, customInputs, showCustomInput, t])
+  }, [match, pendingInput, respondToolApproval, questions, selectedAnswers, customInputs, showCustomInput, t])
 
   if (isPending && (questions.length === 0 || !currentQuestion)) {
     return (

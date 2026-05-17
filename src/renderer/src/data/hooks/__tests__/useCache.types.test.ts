@@ -31,7 +31,7 @@ describe('Template Key Type Utilities', () => {
 
     it('should detect fixed keys as false', () => {
       const fixedResult1: IsTemplateKey<'app.user.avatar'> = false
-      const fixedResult2: IsTemplateKey<'chat.generating'> = false
+      const fixedResult2: IsTemplateKey<'chat.web_search.searching'> = false
       expect(fixedResult1).toBe(false)
       expect(fixedResult2).toBe(false)
     })
@@ -79,9 +79,9 @@ describe('Template Key Type Utilities', () => {
   describe('UseCacheKey', () => {
     it('should include fixed keys', () => {
       const key1: UseCacheKey = 'app.user.avatar'
-      const key2: UseCacheKey = 'chat.generating'
+      const key2: UseCacheKey = 'chat.web_search.searching'
       expect(key1).toBe('app.user.avatar')
-      expect(key2).toBe('chat.generating')
+      expect(key2).toBe('chat.web_search.searching')
     })
 
     it('should match template patterns', () => {
@@ -98,7 +98,7 @@ describe('Template Key Type Utilities', () => {
     it('should infer value type for fixed keys', () => {
       // These type assertions verify the type system works
       const avatarType: InferUseCacheValue<'app.user.avatar'> = 'test'
-      const generatingType: InferUseCacheValue<'chat.generating'> = true
+      const generatingType: InferUseCacheValue<'chat.web_search.searching'> = true
       expectTypeOf(avatarType).toBeString()
       expectTypeOf(generatingType).toBeBoolean()
     })
@@ -145,7 +145,7 @@ describe('Template Key Type Utilities', () => {
       expect(isTemplate('scroll.position.${id}')).toBe(true)
       expect(isTemplate('entity.cache.${type}_${id}')).toBe(true)
       expect(isTemplate('app.user.avatar')).toBe(false)
-      expect(isTemplate('chat.generating')).toBe(false)
+      expect(isTemplate('chat.web_search.searching')).toBe(false)
     })
   })
 

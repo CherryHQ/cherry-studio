@@ -1,4 +1,4 @@
-import { useProvider } from '@renderer/hooks/useProviders'
+import { useProvider } from '@renderer/hooks/useProvider'
 import {
   getFancyProviderName,
   isAnthropicSupportedProvider,

@@ -6,7 +6,10 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
+import { modelService } from '@data/services/ModelService'
+import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
+import { getBaseUrl } from '@main/ai/utils/provider'
 import { isWin } from '@main/constant'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
@@ -14,9 +17,11 @@ import { isUserInChina } from '@main/utils/ipService'
 import { crossPlatformSpawn, findExecutableInEnv, getBinaryPath, runInstallScript } from '@main/utils/process'
 import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
 import type { OperationResult } from '@shared/config/types'
+import { ENDPOINT_TYPE, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
-import { formatApiHost, hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
-import type { Model, Provider, ProviderType, VertexProvider } from '@types'
+import { withoutTrailingSlash } from '@shared/utils'
+import { isVertexProvider } from '@shared/utils/provider'
 
 import { vertexAIService } from './VertexAIService'
 
@@ -134,29 +139,22 @@ const NO_KEY_PLACEHOLDERS: Record<string, string> = {
 }
 
 /**
- * Providers that always use Anthropic API format
+ * Preset provider ids that always use Anthropic API format.
+ * Matched against `Provider.presetProviderId` (canonical preset id) — custom
+ * providers fall through to the model-/endpoint-based heuristic below.
  */
-const ANTHROPIC_ONLY_PROVIDERS: ProviderType[] = ['anthropic', 'vertex-anthropic']
+const ANTHROPIC_ONLY_PRESETS = new Set(['anthropic', 'vertex-anthropic'])
 
 /**
- * Endpoint types that use Anthropic API format
- * These are values from model.endpoint_type field
+ * Preset provider id that uses the OpenAI Responses API.
  */
-const ANTHROPIC_ENDPOINT_TYPES = ['anthropic']
+const OPENAI_RESPONSES_PRESET = 'openai-response'
 
 /**
- * Check if a model should use Anthropic API based on endpoint_type
+ * Check whether a model declares Anthropic-messages as a supported endpoint.
  */
-function isAnthropicEndpointType(model: Model): boolean {
-  const endpointType = model.endpoint_type
-  return endpointType ? ANTHROPIC_ENDPOINT_TYPES.includes(endpointType) : false
-}
-
-/**
- * Type guard to check if a provider is a VertexProvider
- */
-function isVertexProvider(provider: Provider): provider is VertexProvider {
-  return provider.type === 'vertexai'
+function modelSupportsAnthropic(model: Model): boolean {
+  return model.endpointTypes?.includes(ENDPOINT_TYPE.ANTHROPIC_MESSAGES) ?? false
 }
 
 @Injectable('OpenClawService')
@@ -188,8 +186,8 @@ export class OpenClawService extends BaseService {
     this.ipcHandle(IpcChannel.OpenClaw_GetStatus, () => this.getStatus())
     this.ipcHandle(IpcChannel.OpenClaw_CheckHealth, () => this.checkHealth())
     this.ipcHandle(IpcChannel.OpenClaw_GetDashboardUrl, () => this.getDashboardUrl())
-    this.ipcHandle(IpcChannel.OpenClaw_SyncConfig, (_e, provider, primaryModel) =>
-      this.syncProviderConfig(provider, primaryModel)
+    this.ipcHandle(IpcChannel.OpenClaw_SyncConfig, (_e, uniqueModelId: UniqueModelId) =>
+      this.syncProviderConfig(uniqueModelId)
     )
     this.ipcHandle(IpcChannel.OpenClaw_GetChannels, () => this.getChannelStatus())
     this.ipcHandle(IpcChannel.OpenClaw_CheckUpdate, () => this.checkUpdate())
@@ -782,11 +780,16 @@ export class OpenClawService extends BaseService {
     return crypto.randomBytes(24).toString('base64url')
   }
 
-  /**
-   * Sync Cherry Studio Provider configuration to OpenClaw
-   */
-  public async syncProviderConfig(provider: Provider, primaryModel: Model): Promise<OperationResult> {
+  public async syncProviderConfig(uniqueModelId: UniqueModelId): Promise<OperationResult> {
     try {
+      // Resolve canonical provider + model from v2 SQLite. The providerId is
+      // encoded in `uniqueModelId` (`providerId::modelId`), so the renderer
+      // only needs to ship one id. Both lookups throw a typed DataApiError on
+      // miss; we let those bubble to the `catch` below.
+      const { providerId, modelId: apiModelId } = parseUniqueModelId(uniqueModelId)
+      const provider = await providerService.getByProviderId(providerId)
+      const primaryModel = await modelService.getByKey(providerId, apiModelId)
+
       // Ensure config directory exists
       if (!fs.existsSync(OPENCLAW_CONFIG_DIR)) {
         fs.mkdirSync(OPENCLAW_CONFIG_DIR, { recursive: true })
@@ -813,59 +816,56 @@ export class OpenClawService extends BaseService {
         }
       }
 
-      // Build provider key
-      const providerKey = `cherry-${provider.id}`
-
-      // Determine the API type based on model, not provider type
-      // Mixed providers (cherryin, aihubmix, etc.) can have both OpenAI and Anthropic endpoints
+      // Determine API type. Order mirrors v1: preset-level "always anthropic"
+      // wins, then per-model endpoint declaration, then the presence of an
+      // anthropic-messages endpoint config (custom providers exposing it),
+      // then preset-level openai-responses, otherwise plain openai-completions.
       const apiType = this.determineApiType(provider, primaryModel)
-      const baseUrl = this.getBaseUrlForApiType(provider, apiType)
+      const endpointForBaseUrl =
+        apiType === OPENCLAW_API_TYPES.ANTHROPIC
+          ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+          : apiType === OPENCLAW_API_TYPES.OPENAI_RESPOSNE
+            ? ENDPOINT_TYPE.OPENAI_RESPONSES
+            : ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
 
-      // Get API key - for vertexai, get access token from VertexAIService
-      // If multiple API keys are configured (comma-separated), use the first one
-      // Some providers like Ollama and LM Studio don't require API keys
-      let apiKey = provider.apiKey ? provider.apiKey.split(',')[0].trim() : ''
-      if (isVertexProvider(provider)) {
-        try {
-          const vertexService = vertexAIService
-          apiKey = await vertexService.getAccessToken({
-            projectId: provider.project,
-            serviceAccount: {
-              privateKey: provider.googleCredentials.privateKey,
-              clientEmail: provider.googleCredentials.clientEmail
-            }
-          })
-        } catch (err) {
-          logger.warn('Failed to get VertexAI access token, using provider apiKey:', err as Error)
-        }
-      }
+      const baseUrl = withoutTrailingSlash(getBaseUrl(provider, endpointForBaseUrl))
+
+      // API key — rotate across enabled keys via the v2 service, or fetch a
+      // GCP access token for VertexAI from the provider's `iam-gcp` authConfig.
+      let apiKey = await this.resolveApiKey(provider)
 
       // Providers like Ollama and LM Studio don't require real API keys,
-      // but OpenClaw needs a non-empty placeholder value
+      // but OpenClaw needs a non-empty placeholder value.
       if (!apiKey) {
-        apiKey = NO_KEY_PLACEHOLDERS[provider.id] ?? NO_KEY_PLACEHOLDERS[provider.type] ?? 'no-key-required'
+        apiKey =
+          NO_KEY_PLACEHOLDERS[provider.id] ??
+          (provider.presetProviderId ? NO_KEY_PLACEHOLDERS[provider.presetProviderId] : undefined) ??
+          'no-key-required'
       }
 
-      // Build OpenClaw provider config
+      // Build provider key + load full model list from v2 (one round-trip).
+      const providerKey = `cherry-${provider.id}`
+      const allModels = await modelService.list({ providerId })
+
       // Preserve existing model-level config that users may have modified in OpenClaw
-      // (e.g., vision, custom context window, extra parameters)
+      // (e.g., vision, custom context window, extra parameters).
       config.models = config.models || { mode: 'merge', providers: {} }
       config.models.providers = config.models.providers || {}
       const existingModels = config.models.providers[providerKey]?.models || []
       const existingModelMap = new Map(existingModels.map((m) => [m.id, m]))
 
-      // Build OpenClaw provider config with merge strategy
       const openclawProvider: OpenClawProviderConfig = {
         baseUrl,
         apiKey,
         api: apiType,
-        models: provider.models.map((m) => {
-          const existing = existingModelMap.get(m.id)
+        models: allModels.map((m) => {
+          const id = m.apiModelId ?? parseUniqueModelId(m.id).modelId
+          const existing = existingModelMap.get(id)
           return {
             ...existing,
-            id: m.id,
+            id,
             name: m.name,
-            contextWindow: existing?.contextWindow ?? 128000
+            contextWindow: existing?.contextWindow ?? m.contextWindow ?? 128000
           }
         })
       }
@@ -883,10 +883,11 @@ export class OpenClawService extends BaseService {
       config.models.providers[providerKey] = openclawProvider
 
       // Set primary model
+      const primaryApiModelId = primaryModel.apiModelId ?? parseUniqueModelId(primaryModel.id).modelId
       config.agents = config.agents || { defaults: {} }
       config.agents.defaults = config.agents.defaults || {}
       config.agents.defaults.model = {
-        primary: `${providerKey}/${primaryModel.id}`
+        primary: `${providerKey}/${primaryApiModelId}`
       }
 
       // Write config file
@@ -899,6 +900,35 @@ export class OpenClawService extends BaseService {
       logger.error('Failed to sync provider config:', error as Error)
       return { success: false, message: errorMessage }
     }
+  }
+
+  /**
+   * Resolve the API key value for OpenClaw to embed in its config. Returns an
+   * empty string when none is configured (caller substitutes a placeholder
+   * for providers that don't require auth).
+   */
+  private async resolveApiKey(provider: Provider): Promise<string> {
+    if (isVertexProvider(provider)) {
+      try {
+        const authConfig = await providerService.getAuthConfig(provider.id)
+        if (authConfig?.type === 'iam-gcp') {
+          const credentials = authConfig.credentials as
+            | { privateKey?: string; clientEmail?: string; private_key?: string; client_email?: string }
+            | undefined
+          const privateKey = credentials?.privateKey ?? credentials?.private_key
+          const clientEmail = credentials?.clientEmail ?? credentials?.client_email
+          if (privateKey && clientEmail) {
+            return await vertexAIService.getAccessToken({
+              projectId: authConfig.project,
+              serviceAccount: { privateKey, clientEmail }
+            })
+          }
+        }
+      } catch (err) {
+        logger.warn('Failed to get VertexAI access token, falling back to rotated apiKey:', err as Error)
+      }
+    }
+    return providerService.getRotatedApiKey(provider.id)
   }
 
   /**
@@ -1038,100 +1068,25 @@ export class OpenClawService extends BaseService {
    * This supports mixed providers (cherryin, aihubmix, new-api, etc.) that have both OpenAI and Anthropic endpoints
    *
    * Priority order:
-   * 1. Provider type (anthropic, vertex-anthropic always use Anthropic API)
-   * 2. Model endpoint_type (explicit endpoint configuration)
-   * 3. Provider has anthropicApiHost configured
-   * 4. Default to OpenAI-compatible
+   * 1. Preset provider id is in the "always Anthropic" set (anthropic, vertex-anthropic)
+   * 2. Model declares anthropic-messages in its supported endpoints
+   * 3. Provider has an anthropic-messages endpoint config (custom providers exposing it)
+   * 4. Preset provider id is openai-response
+   * 5. Default to OpenAI chat completions
    */
   private determineApiType(provider: Provider, model: Model): string {
-    // 1. Check if provider type is always Anthropic
-    if (ANTHROPIC_ONLY_PROVIDERS.includes(provider.type)) {
+    if (provider.presetProviderId && ANTHROPIC_ONLY_PRESETS.has(provider.presetProviderId)) {
       return OPENCLAW_API_TYPES.ANTHROPIC
     }
-
-    // 2. Check model's endpoint_type (used by new-api and other mixed providers)
-    if (isAnthropicEndpointType(model)) {
+    if (modelSupportsAnthropic(model)) {
       return OPENCLAW_API_TYPES.ANTHROPIC
     }
-
-    // 3. Check if provider has anthropicApiHost configured
-    if (provider.anthropicApiHost) {
+    if (provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl) {
       return OPENCLAW_API_TYPES.ANTHROPIC
     }
-
-    if (provider.type === 'openai-response') {
+    if (provider.presetProviderId === OPENAI_RESPONSES_PRESET) {
       return OPENCLAW_API_TYPES.OPENAI_RESPOSNE
     }
-
-    // 4. Default to OpenAI-compatible
     return OPENCLAW_API_TYPES.OPENAI
-  }
-
-  /**
-   * Get the appropriate base URL for the given API type
-   * For anthropic-messages, prefer anthropicApiHost if available
-   * For openai-completions, use apiHost with proper formatting
-   */
-  private getBaseUrlForApiType(provider: Provider, apiType: string): string {
-    if (apiType === OPENCLAW_API_TYPES.ANTHROPIC) {
-      // For Anthropic API type, prefer anthropicApiHost if available
-      const host = provider.anthropicApiHost || provider.apiHost
-      return this.formatAnthropicUrl(host)
-    }
-    // For OpenAI-compatible API type
-    return this.formatOpenAIUrl(provider)
-  }
-
-  /**
-   * Format URL for OpenAI-compatible APIs
-   * Provider-specific URL patterns:
-   * - VertexAI: {location}-aiplatform.googleapis.com/v1beta1/projects/{project}/locations/{location}/endpoints/openapi
-   * - Gemini: {host}/v1beta/openai (OpenAI-compatible endpoint)
-   * - Vercel AI Gateway: {host}/v1 (stored as /v1/ai, needs conversion)
-   * - Others: {host}/v1
-   */
-  private formatOpenAIUrl(provider: Provider): string {
-    // Special-case built-in GitHub / Copilot providers: these hosts should
-    // not have a `/v1` suffix appended by default (renderer applies
-    // `formatApiHost(..., false)` for these). Mirror that behavior here
-    // to avoid constructing incorrect endpoints that return 404.
-    if (provider.id === 'copilot' || provider.id === 'github') {
-      return formatApiHost(provider.apiHost, false)
-    }
-
-    const url = withoutTrailingSlash(provider.apiHost)
-    const providerType = provider.type
-
-    // VertexAI: build OpenAI-compatible endpoint URL with project and location
-    // https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/call-gemini-using-openai-library
-    if (isVertexProvider(provider)) {
-      const location = provider.location || 'us-central1'
-      return `https://${location}-aiplatform.googleapis.com/v1beta1/projects/${provider.project}/locations/${location}/endpoints/openapi`
-    }
-
-    // Gemini: use OpenAI-compatible endpoint
-    // https://ai.google.dev/gemini-api/docs/openai
-    if (providerType === 'gemini' && url.includes('generativelanguage.googleapis.com')) {
-      return `${url}/v1beta/openai`
-    }
-
-    // Vercel AI Gateway: convert /v1/ai to /v1
-    if (providerType === 'gateway' && url.endsWith('/v1/ai')) {
-      return url.replace(/\/v1\/ai$/, '/v1')
-    }
-
-    // Skip if URL already has version (e.g., /v1, /v2, /v3)
-    if (hasAPIVersion(url)) {
-      return url
-    }
-
-    return `${url}/v1`
-  }
-
-  /**
-   * Format URL for Anthropic-compatible APIs (no version suffix needed)
-   */
-  private formatAnthropicUrl(apiHost: string): string {
-    return withoutTrailingSlash(apiHost)
   }
 }

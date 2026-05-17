@@ -1,6 +1,6 @@
 import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { useProviderActions, useProviders } from '@renderer/hooks/useProviders'
+import { useProviderActions, useProviders } from '@renderer/hooks/useProvider'
 import type { ProviderType } from '@renderer/types'
 import { validateApiHost } from '@renderer/utils'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'

@@ -521,6 +521,13 @@ vi.mock('@cherrystudio/ui', () => {
         onChange: (e) => onValueChange?.(e.target.checked),
         'data-testid': 'switch'
       }),
+    // Popover primitives — Radix-style trigger / content split
+    Popover: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'popover' }, children),
+    PopoverTrigger: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'popover-trigger' }, children),
+    PopoverContent: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'popover-content' }, children),
+    Skeleton: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'skeleton' }, children),
     // Icon registry stubs
     PROVIDER_ICON_CATALOG: {},
     MODEL_ICON_CATALOG: {},

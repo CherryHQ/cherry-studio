@@ -1,4 +1,4 @@
-import type { Model } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
 import { memo } from 'react'
 
 import ModelTagsWithLabel from './ModelTagsWithLabel'

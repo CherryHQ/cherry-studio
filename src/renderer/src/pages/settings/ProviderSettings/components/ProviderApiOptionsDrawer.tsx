@@ -1,5 +1,5 @@
 import { Button, Input, Switch, Tooltip } from '@cherrystudio/ui'
-import { useProvider } from '@renderer/hooks/useProviders'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { cn } from '@renderer/utils'
 import type { Provider, RuntimeApiFeatures } from '@shared/data/types/provider'
 import { Info } from 'lucide-react'
@@ -96,11 +96,6 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
         key: 'serviceTier',
         label: t('settings.provider.api.options.service_tier.label'),
         help: t('settings.provider.api.options.service_tier.help')
-      },
-      {
-        key: 'enableThinking',
-        label: t('settings.provider.api.options.enable_thinking.label'),
-        help: t('settings.provider.api.options.enable_thinking.help')
       },
       {
         key: 'verbosity',

@@ -1,27 +1,28 @@
+import { useChat } from '@ai-sdk/react'
 import { LoadingOutlined } from '@ant-design/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
-import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
+import { useAssistant, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
+import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
+import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { PartsProvider } from '@renderer/pages/home/Messages/Blocks'
+import ExecutionStreamCollector from '@renderer/pages/home/Messages/ExecutionStreamCollector'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
-import {
-  getAssistantById,
-  getDefaultAssistant,
-  getDefaultModel,
-  getDefaultTopic
-} from '@renderer/services/AssistantService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
-import type { Assistant, Topic } from '@renderer/types'
+import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
-import { abortCompletion } from '@renderer/utils/abortController'
+import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { processMessages } from './ActionUtils'
 import WindowFooter from './WindowFooter'
 
 const logger = loggerService.withContext('ActionGeneral')
@@ -33,37 +34,18 @@ interface Props {
 const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const { t } = useTranslation()
   const [language] = usePreference('app.language')
-  const [error, setError] = useState<string | null>(null)
   const [showOriginal, setShowOriginal] = useState(false)
-  const [status, setStatus] = useState<'preparing' | 'streaming' | 'finished'>('preparing')
-  const [contentToCopy, setContentToCopy] = useState('')
-  const initialized = useRef(false)
 
-  // Use useRef for values that shouldn't trigger re-renders
-  const assistantRef = useRef<Assistant | null>(null)
-  const topicRef = useRef<Topic | null>(null)
-  const promptContentRef = useRef('')
-  const askId = useRef('')
+  const { assistant: defaultAssistant } = useDefaultAssistant()
+  const { assistant: chosenAssistant } = useAssistant(action.assistantId ?? '')
+  const activeAssistant = chosenAssistant ?? defaultAssistant
 
-  // Initialize values only once when action changes
-  useEffect(() => {
-    if (initialized.current) return
-    initialized.current = true
+  // Temporary in-memory topic — never touches SQLite, released on unmount.
+  // activeAssistant may be the synthesised default — only pass a real
+  // persisted id (chosenAssistant) to bind the temp topic to.
+  const { topicId: temporaryTopicId, ready } = useTemporaryTopic({ assistantId: chosenAssistant?.id })
 
-    // Initialize assistant
-    const currentAssistant = action.assistantId
-      ? getAssistantById(action.assistantId) || getDefaultAssistant()
-      : getDefaultAssistant()
-
-    assistantRef.current = {
-      ...currentAssistant,
-      model: currentAssistant.model || getDefaultModel()
-    }
-
-    // Initialize topic
-    topicRef.current = getDefaultTopic(currentAssistant.id)
-
-    // Initialize prompt content
+  const promptContent = useMemo(() => {
     let userContent = ''
     switch (action.id) {
       case 'summary':
@@ -88,92 +70,93 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
         userContent = action.prompt + '\n\n' + action.selectedText
     }
-    promptContentRef.current = userContent
+    return userContent
   }, [action, language, t])
 
-  const fetchResult = useCallback(() => {
-    if (!initialized.current) {
-      return
-    }
-    setStatus('preparing')
+  const [isPreparing, setIsPreparing] = useState(false)
+  const [completionError, setCompletionError] = useState<string | null>(null)
 
-    const setAskId = (id: string) => {
-      askId.current = id
+  const { sendMessage, stop: stopChat } = useChat<CherryUIMessage>({
+    // Once the temporary topic id arrives, the chat reinitializes with it.
+    // Before that we use a stable placeholder so `useChat` doesn't thrash across renders.
+    id: temporaryTopicId ?? 'pending-temp',
+    transport: ipcChatTransport,
+    experimental_throttle: 50,
+    onError: (err) => {
+      setIsPreparing(false)
+      setCompletionError(err.message)
     }
-    const onStream = () => {
-      setStatus('streaming')
+  })
+
+  // Per-execution collector pattern (see ActionTranslate for the why).
+  const { activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
+  const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } = useExecutionMessages()
+
+  const executionChats = useExecutionChats(temporaryTopicId ?? 'pending-temp', activeExecutions)
+
+  useEffect(() => {
+    if (isPending) {
+      setIsPreparing(false)
       scrollToBottom?.()
     }
-    const onFinish = (content: string) => {
-      setStatus('finished')
-      setContentToCopy(content)
-    }
-    const onError = (error: Error) => {
-      setStatus('finished')
-      setError(error.message)
-    }
+  }, [isPending, scrollToBottom])
 
-    if (!assistantRef.current || !topicRef.current) return
-    logger.debug('Before peocess message', { assistant: assistantRef.current })
-    void processMessages(
-      assistantRef.current,
-      topicRef.current,
-      promptContentRef.current,
-      setAskId,
-      onStream,
-      onFinish,
-      onError
-    )
-  }, [scrollToBottom])
+  const latestAssistantUIMsg = useMemo<CherryUIMessage | undefined>(() => {
+    for (const execMessages of Object.values(executionMessagesById)) {
+      for (let i = execMessages.length - 1; i >= 0; i--) {
+        if (execMessages[i].role === 'assistant') return execMessages[i]
+      }
+    }
+    return undefined
+  }, [executionMessagesById])
+
+  const partsMap = useMemo<Record<string, CherryMessagePart[]>>(
+    () =>
+      latestAssistantUIMsg ? { [latestAssistantUIMsg.id]: latestAssistantUIMsg.parts as CherryMessagePart[] } : {},
+    [latestAssistantUIMsg]
+  )
+
+  const latestAssistantMessage = useMemo(() => {
+    if (!latestAssistantUIMsg) return null
+    return {
+      id: latestAssistantUIMsg.id,
+      role: 'assistant' as const,
+      assistantId: '',
+      topicId: '',
+      createdAt: '',
+      status: isPending ? AssistantMessageStatus.PROCESSING : AssistantMessageStatus.SUCCESS,
+      blocks: []
+    }
+  }, [latestAssistantUIMsg, isPending])
+
+  const content = useMemo(
+    () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),
+    [latestAssistantUIMsg]
+  )
+
+  const isStreaming = isPending
+  const error = completionError
+
+  const fetchResult = useCallback(() => {
+    if (!ready || !temporaryTopicId) return
+    logger.debug('Before process message', { assistant: activeAssistant })
+    setCompletionError(null)
+    setIsPreparing(true)
+    // topicId comes from useChat id; Main resolves assistant/model from topic.assistantId.
+    // No body fields are read by IpcChatTransport for this codepath.
+    void sendMessage({ text: promptContent })
+  }, [activeAssistant, ready, temporaryTopicId, promptContent, sendMessage])
 
   useEffect(() => {
     fetchResult()
   }, [fetchResult])
 
-  const allMessages = useTopicMessages(topicRef.current?.id || '')
-
-  const currentAssistantMessage = useMemo(() => {
-    const assistantMessages = allMessages.filter((message) => message.role === 'assistant')
-    if (assistantMessages.length === 0) {
-      return null
-    }
-    return assistantMessages[assistantMessages.length - 1]
-  }, [allMessages])
-
-  useEffect(() => {
-    // Sync message status
-    switch (currentAssistantMessage?.status) {
-      case AssistantMessageStatus.PROCESSING:
-      case AssistantMessageStatus.PENDING:
-      case AssistantMessageStatus.SEARCHING:
-        setStatus('streaming')
-        break
-      case AssistantMessageStatus.PAUSED:
-      case AssistantMessageStatus.ERROR:
-      case AssistantMessageStatus.SUCCESS:
-        setStatus('finished')
-        break
-      case undefined:
-        break
-      default:
-        logger.warn('Unexpected assistant message status:', { status: currentAssistantMessage?.status })
-    }
-  }, [currentAssistantMessage?.status])
-
-  const isPreparing = status === 'preparing'
-  const isStreaming = status === 'streaming'
-
   const handlePause = () => {
-    if (askId.current) {
-      abortCompletion(askId.current)
-    }
-    if (topicRef.current?.id) {
-      void pauseTrace(topicRef.current.id)
-    }
+    void stopChat()
+    if (temporaryTopicId) void pauseTrace(temporaryTopicId)
   }
 
   const handleRegenerate = () => {
-    setContentToCopy('')
     fetchResult()
   }
 
@@ -201,20 +184,31 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
           </OriginalContent>
         )}
         <Result>
+          {temporaryTopicId &&
+            activeExecutions.map(({ executionId }) => {
+              const execChat = executionChats.get(executionId)
+              if (!execChat) return null
+              return (
+                <ExecutionStreamCollector
+                  key={executionId}
+                  executionId={executionId}
+                  chat={execChat}
+                  onMessagesChange={handleExecutionMessagesChange}
+                  onDispose={handleExecutionDispose}
+                />
+              )
+            })}
           {isPreparing && <LoadingOutlined style={{ fontSize: 16 }} spin />}
-          {!isPreparing && currentAssistantMessage && (
-            <MessageContent key={currentAssistantMessage.id} message={currentAssistantMessage} />
+          {!isPreparing && latestAssistantMessage && (
+            <PartsProvider value={partsMap}>
+              <MessageContent key={latestAssistantMessage.id} message={latestAssistantMessage} />
+            </PartsProvider>
           )}
         </Result>
         {error && <ErrorMsg>{error}</ErrorMsg>}
       </Container>
       <FooterPadding />
-      <WindowFooter
-        loading={isStreaming}
-        onPause={handlePause}
-        onRegenerate={handleRegenerate}
-        content={contentToCopy}
-      />
+      <WindowFooter loading={isStreaming} onPause={handlePause} onRegenerate={handleRegenerate} content={content} />
     </>
   )
 })

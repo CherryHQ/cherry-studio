@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { useProvider, useProviderMutations } from '@renderer/hooks/useProviders'
+import { useProvider, useProviderMutations } from '@renderer/hooks/useProvider'
 import type { AuthConfig } from '@shared/data/types/provider'
 import { useTranslation } from 'react-i18next'
 

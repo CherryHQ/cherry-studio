@@ -1,5 +1,4 @@
 import { isProd } from '@renderer/config/constant'
-import { Alert } from 'antd'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -20,7 +19,14 @@ const ErrorFallback = ({ fallback, error }: { fallback?: React.ReactNode; error?
   const errorDescription =
     !isProd && error ? `${t('error.render.description')}: ${error.message}` : t('error.render.description')
 
-  return fallback || <Alert message={t('error.render.title')} description={errorDescription} type="error" showIcon />
+  return (
+    fallback || (
+      <div role="alert" className="rounded-md border border-(--color-error) bg-(--color-error)/10 px-3 py-2 text-sm">
+        <div className="font-medium text-(--color-error)">{t('error.render.title')}</div>
+        <div className="mt-1 text-(--color-text-2)">{errorDescription}</div>
+      </div>
+    )
+  )
 }
 
 class MessageErrorBoundary extends React.Component<Props, State> {

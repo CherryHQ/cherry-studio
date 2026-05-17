@@ -1,22 +1,31 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useCache } from '@renderer/data/hooks/useCache'
-import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
-import { useAgents } from '@renderer/hooks/agents/useAgents'
-import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
+import { useAgent, useAgents } from '@renderer/hooks/agents/useAgent'
+import { useActiveSession } from '@renderer/hooks/agents/useSession'
+import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
+import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
+import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
+import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useShowTopics } from '@renderer/hooks/useStore'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import type { GetAgentResponse } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { Alert, Spin } from 'antd'
+import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'
+import { Loader2 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { PropsWithChildren } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
 import ChatNavigation from '../home/Messages/ChatNavigation'
+import ExecutionStreamCollector from '../home/Messages/ExecutionStreamCollector'
 import NarrowLayout from '../home/Messages/NarrowLayout'
+import { uiToMessage } from '../home/uiToMessage'
 import AgentChatNavbar from './components/AgentChatNavbar'
 import AgentSessionInputbar from './components/AgentSessionInputbar'
 import AgentSessionMessages from './components/AgentSessionMessages'
@@ -25,95 +34,187 @@ import Sessions from './components/Sessions'
 const AgentChat = () => {
   const { t } = useTranslation()
   const { messageNavigation, messageStyle, topicPosition } = useSettings()
-  const { showTopics } = useShowTopics()
-  const [activeAgentId] = useCache('agent.active_id')
-  const [activeSessionIdMap] = useCache('agent.session.active_id_map')
+  const [showTopics] = usePreference('topic.tab.show')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
 
-  const activeSessionId = activeAgentId ? activeSessionIdMap[activeAgentId] : null
-  // undefined = session not yet initialized, null = initialized but no sessions
-  const isSessionInitialized = !activeAgentId || activeAgentId in activeSessionIdMap
-  const { agent: activeAgent, isLoading: isAgentLoading } = useActiveAgent()
+  const { session: activeSession, isLoading: isSessionLoading } = useActiveSession()
+  const { agent: activeAgent, isLoading: isAgentLoading } = useAgent(activeSession?.agentId ?? null)
   const { isLoading: isAgentsLoading, agents } = useAgents()
-  const { createDefaultSession } = useCreateDefaultSession(activeAgentId)
 
-  // Don't show select/create alerts while data is still loading
-  // apiServerRunning is guaranteed by AgentPage guard
-  const isInitializing =
-    isAgentsLoading || isAgentLoading || !isSessionInitialized || !agents || (!activeAgentId && agents.length > 0)
+  const isInitializing = isAgentsLoading || isSessionLoading || (activeSession && isAgentLoading) || !agents
 
-  const showRightSessions = topicPosition === 'right' && showTopics && !!activeAgentId
-
-  useShortcut(
-    'topic.new',
-    () => {
-      void createDefaultSession()
-    },
-    {
-      enabled: true,
-      preventDefault: true,
-      enableOnFormTags: true
-    }
-  )
+  const showRightSessions = topicPosition === 'right' && showTopics && !!activeSession
 
   if (isInitializing) {
     return (
       <Container className="flex flex-1 flex-col items-center justify-center">
-        <Spin />
+        <Loader2 className="size-6 animate-spin text-(--color-text-3)" />
       </Container>
     )
   }
 
-  // Initialized — agents.length === 0 is handled by AgentPage
-  if (!activeAgentId) {
+  if (!activeSession) {
     return (
       <Container className="flex flex-1 flex-col justify-between">
         <div className="flex h-full w-full items-center justify-center">
-          <Alert type="info" message={t('chat.alerts.select_agent')} style={{ margin: '5px 16px' }} />
+          <WarningAlert message={t('chat.alerts.create_session')} />
         </div>
       </Container>
     )
   }
 
-  if (!activeSessionId) {
+  // Orphan session — its agent was deleted. Show a read-only placeholder; user
+  // must reattach to another agent (UX TBD) or delete the session.
+  if (!activeSession.agentId) {
     return (
       <Container className="flex flex-1 flex-col justify-between">
         <div className="flex h-full w-full items-center justify-center">
-          <Alert type="warning" message={t('chat.alerts.create_session')} style={{ margin: '5px 16px' }} />
+          <WarningAlert message={t('agent.session.orphan.message', 'This session’s agent has been deleted')} />
         </div>
       </Container>
     )
   }
 
   return (
-    <Container
-      // AgentChat doesn't support multi-select
-      // But we want to apply the message style for consistency
-      className={cn(messageStyle, { 'multi-select-mode': isMultiSelectMode })}>
+    <AgentChatInner
+      agentId={activeSession.agentId}
+      sessionId={activeSession.id}
+      activeAgent={activeAgent}
+      showRightSessions={showRightSessions}
+      messageNavigation={messageNavigation}
+      messageStyle={messageStyle}
+      isMultiSelectMode={isMultiSelectMode}
+    />
+  )
+}
+
+// ── Inner: mounted only when agentId + sessionId are resolved ──
+
+interface InnerProps {
+  agentId: string
+  sessionId: string
+  activeAgent: GetAgentResponse | undefined
+  showRightSessions: boolean
+  messageNavigation: string
+  messageStyle: string
+  isMultiSelectMode: boolean
+}
+
+const AgentChatInner = ({
+  agentId,
+  sessionId,
+  activeAgent,
+  showRightSessions,
+  messageNavigation,
+  messageStyle,
+  isMultiSelectMode
+}: InnerProps) => {
+  const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
+  const { messages: uiMessages, isLoading, hasOlder, loadOlder, refresh } = useAgentSessionParts(agentId, sessionId)
+  const chat = useChatWithHistory(sessionTopicId, uiMessages, refresh)
+
+  // ── Rendering pipeline ────────────────────────────────────────────
+  //
+  // Mirrors V2ChatContent: uiMessages (agents.db snapshot) projected
+  // into renderer Messages; streaming parts overlaid via per-execution
+  // collectors. Main always tags chunks with the execution's modelId so
+  // the collector's useChat receives them; primary useChat here is a
+  // trigger-only wrapper (sendMessage/stop) and its `state.messages`
+  // does not drive the visible list.
+  const fallbackSnapshot = useMemo<ModelSnapshot | undefined>(() => {
+    const modelString = activeAgent?.model
+    if (!modelString) return undefined
+    const [provider, id] = modelString.split(':')
+    if (!provider || !id) return undefined
+    return { id, name: id, provider }
+  }, [activeAgent?.model])
+
+  const projectedMessages = useMemo<Message[]>(
+    () =>
+      uiMessages.map((m) =>
+        uiToMessage(m, {
+          assistantId: agentId,
+          topicId: sessionTopicId,
+          modelFallback: fallbackSnapshot
+        })
+      ),
+    [uiMessages, agentId, sessionTopicId, fallbackSnapshot]
+  )
+
+  const basePartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
+    const map: Record<string, CherryMessagePart[]> = {}
+    for (const m of uiMessages) map[m.id] = (m.parts ?? []) as CherryMessagePart[]
+    return map
+  }, [uiMessages])
+
+  const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } = useExecutionMessages()
+
+  const executionChats = useExecutionChats(sessionTopicId, chat.activeExecutions)
+
+  const mergedPartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
+    const next = { ...basePartsMap }
+    for (const execMessages of Object.values(executionMessagesById)) {
+      for (const uiMessage of execMessages) {
+        if (uiMessage.role === 'assistant' && uiMessage.parts?.length) {
+          next[uiMessage.id] = uiMessage.parts as CherryMessagePart[]
+        }
+      }
+    }
+    return next
+  }, [basePartsMap, executionMessagesById])
+
+  const { isPending } = useTopicStreamStatus(sessionTopicId)
+
+  return (
+    <Container className={cn(messageStyle, { 'multi-select-mode': isMultiSelectMode })}>
       <QuickPanelProvider>
-        {/* Main Chat */}
         <div className="flex min-w-0 flex-1 flex-col">
-          {/* Header */}
           <div className="flex h-fit w-full min-w-0">
             {activeAgent && <AgentChatNavbar className="min-w-0" activeAgent={activeAgent} />}
           </div>
 
-          {/* Messages */}
           <div className="translate-z-0 relative flex w-full flex-1 flex-col justify-between overflow-y-auto overflow-x-hidden">
-            <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
+            {chat.activeExecutions.map(({ executionId }) => {
+              const execChat = executionChats.get(executionId)
+              if (!execChat) return null
+              return (
+                <ExecutionStreamCollector
+                  key={executionId}
+                  executionId={executionId}
+                  chat={execChat}
+                  onMessagesChange={handleExecutionMessagesChange}
+                  onDispose={handleExecutionDispose}
+                />
+              )
+            })}
+
+            <AgentSessionMessages
+              agentId={agentId}
+              sessionId={sessionId}
+              adaptedMessages={projectedMessages}
+              partsMap={mergedPartsMap}
+              isLoading={isLoading}
+              hasOlder={hasOlder}
+              loadOlder={loadOlder}
+            />
             <div className="mt-auto px-4.5 pb-2">
               <NarrowLayout>
-                <PinnedTodoPanel topicId={buildAgentSessionTopicId(activeSessionId)} />
+                <PinnedTodoPanel messages={projectedMessages} partsMap={mergedPartsMap} />
               </NarrowLayout>
             </div>
             {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
           </div>
-          {/* Inputbar */}
-          <AgentSessionInputbar agentId={activeAgentId} sessionId={activeSessionId} />
+
+          <AgentSessionInputbar
+            agentId={agentId}
+            sessionId={sessionId}
+            sendMessage={chat.sendMessage}
+            stop={chat.stop}
+            isStreaming={isPending}
+          />
         </div>
       </QuickPanelProvider>
 
-      {/* Sessions Panel */}
       <AnimatePresence initial={false}>
         {showRightSessions && (
           <motion.div
@@ -124,7 +225,7 @@ const AgentChat = () => {
             transition={{ duration: 0.3, ease: 'easeInOut' }}
             className="overflow-hidden">
             <div className="flex h-full w-(--assistants-width) flex-col overflow-hidden">
-              <Sessions agentId={activeAgentId} />
+              <Sessions />
             </div>
           </motion.div>
         )}
@@ -147,5 +248,15 @@ const Container = ({ children, className }: PropsWithChildren<{ className?: stri
     </div>
   )
 }
+
+// Lightweight warning banner — replaces antd `<Alert type="warning">`.
+// Mirrors the inline pattern in `MessageErrorBoundary.tsx`.
+const WarningAlert = ({ message }: { message: string }) => (
+  <div
+    role="alert"
+    className="mx-4 my-1 rounded-md border border-(--color-warning) bg-(--color-warning)/10 px-3 py-2 text-sm">
+    {message}
+  </div>
+)
 
 export default AgentChat

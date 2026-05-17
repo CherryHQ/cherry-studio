@@ -1,38 +1,39 @@
 import { Avatar, AvatarImage, EmojiAvatar } from '@cherrystudio/ui'
+import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
-import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
-import { getModelLogoById } from '@renderer/config/models'
+import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getMessageModelId } from '@renderer/services/MessagesService'
-import { getModelName } from '@renderer/services/ModelService'
-import { useAppDispatch } from '@renderer/store'
-import { newMessagesActions } from '@renderer/store/newMessage'
-// import { updateMessageThunk } from '@renderer/store/thunk/messageThunk'
 import type { Message } from '@renderer/types/newMessage'
 import { isEmoji, removeLeadingEmoji } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import { CircleChevronDown } from 'lucide-react'
 import { type FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import { usePartsMap } from './Blocks'
+
 interface MessageLineProps {
   messages: Message[]
+  scrollToMessageId?: (messageId: string) => void
+  /** Scroll the message list to its bottom. */
+  scrollToBottom?: () => void
 }
 
-const getModelIcon = (isLocalAi: boolean, modelId: string | undefined) => {
-  if (isLocalAi) return undefined
-  return modelId ? getModelLogoById(modelId) : undefined
-}
-
-const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
+const MessageAnchorLine: FC<MessageLineProps> = ({
+  messages,
+  scrollToMessageId,
+  scrollToBottom: scrollToBottomProp
+}) => {
   const { t } = useTranslation()
+  const partsMap = usePartsMap()
   const avatar = useAvatar()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
   const [userName] = usePreference('app.user.name')
   const { setTimeoutTimer } = useTimer()
 
@@ -82,13 +83,9 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
 
   const getUserName = useCallback(
     (message: Message) => {
-      if (isLocalAi && message.role !== 'user') {
-        return APP_NAME
-      }
-
       if (message.role === 'assistant') {
         if (message.model) {
-          return getModelName(message.model) || message.model.name || message.modelId || ''
+          return message.model.name || message.model.id || message.modelId || ''
         }
 
         const modelId = getMessageModelId(message)
@@ -105,13 +102,9 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
       const groupMessages = messages.filter((m) => m.askId === message.askId)
       if (groupMessages.length > 1) {
         for (const m of groupMessages) {
-          dispatch(
-            newMessagesActions.updateMessage({
-              topicId: m.topicId,
-              messageId: m.id,
-              updates: { foldSelected: m.id === message.id }
-            })
-          )
+          const cacheKey = `message.ui.${m.id}` as const
+          const current = cacheService.get(cacheKey) || {}
+          cacheService.set(cacheKey, { ...current, foldSelected: m.id === message.id })
         }
 
         setTimeoutTimer(
@@ -126,32 +119,44 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
         )
       }
     },
-    [dispatch, messages, setTimeoutTimer]
+    [messages, setTimeoutTimer]
   )
 
   const scrollToMessage = useCallback(
     (message: Message) => {
+      // Virtualized message list: prefer the imperative API. Off-screen
+      // messages have no DOM, so the legacy `getElementById` lookup
+      // would silently no-op. Fall back to it only when the prop isn't
+      // wired (older callers / tests).
+      if (scrollToMessageId) {
+        // Resolve fold state first — multi-model groups hide non-active
+        // siblings via display:none; selecting the right sibling unfolds
+        // it before we ask the virtualizer to scroll.
+        scrollToMessageId(message.id)
+        return
+      }
       const messageElement = document.getElementById(`message-${message.id}`)
-
       if (!messageElement) return
-
       const display = messageElement ? window.getComputedStyle(messageElement).display : null
       if (display === 'none') {
         setSelectedMessage(message)
         return
       }
-
       scrollIntoView(messageElement, { behavior: 'smooth', block: 'start', container: 'nearest' })
     },
-    [setSelectedMessage]
+    [scrollToMessageId, setSelectedMessage]
   )
 
   const scrollToBottom = useCallback(() => {
+    if (scrollToBottomProp) {
+      scrollToBottomProp()
+      return
+    }
     const messagesContainer = document.getElementById('messages')
     if (messagesContainer) {
       messagesContainer.scrollTo({ top: messagesContainer.scrollHeight, behavior: 'smooth' })
     }
-  }, [])
+  }, [scrollToBottomProp])
 
   if (messages.length === 0) return null
 
@@ -183,28 +188,15 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
       onMouseLeave={handleMouseLeave}
       $height={containerHeight}>
       <MessagesList ref={messagesListRef} style={{ transform: `translateY(${listOffsetY}px)` }}>
-        <MessageItem
-          key="bottom-anchor"
-          ref={(el) => {
-            if (el) messageItemsRef.current.set('bottom-anchor', el)
-            else messageItemsRef.current.delete('bottom-anchor')
-          }}
-          style={{
-            opacity: mouseY ? 0.5 : Math.max(0, 0.6 - (0.3 * Math.abs(0 - messages.length / 2)) / 5)
-          }}
-          onClick={scrollToBottom}>
-          <CircleChevronDown
-            size={10 + calculateValueByDistance('bottom-anchor', 20)}
-            style={{ color: theme === 'dark' ? 'var(--color-text)' : 'var(--color-primary)' }}
-          />
-        </MessageItem>
         {messages.map((message, index) => {
           const opacity = 0.5 + calculateValueByDistance(message.id, 1)
           const scale = 1 + calculateValueByDistance(message.id, 1.2)
           const size = 10 + calculateValueByDistance(message.id, 20)
-          const ModelIcon = getModelIcon(isLocalAi, getMessageModelId(message))
+          // Walk the full resolution chain (model icon → provider-by-model → provider).
+          const ModelIcon = getModelLogo(message.model)
           const username = removeLeadingEmoji(getUserName(message))
-          const content = getMainTextContent(message)
+          const parts = partsMap?.[message.id]
+          const content = parts ? getTextFromParts(parts) : getMainTextContent(message)
 
           if (message.type === 'clear') return null
 
@@ -232,11 +224,9 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
                     style={{
                       width: size,
                       height: size,
-                      border: isLocalAi ? '1px solid var(--color-border-soft)' : 'none',
+                      border: 'none',
                       filter: theme === 'dark' ? 'invert(0.05)' : undefined
-                    }}>
-                    {isLocalAi && <AvatarImage src={AppLogo} />}
-                  </MessageItemAvatar>
+                    }}></MessageItemAvatar>
                 )
               ) : (
                 <>
@@ -260,6 +250,21 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
             </MessageItem>
           )
         })}
+        <MessageItem
+          key="bottom-anchor"
+          ref={(el) => {
+            if (el) messageItemsRef.current.set('bottom-anchor', el)
+            else messageItemsRef.current.delete('bottom-anchor')
+          }}
+          style={{
+            opacity: mouseY ? 0.5 : Math.max(0, 0.6 - (0.3 * Math.abs(messages.length - messages.length / 2)) / 5)
+          }}
+          onClick={scrollToBottom}>
+          <CircleChevronDown
+            size={10 + calculateValueByDistance('bottom-anchor', 20)}
+            style={{ color: theme === 'dark' ? 'var(--color-text)' : 'var(--color-primary)' }}
+          />
+        </MessageItem>
       </MessagesList>
     </MessageLineContainer>
   )
@@ -314,7 +319,7 @@ const MessageLineContainer = styled.div<{ $height: number | null }>`
 
 const MessagesList = styled.div`
   display: flex;
-  flex-direction: column-reverse;
+  flex-direction: column;
   will-change: transform;
 `
 

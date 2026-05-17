@@ -1,8 +1,18 @@
-import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
 import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import type { SpanContext } from '@opentelemetry/api'
+import type {
+  AiStreamAbortRequest,
+  AiStreamAttachRequest,
+  AiStreamAttachResponse,
+  AiStreamDetachRequest,
+  AiStreamOpenRequest,
+  AiStreamOpenResponse,
+  StreamChunkPayload,
+  StreamDonePayload,
+  StreamErrorPayload
+} from '@shared/ai/transport'
 import type { GitBashPathInfo, TerminalConfig } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type {
@@ -40,8 +50,11 @@ import type {
   KnowledgeSearchResult as KnowledgeVectorSearchResult,
   RestoreKnowledgeBaseDto
 } from '@shared/data/types/knowledge'
+import type { Model } from '@shared/data/types/model'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
 import type {
+  WebSearchCheckProviderRequest,
+  WebSearchCheckProviderResponse,
   WebSearchFetchUrlsRequest,
   WebSearchResponse,
   WebSearchSearchKeywordsRequest
@@ -54,11 +67,7 @@ import type {
   FileMetadata,
   FileUploadResponse,
   GetApiServerStatusResult,
-  KnowledgeBaseParams,
-  KnowledgeItem,
-  KnowledgeSearchResult,
   MCPServer,
-  Model,
   Notification,
   OcrProvider,
   OcrResult,
@@ -84,6 +93,7 @@ import type {
   SkillResult,
   SkillToggleOptions
 } from '../renderer/src/types/skill'
+import { invokeWithAbort } from './invokeWithAbort'
 
 // OpenClaw types
 type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
@@ -317,52 +327,10 @@ const api = {
   },
   openPath: (path: string) => ipcRenderer.invoke(IpcChannel.Open_Path, path),
   knowledgeBase: {
-    create: (base: KnowledgeBaseParams, context?: SpanContext) =>
-      tracedInvoke(IpcChannel.KnowledgeBase_Create, context, base),
-    reset: (base: KnowledgeBaseParams) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Reset, base),
-    delete: (id: string) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Delete, id),
-    add: ({
-      base,
-      item,
-      userId,
-      forceReload = false
-    }: {
-      base: KnowledgeBaseParams
-      item: KnowledgeItem
-      userId?: string
-      forceReload?: boolean
-    }) =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeBase_Add, {
-        base,
-        item,
-        forceReload,
-        userId
-      }),
-    remove: ({ uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams }) =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeBase_Remove, {
-        uniqueId,
-        uniqueIds,
-        base
-      }),
-    search: ({ search, base }: { search: string; base: KnowledgeBaseParams }, context?: SpanContext) =>
-      tracedInvoke(IpcChannel.KnowledgeBase_Search, context, { search, base }),
-    rerank: (
-      {
-        search,
-        base,
-        results
-      }: {
-        search: string
-        base: KnowledgeBaseParams
-        results: KnowledgeSearchResult[]
-      },
-      context?: SpanContext
-    ) =>
-      tracedInvoke(IpcChannel.KnowledgeBase_Rerank, context, {
-        search,
-        base,
-        results
-      })
+    // v1 renderer knowledge path retired (T4.2). Only base deletion remains,
+    // still invoked by the v1 Redux store/knowledge slice until that slice is
+    // removed in the unified step. v2 knowledge runs via window.api.knowledgeRuntime.*.
+    delete: (id: string) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Delete, id)
   },
   knowledgeRuntime: {
     createBase: (base: CreateKnowledgeBaseDto): Promise<KnowledgeBase> =>
@@ -466,8 +434,6 @@ const api = {
       return ipcRenderer.invoke(IpcChannel.Mcp_UploadDxt, buffer, file.name)
     },
     abortTool: (callId: string) => ipcRenderer.invoke(IpcChannel.Mcp_AbortTool, callId),
-    resolveHubTool: (nameOrId: string): Promise<{ serverId: string; toolName: string } | null> =>
-      ipcRenderer.invoke(IpcChannel.Mcp_ResolveHubTool, nameOrId),
     getServerVersion: (server: MCPServer): Promise<string | null> =>
       ipcRenderer.invoke(IpcChannel.Mcp_GetServerVersion, server),
     getServerLogs: (server: MCPServer): Promise<MCPServerLogEntry[]> =>
@@ -618,82 +584,6 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Selection_ProcessAction, actionItem, isFullScreen),
     pinActionWindow: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowPin, isPinned),
     getLinuxEnvInfo: () => ipcRenderer.invoke(IpcChannel.Selection_GetLinuxEnvInfo)
-  },
-  agentTools: {
-    respondToPermission: (payload: {
-      requestId: string
-      behavior: 'allow' | 'deny'
-      updatedInput?: Record<string, unknown>
-      message?: string
-      updatedPermissions?: PermissionUpdate[]
-    }) => ipcRenderer.invoke(IpcChannel.AgentToolPermission_Response, payload)
-  },
-  agentSessionStream: {
-    subscribe: (sessionId: string) =>
-      ipcRenderer.invoke(IpcChannel.AgentSessionStream_Subscribe, {
-        sessionId
-      }),
-    unsubscribe: (sessionId: string) =>
-      ipcRenderer.invoke(IpcChannel.AgentSessionStream_Unsubscribe, {
-        sessionId
-      }),
-    abort: (sessionId: string) => ipcRenderer.invoke(IpcChannel.AgentSessionStream_Abort, { sessionId }),
-    onChunk: (
-      callback: (chunk: {
-        sessionId: string
-        agentId: string
-        type: string
-        chunk?: any
-        error?: any
-        userMessage?: {
-          chatId: string
-          userId: string
-          userName: string
-          text: string
-          images?: Array<{ data: string; media_type: string }>
-          files?: Array<{ filename: string; media_type: string; size: number }>
-        }
-      }) => void
-    ): (() => void) => {
-      const listener = (
-        _event: Electron.IpcRendererEvent,
-        chunk: {
-          sessionId: string
-          agentId: string
-          type: string
-          chunk?: any
-          error?: any
-          userMessage?: {
-            chatId: string
-            userId: string
-            userName: string
-            text: string
-            images?: Array<{ data: string; media_type: string }>
-            files?: Array<{
-              filename: string
-              media_type: string
-              size: number
-            }>
-          }
-        }
-      ) => {
-        callback(chunk)
-      }
-      ipcRenderer.on(IpcChannel.AgentSessionStream_Chunk, listener)
-      return () => ipcRenderer.off(IpcChannel.AgentSessionStream_Chunk, listener)
-    },
-    onSessionChanged: (
-      callback: (data: { agentId: string; sessionId: string; headless?: boolean }) => void
-    ): (() => void) => {
-      const listener = (
-        _event: Electron.IpcRendererEvent,
-        data: { agentId: string; sessionId: string; headless?: boolean }
-      ) => {
-        callback(data)
-      }
-      ipcRenderer.on(IpcChannel.AgentSession_Changed, listener)
-      return () => ipcRenderer.off(IpcChannel.AgentSession_Changed, listener)
-    }
   },
   wechat: {
     onQrLogin: (
@@ -865,7 +755,9 @@ const api = {
     searchKeywords: (request: WebSearchSearchKeywordsRequest): Promise<WebSearchResponse> =>
       ipcRenderer.invoke(IpcChannel.WebSearch_SearchKeywords, request),
     fetchUrls: (request: WebSearchFetchUrlsRequest): Promise<WebSearchResponse> =>
-      ipcRenderer.invoke(IpcChannel.WebSearch_FetchUrls, request)
+      ipcRenderer.invoke(IpcChannel.WebSearch_FetchUrls, request),
+    checkProvider: (request: WebSearchCheckProviderRequest): Promise<WebSearchCheckProviderResponse> =>
+      ipcRenderer.invoke(IpcChannel.WebSearch_CheckProvider, request)
   },
   shortcut: {
     onRegistrationConflict: (callback: (payload: ShortcutRegistrationConflictPayload) => void): (() => void) => {
@@ -921,6 +813,100 @@ const api = {
       ipcRenderer.on(channel, listener)
       return () => ipcRenderer.off(channel, listener)
     }
+  },
+  ai: {
+    // ── Stream push listeners ──
+    onStreamChunk: (callback: (data: StreamChunkPayload) => void) => {
+      const listener = (_: Electron.IpcRendererEvent, data: StreamChunkPayload) => callback(data)
+      ipcRenderer.on(IpcChannel.Ai_StreamChunk, listener)
+      return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamChunk, listener)
+    },
+    onStreamDone: (callback: (data: StreamDonePayload) => void) => {
+      const listener = (_: Electron.IpcRendererEvent, data: StreamDonePayload) => callback(data)
+      ipcRenderer.on(IpcChannel.Ai_StreamDone, listener)
+      return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamDone, listener)
+    },
+    onStreamError: (callback: (data: StreamErrorPayload) => void) => {
+      const listener = (_: Electron.IpcRendererEvent, data: StreamErrorPayload) => callback(data)
+      ipcRenderer.on(IpcChannel.Ai_StreamError, listener)
+      return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamError, listener)
+    },
+
+    // ── Stream control ──
+    streamOpen: (req: AiStreamOpenRequest): Promise<AiStreamOpenResponse> =>
+      ipcRenderer.invoke(IpcChannel.Ai_Stream_Open, req),
+    streamAttach: (req: AiStreamAttachRequest): Promise<AiStreamAttachResponse> =>
+      ipcRenderer.invoke(IpcChannel.Ai_Stream_Attach, req),
+    streamDetach: (req: AiStreamDetachRequest): Promise<void> => ipcRenderer.invoke(IpcChannel.Ai_Stream_Detach, req),
+    streamAbort: (req: AiStreamAbortRequest): Promise<void> => ipcRenderer.invoke(IpcChannel.Ai_Stream_Abort, req),
+
+    // ── Non-streaming operations ──
+    // All use uniqueModelId ("providerId::modelId") instead of separate providerId/modelId.
+    generateText: (request: {
+      assistantId?: string
+      uniqueModelId?: string
+      system?: string
+      prompt?: string
+      messages?: unknown[]
+      mcpToolIds?: string[]
+    }): Promise<{ text: string; usage?: unknown }> => ipcRenderer.invoke(IpcChannel.Ai_GenerateText, request),
+    checkModel: (request: { uniqueModelId?: string; timeout?: number }): Promise<{ latency: number }> =>
+      ipcRenderer.invoke(IpcChannel.Ai_CheckModel, request),
+    embedMany: (request: {
+      uniqueModelId?: string
+      values: string[]
+    }): Promise<{ embeddings: number[][]; usage?: unknown }> => ipcRenderer.invoke(IpcChannel.Ai_EmbedMany, request),
+    generateImage: (
+      payload: {
+        uniqueModelId?: string
+        prompt: string
+        inputImages?: string[]
+        mask?: string
+        n?: number
+        size?: string
+        negativePrompt?: string
+        seed?: number
+        quality?: string
+        numInferenceSteps?: number
+        guidanceScale?: number
+        promptEnhancement?: boolean
+        personGeneration?: string
+      },
+      signal?: AbortSignal
+    ): Promise<{
+      images: Array<{
+        kind: 'base64'
+        data: string
+        mediaType?: string
+      }>
+    }> => invokeWithAbort(IpcChannel.Ai_GenerateImage, payload, signal),
+    listModels: (request: {
+      providerId?: string
+      assistantId?: string
+      throwOnError?: boolean
+    }): Promise<Partial<Model>[]> => ipcRenderer.invoke(IpcChannel.Ai_ListModels, request),
+
+    // ── Tool approval (v6 ToolUIPart native flow) ──
+    toolApproval: {
+      respond: (payload: {
+        approvalId: string
+        approved: boolean
+        reason?: string
+        updatedInput?: Record<string, unknown>
+        topicId?: string
+        anchorId?: string
+      }): Promise<{ ok: boolean }> => ipcRenderer.invoke(IpcChannel.Ai_ToolApproval_Respond, payload)
+    }
+  },
+  translate: {
+    open: (req: {
+      streamId: string
+      text: string
+      targetLangCode: string
+      /** Optional — when present, main persists the translation onto this message's parts on stream success. */
+      messageId?: string
+      sourceLangCode?: string
+    }): Promise<{ streamId: string }> => ipcRenderer.invoke(IpcChannel.Ai_Translate_Open, req)
   },
   apiServer: {
     getStatus: (): Promise<GetApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus),
@@ -998,8 +984,8 @@ const api = {
       ipcRenderer.invoke(IpcChannel.OpenClaw_GetStatus),
     checkHealth: (): Promise<OpenClawHealthInfo> => ipcRenderer.invoke(IpcChannel.OpenClaw_CheckHealth),
     getDashboardUrl: (): Promise<string> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetDashboardUrl),
-    syncConfig: (provider: Provider, primaryModel: Model): Promise<OperationResult> =>
-      ipcRenderer.invoke(IpcChannel.OpenClaw_SyncConfig, provider, primaryModel),
+    syncConfig: (uniqueModelId: string): Promise<OperationResult> =>
+      ipcRenderer.invoke(IpcChannel.OpenClaw_SyncConfig, uniqueModelId),
     getChannels: (): Promise<OpenClawChannelInfo[]> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetChannels),
     checkUpdate: (): Promise<{
       hasUpdate: boolean
@@ -1014,7 +1000,6 @@ const api = {
   },
   agent: {
     runTask: (agentId: string, taskId: string) => ipcRenderer.invoke(IpcChannel.Agent_RunTask, agentId, taskId),
-    getModels: (filter: unknown) => ipcRenderer.invoke(IpcChannel.Agent_GetModels, filter),
     listTools: (request: unknown) => ipcRenderer.invoke(IpcChannel.Agent_ListTools, request)
   }
 }

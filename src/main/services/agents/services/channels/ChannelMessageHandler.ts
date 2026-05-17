@@ -4,10 +4,12 @@ import path from 'node:path'
 
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
-import { agentSessionService as sessionService } from '@data/services/AgentSessionService'
+import { sessionService } from '@data/services/SessionService'
 import { loggerService } from '@logger'
-import { sessionMessageOrchestrator } from '@main/services/agents/services/SessionMessageOrchestrator'
-import type { GetAgentSessionResponse, PermissionMode } from '@types'
+import { buildAgentSessionTopicId, parseAgentSessionModel } from '@main/ai/provider/claudeCodeSettingsBuilder'
+import { ChannelAdapterListener, type StreamListener } from '@main/ai/stream-manager'
+import { application } from '@main/core/application'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 
 import { sanitizeChannelOutput, wrapExternalContent } from '../security'
 import type {
@@ -18,8 +20,6 @@ import type {
   ImageAttachment
 } from './ChannelAdapter'
 import { SLASH_COMMANDS } from './constants'
-import { sessionStreamBus } from './SessionStreamBus'
-import { broadcastSessionChanged } from './sessionStreamIpc'
 import { splitMessage } from './utils'
 
 const logger = loggerService.withContext('ChannelMessageHandler')
@@ -54,7 +54,7 @@ export class ChannelMessageHandler {
   private static instance: ChannelMessageHandler | null = null
   // TODO: in v2 use cacheService
   private readonly sessionTracker = new Map<string, string>() // `${agentId}:${channelId}:${chatId}` -> sessionId
-  private readonly pendingResolutions = new Map<string, Promise<GetAgentSessionResponse | null>>()
+  private readonly pendingResolutions = new Map<string, Promise<AgentSessionEntity | null>>()
   /** Per-chat debounce buffer — accumulates rapid messages before flushing */
   private readonly pendingBatches = new Map<string, PendingBatch>()
   /** Per-chat serial queue — ensures only one stream runs at a time per chat */
@@ -192,10 +192,22 @@ export class ChannelMessageHandler {
         return
       }
 
-      // Apply channel-level permission mode override on every message (not just session creation).
-      // This ensures changes to the channel's permission_mode take effect immediately,
-      // even for sessions created before the setting was changed.
-      await this.applyChannelPermissionMode(session, adapter.channelId)
+      // Resolve agent for cognitive config (model / configuration / mcps / allowedTools).
+      // Workspace is read from the session itself (CMA Environment binding).
+      // An orphan session (`agentId === null`) cannot run; skip it.
+      if (!session.agentId) {
+        logger.error('Channel message hit an orphan session', { sessionId: session.id })
+        return
+      }
+      const agent = await agentService.getAgent(session.agentId)
+      if (!agent) {
+        logger.error('Agent not found for session', { sessionId: session.id, agentId: session.agentId })
+        return
+      }
+
+      // TODO(channel-perm-override): channel-level permission_mode used to mutate
+      // session.configuration in-place; with config now living on agent, this
+      // override needs to flow as a per-dispatch option instead. Tracked separately.
 
       const workDir = session.accessiblePaths[0]
 
@@ -252,36 +264,6 @@ export class ChannelMessageHandler {
         channelType: adapter.channelType
       })
 
-      // Build display text: append filenames so the user can see them in the UI
-      let displayText = message.text
-      if (message.files && message.files.length > 0) {
-        const names = message.files.map((f) => `📎 ${f.filename}`).join('\n')
-        displayText = displayText ? `${displayText}\n${names}` : names
-      }
-
-      // Snapshot subscriber state ONCE — this single check drives:
-      // 1. Whether user-message is published to the renderer
-      // 2. The persist flag (renderer persistence vs headless persistence)
-      // 3. Whether stream chunks / complete events are forwarded
-      // Checking once eliminates the race where subscribe() IPC completes
-      // between the user-message publish and the persist decision.
-      const rendererIsWatching = sessionStreamBus.hasSubscribers(session.id)
-
-      if (rendererIsWatching) {
-        sessionStreamBus.publish(session.id, {
-          sessionId: session.id,
-          agentId: session.agentId,
-          type: 'user-message',
-          userMessage: {
-            chatId: message.chatId,
-            userId: message.userId,
-            userName: message.userName,
-            text: displayText,
-            images: message.images
-          }
-        })
-      }
-
       const abortController = new AbortController()
       this.activeAbortControllers.set(session.id, abortController)
 
@@ -298,10 +280,7 @@ export class ChannelMessageHandler {
           securedContent,
           abortController,
           adapter,
-          message.chatId,
-          message.text,
-          message.images,
-          rendererIsWatching
+          message.chatId
         )
 
         if (responseText) {
@@ -336,28 +315,14 @@ export class ChannelMessageHandler {
     try {
       switch (command.command) {
         case 'new': {
-          const agent = await agentService.getAgent(agentId)
-          const channelRow = await channelService.getChannel(adapter.channelId)
-          const permMode = channelRow?.permissionMode as PermissionMode | undefined
-
-          const newSession = await sessionService.createSession(agentId, {
-            ...(agent?.configuration
-              ? {
-                  configuration: {
-                    ...agent.configuration,
-                    ...(permMode ? { permission_mode: permMode } : {})
-                  }
-                }
-              : {})
-          })
-          if (newSession) {
-            // Update channel's session_id to point to the new session
-            await channelService.updateChannel(adapter.channelId, { sessionId: newSession.id })
-            const trackerKey = `${agentId}:${adapter.channelId}:${command.chatId}`
-            this.sessionTracker.set(trackerKey, newSession.id)
-            this.evictSessionTracker()
-            await adapter.sendMessage(command.chatId, 'New session created.')
-          }
+          // TODO(channel-perm-override): channel.permissionMode no longer
+          // applied here — config lives on agent now. Tracked separately.
+          const newSession = await sessionService.createSession({ agentId, name: 'Channel session' })
+          await channelService.updateChannel(adapter.channelId, { sessionId: newSession.id })
+          const trackerKey = `${agentId}:${adapter.channelId}:${command.chatId}`
+          this.sessionTracker.set(trackerKey, newSession.id)
+          this.evictSessionTracker()
+          await adapter.sendMessage(command.chatId, 'New session created.')
           break
         }
         case 'compact': {
@@ -431,22 +396,6 @@ export class ChannelMessageHandler {
     }
   }
 
-  /**
-   * Look up the channel's current permission_mode from the agent config and
-   * override the session's configuration in-place. This ensures that changes
-   * to the channel permission mode take effect immediately — even for sessions
-   * that were created before the setting was changed.
-   */
-  private async applyChannelPermissionMode(session: GetAgentSessionResponse, channelId: string): Promise<void> {
-    const channel = await channelService.getChannel(channelId)
-    if (channel?.permissionMode && session.configuration) {
-      session.configuration = {
-        ...session.configuration,
-        permission_mode: channel.permissionMode
-      }
-    }
-  }
-
   /** Evict oldest session tracker entries when the map exceeds the size limit. */
   private evictSessionTracker(): void {
     if (this.sessionTracker.size <= SESSION_TRACKER_MAX_SIZE) return
@@ -460,10 +409,19 @@ export class ChannelMessageHandler {
 
   /** Clear session tracking for an agent (used when agent is deleted/updated) */
   clearSessionTracker(agentId: string): void {
-    for (const key of this.sessionTracker.keys()) {
+    // Abort any in-flight stream owned by a tracked session of this agent
+    // before dropping the tracker entries — otherwise the stream keeps
+    // running on a deleted agent and `sendMessage` to a now-detached
+    // channel will throw.
+    const sessionIdsToAbort: string[] = []
+    for (const [key, sessionId] of this.sessionTracker.entries()) {
       if (key.startsWith(`${agentId}:`)) {
+        sessionIdsToAbort.push(sessionId)
         this.sessionTracker.delete(key)
       }
+    }
+    for (const sessionId of sessionIdsToAbort) {
+      this.activeAbortControllers.get(sessionId)?.abort()
     }
     for (const [key, batch] of this.pendingBatches.entries()) {
       if (key.startsWith(`${agentId}:`)) {
@@ -493,7 +451,7 @@ export class ChannelMessageHandler {
     channelId: string,
     channelType: string,
     chatId: string
-  ): Promise<GetAgentSessionResponse | null> {
+  ): Promise<AgentSessionEntity | null> {
     const trackerKey = `${agentId}:${channelId}:${chatId}`
 
     // Coalesce concurrent resolutions for the same chat to avoid duplicate sessions
@@ -515,15 +473,15 @@ export class ChannelMessageHandler {
     _channelType: string,
     _chatId: string,
     trackerKey: string
-  ): Promise<GetAgentSessionResponse | null> {
+  ): Promise<AgentSessionEntity | null> {
     const channelRow = await channelService.getChannel(channelId)
+    const lookup = async (sessionId: string) => sessionService.getById(sessionId).catch(() => null)
 
     // Check tracker first
     const trackedId = this.sessionTracker.get(trackerKey)
     if (trackedId) {
-      const session = await sessionService.getSession(agentId, trackedId)
-      if (session) {
-        // Ensure channel's session_id stays in sync
+      const session = await lookup(trackedId)
+      if (session && session.agentId === agentId) {
         if (channelRow && channelRow.sessionId !== session.id) {
           channelService
             .updateChannel(channelId, { sessionId: session.id })
@@ -531,19 +489,18 @@ export class ChannelMessageHandler {
               logger.warn('Failed to sync channel-session link', err instanceof Error ? err : new Error(String(err)))
             )
         }
-        return session as GetAgentSessionResponse
+        return session
       }
-      // Tracked session gone, clear it
       this.sessionTracker.delete(trackerKey)
     }
 
     // Look up existing session via channel's session_id
     if (channelRow?.sessionId) {
-      const existingSession = await sessionService.getSession(agentId, channelRow.sessionId)
-      if (existingSession) {
+      const existingSession = await lookup(channelRow.sessionId)
+      if (existingSession && existingSession.agentId === agentId) {
         this.sessionTracker.set(trackerKey, existingSession.id)
         this.evictSessionTracker()
-        return existingSession as GetAgentSessionResponse
+        return existingSession
       }
     }
 
@@ -554,124 +511,83 @@ export class ChannelMessageHandler {
       channelSessionId: channelRow?.sessionId ?? null,
       trackerKey
     })
-    const agent = await agentService.getAgent(agentId)
-    const channelPermissionMode = channelRow?.permissionMode as PermissionMode | undefined
 
-    const newSession = await sessionService.createSession(agentId, {
-      ...(agent?.configuration
-        ? {
-            configuration: {
-              ...agent.configuration,
-              ...(channelPermissionMode ? { permission_mode: channelPermissionMode } : {})
-            }
-          }
-        : {})
-    })
-    if (newSession) {
-      // Link channel to the new session
-      await channelService.updateChannel(channelId, { sessionId: newSession.id })
-      this.sessionTracker.set(trackerKey, newSession.id)
-      this.evictSessionTracker()
-      return newSession as GetAgentSessionResponse
-    }
-
-    return null
+    const newSession = await sessionService.createSession({ agentId, name: 'Channel session' })
+    await channelService.updateChannel(channelId, { sessionId: newSession.id })
+    this.sessionTracker.set(trackerKey, newSession.id)
+    this.evictSessionTracker()
+    return newSession
   }
 
   private async collectStreamResponse(
-    session: GetAgentSessionResponse,
+    session: AgentSessionEntity,
     content: string,
     abortController: AbortController,
     adapter: ChannelAdapter,
-    chatId: string,
-    displayContent?: string,
-    images?: ImageAttachment[],
-    rendererIsWatching: boolean = false
+    chatId: string
   ): Promise<string> {
-    // Use the pre-computed rendererIsWatching flag from processIncoming.
-    // When renderer is watching: persist=false (renderer handles rich block persistence),
-    //   stream chunks and events are forwarded to the renderer via the bus.
-    // When renderer is NOT watching: persist=true (main persists via persistHeadlessExchange),
-    //   stream events are NOT forwarded (no subscriber or subscriber arrived late).
-    const { stream, completion } = await sessionMessageOrchestrator.createSessionMessage(
-      session,
-      { content },
-      abortController,
-      { persist: !rendererIsWatching, displayContent, images }
-    )
-
-    const reader = stream.getReader()
-    let completedText = '' // text from finished blocks/turns
-    let currentBlockText = '' // cumulative text within the current block
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        // Only forward chunks to renderer when it was confirmed watching at stream start.
-        // This prevents late-subscribing renderers from receiving partial chunks
-        // while main process is also persisting (which would cause duplicates).
-        if (rendererIsWatching) {
-          sessionStreamBus.publish(session.id, {
-            sessionId: session.id,
-            agentId: session.agentId,
-            type: 'chunk',
-            chunk: value
-          })
-        }
-
-        // Skip user message echoes — only accumulate assistant text for the channel reply
-        const rawType = (value as any).providerMetadata?.raw?.type
-        if (rawType === 'user') continue
-
-        switch (value.type) {
-          case 'text-delta':
-            // text-delta values are cumulative within a block
-            if (value.text) {
-              currentBlockText = value.text
-              // Notify adapter of text update — adapter owns its own throttle/flush
-              const fullText = completedText + currentBlockText
-              adapter.onTextUpdate(chatId, fullText).catch(() => {})
-            }
-            break
-          case 'text-end':
-            // Block finished — commit current block text and reset for next turn
-            if (currentBlockText) {
-              completedText += currentBlockText + '\n\n'
-              currentBlockText = ''
-            }
-            break
-        }
-      }
-
-      await completion
-
-      if (rendererIsWatching) {
-        // Notify renderer that stream is complete and data is persisted
-        sessionStreamBus.publish(session.id, {
-          sessionId: session.id,
-          agentId: session.agentId,
-          type: 'complete'
-        })
-      }
-      // headless=true means main process persisted; renderer should force-reload from DB.
-      // headless=false means renderer handled persistence; no reload needed.
-      broadcastSessionChanged(session.agentId, session.id, !rendererIsWatching)
-
-      // Trim trailing separator
-      return (completedText + currentBlockText).replace(/\n+$/, '')
-    } catch (error) {
-      if (rendererIsWatching) {
-        sessionStreamBus.publish(session.id, {
-          sessionId: session.id,
-          agentId: session.agentId,
-          type: 'error',
-          error: { message: error instanceof Error ? error.message : String(error) }
-        })
-      }
-      throw error
+    if (!session.agentId) {
+      throw new Error(`Cannot stream on orphan session ${session.id} — its agent was deleted`)
     }
+    const agentId = session.agentId
+    const agent = await agentService.getAgent(agentId)
+    if (!agent || !agent.model) {
+      throw new Error(`Agent ${agentId} not found or has no model configured`)
+    }
+    const topicId = buildAgentSessionTopicId(session.id)
+    const uniqueModelId = parseAgentSessionModel(agent.model)
+
+    // Build listeners
+    // Renderer subscribes via Ai_Stream_Attach IPC → WebContentsListener added by AiStreamManager.
+    // No manual bus push needed — all subscribers are equal topic listeners.
+    const listeners: StreamListener[] = [new ChannelAdapterListener(adapter, chatId)]
+
+    // Completion sentinel: accumulates text and resolves when done
+    let resolveExecution!: (text: string) => void
+    let rejectExecution!: (err: unknown) => void
+    const executionDone = new Promise<string>((resolve, reject) => {
+      resolveExecution = resolve
+      rejectExecution = reject
+    })
+    let accumulatedText = ''
+    listeners.push({
+      id: `channel-completion:${chatId}`,
+      onChunk(chunk) {
+        const c = chunk as { type: string; text?: string }
+        if (c.type === 'text-delta' && c.text) accumulatedText += c.text
+      },
+      onDone() {
+        resolveExecution(accumulatedText.trim())
+      },
+      onPaused() {
+        resolveExecution(accumulatedText.trim())
+      },
+      onError(result) {
+        rejectExecution(new Error(result.error.message ?? 'Execution failed'))
+      },
+      isAlive: () => !abortController.signal.aborted
+    })
+
+    // Start execution via AiStreamManager
+    const aiStreamManager = application.get('AiStreamManager')
+    aiStreamManager.send({
+      topicId,
+      models: [
+        {
+          modelId: uniqueModelId,
+          request: {
+            chatId: topicId,
+            trigger: 'submit-message',
+            assistantId: agentId,
+            uniqueModelId,
+            messages: [{ id: randomUUID(), role: 'user', parts: [{ type: 'text', text: content }] }]
+          }
+        }
+      ],
+      listeners
+    })
+
+    return executionDone
   }
 
   private async sendChunked(adapter: ChannelAdapter, chatId: string, text: string): Promise<void> {

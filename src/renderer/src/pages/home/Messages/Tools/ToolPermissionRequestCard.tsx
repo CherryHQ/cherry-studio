@@ -6,7 +6,7 @@ import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { useAgentToolApproval } from './hooks/useAgentToolApproval'
+import { useToolApproval } from './hooks/useToolApproval'
 import { type StatusColor, StatusIndicatorContainer, StreamingContext } from './MessageAgentTools/GenericTools'
 import { isValidAgentToolsType, renderTool } from './MessageAgentTools/index'
 import { UnknownToolRenderer } from './MessageAgentTools/UnknownToolRenderer'
@@ -19,7 +19,7 @@ interface Props {
 export function ToolPermissionRequestCard({ toolResponse }: Props) {
   const { t } = useTranslation()
 
-  const approval = useAgentToolApproval(null, { toolCallId: toolResponse.toolCallId })
+  const approval = useToolApproval(toolResponse)
 
   const statusInfo = useMemo((): { color: StatusColor; text: string; showLoading: boolean } => {
     if (approval.isExecuting) {

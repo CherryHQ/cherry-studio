@@ -1,4 +1,4 @@
-import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProviders'
+import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { useAppDispatch } from '@renderer/store'
 import { useEffect } from 'react'
 

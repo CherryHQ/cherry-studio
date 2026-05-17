@@ -2,7 +2,8 @@ import { application } from '@application'
 import OpenAI from '@cherrystudio/openai'
 import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
-import type { FileListResponse, FileMetadata, FileUploadResponse, Provider } from '@types'
+import { formatApiHost } from '@shared/utils/api'
+import type { FileListResponse, FileMetadata, FileUploadResponse } from '@types'
 import * as fs from 'fs'
 
 import { BaseFileService } from './BaseFileService'
@@ -14,11 +15,12 @@ export class OpenaiService extends BaseFileService {
   private static readonly generateUIFileIdCacheKey = (fileId: string) => `ui_file_id_${fileId}`
   private readonly client: OpenAI
 
-  constructor(provider: Provider) {
-    super(provider)
+  constructor(apiKey: string, apiHost: string | undefined) {
+    super(apiKey, apiHost)
+    const baseURL = formatApiHost(apiHost) || undefined
     this.client = new OpenAI({
-      apiKey: provider.apiKey,
-      baseURL: provider.apiHost
+      apiKey,
+      baseURL
     })
   }
 

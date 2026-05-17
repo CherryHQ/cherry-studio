@@ -1,4 +1,4 @@
-import type { AgentPersistedMessage } from '@types'
+import type { AgentPersistedMessage } from '@shared/data/types/agentMessage'
 import { index, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'

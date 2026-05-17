@@ -1,9 +1,11 @@
-import type Anthropic from '@anthropic-ai/sdk'
-import type { MessageCreateParams, MessageStreamEvent } from '@anthropic-ai/sdk/resources'
+import Anthropic from '@anthropic-ai/sdk'
+import type { MessageCreateParams, RawMessageStreamEvent } from '@anthropic-ai/sdk/resources'
+import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { anthropicService } from '@main/services/AnthropicService'
-import { buildClaudeCodeSystemMessage, getSdkClient } from '@shared/anthropic'
-import type { Provider } from '@types'
+import { buildClaudeCodeSystemMessage } from '@shared/anthropic'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import type { Response } from 'express'
 
 const logger = loggerService.withContext('MessagesService')
@@ -33,7 +35,7 @@ export interface ErrorResponse {
 
 export interface StreamConfig {
   response: Response
-  onChunk?: (chunk: MessageStreamEvent) => void
+  onChunk?: (chunk: RawMessageStreamEvent) => void
   onError?: (error: any) => void
   onComplete?: () => void
 }
@@ -97,12 +99,38 @@ export class MessagesService {
   }
 
   async getClient(provider: Provider, extraHeaders?: Record<string, string | string[]>): Promise<Anthropic> {
-    // Create Anthropic client for the provider
+    const anthropicConfig = provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    const baseURL = anthropicConfig?.baseUrl || 'https://api.anthropic.com'
+
     if (provider.authType === 'oauth') {
       const oauthToken = await anthropicService.getValidAccessToken()
-      return getSdkClient(provider, oauthToken, extraHeaders)
+      if (!oauthToken) throw new Error('OAuth token is not available')
+      return new Anthropic({
+        authToken: oauthToken,
+        baseURL: 'https://api.anthropic.com',
+        dangerouslyAllowBrowser: true,
+        defaultHeaders: {
+          'Content-Type': 'application/json',
+          'anthropic-version': '2023-06-01',
+          ...extraHeaders
+        }
+      })
     }
-    return getSdkClient(provider, null, extraHeaders)
+
+    const apiKey = await providerService.getRotatedApiKey(provider.id)
+    // Flatten string[] headers to string for Anthropic SDK compatibility
+    const flatHeaders: Record<string, string> = {}
+    if (extraHeaders) {
+      for (const [k, v] of Object.entries(extraHeaders)) {
+        flatHeaders[k] = Array.isArray(v) ? v.join(', ') : v
+      }
+    }
+    return new Anthropic({
+      apiKey,
+      baseURL,
+      dangerouslyAllowBrowser: true,
+      defaultHeaders: flatHeaders
+    })
   }
 
   prepareHeaders(headers: Record<string, string | string[] | undefined>): Record<string, string | string[]> {
@@ -136,7 +164,7 @@ export class MessagesService {
     }
 
     // Add Claude Code system message for OAuth providers
-    if (provider.type === 'anthropic' && provider.authType === 'oauth') {
+    if (provider.authType === 'oauth') {
       anthropicRequest.system = buildClaudeCodeSystemMessage(request.system)
     }
 
@@ -206,13 +234,12 @@ export class MessagesService {
       if (onComplete) {
         onComplete()
       }
-    } catch (streamError: any) {
-      logger.error('Stream error', {
-        error: streamError,
+    } catch (streamError) {
+      logger.error('Stream error', streamError as Error, {
         provider: provider.id,
         model: request.model,
-        apiHost: provider.apiHost,
-        anthropicApiHost: provider.anthropicApiHost
+        apiHost: provider.id,
+        anthropicApiHost: provider.presetProviderId
       })
       writeSse(undefined, {
         type: 'error',
@@ -254,22 +281,24 @@ export class MessagesService {
       errorMessage = error.message
     }
 
-    // Infer error type from message if not from Anthropic API
+    // Without a structured Anthropic error, fall back to a generic 500.
+    // Don't regex-match `error.message`: the SDK and other upstreams already
+    // expose `.status`/`.code` (see anthropicStatus branch above), and a
+    // genuine 500 whose message happens to mention "connection" must not
+    // be remapped to 502.
     if (!anthropicStatus && error instanceof Error) {
-      const errorMessageText = error.message ?? ''
-
-      if (errorMessageText.includes('API key') || errorMessageText.includes('authentication')) {
-        statusCode = 401
-        errorType = 'authentication_error'
-      } else if (errorMessageText.includes('rate limit') || errorMessageText.includes('quota')) {
-        statusCode = 429
-        errorType = 'rate_limit_error'
-      } else if (errorMessageText.includes('timeout') || errorMessageText.includes('connection')) {
-        statusCode = 502
-        errorType = 'api_error'
-      } else if (errorMessageText.includes('validation') || errorMessageText.includes('invalid')) {
-        statusCode = 400
-        errorType = 'invalid_request_error'
+      const errAny = error as unknown as { status?: unknown }
+      const status = typeof errAny.status === 'number' ? errAny.status : null
+      if (status !== null) {
+        statusCode = status
+        errorType =
+          status === 401 || status === 403
+            ? 'authentication_error'
+            : status === 429
+              ? 'rate_limit_error'
+              : status >= 500 && status < 600
+                ? 'api_error'
+                : 'invalid_request_error'
       }
     }
 
@@ -299,8 +328,8 @@ export class MessagesService {
 
     logger.info('Processing anthropic messages request', {
       provider: provider.id,
-      apiHost: provider.apiHost,
-      anthropicApiHost: provider.anthropicApiHost,
+      apiHost: provider.id,
+      anthropicApiHost: provider.presetProviderId,
       model: anthropicRequest.model,
       stream: !!anthropicRequest.stream,
       // systemPrompt: JSON.stringify(!!request.system),

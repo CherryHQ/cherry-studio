@@ -125,10 +125,6 @@ vi.mock('@renderer/services/MessagesService', () => ({
   getMessageModelId: () => 'model-id'
 }))
 
-vi.mock('@renderer/services/ModelService', () => ({
-  getModelUniqId: () => 'model-uniq-id'
-}))
-
 vi.mock('@renderer/services/TokenService', () => ({
   estimateMessageUsage: vi.fn().mockResolvedValue(0)
 }))

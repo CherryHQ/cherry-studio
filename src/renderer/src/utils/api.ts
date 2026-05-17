@@ -1,5 +1,3 @@
-import store from '@renderer/store'
-import type { VertexProvider } from '@renderer/types'
 import { formatApiHost, withoutTrailingSlash } from '@shared/utils'
 import { trim } from 'lodash'
 
@@ -14,14 +12,24 @@ export {
   withoutTrailingSlash
 } from '@shared/utils/api'
 
-// Re-export from shared, for backward compatibility
-export { formatAzureOpenAIApiHost, formatOllamaApiHost } from '@shared/aiCore/provider/utils'
+export function formatOllamaApiHost(host: string): string {
+  const normalizedHost = withoutTrailingSlash(host)
+    ?.replace(/\/v1$/, '')
+    ?.replace(/\/api$/, '')
+    ?.replace(/\/chat$/, '')
+  return formatApiHost(normalizedHost + '/api', false)
+}
 
-// NOTE: Since #13194, it depends on the store state in renderer, so it cannot be moved to shared now.
-export function formatVertexApiHost(provider: VertexProvider): string {
-  const { apiHost } = provider
-  const { projectId: project, location } = store.getState().llm.settings.vertexai
-  const trimmedHost = withoutTrailingSlash(trim(apiHost))
+/**
+ * Build the Vertex AI host URL.
+ *
+ * Caller supplies the v2 source-of-truth fields directly: `apiHost` from
+ * `Provider.endpointConfigs[…].baseUrl`, `project` and `location` from
+ * `Provider.authConfig` (`iam-gcp` discriminator). No Redux access.
+ */
+export function formatVertexApiHost(input: { apiHost?: string; project: string; location: string }): string {
+  const { apiHost, project, location } = input
+  const trimmedHost = withoutTrailingSlash(trim(apiHost ?? ''))
   if (!trimmedHost || trimmedHost.endsWith('aiplatform.googleapis.com')) {
     const host =
       location === 'global' ? 'https://aiplatform.googleapis.com' : `https://${location}-aiplatform.googleapis.com`

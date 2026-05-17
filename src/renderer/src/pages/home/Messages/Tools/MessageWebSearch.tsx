@@ -1,6 +1,6 @@
-import type { FetchUrlsToolInput, FetchUrlsToolOutput, WebSearchToolInput } from '@renderer/aiCore/tools/WebSearchTool'
 import Spinner from '@renderer/components/Spinner'
 import type { NormalToolResponse } from '@renderer/types'
+import { webSearchInputSchema, webSearchOutputSchema } from '@shared/ai/builtinTools'
 import { Typography } from 'antd'
 import { Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -10,25 +10,24 @@ const { Text } = Typography
 
 export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: NormalToolResponse }) => {
   const { t } = useTranslation()
-  const toolInput = toolResponse.arguments as FetchUrlsToolInput | WebSearchToolInput
-  const toolOutput = toolResponse.response as FetchUrlsToolOutput
-  const inputs = 'urls' in toolInput ? toolInput.urls : toolInput.queries || [toolInput.additionalContext]
+  const inputParse = webSearchInputSchema.safeParse(toolResponse.arguments)
+  const outputParse = webSearchOutputSchema.safeParse(toolResponse.response)
+  const query = inputParse.success ? inputParse.data.query : ''
+  const resultCount = outputParse.success ? outputParse.data.length : 0
 
   return toolResponse.status !== 'done' ? (
     <Spinner
       text={
         <PrepareToolWrapper>
           {t('message.searching')}
-          <span>{inputs?.join(', ') ?? ''}</span>
+          <span>{query}</span>
         </PrepareToolWrapper>
       }
     />
   ) : (
     <MessageWebSearchToolTitleTextWrapper type="secondary">
       <Search size={16} style={{ color: 'unset' }} />
-      {t('message.websearch.fetch_complete', {
-        count: toolOutput?.results?.length ?? 0
-      })}
+      {t('message.websearch.fetch_complete', { count: resultCount })}
     </MessageWebSearchToolTitleTextWrapper>
   )
 }

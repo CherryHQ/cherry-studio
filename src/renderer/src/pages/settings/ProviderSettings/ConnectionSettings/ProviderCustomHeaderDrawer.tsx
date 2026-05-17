@@ -1,6 +1,6 @@
 import { Button, InputGroup, InputGroupInput, Tooltip } from '@cherrystudio/ui'
 import { useCopilot } from '@renderer/hooks/useCopilot'
-import { useProvider } from '@renderer/hooks/useProviders'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { cn, validateApiHost } from '@renderer/utils'
 import { trim } from 'lodash'
 import { Plus, Settings, Trash2 } from 'lucide-react'

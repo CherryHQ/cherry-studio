@@ -1,37 +1,26 @@
 import { LoadingOutlined } from '@ant-design/icons'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  Tooltip,
-  TooltipContent,
-  TooltipRoot,
-  TooltipTrigger
-} from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
-import { useDetectLang, useLanguages } from '@renderer/hooks/translate'
-import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
-import MessageContent from '@renderer/pages/home/Messages/MessageContent'
-import { getDefaultTopic, getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
-import { pauseTrace } from '@renderer/services/SpanManagerService'
-import type { Assistant, Topic } from '@renderer/types'
-import { AssistantMessageStatus } from '@renderer/types/newMessage'
-import { abortCompletion } from '@renderer/utils/abortController'
-import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
-import { pickBidirectionalTarget, shouldPersistDirectTarget, UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
+import db from '@renderer/databases'
+import { useDetectLang, useLanguages, useTranslate } from '@renderer/hooks/translate'
+import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
+import type { TranslateLanguage } from '@renderer/types'
+import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
+import { defaultLanguage } from '@shared/config/constant'
 import type { SelectionActionItem, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import type { TranslateLanguage } from '@shared/data/types/translate'
+import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
+import { Dropdown } from 'antd'
 import { ArrowRight, ChevronDown, CircleHelp, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
+import styled, { createGlobalStyle } from 'styled-components'
 
-import { processMessages } from './ActionUtils'
 import WindowFooter from './WindowFooter'
+
 interface Props {
   action: SelectionActionItem
   scrollToBottom: () => void
@@ -42,202 +31,175 @@ const logger = loggerService.withContext('ActionTranslate')
 const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const { t } = useTranslation()
 
-  const detectLanguage = useDetectLang()
-  const { getLanguage, languages, getLabel } = useLanguages()
+  const [language] = usePreference('app.language')
+  const { languages, getLanguage } = useLanguages()
   const isLanguagesLoaded = languages !== undefined
+  const detectLanguage = useDetectLang()
 
-  const [preferredLangCode, setPreferredLangCode] = usePreference('feature.translate.action.preferred_lang')
-  const preferredLang = useMemo<TranslateLanguage | null>(
-    () => getLanguage(preferredLangCode) ?? null,
-    [preferredLangCode, getLanguage]
+  const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(() => {
+    const candidate = language || navigator.language || defaultLanguage
+    const lang = getLanguage(candidate)
+    if (lang) {
+      return lang
+    }
+    logger.warn('[initialize targetLanguage] Unknown language; fallback to zh-CN')
+    return BUILTIN_LANGUAGE.zhCN as unknown as TranslateLanguage
+  })
+
+  const [alterLanguage, setAlterLanguage] = useState<TranslateLanguage>(
+    BUILTIN_LANGUAGE.enUS as unknown as TranslateLanguage
   )
-
-  const [alterLangCode, setAlterLangCode] = usePreference('feature.translate.action.alter_lang')
-  const alterLang = useMemo<TranslateLanguage | null>(
-    () => getLanguage(alterLangCode) ?? null,
-    [alterLangCode, getLanguage]
-  )
-
   const [detectedLanguage, setDetectedLanguage] = useState<TranslateLanguage | null>(null)
-  const [actualTargetLanguage, setActualTargetLanguage] = useState<TranslateLanguage | null>(preferredLang)
+  const [actualTargetLanguage, setActualTargetLanguage] = useState<TranslateLanguage>(targetLanguage)
 
-  const [error, setError] = useState('')
+  const [detectError, setDetectError] = useState<string | null>(null)
   const [showOriginal, setShowOriginal] = useState(false)
-  const [status, setStatus] = useState<'preparing' | 'streaming' | 'finished'>('preparing')
-  const [contentToCopy, setContentToCopy] = useState('')
   const [initialized, setInitialized] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
-  // Use useRef for values that shouldn't trigger re-renders
-  const assistantRef = useRef<Assistant | null>(null)
-  const topicRef = useRef<Topic | null>(null)
-  const askId = useRef('')
+  const [content, setContent] = useState('')
+  const [isPreparing, setIsPreparing] = useState(false)
+  const [completionError, setCompletionError] = useState<string | null>(null)
 
-  // Mirror of preferred/alter for fetchResult to read at call time. Avoids
-  // closure staleness *and* keeps fetchResult's identity stable so it doesn't
-  // get re-triggered by deps cascade.
-  const targetsRef = useRef({ preferred: preferredLang, alter: alterLang })
-  useEffect(() => {
-    if (preferredLang && alterLang) {
-      targetsRef.current = { preferred: preferredLang, alter: alterLang }
+  const targetLangRef = useRef(targetLanguage)
+
+  const { reset: smoothReset, update: smoothUpdate } = useSmoothStream({
+    onUpdate: (text) => {
+      setIsPreparing(false)
+      setContent(text)
     }
-  }, [preferredLang, alterLang])
+  })
 
-  // Track the displayed target with the preferred language only before the
-  // first translation run; fetchResult owns it after initialization.
-  useEffect(() => {
-    if (!initialized) {
-      setActualTargetLanguage(preferredLang)
-    }
-  }, [preferredLang, initialized])
+  const {
+    translate: runTranslate,
+    isTranslating,
+    cancel: cancelTranslate
+  } = useTranslate({
+    loggerContext: 'ActionTranslate',
+    showErrorToast: false,
+    rethrowError: true,
+    onResponse: smoothUpdate
+  })
 
-  const fetchResult = useCallback(
-    // overrideTarget bypasses the smart preferred/alter swap when the user
-    // explicitly picked a target from the dropdown.
-    async (overrideTarget?: TranslateLanguage) => {
-      if (!assistantRef.current || !topicRef.current || !action.selectedText) return
-      const { preferred, alter } = targetsRef.current
-      if (!preferred || !alter) return
-
-      // Reset UI state immediately so the user sees instant feedback.
-      setStatus('preparing')
-      setError('')
-      setContentToCopy('')
-
-      const setAskId = (id: string) => {
-        askId.current = id
-      }
-      const onStream = () => {
-        setStatus('streaming')
-        scrollToBottom?.()
-      }
-      const onFinish = (content: string) => {
-        setStatus('finished')
-        setContentToCopy(content)
-      }
-      const onError = (error: Error) => {
-        setStatus('finished')
-        if (isAbortError(error)) {
-          return
-        }
-        setError(error.message)
-      }
-
-      let sourceLanguageCode: TranslateLangCode
-
-      try {
-        sourceLanguageCode = await detectLanguage(action.selectedText)
-      } catch (err) {
-        onError(err instanceof Error ? err : new Error('An error occurred'))
-        logger.error('Error detecting language:', err as Error)
-        return
-      }
-
-      const detectedLang = sourceLanguageCode === UNKNOWN_LANG_CODE ? null : (getLanguage(sourceLanguageCode) ?? null)
-      setDetectedLanguage(detectedLang)
-
-      if (sourceLanguageCode === UNKNOWN_LANG_CODE) {
-        logger.debug('Unknown source language. Just use preferred target.')
-      } else {
-        logger.debug('Detected Language: ', { sourceLanguage: sourceLanguageCode })
-      }
-      const translateLang = pickBidirectionalTarget(sourceLanguageCode, preferred, alter, overrideTarget)
-
-      setActualTargetLanguage(translateLang)
-
-      const assistant = await getDefaultTranslateAssistant(translateLang, action.selectedText)
-      assistantRef.current = assistant
-      processMessages(assistant, topicRef.current, assistant.content, setAskId, onStream, onFinish, onError).catch(
-        (e) => onError(e instanceof Error ? e : new Error(String(e)))
-      )
-    },
-    [action, scrollToBottom, getLanguage, detectLanguage]
-  )
-
-  // First-time initialization: build assistant/topic once languages are ready,
-  // then kick off the first translation. All later runs are event-driven.
-  const initialize = useCallback(async () => {
-    if (initialized || !isLanguagesLoaded || !preferredLang) return
-
-    if (action.selectedText === undefined) {
-      logger.error('[initialize] No selected text.')
-      setError(t('selection.action.translate.error.no_selected_text'))
-      setStatus('finished')
+  // It's called only in initialization.
+  // It will change target/alter language, so fetchResult will be triggered. Be careful!
+  const updateLanguagePair = useCallback(async () => {
+    if (!isLanguagesLoaded) {
+      logger.silly('[updateLanguagePair] Languages are not loaded. Skip.')
       return
     }
 
-    const currentAssistant = await getDefaultTranslateAssistant(preferredLang, action.selectedText)
-    assistantRef.current = currentAssistant
-    topicRef.current = getDefaultTopic(currentAssistant.id)
+    const biDirectionLangPair = await db.settings.get({ id: 'translate:bidirectional:pair' })
+
+    if (biDirectionLangPair && biDirectionLangPair.value[0]) {
+      const targetLang = getLanguage(biDirectionLangPair.value[0])
+      if (targetLang) {
+        setTargetLanguage(targetLang)
+        targetLangRef.current = targetLang
+      }
+    }
+
+    if (biDirectionLangPair && biDirectionLangPair.value[1]) {
+      const alterLang = getLanguage(biDirectionLangPair.value[1])
+      if (alterLang) {
+        setAlterLanguage(alterLang)
+      }
+    }
+  }, [getLanguage, isLanguagesLoaded])
+
+  const initialize = useCallback(async () => {
+    if (initialized) {
+      logger.silly('[initialize] Already initialized.')
+      return
+    }
+    if (!isLanguagesLoaded) {
+      logger.silly('[initialize] Languages not loaded. Skip initialization.')
+      return
+    }
+    if (action.selectedText === undefined) {
+      logger.error('[initialize] No selected text.')
+      return
+    }
+    logger.silly('[initialize] Start initialization.')
+
+    await updateLanguagePair()
+    logger.silly('[initialize] UpdateLanguagePair completed.')
+
     setInitialized(true)
-    void fetchResult()
-  }, [action.selectedText, initialized, isLanguagesLoaded, preferredLang, t, fetchResult])
+  }, [initialized, isLanguagesLoaded, updateLanguagePair, action.selectedText])
 
   useEffect(() => {
     void initialize()
   }, [initialize])
 
-  const allMessages = useTopicMessages(topicRef.current?.id || '')
+  const fetchResult = useCallback(async () => {
+    if (!action.selectedText || !initialized) return
+    cancelTranslate()
+    smoothReset('')
+    setContent('')
+    setCompletionError(null)
+    setDetectError(null)
 
-  const currentAssistantMessage = useMemo(() => {
-    const assistantMessages = allMessages.filter((message) => message.role === 'assistant')
-    if (assistantMessages.length === 0) {
-      return null
+    let sourceLanguageCode: TranslateLangCode
+    try {
+      sourceLanguageCode = await detectLanguage(action.selectedText)
+    } catch (err) {
+      setDetectError(err instanceof Error ? err.message : 'An error occurred')
+      logger.error('Error detecting language:', err as Error)
+      return
     }
-    return assistantMessages[assistantMessages.length - 1]
-  }, [allMessages])
+
+    const detectedLang = getLanguage(sourceLanguageCode) ?? null
+    setDetectedLanguage(detectedLang)
+
+    let translateLang: TranslateLanguage
+    if (sourceLanguageCode === UNKNOWN_LANG_CODE) {
+      translateLang = targetLanguage
+    } else {
+      translateLang = sourceLanguageCode === targetLanguage.langCode ? alterLanguage : targetLanguage
+    }
+    setActualTargetLanguage(translateLang)
+
+    setIsPreparing(true)
+    const translated = await runTranslate(action.selectedText, translateLang).catch((err: Error) => {
+      setCompletionError(err.message)
+      smoothReset('')
+      return undefined
+    })
+    setIsPreparing(false)
+    if (translated) scrollToBottom?.()
+  }, [
+    action,
+    initialized,
+    cancelTranslate,
+    detectLanguage,
+    getLanguage,
+    alterLanguage,
+    targetLanguage,
+    runTranslate,
+    scrollToBottom,
+    smoothReset
+  ])
 
   useEffect(() => {
-    // Sync message status
-    switch (currentAssistantMessage?.status) {
-      case AssistantMessageStatus.PROCESSING:
-      case AssistantMessageStatus.PENDING:
-      case AssistantMessageStatus.SEARCHING:
-        setStatus('streaming')
-        break
-      case AssistantMessageStatus.PAUSED:
-      case AssistantMessageStatus.ERROR:
-      case AssistantMessageStatus.SUCCESS:
-        setStatus('finished')
-        break
-      case undefined:
-        break
-      default:
-        logger.warn('Unexpected assistant message status:', { status: currentAssistantMessage?.status })
-    }
-  }, [currentAssistantMessage?.status])
-
-  const isPreparing = status === 'preparing'
-  const isStreaming = status === 'streaming'
+    void fetchResult()
+  }, [fetchResult])
 
   const handleChangeLanguage = useCallback(
-    (newTargetLanguage: TranslateLanguage | null, newAlterLanguage: TranslateLanguage | null) => {
+    (newTargetLanguage: TranslateLanguage, newAlterLanguage: TranslateLanguage) => {
       if (!initialized) {
         return
       }
-      if (!newTargetLanguage || !newAlterLanguage) {
-        logger.warn('Refusing to persist unknown language code', {
-          target: newTargetLanguage?.langCode ?? UNKNOWN_LANG_CODE,
-          alter: newAlterLanguage?.langCode ?? UNKNOWN_LANG_CODE
-        })
-        return
-      }
-      const persistTargets = async () => {
-        try {
-          await setPreferredLangCode(newTargetLanguage.langCode)
-          await setAlterLangCode(newAlterLanguage.langCode)
-        } catch (error) {
-          logger.error('Failed to persist selection translate languages', error as Error)
-          window.toast.error(formatErrorMessageWithPrefix(error, t('translate.settings.error.save')))
-        }
-      }
-      void persistTargets()
-      // Sync ref so fetchResult sees the new pair immediately, before the
-      // preference IPC writes round-trip back into state.
-      targetsRef.current = { preferred: newTargetLanguage, alter: newAlterLanguage }
-      void fetchResult()
+      setTargetLanguage(newTargetLanguage)
+      targetLangRef.current = newTargetLanguage
+      setAlterLanguage(newAlterLanguage)
+
+      void db.settings.put({
+        id: 'translate:bidirectional:pair',
+        value: [newTargetLanguage.langCode, newAlterLanguage.langCode]
+      })
     },
-    [initialized, setPreferredLangCode, setAlterLangCode, fetchResult, t]
+    [initialized]
   )
 
   // Handle direct target language change from the main dropdown
@@ -245,72 +207,69 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     (langCode: TranslateLangCode) => {
       if (!initialized) return
       const newLang = getLanguage(langCode)
-      if (!newLang) {
-        logger.warn('Refusing to set unknown target language', { langCode })
-        return
-      }
+      if (!newLang) return
       setActualTargetLanguage(newLang)
-      // Persist only when the pick differs from both saved slots; otherwise the
-      // user is just temporarily flipping target for this run.
-      if (preferredLang && alterLang && shouldPersistDirectTarget(newLang, preferredLang, alterLang)) {
-        targetsRef.current = { ...targetsRef.current, preferred: newLang }
-        setPreferredLangCode(newLang.langCode).catch((error) => {
-          logger.error('Failed to persist selection translate target language', error as Error)
-          window.toast.error(formatErrorMessageWithPrefix(error, t('translate.settings.error.save')))
-        })
+
+      if (newLang.langCode !== targetLanguage.langCode && newLang.langCode !== alterLanguage.langCode) {
+        setTargetLanguage(newLang)
+        targetLangRef.current = newLang
+        void db.settings.put({ id: 'translate:bidirectional:pair', value: [newLang.langCode, alterLanguage.langCode] })
       }
-      // overrideTarget makes fetchResult skip the smart swap and translate to
-      // exactly what the user picked.
-      void fetchResult(newLang)
     },
-    [initialized, getLanguage, preferredLang, alterLang, setPreferredLangCode, fetchResult, t]
+    [initialized, getLanguage, targetLanguage.langCode, alterLanguage.langCode]
   )
 
-  const settingsContent = useMemo(
-    () => (
-      <div className="flex flex-col gap-3">
-        <SettingsMenuItem>
-          <SettingsLabel>{t('translate.preferred_target')}</SettingsLabel>
-          <LanguageSelect
-            value={preferredLang?.langCode ?? UNKNOWN_LANG_CODE}
-            style={{ width: '100%' }}
-            listHeight={160}
-            size="small"
-            onChange={(value: TranslateLangCode) => {
-              handleChangeLanguage(getLanguage(value) ?? null, alterLang)
-              setSettingsOpen(false)
-            }}
-            disabled={isStreaming}
-          />
-        </SettingsMenuItem>
-        <SettingsMenuItem>
-          <SettingsLabel>{t('translate.alter_language')}</SettingsLabel>
-          <LanguageSelect
-            value={alterLang?.langCode ?? UNKNOWN_LANG_CODE}
-            style={{ width: '100%' }}
-            listHeight={160}
-            size="small"
-            onChange={(value) => {
-              handleChangeLanguage(preferredLang, getLanguage(value) ?? null)
-              setSettingsOpen(false)
-            }}
-            disabled={isStreaming}
-          />
-        </SettingsMenuItem>
-      </div>
-    ),
-    [t, preferredLang, alterLang, isStreaming, getLanguage, handleChangeLanguage]
+  // Settings dropdown menu items
+  const settingsMenuItems = useMemo(
+    () => [
+      {
+        key: 'preferred',
+        label: (
+          <SettingsMenuItem>
+            <SettingsLabel>{t('translate.preferred_target')}</SettingsLabel>
+            <LanguageSelect
+              value={targetLanguage.langCode}
+              style={{ width: '100%' }}
+              listHeight={160}
+              size="small"
+              onClick={(e) => e.stopPropagation()}
+              onChange={(value) => {
+                const next = getLanguage(value)
+                if (next) handleChangeLanguage(next, alterLanguage)
+                setSettingsOpen(false)
+              }}
+              disabled={isTranslating}
+            />
+          </SettingsMenuItem>
+        )
+      },
+      {
+        key: 'alter',
+        label: (
+          <SettingsMenuItem>
+            <SettingsLabel>{t('translate.alter_language')}</SettingsLabel>
+            <LanguageSelect
+              value={alterLanguage.langCode}
+              style={{ width: '100%' }}
+              listHeight={160}
+              size="small"
+              onClick={(e) => e.stopPropagation()}
+              onChange={(value) => {
+                const next = getLanguage(value)
+                if (next) handleChangeLanguage(targetLanguage, next)
+                setSettingsOpen(false)
+              }}
+              disabled={isTranslating}
+            />
+          </SettingsMenuItem>
+        )
+      }
+    ],
+    [t, targetLanguage, alterLanguage, isTranslating, getLanguage, handleChangeLanguage]
   )
 
   const handlePause = () => {
-    // FIXME: It doesn't work because abort signal is not set.
-    logger.silly('Try to pause: ', { id: askId.current })
-    if (askId.current) {
-      abortCompletion(askId.current)
-    }
-    if (topicRef.current?.id) {
-      void pauseTrace(topicRef.current.id)
-    }
+    cancelTranslate()
   }
 
   const handleRegenerate = () => {
@@ -319,59 +278,49 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
   return (
     <>
+      <SettingsDropdownStyles />
       <Container>
         <MenuContainer>
           <LeftGroup>
-            {/* Detected language display (read-only) */}
             <DetectedLanguageTag>
               {isPreparing ? (
                 <span>{t('translate.detecting')}</span>
               ) : (
                 <>
-                  <span>{getLabel(detectedLanguage) || t('translate.detected_source')}</span>
+                  <span style={{ marginRight: 4 }}>{detectedLanguage?.emoji || '🌐'}</span>
+                  <span>{detectedLanguage?.value || t('translate.detected_source')}</span>
                 </>
               )}
             </DetectedLanguageTag>
 
             <ArrowRight size={16} color="var(--color-text-3)" style={{ flexShrink: 0 }} />
 
-            {/* Target language selector */}
             <LanguageSelect
-              value={actualTargetLanguage?.langCode ?? UNKNOWN_LANG_CODE}
+              value={actualTargetLanguage.langCode}
               style={{ minWidth: 100, maxWidth: 160 }}
               listHeight={160}
               size="small"
               optionFilterProp="label"
               onChange={handleDirectTargetChange}
-              disabled={isStreaming}
+              disabled={isTranslating}
             />
 
-            {/* Settings popover (Tooltip + Popover share the same trigger via nested asChild) */}
-            <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
-              <TooltipRoot>
-                <TooltipTrigger asChild>
-                  <PopoverTrigger asChild>
-                    <SettingsButton aria-label={t('translate.language_settings')}>
-                      <Settings2 size={14} />
-                    </SettingsButton>
-                  </PopoverTrigger>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">{t('translate.language_settings')}</TooltipContent>
-              </TooltipRoot>
-              <PopoverContent
-                align="end"
-                sideOffset={6}
-                className="w-56 p-3"
-                onInteractOutside={(e) => {
-                  // Keep open while interacting with antd Select popups (rendered in a separate portal)
-                  const target = e.target as Element | null
-                  if (target?.closest('.ant-select-dropdown')) {
-                    e.preventDefault()
-                  }
-                }}>
-                {settingsContent}
-              </PopoverContent>
-            </Popover>
+            <Dropdown
+              menu={{
+                items: settingsMenuItems,
+                selectable: false,
+                className: 'settings-dropdown-menu'
+              }}
+              trigger={['click']}
+              placement="bottomRight"
+              open={settingsOpen}
+              onOpenChange={setSettingsOpen}>
+              <Tooltip content={t('translate.language_settings')} placement="bottom">
+                <SettingsButton>
+                  <Settings2 size={14} />
+                </SettingsButton>
+              </Tooltip>
+            </Dropdown>
 
             <Tooltip content={t('selection.action.translate.smart_translate_tips')} placement="bottom">
               <HelpIcon size={14} />
@@ -399,19 +348,12 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
         )}
         <Result>
           {isPreparing && <LoadingOutlined style={{ fontSize: 16 }} spin />}
-          {!isPreparing && currentAssistantMessage && (
-            <MessageContent key={currentAssistantMessage.id} message={currentAssistantMessage} />
-          )}
+          {!isPreparing && content && <ResultContent>{content}</ResultContent>}
         </Result>
-        {error && <ErrorMsg>{error}</ErrorMsg>}
+        {(detectError || completionError) && <ErrorMsg>{detectError || completionError}</ErrorMsg>}
       </Container>
       <FooterPadding />
-      <WindowFooter
-        loading={isStreaming}
-        onPause={handlePause}
-        onRegenerate={handleRegenerate}
-        content={contentToCopy}
-      />
+      <WindowFooter loading={isTranslating} onPause={handlePause} onRegenerate={handleRegenerate} content={content} />
     </>
   )
 }
@@ -426,9 +368,12 @@ const Container = styled.div`
 
 const Result = styled.div`
   margin-top: 16px;
+  width: 100%;
+`
+
+const ResultContent = styled.div`
   white-space: pre-wrap;
   word-break: break-word;
-  width: 100%;
 `
 
 const MenuContainer = styled.div`
@@ -548,6 +493,17 @@ const HelpIcon = styled(CircleHelp)`
   cursor: pointer;
   color: var(--color-text-3);
   flex-shrink: 0;
+`
+
+const SettingsDropdownStyles = createGlobalStyle`
+  .settings-dropdown-menu {
+    .ant-dropdown-menu-item {
+      cursor: default !important;
+      &:hover {
+        background-color: transparent !important;
+      }
+    }
+  }
 `
 
 export default ActionTranslate

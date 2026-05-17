@@ -1,4 +1,5 @@
 import { PROVIDER_URLS } from '@renderer/config/providers'
+import { useProviderAuthConfig } from '@renderer/hooks/useProvider'
 import { getProviderHostTopology } from '@renderer/pages/settings/ProviderSettings/utils/providerTopology'
 import type { Provider } from '@shared/data/types/provider'
 import { useMemo } from 'react'
@@ -12,6 +13,9 @@ export function useProviderHostPreview(params: {
   anthropicApiHost: string
 }) {
   const { provider, apiHost, anthropicApiHost } = params
+  // Vertex preview reads project/location from authConfig; safe to fetch
+  // unconditionally — SWR dedupes and other providers ignore the result.
+  const { data: authConfig } = useProviderAuthConfig(provider?.id ?? '')
 
   return useMemo(() => {
     if (!provider) {
@@ -25,6 +29,7 @@ export function useProviderHostPreview(params: {
     const topology = getProviderHostTopology(provider)
     const previews = buildHostEndpointPreviews({
       provider,
+      authConfig,
       primaryEndpoint: topology.primaryEndpoint,
       apiHost,
       anthropicApiHost,
@@ -36,5 +41,5 @@ export function useProviderHostPreview(params: {
       ...previews,
       isApiHostResettable: Boolean(configuredApiHost && apiHost !== configuredApiHost)
     }
-  }, [anthropicApiHost, apiHost, provider])
+  }, [anthropicApiHost, apiHost, authConfig, provider])
 }

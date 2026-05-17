@@ -1,0 +1,51 @@
+/**
+ * SQLite message-tree backend — finalizes a pre-created "pending" placeholder
+ * assistant message via `messageService.update`.
+ *
+ * Created by the Persistent chat context provider, one per execution (so
+ * multi-model turns produce N placeholders, N backends, N update calls).
+ *
+ * The listener is responsible for folding any error into
+ * `finalMessage.parts` before calling us, so we only need a single
+ * storage path shared by success / paused / error.
+ */
+
+import { messageService } from '@main/data/services/MessageService'
+import type { CherryMessagePart, CherryUIMessage, MessageStats, ModelSnapshot } from '@shared/data/types/message'
+
+import { finalizeInterruptedParts, type PersistAssistantInput, type PersistenceBackend } from '../PersistenceBackend'
+
+export interface MessageServiceBackendOptions {
+  /** Placeholder assistant message id created before the stream started. */
+  assistantMessageId: string
+  /**
+   * Explicit stats override. If present it wins over `input.stats` — used
+   * by callers that already computed stats elsewhere (e.g. replaying a
+   * persisted partial). Normally undefined; listener-composed stats flows
+   * through `input.stats`.
+   */
+  stats?: MessageStats
+  /** Kept for parity with the listener signature; unused by the storage write. */
+  modelSnapshot?: ModelSnapshot
+  /** Post-success hook — typically topic auto-rename / usage reporting. */
+  afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
+}
+
+export class MessageServiceBackend implements PersistenceBackend {
+  readonly kind = 'sqlite'
+  readonly afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
+
+  constructor(private readonly opts: MessageServiceBackendOptions) {
+    this.afterPersist = opts.afterPersist
+  }
+
+  async persistAssistant(input: PersistAssistantInput): Promise<void> {
+    const { finalMessage, status, stats } = input
+    const parts = finalizeInterruptedParts((finalMessage?.parts ?? []) as CherryMessagePart[], status)
+    await messageService.update(this.opts.assistantMessageId, {
+      data: { parts },
+      status,
+      stats: this.opts.stats ?? stats
+    })
+  }
+}

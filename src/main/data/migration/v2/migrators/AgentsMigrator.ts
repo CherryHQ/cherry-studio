@@ -1,6 +1,9 @@
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import type { DbType } from '@data/db/types'
+import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
-import { sql } from 'drizzle-orm'
+import { asc, eq, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
@@ -14,6 +17,7 @@ import {
   getTotalAgentsRowCount,
   quoteSqlitePath
 } from './mappings/AgentsDbMappings'
+import { normalizeStatus, transformBlocksToParts } from './mappings/ChatMappings'
 import { remapAgentPrefixIds } from './remapAgentPrefixIds'
 
 const logger = loggerService.withContext('AgentsMigrator')
@@ -116,13 +120,25 @@ export class AgentsMigrator extends BaseMigrator {
         await ctx.db.run(sql.raw(statement))
       }
 
+      // Atomic post-INSERT shape reconciliation — runs INSIDE the BEGIN/COMMIT
+      // so a failure rolls everything back instead of leaving rows in an
+      // intermediate sentinel state (`order_key=''` or v1 `blocks: [...]`).
+      //
+      // Order:
+      //   1. backfillAgentOrderKeys — joins `agents_legacy.{agents,sessions}`,
+      //      so MUST run while ATTACH is live and BEFORE remap rewrites ids.
+      //   2. transformAgentBlocksToParts — no ordering constraint with remap;
+      //      operates on `content` JSON, ids unchanged.
+      await backfillAgentOrderKeys(ctx.db)
+      await transformAgentBlocksToParts(ctx.db)
+
       await ctx.db.run(sql.raw('COMMIT'))
       committed = true
       logger.info('Agents migration transaction committed successfully')
 
-      // Remap old prefix IDs after the import transaction commits. Must run after COMMIT
-      // so the imported rows are visible; remapAgentPrefixIds is idempotent, so a retry
-      // after a previous partial failure is safe.
+      // Prefix-id remap runs AFTER the outer COMMIT because it opens its own
+      // BEGIN/COMMIT (nested SQLite transactions are not supported). It is
+      // idempotent, so a retry after a partial failure is safe.
       await remapAgentPrefixIds(ctx.db)
     } catch (error) {
       if (!committed) {
@@ -301,4 +317,133 @@ export class AgentsMigrator extends BaseMigrator {
       session_messages: 0
     }
   }
+}
+
+// ── Integrated post-copy shape transforms ────────────────────────────
+//
+// Exported as named helpers so they are unit-testable without constructing
+// a full migrator / MigrationContext. `execute()` calls them inside the
+// copy BEGIN/COMMIT block — failures roll back the entire import via
+// SQLite ROLLBACK rather than leaving rows in an intermediate sentinel
+// state. No silent post-hook semantics.
+
+export interface BlocksToPartsTransformResult {
+  totalMessages: number
+  messagesConverted: number
+  messagesSkipped: number
+  errors: Array<{ rowId: string; error: string }>
+}
+
+/**
+ * Convert `agent_session_message.content` from the legacy
+ * `{ blocks: [...] }` shape into the current `{ data: { parts: [...] } }`
+ * shape by reusing the same `transformBlocksToParts` converter regular
+ * chat messages go through. Rows whose content has no legacy `blocks`
+ * are skipped, so re-running is idempotent.
+ */
+export async function transformAgentBlocksToParts(db: DbType): Promise<BlocksToPartsTransformResult> {
+  const result: BlocksToPartsTransformResult = {
+    totalMessages: 0,
+    messagesConverted: 0,
+    messagesSkipped: 0,
+    errors: []
+  }
+
+  const rows = await db.select().from(agentSessionMessageTable).orderBy(asc(agentSessionMessageTable.createdAt))
+  result.totalMessages = rows.length
+  logger.info(`Blocks→Parts: scanning ${rows.length} agent_session_message rows`)
+
+  for (const row of rows) {
+    if (!row?.content) {
+      result.messagesSkipped++
+      continue
+    }
+
+    try {
+      // Legacy rows copied via raw INSERT...SELECT arrive as strings even
+      // though Drizzle types the column as JSON — normalise both paths.
+      const parsed = typeof row.content === 'string' ? JSON.parse(row.content) : row.content
+      const blocks = parsed?.blocks ?? []
+      const message = parsed?.message
+
+      if (!message || blocks.length === 0) {
+        result.messagesSkipped++
+        continue
+      }
+
+      const { parts } = transformBlocksToParts(blocks)
+      message.data = { ...message.data, parts }
+      // Transient statuses (sending/pending/searching/processing) in persisted
+      // rows are interrupted streams — collapse them to 'error' so the renderer
+      // doesn't paint them as still-streaming. Parts are already in terminal
+      // states after transformBlocksToParts.
+      message.status = normalizeStatus(message.status)
+      message.blocks = []
+      parsed.blocks = []
+
+      await db.update(agentSessionMessageTable).set({ content: parsed }).where(eq(agentSessionMessageTable.id, row.id))
+      result.messagesConverted++
+    } catch (error) {
+      result.errors.push({ rowId: row.id, error: error instanceof Error ? error.message : String(error) })
+      logger.warn(`Failed to transform agent_session_message ${row.id}`, { error })
+    }
+  }
+
+  logger.info(
+    `Blocks→Parts complete: ${result.messagesConverted} converted, ${result.messagesSkipped} skipped, ${result.errors.length} errors`
+  )
+  return result
+}
+
+/**
+ * Replace `''` placeholder orderKeys (set by INSERT...SELECT) with real
+ * fractional-indexing keys, ordered by the source `sort_order`. Joins target
+ * rows to `agents_legacy.{agents,sessions}` so this MUST run while the source
+ * DB is attached AND before remapAgentPrefixIds rewrites target ids.
+ *
+ * Sessions are scoped per agentId.
+ */
+export async function backfillAgentOrderKeys(db: DbType): Promise<void> {
+  type Row = { id: string }
+
+  const agents = (await db.all(
+    sql.raw(
+      `SELECT a.id AS id FROM agent a
+       LEFT JOIN agents_legacy.agents s ON a.id = s.id
+       WHERE a.order_key = ''
+       ORDER BY COALESCE(s.sort_order, 0) ASC, a.id ASC`
+    )
+  )) as Row[]
+  if (agents.length > 0) {
+    const keys = generateOrderKeySequence(agents.length)
+    for (let i = 0; i < agents.length; i++) {
+      await db.run(sql`UPDATE agent SET order_key = ${keys[i]} WHERE id = ${agents[i].id}`)
+    }
+    logger.info(`Backfilled ${agents.length} agent order keys`)
+  }
+
+  const sessions = (await db.all(
+    sql.raw(
+      `SELECT a.id AS id, a.agent_id AS agent_id FROM agent_session a
+       LEFT JOIN agents_legacy.sessions s ON a.id = s.id
+       WHERE a.order_key = ''
+       ORDER BY a.agent_id ASC, COALESCE(s.sort_order, 0) ASC, a.id ASC`
+    )
+  )) as Array<Row & { agent_id: string }>
+  if (sessions.length === 0) return
+
+  // Group by agentId and assign keys per group.
+  const buckets = new Map<string, Row[]>()
+  for (const row of sessions) {
+    const list = buckets.get(row.agent_id) ?? []
+    list.push({ id: row.id })
+    buckets.set(row.agent_id, list)
+  }
+  for (const [, group] of buckets) {
+    const keys = generateOrderKeySequence(group.length)
+    for (let i = 0; i < group.length; i++) {
+      await db.run(sql`UPDATE agent_session SET order_key = ${keys[i]} WHERE id = ${group[i].id}`)
+    }
+  }
+  logger.info(`Backfilled ${sessions.length} session order keys across ${buckets.size} agents`)
 }

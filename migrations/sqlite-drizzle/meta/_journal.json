@@ -175,6 +175,13 @@
       "when": 1778738430302,
       "tag": "0024_eager_patriot",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1778759480189,
+      "tag": "0025_unknown_korath",
+      "breakpoints": true
     }
   ],
   "version": "7"

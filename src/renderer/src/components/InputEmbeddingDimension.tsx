@@ -5,11 +5,9 @@ import { RefreshIcon } from '@renderer/components/Icons'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { Model } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils'
+import { createUniqueModelId } from '@shared/data/types/model'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { AiProvider } from '../aiCore'
-import { getRotatedApiKey } from '../services/ApiService'
 
 const logger = loggerService.withContext('DimensionsInput')
 
@@ -58,12 +56,11 @@ const InputEmbeddingDimension = ({
 
     setLoading(true)
     try {
-      const providerWithRotatedKey = {
-        ...provider,
-        apiKey: getRotatedApiKey(provider)
-      }
-      const aiProvider = new AiProvider(providerWithRotatedKey)
-      const dimension = await aiProvider.getEmbeddingDimensions(model)
+      const { embeddings } = await window.api.ai.embedMany({
+        uniqueModelId: createUniqueModelId(provider.id, model.id),
+        values: ['test']
+      })
+      const dimension = embeddings[0].length
       // for controlled input
       if (ref?.current) {
         ref.current.value = dimension.toString()

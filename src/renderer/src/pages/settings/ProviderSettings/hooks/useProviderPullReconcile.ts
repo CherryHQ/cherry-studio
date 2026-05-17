@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import { useProvider } from '@renderer/hooks/useProviders'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -14,7 +13,6 @@ const logger = loggerService.withContext('ProviderPullReconcile')
  */
 export function useProviderPullReconcile(providerId: string) {
   const { t } = useTranslation()
-  const { provider } = useProvider(providerId)
   const [preview, setPreview] = useState<ModelSyncPreviewResponse | null>(null)
   const [isPreviewLoading, setIsPreviewLoading] = useState(false)
 
@@ -23,15 +21,9 @@ export function useProviderPullReconcile(providerId: string) {
   }, [])
 
   const fetchPreview = useCallback(async (): Promise<ModelSyncPreviewResponse | null> => {
-    if (!provider) {
-      return null
-    }
     setIsPreviewLoading(true)
     try {
-      const next = await buildModelListSyncPreview({
-        providerId,
-        provider
-      })
+      const next = await buildModelListSyncPreview({ providerId })
       setPreview(next)
       return next
     } catch (error) {
@@ -46,7 +38,7 @@ export function useProviderPullReconcile(providerId: string) {
     } finally {
       setIsPreviewLoading(false)
     }
-  }, [provider, providerId, t])
+  }, [providerId, t])
 
   return {
     preview,

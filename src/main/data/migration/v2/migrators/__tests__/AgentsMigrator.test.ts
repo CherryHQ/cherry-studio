@@ -86,7 +86,9 @@ describe('AgentsMigrator', () => {
   })
 
   it('execute attaches the legacy db and imports every table inside a FK-off transaction', async () => {
-    const run = vi.fn().mockResolvedValue(undefined)
+    // Return `{ rowsAffected: 0 }` so the model-id UPDATE transform can read
+    // its result cleanly; existing assertions look at call args, not returns.
+    const run = vi.fn().mockResolvedValue({ rowsAffected: 0 })
     // remapAgentPrefixIds calls db.select().from().where() to find old-prefix IDs;
     // mock to return empty arrays so the remap loop is a no-op.
     const select = vi.fn().mockReturnValue({
@@ -123,11 +125,21 @@ describe('AgentsMigrator', () => {
     expect(outer.at(-3)).toBe('PRAGMA foreign_keys = ON')
     expect(outer.at(-2)).toBe('PRAGMA foreign_keys = ON')
     expect(outer.at(-1)).toBe('DETACH DATABASE agents_legacy')
-    // INSERT statements sit between the initial BEGIN and the main COMMIT
-    const insertCalls = outer.slice(3, -7)
+    // INSERT statements run between BEGIN and COMMIT — anchor off COMMIT's
+    // position rather than a fixed negative offset so the post-copy model-id
+    // transform UPDATEs (added after COMMIT) don't invalidate the slice math.
+    const commitIndex = outer.indexOf('COMMIT')
+    expect(commitIndex).toBeGreaterThan(2)
+    const insertCalls = outer.slice(3, commitIndex)
     expect(insertCalls).toHaveLength(AGENTS_TABLE_MIGRATION_SPECS.length)
     // No old-prefix IDs returned → no UPDATE calls
     expect(update).not.toHaveBeenCalled()
+    // Every statement between COMMIT and the final `PRAGMA foreign_keys = ON`
+    // belongs to the post-copy model-id transform (6 UPDATEs — 3 columns × 2
+    // tables). Leaving the count unpinned here keeps the test resilient to
+    // future additions to the transform list.
+    const postCopy = outer.slice(commitIndex + 1, -2)
+    expect(postCopy.every((stmt) => stmt?.startsWith('UPDATE'))).toBe(true)
   })
 
   it('re-enables FK and detaches when an import statement fails inside the transaction', async () => {
@@ -276,7 +288,8 @@ describe('AgentsMigrator', () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockResolvedValue(createSchemaInfo() as never)
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockResolvedValue(createCounts())
 
-    const run = vi.fn().mockResolvedValue(undefined)
+    const run = vi.fn().mockResolvedValue({ rowsAffected: 0 })
+    const get = vi.fn().mockResolvedValue({ count: 8 })
     const select = vi.fn().mockReturnValue({
       from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) })
     })
@@ -284,7 +297,7 @@ describe('AgentsMigrator', () => {
       set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
     })
     const all = vi.fn().mockResolvedValue([])
-    const migrationContext = createMigrationContext({ db: { run, select, update, all } })
+    const migrationContext = createMigrationContext({ db: { run, get, select, update, all } })
 
     await migrator.prepare(migrationContext)
     await migrator.execute(migrationContext)

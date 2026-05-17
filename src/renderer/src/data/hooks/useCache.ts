@@ -131,7 +131,7 @@ function getSharedCacheDefaultValue<K extends SharedCacheKey>(key: K): InferShar
  * // TypeScript infers scrollPos as number
  *
  * // With custom initial value
- * const [generating, setGenerating] = useCache('chat.generating', true)
+ * const [generating, setGenerating] = useCache('chat.web_search.searching', true)
  *
  * // Update the value
  * setAvatar('new-avatar-url')
