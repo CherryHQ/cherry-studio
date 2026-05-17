@@ -19,7 +19,7 @@ import {
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import CopyButton from '@renderer/components/CopyButton'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
-import { useDefaultModel } from '@renderer/hooks/useModels'
+import { useDefaultModel } from '@renderer/hooks/useModel'
 import { cn } from '@renderer/utils/style'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { CircleHelp, Dices, OctagonX } from 'lucide-react'

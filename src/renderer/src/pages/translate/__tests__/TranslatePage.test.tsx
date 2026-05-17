@@ -98,7 +98,7 @@ vi.mock('@renderer/hooks/useFiles', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useModels', () => ({
+vi.mock('@renderer/hooks/useModel', () => ({
   useModels: () => ({
     models: [
       {

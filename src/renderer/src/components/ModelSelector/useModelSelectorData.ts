@@ -1,4 +1,4 @@
-import { useModels } from '@renderer/hooks/useModels'
+import { useModels } from '@renderer/hooks/useModel'
 import { usePins } from '@renderer/hooks/usePins'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'

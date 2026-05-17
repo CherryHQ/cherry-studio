@@ -1,7 +1,7 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
-import { useModelById } from '@renderer/hooks/useModels'
+import { useModelById } from '@renderer/hooks/useModel'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import type { AgentBaseWithId } from '@renderer/types'
 import type { AgentType } from '@shared/data/types/agent'

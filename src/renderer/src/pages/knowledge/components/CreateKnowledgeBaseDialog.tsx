@@ -15,7 +15,7 @@ import {
   SelectValue
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { useModels } from '@renderer/hooks/useModels'
+import { useModels } from '@renderer/hooks/useModel'
 import type { KnowledgeSelectOption } from '@renderer/pages/knowledge/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Group } from '@shared/data/types/group'

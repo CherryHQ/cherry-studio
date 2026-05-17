@@ -31,7 +31,7 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args)
 }))
 
-vi.mock('@renderer/hooks/useModels', () => ({
+vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: any[]) => useModelsMock(...args)
 }))
 

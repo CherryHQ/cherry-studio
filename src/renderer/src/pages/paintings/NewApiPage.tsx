@@ -10,7 +10,7 @@ import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useModels } from '@renderer/hooks/useModels'
+import { useModels } from '@renderer/hooks/useModel'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useProviderApiKeys, useProviders } from '@renderer/hooks/useProvider'
 import {

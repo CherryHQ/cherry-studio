@@ -5,7 +5,7 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockRendererLoggerService } from '../../../../../tests/__mocks__/RendererLoggerService'
-import { useModelMutations, useModels } from '../useModels'
+import { useModelMutations, useModels } from '../useModel'
 
 // ─── Mock data ────────────────────────────────────────────────────────
 const mockModel1: any = {

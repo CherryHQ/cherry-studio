@@ -15,7 +15,7 @@ vi.mock('@data/DataApiService', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useModels', () => ({
+vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: any[]) => useModelsMock(...args),
   useModelMutations: () => ({
     createModels: createModelsMock,

@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
-import { useModels } from '@renderer/hooks/useModels'
+import { useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { type ApiKeyConnectivity, HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'

@@ -1,7 +1,7 @@
 import { Button, Field, FieldContent, FieldDescription, FieldError, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { ModelSelector } from '@renderer/components/ModelSelector'
-import { useModels } from '@renderer/hooks/useModels'
+import { useModels } from '@renderer/hooks/useModel'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import { ChevronsUpDown, Trash2 } from 'lucide-react'
 import { useMemo } from 'react'

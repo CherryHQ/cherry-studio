@@ -84,7 +84,7 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   getProviderDisplayName: (provider: { name?: string; id?: string }) => provider?.name ?? provider?.id ?? ''
 }))
 
-vi.mock('@renderer/hooks/useModels', () => ({
+vi.mock('@renderer/hooks/useModel', () => ({
   useModels: () => ({ models: [] })
 }))
 

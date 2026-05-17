@@ -1,5 +1,5 @@
 import { Button } from '@cherrystudio/ui'
-import { useModelMutations, useModels } from '@renderer/hooks/useModels'
+import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getDefaultGroupName } from '@renderer/utils'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'

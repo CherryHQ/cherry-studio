@@ -13,7 +13,7 @@
  *
  * Companion hooks for the entities Assistant references:
  *  - {@link import('./useTopic').useTopicsByAssistant} for topics
- *  - {@link import('./useModels').useModelById} for the model
+ *  - {@link import('./useModel').useModelById} for the model
  *  - {@link import('./useMCPServers').useMCPServer} for MCP servers
  *  - {@link import('./useKnowledgeBaseDataApi').useKnowledgeBaseById} for KBs
  */
@@ -21,7 +21,7 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { useDefaultModel, useModelById } from '@renderer/hooks/useModels'
+import { useDefaultModel, useModelById } from '@renderer/hooks/useModel'
 import i18n from '@renderer/i18n'
 import type { Assistant, AssistantSettings } from '@renderer/types'
 import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/modelReconcile'

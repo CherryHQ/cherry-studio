@@ -1,7 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import CherryStudioLogo from '@renderer/assets/images/logo.png'
-import { useModelMutations } from '@renderer/hooks/useModels'
+import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { fetchModels } from '@renderer/services/ApiService'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'

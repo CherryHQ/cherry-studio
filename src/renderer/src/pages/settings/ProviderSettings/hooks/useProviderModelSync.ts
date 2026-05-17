@@ -1,6 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
-import { useModelMutations, useModels } from '@renderer/hooks/useModels'
+import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import { MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { useCallback } from 'react'

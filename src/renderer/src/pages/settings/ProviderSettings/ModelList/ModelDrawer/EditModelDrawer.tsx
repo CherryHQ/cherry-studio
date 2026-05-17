@@ -1,6 +1,6 @@
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch } from '@cherrystudio/ui'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
-import { useModelMutations } from '@renderer/hooks/useModels'
+import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getDefaultGroupName } from '@renderer/utils'
 import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/data/types/model'

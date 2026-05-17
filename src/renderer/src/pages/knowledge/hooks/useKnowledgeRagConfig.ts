@@ -1,6 +1,6 @@
 import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { useModels } from '@renderer/hooks/useModels'
+import { useModels } from '@renderer/hooks/useModel'
 import { getFileProcessorLabel } from '@renderer/i18n/label'
 import { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'

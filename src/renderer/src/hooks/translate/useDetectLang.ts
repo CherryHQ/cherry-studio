@@ -1,6 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { useDefaultModel } from '@renderer/hooks/useModels'
+import { useDefaultModel } from '@renderer/hooks/useModel'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import { LANG_DETECT_PROMPT } from '@shared/config/prompts'
 import {
