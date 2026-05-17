@@ -512,7 +512,15 @@ export type AgentThinkingConfig = z.infer<typeof AgentThinkingConfigSchema>
 export const CreateSessionMessageRequestSchema = z.object({
   content: z.string().min(1, 'Content must be a valid string'),
   effort: AgentEffortSchema.optional(),
-  thinking: AgentThinkingConfigSchema.optional()
+  thinking: AgentThinkingConfigSchema.optional(),
+  images: z
+    .array(
+      z.object({
+        data: z.string(),
+        media_type: z.string()
+      })
+    )
+    .optional()
 })
 
 export type PermissionModeCard = {
