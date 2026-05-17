@@ -17,6 +17,7 @@ import CherryInProviderLogo from '@renderer/assets/images/providers/cherryin.png
 import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png'
 import DmxapiProviderLogo from '@renderer/assets/images/providers/DMXAPI.png'
 import FireworksProviderLogo from '@renderer/assets/images/providers/fireworks.png'
+import FuturMixProviderLogo from '@renderer/assets/images/providers/futurmix.svg'
 import GiteeAIProviderLogo from '@renderer/assets/images/providers/gitee-ai.png'
 import GithubProviderLogo from '@renderer/assets/images/providers/github.png'
 import GoogleProviderLogo from '@renderer/assets/images/providers/google.png'
@@ -736,6 +737,16 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     models: SYSTEM_MODELS.mimo,
     isSystem: true,
     enabled: false
+  },
+  futurmix: {
+    id: 'futurmix',
+    name: 'FuturMix',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://futurmix.ai/v1',
+    models: SYSTEM_MODELS.futurmix,
+    isSystem: true,
+    enabled: false
   }
 } as const
 
@@ -807,7 +818,8 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   sophnet: SophnetProviderLogo,
   gateway: AIGatewayProviderLogo,
   cerebras: CerebrasProviderLogo,
-  mimo: MiMoProviderLogo
+  mimo: MiMoProviderLogo,
+  futurmix: FuturMixProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -1510,6 +1522,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://platform.xiaomimimo.com/#/console/usage',
       docs: 'https://platform.xiaomimimo.com/#/docs/welcome',
       models: 'https://platform.xiaomimimo.com/'
+    }
+  },
+  futurmix: {
+    api: {
+      url: 'https://futurmix.ai/v1'
+    },
+    websites: {
+      official: 'https://futurmix.ai',
+      apiKey: 'https://futurmix.ai/keys',
+      docs: 'https://futurmix.ai/docs',
+      models: 'https://futurmix.ai/models'
     }
   }
 }
