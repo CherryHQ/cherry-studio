@@ -1,5 +1,5 @@
 import 'katex/dist/katex.min.css'
-import 'katex/dist/contrib/copy-tex'
+import '@renderer/utils/katex-copy-handler'
 import 'katex/dist/contrib/mhchem'
 import 'remark-github-blockquote-alert/alert.css'
 
