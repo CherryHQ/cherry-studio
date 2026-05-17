@@ -308,7 +308,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
       ref={scrollContainerRef}
       key={assistant.id}
       onScroll={handleScrollPosition}>
-      <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
+      <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse', flexGrow: 1 }}>
         <InfiniteScroll
           dataLength={displayMessages.length}
           next={loadMoreMessages}
@@ -335,6 +335,8 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
             </ScrollContainer>
           </SelectionContextMenu>
         </InfiniteScroll>
+
+        <div style={{ flex: 1 }} />
 
         {showPrompt && <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />}
       </NarrowLayout>

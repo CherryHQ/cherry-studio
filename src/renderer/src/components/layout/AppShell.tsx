@@ -41,13 +41,13 @@ export const AppShell = () => {
       />
 
       {/* Zone 2: Main Area (Sidebar + Content) */}
-      <div className="flex h-full w-full flex-1 flex-row overflow-hidden">
+      <div className="flex h-full min-h-0 w-full flex-1 flex-row overflow-hidden">
         {/* Zone 2a: Sidebar */}
         <Sidebar />
 
         {/* Zone 2b: Content Area - Multi MemoryRouter Architecture */}
-        <div className="flex min-w-0 flex-1 flex-col pr-2 pb-2">
-          <main className="relative flex-1 overflow-hidden rounded-[16px] bg-background">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col pr-2 pb-2">
+          <main className="relative min-h-0 flex-1 overflow-hidden rounded-[16px] bg-background">
             {/* Route Tabs: Only render non-dormant tabs */}
             {tabs
               .filter((t) => t.type === 'route' && !t.isDormant)
