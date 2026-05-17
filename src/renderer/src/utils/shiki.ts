@@ -107,10 +107,18 @@ export async function loadThemeIfNeeded(highlighter: HighlighterGeneric<any, any
  * @param token Shiki themed token
  * @returns React 样式对象
  */
-export function getReactStyleFromToken(token: ThemedToken): Record<string, string> {
+export function getReactStyleFromToken(
+  token: ThemedToken,
+  options?: { isDarkTheme?: boolean }
+): Record<string, string> {
   const style = token.htmlStyle || getTokenStyleObject(token)
   const reactStyle: Record<string, string> = {}
   for (const [key, value] of Object.entries(style)) {
+    if (key === 'color' && !options?.isDarkTheme && ['white', '#fff', '#ffffff'].includes(value.toLowerCase())) {
+      reactStyle.color = 'var(--color-text)'
+      continue
+    }
+
     switch (key) {
       case 'font-style':
         reactStyle.fontStyle = value
