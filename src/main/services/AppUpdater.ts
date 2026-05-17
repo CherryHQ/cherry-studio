@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { isWin } from '@main/constant'
+import { isMac, isWin } from '@main/constant'
 import { getIpCountry } from '@main/utils/ipService'
 import { generateUserAgent } from '@main/utils/systemInfo'
 import { APP_NAME, FeedUrl, UpdateConfigUrl, UpdateMirror, UpgradeChannel } from '@shared/config/constant'
@@ -9,6 +9,7 @@ import { CancellationToken } from 'builder-util-runtime'
 import { app, net } from 'electron'
 import type { AppUpdater as _AppUpdater, Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import { autoUpdater } from 'electron-updater'
+import fs from 'fs'
 import path from 'path'
 import semver from 'semver'
 
@@ -326,9 +327,52 @@ export default class AppUpdater {
     }
   }
 
-  public quitAndInstall() {
+  private async _checkMacSymlink(): Promise<{ isSymlink: boolean; symlinkPath: string; realPath: string }> {
+    try {
+      const exePath = app.getPath('exe')
+      // On macOS, exe is at: /path/to/CherryStudio.app/Contents/MacOS/CherryStudio
+      const appBundlePath = path.resolve(exePath, '../../..')
+      const stats = await fs.promises.lstat(appBundlePath)
+
+      if (stats.isSymbolicLink()) {
+        const realPath = await fs.promises.realpath(appBundlePath)
+        logger.warn(`App bundle is a symlink: ${appBundlePath} -> ${realPath}`)
+        return { isSymlink: true, symlinkPath: appBundlePath, realPath }
+      }
+
+      return { isSymlink: false, symlinkPath: '', realPath: '' }
+    } catch (error) {
+      logger.error('Failed to check symlink status', error as Error)
+      return { isSymlink: false, symlinkPath: '', realPath: '' }
+    }
+  }
+
+  public async quitAndInstall(): Promise<{
+    success: boolean
+    symlinkDetected?: boolean
+    symlinkPath?: string
+    realPath?: string
+  }> {
+    if (isMac) {
+      const symlinkResult = await this._checkMacSymlink()
+      if (symlinkResult.isSymlink) {
+        logger.warn('Update blocked: app bundle is a symlink', {
+          symlinkPath: symlinkResult.symlinkPath,
+          realPath: symlinkResult.realPath
+        })
+        windowService.getMainWindow()?.webContents.send(IpcChannel.UpdateSymlinkWarning, symlinkResult)
+        return {
+          success: false,
+          symlinkDetected: true,
+          symlinkPath: symlinkResult.symlinkPath,
+          realPath: symlinkResult.realPath
+        }
+      }
+    }
+
     app.isQuitting = true
     setImmediate(() => autoUpdater.quitAndInstall(true, true))
+    return { success: true }
   }
 
   /**
