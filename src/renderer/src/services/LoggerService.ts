@@ -61,6 +61,16 @@ class LoggerService {
         }
       }
     }
+
+    // Initialize level from main process persisted config, then listen for changes
+    if (!IS_WORKER) {
+      void window.api.getLogLevel().then((level) => {
+        if (level) this.setLevel(level)
+      })
+      window.api.onLogLevelChange((level: LogLevel) => {
+        this.setLevel(level)
+      })
+    }
   }
 
   /**

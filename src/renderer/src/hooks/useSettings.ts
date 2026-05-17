@@ -23,6 +23,7 @@ import {
   setEnableDeveloperMode,
   setLaunchOnBoot,
   setLaunchToTray,
+  setLogLevel as _setLogLevel,
   setNavbarPosition,
   setPinTopicsToTop,
   setSendMessageShortcut as _setSendMessageShortcut,
@@ -39,6 +40,7 @@ import {
 } from '@renderer/store/settings'
 import type { SidebarIcon, ThemeMode, TranslateLanguageCode } from '@renderer/types'
 import type { UpgradeChannel } from '@shared/config/constant'
+import type { LogLevel } from '@shared/config/logger'
 
 export function useSettings() {
   const settings = useAppSelector((state) => state.settings)
@@ -118,6 +120,10 @@ export function useSettings() {
     setDisableHardwareAcceleration(disableHardwareAcceleration: boolean) {
       dispatch(setDisableHardwareAcceleration(disableHardwareAcceleration))
       void window.api.setDisableHardwareAcceleration(disableHardwareAcceleration)
+    },
+    setLogLevel(level: LogLevel) {
+      dispatch(_setLogLevel(level))
+      void window.api.setLogLevel(level)
     },
     setUseSystemTitleBar(useSystemTitleBar: boolean) {
       dispatch(_setUseSystemTitleBar(useSystemTitleBar))
