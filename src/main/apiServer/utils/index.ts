@@ -10,6 +10,32 @@ const logger = loggerService.withContext('ApiServerUtils')
 // Cache configuration
 const PROVIDERS_CACHE_KEY = 'api-server:providers'
 const PROVIDERS_CACHE_TTL = 10 * 1000 // 10 seconds
+const MODEL_PROVIDER_ALIASES: Record<string, string> = {
+  cherryai: 'cherryin'
+}
+
+function resolveModelProviderAlias(providerId: string): string {
+  return MODEL_PROVIDER_ALIASES[providerId] ?? providerId
+}
+
+export function findProviderForModel(
+  providers: Provider[],
+  providerId: string,
+  modelId?: string
+): Provider | undefined {
+  const resolvedProviderId = resolveModelProviderAlias(providerId)
+
+  if (resolvedProviderId !== providerId) {
+    const aliasedProvider = providers.find((p: Provider) => {
+      return p.id === resolvedProviderId && (!modelId || p.models?.some((m) => m.id === modelId))
+    })
+    if (aliasedProvider) {
+      return aliasedProvider
+    }
+  }
+
+  return providers.find((p: Provider) => p.id === providerId)
+}
 
 export async function getAvailableProviders(): Promise<Provider[]> {
   try {
@@ -97,7 +123,8 @@ export async function getProviderByModel(model: string): Promise<Provider | unde
     }
 
     const providerId = modelInfo[0]
-    const provider = providers.find((p: Provider) => p.id === providerId)
+    const modelId = getRealProviderModel(model)
+    const provider = findProviderForModel(providers, providerId, modelId)
 
     if (!provider) {
       logger.warn('Provider not found for model', {
@@ -214,14 +241,15 @@ export async function validateModelId(model: string): Promise<{
 }
 
 export function transformModelToOpenAI(model: Model, provider?: Provider): ApiModel {
+  const providerId = provider?.id ?? resolveModelProviderAlias(model.provider)
   const providerDisplayName = provider?.name
   return {
-    id: `${model.provider}:${model.id}`,
+    id: `${providerId}:${model.id}`,
     object: 'model',
     name: model.name,
     created: Math.floor(Date.now() / 1000),
-    owned_by: model.owned_by || providerDisplayName || model.provider,
-    provider: model.provider,
+    owned_by: model.owned_by || providerDisplayName || providerId,
+    provider: providerId,
     provider_name: providerDisplayName,
     provider_type: provider?.type,
     provider_model_id: model.id
