@@ -5,7 +5,7 @@
  * `/knowledge-bases`. No v1 shape adaptation — consumers are expected to use
  * the v2 shape directly.
  *
- * Companion to {@link useTopicDataApi} / {@link useAssistantDataApi}.
+ * Companion to {@link useTopicDataApi} / {@link useAssistant}.
  */
 
 import { useMutation, useQuery } from '@data/hooks/useDataApi'

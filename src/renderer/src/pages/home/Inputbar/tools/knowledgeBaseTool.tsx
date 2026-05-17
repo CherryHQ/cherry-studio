@@ -1,4 +1,4 @@
-import { useAssistantMutations } from '@renderer/hooks/useAssistantDataApi'
+import { useAssistantMutations } from '@renderer/hooks/useAssistant'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
 import type { KnowledgeBase } from '@renderer/types'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/assistant'

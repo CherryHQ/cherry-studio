@@ -1,7 +1,6 @@
+import { composeDefaultAssistant } from '@renderer/hooks/useAssistant'
 import type { Assistant, AssistantSettings } from '@renderer/types'
 import { DEFAULT_ASSISTANT_SETTINGS as SHARED_DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-
-import { composeDefaultAssistant } from './defaultAssistant'
 
 /**
  * v1 back-compat shim for the Redux assistants slice, which initialises
