@@ -170,10 +170,15 @@ describe('ClawServer', () => {
     })
 
     it('should create a one-time task with at', async () => {
-      mockCreateTask.mockResolvedValue({ id: 'task_4' })
+      mockCreateTask.mockResolvedValue({
+        id: 'task_4',
+        schedule_type: 'once',
+        schedule_value: '2024-01-15T06:30:00.000Z',
+        next_run: '2024-01-15T06:30:00.000Z'
+      })
 
       const server = createServer()
-      await callTool(server, {
+      const result = await callTool(server, {
         action: 'add',
         name: 'Deploy',
         message: 'Deploy to prod',
@@ -186,6 +191,8 @@ describe('ClawServer', () => {
           schedule_type: 'once'
         })
       )
+      expect(result.content[0].text).toContain('schedule_value_local')
+      expect(result.content[0].text).toContain('next_run_local')
     })
 
     it('should reject when no schedule is provided', async () => {

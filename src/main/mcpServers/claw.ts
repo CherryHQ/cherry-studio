@@ -32,6 +32,33 @@ function parseDurationToMinutes(duration: string): number {
   return totalMinutes
 }
 
+function formatLocalDateTime(value?: string | null): string | undefined {
+  if (!value) return undefined
+
+  const date = new Date(value)
+  if (isNaN(date.getTime())) return undefined
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    hour12: false
+  }).format(date)
+}
+
+function formatTaskForToolResponse(task: Record<string, unknown>) {
+  const nextRunLocal = typeof task.next_run === 'string' ? formatLocalDateTime(task.next_run) : undefined
+  const scheduleValueLocal =
+    task.schedule_type === 'once' && typeof task.schedule_value === 'string'
+      ? formatLocalDateTime(task.schedule_value)
+      : undefined
+
+  return {
+    ...task,
+    ...(scheduleValueLocal ? { schedule_value_local: scheduleValueLocal } : {}),
+    ...(nextRunLocal ? { next_run_local: nextRunLocal } : {})
+  }
+}
+
 const CRON_TOOL: Tool = {
   name: 'cron',
   description:
@@ -347,7 +374,9 @@ class ClawServer {
 
     logger.info('Cron job created via tool', { agentId: this.agentId, taskId: task.id })
     return {
-      content: [{ type: 'text' as const, text: `Job created:\n${JSON.stringify(task, null, 2)}` }]
+      content: [
+        { type: 'text' as const, text: `Job created:\n${JSON.stringify(formatTaskForToolResponse(task), null, 2)}` }
+      ]
     }
   }
 
