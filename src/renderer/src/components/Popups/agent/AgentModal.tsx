@@ -12,6 +12,7 @@ import SelectAgentBaseModelButton from '@renderer/pages/agents/components/Select
 import type {
   AddAgentForm,
   AgentEntity,
+  AgentType,
   ApiModel,
   BaseAgentForm,
   PermissionMode,
@@ -32,6 +33,8 @@ import styled from 'styled-components'
 const { TextArea } = Input
 
 const logger = loggerService.withContext('AddAgentPopup')
+
+const LOCAL_OMLX_DEFAULT_MODEL = 'omlx:Qwen3.6-27B-UD-MLX-4bit'
 
 type AgentWithTools = AgentEntity & { tools?: Tool[] }
 
@@ -178,6 +181,26 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
       ...prev,
       name: e.target.value
     }))
+  }, [])
+
+  const onAgentTypeChange = useCallback((value: AgentType) => {
+    setForm((prev) => {
+      if (value === 'local-omlx') {
+        return {
+          ...prev,
+          type: value,
+          model: prev.model.startsWith('omlx:') ? prev.model : LOCAL_OMLX_DEFAULT_MODEL,
+          allowed_tools: [],
+          mcps: []
+        }
+      }
+
+      return {
+        ...prev,
+        type: value,
+        model: prev.model.startsWith('omlx:') ? '' : prev.model
+      }
+    })
   }, [])
 
   // const onDescChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
@@ -390,18 +413,38 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
             </FormRow>
 
             <FormItem>
+              <Label>
+                {t('agent.add.backend', 'Agent Backend')} <RequiredMark>*</RequiredMark>
+              </Label>
+              <Select value={form.type} onChange={onAgentTypeChange} style={{ width: '100%' }}>
+                <Select.Option value="claude-code">{t('label.claude-code', 'Claude Code')}</Select.Option>
+                <Select.Option value="local-omlx">{t('label.local-omlx', 'Local oMLX')}</Select.Option>
+              </Select>
+              <HelpText>
+                {form.type === 'local-omlx'
+                  ? t(
+                      'agent.add.backend.localOmlxHint',
+                      'Use the local oMLX backend. Models are read from ~/.omlx/settings.json and Claude Code is not invoked.'
+                    )
+                  : t('agent.add.backend.claudeCodeHint', 'Use Claude Code compatible coding agent backend.')}
+              </HelpText>
+            </FormItem>
+
+            <FormItem>
               <div className="flex items-center gap-2">
                 <Label>
                   {t('common.model')} <RequiredMark>*</RequiredMark>
                 </Label>
-                <AnthropicProviderListPopover
-                  useWindowNavigate
-                  filterProviders={getAnthropicSupportedProviders}
-                  onProviderClick={() => {
-                    setOpen(false)
-                    resolve(undefined)
-                  }}
-                />
+                {form.type !== 'local-omlx' && (
+                  <AnthropicProviderListPopover
+                    useWindowNavigate
+                    filterProviders={getAnthropicSupportedProviders}
+                    onProviderClick={() => {
+                      setOpen(false)
+                      resolve(undefined)
+                    }}
+                  />
+                )}
               </div>
               <SelectAgentBaseModelButton
                 agentBase={tempAgentBase}

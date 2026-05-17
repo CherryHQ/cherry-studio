@@ -54,6 +54,7 @@ const providerKeyMap = {
   jina: 'provider.jina',
   lanyun: 'provider.lanyun',
   lmstudio: 'provider.lmstudio',
+  omlx: 'provider.omlx',
   minimax: 'provider.minimax',
   mistral: 'provider.mistral',
   modelscope: 'provider.modelscope',
@@ -382,5 +383,7 @@ export const getBuiltinOcrProviderLabel = (key: BuiltinOcrProviderId) => {
 
 // oxlint-disable-next-line no-unused-vars -- placeholder for future agent type labels
 export const getAgentTypeLabel = (_key: AgentType) => {
+  if (_key === 'local-omlx') return 'Local oMLX'
+
   return 'Agent'
 }

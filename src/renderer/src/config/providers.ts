@@ -90,6 +90,16 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     isSystem: true,
     enabled: true
   },
+  omlx: {
+    id: 'omlx',
+    name: 'oMLX',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'http://127.0.0.1:8000',
+    models: SYSTEM_MODELS.omlx,
+    isSystem: true,
+    enabled: false
+  },
   silicon: {
     id: 'silicon',
     name: 'Silicon',
@@ -742,6 +752,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
 export const SYSTEM_PROVIDERS: SystemProvider[] = Object.values(SYSTEM_PROVIDERS_CONFIG)
 
 export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
+  omlx: OpenAiProviderLogo,
   cherryin: CherryInProviderLogo,
   ph8: Ph8ProviderLogo,
   '302ai': Ai302ProviderLogo,
@@ -831,6 +842,16 @@ type ProviderUrls = {
 }
 
 export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
+  omlx: {
+    api: {
+      url: 'http://127.0.0.1:8000'
+    },
+    websites: {
+      official: 'https://github.com/ml-explore/mlx-lm',
+      docs: 'https://github.com/ml-explore/mlx-lm',
+      models: 'http://127.0.0.1:8000/v1/models'
+    }
+  },
   cherryin: {
     api: {
       url: 'https://open.cherryin.net'
