@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { LoadingIcon } from '@renderer/components/Icons'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
-import { useSession } from '@renderer/hooks/agents/useSessionDataApi'
+import { useSession } from '@renderer/hooks/agents/useSession'
 import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'

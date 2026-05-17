@@ -4,7 +4,7 @@ import DraggableVirtualList, { type DraggableVirtualListRef } from '@renderer/co
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
-import { useSessions } from '@renderer/hooks/agents/useSessionDataApi'
+import { useSessions } from '@renderer/hooks/agents/useSession'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { motion } from 'framer-motion'
 import { throttle } from 'lodash'

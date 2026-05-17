@@ -2,7 +2,7 @@ import { MockUseDataApiUtils, mockUseInfiniteQuery } from '@test-mocks/renderer/
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useSessions } from '../useSessionDataApi'
+import { useSessions } from '../useSession'
 
 const buildInfiniteReturn = (overrides: Record<string, unknown> = {}) => ({
   pages: [] as Array<{ items: Array<{ id: string; name: string }>; nextCursor?: string }>,

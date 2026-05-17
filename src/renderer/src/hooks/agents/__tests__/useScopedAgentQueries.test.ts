@@ -4,7 +4,7 @@ import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useChannels } from '../useChannels'
-import { useSession } from '../useSessionDataApi'
+import { useSession } from '../useSession'
 import { useTaskLogs, useTasks } from '../useTasks'
 
 describe('identity-scoped agent queries', () => {

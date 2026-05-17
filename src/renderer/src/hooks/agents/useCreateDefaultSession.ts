@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { cacheService } from '@renderer/data/CacheService'
 import { useAgent } from '@renderer/hooks/agents/useAgentDataApi'
-import { useSessions } from '@renderer/hooks/agents/useSessionDataApi'
+import { useSessions } from '@renderer/hooks/agents/useSession'
 import type { CreateSessionForm } from '@renderer/types'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'

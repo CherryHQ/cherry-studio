@@ -2,7 +2,7 @@ import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useUpdateSession } from '../useSessionDataApi'
+import { useUpdateSession } from '../useSession'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({

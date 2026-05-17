@@ -1,7 +1,7 @@
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useCallback } from 'react'
 
-import { useSession } from './useSessionDataApi'
+import { useSession } from './useSession'
 
 /**
  * Reads the single active-session pointer and returns the resolved session.
