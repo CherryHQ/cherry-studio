@@ -179,6 +179,13 @@ const ToolBlockGroup: React.FC<Props> = ({ items }) => {
     return items.every((item) => isCompletedStatus(item.toolResponse.status))
   }, [items])
 
+  // Auto-expand group when there are active tools (pending/waiting for approval, streaming)
+  useEffect(() => {
+    if (!allCompleted) {
+      setActiveKey((prev) => (prev === 'tool-group' ? prev : 'tool-group'))
+    }
+  }, [allCompleted])
+
   const currentRunningBlock = useMemo(() => {
     return items.find((item) => !isCompletedStatus(item.toolResponse.status))
   }, [items])

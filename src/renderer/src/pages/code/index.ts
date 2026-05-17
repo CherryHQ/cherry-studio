@@ -189,6 +189,10 @@ export const generateToolEnvironment = ({
 
   switch (tool) {
     case codeCLI.claudeCode: {
+      // https://code.claude.com/docs/en/env-vars — mark provider env as
+      // host-managed so Claude Code ignores ANTHROPIC_* from the user's
+      // ~/.claude/settings.json (avoids auth-token/api-key conflict). #15089
+      env.CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST = '1'
       env.ANTHROPIC_BASE_URL = getCodeCliApiBaseUrl(providerId, 'anthropic') || anthropicBaseUrl || baseUrl
       env.ANTHROPIC_MODEL = rawModelId
       if (isAnthropic) {
@@ -214,11 +218,14 @@ export const generateToolEnvironment = ({
       env.OPENAI_MODEL = rawModelId
       break
     case codeCLI.openaiCodex:
-      env.OPENAI_API_KEY = apiKey
-      env.OPENAI_BASE_URL = formattedBaseUrl
-      env.OPENAI_MODEL = rawModelId
-      env.OPENAI_MODEL_PROVIDER = providerId
-      env.OPENAI_MODEL_PROVIDER_NAME = fancyProviderName
+      // Codex CLI rejects model_providers keys colliding with its reserved
+      // built-in IDs (openai/ollama/lmstudio). Hand the provider through
+      // Cherry-namespaced vars; CodeToolsService maps them to a sanitized
+      // Cherry- prefixed config key (or openai_base_url for reserved). #15068
+      env.CHERRY_CODEX_API_KEY = apiKey
+      env.CHERRY_CODEX_BASE_URL = formattedBaseUrl
+      env.CHERRY_CODEX_PROVIDER_ID = providerId
+      env.CHERRY_CODEX_PROVIDER_NAME = sanitizeProviderName(fancyProviderName)
       break
 
     case codeCLI.iFlowCli:

@@ -116,7 +116,7 @@ describe('generateToolEnvironment', () => {
       baseConfig({ tool: codeCLI.openaiCodex, providerId: 'openai', baseUrl: 'https://api.openai.com' })
     )
 
-    expect(env.OPENAI_BASE_URL).toBe('https://api.openai.com/v1')
+    expect(env.CHERRY_CODEX_BASE_URL).toBe('https://api.openai.com/v1')
   })
 
   it('should format baseUrl with /v1 for iFlowCli when missing', () => {

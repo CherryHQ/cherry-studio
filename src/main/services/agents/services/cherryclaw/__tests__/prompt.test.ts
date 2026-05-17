@@ -261,7 +261,7 @@ describe('PromptBuilder', () => {
       expect(result).toContain('mcp__skills__skills')
       expect(result).toContain('## Workspace Memory')
       expect(result).toContain('mcp__agent-memory__memory')
-      expect(result).toContain('## Web Search & Browser Strategy')
+      expect(result).toContain('## Web Search Strategy')
       expect(result).toContain('mcp__exa__web_search_exa')
       expect(result).not.toContain('## CherryClaw Tools')
       expect(result).not.toContain('mcp__claw__cron')
@@ -279,7 +279,7 @@ describe('PromptBuilder', () => {
       // Skills, memory, and web are still included
       expect(result).toContain('mcp__skills__skills')
       expect(result).toContain('mcp__agent-memory__memory')
-      expect(result).toContain('## Web Search & Browser Strategy')
+      expect(result).toContain('## Web Search Strategy')
     })
 
     it('places claw guidance before skills/memory when present', () => {
@@ -288,7 +288,7 @@ describe('PromptBuilder', () => {
       const clawIdx = result.indexOf('## CherryClaw Tools')
       const skillsIdx = result.indexOf('## Skills')
       const memoryIdx = result.indexOf('## Workspace Memory')
-      const webIdx = result.indexOf('## Web Search & Browser Strategy')
+      const webIdx = result.indexOf('## Web Search Strategy')
 
       expect(clawIdx).toBeGreaterThanOrEqual(0)
       expect(clawIdx).toBeLessThan(skillsIdx)
@@ -321,7 +321,7 @@ describe('PromptBuilder', () => {
       expect(soulPrompt).toContain('## CherryClaw Tools')
       expect(soulPrompt).toContain('## Skills')
       expect(soulPrompt).toContain('## Workspace Memory')
-      expect(soulPrompt).toContain('## Web Search & Browser Strategy')
+      expect(soulPrompt).toContain('## Web Search Strategy')
       // And the guidance string is a contiguous substring of the soul prompt.
       expect(soulPrompt).toContain(guidance)
     })

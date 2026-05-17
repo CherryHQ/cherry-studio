@@ -9,6 +9,7 @@ import type { LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import { NoSuchModelError } from '@ai-sdk/provider'
 
 import { ClaudeCodeLanguageModel, type ClaudeCodeModelId } from './claude-code-language-model'
+import { withDeepSeek1mSuffix } from './deepseekContext'
 import type { ClaudeCodeProviderSettings, ClaudeCodeSettings } from './types'
 
 /**
@@ -37,7 +38,10 @@ export function createClaudeCode(options: ClaudeCodeProviderSettings = {}): Clau
         ...(options.baseURL ? { ANTHROPIC_BASE_URL: options.baseURL } : {})
       }
     }
-    return new ClaudeCodeLanguageModel({ id: modelId, settings: mergedSettings })
+    // DeepSeek V4+ pro on the official host: append `[1m]` so Claude Code
+    // budgets a 1M context window (suffix is parsed then stripped by the SDK). #14965
+    const sdkModelId = withDeepSeek1mSuffix(modelId, options.baseURL) as ClaudeCodeModelId
+    return new ClaudeCodeLanguageModel({ id: sdkModelId, settings: mergedSettings })
   }
 
   const provider = function (modelId: ClaudeCodeModelId, settings?: ClaudeCodeSettings) {
