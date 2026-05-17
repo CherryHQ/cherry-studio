@@ -274,13 +274,36 @@ jobs:
           HTTP_CODE=$(echo "$RELEASE_RESPONSE" | tail -n1)
           RESPONSE_BODY=$(echo "$RELEASE_RESPONSE" | sed '$d')
 
+          release_already_exists() {
+            [ "$HTTP_CODE" = "409" ] && return 0
+            if [ "$HTTP_CODE" = "400" ] || [ "$HTTP_CODE" = "422" ]; then
+              echo "$RESPONSE_BODY" | grep -Eiq '(already.*exist|exist.*already|has already been taken|release.*exist|tag.*exist|已存在|已经存在)'
+              return $?
+            fi
+            return 1
+          }
+
           if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
             echo "Release created successfully"
+          elif release_already_exists; then
+            echo "Release already exists, continuing with asset upload"
           else
             echo "Warning: Release creation returned HTTP $HTTP_CODE"
             echo "$RESPONSE_BODY"
             exit 1
           fi
+
+          asset_already_exists() {
+            local status="$1"
+            local body="$2"
+
+            [ "$status" = "409" ] && return 0
+            if [ -z "$status" ] || [ "$status" = "400" ] || [ "$status" = "422" ]; then
+              echo "$body" | grep -Eiq '(already.*exist|exist.*already|has already been taken|asset.*exist|file.*exist|已存在|已经存在)'
+              return $?
+            fi
+            return 1
+          }
 
           # Step 2: Upload files to release
           echo "Uploading files to GitCode release..."
@@ -301,11 +324,15 @@ jobs:
             while [ $retry -lt $max_retries ]; do
               # Get upload URL
               curl_status=0
-              UPLOAD_INFO=$(curl -s --connect-timeout 30 --max-time 60 \
+              UPLOAD_INFO=""
+              UPLOAD_INFO_HTTP_CODE=""
+              UPLOAD_INFO_RESPONSE=$(curl -s -w "\n%{http_code}" --connect-timeout 30 --max-time 60 \
                 -H "Authorization: Bearer ${GITCODE_TOKEN}" \
                 "${API_URL}/repos/${GITCODE_OWNER}/${GITCODE_REPO}/releases/${TAG_NAME}/upload_url?file_name=${encoded_filename}") || curl_status=$?
 
               if [ $curl_status -eq 0 ]; then
+                UPLOAD_INFO_HTTP_CODE=$(echo "$UPLOAD_INFO_RESPONSE" | tail -n1)
+                UPLOAD_INFO=$(echo "$UPLOAD_INFO_RESPONSE" | sed '$d')
                 UPLOAD_URL=$(echo "$UPLOAD_INFO" | jq -r '.url // empty')
 
                 if [ -n "$UPLOAD_URL" ]; then
@@ -315,6 +342,7 @@ jobs:
                   # Upload file using PUT with headers from file
                   curl_status=0
                   UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X PUT \
+                    --connect-timeout 30 --max-time 900 \
                     -K /tmp/upload_headers.txt \
                     --data-binary "@${file}" \
                     "$UPLOAD_URL") || curl_status=$?
@@ -326,6 +354,9 @@ jobs:
                     if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
                       echo "  Uploaded: $filename"
                       return 0
+                    elif asset_already_exists "$HTTP_CODE" "$RESPONSE_BODY"; then
+                      echo "  Already exists: $filename"
+                      return 0
                     else
                       echo "  Failed (HTTP $HTTP_CODE), retry $((retry + 1))/$max_retries"
                       echo "  Response: $RESPONSE_BODY"
@@ -333,6 +364,9 @@ jobs:
                   else
                     echo "  Upload request failed (curl exit $curl_status), retry $((retry + 1))/$max_retries"
                   fi
+                elif asset_already_exists "$UPLOAD_INFO_HTTP_CODE" "$UPLOAD_INFO"; then
+                  echo "  Already exists: $filename"
+                  return 0
                 else
                   echo "  Failed to get upload URL, retry $((retry + 1))/$max_retries"
                   echo "  Response: $UPLOAD_INFO"
