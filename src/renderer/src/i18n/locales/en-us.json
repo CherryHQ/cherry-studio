@@ -5772,6 +5772,10 @@
             "placeholder": "Enter Tavily API Key"
           },
           "description": "Tavily is a search engine tailored for AI agents, delivering real-time, accurate results, intelligent query suggestions, and in-depth research capabilities.",
+          "include_raw_content": {
+            "label": "Get Full Page Content",
+            "tip": "When enabled, allows the AI to request full page content when needed. Disable to save tokens."
+          },
           "title": "Tavily"
         },
         "title": "Web Search",

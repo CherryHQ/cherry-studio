@@ -5772,6 +5772,10 @@
             "placeholder": "Bitte Tavily API-Schlüssel eingeben"
           },
           "description": "Tavily ist ein für AI-Agenten spezifiziertes Suchmaschinen-Tool, das realtime, präzise Ergebnisse, intelligente Suchvorschläge und tiefergehende Forschungsmöglichkeiten bietet",
+          "include_raw_content": {
+            "label": "[to be translated]:Get Full Page Content",
+            "tip": "[to be translated]:When enabled, allows the AI to request full page content when needed. Disable to save tokens."
+          },
           "title": "Tavily"
         },
         "title": "Websuche",

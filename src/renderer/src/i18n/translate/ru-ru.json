@@ -5772,6 +5772,10 @@
             "placeholder": "Введите ключ API Tavily"
           },
           "description": "Tavily — это поисковая система, специально разработанная для ИИ-агентов, предоставляющая актуальные результаты, умные предложения по запросам и глубокие исследовательские возможности",
+          "include_raw_content": {
+            "label": "[to be translated]:Get Full Page Content",
+            "tip": "[to be translated]:When enabled, allows the AI to request full page content when needed. Disable to save tokens."
+          },
           "title": "Tavily"
         },
         "title": "Поиск в Интернете",

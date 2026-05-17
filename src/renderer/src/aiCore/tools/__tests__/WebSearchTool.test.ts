@@ -35,8 +35,7 @@ describe('webSearchToolWithPreExtractedKeywords', () => {
       'request-1'
     ) as any
 
-    const firstResult = await searchTool.execute({})
-    const secondResult = await searchTool.execute({ additionalContext: 'new context' })
+    const result = await searchTool.execute({})
 
     expect(WebSearchService.processWebsearch).toHaveBeenCalledTimes(1)
     expect(WebSearchService.processWebsearch).toHaveBeenCalledWith(
@@ -47,19 +46,113 @@ describe('webSearchToolWithPreExtractedKeywords', () => {
           links: undefined
         }
       },
-      'request-1'
+      'request-1',
+      undefined
     )
-    expect(firstResult.results[0].url).toBe('https://example.com/path?utm_source=newsletter#details')
-    expect(secondResult).toBe(firstResult)
+    expect(result.results[0].url).toBe('https://example.com/path?utm_source=newsletter#details')
 
-    const modelOutput = searchTool.toModelOutput({ output: firstResult })
+    const modelOutput = searchTool.toModelOutput({ output: result })
     const modelText = modelOutput.value.map((part: { text: string }) => part.text).join('\n')
 
     expect(modelText).toContain('"url": "https://example.com"')
     expect(modelText).not.toContain('utm_source')
   })
 
-  it('reuses the in-flight search request for concurrent executions', async () => {
+  it('reuses cached result for identical queries', async () => {
+    const searchTool = webSearchToolWithPreExtractedKeywords(
+      'tavily',
+      {
+        question: ['test query']
+      },
+      'request-1'
+    ) as any
+
+    const firstResult = await searchTool.execute({})
+    const secondResult = await searchTool.execute({})
+
+    // Same queries + no additionalContext = cache hit
+    expect(WebSearchService.processWebsearch).toHaveBeenCalledTimes(1)
+    expect(firstResult).toBe(secondResult)
+  })
+
+  it('does not reuse cache when additionalContext produces different queries', async () => {
+    vi.mocked(WebSearchService.processWebsearch).mockResolvedValue({
+      query: 'result',
+      results: [{ title: 'R', content: 'C', url: 'https://example.com' }]
+    })
+
+    const searchTool = webSearchToolWithPreExtractedKeywords(
+      'tavily',
+      {
+        question: ['original']
+      },
+      'request-1'
+    ) as any
+
+    await searchTool.execute({})
+    await searchTool.execute({ additionalContext: 'different context' })
+
+    // Different finalQueries = separate cache entries
+    expect(WebSearchService.processWebsearch).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not reuse cache when fullContent mode differs', async () => {
+    vi.mocked(WebSearchService.processWebsearch).mockResolvedValue({
+      query: 'result',
+      results: [{ title: 'R', content: 'C', url: 'https://example.com' }]
+    })
+
+    const searchTool = webSearchToolWithPreExtractedKeywords(
+      'tavily',
+      {
+        question: ['test']
+      },
+      'request-1'
+    ) as any
+
+    await searchTool.execute({})
+    await searchTool.execute({ fullContent: true })
+
+    // fullContent=false vs fullContent=true = separate cache entries
+    expect(WebSearchService.processWebsearch).toHaveBeenCalledTimes(2)
+    expect(WebSearchService.processWebsearch).toHaveBeenNthCalledWith(
+      1,
+      { id: 'tavily' },
+      expect.anything(),
+      'request-1',
+      undefined
+    )
+    expect(WebSearchService.processWebsearch).toHaveBeenNthCalledWith(
+      2,
+      { id: 'tavily' },
+      expect.anything(),
+      'request-1',
+      true
+    )
+  })
+
+  it('reuses cache for same fullContent mode', async () => {
+    vi.mocked(WebSearchService.processWebsearch).mockResolvedValue({
+      query: 'result',
+      results: [{ title: 'R', content: 'C', url: 'https://example.com' }]
+    })
+
+    const searchTool = webSearchToolWithPreExtractedKeywords(
+      'tavily',
+      {
+        question: ['test']
+      },
+      'request-1'
+    ) as any
+
+    await searchTool.execute({ fullContent: true })
+    await searchTool.execute({ fullContent: true })
+
+    // Same fullContent mode = cache hit
+    expect(WebSearchService.processWebsearch).toHaveBeenCalledTimes(1)
+  })
+
+  it('reuses in-flight search request for concurrent executions', async () => {
     const searchResponse = {
       query: 'first',
       results: [
@@ -84,20 +177,11 @@ describe('webSearchToolWithPreExtractedKeywords', () => {
 
     const [firstResult, secondResult] = await Promise.all([
       searchTool.execute({ additionalContext: 'first context' }),
-      searchTool.execute({ additionalContext: 'second context' })
+      searchTool.execute({ additionalContext: 'first context' })
     ])
 
+    // Concurrent calls with same cache key = single search
     expect(WebSearchService.processWebsearch).toHaveBeenCalledTimes(1)
-    expect(WebSearchService.processWebsearch).toHaveBeenCalledWith(
-      { id: 'tavily' },
-      {
-        websearch: {
-          question: ['first context'],
-          links: undefined
-        }
-      },
-      'request-1'
-    )
     expect(firstResult).toBe(searchResponse)
     expect(secondResult).toBe(searchResponse)
   })

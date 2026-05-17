@@ -5772,6 +5772,10 @@
             "placeholder": "Introduce la clave de API de Tavily"
           },
           "description": "Tavily là một công cụ tìm kiếm được thiết kế dành cho các tác nhân AI, cung cấp kết quả thời gian thực chính xác, gợi ý truy vấn thông minh và khả năng nghiên cứu chuyên sâu.",
+          "include_raw_content": {
+            "label": "[to be translated]:Get Full Page Content",
+            "tip": "[to be translated]:When enabled, allows the AI to request full page content when needed. Disable to save tokens."
+          },
           "title": "Tavily"
         },
         "title": "Tìm kiếm Web",

@@ -5772,6 +5772,10 @@
             "placeholder": "Introdu cheia API Tavily"
           },
           "description": "Tavily este un motor de căutare adaptat pentru agenți AI, oferind rezultate în timp real, precise, sugestii inteligente de interogare și capacități de cercetare aprofundată.",
+          "include_raw_content": {
+            "label": "[to be translated]:Get Full Page Content",
+            "tip": "[to be translated]:When enabled, allows the AI to request full page content when needed. Disable to save tokens."
+          },
           "title": "Tavily"
         },
         "title": "Căutare web",

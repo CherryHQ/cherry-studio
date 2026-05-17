@@ -734,6 +734,7 @@ export type WebSearchProvider = {
   allowedTools?: string[]
   parentSpanId?: string
   modelName?: string
+  includeRawContent?: boolean
 }
 
 export type WebSearchProviderResult = {

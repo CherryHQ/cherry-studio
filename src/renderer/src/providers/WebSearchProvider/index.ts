@@ -1,9 +1,9 @@
 import { withSpanResult } from '@renderer/services/SpanManagerService'
-import type { WebSearchState } from '@renderer/store/websearch'
 import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 import { filterResultWithBlacklist } from '@renderer/utils/blacklistMatchPattern'
 
 import type BaseWebSearchProvider from './BaseWebSearchProvider'
+import type { WebSearchRuntimeConfig } from './BaseWebSearchProvider'
 import WebSearchProviderFactory from './WebSearchProviderFactory'
 
 export default class WebSearchEngineProvider {
@@ -23,7 +23,7 @@ export default class WebSearchEngineProvider {
 
   public async search(
     query: string,
-    websearch: WebSearchState,
+    websearch: WebSearchRuntimeConfig,
     httpOptions?: RequestInit
   ): Promise<WebSearchProviderResponse> {
     const callSearch = async ({ query, websearch }) => {

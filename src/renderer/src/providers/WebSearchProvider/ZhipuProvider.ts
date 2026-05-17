@@ -1,8 +1,7 @@
 import { loggerService } from '@logger'
-import type { WebSearchState } from '@renderer/store/websearch'
 import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 
-import BaseWebSearchProvider from './BaseWebSearchProvider'
+import BaseWebSearchProvider, { type WebSearchRuntimeConfig } from './BaseWebSearchProvider'
 
 const logger = loggerService.withContext('ZhipuProvider')
 
@@ -43,7 +42,7 @@ export default class ZhipuProvider extends BaseWebSearchProvider {
     }
   }
 
-  public async search(query: string, websearch: WebSearchState): Promise<WebSearchProviderResponse> {
+  public async search(query: string, websearch: WebSearchRuntimeConfig): Promise<WebSearchProviderResponse> {
     try {
       if (!query.trim()) {
         throw new Error('Search query cannot be empty')

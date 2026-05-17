@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT } from '@renderer/config/constant'
 import i18n from '@renderer/i18n'
 import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
+import type { WebSearchRuntimeConfig } from '@renderer/providers/WebSearchProvider/BaseWebSearchProvider'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
 import { setWebSearchStatus } from '@renderer/store/runtime'
@@ -156,9 +157,10 @@ class WebSearchService {
     provider: WebSearchProvider,
     query: string,
     httpOptions?: RequestInit,
-    spanId?: string
+    spanId?: string,
+    fullContent?: boolean
   ): Promise<WebSearchProviderResponse> {
-    const websearch = this.getWebSearchState()
+    const websearch: WebSearchRuntimeConfig = { ...this.getWebSearchState(), fullContent }
     const webSearchEngine = new WebSearchEngineProvider(provider, spanId)
 
     let formattedQuery = query
@@ -412,7 +414,8 @@ class WebSearchService {
   public async processWebsearch(
     webSearchProvider: WebSearchProvider,
     extractResults: ExtractResults,
-    requestId: string
+    requestId: string,
+    fullContent?: boolean
   ): Promise<WebSearchProviderResponse> {
     // 重置状态
     await this.setWebSearchStatus(requestId, { phase: 'default' })
@@ -458,7 +461,7 @@ class WebSearchService {
     }
 
     const searchPromises = questions.map((q) =>
-      this.search(webSearchProvider, q, { signal }, span?.spanContext().spanId)
+      this.search(webSearchProvider, q, { signal }, span?.spanContext().spanId, fullContent)
     )
     const searchResults = await Promise.allSettled(searchPromises)
 

@@ -5772,6 +5772,10 @@
             "placeholder": "Tavily API キーを入力してください"
           },
           "description": "Tavily は、AI エージェントのために特別に開発された検索エンジンで、最新の結果、インテリジェントな検索提案、そして深い研究能力を提供します",
+          "include_raw_content": {
+            "label": "[to be translated]:Get Full Page Content",
+            "tip": "[to be translated]:When enabled, allows the AI to request full page content when needed. Disable to save tokens."
+          },
           "title": "Tavily"
         },
         "title": "ウェブ検索",

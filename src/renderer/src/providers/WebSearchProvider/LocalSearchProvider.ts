@@ -1,13 +1,12 @@
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import store from '@renderer/store'
-import type { WebSearchState } from '@renderer/store/websearch'
 import type { WebSearchProvider, WebSearchProviderResponse, WebSearchProviderResult } from '@renderer/types'
 import { createAbortPromise } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
 import { fetchWebContent, noContent } from '@renderer/utils/fetch'
 
-import BaseWebSearchProvider from './BaseWebSearchProvider'
+import BaseWebSearchProvider, { type WebSearchRuntimeConfig } from './BaseWebSearchProvider'
 
 const logger = loggerService.withContext('LocalSearchProvider')
 
@@ -26,7 +25,7 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
 
   public async search(
     query: string,
-    websearch: WebSearchState,
+    websearch: WebSearchRuntimeConfig,
     httpOptions?: RequestInit
   ): Promise<WebSearchProviderResponse> {
     const uid = nanoid()
