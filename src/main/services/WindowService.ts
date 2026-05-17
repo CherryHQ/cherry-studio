@@ -133,13 +133,16 @@ export class WindowService {
 
   private setupSpellCheck(mainWindow: BrowserWindow) {
     const enableSpellCheck = configManager.get('enableSpellCheck', false)
-    if (enableSpellCheck) {
-      try {
+    try {
+      mainWindow.webContents.session.setSpellCheckerEnabled(enableSpellCheck)
+      if (enableSpellCheck) {
         const spellCheckLanguages = configManager.get('spellCheckLanguages', []) as string[]
-        spellCheckLanguages.length > 0 && mainWindow.webContents.session.setSpellCheckerLanguages(spellCheckLanguages)
-      } catch (error) {
-        logger.error('Failed to set spell check languages:', error as Error)
+        if (spellCheckLanguages.length > 0) {
+          mainWindow.webContents.session.setSpellCheckerLanguages(spellCheckLanguages)
+        }
       }
+    } catch (error) {
+      logger.error('Failed to set spell check:', error as Error)
     }
   }
 

@@ -188,18 +188,19 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // spell check
   ipcMain.handle(IpcChannel.App_SetEnableSpellCheck, (_, isEnable: boolean) => {
-    // disable spell check for all webviews
+    const windows = BrowserWindow.getAllWindows()
+    windows.forEach((window) => {
+      window.webContents.session.setSpellCheckerEnabled(isEnable)
+    })
     const webviews = webContents.getAllWebContents()
     webviews.forEach((webview) => {
       webview.session.setSpellCheckerEnabled(isEnable)
     })
+    configManager.set('enableSpellCheck', isEnable)
   })
 
   // spell check languages
   ipcMain.handle(IpcChannel.App_SetSpellCheckLanguages, (_, languages: string[]) => {
-    if (languages.length === 0) {
-      return
-    }
     const windows = BrowserWindow.getAllWindows()
     windows.forEach((window) => {
       window.webContents.session.setSpellCheckerLanguages(languages)
