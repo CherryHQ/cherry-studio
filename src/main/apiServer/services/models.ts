@@ -3,6 +3,7 @@ import { isEmpty } from 'lodash'
 import type { ApiModel, ApiModelsFilter, ApiModelsResponse } from '../../../renderer/src/types/apiModels'
 import { loggerService } from '../../services/LoggerService'
 import {
+  findProviderForModel,
   getAvailableProviders,
   getProviderAnthropicModelChecker,
   listAllAvailableModels,
@@ -31,7 +32,7 @@ export class ModelsService {
       const uniqueModels = new Map<string, ApiModel>()
 
       for (const model of models) {
-        const provider = providers.find((p) => p.id === model.provider)
+        const provider = findProviderForModel(providers, model.provider, model.id)
         // logger.debug(`Processing model ${model.id}`)
         if (!provider) {
           logger.debug(`Skipping model ${model.id} . Reason: Provider not found.`)
