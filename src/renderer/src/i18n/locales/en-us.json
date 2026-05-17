@@ -2947,7 +2947,7 @@
     "install_progress": "Install Progress",
     "installed_at": "OpenClaw installed at",
     "migration": {
-      "description": "An outdated version of OpenClaw installed via npm has been detected. Please reinstall to get the latest official version.",
+      "description": "An external OpenClaw installation was detected in PATH, but Cherry Studio uses its managed OpenClaw binary. Install the managed version to continue.",
       "install_button": "Reinstall OpenClaw",
       "title": "OpenClaw Needs Update"
     },
