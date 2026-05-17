@@ -3254,6 +3254,7 @@ const migrateConfig = {
   },
   '200': (state: RootState) => {
     try {
+      addProvider(state, SystemProviderIds.abliteration)
       state.llm.providers.forEach((provider) => {
         if (provider.type === 'ollama') {
           provider.anthropicApiHost = provider.apiHost || 'http://localhost:11434'
@@ -3282,7 +3283,6 @@ const migrateConfig = {
           provider.type = 'openai-response'
         }
       })
-
       return state
     } catch (error) {
       logger.error('migrate 200 error', error as Error)
