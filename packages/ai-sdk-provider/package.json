@@ -1,6 +1,6 @@
 {
   "name": "@cherrystudio/ai-sdk-provider",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Cherry Studio AI SDK provider bundle with CherryIN routing.",
   "keywords": ["ai-sdk", "provider", "cherryin", "vercel-ai-sdk", "cherry-studio"],
   "author": "Cherry Studio",
