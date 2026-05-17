@@ -1,21 +1,21 @@
 {
-  "generated_at": "2026-05-16T16:00:00Z",
-  "report_date": "2026-05-16",
+  "generated_at": "2026-05-17T00:00:00Z",
+  "report_date": "2026-05-17",
   "repository": "CherryHQ/cherry-studio",
   "status": "partial",
   "note": "GitHub Discussions GraphQL API not accessible via available MCP tools. Metrics below are inferred from issue labels and issue cross-references.",
   "discussion_label_proxy": {
-    "open_issues_with_discussion_label_sample": 4,
-    "closed_30d_issues_with_discussion_label": 11,
-    "total_observed": 15,
+    "open_issues_with_discussion_label_sample": 5,
+    "closed_30d_issues_with_discussion_label": 13,
+    "total_observed": 18,
     "note": "Based on 100-issue sample. Full count would require paginated fetch."
   },
   "top_discussion_themes_inferred": [
-    "Model compatibility issues (Models label — 22 closed in 30d)",
-    "UI/UX feedback and feature requests (20 closed in 30d)",
-    "MCP server configuration questions (7 closed in 30d)",
+    "Model compatibility issues (Models label — 29 open, 22 closed in 30d)",
+    "UI/UX feedback and feature requests (UI/UX label — 37 open, 18 closed in 30d)",
+    "MCP server configuration questions (MCP label — 5 open, 9 closed in 30d)",
     "Agent workflow design (discussion + help wanted labels)",
-    "Backup/sync across devices (zombie issue #10844, feature #5640)"
+    "Analytics/privacy concern (#13897 — high frequency requests to analytics.cherry-ai.com)"
   ],
   "known_discussion_categories": [
     "General",
@@ -32,6 +32,13 @@
       "category": "Feature Request",
       "p1": true,
       "milestone": "v2.4.0"
+    },
+    {
+      "issue": 6505,
+      "title": "[FAQ]: 划词助手 / Selection Assistant",
+      "comments": 358,
+      "category": "FAQ",
+      "note": "Should be converted to pinned Discussion or FAQ page"
     }
   ],
   "unanswered_items": [

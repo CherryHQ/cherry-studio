@@ -1,27 +1,29 @@
 {
-  "generated_at": "2026-05-16T16:00:00Z",
-  "report_date": "2026-05-16",
+  "generated_at": "2026-05-17T00:00:00Z",
+  "report_date": "2026-05-17",
   "repository": "CherryHQ/cherry-studio",
   "health_summary": {
-    "total_open": 867,
+    "total_open": 856,
     "health_buckets": {
-      "Active_plus_Aging": {
-        "definition": "Updated within last 30 days (≥2026-04-16)",
-        "count": 558,
-        "pct": 64.4
+      "Active": {
+        "definition": "Updated within last 7 days (≥2026-05-10)",
+        "count_sample": 100,
+        "note": "All 100 in first page are active; true total requires full pagination"
+      },
+      "Aging": {
+        "definition": "Updated 7–30 days ago (2026-04-17 to 2026-05-10)",
+        "count_estimate": "Unknown — requires full pagination"
       },
       "Stale": {
-        "definition": "Not updated in 30–90 days (2026-02-15 – 2026-04-15)",
-        "count": 305,
-        "pct": 35.2
+        "definition": "Not updated in 30–90 days (2026-02-17 to 2026-04-17)",
+        "count_estimate": "~300 (based on prior day: 35%)"
       },
       "Zombie": {
-        "definition": "Not updated in 90+ days (<2026-02-15)",
-        "count": 4,
-        "pct": 0.5
+        "definition": "Not updated in 90+ days (<2026-02-17)",
+        "count_estimate": "~4 (confirmed from prior scan)"
       }
     },
-    "note": "Active/Aging split requires additional paginated fetch. Stale count from search:updated:<2026-04-16 (total=309 minus 4 zombie)."
+    "note": "Active/Aging/Stale/Zombie exact counts require paginating all 856 issues. Estimates based on previous day (2026-05-16) scan."
   },
   "zombie_issues": [
     {
@@ -58,9 +60,19 @@
     }
   ],
   "unlabeled": {
-    "count_page1_sample": 9,
-    "pct_estimate": "~9%",
-    "status": "OK — under 10% unlabeled"
+    "count_page1_sample": 8,
+    "pct_estimate": "~8%",
+    "status": "OK — under 10% unlabeled",
+    "unlabeled_issues": [
+      {"number": 14934, "title": "[Feature]: Upgrade the version of OpenClaw in CherryStudio"},
+      {"number": 14602, "title": "[Bug]: API response parsing failed."},
+      {"number": 14278, "title": "[Feature]: Account login support"},
+      {"number": 15128, "title": "[Bug]: Response Reasoning Summary Part Added and Done Event will split Thinking block"},
+      {"number": 15127, "title": "[Bug]: Cannot identify returned link"},
+      {"number": 15064, "title": "[Feature]: Does the software not have web fetch functionality?"},
+      {"number": 15100, "title": "[Feature]: Allow users to attach any file in all models"},
+      {"number": 15017, "title": "[Feature]: Publish Cherry Studio v2 to Mac App Store"}
+    ]
   },
   "p_priority_issues": [
     {
@@ -70,7 +82,7 @@
       "labels": ["Planned", "P1", "feature", "UI/UX"],
       "milestone": "v2.4.0",
       "updated": "2026-05-07T05:52:49Z",
-      "days_since_update": 9,
+      "days_since_update": 10,
       "health": "Aging"
     },
     {
@@ -80,7 +92,7 @@
       "labels": ["P1", "Models"],
       "milestone": "v1.8.1 (closed)",
       "updated": "2026-03-19T14:22:09Z",
-      "days_since_update": 58,
+      "days_since_update": 59,
       "health": "Stale"
     },
     {
@@ -90,30 +102,44 @@
       "labels": ["P1", "Models"],
       "assignee": "DeJeune",
       "updated": "2026-03-05T08:47:59Z",
-      "days_since_update": 72,
+      "days_since_update": 73,
       "health": "Stale"
     }
   ],
+  "velocity": {
+    "new_issues_this_week": 51,
+    "closed_this_week": 89,
+    "net_change_this_week": -38,
+    "trend": "Positive: more closing than opening (largely inactive-bot sweeps)",
+    "avg_close_time_days": 35.69
+  },
   "closed_last_30d": {
-    "total": 413,
-    "dominant_reason": "not_planned (inactive bot sweep)",
-    "batch_close_note": "11 issues closed within 9 seconds on 2026-05-16T00:58:xx Z — automated inactive sweep",
+    "total": 420,
+    "dominant_reason": "not_planned (inactive bot sweep ~70%)",
     "top_labels_on_closed": {
-      "inactive": 67,
+      "inactive": 72,
       "Models": 22,
-      "UI/UX": 20,
-      "discussion": 11,
-      "help wanted": 10,
-      "Assistant": 9,
+      "UI/UX": 18,
+      "discussion": 13,
+      "help wanted": 12,
+      "Assistant": 10,
       "BUG": 7,
-      "MCP": 7
+      "MCP": 9
     }
   },
+  "high_engagement_open": [
+    {"number": 6505, "title": "[FAQ]: 划词助手 / Selection Assistant", "comments": 358, "action": "Convert to pinned Discussion or FAQ entry"},
+    {"number": 9943, "title": "[错误]: MCPB文件导入MCP服务器", "comments": 14, "action": "Review for v2 relevance"},
+    {"number": 13897, "title": "[Bug]: High frequency requests to analytics.cherry-ai.com", "comments": 6, "action": "Privacy concern — prioritize review"},
+    {"number": 14996, "title": "[Bug]: Using Qwen or Gemma local models — API 400 errors", "comments": 7, "action": "Needs investigation + fix"}
+  ],
   "recommendations": [
-    "P1 bugs #13608 (58d stale) and #13193 (72d stale) — reassign or close if fixed in recent release",
-    "305 stale issues (35%) warrant a triage sweep: close, label, or escalate",
-    "4 zombie team-tracking issues — review for v2 relevance and close or migrate to GitHub Discussions",
-    "74% of open PRs have no labels — add v2/main/hotfix labels for easier routing",
-    "Confirm #14899 (Unified Notification Center, P1, v2.4.0) has an assigned developer"
+    "P1 bugs #13608 (59d stale) and #13193 (73d stale) — reassign or close if fixed in recent release",
+    "P1 feature #14899 (Unified Notification Center, v2.4.0) has 0 comments — needs assigned developer and visibility",
+    "Issue #6505 with 358 comments should be converted to a pinned Discussion or FAQ page",
+    "8 unlabeled issues need triage — assign labels and priority (under 10% threshold, manageable)",
+    "~300 stale issues (35%) warrant a triage sweep: close, label, or escalate",
+    "4 zombie team-tracking issues — review for v2 relevance, close or migrate to GitHub Discussions",
+    "#13897 (analytics privacy concern) should be evaluated for P1 promotion"
   ]
 }

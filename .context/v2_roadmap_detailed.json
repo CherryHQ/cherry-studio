@@ -1,23 +1,24 @@
 {
-  "generated_at": "2026-05-16T16:00:00Z",
-  "report_date": "2026-05-16",
+  "generated_at": "2026-05-17T00:00:00Z",
+  "report_date": "2026-05-17",
   "repository": "CherryHQ/cherry-studio",
   "branch": "v2",
   "branch_policy": "All new features, refactoring, and optimizations. New features gated until current feature set is fully refactored.",
   "pr_stats": {
     "v2_open_prs": 68,
+    "v2_open_draft": 15,
+    "v2_open_ready": 53,
+    "v2_merged_last_7d": 13,
     "v2_merged_last_30d": 42,
-    "main_open_prs": 63,
-    "draft_prs_v2": 4,
+    "v2_merged_total": 130,
+    "main_open_prs": 64,
     "unique_contributors_v2_open": 25
   },
   "active_milestones": [
     {
       "title": "v2.4.0",
-      "number": 64,
       "open_issues": 3,
       "closed_issues": 0,
-      "url": "https://github.com/CherryHQ/cherry-studio/milestone/64",
       "p1_item": "#14899 Unified Notification Center"
     }
   ],
@@ -36,7 +37,7 @@
       { "author": "EurFelux", "open_prs": 11 },
       { "author": "404-Page-Found", "open_prs": 6 },
       { "author": "kovsu", "open_prs": 3 },
-      { "author": "akazaakari950718-dev", "open_prs": 2 },
+      { "author": "Cherry-Yiran", "open_prs": 2 },
       { "author": "kangfenmao", "open_prs": 2 }
     ],
     "label_distribution": {
@@ -45,37 +46,61 @@
       "Pending": 1,
       "ready-to-merge": 1,
       "unlabeled": 19
+    },
+    "age_buckets": {
+      "fresh_lt7d": 7,
+      "aging_7_30d": 27,
+      "stale_gt30d": 34
     }
   },
   "draft_prs": [
-    { "number": 12659, "title": "feat(backup): add v2 backup system refactor plan document", "author": "GeorgeDong32", "created": "2026-01-30", "age_days": 106 },
-    { "number": 14911, "title": "refactor(ai-service): consolidate AI runtime to main process", "author": "DeJeune", "created": "2026-05-07", "age_days": 9 },
-    { "number": 12150, "title": "refactor(files): File Management System Architecture", "author": "EurFelux", "created": "2025-12-26", "age_days": 141 },
-    { "number": 10090, "title": "[WIP] feat: terminal", "author": "EurFelux", "created": "2025-09-10", "age_days": 248, "flag": "long-running WIP" }
+    { "number": 14911, "title": "refactor(ai-service): consolidate AI runtime to main process", "author": "DeJeune", "created": "2026-05-07", "age_days": 10 },
+    { "number": 12659, "title": "feat(backup): add v2 backup system refactor plan document", "author": "GeorgeDong32", "created": "2026-01-30", "age_days": 107 },
+    { "number": 12150, "title": "refactor(files): File Management System Architecture", "author": "EurFelux", "created": "2025-12-26", "age_days": 142 },
+    { "number": 10090, "title": "[WIP] feat: terminal", "author": "EurFelux", "created": "2025-09-10", "age_days": 249, "flag": "long-running WIP" },
+    { "number": 10699, "title": "feat: video generation", "author": "EurFelux", "created": "2025-10-13", "age_days": 216, "flag": "draft" },
+    { "number": 10912, "title": "refactor: i18n", "author": "EurFelux", "created": "2025-10-23", "age_days": 206, "flag": "Blocked: v2" }
   ],
   "ready_to_merge": [
-    { "number": 13173, "title": "refactor(renderer): migrate from ReactMarkdown to Streamdown", "label": "ready-to-merge", "author": "unknown" }
+    { "number": 13173, "title": "refactor(renderer): migrate from ReactMarkdown to Streamdown", "label": "ready-to-merge", "author": "DeJeune", "created": "2026-03-03" }
   ],
   "blocked_prs": [
     { "number": 10912, "title": "refactor: i18n", "label": "Blocked: v2", "note": "Awaiting v2 merge readiness" }
   ],
-  "notable_open_prs_today": [
-    { "number": 15091, "title": "refactor(ui): consolidate the Code tools design language into shared foundations", "author": "akazaakari950718-dev", "updated": "2026-05-16T13:22:57Z" },
-    { "number": 15087, "title": "feat(icons): light/dark dual-source architecture for provider/model logos", "author": "akazaakari950718-dev", "updated": "2026-05-16T08:53:05Z" },
+  "fresh_prs_this_week": [
+    { "number": 15091, "title": "refactor(ui): consolidate Code tools design language into shared foundations", "author": "Cherry-Yiran", "updated": "2026-05-17T15:23:51Z" },
+    { "number": 15087, "title": "feat(icons): light/dark dual-source architecture for provider/model logos", "author": "Cherry-Yiran", "updated": "2026-05-16T08:53:05Z" },
     { "number": 15125, "title": "feat: Make generated Markdown and HTML artifact paths clickable in Agents", "author": "LWWZH", "updated": "2026-05-16T01:32:14Z" },
     { "number": 15124, "title": "feat: add display of cache hit token count in message tokens", "author": "LWWZH", "updated": "2026-05-16T00:12:19Z" },
-    { "number": 15067, "title": "feat(file): Phase 2 Batch 0 — FileMigrator + cross-module coordination", "author": "EurFelux", "updated": "2026-05-15T11:32:18Z" }
+    { "number": 15067, "title": "feat(file): Phase 2 Batch 0 — FileMigrator + cross-module coordination", "author": "EurFelux", "updated": "2026-05-15T11:32:18Z" },
+    { "number": 15088, "title": "feat(provider-settings): grouping + mode-based editor follow-up", "author": "DeJeune", "updated": "2026-05-15T06:33:46Z" },
+    { "number": 15083, "title": "feat: text diff highlighting for Refine action", "author": "LWWZH", "updated": "2026-05-14T09:22:55Z" }
+  ],
+  "merged_v2_last_7d": [
+    { "number": 14631, "title": "refactor(provider-settings): migrate to v2 data layer and UI", "author": "jidan745le", "mergedAt": "2026-05-14" },
+    { "number": 13451, "title": "feat(file): Add schema and foundation for new file module", "author": "EurFelux", "mergedAt": "2026-05-13" },
+    { "number": 15006, "title": "feat(code-tools): refresh launch experience", "author": "Cherry-Yiran", "mergedAt": "2026-05-13" },
+    { "number": 14993, "title": "refactor(web-search-settings): migrate settings to v2 data path", "author": "eeee0717", "mergedAt": "2026-05-12" },
+    { "number": 14916, "title": "feat(context-chef): three-layer settings + chef middleware end-to-end", "author": "MyPrototypeWhat", "mergedAt": "2026-05-12" },
+    { "number": 14991, "title": "refactor(file-processing-settings): migrate settings to v2 data", "author": "eeee0717", "mergedAt": "2026-05-11" },
+    { "number": 14734, "title": "feat(v2): knowledge ui migration", "author": "eeee0717", "mergedAt": "2026-05-11" },
+    { "number": 12060, "title": "feat: context menu", "author": "DeJeune", "mergedAt": "2026-05-11" },
+    { "number": 14351, "title": "refactor(translate): rebuild translate page on @cherrystudio/ui", "author": "zhangjiadi225", "mergedAt": "2026-05-11" },
+    { "number": 14862, "title": "chore(style-reminders): add Tailwind canonical checks", "author": "kangfenmao", "mergedAt": "2026-05-11" },
+    { "number": 14995, "title": "docs(design-system): update design token guide", "author": "Cherry-Yiran", "mergedAt": "2026-05-11" },
+    { "number": 14442, "title": "feat(library): add v2 resource library page with assistant tag & search APIs", "author": "zhangjiadi225", "mergedAt": "2026-05-10" },
+    { "number": 13871, "title": "refactor(translate): migrate renderer translate module from Redux/Dexie to v2 data APIs", "author": "EurFelux", "mergedAt": "2026-05-10" }
   ],
   "merged_v2_last_30d": {
     "total": 42,
-    "date_range": "2026-04-17 to 2026-05-14",
+    "date_range": "2026-04-17 to 2026-05-17",
     "category_distribution": {
       "refactor": 18,
       "feat": 15,
       "fix": 4,
       "docs": 2,
-      "chore": 1,
-      "other": 2
+      "chore": 2,
+      "other": 1
     },
     "top_merge_authors": [
       { "author": "DeJeune", "merged": 9 },
@@ -85,52 +110,57 @@
       { "author": "vaayne", "merged": 4 },
       { "author": "jidan745le", "merged": 2 },
       { "author": "EurFelux", "merged": 2 },
-      { "author": "akazaakari950718-dev", "merged": 2 },
-      { "author": "chengcheng84", "merged": 1 }
+      { "author": "Cherry-Yiran", "merged": 2 },
+      { "author": "MyPrototypeWhat", "merged": 1 }
     ],
     "weekly_velocity": {
-      "2026-W16 (Apr 14-20)": 3,
-      "2026-W17 (Apr 21-27)": 7,
-      "2026-W18 (Apr 28-May 4)": 9,
-      "2026-W19 (May 5-11)": 12,
-      "2026-W20 (May 12-18)": 11
-    },
-    "key_merges": [
-      { "number": 12060, "title": "feat: context menu", "author": "DeJeune", "merged": "2026-05-11" },
-      { "number": 14734, "title": "feat(v2): knowledge ui migration", "author": "eeee0717", "merged": "2026-05-11" },
-      { "number": 14442, "title": "feat(library): add v2 resource library page with assistant tag & search APIs", "author": "zhangjiadi225", "merged": "2026-05-10" },
-      { "number": 14567, "title": "feat(settings): refactor settings UI and add settings window", "author": "kangfenmao", "merged": "2026-05-08" },
-      { "number": 13968, "title": "feat(v2): add main-side file processing backend", "author": "eeee0717", "merged": "2026-05-08" },
-      { "number": 14631, "title": "refactor(provider-settings): migrate to v2 data layer and UI", "author": "jidan745le", "merged": "2026-05-14" },
-      { "number": 13451, "title": "feat(file): Add schema and foundation for new file module", "author": "EurFelux", "merged": "2026-05-13" },
-      { "number": 14159, "title": "feat: migrate agents storage to v2 main database", "author": "vaayne", "merged": "2026-04-20" }
-    ]
+      "2026-W16 (Apr14-20)": 3,
+      "2026-W17 (Apr21-27)": 7,
+      "2026-W18 (Apr28-May4)": 9,
+      "2026-W19 (May5-11)": 12,
+      "2026-W20 (May12-17)": 13
+    }
   },
-  "v2_active_contributors": [
-    "DeJeune", "LWWZH", "EurFelux", "404-Page-Found", "eeee0717",
-    "zhangjiadi225", "kangfenmao", "vaayne", "jidan745le", "akazaakari950718-dev",
-    "kovsu", "chengcheng84", "AloneAtWar", "Saigut", "TakotsuboChen"
+  "top_contributors_all_time_v2": [
+    { "author": "DeJeune", "merged": 26 },
+    { "author": "eeee0717", "merged": 21 },
+    { "author": "EurFelux", "merged": 14 },
+    { "author": "kangfenmao", "merged": 9 },
+    { "author": "zhangjiadi225", "merged": 8 },
+    { "author": "vaayne", "merged": 7 },
+    { "author": "jidan745le", "merged": 5 },
+    { "author": "kovsu", "merged": 3 },
+    { "author": "Cherry-Yiran", "merged": 2 },
+    { "author": "chengcheng84", "merged": 2 }
   ],
   "v2_refactor_areas_in_progress": [
     "File system refactor Phase 2 — FileMigrator (EurFelux, PR #15067)",
     "AI runtime consolidation to main process (DeJeune, PR #14911 draft)",
     "Backup system v2 redesign (GeorgeDong32, PR #12659 draft)",
     "Terminal feature (EurFelux, PR #10090 WIP since 2025-09-10)",
-    "Icon light/dark dual-source architecture (akazaakari950718-dev, PR #15087)",
-    "Code tools design language unification (akazaakari950718-dev, PR #15091)",
+    "Icon light/dark dual-source architecture (Cherry-Yiran, PR #15087)",
+    "Code tools design language unification (Cherry-Yiran, PR #15091)",
     "Prompt caching improvements (TakotsuboChen, PR #14261)",
-    "Notification Center P1 feature (SiinXu, issue #14899, v2.4.0)"
+    "Paintings page migration (jidan745le, PR #14313)",
+    "MiniApp Tailwind migration (chengcheng84, PR #14968)"
   ],
   "long_running_pr_alerts": [
-    { "number": 10090, "title": "[WIP] feat: terminal", "age_days": 248, "author": "EurFelux", "flag": "WIP — very long-running" },
-    { "number": 12150, "title": "refactor(files): File Management System Architecture", "age_days": 141, "author": "EurFelux", "flag": "draft" },
-    { "number": 12659, "title": "feat(backup): add v2 backup system refactor plan document", "age_days": 106, "author": "GeorgeDong32", "flag": "draft" }
+    { "number": 10090, "title": "[WIP] feat: terminal", "age_days": 249, "author": "EurFelux", "flag": "WIP — very long-running" },
+    { "number": 12150, "title": "refactor(files): File Management System Architecture", "age_days": 142, "author": "EurFelux", "flag": "draft" },
+    { "number": 12659, "title": "feat(backup): add v2 backup system refactor plan document", "age_days": 107, "author": "GeorgeDong32", "flag": "draft" },
+    { "number": 11420, "title": "feat: Model & Provider Catalog", "age_days": 175, "author": "DeJeune", "flag": "draft" }
   ],
   "summary": {
-    "v2_velocity": "Accelerating — 42 PRs merged in 30 days, weekly count W16→W19: 3→7→9→12",
+    "v2_velocity": "Accelerating — 42 PRs merged in 30 days, weekly count W16→W20: 3→7→9→12→13",
     "dominant_activity": "Data layer migration (Redux/Dexie → v2 DataApi) and UI refactoring",
-    "top_contributor_today": "GeorgeDong32 (4 PRs updated on 2026-05-16)",
-    "v2_open_pr_ratio": "34 of 100 open PRs target v2 (34%)",
-    "health": "Strong — no stale PRs, high merge velocity, 25 active contributors"
-  }
+    "v2_open_pr_ratio": "33 of 100 sampled open PRs target v2 (33%)",
+    "health": "Strong — high merge velocity, 25 active contributors, 1 ready-to-merge PR awaiting attention"
+  },
+  "recommendations": [
+    "PR #13173 (Streamdown markdown) is marked ready-to-merge — merge promptly",
+    "DeJeune's AI runtime consolidation (#14911) is architecturally critical — needs prioritized review",
+    "34 stale v2 PRs (>30 days) — review for abandon or active status",
+    "EurFelux has 3+ long-running drafts (10090, 10699, 12150) — sync session needed to unblock or archive",
+    "v2 merge velocity at 13 PRs/week (W20) is highest yet — sustain momentum"
+  ]
 }
