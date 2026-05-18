@@ -6,6 +6,6 @@
  * - `disabled`: only `isEnabled === false`
  * - `all`: every provider
  * - `agent`: only providers that speak the Anthropic protocol (orthogonal to
- *   the enabled/disabled axis; kept as a separate mode for legacy parity)
+ *   the enabled/disabled axis)
  */
 export type ProviderFilterMode = 'enabled' | 'disabled' | 'all' | 'agent'

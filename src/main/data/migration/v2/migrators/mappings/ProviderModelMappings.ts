@@ -212,7 +212,6 @@ function buildEndpointConfigs(
     configs[ep] = { ...configs[ep], baseUrl: legacy.anthropicApiHost }
   }
 
-  // Assign reasoning format type to the default endpoint
   const reasoningFormatType = REASONING_FORMAT_MAP[legacy.type]
   if (endpointType !== undefined && reasoningFormatType) {
     configs[endpointType] = { ...configs[endpointType], reasoningFormatType }

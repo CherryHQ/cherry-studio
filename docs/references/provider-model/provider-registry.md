@@ -161,7 +161,7 @@ Implemented in `normalizeModelId()` (`packages/provider-registry/src/utils/norma
 | Column | Purpose |
 |--------|---------|
 | `providerId` | PK, user-defined unique ID |
-| `presetProviderId` | Links to providers.json entry (null = custom provider) |
+| `presetProviderId` | Links to a providers.json entry (null = custom provider). Dual-purpose: identifies the source preset *and* the sidebar grouping key — for a few registry rows (e.g. `zai`→`zhipu`, `minimax-global`→`minimax`) it points at a different preset so they fold under that group. |
 | `name` | Display name |
 | `endpointConfigs` | JSON: per-endpoint baseUrl, reasoningFormatType |
 | `defaultChatEndpoint` | Default endpoint type for chat |

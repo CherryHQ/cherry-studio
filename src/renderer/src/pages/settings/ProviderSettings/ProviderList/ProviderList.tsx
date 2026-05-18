@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next'
 import { useOvmsSupport } from '../hooks/useOvmsSupport'
 import ProviderEditorDrawer from './ProviderEditorDrawer'
 import type { ProviderFilterMode } from './providerFilterMode'
+import { getGroupedPresetIds } from './providerGrouping'
 import ProviderListContent, { type ProviderListContentItemState } from './ProviderListContent'
 import ProviderListHeaderBar from './ProviderListHeaderBar'
 import ProviderListHeaderFilterMenu from './ProviderListHeaderFilterMenu'
@@ -92,8 +93,8 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   /**
    * Per-provider concatenated model-name/id haystack — folded into the
    * sidebar keyword search so a user can jump to a provider by typing a
-   * model name (parity with v1, where models lived inline on the row).
-   * Skipped when there's no search input to avoid the work on every render.
+   * model name. Skipped when there's no search input to avoid the work on
+   * every render.
    */
   const providerModelsIndex = useMemo(() => {
     if (!searchText.trim()) return null
@@ -137,15 +138,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
     [providers]
   )
 
-  const groupedPresetIds = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const p of filteredProviders) {
-      if (p.presetProviderId) counts.set(p.presetProviderId, (counts.get(p.presetProviderId) ?? 0) + 1)
-    }
-    const ids = new Set<string>()
-    for (const [presetId, count] of counts) if (count >= 2) ids.add(presetId)
-    return ids
-  }, [filteredProviders])
+  const groupedPresetIds = useMemo(() => getGroupedPresetIds(filteredProviders), [filteredProviders])
 
   const setProviderItemRef = useCallback((providerId: string, element: HTMLDivElement | null) => {
     if (element) {

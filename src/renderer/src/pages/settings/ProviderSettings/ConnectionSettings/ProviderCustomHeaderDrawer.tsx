@@ -103,8 +103,6 @@ function parseHeadersJsonDraft(raw: string): { ok: true; headers: Record<string,
   }
   return { ok: true, headers: out }
 }
-
-/** Compute the ordered list of endpoint types the form should expose. */
 function resolveEndpointTypes(
   provider: { endpointConfigs?: Partial<Record<EndpointType, EndpointConfig>> } | null | undefined,
   primary: EndpointType
@@ -232,6 +230,17 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       return
     }
 
+    // Secondary endpoints are optional, but a non-empty one must still be a
+    // valid URL — otherwise it surfaces as an opaque chat-traffic failure later.
+    for (const [type, raw] of Object.entries(endpointDrafts)) {
+      if (type === primaryEndpoint) continue
+      const value = trim(raw)
+      if (value && !validateApiHost(value)) {
+        window.toast.error(t('settings.provider.api_host_no_valid'))
+        return
+      }
+    }
+
     const nextEndpointConfigs = mergeEndpointConfigs(provider.endpointConfigs, endpointDrafts, primaryEndpoint)
     const previousPrimaryBaseUrl = trim(provider.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
 
@@ -305,7 +314,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       ? t('settings.provider.copilot.toggle_headers_editor_json')
       : t('settings.provider.copilot.toggle_headers_editor_list')
 
-  /** Known endpoint types the user can still add (not currently shown). */
+  /** Endpoint types not yet shown that the user can still add. */
   const addableEndpointTypes = (Object.keys(ENDPOINT_TYPE_LABEL_KEYS) as EndpointType[]).filter(
     (type) => !visibleEndpointTypes.includes(type)
   )

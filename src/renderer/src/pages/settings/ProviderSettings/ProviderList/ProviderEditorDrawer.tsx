@@ -39,8 +39,6 @@ const SECONDARY_ENDPOINT_LABELS: Array<{ type: EndpointType; labelKey: string }>
   { type: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, labelKey: 'settings.provider.more_endpoints.gemini' },
   { type: ENDPOINT_TYPE.OPENAI_RESPONSES, labelKey: 'settings.provider.more_endpoints.openai_responses' }
 ]
-
-/** Build the empty AuthConfig that matches a source provider's `authType`. */
 function emptyAuthConfigFor(authType: AuthType): AuthConfig {
   switch (authType) {
     case 'iam-azure':
@@ -68,7 +66,6 @@ function duplicateNeedsBaseUrl(authType: AuthType): boolean {
   return authType === 'api-key' || authType === 'iam-azure'
 }
 
-/** Copy non-empty secondary endpoint URLs into the target config, skipping the primary slot. */
 function mergeSecondaryEndpoints(
   target: Partial<Record<EndpointType, EndpointConfig>>,
   secondaryUrls: Record<string, string>,

@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import ProviderListHeaderTitle from './ProviderListHeaderTitle'
 
 interface ProviderListHeaderBarProps {
-  /** Right-side slot — currently houses the icon-only "+ add provider" trigger. */
+  /** Right-side slot — houses the icon-only "+ add provider" trigger. */
   action?: ReactNode
 }
 

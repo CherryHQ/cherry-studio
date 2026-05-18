@@ -3,7 +3,9 @@
  *
  * Provides an Anthropic SDK client builder for API-key authenticated providers
  * (standard Anthropic API or proxies that speak the Anthropic protocol).
- * Usable from both main and renderer processes.
+ * Process-agnostic, but the only caller is the main-process API server
+ * (apiServer/services/messages.ts) since the legacy renderer OAuth path
+ * was removed.
  */
 
 import Anthropic from '@anthropic-ai/sdk'
