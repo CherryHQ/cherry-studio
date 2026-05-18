@@ -17,6 +17,7 @@ const V4_TABLES = new Set([
   'group',
   'mcp_server',
   'pin',
+  'prompt',
   'assistant',
   'agent',
   'agent_global_skill',

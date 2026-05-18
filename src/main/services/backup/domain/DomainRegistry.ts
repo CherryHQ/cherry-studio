@@ -7,9 +7,10 @@ export const DOMAIN_TABLE_MAP: Record<BackupDomain, readonly string[]> = {
   [BackupDomain.MCP_SERVERS]: ['mcp_server'],
   [BackupDomain.TAGS_GROUPS]: ['tag', 'entity_tag', 'group'],
   [BackupDomain.TRANSLATE_HISTORY]: ['translate_language', 'translate_history'],
+  [BackupDomain.PROMPTS]: ['prompt'],
   [BackupDomain.FILE_STORAGE]: [],
   [BackupDomain.PROVIDERS]: ['user_provider', 'user_model'],
-  [BackupDomain.MINIAPPS]: ['miniapp'],
+  [BackupDomain.MINIAPPS]: ['mini_app'],
   [BackupDomain.ASSISTANTS]: ['assistant', 'assistant_mcp_server', 'assistant_knowledge_base'],
   [BackupDomain.AGENTS]: [
     'agent',
@@ -36,6 +37,7 @@ export const INFRASTRUCTURE_TABLES = ['__drizzle_migrations'] as const
 export const IMPORT_ORDER: readonly BackupDomain[] = [
   // Phase 1 — FK-aware restore order per spec §3.4
   BackupDomain.PREFERENCES,
+  BackupDomain.PROMPTS,
   BackupDomain.MCP_SERVERS,
   BackupDomain.TAGS_GROUPS,
   BackupDomain.KNOWLEDGE,

@@ -11,6 +11,7 @@ export enum BackupDomain {
   TAGS_GROUPS = 'tags_groups',
   FILE_STORAGE = 'file_storage',
   TRANSLATE_HISTORY = 'translate_history',
+  PROMPTS = 'prompts',
   // Phase 2 (blocked by pending PRs)
   ASSISTANTS = 'assistants',
   PROVIDERS = 'providers',

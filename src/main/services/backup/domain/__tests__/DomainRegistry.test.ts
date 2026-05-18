@@ -23,6 +23,14 @@ describe('DomainRegistry', () => {
       expect(DOMAIN_TABLE_MAP[BackupDomain.TOPICS]).toEqual(['topic', 'message', 'pin'])
     })
 
+    it('maps TRANSLATE_HISTORY to translate_language + translate_history', () => {
+      expect(DOMAIN_TABLE_MAP[BackupDomain.TRANSLATE_HISTORY]).toEqual(['translate_language', 'translate_history'])
+    })
+
+    it('maps PROMPTS to prompt table', () => {
+      expect(DOMAIN_TABLE_MAP[BackupDomain.PROMPTS]).toEqual(['prompt'])
+    })
+
     it('maps FILE_STORAGE to empty array (filesystem only)', () => {
       expect(DOMAIN_TABLE_MAP[BackupDomain.FILE_STORAGE]).toEqual([])
     })
@@ -33,6 +41,10 @@ describe('DomainRegistry', () => {
       expect(agentTables).toContain('agent_channel')
       expect(agentTables).toContain('agent_session')
       expect(agentTables.length).toBe(9)
+    })
+
+    it('has PROMPTS second in IMPORT_ORDER (after PREFERENCES, before MCP_SERVERS)', () => {
+      expect(IMPORT_ORDER[1]).toBe(BackupDomain.PROMPTS)
     })
 
     it('maps ASSISTANTS to assistant + relation tables', () => {
