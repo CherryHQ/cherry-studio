@@ -2,7 +2,7 @@ import type { BedrockProviderOptions } from '@ai-sdk/amazon-bedrock'
 import { type AnthropicProviderOptions } from '@ai-sdk/anthropic'
 import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
-import type { XaiProviderOptions } from '@ai-sdk/xai'
+import type { XaiResponsesProviderOptions } from '@ai-sdk/xai'
 import { loggerService } from '@logger'
 import {
   getModelSupportedVerbosity,
@@ -433,7 +433,7 @@ function buildXAIProviderOptions(
   assistant: Assistant,
   model: Model,
   capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
-): Record<string, XaiProviderOptions> {
+): Record<string, XaiResponsesProviderOptions> {
   const { enableReasoning } = capabilities
   let providerOptions: Record<string, any> = {}
 
