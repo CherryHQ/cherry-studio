@@ -673,7 +673,16 @@ export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean => {
 
 export const isSupportedThinkingTokenMiMoModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
-  return ['mimo-v2-flash', 'mimo-v2-pro', 'mimo-v2-omni', 'mimo-v2.5', 'mimo-v2.5-pro'].includes(modelId)
+  // Match the whole MiMo chat family by prefix instead of an exact-id allowlist.
+  // MiMo is served via an Anthropic-compatible endpoint where reasoning is gated
+  // behind isReasoningModel(); an exact list silently drops thinking for any new
+  // MiMo release or custom-deployed id and breaks multi-turn reasoning_content
+  // pass-back (sendReasoning), which MiMo requires for reasoning quality.
+  // Non-text modalities (TTS / voice clone / embedding / rerank) are not reasoning models.
+  if (!modelId.startsWith('mimo-')) {
+    return false
+  }
+  return !/(?:tts|voiceclone|embed|rerank)/.test(modelId)
 }
 
 /**

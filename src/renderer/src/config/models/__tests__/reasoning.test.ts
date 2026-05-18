@@ -2539,6 +2539,26 @@ describe('isInterleavedThinkingModel', () => {
       expect(isSupportedThinkingTokenMiMoModel(createModel({ id: 'mimo-v2.5-tts-voiceclone' }))).toBe(false)
     })
 
+    it('should match the whole MiMo chat family by prefix (current + future releases)', () => {
+      // Previously hardcoded allowlist
+      expect(isSupportedThinkingTokenMiMoModel(createModel({ id: 'mimo-v2-flash' }))).toBe(true)
+      expect(isSupportedThinkingTokenMiMoModel(createModel({ id: 'mimo-v2-pro' }))).toBe(true)
+      expect(isSupportedThinkingTokenMiMoModel(createModel({ id: 'mimo-v2-omni' }))).toBe(true)
+      // Future / custom-deployed ids that the exact allowlist used to drop
+      expect(isSupportedThinkingTokenMiMoModel(createModel({ id: 'mimo-v3' }))).toBe(true)
+      expect(isSupportedThinkingTokenMiMoModel(createModel({ id: 'mimo-v2.5-flash' }))).toBe(true)
+      expect(isSupportedThinkingTokenMiMoModel(createModel({ id: 'custom/mimo-v2.6-pro' }))).toBe(true)
+      expect(isSupportedThinkingTokenMiMoModel(createModel({ id: 'MiMo-V3-Pro' }))).toBe(true)
+    })
+
+    it('should exclude non-reasoning MiMo modalities', () => {
+      expect(isSupportedThinkingTokenMiMoModel(createModel({ id: 'mimo-v3-tts' }))).toBe(false)
+      expect(isSupportedThinkingTokenMiMoModel(createModel({ id: 'mimo-embedding' }))).toBe(false)
+      expect(isSupportedThinkingTokenMiMoModel(createModel({ id: 'mimo-rerank-v1' }))).toBe(false)
+      expect(isSupportedThinkingTokenMiMoModel(createModel({ id: 'gpt-4' }))).toBe(false)
+      expect(isSupportedThinkingTokenMiMoModel(createModel({ id: 'mimoo-chat' }))).toBe(false)
+    })
+
     it('should return true for mimo-v2-flash', () => {
       expect(isInterleavedThinkingModel(createModel({ id: 'mimo-v2-flash' }))).toBe(true)
     })
