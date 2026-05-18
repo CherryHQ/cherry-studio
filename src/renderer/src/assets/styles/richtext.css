@@ -108,7 +108,6 @@
 .tiptap pre {
   background: var(--color-code-background);
   border-radius: 0.5rem;
-  color: var(--color-text);
   font-family: var(--code-font-family);
   margin: 1.5rem 0;
   padding: 0.75rem 1rem;
