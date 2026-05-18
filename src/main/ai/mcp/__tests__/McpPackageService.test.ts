@@ -7,7 +7,7 @@ vi.mock('@application', async () => {
 })
 
 const { assertZipEntriesWithin, buildResolvedEnv, ensurePathWithin, validateArgs, validateCommand } = await import(
-  '../DxtService'
+  '../McpPackageService'
 )
 
 describe('ensurePathWithin', () => {
