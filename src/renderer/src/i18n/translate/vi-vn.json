@@ -1763,6 +1763,7 @@
     "diagnosis": {
       "ai_button": "Chẩn đoán bằng AI",
       "ai_done": "Chẩn đoán",
+      "ai_failed": "[to be translated]:AI diagnosis unavailable, showing basic classification",
       "ai_loading": "Chẩn đoán",
       "ai_result": "Kết quả chẩn đoán AI",
       "auth": "Khóa API không hợp lệ, vui lòng kiểm tra và cấu hình lại",
@@ -1780,6 +1781,8 @@
       "payload": "Nội dung yêu cầu quá lớn, vui lòng giảm kích thước tệp hoặc văn bản",
       "proxy": "Lỗi proxy hoặc chứng chỉ SSL, hãy kiểm tra cài đặt proxy và mạng",
       "quota": "Hạn mức tài khoản đã cạn kiệt, vui lòng nạp tiền hoặc chuyển đổi nhà cung cấp",
+      "rate_limit": "[to be translated]:Too many requests in a short time. Wait a moment and retry, or switch to a model with a higher rate limit",
+      "region": "[to be translated]:Service unavailable in your region. Configure a proxy or switch to a provider available in your area",
       "server": "Lỗi máy chủ, vui lòng thử lại sau",
       "stream": "Phản hồi bị gián đoạn, kiểm tra độ ổn định mạng hoặc thử lại",
       "unknown": "Đã xảy ra lỗi",

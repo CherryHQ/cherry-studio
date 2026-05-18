@@ -3,8 +3,10 @@ import type { SerializedError } from '@renderer/types/error'
 export interface ErrorClassification {
   category:
     | 'auth'
+    | 'region'
     | 'model'
     | 'quota'
+    | 'rate_limit'
     | 'context_length'
     | 'payload'
     | 'network'
@@ -27,10 +29,35 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     return { category: 'unknown', i18nKey: 'error.diagnosis.unknown', navTarget: null }
   }
 
-  const status = (error as Record<string, unknown>).statusCode ?? (error as Record<string, unknown>).status
+  const errorBag = error as Record<string, unknown>
+  const status = errorBag.statusCode ?? errorBag.status
   const numStatus = typeof status === 'number' ? status : typeof status === 'string' ? parseInt(status, 10) : undefined
   const msg = ((error.message as string) || '').toLowerCase()
+  const finishReason = String(errorBag.finishReason ?? '').toLowerCase()
   const providerSuffix = providerId ? `?id=${providerId}` : ''
+
+  // Structured safety signal — finishReason from NoObjectGeneratedError is the most reliable indicator
+  if (finishReason === 'safety' || finishReason === 'recitation' || finishReason === 'content_filter') {
+    return { category: 'content', i18nKey: 'error.diagnosis.content', navTarget: null }
+  }
+
+  // Geo / region block — must run BEFORE auth, since OpenAI returns 403 with
+  // "unsupported_country_region_territory" and Anthropic blocks regions with 403.
+  if (
+    msg.includes('unsupported_country') ||
+    msg.includes('country, region') ||
+    msg.includes('country/region') ||
+    msg.includes('region not supported') ||
+    msg.includes('not available in your') ||
+    msg.includes('not available in your region') ||
+    msg.includes('not available in your country') ||
+    msg.includes('geographic') ||
+    msg.includes('geo-block') ||
+    msg.includes('geo block') ||
+    (msg.includes('territory') && (numStatus === 403 || msg.includes('unsupported')))
+  ) {
+    return { category: 'region', i18nKey: 'error.diagnosis.region', navTarget: '/settings/general' }
+  }
 
   // Auth errors (401/403)
   if (
@@ -54,23 +81,41 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     return { category: 'model', i18nKey: 'error.diagnosis.model', navTarget: `/settings/provider${providerSuffix}` }
   }
 
-  // Quota / rate limit (429)
+  // Quota / balance exhausted — check first so "429 + insufficient_balance" routes here, not to rate_limit
   if (
-    numStatus === 429 ||
     msg.includes('quota') ||
-    msg.includes('rate_limit') ||
-    msg.includes('rate limit') ||
     msg.includes('insufficient_balance') ||
-    msg.includes('insufficient_quota')
+    msg.includes('insufficient_quota') ||
+    msg.includes('insufficient_credit') ||
+    msg.includes('billing') ||
+    msg.includes('payment')
   ) {
     return { category: 'quota', i18nKey: 'error.diagnosis.quota', navTarget: `/settings/provider${providerSuffix}` }
   }
 
-  // Context length exceeded
+  // Rate limit (429 / "too many requests")
+  if (
+    numStatus === 429 ||
+    msg.includes('rate_limit') ||
+    msg.includes('rate limit') ||
+    msg.includes('too many requests')
+  ) {
+    return {
+      category: 'rate_limit',
+      i18nKey: 'error.diagnosis.rate_limit',
+      navTarget: `/settings/provider${providerSuffix}`
+    }
+  }
+
+  // Context length exceeded — Anthropic uses "prompt is too long", others vary
   if (
     msg.includes('context_length_exceeded') ||
     msg.includes('too many tokens') ||
-    msg.includes('maximum context length')
+    msg.includes('maximum context length') ||
+    msg.includes('context window') ||
+    msg.includes('prompt is too long') ||
+    msg.includes('input is too long') ||
+    msg.includes('exceeds the maximum')
   ) {
     return { category: 'context_length', i18nKey: 'error.diagnosis.context_length', navTarget: null }
   }
@@ -78,6 +123,56 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   // Payload too large (413)
   if (numStatus === 413 || msg.includes('payload too large') || msg.includes('request entity too large')) {
     return { category: 'payload', i18nKey: 'error.diagnosis.payload', navTarget: null }
+  }
+
+  // Content filter — provider-agnostic safety blocks (no status restriction)
+  if (
+    msg.includes('content_filter') ||
+    msg.includes('content_policy') ||
+    msg.includes('content_policy_violation') ||
+    msg.includes('safety') ||
+    msg.includes('prohibited_content') ||
+    msg.includes('responsible_ai') ||
+    msg.includes('output_blocked') ||
+    msg.includes('finishreason: safety') ||
+    msg.includes('"safety"') ||
+    msg.includes('recitation') ||
+    msg.includes('blocked by safety')
+  ) {
+    return { category: 'content', i18nKey: 'error.diagnosis.content', navTarget: null }
+  }
+
+  // MCP errors — must run BEFORE network so "MCP timeout" / "MCP connection reset" route here
+  if (
+    msg.includes('mcp server') ||
+    msg.includes('mcp connection') ||
+    msg.includes('mcp error') ||
+    msg.includes('mcp timeout') ||
+    msg.includes('mcp transport') ||
+    msg.includes('mcp client') ||
+    msg.startsWith('mcp:') ||
+    msg.startsWith('[mcp]') ||
+    msg.includes('mcp_')
+  ) {
+    return { category: 'mcp', i18nKey: 'error.diagnosis.mcp', navTarget: '/settings/mcp/servers' }
+  }
+
+  // OCR errors — must run BEFORE network so "OCR timeout" routes here
+  if (msg.includes('ocr') || msg.includes('recognition failed') || msg.includes('engine not initialized')) {
+    return { category: 'ocr', i18nKey: 'error.diagnosis.ocr', navTarget: null }
+  }
+
+  // Stream interrupted — require specific transport-failure phrases, not bare "stream"
+  if (
+    msg.includes('econnreset') ||
+    msg.includes('connection reset') ||
+    msg.includes('stream interrupted') ||
+    msg.includes('stream closed') ||
+    msg.includes('stream aborted') ||
+    msg.includes('stream ended unexpectedly') ||
+    msg.includes('premature close')
+  ) {
+    return { category: 'stream', i18nKey: 'error.diagnosis.stream', navTarget: null }
   }
 
   // Network errors
@@ -98,31 +193,27 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('socks') ||
     msg.includes('certificate') ||
     msg.includes('self-signed') ||
-    msg.includes('unable_to_verify_leaf_signature')
+    msg.includes('unable_to_verify_leaf_signature') ||
+    msg.includes('tls') ||
+    msg.includes('ssl handshake')
   ) {
     return { category: 'proxy', i18nKey: 'error.diagnosis.proxy', navTarget: '/settings/general' }
   }
 
-  // Stream interrupted
-  if (msg.includes('econnreset') || msg.includes('stream') || msg.includes('connection reset')) {
-    return { category: 'stream', i18nKey: 'error.diagnosis.stream', navTarget: null }
-  }
-
-  // Content filter (400 + safety keywords)
-  if (
-    numStatus === 400 &&
-    (msg.includes('content_filter') || msg.includes('safety') || msg.includes('content_policy'))
-  ) {
-    return { category: 'content', i18nKey: 'error.diagnosis.content', navTarget: null }
-  }
-
-  // Server errors (5xx)
-  if (numStatus && numStatus >= 500) {
+  // Server errors (5xx / overloaded)
+  if (numStatus === 529 || (numStatus && numStatus >= 500) || msg.includes('overloaded') || msg.includes('overload')) {
     return { category: 'server', i18nKey: 'error.diagnosis.server', navTarget: null }
   }
 
-  // Model deprecated / retired
-  if (msg.includes('deprecated') || msg.includes('retired') || msg.includes('sunset') || msg.includes('decommission')) {
+  // Model deprecated / retired — require co-occurrence with "model" to avoid matching
+  // SDK warnings like "parameter X is deprecated"
+  if (
+    (msg.includes('deprecated') && msg.includes('model')) ||
+    msg.includes('model has been retired') ||
+    msg.includes('model is retired') ||
+    msg.includes('model has been sunset') ||
+    msg.includes('decommission')
+  ) {
     return {
       category: 'deprecated',
       i18nKey: 'error.diagnosis.deprecated',
@@ -135,22 +226,15 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     return { category: 'knowledge', i18nKey: 'error.diagnosis.knowledge', navTarget: '/knowledge' }
   }
 
-  // OCR errors
-  if (msg.includes('ocr') || msg.includes('engine not initialized') || msg.includes('recognition failed')) {
-    return { category: 'ocr', i18nKey: 'error.diagnosis.ocr', navTarget: null }
-  }
-
-  // MCP errors
-  if (msg.includes('mcp server') || msg.includes('mcp connection') || msg.includes('mcp error')) {
-    return { category: 'mcp', i18nKey: 'error.diagnosis.mcp', navTarget: '/settings/mcp/servers' }
-  }
-
-  // Response parse errors
+  // Response parse errors — require specific parse-failure phrases, not bare "json"
   if (
-    msg.includes('json') ||
     msg.includes('unexpected token') ||
     msg.includes('invalid response') ||
-    msg.includes('parse error')
+    msg.includes('parse error') ||
+    msg.includes('failed to parse') ||
+    msg.includes('json parse') ||
+    msg.includes('invalid json') ||
+    msg.includes('malformed json')
   ) {
     return { category: 'parse', i18nKey: 'error.diagnosis.parse', navTarget: null }
   }

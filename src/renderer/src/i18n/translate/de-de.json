@@ -1763,6 +1763,7 @@
     "diagnosis": {
       "ai_button": "KI-Diagnose",
       "ai_done": "Diagnostiziert",
+      "ai_failed": "[to be translated]:AI diagnosis unavailable, showing basic classification",
       "ai_loading": "Wird diagnostiziert",
       "ai_result": "KI-Diagnoseergebnis",
       "auth": "API-Schlüssel ungültig, bitte überprüfen und neu konfigurieren",
@@ -1780,6 +1781,8 @@
       "payload": "Anfrageinhalt zu groß, bitte verringern Sie die Datei- oder Textgröße",
       "proxy": "Proxy- oder SSL-Zertifikatsfehler, überprüfen Sie die Proxy- und Netzwerkeinstellungen",
       "quota": "Kontoguthaben aufgebraucht, bitte aufladen oder Anbieter wechseln",
+      "rate_limit": "[to be translated]:Too many requests in a short time. Wait a moment and retry, or switch to a model with a higher rate limit",
+      "region": "[to be translated]:Service unavailable in your region. Configure a proxy or switch to a provider available in your area",
       "server": "Serverfehler, bitte später erneut versuchen",
       "stream": "Antwort unterbrochen, überprüfen Sie die Netzwerkstabilität oder versuchen Sie es erneut",
       "unknown": "Ein Fehler ist aufgetreten",

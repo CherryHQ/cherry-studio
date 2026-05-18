@@ -1763,6 +1763,7 @@
     "diagnosis": {
       "ai_button": "Diagnóstico IA",
       "ai_done": "Diagnosticado",
+      "ai_failed": "[to be translated]:AI diagnosis unavailable, showing basic classification",
       "ai_loading": "A diagnosticar",
       "ai_result": "Resultado do diagnóstico IA",
       "auth": "Chave API inválida, por favor verifique e reconfigure",
@@ -1780,6 +1781,8 @@
       "payload": "Conteúdo da solicitação muito grande, reduza o tamanho do arquivo ou do texto",
       "proxy": "Erro de proxy ou certificado SSL, verifique as configurações de proxy e de rede",
       "quota": "Quota da conta esgotada, recarregue ou mude de fornecedor",
+      "rate_limit": "[to be translated]:Too many requests in a short time. Wait a moment and retry, or switch to a model with a higher rate limit",
+      "region": "[to be translated]:Service unavailable in your region. Configure a proxy or switch to a provider available in your area",
       "server": "Erro no servidor, tente novamente mais tarde",
       "stream": "Resposta interrompida, verifique a estabilidade da rede ou tente novamente",
       "unknown": "Ocorreu um erro",
