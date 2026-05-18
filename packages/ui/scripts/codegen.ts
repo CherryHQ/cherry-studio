@@ -28,73 +28,69 @@ const project = new Project({
 export function generateIconIndex(opts: {
   outPath: string
   colorName: string
-  hasMono: boolean
   hasAvatar: boolean
+  hasDark: boolean
+  usesCurrentColor?: boolean
   colorPrimary: string
 }): void {
-  const { outPath, colorName, hasMono, hasAvatar, colorPrimary } = opts
-  const monoName = `${colorName}Mono`
+  const { outPath, colorName, hasAvatar, hasDark, usesCurrentColor = false, colorPrimary } = opts
+  const lightName = `${colorName}Light`
+  const darkName = `${colorName}Dark`
   const avatarName = `${colorName}Avatar`
-  const monoRef = hasMono ? monoName : colorName
 
-  const sf = project.createSourceFile('index.ts', '', { overwrite: true })
+  const avatarImport = hasAvatar ? `import { ${avatarName} } from './avatar'\n` : ''
+  const avatarField = hasAvatar ? `  Avatar: ${avatarName},\n` : ''
+  const darkImport = hasDark ? `import { ${darkName} } from './dark'\n` : ''
+  const lightClassName = usesCurrentColor ? `cn('text-foreground', className)` : 'className'
+  const darkClassName = usesCurrentColor ? `cn('text-foreground', className)` : 'className'
+  const autoLightClassName = usesCurrentColor
+    ? `cn('text-foreground dark:hidden', className)`
+    : `cn('dark:hidden', className)`
+  const autoDarkClassName = usesCurrentColor
+    ? `cn('text-foreground hidden dark:block', className)`
+    : `cn('hidden dark:block', className)`
+  const autoRender = hasDark
+    ? `return (
+    <>
+      <${lightName} className={${autoLightClassName}} {...props} />
+      <${darkName} className={${autoDarkClassName}} {...props} />
+    </>
+  )`
+    : `return <${lightName} {...props} className={${lightClassName}} />`
+  const darkVariantRender = hasDark
+    ? `  if (variant === 'dark') return <${darkName} {...props} className={${darkClassName}} />\n`
+    : ''
+  const cnImport = hasDark || usesCurrentColor ? `import { cn } from '../../../../lib/utils'\n` : ''
 
-  sf.addImportDeclaration({
-    moduleSpecifier: '../../types',
-    namedImports: [{ name: 'CompoundIcon', isTypeOnly: true }]
-  })
+  const content = `${cnImport}import type { CompoundIcon, CompoundIconProps } from '../../types'
+${avatarImport}${darkImport}
+import { ${lightName} } from './light'
 
-  if (hasAvatar) {
-    sf.addImportDeclaration({
-      moduleSpecifier: './avatar',
-      namedImports: [avatarName]
-    })
-  }
+const ${colorName} = ({ variant, className, ...props }: CompoundIconProps) => {
+  if (variant === 'light') return <${lightName} {...props} className={${lightClassName}} />
+${darkVariantRender}  ${autoRender}
+}
 
-  sf.addImportDeclaration({
-    moduleSpecifier: './color',
-    namedImports: [colorName]
-  })
+export const ${colorName}Icon: CompoundIcon = /*#__PURE__*/ Object.assign(${colorName}, {
+${avatarField}  colorPrimary: '${colorPrimary}'
+})
 
-  if (hasMono) {
-    sf.addImportDeclaration({
-      moduleSpecifier: './mono',
-      namedImports: [monoName]
-    })
-  }
-
-  const assignParts = [`Color: ${colorName}`, `Mono: ${monoRef}`]
-  if (hasAvatar) {
-    assignParts.push(`Avatar: ${avatarName}`)
-  }
-  assignParts.push(`colorPrimary: '${colorPrimary}'`)
-
-  sf.addVariableStatement({
-    isExported: true,
-    declarationKind: VariableDeclarationKind.Const,
-    declarations: [
-      {
-        name: `${colorName}Icon`,
-        type: 'CompoundIcon',
-        initializer: `/*#__PURE__*/ Object.assign(${colorName}, { ${assignParts.join(', ')} })`
-      }
-    ]
-  })
-
-  sf.addExportAssignment({
-    isExportEquals: false,
-    expression: `${colorName}Icon`
-  })
-
-  fs.writeFileSync(outPath, sf.getFullText())
+export default ${colorName}Icon
+`
+  fs.writeFileSync(outPath, content)
 }
 
 // ---------------------------------------------------------------------------
 // generateAvatar
 // ---------------------------------------------------------------------------
 
-export function generateAvatar(opts: { outPath: string; colorName: string; variant: 'full-bleed' | 'padded' }): void {
-  const { outPath, colorName, variant } = opts
+export function generateAvatar(opts: {
+  outPath: string
+  colorName: string
+  variant: 'full-bleed' | 'padded'
+  hasDark: boolean
+}): void {
+  const { outPath, colorName, variant, hasDark } = opts
   const avatarName = `${colorName}Avatar`
 
   const sf = project.createSourceFile('avatar.tsx', '', { overwrite: true })
@@ -114,13 +110,30 @@ export function generateAvatar(opts: { outPath: string; colorName: string; varia
     namedImports: [{ name: 'IconAvatarProps', isTypeOnly: true }]
   })
 
+  if (hasDark) {
+    sf.addImportDeclaration({
+      moduleSpecifier: './dark',
+      namedImports: [`${colorName}Dark`]
+    })
+  }
+
   sf.addImportDeclaration({
-    moduleSpecifier: './color',
-    namedImports: [colorName]
+    moduleSpecifier: './light',
+    namedImports: [`${colorName}Light`]
   })
 
-  const iconSize = variant === 'full-bleed' ? 'size' : 'size * 0.75'
+  const iconSize = variant === 'full-bleed' ? 'size * 0.82' : 'size * 0.7'
   const fallbackClasses = ['text-foreground', variant === 'padded' ? 'bg-background' : ''].filter(Boolean).join(' ')
+  const iconRender = hasDark
+    ? `<${colorName}Light
+          className="dark:hidden"
+          style={{ width: ${iconSize}, height: ${iconSize} }}
+        />
+        <${colorName}Dark
+          className="hidden dark:block"
+          style={{ width: ${iconSize}, height: ${iconSize} }}
+        />`
+    : `<${colorName}Light style={{ width: ${iconSize}, height: ${iconSize} }} />`
 
   sf.addFunction({
     isExported: true,
@@ -141,7 +154,7 @@ export function generateAvatar(opts: { outPath: string; colorName: string; varia
       style={{ width: size, height: size }}
     >
       <AvatarFallback${fallbackClasses ? ` className="${fallbackClasses}"` : ''}>
-        <${colorName} style={{ width: ${iconSize}, height: ${iconSize} }} />
+        ${iconRender}
       </AvatarFallback>
     </Avatar>
   )`
