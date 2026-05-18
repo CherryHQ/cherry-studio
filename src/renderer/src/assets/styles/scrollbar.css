@@ -7,8 +7,8 @@
   --color-scrollbar-thumb: var(--color-scrollbar-thumb-dark);
   --color-scrollbar-thumb-hover: var(--color-scrollbar-thumb-dark-hover);
 
-  --scrollbar-width: 6px;
-  --scrollbar-height: 6px;
+  --scrollbar-width: 10px;
+  --scrollbar-height: 10px;
   --scrollbar-thumb-radius: 10px;
 }
 
