@@ -1,7 +1,7 @@
 import path from 'path'
 import { describe, expect, it } from 'vitest'
 
-import { ensurePathWithin, validateArgs, validateCommand } from '../DxtService'
+import { ensurePathWithin, validateArgs, validateCommand } from '../McpPackageService'
 
 describe('ensurePathWithin', () => {
   // Use path.join to construct cross-platform compatible paths

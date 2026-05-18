@@ -6,7 +6,7 @@ import * as os from 'os'
 import * as path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 
-const logger = loggerService.withContext('DxtService')
+const logger = loggerService.withContext('McpPackageService')
 
 /**
  * Ensure a target path is within the base directory to prevent path traversal attacks.
@@ -29,9 +29,7 @@ export function ensurePathWithin(basePath: string, targetPath: string): string {
   return resolvedTarget
 }
 
-// Type definitions
-export interface DxtManifest {
-  dxt_version: string
+interface BaseMcpPackageManifest {
   name: string
   display_name?: string
   version: string
@@ -80,14 +78,31 @@ export interface DxtManifest {
   }
 }
 
-export interface DxtUploadResult {
+export interface DxtManifest extends BaseMcpPackageManifest {
+  dxt_version: string
+}
+
+export interface McpbManifest extends BaseMcpPackageManifest {
+  manifest_version: string
+}
+
+export type McpPackageManifest = DxtManifest | McpbManifest
+
+type ParsedMcpPackageManifest = BaseMcpPackageManifest & {
+  dxt_version?: string
+  manifest_version?: string
+}
+
+export interface McpPackageUploadResult {
   success: boolean
   data?: {
-    manifest: DxtManifest
+    manifest: McpPackageManifest
     extractDir: string
   }
   error?: string
 }
+
+type McpPackageFormat = 'dxt' | 'mcpb'
 
 /**
  * Validate and sanitize a command to prevent path traversal attacks.
@@ -252,13 +267,12 @@ export interface ResolvedMcpConfig {
   env?: Record<string, string>
 }
 
-class DxtService {
+class McpPackageService {
   // TODO(v2): Lazy getter is a workaround, not a fix.
   //
-  // The real problem is that `DxtService` is instantiated as a
-  // module-local singleton in `ipc.ts`
-  // (`const dxtService = new DxtService()`), which is pulled into the
-  // static import graph of `src/main/index.ts`, BEFORE
+  // The real problem is that `McpPackageService` is instantiated inside
+  // `McpService` construction, which is pulled into the static import graph
+  // of `src/main/index.ts`, BEFORE
   // `application.bootstrap()` runs and builds the path registry. Field
   // initializers like `private tempDir = application.getPath(...)`
   // would throw "PATHS not initialized" at module-load time.
@@ -268,10 +282,10 @@ class DxtService {
   // constructed too early. We've merely moved the path lookup out of
   // construction; we have NOT solved the architectural issue.
   //
-  // The proper v2 fix is to migrate `DxtService` into the lifecycle
+  // The proper v2 fix is to migrate `McpPackageService` into the lifecycle
   // system: extend `BaseService`, add `@Injectable`, register in
   // `serviceRegistry.ts`, and have callers resolve it via
-  // `application.get('DxtService')` instead of the `ipc.ts` singleton.
+  // `application.get('McpPackageService')` instead of direct construction.
   // Once that's done, the DI container will instantiate it inside
   // `application.bootstrap()` after the path registry is built, and
   // these getters can become plain field initializers (or move into
@@ -326,17 +340,30 @@ class DxtService {
     }
   }
 
-  public async uploadDxt(_: Electron.IpcMainInvokeEvent, filePath: string): Promise<DxtUploadResult> {
-    const tempExtractDir = path.join(this.tempDir, `dxt_${uuidv4()}`)
+  public async uploadDxt(event: Electron.IpcMainInvokeEvent, filePath: string): Promise<McpPackageUploadResult> {
+    return this.uploadPackage(event, filePath, 'dxt')
+  }
+
+  public async uploadMcpb(event: Electron.IpcMainInvokeEvent, filePath: string): Promise<McpPackageUploadResult> {
+    return this.uploadPackage(event, filePath, 'mcpb')
+  }
+
+  private async uploadPackage(
+    _: Electron.IpcMainInvokeEvent,
+    filePath: string,
+    packageFormat: McpPackageFormat
+  ): Promise<McpPackageUploadResult> {
+    const packageLabel = packageFormat === 'mcpb' ? 'MCPB' : 'DXT'
+    const tempExtractDir = path.join(this.tempDir, `${packageFormat}_${uuidv4()}`)
 
     try {
       // Validate file exists
       if (!fs.existsSync(filePath)) {
-        throw new Error('DXT file not found')
+        throw new Error(`${packageLabel} file not found`)
       }
 
-      // Extract the DXT file (which is a ZIP archive) to a temporary directory
-      logger.debug(`Extracting DXT file: ${filePath}`)
+      // Extract the package file (which is a ZIP archive) to a temporary directory
+      logger.debug(`Extracting ${packageLabel} file: ${filePath}`)
 
       const zip = new StreamZip.async({ file: filePath })
       await zip.extract(null, tempExtractDir)
@@ -345,15 +372,24 @@ class DxtService {
       // Read and validate the manifest.json
       const manifestPath = path.join(tempExtractDir, 'manifest.json')
       if (!fs.existsSync(manifestPath)) {
-        throw new Error('manifest.json not found in DXT file')
+        throw new Error(`manifest.json not found in ${packageLabel} file`)
       }
 
       const manifestContent = fs.readFileSync(manifestPath, 'utf-8')
-      const manifest: DxtManifest = JSON.parse(manifestContent)
+      const parsedManifest: ParsedMcpPackageManifest = JSON.parse(manifestContent)
 
       // Validate required fields in manifest
-      if (!manifest.dxt_version) {
-        throw new Error('Invalid manifest: missing dxt_version')
+      let manifest: McpPackageManifest
+      if (packageFormat === 'mcpb') {
+        if (!parsedManifest.manifest_version) {
+          throw new Error('Invalid manifest: missing manifest_version')
+        }
+        manifest = { ...parsedManifest, manifest_version: parsedManifest.manifest_version }
+      } else {
+        if (!parsedManifest.dxt_version) {
+          throw new Error('Invalid manifest: missing dxt_version')
+        }
+        manifest = { ...parsedManifest, dxt_version: parsedManifest.dxt_version }
       }
       if (!manifest.name) {
         throw new Error('Invalid manifest: missing name')
@@ -387,9 +423,9 @@ class DxtService {
       // Move the temporary directory to the final location
       // Use recursive copy + remove instead of rename to handle cross-filesystem moves
       await this.moveDirectory(tempExtractDir, finalExtractDir)
-      logger.debug(`DXT server extracted to: ${finalExtractDir}`)
+      logger.debug(`${packageLabel} server extracted to: ${finalExtractDir}`)
 
-      // Clean up the uploaded DXT file if it's in temp directory
+      // Clean up the uploaded package file if it's in temp directory
       if (filePath.startsWith(this.tempDir)) {
         fs.unlinkSync(filePath)
       }
@@ -408,8 +444,8 @@ class DxtService {
         fs.rmSync(tempExtractDir, { recursive: true, force: true })
       }
 
-      const errorMessage = error instanceof Error ? error.message : 'Failed to process DXT file'
-      logger.error('DXT upload error:', error as Error)
+      const errorMessage = error instanceof Error ? error.message : `Failed to process ${packageLabel} file`
+      logger.error(`${packageLabel} upload error:`, error as Error)
 
       return {
         success: false,
@@ -419,11 +455,11 @@ class DxtService {
   }
 
   /**
-   * Get resolved MCP configuration for a DXT server with platform overrides and variable substitution
+   * Get resolved MCP configuration for a package server with platform overrides and variable substitution
    */
   public getResolvedMcpConfig(dxtPath: string, userConfig?: Record<string, any>): ResolvedMcpConfig | null {
     try {
-      // Read the manifest from the DXT server directory
+      // Read the manifest from the package server directory
       const manifestPath = path.join(dxtPath, 'manifest.json')
       if (!fs.existsSync(manifestPath)) {
         logger.error(`Manifest not found: ${manifestPath}`)
@@ -431,7 +467,7 @@ class DxtService {
       }
 
       const manifestContent = fs.readFileSync(manifestPath, 'utf-8')
-      const manifest: DxtManifest = JSON.parse(manifestContent)
+      const manifest: McpPackageManifest = JSON.parse(manifestContent)
 
       if (!manifest.server?.mcp_config) {
         logger.error('No mcp_config found in manifest')
@@ -454,13 +490,13 @@ class DxtService {
     }
   }
 
-  public cleanupDxtServer(serverName: string): boolean {
+  public cleanupPackageServer(serverName: string): boolean {
     try {
       const serverDirName = `server-${serverName}`
       const serverDir = ensurePathWithin(this.mcpDir, path.join(this.mcpDir, serverDirName))
 
       if (fs.existsSync(serverDir)) {
-        logger.debug(`Removing DXT server directory: ${serverDir}`)
+        logger.debug(`Removing package server directory: ${serverDir}`)
         fs.rmSync(serverDir, { recursive: true, force: true })
         return true
       }
@@ -468,7 +504,7 @@ class DxtService {
       logger.warn(`Server directory not found: ${serverDir}`)
       return false
     } catch (error) {
-      logger.error('Failed to cleanup DXT server:', error as Error)
+      logger.error('Failed to cleanup package server:', error as Error)
       return false
     }
   }
@@ -485,4 +521,4 @@ class DxtService {
   }
 }
 
-export default DxtService
+export default McpPackageService

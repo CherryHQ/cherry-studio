@@ -59,8 +59,8 @@ import { app, net } from 'electron'
 import { EventEmitter } from 'events'
 import { v4 as uuidv4 } from 'uuid'
 
-import DxtService from '../DxtService'
 import { fileStorage } from '../FileStorage'
+import McpPackageService from '../McpPackageService'
 import { CallBackServer } from './oauth/callback'
 import { McpOAuthClientProvider } from './oauth/provider'
 import { ServerLogBuffer } from './ServerLogBuffer'
@@ -156,7 +156,7 @@ function withCache<T extends unknown[], R>(
 export class McpService extends BaseService {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
-  private dxtService = new DxtService()
+  private mcpPackageService = new McpPackageService()
   private activeToolCalls: Map<string, AbortController> = new Map()
   private serverLogs = new ServerLogBuffer(200)
 
@@ -197,12 +197,25 @@ export class McpService extends BaseService {
       try {
         const tempPath = await fileStorage.createTempFile(event, fileName)
         await fileStorage.writeFile(event, tempPath, Buffer.from(fileBuffer))
-        return await this.dxtService.uploadDxt(event, tempPath)
+        return await this.mcpPackageService.uploadDxt(event, tempPath)
       } catch (error) {
         logger.error('DXT upload error:', error as Error)
         return {
           success: false,
           error: error instanceof Error ? error.message : 'Failed to upload DXT file'
+        }
+      }
+    })
+    this.ipcHandle(IpcChannel.Mcp_UploadMcpb, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
+      try {
+        const tempPath = await fileStorage.createTempFile(event, fileName)
+        await fileStorage.writeFile(event, tempPath, Buffer.from(fileBuffer))
+        return await this.mcpPackageService.uploadMcpb(event, tempPath)
+      } catch (error) {
+        logger.error('MCPB upload error:', error as Error)
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to upload MCPB file'
         }
       }
     })
@@ -426,9 +439,9 @@ export class McpService extends BaseService {
             // Note: getLoginShellEnvironment() is memoized, so subsequent calls are fast
             const loginShellEnv = await getLoginShellEnvironment()
 
-            // For DXT servers, use resolved configuration with platform overrides and variable substitution
+            // For package servers, use resolved configuration with platform overrides and variable substitution
             if (server.dxtPath) {
-              const resolvedConfig = this.dxtService.getResolvedMcpConfig(server.dxtPath)
+              const resolvedConfig = this.mcpPackageService.getResolvedMcpConfig(server.dxtPath)
               if (resolvedConfig) {
                 cmd = resolvedConfig.command
                 args = resolvedConfig.args
@@ -555,10 +568,10 @@ export class McpService extends BaseService {
               stderr: 'pipe'
             }
 
-            // For DXT servers, set the working directory to the extracted path
+            // For package servers, set the working directory to the extracted path
             if (server.dxtPath) {
               transportOptions.cwd = server.dxtPath
-              getServerLogger(server).debug(`Setting working directory for DXT server`, {
+              getServerLogger(server).debug(`Setting working directory for package server`, {
                 cwd: server.dxtPath
               })
             }
@@ -837,15 +850,15 @@ export class McpService extends BaseService {
       }
     }
 
-    // If this is a DXT server, cleanup its directory
+    // If this is a package server, cleanup its directory
     if (server.dxtPath) {
       try {
-        const cleaned = this.dxtService.cleanupDxtServer(server.name)
+        const cleaned = this.mcpPackageService.cleanupPackageServer(server.name)
         if (cleaned) {
-          getServerLogger(server).debug(`Cleaned up DXT server directory`)
+          getServerLogger(server).debug(`Cleaned up package server directory`)
         }
       } catch (error) {
-        getServerLogger(server).error(`Failed to cleanup DXT server`, error as Error)
+        getServerLogger(server).error(`Failed to cleanup package server`, error as Error)
       }
     }
   }
