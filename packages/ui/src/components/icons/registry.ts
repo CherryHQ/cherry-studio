@@ -193,7 +193,8 @@ const PROVIDER_ID_ALIASES: Record<string, string> = {
   aionly: 'aiOnly',
   dashscope: 'bailian',
   zai: 'zAi',
-  'minimax-global': 'minimax'
+  'minimax-global': 'minimax',
+  cherryai: 'cherryin'
 }
 
 /** Resolve a dedicated model icon by matching modelId against MODEL_ICON_PATTERNS */
