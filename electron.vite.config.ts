@@ -81,6 +81,7 @@ export default defineConfig({
       ...visualizerPlugin('renderer')
     ],
     resolve: {
+      extensions: ['.tsx', '.ts', '.mts', '.mjs', '.js', '.jsx', '.json', '.wasm'],
       alias: {
         '@renderer': resolve('src/renderer/src'),
         '@shared': resolve('packages/shared'),

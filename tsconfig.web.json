@@ -17,6 +17,8 @@
     "composite": true,
     "incremental": true,
     "tsBuildInfoFile": ".tsbuildinfo/tsconfig.web.tsbuildinfo",
+    "outDir": ".tsbuildinfo/web",
+    "declarationDir": ".tsbuildinfo/web",
     "jsx": "react-jsx",
     "moduleResolution": "bundler",
     "paths": {
