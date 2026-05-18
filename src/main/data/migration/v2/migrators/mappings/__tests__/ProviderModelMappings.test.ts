@@ -226,6 +226,38 @@ describe('ProviderModelMappings', () => {
       )
 
       expect(result.authConfig).toEqual({ type: 'api-key' })
+      // The user's custom Anthropic baseUrl must survive the OAuth→api-key
+      // re-seat, and no phantom key should be invented.
+      expect(result.defaultChatEndpoint).toBe(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+      expect(result.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl).toBe('https://api.anthropic.com')
+      expect(result.apiKeys).toEqual([])
+    })
+
+    it('drops the legacy top-level apiKey for Bedrock api-key mode when awsBedrock.apiKey is absent', () => {
+      // buildProviderApiKeys reads settings.awsBedrock.apiKey for Bedrock
+      // api-key mode and ignores the top-level legacy.apiKey. Pin that drop
+      // so the behavior is an explicit decision, not an accident.
+      const result = transformProvider(
+        {
+          id: 'aws-bedrock',
+          name: 'AWS Bedrock',
+          type: 'aws-bedrock',
+          apiKey: 'legacy-top-level-key',
+          apiHost: '',
+          models: [],
+          enabled: true,
+          isSystem: true
+        } as never,
+        {
+          awsBedrock: {
+            authType: 'apiKey',
+            region: 'us-east-1'
+          }
+        } as never
+      )
+
+      expect(result.authConfig).toEqual({ type: 'api-key-aws', region: 'us-east-1' })
+      expect(result.apiKeys).toEqual([])
     })
 
     it('preserves OAuth for non-anthropic legacy providers (e.g. cherryin)', () => {
