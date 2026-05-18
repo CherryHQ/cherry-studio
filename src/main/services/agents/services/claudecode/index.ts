@@ -61,7 +61,7 @@ import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
-import { withDeepSeek1mSuffix } from './utils'
+import { with1mContextSuffix } from './utils'
 
 const require_ = createRequire(import.meta.url)
 const logger = loggerService.withContext('ClaudeCodeService')
@@ -195,7 +195,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       return withoutTrailingApiVersion(provider.anthropicApiHost?.trim() || provider.apiHost)
     }
     const anthropicBaseUrl = resolveAnthropicBaseUrl()
-    const sdkModelId = withDeepSeek1mSuffix(modelInfo.modelId, provider.anthropicApiHost)
+    const sdkModelId = with1mContextSuffix(modelInfo.modelId, provider.anthropicApiHost)
 
     const env = {
       ...loginShellEnv,
