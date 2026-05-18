@@ -103,7 +103,7 @@ function parseHeadersJsonDraft(raw: string): { ok: true; headers: Record<string,
   }
   return { ok: true, headers: out }
 }
-function resolveEndpointTypes(
+export function resolveEndpointTypes(
   provider: { endpointConfigs?: Partial<Record<EndpointType, EndpointConfig>> } | null | undefined,
   primary: EndpointType
 ): EndpointType[] {
@@ -124,7 +124,7 @@ function resolveEndpointTypes(
  *   sets non-baseUrl fields on secondary endpoints, so this stays clean;
  *   if a future surface writes them, this branch must change accordingly.
  */
-function mergeEndpointConfigs(
+export function mergeEndpointConfigs(
   existing: Partial<Record<EndpointType, EndpointConfig>> | undefined,
   drafts: Record<string, string>,
   primary: EndpointType
@@ -147,6 +147,25 @@ function mergeEndpointConfigs(
     }
   }
   return out
+}
+
+/**
+ * First non-empty secondary-endpoint draft that fails URL validation, or
+ * `null` if all secondaries are empty or valid. The primary slot is
+ * validated separately (it has its own required-ness rules).
+ */
+export function findInvalidSecondaryEndpointUrl(
+  drafts: Record<string, string>,
+  primary: EndpointType
+): EndpointType | null {
+  for (const [type, raw] of Object.entries(drafts) as [EndpointType, string][]) {
+    if (type === primary) continue
+    const value = trim(raw)
+    if (value && !validateApiHost(value)) {
+      return type
+    }
+  }
+  return null
 }
 
 export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }: ProviderCustomHeaderDrawerProps) {
@@ -232,13 +251,9 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
 
     // Secondary endpoints are optional, but a non-empty one must still be a
     // valid URL — otherwise it surfaces as an opaque chat-traffic failure later.
-    for (const [type, raw] of Object.entries(endpointDrafts)) {
-      if (type === primaryEndpoint) continue
-      const value = trim(raw)
-      if (value && !validateApiHost(value)) {
-        window.toast.error(t('settings.provider.api_host_no_valid'))
-        return
-      }
+    if (findInvalidSecondaryEndpointUrl(endpointDrafts, primaryEndpoint)) {
+      window.toast.error(t('settings.provider.api_host_no_valid'))
+      return
     }
 
     const nextEndpointConfigs = mergeEndpointConfigs(provider.endpointConfigs, endpointDrafts, primaryEndpoint)
