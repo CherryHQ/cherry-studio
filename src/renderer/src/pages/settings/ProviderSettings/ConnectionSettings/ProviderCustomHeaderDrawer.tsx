@@ -9,6 +9,7 @@ import {
   PopoverTrigger,
   Tooltip
 } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { useCopilot } from '@renderer/hooks/useCopilot'
 import { useProvider } from '@renderer/hooks/useProviders'
 import { getProviderHostTopology } from '@renderer/pages/settings/ProviderSettings/utils/providerTopology'
@@ -26,6 +27,8 @@ import ProviderActions from '../primitives/ProviderActions'
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { customHeaderDrawerClasses, drawerClasses, fieldClasses } from '../primitives/ProviderSettingsPrimitives'
 import { applyProviderCustomHeaderSideEffects } from '../utils/providerSettingsSideEffects'
+
+const logger = loggerService.withContext('ProviderCustomHeaderDrawer')
 
 interface ProviderCustomHeaderDrawerProps {
   providerId: string
@@ -256,7 +259,9 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     })
 
     if (primaryDraft !== previousPrimaryBaseUrl) {
-      void syncProviderModels({ ...provider, endpointConfigs: nextEndpointConfigs })
+      syncProviderModels({ ...provider, endpointConfigs: nextEndpointConfigs }).catch((error) => {
+        logger.error('Background model sync after baseUrl change failed', error as Error, { providerId })
+      })
     }
 
     window.toast.success(t('message.save.success.title'))
