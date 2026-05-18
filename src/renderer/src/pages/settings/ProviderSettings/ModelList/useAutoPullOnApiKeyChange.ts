@@ -29,6 +29,10 @@ export function useAutoPullOnApiKeyChange(providerId: string, onTrigger: () => v
   }, [onTrigger])
 
   useEffect(() => {
+    // Until api-keys resolve, the signature is the cold-cache empty string ('');
+    // recording that as the baseline would make the later undefined→keys
+    // transition look like a user-initiated key change and auto-fire the pull.
+    if (apiKeysData === undefined) return
     if (lastSignatureRef.current === null) {
       lastSignatureRef.current = enabledKeySignature
       return
@@ -40,5 +44,5 @@ export function useAutoPullOnApiKeyChange(providerId: string, onTrigger: () => v
     if (!enabledKeySignature) return
     if (models.length === 0) return
     void onTriggerRef.current()
-  }, [enabledKeySignature, models.length])
+  }, [apiKeysData, enabledKeySignature, models.length])
 }
