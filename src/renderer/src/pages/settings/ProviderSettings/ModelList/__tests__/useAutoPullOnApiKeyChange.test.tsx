@@ -67,4 +67,78 @@ describe('useAutoPullOnApiKeyChange', () => {
 
     expect(onTrigger).not.toHaveBeenCalled()
   })
+
+  describe('key-set transitions (models already present)', () => {
+    const keyEntries = (entries: Array<{ key: string; isEnabled: boolean }>) => ({ data: { keys: entries } })
+
+    beforeEach(() => {
+      useModelsMock.mockReturnValue({ models: [{ id: 'openai::gpt-4o' }] })
+    })
+
+    it('fires when a key is added', () => {
+      const onTrigger = vi.fn()
+      useProviderApiKeysMock.mockReturnValue(apiKeys('sk-one'))
+      const { rerender } = renderHook(() => useAutoPullOnApiKeyChange('openai', onTrigger))
+
+      useProviderApiKeysMock.mockReturnValue(apiKeys('sk-one', 'sk-two'))
+      rerender()
+
+      expect(onTrigger).toHaveBeenCalledTimes(1)
+    })
+
+    it('fires when a key is removed (others remain enabled)', () => {
+      const onTrigger = vi.fn()
+      useProviderApiKeysMock.mockReturnValue(apiKeys('sk-one', 'sk-two'))
+      const { rerender } = renderHook(() => useAutoPullOnApiKeyChange('openai', onTrigger))
+
+      useProviderApiKeysMock.mockReturnValue(apiKeys('sk-one'))
+      rerender()
+
+      expect(onTrigger).toHaveBeenCalledTimes(1)
+    })
+
+    it('fires when disabling one of several keys (signature stays non-empty)', () => {
+      const onTrigger = vi.fn()
+      useProviderApiKeysMock.mockReturnValue(
+        keyEntries([
+          { key: 'sk-one', isEnabled: true },
+          { key: 'sk-two', isEnabled: true }
+        ])
+      )
+      const { rerender } = renderHook(() => useAutoPullOnApiKeyChange('openai', onTrigger))
+
+      useProviderApiKeysMock.mockReturnValue(
+        keyEntries([
+          { key: 'sk-one', isEnabled: true },
+          { key: 'sk-two', isEnabled: false }
+        ])
+      )
+      rerender()
+
+      expect(onTrigger).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not fire when disabling the only key (signature becomes empty)', () => {
+      const onTrigger = vi.fn()
+      useProviderApiKeysMock.mockReturnValue(keyEntries([{ key: 'sk-one', isEnabled: true }]))
+      const { rerender } = renderHook(() => useAutoPullOnApiKeyChange('openai', onTrigger))
+
+      useProviderApiKeysMock.mockReturnValue(keyEntries([{ key: 'sk-one', isEnabled: false }]))
+      rerender()
+
+      expect(onTrigger).not.toHaveBeenCalled()
+    })
+
+    it('does not fire when the same key value is re-pasted (signature unchanged)', () => {
+      const onTrigger = vi.fn()
+      useProviderApiKeysMock.mockReturnValue(apiKeys('sk-one'))
+      const { rerender } = renderHook(() => useAutoPullOnApiKeyChange('openai', onTrigger))
+
+      // New object identity, identical enabled-key fingerprint.
+      useProviderApiKeysMock.mockReturnValue(apiKeys('sk-one'))
+      rerender()
+
+      expect(onTrigger).not.toHaveBeenCalled()
+    })
+  })
 })
