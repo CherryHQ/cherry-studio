@@ -223,6 +223,15 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
       if (isNewApiProvider(provider)) {
         updateProvider({ apiHost, anthropicApiHost: apiHost })
         setAnthropicHost(apiHost)
+      } else if (provider.id === SystemProviderIds.mimo) {
+        // MiMo's Anthropic-compatible endpoint is always `${apiHost}/anthropic`.
+        // The system default hardcodes it, so agent mode (which prefers
+        // anthropicApiHost) keeps hitting the stale pay-as-you-go host even
+        // after the user switches API Host to a token-plan host. Derive it
+        // from apiHost so a single host edit applies to both modes.
+        const anthropicHost = `${apiHost.trim().replace(/\/+$/, '')}/anthropic`
+        updateProvider({ apiHost, anthropicApiHost: anthropicHost })
+        setAnthropicHost(anthropicHost)
       } else {
         updateProvider({ apiHost })
       }
