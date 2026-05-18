@@ -212,31 +212,37 @@ export default function ProviderEditorDrawer({
       }
     }
 
-    // duplicate
-    const { source } = mode
-    const defaultChatEndpoint = source.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-    const submit: ProviderEditorSubmit = {
-      name: trimmedName,
-      defaultChatEndpoint,
-      presetProviderId: source.presetProviderId,
-      authConfig: emptyAuthConfigFor(source.authType),
-      logo: logo ?? undefined
+    if (mode.kind === 'duplicate') {
+      const { source } = mode
+      const defaultChatEndpoint = source.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      const submit: ProviderEditorSubmit = {
+        name: trimmedName,
+        defaultChatEndpoint,
+        presetProviderId: source.presetProviderId,
+        authConfig: emptyAuthConfigFor(source.authType),
+        logo: logo ?? undefined
+      }
+      if (duplicateNeedsBaseUrl(source.authType)) {
+        const endpointConfigs: Partial<Record<EndpointType, EndpointConfig>> = {}
+        const trimmedBaseUrl = baseUrl.trim()
+        if (trimmedBaseUrl) {
+          endpointConfigs[defaultChatEndpoint] = { baseUrl: trimmedBaseUrl }
+        }
+        mergeSecondaryEndpoints(endpointConfigs, secondaryUrls, defaultChatEndpoint)
+        if (Object.keys(endpointConfigs).length > 0) {
+          submit.endpointConfigs = endpointConfigs
+        }
+        if (apiKeysPayload) {
+          submit.apiKeys = apiKeysPayload
+        }
+      }
+      return submit
     }
-    if (duplicateNeedsBaseUrl(source.authType)) {
-      const endpointConfigs: Partial<Record<EndpointType, EndpointConfig>> = {}
-      const trimmedBaseUrl = baseUrl.trim()
-      if (trimmedBaseUrl) {
-        endpointConfigs[defaultChatEndpoint] = { baseUrl: trimmedBaseUrl }
-      }
-      mergeSecondaryEndpoints(endpointConfigs, secondaryUrls, defaultChatEndpoint)
-      if (Object.keys(endpointConfigs).length > 0) {
-        submit.endpointConfigs = endpointConfigs
-      }
-      if (apiKeysPayload) {
-        submit.apiKeys = apiKeysPayload
-      }
-    }
-    return submit
+
+    // Exhaustiveness guard: a new ProviderEditorMode kind must be handled
+    // explicitly above rather than silently falling through to duplicate.
+    const _exhaustive: never = mode
+    throw new Error(`Unhandled provider editor mode kind: ${(_exhaustive as { kind: string }).kind}`)
   }
 
   const submittable = (() => {
