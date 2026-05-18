@@ -57,11 +57,14 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
 
   const handleAuthTypeChange = async (value: string) => {
     try {
-      const regionForSave = localRegion || 'us-east-1'
+      // Preserve the region the user actually has across the toggle —
+      // matching saveIamConfig / saveApiKeyAwsRegion, which persist
+      // `localRegion` verbatim. Inventing 'us-east-1' here would silently
+      // overwrite an intentionally-empty region on auth-mode switch.
       if (value === 'iam') {
-        await updateAuthConfig({ type: 'iam-aws', region: regionForSave })
+        await updateAuthConfig({ type: 'iam-aws', region: localRegion })
       } else {
-        await updateAuthConfig({ type: 'api-key-aws', region: regionForSave })
+        await updateAuthConfig({ type: 'api-key-aws', region: localRegion })
       }
       isIamDraftDirtyRef.current = false
     } catch (error) {
