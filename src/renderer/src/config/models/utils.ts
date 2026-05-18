@@ -310,7 +310,16 @@ export const isGrokModel = (model: Model) => {
 // zhipu 视觉推理模型用这组 special token 标记推理结果
 export const ZHIPU_RESULT_TOKENS = ['<|begin_of_box|>', '<|end_of_box|>'] as const
 
+import { SYSTEM_PROVIDERS_CONFIG } from '@renderer/config/providers'
+import type { SystemProviderId } from '@renderer/types'
+
 export const agentModelFilter = (model: Model): boolean => {
+  // If the provider is enabled in the system providers config, allow the model
+  const providerConfig = SYSTEM_PROVIDERS_CONFIG[model.provider as SystemProviderId]
+  if (providerConfig && providerConfig.enabled) {
+    return true
+  }
+  // Fallback: filter out embedding, rerank, and pure image models
   return !isEmbeddingModel(model) && !isRerankModel(model) && !isTextToImageModel(model)
 }
 
