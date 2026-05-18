@@ -29,7 +29,11 @@ Nothing for normal upgrades. Only users who manually constructed
 
 ## Notes for release manager
 
-Pair with `2026-05-18-anthropic-oauth-removed.md` (same PR). The
-"empty region rejected at the UI write boundary" behavior is enforced
-in the renderer; the zod schema still accepts `''` so migration and
-the preset seeder remain lossless.
+Pair with `2026-05-18-anthropic-oauth-removed.md` (same PR). Empty
+region is rejected on every renderer write path (auth-mode toggle, IAM
+config save, region save). The `AuthConfigSchema` zod is intentionally
+left permissive (`z.string()`): not for migration safety — the migrator
+and preset seeder write `authConfig` as raw JSON through Drizzle and
+never run zod — but because the duplicate-provider flow legitimately
+creates an `aws-bedrock` row with `region: ''` as a "fill in after
+create" placeholder, which goes through `CreateProviderSchema.parse`.

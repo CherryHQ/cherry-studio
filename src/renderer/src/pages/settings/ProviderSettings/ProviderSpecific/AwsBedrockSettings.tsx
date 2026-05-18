@@ -85,6 +85,9 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
   }
 
   const saveIamConfig = async () => {
+    if (!ensureRegionProvided()) {
+      return
+    }
     try {
       await updateAuthConfig({
         type: 'iam-aws' as const,

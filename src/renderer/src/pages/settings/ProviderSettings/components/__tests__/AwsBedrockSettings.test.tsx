@@ -150,4 +150,25 @@ describe('AwsBedrockSettings', () => {
     expect(updateAuthConfigMock).not.toHaveBeenCalled()
     expect(window.toast.warning).toHaveBeenCalledWith('settings.provider.aws-bedrock.region_required')
   })
+
+  it('does not re-persist an empty region when IAM credentials are saved on blur', () => {
+    // Post-migration / post-seed state: region is '' but IAM keys exist.
+    useProviderMock.mockReturnValue({
+      provider: { id: 'aws-bedrock', authType: 'iam-aws' },
+      updateAuthConfig: updateAuthConfigMock
+    })
+    useProviderAuthConfigMock.mockReturnValue({
+      data: { type: 'iam-aws', region: '', accessKeyId: 'a', secretAccessKey: 's' }
+    })
+
+    render(<AwsBedrockSettings providerId="aws-bedrock" />)
+
+    // User edits the access key and blurs without touching region.
+    const accessKey = screen.getByDisplayValue('a')
+    fireEvent.change(accessKey, { target: { value: 'a2' } })
+    fireEvent.blur(accessKey)
+
+    expect(updateAuthConfigMock).not.toHaveBeenCalled()
+    expect(window.toast.warning).toHaveBeenCalledWith('settings.provider.aws-bedrock.region_required')
+  })
 })
