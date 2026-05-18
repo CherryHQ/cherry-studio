@@ -112,7 +112,7 @@ export default function ProviderListContent({
               key={`group:${entry.presetProviderId}`}
               presetProviderId={entry.presetProviderId}
               members={entry.members}
-              sectionProviders={visibleProviders}
+              items={providers}
               expanded={expanded}
               containsSelected={containsSelected}
               onToggle={() => onToggleGroup(entry.presetProviderId)}

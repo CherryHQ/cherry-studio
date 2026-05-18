@@ -13,7 +13,14 @@ import type { ProviderListContentItemState } from './ProviderListContent'
 export interface ProviderListGroupProps {
   presetProviderId: string
   members: Provider[]
-  sectionProviders: Provider[]
+  /**
+   * Full unfiltered provider cache — `<ReorderableList>` needs the complete
+   * list as `items` so `computeMinimalMoves` produces a permutation of the
+   * cache. Passing the filtered view here breaks reorder under any active
+   * filter (the default `enabled` filter included). `members` is the rendered
+   * subset.
+   */
+  items: Provider[]
   expanded: boolean
   containsSelected: boolean
   onToggle: () => void
@@ -35,7 +42,7 @@ export interface ProviderListGroupProps {
 export default function ProviderListGroup({
   presetProviderId,
   members,
-  sectionProviders,
+  items,
   expanded,
   containsSelected,
   onToggle,
@@ -77,7 +84,7 @@ export default function ProviderListGroup({
       {expanded && (
         <div id={bodyId} className={providerListClasses.groupBody}>
           <ReorderableList
-            items={sectionProviders}
+            items={items}
             visibleItems={members}
             getId={(provider) => provider.id}
             onDragStateChange={onDragStateChange}
