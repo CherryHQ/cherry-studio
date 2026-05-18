@@ -13,19 +13,11 @@ import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
-import type { ProviderEditorMode } from './useProviderEditor'
+import type { ProviderEditorMode, SubmitProviderEditorParams } from './useProviderEditor'
 
 const logger = loggerService.withContext('ProviderEditorDrawer')
 
-type ProviderEditorSubmit = {
-  name: string
-  defaultChatEndpoint: EndpointType
-  endpointConfigs?: Partial<Record<EndpointType, EndpointConfig>>
-  presetProviderId?: string
-  authConfig?: AuthConfig
-  apiKeys?: ApiKeyEntry[]
-  logo?: string | null
-}
+type ProviderEditorSubmit = SubmitProviderEditorParams
 
 interface ProviderEditorDrawerProps {
   open: boolean
@@ -192,6 +184,7 @@ export default function ProviderEditorDrawer({
 
     if (mode.kind === 'edit') {
       return {
+        mode: 'edit',
         name: trimmedName,
         defaultChatEndpoint: mode.provider.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         logo: logoDirty ? logo : undefined
@@ -213,6 +206,7 @@ export default function ProviderEditorDrawer({
       mergeSecondaryEndpoints(endpointConfigs, secondaryUrls, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
 
       return {
+        mode: 'create',
         name: trimmedName,
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         endpointConfigs,
@@ -225,7 +219,8 @@ export default function ProviderEditorDrawer({
     if (mode.kind === 'duplicate') {
       const { source } = mode
       const defaultChatEndpoint = source.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-      const submit: ProviderEditorSubmit = {
+      const submit: Extract<ProviderEditorSubmit, { mode: 'create' }> = {
+        mode: 'create',
         name: trimmedName,
         defaultChatEndpoint,
         presetProviderId: source.presetProviderId,

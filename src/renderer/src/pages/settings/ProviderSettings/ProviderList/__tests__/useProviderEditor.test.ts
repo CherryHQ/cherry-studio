@@ -136,7 +136,7 @@ describe('useProviderEditor', () => {
 
       act(() => result.current.startAdd())
       await act(async () => {
-        await result.current.submit({ name: 'My Provider', defaultChatEndpoint: endpoint })
+        await result.current.submit({ mode: 'create', name: 'My Provider', defaultChatEndpoint: endpoint })
       })
 
       expect(createProviderMock).toHaveBeenCalledWith({
@@ -154,6 +154,7 @@ describe('useProviderEditor', () => {
       act(() => result.current.startAdd())
       await act(async () => {
         await result.current.submit({
+          mode: 'create',
           name: 'My Provider',
           defaultChatEndpoint: endpoint,
           logo: 'data:image/png;base64,abc'
@@ -168,7 +169,7 @@ describe('useProviderEditor', () => {
 
       act(() => result.current.startAdd())
       await act(async () => {
-        await result.current.submit({ name: 'My Provider', defaultChatEndpoint: endpoint })
+        await result.current.submit({ mode: 'create', name: 'My Provider', defaultChatEndpoint: endpoint })
       })
 
       expect(saveProviderLogoMock).not.toHaveBeenCalled()
@@ -182,6 +183,7 @@ describe('useProviderEditor', () => {
       act(() => result.current.startAdd())
       await act(async () => {
         submitResult = await result.current.submit({
+          mode: 'create',
           name: 'My Provider',
           defaultChatEndpoint: endpoint,
           logo: 'data:image/png;base64,abc'
@@ -196,7 +198,7 @@ describe('useProviderEditor', () => {
 
       act(() => result.current.startAdd())
       await act(async () => {
-        await result.current.submit({ name: '   ', defaultChatEndpoint: endpoint })
+        await result.current.submit({ mode: 'create', name: '   ', defaultChatEndpoint: endpoint })
       })
 
       expect(createProviderMock).not.toHaveBeenCalled()
@@ -209,6 +211,7 @@ describe('useProviderEditor', () => {
       act(() => result.current.startAdd())
       await act(async () => {
         await result.current.submit({
+          mode: 'create',
           name: 'Custom OpenAI Proxy',
           defaultChatEndpoint: endpoint,
           endpointConfigs: { [endpoint]: { baseUrl: 'https://proxy.example.com' } },
@@ -232,6 +235,7 @@ describe('useProviderEditor', () => {
       act(() => result.current.startAddFrom(source))
       await act(async () => {
         await result.current.submit({
+          mode: 'create',
           name: 'azure-2',
           defaultChatEndpoint: endpoint,
           presetProviderId: 'azure-openai',
@@ -255,7 +259,7 @@ describe('useProviderEditor', () => {
 
       act(() => result.current.startEdit(provider))
       await act(async () => {
-        await result.current.submit({ name: 'Renamed', defaultChatEndpoint: endpoint })
+        await result.current.submit({ mode: 'edit', name: 'Renamed', defaultChatEndpoint: endpoint })
       })
 
       expect(updateProviderByIdMock).toHaveBeenCalledWith('openai', {
@@ -272,6 +276,7 @@ describe('useProviderEditor', () => {
       act(() => result.current.startEdit(provider))
       await act(async () => {
         await result.current.submit({
+          mode: 'edit',
           name: 'Renamed',
           defaultChatEndpoint: endpoint,
           logo: 'data:image/png;base64,new'
@@ -286,7 +291,7 @@ describe('useProviderEditor', () => {
 
       act(() => result.current.startEdit(provider))
       await act(async () => {
-        await result.current.submit({ name: 'Renamed', defaultChatEndpoint: endpoint, logo: null })
+        await result.current.submit({ mode: 'edit', name: 'Renamed', defaultChatEndpoint: endpoint, logo: null })
       })
 
       expect(clearProviderLogoMock).toHaveBeenCalledWith('openai')
@@ -298,7 +303,7 @@ describe('useProviderEditor', () => {
 
       act(() => result.current.startEdit(provider))
       await act(async () => {
-        await result.current.submit({ name: 'Renamed', defaultChatEndpoint: endpoint })
+        await result.current.submit({ mode: 'edit', name: 'Renamed', defaultChatEndpoint: endpoint })
       })
 
       expect(saveProviderLogoMock).not.toHaveBeenCalled()
@@ -313,6 +318,7 @@ describe('useProviderEditor', () => {
       act(() => result.current.startEdit(provider))
       await act(async () => {
         submitResult = await result.current.submit({
+          mode: 'edit',
           name: 'Renamed',
           defaultChatEndpoint: endpoint,
           logo: 'data:image/png;base64,new'
@@ -327,7 +333,7 @@ describe('useProviderEditor', () => {
 
       act(() => result.current.startEdit(provider))
       await act(async () => {
-        await result.current.submit({ name: 'Renamed', defaultChatEndpoint: endpoint })
+        await result.current.submit({ mode: 'edit', name: 'Renamed', defaultChatEndpoint: endpoint })
       })
 
       expect(onProviderCreatedMock).not.toHaveBeenCalled()

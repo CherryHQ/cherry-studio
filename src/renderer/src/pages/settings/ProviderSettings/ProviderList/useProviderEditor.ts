@@ -18,15 +18,24 @@ interface UseProviderEditorParams {
   onProviderCreated: (providerId: string) => void
 }
 
-export interface SubmitProviderEditorParams {
-  name: string
-  defaultChatEndpoint: EndpointType
-  endpointConfigs?: Partial<Record<EndpointType, EndpointConfig>>
-  presetProviderId?: string
-  authConfig?: AuthConfig
-  apiKeys?: ApiKeyEntry[]
-  logo?: string | null
-}
+/**
+ * Discriminated by `mode` so the type system enforces per-mode field
+ * validity: `edit` only carries name/endpoint/logo, while `create` (covers
+ * both create-custom and duplicate) carries the full creation payload. The
+ * branch decision lives in the params, not a closure.
+ */
+export type SubmitProviderEditorParams =
+  | { mode: 'edit'; name: string; defaultChatEndpoint: EndpointType; logo?: string | null }
+  | {
+      mode: 'create'
+      name: string
+      defaultChatEndpoint: EndpointType
+      endpointConfigs?: Partial<Record<EndpointType, EndpointConfig>>
+      presetProviderId?: string
+      authConfig?: AuthConfig
+      apiKeys?: ApiKeyEntry[]
+      logo?: string | null
+    }
 
 export type ProviderEditorSubmitNotice = 'create-logo-save-failed' | 'update-logo-save-failed'
 
@@ -55,29 +64,27 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
   const startEdit = useCallback((provider: Provider) => updateMode({ kind: 'edit', provider }), [updateMode])
 
   const submit = useCallback(
-    async ({
-      name,
-      defaultChatEndpoint,
-      endpointConfigs,
-      presetProviderId,
-      authConfig,
-      apiKeys,
-      logo
-    }: SubmitProviderEditorParams): Promise<ProviderEditorSubmitResult> => {
-      const trimmedName = name.trim()
+    async (params: SubmitProviderEditorParams): Promise<ProviderEditorSubmitResult> => {
+      const trimmedName = params.name.trim()
       if (!trimmedName) {
         return {}
       }
 
-      if (editingProvider) {
+      if (params.mode === 'edit') {
+        if (!editingProvider) {
+          return {}
+        }
         const originalEditingId = editingProvider.id
-        await updateProviderById(originalEditingId, { name: trimmedName, defaultChatEndpoint })
+        await updateProviderById(originalEditingId, {
+          name: trimmedName,
+          defaultChatEndpoint: params.defaultChatEndpoint
+        })
         let notice: ProviderEditorSubmitNotice | undefined
 
-        if (logo !== undefined) {
-          if (logo) {
+        if (params.logo !== undefined) {
+          if (params.logo) {
             try {
-              await saveProviderLogo(originalEditingId, logo)
+              await saveProviderLogo(originalEditingId, params.logo)
             } catch (error) {
               logger.error('Failed to save logo', error as Error)
               notice = 'update-logo-save-failed'
@@ -105,17 +112,17 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
       const provider = await createProvider({
         providerId,
         name: trimmedName,
-        ...(presetProviderId ? { presetProviderId } : {}),
-        defaultChatEndpoint,
-        ...(endpointConfigs ? { endpointConfigs } : {}),
-        ...(authConfig ? { authConfig } : {}),
-        ...(apiKeys && apiKeys.length > 0 ? { apiKeys } : {})
+        ...(params.presetProviderId ? { presetProviderId: params.presetProviderId } : {}),
+        defaultChatEndpoint: params.defaultChatEndpoint,
+        ...(params.endpointConfigs ? { endpointConfigs: params.endpointConfigs } : {}),
+        ...(params.authConfig ? { authConfig: params.authConfig } : {}),
+        ...(params.apiKeys && params.apiKeys.length > 0 ? { apiKeys: params.apiKeys } : {})
       })
       let notice: ProviderEditorSubmitNotice | undefined
 
-      if (logo) {
+      if (params.logo) {
         try {
-          await saveProviderLogo(providerId, logo)
+          await saveProviderLogo(providerId, params.logo)
         } catch (error) {
           logger.error('Failed to save logo', error as Error)
           notice = 'create-logo-save-failed'
