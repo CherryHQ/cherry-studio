@@ -9,6 +9,7 @@ import { errorHandler } from './middleware/error'
 import { setupOpenAPIDocumentation } from './middleware/openapi'
 import { agentRoutes } from './routes/agents'
 import { chatRoutes } from './routes/chat'
+import { claudeOpenAIProxyRoutes } from './routes/claude-openai-proxy'
 import { clawMcpRoutes } from './routes/claw-mcp'
 import { knowledgeRoutes } from './routes/knowledge'
 import { mcpRoutes } from './routes/mcp'
@@ -133,6 +134,8 @@ export function createApp(): express.Application {
         chat_completions: 'POST /v1/chat/completions',
         messages: 'POST /v1/messages',
         messages_provider: 'POST /:provider/v1/messages',
+        claude_openai_proxy_messages: 'POST /v1/agents/claude-proxy/:providerId/v1/messages',
+        claude_openai_proxy_count_tokens: 'POST /v1/agents/claude-proxy/:providerId/v1/messages/count_tokens',
         mcps: 'GET /v1/mcps',
         mcp_server: 'GET /v1/mcps/:server_id',
         knowledge_bases: 'GET /v1/knowledge-bases',
@@ -151,6 +154,7 @@ export function createApp(): express.Application {
   const apiRouter = express.Router()
   apiRouter.use(authMiddleware)
   // Mount routes
+  apiRouter.use('/agents/claude-proxy', extendMessagesTimeout, claudeOpenAIProxyRoutes)
   apiRouter.use('/agents', agentRoutes)
   apiRouter.use('/chat', chatRoutes)
   apiRouter.use('/mcps', mcpRoutes)

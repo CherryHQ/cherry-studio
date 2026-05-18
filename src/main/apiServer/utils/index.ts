@@ -32,7 +32,7 @@ export async function getAvailableProviders(): Promise<Provider[]> {
     }
 
     // Support OpenAI-compatible and Anthropic-compatible providers for API server
-    const supportedTypes: ProviderType[] = ['openai', 'anthropic', 'ollama', 'new-api']
+    const supportedTypes: ProviderType[] = ['openai', 'openai-response', 'anthropic', 'ollama', 'new-api']
     const supportedProviders = providers.filter((p: Provider) => p.enabled && supportedTypes.includes(p.type))
 
     // Format provider apiHost according to their type

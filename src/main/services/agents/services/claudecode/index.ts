@@ -75,6 +75,17 @@ const IMAGE_MAX_DIMENSION = 2000
 const IMAGE_MAX_BYTES = 5 * 1024 * 1024 // 5MB API limit
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 const NO_RESUME_COMMANDS = ['/clear']
+const OPENAI_COMPATIBLE_PROVIDER_TYPES = new Set(['openai', 'openai-response', 'new-api'])
+
+const buildLocalApiServerBaseUrl = (host: unknown, port: unknown): string => {
+  const rawHost = String(host || '127.0.0.1').trim()
+  const protocolHost = rawHost.startsWith('http://') || rawHost.startsWith('https://') ? rawHost : `http://${rawHost}`
+  const url = new URL(protocolHost)
+  if (!url.port) {
+    url.port = String(port || 23333)
+  }
+  return url.toString().replace(/\/$/, '')
+}
 
 const getLanguageInstruction = () => {
   const lang = getAppLanguage()
@@ -161,15 +172,18 @@ class ClaudeCodeService implements AgentServiceInterface {
     const isAzureOpenAI = provider.type === 'azure-openai'
     const isAnthropicType = provider.type === 'anthropic'
     const hasAnthropicHost = provider.anthropicApiHost?.trim()
+    const isOpenAICompatibleType = OPENAI_COMPATIBLE_PROVIDER_TYPES.has(provider.type)
 
-    if (!isAnthropicType && !isAzureOpenAI && !hasAnthropicHost) {
+    if (!isAnthropicType && !isAzureOpenAI && !hasAnthropicHost && !isOpenAICompatibleType) {
       logger.error('Anthropic provider configuration is missing', {
         modelInfo
       })
 
       aiStream.emit('data', {
         type: 'error',
-        error: new Error(`Invalid provider type '${provider.type}'. Expected 'anthropic' provider type.`)
+        error: new Error(
+          `Invalid provider type '${provider.type}'. Expected Anthropic-compatible or OpenAI-compatible provider type.`
+        )
       })
       return aiStream
     }
@@ -191,6 +205,12 @@ class ClaudeCodeService implements AgentServiceInterface {
     // by stripping any trailing API version (e.g. `/v1`).
     // For Azure OpenAI providers, the Anthropic endpoint lives under /anthropic.
     const resolveAnthropicBaseUrl = (): string => {
+      if (isOpenAICompatibleType && !hasAnthropicHost) {
+        const preferenceService = application.get('PreferenceService')
+        const host = preferenceService.get('feature.csaas.host') || '127.0.0.1'
+        const port = preferenceService.get('feature.csaas.port') || 23333
+        return `${buildLocalApiServerBaseUrl(host, port)}/v1/agents/claude-proxy/${provider.id}`
+      }
       if (isAzureOpenAI) {
         const host = withoutTrailingApiVersion(provider.apiHost).replace(/\/openai$/, '')
         return `${host}/anthropic`
@@ -199,6 +219,10 @@ class ClaudeCodeService implements AgentServiceInterface {
     }
     const anthropicBaseUrl = resolveAnthropicBaseUrl()
     const sdkModelId = withDeepSeek1mSuffix(modelInfo.modelId, provider.anthropicApiHost)
+    const apiKey =
+      isOpenAICompatibleType && !hasAnthropicHost
+        ? await application.get('ApiServerService').ensureValidApiKey()
+        : provider.apiKey
 
     const env = {
       ...loginShellEnv,
@@ -209,8 +233,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       // ANTHROPIC_API_KEY: apiConfig['feature.csaas.api_key'],
       // ANTHROPIC_AUTH_TOKEN: apiConfig['feature.csaas.api_key'],
       // ANTHROPIC_BASE_URL: `http://${apiConfig['feature.csaas.host']}:${apiConfig['feature.csaas.port']}/${modelInfo.provider.id}`,
-      ANTHROPIC_API_KEY: provider.apiKey,
-      ANTHROPIC_AUTH_TOKEN: provider.apiKey,
+      ANTHROPIC_API_KEY: apiKey,
+      ANTHROPIC_AUTH_TOKEN: apiKey,
       ANTHROPIC_BASE_URL: anthropicBaseUrl,
       ANTHROPIC_MODEL: sdkModelId,
       ANTHROPIC_DEFAULT_OPUS_MODEL: sdkModelId,
@@ -1033,10 +1057,10 @@ class ClaudeCodeService implements AgentServiceInterface {
       hasCompleted = true
 
       const duration = Date.now() - startTime
-      const errorObj = error as any
+      const errorObj = error as Error | { name?: unknown; message?: unknown }
       const isAborted =
         errorObj?.name === 'AbortError' ||
-        errorObj?.message?.includes('aborted') ||
+        (typeof errorObj?.message === 'string' && errorObj.message.includes('aborted')) ||
         options.abortController?.signal.aborted
 
       if (isAborted) {
