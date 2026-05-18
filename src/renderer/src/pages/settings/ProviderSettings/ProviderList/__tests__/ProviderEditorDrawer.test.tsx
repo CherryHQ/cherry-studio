@@ -128,6 +128,118 @@ describe('ProviderEditorDrawer', () => {
     expect(screen.getByRole('button', { name: 'settings.provider.duplicate.menu_label' })).toBeInTheDocument()
   })
 
+  it('duplicate of an iam-azure source: keeps source defaultChatEndpoint + iam-azure auth, URL-keyed off it', () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{
+          kind: 'duplicate',
+          source: {
+            id: 'azure-1',
+            name: 'Azure 1',
+            presetProviderId: 'azure-openai',
+            defaultChatEndpoint: 'azure-openai-chat-completions',
+            authType: 'iam-azure'
+          } as any
+        }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
+      target: { value: 'Azure 2' }
+    })
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.base_url.placeholder'), {
+      target: { value: 'https://az.example.com' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.duplicate.menu_label' }))
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'create',
+        name: 'Azure 2',
+        defaultChatEndpoint: 'azure-openai-chat-completions',
+        presetProviderId: 'azure-openai',
+        authConfig: { type: 'iam-azure', apiVersion: '' },
+        endpointConfigs: { 'azure-openai-chat-completions': { baseUrl: 'https://az.example.com' } }
+      })
+    )
+  })
+
+  it('duplicate of an iam-aws source: no URL/api-key fields, region-bearing auth, source endpoint', () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{
+          kind: 'duplicate',
+          source: {
+            id: 'aws-bedrock',
+            name: 'Bedrock',
+            presetProviderId: 'aws-bedrock',
+            defaultChatEndpoint: 'anthropic-messages',
+            authType: 'iam-aws'
+          } as any
+        }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    expect(screen.queryByPlaceholderText('settings.provider.base_url.placeholder')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
+      target: { value: 'Bedrock 2' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.duplicate.menu_label' }))
+
+    const payload = onSubmit.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(payload).toMatchObject({
+      mode: 'create',
+      name: 'Bedrock 2',
+      defaultChatEndpoint: 'anthropic-messages',
+      presetProviderId: 'aws-bedrock',
+      authConfig: { type: 'iam-aws', region: '' }
+    })
+    expect(payload.endpointConfigs).toBeUndefined()
+    expect(payload.apiKeys).toBeUndefined()
+  })
+
+  it('duplicate of an api-key-aws source: emptyAuthConfigFor yields region-bearing api-key-aws', () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{
+          kind: 'duplicate',
+          source: {
+            id: 'aws-bedrock',
+            name: 'Bedrock',
+            presetProviderId: 'aws-bedrock',
+            defaultChatEndpoint: 'anthropic-messages',
+            authType: 'api-key-aws'
+          } as any
+        }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
+      target: { value: 'Bedrock 2' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.duplicate.menu_label' }))
+
+    expect(onSubmit.mock.calls[0]?.[0]).toMatchObject({
+      mode: 'create',
+      authConfig: { type: 'api-key-aws', region: '' }
+    })
+  })
+
   it('preserves provider type semantics on edit (defaultChatEndpoint not switched, no presetProviderId leak)', async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
 
