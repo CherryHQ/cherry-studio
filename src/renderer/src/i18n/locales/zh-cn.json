@@ -6354,6 +6354,7 @@
         "description": "AWS Bedrock 是亚马逊提供的全托管基础模型服务，支持多种先进的大语言模型",
         "region": "AWS 区域",
         "region_help": "您的 AWS 服务区域，例如 us-east-1",
+        "region_required": "保存前请填写 AWS 区域",
         "secret_access_key": "AWS 访问密钥",
         "secret_access_key_help": "您的 AWS 访问密钥，请妥善保管",
         "title": "AWS Bedrock 配置"

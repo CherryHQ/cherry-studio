@@ -6354,6 +6354,7 @@
         "description": "AWS Bedrock 是亞馬遜提供的全託管基礎模型服務，支援多種先進的大型語言模型",
         "region": "AWS 區域",
         "region_help": "您的 AWS 服務區域，例如 us-east-1",
+        "region_required": "儲存前請填寫 AWS 區域",
         "secret_access_key": "AWS 存取金鑰",
         "secret_access_key_help": "您的 AWS 存取金鑰，請妥善保管",
         "title": "AWS Bedrock 設定"

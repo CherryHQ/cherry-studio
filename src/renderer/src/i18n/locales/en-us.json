@@ -6354,6 +6354,7 @@
         "description": "AWS Bedrock is Amazon's fully managed foundation model service that supports various advanced large language models",
         "region": "AWS Region",
         "region_help": "Your AWS service region, e.g., us-east-1",
+        "region_required": "Enter an AWS region before saving",
         "secret_access_key": "AWS Secret Access Key",
         "secret_access_key_help": "Your AWS Secret Access Key, please keep it secure",
         "title": "AWS Bedrock Configuration"

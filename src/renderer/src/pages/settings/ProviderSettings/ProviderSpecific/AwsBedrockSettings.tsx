@@ -55,16 +55,27 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
     isIamDraftDirtyRef.current = true
   }
 
+  // Both AWS variants need a region to reach a working Bedrock endpoint.
+  // Reject persisting an empty one (no silent 'us-east-1' default, no empty
+  // string) so the user explicitly supplies it before it is written.
+  const ensureRegionProvided = () => {
+    if (localRegion.trim().length > 0) {
+      return true
+    }
+    window.toast.warning(t('settings.provider.aws-bedrock.region_required'))
+    return false
+  }
+
   const handleAuthTypeChange = async (value: string) => {
+    if (!ensureRegionProvided()) {
+      return
+    }
     try {
-      // Preserve the region the user actually has across the toggle —
-      // matching saveIamConfig / saveApiKeyAwsRegion, which persist
-      // `localRegion` verbatim. Inventing 'us-east-1' here would silently
-      // overwrite an intentionally-empty region on auth-mode switch.
+      const region = localRegion.trim()
       if (value === 'iam') {
-        await updateAuthConfig({ type: 'iam-aws', region: localRegion })
+        await updateAuthConfig({ type: 'iam-aws', region })
       } else {
-        await updateAuthConfig({ type: 'api-key-aws', region: localRegion })
+        await updateAuthConfig({ type: 'api-key-aws', region })
       }
       isIamDraftDirtyRef.current = false
     } catch (error) {
@@ -77,7 +88,7 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
     try {
       await updateAuthConfig({
         type: 'iam-aws' as const,
-        region: localRegion,
+        region: localRegion.trim(),
         accessKeyId: localAccessKeyId,
         secretAccessKey: localSecretAccessKey
       })
@@ -92,7 +103,7 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
 
   const saveApiKeyAwsRegion = async () => {
     try {
-      await updateAuthConfig({ type: 'api-key-aws', region: localRegion })
+      await updateAuthConfig({ type: 'api-key-aws', region: localRegion.trim() })
       isIamDraftDirtyRef.current = false
     } catch (error) {
       logger.error('Failed to save AWS Bedrock api-key region', { providerId, error })
@@ -103,6 +114,9 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
   }
 
   const saveRegion = async () => {
+    if (!ensureRegionProvided()) {
+      return
+    }
     if (isIamMode) {
       await saveIamConfig()
     } else {

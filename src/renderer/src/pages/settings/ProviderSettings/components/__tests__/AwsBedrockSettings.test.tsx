@@ -61,6 +61,7 @@ describe('AwsBedrockSettings', () => {
     vi.clearAllMocks()
     radioGroupPropsSpy.mockClear()
     useProviderAuthConfigMock.mockReturnValue({ data: null })
+    window.toast = { success: vi.fn(), error: vi.fn(), warning: vi.fn() } as any
   })
 
   it('shows IAM credentials when authType is iam-aws', () => {
@@ -130,5 +131,23 @@ describe('AwsBedrockSettings', () => {
     await onValueChange('iam')
 
     expect(updateAuthConfigMock).toHaveBeenCalledWith({ type: 'iam-aws', region: 'us-west-2' })
+  })
+
+  it('blocks the auth-mode toggle and warns when region is empty (no silent default)', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'aws-bedrock', authType: 'iam-aws' },
+      updateAuthConfig: updateAuthConfigMock
+    })
+    useProviderAuthConfigMock.mockReturnValue({
+      data: { type: 'iam-aws', region: '', accessKeyId: 'a', secretAccessKey: 's' }
+    })
+
+    render(<AwsBedrockSettings providerId="aws-bedrock" />)
+
+    const { onValueChange } = radioGroupPropsSpy.mock.calls[0][0]
+    await onValueChange('apiKey')
+
+    expect(updateAuthConfigMock).not.toHaveBeenCalled()
+    expect(window.toast.warning).toHaveBeenCalledWith('settings.provider.aws-bedrock.region_required')
   })
 })
