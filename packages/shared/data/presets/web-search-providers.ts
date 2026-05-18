@@ -4,7 +4,6 @@ import {
   WEB_SEARCH_CAPABILITIES,
   WEB_SEARCH_PROVIDER_IDS,
   WEB_SEARCH_PROVIDER_TYPES,
-  type WebSearchCapability,
   type WebSearchProviderCapabilityOverride,
   type WebSearchProviderCapabilityOverrides,
   type WebSearchProviderId,
@@ -113,7 +112,7 @@ export const WEB_SEARCH_PROVIDER_PRESET_MAP = {
   searxng: {
     name: 'Searxng',
     type: 'api',
-    capabilities: [{ feature: 'searchKeywords', apiHost: '' }]
+    capabilities: [{ feature: 'searchKeywords', apiHost: 'http://localhost:8080' }]
   },
   exa: {
     name: 'Exa',
@@ -136,9 +135,9 @@ export const WEB_SEARCH_PROVIDER_PRESET_MAP = {
     capabilities: [{ feature: 'searchKeywords', apiHost: 'https://api.querit.ai' }]
   },
   fetch: {
-    name: 'Fetch',
+    name: 'fetch',
     type: 'api',
-    capabilities: [{ feature: 'fetchUrls', apiHost: '' }]
+    capabilities: [{ feature: 'fetchUrls' }]
   },
   jina: {
     name: 'Jina',
@@ -154,10 +153,3 @@ export const PRESETS_WEB_SEARCH_PROVIDERS: readonly WebSearchProviderPreset[] = 
   id,
   ...WEB_SEARCH_PROVIDER_PRESET_MAP[id]
 }))
-
-export function findWebSearchCapability(
-  provider: { capabilities: readonly WebSearchProviderFeatureCapability[] },
-  capability: WebSearchCapability
-): WebSearchProviderFeatureCapability | undefined {
-  return provider.capabilities.find((item) => item.feature === capability)
-}

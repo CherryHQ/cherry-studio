@@ -259,7 +259,6 @@ interface WebSearchCompressionConfigSource {
 }
 
 const WEB_SEARCH_COMPRESSION_METHODS = ['none', 'cutoff'] as const
-const WEB_SEARCH_CUTOFF_UNITS = ['char', 'token'] as const
 
 function isStringInList<const T extends readonly string[]>(value: unknown, list: T): value is T[number] {
   return typeof value === 'string' && (list as readonly string[]).includes(value)
@@ -277,10 +276,6 @@ function normalizeCompressionMethod(value: unknown): (typeof WEB_SEARCH_COMPRESS
   return isStringInList(value, WEB_SEARCH_COMPRESSION_METHODS) ? value : 'none'
 }
 
-function normalizeCutoffUnit(value: unknown): (typeof WEB_SEARCH_CUTOFF_UNITS)[number] {
-  return isStringInList(value, WEB_SEARCH_CUTOFF_UNITS) ? value : 'char'
-}
-
 /**
  * Flatten websearch compressionConfig object into separate preference keys.
  *
@@ -288,14 +283,12 @@ function normalizeCutoffUnit(value: unknown): (typeof WEB_SEARCH_CUTOFF_UNITS)[n
  * Input: {
  *   compressionConfig: {
  *     method: 'cutoff',
- *     cutoffLimit: 2000,
- *     cutoffUnit: 'token'
+ *     cutoffLimit: 2000
  *   }
  * }
  * Output: {
  *   'chat.web_search.compression.method': 'cutoff',
- *   'chat.web_search.compression.cutoff_limit': 2000,
- *   'chat.web_search.compression.cutoff_unit': 'token'
+ *   'chat.web_search.compression.cutoff_limit': 2000
  * }
  */
 export function flattenCompressionConfig(sources: {
@@ -307,18 +300,15 @@ export function flattenCompressionConfig(sources: {
   if (!config) {
     return {
       'chat.web_search.compression.method': 'none',
-      'chat.web_search.compression.cutoff_limit': DEFAULT_WEB_SEARCH_CUTOFF_LIMIT,
-      'chat.web_search.compression.cutoff_unit': 'char'
+      'chat.web_search.compression.cutoff_limit': DEFAULT_WEB_SEARCH_CUTOFF_LIMIT
     }
   }
 
   const method = normalizeCompressionMethod(config.method)
-  const cutoffUnit = normalizeCutoffUnit(config.cutoffUnit)
 
   return {
     'chat.web_search.compression.method': method,
-    'chat.web_search.compression.cutoff_limit': normalizeWebSearchCutoffLimit(config.cutoffLimit),
-    'chat.web_search.compression.cutoff_unit': cutoffUnit
+    'chat.web_search.compression.cutoff_limit': normalizeWebSearchCutoffLimit(config.cutoffLimit)
   }
 }
 
@@ -401,7 +391,10 @@ export function migrateWebSearchProviders(sources: { providers?: OldWebSearchPro
     }
 
     if (provider.engines && provider.engines.length > 0) {
-      override.engines = provider.engines
+      const engines = provider.engines.map((engine) => engine.trim()).filter(Boolean)
+      if (engines.length > 0) {
+        override.engines = engines
+      }
     }
 
     const basicAuthUsername = provider.basicAuthUsername?.trim()
@@ -409,8 +402,9 @@ export function migrateWebSearchProviders(sources: { providers?: OldWebSearchPro
       override.basicAuthUsername = basicAuthUsername
     }
 
-    if (provider.basicAuthPassword) {
-      override.basicAuthPassword = provider.basicAuthPassword
+    const basicAuthPassword = basicAuthUsername ? provider.basicAuthPassword?.trim() : undefined
+    if (basicAuthPassword) {
+      override.basicAuthPassword = basicAuthPassword
     }
 
     if (Object.keys(override).length > 0) {

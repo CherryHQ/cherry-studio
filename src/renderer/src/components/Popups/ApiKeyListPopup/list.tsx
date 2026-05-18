@@ -4,10 +4,10 @@ import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVG
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
+import { useSyncZhipuWebSearchApiKeys } from '@renderer/hooks/useWebSearch'
 import { SettingHelpText } from '@renderer/pages/settings'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
-import type { PreprocessProviderId, WebSearchProviderId } from '@renderer/types'
+import type { PreprocessProviderId, Provider } from '@renderer/types'
 import type { ApiKeyWithStatus } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { Card, List, Popconfirm, Space, Typography } from 'antd'
@@ -182,24 +182,23 @@ interface SpecificApiKeyListProps {
   showHealthCheck?: boolean
 }
 
-type WebSearchApiKeyList = SpecificApiKeyListProps & {
-  providerId: WebSearchProviderId
-}
-
 type DocPreprocessApiKeyListProps = SpecificApiKeyListProps & {
   providerId: PreprocessProviderId
 }
 
 export const LlmApiKeyList: FC<SpecificApiKeyListProps> = ({ providerId, showHealthCheck = true }) => {
   const { provider, updateProvider } = useProvider(providerId)
+  const syncZhipuWebSearchApiKeys = useSyncZhipuWebSearchApiKeys()
 
-  return <ApiKeyList provider={provider} updateProvider={updateProvider} showHealthCheck={showHealthCheck} />
-}
+  const updateLlmProvider = (updates: Partial<Provider>) => {
+    updateProvider(updates)
+    if (updates.apiKey !== undefined) {
+      // Zhipu web search shares the LLM provider API key; keep its web-search override in sync.
+      syncZhipuWebSearchApiKeys(providerId, updates.apiKey)
+    }
+  }
 
-export const WebSearchApiKeyList: FC<WebSearchApiKeyList> = ({ providerId, showHealthCheck = true }) => {
-  const { provider, updateProvider } = useWebSearchProvider(providerId)
-
-  return <ApiKeyList provider={provider} updateProvider={updateProvider} showHealthCheck={showHealthCheck} />
+  return <ApiKeyList provider={provider} updateProvider={updateLlmProvider} showHealthCheck={showHealthCheck} />
 }
 
 export const DocPreprocessApiKeyList: FC<DocPreprocessApiKeyListProps> = ({ providerId, showHealthCheck = true }) => {

@@ -97,7 +97,6 @@ export async function buildStreamTextParams(
   options: {
     mcpTools?: MCPTool[]
     allowedTools?: string[]
-    webSearchProviderId?: string
     webSearchConfig?: Pick<WebSearchState, 'maxResults' | 'excludeDomains'>
     requestOptions?: {
       signal?: AbortSignal
@@ -136,14 +135,11 @@ export async function buildStreamTextParams(
       assistant.settings?.reasoning_effort !== undefined) ||
     isFixedReasoningModel(model)
 
-  // 判断是否使用内置搜索
-  // 条件：没有外部搜索提供商 && (用户开启了内置搜索 || 模型强制使用内置搜索)
-  const hasExternalSearch = !!options.webSearchProviderId
+  // 判断是否使用模型/Provider 原生网络搜索
   const enableWebSearch =
-    !hasExternalSearch &&
-    ((assistant.enableWebSearch && isWebSearchModel(model)) ||
-      isOpenRouterBuiltInWebSearchModel(model) ||
-      model.id.includes('sonar'))
+    (assistant.enableWebSearch && isWebSearchModel(model)) ||
+    isOpenRouterBuiltInWebSearchModel(model) ||
+    model.id.includes('sonar')
 
   // Validate provider and model support to prevent stale state from triggering urlContext
   const enableUrlContext = !!(

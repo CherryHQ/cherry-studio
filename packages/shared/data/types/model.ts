@@ -40,11 +40,16 @@ export const PricePerTokenSchema = z.object({
 })
 
 /** Thinking token limits */
-export const ThinkingTokenLimitsSchema = z.object({
-  min: z.number().nonnegative().optional(),
-  max: z.number().positive().optional(),
-  default: z.number().nonnegative().optional()
-})
+export const ThinkingTokenLimitsSchema = z
+  .object({
+    min: z.number().nonnegative().optional(),
+    max: z.number().positive().optional(),
+    default: z.number().nonnegative().optional()
+  })
+  .refine((limits) => limits.min === undefined || limits.max === undefined || limits.min <= limits.max, {
+    message: 'min must be less than or equal to max',
+    path: ['min']
+  })
 
 /** Reasoning effort levels */
 const ReasoningEffortSchema = z.enum(objectValues(REASONING_EFFORT))
@@ -80,18 +85,50 @@ const RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS = ['?', '#'] as const
 /** UniqueModelId type: "providerId::modelId" */
 export type UniqueModelId = `${string}${typeof UNIQUE_MODEL_ID_SEPARATOR}${string}`
 
-/** Zod schema for UniqueModelId with runtime validation */
-export const UniqueModelIdSchema = z.string().refine((v) => v.includes(UNIQUE_MODEL_ID_SEPARATOR), {
-  message: `Must be a valid UniqueModelId (providerId${UNIQUE_MODEL_ID_SEPARATOR}modelId)`
-}) as z.ZodType<UniqueModelId>
+/**
+ * Syntactic check for "looks like an encoded UniqueModelId" — value is a
+ * string and contains the separator. Permissive on purpose: empty providerId
+ * or modelId parts are accepted here so handler boundaries that legitimately
+ * forward partial ids (e.g. delete-by-prefix probes) can use this as a cheap
+ * upfront guard. For round-trip-strict validation (matches the contract of
+ * `createUniqueModelId`), use `UniqueModelIdSchema`.
+ */
+export function isUniqueModelId(value: unknown): value is UniqueModelId {
+  return typeof value === 'string' && value.includes(UNIQUE_MODEL_ID_SEPARATOR)
+}
 
 /**
- * Create a UniqueModelId from provider and model IDs
- * @throws Error if providerId contains the separator
+ * Zod schema for UniqueModelId — the strict form that mirrors
+ * `createUniqueModelId`'s contract: separator at a real position, both parts
+ * non-empty, and no reserved route characters in the modelId. Used at API
+ * boundaries that accept fully-formed ids in DTO bodies.
+ */
+export const UniqueModelIdSchema = z.custom<UniqueModelId>(
+  (value) => {
+    if (typeof value !== 'string') return false
+    const idx = value.indexOf(UNIQUE_MODEL_ID_SEPARATOR)
+    if (idx <= 0) return false
+    const modelId = value.slice(idx + UNIQUE_MODEL_ID_SEPARATOR.length)
+    if (modelId.length === 0) return false
+    return !RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS.some((char) => modelId.includes(char))
+  },
+  { message: `Must be a valid UniqueModelId (providerId${UNIQUE_MODEL_ID_SEPARATOR}modelId)` }
+)
+
+/**
+ * Create a UniqueModelId from provider and model IDs.
+ * @throws Error with a per-field reason when either id is empty, providerId
+ * contains the separator, or modelId contains a reserved route character.
  */
 export function createUniqueModelId(providerId: string, modelId: string): UniqueModelId {
+  if (providerId.length === 0) {
+    throw new Error('providerId cannot be empty')
+  }
   if (providerId.includes(UNIQUE_MODEL_ID_SEPARATOR)) {
     throw new Error(`providerId cannot contain "${UNIQUE_MODEL_ID_SEPARATOR}": ${providerId}`)
+  }
+  if (modelId.length === 0) {
+    throw new Error('modelId cannot be empty')
   }
   const reservedChar = RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS.find((char) => modelId.includes(char))
   if (reservedChar) {
@@ -101,8 +138,12 @@ export function createUniqueModelId(providerId: string, modelId: string): Unique
 }
 
 /**
- * Parse a UniqueModelId into its components
- * @throws Error if the format is invalid
+ * Parse a UniqueModelId into its components — splits on the FIRST separator.
+ * Same permissive semantics as `isUniqueModelId`: empty `providerId` or
+ * `modelId` parts pass through, callers decide whether to reject them. For
+ * strict, fully-formed validation use `UniqueModelIdSchema`.
+ *
+ * @throws Error if the value does not contain `${UNIQUE_MODEL_ID_SEPARATOR}`.
  */
 export function parseUniqueModelId(uniqueId: UniqueModelId): {
   providerId: string
@@ -118,13 +159,6 @@ export function parseUniqueModelId(uniqueId: UniqueModelId): {
   }
 }
 
-/**
- * Check if a string is a valid UniqueModelId
- */
-export function isUniqueModelId(value: string): value is UniqueModelId {
-  return value.includes(UNIQUE_MODEL_ID_SEPARATOR)
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // UI Tag Constants
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -135,6 +169,7 @@ export const UI_CAPABILITY_TAGS = [
   MODEL_CAPABILITY.IMAGE_GENERATION,
   MODEL_CAPABILITY.AUDIO_RECOGNITION,
   MODEL_CAPABILITY.AUDIO_GENERATION,
+  MODEL_CAPABILITY.VIDEO_RECOGNITION,
   MODEL_CAPABILITY.VIDEO_GENERATION,
   MODEL_CAPABILITY.EMBEDDING,
   MODEL_CAPABILITY.REASONING,
@@ -237,6 +272,8 @@ export const ModelSchema = z.object({
   providerId: z.string(),
   /** API Model ID - The actual ID used when calling the provider's API */
   apiModelId: z.string().optional(),
+  /** Preset catalog model ID this row was created from, if any */
+  presetModelId: z.string().nullable().optional(),
 
   // Display Information
   /** Display name */
@@ -281,12 +318,12 @@ export const ModelSchema = z.object({
   isEnabled: z.boolean(),
   /** Whether this model is hidden from lists */
   isHidden: z.boolean(),
+  /** Whether this model has been deprecated by provider sync */
+  isDeprecated: z.boolean().optional(),
   /** Replacement model if this one is deprecated */
   replaceWith: UniqueModelIdSchema.optional(),
 
   // UI metadata
-  /** Sort order in provider's model list */
-  sortOrder: z.number().optional(),
   /** User notes about this model */
   notes: z.string().optional()
 })

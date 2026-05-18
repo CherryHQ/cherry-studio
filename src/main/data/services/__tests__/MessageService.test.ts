@@ -3,6 +3,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
+import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { BlockType, type MessageData } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -16,9 +17,10 @@ describe('MessageService', () => {
   const dbh = setupTestDatabase()
 
   beforeEach(async () => {
+    const [providerAKey, providerBKey, modelAKey, modelBKey] = generateOrderKeySequence(4)
     await dbh.db.insert(userProviderTable).values([
-      { providerId: 'provider-a', name: 'Provider A' },
-      { providerId: 'provider-b', name: 'Provider B' }
+      { providerId: 'provider-a', name: 'Provider A', orderKey: providerAKey },
+      { providerId: 'provider-b', name: 'Provider B', orderKey: providerBKey }
     ])
 
     await dbh.db.insert(userModelTable).values([
@@ -30,7 +32,7 @@ describe('MessageService', () => {
         name: 'model-A',
         isEnabled: true,
         isHidden: false,
-        sortOrder: 0
+        orderKey: modelAKey
       },
       {
         id: createUniqueModelId('provider-b', 'model-B'),
@@ -40,7 +42,7 @@ describe('MessageService', () => {
         name: 'model-B',
         isEnabled: true,
         isHidden: false,
-        sortOrder: 0
+        orderKey: modelBKey
       }
     ])
   })

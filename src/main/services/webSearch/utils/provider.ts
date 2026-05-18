@@ -1,7 +1,6 @@
-import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
-import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
+import type { WebSearchCapability, WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 
-export function resolveProviderApiHost(provider: ResolvedWebSearchProvider, capability: WebSearchCapability): string {
+export function resolveProviderApiHost(provider: WebSearchProvider, capability: WebSearchCapability): string {
   const host = provider.capabilities.find((item) => item.feature === capability)?.apiHost?.trim()
   if (!host) {
     throw new Error(`API host is required for provider ${provider.id} capability ${capability}`)
@@ -10,9 +9,9 @@ export function resolveProviderApiHost(provider: ResolvedWebSearchProvider, capa
 }
 
 export class ApiKeyRotationState {
-  private readonly lastUsedKeyByProvider = new Map<ResolvedWebSearchProvider['id'], string>()
+  private readonly lastUsedKeyByProvider = new Map<WebSearchProvider['id'], string>()
 
-  resolve(provider: ResolvedWebSearchProvider, required: boolean = true): string {
+  resolve(provider: WebSearchProvider, required: boolean = true): string {
     const keys = provider.apiKeys.map((key) => key.trim()).filter(Boolean)
 
     if (keys.length === 0) {

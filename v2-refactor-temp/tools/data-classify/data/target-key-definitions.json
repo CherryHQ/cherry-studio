@@ -55,25 +55,11 @@
       "description": "Default Web Search provider for URL fetch capability"
     },
     {
-      "targetKey": "chat.web_search.subscribe_sources",
-      "type": "PreferenceTypes.WebSearchSubscribeSource[]",
-      "defaultValue": [],
-      "status": "classified",
-      "description": "Web search blacklist subscription sources"
-    },
-    {
       "targetKey": "chat.web_search.compression.cutoff_limit",
       "type": "number",
       "defaultValue": 2000,
       "status": "classified",
       "description": "Web search compression cutoff limit (from complex migration; defaults when legacy value is empty)"
-    },
-    {
-      "targetKey": "chat.web_search.compression.cutoff_unit",
-      "type": "PreferenceTypes.WebSearchCompressionCutoffUnit",
-      "defaultValue": "char",
-      "status": "classified",
-      "description": "Web search compression cutoff unit (from complex migration)"
     },
     {
       "targetKey": "chat.web_search.compression.method",
@@ -102,13 +88,6 @@
       "defaultValue": 5,
       "status": "classified",
       "description": "Web search max results (from complex migration)"
-    },
-    {
-      "targetKey": "chat.web_search.search_with_time",
-      "type": "boolean",
-      "defaultValue": true,
-      "status": "classified",
-      "description": "Prepend today's date to the query as a textual hint (no provider-side time filtering)"
     },
     {
       "targetKey": "chat.web_search.provider_overrides",

@@ -240,7 +240,7 @@ export function usePaintingModelCatalog({
     let asyncLoading = false
     let currentError: Error | undefined
 
-    for (const [providerIndex, providerId] of providerOptions.entries()) {
+    for (const providerId of providerOptions) {
       const targetTab = getTargetTab(providerId)
       if (!targetTab) {
         continue
@@ -271,7 +271,7 @@ export function usePaintingModelCatalog({
         providers.push(createSelectorProvider(providerId, provider))
       }
 
-      providerModelOptions.forEach((modelOption, modelIndex) => {
+      providerModelOptions.forEach((modelOption) => {
         const modelId = String(modelOption.value || '').trim()
         if (!modelId) {
           return
@@ -293,8 +293,7 @@ export function usePaintingModelCatalog({
           capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
           supportsStreaming: false,
           isEnabled: modelOption.isEnabled ?? true,
-          isHidden: false,
-          sortOrder: providerIndex * 1000 + modelIndex
+          isHidden: false
         })
       })
     }
@@ -319,8 +318,7 @@ export function usePaintingModelCatalog({
           capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
           supportsStreaming: false,
           isEnabled: false,
-          isHidden: false,
-          sortOrder: -1
+          isHidden: false
         })
       }
     }

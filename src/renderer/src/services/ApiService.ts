@@ -49,7 +49,6 @@ import type { StreamProcessorCallbacks } from './StreamProcessingService'
 //   filterUsefulMessages,
 //   filterUserRoleStartMessages
 // } from './MessagesService'
-// import WebSearchService from './WebSearchService'
 
 // FIXME: 这里太多重复逻辑，需要重构
 
@@ -262,11 +261,11 @@ export async function fetchChatCompletion({
     params: aiSdkParams,
     modelId,
     capabilities,
-    webSearchPluginConfig
+    webSearchPluginConfig,
+    idleTimeout
   } = await buildStreamTextParams(messages, assistant, provider, {
     mcpTools: mcpTools,
     allowedTools,
-    webSearchProviderId: assistant.webSearchProviderId,
     requestOptions
   })
 
@@ -283,12 +282,14 @@ export async function fetchChatCompletion({
     isSupportedToolUse: isSupportedToolUse(assistant),
     webSearchPluginConfig: webSearchPluginConfig,
     enableWebSearch: capabilities.enableWebSearch,
+    enableWebSearchTools: !!assistant.enableWebSearch && !capabilities.enableWebSearch,
     enableGenerateImage: capabilities.enableGenerateImage,
     enableUrlContext: capabilities.enableUrlContext,
     mcpMode,
     mcpTools,
     uiMessages,
-    knowledgeRecognition: assistant.knowledgeRecognition
+    knowledgeRecognition: assistant.knowledgeRecognition,
+    idleTimeout
   }
 
   // Wrap onChunkReceived to automatically track token usage on completion
@@ -337,7 +338,17 @@ async function collectImagesFromMessages(userMessage: Message, assistantMessage?
   if (assistantMessage) {
     const assistantImageBlocks = findImageBlocks(assistantMessage)
     for (const block of assistantImageBlocks) {
-      if (block.url) {
+      if (block.file) {
+        try {
+          const { data } = await window.api.file.base64Image(block.file.name)
+          images.push(data)
+        } catch (error) {
+          logger.error('Failed to load assistant image file, image will be excluded:', {
+            fileName: block.file.name,
+            error: error as Error
+          })
+        }
+      } else if (block.url) {
         images.push(block.url)
       }
     }
@@ -832,7 +843,23 @@ export function checkApiProvider(provider: Provider): void {
  * @param timeout - Maximum time (ms) to wait for the request to complete. Defaults to 15000 ms.
  * @throws {Error} If the request fails or times out, indicating the API is not usable.
  */
-export async function checkApi(provider: Provider, model: Model, timeout = 15000): Promise<void> {
+function createAbortPromise(signal: AbortSignal | undefined): Promise<never> | null {
+  if (!signal) {
+    return null
+  }
+
+  return new Promise((_, reject) => {
+    const rejectAborted = () => reject(new DOMException('Aborted', 'AbortError'))
+    if (signal.aborted) {
+      rejectAborted()
+      return
+    }
+
+    signal.addEventListener('abort', rejectAborted, { once: true })
+  })
+}
+
+export async function checkApi(provider: Provider, model: Model, timeout = 15000, signal?: AbortSignal): Promise<void> {
   checkApiProvider(provider)
 
   const ai = new AiProvider(model, provider)
@@ -844,15 +871,21 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
   if (isEmbeddingModel(model)) {
     logger.info('checkApi: embedding model detected, calling getEmbeddingDimensions', { modelId: model.id })
     const timerPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout))
-    await Promise.race([ai.getEmbeddingDimensions(model), timerPromise])
+    const abortPromise = createAbortPromise(signal)
+    await Promise.race([
+      ai.getEmbeddingDimensions(model, signal),
+      timerPromise,
+      ...(abortPromise ? [abortPromise] : [])
+    ])
   } else {
     const abortId = uuid()
-    const signal = readyToAbort(abortId)
+    const checkSignal = readyToAbort(abortId)
+    const abortSignal = signal ? AbortSignal.any([checkSignal, signal]) : checkSignal
     let streamError: ResponseError | undefined
     const params: StreamTextParams = {
       system: assistant.prompt,
       prompt: 'hi',
-      abortSignal: signal
+      abortSignal
     }
     const config: AiProviderConfig = {
       streamOutput: true,
@@ -883,8 +916,13 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
   }
 }
 
-export async function checkModel(provider: Provider, model: Model, timeout = 15000): Promise<{ latency: number }> {
+export async function checkModel(
+  provider: Provider,
+  model: Model,
+  timeout = 15000,
+  signal?: AbortSignal
+): Promise<{ latency: number }> {
   const startTime = performance.now()
-  await checkApi(provider, model, timeout)
+  await checkApi(provider, model, timeout, signal)
   return { latency: performance.now() - startTime }
 }

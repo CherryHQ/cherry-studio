@@ -1,26 +1,35 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import path from 'node:path'
 
-const { appMock, loggerMock, handlersMock, windowManagerMock } = vi.hoisted(() => {
-  const appMock = {
-    on: vi.fn(),
-    removeListener: vi.fn(),
-    setAsDefaultProtocolClient: vi.fn()
-  }
-  const loggerMock = {
-    debug: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn()
-  }
-  const handlersMock = {
-    handleMcpProtocolUrl: vi.fn(),
-    handleNavigateProtocolUrl: vi.fn(),
-    handleProvidersProtocolUrl: vi.fn()
-  }
-  const windowManagerMock = {
-    broadcastToType: vi.fn()
-  }
-  return { appMock, loggerMock, handlersMock, windowManagerMock }
-})
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { appMock, loggerMock, handlersMock, windowManagerMock, mainWindowServiceMock, cherryINOAuthServiceMock } =
+  vi.hoisted(() => {
+    const appMock = {
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      setAsDefaultProtocolClient: vi.fn()
+    }
+    const loggerMock = {
+      debug: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn()
+    }
+    const handlersMock = {
+      handleMcpProtocolUrl: vi.fn(),
+      handleNavigateProtocolUrl: vi.fn(),
+      handleProvidersProtocolUrl: vi.fn()
+    }
+    const windowManagerMock = {
+      broadcast: vi.fn()
+    }
+    const mainWindowServiceMock = {
+      showMainWindow: vi.fn()
+    }
+    const cherryINOAuthServiceMock = {
+      handleOAuthCallback: vi.fn()
+    }
+    return { appMock, loggerMock, handlersMock, windowManagerMock, mainWindowServiceMock, cherryINOAuthServiceMock }
+  })
 
 vi.mock('electron', () => ({ app: appMock }))
 
@@ -34,6 +43,8 @@ vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'WindowManager') return windowManagerMock
+      if (name === 'MainWindowService') return mainWindowServiceMock
+      if (name === 'CherryINOAuthService') return cherryINOAuthServiceMock
       throw new Error(`unexpected service: ${name}`)
     },
     getPath: (key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`)
@@ -66,22 +77,60 @@ vi.mock('../handlers/providersImport', () => ({
   handleProvidersProtocolUrl: handlersMock.handleProvidersProtocolUrl
 }))
 
-import { WindowType } from '@main/core/window/types'
-
 import { ProtocolService } from '../ProtocolService'
 
 describe('ProtocolService', () => {
   let service: ProtocolService
+  let originalArgv: string[]
+  let originalDefaultApp: boolean | undefined
+
+  function setDefaultApp(value: boolean | undefined) {
+    if (value === undefined) {
+      Reflect.deleteProperty(process, 'defaultApp')
+    } else {
+      ;(process as NodeJS.Process & { defaultApp?: boolean }).defaultApp = value
+    }
+  }
 
   beforeEach(() => {
+    originalArgv = process.argv
+    originalDefaultApp = (process as NodeJS.Process & { defaultApp?: boolean }).defaultApp
     vi.clearAllMocks()
+    cherryINOAuthServiceMock.handleOAuthCallback.mockResolvedValue(undefined)
     service = new ProtocolService()
+  })
+
+  afterEach(() => {
+    process.argv = originalArgv
+    setDefaultApp(originalDefaultApp)
   })
 
   it('logs malformed protocol URLs instead of throwing', () => {
     expect(() => (service as any).handleProtocolUrl('not a url')).not.toThrow()
 
     expect(loggerMock.error).toHaveBeenCalledWith('Failed to handle protocol URL', expect.any(TypeError))
+  })
+
+  it('registers the packaged protocol handler without dev arguments', async () => {
+    setDefaultApp(false)
+    process.argv = ['Cherry Studio.exe']
+
+    await (service as any).onInit()
+
+    expect(appMock.setAsDefaultProtocolClient).toHaveBeenCalledTimes(1)
+    expect(appMock.setAsDefaultProtocolClient).toHaveBeenCalledWith('cherrystudio')
+  })
+
+  it('registers the dev protocol handler with an absolute app entry', async () => {
+    setDefaultApp(true)
+    process.argv = ['electron.exe', '.']
+
+    await (service as any).onInit()
+
+    expect(appMock.setAsDefaultProtocolClient).toHaveBeenCalledTimes(1)
+    expect(appMock.setAsDefaultProtocolClient).toHaveBeenCalledWith('cherrystudio', process.execPath, [
+      path.resolve(process.cwd(), '.')
+    ])
   })
 
   it('logs asynchronous providers handler failures', async () => {
@@ -95,12 +144,43 @@ describe('ProtocolService', () => {
     })
   })
 
-  it('broadcasts unknown protocol hosts to main windows', () => {
+  it('broadcasts unknown protocol hosts to all windows', () => {
     ;(service as any).handleProtocolUrl('cherrystudio://unknown/path?foo=bar')
 
-    expect(windowManagerMock.broadcastToType).toHaveBeenCalledWith(WindowType.Main, 'protocol-data', {
+    expect(windowManagerMock.broadcast).toHaveBeenCalledWith('protocol-data', {
       url: 'cherrystudio://unknown/path?foo=bar',
       params: { foo: 'bar' }
+    })
+  })
+
+  describe('second-instance handler', () => {
+    function getSecondInstanceHandler() {
+      const call = appMock.on.mock.calls.find((call) => call[0] === 'second-instance')
+      if (!call) throw new Error('second-instance listener not registered')
+      return call[1] as (event: unknown, argv: string[]) => void
+    }
+
+    it('dispatches the URL when argv carries a cherrystudio:// deep link', async () => {
+      await (service as any).onInit()
+      const handler = getSecondInstanceHandler()
+
+      handler({}, ['/path/to/electron', '.', 'cherrystudio://oauth/callback?code=abc'])
+
+      expect(mainWindowServiceMock.showMainWindow).not.toHaveBeenCalled()
+      expect(cherryINOAuthServiceMock.handleOAuthCallback).toHaveBeenCalledTimes(1)
+      const url = cherryINOAuthServiceMock.handleOAuthCallback.mock.calls[0][0] as URL
+      expect(url.href).toBe('cherrystudio://oauth/callback?code=abc')
+      expect(windowManagerMock.broadcast).not.toHaveBeenCalled()
+    })
+
+    it('surfaces the main window when argv has no protocol URL', async () => {
+      await (service as any).onInit()
+      const handler = getSecondInstanceHandler()
+
+      handler({}, ['/path/to/electron', '.'])
+
+      expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledTimes(1)
+      expect(windowManagerMock.broadcast).not.toHaveBeenCalled()
     })
   })
 })

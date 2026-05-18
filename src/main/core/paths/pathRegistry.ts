@@ -137,6 +137,9 @@ export function buildPathRegistry() {
     'feature.dxt.uploads.temp': path.join(appTemp, 'dxt_uploads'),
     'feature.preprocess.temp': path.join(appTemp, 'preprocess'),
     'feature.lan_transfer.temp': path.join(appTemp, 'lan-transfer'),
+    // FileManager's `withTempCopy` escape hatch parent dir; each call mkdtemps a
+    // unique sub-directory under here.
+    'feature.files.tempcopy.temp': path.join(appTemp, 'files-tempcopy'),
 
     // -- E. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
     'external.openclaw.config': path.join(os.homedir(), '.openclaw'),

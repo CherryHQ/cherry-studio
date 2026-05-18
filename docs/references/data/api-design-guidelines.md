@@ -2,6 +2,8 @@
 
 Guidelines for designing RESTful APIs in the Cherry Studio Data API system.
 
+> **File organization is separate from path design.** For which `schemas/*.ts` file a route belongs in, see [Schema File Organization](./api-types.md#schema-file-organization). This guide covers the *shape* of paths only.
+
 ## Path Naming
 
 | Rule | Example | Notes |

@@ -1,5 +1,4 @@
-import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
-import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
+import type { WebSearchCapability, WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import { withoutTrailingSlash } from '@shared/utils'
 import type * as z from 'zod'
 
@@ -10,7 +9,7 @@ const MAX_HTTP_ERROR_TEXT_LENGTH = 500
 
 export abstract class BaseWebSearchProvider {
   constructor(
-    protected readonly provider: ResolvedWebSearchProvider,
+    protected readonly provider: WebSearchProvider,
     private readonly apiKeyRotationState: ApiKeyRotationState
   ) {}
 

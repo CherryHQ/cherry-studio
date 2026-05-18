@@ -1,10 +1,7 @@
 import { Badge, MenuDivider, MenuItem, MenuList } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { getWebSearchProviderLogo } from '@renderer/config/webSearchProviders'
-import { useDefaultWebSearchProvider, useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
-import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
-import { Search } from 'lucide-react'
 import type { FC } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -15,31 +12,37 @@ import {
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
 } from '..'
+import { WebSearchGeneralSettings } from './components/WebSearchGeneralSettings'
+import WebSearchProviderLogo from './components/WebSearchProviderLogo'
+import { WebSearchProviderSetting } from './components/WebSearchProviderSetting'
+import { useWebSearchProviderLists } from './hooks/useWebSearchProviderLists'
+import { getWebSearchCapabilityTitleKey } from './utils/webSearchProviderMeta'
 
 const WebSearchSettings: FC = () => {
   const { t } = useTranslation()
-  const { providers } = useWebSearchProviders()
-  const { provider: defaultProvider } = useDefaultWebSearchProvider()
-  const navigate = useNavigate()
-  const location = useLocation()
+  const {
+    defaultFetchUrlsProvider,
+    defaultSearchKeywordsProvider,
+    featureSections,
+    providerOverrides,
+    setApiKeys,
+    setBasicAuth,
+    setCapabilityApiHost,
+    setDefaultFetchUrlsProvider,
+    setDefaultSearchKeywordsProvider,
+    updateProvider
+  } = useWebSearchProviderLists()
+  const [activeKey, setActiveKey] = useState('general')
+  const activeEntry = useMemo(
+    () => featureSections.flatMap((section) => section.entries).find((entry) => entry.key === activeKey),
+    [activeKey, featureSections]
+  )
 
-  const getActiveView = () => {
-    const path = location.pathname
-
-    if (path === '/settings/websearch/general' || path === '/settings/websearch') {
-      return 'general'
+  useEffect(() => {
+    if (activeKey !== 'general' && !activeEntry) {
+      setActiveKey('general')
     }
-
-    for (const provider of providers) {
-      if (path === `/settings/websearch/provider/${provider.id}`) {
-        return provider.id
-      }
-    }
-
-    return 'general'
-  }
-
-  const activeView = getActiveView()
+  }, [activeEntry, activeKey])
 
   return (
     <div className="flex flex-1">
@@ -47,47 +50,65 @@ const WebSearchSettings: FC = () => {
         <Scrollbar className={settingsSubmenuScrollClassName}>
           <MenuList className={settingsSubmenuListClassName}>
             <MenuItem
-              label={t('settings.tool.websearch.title')}
-              active={activeView === 'general'}
-              onClick={() => navigate({ to: '/settings/websearch/general' })}
-              icon={<Search size={18} />}
+              label={t('settings.tool.websearch.search_provider')}
+              active={activeKey === 'general'}
+              onClick={() => setActiveKey('general')}
               className={settingsSubmenuItemClassName}
             />
             <MenuDivider className={settingsSubmenuDividerClassName} />
-            <div className={settingsSubmenuSectionTitleClassName}>{t('settings.tool.websearch.api_providers')}</div>
-            {providers.map((provider) => {
-              const logo = getWebSearchProviderLogo(provider.id)
-              const isDefault = defaultProvider?.id === provider.id
-              return (
-                <MenuItem
-                  key={provider.id}
-                  label={provider.name}
-                  active={activeView === provider.id}
-                  onClick={() =>
-                    navigate({ to: '/settings/websearch/provider/$providerId', params: { providerId: provider.id } })
-                  }
-                  icon={
-                    logo ? (
-                      <logo.Avatar size={20} shape="rounded" />
-                    ) : (
-                      <div className="h-5 w-5 rounded bg-(--color-background-subtle)" />
-                    )
-                  }
-                  className={settingsSubmenuItemClassName}
-                  suffix={
-                    isDefault ? (
-                      <Badge className="mr-0 ml-auto rounded-full border border-green-500/30 bg-green-500/10 px-2.5 py-0.5 font-medium text-green-600 text-xs dark:text-green-400">
-                        {t('common.default')}
-                      </Badge>
-                    ) : undefined
-                  }
-                />
-              )
-            })}
+            {featureSections.map((section) => (
+              <div key={section.capability}>
+                <div className={settingsSubmenuSectionTitleClassName}>
+                  {t(getWebSearchCapabilityTitleKey(section.capability))}
+                </div>
+                {section.entries.map((entry) => {
+                  const isDefault =
+                    entry.capability === 'fetchUrls'
+                      ? defaultFetchUrlsProvider?.id === entry.provider.id
+                      : defaultSearchKeywordsProvider?.id === entry.provider.id
+
+                  return (
+                    <MenuItem
+                      key={entry.key}
+                      label={entry.provider.name}
+                      active={activeKey === entry.key}
+                      onClick={() => setActiveKey(entry.key)}
+                      icon={<WebSearchProviderLogo providerId={entry.provider.id} providerName={entry.provider.name} />}
+                      className={settingsSubmenuItemClassName}
+                      suffix={
+                        isDefault ? (
+                          <Badge className="mr-0 ml-auto rounded-full border border-green-500/30 bg-green-500/10 px-2.5 py-0.5 font-medium text-green-600 text-xs dark:text-green-400">
+                            {t('common.default')}
+                          </Badge>
+                        ) : undefined
+                      }
+                    />
+                  )
+                })}
+              </div>
+            ))}
           </MenuList>
         </Scrollbar>
         <div className={`${settingsContentScrollClassName} relative flex`}>
-          <Outlet />
+          {activeEntry ? (
+            <WebSearchProviderSetting
+              key={activeEntry.key}
+              entry={activeEntry}
+              defaultProvider={
+                activeEntry.capability === 'fetchUrls' ? defaultFetchUrlsProvider : defaultSearchKeywordsProvider
+              }
+              providerOverrides={providerOverrides}
+              onSetApiKeys={setApiKeys}
+              onSetBasicAuth={setBasicAuth}
+              onSetCapabilityApiHost={setCapabilityApiHost}
+              onSetDefaultProvider={
+                activeEntry.capability === 'fetchUrls' ? setDefaultFetchUrlsProvider : setDefaultSearchKeywordsProvider
+              }
+              onUpdateProvider={updateProvider}
+            />
+          ) : (
+            <WebSearchGeneralSettings />
+          )}
         </div>
       </div>
     </div>

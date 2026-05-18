@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 
 import { WEB_SEARCH_PROVIDER_IDS } from '../data/preference/preferenceTypes'
 import {
-  findWebSearchCapability,
   PRESETS_WEB_SEARCH_PROVIDERS,
   WebSearchProviderIdSchema,
   WebSearchProviderOverrideSchema,
@@ -41,8 +40,30 @@ describe('web search provider schemas', () => {
     const jina = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'jina')
 
     expect(jina).toBeDefined()
-    expect(findWebSearchCapability(jina!, 'searchKeywords')?.apiHost).toBe('https://s.jina.ai')
-    expect(findWebSearchCapability(jina!, 'fetchUrls')?.apiHost).toBe('https://r.jina.ai')
+    expect(jina!.capabilities.find((capability) => capability.feature === 'searchKeywords')?.apiHost).toBe(
+      'https://s.jina.ai'
+    )
+    expect(jina!.capabilities.find((capability) => capability.feature === 'fetchUrls')?.apiHost).toBe(
+      'https://r.jina.ai'
+    )
+  })
+
+  it('models Fetch as a hostless built-in URL fetch provider', () => {
+    const fetch = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'fetch')
+
+    expect(fetch).toBeDefined()
+    expect(fetch!.capabilities.find((capability) => capability.feature === 'fetchUrls')).toEqual({
+      feature: 'fetchUrls'
+    })
+  })
+
+  it('models Searxng with a localhost default host', () => {
+    const searxng = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'searxng')
+
+    expect(searxng).toBeDefined()
+    expect(searxng!.capabilities.find((capability) => capability.feature === 'searchKeywords')?.apiHost).toBe(
+      'http://localhost:8080'
+    )
   })
 
   it('accepts valid provider overrides', () => {

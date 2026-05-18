@@ -125,7 +125,11 @@ export async function buildPlugins({ provider, model, config }: BuildPluginsCont
   }
   // 2. 支持工具调用时添加搜索插件
   if (config.isSupportedToolUse || config.isPromptToolUse) {
-    plugins.push(searchOrchestrationPlugin(config.assistant, config.topicId || ''))
+    plugins.push(
+      searchOrchestrationPlugin(config.assistant, config.topicId || '', {
+        enableWebSearchTools: config.enableWebSearchTools
+      })
+    )
   }
 
   // 3. 推理模型时添加推理插件

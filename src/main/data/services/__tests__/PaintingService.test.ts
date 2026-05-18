@@ -1,6 +1,7 @@
 import { paintingTable } from '@data/db/schemas/painting'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
@@ -28,15 +29,18 @@ describe('PaintingService', () => {
 
   async function insertModel(providerId = 'aihubmix', modelId = 'gpt-image-1') {
     const uniqueModelId = createUniqueModelId(providerId, modelId)
+    const [providerOrderKey, modelOrderKey] = generateOrderKeySequence(2)
     await dbh.db.insert(userProviderTable).values({
       providerId,
-      name: providerId
+      name: providerId,
+      orderKey: providerOrderKey
     })
     await dbh.db.insert(userModelTable).values({
       id: uniqueModelId,
       providerId,
       modelId,
-      name: modelId
+      name: modelId,
+      orderKey: modelOrderKey
     })
     return uniqueModelId
   }
