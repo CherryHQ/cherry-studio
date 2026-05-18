@@ -261,7 +261,8 @@ export async function fetchChatCompletion({
     params: aiSdkParams,
     modelId,
     capabilities,
-    webSearchPluginConfig
+    webSearchPluginConfig,
+    idleTimeout
   } = await buildStreamTextParams(messages, assistant, provider, {
     mcpTools: mcpTools,
     allowedTools,
@@ -287,7 +288,8 @@ export async function fetchChatCompletion({
     mcpMode,
     mcpTools,
     uiMessages,
-    knowledgeRecognition: assistant.knowledgeRecognition
+    knowledgeRecognition: assistant.knowledgeRecognition,
+    idleTimeout
   }
 
   // Wrap onChunkReceived to automatically track token usage on completion
@@ -336,7 +338,17 @@ async function collectImagesFromMessages(userMessage: Message, assistantMessage?
   if (assistantMessage) {
     const assistantImageBlocks = findImageBlocks(assistantMessage)
     for (const block of assistantImageBlocks) {
-      if (block.url) {
+      if (block.file) {
+        try {
+          const { data } = await window.api.file.base64Image(block.file.name)
+          images.push(data)
+        } catch (error) {
+          logger.error('Failed to load assistant image file, image will be excluded:', {
+            fileName: block.file.name,
+            error: error as Error
+          })
+        }
+      } else if (block.url) {
         images.push(block.url)
       }
     }

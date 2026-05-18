@@ -12,13 +12,19 @@ on:
         description: 'Clean node_modules before build'
         type: boolean
         default: false
+      dry_run:
+        description: 'Run all steps except GitCode release creation/upload and Feishu notification'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
-  build-and-sync-to-gitcode:
+  build-windows-signed:
     runs-on: [self-hosted, windows-signing]
+    outputs:
+      tag: ${{ steps.get-tag.outputs.tag }}
     steps:
       - name: Get tag name
         id: get-tag
@@ -35,6 +41,12 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ steps.get-tag.outputs.tag }}
+
+      - name: Show checked-out revision
+        shell: bash
+        run: |
+          echo "Checkout ref: ${{ steps.get-tag.outputs.tag }}"
+          git log -1 --format='%H %s'
 
       - name: Set package.json version
         shell: bash
@@ -81,11 +93,31 @@ jobs:
           echo "Built Windows artifacts:"
           ls -la dist/*.exe dist/latest*.yml
 
+      - name: Upload signed Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-windows-artifacts
+          path: |
+            dist/*.exe
+            dist/latest.yml
+          if-no-files-found: error
+          retention-days: 1
+
+  sync-to-gitcode:
+    runs-on: ubuntu-latest
+    needs: build-windows-signed
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.build-windows-signed.outputs.tag }}
+
       - name: Download GitHub release assets
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG_NAME: ${{ steps.get-tag.outputs.tag }}
+          TAG_NAME: ${{ needs.build-windows-signed.outputs.tag }}
         run: |
           echo "Downloading release assets for $TAG_NAME..."
           mkdir -p release-assets
@@ -100,14 +132,24 @@ jobs:
           echo "Downloaded GitHub release assets:"
           ls -la
 
+      - name: Download signed Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: signed-windows-artifacts
+          path: signed-windows-artifacts
+
       - name: Replace Windows files with signed versions
         shell: bash
         run: |
           echo "Replacing Windows files with signed versions..."
 
           # Verify signed files exist first
-          if ! ls dist/*.exe 1>/dev/null 2>&1; then
-            echo "ERROR: No signed .exe files found in dist/"
+          if ! ls signed-windows-artifacts/*.exe 1>/dev/null 2>&1; then
+            echo "ERROR: No signed .exe files found in signed-windows-artifacts/"
+            exit 1
+          fi
+          if [ ! -f signed-windows-artifacts/latest.yml ]; then
+            echo "ERROR: No signed latest.yml found in signed-windows-artifacts/"
             exit 1
           fi
 
@@ -115,8 +157,8 @@ jobs:
           rm -f release-assets/*.exe release-assets/latest.yml 2>/dev/null || true
 
           # Copy signed Windows files with error checking
-          cp dist/*.exe release-assets/ || { echo "ERROR: Failed to copy .exe files"; exit 1; }
-          cp dist/latest.yml release-assets/ || { echo "ERROR: Failed to copy latest.yml"; exit 1; }
+          cp signed-windows-artifacts/*.exe release-assets/ || { echo "ERROR: Failed to copy .exe files"; exit 1; }
+          cp signed-windows-artifacts/latest.yml release-assets/ || { echo "ERROR: Failed to copy latest.yml"; exit 1; }
 
           echo "Final release assets:"
           ls -la release-assets/
@@ -126,7 +168,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG_NAME: ${{ steps.get-tag.outputs.tag }}
+          TAG_NAME: ${{ needs.build-windows-signed.outputs.tag }}
           LANG: C.UTF-8
           LC_ALL: C.UTF-8
         run: |
@@ -141,14 +183,50 @@ jobs:
           # Extract releaseNotes from electron-builder.yml (from releaseNotes: | to end of file, remove 4-space indent)
           sed -n '/releaseNotes: |/,$ { /releaseNotes: |/d; s/^    //; p }' electron-builder.yml > release_body.txt
 
+      - name: Dry run GitCode release sync
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' }}
+        shell: bash
+        env:
+          GITCODE_OWNER: ${{ vars.GITCODE_OWNER }}
+          GITCODE_REPO: ${{ vars.GITCODE_REPO }}
+          GITCODE_API_URL: ${{ vars.GITCODE_API_URL }}
+          TAG_NAME: ${{ needs.build-windows-signed.outputs.tag }}
+          RELEASE_NAME: ${{ steps.release-info.outputs.name }}
+          LANG: C.UTF-8
+          LC_ALL: C.UTF-8
+        run: |
+          API_URL="${GITCODE_API_URL:-https://api.gitcode.com/api/v5}"
+
+          echo "Dry run enabled. Skipping GitCode release creation and asset upload."
+          echo "GitCode API URL: $API_URL"
+          echo "Tag: $TAG_NAME"
+          echo "Release name: $RELEASE_NAME"
+          echo "Repo: ${GITCODE_OWNER:-<unset>}/${GITCODE_REPO:-<unset>}"
+          echo
+          echo "Release payload preview:"
+          jq -n \
+            --arg tag "$TAG_NAME" \
+            --arg name "$RELEASE_NAME" \
+            --rawfile body release_body.txt \
+            '{
+              tag_name: $tag,
+              name: $name,
+              body: $body,
+              target_commitish: "main"
+            }'
+          echo
+          echo "Files that would be uploaded:"
+          find release-assets -maxdepth 1 -type f -print | sort
+
       - name: Create GitCode release and upload files
+        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.dry_run != 'true' }}
         shell: bash
         env:
           GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
           GITCODE_OWNER: ${{ vars.GITCODE_OWNER }}
           GITCODE_REPO: ${{ vars.GITCODE_REPO }}
           GITCODE_API_URL: ${{ vars.GITCODE_API_URL }}
-          TAG_NAME: ${{ steps.get-tag.outputs.tag }}
+          TAG_NAME: ${{ needs.build-windows-signed.outputs.tag }}
           RELEASE_NAME: ${{ steps.release-info.outputs.name }}
           LANG: C.UTF-8
           LC_ALL: C.UTF-8
@@ -301,18 +379,30 @@ jobs:
           rm -f /tmp/release_payload.json /tmp/upload_headers.txt release_body.txt
           rm -rf release-assets/
 
+  notify:
+    runs-on: ubuntu-latest
+    needs: [build-windows-signed, sync-to-gitcode]
+    if: >-
+      always() &&
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.dry_run != 'true') &&
+      (
+        needs.build-windows-signed.result == 'failure' ||
+        needs.build-windows-signed.result == 'cancelled' ||
+        needs.sync-to-gitcode.result == 'failure' ||
+        needs.sync-to-gitcode.result == 'cancelled'
+      )
+    steps:
       - name: Send failure notification to Feishu
-        if: always() && (failure() || cancelled())
         shell: bash
         env:
           FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
           FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
-          TAG_NAME: ${{ steps.get-tag.outputs.tag }}
+          TAG_NAME: ${{ needs.build-windows-signed.outputs.tag }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          JOB_STATUS: ${{ job.status }}
+          BUILD_RESULT: ${{ needs.build-windows-signed.result }}
+          SYNC_RESULT: ${{ needs.sync-to-gitcode.result }}
         run: |
-          # Determine status and color
-          if [ "$JOB_STATUS" = "cancelled" ]; then
+          if [ "$BUILD_RESULT" = "cancelled" ] || [ "$SYNC_RESULT" = "cancelled" ]; then
             STATUS_TEXT="已取消"
             COLOR="orange"
           else
@@ -320,11 +410,90 @@ jobs:
             COLOR="red"
           fi
 
-          # Build description using printf
-          DESCRIPTION=$(printf "**标签:** %s\n\n**状态:** %s\n\n**工作流:** [查看详情](%s)" "$TAG_NAME" "$STATUS_TEXT" "$RUN_URL")
+          if [ "$BUILD_RESULT" = "failure" ] || [ "$BUILD_RESULT" = "cancelled" ]; then
+            STAGE="Windows 签名打包"
+          else
+            STAGE="同步"
+          fi
 
-          # Send notification
-          pnpm tsx scripts/feishu-notify.ts send \
-            -t "GitCode 同步${STATUS_TEXT}" \
-            -d "$DESCRIPTION" \
-            -c "${COLOR}"
+          TITLE="GitCode ${STAGE}${STATUS_TEXT}"
+          DESCRIPTION=$(printf "**标签:** %s\n\n**阶段:** %s\n\n**状态:** %s\n\n**工作流:** [查看详情](%s)" "${TAG_NAME:-unknown}" "$STAGE" "$STATUS_TEXT" "$RUN_URL")
+          export TITLE DESCRIPTION COLOR
+
+          node <<'NODE'
+          const crypto = require('node:crypto')
+          const https = require('node:https')
+
+          const webhookUrl = process.env.FEISHU_WEBHOOK_URL
+          const secret = process.env.FEISHU_WEBHOOK_SECRET
+          const title = process.env.TITLE
+          const description = process.env.DESCRIPTION
+          const color = process.env.COLOR
+
+          if (!webhookUrl) {
+            throw new Error('FEISHU_WEBHOOK_URL environment variable is required')
+          }
+          if (!secret) {
+            throw new Error('FEISHU_WEBHOOK_SECRET environment variable is required')
+          }
+
+          const timestamp = Math.floor(Date.now() / 1000)
+          const sign = crypto.createHmac('sha256', `${timestamp}\n${secret}`).digest('base64')
+          const payload = JSON.stringify({
+            timestamp: timestamp.toString(),
+            sign,
+            msg_type: 'interactive',
+            card: {
+              elements: [
+                {
+                  tag: 'div',
+                  text: {
+                    tag: 'lark_md',
+                    content: description
+                  }
+                }
+              ],
+              header: {
+                template: color,
+                title: {
+                  tag: 'plain_text',
+                  content: title
+                }
+              }
+            }
+          })
+
+          const url = new URL(webhookUrl)
+          const req = https.request(
+            {
+              hostname: url.hostname,
+              path: url.pathname + url.search,
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(payload)
+              }
+            },
+            (res) => {
+              let data = ''
+              res.on('data', (chunk) => {
+                data += chunk.toString()
+              })
+              res.on('end', () => {
+                if (res.statusCode >= 200 && res.statusCode < 300) {
+                  console.log('Notification sent successfully!')
+                } else {
+                  console.error(`Feishu API error: ${res.statusCode} - ${data}`)
+                  process.exit(1)
+                }
+              })
+            }
+          )
+
+          req.on('error', (error) => {
+            console.error(error)
+            process.exit(1)
+          })
+          req.write(payload)
+          req.end()
+          NODE
