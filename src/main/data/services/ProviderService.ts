@@ -569,7 +569,14 @@ class ProviderService {
         throw DataApiErrorFactory.notFound('Provider', providerId)
       }
 
-      if (provider.presetProviderId && provider.presetProviderId === providerId) {
+      // Block deletion of canonical preset rows. `presetProviderId === providerId`
+      // covers presets that group under themselves; the registry check also
+      // covers presets that group under a different preset (e.g. zai → zhipu,
+      // minimax-global → minimax) whose presetProviderId no longer equals their id.
+      if (
+        (provider.presetProviderId && provider.presetProviderId === providerId) ||
+        providerRegistryService.isRegistryProvider(providerId)
+      ) {
         throw DataApiErrorFactory.invalidOperation(`Cannot delete preset provider '${providerId}'`)
       }
 

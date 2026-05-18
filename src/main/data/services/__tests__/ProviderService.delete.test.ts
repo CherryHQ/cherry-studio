@@ -11,6 +11,7 @@ import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { pinService } from '@data/services/PinService'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -52,6 +53,39 @@ describe('ProviderService.delete — preset protection boundary', () => {
     await expect(providerService.delete('openai-work')).resolves.toBeUndefined()
 
     const rows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'openai-work'))
+    expect(rows).toHaveLength(0)
+  })
+
+  it('should throw when deleting a canonical preset that groups under another preset (zai → zhipu)', async () => {
+    // zai is a registry row whose presetProviderId is 'zhipu' (grouping),
+    // so the providerId === presetProviderId guard alone would let it be
+    // deleted. The registry check must still protect it.
+    vi.spyOn(providerRegistryService, 'isRegistryProvider').mockImplementation((id) => id === 'zai')
+
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'zai',
+      presetProviderId: 'zhipu',
+      name: 'Z.ai',
+      orderKey: generateOrderKeyBetween(null, null)
+    })
+
+    await expect(providerService.delete('zai')).rejects.toThrow(/Cannot delete preset provider/)
+    const rows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'zai'))
+    expect(rows).toHaveLength(1)
+  })
+
+  it('should NOT throw when deleting a user clone whose presetProviderId points at a grouped preset', async () => {
+    vi.spyOn(providerRegistryService, 'isRegistryProvider').mockImplementation((id) => id === 'zai')
+
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'zai-personal',
+      presetProviderId: 'zhipu',
+      name: 'Z.ai Personal',
+      orderKey: generateOrderKeyBetween(null, null)
+    })
+
+    await expect(providerService.delete('zai-personal')).resolves.toBeUndefined()
+    const rows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'zai-personal'))
     expect(rows).toHaveLength(0)
   })
 
