@@ -6466,6 +6466,7 @@
       },
       "filter_agent": "Filter Agent Supported Providers",
       "get_api_key": "Get API Key",
+      "logo_upload_failed": "Failed to process the selected image",
       "misc": "Other",
       "more_endpoints": {
         "add": "Add Endpoint",

@@ -6466,6 +6466,7 @@
       },
       "filter_agent": "篩選支援 Agent 的服務商",
       "get_api_key": "點選這裡取得金鑰",
+      "logo_upload_failed": "無法處理所選圖片",
       "misc": "其他",
       "more_endpoints": {
         "add": "新增端點",

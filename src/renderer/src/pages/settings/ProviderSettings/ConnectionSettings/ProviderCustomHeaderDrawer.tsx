@@ -253,10 +253,18 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       updateCopilotHeaders: updateDefaultHeaders
     })
 
-    await updateProvider({
-      endpointConfigs: nextEndpointConfigs,
-      providerSettings: { ...provider.settings, extraHeaders: parsedHeaders }
-    })
+    try {
+      await updateProvider({
+        endpointConfigs: nextEndpointConfigs,
+        providerSettings: { ...provider.settings, extraHeaders: parsedHeaders }
+      })
+    } catch (error) {
+      // Surface the failure and keep the drawer open so the user can retry
+      // instead of silently losing their edits.
+      logger.error('Failed to save provider request config', error as Error, { providerId })
+      window.toast.error(t('settings.provider.save_failed'))
+      return
+    }
 
     if (primaryDraft !== previousPrimaryBaseUrl) {
       syncProviderModels({ ...provider, endpointConfigs: nextEndpointConfigs }).catch((error) => {

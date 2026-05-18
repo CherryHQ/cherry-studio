@@ -6466,6 +6466,7 @@
       },
       "filter_agent": "筛选支持 Agent 的服务商",
       "get_api_key": "点击这里获取密钥",
+      "logo_upload_failed": "无法处理所选图片",
       "misc": "其他",
       "more_endpoints": {
         "add": "添加端点",

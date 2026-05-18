@@ -87,6 +87,9 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
               await clearProviderLogo(originalEditingId)
             } catch (error) {
               logger.error('Failed to reset logo', error as Error)
+              // Same surfaced toast as the save-logo failure — clearing is
+              // still a logo update; without this the failure is silent.
+              notice = 'update-logo-save-failed'
             }
           }
         }

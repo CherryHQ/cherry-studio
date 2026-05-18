@@ -1,4 +1,5 @@
 import { Button, Input, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { getProviderLabel } from '@renderer/i18n/label'
@@ -13,6 +14,8 @@ import { useTranslation } from 'react-i18next'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import type { ProviderEditorMode } from './useProviderEditor'
+
+const logger = loggerService.withContext('ProviderEditorDrawer')
 
 type ProviderEditorSubmit = {
   name: string
@@ -168,11 +171,18 @@ export default function ProviderEditorDrawer({
       return
     }
 
-    const processedFile = file.type === 'image/gif' ? file : await compressImage(file)
-    const encoded = await convertToBase64(processedFile)
-    if (typeof encoded === 'string') {
-      setLogo(encoded)
-      setLogoDirty(true)
+    try {
+      const processedFile = file.type === 'image/gif' ? file : await compressImage(file)
+      const encoded = await convertToBase64(processedFile)
+      if (typeof encoded === 'string') {
+        setLogo(encoded)
+        setLogoDirty(true)
+      }
+    } catch (error) {
+      // compressImage / convertToBase64 can reject on a corrupt or
+      // unsupported file — tell the user instead of silently doing nothing.
+      logger.error('Failed to process uploaded provider logo', error as Error)
+      window.toast.error(t('settings.provider.logo_upload_failed'))
     }
   }
 
