@@ -4,6 +4,7 @@ import { diagnoseError } from '@renderer/services/ErrorDiagnosisService'
 import store from '@renderer/store'
 import { updateOneBlock } from '@renderer/store/messageBlock'
 import type { SerializedError } from '@renderer/types/error'
+import { classifyError } from '@renderer/utils/errorClassifier'
 import { CheckCircle, Loader2 } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -88,6 +89,8 @@ const AIDiagnosisSectionWithStatus = memo(
 
     React.useImperativeHandle(ref, () => ({ runDiagnosis }), [runDiagnosis])
 
+    const fallback = error && status === 'error' ? classifyError(error, diagnosisContext?.providerName) : null
+
     return (
       <div className="mt-4 rounded-lg p-3.5 px-4" style={diagPanelStyle}>
         {status === 'loading' && (
@@ -99,8 +102,16 @@ const AIDiagnosisSectionWithStatus = memo(
         {status === 'error' && (
           <>
             <div
-              className="mb-2.5 flex items-center gap-1.5 font-semibold text-sm"
+              className="mb-2 flex items-center gap-1.5 font-semibold text-sm"
               style={{ color: 'var(--color-error)' }}>
+              {t('error.diagnosis.ai_failed')}
+            </div>
+            {fallback && (
+              <div className="mb-2.5 text-[13px] leading-[1.7]" style={{ color: 'var(--color-text-2)' }}>
+                {t(fallback.i18nKey)}
+              </div>
+            )}
+            <div className="mb-2.5 break-words text-xs" style={{ color: 'var(--color-text-3)' }}>
               {diagError}
             </div>
             <button

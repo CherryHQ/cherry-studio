@@ -1888,6 +1888,7 @@
     "diagnosis": {
       "ai_button": "ИИ-диагностика",
       "ai_done": "Диагностировано",
+      "ai_failed": "[to be translated]:AI diagnosis unavailable, showing basic classification",
       "ai_loading": "Диагностика",
       "ai_result": "Результат ИИ-диагностики",
       "auth": "API-ключ недействителен, проверьте и перенастройте",
@@ -1905,6 +1906,8 @@
       "payload": "Слишком большой объем запроса, уменьшите размер файла или текста.",
       "proxy": "Ошибка прокси или SSL-сертификата, проверьте настройки прокси и сети",
       "quota": "Квота аккаунта исчерпана, пополните баланс или смените провайдера",
+      "rate_limit": "[to be translated]:Too many requests in a short time. Wait a moment and retry, or switch to a model with a higher rate limit",
+      "region": "[to be translated]:Service unavailable in your region. Configure a proxy or switch to a provider available in your area",
       "server": "Ошибка сервера, повторите позже",
       "stream": "Ответ прерван, проверьте стабильность сети или повторите попытку",
       "unknown": "Произошла ошибка",

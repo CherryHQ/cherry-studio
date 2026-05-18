@@ -1888,6 +1888,7 @@
     "diagnosis": {
       "ai_button": "Diagnostic IA",
       "ai_done": "Diagnosticat",
+      "ai_failed": "[to be translated]:AI diagnosis unavailable, showing basic classification",
       "ai_loading": "Se diagnostichează",
       "ai_result": "Rezultatul diagnosticului IA",
       "auth": "Cheie API invalidă, verificați și reconfigurați",
@@ -1905,6 +1906,8 @@
       "payload": "Conținutul cererii este prea mare, reduceți dimensiunea fișierului sau a textului.",
       "proxy": "Eroare de proxy sau certificat SSL, verificați setările de proxy și de rețea",
       "quota": "Cota contului epuizată, reîncărcați sau schimbați furnizorul",
+      "rate_limit": "[to be translated]:Too many requests in a short time. Wait a moment and retry, or switch to a model with a higher rate limit",
+      "region": "[to be translated]:Service unavailable in your region. Configure a proxy or switch to a provider available in your area",
       "server": "Eroare de server, reîncercați mai târziu",
       "stream": "Răspuns întrerupt, verificați stabilitatea rețelei sau reîncercați",
       "unknown": "A apărut o eroare",

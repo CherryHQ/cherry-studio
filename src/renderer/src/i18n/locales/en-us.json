@@ -1888,6 +1888,7 @@
     "diagnosis": {
       "ai_button": "AI Diagnosis",
       "ai_done": "Diagnosed",
+      "ai_failed": "AI diagnosis unavailable, showing basic classification",
       "ai_loading": "Diagnosing",
       "ai_result": "AI Diagnosis Result",
       "auth": "API Key is invalid, please check and reconfigure",
@@ -1905,6 +1906,8 @@
       "payload": "Request content too large, please reduce file or text size",
       "proxy": "Proxy or SSL certificate error, check proxy and network settings",
       "quota": "Account quota exhausted, please recharge or switch provider",
+      "rate_limit": "Too many requests in a short time. Wait a moment and retry, or switch to a model with a higher rate limit",
+      "region": "Service unavailable in your region. Configure a proxy or switch to a provider available in your area",
       "server": "Server error, please retry later",
       "stream": "Response interrupted, check network stability or retry",
       "unknown": "An error occurred",

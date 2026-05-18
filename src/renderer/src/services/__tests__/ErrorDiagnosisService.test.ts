@@ -190,5 +190,57 @@ describe('ErrorDiagnosisService', () => {
       const result = await diagnoseError(makeError(), 'en')
       expect(result.category).toBe('unknown')
     })
+
+    it('forwards responseBody to the AI (highest-signal provider error JSON)', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'auth', explanation: 'x', steps: [] })
+      )
+      const providerJson = '{"error":{"type":"insufficient_quota","code":"billing_hard_limit_reached"}}'
+
+      await diagnoseError(makeError({ statusCode: 429, responseBody: providerJson }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.content).toContain('billing_hard_limit_reached')
+    })
+
+    it('forwards finishReason to the AI for safety-blocked responses', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'content', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ name: 'AI_NoObjectGeneratedError', finishReason: 'SAFETY' as any }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.content).toContain('SAFETY')
+      // Hint should explicitly steer the AI to content/safety reasoning
+      expect(callArgs.prompt.toLowerCase()).toContain('safety')
+    })
+
+    it('forwards data field as serialized JSON', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'auth', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(
+        makeError({ data: { error: { code: 'invalid_api_key', message: 'Key revoked' } } as any }),
+        'en'
+      )
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.content).toContain('invalid_api_key')
+      expect(callArgs.content).toContain('Key revoked')
+    })
+
+    it('falls back to provider/modelId on the error when context is missing', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'auth', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ providerId: 'anthropic', modelId: 'claude-sonnet-4-5' as any }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.content).toContain('anthropic')
+      expect(callArgs.content).toContain('claude-sonnet-4-5')
+    })
   })
 })

@@ -1888,6 +1888,7 @@
     "diagnosis": {
       "ai_button": "AI 診断",
       "ai_done": "診断完了",
+      "ai_failed": "[to be translated]:AI diagnosis unavailable, showing basic classification",
       "ai_loading": "診断中",
       "ai_result": "AI 診断結果",
       "auth": "API Key が無効です。確認して再設定してください",
@@ -1905,6 +1906,8 @@
       "payload": "リクエスト内容が大きすぎます。ファイルまたはテキストのサイズを減らしてください。",
       "proxy": "プロキシまたはSSL証明書エラー、プロキシとネットワーク設定を確認してください",
       "quota": "アカウントの利用枠が不足しています。チャージするかプロバイダーを変更してください",
+      "rate_limit": "[to be translated]:Too many requests in a short time. Wait a moment and retry, or switch to a model with a higher rate limit",
+      "region": "[to be translated]:Service unavailable in your region. Configure a proxy or switch to a provider available in your area",
       "server": "サーバーエラーが発生しました。しばらくしてから再試行してください",
       "stream": "応答が中断されました。ネットワークの安定性を確認するか、再試行してください。",
       "unknown": "エラーが発生しました",
