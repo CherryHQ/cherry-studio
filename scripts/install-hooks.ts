@@ -65,17 +65,22 @@ function unsetHooksPath(): void {
 }
 
 // Execute prek install via the current package manager
-function runPrekInstall(): void {
+// Returns true on success, false if prek refused (e.g. custom hooksPath set)
+function runPrekInstall(): boolean {
   const execPath = process.env.npm_execpath
   const args = ['exec', 'prek', 'install']
 
-  if (execPath) {
-    execFileSync(process.execPath, [resolve(execPath), ...args], {
-      stdio: 'inherit'
-    })
-  } else {
-    // Fallback: try pnpm directly
-    execFileSync('pnpm', args, { stdio: 'inherit' })
+  try {
+    if (execPath) {
+      execFileSync(process.execPath, [resolve(execPath), ...args], {
+        stdio: 'inherit'
+      })
+    } else {
+      execFileSync('pnpm', args, { stdio: 'inherit' })
+    }
+    return true
+  } catch {
+    return false
   }
 }
 
@@ -102,7 +107,16 @@ function main(): void {
   }
 
   // Install hooks
-  runPrekInstall()
+  const hooksPathBeforeInstall = getLocalHooksPath()
+  if (!runPrekInstall()) {
+    // prek may refuse when custom hooksPath is set (e.g. .husky) — that's fine
+    if (hooksPathBeforeInstall) {
+      console.info(`install-hooks: prek skipped (core.hooksPath is set to "${hooksPathBeforeInstall}")`)
+    } else {
+      console.error('install-hooks: prek install failed unexpectedly')
+      process.exit(1)
+    }
+  }
 }
 
 main()
