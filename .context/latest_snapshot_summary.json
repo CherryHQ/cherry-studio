@@ -1,60 +1,95 @@
 {
-  "generated_at": "2026-05-17T00:00:00Z",
-  "data_as_of": "2026-05-17",
+  "generated_at": "2026-05-18T00:00:00Z",
+  "data_as_of": "2026-05-18",
   "repository": "CherryHQ/cherry-studio",
   "open_issues": {
-    "total": 856,
-    "bug_label": 5,
-    "no_label": 68,
-    "no_label_pct": 8.0,
+    "total": 860,
+    "bug_label": 3,
+    "no_label": 77,
+    "no_label_pct": 9.0,
     "p1_count": 3,
     "top_labels_page1_sample": [
-      { "label": "inactive", "count_in_100": 39 },
-      { "label": "UI/UX", "count_in_100": 37 },
-      { "label": "Models", "count_in_100": 29 },
-      { "label": "Assistant", "count_in_100": 17 },
-      { "label": "needs-repro", "count_in_100": 5 },
-      { "label": "help wanted", "count_in_100": 5 },
-      { "label": "discussion", "count_in_100": 5 },
-      { "label": "MCP", "count_in_100": 5 },
-      { "label": "BUG", "count_in_100": 5 },
-      { "label": "Connectivity", "count_in_100": 5 }
+      {
+        "label": "inactive",
+        "count_in_100": 44
+      },
+      {
+        "label": "UI/UX",
+        "count_in_100": 29
+      },
+      {
+        "label": "Models",
+        "count_in_100": 25
+      },
+      {
+        "label": "Assistant",
+        "count_in_100": 15
+      },
+      {
+        "label": "Data",
+        "count_in_100": 8
+      },
+      {
+        "label": "RAG",
+        "count_in_100": 7
+      },
+      {
+        "label": "needs-repro",
+        "count_in_100": 7
+      },
+      {
+        "label": "MCP",
+        "count_in_100": 5
+      },
+      {
+        "label": "help wanted",
+        "count_in_100": 5
+      },
+      {
+        "label": "discussion",
+        "count_in_100": 5
+      }
     ],
     "note": "Label counts from 100 most-recently-updated issues. Full label distribution requires paginated fetch."
   },
   "closed_issues_30d": {
-    "total": 420,
+    "total": 425,
     "dominant_close_reason": "not_planned (inactive bot sweep, ~70%)",
-    "avg_time_to_close_days": 35.69,
+    "avg_time_to_close_days": null,
     "by_week": {
-      "2026-05-10_to_05-17": 89,
-      "2026-05-03_to_05-10": 11
+      "2026-05-11_to_05-18": "~94 (est.)",
+      "2026-05-04_to_05-11": "~89 (prev.)"
     }
   },
   "open_prs": {
-    "total_sample": 100,
+    "total_search": 310,
     "by_base": {
-      "main": 64,
-      "v2": 33,
-      "other": 3
+      "main": 240,
+      "v2": 66,
+      "other": 4
     },
-    "draft_total": 9,
-    "ready_total": 91,
-    "new_this_week": 33,
-    "stale_gt7d": 67,
-    "closed_30d_total": 200,
-    "closed_30d_merged": 68,
-    "closed_30d_unmerged": 32,
-    "avg_pr_age_days": 17.3
+    "draft_total": null,
+    "ready_total": null,
+    "new_this_week": 34,
+    "stale_gt7d": 66,
+    "closed_30d_total": null,
+    "closed_30d_merged": null,
+    "avg_pr_age_days": null
   },
   "v2_prs": {
-    "open": 68,
-    "open_draft": 15,
-    "open_ready": 53,
-    "merged_total": 130,
-    "merged_last_7d": 13,
-    "merged_last_30d": 42,
-    "open_contributors": 25,
+    "open": 66,
+    "open_draft": null,
+    "open_ready": null,
+    "merged_total": 133,
+    "merged_last_7d": 3,
+    "merged_last_30d": null,
+    "open_contributors": null,
+    "top_contributors": {
+      "LWWZH": 10,
+      "DeJeune": 9,
+      "EurFelux": 8,
+      "404-Page-Found": 7
+    },
     "weekly_velocity": {
       "2026-W16 (Apr14-20)": 3,
       "2026-W17 (Apr21-27)": 7,
@@ -72,56 +107,170 @@
     {
       "number": 14899,
       "title": "[Feature]: Unified Notification Center",
-      "labels": ["Planned", "P1", "feature", "UI/UX"],
+      "labels": [
+        "Planned",
+        "P1",
+        "feature",
+        "UI/UX"
+      ],
       "created_at": "2026-05-07T05:01:00Z",
       "updated_at": "2026-05-07T05:52:49Z",
       "milestone": "v2.4.0",
       "comments": 0,
-      "health": "Aging (10 days stale)"
+      "health": "Aging (11 days)"
     },
     {
       "number": 13608,
       "title": "[Bug]: xiaomi mimo response only displays the last line",
-      "labels": ["P1", "Models"],
+      "labels": [
+        "P1",
+        "Models"
+      ],
       "created_at": "2026-03-18T14:34:38Z",
       "updated_at": "2026-03-19T14:22:09Z",
       "milestone": "v1.8.1 (closed)",
-      "health": "Stale (59 days)"
+      "health": "Stale (61 days)"
     },
     {
       "number": 13193,
       "title": "[Bug]: Azure OpenAI Resource not found — defaults to responses API",
-      "labels": ["P1", "Models"],
+      "labels": [
+        "P1",
+        "Models"
+      ],
       "created_at": "2026-03-04T05:07:40Z",
       "updated_at": "2026-03-05T08:47:59Z",
       "assignee": "DeJeune",
-      "health": "Stale (73 days)"
+      "health": "Stale (75 days)"
     }
   ],
   "top_10_active_prs": [
-    { "number": 15091, "title": "refactor(ui): consolidate Code tools design language", "base": "v2", "author": "Cherry-Yiran", "updated": "2026-05-17T15:23:51Z" },
-    { "number": 14911, "title": "refactor(ai-service): consolidate AI runtime to main process", "base": "v2", "author": "DeJeune", "draft": true, "updated": "2026-05-17T11:55:49Z" },
-    { "number": 15141, "title": "[Bug]: 浅色主题代码区颜色不可见", "base": "main", "author": "ChangGengCN", "updated": "2026-05-17T11:01:58Z" },
-    { "number": 12659, "title": "feat(backup): add v2 backup system refactor plan document", "base": "v2", "author": "GeorgeDong32", "draft": true, "updated": "2026-05-16T15:49:04Z" },
-    { "number": 15087, "title": "feat(icons): light/dark dual-source architecture for provider/model logos", "base": "v2", "author": "Cherry-Yiran", "updated": "2026-05-16T08:53:05Z" },
-    { "number": 15125, "title": "feat: Make generated Markdown and HTML artifact paths clickable in Agents", "base": "v2", "author": "LWWZH", "updated": "2026-05-16T01:32:14Z" },
-    { "number": 15124, "title": "feat: add display of cache hit token count in message tokens", "base": "v2", "author": "LWWZH", "updated": "2026-05-16T00:12:19Z" },
-    { "number": 15067, "title": "feat(file): Phase 2 Batch 0 — FileMigrator", "base": "v2", "author": "EurFelux", "updated": "2026-05-15T11:32:18Z" },
-    { "number": 15088, "title": "feat(provider-settings): grouping + mode-based editor follow-up", "base": "v2", "author": "DeJeune", "updated": "2026-05-15T06:33:46Z" },
-    { "number": 14313, "title": "refactor(paintings): migrate to v2 data layer and UI", "base": "v2", "author": "jidan745le", "updated": "2026-05-14T10:25:53Z" }
+    {
+      "number": 15167,
+      "title": "fix(dev): prevent TS composite emit from polluting source directories",
+      "base": "main",
+      "author": "gphoneyo",
+      "updated": "2026-05-18T12:45:25Z"
+    },
+    {
+      "number": 15159,
+      "title": "fix: support mcpb imports and metadata resolution",
+      "base": "v2",
+      "author": "kovsu",
+      "updated": "2026-05-18T10:02:01Z"
+    },
+    {
+      "number": 15158,
+      "title": "fix: increase scrollbar width for better Windows clickability",
+      "base": "main",
+      "author": "xxiaoxiong",
+      "updated": "2026-05-18T09:30:00Z"
+    },
+    {
+      "number": 15155,
+      "title": "hotfix(ai-diagnosis): correct misclassifications and surface provider error JSON",
+      "base": "main",
+      "author": "SiinXu",
+      "updated": "2026-05-18T08:00:00Z"
+    },
+    {
+      "number": 15154,
+      "title": "refactor(paintings): migrate to v2 data layer and UI",
+      "base": "v2",
+      "author": "kangfenmao",
+      "updated": "2026-05-18T07:50:00Z"
+    },
+    {
+      "number": 15151,
+      "title": "fix: remove color override in code blocks to fix light theme",
+      "base": "main",
+      "author": "xxiaoxiong",
+      "updated": "2026-05-18T06:00:00Z"
+    },
+    {
+      "number": 15148,
+      "title": "fix(agent): resolve CherryIN provider alias",
+      "base": "main",
+      "author": "mturac",
+      "updated": "2026-05-17T22:00:00Z"
+    },
+    {
+      "number": 15146,
+      "title": "fix: refresh cached miniapp urls",
+      "base": "main",
+      "author": "mturac",
+      "updated": "2026-05-17T20:00:00Z"
+    },
+    {
+      "number": 15145,
+      "title": "fix: include local time in cron tool responses",
+      "base": "main",
+      "author": "mturac",
+      "updated": "2026-05-17T19:00:00Z"
+    },
+    {
+      "number": 15144,
+      "title": "fix(stream): merge adjacent thinking segments",
+      "base": "main",
+      "author": "mturac",
+      "updated": "2026-05-17T18:00:00Z"
+    }
   ],
   "notable_closed_issues_30d": [
-    { "number": 10918, "title": "[Bug]: Impossible to add a knowledge base", "labels": ["BUG", "RAG", "inactive"], "comments": 21, "closedAt": "2026-05-17T01:06:24Z" },
-    { "number": 12079, "title": "[Bug]: cherry-studio cannot read the file since today", "labels": ["BUG", "inactive"], "comments": 15, "closedAt": "2026-05-17T01:06:28Z" },
-    { "number": 14027, "title": "[Bug]: Aliyun Bailian Agent Mode Failed", "labels": ["Models", "inactive"], "comments": 14, "closedAt": "2026-05-17T01:06:31Z" }
+    {
+      "number": 10918,
+      "title": "[Bug]: Impossible to add a knowledge base",
+      "labels": [
+        "BUG",
+        "RAG",
+        "inactive"
+      ],
+      "comments": 21,
+      "closedAt": "2026-05-17T01:06:24Z"
+    },
+    {
+      "number": 12079,
+      "title": "[Bug]: cherry-studio cannot read the file since today",
+      "labels": [
+        "BUG",
+        "inactive"
+      ],
+      "comments": 15,
+      "closedAt": "2026-05-17T01:06:28Z"
+    },
+    {
+      "number": 14027,
+      "title": "[Bug]: Aliyun Bailian Agent Mode Failed",
+      "labels": [
+        "Models",
+        "inactive"
+      ],
+      "comments": 14,
+      "closedAt": "2026-05-17T01:06:31Z"
+    }
   ],
   "top_commented_open": [
-    { "number": 6505, "title": "[FAQ]: 划词助手 / Selection Assistant", "comments": 358 },
-    { "number": 9943, "title": "[错误]: MCPB文件导入MCP服务器相关问题", "comments": 14 },
-    { "number": 13897, "title": "[Bug]: High frequency requests to analytics.cherry-ai.com", "comments": 6 }
+    {
+      "number": 6505,
+      "title": "[FAQ]: 划词助手 / Selection Assistant",
+      "comments": 358
+    },
+    {
+      "number": 9943,
+      "title": "[错误]: MCPB文件导入MCP服务器相关问题",
+      "comments": 14,
+      "note": "Fixed by PR #15159 merged today"
+    },
+    {
+      "number": 13897,
+      "title": "[Bug]: High frequency requests to analytics.cherry-ai.com",
+      "comments": 6
+    }
   ],
   "meta": {
-    "data_sources": ["GitHub MCP API (list_issues, search_issues, list_pull_requests, search_pull_requests)"],
+    "data_sources": [
+      "GitHub MCP API (list_issues, search_issues, list_pull_requests, search_pull_requests)"
+    ],
     "note": "gh CLI unavailable; data collected via GitHub MCP tools. Discussions API not available via MCP tools."
   }
 }

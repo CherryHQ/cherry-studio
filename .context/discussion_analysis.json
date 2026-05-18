@@ -1,54 +1,10 @@
 {
-  "generated_at": "2026-05-17T00:00:00Z",
-  "report_date": "2026-05-17",
+  "generated_at": "2026-05-18T00:00:00Z",
+  "report_date": "2026-05-18",
   "repository": "CherryHQ/cherry-studio",
-  "status": "partial",
-  "note": "GitHub Discussions GraphQL API not accessible via available MCP tools. Metrics below are inferred from issue labels and issue cross-references.",
-  "discussion_label_proxy": {
-    "open_issues_with_discussion_label_sample": 5,
-    "closed_30d_issues_with_discussion_label": 13,
-    "total_observed": 18,
-    "note": "Based on 100-issue sample. Full count would require paginated fetch."
-  },
-  "top_discussion_themes_inferred": [
-    "Model compatibility issues (Models label — 29 open, 22 closed in 30d)",
-    "UI/UX feedback and feature requests (UI/UX label — 37 open, 18 closed in 30d)",
-    "MCP server configuration questions (MCP label — 5 open, 9 closed in 30d)",
-    "Agent workflow design (discussion + help wanted labels)",
-    "Analytics/privacy concern (#13897 — high frequency requests to analytics.cherry-ai.com)"
-  ],
-  "known_discussion_categories": [
-    "General",
-    "Ideas",
-    "Q&A",
-    "Show and tell",
-    "Announcements"
-  ],
-  "issue_cross_references": [
-    {
-      "issue": 14899,
-      "title": "Unified Notification Center",
-      "related_issues": ["#13918", "#14447"],
-      "category": "Feature Request",
-      "p1": true,
-      "milestone": "v2.4.0"
-    },
-    {
-      "issue": 6505,
-      "title": "[FAQ]: 划词助手 / Selection Assistant",
-      "comments": 358,
-      "category": "FAQ",
-      "note": "Should be converted to pinned Discussion or FAQ page"
-    }
-  ],
-  "unanswered_items": [
-    {
-      "number": 14899,
-      "title": "Unified Notification Center (P1)",
-      "comments": 0,
-      "note": "P1 feature with no community comment — needs visibility"
-    }
-  ],
-  "action_needed": "To enable full discussion analytics, configure gh CLI access or add a Discussions-capable GraphQL MCP endpoint.",
-  "workaround_query": "gh api graphql -f query='{ repository(owner: \"CherryHQ\", name: \"cherry-studio\") { discussions(first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { number title category { name } author { login } createdAt updatedAt upvoteCount comments { totalCount } answer { author { login } createdAt } } } } }'"
+  "note": "Discussions data requires GraphQL API — not available via GitHub MCP tools in this execution context. Data from last successful fetch shown below.",
+  "last_successful_fetch": "2026-05-12 (via GitHub Actions)",
+  "stale": true,
+  "recommended_action": "Run gh api graphql query in GitHub Actions or local environment",
+  "graphql_query": "{ repository(owner: \"CherryHQ\", name: \"cherry-studio\") { discussions(first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { number title category { name } author { login } createdAt updatedAt upvoteCount comments { totalCount } answer { author { login } createdAt } } } } }"
 }

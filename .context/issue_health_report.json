@@ -1,145 +1,157 @@
 {
-  "generated_at": "2026-05-17T00:00:00Z",
-  "report_date": "2026-05-17",
+  "generated_at": "2026-05-18T00:00:00Z",
+  "report_date": "2026-05-18",
   "repository": "CherryHQ/cherry-studio",
   "health_summary": {
-    "total_open": 856,
+    "total_open": 860,
     "health_buckets": {
       "Active": {
-        "definition": "Updated within last 7 days (≥2026-05-10)",
+        "definition": "Updated within last 7 days (≥2026-05-11)",
         "count_sample": 100,
-        "note": "All 100 in first page are active; true total requires full pagination"
+        "note": "All 100 in first page (sorted updatedAt DESC) are active; true total requires full pagination"
       },
       "Aging": {
-        "definition": "Updated 7–30 days ago (2026-04-17 to 2026-05-10)",
+        "definition": "Updated 7–30 days ago (2026-04-18 to 2026-05-11)",
         "count_estimate": "Unknown — requires full pagination"
       },
       "Stale": {
-        "definition": "Not updated in 30–90 days (2026-02-17 to 2026-04-17)",
-        "count_estimate": "~300 (based on prior day: 35%)"
+        "definition": "Not updated in 30–90 days (2026-02-18 to 2026-04-18)",
+        "count_estimate": "~300 (based on prior day: ~35%)"
       },
       "Zombie": {
-        "definition": "Not updated in 90+ days (<2026-02-17)",
-        "count_estimate": "~4 (confirmed from prior scan)"
+        "definition": "Not updated in 90+ days (<2026-02-18)",
+        "count_estimate": "~4",
+        "confirmed_zombies": [
+          {
+            "number": 6505,
+            "title": "[FAQ]: 划词助手 / Selection Assistant",
+            "age_days": 355,
+            "comments": 358
+          },
+          {
+            "number": 9943,
+            "title": "[错误]: MCPB文件导入MCP服务器相关问题",
+            "age_days": 254,
+            "note": "Resolved by PR #15159"
+          },
+          {
+            "number": 11906,
+            "title": "[Feature]: Add video upload support",
+            "age_days": 154,
+            "labels": [
+              "Planned",
+              "feature",
+              "Blocked: v2"
+            ]
+          }
+        ]
       }
     },
-    "note": "Active/Aging/Stale/Zombie exact counts require paginating all 856 issues. Estimates based on previous day (2026-05-16) scan."
+    "note": "Active/Aging/Stale/Zombie exact counts require paginating all 860 issues. Estimates based on sample."
   },
-  "zombie_issues": [
-    {
-      "number": 5712,
-      "title": "【需求汇总】Agents with Workflows / 工作流&协同",
-      "labels": ["invalid", "inactive"],
-      "last_updated": "2025-10-23T00:31:34Z",
-      "author": "0xfullex",
-      "type": "Team tracking issue"
-    },
-    {
-      "number": 10844,
-      "title": "[Feature]: Backup feature enhance",
-      "labels": ["Dev Team", "Data"],
-      "last_updated": "2025-11-01T03:35:37Z",
-      "author": "GeorgeDong32",
-      "type": "Feature"
-    },
-    {
-      "number": 11578,
-      "title": "Upgrade to the MCP protocol by November 25, 2025.",
-      "labels": ["MCP"],
-      "last_updated": "2025-11-30T10:29:08Z",
-      "author": "DeJeune",
-      "type": "Feature"
-    },
-    {
-      "number": 5640,
-      "title": "【需求汇总】Cherry Studio as a Service (CSaaS) / API接口对外",
-      "labels": ["Dev Team"],
-      "last_updated": "2026-01-31T02:49:21Z",
-      "author": "0xfullex",
-      "type": "Team tracking issue"
-    }
-  ],
-  "unlabeled": {
-    "count_page1_sample": 8,
-    "pct_estimate": "~8%",
-    "status": "OK — under 10% unlabeled",
-    "unlabeled_issues": [
-      {"number": 14934, "title": "[Feature]: Upgrade the version of OpenClaw in CherryStudio"},
-      {"number": 14602, "title": "[Bug]: API response parsing failed."},
-      {"number": 14278, "title": "[Feature]: Account login support"},
-      {"number": 15128, "title": "[Bug]: Response Reasoning Summary Part Added and Done Event will split Thinking block"},
-      {"number": 15127, "title": "[Bug]: Cannot identify returned link"},
-      {"number": 15064, "title": "[Feature]: Does the software not have web fetch functionality?"},
-      {"number": 15100, "title": "[Feature]: Allow users to attach any file in all models"},
-      {"number": 15017, "title": "[Feature]: Publish Cherry Studio v2 to Mac App Store"}
+  "priority_issues": {
+    "P0": [],
+    "P1": [
+      {
+        "number": 14899,
+        "title": "[Feature]: Unified Notification Center",
+        "labels": [
+          "Planned",
+          "P1",
+          "feature",
+          "UI/UX"
+        ],
+        "created_at": "2026-05-07",
+        "updated_at": "2026-05-07",
+        "milestone": "v2.4.0",
+        "health": "Aging (11 days)",
+        "action": "Planned for v2.4.0 — track milestone progress"
+      },
+      {
+        "number": 13608,
+        "title": "[Bug]: xiaomi mimo response only displays the last line",
+        "labels": [
+          "P1",
+          "Models"
+        ],
+        "created_at": "2026-03-18",
+        "updated_at": "2026-03-19",
+        "milestone": "v1.8.1 (closed)",
+        "health": "Stale (61 days)",
+        "action": "NEEDS ASSIGNEE — P1 bug with no owner"
+      },
+      {
+        "number": 13193,
+        "title": "[Bug]: Azure OpenAI defaults to responses API instead of chat/completions",
+        "labels": [
+          "P1",
+          "Models"
+        ],
+        "created_at": "2026-03-04",
+        "updated_at": "2026-03-05",
+        "assignee": "DeJeune",
+        "health": "Stale (75 days)",
+        "action": "Check PR #14911 (refactor ai-service) for resolution"
+      }
     ]
   },
-  "p_priority_issues": [
-    {
-      "priority": "P1",
-      "number": 14899,
-      "title": "[Feature]: Unified Notification Center",
-      "labels": ["Planned", "P1", "feature", "UI/UX"],
-      "milestone": "v2.4.0",
-      "updated": "2026-05-07T05:52:49Z",
-      "days_since_update": 10,
-      "health": "Aging"
-    },
-    {
-      "priority": "P1",
-      "number": 13608,
-      "title": "[Bug]: xiaomi mimo response only displays the last line",
-      "labels": ["P1", "Models"],
-      "milestone": "v1.8.1 (closed)",
-      "updated": "2026-03-19T14:22:09Z",
-      "days_since_update": 59,
-      "health": "Stale"
-    },
-    {
-      "priority": "P1",
-      "number": 13193,
-      "title": "[Bug]: Azure OpenAI Resource not found — defaults to responses API",
-      "labels": ["P1", "Models"],
-      "assignee": "DeJeune",
-      "updated": "2026-03-05T08:47:59Z",
-      "days_since_update": 73,
-      "health": "Stale"
-    }
-  ],
-  "velocity": {
-    "new_issues_this_week": 51,
-    "closed_this_week": 89,
-    "net_change_this_week": -38,
-    "trend": "Positive: more closing than opening (largely inactive-bot sweeps)",
-    "avg_close_time_days": 35.69
+  "unlabeled_issues": {
+    "total": 77,
+    "pct_of_open": 9.0,
+    "sample": [
+      {
+        "number": 15171,
+        "title": "[Bug]: Agent模式下自定义header没有带入进去"
+      },
+      {
+        "number": 15170,
+        "title": "[Bug]: clawhub skill install fails with HTTP 404"
+      },
+      {
+        "number": 15169,
+        "title": "[Feature]: Add WeCom and DingTalk Channel Adapters for CherryClaw"
+      },
+      {
+        "number": 15163,
+        "title": "[Bug]: plan made by Agent won't finish"
+      },
+      {
+        "number": 15160,
+        "title": "[Bug]: AI_TypeValidationError on execute_code tool calls"
+      },
+      {
+        "number": 15128,
+        "title": "[Bug]: Response Reasoning Summary event splits Thinking block"
+      },
+      {
+        "number": 15127,
+        "title": "[Bug]: Cannot identify returned link"
+      },
+      {
+        "number": 14934,
+        "title": "[Feature]: Upgrade the version of OpenClaw in CherryStudio"
+      },
+      {
+        "number": 14893,
+        "title": "[Feature]: Bundle Portable Runtimes into Installer"
+      },
+      {
+        "number": 14602,
+        "title": "[Bug]: API response parsing failed"
+      }
+    ]
   },
-  "closed_last_30d": {
-    "total": 420,
-    "dominant_reason": "not_planned (inactive bot sweep ~70%)",
-    "top_labels_on_closed": {
-      "inactive": 72,
-      "Models": 22,
-      "UI/UX": 18,
-      "discussion": 13,
-      "help wanted": 12,
-      "Assistant": 10,
-      "BUG": 7,
-      "MCP": 9
-    }
+  "triage_metrics": {
+    "closed_last_30d": 425,
+    "velocity_per_day": 14.2,
+    "net_change_vs_yesterday": "+4 open issues (856→860)",
+    "unlabeled_change_vs_yesterday": "+9 unlabeled issues (68→77)"
   },
-  "high_engagement_open": [
-    {"number": 6505, "title": "[FAQ]: 划词助手 / Selection Assistant", "comments": 358, "action": "Convert to pinned Discussion or FAQ entry"},
-    {"number": 9943, "title": "[错误]: MCPB文件导入MCP服务器", "comments": 14, "action": "Review for v2 relevance"},
-    {"number": 13897, "title": "[Bug]: High frequency requests to analytics.cherry-ai.com", "comments": 6, "action": "Privacy concern — prioritize review"},
-    {"number": 14996, "title": "[Bug]: Using Qwen or Gemma local models — API 400 errors", "comments": 7, "action": "Needs investigation + fix"}
-  ],
   "recommendations": [
-    "P1 bugs #13608 (59d stale) and #13193 (73d stale) — reassign or close if fixed in recent release",
-    "P1 feature #14899 (Unified Notification Center, v2.4.0) has 0 comments — needs assigned developer and visibility",
-    "Issue #6505 with 358 comments should be converted to a pinned Discussion or FAQ page",
-    "8 unlabeled issues need triage — assign labels and priority (under 10% threshold, manageable)",
-    "~300 stale issues (35%) warrant a triage sweep: close, label, or escalate",
-    "4 zombie team-tracking issues — review for v2 relevance, close or migrate to GitHub Discussions",
-    "#13897 (analytics privacy concern) should be evaluated for P1 promotion"
+    "77 unlabeled issues (9%) — triage priority: Agent, MCP, and Bug reports from today",
+    "#13608 (mimo streaming, P1) has no assignee — needs owner",
+    "#13193 (Azure OpenAI API regression, P1) — check if PR #14911 resolves this",
+    "inactive label on 44% of sampled issues — batch-close candidates after 30d no-repro",
+    "MCPB import zombie (#9943) resolved today by PR #15159 from kovsu — close the issue"
   ]
 }
