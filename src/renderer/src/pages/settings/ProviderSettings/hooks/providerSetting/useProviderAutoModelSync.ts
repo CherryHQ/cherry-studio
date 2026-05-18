@@ -26,13 +26,16 @@ export function useProviderAutoModelSync(providerId: string) {
       return true
     }
 
+    // Must stay in lockstep with `providerNeedsApiKeyForModelSync` in
+    // ModelList/modelSync.ts. `api-key-aws` is intentionally NOT excluded:
+    // unlike `iam-aws` (IAM access keys), it authenticates with an
+    // AWS-issued bearer-token api-key and therefore needs an enabled key.
     return !(
       provider.id === 'ollama' ||
       provider.id === 'lmstudio' ||
       provider.id === 'copilot' ||
       provider.authType === 'iam-gcp' ||
-      provider.authType === 'iam-aws' ||
-      provider.authType === 'api-key-aws'
+      provider.authType === 'iam-aws'
     )
   }, [provider])
 
