@@ -93,8 +93,7 @@ export function buildPathRegistry() {
     // MCP memory server's knowledge-graph JSON for the built-in MCP server
     'feature.mcp.memory_file': path.join(CHERRY_HOME, 'config', 'memory.json'),
 
-    // Anthropic OAuth / Copilot token
-    'feature.anthropic.oauth_file': path.join(CHERRY_HOME, 'config', 'oauth', 'anthropic.json'),
+    // Copilot token
     'feature.copilot.token_file': path.join(CHERRY_HOME, 'config', '.copilot_token'),
 
     // Trace
