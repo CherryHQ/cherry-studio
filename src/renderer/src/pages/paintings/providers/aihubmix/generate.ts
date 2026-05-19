@@ -47,14 +47,14 @@ export async function generateWithAihubmix(input: GenerateInput) {
     throw createPaintingGenerateError('MISSING_REQUIRED_FIELDS')
   }
 
-  if (!prompt.trim()) {
+  const mode = tab as AihubmixPaintingMode
+
+  if (mode !== 'upscale' && !prompt.trim()) {
     throw createPaintingGenerateError('PROMPT_REQUIRED')
   }
   const modelId = painting.model
 
   return runPainting(async () => {
-    const mode = tab as AihubmixPaintingMode
-
     let body: string | FormData = ''
     let headers: Record<string, string> = {
       'Api-Key': apiKey
