@@ -41,7 +41,7 @@ export function SchemaValueField({ schemaProperty, propertyName, value, onChange
           if (fileOrUrl.match(/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i)) {
             onChange(propertyName, fileOrUrl)
           } else {
-            window.toast?.error('Invalid image URL format')
+            window.toast?.error(t('common.invalid_image_url'))
           }
           return
         }
@@ -68,7 +68,7 @@ export function SchemaValueField({ schemaProperty, propertyName, value, onChange
               <Link2 size={14} />
             </InputGroupAddon>
             <InputGroupInput
-              value={value || defaultValue || ''}
+              value={value !== undefined && value !== null ? String(value) : (defaultValue ?? '')}
               onChange={(event) => onChange(propertyName, event.target.value)}
               placeholder={t('common.image_url_or_upload')}
             />
@@ -136,7 +136,7 @@ export function SchemaValueField({ schemaProperty, propertyName, value, onChange
     if (propertyName.toLowerCase().includes('prompt') && propertyName !== 'prompt') {
       return (
         <Textarea.Input
-          value={value || defaultValue || ''}
+          value={value !== undefined && value !== null ? String(value) : (defaultValue ?? '')}
           onValueChange={(nextValue) => onChange(propertyName, nextValue)}
           rows={3}
           placeholder={description}
@@ -146,7 +146,7 @@ export function SchemaValueField({ schemaProperty, propertyName, value, onChange
 
     return (
       <Input
-        value={value || defaultValue || ''}
+        value={value !== undefined && value !== null ? String(value) : (defaultValue ?? '')}
         onChange={(event) => onChange(propertyName, event.target.value)}
         placeholder={description}
       />
@@ -207,6 +207,30 @@ export function SchemaValueField({ schemaProperty, propertyName, value, onChange
   return null
 }
 
+interface SchemaFieldRowProps {
+  property: any
+  propKey: string
+  label: string
+  value: any
+  onChange: (field: string, value: any) => void
+}
+
+function SchemaFieldRow({ property, propKey, label, value, onChange }: SchemaFieldRowProps) {
+  const labelId = useId()
+  return (
+    <div className="flex flex-col">
+      <div className="mb-1.5 flex items-center">
+        <span id={labelId} className="font-medium text-[13px] capitalize">
+          {label}
+        </span>
+      </div>
+      <div aria-labelledby={labelId}>
+        <SchemaValueField schemaProperty={property} propertyName={propKey} value={value} onChange={onChange} />
+      </div>
+    </div>
+  )
+}
+
 export default function SchemaField({ item, painting, onChange }: PaintingFieldComponentProps) {
   return (
     <div className="flex flex-col gap-3">
@@ -214,19 +238,14 @@ export default function SchemaField({ item, painting, onChange }: PaintingFieldC
         Object.entries(item.schema).map(([propKey, property]: [string, any]) => {
           if (propKey === 'prompt') return null
           return (
-            <div key={propKey} className="flex flex-col">
-              <div className="mb-1.5 flex items-center">
-                <span className="font-medium text-[13px] capitalize">
-                  {item.schemaReader ? item.schemaReader(property, 'title') : property.title || propKey}
-                </span>
-              </div>
-              <SchemaValueField
-                schemaProperty={property}
-                propertyName={propKey}
-                value={painting[propKey]}
-                onChange={(field, value) => onChange({ [field]: value })}
-              />
-            </div>
+            <SchemaFieldRow
+              key={propKey}
+              property={property}
+              propKey={propKey}
+              label={item.schemaReader ? item.schemaReader(property, 'title') : property.title || propKey}
+              value={painting[propKey]}
+              onChange={(field, value) => onChange({ [field]: value })}
+            />
           )
         })}
     </div>
