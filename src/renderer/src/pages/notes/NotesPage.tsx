@@ -39,13 +39,11 @@ import {
 } from '@renderer/store/note'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import type { FileChangeEvent } from '@shared/config/types'
-import { message } from 'antd'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import HeaderNavbar from './HeaderNavbar'
 import NotesEditor from './NotesEditor'
@@ -269,9 +267,9 @@ const NotesPage: FC = () => {
           const tree = await window.api.file.getDirectoryStructure(defaultPath)
           if (!tree || tree.length === 0) {
             // 默认目录为空，提示用户需要迁移文件
-            message.warning({
-              content: t('notes.crossPlatformRestoreWarning', { path: defaultPath }),
-              duration: 10
+            window.toast.warning({
+              title: t('notes.crossPlatformRestoreWarning', { path: defaultPath }),
+              timeout: 10000
             })
           }
         } catch (error) {
@@ -906,8 +904,8 @@ const NotesPage: FC = () => {
   }, [activeNode?.id, activeFilePath, notesTree, dispatch, invalidateFileContent])
 
   return (
-    <Container id="notes-page">
-      <ContentContainer id="content-container">
+    <div id="notes-page" className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
+      <div id="content-container" className="flex h-full min-h-0 flex-1 flex-row overflow-hidden">
         <AnimatePresence initial={false}>
           {showWorkspace && (
             <motion.div
@@ -933,7 +931,7 @@ const NotesPage: FC = () => {
             </motion.div>
           )}
         </AnimatePresence>
-        <EditorWrapper>
+        <div className="relative flex min-h-0 min-w-0 max-w-full flex-1 flex-col justify-between overflow-hidden">
           <HeaderNavbar
             notesTree={notesTree}
             getCurrentNoteContent={getCurrentNoteContent}
@@ -949,42 +947,10 @@ const NotesPage: FC = () => {
             editorRef={editorRef}
             codeEditorRef={codeEditorRef}
           />
-        </EditorWrapper>
-      </ContentContainer>
-    </Container>
+        </div>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-`
-
-const ContentContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-`
-
-const EditorWrapper = styled.div`
-  display: flex;
-  position: relative;
-  flex-direction: column;
-  justify-content: space-between;
-  width: 100%;
-  flex: 1;
-  max-width: 100%;
-  overflow: hidden;
-  min-height: 0;
-  min-width: 0;
-`
 
 export default NotesPage

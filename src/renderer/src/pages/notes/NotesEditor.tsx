@@ -1,4 +1,4 @@
-import { SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
+import { EmptyState, SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ActionIconButton from '@renderer/components/Buttons/ActionIconButton'
 import CodeEditor, { type CodeEditorHandles } from '@renderer/components/CodeEditor'
@@ -7,12 +7,10 @@ import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import type { EditorView } from '@renderer/types'
-import { Empty } from 'antd'
 import { SpellCheck } from 'lucide-react'
 import type { FC, RefObject } from 'react'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface NotesEditorProps {
   activeNodeId?: string
@@ -46,17 +44,17 @@ const NotesEditor: FC<NotesEditorProps> = memo(
 
     if (!activeNodeId) {
       return (
-        <EmptyContainer>
-          <Empty description={t('notes.empty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
-        </EmptyContainer>
+        <div className="flex h-full w-full flex-1 items-center justify-center">
+          <EmptyState preset="no-note" title={t('notes.empty')} compact />
+        </div>
       )
     }
 
     return (
       <>
-        <RichEditorContainer>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity duration-200 [&_.notes-rich-editor]:flex-1 [&_.notes-rich-editor]:rounded-none [&_.notes-rich-editor]:border-0 [&_.notes-rich-editor]:bg-transparent [&_.notes-rich-editor_.rich-editor-content]:flex-1 [&_.notes-rich-editor_.rich-editor-content]:overflow-auto [&_.notes-rich-editor_.rich-editor-content]:p-4 [&_.notes-rich-editor_.rich-editor-content]:transition-all [&_.notes-rich-editor_.rich-editor-content]:duration-150 [&_.notes-rich-editor_.rich-editor-wrapper]:flex [&_.notes-rich-editor_.rich-editor-wrapper]:h-full [&_.notes-rich-editor_.rich-editor-wrapper]:flex-col [&_.notes-rich-editor_.rich-editor-wrapper]:transition-all [&_.notes-rich-editor_.rich-editor-wrapper]:duration-150">
           {tmpViewMode === 'source' ? (
-            <SourceEditorWrapper isFullWidth={settings.isFullWidth} fontSize={settings.fontSize}>
+            <div className={`h-full ${settings.isFullWidth ? 'w-full' : 'mx-auto w-[60%]'}`}>
               <CodeEditor
                 ref={codeEditorRef}
                 value={currentContent}
@@ -64,11 +62,12 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                 onChange={onMarkdownChange}
                 className="h-full"
                 expanded={false}
+                fontSize={settings.fontSize}
                 style={{
                   height: '100%'
                 }}
               />
-            </SourceEditorWrapper>
+            </div>
           ) : (
             <RichEditor
               key={`${activeNodeId}-${tmpViewMode === 'preview' ? 'preview' : 'read'}`}
@@ -87,20 +86,13 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               enableSpellCheck={enableSpellCheck}
             />
           )}
-        </RichEditorContainer>
-        <BottomPanel>
+        </div>
+        <div className="flex h-12 shrink-0 items-center border-border border-t bg-muted px-4 py-2">
           <SpaceBetweenRowFlex className="w-full items-center">
-            <TokenCount>
+            <div className="select-none text-muted-foreground text-xs leading-none">
               {t('notes.characters')}: {tokenCount}
-            </TokenCount>
-            <div
-              style={{
-                fontSize: '12px',
-                color: 'var(--color-text-3)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12
-              }}>
+            </div>
+            <div className="flex items-center gap-3 text-muted-foreground text-xs">
               {tmpViewMode === 'preview' && (
                 <Tooltip placement="top" content={t('notes.spell_check_tooltip')}>
                   <ActionIconButton
@@ -126,97 +118,12 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               />
             </div>
           </SpaceBetweenRowFlex>
-        </BottomPanel>
+        </div>
       </>
     )
   }
 )
 
 NotesEditor.displayName = 'NotesEditor'
-
-const EmptyContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  height: 100%;
-  flex: 1;
-`
-
-const RichEditorContainer = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-  transition: opacity 0.2s ease-in-out;
-
-  .notes-rich-editor {
-    border: none;
-    border-radius: 0;
-    flex: 1;
-    background: transparent;
-
-    .rich-editor-wrapper {
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-      transition: all 0.15s ease-in-out;
-    }
-
-    .rich-editor-content {
-      flex: 1;
-      overflow: auto;
-      padding: 16px;
-      transition: all 0.15s ease-in-out;
-    }
-
-    /* 预览模式下的样式优化 */
-    &[data-preview='true'] {
-      .ProseMirror {
-        cursor: default !important;
-      }
-    }
-  }
-`
-
-const SourceEditorWrapper = styled.div<{ isFullWidth: boolean; fontSize: number }>`
-  height: 100%;
-  width: ${({ isFullWidth }) => (isFullWidth ? '100%' : '60%')};
-  margin: ${({ isFullWidth }) => (isFullWidth ? '0' : '0 auto')};
-
-  /* 应用字体大小到CodeEditor */
-  .monaco-editor {
-    font-size: ${({ fontSize }) => fontSize}px !important;
-  }
-
-  /* 确保CodeEditor内部元素也应用字体大小 */
-  .monaco-editor .monaco-editor-background,
-  .monaco-editor .inputarea.ime-input,
-  .monaco-editor .monaco-editor-container,
-  .monaco-editor .overflow-guard,
-  .monaco-editor .monaco-scrollable-element,
-  .monaco-editor .lines-content.monaco-editor-background,
-  .monaco-editor .view-line {
-    font-size: ${({ fontSize }) => fontSize}px !important;
-  }
-`
-
-const BottomPanel = styled.div`
-  padding: 8px 16px;
-  border-top: 0.5px solid var(--color-border);
-  background: var(--color-background-soft);
-  flex-shrink: 0;
-  height: 48px;
-  display: flex;
-  align-items: center;
-`
-
-const TokenCount = styled.div`
-  font-size: 12px;
-  color: var(--color-text-3);
-  user-select: none;
-  line-height: 1;
-`
 
 export default NotesEditor

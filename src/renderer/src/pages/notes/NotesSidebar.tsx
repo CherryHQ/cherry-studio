@@ -16,7 +16,6 @@ import { FilePlus, Folder, FolderUp, Loader2, Upload, X } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import TreeNode from './components/TreeNode'
 import {
@@ -337,7 +336,8 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
         <NotesEditingContext value={editingValue}>
           <NotesDragContext value={dragValue}>
             <NotesSearchContext value={searchValue}>
-              <SidebarContainer
+              <div
+                className="relative isolate flex h-full min-h-0 w-[250px] min-w-[250px] flex-col rounded-tl-[10px] border-border border-r bg-background"
                 onDragOver={(e) => {
                   e.preventDefault()
                   if (!draggedNodeId) {
@@ -363,18 +363,22 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                   onSelectSortType={handleSelectSortType}
                 />
 
-                <NotesTreeContainer>
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                   {isShowSearch && isSearching && (
-                    <SearchStatusBar>
+                    <div className="flex items-center gap-2 border-border border-b bg-muted px-3 py-2 text-muted-foreground text-xs">
                       <Loader2 size={14} className="animate-spin" />
                       <span>{t('notes.search.searching')}</span>
-                      <CancelButton onClick={cancel} title={t('common.cancel')}>
+                      <button
+                        type="button"
+                        className="ml-auto flex size-5 cursor-pointer items-center justify-center rounded-[3px] border-0 bg-transparent p-0 text-muted-foreground transition-all duration-200 hover:bg-accent hover:text-foreground active:bg-accent"
+                        onClick={cancel}
+                        title={t('common.cancel')}>
                         <X size={14} />
-                      </CancelButton>
-                    </SearchStatusBar>
+                      </button>
+                    </div>
                   )}
                   {isShowSearch && !isSearching && hasSearchKeyword && searchStats.total > 0 && (
-                    <SearchStatusBar>
+                    <div className="flex items-center gap-2 border-border border-b bg-muted px-3 py-2 text-muted-foreground text-xs">
                       <span>
                         {t('notes.search.found_results', {
                           count: searchStats.total,
@@ -382,7 +386,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                           contentCount: searchStats.contentMatches + searchStats.bothMatches
                         })}
                       </span>
-                    </SearchStatusBar>
+                    </div>
                   )}
                   <ContextMenu>
                     <ContextMenuTrigger asChild>
@@ -417,10 +421,12 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                       />
                     </div>
                   )}
-                </NotesTreeContainer>
+                </div>
 
-                {isDragOverSidebar && <DragOverIndicator />}
-              </SidebarContainer>
+                {isDragOverSidebar && (
+                  <div className="pointer-events-none absolute inset-0 rounded border-2 border-blue-500/60 border-dashed bg-blue-500/10" />
+                )}
+              </div>
             </NotesSearchContext>
           </NotesDragContext>
         </NotesEditingContext>
@@ -428,95 +434,5 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     </NotesActionsContext>
   )
 }
-
-export const SidebarContainer = styled.div`
-  width: 250px;
-  min-width: 250px;
-  height: 100%;
-  min-height: 0;
-  background-color: var(--color-background);
-  border-right: 0.5px solid var(--color-border);
-  border-top-left-radius: 10px;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  isolation: isolate;
-`
-
-export const NotesTreeContainer = styled.div`
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-`
-
-export const DragOverIndicator = styled.div`
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  background-color: rgba(0, 123, 255, 0.1);
-  border: 2px dashed rgba(0, 123, 255, 0.6);
-  border-radius: 4px;
-  pointer-events: none;
-`
-
-export const DropHintText = styled.div`
-  color: var(--color-text-3);
-  font-size: 12px;
-  font-style: italic;
-`
-
-// 搜索相关样式
-export const SearchStatusBar = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background-color: var(--color-background-soft);
-  border-bottom: 0.5px solid var(--color-border);
-  font-size: 12px;
-  color: var(--color-text-2);
-
-  .animate-spin {
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    from {
-      transform: rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg);
-    }
-  }
-`
-
-export const CancelButton = styled.button`
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: none;
-  background-color: transparent;
-  color: var(--color-text-3);
-  cursor: pointer;
-  border-radius: 3px;
-  transition: all 0.2s ease;
-
-  &:hover {
-    background-color: var(--color-background-mute);
-    color: var(--color-text);
-  }
-
-  &:active {
-    background-color: var(--color-active);
-  }
-`
 
 export default memo(NotesSidebar)
