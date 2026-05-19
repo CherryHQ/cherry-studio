@@ -112,5 +112,21 @@
     "description_zh": "开源终端编程代理。",
     "repoUrl": "https://github.com/anomalyco/opencode",
     "homepage": "https://opencode.ai/"
+  },
+  {
+    "name": "hermes",
+    "displayName": "Hermes",
+    "tool": "pipx:hermes-agent",
+    "description": "AI coding agent powered by Hermes.",
+    "description_zh": "Hermes 驱动的 AI 编程代理。",
+    "repoUrl": "https://github.com/anthropics/hermes"
+  },
+  {
+    "name": "openclaw",
+    "displayName": "OpenClaw",
+    "tool": "npm:openclaw",
+    "description": "Open-source AI gateway and model router.",
+    "description_zh": "开源 AI 网关和模型路由。",
+    "repoUrl": "https://github.com/nicepkg/openclaw"
   }
 ]
