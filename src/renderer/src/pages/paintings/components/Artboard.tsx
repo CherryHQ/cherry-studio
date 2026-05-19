@@ -61,13 +61,6 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
     setCurrentImageIndex(0)
   }, [painting.id])
 
-  useEffect(() => {
-    setCurrentImageIndex((index) => {
-      if (painting.files.length === 0) return 0
-      return Math.min(index, painting.files.length - 1)
-    })
-  }, [painting.files.length])
-
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col p-2">
       <div
