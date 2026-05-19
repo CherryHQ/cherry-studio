@@ -99,6 +99,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
       generationProgress: 0
     }
     let generationStateQueue = Promise.resolve()
+    let generationStatePersistFailed = false
     const controller = new AbortController()
 
     const updateGenerationState = (updates: Partial<PaintingGenerationState>) => {
@@ -113,6 +114,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
           await refresh()
         })
         .catch((error) => {
+          generationStatePersistFailed = true
           presentPaintingGenerateError(error)
         })
     }
@@ -132,6 +134,9 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
         onGenerationStateChange: updateGenerationState
       })
       await generationStateQueue
+      // A mid-generation persistence failure was already surfaced by the queue's
+      // catch handler; do not proceed as if the in-progress state was saved.
+      if (generationStatePersistFailed) return
       const updatedRecord = await updatePainting(targetPainting.id, {
         files: {
           output: files.map((file) => file.id),
