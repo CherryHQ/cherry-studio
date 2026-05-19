@@ -1,1 +1,6 @@
 export * from './cherryin-provider'
+export * from './pollingImageModel'
+export * from './pollingTransports/ppio'
+export * from './pollingTransports/tokenflux'
+export * from './ppio-image-provider'
+export * from './tokenflux-image-provider'
