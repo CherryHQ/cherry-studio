@@ -50,7 +50,8 @@ export const aihubmixProvider = {
     }
   },
   image: {
-    onUpload: ({ key, file, patchPainting }) => handleAihubmixImageUpload(key, file, patchPainting),
+    onUpload: ({ key, file, patchPainting, painting }) =>
+      handleAihubmixImageUpload(key, file, patchPainting, getAihubmixPreviewSrc(key, painting ?? ({} as PaintingData))),
     getPreviewSrc: ({ key, painting }) => getAihubmixPreviewSrc(key, painting),
     placeholder: aihubmixImagePlaceholder
   },

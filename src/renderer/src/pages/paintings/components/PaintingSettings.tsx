@@ -62,10 +62,11 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange,
       providerDefinition.image?.onUpload?.({
         key,
         file,
-        patchPainting: onConfigChange as (updates: Partial<PaintingData>) => void
+        patchPainting: onConfigChange as (updates: Partial<PaintingData>) => void,
+        painting
       })
     },
-    [onConfigChange, providerDefinition.image]
+    [onConfigChange, painting, providerDefinition.image]
   )
 
   const getImagePreviewSrc = useCallback(

@@ -38,7 +38,13 @@ export interface ProviderPrompt<T extends PaintingData = PaintingData> {
 }
 
 export interface ProviderImage<T extends PaintingData = PaintingData> {
-  onUpload?: (input: { key: string; file: File; patchPainting: (updates: Partial<PaintingData>) => void }) => void
+  onUpload?: (input: {
+    key: string
+    file: File
+    patchPainting: (updates: Partial<PaintingData>) => void
+    /** Current painting before the patch — lets handlers revoke the previous field value (e.g. blob URL). */
+    painting?: T
+  }) => void
   getPreviewSrc?: (input: { key: string; painting: T }) => string | undefined
   placeholder?: ReactNode
 }
