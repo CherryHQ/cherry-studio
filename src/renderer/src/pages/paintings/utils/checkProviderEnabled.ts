@@ -38,9 +38,9 @@ export async function checkProviderEnabled(provider: PaintingProviderRuntime): P
       okText: i18next.t('common.go_to_settings'),
       onOk: () => {
         navigateToProviderSettings(provider.id)
-        reject('Provider disabled')
+        reject('No API key')
       },
-      onCancel: () => reject('Provider disabled')
+      onCancel: () => reject('No API key')
     })
   })
 }
