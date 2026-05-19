@@ -85,8 +85,8 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange,
     <>
       {configItems
         .filter((item) => shouldRenderConfigItem(item, paintingRecord))
-        .map((item, index) => (
-          <div key={item.key || index}>
+        .map((item) => (
+          <div key={item.key ?? `${item.type}-${item.title ?? ''}`}>
             {item.title && (
               <PaintingSectionTitle>
                 {t(item.title)}
