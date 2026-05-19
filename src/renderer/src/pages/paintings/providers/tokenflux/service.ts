@@ -63,7 +63,11 @@ export class TokenFluxService {
         message: errorData.message || `HTTP ${response.status}: Request failed`
       })
     }
-    return response.json()
+    return response.json().catch(() => {
+      throw createPaintingGenerateError('REMOTE_ERROR', {
+        message: `HTTP ${response.status}: Invalid response from server`
+      })
+    })
   }
 
   async fetchModels(signal?: AbortSignal): Promise<TokenFluxModel[]> {
