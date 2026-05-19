@@ -34,6 +34,8 @@ import { cloneDeep, isEmpty } from 'lodash'
 
 import type { ProviderConfig } from '../types'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
+import { DEFAULT_DMXAPI_BASE_URL } from './custom/pollingTransports/dmxapi'
+import { DEFAULT_OVMS_BASE_URL } from './custom/pollingTransports/ovms'
 import { DEFAULT_PPIO_BASE_URL } from './custom/pollingTransports/ppio'
 import { DEFAULT_TOKENFLUX_BASE_URL } from './custom/pollingTransports/tokenflux'
 import { getAiSdkProviderId } from './factory'
@@ -134,7 +136,9 @@ export function providerToAiSdkConfig(
     { match: (p) => p.id === 'aionly', build: buildAionlyConfig },
     { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig },
     { match: (_, id) => id === 'ppio', build: buildPpioConfig },
-    { match: (_, id) => id === 'tokenflux', build: buildTokenFluxConfig }
+    { match: (_, id) => id === 'tokenflux', build: buildTokenFluxConfig },
+    { match: (p) => p.id === 'dmxapi', build: buildDmxapiConfig },
+    { match: (p) => p.id === 'ovms', build: buildOvmsConfig }
   ]
 
   const builder = builders.find((b) => b.match(actualProvider, aiSdkProviderId))
@@ -398,6 +402,36 @@ function buildTokenFluxConfig(ctx: BuilderContext): ProviderConfig<'tokenflux'> 
       ...ctx.baseConfig,
       baseURL: DEFAULT_TOKENFLUX_BASE_URL,
       headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+    }
+  }
+}
+
+/**
+ * DMXAPI/OVMS paintings transports POST to the user/runtime-configured image
+ * host (DMXAPI is user-configurable across platforms — .com/.cn/enterprise —,
+ * OVMS is a local OpenVINO Model Server). Unlike PPIO/TokenFlux (pinned default
+ * host), `baseURL` must be the resolved `apiHost` (`ctx.baseConfig.baseURL`);
+ * `DEFAULT_*` is only an empty-fallback. OVMS carries no auth header.
+ */
+function buildDmxapiConfig(ctx: BuilderContext): ProviderConfig<'dmxapi'> {
+  return {
+    providerId: 'dmxapi',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      baseURL: ctx.baseConfig.baseURL || DEFAULT_DMXAPI_BASE_URL,
+      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+    }
+  }
+}
+
+function buildOvmsConfig(ctx: BuilderContext): ProviderConfig<'ovms'> {
+  return {
+    providerId: 'ovms',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      baseURL: ctx.baseConfig.baseURL || DEFAULT_OVMS_BASE_URL
     }
   }
 }

@@ -28,6 +28,13 @@ export interface PollingSubmitInput {
   files: ImageModelV3CallOptions['files']
   mask: ImageModelV3CallOptions['mask']
   providerParams: Record<string, unknown>
+  /**
+   * Abort signal forwarded from `options.abortSignal`. Polling providers
+   * (ppio/tokenflux) ignore it (they abort during `poll()`); single-shot
+   * providers (dmxapi/ovms) use it to make their one `submit()` fetch
+   * cancellable, since `poll()` is never reached.
+   */
+  signal?: AbortSignal
 }
 
 export interface CreatePollingImageModelOptions {
@@ -82,7 +89,8 @@ export function createPollingImageModel(
         seed: options.seed,
         files: options.files,
         mask: options.mask,
-        providerParams
+        providerParams,
+        signal: abortSignal
       })
 
       let urls: string[]

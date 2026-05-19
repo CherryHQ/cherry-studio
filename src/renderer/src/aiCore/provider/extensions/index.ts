@@ -26,7 +26,9 @@ import { createOllama } from 'ollama-ai-provider-v2'
 import { createVoyage, type VoyageProviderSettings } from 'voyage-ai-provider'
 
 import { type AihubmixProviderSettings, createAihubmix } from '../custom/aihubmix-provider'
+import { createDmxapiImageProvider, type DmxapiImageProviderSettings } from '../custom/dmxapi-image-provider'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapi-provider'
+import { createOvmsImageProvider, type OvmsImageProviderSettings } from '../custom/ovms-image-provider'
 import { createPpioImageProvider, type PpioImageProviderSettings } from '../custom/ppio-image-provider'
 import { createTokenFluxImageProvider, type TokenFluxImageProviderSettings } from '../custom/tokenflux-image-provider'
 
@@ -224,6 +226,24 @@ export const TokenFluxExtension = ProviderExtension.create({
 } as const satisfies ProviderExtensionConfig<TokenFluxImageProviderSettings, ProviderV3, 'tokenflux'>)
 
 /**
+ * DMXAPI Extension - image-only single-shot provider (paintings page)
+ */
+export const DmxapiExtension = ProviderExtension.create({
+  name: 'dmxapi',
+  supportsImageGeneration: true,
+  create: createDmxapiImageProvider
+} as const satisfies ProviderExtensionConfig<DmxapiImageProviderSettings, ProviderV3, 'dmxapi'>)
+
+/**
+ * OVMS Extension - image-only single-shot provider (local OpenVINO, paintings page)
+ */
+export const OvmsExtension = ProviderExtension.create({
+  name: 'ovms',
+  supportsImageGeneration: true,
+  create: createOvmsImageProvider
+} as const satisfies ProviderExtensionConfig<OvmsImageProviderSettings, ProviderV3, 'ovms'>)
+
+/**
  * Voyage AI Extension - embeddings and reranking
  */
 export const VoyageExtension = ProviderExtension.create({
@@ -251,6 +271,8 @@ export const extensions = [
   NewApiExtension,
   PpioExtension,
   TokenFluxExtension,
+  DmxapiExtension,
+  OvmsExtension,
   VoyageExtension,
   TogetherAIExtension,
   GroqExtension
