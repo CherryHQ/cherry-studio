@@ -119,10 +119,29 @@ export interface AihubmixPaintingData extends PaintingDataBase, GeneratePainting
   providerId: 'aihubmix'
 }
 
+/**
+ * Catch-all variant for OpenAI-compatible providers (new-api, cherryin, aionly,
+ * any provider with `presetProviderId === 'new-api'`, plus arbitrary user-added
+ * providers). This set is open-ended and not enumerable, so `providerId` is
+ * intentionally the wide `string` type rather than a literal.
+ *
+ * Consequence: `PaintingData` is intentionally NOT a closed discriminated union.
+ * The wide `string` member overlaps every literal member, so a `switch
+ * (data.providerId)` cannot exhaustively narrow it. Discriminate via the
+ * dedicated user-defined type guards in `PaintingProviderViews.tsx`
+ * (`isTokenFluxPainting`, `isOpenApiCompatiblePainting`, ...), which test
+ * concrete provider ids and treat this variant as the typed fallback. Do NOT
+ * add an exhaustive `switch`/`assertNever` over `PaintingData.providerId`.
+ */
 export interface OpenApiCompatiblePaintingData extends PaintingDataBase, GeneratePaintingFields {
   providerId: string
 }
 
+/**
+ * Intentionally non-exhaustive: `OpenApiCompatiblePaintingData` is the open-set
+ * fallback (see its docs). Narrow with the type guards in
+ * `PaintingProviderViews.tsx`, never with an exhaustive `switch` on `providerId`.
+ */
 export type PaintingData =
   | SiliconPaintingData
   | OvmsPaintingData
