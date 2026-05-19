@@ -69,6 +69,35 @@ describe('usePaintingGenerationGuard', () => {
     })
   })
 
+  it('blocks providers with an empty or whitespace-only API key', async () => {
+    vi.mocked(usePaintingProviderRuntime).mockReturnValue({
+      provider: {
+        ...createRuntimeProvider(),
+        getApiKey: vi.fn(async () => '   ')
+      },
+      isLoading: false
+    })
+    const { result } = renderGuard()
+
+    await expect(result.current.validateBeforeGenerate()).resolves.toEqual({
+      ok: false,
+      reason: 'no_api_key'
+    })
+  })
+
+  it('allows providers with a non-empty API key through the API key check', async () => {
+    vi.mocked(usePaintingProviderRuntime).mockReturnValue({
+      provider: {
+        ...createRuntimeProvider(),
+        getApiKey: vi.fn(async () => 'real-token')
+      },
+      isLoading: false
+    })
+    const { result } = renderGuard()
+
+    await expect(result.current.validateBeforeGenerate()).resolves.toEqual({ ok: true })
+  })
+
   it('blocks missing models', async () => {
     const { result } = renderGuard({
       painting: {
