@@ -1,4 +1,3 @@
-import { createUniqueModelId } from '@shared/data/types/model'
 import { useCallback } from 'react'
 
 import type { PaintingData } from '../model/types/paintingData'
@@ -27,7 +26,6 @@ interface UsePaintingGenerationGuardInput {
 
 export function usePaintingGenerationGuard({
   painting,
-  selectorData,
   ensureCurrentCatalog
 }: UsePaintingGenerationGuardInput) {
   const providerId = painting.providerId
@@ -66,22 +64,13 @@ export function usePaintingGenerationGuard({
       }
     }
 
-    const uniqueModelId = createUniqueModelId(providerId, modelId)
-    const selectedModel = selectorData.models.find((model) => model.id === uniqueModelId)
-
-    if (selectedModel?.isEnabled === false || selectedModel?.isHidden) {
+    const ensuredOption = ensuredOptions.find((option) => option.value === modelId)
+    if (!ensuredOption || ensuredOption.isEnabled === false) {
       return { ok: false, reason: 'model_unavailable' }
     }
 
-    if (!selectedModel) {
-      const ensuredOption = ensuredOptions.find((option) => option.value === modelId)
-      if (!ensuredOption || ensuredOption.isEnabled === false) {
-        return { ok: false, reason: 'model_unavailable' }
-      }
-    }
-
     return { ok: true }
-  }, [ensureCurrentCatalog, mode, modelId, provider, providerId, selectorData.models])
+  }, [ensureCurrentCatalog, mode, modelId, provider, providerId])
 
   return { validateBeforeGenerate }
 }
