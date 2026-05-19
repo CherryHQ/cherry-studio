@@ -347,8 +347,6 @@ const CustomToolItem: FC<{
 }> = ({ tool, installed, installedVersion, installing, onInstall, onUpdate, onOpenPath, onRemove }) => {
   const { t } = useTranslation()
 
-  const repoUrl = tool.tool.startsWith('github:') ? `https://github.com/${tool.tool.slice(7)}` : null
-
   return (
     <div className="group flex w-full items-center gap-3 rounded-lg border border-border/60 bg-transparent px-3 py-2.5 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/55">
       <div
@@ -370,19 +368,6 @@ const CustomToolItem: FC<{
         </div>
         <div className="mt-0.5 flex items-center gap-2">
           <span className="text-muted-foreground text-xs">{tool.tool}</span>
-          {repoUrl && (
-            <a
-              href={repoUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center text-muted-foreground/70 transition-colors hover:text-foreground"
-              onClick={(e) => {
-                e.preventDefault()
-                window.api.openWebsite(repoUrl)
-              }}>
-              <ExternalLink className="size-3" />
-            </a>
-          )}
           {installed && (
             <button
               type="button"
