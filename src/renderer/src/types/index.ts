@@ -596,6 +596,13 @@ export type GenerateImageParams = {
   background?: string
   /** OpenAI image-body field (e.g. 'low'/'auto') */
   moderation?: string
+  /**
+   * Extra AI SDK `providerOptions` merged into the built map, keyed by the
+   * resolved provider id. Carries provider-specific params (and non-JSON
+   * callbacks like the polling `onProgress`) that the structured params can't
+   * express. Passed by reference through the plugin chain.
+   */
+  providerOptions?: Record<string, Record<string, unknown>>
 }
 
 /**
@@ -619,6 +626,11 @@ export type EditImageParams = {
   background?: string
   /** OpenAI image-body field (e.g. 'low'/'auto') */
   moderation?: string
+  /**
+   * Extra AI SDK `providerOptions` merged into the built map, keyed by the
+   * resolved provider id. See {@link GenerateImageParams.providerOptions}.
+   */
+  providerOptions?: Record<string, Record<string, unknown>>
   /** 中止信号 */
   signal?: AbortSignal
 }

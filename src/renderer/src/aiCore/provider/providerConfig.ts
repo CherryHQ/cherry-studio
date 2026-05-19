@@ -1,4 +1,5 @@
 import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystudio/ai-core/provider'
+import { DEFAULT_PPIO_BASE_URL, DEFAULT_TOKENFLUX_BASE_URL } from '@cherrystudio/ai-sdk-provider'
 import type { AppProviderId, AppProviderSettingsMap } from '@renderer/aiCore/types'
 import {
   getAwsBedrockAccessKeyId,
@@ -130,7 +131,9 @@ export function providerToAiSdkConfig(
     { match: (_, id) => id === 'cherryin', build: buildCherryinConfig },
     { match: (_, id) => id === 'newapi', build: buildNewApiConfig },
     { match: (p) => p.id === 'aionly', build: buildAionlyConfig },
-    { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig }
+    { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig },
+    { match: (_, id) => id === 'ppio', build: buildPpioConfig },
+    { match: (_, id) => id === 'tokenflux', build: buildTokenFluxConfig }
   ]
 
   const builder = builders.find((b) => b.match(actualProvider, aiSdkProviderId))
@@ -362,6 +365,37 @@ function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
+      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+    }
+  }
+}
+
+/**
+ * PPIO/TokenFlux paintings transports POST to fixed image API hosts
+ * (`https://api.ppio.com`, `https://api.tokenflux.ai`) — NOT the provider's
+ * chat `apiHost` (PPIO chat is `api.ppinfra.com/v3/openai`, TokenFlux is
+ * `api.tokenflux.ai/openai/v1`). Pinning `baseURL` to the transport default
+ * keeps request URLs byte-identical to the legacy bespoke services.
+ */
+function buildPpioConfig(ctx: BuilderContext): ProviderConfig<'ppio'> {
+  return {
+    providerId: 'ppio',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      baseURL: DEFAULT_PPIO_BASE_URL,
+      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+    }
+  }
+}
+
+function buildTokenFluxConfig(ctx: BuilderContext): ProviderConfig<'tokenflux'> {
+  return {
+    providerId: 'tokenflux',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      baseURL: DEFAULT_TOKENFLUX_BASE_URL,
       headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
     }
   }

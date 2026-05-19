@@ -108,6 +108,18 @@ export default defineConfig({
           ]
         }
       },
+      // ai-sdk-provider 包单元测试配置
+      {
+        extends: true,
+        test: {
+          name: 'ai-sdk-provider',
+          environment: 'node',
+          include: [
+            'packages/ai-sdk-provider/**/*.{test,spec}.{ts,tsx}',
+            'packages/ai-sdk-provider/**/__tests__/**/*.{test,spec}.{ts,tsx}'
+          ]
+        }
+      },
       // packages/ui 单元测试配置
       {
         extends: true,

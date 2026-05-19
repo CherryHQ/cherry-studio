@@ -8,6 +8,7 @@ import type { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 import type { Assistant, EditImageParams, GenerateImageParams, Model, Provider } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { getLowerBaseModelName } from '@renderer/utils'
+import type { JSONValue } from 'ai'
 
 import AiSdkToChunkAdapter from './chunk/AiSdkToChunkAdapter'
 import { buildPlugins } from './plugins/PluginBuilder'
@@ -18,6 +19,25 @@ import type { AppProviderSettingsMap, CompletionsResult, ProviderConfig } from '
 import type { AiSdkMiddlewareConfig } from './types/middlewareConfig'
 
 const logger = loggerService.withContext('AiProvider')
+
+/**
+ * Merge caller-supplied extra `providerOptions` (e.g. the polling `onProgress`
+ * callback for ppio/tokenflux) into the structurally-built map. Per-provider
+ * keys are shallow-merged so structured params and pass-through params coexist.
+ * Extra values are kept by reference — non-JSON callbacks survive the plugin
+ * chain (it shallow-copies, no JSON clone).
+ */
+function mergeExtraProviderOptions(
+  base: Record<string, Record<string, unknown>>,
+  extra?: Record<string, Record<string, unknown>>
+): Record<string, Record<string, unknown>> {
+  if (!extra) return base
+  const merged: Record<string, Record<string, unknown>> = { ...base }
+  for (const [providerKey, values] of Object.entries(extra)) {
+    merged[providerKey] = { ...(merged[providerKey] ?? {}), ...values }
+  }
+  return merged
+}
 
 export type AiProviderConfig = AiSdkMiddlewareConfig & {
   assistant: Assistant
@@ -383,14 +403,21 @@ export default class AiProvider {
     // promptEnhancement/personGeneration/quality) via AI SDK providerOptions —
     // they were previously dropped here. Keyed by the resolved provider id,
     // which is the providerOptions key the image model reads.
-    const providerOptions = buildImageProviderOptions(providerConfig.providerId, params)
+    const providerOptions = mergeExtraProviderOptions(
+      buildImageProviderOptions(providerConfig.providerId, params),
+      params.providerOptions
+    )
 
     // 转换参数格式
     const aiSdkParams = {
       prompt,
       size: (imageSize || '1024x1024') as `${number}x${number}`,
       n: batchSize || 1,
-      ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
+      // Cast: extra providerOptions may carry non-JSON callbacks (e.g. the
+      // polling `onProgress`) which the AI SDK passes through by reference.
+      ...(Object.keys(providerOptions).length > 0 && {
+        providerOptions: providerOptions as Record<string, Record<string, JSONValue>>
+      }),
       ...(signal && { abortSignal: signal })
     }
 
@@ -417,7 +444,10 @@ export default class AiProvider {
     // Parity with modernGenerateImage: forward quality/background/moderation via
     // providerOptions, keyed by the resolved provider id (the providerOptions key
     // the image model reads). Justified by the unified newapi edit consumer.
-    const providerOptions = buildImageProviderOptions(providerConfig.providerId, params)
+    const providerOptions = mergeExtraProviderOptions(
+      buildImageProviderOptions(providerConfig.providerId, params),
+      params.providerOptions
+    )
 
     const executor = await createExecutor<AppProviderSettingsMap>(
       providerConfig.providerId,
@@ -434,7 +464,11 @@ export default class AiProvider {
         ...(mask && { mask }) // 可选的 mask（用于 inpainting）
       },
       size: (imageSize || '1024x1024') as `${number}x${number}`,
-      ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
+      // Cast: see modernGenerateImage — extra providerOptions may carry
+      // non-JSON callbacks the AI SDK passes through by reference.
+      ...(Object.keys(providerOptions).length > 0 && {
+        providerOptions: providerOptions as Record<string, Record<string, JSONValue>>
+      }),
       ...(signal && { abortSignal: signal })
     })
 

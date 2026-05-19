@@ -15,6 +15,12 @@ import { createMistral, type MistralProviderSettings } from '@ai-sdk/mistral'
 import { createPerplexity, type PerplexityProviderSettings } from '@ai-sdk/perplexity'
 import type { ProviderV3 } from '@ai-sdk/provider'
 import { createTogetherAI, type TogetherAIProviderSettings } from '@ai-sdk/togetherai'
+import {
+  createPpioImageProvider,
+  type PpioImageProviderSettings,
+  createTokenFluxImageProvider,
+  type TokenFluxImageProviderSettings
+} from '@cherrystudio/ai-sdk-provider'
 import { ProviderExtension, type ProviderExtensionConfig } from '@cherrystudio/ai-core/provider'
 import {
   createGitHubCopilotOpenAICompatible,
@@ -204,6 +210,24 @@ export const TogetherAIExtension = ProviderExtension.create({
 } as const satisfies ProviderExtensionConfig<TogetherAIProviderSettings, ProviderV3, 'togetherai'>)
 
 /**
+ * PPIO Extension - image-only async submit/poll provider (paintings page)
+ */
+export const PpioExtension = ProviderExtension.create({
+  name: 'ppio',
+  supportsImageGeneration: true,
+  create: createPpioImageProvider
+} as const satisfies ProviderExtensionConfig<PpioImageProviderSettings, ProviderV3, 'ppio'>)
+
+/**
+ * TokenFlux Extension - image-only async submit/poll provider (paintings page)
+ */
+export const TokenFluxExtension = ProviderExtension.create({
+  name: 'tokenflux',
+  supportsImageGeneration: true,
+  create: createTokenFluxImageProvider
+} as const satisfies ProviderExtensionConfig<TokenFluxImageProviderSettings, ProviderV3, 'tokenflux'>)
+
+/**
  * Voyage AI Extension - embeddings and reranking
  */
 export const VoyageExtension = ProviderExtension.create({
@@ -229,6 +253,8 @@ export const extensions = [
   OllamaExtension,
   AiHubMixExtension,
   NewApiExtension,
+  PpioExtension,
+  TokenFluxExtension,
   VoyageExtension,
   TogetherAIExtension,
   GroqExtension
