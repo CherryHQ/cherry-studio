@@ -6229,24 +6229,16 @@
     "plugins": {
       "addTool": "[to be translated]:Add Tool",
       "addToolDescription": "[to be translated]:Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
-      "bunDescription": "用於 MCP 服務和相關工具鏈的 JavaScript 執行階段。",
       "customTools": "[to be translated]:Custom Tools",
       "description": "管理應用程式執行所需的二進位工具和執行階段依賴。",
-      "fdDescription": "[to be translated]:Fast file finder, alternative to find.",
-      "fieldName": "[to be translated]:Binary name (e.g., fd)",
-      "fieldTool": "[to be translated]:Mise tool key (e.g., github:sharkdp/fd)",
       "fieldVersion": "[to be translated]:Version (optional, defaults to latest)",
-      "ghDescription": "[to be translated]:GitHub CLI for repository and workflow management.",
       "installing": "安裝中...",
-      "larkCliDescription": "[to be translated]:Lark CLI for workspace and document management.",
       "notInstalled": "未安裝",
       "removeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
       "removeConfirmTitle": "[to be translated]:Remove Tool",
-      "rgDescription": "[to be translated]:Fast text search tool (ripgrep), alternative to grep.",
-      "rtkDescription": "[to be translated]:RTK binary for command rewriting.",
+      "searchRegistry": "[to be translated]:Search mise registry...",
       "title": "環境依賴",
-      "update": "[to be translated]:Update to latest version",
-      "uvDescription": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
+      "update": "[to be translated]:Update to latest version"
     },
     "privacy": {
       "enable_privacy_mode": "匿名傳送錯誤報告和資料統計",

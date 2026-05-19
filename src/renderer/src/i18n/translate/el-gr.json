@@ -6229,24 +6229,16 @@
     "plugins": {
       "addTool": "[to be translated]:Add Tool",
       "addToolDescription": "[to be translated]:Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
-      "bunDescription": "JavaScript runtime που χρησιμοποιείται από υπηρεσίες MCP και σχετικά εργαλειοθέματα.",
       "customTools": "[to be translated]:Custom Tools",
       "description": "Διαχειριστείτε τα δυαδικά εργαλεία και τις εξαρτήσεις χρόνου εκτέλεσης που απαιτούνται από την εφαρμογή.",
-      "fdDescription": "[to be translated]:Fast file finder, alternative to find.",
-      "fieldName": "[to be translated]:Binary name (e.g., fd)",
-      "fieldTool": "[to be translated]:Mise tool key (e.g., github:sharkdp/fd)",
       "fieldVersion": "[to be translated]:Version (optional, defaults to latest)",
-      "ghDescription": "[to be translated]:GitHub CLI for repository and workflow management.",
       "installing": "Εγκατάσταση...",
-      "larkCliDescription": "[to be translated]:Lark CLI for workspace and document management.",
       "notInstalled": "Δεν έχει εγκατασταθεί",
       "removeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
       "removeConfirmTitle": "[to be translated]:Remove Tool",
-      "rgDescription": "[to be translated]:Fast text search tool (ripgrep), alternative to grep.",
-      "rtkDescription": "[to be translated]:RTK binary for command rewriting.",
+      "searchRegistry": "[to be translated]:Search mise registry...",
       "title": "Εξαρτήσεις Περιβάλλοντος",
-      "update": "[to be translated]:Update to latest version",
-      "uvDescription": "Διαχειριστής πακέτων Python για υπηρεσίες MCP και εγκατάσταση εξαρτήσεων."
+      "update": "[to be translated]:Update to latest version"
     },
     "privacy": {
       "enable_privacy_mode": "Αποστολή ανώνυμων αναφορών σφαλμάτων και στατιστικών δεδομένων",

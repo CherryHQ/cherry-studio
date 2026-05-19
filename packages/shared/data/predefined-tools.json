@@ -4,7 +4,8 @@
     "displayName": "uv",
     "tool": "uv",
     "icon": "simple-icons:uv",
-    "descriptionKey": "settings.plugins.uvDescription",
+    "description": "Python package manager for MCP services and dependency installation.",
+    "description_zh": "用于 MCP 服务与依赖安装的 Python 包管理工具。",
     "repoUrl": "https://github.com/astral-sh/uv",
     "homepage": "https://docs.astral.sh/uv/",
     "coreDep": true
@@ -14,7 +15,8 @@
     "displayName": "Bun",
     "tool": "bun",
     "icon": "simple-icons:bun",
-    "descriptionKey": "settings.plugins.bunDescription",
+    "description": "JavaScript runtime used by MCP services and related toolchains.",
+    "description_zh": "MCP 服务及相关工具链使用的 JavaScript 运行时。",
     "repoUrl": "https://github.com/oven-sh/bun",
     "homepage": "https://bun.sh",
     "coreDep": true
@@ -22,24 +24,25 @@
   {
     "name": "fd",
     "displayName": "fd",
-    "tool": "github:sharkdp/fd",
-    "version": "10.3.0",
-    "descriptionKey": "settings.plugins.fdDescription",
+    "tool": "fd",
+    "description": "Fast file finder, alternative to find.",
+    "description_zh": "快速文件查找工具，find 的替代品。",
     "repoUrl": "https://github.com/sharkdp/fd"
   },
   {
     "name": "rg",
     "displayName": "ripgrep",
-    "tool": "github:BurntSushi/ripgrep",
-    "version": "15.1.0",
-    "descriptionKey": "settings.plugins.rgDescription",
+    "tool": "rg",
+    "description": "Fast text search tool (ripgrep), alternative to grep.",
+    "description_zh": "快速文本搜索工具 (ripgrep)，grep 的替代品。",
     "repoUrl": "https://github.com/BurntSushi/ripgrep"
   },
   {
     "name": "rtk",
     "displayName": "RTK",
-    "tool": "github:rtk-ai/rtk",
-    "descriptionKey": "settings.plugins.rtkDescription",
+    "tool": "rtk",
+    "description": "RTK binary for command rewriting.",
+    "description_zh": "RTK 命令重写工具。",
     "repoUrl": "https://github.com/rtk-ai/rtk",
     "homepage": "https://www.runtimekit.com"
   },
@@ -47,16 +50,67 @@
     "name": "lark-cli",
     "displayName": "Lark CLI",
     "tool": "github:larksuite/cli",
-    "descriptionKey": "settings.plugins.larkCliDescription",
+    "icon": "simple-icons:lark",
+    "description": "Lark CLI for workspace and document management.",
+    "description_zh": "飞书 CLI，用于工作区和文档管理。",
     "repoUrl": "https://github.com/larksuite/cli"
   },
   {
     "name": "gh",
     "displayName": "GitHub CLI",
-    "tool": "github:cli/cli",
+    "tool": "gh",
     "icon": "simple-icons:github",
-    "descriptionKey": "settings.plugins.ghDescription",
+    "description": "GitHub CLI for repository and workflow management.",
+    "description_zh": "GitHub CLI，用于仓库和工作流管理。",
     "repoUrl": "https://github.com/cli/cli",
     "homepage": "https://cli.github.com"
+  },
+  {
+    "name": "ntn",
+    "displayName": "Notion CLI",
+    "tool": "npm:ntn",
+    "icon": "simple-icons:notion",
+    "description": "Notion CLI for managing pages, databases, and workspace content.",
+    "description_zh": "Notion CLI，用于管理页面、数据库和工作区内容。",
+    "repoUrl": "https://github.com/makenotion/cli",
+    "homepage": "https://developers.notion.com/cli/get-started/overview"
+  },
+  {
+    "name": "claude",
+    "displayName": "Claude Code",
+    "tool": "claude",
+    "icon": "simple-icons:claude",
+    "description": "Anthropic's agentic coding tool for the terminal.",
+    "description_zh": "Anthropic 的终端智能编程工具。",
+    "repoUrl": "https://github.com/anthropics/claude-code",
+    "homepage": "https://docs.anthropic.com/en/docs/claude-code"
+  },
+  {
+    "name": "codex",
+    "displayName": "Codex",
+    "tool": "codex",
+    "icon": "simple-icons:openai",
+    "description": "OpenAI's lightweight coding agent that runs in the terminal.",
+    "description_zh": "OpenAI 的轻量级终端编程代理。",
+    "repoUrl": "https://github.com/openai/codex"
+  },
+  {
+    "name": "pi",
+    "displayName": "Pi",
+    "tool": "pi",
+    "icon": "simple-icons:picpay",
+    "description": "AI coding agent for the terminal with multi-model support.",
+    "description_zh": "支持多模型的终端 AI 编程代理。",
+    "repoUrl": "https://github.com/earendil-works/pi",
+    "homepage": "https://pi.dev"
+  },
+  {
+    "name": "opencode",
+    "displayName": "OpenCode",
+    "tool": "opencode",
+    "description": "Open-source terminal-based coding agent.",
+    "description_zh": "开源终端编程代理。",
+    "repoUrl": "https://github.com/anomalyco/opencode",
+    "homepage": "https://opencode.ai/"
   }
 ]

@@ -6229,24 +6229,16 @@
     "plugins": {
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
-      "bunDescription": "JavaScript runtime used by MCP services and related toolchains.",
       "customTools": "Custom Tools",
       "description": "Manage binary tools and runtime dependencies required by the app.",
-      "fdDescription": "Fast file finder, alternative to find.",
-      "fieldName": "Binary name (e.g., fd)",
-      "fieldTool": "Mise tool key (e.g., github:sharkdp/fd)",
       "fieldVersion": "Version (optional, defaults to latest)",
-      "ghDescription": "GitHub CLI for repository and workflow management.",
       "installing": "Installing...",
-      "larkCliDescription": "Lark CLI for workspace and document management.",
       "notInstalled": "Not installed",
       "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
       "removeConfirmTitle": "Remove Tool",
-      "rgDescription": "Fast text search tool (ripgrep), alternative to grep.",
-      "rtkDescription": "RTK binary for command rewriting.",
+      "searchRegistry": "Search mise registry...",
       "title": "Dependencies",
-      "update": "Update to latest version",
-      "uvDescription": "Python package manager for MCP services and dependency installation."
+      "update": "Update to latest version"
     },
     "privacy": {
       "enable_privacy_mode": "Anonymous reporting of errors and statistics",

@@ -539,7 +539,9 @@ const api = {
     installTool: (tool: { name: string; tool: string; version?: string }) =>
       ipcRenderer.invoke(IpcChannel.Mise_InstallTool, tool),
     removeTool: (toolName: string) => ipcRenderer.invoke(IpcChannel.Mise_RemoveTool, toolName),
-    getState: () => ipcRenderer.invoke(IpcChannel.Mise_GetState)
+    getState: () => ipcRenderer.invoke(IpcChannel.Mise_GetState),
+    searchRegistry: (query: string): Promise<Array<{ name: string; tool: string }>> =>
+      ipcRenderer.invoke(IpcChannel.Mise_SearchRegistry, query)
   },
   protocol: {
     onReceiveData: (callback: (data: { url: string; params: any }) => void) => {

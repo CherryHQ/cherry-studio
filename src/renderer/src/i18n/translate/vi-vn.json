@@ -6229,24 +6229,16 @@
     "plugins": {
       "addTool": "[to be translated]:Add Tool",
       "addToolDescription": "[to be translated]:Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
-      "bunDescription": "Trình thực thi JavaScript được sử dụng bởi các dịch vụ MCP và các công cụ liên quan.",
       "customTools": "[to be translated]:Custom Tools",
       "description": "Quản lý các công cụ nhị phân và phụ thuộc runtime cần thiết cho ứng dụng.",
-      "fdDescription": "[to be translated]:Fast file finder, alternative to find.",
-      "fieldName": "[to be translated]:Binary name (e.g., fd)",
-      "fieldTool": "[to be translated]:Mise tool key (e.g., github:sharkdp/fd)",
       "fieldVersion": "[to be translated]:Version (optional, defaults to latest)",
-      "ghDescription": "[to be translated]:GitHub CLI for repository and workflow management.",
       "installing": "Đang cài đặt...",
-      "larkCliDescription": "[to be translated]:Lark CLI for workspace and document management.",
       "notInstalled": "Chưa cài đặt",
       "removeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
       "removeConfirmTitle": "[to be translated]:Remove Tool",
-      "rgDescription": "[to be translated]:Fast text search tool (ripgrep), alternative to grep.",
-      "rtkDescription": "[to be translated]:RTK binary for command rewriting.",
+      "searchRegistry": "[to be translated]:Search mise registry...",
       "title": "Phần bổ trợ",
-      "update": "[to be translated]:Update to latest version",
-      "uvDescription": "Trình quản lý gói Python cho các dịch vụ MCP và cài đặt phụ thuộc."
+      "update": "[to be translated]:Update to latest version"
     },
     "privacy": {
       "enable_privacy_mode": "Báo cáo lỗi và thống kê ẩn danh",

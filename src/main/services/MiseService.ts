@@ -96,6 +96,10 @@ export class MiseService extends BaseService {
     this.ipcHandle(IpcChannel.Mise_GetState, async () => {
       return this.loadState()
     })
+
+    this.ipcHandle(IpcChannel.Mise_SearchRegistry, async (_event, query: string) => {
+      return this.searchRegistry(query)
+    })
   }
 
   private extractBundledBinary(): void {
@@ -301,6 +305,35 @@ export class MiseService extends BaseService {
     this.saveState(state)
 
     return { version }
+  }
+
+  async searchRegistry(query: string): Promise<Array<{ name: string; tool: string }>> {
+    if (!this.miseBin || !query.trim()) {
+      return []
+    }
+
+    try {
+      const { stdout } = await this.runMise(['registry'], os.tmpdir())
+      const lines = stdout.split('\n')
+      const q = query.toLowerCase()
+      const results: Array<{ name: string; tool: string }> = []
+
+      for (const line of lines) {
+        if (!line.trim()) continue
+        const match = line.match(/^(\S+)\s+(.+)$/)
+        if (!match) continue
+        const [, name, backends] = match
+        if (name.toLowerCase().includes(q)) {
+          const tool = backends.trim().split(/\s+/)[0]
+          results.push({ name, tool })
+        }
+      }
+
+      return results.slice(0, 50)
+    } catch (err) {
+      logger.error('Registry search failed', err instanceof Error ? err : new Error(String(err)))
+      return []
+    }
   }
 
   async removeTool(toolName: string): Promise<void> {

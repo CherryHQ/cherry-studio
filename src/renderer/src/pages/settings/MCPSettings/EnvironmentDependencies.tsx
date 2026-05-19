@@ -50,7 +50,8 @@ interface PredefinedTool {
   tool: string
   version?: string
   icon?: string
-  descriptionKey: string
+  description: string
+  description_zh?: string
   repoUrl: string
   homepage?: string
   coreDep?: boolean
@@ -61,6 +62,14 @@ const PREDEFINED_TOOLS: PredefinedTool[] = predefinedToolsData
 const CORE_DEPS = new Set(PREDEFINED_TOOLS.filter((t) => t.coreDep).map((t) => t.name))
 
 const logger = loggerService.withContext('EnvironmentDependencies')
+
+function useToolDescription(tool: PredefinedTool): string {
+  const { i18n } = useTranslation()
+  if (i18n.language.startsWith('zh') && tool.description_zh) {
+    return tool.description_zh
+  }
+  return tool.description
+}
 
 const ToolIcon: FC<{ icon?: string; className?: string }> = ({ icon, className }) => {
   if (icon) {
@@ -237,6 +246,7 @@ const PredefinedToolCard: FC<{
   onOpenPath: () => void
 }> = ({ tool, installed, installedVersion, installing, onInstall, onUpdate, onOpenPath }) => {
   const { t } = useTranslation()
+  const description = useToolDescription(tool)
 
   return (
     <div className="flex flex-col rounded-xl border border-border bg-card p-4 transition-colors duration-200 ease-in-out hover:border-border-hover">
@@ -279,7 +289,7 @@ const PredefinedToolCard: FC<{
         )}
       </div>
 
-      <p className="mt-2.5 line-clamp-2 text-muted-foreground text-xs leading-4">{t(tool.descriptionKey)}</p>
+      <p className="mt-2.5 line-clamp-2 text-muted-foreground text-xs leading-4">{description}</p>
 
       <div className="mt-3 flex items-center gap-3">
         <a
@@ -430,23 +440,57 @@ function AddToolDialog({
   onAdd: (tool: MiseTool) => void
 }) {
   const { t } = useTranslation()
-  const [name, setName] = useState('')
-  const [tool, setTool] = useState('')
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<Array<{ name: string; tool: string }>>([])
+  const [searching, setSearching] = useState(false)
+  const [selectedName, setSelectedName] = useState('')
+  const [selectedTool, setSelectedTool] = useState('')
   const [version, setVersion] = useState('')
   const [adding, setAdding] = useState(false)
 
   const reset = () => {
-    setName('')
-    setTool('')
+    setQuery('')
+    setResults([])
+    setSearching(false)
+    setSelectedName('')
+    setSelectedTool('')
     setVersion('')
     setAdding(false)
   }
 
+  useEffect(() => {
+    if (!query.trim()) {
+      setResults([])
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setSearching(true)
+      try {
+        const res = await window.api.mise.searchRegistry(query.trim())
+        setResults(res)
+      } catch {
+        setResults([])
+      } finally {
+        setSearching(false)
+      }
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [query])
+
+  const selectResult = (r: { name: string; tool: string }) => {
+    setSelectedName(r.name)
+    setSelectedTool(r.tool)
+    setQuery('')
+    setResults([])
+  }
+
   const handleSubmit = async () => {
-    if (!name.trim() || !tool.trim()) return
+    if (!selectedName.trim() || !selectedTool.trim()) return
     setAdding(true)
     try {
-      onAdd({ name: name.trim(), tool: tool.trim(), version: version.trim() || undefined })
+      onAdd({ name: selectedName.trim(), tool: selectedTool.trim(), version: version.trim() || undefined })
       reset()
       onOpenChange(false)
     } finally {
@@ -467,8 +511,39 @@ function AddToolDialog({
           <DialogDescription>{t('settings.plugins.addToolDescription')}</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3 py-2">
-          <Input placeholder={t('settings.plugins.fieldName')} value={name} onChange={(e) => setName(e.target.value)} />
-          <Input placeholder={t('settings.plugins.fieldTool')} value={tool} onChange={(e) => setTool(e.target.value)} />
+          <div className="relative">
+            <Input
+              placeholder={t('settings.plugins.searchRegistry')}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            {searching && (
+              <Loader2 className="-translate-y-1/2 absolute top-1/2 right-3 size-3.5 animate-spin text-muted-foreground" />
+            )}
+            {results.length > 0 && (
+              <div className="absolute top-full right-0 left-0 z-10 mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-popover shadow-md">
+                {results.map((r) => (
+                  <button
+                    type="button"
+                    key={r.name}
+                    className="flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
+                    onClick={() => selectResult(r)}>
+                    <span className="font-medium">{r.name}</span>
+                    <span className="text-muted-foreground text-xs">{r.tool}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {selectedName && (
+            <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2">
+              <Terminal className="size-4 text-muted-foreground" />
+              <span className="font-medium text-sm">{selectedName}</span>
+              <span className="text-muted-foreground text-xs">{selectedTool}</span>
+            </div>
+          )}
+
           <Input
             placeholder={t('settings.plugins.fieldVersion')}
             value={version}
@@ -479,7 +554,7 @@ function AddToolDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t('common.cancel')}
           </Button>
-          <Button onClick={handleSubmit} disabled={!name.trim() || !tool.trim() || adding}>
+          <Button onClick={handleSubmit} disabled={!selectedName.trim() || !selectedTool.trim() || adding}>
             {adding && <Loader2 className="size-3.5 animate-spin" />}
             {t('common.add')}
           </Button>

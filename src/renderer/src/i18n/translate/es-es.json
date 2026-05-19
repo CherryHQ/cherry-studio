@@ -6229,24 +6229,16 @@
     "plugins": {
       "addTool": "[to be translated]:Add Tool",
       "addToolDescription": "[to be translated]:Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
-      "bunDescription": "Entorno de ejecución de JavaScript utilizado por los servicios MCP y las cadenas de herramientas relacionadas.",
       "customTools": "[to be translated]:Custom Tools",
       "description": "Administrar herramientas binarias y dependencias de tiempo de ejecución requeridas por la aplicación.",
-      "fdDescription": "[to be translated]:Fast file finder, alternative to find.",
-      "fieldName": "[to be translated]:Binary name (e.g., fd)",
-      "fieldTool": "[to be translated]:Mise tool key (e.g., github:sharkdp/fd)",
       "fieldVersion": "[to be translated]:Version (optional, defaults to latest)",
-      "ghDescription": "[to be translated]:GitHub CLI for repository and workflow management.",
       "installing": "Instalando...",
-      "larkCliDescription": "[to be translated]:Lark CLI for workspace and document management.",
       "notInstalled": "No instalado",
       "removeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
       "removeConfirmTitle": "[to be translated]:Remove Tool",
-      "rgDescription": "[to be translated]:Fast text search tool (ripgrep), alternative to grep.",
-      "rtkDescription": "[to be translated]:RTK binary for command rewriting.",
+      "searchRegistry": "[to be translated]:Search mise registry...",
       "title": "Dependencias del entorno",
-      "update": "[to be translated]:Update to latest version",
-      "uvDescription": "Gestor de paquetes Python para servicios MCP e instalación de dependencias."
+      "update": "[to be translated]:Update to latest version"
     },
     "privacy": {
       "enable_privacy_mode": "Enviar informes de errores y estadísticas de forma anónima",
