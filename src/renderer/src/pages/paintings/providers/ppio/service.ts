@@ -332,7 +332,9 @@ class PpioService {
     }
   ): Promise<PpioTaskResult> {
     const { interval, maxAttempts = 120, onProgress, signal } = options || {}
+    const maxTransientRetries = 10
     let attempts = 0
+    let transientRetries = 0
     const startTime = Date.now()
 
     while (attempts < maxAttempts) {
@@ -342,6 +344,7 @@ class PpioService {
 
       try {
         const result = await this.getTaskResult(taskId, 10000, signal)
+        transientRetries = 0
 
         if (result.task.progress_percent !== undefined && onProgress) {
           onProgress(result.task.progress_percent)
@@ -368,12 +371,29 @@ class PpioService {
           throw error
         }
 
+        transientRetries++
+
+        if (transientRetries >= maxTransientRetries) {
+          logger.error('PPIO task polling failed after repeated transient errors', {
+            taskId,
+            transientRetries,
+            maxTransientRetries,
+            error: error instanceof Error ? error.message : String(error)
+          })
+          throw error instanceof Error ? error : new Error(String(error))
+        }
+
         logger.warn('PPIO task polling request failed, will retry', {
           taskId,
-          attempts: attempts + 1,
-          maxAttempts,
+          transientRetries,
+          maxTransientRetries,
           error: error instanceof Error ? error.message : String(error)
         })
+
+        const elapsedTime = Date.now() - startTime
+        const pollDelay = interval ?? (elapsedTime < 60000 ? 3000 : 10000)
+        await waitWithSignal(pollDelay, signal)
+        continue
       }
 
       const elapsedTime = Date.now() - startTime
