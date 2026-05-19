@@ -67,6 +67,13 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
     }
   },
 
+  '/providers/:providerId/rotated-key': {
+    GET: async ({ params }) => {
+      const apiKey = await providerService.getRotatedApiKey(params.providerId)
+      return { apiKey }
+    }
+  },
+
   '/providers/:providerId/auth-config': {
     GET: async ({ params }) => {
       return providerService.getAuthConfig(params.providerId)

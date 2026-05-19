@@ -217,6 +217,20 @@ export type ProviderSchemas = {
   }
 
   /**
+   * Get a rotated API key for a provider (round-robin across enabled keys).
+   * Returns an empty string when the provider has no enabled keys.
+   * For runtime consumers (e.g. painting generation) that need a single key
+   * without managing rotation client-side.
+   * @example GET /providers/openai-main/rotated-key
+   */
+  '/providers/:providerId/rotated-key': {
+    GET: {
+      params: { providerId: string }
+      response: { apiKey: string }
+    }
+  }
+
+  /**
    * Get full auth config for a provider (includes sensitive credentials).
    * SECURITY NOTE: Runtime Provider intentionally strips authConfig (only exposes authType).
    * This endpoint is for settings pages only — never call in chat hot path.
