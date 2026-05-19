@@ -65,6 +65,7 @@ export class MiseService extends BaseService {
 
   protected async onInit() {
     this.registerIpcHandlers()
+    this.extractBundledBinary()
     this.miseBin = this.findMiseBin()
     if (!this.miseBin) {
       logger.warn('mise binary not found, tool management disabled')
@@ -97,14 +98,32 @@ export class MiseService extends BaseService {
     })
   }
 
-  private findMiseBin(): string | null {
+  private extractBundledBinary(): void {
     const platformKey = `${process.platform}-${process.arch}`
     const binaryName = isWin ? 'mise.exe' : 'mise'
-
     const bundled = path.join(application.getPath('app.root.resources.binaries'), platformKey, binaryName)
-    if (fs.existsSync(bundled)) {
-      return bundled
+
+    if (!fs.existsSync(bundled)) {
+      return
     }
+
+    const binDir = application.getPath('cherry.bin')
+    fs.mkdirSync(binDir, { recursive: true })
+    const dest = path.join(binDir, binaryName)
+
+    if (fs.existsSync(dest)) {
+      return
+    }
+
+    fs.copyFileSync(bundled, dest)
+    if (!isWin) {
+      fs.chmodSync(dest, 0o755)
+    }
+    logger.info('Extracted bundled mise binary', { dest })
+  }
+
+  private findMiseBin(): string | null {
+    const binaryName = isWin ? 'mise.exe' : 'mise'
 
     const cherryBin = path.join(application.getPath('cherry.bin'), binaryName)
     if (fs.existsSync(cherryBin)) {
