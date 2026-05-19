@@ -8,10 +8,8 @@ import type { PaintingProviderRuntime } from '../../model/types/paintingProvider
 import type { PaintingProvider } from '../types'
 import { createDefaultAihubmixPainting } from './config'
 import { aihubmixFields, getStaticModelsForAihubmixMode } from './fields'
-import { generateWithAihubmix } from './generate'
 import { generateWithAihubmixUnified } from './generateUnified'
 import { aihubmixImagePlaceholder, getAihubmixPreviewSrc, handleAihubmixImageUpload } from './imageUpload'
-import { UNIFIED_SINGLESHOT_PROVIDERS } from '../dmxapi/index'
 
 export function AihubmixHeaderActions({ provider, t }: { provider: PaintingProviderRuntime; t: TFunction }) {
   const Icon = resolveProviderIcon('aihubmix')
@@ -57,6 +55,5 @@ export const aihubmixProvider = {
     getPreviewSrc: ({ key, painting }) => getAihubmixPreviewSrc(key, painting),
     placeholder: aihubmixImagePlaceholder
   },
-  generate: (input) =>
-    UNIFIED_SINGLESHOT_PROVIDERS.has('aihubmix') ? generateWithAihubmixUnified(input) : generateWithAihubmix(input)
+  generate: (input) => generateWithAihubmixUnified(input)
 } satisfies PaintingProvider<PaintingData>

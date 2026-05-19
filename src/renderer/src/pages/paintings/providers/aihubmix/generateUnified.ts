@@ -10,8 +10,9 @@ import { getAihubmixUploadedFile } from './imageUpload'
 
 /**
  * Unified AiHubMix painting adapter on the composed AI-SDK-native
- * `createAihubmix().imageModel` (Phase 4a). Validation mirrors the bespoke
- * `generateWithAihubmix` exactly. The provider-specific request/response
+ * `createAihubmix().imageModel` (Phase 4a) — the sole AiHubMix painting path
+ * (the bespoke single-shot `generate.ts` was deleted in the cutover). The
+ * provider-specific request/response
  * (gemini stream, Ideogram V_3 FormData, Ideogram V_1/V_2 JSON, and the
  * default gpt-image/FLUX/imagen delegate) runs inside the composed
  * `ImageModelV3`; the patched `ai` SDK passes the returned image URLs /
@@ -24,6 +25,67 @@ import { getAihubmixUploadedFile } from './imageUpload'
  * `'aihubmix.image'.split('.')[0]` = `'aihubmix'`), so the default-delegate
  * models still receive their fields.
  */
+
+/** The painting fields the per-model parameter rules read. */
+type ModelParamInput = Pick<
+  AihubmixPaintingData,
+  'aspectRatio' | 'size' | 'numImages' | 'n' | 'numberOfImages' | 'safetyTolerance'
+>
+
+interface ResolvedModelParams {
+  /** AI-SDK `imageSize` (pixel size for most models, aspect ratio for imagen). */
+  imageSize: string
+  /** AI-SDK `batchSize`. */
+  batchSize: number
+  /** Forwarded as `providerOptions.aihubmix.safety_tolerance`. */
+  safetyTolerance: number | undefined
+}
+
+const aspectRatioSize = (p: ModelParamInput) => p.aspectRatio?.replace('ASPECT_', '').replace('_', ':') || '1:1'
+const pixelSize = (p: ModelParamInput) => (p.size && p.size !== 'auto' ? p.size : '1024x1024')
+const numImagesBatch = (p: ModelParamInput) => p.numImages ?? p.n ?? 1
+
+/**
+ * Per-model-family parameter shaping, relocated table-first from the bespoke
+ * `generate.ts` if/else chain. First rule whose `match` passes wins; the
+ * `default` rule (no `match`) is the fallthrough. Adding a model family is one
+ * row, not another branch.
+ */
+const MODEL_PARAM_RULES: ReadonlyArray<{
+  match?: (modelId: string) => boolean
+  resolve: (p: ModelParamInput) => ResolvedModelParams
+}> = [
+  // imagen-4.0-ultra: aspect-ratio size, capped at a single image.
+  {
+    match: (id) => id.startsWith('imagen-4.0-ultra-generate'),
+    resolve: (p) => ({ imageSize: aspectRatioSize(p), batchSize: 1, safetyTolerance: p.safetyTolerance })
+  },
+  // other imagen-*: aspect-ratio size, numberOfImages batch.
+  {
+    match: (id) => id.startsWith('imagen-'),
+    resolve: (p) => ({
+      imageSize: aspectRatioSize(p),
+      batchSize: p.numberOfImages || 1,
+      safetyTolerance: p.safetyTolerance
+    })
+  },
+  // FLUX.1-Kontext-pro: pixel size, defaults safety_tolerance to 6 when unset.
+  {
+    match: (id) => id === 'FLUX.1-Kontext-pro',
+    resolve: (p) => ({ imageSize: pixelSize(p), batchSize: numImagesBatch(p), safetyTolerance: p.safetyTolerance ?? 6 })
+  },
+  // gpt-image-1/2 and any other id: pixel size, raw safety_tolerance.
+  {
+    resolve: (p) => ({ imageSize: pixelSize(p), batchSize: numImagesBatch(p), safetyTolerance: p.safetyTolerance })
+  }
+]
+
+function resolveModelParams(modelId: string, painting: ModelParamInput): ResolvedModelParams {
+  const rule = MODEL_PARAM_RULES.find((r) => !r.match || r.match(modelId))
+  // The last rule has no `match`, so `find` always resolves.
+  return rule!.resolve(painting)
+}
+
 export async function generateWithAihubmixUnified(input: GenerateInput) {
   const { painting: rawPainting, provider, tab, abortController } = input
   const painting = rawPainting as AihubmixPaintingData
@@ -82,6 +144,8 @@ export async function generateWithAihubmixUnified(input: GenerateInput) {
         ]
       : undefined
 
+    const { imageSize, batchSize, safetyTolerance } = resolveModelParams(modelId, painting)
+
     const aihubmixProviderOptions = {
       aihubmix: {
         mode,
@@ -99,19 +163,17 @@ export async function generateWithAihubmixUnified(input: GenerateInput) {
         personGeneration: painting.personGeneration,
         quality: painting.quality,
         moderation: painting.moderation,
-        safety_tolerance: painting.safetyTolerance,
+        safety_tolerance: safetyTolerance,
         n: painting.n,
         imageFiles
       }
     }
 
-    const imageSize = painting.size && painting.size !== 'auto' ? painting.size : '1024x1024'
-
     const images = await aiProvider.generateImage({
       model: modelId,
       prompt,
       imageSize,
-      batchSize: painting.numImages ?? painting.n ?? 1,
+      batchSize,
       providerOptions: aihubmixProviderOptions,
       signal: abortController.signal
     })
