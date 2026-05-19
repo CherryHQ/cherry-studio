@@ -1,7 +1,88 @@
+import { application } from '@application'
+import * as fs from 'fs'
+import * as os from 'os'
 import path from 'path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ensurePathWithin, validateArgs, validateCommand } from '../DxtService'
+import DxtService, { ensurePathWithin, validateArgs, validateCommand } from '../DxtService'
+
+vi.mock('fs', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return { ...actual, default: actual }
+})
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return { ...actual, default: actual }
+})
+
+vi.mock('os', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return { ...actual, default: actual }
+})
+
+vi.mock('node:os', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return { ...actual, default: actual }
+})
+
+describe('cleanupDxtServer', () => {
+  let tempRoot: string
+
+  const createService = (newMcpDir: string, legacyMcpDir: string) => {
+    vi.mocked(application.getPath).mockImplementation((key: string) => {
+      if (key === 'feature.dxt.uploads.temp') {
+        return path.join(tempRoot, 'temp')
+      }
+      if (key === 'feature.mcp') {
+        return newMcpDir
+      }
+      return path.join(tempRoot, key)
+    })
+    vi.spyOn(os, 'homedir').mockReturnValue(path.dirname(path.dirname(legacyMcpDir)))
+
+    return new DxtService()
+  }
+
+  beforeEach(() => {
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cherry-dxt-cleanup-'))
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    if (tempRoot) {
+      fs.rmSync(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('should cleanup a persisted legacy DXT path', () => {
+    const homeDir = path.join(tempRoot, 'home')
+    const newMcpDir = path.join(tempRoot, 'userData', 'mcp')
+    const legacyMcpDir = path.join(homeDir, '.cherrystudio', 'mcp')
+    const legacyServerDir = path.join(legacyMcpDir, 'server-example')
+
+    fs.mkdirSync(legacyServerDir, { recursive: true })
+
+    const service = createService(newMcpDir, legacyMcpDir)
+
+    expect(service.cleanupDxtServer('Example Display Name', legacyServerDir)).toBe(true)
+    expect(fs.existsSync(legacyServerDir)).toBe(false)
+  })
+
+  it('should reject persisted DXT paths outside allowed MCP directories', () => {
+    const homeDir = path.join(tempRoot, 'home')
+    const newMcpDir = path.join(tempRoot, 'userData', 'mcp')
+    const legacyMcpDir = path.join(homeDir, '.cherrystudio', 'mcp')
+    const outsideServerDir = path.join(tempRoot, 'outside', 'server-example')
+
+    fs.mkdirSync(outsideServerDir, { recursive: true })
+
+    const service = createService(newMcpDir, legacyMcpDir)
+
+    expect(service.cleanupDxtServer('example', outsideServerDir)).toBe(false)
+    expect(fs.existsSync(outsideServerDir)).toBe(true)
+  })
+})
 
 describe('ensurePathWithin', () => {
   // Use path.join to construct cross-platform compatible paths

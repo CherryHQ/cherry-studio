@@ -840,7 +840,7 @@ export class McpService extends BaseService {
     // If this is a DXT server, cleanup its directory
     if (server.dxtPath) {
       try {
-        const cleaned = this.dxtService.cleanupDxtServer(server.name)
+        const cleaned = this.dxtService.cleanupDxtServer(server.name, server.dxtPath)
         if (cleaned) {
           getServerLogger(server).debug(`Cleaned up DXT server directory`)
         }

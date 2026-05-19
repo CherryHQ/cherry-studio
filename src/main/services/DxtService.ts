@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import * as fs from 'fs'
 import StreamZip from 'node-stream-zip'
 import * as os from 'os'
@@ -283,6 +284,9 @@ class DxtService {
   private get mcpDir(): string {
     return application.getPath('feature.mcp')
   }
+  private get legacyMcpDir(): string {
+    return path.join(os.homedir(), HOME_CHERRY_DIR, 'mcp')
+  }
 
   private async moveDirectory(source: string, destination: string): Promise<void> {
     try {
@@ -454,18 +458,49 @@ class DxtService {
     }
   }
 
-  public cleanupDxtServer(serverName: string): boolean {
+  private resolveDxtCleanupPath(candidatePath: string): string | null {
+    const allowedBaseDirs = Array.from(new Set([this.mcpDir, this.legacyMcpDir]))
+
+    for (const baseDir of allowedBaseDirs) {
+      try {
+        const resolvedPath = ensurePathWithin(baseDir, candidatePath)
+        if (!path.basename(resolvedPath).startsWith('server-')) {
+          logger.warn(`Skipping invalid DXT cleanup directory: ${resolvedPath}`)
+          return null
+        }
+        return resolvedPath
+      } catch {
+        // Try the next allowed base directory.
+      }
+    }
+
+    logger.warn(`Skipping DXT cleanup path outside allowed directories: ${candidatePath}`)
+    return null
+  }
+
+  public cleanupDxtServer(serverName: string, dxtPath?: string): boolean {
     try {
       const serverDirName = `server-${serverName}`
-      const serverDir = ensurePathWithin(this.mcpDir, path.join(this.mcpDir, serverDirName))
+      const candidatePaths = [
+        dxtPath,
+        path.join(this.mcpDir, serverDirName),
+        path.join(this.legacyMcpDir, serverDirName)
+      ].filter((candidatePath): candidatePath is string => Boolean(candidatePath))
 
-      if (fs.existsSync(serverDir)) {
-        logger.debug(`Removing DXT server directory: ${serverDir}`)
-        fs.rmSync(serverDir, { recursive: true, force: true })
-        return true
+      for (const candidatePath of candidatePaths) {
+        const serverDir = this.resolveDxtCleanupPath(candidatePath)
+        if (!serverDir) {
+          continue
+        }
+
+        if (fs.existsSync(serverDir)) {
+          logger.debug(`Removing DXT server directory: ${serverDir}`)
+          fs.rmSync(serverDir, { recursive: true, force: true })
+          return true
+        }
       }
 
-      logger.warn(`Server directory not found: ${serverDir}`)
+      logger.warn(`Server directory not found: ${candidatePaths.join(', ')}`)
       return false
     } catch (error) {
       logger.error('Failed to cleanup DXT server:', error as Error)
