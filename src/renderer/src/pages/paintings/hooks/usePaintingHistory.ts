@@ -1,15 +1,13 @@
-import { dataApiService } from '@data/DataApiService'
+import { useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import type { PaintingListResponse } from '@shared/data/api/schemas/paintings'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import useSWRInfinite from 'swr/infinite'
+import type { Painting } from '@shared/data/types/painting'
+import { useCallback, useEffect, useState } from 'react'
 
-import { recordToPaintingData } from '../model/mappers/recordToPaintingData'
+import { recordsToPaintingDataList } from '../model/mappers/recordToPaintingData'
 import type { PaintingData } from '../model/types/paintingData'
 
 const PAGE_SIZE = 30
 const logger = loggerService.withContext('usePaintingHistory')
-const EMPTY_PAGES: PaintingListResponse[] = []
 
 export type PaintingStripEntry = PaintingData
 
@@ -19,30 +17,38 @@ export function usePaintingHistory(): {
   hasMore: boolean
   loadMore: () => void
 } {
-  const getKey = useCallback((pageIndex: number, previousPageData: PaintingListResponse | null) => {
-    if (previousPageData && previousPageData.offset + previousPageData.items.length >= previousPageData.total) {
-      return null
-    }
+  const [offset, setOffset] = useState(0)
+  const [loadedRecords, setLoadedRecords] = useState<Painting[]>([])
 
-    return ['/paintings', { limit: PAGE_SIZE, offset: pageIndex * PAGE_SIZE }]
-  }, [])
-  const { data, isLoading, isValidating, setSize } = useSWRInfinite<PaintingListResponse>(getKey, ([path, query]) =>
-    dataApiService.get(path as '/paintings', { query })
-  )
-  const pages = data ?? EMPTY_PAGES
-  const records = useMemo(() => pages.flatMap((page) => page.items), [pages])
-  const total = pages[0]?.total ?? 0
-  const hasMore = records.length < total
-  const [items, setItems] = useState<PaintingStripEntry[]>([])
+  const { data, isLoading, isRefreshing } = useQuery('/paintings', {
+    query: { limit: PAGE_SIZE, offset }
+  })
+
+  const total = data?.total ?? 0
+
+  useEffect(() => {
+    const page = data?.items
+    if (!page) return
+    setLoadedRecords((prev) => {
+      if (offset === 0) return page
+      const pageIds = new Set(page.map((record) => record.id))
+      return [...prev.filter((record) => !pageIds.has(record.id)), ...page]
+    })
+  }, [data, offset])
+
+  const hasMore = loadedRecords.length < total
+
   const loadMore = useCallback(() => {
-    if (!isLoading && !isValidating && hasMore) {
-      void setSize((count) => count + 1)
+    if (!isLoading && !isRefreshing && hasMore) {
+      setOffset((current) => current + PAGE_SIZE)
     }
-  }, [hasMore, isLoading, isValidating, setSize])
+  }, [hasMore, isLoading, isRefreshing])
+
+  const [items, setItems] = useState<PaintingStripEntry[]>([])
 
   useEffect(() => {
     let cancelled = false
-    void Promise.all(records.map((record) => recordToPaintingData(record)))
+    void recordsToPaintingDataList(loadedRecords)
       .then((mapped) => {
         if (!cancelled) setItems(mapped)
       })
@@ -52,11 +58,11 @@ export function usePaintingHistory(): {
     return () => {
       cancelled = true
     }
-  }, [records])
+  }, [loadedRecords])
 
   return {
     items,
-    isLoading: isLoading || isValidating,
+    isLoading: isLoading || isRefreshing,
     hasMore,
     loadMore
   }
