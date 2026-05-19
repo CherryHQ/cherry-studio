@@ -72,6 +72,11 @@ const IMAGE_MAX_BYTES = 5 * 1024 * 1024 // 5MB API limit
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 const NO_RESUME_COMMANDS = ['/clear']
 
+const getAnthropicCustomHeaders = (headers?: Record<string, string>) => {
+  const lines = Object.entries(headers ?? {}).map(([name, value]) => `${name}: ${value}`)
+  return lines.length > 0 ? lines.join('\n') : undefined
+}
+
 const getLanguageInstruction = () => {
   const lang = configManager.getLanguage()
   return `
@@ -196,6 +201,7 @@ class ClaudeCodeService implements AgentServiceInterface {
     }
     const anthropicBaseUrl = resolveAnthropicBaseUrl()
     const sdkModelId = with1mContextSuffix(modelInfo.modelId, provider.anthropicApiHost)
+    const customHeaders = getAnthropicCustomHeaders(provider.extra_headers)
 
     const env = {
       ...loginShellEnv,
@@ -209,6 +215,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       ANTHROPIC_API_KEY: provider.apiKey,
       ANTHROPIC_AUTH_TOKEN: provider.apiKey,
       ANTHROPIC_BASE_URL: anthropicBaseUrl,
+      ANTHROPIC_CUSTOM_HEADERS: customHeaders,
       ANTHROPIC_MODEL: sdkModelId,
       ANTHROPIC_DEFAULT_OPUS_MODEL: sdkModelId,
       ANTHROPIC_DEFAULT_SONNET_MODEL: sdkModelId,
