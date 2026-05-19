@@ -193,6 +193,13 @@
       "defaultValue": "zh-cn",
       "status": "classified",
       "description": "Translate page target language (from complex migration)"
+    },
+    {
+      "targetKey": "feature.mise.tools",
+      "type": "PreferenceTypes.MiseTool[]",
+      "defaultValue": "VALUE: [] as PreferenceTypes.MiseTool[]",
+      "status": "classified",
+      "description": "List of tools to install via mise"
     }
   ]
 }

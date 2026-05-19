@@ -489,7 +489,13 @@ export enum IpcChannel {
   // Agent operations
   Agent_RunTask = 'agent:run-task',
   Agent_GetModels = 'agent:get-models',
-  Agent_ListTools = 'agent:list-tools'
+  Agent_ListTools = 'agent:list-tools',
+
+  // Mise (tool manager)
+  Mise_Reconcile = 'mise:reconcile',
+  Mise_InstallTool = 'mise:install-tool',
+  Mise_RemoveTool = 'mise:remove-tool',
+  Mise_GetState = 'mise:get-state'
 
   // ──────────────────────────────────────────────────────────────
   // TODO(v2): the following IPC channels are still referenced via

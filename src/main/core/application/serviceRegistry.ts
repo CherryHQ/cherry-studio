@@ -19,6 +19,7 @@ import { KnowledgeVectorStoreService } from '@main/services/knowledge/vectorstor
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MainWindowService } from '@main/services/MainWindowService'
 import { McpService } from '@main/services/mcp/McpService'
+import { MiseService } from '@main/services/MiseService'
 import { NodeTraceService } from '@main/services/NodeTraceService'
 import { OcrService } from '@main/services/ocr/OcrService'
 import { OpenClawService } from '@main/services/OpenClawService'
@@ -97,6 +98,7 @@ export const services = {
   MainWindowService,
   QuickAssistantService,
   McpService,
+  MiseService,
   OpenClawService,
   SearchService,
   KnowledgeOrchestrationService,

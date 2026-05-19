@@ -316,3 +316,9 @@ export type FileProcessorOverrides = Partial<Record<FileProcessorId, FileProcess
 export type MiniAppRegion = 'CN' | 'Global'
 
 export type MiniAppRegionFilter = 'auto' | MiniAppRegion
+
+export type MiseTool = {
+  name: string
+  tool: string
+  version?: string
+}
