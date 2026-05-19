@@ -115,18 +115,20 @@
   },
   {
     "name": "hermes",
-    "displayName": "Hermes",
+    "displayName": "Hermes Agent",
     "tool": "pipx:hermes-agent",
-    "description": "AI coding agent powered by Hermes.",
-    "description_zh": "Hermes 驱动的 AI 编程代理。",
-    "repoUrl": "https://github.com/anthropics/hermes"
+    "description": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
+    "description_zh": "Nous Research 开发的自我进化 AI 编程代理，能从经验中创建技能并跨会话持久化知识。",
+    "repoUrl": "https://github.com/NousResearch/hermes-agent",
+    "homepage": "https://hermes-agent.nousresearch.com"
   },
   {
     "name": "openclaw",
     "displayName": "OpenClaw",
     "tool": "npm:openclaw",
-    "description": "Open-source AI gateway and model router.",
-    "description_zh": "开源 AI 网关和模型路由。",
-    "repoUrl": "https://github.com/nicepkg/openclaw"
+    "description": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
+    "description_zh": "跨平台个人 AI 助手，提供聊天、语音、画布、摄像头和屏幕捕获等功能。",
+    "repoUrl": "https://github.com/openclaw/openclaw",
+    "homepage": "https://docs.openclaw.ai"
   }
 ]
