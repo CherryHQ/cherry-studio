@@ -130,19 +130,6 @@ export const UpdateApiKeySchema = z.strictObject({
 })
 export type UpdateApiKeyDto = z.infer<typeof UpdateApiKeySchema>
 
-/**
- * Response for GET /providers/:providerId/rotated-key.
- *
- * Named (not inline) so imperative callers can annotate the result directly:
- * `dataApiService.get` only accepts concrete paths, and a concrete nested
- * provider path (`/providers/abc/rotated-key`) structurally also matches the
- * parent `/providers/:providerId` route (`ResolvedPath` collapses `:providerId`
- * to a greedy `${string}` that absorbs `/rotated-key`). That makes the inferred
- * `ResponseForPath` a `Provider | RotatedKeyResponse` union. Callers narrow it
- * to this type instead of casting to `any`.
- */
-export type RotatedKeyResponse = { apiKey: string }
-
 // Re-exported for handler-side re-use
 export type { ApiKeyEntry, AuthConfig, EndpointConfig, ProviderSettings }
 
@@ -239,7 +226,7 @@ export type ProviderSchemas = {
   '/providers/:providerId/rotated-key': {
     GET: {
       params: { providerId: string }
-      response: RotatedKeyResponse
+      response: { apiKey: string }
     }
   }
 

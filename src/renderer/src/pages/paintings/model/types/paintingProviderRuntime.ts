@@ -1,6 +1,5 @@
 import { dataApiService } from '@data/DataApiService'
 import { withoutTrailingSlash } from '@renderer/utils/api'
-import type { RotatedKeyResponse } from '@shared/data/api/schemas/providers'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
@@ -76,17 +75,9 @@ export function resolvePaintingApiHost(provider?: Provider): string {
   return fallback ? withoutTrailingSlash(fallback) : ''
 }
 
-function isRotatedKeyResponse(value: unknown): value is RotatedKeyResponse {
-  return typeof value === 'object' && value !== null && typeof (value as RotatedKeyResponse).apiKey === 'string'
-}
-
 export async function getPaintingProviderApiKey(providerId: string): Promise<string> {
-  // `dataApiService.get` only accepts concrete paths, and a concrete nested
-  // provider path also structurally matches the parent `/providers/:providerId`
-  // route, so the inferred response is `Provider | RotatedKeyResponse`.
-  // Narrow via a guard against the schema-sourced type instead of casting.
   const response = await dataApiService.get(`/providers/${providerId}/rotated-key`)
-  return isRotatedKeyResponse(response) ? response.apiKey || '' : ''
+  return response.apiKey || ''
 }
 
 export function createPaintingProviderRuntime(
