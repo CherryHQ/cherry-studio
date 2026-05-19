@@ -87,8 +87,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
               item={{ id: currentFile.id, src: currentImageUrl }}
               items={painting.files.map((file) => ({ id: file.id, src: FileManager.getFileUrl(file) }))}
               alt=""
-              className="max-h-full max-w-full cursor-zoom-in rounded-md object-contain"
-              style={{ backgroundColor: 'hsl(var(--muted) / 0.35)' }}
+              className="max-h-full max-w-full cursor-zoom-in rounded-md bg-(--painting-control-bg) object-contain"
             />
             {painting.files.length > 1 && (
               <Button
