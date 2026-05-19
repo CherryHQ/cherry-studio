@@ -98,7 +98,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
                 →
               </Button>
             )}
-            <div className="-translate-x-1/2 absolute bottom-2.5 left-1/2 rounded-full bg-black/50 px-2 py-1 text-white text-xs">
+            <div className="-translate-x-1/2 absolute bottom-2.5 left-1/2 rounded-full bg-foreground/60 px-2 py-1 text-background text-xs">
               {displayedImageIndex + 1} / {painting.files.length}
             </div>
           </div>
