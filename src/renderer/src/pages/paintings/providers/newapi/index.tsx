@@ -62,7 +62,7 @@ export function createNewApiProvider(providerId: string): PaintingProviderDefini
         loader: async () =>
           (await loadPaintingModelOptions(providerId)).map((option) => ({
             ...option,
-            custom: !SUPPORTED_MODELS.includes(option.value)
+            meta: { ...option.meta, custom: !SUPPORTED_MODELS.includes(option.value) }
           }))
       }),
       createPaintingData: ({ modelOptions, tab }) => ({

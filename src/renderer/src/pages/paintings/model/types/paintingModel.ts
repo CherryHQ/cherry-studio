@@ -6,7 +6,9 @@ export type ModelOption<TRaw = unknown> = {
   group?: string
   isEnabled?: boolean
   raw?: TRaw
-} & Record<string, unknown>
+  /** Provider-specific extra data. Keep declared fields strictly typed; put anything else here. */
+  meta?: Record<string, unknown>
+}
 
 export type ModelConfig =
   | { type: 'static'; options: ModelOption[] }

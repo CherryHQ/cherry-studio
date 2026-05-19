@@ -64,12 +64,14 @@ export const dmxapiProvider = {
               label: model.name,
               value: model.id,
               group: providerName,
-              price: model.price,
-              image_sizes: model.image_sizes,
-              is_custom_size: model.is_custom_size,
-              min_image_size: model.min_image_size,
-              max_image_size: model.max_image_size,
-              extend_params: (model as any).extend_params
+              meta: {
+                price: model.price,
+                image_sizes: model.image_sizes,
+                is_custom_size: model.is_custom_size,
+                min_image_size: model.min_image_size,
+                max_image_size: model.max_image_size,
+                extend_params: (model as any).extend_params
+              }
             })
           }
         }
@@ -83,6 +85,7 @@ export const dmxapiProvider = {
 
       if (modelOptions && modelOptions.length > 0) {
         const first = modelOptions[0]
+        const firstMeta = first.meta ?? {}
         return {
           ...DEFAULT_PAINTING,
           id: uuid(),
@@ -90,10 +93,10 @@ export const dmxapiProvider = {
           seed: generateRandomSeed(),
           generationMode,
           model: first.value,
-          priceModel: String(first.price || ''),
+          priceModel: String(firstMeta.price || ''),
           image_size:
-            (first.image_sizes as Array<{ label: string; value: string }> | undefined)?.[0]?.value || '1328x1328',
-          extend_params: (first.extend_params as Record<string, unknown> | undefined) || {}
+            (firstMeta.image_sizes as Array<{ label: string; value: string }> | undefined)?.[0]?.value || '1328x1328',
+          extend_params: (firstMeta.extend_params as Record<string, unknown> | undefined) || {}
         }
       }
 
@@ -119,11 +122,12 @@ export const dmxapiProvider = {
     onModelChange: ({ modelId, modelOptions }) => {
       const model = modelOptions.find((item) => item.value === modelId)
       if (model) {
+        const modelMeta = model.meta ?? {}
         return {
           model: modelId,
-          priceModel: String(model.price || ''),
-          image_size: (model.image_sizes as Array<{ label: string; value: string }> | undefined)?.[0]?.value || '',
-          extend_params: (model.extend_params as Record<string, unknown> | undefined) || {}
+          priceModel: String(modelMeta.price || ''),
+          image_size: (modelMeta.image_sizes as Array<{ label: string; value: string }> | undefined)?.[0]?.value || '',
+          extend_params: (modelMeta.extend_params as Record<string, unknown> | undefined) || {}
         } as Partial<DmxapiPainting>
       }
       return { model: modelId } as Partial<DmxapiPainting>
