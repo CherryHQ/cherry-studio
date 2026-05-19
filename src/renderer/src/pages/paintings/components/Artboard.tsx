@@ -20,7 +20,7 @@ const LoadingStateCard: FC<{ text: React.ReactNode; onCancel: () => void; cancel
   cancelLabel
 }) => {
   return (
-    <div className="flex min-w-56 flex-col items-center gap-4 rounded-[18px] border border-border/70 bg-card/96 px-10 py-10 shadow-2xl shadow-black/10 backdrop-blur-sm">
+    <div className="flex min-w-56 flex-col items-center gap-4 rounded-[18px] border border-border-subtle bg-card/96 px-10 py-10 shadow-2xl backdrop-blur-sm">
       <div className="relative h-12 w-12">
         <motion.div
           className="absolute inset-0 rounded-full border-2 border-border"
