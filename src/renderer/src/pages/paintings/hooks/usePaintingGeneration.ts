@@ -37,10 +37,20 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
     [definition, painting.mode]
   )
   const visibleIdRef = useRef(painting.id)
+  const inFlightIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     visibleIdRef.current = painting.id
   }, [painting.id])
+
+  useEffect(
+    () => () => {
+      if (inFlightIdRef.current) {
+        abortPaintingGeneration(inFlightIdRef.current)
+      }
+    },
+    []
+  )
 
   const isGenerating = useCallback((p: Pick<PaintingData, 'generationStatus'>) => {
     return p.generationStatus === 'running'
@@ -110,6 +120,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
     visibleIdRef.current = targetPainting.id
     onPaintingChange({ ...targetPainting, ...generationState } as PaintingData)
     registerPaintingAbortController(targetPainting.id, controller)
+    inFlightIdRef.current = targetPainting.id
     updateGenerationState(generationState)
 
     try {
@@ -153,6 +164,9 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
       }
     } finally {
       clearPaintingAbortController(targetPainting.id, controller)
+      if (inFlightIdRef.current === targetPainting.id) {
+        inFlightIdRef.current = null
+      }
     }
   }, [applyIfVisible, createPainting, definition, painting, provider, refresh, onPaintingChange, tab, updatePainting])
 
