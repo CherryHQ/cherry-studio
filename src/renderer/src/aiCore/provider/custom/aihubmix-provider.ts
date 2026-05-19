@@ -11,16 +11,14 @@
 import { AnthropicMessagesLanguageModel } from '@ai-sdk/anthropic/internal'
 import { GoogleGenerativeAILanguageModel } from '@ai-sdk/google/internal'
 import { OpenAIChatLanguageModel, OpenAIResponsesLanguageModel, OpenAISpeechModel } from '@ai-sdk/openai/internal'
-import {
-  OpenAICompatibleChatLanguageModel,
-  OpenAICompatibleEmbeddingModel,
-  OpenAICompatibleImageModel
-} from '@ai-sdk/openai-compatible'
+import { OpenAICompatibleChatLanguageModel, OpenAICompatibleEmbeddingModel } from '@ai-sdk/openai-compatible'
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { isOpenAIChatCompletionOnlyModel, isOpenAILLMModel } from '@renderer/config/models/openai'
 import type { Model } from '@renderer/types'
+
+import { createAihubmixImageModel } from './aihubmix-image-model'
 
 export const AIHUBMIX_PROVIDER_NAME = 'aihubmix' as const
 const APP_CODE_HEADER = { 'APP-Code': 'MLTG2087' }
@@ -148,12 +146,7 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
     })
 
   provider.imageModel = (modelId: string) =>
-    new OpenAICompatibleImageModel(modelId, {
-      provider: `${AIHUBMIX_PROVIDER_NAME}.image`,
-      url,
-      headers: authHeaders,
-      fetch: customFetch
-    })
+    createAihubmixImageModel(modelId, { baseURL, resolveApiKey, headers: authHeaders, fetch: customFetch })
 
   provider.speechModel = (modelId: string) =>
     new OpenAISpeechModel(modelId, {
