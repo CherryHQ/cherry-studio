@@ -7,7 +7,9 @@ import type { TokenFluxPaintingData as TokenFluxPainting } from '../../model/typ
 import { createSingleModeProvider, type PaintingProviderDefinition } from '../types'
 import { DEFAULT_TOKENFLUX_PAINTING } from './config'
 import { tokenFluxFields } from './fields'
+import { UNIFIED_POLLING_PROVIDERS } from '../ppio'
 import { generateWithTokenFlux } from './generate'
+import { generateWithTokenFluxUnified } from './generateUnified'
 import TokenFluxService from './service'
 
 export function TokenFluxHeaderActions({ t }: { t: TFunction }) {
@@ -43,7 +45,8 @@ export const tokenFluxProvider: PaintingProviderDefinition = createSingleModePro
   }),
   fields: tokenFluxFields,
   onModelChange: ({ modelId }) => ({ model: modelId, inputParams: {} }),
-  generate: (input) => generateWithTokenFlux(input)
+  generate: (input) =>
+    UNIFIED_POLLING_PROVIDERS.has('tokenflux') ? generateWithTokenFluxUnified(input) : generateWithTokenFlux(input)
 })
 
 export { TokenFluxCenterContent, TokenFluxSetting } from './components'
