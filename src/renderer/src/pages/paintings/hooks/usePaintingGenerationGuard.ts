@@ -24,10 +24,7 @@ interface UsePaintingGenerationGuardInput {
   ensureCurrentCatalog: () => Promise<ModelOption[]>
 }
 
-export function usePaintingGenerationGuard({
-  painting,
-  ensureCurrentCatalog
-}: UsePaintingGenerationGuardInput) {
+export function usePaintingGenerationGuard({ painting, ensureCurrentCatalog }: UsePaintingGenerationGuardInput) {
   const providerId = painting.providerId
   const mode = painting.mode
   const modelId = painting.model
