@@ -229,9 +229,7 @@ describe('PaintingService', () => {
       const fileEntryId = '22222222-2222-4222-8222-222222222222'
       const painting = await paintingService.create(p({ providerId: 'aihubmix', mode: 'generate', prompt: 'd2' }))
       await seedFileEntry(fileEntryId)
-      await fileRefService.createMany([
-        { fileEntryId, sourceType: 'painting', sourceId: painting.id, role: 'output' }
-      ])
+      await fileRefService.createMany([{ fileEntryId, sourceType: 'painting', sourceId: painting.id, role: 'output' }])
 
       const spy = vi
         .spyOn(fileRefService, 'cleanupBySourceTx')
