@@ -6,6 +6,7 @@ import { runPainting } from '../../model/paintingGenerationService'
 import type { DmxapiPaintingData as DmxapiPainting } from '../../model/types/paintingData'
 import { generationModeType } from '../../model/types/paintingData'
 import { checkProviderEnabled } from '../../utils/checkProviderEnabled'
+import { readErrorMessage } from '../shared/readErrorMessage'
 import type { GenerateInput } from '../types'
 import { getDmxapiFileMap } from './runtime'
 
@@ -132,7 +133,8 @@ export async function generateWithDmxapi(input: GenerateInput<DmxapiPainting>) {
     if (!response.ok) {
       if (response.status === 401) throw createPaintingGenerateError('REQ_ERROR_TOKEN')
       if (response.status === 403) throw createPaintingGenerateError('REQ_ERROR_NO_BALANCE')
-      throw createPaintingGenerateError('OPERATION_FAILED')
+      const message = await readErrorMessage(response)
+      throw createPaintingGenerateError('REMOTE_ERROR', { message })
     }
 
     const data = await response.json()
