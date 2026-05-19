@@ -16,7 +16,17 @@ import { cn } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { MiseTool } from '@shared/data/preference/preferenceTypes'
 import { useNavigate } from '@tanstack/react-router'
-import { Download, FolderOpen, Loader2, PackageCheck, Plus, Trash2, TriangleAlert } from 'lucide-react'
+import {
+  Download,
+  ExternalLink,
+  FolderOpen,
+  Loader2,
+  PackageCheck,
+  Plus,
+  SquareArrowOutUpRight,
+  Trash2,
+  TriangleAlert
+} from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -32,24 +42,70 @@ interface MiseState {
 
 interface PredefinedTool {
   name: string
+  displayName: string
   tool: string
   version?: string
   descriptionKey: string
+  repoUrl: string
+  homepage?: string
 }
 
 const PREDEFINED_TOOLS: PredefinedTool[] = [
-  { name: 'uv', tool: 'uv', descriptionKey: 'settings.plugins.uvDescription' },
-  { name: 'bun', tool: 'bun', descriptionKey: 'settings.plugins.bunDescription' },
-  { name: 'fd', tool: 'github:sharkdp/fd', version: '10.3.0', descriptionKey: 'settings.plugins.fdDescription' },
+  {
+    name: 'uv',
+    displayName: 'uv',
+    tool: 'uv',
+    descriptionKey: 'settings.plugins.uvDescription',
+    repoUrl: 'https://github.com/astral-sh/uv',
+    homepage: 'https://docs.astral.sh/uv/'
+  },
+  {
+    name: 'bun',
+    displayName: 'Bun',
+    tool: 'bun',
+    descriptionKey: 'settings.plugins.bunDescription',
+    repoUrl: 'https://github.com/oven-sh/bun',
+    homepage: 'https://bun.sh'
+  },
+  {
+    name: 'fd',
+    displayName: 'fd',
+    tool: 'github:sharkdp/fd',
+    version: '10.3.0',
+    descriptionKey: 'settings.plugins.fdDescription',
+    repoUrl: 'https://github.com/sharkdp/fd'
+  },
   {
     name: 'rg',
+    displayName: 'ripgrep',
     tool: 'github:BurntSushi/ripgrep',
     version: '15.1.0',
-    descriptionKey: 'settings.plugins.rgDescription'
+    descriptionKey: 'settings.plugins.rgDescription',
+    repoUrl: 'https://github.com/BurntSushi/ripgrep'
   },
-  { name: 'rtk', tool: 'github:rtk-ai/rtk', descriptionKey: 'settings.plugins.rtkDescription' },
-  { name: 'lark-cli', tool: 'github:larksuite/cli', descriptionKey: 'settings.plugins.larkCliDescription' },
-  { name: 'gh', tool: 'github:cli/cli', descriptionKey: 'settings.plugins.ghDescription' }
+  {
+    name: 'rtk',
+    displayName: 'RTK',
+    tool: 'github:rtk-ai/rtk',
+    descriptionKey: 'settings.plugins.rtkDescription',
+    repoUrl: 'https://github.com/rtk-ai/rtk',
+    homepage: 'https://www.runtimekit.com'
+  },
+  {
+    name: 'lark-cli',
+    displayName: 'Lark CLI',
+    tool: 'github:larksuite/cli',
+    descriptionKey: 'settings.plugins.larkCliDescription',
+    repoUrl: 'https://github.com/larksuite/cli'
+  },
+  {
+    name: 'gh',
+    displayName: 'GitHub CLI',
+    tool: 'github:cli/cli',
+    descriptionKey: 'settings.plugins.ghDescription',
+    repoUrl: 'https://github.com/cli/cli',
+    homepage: 'https://cli.github.com'
+  }
 ]
 
 const CORE_DEPS = new Set(['uv', 'bun'])
@@ -153,16 +209,14 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         {PREDEFINED_TOOLS.map((tool) => {
           const installed = miseState?.tools[tool.name]
           return (
-            <ToolItem
+            <PredefinedToolItem
               key={tool.name}
-              name={tool.name}
-              description={t(tool.descriptionKey)}
+              tool={tool}
               installed={!!installed}
               installedVersion={installed?.version}
               installing={installingTools.has(tool.name)}
               onInstall={() => installTool({ name: tool.name, tool: tool.tool, version: tool.version })}
               onOpenPath={openBinariesDir}
-              actionLabel={t('settings.mcp.install')}
             />
           )
         })}
@@ -185,16 +239,14 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
             {customTools.map((tool) => {
               const installed = miseState?.tools[tool.name]
               return (
-                <ToolItem
+                <CustomToolItem
                   key={tool.name}
-                  name={tool.name}
-                  description={tool.tool}
+                  tool={tool}
                   installed={!!installed}
                   installedVersion={installed?.version}
                   installing={installingTools.has(tool.name)}
                   onInstall={() => installTool(tool)}
                   onOpenPath={openBinariesDir}
-                  actionLabel={t('settings.mcp.install')}
                   onRemove={() => setDeleteTarget(tool.name)}
                 />
               )
@@ -228,21 +280,114 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   )
 }
 
-const ToolItem: FC<{
-  actionLabel: string
-  description: string
+const PredefinedToolItem: FC<{
+  tool: PredefinedTool
   installed: boolean
   installedVersion?: string
   installing: boolean
-  name: string
   onInstall: () => void
   onOpenPath: () => void
-  onRemove?: () => void
-}> = ({ actionLabel, description, installed, installedVersion, installing, name, onInstall, onOpenPath, onRemove }) => {
+}> = ({ tool, installed, installedVersion, installing, onInstall, onOpenPath }) => {
   const { t } = useTranslation()
 
   return (
-    <div className="group flex min-h-13 w-full items-center gap-2.5 rounded-lg border border-border/60 bg-transparent px-2.5 py-2 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/55">
+    <div className="group flex w-full items-start gap-3 rounded-lg border border-border/60 bg-transparent px-3 py-2.5 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/55">
+      <div
+        className={cn(
+          'mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl',
+          installed ? 'bg-primary/10 text-primary' : 'bg-blue-500/10 text-blue-500'
+        )}>
+        <PackageCheck className="size-4" />
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="font-semibold text-foreground text-sm leading-5">{tool.displayName}</span>
+          {tool.displayName !== tool.name && <span className="text-muted-foreground/60 text-xs">({tool.name})</span>}
+          {installed && installedVersion && (
+            <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
+              {installedVersion}
+            </Badge>
+          )}
+        </div>
+
+        <p className="mt-0.5 text-muted-foreground text-xs leading-4">{t(tool.descriptionKey)}</p>
+
+        <div className="mt-1.5 flex items-center gap-3">
+          <a
+            href={tool.repoUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
+            onClick={(e) => {
+              e.preventDefault()
+              window.api.openWebsite(tool.repoUrl)
+            }}>
+            <ExternalLink className="size-3" />
+            {tool.repoUrl.replace('https://github.com/', '')}
+          </a>
+          {tool.homepage && (
+            <a
+              href={tool.homepage}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
+              onClick={(e) => {
+                e.preventDefault()
+                window.api.openWebsite(tool.homepage!)
+              }}>
+              <SquareArrowOutUpRight className="size-3" />
+              {tool.homepage.replace(/^https?:\/\//, '')}
+            </a>
+          )}
+          {installed && (
+            <button
+              type="button"
+              onClick={onOpenPath}
+              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground">
+              <FolderOpen className="size-3" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-0.5 flex shrink-0 items-center gap-2">
+        {installed ? (
+          <Badge className="border-transparent bg-success/10 px-1.5 py-0 font-medium text-[11px] text-success leading-4">
+            {t('settings.skills.installed')}
+          </Badge>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 gap-1 px-2.5 font-medium text-xs"
+            onClick={onInstall}
+            disabled={installing}
+            loading={installing}>
+            {!installing && <Download className="size-3.5" />}
+            {installing ? t('settings.plugins.installing') : t('settings.mcp.install')}
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+const CustomToolItem: FC<{
+  tool: MiseTool
+  installed: boolean
+  installedVersion?: string
+  installing: boolean
+  onInstall: () => void
+  onOpenPath: () => void
+  onRemove: () => void
+}> = ({ tool, installed, installedVersion, installing, onInstall, onOpenPath, onRemove }) => {
+  const { t } = useTranslation()
+
+  const repoUrl = tool.tool.startsWith('github:') ? `https://github.com/${tool.tool.slice(7)}` : null
+
+  return (
+    <div className="group flex w-full items-center gap-3 rounded-lg border border-border/60 bg-transparent px-3 py-2.5 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/55">
       <div
         className={cn(
           'flex size-9 shrink-0 items-center justify-center rounded-xl',
@@ -252,59 +397,60 @@ const ToolItem: FC<{
       </div>
 
       <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-baseline gap-2">
-          <div className="truncate font-medium text-foreground text-sm leading-5">{name}</div>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="font-semibold text-foreground text-sm leading-5">{tool.name}</span>
           {installed && installedVersion && (
-            <span className="text-muted-foreground/50 text-xs">{installedVersion}</span>
+            <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
+              {installedVersion}
+            </Badge>
           )}
         </div>
-        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs leading-4">
-          <span className="truncate">{description}</span>
-          <button
-            type="button"
-            onClick={onOpenPath}
-            disabled={!installed}
-            aria-label={t('settings.skills.directory')}
-            className={cn(
-              'inline-flex size-4.5 shrink-0 items-center justify-center rounded-md transition-colors',
-              installed ? 'text-muted-foreground/55 hover:bg-background hover:text-foreground' : 'hidden'
-            )}>
-            <FolderOpen className="size-3" />
-          </button>
+        <div className="mt-0.5 flex items-center gap-2">
+          <span className="text-muted-foreground text-xs">{tool.tool}</span>
+          {repoUrl && (
+            <a
+              href={repoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center text-muted-foreground/70 transition-colors hover:text-foreground"
+              onClick={(e) => {
+                e.preventDefault()
+                window.api.openWebsite(repoUrl)
+              }}>
+              <ExternalLink className="size-3" />
+            </a>
+          )}
+          {installed && (
+            <button
+              type="button"
+              onClick={onOpenPath}
+              className="inline-flex items-center text-muted-foreground/70 transition-colors hover:text-foreground">
+              <FolderOpen className="size-3" />
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="flex min-w-[92px] shrink-0 items-center justify-end gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         {installed ? (
           <Badge className="border-transparent bg-success/10 px-1.5 py-0 font-medium text-[11px] text-success leading-4">
             {t('settings.skills.installed')}
           </Badge>
         ) : (
-          <>
-            <Badge className="border-transparent bg-muted px-1.5 py-0 font-medium text-[11px] text-muted-foreground leading-4">
-              {t('settings.plugins.notInstalled')}
-            </Badge>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 shrink-0 gap-1 px-2 font-medium text-xs shadow-none"
-              onClick={onInstall}
-              disabled={installing}
-              loading={installing}>
-              {!installing && <Download className="size-3.5" />}
-              {installing ? t('settings.plugins.installing') : actionLabel}
-            </Button>
-          </>
-        )}
-        {onRemove && (
           <Button
-            variant="ghost"
-            size="icon-sm"
-            className="text-foreground/40 hover:text-destructive"
-            onClick={onRemove}>
-            <Trash2 className="size-3.5" />
+            variant="outline"
+            size="sm"
+            className="h-7 gap-1 px-2.5 font-medium text-xs"
+            onClick={onInstall}
+            disabled={installing}
+            loading={installing}>
+            {!installing && <Download className="size-3.5" />}
+            {installing ? t('settings.plugins.installing') : t('settings.mcp.install')}
           </Button>
         )}
+        <Button variant="ghost" size="icon-sm" className="text-foreground/40 hover:text-destructive" onClick={onRemove}>
+          <Trash2 className="size-3.5" />
+        </Button>
       </div>
     </div>
   )
