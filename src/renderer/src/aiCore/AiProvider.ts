@@ -13,6 +13,7 @@ import AiSdkToChunkAdapter from './chunk/AiSdkToChunkAdapter'
 import { buildPlugins } from './plugins/PluginBuilder'
 import { adaptProvider, getActualProvider, providerToAiSdkConfig } from './provider/providerConfig'
 import { listModels } from './services/listModels'
+import { buildImageProviderOptions } from './utils/imageOptions'
 import type { AppProviderSettingsMap, CompletionsResult, ProviderConfig } from './types'
 import type { AiSdkMiddlewareConfig } from './types/middlewareConfig'
 
@@ -378,11 +379,18 @@ export default class AiProvider {
   private async modernGenerateImage(params: GenerateImageParams, providerConfig: ProviderConfig): Promise<string[]> {
     const { model, prompt, imageSize, batchSize, signal } = params
 
+    // Forward the remaining params (negativePrompt/seed/steps/guidance/
+    // promptEnhancement/personGeneration/quality) via AI SDK providerOptions —
+    // they were previously dropped here. Keyed by the resolved provider id,
+    // which is the providerOptions key the image model reads.
+    const providerOptions = buildImageProviderOptions(providerConfig.providerId, params)
+
     // 转换参数格式
     const aiSdkParams = {
       prompt,
       size: (imageSize || '1024x1024') as `${number}x${number}`,
       n: batchSize || 1,
+      ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
       ...(signal && { abortSignal: signal })
     }
 
