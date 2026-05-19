@@ -51,7 +51,6 @@ interface PredefinedTool {
   version?: string
   icon?: string
   description: string
-  description_zh?: string
   repoUrl: string
   homepage?: string
   coreDep?: boolean
@@ -62,14 +61,6 @@ const PREDEFINED_TOOLS: PredefinedTool[] = predefinedToolsData
 const CORE_DEPS = new Set(PREDEFINED_TOOLS.filter((t) => t.coreDep).map((t) => t.name))
 
 const logger = loggerService.withContext('EnvironmentDependencies')
-
-function useToolDescription(tool: PredefinedTool): string {
-  const { i18n } = useTranslation()
-  if (i18n.language.startsWith('zh') && tool.description_zh) {
-    return tool.description_zh
-  }
-  return tool.description
-}
 
 const ToolIcon: FC<{ icon?: string; className?: string }> = ({ icon, className }) => {
   if (icon) {
@@ -246,7 +237,7 @@ const PredefinedToolCard: FC<{
   onOpenPath: () => void
 }> = ({ tool, installed, installedVersion, installing, onInstall, onUpdate, onOpenPath }) => {
   const { t } = useTranslation()
-  const description = useToolDescription(tool)
+  const description = t(`settings.plugins.tools.${tool.name}`, { defaultValue: tool.description })
 
   return (
     <div className="flex flex-col rounded-xl border border-border bg-card p-4 transition-colors duration-200 ease-in-out hover:border-border-hover">

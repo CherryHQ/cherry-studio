@@ -6238,6 +6238,22 @@
       "removeConfirmTitle": "[to be translated]:Remove Tool",
       "searchRegistry": "[to be translated]:Search mise registry...",
       "title": "環境依存",
+      "tools": {
+        "bun": "[to be translated]:JavaScript runtime used by MCP services and related toolchains.",
+        "claude": "[to be translated]:Anthropic's agentic coding tool for the terminal.",
+        "codex": "[to be translated]:OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
+        "fd": "[to be translated]:Fast file finder, alternative to find.",
+        "gh": "[to be translated]:GitHub CLI for repository and workflow management.",
+        "hermes": "[to be translated]:Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
+        "lark-cli": "[to be translated]:Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
+        "ntn": "[to be translated]:Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
+        "openclaw": "[to be translated]:Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
+        "opencode": "[to be translated]:Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
+        "pi": "[to be translated]:AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
+        "rg": "[to be translated]:Fast text search tool (ripgrep), alternative to grep.",
+        "rtk": "[to be translated]:CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
+        "uv": "[to be translated]:Python package manager for MCP services and dependency installation."
+      },
       "update": "[to be translated]:Update to latest version"
     },
     "privacy": {

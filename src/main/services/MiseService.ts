@@ -58,10 +58,27 @@ const MISE_PASSTHROUGH_ENV = [
   'GH_TOKEN'
 ]
 
+const TOOL_NAME_RE = /^[a-zA-Z][a-zA-Z0-9_-]*$/
+const TOOL_KEY_RE = /^[a-zA-Z0-9@:/_.-]+$/
+
+function validateMiseTool(tool: MiseTool): void {
+  if (!tool.name || !TOOL_NAME_RE.test(tool.name)) {
+    throw new Error(`Invalid tool name: ${tool.name}`)
+  }
+  if (!tool.tool || !TOOL_KEY_RE.test(tool.tool)) {
+    throw new Error(`Invalid tool key: ${tool.tool}`)
+  }
+  if (tool.version && !TOOL_KEY_RE.test(tool.version)) {
+    throw new Error(`Invalid tool version: ${tool.version}`)
+  }
+}
+
 @Injectable('MiseService')
 @ServicePhase(Phase.Background)
 export class MiseService extends BaseService {
   private miseBin: string | null = null
+  private isolatedEnv: Record<string, string> | null = null
+  private registryCache: Array<{ name: string; tool: string }> | null = null
 
   protected async onInit() {
     this.registerIpcHandlers()
@@ -72,6 +89,7 @@ export class MiseService extends BaseService {
       return
     }
     logger.info('mise binary found', { path: this.miseBin })
+    this.isolatedEnv = this.buildIsolatedEnv()
 
     const tools = application.get('PreferenceService').get('feature.mise.tools')
     if (tools.length > 0) {
@@ -86,10 +104,14 @@ export class MiseService extends BaseService {
     })
 
     this.ipcHandle(IpcChannel.Mise_InstallTool, async (_event, tool: MiseTool) => {
+      validateMiseTool(tool)
       return this.installTool(tool)
     })
 
     this.ipcHandle(IpcChannel.Mise_RemoveTool, async (_event, toolName: string) => {
+      if (!toolName || !TOOL_NAME_RE.test(toolName)) {
+        throw new Error(`Invalid tool name: ${toolName}`)
+      }
       return this.removeTool(toolName)
     })
 
@@ -148,7 +170,7 @@ export class MiseService extends BaseService {
     return null
   }
 
-  private getIsolatedEnv(): Record<string, string> {
+  private buildIsolatedEnv(): Record<string, string> {
     const dataDir = application.getPath('feature.mise.data')
     const env: Record<string, string> = {}
 
@@ -189,8 +211,7 @@ export class MiseService extends BaseService {
     if (!this.miseBin) {
       throw new Error('mise binary not available')
     }
-    const env = this.getIsolatedEnv()
-    return execFileAsync(this.miseBin, args, { cwd, env, timeout: 120_000 })
+    return execFileAsync(this.miseBin, args, { cwd, env: this.isolatedEnv!, timeout: 120_000 })
   }
 
   private async installBinary(tool: MiseTool): Promise<string> {
@@ -307,29 +328,36 @@ export class MiseService extends BaseService {
     return { version }
   }
 
+  private async loadRegistry(): Promise<Array<{ name: string; tool: string }>> {
+    if (this.registryCache) {
+      return this.registryCache
+    }
+
+    const { stdout } = await this.runMise(['registry'], os.tmpdir())
+    const entries: Array<{ name: string; tool: string }> = []
+
+    for (const line of stdout.split('\n')) {
+      if (!line.trim()) continue
+      const match = line.match(/^(\S+)\s+(.+)$/)
+      if (!match) continue
+      const [, name, backends] = match
+      const tool = backends.trim().split(/\s+/)[0]
+      entries.push({ name, tool })
+    }
+
+    this.registryCache = entries
+    return entries
+  }
+
   async searchRegistry(query: string): Promise<Array<{ name: string; tool: string }>> {
     if (!this.miseBin || !query.trim()) {
       return []
     }
 
     try {
-      const { stdout } = await this.runMise(['registry'], os.tmpdir())
-      const lines = stdout.split('\n')
+      const registry = await this.loadRegistry()
       const q = query.toLowerCase()
-      const results: Array<{ name: string; tool: string }> = []
-
-      for (const line of lines) {
-        if (!line.trim()) continue
-        const match = line.match(/^(\S+)\s+(.+)$/)
-        if (!match) continue
-        const [, name, backends] = match
-        if (name.toLowerCase().includes(q)) {
-          const tool = backends.trim().split(/\s+/)[0]
-          results.push({ name, tool })
-        }
-      }
-
-      return results.slice(0, 50)
+      return registry.filter((entry) => entry.name.toLowerCase().includes(q)).slice(0, 50)
     } catch (err) {
       logger.error('Registry search failed', err instanceof Error ? err : new Error(String(err)))
       return []

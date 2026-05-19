@@ -1,8 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as LifecycleModule from '@main/core/lifecycle'
+import { getPhase } from '@main/core/lifecycle/decorators'
+import { Phase } from '@main/core/lifecycle/types'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockExecFileAsync, mockFs } = vi.hoisted(() => {
-  const mockExecFileAsync = vi.fn()
-  const mockFs = {
+const { mockExecFileAsync, mockFs, mockPreferenceService } = vi.hoisted(() => ({
+  mockExecFileAsync: vi.fn(),
+  mockFs: {
     existsSync: vi.fn(() => false),
     readFileSync: vi.fn(),
     writeFileSync: vi.fn(),
@@ -13,48 +16,30 @@ const { mockExecFileAsync, mockFs } = vi.hoisted(() => {
     unlinkSync: vi.fn(),
     rmSync: vi.fn(),
     renameSync: vi.fn()
-  }
-  return { mockExecFileAsync, mockFs }
+  },
+  mockPreferenceService: { get: vi.fn(() => []) }
+}))
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    PreferenceService: mockPreferenceService
+  })
 })
 
-vi.mock('@main/core/lifecycle', () => {
+vi.mock('@main/core/lifecycle', async (importOriginal) => {
+  const actual = await importOriginal<typeof LifecycleModule>()
   class MockBaseService {
     ipcHandle = vi.fn()
     ipcOn = vi.fn()
-    registerDisposable = vi.fn()
+    protected readonly _disposables: Array<{ dispose: () => void } | (() => void)> = []
+    protected registerDisposable<T extends { dispose: () => void } | (() => void)>(d: T): T {
+      this._disposables.push(d)
+      return d
+    }
   }
-  return {
-    BaseService: MockBaseService,
-    Injectable: () => (target: unknown) => target,
-    ServicePhase: () => (target: unknown) => target,
-    Phase: { Background: 'background', WhenReady: 'whenReady', BeforeReady: 'beforeReady' }
-  }
+  return { ...actual, BaseService: MockBaseService }
 })
-
-const mockPreferenceService = { get: vi.fn(() => []) }
-
-vi.mock('@application', () => ({
-  application: {
-    get: vi.fn((name: string) => {
-      if (name === 'PreferenceService') return mockPreferenceService
-      throw new Error(`[MockApplication] Unknown service: ${name}`)
-    }),
-    getPath: vi.fn((key: string) => `/mock/${key}`)
-  }
-}))
-
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn()
-    })
-  }
-}))
-
-vi.mock('@main/constant', () => ({ isWin: false }))
 
 vi.mock('node:fs', () => ({ default: mockFs }))
 
@@ -73,15 +58,17 @@ vi.mock('node:util', () => ({
   promisify: () => mockExecFileAsync
 }))
 
-import { MiseService } from '../MiseService'
+const { MiseService } = await import('../MiseService')
 
 describe('MiseService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  afterEach(() => {
-    vi.restoreAllMocks()
+  describe('decorators', () => {
+    it('is registered as Background phase', () => {
+      expect(getPhase(MiseService)).toBe(Phase.Background)
+    })
   })
 
   describe('reconcile', () => {
@@ -98,6 +85,7 @@ describe('MiseService', () => {
     it('skips tools that are already at the target version', async () => {
       const service = new MiseService()
       ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
 
       mockFs.readFileSync.mockReturnValue(
         JSON.stringify({
@@ -118,6 +106,7 @@ describe('MiseService', () => {
     it('does not skip tools with no pinned version (latest)', async () => {
       const service = new MiseService()
       ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
 
       mockFs.readFileSync.mockReturnValue(
         JSON.stringify({
@@ -143,6 +132,7 @@ describe('MiseService', () => {
     it('handles install failure gracefully', async () => {
       const service = new MiseService()
       ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
 
       mockFs.readFileSync.mockImplementation(() => {
         throw new Error('ENOENT')
@@ -161,6 +151,7 @@ describe('MiseService', () => {
     it('installs multiple tools and records state', async () => {
       const service = new MiseService()
       ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
 
       mockFs.readFileSync.mockImplementation(() => {
         throw new Error('ENOENT')
@@ -242,6 +233,7 @@ describe('MiseService', () => {
     it('installs and returns version', async () => {
       const service = new MiseService()
       ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
 
       mockFs.readFileSync.mockImplementation(() => {
         throw new Error('ENOENT')
@@ -258,6 +250,44 @@ describe('MiseService', () => {
       expect(result.version).toBe('10.0.0')
       expect(mockFs.copyFileSync).toHaveBeenCalled()
       expect(mockFs.chmodSync).toHaveBeenCalled()
+    })
+  })
+
+  describe('searchRegistry', () => {
+    it('returns empty array when mise binary is not available', async () => {
+      const service = new MiseService()
+      const result = await service.searchRegistry('fd')
+      expect(result).toEqual([])
+    })
+
+    it('caches registry output across calls', async () => {
+      const service = new MiseService()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      mockExecFileAsync.mockResolvedValue({
+        stdout: 'fd   github:sharkdp/fd\nrg   github:BurntSushi/ripgrep\n',
+        stderr: ''
+      })
+
+      await service.searchRegistry('fd')
+      await service.searchRegistry('rg')
+
+      expect(mockExecFileAsync).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('IPC input validation', () => {
+    it('registers IPC handlers on init', () => {
+      const service = new MiseService()
+      ;(service as any).onInit()
+
+      const channels = (service as any).ipcHandle.mock.calls.map((c: any[]) => c[0])
+      expect(channels).toContain('mise:install-tool')
+      expect(channels).toContain('mise:remove-tool')
+      expect(channels).toContain('mise:get-state')
+      expect(channels).toContain('mise:reconcile')
+      expect(channels).toContain('mise:search-registry')
     })
   })
 })
