@@ -191,7 +191,8 @@ export async function generateWithAihubmix(input: GenerateInput) {
         }
 
         const data = await response.json()
-        const urls = data.data.map((item: any) => item.url)
+        const items = Array.isArray(data?.data) ? data.data : []
+        const urls = items.map((item: any) => item.url)
 
         if (urls.length > 0) {
           return { urls, downloadOptions: { showProxyWarning: true } }
@@ -291,7 +292,8 @@ export async function generateWithAihubmix(input: GenerateInput) {
         }
 
         const data = await response.json()
-        const urls = data.data.map((item: any) => item.url)
+        const items = Array.isArray(data?.data) ? data.data : []
+        const urls = items.map((item: any) => item.url)
 
         if (urls.length > 0) {
           return { urls, downloadOptions: { showProxyWarning: true } }
@@ -353,8 +355,9 @@ export async function generateWithAihubmix(input: GenerateInput) {
         const base64s = data.output.b64_json.map((item: any) => item.bytesBase64)
         return { base64s }
       }
-      const urls = data.data.filter((item: any) => item.url).map((item: any) => item.url)
-      const base64s = data.data.filter((item: any) => item.b64_json).map((item: any) => item.b64_json)
+      const items = Array.isArray(data?.data) ? data.data : []
+      const urls = items.filter((item: any) => item.url).map((item: any) => item.url)
+      const base64s = items.filter((item: any) => item.b64_json).map((item: any) => item.b64_json)
 
       if (urls.length > 0) {
         return { urls, downloadOptions: { showProxyWarning: true } }
