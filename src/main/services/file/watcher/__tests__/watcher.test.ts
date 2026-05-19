@@ -170,30 +170,36 @@ describe('createDirectoryWatcher', () => {
       danglingCache.addEntry('e-w-nfd' as FileEntryId, canonicalPath)
 
       const w = createDirectoryWatcher(dir as FilePath, { stabilityThresholdMs: 0 })
-      await waitForReady(w)
-      await writeFile(writtenPath, 'hello')
-      // The emitted event still carries the raw OS path (NFD) — the cache leg
-      // alone is normalized, so external subscribers see what the FS sees.
-      const ev = await waitForEvent(w, (e) => e.kind === 'add' && e.path?.endsWith('.txt'))
-      if (ev.kind !== 'add') throw new Error('expected add event')
-      expect(ev.path).toBe(writtenPath)
+      try {
+        await waitForReady(w)
+        // Subscribe before writing so a fast inotify delivery on Linux CI cannot
+        // race past the test listener.
+        const eventPromise = waitForEvent(w, (e) => e.kind === 'add' && e.path?.endsWith('.txt'))
+        await writeFile(writtenPath, 'hello')
+        // The emitted event still carries the raw OS path (NFD) — the cache leg
+        // alone is normalized, so external subscribers see what the FS sees.
+        const ev = await eventPromise
+        if (ev.kind !== 'add') throw new Error('expected add event')
+        expect(ev.path).toBe(writtenPath)
 
-      // The cache lookup uses NFC keys; without the NFC-normalize step in
-      // `handle()` this would miss and the cache would stay 'unknown'.
-      expect(
-        await danglingCache.check({
-          id: 'e-w-nfd' as FileEntryId,
-          origin: 'external',
-          externalPath: canonicalPath,
-          name: 'qué',
-          ext: 'txt',
-          size: null,
-          trashedAt: null,
-          createdAt: 0,
-          updatedAt: 0
-        } as never)
-      ).toBe('present')
-      await w.close()
+        // The cache lookup uses NFC keys; without the NFC-normalize step in
+        // `handle()` this would miss and the cache would stay 'unknown'.
+        expect(
+          await danglingCache.check({
+            id: 'e-w-nfd' as FileEntryId,
+            origin: 'external',
+            externalPath: canonicalPath,
+            name: 'qué',
+            ext: 'txt',
+            size: null,
+            trashedAt: null,
+            createdAt: 0,
+            updatedAt: 0
+          } as never)
+        ).toBe('present')
+      } finally {
+        await w.close()
+      }
     }
   )
 
