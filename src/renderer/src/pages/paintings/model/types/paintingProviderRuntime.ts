@@ -76,8 +76,8 @@ export function resolvePaintingApiHost(provider?: Provider): string {
 }
 
 export async function getPaintingProviderApiKey(providerId: string): Promise<string> {
-  const response = await dataApiService.get(`/providers/${providerId}/rotated-key`)
-  return response.apiKey || ''
+  const response = await dataApiService.get(`/providers/${providerId}/rotated-key` as any)
+  return (response as { apiKey?: string }).apiKey || ''
 }
 
 export function createPaintingProviderRuntime(
