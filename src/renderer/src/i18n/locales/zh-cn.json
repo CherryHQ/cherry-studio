@@ -511,18 +511,6 @@
         "disabledTooltip": "该工具在自主模式开启时被自动禁用",
         "title": "自主模式"
       },
-      "tool_manager": {
-        "add_tool": "添加工具",
-        "add_tool_description": "使用 mise 工具键添加工具（例如 github:sharkdp/fd、uv、bun）。",
-        "empty": "尚未配置任何工具。添加一个工具以开始使用。",
-        "field_name": "二进制名称（例如 fd）",
-        "field_tool": "Mise 工具键（例如 github:sharkdp/fd）",
-        "field_version": "版本（可选，默认为最新）",
-        "reconcile": "同步",
-        "remove_confirm_message": "确定要移除 \"{{name}}\" 吗？二进制文件将被删除。",
-        "remove_confirm_title": "移除工具",
-        "title": "工具管理"
-      },
       "tooling": {
         "mcp": {
           "description": "连接 MCP 服务器即可解锁更多可在上方预先授权的工具。",
@@ -6239,10 +6227,23 @@
       }
     },
     "plugins": {
+      "addTool": "添加工具",
+      "addToolDescription": "使用 mise 工具键添加工具（例如 github:sharkdp/fd、uv、bun）。",
       "bunDescription": "用于 MCP 服务和相关工具链的 JavaScript 运行时。",
+      "customTools": "自定义工具",
       "description": "管理应用运行所需的二进制工具和运行时依赖。",
+      "fdDescription": "快速文件查找工具，find 的替代品。",
+      "fieldName": "二进制名称（例如 fd）",
+      "fieldTool": "Mise 工具键（例如 github:sharkdp/fd）",
+      "fieldVersion": "版本（可选，默认为最新）",
+      "ghDescription": "GitHub CLI，用于仓库和工作流管理。",
       "installing": "安装中...",
+      "larkCliDescription": "飞书 CLI，用于工作区和文档管理。",
       "notInstalled": "未安装",
+      "removeConfirmMessage": "确定要移除 \"{{name}}\" 吗？二进制文件将被删除。",
+      "removeConfirmTitle": "移除工具",
+      "rgDescription": "快速文本搜索工具 (ripgrep)，grep 的替代品。",
+      "rtkDescription": "RTK 命令重写工具。",
       "title": "环境依赖",
       "uvDescription": "用于 MCP 服务与依赖安装的 Python 包管理工具。"
     },

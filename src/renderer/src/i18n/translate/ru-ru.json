@@ -6227,10 +6227,23 @@
       }
     },
     "plugins": {
+      "addTool": "[to be translated]:Add Tool",
+      "addToolDescription": "[to be translated]:Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "bunDescription": "Среда выполнения JavaScript, используемая службами MCP и связанными с ними инструментальными цепочками.",
+      "customTools": "[to be translated]:Custom Tools",
       "description": "Управляйте бинарными инструментами и зависимостями среды выполнения, необходимыми приложению.",
+      "fdDescription": "[to be translated]:Fast file finder, alternative to find.",
+      "fieldName": "[to be translated]:Binary name (e.g., fd)",
+      "fieldTool": "[to be translated]:Mise tool key (e.g., github:sharkdp/fd)",
+      "fieldVersion": "[to be translated]:Version (optional, defaults to latest)",
+      "ghDescription": "[to be translated]:GitHub CLI for repository and workflow management.",
       "installing": "Установка...",
+      "larkCliDescription": "[to be translated]:Lark CLI for workspace and document management.",
       "notInstalled": "Не установлено",
+      "removeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmTitle": "[to be translated]:Remove Tool",
+      "rgDescription": "[to be translated]:Fast text search tool (ripgrep), alternative to grep.",
+      "rtkDescription": "[to be translated]:RTK binary for command rewriting.",
       "title": "Зависимости окружения",
       "uvDescription": "Менеджер пакетов Python для сервисов MCP и установки зависимостей."
     },
@@ -6359,6 +6372,7 @@
         "description": "AWS Bedrock — это полное управляемое сервисное предложение для моделей, поддерживающее различные современные модели языка",
         "region": "AWS регион",
         "region_help": "Ваш регион AWS, например us-east-1",
+        "region_required": "[to be translated]:Enter an AWS region before saving",
         "secret_access_key": "AWS Ключ доступа",
         "secret_access_key_help": "Ваш AWS Ключ доступа, пожалуйста, храните его в безопасности",
         "title": "AWS Bedrock Конфигурация"
@@ -6470,6 +6484,7 @@
       },
       "filter_agent": "Поддерживаемые поставщики агента фильтрации",
       "get_api_key": "Получить ключ API",
+      "logo_upload_failed": "[to be translated]:Failed to process the selected image",
       "misc": "другие",
       "more_endpoints": {
         "add": "[to be translated]:Add Endpoint",

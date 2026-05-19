@@ -511,18 +511,6 @@
         "disabledTooltip": "當自主模式啟用時，此工具會自動停用",
         "title": "自主模式"
       },
-      "tool_manager": {
-        "add_tool": "[to be translated]:Add Tool",
-        "add_tool_description": "[to be translated]:Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
-        "empty": "[to be translated]:No tools configured. Add a tool to get started.",
-        "field_name": "[to be translated]:Binary name (e.g., fd)",
-        "field_tool": "[to be translated]:Mise tool key (e.g., github:sharkdp/fd)",
-        "field_version": "[to be translated]:Version (optional, defaults to latest)",
-        "reconcile": "[to be translated]:Sync",
-        "remove_confirm_message": "[to be translated]:Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
-        "remove_confirm_title": "[to be translated]:Remove Tool",
-        "title": "[to be translated]:Tool Manager"
-      },
       "tooling": {
         "mcp": {
           "description": "連線 MCP 伺服器即可解鎖更多可在上方預先授權的工具。",
@@ -6239,10 +6227,23 @@
       }
     },
     "plugins": {
+      "addTool": "[to be translated]:Add Tool",
+      "addToolDescription": "[to be translated]:Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "bunDescription": "用於 MCP 服務和相關工具鏈的 JavaScript 執行階段。",
+      "customTools": "[to be translated]:Custom Tools",
       "description": "管理應用程式執行所需的二進位工具和執行階段依賴。",
+      "fdDescription": "[to be translated]:Fast file finder, alternative to find.",
+      "fieldName": "[to be translated]:Binary name (e.g., fd)",
+      "fieldTool": "[to be translated]:Mise tool key (e.g., github:sharkdp/fd)",
+      "fieldVersion": "[to be translated]:Version (optional, defaults to latest)",
+      "ghDescription": "[to be translated]:GitHub CLI for repository and workflow management.",
       "installing": "安裝中...",
+      "larkCliDescription": "[to be translated]:Lark CLI for workspace and document management.",
       "notInstalled": "未安裝",
+      "removeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmTitle": "[to be translated]:Remove Tool",
+      "rgDescription": "[to be translated]:Fast text search tool (ripgrep), alternative to grep.",
+      "rtkDescription": "[to be translated]:RTK binary for command rewriting.",
       "title": "環境依賴",
       "uvDescription": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
     },

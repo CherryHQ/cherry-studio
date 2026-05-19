@@ -21,8 +21,7 @@ import {
   Search,
   Server,
   Settings2,
-  TextCursorInput,
-  Wrench
+  TextCursorInput
 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -113,13 +112,6 @@ const SettingsPage: FC = () => {
                 label={t('settings.plugins.title')}
                 active={isActive('/settings/plugins')}
                 onClick={() => go('/settings/plugins')}
-              />
-              <MenuItem
-                className={menuItemClassName}
-                icon={<Wrench />}
-                label={t('settings.tool_manager.title')}
-                active={isActive('/settings/tool-manager')}
-                onClick={() => go('/settings/tool-manager')}
               />
               <MenuDivider className={sectionDividerClassName} />
               <div className={sectionTitleClassName}>{t('settings.menuGroups.appSettings')}</div>

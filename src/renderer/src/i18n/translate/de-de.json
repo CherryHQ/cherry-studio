@@ -6227,10 +6227,23 @@
       }
     },
     "plugins": {
+      "addTool": "[to be translated]:Add Tool",
+      "addToolDescription": "[to be translated]:Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "bunDescription": "JavaScript-Laufzeitumgebung, die von MCP-Diensten und zugehörigen Toolchains verwendet wird.",
+      "customTools": "[to be translated]:Custom Tools",
       "description": "Verwalten Sie binäre Tools und Laufzeitabhängigkeiten, die von der App benötigt werden.",
+      "fdDescription": "[to be translated]:Fast file finder, alternative to find.",
+      "fieldName": "[to be translated]:Binary name (e.g., fd)",
+      "fieldTool": "[to be translated]:Mise tool key (e.g., github:sharkdp/fd)",
+      "fieldVersion": "[to be translated]:Version (optional, defaults to latest)",
+      "ghDescription": "[to be translated]:GitHub CLI for repository and workflow management.",
       "installing": "Installiere...",
+      "larkCliDescription": "[to be translated]:Lark CLI for workspace and document management.",
       "notInstalled": "Nicht installiert",
+      "removeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmTitle": "[to be translated]:Remove Tool",
+      "rgDescription": "[to be translated]:Fast text search tool (ripgrep), alternative to grep.",
+      "rtkDescription": "[to be translated]:RTK binary for command rewriting.",
       "title": "Umgebungsabhängigkeiten",
       "uvDescription": "Python-Paketmanager für MCP-Dienste und Abhängigkeitsinstallation."
     },
@@ -6359,6 +6372,7 @@
         "description": "AWS Bedrock ist ein vollständig verwalteter Basismodell-Dienst von Amazon, der eine Vielzahl moderner großer Sprachmodelle unterstützt",
         "region": "AWS-Region",
         "region_help": "Ihre AWS-Serviceregion, z.B. us-east-1",
+        "region_required": "[to be translated]:Enter an AWS region before saving",
         "secret_access_key": "AWS-Zugriffsschlüssel",
         "secret_access_key_help": "Ihre AWS-Zugriffsschlüssel, bitte sorgfältig aufbewahren",
         "title": "AWS Bedrock-Konfiguration"
@@ -6470,6 +6484,7 @@
       },
       "filter_agent": "Von Filter-Agent unterstützte Anbieter",
       "get_api_key": "Hier klicken um Schlüssel zu erhalten",
+      "logo_upload_failed": "[to be translated]:Failed to process the selected image",
       "misc": "Sonstige",
       "more_endpoints": {
         "add": "[to be translated]:Add Endpoint",

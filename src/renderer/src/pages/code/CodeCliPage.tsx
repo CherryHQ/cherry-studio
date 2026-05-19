@@ -252,7 +252,7 @@ const CodeCliPage: FC = () => {
   const handleInstallBun = async () => {
     try {
       setIsInstallingBun(true)
-      await window.api.installBunBinary()
+      await window.api.mise.installTool({ name: 'bun', tool: 'bun' })
       setIsBunInstalled(true)
       window.toast.success(t('settings.mcp.installSuccess'))
     } catch (error) {
