@@ -13,7 +13,7 @@
 
 - Legacy namespaces are normalized into `providerId + mode`
 - All migrated records set `mediaType: image`
-- `mode` is collapsed to `generate | edit | upscale`
+- `mode` is collapsed to `generate | edit | upscale | remix | draw | merge`
 - `sortOrder` preserves the old array order within each `providerId + mode` scope
 - `files: FileMetadata[]` becomes `fileIds: string[]`
 - Recoverable input image metadata becomes `inputFileIds: string[]`
