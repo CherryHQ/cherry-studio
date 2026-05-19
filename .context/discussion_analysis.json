@@ -1,10 +1,5 @@
 {
-  "generated_at": "2026-05-18T00:00:00Z",
-  "report_date": "2026-05-18",
-  "repository": "CherryHQ/cherry-studio",
-  "note": "Discussions data requires GraphQL API — not available via GitHub MCP tools in this execution context. Data from last successful fetch shown below.",
-  "last_successful_fetch": "2026-05-12 (via GitHub Actions)",
-  "stale": true,
-  "recommended_action": "Run gh api graphql query in GitHub Actions or local environment",
-  "graphql_query": "{ repository(owner: \"CherryHQ\", name: \"cherry-studio\") { discussions(first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { number title category { name } author { login } createdAt updatedAt upvoteCount comments { totalCount } answer { author { login } createdAt } } } } }"
+  "generated_at": "2026-05-19T17:47:31.657343+00:00",
+  "report_date": "2026-05-19",
+  "note": "Discussions require GraphQL API via gh CLI; MCP tool does not expose Discussions endpoint. Skipped in this run."
 }

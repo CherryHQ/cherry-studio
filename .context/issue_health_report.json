@@ -1,157 +1,82 @@
 {
-  "generated_at": "2026-05-18T00:00:00Z",
-  "report_date": "2026-05-18",
-  "repository": "CherryHQ/cherry-studio",
-  "health_summary": {
-    "total_open": 860,
-    "health_buckets": {
-      "Active": {
-        "definition": "Updated within last 7 days (≥2026-05-11)",
-        "count_sample": 100,
-        "note": "All 100 in first page (sorted updatedAt DESC) are active; true total requires full pagination"
-      },
-      "Aging": {
-        "definition": "Updated 7–30 days ago (2026-04-18 to 2026-05-11)",
-        "count_estimate": "Unknown — requires full pagination"
-      },
-      "Stale": {
-        "definition": "Not updated in 30–90 days (2026-02-18 to 2026-04-18)",
-        "count_estimate": "~300 (based on prior day: ~35%)"
-      },
-      "Zombie": {
-        "definition": "Not updated in 90+ days (<2026-02-18)",
-        "count_estimate": "~4",
-        "confirmed_zombies": [
-          {
-            "number": 6505,
-            "title": "[FAQ]: 划词助手 / Selection Assistant",
-            "age_days": 355,
-            "comments": 358
-          },
-          {
-            "number": 9943,
-            "title": "[错误]: MCPB文件导入MCP服务器相关问题",
-            "age_days": 254,
-            "note": "Resolved by PR #15159"
-          },
-          {
-            "number": 11906,
-            "title": "[Feature]: Add video upload support",
-            "age_days": 154,
-            "labels": [
-              "Planned",
-              "feature",
-              "Blocked: v2"
-            ]
-          }
-        ]
-      }
+  "generated_at": "2026-05-19T17:47:31.657343+00:00",
+  "report_date": "2026-05-19",
+  "total_open": 864,
+  "health_sample": {
+    "Active": 100,
+    "Aging": 0,
+    "Stale": 0,
+    "Zombie": 0
+  },
+  "health_pct_sample": {
+    "Active": 100.0,
+    "Aging": 0.0,
+    "Stale": 0.0,
+    "Zombie": 0.0
+  },
+  "stale_issues": [],
+  "zombie_issues": [],
+  "p1_issues": [
+    {
+      "number": 14899,
+      "title": "[Feature]: Unified Notification Center",
+      "labels": [
+        "Planned",
+        "P1",
+        "feature",
+        "UI/UX"
+      ],
+      "age_days": 12,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/14899",
+      "created_at": "2026-05-07"
     },
-    "note": "Active/Aging/Stale/Zombie exact counts require paginating all 860 issues. Estimates based on sample."
-  },
-  "priority_issues": {
-    "P0": [],
-    "P1": [
-      {
-        "number": 14899,
-        "title": "[Feature]: Unified Notification Center",
-        "labels": [
-          "Planned",
-          "P1",
-          "feature",
-          "UI/UX"
-        ],
-        "created_at": "2026-05-07",
-        "updated_at": "2026-05-07",
-        "milestone": "v2.4.0",
-        "health": "Aging (11 days)",
-        "action": "Planned for v2.4.0 — track milestone progress"
-      },
-      {
-        "number": 13608,
-        "title": "[Bug]: xiaomi mimo response only displays the last line",
-        "labels": [
-          "P1",
-          "Models"
-        ],
-        "created_at": "2026-03-18",
-        "updated_at": "2026-03-19",
-        "milestone": "v1.8.1 (closed)",
-        "health": "Stale (61 days)",
-        "action": "NEEDS ASSIGNEE — P1 bug with no owner"
-      },
-      {
-        "number": 13193,
-        "title": "[Bug]: Azure OpenAI defaults to responses API instead of chat/completions",
-        "labels": [
-          "P1",
-          "Models"
-        ],
-        "created_at": "2026-03-04",
-        "updated_at": "2026-03-05",
-        "assignee": "DeJeune",
-        "health": "Stale (75 days)",
-        "action": "Check PR #14911 (refactor ai-service) for resolution"
-      }
-    ]
-  },
-  "unlabeled_issues": {
-    "total": 77,
-    "pct_of_open": 9.0,
-    "sample": [
-      {
-        "number": 15171,
-        "title": "[Bug]: Agent模式下自定义header没有带入进去"
-      },
-      {
-        "number": 15170,
-        "title": "[Bug]: clawhub skill install fails with HTTP 404"
-      },
-      {
-        "number": 15169,
-        "title": "[Feature]: Add WeCom and DingTalk Channel Adapters for CherryClaw"
-      },
-      {
-        "number": 15163,
-        "title": "[Bug]: plan made by Agent won't finish"
-      },
-      {
-        "number": 15160,
-        "title": "[Bug]: AI_TypeValidationError on execute_code tool calls"
-      },
-      {
-        "number": 15128,
-        "title": "[Bug]: Response Reasoning Summary event splits Thinking block"
-      },
-      {
-        "number": 15127,
-        "title": "[Bug]: Cannot identify returned link"
-      },
-      {
-        "number": 14934,
-        "title": "[Feature]: Upgrade the version of OpenClaw in CherryStudio"
-      },
-      {
-        "number": 14893,
-        "title": "[Feature]: Bundle Portable Runtimes into Installer"
-      },
-      {
-        "number": 14602,
-        "title": "[Bug]: API response parsing failed"
-      }
-    ]
-  },
-  "triage_metrics": {
-    "closed_last_30d": 425,
-    "velocity_per_day": 14.2,
-    "net_change_vs_yesterday": "+4 open issues (856→860)",
-    "unlabeled_change_vs_yesterday": "+9 unlabeled issues (68→77)"
-  },
-  "recommendations": [
-    "77 unlabeled issues (9%) — triage priority: Agent, MCP, and Bug reports from today",
-    "#13608 (mimo streaming, P1) has no assignee — needs owner",
-    "#13193 (Azure OpenAI API regression, P1) — check if PR #14911 resolves this",
-    "inactive label on 44% of sampled issues — batch-close candidates after 30d no-repro",
-    "MCPB import zombie (#9943) resolved today by PR #15159 from kovsu — close the issue"
-  ]
+    {
+      "number": 13608,
+      "title": "[Bug]: xiaomi mimo response only displays the last line",
+      "labels": [
+        "P1",
+        "Models"
+      ],
+      "age_days": 62,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13608",
+      "created_at": "2026-03-18"
+    },
+    {
+      "number": 13193,
+      "title": "[Bug]: Azure OpenAI defaulting to responses API (Resource not found)",
+      "labels": [
+        "P1",
+        "Models"
+      ],
+      "age_days": 76,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193",
+      "created_at": "2026-03-04"
+    }
+  ],
+  "uncategorized_sample": [
+    15193,
+    15181,
+    15183,
+    14379,
+    14381,
+    14384,
+    14893,
+    14415,
+    15170,
+    15169,
+    15163,
+    15160,
+    15156,
+    14303,
+    14331,
+    14335,
+    14934,
+    14602,
+    14278,
+    14299,
+    14305,
+    15128,
+    15127
+  ],
+  "uncategorized_pct_sample": 23.0
 }

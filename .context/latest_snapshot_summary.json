@@ -1,276 +1,181 @@
 {
-  "generated_at": "2026-05-18T00:00:00Z",
-  "data_as_of": "2026-05-18",
-  "repository": "CherryHQ/cherry-studio",
-  "open_issues": {
-    "total": 860,
-    "bug_label": 3,
-    "no_label": 77,
-    "no_label_pct": 9.0,
+  "generated_at": "2026-05-19T17:47:31.657343+00:00",
+  "report_date": "2026-05-19",
+  "data_note": "Issues/PRs: page-1 sample (100 records); totalCount from API; health biased toward recently-updated.",
+  "issues": {
+    "open_total": 864,
+    "closed_last_30d": 461,
+    "uncategorized_pct_sample": 23.0,
+    "bug_count_estimated": 0,
+    "feature_count_estimated": 9,
+    "priority_distribution_sample": {},
+    "p0_count": 0,
     "p1_count": 3,
-    "top_labels_page1_sample": [
+    "p1_issues": [
       {
-        "label": "inactive",
-        "count_in_100": 44
+        "number": 14899,
+        "title": "[Feature]: Unified Notification Center",
+        "labels": [
+          "Planned",
+          "P1",
+          "feature",
+          "UI/UX"
+        ],
+        "age_days": 12,
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/14899",
+        "created_at": "2026-05-07"
       },
       {
-        "label": "UI/UX",
-        "count_in_100": 29
+        "number": 13608,
+        "title": "[Bug]: xiaomi mimo response only displays the last line",
+        "labels": [
+          "P1",
+          "Models"
+        ],
+        "age_days": 62,
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13608",
+        "created_at": "2026-03-18"
       },
       {
-        "label": "Models",
-        "count_in_100": 25
-      },
-      {
-        "label": "Assistant",
-        "count_in_100": 15
-      },
-      {
-        "label": "Data",
-        "count_in_100": 8
-      },
-      {
-        "label": "RAG",
-        "count_in_100": 7
-      },
-      {
-        "label": "needs-repro",
-        "count_in_100": 7
-      },
-      {
-        "label": "MCP",
-        "count_in_100": 5
-      },
-      {
-        "label": "help wanted",
-        "count_in_100": 5
-      },
-      {
-        "label": "discussion",
-        "count_in_100": 5
+        "number": 13193,
+        "title": "[Bug]: Azure OpenAI defaulting to responses API (Resource not found)",
+        "labels": [
+          "P1",
+          "Models"
+        ],
+        "age_days": 76,
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13193",
+        "created_at": "2026-03-04"
       }
     ],
-    "note": "Label counts from 100 most-recently-updated issues. Full label distribution requires paginated fetch."
-  },
-  "closed_issues_30d": {
-    "total": 425,
-    "dominant_close_reason": "not_planned (inactive bot sweep, ~70%)",
-    "avg_time_to_close_days": null,
-    "by_week": {
-      "2026-05-11_to_05-18": "~94 (est.)",
-      "2026-05-04_to_05-11": "~89 (prev.)"
-    }
-  },
-  "open_prs": {
-    "total_search": 310,
-    "by_base": {
-      "main": 240,
-      "v2": 66,
-      "other": 4
-    },
-    "draft_total": null,
-    "ready_total": null,
-    "new_this_week": 34,
-    "stale_gt7d": 66,
-    "closed_30d_total": null,
-    "closed_30d_merged": null,
-    "avg_pr_age_days": null
-  },
-  "v2_prs": {
-    "open": 66,
-    "open_draft": null,
-    "open_ready": null,
-    "merged_total": 133,
-    "merged_last_7d": 3,
-    "merged_last_30d": null,
-    "open_contributors": null,
-    "top_contributors": {
-      "LWWZH": 10,
-      "DeJeune": 9,
-      "EurFelux": 8,
-      "404-Page-Found": 7
-    },
-    "weekly_velocity": {
-      "2026-W16 (Apr14-20)": 3,
-      "2026-W17 (Apr21-27)": 7,
-      "2026-W18 (Apr28-May4)": 9,
-      "2026-W19 (May5-11)": 12,
-      "2026-W20 (May12-18)": 13
-    }
-  },
-  "branch_strategy": {
-    "main_status": "CODE FREEZE — hotfix/* only",
-    "v2_status": "Active development — accelerating",
-    "effective_date": "2026-04-03"
-  },
-  "p1_issues": [
-    {
-      "number": 14899,
-      "title": "[Feature]: Unified Notification Center",
-      "labels": [
-        "Planned",
-        "P1",
-        "feature",
-        "UI/UX"
+    "top_labels_sample": [
+      [
+        "inactive",
+        43
       ],
-      "created_at": "2026-05-07T05:01:00Z",
-      "updated_at": "2026-05-07T05:52:49Z",
-      "milestone": "v2.4.0",
-      "comments": 0,
-      "health": "Aging (11 days)"
-    },
-    {
-      "number": 13608,
-      "title": "[Bug]: xiaomi mimo response only displays the last line",
-      "labels": [
-        "P1",
-        "Models"
-      ],
-      "created_at": "2026-03-18T14:34:38Z",
-      "updated_at": "2026-03-19T14:22:09Z",
-      "milestone": "v1.8.1 (closed)",
-      "health": "Stale (61 days)"
-    },
-    {
-      "number": 13193,
-      "title": "[Bug]: Azure OpenAI Resource not found — defaults to responses API",
-      "labels": [
-        "P1",
-        "Models"
-      ],
-      "created_at": "2026-03-04T05:07:40Z",
-      "updated_at": "2026-03-05T08:47:59Z",
-      "assignee": "DeJeune",
-      "health": "Stale (75 days)"
-    }
-  ],
-  "top_10_active_prs": [
-    {
-      "number": 15167,
-      "title": "fix(dev): prevent TS composite emit from polluting source directories",
-      "base": "main",
-      "author": "gphoneyo",
-      "updated": "2026-05-18T12:45:25Z"
-    },
-    {
-      "number": 15159,
-      "title": "fix: support mcpb imports and metadata resolution",
-      "base": "v2",
-      "author": "kovsu",
-      "updated": "2026-05-18T10:02:01Z"
-    },
-    {
-      "number": 15158,
-      "title": "fix: increase scrollbar width for better Windows clickability",
-      "base": "main",
-      "author": "xxiaoxiong",
-      "updated": "2026-05-18T09:30:00Z"
-    },
-    {
-      "number": 15155,
-      "title": "hotfix(ai-diagnosis): correct misclassifications and surface provider error JSON",
-      "base": "main",
-      "author": "SiinXu",
-      "updated": "2026-05-18T08:00:00Z"
-    },
-    {
-      "number": 15154,
-      "title": "refactor(paintings): migrate to v2 data layer and UI",
-      "base": "v2",
-      "author": "kangfenmao",
-      "updated": "2026-05-18T07:50:00Z"
-    },
-    {
-      "number": 15151,
-      "title": "fix: remove color override in code blocks to fix light theme",
-      "base": "main",
-      "author": "xxiaoxiong",
-      "updated": "2026-05-18T06:00:00Z"
-    },
-    {
-      "number": 15148,
-      "title": "fix(agent): resolve CherryIN provider alias",
-      "base": "main",
-      "author": "mturac",
-      "updated": "2026-05-17T22:00:00Z"
-    },
-    {
-      "number": 15146,
-      "title": "fix: refresh cached miniapp urls",
-      "base": "main",
-      "author": "mturac",
-      "updated": "2026-05-17T20:00:00Z"
-    },
-    {
-      "number": 15145,
-      "title": "fix: include local time in cron tool responses",
-      "base": "main",
-      "author": "mturac",
-      "updated": "2026-05-17T19:00:00Z"
-    },
-    {
-      "number": 15144,
-      "title": "fix(stream): merge adjacent thinking segments",
-      "base": "main",
-      "author": "mturac",
-      "updated": "2026-05-17T18:00:00Z"
-    }
-  ],
-  "notable_closed_issues_30d": [
-    {
-      "number": 10918,
-      "title": "[Bug]: Impossible to add a knowledge base",
-      "labels": [
-        "BUG",
-        "RAG",
-        "inactive"
-      ],
-      "comments": 21,
-      "closedAt": "2026-05-17T01:06:24Z"
-    },
-    {
-      "number": 12079,
-      "title": "[Bug]: cherry-studio cannot read the file since today",
-      "labels": [
-        "BUG",
-        "inactive"
-      ],
-      "comments": 15,
-      "closedAt": "2026-05-17T01:06:28Z"
-    },
-    {
-      "number": 14027,
-      "title": "[Bug]: Aliyun Bailian Agent Mode Failed",
-      "labels": [
+      [
         "Models",
-        "inactive"
+        22
       ],
-      "comments": 14,
-      "closedAt": "2026-05-17T01:06:31Z"
-    }
-  ],
-  "top_commented_open": [
-    {
-      "number": 6505,
-      "title": "[FAQ]: 划词助手 / Selection Assistant",
-      "comments": 358
-    },
-    {
-      "number": 9943,
-      "title": "[错误]: MCPB文件导入MCP服务器相关问题",
-      "comments": 14,
-      "note": "Fixed by PR #15159 merged today"
-    },
-    {
-      "number": 13897,
-      "title": "[Bug]: High frequency requests to analytics.cherry-ai.com",
-      "comments": 6
-    }
-  ],
-  "meta": {
-    "data_sources": [
-      "GitHub MCP API (list_issues, search_issues, list_pull_requests, search_pull_requests)"
+      [
+        "Assistant",
+        21
+      ],
+      [
+        "UI/UX",
+        20
+      ],
+      [
+        "needs-repro",
+        8
+      ],
+      [
+        "MCP",
+        6
+      ],
+      [
+        "help wanted",
+        6
+      ],
+      [
+        "discussion",
+        6
+      ],
+      [
+        "Performance",
+        6
+      ],
+      [
+        "RAG",
+        5
+      ],
+      [
+        "Data",
+        5
+      ],
+      [
+        "BUG",
+        3
+      ],
+      [
+        "Planned",
+        2
+      ],
+      [
+        "needs-more-info",
+        2
+      ],
+      [
+        "Connectivity",
+        1
+      ],
+      [
+        "prd",
+        1
+      ],
+      [
+        "ready-for-dev",
+        1
+      ],
+      [
+        "v2",
+        1
+      ],
+      [
+        "feature",
+        1
+      ],
+      [
+        "Blocked: v2",
+        1
+      ]
     ],
-    "note": "gh CLI unavailable; data collected via GitHub MCP tools. Discussions API not available via MCP tools."
+    "health_sample": {
+      "Active": 100,
+      "Aging": 0,
+      "Stale": 0,
+      "Zombie": 0
+    },
+    "health_note": "Sample sorted by updated_at DESC → Active count inflated; treat as lower-bound for Stale/Zombie."
+  },
+  "pull_requests": {
+    "open_total": 100,
+    "open_by_base": {
+      "main": 66,
+      "v2": 32,
+      "DeJeune/ai-service": 2
+    },
+    "closed_last_30d": 100,
+    "merged_last_30d": 69
+  },
+  "v2_branch": {
+    "open_prs": 69,
+    "merged_last_30d": 64,
+    "top_labels": [
+      [
+        "v2",
+        97
+      ],
+      [
+        "UI/UX",
+        3
+      ],
+      [
+        "Blocked: v2",
+        2
+      ],
+      [
+        "ready-to-merge",
+        2
+      ],
+      [
+        "Pending",
+        1
+      ],
+      [
+        "WIP",
+        1
+      ]
+    ]
   }
 }
