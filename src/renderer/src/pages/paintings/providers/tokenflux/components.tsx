@@ -40,7 +40,7 @@ export const TokenFluxSetting: FC<{
 
       {selectedModel?.input_schema && (
         <div className="flex flex-col gap-3">
-          {Object.entries(selectedModel.input_schema.properties).map(([key, property]: [string, any]) => {
+          {Object.entries(selectedModel?.input_schema?.properties ?? {}).map(([key, property]: [string, any]) => {
             if (key === 'prompt') return null
 
             const isRequired = selectedModel.input_schema.required?.includes(key)
