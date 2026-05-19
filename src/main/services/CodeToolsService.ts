@@ -161,6 +161,31 @@ class CodeToolsService {
   }
 
   /**
+   * Prefer OpenCode's package-local executable on Windows.
+   *
+   * Bun global bins can fail with "Bun failed to remap this bin" after updates,
+   * while opencode-ai's postinstall places the real executable under the package.
+   */
+  private async getOpenCodeCommand(): Promise<string> {
+    const globalInstallDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'install', 'global')
+    const openCodeExecutablePath = path.join(globalInstallDir, 'node_modules', 'opencode-ai', 'bin', 'opencode.exe')
+
+    if (fs.existsSync(openCodeExecutablePath)) {
+      logger.debug(`Using package-local executable for opencode: ${openCodeExecutablePath}`)
+      return `"${openCodeExecutablePath}"`
+    }
+
+    // Fallback: try to execute the Bun global bin directly.
+    const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
+    const executableName = await this.getCliExecutableName(codeTools.openCode)
+    const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
+    logger.warn(
+      `opencode package-local executable not found at ${openCodeExecutablePath}, falling back to direct execution: ${executablePath}`
+    )
+    return `"${executablePath}"`
+  }
+
+  /**
    * Generate opencode.json config file for OpenCode CLI
    * Merge approach:
    * 1. Parse existing config (if any) with JSONC support
@@ -692,6 +717,8 @@ class CodeToolsService {
         if (cliTool === codeTools.claudeCode) {
           const bunPath = await this.getBunPath()
           versionCommand = await this.getClaudeCodeCommand(bunPath)
+        } else if (cliTool === codeTools.openCode) {
+          versionCommand = await this.getOpenCodeCommand()
         } else {
           const executableName = await this.getCliExecutableName(cliTool)
           const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
@@ -967,6 +994,8 @@ class CodeToolsService {
     // Use cli-wrapper.cjs (via Bun) on all platforms for reliable execution.
     if (cliTool === codeTools.claudeCode) {
       baseCommand = await this.getClaudeCodeCommand(bunPath)
+    } else if (cliTool === codeTools.openCode) {
+      baseCommand = await this.getOpenCodeCommand()
     } else if (isWin) {
       baseCommand = `"${executablePath}"`
     } else {
