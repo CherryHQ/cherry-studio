@@ -245,6 +245,7 @@ function buildParams(
     'imageFile',
     'imageFiles',
     'mask',
+    'ppioMask',
     'status',
     'ppioStatus',
     'taskId',
