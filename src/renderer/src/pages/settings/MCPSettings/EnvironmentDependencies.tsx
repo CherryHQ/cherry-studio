@@ -229,7 +229,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         description={t('settings.plugins.removeConfirmMessage', { name: deleteTarget })}
         destructive
         onConfirm={() => {
-          if (deleteTarget) handleRemoveCustomTool(deleteTarget)
+          if (deleteTarget) void handleRemoveCustomTool(deleteTarget)
         }}
       />
     </div>
@@ -299,7 +299,7 @@ const PredefinedToolCard: FC<{
           className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
           onClick={(e) => {
             e.preventDefault()
-            window.api.openWebsite(tool.repoUrl)
+            void window.api.openWebsite(tool.repoUrl)
           }}>
           <ExternalLink className="size-3" />
           {tool.repoUrl.replace('https://github.com/', '')}
@@ -312,7 +312,7 @@ const PredefinedToolCard: FC<{
             className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
             onClick={(e) => {
               e.preventDefault()
-              window.api.openWebsite(tool.homepage!)
+              void window.api.openWebsite(tool.homepage!)
             }}>
             <SquareArrowOutUpRight className="size-3" />
             {tool.homepage.replace(/^https?:\/\//, '')}
