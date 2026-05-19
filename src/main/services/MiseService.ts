@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process'
+import { execFile, execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -109,6 +109,17 @@ export class MiseService extends BaseService {
     const cherryBin = path.join(application.getPath('cherry.bin'), binaryName)
     if (fs.existsSync(cherryBin)) {
       return cherryBin
+    }
+
+    try {
+      const cmd = isWin ? 'where' : 'which'
+      const result = execFileSync(cmd, [binaryName], { encoding: 'utf-8', timeout: 5000 })
+      const systemPath = result.trim().split('\n')[0]
+      if (systemPath && fs.existsSync(systemPath)) {
+        return systemPath
+      }
+    } catch {
+      // not on PATH
     }
 
     return null

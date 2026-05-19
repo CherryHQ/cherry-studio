@@ -63,7 +63,10 @@ vi.mock('node:os', () => ({
 }))
 
 vi.mock('node:child_process', () => ({
-  execFile: vi.fn()
+  execFile: vi.fn(),
+  execFileSync: vi.fn(() => {
+    throw new Error('not found')
+  })
 }))
 
 vi.mock('node:util', () => ({
