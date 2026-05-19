@@ -432,7 +432,8 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 export const SidebarContainer = styled.div`
   width: 250px;
   min-width: 250px;
-  height: calc(100vh - var(--navbar-height));
+  height: 100%;
+  min-height: 0;
   background-color: var(--color-background);
   border-right: 0.5px solid var(--color-border);
   border-top-left-radius: 10px;
@@ -444,10 +445,10 @@ export const SidebarContainer = styled.div`
 
 export const NotesTreeContainer = styled.div`
   flex: 1;
+  min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - var(--navbar-height) - 45px);
 `
 
 export const DragOverIndicator = styled.div`

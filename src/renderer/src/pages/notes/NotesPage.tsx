@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import type { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useActiveNode, useFileContent, useFileContentSync } from '@renderer/hooks/useNotesQuery'
@@ -908,9 +907,6 @@ const NotesPage: FC = () => {
 
   return (
     <Container id="notes-page">
-      <Navbar>
-        <NavbarCenter style={{ borderRight: 'none' }}>{t('notes.title')}</NavbarCenter>
-      </Navbar>
       <ContentContainer id="content-container">
         <AnimatePresence initial={false}>
           {showWorkspace && (
@@ -919,7 +915,7 @@ const NotesPage: FC = () => {
               animate={{ width: 250, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
-              style={{ overflow: 'hidden' }}>
+              style={{ height: '100%', overflow: 'hidden', flexShrink: 0 }}>
               <NotesSidebar
                 notesTree={notesTree}
                 selectedFolderId={selectedFolderId}
@@ -964,13 +960,18 @@ const Container = styled.div`
   display: flex;
   flex-direction: column;
   width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 `
 
 const ContentContainer = styled.div`
   display: flex;
   flex: 1;
   flex-direction: row;
+  height: 100%;
   min-height: 0;
+  overflow: hidden;
 `
 
 const EditorWrapper = styled.div`

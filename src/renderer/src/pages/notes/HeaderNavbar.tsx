@@ -207,7 +207,7 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
   return (
     <NavbarHeader
       className="home-navbar"
-      style={{ justifyContent: 'flex-start', borderBottom: '0.5px solid var(--color-border)' }}>
+      style={{ justifyContent: 'flex-start', borderBottom: '0.5px solid var(--color-border)', flexShrink: 0 }}>
       <RowFlex className="flex-[0_0_auto] items-center">
         {showWorkspace && (
           <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
