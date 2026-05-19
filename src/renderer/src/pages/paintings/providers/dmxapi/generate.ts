@@ -136,7 +136,8 @@ export async function generateWithDmxapi(input: GenerateInput<DmxapiPainting>) {
     }
 
     const data = await response.json()
-    const urls = data.data.map((item: { url: string; b64_json: string }) => {
+    const items = Array.isArray(data?.data) ? data.data : []
+    const urls = items.map((item: { url: string; b64_json: string }) => {
       if (item.b64_json) return 'data:image/png;base64,' + item.b64_json
       if (item.url) return item.url
       return ''
