@@ -9,6 +9,26 @@ const logger = loggerService.withContext('TokenFluxService')
 
 const TOKENFLUX_IMAGE_API_HOST = 'https://api.tokenflux.ai'
 const TOKENFLUX_MODELS_CACHE_TTL_MS = 60 * 60 * 1000
+const TOKENFLUX_DOWNLOAD_TIMEOUT_MS = 120000
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(createPaintingGenerateError('REMOTE_ERROR', { message }))
+    }, timeoutMs)
+
+    promise.then(
+      (value) => {
+        clearTimeout(timeoutId)
+        resolve(value)
+      },
+      (error) => {
+        clearTimeout(timeoutId)
+        reject(error)
+      }
+    )
+  })
+}
 
 const modelsCache = new Map<string, { expiresAt: number; models: TokenFluxModel[] }>()
 
@@ -264,7 +284,11 @@ export class TokenFluxService {
             window.toast.warning('Image URL is empty')
             return null
           }
-          return await window.api.file.download(url)
+          return await withTimeout(
+            window.api.file.download(url),
+            TOKENFLUX_DOWNLOAD_TIMEOUT_MS,
+            `Image download timed out after ${TOKENFLUX_DOWNLOAD_TIMEOUT_MS / 1000}s`
+          )
         } catch (error) {
           logger.error('Failed to download image:', error as Error)
           return null
