@@ -8,6 +8,7 @@
 
 import { application } from '@application'
 import { type NewPainting, type Painting as PaintingRow, paintingTable } from '@data/db/schemas/painting'
+import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -114,25 +115,29 @@ class PaintingService {
   async create(dto: CreatePaintingDto): Promise<Painting> {
     const db = application.get('DbService').getDb()
 
-    const row = await db.transaction(async (tx) =>
-      insertWithOrderKey(
-        tx,
-        paintingTable,
-        {
-          id: dto.id,
-          providerId: dto.providerId,
-          modelId: normalizeModelId(dto.providerId, dto.modelId),
-          mode: dto.mode,
-          mediaType: dto.mediaType,
-          prompt: dto.prompt,
-          params: dto.params,
-          files: dto.files
-        },
-        {
-          pkColumn: paintingTable.id,
-          position: 'first'
-        }
-      )
+    const row = await withSqliteErrors(
+      () =>
+        db.transaction(async (tx) =>
+          insertWithOrderKey(
+            tx,
+            paintingTable,
+            {
+              id: dto.id,
+              providerId: dto.providerId,
+              modelId: normalizeModelId(dto.providerId, dto.modelId),
+              mode: dto.mode,
+              mediaType: dto.mediaType,
+              prompt: dto.prompt,
+              params: dto.params,
+              files: dto.files
+            },
+            {
+              pkColumn: paintingTable.id,
+              position: 'first'
+            }
+          )
+        ),
+      defaultHandlersFor('Painting', dto.id)
     )
 
     logger.info('Created painting', {
@@ -168,7 +173,10 @@ class PaintingService {
       return rowToPainting(existing)
     }
 
-    const [row] = await db.update(paintingTable).set(updates).where(eq(paintingTable.id, id)).returning()
+    const [row] = await withSqliteErrors(
+      () => db.update(paintingTable).set(updates).where(eq(paintingTable.id, id)).returning(),
+      defaultHandlersFor('Painting', id)
+    )
     if (!row) {
       throw DataApiErrorFactory.notFound('Painting', id)
     }
