@@ -16,8 +16,8 @@
   --painting-choice-active-bg: hsl(var(--muted) / 0.45);
   --painting-choice-active-fg: hsl(var(--foreground) / 0.78);
   --painting-choice-active-ring: hsl(var(--border) / 0.9);
-  --painting-surface-shadow: 0 20px 48px rgba(15, 23, 42, 0.08);
-  --painting-floating-shadow: 0 24px 60px -20px rgba(15, 23, 42, 0.18);
+  --painting-surface-shadow: var(--shadow-sm);
+  --painting-floating-shadow: var(--shadow-md);
 }
 
 .dark .painting-theme,
@@ -31,6 +31,6 @@
   --painting-choice-active-fg: hsl(var(--foreground) / 0.82);
   --painting-choice-active-ring: hsl(var(--border) / 0.95);
   --painting-panel-shadow: none;
-  --painting-surface-shadow: 0 22px 52px rgba(0, 0, 0, 0.26);
-  --painting-floating-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.38);
+  --painting-surface-shadow: var(--shadow-sm);
+  --painting-floating-shadow: var(--shadow-md);
 }
