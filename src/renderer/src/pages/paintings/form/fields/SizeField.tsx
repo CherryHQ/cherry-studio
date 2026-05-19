@@ -1,4 +1,5 @@
 import { Input, RowFlex } from '@cherrystudio/ui'
+import { useTranslation } from 'react-i18next'
 
 import type { PaintingFieldComponentProps } from '../fieldRegistry'
 
@@ -10,6 +11,7 @@ function buildSizeValue(width: unknown, height: unknown, fallback: unknown): unk
 }
 
 export default function SizeField({ item, painting, onChange }: PaintingFieldComponentProps) {
+  const { t } = useTranslation()
   const { widthKey = 'width', heightKey = 'height', sizeKey, validation = {} } = item
   const widthValue = painting[widthKey] ?? ''
   const heightValue = painting[heightKey] ?? ''
@@ -18,7 +20,8 @@ export default function SizeField({ item, painting, onChange }: PaintingFieldCom
     <div className="flex flex-col gap-2">
       <RowFlex className="items-center gap-2">
         <Input
-          placeholder="W"
+          aria-label={t('paintings.generate.width')}
+          placeholder={t('paintings.generate.width')}
           type="number"
           value={widthValue === undefined || widthValue === null ? '' : String(widthValue)}
           onChange={(event) => {
@@ -35,7 +38,8 @@ export default function SizeField({ item, painting, onChange }: PaintingFieldCom
         />
         <span className="text-muted-foreground text-xs">x</span>
         <Input
-          placeholder="H"
+          aria-label={t('paintings.generate.height')}
+          placeholder={t('paintings.generate.height')}
           type="number"
           value={heightValue === undefined || heightValue === null ? '' : String(heightValue)}
           onChange={(event) => {
