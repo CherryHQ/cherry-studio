@@ -592,6 +592,10 @@ export type GenerateImageParams = {
   promptEnhancement?: boolean
   personGeneration?: PersonGeneration
   quality?: string
+  /** OpenAI image-body field (e.g. 'transparent'/'opaque'/'auto') */
+  background?: string
+  /** OpenAI image-body field (e.g. 'low'/'auto') */
+  moderation?: string
 }
 
 /**
@@ -609,6 +613,12 @@ export type EditImageParams = {
   mask?: Buffer | Uint8Array | string
   /** 输出图像尺寸 */
   imageSize?: string
+  /** OpenAI image-body quality (e.g. 'high'/'auto'); forwarded via providerOptions */
+  quality?: string
+  /** OpenAI image-body field (e.g. 'transparent'/'opaque'/'auto') */
+  background?: string
+  /** OpenAI image-body field (e.g. 'low'/'auto') */
+  moderation?: string
   /** 中止信号 */
   signal?: AbortSignal
 }

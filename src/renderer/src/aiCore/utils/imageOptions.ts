@@ -2,6 +2,25 @@ import type { GenerateImageParams } from '@renderer/types'
 import type { JSONValue } from 'ai'
 
 /**
+ * Structural subset of the image params that {@link buildImageProviderOptions}
+ * actually reads. Both `GenerateImageParams` and `EditImageParams` satisfy this,
+ * so generate and edit can share one mapper. `background`/`moderation` are real
+ * OpenAI image-body fields consumed by the unified newapi/cherryin/aionly path.
+ */
+export type ImageOptionParams = Partial<
+  Pick<
+    GenerateImageParams,
+    | 'negativePrompt'
+    | 'seed'
+    | 'numInferenceSteps'
+    | 'guidanceScale'
+    | 'promptEnhancement'
+    | 'personGeneration'
+    | 'quality'
+  >
+> & { background?: string; moderation?: string }
+
+/**
  * Build AI SDK `providerOptions` for image generation, mirroring the chat-side
  * `buildProviderOptions` idiom (switch over the resolved AI SDK provider id).
  *
@@ -20,25 +39,39 @@ import type { JSONValue } from 'ai'
  */
 export function buildImageProviderOptions(
   rawProviderId: string,
-  params: GenerateImageParams
+  params: ImageOptionParams
 ): Record<string, Record<string, JSONValue>> {
-  const { negativePrompt, seed, numInferenceSteps, guidanceScale, promptEnhancement, personGeneration, quality } =
-    params
+  const {
+    negativePrompt,
+    seed,
+    numInferenceSteps,
+    guidanceScale,
+    promptEnhancement,
+    personGeneration,
+    quality,
+    background,
+    moderation
+  } = params
 
   const seedNumber = seed && /^-?\d+$/.test(seed.trim()) ? Number(seed.trim()) : undefined
 
+  // `'auto'` is the painting UI sentinel for "let the provider decide" — it must
+  // not be forwarded as a literal body value (the bespoke newapi path omitted it).
   const define = (entries: Record<string, JSONValue | undefined>): Record<string, JSONValue> => {
     const out: Record<string, JSONValue> = {}
     for (const [k, v] of Object.entries(entries)) {
-      if (v !== undefined && v !== '') out[k] = v
+      if (v !== undefined && v !== '' && v !== 'auto') out[k] = v
     }
     return out
   }
 
   switch (rawProviderId) {
-    // OpenAI image family — `OpenAIImageModel` reads `providerOptions.openai`.
-    // Of the dropped params only `quality` is a real OpenAI image body field
-    // (`seed` is explicitly unsupported and warned by the model).
+    // OpenAI image family — `OpenAIImageModel` reads `providerOptions.openai`;
+    // `OpenAICompatibleImageModel` (newapi) reads `providerOptions[<name>]` (its
+    // provider name is `newapi`). `quality`/`background`/`moderation` are the real
+    // OpenAI image-body fields (`seed` is explicitly unsupported, warned by the
+    // model). The dual `{ openai, [rawProviderId] }` shape feeds whichever key the
+    // resolved model reads (cherryin → `openai`, newapi/aionly-via-newapi → `newapi`).
     case 'openai':
     case 'openai-chat':
     case 'azure':
@@ -47,7 +80,7 @@ export function buildImageProviderOptions(
     case 'cherryin':
     case 'newapi':
     case 'aihubmix': {
-      const mapped = define({ quality })
+      const mapped = define({ quality, background, moderation })
       return Object.keys(mapped).length ? { openai: mapped, [rawProviderId]: mapped } : {}
     }
 

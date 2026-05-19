@@ -56,6 +56,40 @@ describe('buildImageProviderOptions', () => {
     expect(result).toEqual({ openai: { quality: 'high' }, 'openai-chat': { quality: 'high' } })
   })
 
+  it('maps quality/background/moderation for newapi under both openai and the newapi key', () => {
+    const result = buildImageProviderOptions(
+      'newapi',
+      params({ quality: 'high', background: 'transparent', moderation: 'low' })
+    )
+    const mapped = { quality: 'high', background: 'transparent', moderation: 'low' }
+    expect(result).toEqual({ openai: mapped, newapi: mapped })
+  })
+
+  it('keys cherryin under openai (OpenAIImageModel reads providerOptions.openai)', () => {
+    const result = buildImageProviderOptions('cherryin', params({ quality: 'medium', background: 'opaque' }))
+    const mapped = { quality: 'medium', background: 'opaque' }
+    expect(result).toEqual({ openai: mapped, cherryin: mapped })
+  })
+
+  it("drops the 'auto' sentinel for openai-family (background/moderation/quality)", () => {
+    expect(
+      buildImageProviderOptions(
+        'newapi',
+        params({ quality: 'auto', background: 'auto', moderation: 'auto' })
+      )
+    ).toEqual({})
+    expect(buildImageProviderOptions('newapi', params({ quality: 'auto', background: 'transparent' }))).toEqual({
+      openai: { background: 'transparent' },
+      newapi: { background: 'transparent' }
+    })
+  })
+
+  it("drops the 'auto' sentinel for the diffusion/openai-compatible branch", () => {
+    expect(
+      buildImageProviderOptions('openai-compatible', params({ quality: 'auto', negativePrompt: 'no blur' }))
+    ).toEqual({ 'openai-compatible': { negative_prompt: 'no blur' } })
+  })
+
   it('returns {} for the OpenAI family when no OpenAI-applicable param is set', () => {
     expect(buildImageProviderOptions('openai', params({ numInferenceSteps: 20 }))).toEqual({})
   })

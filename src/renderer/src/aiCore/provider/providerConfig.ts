@@ -129,6 +129,7 @@ export function providerToAiSdkConfig(
     { match: (_, id) => id === 'google-vertex', build: buildVertexConfig },
     { match: (_, id) => id === 'cherryin', build: buildCherryinConfig },
     { match: (_, id) => id === 'newapi', build: buildNewApiConfig },
+    { match: (p) => p.id === 'aionly', build: buildAionlyConfig },
     { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig }
   ]
 
@@ -379,6 +380,34 @@ function formatNewApiBaseURL(baseURL: string, endpointType?: string): string {
 
 function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
   const baseURL = formatNewApiBaseURL(ctx.baseConfig.baseURL, ctx.model.endpoint_type)
+
+  return {
+    providerId: 'newapi',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      baseURL,
+      endpointType: ctx.model.endpoint_type,
+      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+    }
+  }
+}
+
+/**
+ * `aionly` reuses the `newapi` OpenAI-compatible image model but its images
+ * endpoint lives under a `/openai/v1` path prefix. The legacy painting code
+ * (`providers/newapi/generate.ts` `buildRequestUrls`) computed
+ * `${apiHost.replace(/\/v1$/, '')}/openai/v1/images/{generations,edits}`.
+ *
+ * `ctx.baseConfig.baseURL` here is the already-formatted apiHost (via
+ * `formatProviderApiHost` → `formatApiHost`, which appends `/v1` when absent),
+ * and the `newapi` image model URL builder yields
+ * `withoutTrailingSlash(baseURL) + '/images/{generations,edits}'`. Stripping a
+ * trailing `/v1` then appending `/openai/v1` makes the final URL byte-identical
+ * to the legacy URL for every well-formed apiHost.
+ */
+function buildAionlyConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
+  const baseURL = `${ctx.baseConfig.baseURL.replace(/\/v1$/, '')}/openai/v1`
 
   return {
     providerId: 'newapi',

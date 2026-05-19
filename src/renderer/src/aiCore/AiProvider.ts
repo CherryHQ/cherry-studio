@@ -414,6 +414,11 @@ export default class AiProvider {
   private async modernEditImage(params: EditImageParams, providerConfig: ProviderConfig): Promise<string[]> {
     const { model, prompt, inputImages, mask, imageSize, signal } = params
 
+    // Parity with modernGenerateImage: forward quality/background/moderation via
+    // providerOptions, keyed by the resolved provider id (the providerOptions key
+    // the image model reads). Justified by the unified newapi edit consumer.
+    const providerOptions = buildImageProviderOptions(providerConfig.providerId, params)
+
     const executor = await createExecutor<AppProviderSettingsMap>(
       providerConfig.providerId,
       providerConfig.providerSettings,
@@ -429,6 +434,7 @@ export default class AiProvider {
         ...(mask && { mask }) // 可选的 mask（用于 inpainting）
       },
       size: (imageSize || '1024x1024') as `${number}x${number}`,
+      ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
       ...(signal && { abortSignal: signal })
     })
 

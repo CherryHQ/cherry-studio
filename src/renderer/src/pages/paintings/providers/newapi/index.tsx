@@ -12,6 +12,19 @@ import type { PaintingProvider, PaintingProviderDefinition } from '../types'
 import { DEFAULT_PAINTING, MODELS, SUPPORTED_MODELS } from './config'
 import { newApiFields } from './fields'
 import { generateWithNewApi } from './generate'
+import { generateWithNewApiUnified } from './generateUnified'
+
+/**
+ * Bespoke direct-fetch → AI-SDK-native switch, keyed by painting provider id.
+ *
+ * EMPTY by default: every newapi/cherryin/aionly provider keeps the legacy
+ * bespoke `generateWithNewApi` path, so runtime behavior is unchanged (zero
+ * regression). The unified files-driven path (`generateWithNewApiUnified`) is
+ * wired and type-checked but opt-in — add a provider id here only after manual
+ * verification, and remove it to roll back. Bespoke `generate.ts` stays until
+ * Phase 4.
+ */
+const UNIFIED_NEWAPI_PROVIDERS = new Set<string>([])
 
 export function NewApiHeaderActions({ provider, t }: { provider: PaintingProviderRuntime; t: TFunction }) {
   const Icon = resolveProviderIcon(provider.id)
@@ -83,7 +96,8 @@ export function createNewApiProvider(providerId: string): PaintingProviderDefini
         return i18n.t('paintings.prompt_placeholder_edit')
       }
     },
-    generate: (input) => generateWithNewApi(input)
+    generate: (input) =>
+      UNIFIED_NEWAPI_PROVIDERS.has(providerId) ? generateWithNewApiUnified(input) : generateWithNewApi(input)
   } satisfies PaintingProvider<PaintingData>
 
   return provider
