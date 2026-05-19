@@ -125,7 +125,7 @@ class PpioService {
       const response = await fetch(url, options)
 
       if (!response.ok) {
-        const errorText = await response.text()
+        const errorText = (await response.text().catch(() => '')).slice(0, 500)
         logger.error('PPIO API error', { status: response.status, error: errorText })
         throw new PpioApiError(`PPIO API error: ${response.status} - ${errorText}`, response.status)
       }
