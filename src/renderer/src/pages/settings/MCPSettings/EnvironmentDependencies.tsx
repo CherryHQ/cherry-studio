@@ -41,7 +41,7 @@ interface MiseState {
   tools: Record<string, { name: string; tool: string; version: string; installedAt: string }>
 }
 
-import predefinedToolsData from '../../../../../../resources/data/predefined-tools.json'
+import predefinedToolsData from '@shared/data/predefined-tools.json'
 
 interface PredefinedTool {
   name: string
