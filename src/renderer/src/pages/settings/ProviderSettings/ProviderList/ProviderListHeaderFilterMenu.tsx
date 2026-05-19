@@ -7,6 +7,8 @@ import { useTranslation } from 'react-i18next'
 import type { ProviderFilterMode } from './providerFilterMode'
 
 const FILTER_MENU_OPTIONS: { mode: ProviderFilterMode; labelKey: string }[] = [
+  { mode: 'enabled', labelKey: 'settings.provider.filter.enabled' },
+  { mode: 'disabled', labelKey: 'settings.provider.filter.disabled' },
   { mode: 'all', labelKey: 'settings.provider.filter.all' },
   { mode: 'agent', labelKey: 'settings.provider.filter.agent' }
 ]
@@ -27,8 +29,8 @@ export default function ProviderListHeaderFilterMenu({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button type="button" disabled={disabled} className={providerListClasses.filterTrigger}>
-          <Filter size={9} className={cn(filterMode === 'agent' && 'text-(--color-primary)')} />
+        <button type="button" disabled={disabled} className={providerListClasses.searchRowFilterTrigger}>
+          <Filter size={12} className={cn(filterMode !== 'all' && 'text-(--color-primary)')} />
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className={cn(providerListClasses.itemMenuContent, 'w-40')}>

@@ -89,10 +89,6 @@ describe('pathRegistry.shouldAutoEnsure', () => {
       expect(shouldAutoEnsure('feature.copilot.token_file')).toBe(true)
     })
 
-    it('returns true for the new feature.anthropic.oauth_file key', () => {
-      expect(shouldAutoEnsure('feature.anthropic.oauth_file')).toBe(true)
-    })
-
     it('returns true for the new feature.mcp.memory_file key', () => {
       expect(shouldAutoEnsure('feature.mcp.memory_file')).toBe(true)
     })

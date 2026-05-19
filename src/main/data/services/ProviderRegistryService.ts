@@ -378,16 +378,35 @@ class ProviderRegistryService {
       .find((provider) => provider.id === providerId)
   }
 
-  getProviderDisplayMetadata(providerId: string): ProviderDisplayMetadata {
+  /**
+   * True when `providerId` is a canonical registry preset row (seeded from
+   * providers.json), regardless of its `presetProviderId`. Used to keep
+   * preset rows undeletable even when they declare a grouping preset
+   * different from their own id (e.g. zai → zhipu).
+   */
+  isRegistryProvider(providerId: string): boolean {
     try {
-      const provider = this.findRegistryProvider(providerId)
+      return this.findRegistryProvider(providerId) !== undefined
+    } catch (error) {
+      // Registry unavailable — fall back to the caller's primary guard
+      // rather than throwing inside a delete transaction.
+      logger.warn('Failed to check registry provider', { providerId, error })
+      return false
+    }
+  }
+
+  getProviderDisplayMetadata(providerId: string, presetProviderId?: string): ProviderDisplayMetadata {
+    try {
+      const provider =
+        this.findRegistryProvider(providerId) ??
+        (presetProviderId ? this.findRegistryProvider(presetProviderId) : undefined)
 
       return {
         description: provider?.description,
         websites: provider?.metadata?.website
       }
     } catch (error) {
-      logger.warn('Failed to load provider display metadata', { providerId, error })
+      logger.warn('Failed to load provider display metadata', { providerId, presetProviderId, error })
       return {}
     }
   }

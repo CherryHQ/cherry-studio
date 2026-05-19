@@ -70,7 +70,10 @@ function normalizeApiKeyEntries(apiKeys: ApiKeyEntry[]): ApiKeyEntry[] {
  * Convert database row to Provider entity
  */
 function rowToRuntimeProvider(row: UserProvider): Provider {
-  const presetMetadata = providerRegistryService.getProviderDisplayMetadata(row.presetProviderId ?? row.providerId)
+  const presetMetadata = providerRegistryService.getProviderDisplayMetadata(
+    row.providerId,
+    row.presetProviderId ?? undefined
+  )
 
   // Process API keys (strip actual key values for security)
   // oxlint-disable-next-line no-unused-vars
@@ -566,7 +569,14 @@ class ProviderService {
         throw DataApiErrorFactory.notFound('Provider', providerId)
       }
 
-      if (provider.presetProviderId && provider.presetProviderId === providerId) {
+      // Block deletion of canonical preset rows. `presetProviderId === providerId`
+      // covers presets that group under themselves; the registry check also
+      // covers presets that group under a different preset (e.g. zai → zhipu,
+      // minimax-global → minimax) whose presetProviderId no longer equals their id.
+      if (
+        (provider.presetProviderId && provider.presetProviderId === providerId) ||
+        providerRegistryService.isRegistryProvider(providerId)
+      ) {
         throw DataApiErrorFactory.invalidOperation(`Cannot delete preset provider '${providerId}'`)
       }
 
