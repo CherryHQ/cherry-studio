@@ -41,6 +41,8 @@ interface MiseState {
   tools: Record<string, { name: string; tool: string; version: string; installedAt: string }>
 }
 
+import predefinedToolsData from '../../../../../../resources/data/predefined-tools.json'
+
 interface PredefinedTool {
   name: string
   displayName: string
@@ -49,67 +51,12 @@ interface PredefinedTool {
   descriptionKey: string
   repoUrl: string
   homepage?: string
+  coreDep?: boolean
 }
 
-const PREDEFINED_TOOLS: PredefinedTool[] = [
-  {
-    name: 'uv',
-    displayName: 'uv',
-    tool: 'uv',
-    descriptionKey: 'settings.plugins.uvDescription',
-    repoUrl: 'https://github.com/astral-sh/uv',
-    homepage: 'https://docs.astral.sh/uv/'
-  },
-  {
-    name: 'bun',
-    displayName: 'Bun',
-    tool: 'bun',
-    descriptionKey: 'settings.plugins.bunDescription',
-    repoUrl: 'https://github.com/oven-sh/bun',
-    homepage: 'https://bun.sh'
-  },
-  {
-    name: 'fd',
-    displayName: 'fd',
-    tool: 'github:sharkdp/fd',
-    version: '10.3.0',
-    descriptionKey: 'settings.plugins.fdDescription',
-    repoUrl: 'https://github.com/sharkdp/fd'
-  },
-  {
-    name: 'rg',
-    displayName: 'ripgrep',
-    tool: 'github:BurntSushi/ripgrep',
-    version: '15.1.0',
-    descriptionKey: 'settings.plugins.rgDescription',
-    repoUrl: 'https://github.com/BurntSushi/ripgrep'
-  },
-  {
-    name: 'rtk',
-    displayName: 'RTK',
-    tool: 'github:rtk-ai/rtk',
-    descriptionKey: 'settings.plugins.rtkDescription',
-    repoUrl: 'https://github.com/rtk-ai/rtk',
-    homepage: 'https://www.runtimekit.com'
-  },
-  {
-    name: 'lark-cli',
-    displayName: 'Lark CLI',
-    tool: 'github:larksuite/cli',
-    descriptionKey: 'settings.plugins.larkCliDescription',
-    repoUrl: 'https://github.com/larksuite/cli'
-  },
-  {
-    name: 'gh',
-    displayName: 'GitHub CLI',
-    tool: 'github:cli/cli',
-    descriptionKey: 'settings.plugins.ghDescription',
-    repoUrl: 'https://github.com/cli/cli',
-    homepage: 'https://cli.github.com'
-  }
-]
+const PREDEFINED_TOOLS: PredefinedTool[] = predefinedToolsData
 
-const CORE_DEPS = new Set(['uv', 'bun'])
+const CORE_DEPS = new Set(PREDEFINED_TOOLS.filter((t) => t.coreDep).map((t) => t.name))
 
 const logger = loggerService.withContext('EnvironmentDependencies')
 
