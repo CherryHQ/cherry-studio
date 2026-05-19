@@ -511,6 +511,18 @@
         "disabledTooltip": "This tool is automatically disabled when Autonomous Mode is active",
         "title": "Autonomous Mode"
       },
+      "tool_manager": {
+        "add_tool": "Add Tool",
+        "add_tool_description": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+        "empty": "No tools configured. Add a tool to get started.",
+        "field_name": "Binary name (e.g., fd)",
+        "field_tool": "Mise tool key (e.g., github:sharkdp/fd)",
+        "field_version": "Version (optional, defaults to latest)",
+        "reconcile": "Sync",
+        "remove_confirm_message": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+        "remove_confirm_title": "Remove Tool",
+        "title": "Tool Manager"
+      },
       "tooling": {
         "mcp": {
           "description": "Connect MCP servers to unlock additional tools you can approve above.",

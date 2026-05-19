@@ -22,6 +22,7 @@ import { Route as SettingsScheduledTasksRouteImport } from './routes/settings/sc
 import { Route as SettingsQuickAssistantRouteImport } from './routes/settings/quickAssistant'
 import { Route as SettingsProviderRouteImport } from './routes/settings/provider'
 import { Route as SettingsPromptsRouteImport } from './routes/settings/prompts'
+import { Route as SettingsToolManagerRouteImport } from './routes/settings/tool-manager'
 import { Route as SettingsPluginsRouteImport } from './routes/settings/plugins'
 import { Route as SettingsModelRouteImport } from './routes/settings/model'
 import { Route as SettingsMcpRouteImport } from './routes/settings/mcp'
@@ -120,6 +121,11 @@ const SettingsProviderRoute = SettingsProviderRouteImport.update({
 const SettingsPromptsRoute = SettingsPromptsRouteImport.update({
   id: '/prompts',
   path: '/prompts',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsToolManagerRoute = SettingsToolManagerRouteImport.update({
+  id: '/tool-manager',
+  path: '/tool-manager',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsPluginsRoute = SettingsPluginsRouteImport.update({
@@ -315,6 +321,7 @@ export interface FileRoutesByFullPath {
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/model': typeof SettingsModelRoute
   '/settings/plugins': typeof SettingsPluginsRoute
+  '/settings/tool-manager': typeof SettingsToolManagerRoute
   '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quickAssistant': typeof SettingsQuickAssistantRoute
@@ -361,6 +368,7 @@ export interface FileRoutesByTo {
   '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/model': typeof SettingsModelRoute
   '/settings/plugins': typeof SettingsPluginsRoute
+  '/settings/tool-manager': typeof SettingsToolManagerRoute
   '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quickAssistant': typeof SettingsQuickAssistantRoute
@@ -410,6 +418,7 @@ export interface FileRoutesById {
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/model': typeof SettingsModelRoute
   '/settings/plugins': typeof SettingsPluginsRoute
+  '/settings/tool-manager': typeof SettingsToolManagerRoute
   '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quickAssistant': typeof SettingsQuickAssistantRoute
@@ -682,6 +691,13 @@ declare module '@tanstack/react-router' {
       path: '/plugins'
       fullPath: '/settings/plugins'
       preLoaderRoute: typeof SettingsPluginsRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/tool-manager': {
+      id: '/settings/tool-manager'
+      path: '/tool-manager'
+      fullPath: '/settings/tool-manager'
+      preLoaderRoute: typeof SettingsToolManagerRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/model': {
@@ -985,6 +1001,7 @@ interface SettingsRouteChildren {
   SettingsMcpRoute: typeof SettingsMcpRouteWithChildren
   SettingsModelRoute: typeof SettingsModelRoute
   SettingsPluginsRoute: typeof SettingsPluginsRoute
+  SettingsToolManagerRoute: typeof SettingsToolManagerRoute
   SettingsPromptsRoute: typeof SettingsPromptsRoute
   SettingsProviderRoute: typeof SettingsProviderRoute
   SettingsQuickAssistantRoute: typeof SettingsQuickAssistantRoute
@@ -1008,6 +1025,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsMcpRoute: SettingsMcpRouteWithChildren,
   SettingsModelRoute: SettingsModelRoute,
   SettingsPluginsRoute: SettingsPluginsRoute,
+  SettingsToolManagerRoute: SettingsToolManagerRoute,
   SettingsPromptsRoute: SettingsPromptsRoute,
   SettingsProviderRoute: SettingsProviderRoute,
   SettingsQuickAssistantRoute: SettingsQuickAssistantRoute,

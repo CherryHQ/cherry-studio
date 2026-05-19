@@ -511,6 +511,18 @@
         "disabledTooltip": "當自主模式啟用時，此工具會自動停用",
         "title": "自主模式"
       },
+      "tool_manager": {
+        "add_tool": "[to be translated]:Add Tool",
+        "add_tool_description": "[to be translated]:Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+        "empty": "[to be translated]:No tools configured. Add a tool to get started.",
+        "field_name": "[to be translated]:Binary name (e.g., fd)",
+        "field_tool": "[to be translated]:Mise tool key (e.g., github:sharkdp/fd)",
+        "field_version": "[to be translated]:Version (optional, defaults to latest)",
+        "reconcile": "[to be translated]:Sync",
+        "remove_confirm_message": "[to be translated]:Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+        "remove_confirm_title": "[to be translated]:Remove Tool",
+        "title": "[to be translated]:Tool Manager"
+      },
       "tooling": {
         "mcp": {
           "description": "連線 MCP 伺服器即可解鎖更多可在上方預先授權的工具。",
