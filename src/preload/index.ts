@@ -535,6 +535,14 @@ const api = {
   installUVBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallUvBinary),
   installBunBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallBunBinary),
   installOvmsBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallOvmsBinary),
+  // Mise tool manager
+  mise: {
+    reconcile: () => ipcRenderer.invoke(IpcChannel.Mise_Reconcile),
+    installTool: (tool: { name: string; tool: string; version?: string }) =>
+      ipcRenderer.invoke(IpcChannel.Mise_InstallTool, tool),
+    removeTool: (toolName: string) => ipcRenderer.invoke(IpcChannel.Mise_RemoveTool, toolName),
+    getState: () => ipcRenderer.invoke(IpcChannel.Mise_GetState)
+  },
   protocol: {
     onReceiveData: (callback: (data: { url: string; params: any }) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, data: { url: string; params: any }) => {
