@@ -4,27 +4,13 @@ import { createPaintingGenerateError } from '../../model/paintingGenerateError'
 import { runPainting as runGeneration } from '../../model/paintingGenerationService'
 import type { OpenApiCompatiblePaintingData as PaintingData } from '../../model/types/paintingData'
 import { checkProviderEnabled } from '../../utils/checkProviderEnabled'
+import { readErrorMessage } from '../shared/readErrorMessage'
 import type { GenerateInput } from '../types'
 import { getEditImageFiles } from './editFiles'
 
 type ImageResponseItem = {
   url?: string
   b64_json?: string
-}
-
-async function readErrorMessage(response: Response): Promise<string> {
-  const fallback = `HTTP ${response.status}`
-  const text = await response.text().catch(() => '')
-  if (!text) {
-    return fallback
-  }
-
-  try {
-    const parsed = JSON.parse(text) as { error?: { message?: string }; message?: string }
-    return parsed.error?.message || parsed.message || fallback
-  } catch {
-    return text.slice(0, 300) || fallback
-  }
 }
 
 function buildRequestUrls(provider: GenerateInput['provider']) {

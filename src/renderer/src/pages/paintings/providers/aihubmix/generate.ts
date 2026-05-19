@@ -1,12 +1,12 @@
 import { loggerService } from '@logger'
 import { AiProvider } from '@renderer/aiCore'
 import type { Model } from '@renderer/types'
-import i18next from 'i18next'
 
 import { createPaintingGenerateError } from '../../model/paintingGenerateError'
 import { runPainting } from '../../model/paintingGenerationService'
 import type { AihubmixPaintingData as PaintingData } from '../../model/types/paintingData'
 import { checkProviderEnabled } from '../../utils/checkProviderEnabled'
+import { readErrorMessage } from '../shared/readErrorMessage'
 import type { GenerateInput } from '../types'
 import { getAihubmixUploadedFile } from './imageUpload'
 
@@ -18,21 +18,6 @@ const MODE_TO_CONFIG: Record<AihubmixPaintingMode, string> = {
   generate: 'aihubmix_image_generate',
   remix: 'aihubmix_image_remix',
   upscale: 'aihubmix_image_upscale'
-}
-
-async function readErrorMessage(response: Response, fallbackKey = 'paintings.generate_failed'): Promise<string> {
-  const fallback = i18next.t(fallbackKey)
-  const text = await response.text().catch(() => '')
-  if (!text) {
-    return fallback
-  }
-
-  try {
-    const parsed = JSON.parse(text) as { error?: { message?: string }; message?: string }
-    return parsed.error?.message || parsed.message || fallback
-  } catch {
-    return text.slice(0, 300) || fallback
-  }
 }
 
 export async function generateWithAihubmix(input: GenerateInput) {
@@ -122,7 +107,7 @@ export async function generateWithAihubmix(input: GenerateInput) {
         })
 
         if (!response.ok) {
-          const message = await readErrorMessage(response)
+          const message = await readErrorMessage(response, 'paintings.generate_failed')
           logger.error('Gemini API Error:', { message })
           throw createPaintingGenerateError('REMOTE_ERROR', {
             message
@@ -183,7 +168,7 @@ export async function generateWithAihubmix(input: GenerateInput) {
         })
 
         if (!response.ok) {
-          const message = await readErrorMessage(response)
+          const message = await readErrorMessage(response, 'paintings.generate_failed')
           logger.error('V3 API error:', { message })
           throw createPaintingGenerateError('REMOTE_ERROR', {
             message
@@ -343,7 +328,7 @@ export async function generateWithAihubmix(input: GenerateInput) {
       const response = await fetch(url, { method: 'POST', headers, body, signal: abortController.signal })
 
       if (!response.ok) {
-        const message = await readErrorMessage(response)
+        const message = await readErrorMessage(response, 'paintings.generate_failed')
         logger.error('API error:', { message })
         throw createPaintingGenerateError('REMOTE_ERROR', {
           message
