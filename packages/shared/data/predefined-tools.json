@@ -3,6 +3,7 @@
     "name": "uv",
     "displayName": "uv",
     "tool": "uv",
+    "icon": "simple-icons:uv",
     "descriptionKey": "settings.plugins.uvDescription",
     "repoUrl": "https://github.com/astral-sh/uv",
     "homepage": "https://docs.astral.sh/uv/",
@@ -12,6 +13,7 @@
     "name": "bun",
     "displayName": "Bun",
     "tool": "bun",
+    "icon": "simple-icons:bun",
     "descriptionKey": "settings.plugins.bunDescription",
     "repoUrl": "https://github.com/oven-sh/bun",
     "homepage": "https://bun.sh",
@@ -52,6 +54,7 @@
     "name": "gh",
     "displayName": "GitHub CLI",
     "tool": "github:cli/cli",
+    "icon": "simple-icons:github",
     "descriptionKey": "settings.plugins.ghDescription",
     "repoUrl": "https://github.com/cli/cli",
     "homepage": "https://cli.github.com"
