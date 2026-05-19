@@ -16,8 +16,11 @@ export const paintingTable = sqliteTable(
     mediaType: text('media_type').$type<PaintingMediaType>().notNull(),
     prompt: text().notNull(),
     params: text({ mode: 'json' }).$type<PaintingParams>().notNull(),
-    // Stores current app file ids. When file metadata moves into SQLite, migrate
-    // these arrays to reference the file table primary key instead.
+    // `output`/`input` arrays of file ids. These reference `file_entry.id`;
+    // painting-file lifecycle is tracked via `file_ref` with
+    // `sourceType = 'painting'` (roles `output`/`input`). PaintingService owns
+    // deref-on-delete; ref creation and v1→v2 file-data migration are owned by
+    // a separate in-flight PR (renderer still uses the v1 file system today).
     files: text({ mode: 'json' }).$type<PaintingFiles>().notNull(),
     ...orderKeyColumns,
     ...createUpdateTimestamps
