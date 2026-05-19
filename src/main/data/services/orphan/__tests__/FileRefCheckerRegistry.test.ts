@@ -1,4 +1,5 @@
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import { paintingTable } from '@data/db/schemas/painting'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
@@ -15,8 +16,13 @@ vi.mock('@application', async () => {
 // of which `withContext(name)` produced the logger.
 const mockLoggerWarn = mockMainLoggerService.warn
 
-const { createDefaultOrphanCheckerRegistry, knowledgeItemChecker, orphanCheckerRegistry, tempSessionChecker } =
-  await import('../FileRefCheckerRegistry')
+const {
+  createDefaultOrphanCheckerRegistry,
+  knowledgeItemChecker,
+  orphanCheckerRegistry,
+  paintingChecker,
+  tempSessionChecker
+} = await import('../FileRefCheckerRegistry')
 
 import type { OrphanCheckerRegistry } from '../FileRefCheckerRegistry'
 
@@ -124,6 +130,38 @@ describe('FileRefCheckerRegistry', () => {
       expect(alive.has('ki-bulk-0500')).toBe(true) // second-chunk boundary
       expect(alive.has('ki-bulk-1199')).toBe(true) // last
       expect(alive.has('ki-not-real')).toBe(false)
+    })
+  })
+
+  describe('painting checker', () => {
+    async function seedPainting(id: string) {
+      await dbh.db.insert(paintingTable).values({
+        id,
+        providerId: 'aihubmix',
+        mode: 'generate',
+        mediaType: 'image',
+        prompt: 'p',
+        params: {},
+        files: { output: [], input: [] },
+        orderKey: id
+      })
+    }
+
+    it('returns the subset of painting ids that exist', async () => {
+      await seedPainting('pt-alive-1')
+      await seedPainting('pt-alive-2')
+
+      const alive = await paintingChecker.checkExists(['pt-alive-1', 'pt-alive-2', 'pt-gone'])
+      expect(alive).toEqual(new Set(['pt-alive-1', 'pt-alive-2']))
+    })
+
+    it('returns empty set for an empty input (skips DB round-trip)', async () => {
+      const alive = await paintingChecker.checkExists([])
+      expect(alive.size).toBe(0)
+    })
+
+    it('declares its sourceType', () => {
+      expect(paintingChecker.sourceType).toBe('painting')
     })
   })
 
@@ -250,7 +288,7 @@ describe('FileRefCheckerRegistry', () => {
   describe('createDefaultOrphanCheckerRegistry / orphanCheckerRegistry', () => {
     it('exposes a checker for every FileRefSourceType', () => {
       const registry = createDefaultOrphanCheckerRegistry()
-      const expected = ['temp_session', 'knowledge_item'] as const
+      const expected = ['temp_session', 'knowledge_item', 'painting'] as const
       for (const sourceType of expected) {
         expect(registry[sourceType].sourceType).toBe(sourceType)
         expect(typeof registry[sourceType].checkExists).toBe('function')
@@ -260,6 +298,7 @@ describe('FileRefCheckerRegistry', () => {
     it('singleton wires the same checker instances', () => {
       expect(orphanCheckerRegistry.temp_session).toBe(tempSessionChecker)
       expect(orphanCheckerRegistry.knowledge_item).toBe(knowledgeItemChecker)
+      expect(orphanCheckerRegistry.painting).toBe(paintingChecker)
     })
   })
 
@@ -288,7 +327,8 @@ describe('FileRefCheckerRegistry', () => {
         // @ts-expect-error — knowledgeItemChecker is SourceTypeChecker<'knowledge_item'>,
         // not assignable to slot keyed 'temp_session'
         temp_session: knowledgeItemChecker,
-        knowledge_item: knowledgeItemChecker
+        knowledge_item: knowledgeItemChecker,
+        painting: paintingChecker
       }
       expect(wrongBrand).toBeDefined()
     })
