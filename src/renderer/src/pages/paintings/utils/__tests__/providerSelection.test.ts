@@ -14,6 +14,10 @@ describe('providerSelection', () => {
     it('keeps ovms when it is running', () => {
       expect(getValidPaintingOptions(['zhipu', 'ovms'], true, 'running')).toEqual(['zhipu', 'ovms'])
     })
+
+    it('filters ovms when it is supported but installed and not running', () => {
+      expect(getValidPaintingOptions(['zhipu', 'ovms'], true, 'not-running')).toEqual(['zhipu'])
+    })
   })
 
   describe('resolvePaintingProvider', () => {
@@ -27,6 +31,10 @@ describe('providerSelection', () => {
 
     it('falls back to the first valid option when neither requested nor default is valid', () => {
       expect(resolvePaintingProvider('missing', 'also-missing', ['zhipu', 'aihubmix'])).toBe('zhipu')
+    })
+
+    it('returns undefined when there are no valid options', () => {
+      expect(resolvePaintingProvider('zhipu', 'aihubmix', [])).toBeUndefined()
     })
   })
 })
