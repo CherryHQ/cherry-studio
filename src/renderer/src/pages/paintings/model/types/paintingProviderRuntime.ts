@@ -1,4 +1,5 @@
-import { dataApiService } from '@data/DataApiService'
+import { getRotatedApiKey } from '@renderer/services/ApiService'
+import { getProviderById } from '@renderer/services/ProviderService'
 import { withoutTrailingSlash } from '@renderer/utils/api'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -76,8 +77,8 @@ export function resolvePaintingApiHost(provider?: Provider): string {
 }
 
 export async function getPaintingProviderApiKey(providerId: string): Promise<string> {
-  const response = await dataApiService.get(`/providers/${providerId}/rotated-key` as any)
-  return (response as { apiKey?: string }).apiKey || ''
+  const provider = getProviderById(providerId)
+  return provider ? getRotatedApiKey(provider) : ''
 }
 
 export function createPaintingProviderRuntime(
