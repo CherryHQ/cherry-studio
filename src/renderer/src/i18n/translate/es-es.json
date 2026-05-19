@@ -6245,6 +6245,7 @@
       "rgDescription": "[to be translated]:Fast text search tool (ripgrep), alternative to grep.",
       "rtkDescription": "[to be translated]:RTK binary for command rewriting.",
       "title": "Dependencias del entorno",
+      "update": "[to be translated]:Update to latest version",
       "uvDescription": "Gestor de paquetes Python para servicios MCP e instalación de dependencias."
     },
     "privacy": {

@@ -6245,6 +6245,7 @@
       "rgDescription": "[to be translated]:Fast text search tool (ripgrep), alternative to grep.",
       "rtkDescription": "[to be translated]:RTK binary for command rewriting.",
       "title": "Phần bổ trợ",
+      "update": "[to be translated]:Update to latest version",
       "uvDescription": "Trình quản lý gói Python cho các dịch vụ MCP và cài đặt phụ thuộc."
     },
     "privacy": {

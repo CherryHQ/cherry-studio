@@ -6245,6 +6245,7 @@
       "rgDescription": "[to be translated]:Fast text search tool (ripgrep), alternative to grep.",
       "rtkDescription": "[to be translated]:RTK binary for command rewriting.",
       "title": "Εξαρτήσεις Περιβάλλοντος",
+      "update": "[to be translated]:Update to latest version",
       "uvDescription": "Διαχειριστής πακέτων Python για υπηρεσίες MCP και εγκατάσταση εξαρτήσεων."
     },
     "privacy": {

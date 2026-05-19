@@ -6245,6 +6245,7 @@
       "rgDescription": "[to be translated]:Fast text search tool (ripgrep), alternative to grep.",
       "rtkDescription": "[to be translated]:RTK binary for command rewriting.",
       "title": "環境依賴",
+      "update": "[to be translated]:Update to latest version",
       "uvDescription": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
     },
     "privacy": {

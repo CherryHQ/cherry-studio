@@ -23,6 +23,7 @@ import {
   Loader2,
   PackageCheck,
   Plus,
+  RefreshCw,
   SquareArrowOutUpRight,
   Trash2,
   TriangleAlert
@@ -216,6 +217,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               installedVersion={installed?.version}
               installing={installingTools.has(tool.name)}
               onInstall={() => installTool({ name: tool.name, tool: tool.tool, version: tool.version })}
+              onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
               onOpenPath={openBinariesDir}
             />
           )
@@ -246,6 +248,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
                   installedVersion={installed?.version}
                   installing={installingTools.has(tool.name)}
                   onInstall={() => installTool(tool)}
+                  onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
                   onOpenPath={openBinariesDir}
                   onRemove={() => setDeleteTarget(tool.name)}
                 />
@@ -286,8 +289,9 @@ const PredefinedToolItem: FC<{
   installedVersion?: string
   installing: boolean
   onInstall: () => void
+  onUpdate: () => void
   onOpenPath: () => void
-}> = ({ tool, installed, installedVersion, installing, onInstall, onOpenPath }) => {
+}> = ({ tool, installed, installedVersion, installing, onInstall, onUpdate, onOpenPath }) => {
   const { t } = useTranslation()
 
   return (
@@ -353,9 +357,20 @@ const PredefinedToolItem: FC<{
 
       <div className="mt-0.5 flex shrink-0 items-center gap-2">
         {installed ? (
-          <Badge className="border-transparent bg-success/10 px-1.5 py-0 font-medium text-[11px] text-success leading-4">
-            {t('settings.skills.installed')}
-          </Badge>
+          <>
+            <Badge className="border-transparent bg-success/10 px-1.5 py-0 font-medium text-[11px] text-success leading-4">
+              {t('settings.skills.installed')}
+            </Badge>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-foreground/40 hover:text-foreground"
+              onClick={onUpdate}
+              disabled={installing}
+              title={t('settings.plugins.update')}>
+              {installing ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+            </Button>
+          </>
         ) : (
           <Button
             variant="outline"
@@ -379,9 +394,10 @@ const CustomToolItem: FC<{
   installedVersion?: string
   installing: boolean
   onInstall: () => void
+  onUpdate: () => void
   onOpenPath: () => void
   onRemove: () => void
-}> = ({ tool, installed, installedVersion, installing, onInstall, onOpenPath, onRemove }) => {
+}> = ({ tool, installed, installedVersion, installing, onInstall, onUpdate, onOpenPath, onRemove }) => {
   const { t } = useTranslation()
 
   const repoUrl = tool.tool.startsWith('github:') ? `https://github.com/${tool.tool.slice(7)}` : null
@@ -433,9 +449,20 @@ const CustomToolItem: FC<{
 
       <div className="flex shrink-0 items-center gap-2">
         {installed ? (
-          <Badge className="border-transparent bg-success/10 px-1.5 py-0 font-medium text-[11px] text-success leading-4">
-            {t('settings.skills.installed')}
-          </Badge>
+          <>
+            <Badge className="border-transparent bg-success/10 px-1.5 py-0 font-medium text-[11px] text-success leading-4">
+              {t('settings.skills.installed')}
+            </Badge>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-foreground/40 hover:text-foreground"
+              onClick={onUpdate}
+              disabled={installing}
+              title={t('settings.plugins.update')}>
+              {installing ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+            </Button>
+          </>
         ) : (
           <Button
             variant="outline"

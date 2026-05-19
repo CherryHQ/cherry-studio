@@ -6245,6 +6245,7 @@
       "rgDescription": "快速文本搜索工具 (ripgrep)，grep 的替代品。",
       "rtkDescription": "RTK 命令重写工具。",
       "title": "环境依赖",
+      "update": "更新到最新版本",
       "uvDescription": "用于 MCP 服务与依赖安装的 Python 包管理工具。"
     },
     "privacy": {

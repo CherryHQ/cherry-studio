@@ -6245,6 +6245,7 @@
       "rgDescription": "[to be translated]:Fast text search tool (ripgrep), alternative to grep.",
       "rtkDescription": "[to be translated]:RTK binary for command rewriting.",
       "title": "Dependențe de mediu",
+      "update": "[to be translated]:Update to latest version",
       "uvDescription": "Manager de pachete Python pentru serviciile MCP și instalarea dependențelor."
     },
     "privacy": {

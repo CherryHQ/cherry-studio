@@ -6245,6 +6245,7 @@
       "rgDescription": "Fast text search tool (ripgrep), alternative to grep.",
       "rtkDescription": "RTK binary for command rewriting.",
       "title": "Dependencies",
+      "update": "Update to latest version",
       "uvDescription": "Python package manager for MCP services and dependency installation."
     },
     "privacy": {
