@@ -79,6 +79,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
                 size="icon-sm"
                 variant="outline"
                 onClick={onPrevImage}
+                aria-label={t('preview.previous')}
                 className="-translate-y-1/2 absolute top-1/2 left-2.5 z-20 opacity-80 hover:opacity-100">
                 ←
               </Button>
@@ -94,6 +95,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
                 size="icon-sm"
                 variant="outline"
                 onClick={onNextImage}
+                aria-label={t('preview.next')}
                 className="-translate-y-1/2 absolute top-1/2 right-2.5 z-20 opacity-80 hover:opacity-100">
                 →
               </Button>
