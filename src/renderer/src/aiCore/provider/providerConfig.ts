@@ -1,5 +1,4 @@
 import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystudio/ai-core/provider'
-import { DEFAULT_PPIO_BASE_URL, DEFAULT_TOKENFLUX_BASE_URL } from '@cherrystudio/ai-sdk-provider'
 import type { AppProviderId, AppProviderSettingsMap } from '@renderer/aiCore/types'
 import {
   getAwsBedrockAccessKeyId,
@@ -35,6 +34,8 @@ import { cloneDeep, isEmpty } from 'lodash'
 
 import type { ProviderConfig } from '../types'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
+import { DEFAULT_PPIO_BASE_URL } from './custom/pollingTransports/ppio'
+import { DEFAULT_TOKENFLUX_BASE_URL } from './custom/pollingTransports/tokenflux'
 import { getAiSdkProviderId } from './factory'
 
 // === Types ===

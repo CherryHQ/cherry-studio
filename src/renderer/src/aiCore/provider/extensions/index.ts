@@ -15,12 +15,6 @@ import { createMistral, type MistralProviderSettings } from '@ai-sdk/mistral'
 import { createPerplexity, type PerplexityProviderSettings } from '@ai-sdk/perplexity'
 import type { ProviderV3 } from '@ai-sdk/provider'
 import { createTogetherAI, type TogetherAIProviderSettings } from '@ai-sdk/togetherai'
-import {
-  createPpioImageProvider,
-  type PpioImageProviderSettings,
-  createTokenFluxImageProvider,
-  type TokenFluxImageProviderSettings
-} from '@cherrystudio/ai-sdk-provider'
 import { ProviderExtension, type ProviderExtensionConfig } from '@cherrystudio/ai-core/provider'
 import {
   createGitHubCopilotOpenAICompatible,
@@ -33,6 +27,8 @@ import { createVoyage, type VoyageProviderSettings } from 'voyage-ai-provider'
 
 import { type AihubmixProviderSettings, createAihubmix } from '../custom/aihubmix-provider'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapi-provider'
+import { createPpioImageProvider, type PpioImageProviderSettings } from '../custom/ppio-image-provider'
+import { createTokenFluxImageProvider, type TokenFluxImageProviderSettings } from '../custom/tokenflux-image-provider'
 
 /**
  * Google Vertex AI Extension
