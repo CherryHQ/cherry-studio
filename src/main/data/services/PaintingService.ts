@@ -137,7 +137,7 @@ class PaintingService {
             }
           )
         ),
-      defaultHandlersFor('Painting', dto.id)
+      defaultHandlersFor('Painting', dto.id ?? '')
     )
 
     logger.info('Created painting', {
