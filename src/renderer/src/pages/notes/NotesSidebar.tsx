@@ -337,7 +337,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
           <NotesDragContext value={dragValue}>
             <NotesSearchContext value={searchValue}>
               <div
-                className="relative isolate flex h-full min-h-0 w-[250px] min-w-[250px] flex-col rounded-tl-[10px] border-border border-r bg-background"
+                className="relative isolate flex h-full min-h-0 w-62.5 min-w-62.5 flex-col rounded-tl-lg border-border border-r bg-background"
                 onDragOver={(e) => {
                   e.preventDefault()
                   if (!draggedNodeId) {
@@ -370,7 +370,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                       <span>{t('notes.search.searching')}</span>
                       <button
                         type="button"
-                        className="ml-auto flex size-5 cursor-pointer items-center justify-center rounded-[3px] border-0 bg-transparent p-0 text-muted-foreground transition-all duration-200 hover:bg-accent hover:text-foreground active:bg-accent"
+                        className="ml-auto flex size-5 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 text-muted-foreground transition-all duration-200 hover:bg-accent hover:text-foreground active:bg-accent"
                         onClick={cancel}
                         title={t('common.cancel')}>
                         <X size={14} />
@@ -404,7 +404,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                     <ContextMenuContent>{renderEmptyAreaMenuItems()}</ContextMenuContent>
                   </ContextMenu>
                   {!isShowStarred && !isShowSearch && (
-                    <div style={{ padding: '0 8px', marginTop: '6px', marginBottom: '12px' }}>
+                    <div className="mt-1.5 mb-3 px-2">
                       <TreeNode
                         node={{
                           id: 'hint-node',
@@ -424,7 +424,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                 </div>
 
                 {isDragOverSidebar && (
-                  <div className="pointer-events-none absolute inset-0 rounded border-2 border-blue-500/60 border-dashed bg-blue-500/10" />
+                  <div className="pointer-events-none absolute inset-0 rounded border-primary border-2 border-dashed bg-primary/10" />
                 )}
               </div>
             </NotesSearchContext>

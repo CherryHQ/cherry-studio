@@ -150,7 +150,7 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
     if (item.children) {
       return (
         <div key={item.key} className="space-y-1">
-          <div className="flex items-center gap-2.5 px-2.5 py-1 font-medium text-[11px] text-muted-foreground">
+          <div className="flex items-center gap-2.5 px-2.5 py-1 font-medium text-muted-foreground text-xs">
             {IconComponent && <IconComponent size={14} />}
             <span>{t(item.labelKey)}</span>
           </div>
@@ -214,32 +214,26 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
   }, [activeNode, notesTree])
 
   return (
-    <NavbarHeader
-      className="home-navbar"
-      style={{ justifyContent: 'flex-start', borderBottom: '0.5px solid var(--color-border)', flexShrink: 0 }}>
+    <NavbarHeader className="home-navbar shrink-0 justify-start [border-bottom:0.5px_solid_var(--color-border)]">
       <RowFlex className="flex-[0_0_auto] items-center">
         {showWorkspace && (
           <Tooltip title={t('navbar.hide_sidebar')} delay={800}>
-            <BaseNavbarIcon
-              className="[&_svg]:size-[18px] [&_svg]:text-[var(--color-icon)]"
-              onClick={handleToggleShowWorkspace}>
+            <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-icon" onClick={handleToggleShowWorkspace}>
               <PanelLeftClose size={18} />
             </BaseNavbarIcon>
           </Tooltip>
         )}
         {!showWorkspace && (
           <Tooltip title={t('navbar.show_sidebar')} delay={800} placement="right">
-            <BaseNavbarIcon
-              className="[&_svg]:size-[18px] [&_svg]:text-[var(--color-icon)]"
-              onClick={handleToggleShowWorkspace}>
+            <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-icon" onClick={handleToggleShowWorkspace}>
               <PanelRightClose size={18} />
             </BaseNavbarIcon>
           </Tooltip>
         )}
       </RowFlex>
-      <NavbarCenter style={{ flex: 1, minWidth: 0 }}>
+      <NavbarCenter className="min-w-0 flex-1">
         <div className="w-full overflow-hidden">
-          <Breadcrumb className="[&_[data-slot=breadcrumb-item]:last-child]:min-w-0 [&_[data-slot=breadcrumb-item]:last-child]:flex-1 [&_[data-slot=breadcrumb-list]]:flex-nowrap [&_[data-slot=breadcrumb-list]]:overflow-hidden [&_[data-slot=breadcrumb-list]]:whitespace-nowrap">
+          <Breadcrumb className="**:data-[slot=breadcrumb-list]:flex-nowrap **:data-[slot=breadcrumb-list]:overflow-hidden **:data-[slot=breadcrumb-list]:whitespace-nowrap [&_[data-slot=breadcrumb-item]:last-child]:min-w-0 [&_[data-slot=breadcrumb-item]:last-child]:flex-1">
             <BreadcrumbList className="flex-nowrap gap-0 overflow-hidden">
               {breadcrumbItems.map((item, index) => {
                 const isLastItem = index === breadcrumbItems.length - 1
@@ -262,7 +256,7 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
                       ) : (
                         <span
                           className={cn(
-                            'inline-block min-w-0 max-w-[150px] shrink overflow-hidden text-ellipsis whitespace-nowrap',
+                            'inline-block min-w-0 max-w-37.5 shrink overflow-hidden text-ellipsis whitespace-nowrap',
                             item.isFolder && !isLastItem && 'cursor-pointer hover:text-primary hover:underline'
                           )}
                           onClick={() => handleBreadcrumbClick(item)}>
@@ -282,14 +276,14 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
           </Breadcrumb>
         </div>
       </NavbarCenter>
-      <NavbarRight style={{ paddingRight: 0 }}>
+      <NavbarRight className="pr-0">
         {canShowStarButton && (
           <Tooltip title={activeNode.isStarred ? t('notes.unstar') : t('notes.star')} delay={800}>
             <div
-              className="flex h-[30px] cursor-pointer flex-row items-center justify-center rounded-lg px-[7px] transition-all duration-200 ease-in-out [-webkit-app-region:none] hover:bg-muted [&_svg]:text-[var(--color-icon)]"
+              className="flex h-7.5 cursor-pointer flex-row items-center justify-center rounded-lg px-1.75 transition-all duration-200 ease-in-out [-webkit-app-region:none] hover:bg-muted [&_svg]:text-icon"
               onClick={handleToggleStarred}>
               {activeNode.isStarred ? (
-                <Star size={18} fill="var(--color-status-warning)" stroke="var(--color-status-warning)" />
+                <Star size={18} fill="var(--color-warning-base)" stroke="var(--color-warning-base)" />
               ) : (
                 <Star size={18} />
               )}
@@ -300,7 +294,7 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
           <PopoverTrigger asChild>
             <div>
               <Tooltip title={t('notes.settings.title')} delay={800}>
-                <BaseNavbarIcon className="[&_svg]:size-[18px] [&_svg]:text-[var(--color-icon)]">
+                <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-icon">
                   <MoreHorizontal size={18} />
                 </BaseNavbarIcon>
               </Tooltip>

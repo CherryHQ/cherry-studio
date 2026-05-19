@@ -174,7 +174,7 @@ const NotesSettings: FC = () => {
               max={30}
               value={[settings.fontSize]}
               onValueChange={(value) => updateSettings({ fontSize: value[0] ?? settings.fontSize })}
-              className="mr-4 w-[200px]"
+              className="mr-4 w-50"
             />
             <span className="min-w-10 text-muted-foreground text-sm">{settings.fontSize}px</span>
           </div>

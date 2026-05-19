@@ -68,9 +68,9 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
   const isDragAfter = isDragOver && dragPosition === 'after'
 
   const nodeContainerClassName = cn(
-    'relative mb-0.5 flex cursor-pointer items-center justify-between rounded border px-1.5 py-1 transition-all duration-200',
+    'relative mb-0.5 flex cursor-pointer items-center justify-between rounded-sm border px-1.5 py-1 transition-all duration-200',
     isDragInside
-      ? 'border-primary bg-[var(--color-primary-background)]'
+      ? 'border-primary bg-accent'
       : isActive
         ? 'border-border bg-muted'
         : 'border-transparent bg-background',
@@ -119,7 +119,7 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
   if (isHintNode) {
     return (
       <div key={node.id}>
-        <div className="relative mb-0.5 flex cursor-pointer items-center justify-between rounded border border-transparent bg-background px-1.5 py-1 transition-all duration-200 hover:bg-muted">
+        <div className="relative mb-0.5 flex cursor-pointer items-center justify-between rounded-sm border border-transparent bg-background px-1.5 py-1 transition-all duration-200 hover:bg-muted">
           <div className="flex min-w-0 flex-1 items-center">
             <div className="mr-2 flex shrink-0 items-center justify-center text-muted-foreground">
               <FilePlus size={16} />
@@ -177,17 +177,12 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
                 </div>
 
                 {isEditing ? (
-                  <input
-                    className="flex-1 text-[13px]"
-                    {...inputProps}
-                    onClick={(e) => e.stopPropagation()}
-                    autoFocus
-                  />
+                  <input className="flex-1 text-sm" {...inputProps} onClick={(e) => e.stopPropagation()} autoFocus />
                 ) : (
                   <div className="flex min-w-0 flex-1 items-center gap-1.5">
                     <div
                       className={cn(
-                        'relative flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] text-foreground will-change-[background-position,width]',
+                        'relative flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-foreground text-sm will-change-[background-position,width]',
                         getNodeNameClassName()
                       )}>
                       {searchKeyword ? <HighlightText text={displayName} keyword={searchKeyword} /> : node.name}
@@ -195,9 +190,9 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
                     {searchResult && searchResult.matchType && searchResult.matchType !== 'filename' && (
                       <span
                         className={cn(
-                          'inline-flex h-4 shrink-0 items-center rounded px-1 font-medium text-[10px] leading-none',
+                          'inline-flex h-4 shrink-0 items-center rounded-xs px-1 font-medium text-xs leading-none',
                           searchResult.matchType === 'both'
-                            ? 'bg-primary/10 text-primary'
+                            ? 'bg-secondary text-secondary-foreground'
                             : 'bg-muted text-muted-foreground'
                         )}>
                         {searchResult.matchType === 'both' ? t('notes.search.both') : t('notes.search.content')}
@@ -214,14 +209,14 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
 
       {showMatches && hasMatches && (
         <div
-          className="mt-1 mb-2 rounded border-primary/40 border-l-2 bg-muted px-2 py-1.5"
+          className="mt-1 mb-2 rounded-sm border-info-base border-l-2 bg-info-bg px-2 py-1.5"
           style={{ marginLeft: depth * 16 + 40 }}>
           {(showAllMatches ? searchResult.matches! : searchResult.matches!.slice(0, 3)).map((match, idx) => (
             <div
               key={idx}
-              className="-mx-1.5 mb-1 flex cursor-pointer gap-2 rounded-[3px] px-1.5 py-1 text-xs transition-all duration-150 last:mb-0 hover:translate-x-0.5 hover:bg-background active:bg-accent"
+              className="-mx-1.5 mb-1 flex cursor-pointer gap-2 rounded-sm px-1.5 py-1 text-xs transition-all duration-150 last:mb-0 hover:translate-x-0.5 hover:bg-background active:bg-accent"
               onClick={() => handleMatchClick(match)}>
-              <span className="w-[30px] shrink-0 font-mono text-muted-foreground">{match.lineNumber}</span>
+              <span className="w-7.5 shrink-0 font-mono text-muted-foreground">{match.lineNumber}</span>
               <div className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-muted-foreground">
                 <HighlightText text={match.context} keyword={searchKeyword} />
               </div>
@@ -229,19 +224,19 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
           ))}
           {searchResult.matches!.length > 3 && (
             <div
-              className="-mx-1.5 mt-1 flex cursor-pointer items-center rounded-[3px] px-1.5 py-1 text-[11px] text-muted-foreground transition-all duration-150 hover:bg-background hover:text-foreground"
+              className="-mx-1.5 mt-1 flex cursor-pointer items-center rounded-sm px-1.5 py-1 text-muted-foreground text-xs transition-all duration-150 hover:bg-background hover:text-foreground"
               onClick={(e) => {
                 e.stopPropagation()
                 setShowAllMatches(!showAllMatches)
               }}>
               {showAllMatches ? (
                 <>
-                  <ChevronDown size={12} style={{ marginRight: 4 }} />
+                  <ChevronDown size={12} className="mr-1" />
                   {t('notes.search.show_less')}
                 </>
               ) : (
                 <>
-                  <ChevronRight size={12} style={{ marginRight: 4 }} />+{searchResult.matches!.length - 3}{' '}
+                  <ChevronRight size={12} className="mr-1" />+{searchResult.matches!.length - 3}{' '}
                   {t('notes.search.more_matches')}
                 </>
               )}
