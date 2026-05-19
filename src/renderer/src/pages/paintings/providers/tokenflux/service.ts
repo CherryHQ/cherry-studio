@@ -90,6 +90,13 @@ export class TokenFluxService {
       throw createPaintingGenerateError('REMOTE_ERROR', { message: 'Failed to fetch models' })
     }
 
+    // Host is constant; drop entries for rotated keys so they don't linger forever.
+    for (const existingKey of modelsCache.keys()) {
+      if (existingKey !== cacheKey) {
+        modelsCache.delete(existingKey)
+      }
+    }
+
     modelsCache.set(cacheKey, {
       expiresAt: Date.now() + TOKENFLUX_MODELS_CACHE_TTL_MS,
       models: data.data
