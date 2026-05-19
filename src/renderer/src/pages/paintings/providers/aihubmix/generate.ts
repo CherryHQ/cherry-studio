@@ -185,14 +185,14 @@ export async function generateWithAihubmix(input: GenerateInput) {
         return
       } else {
         let requestData: any = {}
-        if (painting.model === 'gpt-image-1') {
+        if (painting.model === 'gpt-image-1' || painting.model === 'gpt-image-2') {
           requestData = {
             prompt,
             model: painting.model,
             size: painting.size === 'auto' ? undefined : painting.size,
             n: painting.n,
             quality: painting.quality,
-            moderation: painting.moderation
+            moderation: painting.model === 'gpt-image-1' ? painting.moderation : undefined
           }
           url = provider.apiHost + `/v1/images/generations`
           headers = {
