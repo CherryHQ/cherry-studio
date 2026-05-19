@@ -1,3 +1,4 @@
+import { fileEntryTable } from '@data/db/schemas/file'
 import { paintingTable } from '@data/db/schemas/painting'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -5,8 +6,9 @@ import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { fileRefService } from '../FileRefService'
 import { paintingService } from '../PaintingService'
 
 describe('PaintingService', () => {
@@ -181,5 +183,74 @@ describe('PaintingService', () => {
 
     const rows = await dbh.db.select().from(paintingTable).orderBy(asc(paintingTable.orderKey))
     expect(rows.map((row) => row.id)).toEqual([third.id, first.id, second.id])
+  })
+
+  describe('delete', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    async function seedFileEntry(id: string) {
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values({
+        id,
+        origin: 'internal',
+        name: 'n',
+        ext: 'png',
+        size: 1,
+        externalPath: null,
+        trashedAt: null,
+        createdAt: now,
+        updatedAt: now
+      })
+    }
+
+    async function paintingExists(id: string) {
+      const rows = await dbh.db.select().from(paintingTable).where(eq(paintingTable.id, id))
+      return rows.length === 1
+    }
+
+    it('removes the painting row and its file refs in one go', async () => {
+      const fileEntryId = '11111111-1111-4111-8111-111111111111'
+      const painting = await paintingService.create(p({ providerId: 'aihubmix', mode: 'generate', prompt: 'd1' }))
+      await seedFileEntry(fileEntryId)
+      await fileRefService.createMany([
+        { fileEntryId, sourceType: 'painting', sourceId: painting.id, role: 'output' },
+        { fileEntryId, sourceType: 'painting', sourceId: painting.id, role: 'input' }
+      ])
+
+      await paintingService.delete(painting.id)
+
+      expect(await paintingExists(painting.id)).toBe(false)
+      expect(await fileRefService.findBySource({ sourceType: 'painting', sourceId: painting.id })).toEqual([])
+    })
+
+    it('rolls back the painting delete if ref cleanup fails (single atomic boundary)', async () => {
+      const fileEntryId = '22222222-2222-4222-8222-222222222222'
+      const painting = await paintingService.create(p({ providerId: 'aihubmix', mode: 'generate', prompt: 'd2' }))
+      await seedFileEntry(fileEntryId)
+      await fileRefService.createMany([
+        { fileEntryId, sourceType: 'painting', sourceId: painting.id, role: 'output' }
+      ])
+
+      const spy = vi
+        .spyOn(fileRefService, 'cleanupBySourceTx')
+        .mockRejectedValue(new Error('synthetic ref-cleanup failure'))
+
+      await expect(paintingService.delete(painting.id)).rejects.toThrow()
+
+      expect(spy).toHaveBeenCalled()
+      // Both writes share one transaction: the painting row must survive and
+      // its refs must be untouched when the deref step throws.
+      expect(await paintingExists(painting.id)).toBe(true)
+      expect(await fileRefService.findBySource({ sourceType: 'painting', sourceId: painting.id })).toHaveLength(1)
+    })
+
+    it('succeeds when the painting has no file refs (today’s real path)', async () => {
+      const painting = await paintingService.create(p({ providerId: 'aihubmix', mode: 'generate', prompt: 'd3' }))
+
+      await expect(paintingService.delete(painting.id)).resolves.toBeUndefined()
+      expect(await paintingExists(painting.id)).toBe(false)
+    })
   })
 })

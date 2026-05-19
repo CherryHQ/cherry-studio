@@ -23,6 +23,7 @@ import type { Painting } from '@shared/data/types/painting'
 import type { SQL } from 'drizzle-orm'
 import { and, asc, desc, eq, sql } from 'drizzle-orm'
 
+import { fileRefService } from './FileRefService'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { timestampToISO } from './utils/rowMappers'
 
@@ -188,7 +189,17 @@ class PaintingService {
   async delete(id: string): Promise<void> {
     const db = application.get('DbService').getDb()
     await this.getById(id)
-    await db.delete(paintingTable).where(eq(paintingTable.id, id))
+    // Delete the painting row and its file refs in one atomic boundary. Ref
+    // rows are written by the separate v1→v2 file-data-migration PR, so this
+    // deref is a no-op until that lands — but the lifecycle hook must exist now.
+    await withSqliteErrors(
+      () =>
+        db.transaction(async (tx) => {
+          await tx.delete(paintingTable).where(eq(paintingTable.id, id))
+          await fileRefService.cleanupBySourceTx(tx, { sourceType: 'painting', sourceId: id })
+        }),
+      defaultHandlersFor('Painting', id)
+    )
     logger.info('Deleted painting', { id })
   }
 
