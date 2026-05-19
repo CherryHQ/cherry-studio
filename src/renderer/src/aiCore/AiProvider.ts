@@ -14,9 +14,10 @@ import AiSdkToChunkAdapter from './chunk/AiSdkToChunkAdapter'
 import { buildPlugins } from './plugins/PluginBuilder'
 import { adaptProvider, getActualProvider, providerToAiSdkConfig } from './provider/providerConfig'
 import { listModels } from './services/listModels'
-import { buildImageProviderOptions } from './utils/imageOptions'
 import type { AppProviderSettingsMap, CompletionsResult, ProviderConfig } from './types'
 import type { AiSdkMiddlewareConfig } from './types/middlewareConfig'
+import { type ClassifiedImage, classifyImageOutput, passthroughImageDownload } from './utils/imageDownload'
+import { buildImageProviderOptions } from './utils/imageOptions'
 
 const logger = loggerService.withContext('AiProvider')
 
@@ -34,7 +35,7 @@ function mergeExtraProviderOptions(
   if (!extra) return base
   const merged: Record<string, Record<string, unknown>> = { ...base }
   for (const [providerKey, values] of Object.entries(extra)) {
-    merged[providerKey] = { ...(merged[providerKey] ?? {}), ...values }
+    merged[providerKey] = { ...merged[providerKey], ...values }
   }
   return merged
 }
@@ -385,6 +386,22 @@ export default class AiProvider {
   }
 
   /**
+   * Painting-oriented image generation (R1 shared infra).
+   *
+   * Unlike {@link generateImage} (which flattens everything to base64 via
+   * {@link convertImageResult} and lets the patched SDK download URLs through
+   * a renderer `fetch`), this passes a pass-through download so URL-returning
+   * models keep their URLs. The classified result lets each painting
+   * `generateUnified` hand URLs back to the main-process, proxy-aware
+   * `downloadImages` (with `showProxyWarning` / `allowBase64DataUrls` /
+   * per-URL partial success) exactly like the bespoke painting path.
+   */
+  public async generatePaintingImage(params: GenerateImageParams): Promise<ClassifiedImage[]> {
+    await this.ensureConfig(params.model)
+    return await this.modernGeneratePaintingImage(params, this.config!)
+  }
+
+  /**
    * 编辑图像 - 基于输入图像和文本提示生成新图像
    * 内部使用 AI SDK 的 generateImage，通过 prompt.images 参数实现编辑功能
    */
@@ -432,6 +449,55 @@ export default class AiProvider {
     })
 
     return this.convertImageResult(result)
+  }
+
+  /**
+   * Painting variant of {@link modernGenerateImage}: identical request
+   * construction, but injects {@link passthroughImageDownload} so the patched
+   * SDK does NOT fetch URL results, then classifies each returned value into
+   * a URL (hand to the painting downloader) or raw base64.
+   */
+  private async modernGeneratePaintingImage(
+    params: GenerateImageParams,
+    providerConfig: ProviderConfig
+  ): Promise<ClassifiedImage[]> {
+    const { model, prompt, imageSize, batchSize, signal } = params
+
+    const providerOptions = mergeExtraProviderOptions(
+      buildImageProviderOptions(providerConfig.providerId, params),
+      params.providerOptions
+    )
+
+    const aiSdkParams = {
+      prompt,
+      size: (imageSize || '1024x1024') as `${number}x${number}`,
+      n: batchSize || 1,
+      experimental_download: passthroughImageDownload,
+      ...(Object.keys(providerOptions).length > 0 && {
+        providerOptions: providerOptions as Record<string, Record<string, JSONValue>>
+      }),
+      ...(signal && { abortSignal: signal })
+    }
+
+    const executor = await createExecutor<AppProviderSettingsMap>(
+      providerConfig.providerId,
+      providerConfig.providerSettings,
+      []
+    )
+    const result = await executor.generateImage({
+      model: model,
+      ...aiSdkParams
+    })
+
+    const out: ClassifiedImage[] = []
+    if (result.images) {
+      for (const image of result.images) {
+        if (image.base64) {
+          out.push(classifyImageOutput(image.base64))
+        }
+      }
+    }
+    return out
   }
 
   /**
@@ -483,7 +549,11 @@ export default class AiProvider {
     if (result.images) {
       for (const image of result.images) {
         if (image.base64) {
-          images.push(`data:${image.mediaType || 'image/png'};base64,${image.base64}`)
+          // Defensive: some transports already return a `data:<mt>;base64,…`
+          // string; strip it so we don't emit a double-prefixed (corrupt)
+          // data URL.
+          const base64 = image.base64.replace(/^data:[^;,]*;base64,/, '')
+          images.push(`data:${image.mediaType || 'image/png'};base64,${base64}`)
         }
       }
     }

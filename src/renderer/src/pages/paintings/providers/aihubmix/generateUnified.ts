@@ -169,7 +169,7 @@ export async function generateWithAihubmixUnified(input: GenerateInput) {
       }
     }
 
-    const images = await aiProvider.generateImage({
+    const out = await aiProvider.generatePaintingImage({
       model: modelId,
       prompt,
       imageSize,
@@ -178,8 +178,16 @@ export async function generateWithAihubmixUnified(input: GenerateInput) {
       signal: abortController.signal
     })
 
-    if (images.length > 0) {
-      return { base64s: images }
+    // Ideogram (V_1/V_2/V_3) returns proxied URLs — download them through the
+    // main-process downloader with the bespoke proxy hint; gpt-image / FLUX /
+    // imagen come back as base64.
+    const urls = out.flatMap((o) => (o.type === 'url' ? [o.url] : []))
+    if (urls.length > 0) {
+      return { urls, downloadOptions: { showProxyWarning: true } }
+    }
+    const base64s = out.flatMap((o) => (o.type === 'base64' ? [o.base64] : []))
+    if (base64s.length > 0) {
+      return { base64s }
     }
 
     return undefined

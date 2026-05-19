@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const generateImageMock = vi.fn()
+const generatePaintingImageMock = vi.fn()
 
 vi.mock('@renderer/aiCore', () => ({
-  AiProvider: vi.fn().mockImplementation(() => ({ generateImage: generateImageMock }))
+  AiProvider: vi.fn().mockImplementation(() => ({ generatePaintingImage: generatePaintingImageMock }))
 }))
 
 vi.mock('../../../utils/checkProviderEnabled', () => ({
@@ -31,18 +31,18 @@ import { generateWithAihubmixUnified } from '../generateUnified'
  */
 describe('generateWithAihubmixUnified param parity', () => {
   afterEach(() => {
-    generateImageMock.mockReset()
+    generatePaintingImageMock.mockReset()
   })
 
   const run = async (painting: Record<string, unknown>, tab = 'generate') => {
-    generateImageMock.mockResolvedValue(['data:image/png;base64,AAA'])
+    generatePaintingImageMock.mockResolvedValue([{ type: 'base64', base64: 'AAA' }])
     await generateWithAihubmixUnified({
       painting: { prompt: 'a fox', ...painting } as never,
       provider: { id: 'aihubmix', name: 'AiHubMix', apiHost: 'https://aihubmix.com', isEnabled: true } as never,
       tab,
       abortController: new AbortController()
     } as never)
-    return generateImageMock.mock.calls[0][0] as {
+    return generatePaintingImageMock.mock.calls[0][0] as {
       model: string
       imageSize: string
       batchSize: number
@@ -93,5 +93,27 @@ describe('generateWithAihubmixUnified param parity', () => {
     expect(args.imageSize).toBe('1536x1024')
     expect(args.batchSize).toBe(1)
     expect(args.providerOptions.aihubmix.safety_tolerance).toBeUndefined()
+  })
+
+  // R1: URL results (Ideogram) go back to the main-process downloader with
+  // the proxy hint; base64 results (gpt-image) take the base64 branch.
+  const runResult = async (painting: Record<string, unknown>, classified: unknown[]) => {
+    generatePaintingImageMock.mockResolvedValue(classified)
+    return generateWithAihubmixUnified({
+      painting: { prompt: 'a fox', ...painting } as never,
+      provider: { id: 'aihubmix', name: 'AiHubMix', apiHost: 'https://aihubmix.com', isEnabled: true } as never,
+      tab: 'generate',
+      abortController: new AbortController()
+    } as never)
+  }
+
+  it('returns { urls, downloadOptions.showProxyWarning } for URL outputs', async () => {
+    const result = await runResult({ model: 'V_3' }, [{ type: 'url', url: 'https://img/a.png' }])
+    expect(result).toEqual({ urls: ['https://img/a.png'], downloadOptions: { showProxyWarning: true } })
+  })
+
+  it('returns { base64s } for base64 outputs', async () => {
+    const result = await runResult({ model: 'gpt-image-1' }, [{ type: 'base64', base64: 'QUJD' }])
+    expect(result).toEqual({ base64s: ['QUJD'] })
   })
 })
