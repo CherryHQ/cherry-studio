@@ -89,11 +89,10 @@ export function usePaintingList({
         paintingDataToCreateDto(nextPainting as PaintingData & { providerId: string; mode: PaintingMode })
       )
       setCurrentPainting(await recordToPaintingData(createdRecord))
-      await refresh()
     } catch (error) {
       presentPaintingGenerateError(error)
     }
-  }, [createPainting, currentProviderDefinition, refresh, setCurrentPainting])
+  }, [createPainting, currentProviderDefinition, setCurrentPainting])
 
   const selectNextAfterDelete = useCallback(
     async (deletedId: string) => {
