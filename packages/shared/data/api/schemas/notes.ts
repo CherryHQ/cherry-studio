@@ -1,6 +1,6 @@
 import * as z from 'zod'
 
-import { type NoteMetadata, NoteMetadataIdSchema, NoteNodeTypeSchema } from '../../types/noteMetadata'
+import type { NoteMetadata } from '../../types/noteMetadata'
 
 const NotePathSchema = z.string().min(1)
 
@@ -9,13 +9,16 @@ export const ListNoteMetadataQuerySchema = z.strictObject({
 })
 export type ListNoteMetadataQuery = z.infer<typeof ListNoteMetadataQuerySchema>
 
-export const UpsertNoteMetadataSchema = z.strictObject({
-  rootPath: NotePathSchema,
-  path: NotePathSchema,
-  nodeType: NoteNodeTypeSchema,
-  isStarred: z.boolean().optional(),
-  isExpanded: z.boolean().optional()
-})
+export const UpsertNoteMetadataSchema = z
+  .strictObject({
+    rootPath: NotePathSchema,
+    path: NotePathSchema,
+    isStarred: z.boolean().optional(),
+    isExpanded: z.boolean().optional()
+  })
+  .refine((value) => value.isStarred !== undefined || value.isExpanded !== undefined, {
+    message: 'At least one note metadata field is required'
+  })
 export type UpsertNoteMetadataDto = z.infer<typeof UpsertNoteMetadataSchema>
 
 export const DeleteNoteMetadataQuerySchema = z.strictObject({
@@ -33,10 +36,6 @@ export const RewriteNoteMetadataPathSchema = z.strictObject({
 })
 export type RewriteNoteMetadataPathDto = z.infer<typeof RewriteNoteMetadataPathSchema>
 
-export const NoteMetadataIdParamSchema = z.strictObject({
-  id: NoteMetadataIdSchema
-})
-
 export type NoteSchemas = {
   '/notes/metadata': {
     GET: {
@@ -45,7 +44,7 @@ export type NoteSchemas = {
     }
     PATCH: {
       body: UpsertNoteMetadataDto
-      response: NoteMetadata
+      response: NoteMetadata | null
     }
     DELETE: {
       query: DeleteNoteMetadataQuery

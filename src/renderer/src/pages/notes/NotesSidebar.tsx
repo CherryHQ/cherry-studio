@@ -6,7 +6,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger
 } from '@cherrystudio/ui'
-import { DynamicVirtualList } from '@renderer/components/VirtualList'
+import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
@@ -70,7 +70,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const [isDragOverSidebar, setIsDragOverSidebar] = useState(false)
 
   const notesTreeRef = useRef<NotesTreeNode[]>(notesTree)
-  const virtualListRef = useRef<any>(null)
+  const virtualListRef = useRef<DynamicVirtualListRef>(null)
   const trimmedSearchKeyword = useMemo(() => searchKeyword.trim(), [searchKeyword])
   const hasSearchKeyword = trimmedSearchKeyword.length > 0
 
@@ -240,7 +240,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   // Scroll to active node
   useEffect(() => {
     if (activeNode?.id && !isShowStarred && !isShowSearch && virtualListRef.current) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         const activeIndex = flattenedNodes.findIndex(({ node }) => node.id === activeNode.id)
         if (activeIndex !== -1) {
           virtualListRef.current?.scrollToIndex(activeIndex, {
@@ -249,7 +249,9 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
           })
         }
       }, 200)
+      return () => clearTimeout(timer)
     }
+    return undefined
   }, [activeNode?.id, isShowStarred, isShowSearch, flattenedNodes])
 
   // Determine which items should be sticky (only folders in normal view)

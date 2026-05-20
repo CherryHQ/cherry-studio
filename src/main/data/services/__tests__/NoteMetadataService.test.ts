@@ -21,21 +21,24 @@ describe('NoteMetadataService', () => {
     const first = await noteMetadataService.upsert({
       rootPath: ROOT_A,
       path: NOTE,
-      nodeType: 'file',
       isStarred: true
     })
     const second = await noteMetadataService.upsert({
       rootPath: ROOT_A,
       path: NOTE,
-      nodeType: 'file',
       isExpanded: true
     })
     await noteMetadataService.upsert({
       rootPath: ROOT_B,
       path: NOTE,
-      nodeType: 'file',
       isStarred: true
     })
+
+    expect(first).not.toBeNull()
+    expect(second).not.toBeNull()
+    if (!first || !second) {
+      throw new Error('Expected note metadata rows to be upserted')
+    }
 
     expect(second.id).toBe(first.id)
     expect(second.isStarred).toBe(true)
@@ -47,26 +50,26 @@ describe('NoteMetadataService', () => {
   })
 
   it('should delete rows when all metadata flags are false', async () => {
-    await noteMetadataService.upsert({ rootPath: ROOT_A, path: NOTE, nodeType: 'file', isStarred: true })
-    await noteMetadataService.upsert({ rootPath: ROOT_A, path: NOTE, nodeType: 'file', isStarred: false })
+    await noteMetadataService.upsert({ rootPath: ROOT_A, path: NOTE, isStarred: true })
+    await expect(noteMetadataService.upsert({ rootPath: ROOT_A, path: NOTE, isStarred: false })).resolves.toBeNull()
 
     expect(await noteMetadataService.listByRoot(ROOT_A)).toHaveLength(0)
 
-    await noteMetadataService.upsert({ rootPath: ROOT_A, path: FOLDER, nodeType: 'folder', isExpanded: true })
-    await noteMetadataService.upsert({ rootPath: ROOT_A, path: FOLDER, nodeType: 'folder', isStarred: false })
+    await noteMetadataService.upsert({ rootPath: ROOT_A, path: FOLDER, isExpanded: true })
+    await noteMetadataService.upsert({ rootPath: ROOT_A, path: FOLDER, isStarred: false })
 
     const expandedRows = await noteMetadataService.listByRoot(ROOT_A)
     expect(expandedRows).toHaveLength(1)
     expect(expandedRows[0]).toMatchObject({ path: FOLDER, isStarred: false, isExpanded: true })
 
-    await noteMetadataService.upsert({ rootPath: ROOT_A, path: FOLDER, nodeType: 'folder', isExpanded: false })
+    await expect(noteMetadataService.upsert({ rootPath: ROOT_A, path: FOLDER, isExpanded: false })).resolves.toBeNull()
 
     expect(await noteMetadataService.listByRoot(ROOT_A)).toHaveLength(0)
   })
 
   it('should delete a path recursively when requested', async () => {
-    await noteMetadataService.upsert({ rootPath: ROOT_A, path: FOLDER, nodeType: 'folder', isExpanded: true })
-    await noteMetadataService.upsert({ rootPath: ROOT_A, path: NOTE, nodeType: 'file', isStarred: true })
+    await noteMetadataService.upsert({ rootPath: ROOT_A, path: FOLDER, isExpanded: true })
+    await noteMetadataService.upsert({ rootPath: ROOT_A, path: NOTE, isStarred: true })
 
     await noteMetadataService.deleteByPath({ rootPath: ROOT_A, path: FOLDER, recursive: true })
 
@@ -75,8 +78,8 @@ describe('NoteMetadataService', () => {
   })
 
   it('should rewrite folder paths recursively', async () => {
-    await noteMetadataService.upsert({ rootPath: ROOT_A, path: FOLDER, nodeType: 'folder', isExpanded: true })
-    await noteMetadataService.upsert({ rootPath: ROOT_A, path: NOTE, nodeType: 'file', isStarred: true })
+    await noteMetadataService.upsert({ rootPath: ROOT_A, path: FOLDER, isExpanded: true })
+    await noteMetadataService.upsert({ rootPath: ROOT_A, path: NOTE, isStarred: true })
 
     const result = await noteMetadataService.rewritePath({
       rootPath: ROOT_A,
@@ -95,13 +98,12 @@ describe('NoteMetadataService', () => {
   })
 
   it('should rewrite paths when stale target metadata already exists', async () => {
-    await noteMetadataService.upsert({ rootPath: ROOT_A, path: FOLDER, nodeType: 'folder', isExpanded: true })
-    await noteMetadataService.upsert({ rootPath: ROOT_A, path: NOTE, nodeType: 'file', isStarred: true })
-    await noteMetadataService.upsert({ rootPath: ROOT_A, path: RENAMED_FOLDER, nodeType: 'folder', isExpanded: true })
+    await noteMetadataService.upsert({ rootPath: ROOT_A, path: FOLDER, isExpanded: true })
+    await noteMetadataService.upsert({ rootPath: ROOT_A, path: NOTE, isStarred: true })
+    await noteMetadataService.upsert({ rootPath: ROOT_A, path: RENAMED_FOLDER, isExpanded: true })
     await noteMetadataService.upsert({
       rootPath: ROOT_A,
       path: `${RENAMED_FOLDER}/a.md`,
-      nodeType: 'file',
       isStarred: true
     })
 

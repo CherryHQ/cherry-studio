@@ -8,7 +8,7 @@ import { useCallback, useMemo } from 'react'
 const logger = loggerService.withContext('useNoteMetadata')
 
 export function useNoteMetadata(rootPath: string) {
-  const normalizedRootPath = useMemo(() => normalizePathValue(rootPath || '__pending_notes_root__'), [rootPath])
+  const normalizedRootPath = useMemo(() => (rootPath ? normalizePathValue(rootPath) : ''), [rootPath])
   const {
     data: metadata = [],
     isLoading,
@@ -16,7 +16,8 @@ export function useNoteMetadata(rootPath: string) {
     error,
     refetch
   } = useQuery('/notes/metadata', {
-    query: { rootPath: normalizedRootPath }
+    query: { rootPath: normalizedRootPath },
+    enabled: !!rootPath
   })
 
   const { trigger: upsertMetadata } = useMutation('PATCH', '/notes/metadata', {
@@ -38,7 +39,7 @@ export function useNoteMetadata(rootPath: string) {
       node: Pick<NotesTreeNode, 'externalPath' | 'type'>,
       patch: Pick<Partial<NoteMetadata>, 'isStarred' | 'isExpanded'>
     ) => {
-      if (!normalizedRootPath || node.type === 'hint') {
+      if (!rootPath || node.type === 'hint') {
         return
       }
 
@@ -47,7 +48,6 @@ export function useNoteMetadata(rootPath: string) {
           body: {
             rootPath: normalizedRootPath,
             path: normalizePathValue(node.externalPath),
-            nodeType: node.type,
             ...patch
           }
         })
@@ -56,7 +56,7 @@ export function useNoteMetadata(rootPath: string) {
         throw mutationError
       }
     },
-    [normalizedRootPath, upsertMetadata]
+    [normalizedRootPath, rootPath, upsertMetadata]
   )
 
   const removePath = useCallback(

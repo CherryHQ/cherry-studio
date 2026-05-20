@@ -18,9 +18,9 @@ Migrates legacy notes UI metadata from Redux into the SQLite `note_metadata` tab
 | --- | --- |
 | `notesPath` | `rootPath` |
 | `starredPaths[]` | `path`, `isStarred = true` |
-| `expandedPaths[]` | `path`, `isExpanded = true`, `nodeType = folder` |
+| `expandedPaths[]` | `path`, `isExpanded = true` |
 
-Starred paths ending in `.md` are treated as files; other starred paths are treated as folders. If a path appears in both starred and expanded lists, both flags are preserved in one row.
+If a path appears in both starred and expanded lists, both flags are preserved in one row.
 
 ## Dropped Fields
 

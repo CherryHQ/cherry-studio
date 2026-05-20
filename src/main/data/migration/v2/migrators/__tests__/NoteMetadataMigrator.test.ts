@@ -72,12 +72,10 @@ describe('NoteMetadataMigrator', () => {
       .where(eq(noteMetadataTable.rootPath, '/Users/test/Notes'))
     expect(rows).toHaveLength(2)
     expect(rows.find((row) => row.path.endsWith('/a.md'))).toMatchObject({
-      nodeType: 'file',
       isStarred: true,
       isExpanded: false
     })
     expect(rows.find((row) => row.path.endsWith('/Folder'))).toMatchObject({
-      nodeType: 'folder',
       isStarred: false,
       isExpanded: true
     })

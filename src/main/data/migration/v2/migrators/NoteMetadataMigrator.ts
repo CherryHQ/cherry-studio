@@ -73,7 +73,6 @@ export class NoteMetadataMigrator extends BaseMigrator {
       rows.set(path, {
         rootPath,
         path,
-        nodeType: path.endsWith('.md') ? 'file' : 'folder',
         isStarred: true,
         isExpanded: false
       })
@@ -85,7 +84,6 @@ export class NoteMetadataMigrator extends BaseMigrator {
         ...existing,
         rootPath,
         path,
-        nodeType: 'folder',
         isStarred: existing?.isStarred ?? false,
         isExpanded: true
       })
@@ -109,7 +107,6 @@ export class NoteMetadataMigrator extends BaseMigrator {
             .onConflictDoUpdate({
               target: [noteMetadataTable.rootPath, noteMetadataTable.path],
               set: {
-                nodeType: row.nodeType,
                 isStarred: row.isStarred,
                 isExpanded: row.isExpanded
               }

@@ -8,7 +8,6 @@ export const noteMetadataTable = sqliteTable(
     id: uuidPrimaryKey(),
     rootPath: text('root_path').notNull(),
     path: text().notNull(),
-    nodeType: text('node_type', { enum: ['file', 'folder'] }).notNull(),
     isStarred: integer('is_starred', { mode: 'boolean' }).notNull().default(false),
     isExpanded: integer('is_expanded', { mode: 'boolean' }).notNull().default(false),
     ...createUpdateTimestamps

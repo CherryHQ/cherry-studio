@@ -52,6 +52,9 @@ const NotesPage: FC = () => {
   const [notesTree, setNotesTree] = useState<NotesTreeNode[]>([])
   const starredSet = useMemo(() => new Set(starredPaths), [starredPaths])
   const expandedSet = useMemo(() => new Set(expandedPaths), [expandedPaths])
+  const metadataByPathRef = useRef(metadataByPath)
+  const starredSetRef = useRef(starredSet)
+  const expandedSetRef = useRef(expandedSet)
   const { activeNode } = useActiveNode(notesTree, activeFilePath)
   const { invalidateFileContent } = useFileContentSync()
   const { data: currentContent = '' } = useFileContent(activeFilePath)
@@ -68,26 +71,24 @@ const NotesPage: FC = () => {
   const activeFilePathRef = useRef<string | undefined>(activeFilePath)
   const currentContentRef = useRef(currentContent)
 
-  const mergeTreeState = useCallback(
-    (nodes: NotesTreeNode[]): NotesTreeNode[] => {
-      return nodes.map((node) => {
-        const normalizedPath = normalizePathValue(node.externalPath)
-        const merged: NotesTreeNode = {
-          ...node,
-          externalPath: normalizedPath,
-          isStarred: metadataByPath.get(normalizedPath)?.isStarred ?? starredSet.has(normalizedPath)
-        }
+  const mergeTreeState = useCallback((nodes: NotesTreeNode[]): NotesTreeNode[] => {
+    return nodes.map((node) => {
+      const normalizedPath = normalizePathValue(node.externalPath)
+      const currentMetadata = metadataByPathRef.current.get(normalizedPath)
+      const merged: NotesTreeNode = {
+        ...node,
+        externalPath: normalizedPath,
+        isStarred: currentMetadata?.isStarred ?? starredSetRef.current.has(normalizedPath)
+      }
 
-        if (node.type === 'folder') {
-          merged.expanded = metadataByPath.get(normalizedPath)?.isExpanded ?? expandedSet.has(normalizedPath)
-          merged.children = node.children ? mergeTreeState(node.children) : []
-        }
+      if (node.type === 'folder') {
+        merged.expanded = currentMetadata?.isExpanded ?? expandedSetRef.current.has(normalizedPath)
+        merged.children = node.children ? mergeTreeState(node.children) : []
+      }
 
-        return merged
-      })
-    },
-    [expandedSet, metadataByPath, starredSet]
-  )
+      return merged
+    })
+  }, [])
 
   const refreshTree = useCallback(async () => {
     if (!notesPath) {
@@ -119,10 +120,13 @@ const NotesPage: FC = () => {
 
   // Re-merge tree state when starred or expanded paths change
   useEffect(() => {
+    metadataByPathRef.current = metadataByPath
+    starredSetRef.current = starredSet
+    expandedSetRef.current = expandedSet
     if (notesTree.length > 0) {
       setNotesTree((prev) => mergeTreeState(prev))
     }
-  }, [metadataByPath, mergeTreeState, notesTree.length])
+  }, [expandedSet, mergeTreeState, metadataByPath, notesTree.length, starredSet])
 
   // 保存当前笔记内容
   const saveCurrentNote = useCallback(
@@ -257,6 +261,7 @@ const NotesPage: FC = () => {
 
   useEffect(() => {
     if (!notesPath) return
+    let cancelled = false
 
     async function startFileWatcher() {
       // 清理之前的监控
@@ -323,6 +328,10 @@ const NotesPage: FC = () => {
 
       try {
         await window.api.file.startFileWatcher(notesPath)
+        if (cancelled) {
+          await window.api.file.stopFileWatcher()
+          return
+        }
         watcherRef.current = window.api.file.onFileChange(handleFileChange)
       } catch (error) {
         logger.error('Failed to start file watcher:', error as Error)
@@ -332,6 +341,7 @@ const NotesPage: FC = () => {
     void startFileWatcher()
 
     return () => {
+      cancelled = true
       if (watcherRef.current) {
         watcherRef.current()
         watcherRef.current = null

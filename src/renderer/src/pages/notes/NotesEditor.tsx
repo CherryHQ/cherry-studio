@@ -9,7 +9,7 @@ import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import type { EditorView } from '@renderer/types'
 import { SpellCheck } from 'lucide-react'
 import type { FC, RefObject } from 'react'
-import { memo, useCallback, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface NotesEditorProps {
@@ -34,6 +34,10 @@ const NotesEditor: FC<NotesEditorProps> = memo(
       }
     }, [settings.defaultEditMode, settings.defaultViewMode])
     const [tmpViewMode, setTmpViewMode] = useState(currentViewMode)
+
+    useEffect(() => {
+      setTmpViewMode(currentViewMode)
+    }, [currentViewMode])
 
     const handleCommandsReady = useCallback((commandAPI: Pick<RichEditorRef, 'unregisterCommand'>) => {
       const disabledCommands = ['image', 'inlineMath']
@@ -102,9 +106,8 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                       void setEnableSpellCheck(newValue)
                       void window.api.setEnableSpellCheck(newValue)
                     }}
-                    icon={<SpellCheck size={18} />}>
-                    <SpellCheck size={18} />
-                  </ActionIconButton>
+                    icon={<SpellCheck size={18} />}
+                  />
                 </Tooltip>
               )}
               <Selector

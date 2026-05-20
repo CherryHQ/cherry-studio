@@ -22,6 +22,7 @@ import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { findNode } from '@renderer/services/NotesTreeService'
+import type { NotesTreeNode } from '@renderer/types/note'
 import { t } from 'i18next'
 import { Check, ChevronRight, MoreHorizontal, PanelLeftClose, PanelRightClose, Star } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
@@ -32,6 +33,15 @@ import NotesSettings from './NotesSettings'
 
 const logger = loggerService.withContext('HeaderNavbar')
 
+interface HeaderNavbarProps {
+  notesTree: NotesTreeNode[]
+  activeFilePath?: string
+  getCurrentNoteContent?: () => string
+  onToggleStar?: (nodeId: string) => void
+  onExpandPath?: (treePath: string) => void
+  onRenameNode?: (nodeId: string, newName: string) => void
+}
+
 const HeaderNavbar = ({
   notesTree,
   activeFilePath,
@@ -39,7 +49,7 @@ const HeaderNavbar = ({
   onToggleStar,
   onExpandPath,
   onRenameNode
-}) => {
+}: HeaderNavbarProps) => {
   const { showWorkspace, toggleShowWorkspace } = useShowWorkspace()
   const { activeNode } = useActiveNode(notesTree, activeFilePath)
   const [breadcrumbItems, setBreadcrumbItems] = useState<
@@ -56,7 +66,7 @@ const HeaderNavbar = ({
   }, [toggleShowWorkspace])
 
   const handleToggleStarred = useCallback(() => {
-    if (activeNode) {
+    if (activeNode && onToggleStar) {
       onToggleStar(activeNode.id)
     }
   }, [activeNode, onToggleStar])
