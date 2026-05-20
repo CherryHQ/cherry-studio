@@ -1,6 +1,6 @@
 import { useQuery } from '@data/hooks/useDataApi'
 import { useSharedCache } from '@renderer/data/hooks/useCache'
-import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
+import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 
 /**
  * Subscribe to a job's live state in the renderer.
@@ -46,4 +46,28 @@ export function useJob(jobId: string): UseJobResult {
   const data = cacheSnapshot ?? apiSnapshot ?? null
   const isTerminal = data ? TERMINAL_STATUSES.has(data.status) : false
   return { data, isTerminal, isLoading, error }
+}
+
+/**
+ * Subscribe to a job's live progress in the renderer.
+ *
+ * Source: shared cache key `jobs.progress.${jobId}`. JobManager publishes a
+ * fresh JobProgress on every `ctx.reportProgress(...)` call from a handler
+ * (TTL 60s). Cross-window sync is provided by CacheService.
+ *
+ * Cold-start: returns the schema default `{ progress: 0 }` on cache miss
+ * (see cacheSchemas) so callers can render directly without null-guarding.
+ *
+ * Pair with `useJob(jobId)` for full state + progress observation:
+ *   const { data, isTerminal } = useJob(jobId)
+ *   const { progress, detail } = useJobProgress(jobId)
+ *
+ * Why no DataApi fallback (unlike `useJob`): progress is NOT persisted —
+ * JobManager.reportProgress writes only the shared cache (60s TTL). After
+ * cache eviction the value resets to `{ progress: 0 }`. For terminal-state
+ * progress observability use the snapshot's status / output instead.
+ */
+export function useJobProgress(jobId: string): JobProgress {
+  const [progress] = useSharedCache(`jobs.progress.${jobId}` as const)
+  return progress
 }

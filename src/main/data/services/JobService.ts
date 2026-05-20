@@ -267,6 +267,32 @@ export class JobService {
       .orderBy(desc(jobTable.createdAt), desc(jobTable.id))
   }
 
+  /**
+   * Distinct (queue, type) pairs across all non-terminal jobs (pending /
+   * delayed / running). JobManager.onAllReady uses this after startup recovery
+   * to ensure a DispatchQueue exists for each queue that owns recoverable
+   * rows — without this, dispatchAll iterates an empty this.queues Map on
+   * cold start and recovered pending rows wait until the next enqueue arrives.
+   *
+   * `delayed` rows are included so the queue is in place ahead of the next
+   * promoteDelayedDue tick. `running` is included for cheap insurance —
+   * recovery should have transitioned all running rows to pending or cancelled
+   * by the time this runs, but keeping them in the result set is harmless.
+   *
+   * Returned shape: Array<{ queue, type }>. If multiple types share a queue
+   * name (legal — enqueue accepts any string), distinct returns one row per
+   * (queue, type). The caller's ensureQueue(queueName, concurrency) keeps the
+   * FIRST inserted concurrency value (first-writer-wins). All currently
+   * shipped callers use type as queue, so this is a forward-compat note.
+   */
+  async getDistinctActiveQueues(): Promise<Array<{ queue: string; type: string }>> {
+    return this.getDb()
+      .select({ queue: jobTable.queue, type: jobTable.type })
+      .from(jobTable)
+      .where(inArray(jobTable.status, NON_TERMINAL_STATUSES))
+      .groupBy(jobTable.queue, jobTable.type)
+  }
+
   async resetToPendingByIds(jobIds: string[]): Promise<void> {
     if (jobIds.length === 0) return
     const now = Date.now()

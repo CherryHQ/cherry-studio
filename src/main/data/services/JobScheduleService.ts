@@ -16,7 +16,6 @@ import {
   TriggerSchema,
   type UpdateJobScheduleDto
 } from '@shared/data/api/schemas/jobs'
-import { Mutex } from 'async-mutex'
 import { and, asc, eq, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('JobScheduleService')
@@ -32,32 +31,15 @@ export interface JobScheduleListFilter {
  * Owning entity service for `jobScheduleTable`. JobManager and DataApi handlers
  * reach the table through this service — no direct Drizzle access elsewhere.
  *
- * Single-instance invariant: when `name` is null the type must have at most one
- * schedule. SQLite treats every NULL as distinct so the DB unique index on
- * `(type, name)` cannot enforce this; we check at the application layer in
- * `create()` instead.
+ * Single-instance invariant: a type with `name=''` (singleton sentinel) is
+ * DB-enforced via UNIQUE(type, name). The external API schema rejects `''`;
+ * only this service writes `''` internally as the sentinel. `rowToSnapshot`
+ * maps `''` back to `null` so the external snapshot contract stays
+ * `string | null`.
  */
 export class JobScheduleService {
-  /**
-   * Per-type mutexes that serialize the single-instance existence check + insert
-   * in `create()`. SQLite's unique index on `(type, name)` cannot enforce
-   * "at most one schedule when name IS NULL" because every NULL is distinct;
-   * without this mutex two concurrent `registerJobSchedule` calls for the same
-   * unnamed type could both pass the existence check and double-insert.
-   */
-  private readonly singletonCreateMutexes = new Map<string, Mutex>()
-
   private getDb(): DbOrTx {
     return application.get('DbService').getDb()
-  }
-
-  private getSingletonMutex(type: string): Mutex {
-    let m = this.singletonCreateMutexes.get(type)
-    if (!m) {
-      m = new Mutex()
-      this.singletonCreateMutexes.set(type, m)
-    }
-    return m
   }
 
   // ---------------- Read ----------------
@@ -101,28 +83,12 @@ export class JobScheduleService {
   }
 
   /**
-   * Resolve a schedule by (type, name?). Returns null when not found so the
-   * caller (JobManager) can wrap absence into a typed error with a
-   * `knownNames` list for better DX.
-   *
-   * When `name` is omitted:
-   *   - 0 schedules → null
-   *   - exactly 1 → return it
-   *   - more than 1 → throw — caller must pass an explicit name
+   * Resolve a schedule by (type, name). Pass `name=''` for singleton lookup.
+   * Returns null when not found so the caller (JobManager) can wrap absence
+   * into a typed error with a `knownNames` list for better DX.
    */
-  async getByTypeAndName(type: string, name?: string | null): Promise<JobScheduleSnapshot | null> {
-    const db = this.getDb()
-    if (name == null) {
-      const rows = await db.select().from(jobScheduleTable).where(eq(jobScheduleTable.type, type)).limit(2)
-      if (rows.length === 0) return null
-      if (rows.length > 1) {
-        throw DataApiErrorFactory.invalidOperation(
-          `getByTypeAndName: type "${type}" has multiple schedules — name is required to disambiguate`
-        )
-      }
-      return this.rowToSnapshot(rows[0])
-    }
-    const [row] = await db
+  async getByTypeAndName(type: string, name: string): Promise<JobScheduleSnapshot | null> {
+    const [row] = await this.getDb()
       .select()
       .from(jobScheduleTable)
       .where(and(eq(jobScheduleTable.type, type), eq(jobScheduleTable.name, name)))
@@ -130,13 +96,17 @@ export class JobScheduleService {
     return row ? this.rowToSnapshot(row) : null
   }
 
-  /** All known names for a type — JobManager uses this to build error context. */
-  async listNamesForType(type: string): Promise<Array<string | null>> {
+  /**
+   * All known non-sentinel names for a type — JobManager uses this to build
+   * error context. The singleton sentinel `''` is filtered out so callers see
+   * only user-visible names.
+   */
+  async listNamesForType(type: string): Promise<string[]> {
     const rows = await this.getDb()
       .select({ name: jobScheduleTable.name })
       .from(jobScheduleTable)
       .where(eq(jobScheduleTable.type, type))
-    return rows.map((r) => r.name)
+    return rows.map((r) => r.name).filter((n) => n !== '')
   }
 
   /**
@@ -151,32 +121,15 @@ export class JobScheduleService {
   // ---------------- Write ----------------
 
   async create(dto: CreateJobScheduleDto): Promise<JobScheduleSnapshot> {
-    if (dto.name != null) {
+    if (dto.name) {
       const parsed = JobScheduleNameAtomSchema.safeParse(dto.name)
       if (!parsed.success) {
         throw DataApiErrorFactory.invalidOperation(
-          `Invalid schedule name: ${parsed.error.issues.map((i) => i.message).join('; ')}`
+          `${JOB_ERROR_CODES.SCHEDULE_NAME_INVALID}: Invalid schedule name: ${parsed.error.issues.map((i) => i.message).join('; ')}`
         )
       }
-      return this.insertSchedule(dto)
     }
-    // Single-instance invariant: when name is null the type must have no
-    // schedules. Wrap existence check + insert in a per-type mutex so two
-    // concurrent registrations cannot both observe "no existing" and both
-    // insert (SQLite NULL uniqueness cannot enforce this at the index level).
-    return this.getSingletonMutex(dto.type).runExclusive(async () => {
-      const existing = await this.getDb()
-        .select({ id: jobScheduleTable.id })
-        .from(jobScheduleTable)
-        .where(eq(jobScheduleTable.type, dto.type))
-        .limit(1)
-      if (existing[0]) {
-        throw DataApiErrorFactory.invalidOperation(
-          `${JOB_ERROR_CODES.SCHEDULE_SINGLETON_EXISTS}: Cannot create unnamed schedule for type "${dto.type}" — it already has schedules. Provide a name to make it multi-instance.`
-        )
-      }
-      return this.insertSchedule(dto)
-    })
+    return this.insertSchedule(dto)
   }
 
   private async insertSchedule(dto: CreateJobScheduleDto): Promise<JobScheduleSnapshot> {
@@ -185,7 +138,7 @@ export class JobScheduleService {
     // on read.
     const insertData: InsertJobScheduleRow = {
       type: dto.type,
-      name: dto.name ?? null,
+      name: dto.name ?? '',
       trigger: dto.trigger,
       jobInputTemplate: dto.jobInputTemplate,
       catchUpPolicy: dto.catchUpPolicy,
@@ -197,8 +150,10 @@ export class JobScheduleService {
       ...defaultHandlersFor('JobSchedule', '<auto>'),
       unique: () =>
         DataApiErrorFactory.conflict(
-          'JobSchedule',
-          `${JOB_ERROR_CODES.SCHEDULE_NAME_CONFLICT}: name "${dto.name ?? '<unnamed>'}" already exists for type "${dto.type}"`
+          dto.name
+            ? `${JOB_ERROR_CODES.SCHEDULE_NAME_CONFLICT}: name "${dto.name}" already exists for type "${dto.type}"`
+            : `${JOB_ERROR_CODES.SCHEDULE_SINGLETON_EXISTS}: type "${dto.type}" already has a singleton schedule (no name)`,
+          'JobSchedule'
         )
     })
     const row = result[0]
@@ -208,17 +163,17 @@ export class JobScheduleService {
   }
 
   async update(id: string, patch: UpdateJobScheduleDto): Promise<JobScheduleSnapshot | null> {
-    if (patch.name != null) {
+    if (patch.name) {
       const parsed = JobScheduleNameAtomSchema.safeParse(patch.name)
       if (!parsed.success) {
         throw DataApiErrorFactory.invalidOperation(
-          `Invalid schedule name: ${parsed.error.issues.map((i) => i.message).join('; ')}`
+          `${JOB_ERROR_CODES.SCHEDULE_NAME_INVALID}: Invalid schedule name: ${parsed.error.issues.map((i) => i.message).join('; ')}`
         )
       }
     }
 
     const updateData: Partial<InsertJobScheduleRow> = { updatedAt: Date.now() }
-    if (patch.name !== undefined) updateData.name = patch.name
+    if (patch.name !== undefined) updateData.name = patch.name ?? ''
     if (patch.trigger !== undefined) updateData.trigger = patch.trigger
     if (patch.jobInputTemplate !== undefined) updateData.jobInputTemplate = patch.jobInputTemplate
     if (patch.catchUpPolicy !== undefined) updateData.catchUpPolicy = patch.catchUpPolicy
@@ -227,7 +182,14 @@ export class JobScheduleService {
 
     const result = await withSqliteErrors(
       () => this.getDb().update(jobScheduleTable).set(updateData).where(eq(jobScheduleTable.id, id)).returning(),
-      defaultHandlersFor('JobSchedule', id)
+      {
+        ...defaultHandlersFor('JobSchedule', id),
+        unique: () =>
+          DataApiErrorFactory.conflict(
+            `${JOB_ERROR_CODES.SCHEDULE_NAME_CONFLICT}: name "${patch.name}" already exists (id=${id})`,
+            'JobSchedule'
+          )
+      }
     )
     const row = result[0]
     if (!row) return null
@@ -277,7 +239,9 @@ export class JobScheduleService {
     return {
       id: row.id,
       type: row.type,
-      name: row.name,
+      // Map the internal singleton sentinel `''` back to `null` so the external
+      // snapshot contract (string | null) is preserved.
+      name: row.name === '' ? null : row.name,
       trigger: this.validateTrigger(row.id, row.trigger),
       jobInputTemplate: row.jobInputTemplate,
       enabled: row.enabled,

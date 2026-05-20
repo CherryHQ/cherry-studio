@@ -12,7 +12,8 @@ import {
   type JobScheduleSnapshot,
   type JobSnapshot,
   type RetryPolicy,
-  type Trigger
+  type Trigger,
+  type UpdateJobScheduleDto
 } from '@shared/data/api/schemas/jobs'
 import { Mutex } from 'async-mutex'
 
@@ -50,6 +51,14 @@ const GC_INTERVAL_MS = 60 * 60 * 1000 // 1h
 const GC_TERMINAL_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 const GC_KEEP_PER_TYPE = 100
 const DELAYED_PROMOTION_INTERVAL_MS = 5 * 60 * 1000 // 5min
+
+/**
+ * Wall-clock delay between `LifecycleManager.allReady()` completing and JobManager
+ * running its startup recovery. Lets cold-start IO (DB warm-up, window paints,
+ * client-side bootstrap) settle before scheduled work piles on. Hardcoded — the
+ * test fixture skips this wait via fake timers.
+ */
+const JOB_MANAGER_STARTUP_DELAY_MS = 60_000
 
 /**
  * Sentinel thrown via `controller.abort(new JobHandlerTimeoutError())` when a
@@ -107,6 +116,12 @@ export class JobManager extends BaseService {
   private readonly inFlightExecuted = new Map<string, Promise<void>>()
   private readonly scheduleDisposables = new Map<string, Disposable>()
   private readonly globalMaxConcurrency = DEFAULT_GLOBAL_MAX_CONCURRENCY
+  /**
+   * Flipped to `true` in `onStop` so the in-flight `onAllReady` (which may be
+   * sleeping inside the startup-delay timer) can short-circuit on resume
+   * instead of triggering recovery against a tearing-down container.
+   */
+  private _onAllReadyStopRequested = false
 
   // ---------------- Lifecycle ----------------
 
@@ -115,8 +130,88 @@ export class JobManager extends BaseService {
   }
 
   protected override async onReady(): Promise<void> {
-    const stats = await runStartupRecovery(this.handlers)
-    logger.info('Startup recovery complete', stats)
+    // GC + delayed-promotion ticks live here because they only operate on
+    // jobs already in the DB and never invoke business handlers. Anything
+    // that depends on a registered handler (startup recovery, schedule
+    // arming, dispatching) is deferred to `onAllReady` so business services
+    // have had their own `onInit` window to call `registerHandler`.
+    this.registerInterval(() => void this.runGC(), GC_INTERVAL_MS)
+    this.registerInterval(async () => {
+      const promoted = await jobService.promoteDelayedDue(Date.now())
+      if (promoted > 0) {
+        logger.debug('Promoted delayed jobs', { count: promoted })
+        this.dispatchAll()
+      }
+    }, DELAYED_PROMOTION_INTERVAL_MS)
+  }
+
+  /**
+   * Runs after every service's `onReady` resolves. Handler registry is
+   * guaranteed populated at this point, so it is safe to walk
+   * `jobScheduleTable` and arm cron entries without misidentifying schedules
+   * as orphans. Each phase is wrapped in its own try/catch so a single
+   * failure (e.g. a malformed trigger) cannot leave the session with zero
+   * armed schedules.
+   */
+  protected override async onAllReady(): Promise<void> {
+    // Interruptible cold-start delay: `onStop` flips the flag so a teardown
+    // arriving during the wait short-circuits the rest of recovery.
+    await new Promise<void>((resolve) => setTimeout(resolve, JOB_MANAGER_STARTUP_DELAY_MS))
+    if (this._onAllReadyStopRequested) {
+      logger.info('onAllReady: stop requested during startup delay, skipping recovery')
+      return
+    }
+
+    try {
+      const stats = await runStartupRecovery(this.handlers)
+      logger.info('Startup recovery complete', stats)
+    } catch (err) {
+      logger.error('Startup recovery failed', err as Error)
+    }
+
+    // Resurrect queues for any non-terminal rows from previous runs.
+    // dispatchAll() iterates this.queues, which is empty on cold start —
+    // pending rows reset by recovery would otherwise wait until the next
+    // enqueue arrives and lazily ensures a queue. Walking distinct
+    // (queue, type) lets pending dispatch on the next tick. Delayed rows
+    // piggyback: the queue is in place ahead of the next promoteDelayedDue
+    // tick, which calls dispatchAll().
+    //
+    // Concurrency consistency: ensureQueue here uses handler.defaultConcurrency
+    // ?? 1, identical to the enqueue path's ensureQueue call. Cold-start
+    // resurrection cannot drift from steady-state behaviour — same source of
+    // truth in both paths.
+    //
+    // First-writer-wins: ensureQueue ignores concurrency when the queue
+    // already exists, so if multiple types share a queue name, the FIRST
+    // (queue, type) pair returned by the SQL groupBy decides concurrency.
+    // No currently shipped type does this, but the semantics live here in
+    // case future code does.
+    //
+    // Harmless re-ensure: detectAndDispatchOverdue (below) and armSchedule
+    // both route through enqueue, which calls ensureQueue again on the same
+    // queue names we just resurrected. The first-writer-wins guard above
+    // means these re-ensures are no-ops — no double Mutex, no concurrency
+    // change.
+    try {
+      const activeQueues = await jobService.getDistinctActiveQueues()
+      for (const { queue, type } of activeQueues) {
+        const handler = this.handlers.get(type)
+        if (!handler) {
+          // runStartupRecovery should have cancelled orphan rows already, so
+          // a missing handler here is a recovery-implementation regression.
+          // Warn loudly instead of silently skipping.
+          logger.warn('Orphan (queue, type) survived recovery — skipping ensureQueue', { queue, type })
+          continue
+        }
+        this.ensureQueue(queue, handler.defaultConcurrency ?? 1)
+      }
+      if (activeQueues.length > 0) {
+        logger.info('Resurrected queues from non-terminal jobs', { count: activeQueues.length })
+      }
+    } catch (err) {
+      logger.error('Queue resurrection failed', err as Error)
+    }
 
     // Catch-up FIRST, then arm. Two reasons:
     //   1. `detectAndDispatchOverdue` reads `lastRun` / `nextRun` from the DB
@@ -127,28 +222,33 @@ export class JobManager extends BaseService {
     //      enqueue (protect only blocks overlapping callbacks, not external
     //      callers). Sequencing catch-up before arm guarantees the make-up
     //      enqueue lands before croner's first natural fire.
-    const schedules = await jobScheduleService.listEnabled()
-    await this.detectAndDispatchOverdue(schedules)
-    for (const schedule of schedules) {
-      this.armSchedule(schedule)
+    let schedules: JobScheduleSnapshot[] = []
+    try {
+      schedules = await jobScheduleService.listEnabled()
+      await this.detectAndDispatchOverdue(schedules)
+    } catch (err) {
+      logger.error('Overdue detection failed', err as Error)
     }
 
-    // GC + delayed-promotion ticks. registerInterval auto-unrefs + clears on stop.
-    this.registerInterval(() => void this.runGC(), GC_INTERVAL_MS)
-    this.registerInterval(async () => {
-      const promoted = await jobService.promoteDelayedDue(Date.now())
-      if (promoted > 0) {
-        logger.debug('Promoted delayed jobs', { count: promoted })
-        this.dispatchAll()
+    for (const schedule of schedules) {
+      try {
+        this.armSchedule(schedule)
+      } catch (err) {
+        logger.error('armSchedule failed', err as Error, { scheduleId: schedule.id })
       }
-    }, DELAYED_PROMOTION_INTERVAL_MS)
+    }
 
-    // Kick the queues once — any job reset by recovery should start now.
-    this.dispatchAll()
-    logger.info('JobManager ready', { schedules: schedules.length })
+    try {
+      this.dispatchAll()
+    } catch (err) {
+      logger.error('dispatchAll failed', err as Error)
+    }
+
+    logger.info('JobManager onAllReady complete', { schedules: schedules.length })
   }
 
   protected override async onStop(): Promise<void> {
+    this._onAllReadyStopRequested = true
     const inFlight = Array.from(this.abortControllers.keys())
     for (const controller of this.abortControllers.values()) {
       controller.abort(new Error('JobManager shutdown'))
@@ -201,9 +301,13 @@ export class JobManager extends BaseService {
 
   /**
    * Register a handler for a JobRegistry type. Must be called from the owning
-   * service's `onInit` so the handler is in place before `onReady`'s startup
-   * recovery (otherwise existing non-terminal jobs for this type are treated
-   * as orphans and cancelled).
+   * service's `onInit` so the handler is in place before
+   * `JobManager.onAllReady`'s startup recovery (which begins ~60s after
+   * `LifecycleManager.allReady()` resolves). Registering from a business
+   * service's `onAllReady` is unsafe — that hook runs in parallel with
+   * `JobManager.onAllReady`, racing against startup recovery and letting
+   * existing non-terminal jobs for this type get treated as orphans and
+   * cancelled.
    *
    * @param type - JobRegistry key (compile-time validated via declaration merging)
    * @param handler - Handler implementation; `recovery` is required
@@ -401,8 +505,8 @@ export class JobManager extends BaseService {
   /**
    * Cancel all non-terminal jobs matching the filter. Aborts in-flight
    * AbortControllers in this process and transitions pending / delayed rows
-   * directly to `cancelled`. Covers reset() semantics for Phase 4 Knowledge
-   * reset and Phase 3 FileProcessing batch cancellation.
+   * directly to `cancelled`. Used by knowledge-base reset and file-processing
+   * batch cancellation.
    *
    * Running jobs settle asynchronously through the normal handler-execute
    * flow (handler observes `signal.aborted`) and are NOT counted as
@@ -658,6 +762,46 @@ export class JobManager extends BaseService {
   }
 
   /**
+   * Update a schedule's persistent config AND re-arm the in-process cron entry
+   * when trigger or enabled changes. Required because `jobScheduleService.update`
+   * only writes the DB — the in-memory cron entry would otherwise keep firing
+   * under the old trigger until the next app restart.
+   *
+   * The re-arm decision uses field-presence (`patch.trigger !== undefined ||
+   * patch.enabled !== undefined`) rather than value-comparison. Callers that
+   * include these fields in the patch implicitly opt into a re-arm even when
+   * the value is unchanged — cheap and avoids JSON-key-order brittleness in a
+   * deep-equal check.
+   *
+   * Known limitation: the DB write and the in-process re-arm are two awaits
+   * apart. Between them an old cron entry can fire once with the old
+   * jobInputTemplate. Acceptable trade-off for single-process Electron main —
+   * see the design plan for a per-id mutex escalation path.
+   *
+   * @param id Schedule row id
+   * @param patch Partial update
+   * @returns Updated snapshot, or null if no row matches `id`
+   */
+  async updateJobSchedule(id: string, patch: UpdateJobScheduleDto): Promise<JobScheduleSnapshot | null> {
+    const updated = await jobScheduleService.update(id, patch)
+    if (!updated) return null
+
+    const needsRearm = patch.trigger !== undefined || patch.enabled !== undefined
+    if (needsRearm) {
+      if (updated.enabled) {
+        this.armSchedule(updated)
+      } else {
+        const disp = this.scheduleDisposables.get(id)
+        if (disp) {
+          disp.dispose()
+          this.scheduleDisposables.delete(id)
+        }
+      }
+    }
+    return updated
+  }
+
+  /**
    * Fetch a schedule snapshot by (type, name). Unlike the other by-name APIs,
    * a "not found" result returns `null` rather than throwing — convenient for
    * existence checks. `JOB_SCHEDULE_NAME_REQUIRED` is still surfaced when the
@@ -679,6 +823,9 @@ export class JobManager extends BaseService {
   }
 
   private async resolveScheduleIdByName(type: string, name?: string | null): Promise<string> {
+    // Map nullish name to the singleton sentinel `''` so the underlying lookup
+    // can rely on a uniform string key (DB column is NOT NULL DEFAULT '').
+    const nameKey = name ?? ''
     if (name == null) {
       const candidates = await jobScheduleService.listAll({ type })
       if (candidates.length > 1) {
@@ -690,7 +837,7 @@ export class JobManager extends BaseService {
       }
       if (candidates.length === 1) return candidates[0].id
     }
-    const snapshot = await jobScheduleService.getByTypeAndName(type, name)
+    const snapshot = await jobScheduleService.getByTypeAndName(type, nameKey)
     if (!snapshot) {
       const knownNames = await jobScheduleService.listNamesForType(type)
       throw this.makeError(JOB_ERROR_CODES.SCHEDULE_NOT_FOUND_BY_NAME, `Schedule not found for type "${type}"`, {
@@ -1218,10 +1365,6 @@ export class JobManager extends BaseService {
   }
 
   private makeError(code: string, message: string, params?: Record<string, unknown>): Error {
-    const err = new Error(`${code}: ${message}`)
-    ;(err as Error & { code: string; params?: Record<string, unknown>; retryable: boolean }).code = code
-    ;(err as Error & { code: string; params?: Record<string, unknown>; retryable: boolean }).params = params
-    ;(err as Error & { code: string; params?: Record<string, unknown>; retryable: boolean }).retryable = false
-    return err
+    return Object.assign(new Error(`${code}: ${message}`), { code, params, retryable: false })
   }
 }

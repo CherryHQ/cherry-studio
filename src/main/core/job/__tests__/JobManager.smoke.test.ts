@@ -1,5 +1,5 @@
 /**
- * End-to-end smoke test for the Job/Scheduler backbone (Phase 1 Step 18).
+ * End-to-end smoke test for the Job/Scheduler backbone.
  *
  * Exercises a real DB via setupTestDatabase + a real SchedulerService + a real
  * JobManager wired through the standard mock @application factory (DbService
@@ -7,8 +7,8 @@
  * are added in beforeAll). Verifies enqueue → running → progress → completed
  * as well as in-flight cancel and idempotencyKey reuse.
  *
- * Restart-recovery scenarios (abandon / retry / singleton) live in Step 19's
- * integration tests, not here.
+ * Restart-recovery scenarios (abandon / retry / singleton) live in the
+ * integration test, not here.
  */
 
 import { application } from '@application'
@@ -106,6 +106,15 @@ describe('JobManager smoke (dummy.echo)', () => {
     await scheduler._doInit()
     await jobManager._doInit()
     jobManager.registerHandler('dummy.echo' as never, makeEchoHandler() as JobHandler)
+
+    // Startup recovery moved to onAllReady behind a 60s wall-clock delay.
+    // Skip the delay via fake timers — clearTimeout must be paired with
+    // setTimeout, otherwise the timer queue keeps a dangling entry.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const allReadyPromise = jobManager._doAllReady()
+    await vi.advanceTimersByTimeAsync(60_000)
+    await allReadyPromise
+    vi.useRealTimers()
   })
 
   afterAll(async () => {
