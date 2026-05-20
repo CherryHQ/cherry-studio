@@ -37834,6 +37834,26 @@
         }
       },
       "ownedBy": "voyage"
+    },
+    {
+      "id": "Kwai-Kolors/Kolors",
+      "name": "Kolors",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "Kolors",
+      "ownedBy": "Kwai-Kolors",
+      "openWeights": true
+    },
+    {
+      "id": "Qwen/Qwen-Image",
+      "name": "Qwen-Image",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "Qwen",
+      "ownedBy": "Alibaba",
+      "openWeights": true
     }
   ]
 }
