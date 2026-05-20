@@ -30,6 +30,9 @@ export type {
 
 // Schema-inferred types (replaces proto types)
 export type {
+  ImageGenerationMode,
+  ImageGenerationSupport,
+  ImageSizeMode,
   ModelConfig,
   ModelPricing,
   ModelConfig as ProtoModelConfig,

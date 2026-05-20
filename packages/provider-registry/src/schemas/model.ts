@@ -57,6 +57,76 @@ export const ReasoningSupportSchema = z.object({
   ...CommonReasoningFieldsSchema
 })
 
+/**
+ * Image-generation parameter support — describes which painting-page inputs
+ * a model accepts so a generic painting UI can render the right controls
+ * without per-vendor branching. Mirrors the `ParameterSupportSchema` idiom
+ * (boolean for simple toggles; `{ range, default }` for numerics; bare
+ * string array for enums). All fields are optional — a missing field means
+ * "the model doesn't support this control; the UI hides it".
+ */
+export const ImageGenerationModeSchema = z.enum(['generate', 'edit', 'remix', 'upscale'])
+
+/** Pixel sizes (`'1024x1024'`), aspect ratios (`'1:1'`), or both. */
+export const ImageSizeModeSchema = z.enum(['pixel', 'aspect', 'either'])
+
+const NumericRangeWithDefaultSchema = z
+  .object({
+    min: z.number().optional(),
+    max: z.number().optional(),
+    default: z.number().optional()
+  })
+  .refine((r) => r.min == null || r.max == null || r.min <= r.max, {
+    message: 'min must be less than or equal to max'
+  })
+
+export const ImageGenerationSupportSchema = z.object({
+  /** Modes available; `['generate']` assumed when absent. */
+  modes: z.array(ImageGenerationModeSchema).optional(),
+
+  /**
+   * Accepted `size` values — pixel sizes (`'1024x1024'`), aspect ratios
+   * (`'1:1'`, `'16:9'`), or the `'auto'` sentinel. The UI renders these
+   * as a select; `sizeMode` decides how to label the column.
+   */
+  sizes: z.array(z.string()).optional(),
+  sizeMode: ImageSizeModeSchema.optional(),
+  /** Default size value the UI should preselect (must be in `sizes`). */
+  defaultSize: z.string().optional(),
+  /**
+   * Whether the `'auto'` sentinel should reach the AI SDK as
+   * "omit the `size` field" (R2 painting-only `allowAutoSize`) rather than
+   * being coerced to `'1024x1024'`.
+   */
+  allowAutoSize: z.boolean().optional(),
+
+  /** Per-call batch limits (a.k.a. `n` / `numImages`). */
+  batch: NumericRangeWithDefaultSchema.optional(),
+
+  /**
+   * Per-control capability flags. Each is independently optional — only
+   * populate the ones the model actually accepts.
+   */
+  supports: z
+    .object({
+      negativePrompt: z.boolean().optional(),
+      seed: z.boolean().optional(),
+      promptEnhancement: z.boolean().optional(),
+      magicPromptOption: z.boolean().optional(),
+      numInferenceSteps: NumericRangeWithDefaultSchema.optional(),
+      guidanceScale: NumericRangeWithDefaultSchema.optional(),
+      safetyTolerance: NumericRangeWithDefaultSchema.optional(),
+      quality: z.array(z.string()).optional(),
+      moderation: z.array(z.string()).optional(),
+      background: z.array(z.string()).optional(),
+      aspectRatio: z.array(z.string()).optional(),
+      styleType: z.array(z.string()).optional(),
+      renderingSpeed: z.array(z.string()).optional(),
+      personGeneration: z.array(z.string()).optional()
+    })
+    .optional()
+})
+
 // Parameter support configuration
 // Defaults reflect the most common LLM provider capabilities
 export const ParameterSupportSchema = z.object({
@@ -163,6 +233,11 @@ export const ModelConfigSchema = z.object({
   // Parameter support
   parameterSupport: ParameterSupportSchema.optional(),
 
+  // Image-generation parameter support — drives the generic painting UI
+  // (sizes, batch limits, supports.negativePrompt/seed/quality/…). Only
+  // populate for models whose `capabilities` includes `'image-generation'`.
+  imageGeneration: ImageGenerationSupportSchema.optional(),
+
   // Model family (e.g., "GPT-4", "Claude 3")
   family: z.string().optional(),
 
@@ -186,6 +261,9 @@ export const ModelListSchema = z.object({
 export type ThinkingTokenLimits = z.infer<typeof ThinkingTokenLimitsSchema>
 export type ReasoningSupport = z.infer<typeof ReasoningSupportSchema>
 export type ParameterSupport = z.infer<typeof ParameterSupportSchema>
+export type ImageGenerationMode = z.infer<typeof ImageGenerationModeSchema>
+export type ImageSizeMode = z.infer<typeof ImageSizeModeSchema>
+export type ImageGenerationSupport = z.infer<typeof ImageGenerationSupportSchema>
 export type ModelPricing = z.infer<typeof ModelPricingSchema>
 export type ModelConfig = z.infer<typeof ModelConfigSchema>
 export type ModelList = z.infer<typeof ModelListSchema>
