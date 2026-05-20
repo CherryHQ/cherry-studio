@@ -221,9 +221,11 @@
         "intervalUnit": "phút",
         "lastRun": "Lần chạy cuối",
         "logs": {
+          "cancelled": "[to be translated]:Cancelled",
+          "completed": "[to be translated]:Completed",
           "duration": "Thời lượng",
           "empty": "Chưa có lịch sử chạy nào.",
-          "error": "Lỗi",
+          "failed": "[to be translated]:Failed",
           "justNow": "vừa mới đây",
           "label": "Lịch sử chạy",
           "loadError": "Không tải được lịch sử chạy",
@@ -232,7 +234,6 @@
           "running": "Đang chạy...",
           "search": "Tìm nhật ký...",
           "status": "Trạng thái",
-          "success": "Thành công",
           "viewSession": "Xem phiên"
         },
         "name": {
@@ -6354,6 +6355,7 @@
         "description": "AWS Bedrock es el servicio de modelos fundamentales totalmente gestionado de Amazon que admite varios modelos de lenguaje grandes avanzados.",
         "region": "Khu vực AWS",
         "region_help": "Ihr AWS-Service-Region, z. B. us-east-1",
+        "region_required": "[to be translated]:Enter an AWS region before saving",
         "secret_access_key": "Khóa truy cập bí mật AWS",
         "secret_access_key_help": "Khóa truy cập bí mật AWS của bạn, vui lòng giữ an toàn",
         "title": "Cấu hình AWS Bedrock"
@@ -6465,6 +6467,7 @@
       },
       "filter_agent": "Các nhà cung cấp được Hỗ trợ bởi Agent Lọc",
       "get_api_key": "Lấy Khóa API",
+      "logo_upload_failed": "[to be translated]:Failed to process the selected image",
       "misc": "Khác",
       "more_endpoints": {
         "add": "[to be translated]:Add Endpoint",

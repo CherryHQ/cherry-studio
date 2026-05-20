@@ -20,9 +20,6 @@ const {
   getTaskMock,
   updateTaskMock,
   deleteTaskMock,
-  workflowCreateTaskMock,
-  workflowUpdateTaskMock,
-  workflowDeleteTaskMock,
   listSkillsMock,
   getSkillByIdMock
 } = vi.hoisted(() => ({
@@ -44,9 +41,6 @@ const {
   getTaskMock: vi.fn(),
   updateTaskMock: vi.fn(),
   deleteTaskMock: vi.fn(),
-  workflowCreateTaskMock: vi.fn(),
-  workflowUpdateTaskMock: vi.fn(),
-  workflowDeleteTaskMock: vi.fn(),
   listSkillsMock: vi.fn(),
   getSkillByIdMock: vi.fn()
 }))
@@ -93,14 +87,6 @@ vi.mock('@main/services/agents/skills/SkillService', () => ({
   skillService: {
     list: listSkillsMock,
     getById: getSkillByIdMock
-  }
-}))
-
-vi.mock('@data/services/AgentTaskWorkflowService', () => ({
-  agentTaskWorkflowService: {
-    createTask: workflowCreateTaskMock,
-    updateTask: workflowUpdateTaskMock,
-    deleteTask: workflowDeleteTaskMock
   }
 }))
 
@@ -438,18 +424,19 @@ describe('agentHandlers', () => {
       expect(result).toMatchObject({ items: [mockTask], total: 1, page: 1 })
     })
 
-    it('delegates POST to task workflow service', async () => {
-      workflowCreateTaskMock.mockResolvedValueOnce(mockTask)
+    it('delegates POST to agentTaskService.createTask', async () => {
+      createTaskMock.mockResolvedValueOnce(mockTask)
 
       const result = await agentHandlers['/agents/:agentId/tasks'].POST({
         params: { agentId: AGENT_ID },
-        body: { name: 'Daily', prompt: 'Hello', scheduleType: 'cron', scheduleValue: '0 9 * * *' }
+        body: {
+          name: 'Daily',
+          prompt: 'Hello',
+          trigger: { kind: 'cron', expr: '0 9 * * *' }
+        }
       } as never)
 
-      expect(workflowCreateTaskMock).toHaveBeenCalledWith(
-        AGENT_ID,
-        expect.objectContaining({ name: 'Daily', prompt: 'Hello' })
-      )
+      expect(createTaskMock).toHaveBeenCalledWith(AGENT_ID, expect.objectContaining({ name: 'Daily', prompt: 'Hello' }))
       expect(result).toMatchObject({ id: TASK_ID })
     })
 
@@ -461,7 +448,7 @@ describe('agentHandlers', () => {
         } as never)
       ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
 
-      expect(workflowCreateTaskMock).not.toHaveBeenCalled()
+      expect(createTaskMock).not.toHaveBeenCalled()
     })
 
     it('rejects invalid pagination query', async () => {
@@ -489,19 +476,15 @@ describe('agentHandlers', () => {
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
     })
 
-    it('delegates PATCH to task workflow service and returns updated task', async () => {
-      workflowUpdateTaskMock.mockResolvedValueOnce({ ...mockTask, name: 'Updated' })
+    it('delegates PATCH to agentTaskService.updateTask and returns updated task', async () => {
+      updateTaskMock.mockResolvedValueOnce({ ...mockTask, name: 'Updated' })
 
       const result = await agentHandlers['/agents/:agentId/tasks/:taskId'].PATCH({
         params: { agentId: AGENT_ID, taskId: TASK_ID },
         body: { name: 'Updated' }
       } as never)
 
-      expect(workflowUpdateTaskMock).toHaveBeenCalledWith(
-        AGENT_ID,
-        TASK_ID,
-        expect.objectContaining({ name: 'Updated' })
-      )
+      expect(updateTaskMock).toHaveBeenCalledWith(AGENT_ID, TASK_ID, expect.objectContaining({ name: 'Updated' }))
       expect(result).toMatchObject({ name: 'Updated' })
     })
 
@@ -516,8 +499,8 @@ describe('agentHandlers', () => {
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
     })
 
-    it('delegates DELETE to task workflow service', async () => {
-      workflowDeleteTaskMock.mockResolvedValueOnce(true)
+    it('delegates DELETE to agentTaskService.deleteTask', async () => {
+      deleteTaskMock.mockResolvedValueOnce(true)
 
       await expect(
         agentHandlers['/agents/:agentId/tasks/:taskId'].DELETE({
@@ -525,7 +508,7 @@ describe('agentHandlers', () => {
         } as never)
       ).resolves.toBeUndefined()
 
-      expect(workflowDeleteTaskMock).toHaveBeenCalledWith(AGENT_ID, TASK_ID)
+      expect(deleteTaskMock).toHaveBeenCalledWith(AGENT_ID, TASK_ID)
     })
 
     it('throws notFound when task does not exist on DELETE', async () => {

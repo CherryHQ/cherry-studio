@@ -221,9 +221,11 @@
         "intervalUnit": "λεπτά",
         "lastRun": "Τελευταία εκτέλεση",
         "logs": {
+          "cancelled": "[to be translated]:Cancelled",
+          "completed": "[to be translated]:Completed",
           "duration": "Διάρκεια",
           "empty": "Δεν υπάρχει ακόμα ιστορικό εκτελέσεων.",
-          "error": "Σφάλμα",
+          "failed": "[to be translated]:Failed",
           "justNow": "μόλις τώρα",
           "label": "Ιστορικό εκτελέσεων",
           "loadError": "Αποτυχία φόρτωσης ιστορικού εκτέλεσης",
@@ -232,7 +234,6 @@
           "running": "Τρέχει...",
           "search": "Αναζήτηση αρχείων καταγραφής...",
           "status": "Κατάσταση",
-          "success": "Επιτυχία",
           "viewSession": "Δείτε τη συνεδρία"
         },
         "name": {
@@ -6354,6 +6355,7 @@
         "description": "Η AWS Bedrock είναι μια πλήρως διαχειριζόμενη υπηρεσία βασικών μοντέλων που παρέχεται από την Amazon και υποστηρίζει διάφορα προηγμένα μεγάλα γλωσσικά μοντέλα.",
         "region": "Περιοχές AWS",
         "region_help": "Η περιοχή υπηρεσίας AWS σας, για παράδειγμα us-east-1",
+        "region_required": "[to be translated]:Enter an AWS region before saving",
         "secret_access_key": "Κλειδιά πρόσβασης AWS",
         "secret_access_key_help": "Ο δικός σας κλειδί πρόσβασης AWS, φυλάξτε τον με ασφάλεια",
         "title": "Ρύθμιση AWS Bedrock"
@@ -6465,6 +6467,7 @@
       },
       "filter_agent": "Υποστηριζόμενοι Πάροχοι του Φίλτρου Πράκτορα",
       "get_api_key": "Κάντε κλικ εδώ για να πάρετε κλειδί",
+      "logo_upload_failed": "[to be translated]:Failed to process the selected image",
       "misc": "Άλλο",
       "more_endpoints": {
         "add": "[to be translated]:Add Endpoint",

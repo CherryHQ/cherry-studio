@@ -26,11 +26,14 @@ vi.mock('@main/services/agents/agentUtils', () => ({
 vi.mock('../agents/agentUtils', () => ({
   listMcpTools: vi.fn()
 }))
-vi.mock('@main/services/agents/services/SchedulerService', () => ({
-  schedulerService: { runTaskNow: vi.fn(), restoreSchedulers: vi.fn(), stopAll: vi.fn() }
-}))
 vi.mock('@main/services/agents/services/channels', () => ({
   channelManager: { start: vi.fn(), stop: vi.fn() }
+}))
+vi.mock('@main/services/agents/tasks/AgentTaskJobHandler', () => ({
+  AgentTaskJobHandler: { recovery: 'retry', execute: vi.fn() }
+}))
+vi.mock('@application', () => ({
+  application: { get: vi.fn(() => ({ registerHandler: vi.fn(), triggerJobScheduleNowById: vi.fn() })) }
 }))
 vi.mock('@main/services/agents/services/channels/sessionStreamIpc', () => ({
   registerSessionStreamIpc: vi.fn()

@@ -221,9 +221,11 @@
         "intervalUnit": "minutes",
         "lastRun": "Dernière exécution",
         "logs": {
+          "cancelled": "[to be translated]:Cancelled",
+          "completed": "[to be translated]:Completed",
           "duration": "Durée",
           "empty": "Aucun historique d'exécution.",
-          "error": "Erreur",
+          "failed": "[to be translated]:Failed",
           "justNow": "à l'instant",
           "label": "Historique d'exécution",
           "loadError": "Échec du chargement de l'historique des exécutions",
@@ -232,7 +234,6 @@
           "running": "En cours d'exécution...",
           "search": "Rechercher les journaux...",
           "status": "Statut",
-          "success": "Succès",
           "viewSession": "Voir la session"
         },
         "name": {
@@ -6354,6 +6355,7 @@
         "description": "AWS Bedrock est un service de modèles de base entièrement géré proposé par Amazon, prenant en charge divers grands modèles linguistiques avancés.",
         "region": "Région AWS",
         "region_help": "Votre région de service AWS, par exemple us-east-1",
+        "region_required": "[to be translated]:Enter an AWS region before saving",
         "secret_access_key": "Clés d'accès AWS",
         "secret_access_key_help": "Votre clé d'accès AWS, veuillez la conserver en lieu sûr",
         "title": "Configuration AWS Bedrock"
@@ -6465,6 +6467,7 @@
       },
       "filter_agent": "Fournisseurs pris en charge par l'agent de filtrage",
       "get_api_key": "Cliquez ici pour obtenir une clé",
+      "logo_upload_failed": "[to be translated]:Failed to process the selected image",
       "misc": "autre",
       "more_endpoints": {
         "add": "[to be translated]:Add Endpoint",

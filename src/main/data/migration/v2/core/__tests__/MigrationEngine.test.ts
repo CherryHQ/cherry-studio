@@ -141,7 +141,9 @@ describe('MigrationEngine', () => {
     await (engine as any).verifyAndClearNewTables()
 
     expect(transactionFn).toHaveBeenCalledTimes(1)
-    expect(deleteFn).toHaveBeenCalledTimes(25)
+    // 23 tables = 25 (v1 baseline) − 2 (agent_task + agent_task_run_log
+    // dropped as part of the agent.task → JobManager migration).
+    expect(deleteFn).toHaveBeenCalledTimes(23)
     expect(db).not.toHaveProperty('delete')
   })
 })

@@ -172,76 +172,23 @@ describe('AgentsDbMappings', () => {
     expect(skillsInsert).toContain('FROM agents_legacy.skills')
   })
 
-  it('appends FK-safe WHERE clause for scheduled_tasks', () => {
-    const schemaInfo = createEmptyAgentsSchemaInfo()
-    schemaInfo.scheduled_tasks.exists = true
-    schemaInfo.scheduled_tasks.columns = new Set([
-      'id',
-      'agent_id',
-      'name',
-      'prompt',
-      'schedule_type',
-      'schedule_value',
-      'timeout_minutes',
-      'status',
-      'created_at',
-      'updated_at'
-    ])
+  // Note: `scheduled_tasks`, `task_run_logs`, and `channel_task_subscriptions`
+  // are no longer in AGENTS_TABLE_MIGRATION_SPECS — they migrate via the
+  // TypeScript loop `AgentsMigrator.migrateScheduledTasksTs`. The FK-safe
+  // WHERE clauses are still applied inline by that loop's SQL queries.
 
-    const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
-    const tasksInsert = statements.find((s) => s.startsWith('INSERT INTO agent_task '))
-
-    expect(tasksInsert).toContain('WHERE agent_id IN (SELECT id FROM agent)')
-  })
-
-  it('appends FK-safe WHERE clause for task_run_logs', () => {
-    const schemaInfo = createEmptyAgentsSchemaInfo()
-    schemaInfo.task_run_logs.exists = true
-    schemaInfo.task_run_logs.columns = new Set([
-      'id',
-      'task_id',
-      'session_id',
-      'run_at',
-      'duration_ms',
-      'status',
-      'result',
-      'error'
-    ])
-
-    const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
-    const logsInsert = statements.find((s) => s.startsWith('INSERT INTO agent_task_run_log '))
-
-    expect(logsInsert).toContain('WHERE task_id IN (SELECT id FROM agent_task)')
-  })
-
-  it('appends FK-safe WHERE clause for channel_task_subscriptions', () => {
-    const schemaInfo = createEmptyAgentsSchemaInfo()
-    schemaInfo.channel_task_subscriptions.exists = true
-    schemaInfo.channel_task_subscriptions.columns = new Set(['channel_id', 'task_id'])
-
-    const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
-    const subsInsert = statements.find((s) => s.startsWith('INSERT INTO agent_channel_task '))
-
-    expect(subsInsert).toContain(
-      'WHERE channel_id IN (SELECT id FROM agent_channel) AND task_id IN (SELECT id FROM agent_task)'
-    )
-  })
-
-  it('exposes all source table names in dependency order', () => {
+  it('exposes the importStatement-driven source table names in dependency order', () => {
     expect(getAgentsSourceTableNames()).toEqual([
       'agents',
       'sessions',
       'skills',
       'agent_skills',
-      'scheduled_tasks',
-      'task_run_logs',
       'channels',
-      'channel_task_subscriptions',
       'session_messages'
     ])
   })
 
-  it('sums row counts across all tables', () => {
+  it('sums row counts across all importStatement-driven tables', () => {
     expect(
       getTotalAgentsRowCount({
         agents: 2,
@@ -254,7 +201,7 @@ describe('AgentsDbMappings', () => {
         channel_task_subscriptions: 9,
         session_messages: 10
       })
-    ).toBe(54)
+    ).toBe(32)
   })
 
   it('keeps the table spec list aligned with the source table names', () => {
@@ -320,19 +267,6 @@ describe('AgentsDbMappings', () => {
     ])
     schemaInfo.agent_skills.exists = true
     schemaInfo.agent_skills.columns = new Set(['agent_id', 'skill_id', 'is_enabled', 'created_at', 'updated_at'])
-    schemaInfo.scheduled_tasks.exists = true
-    schemaInfo.scheduled_tasks.columns = new Set([
-      'id',
-      'agent_id',
-      'name',
-      'prompt',
-      'schedule_type',
-      'schedule_value',
-      'timeout_minutes',
-      'status',
-      'created_at',
-      'updated_at'
-    ])
     schemaInfo.channels.exists = true
     schemaInfo.channels.columns = new Set([
       'id',
@@ -376,9 +310,6 @@ describe('AgentsDbMappings', () => {
     const agentSkillInsert = find('agent_skill')
     expect(agentSkillInsert).toContain('COALESCE(is_enabled, 0) AS is_enabled')
 
-    const taskInsert = find('agent_task')
-    expect(taskInsert).toContain('COALESCE(timeout_minutes, 2) AS timeout_minutes')
-
     const channelInsert = find('agent_channel')
     expect(channelInsert).toContain('COALESCE(is_active, 1) AS is_active')
     expect(channelInsert).toContain("COALESCE(active_chat_ids, '[]') AS active_chat_ids")
@@ -418,9 +349,6 @@ describe('AgentsDbMappings', () => {
       },
       agent_skill: {
         is_enabled: { defaultExpr: '0' }
-      },
-      agent_task: {
-        timeout_minutes: { defaultExpr: '2' }
       },
       agent_channel: {
         is_active: { defaultExpr: '1' },

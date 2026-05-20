@@ -2,14 +2,14 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { agentChannelWorkflowService } from '@data/services/AgentChannelWorkflowService'
 import { agentService } from '@data/services/AgentService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
-import { agentTaskWorkflowService } from '@data/services/AgentTaskWorkflowService'
 import { loggerService } from '@logger'
 import { type ChannelConfig, ChannelConfigSchema } from '@main/services/agents/services/channels/channelConfig'
 import { channelManager } from '@main/services/agents/services/channels/ChannelManager'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
-import type { AgentConfiguration, TaskScheduleType } from '@types'
+import type { Trigger } from '@shared/data/api/schemas/jobs'
+import type { AgentConfiguration } from '@types'
 import QRCode from 'qrcode'
 
 const logger = loggerService.withContext('MCPServer:Claw')
@@ -308,26 +308,22 @@ class ClawServer {
     if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for add")
     if (!message) throw new McpError(ErrorCode.InvalidParams, "'message' is required for add")
 
-    // Determine schedule type and value
+    // Determine trigger shape (cron expression / interval ms / one-shot timestamp)
     const scheduleCount = [cronExpr, every, at].filter(Boolean).length
     if (scheduleCount === 0) throw new McpError(ErrorCode.InvalidParams, "One of 'cron', 'every', or 'at' is required")
     if (scheduleCount > 1) throw new McpError(ErrorCode.InvalidParams, "Use only one of 'cron', 'every', or 'at'")
 
-    let scheduleType: TaskScheduleType
-    let scheduleValue: string
+    let trigger: Trigger
 
     if (cronExpr) {
-      scheduleType = 'cron'
-      scheduleValue = cronExpr
+      trigger = { kind: 'cron', expr: cronExpr }
     } else if (every) {
-      scheduleType = 'interval'
-      scheduleValue = String(parseDurationToMinutes(every))
+      const minutes = parseDurationToMinutes(every)
+      trigger = { kind: 'interval', ms: minutes * 60_000 }
     } else {
-      scheduleType = 'once'
-      // Validate and normalize to ISO string
       const date = new Date(at!)
       if (isNaN(date.getTime())) throw new McpError(ErrorCode.InvalidParams, `Invalid timestamp: "${at}"`)
-      scheduleValue = date.toISOString()
+      trigger = { kind: 'once', at: date.getTime() }
     }
 
     // Resolve channel_ids: explicit array, or default to the current channel
@@ -338,11 +334,10 @@ class ClawServer {
       channelIds = [this.sourceChannelId]
     }
 
-    const task = await agentTaskWorkflowService.createTask(this.agentId, {
+    const task = await taskService.createTask(this.agentId, {
       name,
       prompt: message,
-      scheduleType,
-      scheduleValue,
+      trigger,
       timeoutMinutes: timeoutMinutes && timeoutMinutes > 0 ? timeoutMinutes : undefined,
       channelIds: channelIds && channelIds.length > 0 ? channelIds : undefined
     })
@@ -744,7 +739,7 @@ class ClawServer {
     const id = args.id
     if (!id) throw new McpError(ErrorCode.InvalidParams, "'id' is required for remove")
 
-    const deleted = await agentTaskWorkflowService.deleteTask(this.agentId, id)
+    const deleted = await taskService.deleteTask(this.agentId, id)
     if (!deleted) throw new McpError(ErrorCode.InvalidParams, `Job "${id}" not found`)
 
     logger.info('Cron job removed via tool', { agentId: this.agentId, taskId: id })

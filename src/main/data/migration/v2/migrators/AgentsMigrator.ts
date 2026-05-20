@@ -1,4 +1,7 @@
+import { agentChannelTaskTable } from '@data/db/schemas/agentChannel'
+import { jobScheduleTable } from '@data/db/schemas/job'
 import { loggerService } from '@logger'
+import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import { sql } from 'drizzle-orm'
 
@@ -15,6 +18,24 @@ import {
   quoteSqlitePath
 } from './mappings/AgentsDbMappings'
 import { remapAgentPrefixIds } from './remapAgentPrefixIds'
+
+type V1ScheduledTaskRow = {
+  id: string
+  agent_id: string
+  name: string | null
+  prompt: string
+  schedule_type: string
+  schedule_value: string
+  timeout_minutes: number | null
+  status: string
+}
+
+type V1ChannelTaskSubscription = {
+  channel_id: string
+  task_id: string
+}
+
+const HEARTBEAT_INTERVAL_FALLBACK_MS = 60 * 60_000
 
 const logger = loggerService.withContext('AgentsMigrator')
 
@@ -119,6 +140,14 @@ export class AgentsMigrator extends BaseMigrator {
       await ctx.db.run(sql.raw('COMMIT'))
       committed = true
       logger.info('Agents migration transaction committed successfully')
+
+      // v1 scheduled_tasks → v2 job_schedule + agent_channel_task. Runs while
+      // agents_legacy is still attached so the reads can target it directly via
+      // ctx.db. Must happen BEFORE remapAgentPrefixIds — schedules carry the
+      // legacy agent_id inside their jobInputTemplate JSON, and the remap step
+      // is responsible for rewriting both `agent.id` AND
+      // `job_schedule.jobInputTemplate.agentId` together.
+      await this.migrateScheduledTasksTs(ctx.db)
 
       // Remap old prefix IDs after the import transaction commits. Must run after COMMIT
       // so the imported rows are visible; remapAgentPrefixIds is idempotent, so a retry
@@ -273,6 +302,138 @@ export class AgentsMigrator extends BaseMigrator {
         mismatchReason: errors.length > 0 ? 'One or more agent_* tables did not match expected row counts' : undefined
       }
     }
+  }
+
+  /**
+   * Migrate v1 `scheduled_tasks` + `channel_task_subscriptions` into v2
+   * `job_schedule` + `agent_channel_task`. v1 `task_run_logs` are intentionally
+   * discarded — see breaking-changes/2026-05-19-agent-task-migration.md.
+   *
+   * Runs after the legacy DB has been ATTACHed by `execute()` so all reads
+   * target `agents_legacy.*` directly via the connection that owns the ATTACH.
+   */
+  private async migrateScheduledTasksTs(db: MigrationContext['db']): Promise<void> {
+    // Idempotency on retry: drop any partial agent.task schedules from a
+    // previous failed run so the (type, name) UNIQUE index doesn't reject the
+    // second-pass inserts. Other type rows (e.g. file processing) are
+    // untouched.
+    await db.delete(jobScheduleTable).where(sql`${jobScheduleTable.type} = 'agent.task'`)
+
+    const v1Tasks = await db.all<V1ScheduledTaskRow>(
+      sql.raw(
+        'SELECT id, agent_id, name, prompt, schedule_type, schedule_value, timeout_minutes, status ' +
+          'FROM agents_legacy.scheduled_tasks ' +
+          'WHERE agent_id IN (SELECT id FROM agent)'
+      )
+    )
+
+    const idMap = new Map<string, string>()
+    let migratedCount = 0
+    let droppedNameCount = 0
+
+    for (const v1 of v1Tasks) {
+      const trigger = this.buildTriggerFromV1(v1)
+      if (!trigger) {
+        logger.warn('Skipping v1 task with unparseable schedule', {
+          v1Id: v1.id,
+          type: v1.schedule_type,
+          value: v1.schedule_value
+        })
+        continue
+      }
+
+      // v1 enforced `name NOT NULL` but allowed whitespace / control chars that
+      // JobScheduleNameAtomSchema rejects on the application boundary. The
+      // migrator writes raw into the row (bypasses Zod), but a future
+      // `JobManager.updateJobSchedule` on the row would fail validation. Sanitize
+      // here so v2 reads are well-formed end-to-end.
+      const rawName = v1.name?.trim() ?? ''
+      const sanitizedName =
+        rawName && !rawName.startsWith('__') && !this.hasControlChars(rawName)
+          ? rawName.slice(0, 200)
+          : `task_${v1.id}`.slice(0, 200)
+      if (sanitizedName !== rawName) droppedNameCount++
+
+      const inserted = await db
+        .insert(jobScheduleTable)
+        .values({
+          type: 'agent.task',
+          name: sanitizedName,
+          trigger,
+          jobInputTemplate: {
+            agentId: v1.agent_id,
+            prompt: v1.prompt,
+            timeoutMinutes: v1.timeout_minutes ?? 2
+          },
+          catchUpPolicy: { kind: 'skip-missed' },
+          enabled: v1.status === 'active',
+          metadata: { migratedFrom: 'v1.agentTask', v1Id: v1.id }
+        })
+        .returning({ id: jobScheduleTable.id })
+
+      const newId = inserted[0]?.id
+      if (!newId) {
+        logger.error('Insert of job_schedule did not return an id', undefined, { v1Id: v1.id })
+        continue
+      }
+      idMap.set(v1.id, newId)
+      migratedCount++
+    }
+
+    const v1Subs = await db.all<V1ChannelTaskSubscription>(
+      sql.raw(
+        'SELECT channel_id, task_id FROM agents_legacy.channel_task_subscriptions ' +
+          'WHERE channel_id IN (SELECT id FROM agent_channel) ' +
+          'AND task_id IN (SELECT id FROM agents_legacy.scheduled_tasks WHERE agent_id IN (SELECT id FROM agent))'
+      )
+    )
+
+    let subCount = 0
+    for (const sub of v1Subs) {
+      const newScheduleId = idMap.get(sub.task_id)
+      if (!newScheduleId) continue
+      await db
+        .insert(agentChannelTaskTable)
+        .values({ channelId: sub.channel_id, taskId: newScheduleId })
+        .onConflictDoNothing()
+      subCount++
+    }
+
+    logger.info('Scheduled tasks migrated', {
+      schedules: migratedCount,
+      channelLinks: subCount,
+      sanitizedNames: droppedNameCount
+    })
+  }
+
+  private buildTriggerFromV1(v1: V1ScheduledTaskRow): Trigger | null {
+    if (v1.schedule_type === 'cron') {
+      if (!v1.schedule_value.trim()) return null
+      return { kind: 'cron', expr: v1.schedule_value.trim() }
+    }
+    if (v1.schedule_type === 'interval') {
+      const minutes = parseInt(v1.schedule_value, 10)
+      if (!Number.isFinite(minutes) || minutes <= 0) {
+        // Heartbeat tasks used to store interval=30 in legacy; fall back to a
+        // safe default rather than dropping the row.
+        return { kind: 'interval', ms: HEARTBEAT_INTERVAL_FALLBACK_MS }
+      }
+      return { kind: 'interval', ms: minutes * 60_000 }
+    }
+    if (v1.schedule_type === 'once') {
+      const at = Date.parse(v1.schedule_value)
+      if (!Number.isFinite(at)) return null
+      return { kind: 'once', at }
+    }
+    return null
+  }
+
+  private hasControlChars(s: string): boolean {
+    for (let i = 0; i < s.length; i++) {
+      const code = s.charCodeAt(i)
+      if (code === 0 || code === 9 || code === 10 || code === 13) return true
+    }
+    return false
   }
 
   private createReader(ctx: MigrationContext): LegacyAgentsDbReader {

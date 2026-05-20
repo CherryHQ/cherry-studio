@@ -82,7 +82,10 @@ describe('AgentsMigrator', () => {
     const result = await migrator.prepare(createMigrationContext())
 
     expect(result.success).toBe(true)
-    expect(result.itemCount).toBe(45)
+    // 1 + 2 + 3 + 4 + 7 + 9 = 26 — only the 6 importStatement-driven specs are
+    // counted; the 3 task-related tables migrate via the TS-loop and are
+    // accounted for separately.
+    expect(result.itemCount).toBe(26)
   })
 
   it('execute attaches the legacy db and imports every table inside a FK-off transaction', async () => {
@@ -95,6 +98,17 @@ describe('AgentsMigrator', () => {
     const update = vi.fn().mockReturnValue({
       set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
     })
+    // migrateScheduledTasksTs uses db.delete (the agent.task pre-clear) and db.insert
+    // (for both jobScheduleTable and agentChannelTaskTable). Stub them out so no
+    // schedule rows are emitted; the TS-loop is exercised end-to-end in
+    // AgentsMigrator.task.test.ts.
+    const del = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
+    const insert = vi.fn().mockReturnValue({
+      values: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([]),
+        onConflictDoNothing: vi.fn().mockResolvedValue(undefined)
+      })
+    })
     // remapAgentPrefixIds runs PRAGMA foreign_key_check via db.all; empty => no FK violations.
     const all = vi.fn().mockResolvedValue([])
 
@@ -103,10 +117,15 @@ describe('AgentsMigrator', () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockResolvedValue(createCounts())
 
     await migrator.prepare(createMigrationContext())
-    const result = await migrator.execute(createMigrationContext({ db: { run, select, update, all } }))
+    const result = await migrator.execute(
+      createMigrationContext({ db: { run, select, update, all, delete: del, insert } })
+    )
 
     expect(result.success).toBe(true)
-    expect(result.processedCount).toBe(45)
+    // sourceCounts now sums only the 6 importStatement-driven specs (the 3
+    // task-related sources are handled by the TS-loop). 45 - (5 scheduled
+    // tasks + 6 run logs + 8 channel_task_subscriptions) = 26.
+    expect(result.processedCount).toBe(26)
 
     const outer = getExecutedSql(run)
     // Import phase: ATTACH → PRAGMA FK OFF → BEGIN → [INSERTs] → COMMIT
@@ -169,14 +188,8 @@ describe('AgentsMigrator', () => {
       .mockResolvedValueOnce([{ count: 3 }]) // agent_global_skill expected
       .mockResolvedValueOnce([{ count: 4 }]) // agent_skill target
       .mockResolvedValueOnce([{ count: 4 }]) // agent_skill expected
-      .mockResolvedValueOnce([{ count: 5 }]) // agent_task target
-      .mockResolvedValueOnce([{ count: 5 }]) // agent_task expected
-      .mockResolvedValueOnce([{ count: 6 }]) // agent_task_run_log target
-      .mockResolvedValueOnce([{ count: 6 }]) // agent_task_run_log expected
       .mockResolvedValueOnce([{ count: 6 }]) // agent_channel target (expected 7 → mismatch)
       .mockResolvedValueOnce([{ count: 7 }]) // agent_channel expected
-      .mockResolvedValueOnce([{ count: 8 }]) // agent_channel_task target
-      .mockResolvedValueOnce([{ count: 8 }]) // agent_channel_task expected
       .mockResolvedValueOnce([{ count: 9 }]) // agent_session_message target
       .mockResolvedValueOnce([{ count: 9 }]) // agent_session_message expected
 
@@ -187,8 +200,12 @@ describe('AgentsMigrator', () => {
 
     expect(result.success).toBe(false)
     expect(result.errors.map((error) => error.key)).toEqual(['agent_count_mismatch', 'agent_channel_count_mismatch'])
-    expect(result.stats.sourceCount).toBe(45)
-    expect(result.stats.targetCount).toBe(43)
+    // sourceCount sums the 6 importStatement-driven specs (scheduled_tasks,
+    // run_logs, channel_task_subscriptions migrate via the TS-loop). targetCount
+    // = 0 + 2 + 3 + 4 + 6 + 9 = 24, with the agent and agent_channel mismatches
+    // bringing the total below the 26-row expectation.
+    expect(result.stats.sourceCount).toBe(26)
+    expect(result.stats.targetCount).toBe(24)
   })
 
   it('validate skips specs whose source table is missing from the legacy db', async () => {
@@ -205,12 +222,14 @@ describe('AgentsMigrator', () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockResolvedValue(partialSchema as never)
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockResolvedValue(partialCounts)
 
-    // Each present spec issues two queries (target count + expected count). With
-    // 7 present specs we expect 14 calls, all matched (target === expected) so
-    // validation succeeds. If the guard regresses, the mock will run out of
-    // queued responses and return undefined, surfacing the failure.
+    // Each present spec issues two queries (target count + expected count). After
+    // removing 3 task-related specs we have 6 total; partialSchema drops
+    // agent_skills and session_messages, leaving 4 present specs → 8 calls,
+    // all matched (target === expected) so validation succeeds. If the guard
+    // regresses, the mock will run out of queued responses and return
+    // undefined, surfacing the failure.
     const all = vi.fn()
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 4; i++) {
       all.mockResolvedValueOnce([{ count: 1 }]).mockResolvedValueOnce([{ count: 1 }])
     }
 
@@ -221,7 +240,7 @@ describe('AgentsMigrator', () => {
 
     expect(result.success).toBe(true)
     expect(result.errors).toEqual([])
-    expect(all).toHaveBeenCalledTimes(14)
+    expect(all).toHaveBeenCalledTimes(8)
     const queries = all.mock.calls.map(([statement]) => statement.queryChunks[0]?.value?.[0])
     expect(queries.some((q) => q?.includes('agents_legacy.agent_skills'))).toBe(false)
     expect(queries.some((q) => q?.includes('agents_legacy.session_messages'))).toBe(false)
@@ -242,14 +261,8 @@ describe('AgentsMigrator', () => {
       .mockResolvedValueOnce([{ count: 3 }]) // agent_global_skill expected
       .mockResolvedValueOnce([{ count: 4 }]) // agent_skill target
       .mockResolvedValueOnce([{ count: 4 }]) // agent_skill expected
-      .mockResolvedValueOnce([{ count: 5 }]) // agent_task target
-      .mockResolvedValueOnce([{ count: 5 }]) // agent_task expected
-      .mockResolvedValueOnce([{ count: 6 }]) // agent_task_run_log target
-      .mockResolvedValueOnce([{ count: 6 }]) // agent_task_run_log expected
       .mockResolvedValueOnce([{ count: 7 }]) // agent_channel target
       .mockResolvedValueOnce([{ count: 7 }]) // agent_channel expected
-      .mockResolvedValueOnce([{ count: 8 }]) // agent_channel_task target
-      .mockResolvedValueOnce([{ count: 8 }]) // agent_channel_task expected
       .mockResolvedValueOnce([{ count: 9 }]) // agent_session_message target
       .mockResolvedValueOnce([{ count: 9 }]) // agent_session_message expected
 
@@ -283,8 +296,17 @@ describe('AgentsMigrator', () => {
     const update = vi.fn().mockReturnValue({
       set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
     })
+    const del = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
+    const insert = vi.fn().mockReturnValue({
+      values: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([]),
+        onConflictDoNothing: vi.fn().mockResolvedValue(undefined)
+      })
+    })
     const all = vi.fn().mockResolvedValue([])
-    const migrationContext = createMigrationContext({ db: { run, select, update, all } })
+    const migrationContext = createMigrationContext({
+      db: { run, select, update, all, delete: del, insert }
+    })
 
     await migrator.prepare(migrationContext)
     await migrator.execute(migrationContext)

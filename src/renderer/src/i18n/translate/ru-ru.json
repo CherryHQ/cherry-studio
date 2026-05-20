@@ -221,9 +221,11 @@
         "intervalUnit": "минуты",
         "lastRun": "Последний запуск",
         "logs": {
+          "cancelled": "[to be translated]:Cancelled",
+          "completed": "[to be translated]:Completed",
           "duration": "Длительность",
           "empty": "История запусков пуста.",
-          "error": "Ошибка",
+          "failed": "[to be translated]:Failed",
           "justNow": "только что",
           "label": "История запусков",
           "loadError": "Не удалось загрузить историю запусков",
@@ -232,7 +234,6 @@
           "running": "Бежит...",
           "search": "Искать журналы...",
           "status": "Статус",
-          "success": "Успех",
           "viewSession": "Просмотр сеанса"
         },
         "name": {
@@ -6354,6 +6355,7 @@
         "description": "AWS Bedrock — это полное управляемое сервисное предложение для моделей, поддерживающее различные современные модели языка",
         "region": "AWS регион",
         "region_help": "Ваш регион AWS, например us-east-1",
+        "region_required": "[to be translated]:Enter an AWS region before saving",
         "secret_access_key": "AWS Ключ доступа",
         "secret_access_key_help": "Ваш AWS Ключ доступа, пожалуйста, храните его в безопасности",
         "title": "AWS Bedrock Конфигурация"
@@ -6465,6 +6467,7 @@
       },
       "filter_agent": "Поддерживаемые поставщики агента фильтрации",
       "get_api_key": "Получить ключ API",
+      "logo_upload_failed": "[to be translated]:Failed to process the selected image",
       "misc": "другие",
       "more_endpoints": {
         "add": "[to be translated]:Add Endpoint",

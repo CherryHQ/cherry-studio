@@ -13,7 +13,6 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService as sessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService as sessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
-import { agentTaskWorkflowService } from '@data/services/AgentTaskWorkflowService'
 import { skillService } from '@main/services/agents/skills/SkillService'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
@@ -152,7 +151,7 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     POST: async ({ params, body }) => {
       const parsed = CreateTaskSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await agentTaskWorkflowService.createTask(params.agentId, parsed.data)
+      return await taskService.createTask(params.agentId, parsed.data)
     }
   },
 
@@ -166,13 +165,13 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     PATCH: async ({ params, body }) => {
       const parsed = UpdateTaskSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      const task = await agentTaskWorkflowService.updateTask(params.agentId, params.taskId, parsed.data)
+      const task = await taskService.updateTask(params.agentId, params.taskId, parsed.data)
       if (!task) throw DataApiErrorFactory.notFound('Task', params.taskId)
       return task
     },
 
     DELETE: async ({ params }) => {
-      const deleted = await agentTaskWorkflowService.deleteTask(params.agentId, params.taskId)
+      const deleted = await taskService.deleteTask(params.agentId, params.taskId)
       if (!deleted) throw DataApiErrorFactory.notFound('Task', params.taskId)
       return undefined
     }

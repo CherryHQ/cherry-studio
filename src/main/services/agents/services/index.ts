@@ -1,4 +1,3 @@
-export { schedulerService } from './SchedulerService'
 export { AgentChannelService, agentChannelService } from '@data/services/AgentChannelService'
 export { AgentService, agentService } from '@data/services/AgentService'
 export { AgentSessionMessageService, agentSessionMessageService } from '@data/services/AgentSessionMessageService'

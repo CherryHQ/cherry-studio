@@ -221,9 +221,11 @@
         "intervalUnit": "Minuten",
         "lastRun": "Letzte Ausführung",
         "logs": {
+          "cancelled": "[to be translated]:Cancelled",
+          "completed": "[to be translated]:Completed",
           "duration": "Dauer",
           "empty": "Noch keine Ausführungshistorie.",
-          "error": "Fehler",
+          "failed": "[to be translated]:Failed",
           "justNow": "soeben",
           "label": "Ausführungshistorie",
           "loadError": "Fehler beim Laden des Laufverlaufs",
@@ -232,7 +234,6 @@
           "running": "Läuft...",
           "search": "Suchprotokolle...",
           "status": "Status",
-          "success": "Erfolg",
           "viewSession": "Sitzung anzeigen"
         },
         "name": {
@@ -6354,6 +6355,7 @@
         "description": "AWS Bedrock ist ein vollständig verwalteter Basismodell-Dienst von Amazon, der eine Vielzahl moderner großer Sprachmodelle unterstützt",
         "region": "AWS-Region",
         "region_help": "Ihre AWS-Serviceregion, z.B. us-east-1",
+        "region_required": "[to be translated]:Enter an AWS region before saving",
         "secret_access_key": "AWS-Zugriffsschlüssel",
         "secret_access_key_help": "Ihre AWS-Zugriffsschlüssel, bitte sorgfältig aufbewahren",
         "title": "AWS Bedrock-Konfiguration"
@@ -6465,6 +6467,7 @@
       },
       "filter_agent": "Von Filter-Agent unterstützte Anbieter",
       "get_api_key": "Hier klicken um Schlüssel zu erhalten",
+      "logo_upload_failed": "[to be translated]:Failed to process the selected image",
       "misc": "Sonstige",
       "more_endpoints": {
         "add": "[to be translated]:Add Endpoint",

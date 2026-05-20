@@ -26,13 +26,6 @@ vi.mock('@data/services/AgentTaskService', () => ({
   }
 }))
 
-vi.mock('@data/services/AgentTaskWorkflowService', () => ({
-  agentTaskWorkflowService: {
-    createTask: mockCreateTask,
-    deleteTask: mockDeleteTask
-  }
-}))
-
 vi.mock('@data/services/AgentService', () => ({
   agentService: {
     getAgent: mockGetAgent,
@@ -138,14 +131,15 @@ describe('ClawServer', () => {
       expect(mockCreateTask).toHaveBeenCalledWith('agent_1', {
         name: 'Daily standup',
         prompt: 'Run standup check',
-        scheduleType: 'cron',
-        scheduleValue: '0 9 * * 1-5'
+        trigger: { kind: 'cron', expr: '0 9 * * 1-5' },
+        timeoutMinutes: undefined,
+        channelIds: undefined
       })
       expect(result.content[0].text).toContain('Job created')
     })
 
     it('should create a task with interval schedule', async () => {
-      const task = { id: 'task_2', name: 'check', scheduleType: 'interval', scheduleValue: '30' }
+      const task = { id: 'task_2', name: 'check', trigger: { kind: 'interval', ms: 30 * 60_000 } }
       mockCreateTask.mockResolvedValue(task)
 
       const server = createServer('agent_2')
@@ -159,8 +153,9 @@ describe('ClawServer', () => {
       expect(mockCreateTask).toHaveBeenCalledWith('agent_2', {
         name: 'Health check',
         prompt: 'Check system health',
-        scheduleType: 'interval',
-        scheduleValue: '30'
+        trigger: { kind: 'interval', ms: 30 * 60_000 },
+        timeoutMinutes: undefined,
+        channelIds: undefined
       })
     })
 
@@ -178,8 +173,7 @@ describe('ClawServer', () => {
       expect(mockCreateTask).toHaveBeenCalledWith(
         'agent_test',
         expect.objectContaining({
-          scheduleType: 'interval',
-          scheduleValue: '90'
+          trigger: { kind: 'interval', ms: 90 * 60_000 }
         })
       )
     })
@@ -198,7 +192,7 @@ describe('ClawServer', () => {
       expect(mockCreateTask).toHaveBeenCalledWith(
         'agent_test',
         expect.objectContaining({
-          scheduleType: 'once'
+          trigger: expect.objectContaining({ kind: 'once' })
         })
       )
     })

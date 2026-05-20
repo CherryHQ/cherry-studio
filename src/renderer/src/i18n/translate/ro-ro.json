@@ -221,9 +221,11 @@
         "intervalUnit": "minute",
         "lastRun": "Ultima rulare",
         "logs": {
+          "cancelled": "[to be translated]:Cancelled",
+          "completed": "[to be translated]:Completed",
           "duration": "Durată",
           "empty": "Nu există încă istoric de rulare.",
-          "error": "Eroare",
+          "failed": "[to be translated]:Failed",
           "justNow": "chiar acum",
           "label": "Istoric rulări",
           "loadError": "Nu s-a reușit încărcarea istoricului de execuție",
@@ -232,7 +234,6 @@
           "running": "Alergând...",
           "search": "Caută jurnalele...",
           "status": "Stare",
-          "success": "Succes",
           "viewSession": "Vizualizare sesiune"
         },
         "name": {
@@ -6354,6 +6355,7 @@
         "description": "AWS Bedrock este serviciul de modele de fundație complet gestionat de Amazon care acceptă diverse modele lingvistice mari avansate",
         "region": "Regiune AWS",
         "region_help": "Regiunea serviciului tău AWS, de ex., us-east-1",
+        "region_required": "[to be translated]:Enter an AWS region before saving",
         "secret_access_key": "Cheie secretă acces AWS",
         "secret_access_key_help": "Cheia ta secretă de acces AWS, te rugăm să o păstrezi în siguranță",
         "title": "Configurare AWS Bedrock"
@@ -6465,6 +6467,7 @@
       },
       "filter_agent": "Furnizori acceptați de agentul de filtrare",
       "get_api_key": "Obține cheie API",
+      "logo_upload_failed": "[to be translated]:Failed to process the selected image",
       "misc": "Altele",
       "more_endpoints": {
         "add": "[to be translated]:Add Endpoint",

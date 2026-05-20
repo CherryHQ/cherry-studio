@@ -9,6 +9,7 @@
 import * as z from 'zod'
 
 import type { OffsetPaginationResponse } from '../apiTypes'
+import { JobScheduleNameAtomSchema, TriggerSchema } from './jobs'
 
 // ============================================================================
 // Field atoms (shared validators reused across entity and DTO schemas)
@@ -16,8 +17,6 @@ import type { OffsetPaginationResponse } from '../apiTypes'
 
 export const AgentNameAtomSchema = z.string().min(1)
 export const ModelIdAtomSchema = z.string().min(1)
-export const ScheduleTypeAtomSchema = z.enum(['cron', 'interval', 'once'])
-export const ScheduleValueAtomSchema = z.string().min(1)
 export const TimeoutMinutesAtomSchema = z.number().min(1).nullable().optional()
 
 export const SlashCommandSchema = z.strictObject({
@@ -194,13 +193,15 @@ export const ScheduledTaskEntitySchema = z.strictObject({
   agentId: z.string(),
   name: z.string(),
   prompt: z.string(),
-  scheduleType: ScheduleTypeAtomSchema,
-  scheduleValue: z.string(),
+  /** Discriminated union — see TriggerSchema for {cron|interval|once} shape. */
+  trigger: TriggerSchema,
   timeoutMinutes: z.number(),
   channelIds: z.array(z.string()).optional(),
   nextRun: z.string().nullable().optional(),
   lastRun: z.string().nullable().optional(),
-  lastResult: z.string().nullable().optional(),
+  /** Live enable/disable flag — pause/resume flips this. */
+  enabled: z.boolean(),
+  /** Output-only derived label kept for UI continuity (active / paused / completed). */
   status: z.enum(['active', 'paused', 'completed']),
   createdAt: z.string(),
   updatedAt: z.string()
@@ -209,11 +210,12 @@ export type ScheduledTaskEntity = z.infer<typeof ScheduledTaskEntitySchema>
 
 export const TaskRunLogEntitySchema = z.strictObject({
   id: z.string(),
-  taskId: z.string(),
+  scheduleId: z.string(),
   sessionId: z.string().nullable().optional(),
-  runAt: z.string(),
+  startedAt: z.string(),
   durationMs: z.number(),
-  status: z.enum(['running', 'success', 'error']),
+  /** JobStatus terminal set + 'running' (pending/delayed collapse to 'running' for display). */
+  status: z.enum(['running', 'completed', 'failed', 'cancelled']),
   result: z.string().nullable().optional(),
   error: z.string().nullable().optional()
 })
@@ -267,17 +269,17 @@ export type UpdateSessionDto = z.infer<typeof UpdateSessionSchema>
 // ============================================================================
 
 export const CreateTaskSchema = z.strictObject({
-  name: z.string().min(1),
+  name: JobScheduleNameAtomSchema,
   prompt: z.string().min(1),
-  scheduleType: ScheduleTypeAtomSchema,
-  scheduleValue: ScheduleValueAtomSchema,
+  trigger: TriggerSchema,
   timeoutMinutes: TimeoutMinutesAtomSchema,
   channelIds: z.array(z.string()).optional()
 })
 export type CreateTaskDto = z.infer<typeof CreateTaskSchema>
 
 export const UpdateTaskSchema = CreateTaskSchema.partial().extend({
-  status: z.enum(['active', 'paused', 'completed']).optional()
+  /** Pause = false, resume = true. Replaces v1 status field. */
+  enabled: z.boolean().optional()
 })
 export type UpdateTaskDto = z.infer<typeof UpdateTaskSchema>
 

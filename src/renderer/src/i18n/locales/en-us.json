@@ -221,9 +221,11 @@
         "intervalUnit": "minutes",
         "lastRun": "Last Run",
         "logs": {
+          "cancelled": "Cancelled",
+          "completed": "Completed",
           "duration": "Duration",
           "empty": "No run history yet.",
-          "error": "Error",
+          "failed": "Failed",
           "justNow": "just now",
           "label": "Run History",
           "loadError": "Failed to load run history",
@@ -232,7 +234,6 @@
           "running": "Running...",
           "search": "Search logs...",
           "status": "Status",
-          "success": "Success",
           "viewSession": "View session"
         },
         "name": {

@@ -1,3 +1,4 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { modelsService } from '@main/apiServer/services/models'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -8,7 +9,7 @@ import { extractRtkBinaries } from '../utils/rtk'
 import { listMcpTools } from './agents/agentUtils'
 import { channelManager } from './agents/services/channels'
 import { registerSessionStreamIpc } from './agents/services/channels/sessionStreamIpc'
-import { schedulerService } from './agents/services/SchedulerService'
+import { AgentTaskJobHandler } from './agents/tasks/AgentTaskJobHandler'
 
 const logger = loggerService.withContext('AgentBootstrapService')
 const ProviderTypeSchema = z.enum([
@@ -55,26 +56,36 @@ export function validateListToolsArgs(args: unknown) {
 /**
  * Lifecycle-managed service that orchestrates agent subsystem initialization.
  *
- * Wraps the non-lifecycle agent singletons (schedulerService, channelManager)
- * so their startup/shutdown is managed by the application lifecycle instead of
- * manual calls in index.ts.
+ * Wires the agent.task JobHandler into JobManager (onInit) and brings up the
+ * channel manager + IPC surface (onReady). Schedule arming, dispatch, and
+ * shutdown of scheduled tasks are owned by JobManager + SchedulerService.
  */
 @Injectable('AgentBootstrapService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['ApiServerService'])
+@DependsOn(['ApiServerService', 'JobManager'])
 export class AgentBootstrapService extends BaseService {
+  protected override onInit(): void {
+    // Register handler before JobManager.onAllReady runs startup recovery —
+    // otherwise recovery would treat any agent.task row as an orphan and
+    // cancel it. onInit runs in dependency order; @DependsOn above pins
+    // JobManager before this service so application.get('JobManager') is
+    // safe here.
+    application.get('JobManager').registerHandler('agent.task', AgentTaskJobHandler)
+    logger.info('AgentTaskJobHandler registered')
+  }
+
   protected async onReady(): Promise<void> {
     await this.extractRtkBinaries()
-
-    await schedulerService.restoreSchedulers()
-    logger.info('Schedulers restored')
 
     registerSessionStreamIpc()
     logger.info('Session stream IPC registered')
 
     this.ipcHandle(IpcChannel.Agent_RunTask, async (_, agentId: string, taskId: string) => {
       const parsed = validateRunTaskArgs(agentId, taskId)
-      await schedulerService.runTaskNow(parsed.agentId, parsed.taskId)
+      const triggered = await application.get('JobManager').triggerJobScheduleNowById(parsed.taskId)
+      if (!triggered) {
+        throw new Error(`Task not found: ${parsed.taskId}`)
+      }
     })
 
     this.ipcHandle(IpcChannel.Agent_GetModels, async (_, filter: Parameters<typeof modelsService.getModels>[0]) => {
@@ -92,9 +103,6 @@ export class AgentBootstrapService extends BaseService {
   }
 
   protected async onDestroy(): Promise<void> {
-    schedulerService.stopAll()
-    logger.info('Schedulers stopped')
-
     await channelManager.stop()
     logger.info('Channel manager stopped')
   }

@@ -47,12 +47,12 @@ const TaskListItem: FC<TaskListItemProps> = ({ task, onEdit, onToggleStatus, onD
   const locale = i18n.language
 
   const formatScheduleValue = () => {
-    if (task.scheduleType === 'cron') return task.scheduleValue
-    if (task.scheduleType === 'interval') return `${task.scheduleValue} min`
-    if (task.scheduleType === 'once' && task.scheduleValue) {
-      return new Date(task.scheduleValue).toLocaleString(locale)
+    if (task.trigger.kind === 'cron') return task.trigger.expr
+    if (task.trigger.kind === 'interval') {
+      const minutes = Math.max(1, Math.round(task.trigger.ms / 60_000))
+      return `${minutes} min`
     }
-    return task.scheduleValue
+    return new Date(task.trigger.at).toLocaleString(locale)
   }
 
   const formatTime = (iso: string | null | undefined) => {
@@ -68,7 +68,7 @@ const TaskListItem: FC<TaskListItemProps> = ({ task, onEdit, onToggleStatus, onD
   }
 
   const isCompleted = task.status === 'completed'
-  const typeConfig = scheduleTypeConfig[task.scheduleType] ?? { label: task.scheduleType, color: 'default' }
+  const typeConfig = scheduleTypeConfig[task.trigger.kind] ?? { label: task.trigger.kind, color: 'default' }
 
   return (
     <div className="flex items-center justify-between rounded-lg border border-[var(--color-border)] p-3">
@@ -90,11 +90,7 @@ const TaskListItem: FC<TaskListItemProps> = ({ task, onEdit, onToggleStatus, onD
           {task.nextRun && <span className="text-foreground-400">→ Next: {formatTime(task.nextRun)}</span>}
           {task.lastRun && <span className="text-foreground-400">Last: {formatTime(task.lastRun)}</span>}
         </div>
-        {task.lastResult && (
-          <Tooltip title={task.lastResult}>
-            <div className="mt-1 max-w-[400px] truncate text-foreground-500 text-xs">{task.lastResult}</div>
-          </Tooltip>
-        )}
+        {/* lastResult column dropped — v2 reads result history via getTaskLogs (jobTable). */}
       </div>
       <div className="ml-3 flex shrink-0 items-center gap-0.5">
         {!isCompleted && (

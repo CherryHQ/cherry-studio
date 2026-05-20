@@ -221,9 +221,11 @@
         "intervalUnit": "分钟",
         "lastRun": "上次运行",
         "logs": {
+          "cancelled": "已取消",
+          "completed": "已完成",
           "duration": "耗时",
           "empty": "暂无运行历史。",
-          "error": "错误",
+          "failed": "失败",
           "justNow": "刚刚",
           "label": "运行历史",
           "loadError": "",
@@ -232,7 +234,6 @@
           "running": "运行中...",
           "search": "搜索运行记录...",
           "status": "状态",
-          "success": "成功",
           "viewSession": "查看会话"
         },
         "name": {

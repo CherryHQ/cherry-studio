@@ -221,9 +221,11 @@
         "intervalUnit": "minutos",
         "lastRun": "Última execução",
         "logs": {
+          "cancelled": "[to be translated]:Cancelled",
+          "completed": "[to be translated]:Completed",
           "duration": "Duração",
           "empty": "Ainda sem histórico de execução.",
-          "error": "Erro",
+          "failed": "[to be translated]:Failed",
           "justNow": "agora mesmo",
           "label": "Histórico de execução",
           "loadError": "Falha ao carregar o histórico de execução",
@@ -232,7 +234,6 @@
           "running": "Correndo...",
           "search": "Pesquisar registros...",
           "status": "Estado",
-          "success": "Sucesso",
           "viewSession": "Ver sessão"
         },
         "name": {
@@ -6354,6 +6355,7 @@
         "description": "A AWS Bedrock é um serviço de modelos fundamentais totalmente gerido fornecido pela Amazon, que suporta diversos modelos avançados de linguagem.",
         "region": "Região da AWS",
         "region_help": "A sua região de serviço da AWS, por exemplo, us-east-1",
+        "region_required": "[to be translated]:Enter an AWS region before saving",
         "secret_access_key": "Chaves de acesso AWS",
         "secret_access_key_help": "A sua chave de acesso AWS, mantenha-a em segurança",
         "title": "Configuração do AWS Bedrock"
@@ -6465,6 +6467,7 @@
       },
       "filter_agent": "Agente de Filtro - Provedores Suportados",
       "get_api_key": "Clique aqui para obter a chave",
+      "logo_upload_failed": "[to be translated]:Failed to process the selected image",
       "misc": "outro",
       "more_endpoints": {
         "add": "[to be translated]:Add Endpoint",
