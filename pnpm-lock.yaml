@@ -132,9 +132,6 @@ importers:
       '@vectorstores/readers':
         specifier: ^0.1.8
         version: 0.1.8(@vectorstores/core@0.1.8)(@vectorstores/env@0.1.0)(encoding@0.1.13)
-      cron-parser:
-        specifier: ^5.0.8
-        version: 5.5.0
       express:
         specifier: 5.1.0
         version: 5.1.0
@@ -8665,10 +8662,6 @@ packages:
 
   crelt@1.0.6:
     resolution: {integrity: sha512-VQ2MBenTq1fWZUH9DJNGti7kKv6EeAuYr3cLwxUWhIu1baTaXh4Ib5W2CqHVqib4/MqbYGJqiL3Zb8GJZr3l4g==}
-
-  cron-parser@5.5.0:
-    resolution: {integrity: sha512-oML4lKUXxizYswqmxuOCpgFS8BNUJpIu6k/2HVHyaL8Ynnf3wdf9tkns0yRdJLSIjkJ+b0DXHMZEHGpMwjnPww==}
-    engines: {node: '>=18'}
 
   croner@10.0.1:
     resolution: {integrity: sha512-ixNtAJndqh173VQ4KodSdJEI6nuioBWI0V1ITNKhZZsO0pEMoDxz539T4FTTbSZ/xIOSuDnzxLVRqBVSvPNE2g==}
@@ -23582,10 +23575,6 @@ snapshots:
 
   crelt@1.0.6: {}
 
-  cron-parser@5.5.0:
-    dependencies:
-      luxon: 3.7.2
-
   croner@10.0.1: {}
 
   cross-dirname@0.1.0:
@@ -26596,7 +26585,8 @@ snapshots:
     dependencies:
       react: 19.2.3
 
-  luxon@3.7.2: {}
+  luxon@3.7.2:
+    optional: true
 
   lz-string@1.5.0: {}
 
