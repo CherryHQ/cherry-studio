@@ -1,5 +1,8 @@
 {
-  "name": "Cherry Assistant",
+  "name": {
+    "en-US": "Cherry Assistant",
+    "zh-CN": "Cherry 小助手"
+  },
   "description": {
     "en-US": "Built-in Cherry Studio usage advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills",
     "zh-CN": "Cherry Studio 内置使用顾问。诊断问题、引导操作、收录 FAQ、提交 Bug/需求、搜索和创建 Skills"
