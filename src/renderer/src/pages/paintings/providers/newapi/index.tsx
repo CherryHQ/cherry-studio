@@ -11,28 +11,7 @@ import { loadPaintingModelOptions } from '../../model/utils/paintingModelOptions
 import type { PaintingProvider, PaintingProviderDefinition } from '../types'
 import { DEFAULT_PAINTING, MODELS, SUPPORTED_MODELS } from './config'
 import { newApiFields } from './fields'
-import { generateWithNewApi } from './generate'
 import { generateWithNewApiUnified } from './generateUnified'
-
-/**
- * Bespoke direct-fetch → AI-SDK-native switch, keyed by painting provider id.
- *
- * new-api, aionly, and cherryin are cut over to the unified files-driven
- * path (`generateWithNewApiUnified`). cherryin routes through
- * `buildCherryinConfig` → `createCherryIn`'s native `OpenAIImageModel` at
- * `https://open.cherryin.net/v1/images/generations` with `Bearer <key>` — the
- * exact endpoint and auth the bespoke path sent. For `gpt-image-1` (the only
- * SUPPORTED_MODEL) the request body is byte-equivalent (size omitted on
- * `'auto'` via R2 `allowAutoSize`, quality/background/moderation forwarded
- * under `providerOptions.openai`).
- *
- * Bespoke `generateWithNewApi` is retained as the fallback for custom user
- * providers with `presetProviderId === 'new-api'` (their `providerId` is the
- * user's custom id, never in this set); the unified path's
- * `buildOpenAICompatibleConfig` resolution for those ids has not been
- * parity-checked.
- */
-const UNIFIED_NEWAPI_PROVIDERS = new Set<string>(['new-api', 'aionly', 'cherryin'])
 
 export function NewApiHeaderActions({ provider, t }: { provider: PaintingProviderRuntime; t: TFunction }) {
   const Icon = resolveProviderIcon(provider.id)
@@ -104,8 +83,7 @@ export function createNewApiProvider(providerId: string): PaintingProviderDefini
         return i18n.t('paintings.prompt_placeholder_edit')
       }
     },
-    generate: (input) =>
-      UNIFIED_NEWAPI_PROVIDERS.has(providerId) ? generateWithNewApiUnified(input) : generateWithNewApi(input)
+    generate: (input) => generateWithNewApiUnified(input)
   } satisfies PaintingProvider<PaintingData>
 
   return provider
