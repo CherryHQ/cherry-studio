@@ -17,9 +17,12 @@ interface Props {
   citationBlockId?: string
   mentions?: Model[]
   role: Message['role']
+  /** Parent message id — surfaced as a DOM data-attribute so branch-anchor
+   *  helpers can resolve a Selection back to (messageId, blockId). T-006B. */
+  messageId: string
 }
 
-const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions = [] }) => {
+const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions = [], messageId }) => {
   // Use the passed citationBlockId directly in the selector
   const [renderInputMessageAsMarkdown] = usePreference('chat.message.render_as_markdown')
 
@@ -50,13 +53,17 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
           ))}
         </Flex>
       )}
-      {role === 'user' && !renderInputMessageAsMarkdown ? (
-        <p className="markdown" style={{ whiteSpace: 'pre-wrap' }}>
-          {block.content}
-        </p>
-      ) : (
-        <Markdown block={block} postProcess={processContent} />
-      )}
+      {/* Branch-anchor DOM scope: identifies this block + its message for
+          Selection → (messageId, blockId) resolution. See T-006B. */}
+      <div data-message-id={messageId} data-block-id={block.id}>
+        {role === 'user' && !renderInputMessageAsMarkdown ? (
+          <p className="markdown" style={{ whiteSpace: 'pre-wrap' }}>
+            {block.content}
+          </p>
+        ) : (
+          <Markdown block={block} postProcess={processContent} />
+        )}
+      </div>
     </>
   )
 }

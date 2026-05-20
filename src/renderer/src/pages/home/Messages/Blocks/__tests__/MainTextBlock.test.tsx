@@ -150,10 +150,12 @@ describe('MainTextBlock', () => {
     role: 'user' | 'assistant'
     mentions?: Model[]
     citationBlockId?: string
+    messageId?: string
   }) => {
+    const { messageId = 'test-message-1', ...rest } = props
     return render(
       <Provider store={mockStore}>
-        <MainTextBlock {...props} />
+        <MainTextBlock {...rest} messageId={messageId} />
       </Provider>
     )
   }

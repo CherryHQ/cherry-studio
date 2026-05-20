@@ -18,7 +18,8 @@
 | T-003 | Baseline Debug：v2 fresh install Topic 创建失败诊断 | [T-003_BaselineDebug/](./T-003_BaselineDebug/) | ✅ 诊断完成（2026-05-20 晚） |
 | T-004 | 修复 default assistant sentinel（方案 B） | [T-004_修复DefaultAssistantSentinel/](./T-004_修复DefaultAssistantSentinel/) | ✅ 自动化完成；⏳ 用户手动验证 |
 | T-005A | 诊断 assistant message 写入 FK 失败（modelId 短 id） | [T-005A_AssistantMessageFK/](./T-005A_AssistantMessageFK/) | ✅ 诊断完成 |
-| T-005B | 修 assistant message modelId FK（StreamingService 一处清洗） | [T-005B_修复ModelIdFK/](./T-005B_修复ModelIdFK/) | ✅ 自动化完成；⏳ 用户手动验证 |
+| T-005B | 修 assistant message modelId FK（StreamingService 一处清洗） | [T-005B_修复ModelIdFK/](./T-005B_修复ModelIdFK/) | ✅ commit `15ad2eb08`；⏳ 用户手动验证 |
+| T-006 | Text Anchor Branch UI 原型（设计 + 6 子任务） | [T-006_TextAnchorBranchUI/](./T-006_TextAnchorBranchUI/) | 🧠 设计完成；🔧 实施待启动 |
 
 ## 命名约定
 

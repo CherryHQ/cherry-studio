@@ -207,6 +207,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
                 // Pass only the ID string
                 citationBlockId={citationBlockId}
                 role={message.role}
+                messageId={message.id}
               />
             )
             break
