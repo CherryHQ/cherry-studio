@@ -35,7 +35,13 @@ This is **bold** text.
         data-testid="table-component"
       >
         <table>
-          test table
+          <tbody>
+            <tr>
+              <td>
+                test table
+              </td>
+            </tr>
+          </tbody>
         </table>
         <button
           data-testid="copy-table-button"

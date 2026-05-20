@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => {
     saveCodeBlock,
     messageListActions: { saveCodeBlock } as any,
     getCodeBlockId: vi.fn(),
-    isOpenFenceBlock: vi.fn(),
+    isCodeFenceIncomplete: false,
     renderConfig: { codeFancyBlock: true },
     isWin: false,
     CodeBlockView: vi.fn(({ onSave, children }) => (
@@ -22,9 +22,10 @@ const mocks = vi.hoisted(() => {
         </button>
       </div>
     )),
-    HtmlArtifactsCard: vi.fn(({ onSave, html }) => (
+    HtmlArtifactsCard: vi.fn(({ onSave, html, isStreaming }) => (
       <div>
         <div>{html}</div>
+        <div data-testid="html-streaming-state">{String(isStreaming)}</div>
         <button type="button" onClick={() => onSave('new html content')}>
           Save HTML
         </button>
@@ -45,17 +46,29 @@ vi.mock('@renderer/config/constant', () => ({
 }))
 
 vi.mock('@renderer/utils/markdown', () => ({
-  getCodeBlockId: mocks.getCodeBlockId,
-  isOpenFenceBlock: mocks.isOpenFenceBlock
+  getCodeBlockId: mocks.getCodeBlockId
+}))
+
+vi.mock('@streamdown/mermaid', () => ({
+  mermaid: { language: 'mermaid', name: 'mermaid', type: 'diagram' }
+}))
+
+vi.mock('streamdown', () => ({
+  Streamdown: ({ children, isAnimating, mode, plugins }: any) => (
+    <div
+      data-testid="streamdown-code-block"
+      data-has-mermaid={String(Boolean(plugins?.mermaid))}
+      data-is-animating={String(isAnimating)}
+      data-mode={mode}>
+      {children}
+    </div>
+  ),
+  useIsCodeFenceIncomplete: () => mocks.isCodeFenceIncomplete
 }))
 
 vi.mock('@renderer/components/CodeBlockView', () => ({
   CodeBlockView: mocks.CodeBlockView,
   HtmlArtifactsCard: mocks.HtmlArtifactsCard
-}))
-
-vi.mock('../Markdown', () => ({
-  useMarkdownBlockContext: vi.fn(() => null)
 }))
 
 // Mock message parts context — returns null by default
@@ -88,7 +101,7 @@ describe('CodeBlock', () => {
     mocks.messageListActions = { saveCodeBlock: mocks.saveCodeBlock }
     // Default mock return values
     mocks.getCodeBlockId.mockReturnValue('test-code-block-id')
-    mocks.isOpenFenceBlock.mockReturnValue(false)
+    mocks.isCodeFenceIncomplete = false
   })
 
   describe('rendering', () => {
@@ -158,6 +171,17 @@ describe('CodeBlock', () => {
         expect(screen.queryByTestId('clickable-file-path')).not.toBeInTheDocument()
       }
     )
+
+    it('should delegate mermaid code fences back to Streamdown', () => {
+      render(<CodeBlock {...defaultProps} className="language-mermaid" children="graph TD; A-->B;" />)
+
+      const streamdown = screen.getByTestId('streamdown-code-block')
+      expect(streamdown).toHaveAttribute('data-mode', 'static')
+      expect(streamdown).toHaveAttribute('data-has-mermaid', 'true')
+      expect(streamdown).toHaveTextContent('```mermaid')
+      expect(mocks.CodeBlockView).not.toHaveBeenCalled()
+      expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
+    })
   })
 
   describe('save', () => {
@@ -200,6 +224,19 @@ describe('CodeBlock', () => {
         codeBlockId: 'test-code-block-id',
         newContent: 'new html content'
       })
+    })
+
+    it('should pass Streamdown incomplete fence state to HTML artifact cards', () => {
+      mocks.isCodeFenceIncomplete = true
+      const htmlProps = {
+        ...defaultProps,
+        className: 'language-html',
+        children: '<h1>Hello</h1>'
+      }
+
+      render(<CodeBlock {...htmlProps} />)
+
+      expect(screen.getByTestId('html-streaming-state')).toHaveTextContent('true')
     })
   })
 })

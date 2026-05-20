@@ -47,8 +47,8 @@ vi.mock('@renderer/services/TokenService', () => ({
   estimateTextTokens: (text: string) => (text.trim() ? text.trim().split(/\s+/).length : 0)
 }))
 
-vi.mock('react-markdown', () => ({
-  default: ({ children }: { children: ReactNode }) => <div>{children}</div>
+vi.mock('streamdown', () => ({
+  Streamdown: ({ children }: { children: ReactNode }) => <div>{children}</div>
 }))
 
 vi.mock('lucide-react', () => ({

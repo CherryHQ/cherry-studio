@@ -139,6 +139,11 @@
   background-color: var(--color-background-mute);
 }
 
+[data-streamdown='code-block-header'] span,
+[data-streamdown='mermaid-block'] > div:first-child span {
+  text-transform: uppercase;
+}
+
 .markdown pre:has(.special-preview) {
   background-color: transparent;
 }

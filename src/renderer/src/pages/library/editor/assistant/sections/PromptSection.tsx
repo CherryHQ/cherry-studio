@@ -10,7 +10,7 @@ import { Edit, Eye, Loader2, Sparkles, Undo2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import ReactMarkdown from 'react-markdown'
+import { Streamdown } from 'streamdown'
 import { estimateTokenCount as estimateTextTokens } from 'tokenx'
 
 import { FieldHeader } from '../../FieldHeader'
@@ -32,7 +32,7 @@ const logger = loggerService.withContext('LibraryAssistantPromptSection')
  *
  * Feature parity with the legacy `AssistantPromptSettings` *prompt* half
  * (name / emoji live in BasicSection in v2). Keeps CodeEditor (markdown) /
- * ReactMarkdown preview toggle, 8-variable tooltip, Token count, and
+ * Streamdown preview toggle, 8-variable tooltip, Token count, and
  * double-click-preview-to-edit. Save cadence is the v2 top-bar global PATCH,
  * not the legacy's per-field instant save.
  *
@@ -161,7 +161,7 @@ const PromptSection: FC<Props> = ({ assistant, assistantName, prompt, promptErro
               <div
                 className="markdown max-h-[50vh] min-h-[200px] overflow-auto p-3 text-foreground text-xs"
                 onDoubleClick={() => setShowPreview(false)}>
-                <ReactMarkdown>{processedPrompt || prompt}</ReactMarkdown>
+                <Streamdown mode="static">{processedPrompt || prompt}</Streamdown>
               </div>
             ) : (
               <CodeEditor

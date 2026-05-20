@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import ReactMarkdown from 'react-markdown'
+import { Streamdown } from 'streamdown'
 
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
@@ -32,7 +32,7 @@ export function ExitPlanModeTool({
     ),
     children: (
       <div>
-        <ReactMarkdown>{truncatedContent}</ReactMarkdown>
+        <Streamdown mode="static">{truncatedContent}</Streamdown>
         {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
       </div>
     )

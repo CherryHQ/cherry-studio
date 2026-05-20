@@ -122,11 +122,11 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
   const mathEngineItems = useMemo<SelectOption<MathEngine>[]>(
     () => [
       { value: 'KaTeX', label: 'KaTeX' },
-      { value: 'MathJax', label: 'MathJax' },
       { value: 'none', label: t('settings.math.engine.none') }
     ],
     [t]
   )
+  const selectedMathEngine: MathEngine = mathEngine === 'none' ? 'none' : 'KaTeX'
 
   const codeStyleItems = useMemo<SelectOption<CodeStyleVarious>[]>(
     () => themeNames.map((themeName) => ({ value: themeName, label: themeName })),
@@ -442,7 +442,7 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
         <>
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.math.engine.label')}</SettingRowTitleSmall>
-            <Select value={mathEngine} onValueChange={setMathEngine}>
+            <Select value={selectedMathEngine} onValueChange={setMathEngine}>
               <SelectTrigger size="sm" className="w-[220px] text-sm">
                 <SelectValue />
               </SelectTrigger>

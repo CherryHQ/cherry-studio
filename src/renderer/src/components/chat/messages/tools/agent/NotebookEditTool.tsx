@@ -1,5 +1,5 @@
 import { Badge } from '@cherrystudio/ui'
-import ReactMarkdown from 'react-markdown'
+import { Streamdown } from 'streamdown'
 
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
@@ -29,7 +29,7 @@ export function NotebookEditTool({
     ),
     children: (
       <div>
-        <ReactMarkdown>{truncatedOutput}</ReactMarkdown>
+        <Streamdown mode="static">{truncatedOutput}</Streamdown>
         {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
       </div>
     )

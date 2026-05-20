@@ -11,6 +11,13 @@ import Markdown from '../Markdown'
 const mockMathSettings = vi.hoisted(() => ({
   current: { mathEngine: 'KaTeX', mathEnableSingleDollar: true }
 }))
+const mockStreamdown = vi.hoisted(() => ({
+  defaultRemarkPlugins: {
+    gfm: [vi.fn(), {}],
+    codeMeta: vi.fn()
+  },
+  props: vi.fn()
+}))
 const mockUseTranslation = vi.fn()
 
 // Mock hooks
@@ -92,7 +99,13 @@ vi.mock('../Table', () => ({
   __esModule: true,
   default: ({ children, blockId }: any) => (
     <div data-testid="table-component" data-block-id={blockId}>
-      <table>{children}</table>
+      <table>
+        <tbody>
+          <tr>
+            <td>{children}</td>
+          </tr>
+        </tbody>
+      </table>
       <button type="button" data-testid="copy-table-button">
         Copy Table
       </button>
@@ -111,19 +124,11 @@ vi.mock('@renderer/components/MarkdownShadowDOMRenderer', () => ({
 }))
 
 // Mock plugins
-vi.mock('remark-alert', () => ({ __esModule: true, default: vi.fn() }))
-vi.mock('remark-gfm', () => ({ __esModule: true, default: vi.fn() }))
-vi.mock('remark-cjk-friendly', () => ({ __esModule: true, default: vi.fn() }))
-vi.mock('remark-math', () => ({ __esModule: true, default: vi.fn() }))
-vi.mock('rehype-katex', () => ({ __esModule: true, default: vi.fn() }))
-vi.mock('rehype-mathjax', () => ({ __esModule: true, default: vi.fn() }))
-vi.mock('rehype-raw', () => ({ __esModule: true, default: vi.fn() }))
-
-// Mock custom plugins
-vi.mock('../plugins/remarkDisableConstructs', () => ({
-  __esModule: true,
-  default: vi.fn()
-}))
+vi.mock('remark-github-blockquote-alert', () => ({ __esModule: true, default: vi.fn() }))
+vi.mock('@streamdown/code', () => ({ code: vi.fn() }))
+vi.mock('@streamdown/cjk', () => ({ cjk: vi.fn() }))
+vi.mock('@streamdown/math', () => ({ createMathPlugin: vi.fn(() => vi.fn()), math: vi.fn() }))
+vi.mock('@streamdown/mermaid', () => ({ mermaid: vi.fn() }))
 
 vi.mock('../plugins/rehypeHeadingIds', () => ({
   __esModule: true,
@@ -135,28 +140,39 @@ vi.mock('../plugins/rehypeScalableSvg', () => ({
   default: vi.fn()
 }))
 
-// Mock ReactMarkdown with realistic rendering
-vi.mock('react-markdown', () => ({
-  __esModule: true,
-  default: ({ children, components, className }: any) => (
-    <div data-testid="markdown-content" className={className}>
-      {children}
-      {/* Simulate component rendering */}
-      {components?.a && <span data-testid="has-link-component">link</span>}
-      {components?.code && (
-        <div data-testid="has-code-component">
-          {components.code({ children: 'test code', node: { position: { start: { line: 1 } } } })}
-        </div>
-      )}
-      {components?.table && (
-        <div data-testid="has-table-component">
-          {components.table({ children: 'test table', node: { position: { start: { line: 1 } } } })}
-        </div>
-      )}
-      {components?.img && <span data-testid="has-img-component">img</span>}
-      {components?.style && <span data-testid="has-style-component">style</span>}
-    </div>
-  )
+// Mock Streamdown with realistic rendering
+vi.mock('streamdown', () => ({
+  Streamdown: (props: any) => {
+    const { children, components, className } = props
+    mockStreamdown.props(props)
+    return (
+      <div data-testid="markdown-content" className={className}>
+        {children}
+        {/* Simulate component rendering */}
+        {components?.a && <span data-testid="has-link-component">link</span>}
+        {components?.code && (
+          <div data-testid="has-code-component">
+            {components.code({ children: 'test code', node: { position: { start: { line: 1 } } } })}
+          </div>
+        )}
+        {components?.table && (
+          <div data-testid="has-table-component">
+            {components.table({ children: 'test table', node: { position: { start: { line: 1 } } } })}
+          </div>
+        )}
+        {components?.img && <span data-testid="has-img-component">img</span>}
+        {components?.style && <span data-testid="has-style-component">style</span>}
+      </div>
+    )
+  },
+  defaultRehypePlugins: {
+    raw: vi.fn(),
+    sanitize: [vi.fn(), { tagNames: [], attributes: {}, protocols: {} }],
+    harden: vi.fn()
+  },
+  defaultRemarkPlugins: mockStreamdown.defaultRemarkPlugins,
+  defaultUrlTransform: vi.fn((url: string) => url),
+  useIsCodeFenceIncomplete: vi.fn(() => false)
 }))
 
 describe('Markdown', () => {
@@ -233,6 +249,19 @@ describe('Markdown', () => {
       const { container } = render(<Markdown block={createMarkdownSource()} />)
       expect(container.firstChild).toMatchSnapshot()
     })
+
+    it('should keep Streamdown default remark plugins for GFM tables', () => {
+      render(
+        <Markdown
+          block={createMarkdownSource({
+            content: '| A | B |\n|---|---|\n| 1 | 2 |'
+          })}
+        />
+      )
+
+      const props = mockStreamdown.props.mock.calls[0][0]
+      expect(props.remarkPlugins).toEqual(expect.arrayContaining(Object.values(mockStreamdown.defaultRemarkPlugins)))
+    })
   })
 
   describe('block type support', () => {
@@ -278,15 +307,6 @@ describe('Markdown', () => {
       render(<Markdown block={createMarkdownSource()} />)
 
       // Component should render successfully with KaTeX configuration
-      expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
-    })
-
-    it('should configure MathJax when mathEngine is MathJax', () => {
-      mockMathSettings.current = { mathEngine: 'MathJax', mathEnableSingleDollar: true }
-
-      render(<Markdown block={createMarkdownSource()} />)
-
-      // Component should render successfully with MathJax configuration
       expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
     })
 
@@ -380,10 +400,10 @@ describe('Markdown', () => {
 
       expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
 
-      mockMathSettings.current = { mathEngine: 'MathJax', mathEnableSingleDollar: true }
+      mockMathSettings.current = { mathEngine: 'none', mathEnableSingleDollar: true }
       rerender(<Markdown block={createMarkdownSource()} />)
 
-      // Should still render correctly with new math engine
+      // Should still render correctly with math disabled
       expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
     })
   })

@@ -339,7 +339,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
     return (
       <div className="flex h-[34px] items-center rounded-t-lg bg-muted px-2.5 font-bold text-foreground text-sm leading-none">
         <Icon icon={`material-icon-theme:${iconName}`} style={{ fontSize: '1.1em', marginRight: 6 }} />
-        {language.charAt(0).toUpperCase() + language.slice(1)}
+        {language.toUpperCase()}
       </div>
     )
   }, [isInSpecialView, language])
