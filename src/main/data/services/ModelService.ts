@@ -14,7 +14,7 @@ import { isRegistryEnrichableField, userModelTable } from '@data/db/schemas/user
 import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
-import { mergePresetModel } from '@data/services/ProviderRegistryService'
+import { mergePresetModel, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
@@ -302,6 +302,25 @@ class ModelService {
       .orderBy(asc(userModelTable.providerId), asc(userModelTable.orderKey))
 
     let models = rows.map(rowToRuntimeModel)
+
+    // Enrich with `imageGeneration` from the registry preset. Not stored on
+    // `user_model` because it's preset metadata, not user-mutable; sourcing
+    // it at read time keeps the painting page in sync with registry edits
+    // without a DB migration. Lookup is O(1) per model via RegistryLoader's
+    // id index. Failures (missing preset) silently leave imageGeneration
+    // undefined — same as today's behavior for non-image models.
+    models = await Promise.all(
+      models.map(async (model) => {
+        const presetId = model.presetModelId ?? model.apiModelId
+        if (!presetId) return model
+        try {
+          const { presetModel } = await providerRegistryService.lookupModel(model.providerId, presetId)
+          return presetModel?.imageGeneration ? { ...model, imageGeneration: presetModel.imageGeneration } : model
+        } catch {
+          return model
+        }
+      })
+    )
 
     // Post-filter by capability (JSON array column, can't filter in SQL easily)
     if (query.capability !== undefined) {

@@ -2,7 +2,6 @@ import { uuid } from '@renderer/utils'
 
 import type { DmxapiPaintingData as DmxapiPainting } from '../../model/types/paintingData'
 import { generationModeType } from '../../model/types/paintingData'
-import bundledCatalog from './catalog.json'
 
 // 模型数据类型
 export type DMXApiModelData = {
@@ -81,23 +80,3 @@ export const MODEOPTIONS = [
   { labelKey: 'paintings.mode.edit', value: generationModeType.EDIT },
   { labelKey: 'paintings.mode.merge', value: generationModeType.MERGE }
 ]
-
-export type GetModelGroupResult = { status: 'ok'; groups: DMXApiModelGroups } | { status: 'error'; cause?: unknown }
-
-/**
- * Return DMXAPI's painting catalog (TEXT_TO_IMAGES / IMAGE_EDIT / IMAGE_MERGE).
- *
- * Historically this hit `https://dmxapi.cn/cherry_painting_models_v3.json` on
- * every painting-page open — a network dependency that produced a loading
- * flash, blocked offline use, and went stale only after the user navigated
- * away. The catalog is small enough (~12KB, 7 unique model ids) and changes
- * rarely enough that bundling it with the app is the right tradeoff. Refresh
- * cadence is now "next app version" via the registry/import pipeline.
- *
- * Kept `async` to preserve the call-site contract — the painting page's
- * async loader path expects a Promise — so future remote refreshes can be
- * dropped in here without a callsite migration.
- */
-export const GetModelGroup = async (): Promise<GetModelGroupResult> => {
-  return { status: 'ok', groups: bundledCatalog as DMXApiModelGroups }
-}

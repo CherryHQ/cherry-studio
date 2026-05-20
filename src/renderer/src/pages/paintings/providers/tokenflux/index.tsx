@@ -1,14 +1,16 @@
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { uuid } from '@renderer/utils'
+import type { Model } from '@shared/data/types/model'
 import type { TFunction } from 'i18next'
 
 import { SettingHelpLink } from '../../../settings'
 import type { TokenFluxPaintingData as TokenFluxPainting } from '../../model/types/paintingData'
+import type { ModelOption } from '../../model/types/paintingModel'
+import { loadPaintingModelOptions } from '../../model/utils/paintingModelOptions'
 import { createSingleModeProvider, type PaintingProviderDefinition } from '../types'
 import { DEFAULT_TOKENFLUX_PAINTING } from './config'
 import { tokenFluxFields } from './fields'
 import { generateWithTokenFluxUnified } from './generateUnified'
-import TokenFluxService from './service'
 
 export function TokenFluxHeaderActions({ t }: { t: TFunction }) {
   const Icon = resolveProviderIcon('tokenflux')
@@ -23,17 +25,17 @@ export function TokenFluxHeaderActions({ t }: { t: TFunction }) {
 export const tokenFluxProvider: PaintingProviderDefinition = createSingleModeProvider<TokenFluxPainting>({
   id: 'tokenflux',
   dbMode: 'generate',
+  // Dropdown = user's enabled tokenflux image-gen models. Each option's
+  // `raw` Model carries `imageGeneration.inputSchema` for the dynamic form
+  // and `imageGeneration.modes` (kept implicit — tokenflux's painting page
+  // is single-mode). No server fetch.
   models: {
     type: 'async',
-    loader: async (provider) => {
-      const service = new TokenFluxService(provider?.apiHost ?? '', (await provider?.getApiKey()) ?? '')
-      const models = await service.fetchModels()
-
-      return models.map((model) => ({
-        label: model.name,
-        value: model.id,
-        group: model.model_provider,
-        raw: model
+    loader: async () => {
+      const opts = (await loadPaintingModelOptions('tokenflux')) as ModelOption<Model>[]
+      return opts.map((opt) => ({
+        ...opt,
+        group: opt.raw?.family ?? opt.group
       }))
     }
   },

@@ -1,4 +1,5 @@
 import { InfoTooltip } from '@cherrystudio/ui'
+import type { Model } from '@shared/data/types/model'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -6,7 +7,6 @@ import Artboard from '../../components/Artboard'
 import PaintingSectionTitle from '../../components/PaintingSectionTitle'
 import { SchemaValueField } from '../../form/fields/SchemaField'
 import type { TokenFluxPaintingData as TokenFluxPainting } from '../../model/types/paintingData'
-import type { TokenFluxModel } from './config'
 
 function readI18nContext(property: Record<string, any>, key: string, lang: string): string {
   return property[`${key}_${lang}`] || property[key]
@@ -15,7 +15,7 @@ function readI18nContext(property: Record<string, any>, key: string, lang: strin
 export const TokenFluxSetting: FC<{
   painting: TokenFluxPainting
   patchPainting: (updates: Partial<TokenFluxPainting>) => void
-  selectedModel?: TokenFluxModel
+  selectedModel?: Model
 }> = ({ painting, patchPainting, selectedModel }) => {
   const { t, i18n } = useTranslation()
   const lang = i18n.language.split('-')[0]
@@ -26,24 +26,30 @@ export const TokenFluxSetting: FC<{
     patchPainting({ inputParams: newFormData })
   }
 
+  // Registry's `imageGeneration.inputSchema` carries the full JSON Schema
+  // (`properties` + `required`) for tokenflux's dynamic form.
+  const inputSchema = selectedModel?.imageGeneration?.inputSchema as
+    | { properties?: Record<string, any>; required?: string[] }
+    | undefined
+  const perImage = selectedModel?.pricing?.perImage
+
   return (
     <>
       <PaintingSectionTitle>
         {t('paintings.model_and_pricing')}
-        {selectedModel?.pricing && (
+        {perImage && (
           <div className="ml-auto rounded border border-primary/20 bg-primary/10 px-0 py-1 font-medium text-[11px] text-primary">
-            {selectedModel.pricing.price} {selectedModel.pricing.currency}{' '}
-            {selectedModel.pricing.unit > 1 ? t('paintings.per_images') : t('paintings.per_image')}
+            {perImage.price} {t('paintings.per_image')}
           </div>
         )}
       </PaintingSectionTitle>
 
-      {selectedModel?.input_schema && (
+      {inputSchema?.properties && (
         <div className="flex flex-col gap-3">
-          {Object.entries(selectedModel?.input_schema?.properties ?? {}).map(([key, property]: [string, any]) => {
+          {Object.entries(inputSchema.properties).map(([key, property]: [string, any]) => {
             if (key === 'prompt') return null
 
-            const isRequired = selectedModel.input_schema.required?.includes(key)
+            const isRequired = inputSchema.required?.includes(key)
 
             return (
               <div key={key} className="flex flex-col">

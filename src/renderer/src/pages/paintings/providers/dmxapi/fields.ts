@@ -1,6 +1,6 @@
 import { generationModeType } from '../../model/types/paintingData'
 import { STYLE_TYPE_OPTIONS } from './config'
-import { getDmxapiAllModels } from './runtime'
+import { getDmxapiModelMeta } from './runtime'
 
 export function buildDmxapiConfigFields(): any[] {
   return [
@@ -9,12 +9,12 @@ export function buildDmxapiConfigFields(): any[] {
       key: 'image_size',
       title: 'paintings.image.size',
       options: (_config: any, painting: Record<string, unknown>) => {
-        const currentModel = getDmxapiAllModels().find((model) => model.id === painting.model)
-        const sizes = (currentModel?.image_sizes || []).map((size) => ({
+        const meta = getDmxapiModelMeta(painting.model as string | undefined)
+        const sizes = (meta?.image_sizes || []).map((size) => ({
           label: size.label,
           value: size.value
         }))
-        if (currentModel?.is_custom_size) {
+        if (meta?.is_custom_size) {
           sizes.push({ label: 'paintings.custom_size', value: 'custom' })
         }
         return sizes
@@ -29,9 +29,9 @@ export function buildDmxapiConfigFields(): any[] {
       sizeKey: 'image_size',
       condition: (painting: Record<string, unknown>) => {
         if (painting.image_size !== 'custom' && !String(painting.image_size || '').match(/^\d+x\d+$/)) return false
-        const currentModel = getDmxapiAllModels().find((model) => model.id === painting.model)
-        if (!currentModel?.is_custom_size) return false
-        const presetValues = (currentModel?.image_sizes || []).map((size) => size.value)
+        const meta = getDmxapiModelMeta(painting.model as string | undefined)
+        if (!meta?.is_custom_size) return false
+        const presetValues = (meta?.image_sizes || []).map((size) => size.value)
         return !presetValues.includes(String(painting.image_size))
       },
       validation: {

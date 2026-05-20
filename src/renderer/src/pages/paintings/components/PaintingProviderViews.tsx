@@ -1,3 +1,4 @@
+import type { Model } from '@shared/data/types/model'
 import { useTranslation } from 'react-i18next'
 
 import { usePaintingProviderRuntime } from '../hooks/usePaintingProviderRuntime'
@@ -9,7 +10,6 @@ import { DmxapiHeaderActions, DmxapiSetting } from '../providers/dmxapi'
 import { NewApiHeaderActions, NewApiSetting } from '../providers/newapi'
 import { OvmsHeaderActions } from '../providers/ovms'
 import { TokenFluxCenterContent, TokenFluxHeaderActions, TokenFluxSetting } from '../providers/tokenflux'
-import type { TokenFluxModel } from '../providers/tokenflux/config'
 import { ZhipuHeaderActions } from '../providers/zhipu'
 import Artboard from './Artboard'
 
@@ -19,8 +19,10 @@ function isTokenFluxPainting(painting: PaintingData): painting is TokenFluxPaint
   return painting.providerId === 'tokenflux'
 }
 
-function isTokenFluxModel(value: unknown): value is TokenFluxModel {
-  return Boolean(value && typeof value === 'object' && 'id' in value && 'input_schema' in value)
+function isRegistryModel(value: unknown): value is Model {
+  return Boolean(
+    value && typeof value === 'object' && 'id' in value && 'providerId' in value && 'capabilities' in value
+  )
 }
 
 function isOpenApiCompatiblePainting(painting: PaintingData): painting is OpenApiCompatiblePaintingData {
@@ -77,7 +79,7 @@ export function PaintingSettingsExtras({
       <TokenFluxSetting
         painting={painting}
         patchPainting={(updates) => patchPainting(updates as Partial<PaintingData>)}
-        selectedModel={isTokenFluxModel(selectedModelOption?.raw) ? selectedModelOption.raw : undefined}
+        selectedModel={isRegistryModel(selectedModelOption?.raw) ? selectedModelOption.raw : undefined}
       />
     )
   }

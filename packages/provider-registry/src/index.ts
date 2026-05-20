@@ -16,6 +16,9 @@ export {
   REASONING_EFFORT
 } from './schemas/enums'
 
+// Runtime schemas (zod) — needed by shared types that compose them
+export { ImageGenerationSupportSchema } from './schemas/model'
+
 // Enum types (PascalCase, derived from const objects)
 export type {
   AnthropicReasoningEffort,
