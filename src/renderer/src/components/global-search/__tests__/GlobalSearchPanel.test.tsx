@@ -595,7 +595,7 @@ describe('GlobalSearchPanel', () => {
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
     await user.click(screen.getByRole('button', { name: 'Updated time' }))
-    expect(screen.getByRole('radiogroup').parentElement).toHaveClass('z-[90]')
+    expect(screen.getByRole('radio', { name: 'Last 7 days' }).parentElement?.parentElement).toHaveClass('z-[90]')
     await user.click(screen.getByRole('radio', { name: 'Last 7 days' }))
     await user.type(screen.getByLabelText('Start typing to search...'), 'plan')
 

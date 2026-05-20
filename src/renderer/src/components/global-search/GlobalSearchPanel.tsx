@@ -234,7 +234,6 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const { openTab } = useTabs()
   const { defaultPaintingProvider } = useSettings()
   const inputRef = useRef<HTMLInputElement>(null)
-  const filterBarRef = useRef<HTMLDivElement>(null)
   const [query, setQuery] = useState('')
   const [panelMode, setPanelMode] = useState<GlobalSearchPanelMode>('search')
   const deferredQuery = useDeferredValue(query.trim())
@@ -303,30 +302,6 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
-
-  useEffect(() => {
-    if (!filterMenuOpen) return
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!filterBarRef.current?.contains(event.target as Node)) {
-        setFilterMenuOpen(false)
-      }
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setFilterMenuOpen(false)
-      }
-    }
-
-    document.addEventListener('pointerdown', handlePointerDown)
-    document.addEventListener('keydown', handleKeyDown)
-
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [filterMenuOpen])
 
   useEffect(() => {
     if (selectableItems.length === 0) {
@@ -608,52 +583,41 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
           onOpen={handleSidebarShortcutOpen}
         />
 
-        <div ref={filterBarRef} className="flex h-8 items-center gap-1.5">
-          <div className="relative">
-            <Button
-              type="button"
-              variant="ghost"
-              className="h-7 gap-1.5 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground"
-              aria-expanded={filterMenuOpen}
-              aria-haspopup="menu"
-              aria-label={t('globalSearch.filters.label')}
-              onClick={() => {
-                setFilterMenuOpen((open) => !open)
-              }}>
-              <Funnel className="size-3.5" />
-              <span>{t(getFilterLabelKey(filter))}</span>
-              <ChevronDown className="size-3.5" />
-            </Button>
-            {filterMenuOpen && (
-              <div className="absolute top-8 left-0 z-20 min-w-[112px] rounded-[10px] border border-border bg-popover p-1 text-popover-foreground shadow-lg">
-                {FILTERS.map((filterOption) => {
-                  const isSelected = filter === filterOption
-                  return (
-                    <button
-                      key={filterOption}
-                      type="button"
-                      role="radio"
-                      aria-checked={isSelected}
-                      onClick={() => handleFilterSelect(filterOption)}
-                      className={cn(
-                        'flex h-8 w-full items-center rounded-[7px] px-2 text-left font-medium text-xs transition-colors hover:bg-accent',
-                        isSelected ? 'text-foreground' : 'text-muted-foreground'
-                      )}>
-                      {t(getFilterLabelKey(filterOption))}
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-          </div>
+        <div className="flex h-8 items-center gap-1.5">
+          <DropdownMenu open={filterMenuOpen} onOpenChange={setFilterMenuOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-7 gap-1.5 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground"
+                aria-label={t('globalSearch.filters.label')}>
+                <Funnel className="size-3.5" />
+                <span>{t(getFilterLabelKey(filter))}</span>
+                <ChevronDown className="size-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="z-[90] min-w-[132px] rounded-[10px] p-1">
+              <DropdownMenuRadioGroup
+                value={filter}
+                onValueChange={(value) => handleFilterSelect(value as GlobalSearchFilter)}>
+                {FILTERS.map((filterOption) => (
+                  <DropdownMenuRadioItem
+                    key={filterOption}
+                    value={filterOption}
+                    className="h-8 rounded-[7px] font-medium text-xs">
+                    {t(getFilterLabelKey(filterOption))}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 type="button"
                 variant="ghost"
                 className="h-7 gap-1.5 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground"
-                aria-label={t('globalSearch.timeFilters.label')}
-                onClick={() => setFilterMenuOpen(false)}>
+                aria-label={t('globalSearch.timeFilters.label')}>
                 <Clock3 className="size-3.5" />
                 <span>{t(getTimeFilterLabelKey(timeFilter))}</span>
                 <ChevronDown className="size-3.5" />
