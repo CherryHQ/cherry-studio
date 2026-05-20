@@ -17547,6 +17547,14 @@
     {
       "providerId": "tokenflux",
       "modelId": "xai/grok-imagine-image"
+    },
+    {
+      "providerId": "zhipu",
+      "modelId": "cogview-3-flash"
+    },
+    {
+      "providerId": "zhipu",
+      "modelId": "cogview-4-250304"
     }
   ]
 }

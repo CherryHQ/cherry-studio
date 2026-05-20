@@ -170,6 +170,35 @@ describe('imageGenerationToFields', () => {
     expect(keys).toContain('numImages')
   })
 
+  it('emits customSize widget + custom chip when imageGeneration.customSize is set (zhipu cogview)', () => {
+    const items = imageGenerationToFields({
+      sizes: ['1024x1024', '768x1344'],
+      sizeMode: 'pixel',
+      defaultSize: '1024x1024',
+      batch: { min: 1, max: 1, default: 1 },
+      customSize: { min: 512, max: 2048 },
+      supports: { seed: true }
+    })
+    const byKey = Object.fromEntries(items.map((i) => [i.key, i]))
+    expect(byKey.size?.type).toBe('sizeChips')
+    const sizeValues = (byKey.size?.options as { value: string }[]).map((o) => o.value)
+    expect(sizeValues).toContain('1024x1024')
+    expect(sizeValues).toContain('custom')
+    expect(byKey.customSize?.type).toBe('customSize')
+    expect((byKey.customSize as unknown as { validation: { minWidth: number } }).validation.minWidth).toBe(512)
+  })
+
+  it('does not emit customSize widget when imageGeneration.customSize is absent', () => {
+    const items = imageGenerationToFields({
+      sizes: ['1024x1024'],
+      sizeMode: 'pixel',
+      batch: { min: 1, max: 1, default: 1 }
+    })
+    expect(items.find((i) => i.key === 'customSize')).toBeUndefined()
+    const sizeValues = ((items[0].options ?? []) as { value: string }[]).map((o) => o.value)
+    expect(sizeValues).not.toContain('custom')
+  })
+
   it('emits canonical keys when keyMap is missing or empty', () => {
     const support: ImageGenerationSupport = {
       sizes: ['1024x1024'],

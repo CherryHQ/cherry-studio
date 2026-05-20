@@ -8,7 +8,6 @@ import { loadPaintingModelOptions } from '../../model/utils/paintingModelOptions
 import { resolveCogviewSize } from '../../model/validators/cogviewSize'
 import { createSingleModeProvider, type PaintingProviderDefinition } from '../types'
 import { COURSE_URL, createDefaultZhipuPainting, TOP_UP_URL } from './config'
-import { zhipuFields } from './fields'
 
 export function ZhipuHeaderActions({ t }: { t: TFunction }) {
   const Icon = resolveProviderIcon('zhipu')
@@ -37,7 +36,12 @@ export const zhipuProvider: PaintingProviderDefinition = createSingleModeProvide
     loader: () => loadPaintingModelOptions('zhipu')
   },
   createPaintingData: ({ modelOptions }) => createDefaultZhipuPainting(modelOptions),
-  fields: zhipuFields,
+  // Form is registry-derived (size + customSize + seed + negativePrompt + quality
+  // when the selected model exposes it). The PaintingData persists `imageSize`,
+  // so registryKeyMap aliases canonical `size` → `imageSize`.
+  fields: [],
+  useRegistryForm: true,
+  registryKeyMap: { size: 'imageSize' },
   onModelChange: ({ modelId }) => ({ model: modelId }),
   // CogView's custom-size rules (range / divisible-by-16 / pixel-budget /
   // required-when-mode=custom) live in `resolveCogviewSize`. Other params

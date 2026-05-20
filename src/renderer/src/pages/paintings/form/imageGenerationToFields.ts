@@ -30,6 +30,12 @@ export function imageGenerationToFields(
   // size
   if (support.sizes && support.sizes.length > 0) {
     const options: OptionItem[] = support.sizes.map((v) => ({ label: v, value: v }))
+    // Models that accept arbitrary width × height (`customSize`) get a
+    // `'custom'` chip appended — the customSize widget below renders when
+    // the user picks it.
+    if (support.customSize) {
+      options.push({ label: 'paintings.custom_size', value: 'custom' })
+    }
     if (support.sizeMode === 'pixel') {
       items.push({
         type: 'sizeChips',
@@ -48,6 +54,25 @@ export function imageGenerationToFields(
         initialValue: support.defaultSize
       })
     }
+  }
+
+  // Custom-size widget (paired with the 'custom' chip option above). Renders
+  // width / height number inputs validated against the model's accepted range.
+  if (support.customSize) {
+    items.push({
+      type: 'customSize',
+      key: remap('customSize'),
+      widthKey: remap('customWidth'),
+      heightKey: remap('customHeight'),
+      sizeKey: remap('size'),
+      validation: {
+        minWidth: support.customSize.min,
+        maxWidth: support.customSize.max,
+        minHeight: support.customSize.min,
+        maxHeight: support.customSize.max
+      },
+      condition: (painting: Record<string, unknown>) => painting[remap('size')] === 'custom'
+    } as unknown as BaseConfigItem)
   }
 
   // batch (numImages)
