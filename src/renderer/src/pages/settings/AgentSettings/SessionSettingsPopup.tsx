@@ -1,7 +1,7 @@
 import { TopView } from '@renderer/components/TopView'
 import { useSession } from '@renderer/hooks/agents/useSession'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseSettingsPopup, type SettingsMenuItem, type SettingsPopupTab } from './BaseSettingsPopup'
@@ -26,6 +26,13 @@ const SessionSettingPopupContainer: React.FC<SessionSettingPopupParams> = ({ tab
   const { t } = useTranslation()
   const { session, isLoading, error } = useSession(agentId, sessionId)
   const { updateSession } = useUpdateSession(agentId)
+  const [instructionsDraft, setInstructionsDraft] = useState<string>()
+
+  useEffect(() => {
+    if (session && instructionsDraft === undefined) {
+      setInstructionsDraft(session.instructions ?? '')
+    }
+  }, [session, instructionsDraft])
 
   const menuItems: SettingsMenuItem[] = useMemo(
     () => [
@@ -45,7 +52,14 @@ const SessionSettingPopupContainer: React.FC<SessionSettingPopupParams> = ({ tab
       case 'essential':
         return <EssentialSettings agentBase={session} update={updateSession} />
       case 'prompt':
-        return <PromptSettings agentBase={session} update={updateSession} />
+        return (
+          <PromptSettings
+            agentBase={session}
+            update={updateSession}
+            instructionsDraft={instructionsDraft}
+            setInstructionsDraft={setInstructionsDraft}
+          />
+        )
       case 'permission-mode':
         return <PermissionModeSettings agentBase={session} update={updateSession} />
       case 'tools-mcp':

@@ -1,7 +1,7 @@
 import { TopView } from '@renderer/components/TopView'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseSettingsPopup, type SettingsMenuItem, type SettingsPopupTab } from './BaseSettingsPopup'
@@ -26,8 +26,15 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
   const { t } = useTranslation()
   const { agent, isLoading, error } = useAgent(agentId)
   const { updateAgent } = useUpdateAgent()
+  const [instructionsDraft, setInstructionsDraft] = useState<string>()
 
   const isSoul = isSoulModeEnabled(agent?.configuration)
+
+  useEffect(() => {
+    if (agent && instructionsDraft === undefined) {
+      setInstructionsDraft(agent.instructions ?? '')
+    }
+  }, [agent, instructionsDraft])
 
   const menuItems: SettingsMenuItem[] = useMemo(
     () =>
@@ -49,7 +56,14 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
       case 'essential':
         return <EssentialSettings agentBase={agent} update={updateAgent} />
       case 'prompt':
-        return <PromptSettings agentBase={agent} update={updateAgent} />
+        return (
+          <PromptSettings
+            agentBase={agent}
+            update={updateAgent}
+            instructionsDraft={instructionsDraft}
+            setInstructionsDraft={setInstructionsDraft}
+          />
+        )
       case 'permission-mode':
         return <PermissionModeSettings agentBase={agent} update={updateAgent} />
       case 'tools-mcp':
