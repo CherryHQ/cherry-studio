@@ -106,6 +106,15 @@ describe('JobManager smoke (dummy.echo)', () => {
     await scheduler._doInit()
     await jobManager._doInit()
     jobManager.registerHandler('dummy.echo' as never, makeEchoHandler() as JobHandler)
+
+    // Startup recovery moved to onAllReady behind a 60s wall-clock delay.
+    // Skip the delay via fake timers — clearTimeout must be paired with
+    // setTimeout, otherwise the timer queue keeps a dangling entry.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const allReadyPromise = jobManager._doAllReady()
+    await vi.advanceTimersByTimeAsync(60_000)
+    await allReadyPromise
+    vi.useRealTimers()
   })
 
   afterAll(async () => {

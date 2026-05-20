@@ -13,17 +13,18 @@ import { createUpdateTimestamps, uuidPrimaryKey, uuidPrimaryKeyOrdered } from '.
  * owns the lifecycle; SchedulerService receives a `() => jobManager.enqueue(...)`
  * callback and does not look at this table.
  *
- * NOTE: `(type, name)` is unique only for non-NULL `name`. Single-instance types
- * (where name is omitted) are guarded at the application layer by
- * JobScheduleService.create — SQLite treats every NULL name as distinct, so the
- * "one schedule per single-instance type" invariant cannot be enforced by the DB.
+ * NOTE: `name=''` is the singleton sentinel for single-instance types. The
+ * external API schema (JobScheduleNameAtomSchema) rejects empty strings, so
+ * only JobScheduleService writes `''` internally. UNIQUE(type, name) then
+ * DB-enforces the "one schedule per single-instance type" invariant — every
+ * empty string compares equal under SQLite UNIQUE semantics.
  */
 export const jobScheduleTable = sqliteTable(
   'job_schedule',
   {
     id: uuidPrimaryKey(),
     type: text().notNull(),
-    name: text(),
+    name: text().notNull().default(''),
     trigger: text({ mode: 'json' }).$type<Trigger>().notNull(),
     jobInputTemplate: text({ mode: 'json' }).$type<unknown>().notNull(),
     enabled: integer({ mode: 'boolean' }).notNull().default(true),

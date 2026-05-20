@@ -106,15 +106,25 @@ async function bootstrapManager(opts: BootstrapOptions = {}): Promise<{
     throw new Error(`Unexpected application.get('${name}')`)
   })
 
-  // Handlers must be registered BEFORE _doInit so onReady's runStartupRecovery
-  // sees them. Without registration, all non-terminal jobs for that type are
-  // treated as orphans and cancelled.
+  // Handlers must be registered BEFORE _doInit so JobManager.onAllReady's
+  // runStartupRecovery sees them. Without registration, all non-terminal jobs
+  // for that type are treated as orphans and cancelled.
   for (const [type, h] of opts.handlers ?? []) {
     jobManager.registerHandler(type as never, h)
   }
 
   await scheduler._doInit()
   await jobManager._doInit()
+
+  // Startup recovery now lives in `onAllReady` behind a 60s wall-clock delay.
+  // Fake setTimeout (and its paired clearTimeout — leaving clearTimeout real
+  // leaks the fake-timer entry) so the delay collapses, then await both the
+  // timer advance and the lifecycle hook promise.
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  const allReadyPromise = jobManager._doAllReady()
+  await vi.advanceTimersByTimeAsync(60_000)
+  await allReadyPromise
+  vi.useRealTimers()
   return { scheduler, jobManager }
 }
 
