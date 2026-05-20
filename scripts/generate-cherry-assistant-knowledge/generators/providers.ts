@@ -3,7 +3,7 @@
  * SystemProviderIds source on main plus a maintained id → category +
  * display-name map.
  *
- * SystemProviderIds (src/renderer/src/types/provider.ts) is the single source
+ * SystemProviderIds (src/shared/utils/systemProviderId.ts) is the single source
  * of truth for which providers Cherry Studio ships. We parse it with a regex
  * over the `SystemProviderIds = { ... } as const` block — the format is
  * stable, mechanical, and biome-controlled, so regex is enough; if the shape
@@ -20,7 +20,7 @@ import * as path from 'node:path'
 import type { Language } from '../templating'
 
 const ROOT_DIR = path.resolve(__dirname, '..', '..', '..')
-const PROVIDER_IDS_FILE = path.join(ROOT_DIR, 'src/renderer/src/types/provider.ts')
+const PROVIDER_IDS_FILE = path.join(ROOT_DIR, 'src/shared/utils/systemProviderId.ts')
 const CATEGORIES_JSON = path.join(__dirname, '..', 'provider-categories.json')
 
 interface ProviderEntry {

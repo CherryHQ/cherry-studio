@@ -22,13 +22,13 @@ navigate({ path: '/settings/provider', query: { id: 'anthropic' } })
 
 ### 路由表
 
-**顶级**: `/app/chat` 首页/聊天, `/app/paintings` 绘图, `/app/translate` 翻译, `/app/files` 文件, `/app/notes` 笔记, `/app/knowledge` 知识库, `/app/mini-app` 小程序, `/app/code` 代码工具/OpenClaw, `/app/launchpad` 启动台, `/app/agents` Agent
+**顶级**: `/` 首页, `/store` 助手商店, `/paintings` 绘图, `/translate` 翻译, `/files` 文件, `/notes` 笔记, `/knowledge` 知识库, `/apps` 小程序, `/code` 代码工具, `/openclaw` OpenClaw, `/launchpad` 启动台, `/agents` Agent
 
-**设置** (`/settings/`): `provider` Provider配置, `model` 模型管理, `system` 通用(语言/主题/代理), `appearance` 显示(气泡/列表/字体), `data` 数据管理(备份/恢复), `mcp` MCP总览, `websearch` 网页搜索, `api-gateway` API服务器, `file-processing` 文档处理, `shortcut` 快捷键, `quick-assistant` 快捷助手, `selection-assistant` 划词助手, `notifications` 通知, `scheduled-tasks` 定时任务, `channels` 频道, `dependencies` 依赖, `code-execution` 代码执行, `about` 关于/版本/日志
+**设置** (`/settings/`): `provider` Provider配置, `model` 模型管理, `general` 通用(语言/主题/代理), `display` 显示(气泡/列表/字体), `data` 数据管理(备份/恢复), `mcp` MCP总览, `websearch` 网页搜索, `memory` 记忆, `api-server` API服务器, `docprocess` 文档处理, `quickphrase` 快捷短语, `shortcut` 快捷键, `quickAssistant` 快捷助手, `selectionAssistant` 划词助手, `about` 关于/版本/日志
 
 **MCP 子页** (`/settings/mcp/`): `servers` 服务列表, `builtin` 内置MCP, `marketplaces` MCP市场, `npx-search` NPX搜索, `mcp-install` 安装MCP, `settings/{serverId}` 配置详情
 
-**其他子页**: `/app/mini-app/{appId}` 小程序, `/app/paintings/{provider}` 绘图Provider
+**其他子页**: `/settings/websearch/general` 搜索设置, `/settings/websearch/provider/{id}` 搜索引擎配置, `/apps/{appId}` 小程序, `/paintings/{provider}` 绘图Provider
 
 **Query 参数**: `/settings/provider?id={providerId}` 定位Provider, `/settings/provider?filter=agent` 筛选支持Agent的
 
@@ -92,7 +92,7 @@ navigate({ path: '/settings/provider', query: { id: 'anthropic' } })
 
 ## 支持的 Provider（63+）
 
-国际: Anthropic, OpenAI, Azure OpenAI, Google Gemini, VertexAI, GitHub Models, GitHub Copilot, Mistral, AWS Bedrock | 聚合: Cherry In, AiHubMix, ocoolAI, PPIO, DMXAPI, BurnCloud, TokenFlux, 302.AI, SophNet, OpenRouter, New API, AIOnly, Vercel AI Gateway | 国内: DeepSeek, AlayaNew, 七牛, Cephalon, 蓝耘, PH8, 智谱, 零一万物 Yi, Moonshot, 百川, 通义, 阶跃, 豆包, 无问芯穹, MiniMax, 魔搭, 希壤, 混元, 腾讯云 TI, 百度智能云, LongCat, 小米 MiMo, MiniMax Global, Z.ai | 本地: Ollama, OpenVINO Model Server, LM Studio, GPUStack | 加速: 硅基流动 SiliconFlow, Groq, Together, Fireworks, Hyperbolic, Cerebras | 其他: NVIDIA, Grok, Jina, Perplexity, Voyage AI, Poe, HuggingFace | 支持任何 OpenAI 兼容端点
+国际: Anthropic, OpenAI, Azure OpenAI, Google Gemini, VertexAI, GitHub Models, GitHub Copilot, Mistral, AWS Bedrock | 聚合: Cherry In, AiHubMix, ocoolAI, PPIO, DMXAPI, BurnCloud, 302.AI, SophNet, OpenRouter, New API, AIOnly, Vercel AI Gateway | 国内: DeepSeek, AlayaNew, 七牛, 蓝耘, PH8, 智谱, 零一万物 Yi, Moonshot, 百川, 通义, 阶跃, 豆包, 无问芯穹, MiniMax, 魔搭, 希壤, 混元, 腾讯云 TI, 百度智能云, LongCat, 小米 MiMo, MiniMax Global, Z.ai | 本地: Ollama, OpenVINO Model Server, LM Studio, GPUStack | 加速: 硅基流动 SiliconFlow, Groq, Together, Fireworks, Hyperbolic, Cerebras | 其他: NVIDIA, Grok, Jina, Perplexity, tokenhub, Voyage AI, Poe, HuggingFace, opencode | 支持任何 OpenAI 兼容端点
 
 ## 快捷键
 
@@ -133,4 +133,4 @@ Cmd/Ctrl + N 新建话题, +F 搜索, +Shift+F 全局搜索, +K 新上下文, +L
 
 ## 日志路径
 
-macOS正式: ~/Library/Application Support/CherryStudio/logs/ | 开发: CherryStudioDev/logs/ | Windows: %APPDATA%/CherryStudio/logs/
+macOS正式: ~/Library/Application Support/CherryStudio/logs/ | 开发: CherryStudioDev/logs/ | Windows: %APPDATA%/CherryStudio/logs/ | Linux: ~/.config/CherryStudio/logs/

@@ -1,6 +1,6 @@
 /**
  * Generate the "Multilingual" markdown fragment from the locale .json files
- * actually shipped under src/renderer/src/i18n/, joined with a maintained
+ * actually shipped under src/renderer/i18n/, joined with a maintained
  * locale-code → display-name map.
  *
  * Locales discovered on disk but missing from the map fall through with the
@@ -15,8 +15,8 @@ import * as path from 'node:path'
 import type { Language } from '../templating'
 
 const ROOT_DIR = path.resolve(__dirname, '..', '..', '..')
-const BASE_LOCALES_DIR = path.join(ROOT_DIR, 'src/renderer/src/i18n/locales')
-const TRANSLATED_LOCALES_DIR = path.join(ROOT_DIR, 'src/renderer/src/i18n/translate')
+const BASE_LOCALES_DIR = path.join(ROOT_DIR, 'src/renderer/i18n/locales')
+const TRANSLATED_LOCALES_DIR = path.join(ROOT_DIR, 'src/renderer/i18n/translate')
 const DISPLAY_NAMES_JSON = path.join(__dirname, '..', 'language-display-names.json')
 
 interface DisplayNameFile {
