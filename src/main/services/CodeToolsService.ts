@@ -161,27 +161,33 @@ class CodeToolsService {
   }
 
   /**
-   * Prefer OpenCode's package-local executable on Windows.
+   * Prefer OpenCode's package-local executable on Windows only.
    *
-   * Bun global bins can fail with "Bun failed to remap this bin" after updates,
-   * while opencode-ai's postinstall places the real executable under the package.
+   * On Windows, Bun global bins can fail with "Bun failed to remap this bin" after
+   * updates, while opencode-ai's postinstall places the real executable under the
+   * package. On macOS/Linux, keep using the global shim in ~/.cherrystudio/bin so
+   * we do not bind non-Windows launches to the package-local opencode.exe path.
    */
   private async getOpenCodeCommand(): Promise<string> {
     const globalInstallDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'install', 'global')
     const openCodeExecutablePath = path.join(globalInstallDir, 'node_modules', 'opencode-ai', 'bin', 'opencode.exe')
 
-    if (fs.existsSync(openCodeExecutablePath)) {
+    if (isWin && fs.existsSync(openCodeExecutablePath)) {
       logger.debug(`Using package-local executable for opencode: ${openCodeExecutablePath}`)
       return `"${openCodeExecutablePath}"`
     }
 
-    // Fallback: try to execute the Bun global bin directly.
+    // On non-Windows platforms, prefer the Bun global shim directly.
     const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
     const executableName = await this.getCliExecutableName(codeTools.openCode)
     const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
-    logger.warn(
-      `opencode package-local executable not found at ${openCodeExecutablePath}, falling back to direct execution: ${executablePath}`
-    )
+    if (isWin) {
+      logger.warn(
+        `opencode package-local executable not found at ${openCodeExecutablePath}, falling back to direct execution: ${executablePath}`
+      )
+    } else {
+      logger.debug(`Using direct opencode executable: ${executablePath}`)
+    }
     return `"${executablePath}"`
   }
 
