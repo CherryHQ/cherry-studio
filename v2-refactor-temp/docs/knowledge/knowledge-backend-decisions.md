@@ -467,26 +467,22 @@ preparation 被 interrupt 时：
 
 当前做一件事：
 
-1. 重新创建进程内 `KnowledgeQueueManager`
+1. 向 `JobManager` 注册 `knowledge.prepare-root` 与 `knowledge.index-leaf` 两个 `JobHandler`。
 
-当前没有启动时“扫描中间状态并补偿失败”或“自动恢复索引任务”的逻辑。
+启动时的「自动恢复」由 `JobManager.onAllReady` 统一负责：在 60s 延迟后跑 startup recovery，把 `jobTable.status='running'` 的行翻回 `'pending'`，handler 被重新 dispatch。`KnowledgeRuntimeService` 不再独立扫描中间状态。
 
 ### 9.2 `KnowledgeRuntimeService.onStop`
 
 当前 stop 流程是：
 
-1. 调用 `queue.interruptAll(SHUTDOWN_INTERRUPTED_REASON)`
-2. 收集中断的 `prepare-root` / `index-leaf` entries
-3. 等待相关 running task settle
-4. 对 `index-leaf` 清理对应 leaf vectors
-5. 对 `prepare-root` fresh 查询 descendants，并清理 root / descendants vectors
-6. 将这些 item 批量写为 `failed`
+1. `jobManager.cancelMany({ type: 'knowledge.prepare-root' })` 与 `jobManager.cancelMany({ type: 'knowledge.index-leaf' })` 取消两类 active job
+2. `waitForBaseWriteLocks()` 等待全部 Layer 3 base write lock 释放
 
 这意味着：
 
-1. 当前做了停止时的失败补偿
-2. 当前会在 stop 时清理被中断 item 的向量残留
-3. 但没有做重启后的自动恢复
+1. 不再在 stop 时把 item.status 从 `processing` 回滚到 `idle`/`failed`；item 短暂停留在 `processing` 是预期。
+2. 重启后由 `JobManager.onAllReady` startup recovery 自动重新 dispatch；handler 入口的 `item.status === 'completed'` 早退分支保证不会浪费 embedding 调用。
+3. 不再在 stop 时清理被中断 item 的向量残留；vector 一致性由 handler 内 `LibSQLVectorStore.replaceByExternalId`（DELETE + INSERT 单事务）保证。
 
 ### 9.3 `KnowledgeVectorStoreService.onStop`
 

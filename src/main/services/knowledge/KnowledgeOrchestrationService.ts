@@ -16,7 +16,6 @@ import {
 } from '@shared/data/types/knowledge'
 import { IpcChannel } from '@shared/IpcChannel'
 
-import { failItems } from './runtime/utils/cleanup'
 import {
   KnowledgeRuntimeAddItemsPayloadSchema,
   KnowledgeRuntimeBasePayloadSchema,
@@ -117,25 +116,19 @@ export class KnowledgeOrchestrationService extends BaseService {
 
   async deleteBase(baseId: string): Promise<void> {
     const runtime = application.get('KnowledgeRuntimeService')
-    const interruptedItemIds = await runtime.deleteBase(baseId)
+
+    // Cancel everything queued for this base, then wait up to 35s for Layer 3
+    // locks to drain. JobManager has already finalized cancelled rows by then,
+    // so a straggling handler is detached from scheduling; any vector-store
+    // write after this point throws into a terminal job row and is ignored.
+    await runtime.cancelAllJobsForBase(baseId)
+    await runtime.waitForBaseWriteLocks(baseId, 35_000)
 
     try {
       await knowledgeBaseService.delete(baseId)
     } catch (error) {
       const normalizedError = error instanceof Error ? error : new Error(String(error))
-      try {
-        await failItems(interruptedItemIds, normalizedError.message)
-      } catch (failureStateError) {
-        logger.error(
-          'Failed to persist runtime item failure state after knowledge base deletion failed',
-          failureStateError instanceof Error ? failureStateError : new Error(String(failureStateError)),
-          {
-            baseId,
-            interruptedItemIds,
-            deleteError: normalizedError.message
-          }
-        )
-      }
+      logger.error('Failed to delete knowledge base after job cancellation', normalizedError, { baseId })
       throw error
     }
 
@@ -144,8 +137,7 @@ export class KnowledgeOrchestrationService extends BaseService {
     } catch (error) {
       const normalizedError = error instanceof Error ? error : new Error(String(error))
       logger.error('Failed to delete knowledge base vector artifacts after SQLite deletion', normalizedError, {
-        baseId,
-        interruptedItemIds
+        baseId
       })
       throw DataApiErrorFactory.invalidOperation(
         'deleteBase',
