@@ -171,9 +171,13 @@ export function getDefaultTopic(assistantId: string): Topic {
 
 // TODO: remove it in v2
 export function mapLegacyTopicToDto(topic: Topic): CreateTopicDto {
+  // v1 'default' is a runtime sentinel synthesized by getDefaultAssistant(),
+  // not a row in the v2 assistant table — sending it as a FK would violate
+  // SQLITE_CONSTRAINT_FOREIGNKEY. Map to null (Topic.assistantId is nullable
+  // in v2 schema; matches ChatMigrator's orphan-topic fallback).
   return {
     name: topic.name,
-    assistantId: topic.assistantId
+    assistantId: topic.assistantId === 'default' ? null : topic.assistantId
   }
 }
 

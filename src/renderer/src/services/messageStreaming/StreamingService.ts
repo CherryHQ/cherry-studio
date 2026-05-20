@@ -31,6 +31,7 @@ import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newM
 import { isAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { CreateMessageDto, UpdateMessageDto } from '@shared/data/api/schemas/messages'
 import type { Message as SharedMessage, MessageDataBlock, MessageStats } from '@shared/data/types/message'
+import { isUniqueModelId } from '@shared/data/types/model'
 
 import { dbService } from '../db'
 
@@ -571,13 +572,20 @@ class StreamingService {
   async createAssistantMessage(topicId: string, options: CreateAssistantMessageOptions): Promise<Message> {
     const { parentId, assistantId, modelId, model, siblingsGroupId = 0, traceId } = options
 
+    // v1 callers pass `Model.id` (e.g. 'qwen'), which is NOT a v2 UniqueModelId
+    // ("providerId::modelId"). v2 message.modelId is a FK to user_model(id);
+    // sending a non-UniqueModelId — or any value not present in user_model —
+    // raises SQLITE_CONSTRAINT_FOREIGNKEY. Drop the value here so the message
+    // row lands with modelId=NULL until callers are migrated. See [[T-005B]].
+    const safeModelId = isUniqueModelId(modelId) ? modelId : undefined
+
     const createDto: CreateMessageDto = {
       parentId,
       role: 'assistant',
       data: { blocks: [] },
       status: 'pending',
       siblingsGroupId,
-      modelId,
+      modelId: safeModelId,
       traceId
     }
 

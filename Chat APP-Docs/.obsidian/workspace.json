@@ -1,0 +1,253 @@
+{
+  "main": {
+    "id": "9fed70ab342d002e",
+    "type": "split",
+    "children": [
+      {
+        "id": "0314e86a0bf0ea4d",
+        "type": "tabs",
+        "dimension": 69.3208430913349,
+        "children": [
+          {
+            "id": "0500133b581a2b13",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "03_Development/下一步.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "下一步"
+            }
+          },
+          {
+            "id": "b4aac4505f5fde56",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "02_Architecture/数据模型.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "数据模型"
+            }
+          }
+        ],
+        "currentTab": 1
+      },
+      {
+        "id": "a98c175aa9457798",
+        "type": "tabs",
+        "dimension": 30.679156908665107,
+        "children": [
+          {
+            "id": "f3fc83aa9c4c1f5c",
+            "type": "leaf",
+            "state": {
+              "type": "graph",
+              "state": {},
+              "icon": "lucide-git-fork",
+              "title": "关系图谱"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "57c36b3aba1c2ffb",
+    "type": "split",
+    "children": [
+      {
+        "id": "ef3fcd188eed9698",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "55aa048d61f7dc4b",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "文件列表"
+            }
+          },
+          {
+            "id": "ac739453b7b62c50",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "搜索"
+            }
+          },
+          {
+            "id": "eb546f21a39ac18f",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "书签"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 253.5
+  },
+  "right": {
+    "id": "c6b9ccf6a2532be5",
+    "type": "split",
+    "children": [
+      {
+        "id": "e182b65705a7ff5e",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "085fe0240421429f",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "02_Architecture/数据模型.md",
+                "collapseAll": true,
+                "extraContext": true,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "数据模型 的反向链接列表"
+            }
+          },
+          {
+            "id": "c3dad20846b73a84",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "出链"
+            }
+          },
+          {
+            "id": "a7ad6e1922b0d783",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "标签"
+            }
+          },
+          {
+            "id": "427bae9a87104040",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "添加笔记属性"
+            }
+          },
+          {
+            "id": "00b1208507ce22b9",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "大纲"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 200
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:打开快速切换": false,
+      "graph:查看关系图谱": false,
+      "canvas:新建白板": false,
+      "daily-notes:打开/创建今天的日记": false,
+      "templates:插入模板": false,
+      "command-palette:打开命令面板": false,
+      "bases:新建数据库": false
+    }
+  },
+  "active": "b4aac4505f5fde56",
+  "lastOpenFiles": [
+    "03_Development/tasks/T-005B_修复ModelIdFK/完成总结.md",
+    "03_Development/tasks/T-005B_修复ModelIdFK/验证.md",
+    "03_Development/tasks/T-005B_修复ModelIdFK/实施.md",
+    "03_Development/tasks/T-005B_修复ModelIdFK/任务.md",
+    "03_Development/tasks/T-005B_修复ModelIdFK/README.md",
+    "03_Development/tasks/T-005B_修复ModelIdFK",
+    "03_Development/tasks/T-005A_AssistantMessageFK/诊断.md",
+    "03_Development/tasks/T-005A_AssistantMessageFK/任务.md",
+    "03_Development/tasks/T-005A_AssistantMessageFK/README.md",
+    "03_Development/tasks/T-005A_AssistantMessageFK",
+    "02_Architecture/数据模型.md",
+    "03_Development/下一步.md",
+    "03_Development/tasks/T-004_修复DefaultAssistantSentinel/README.md",
+    "03_Development/tasks/T-004_修复DefaultAssistantSentinel/完成总结.md",
+    "03_Development/tasks/T-004_修复DefaultAssistantSentinel/验证.md",
+    "03_Development/tasks/T-004_修复DefaultAssistantSentinel/实施.md",
+    "03_Development/tasks/T-004_修复DefaultAssistantSentinel/任务.md",
+    "03_Development/tasks/T-003_BaselineDebug/任务.md",
+    "03_Development/tasks/T-003_BaselineDebug/README.md",
+    "03_Development/tasks/T-002_DataApi端点/任务.md",
+    "03_Development/tasks/T-002_DataApi端点/README.md",
+    "03_Development/tasks/T-002_DataApi端点/README.md.tmp.36957.0e1ce17c8e7b",
+    "03_Development/tasks/T-001_源码地图/README.md",
+    "03_Development/tasks/README.md",
+    "03_Development/README.md",
+    "02_Architecture/README.md",
+    "01_Project/README.md",
+    "README.md",
+    "03_Development/tasks/T-003_BaselineDebug/诊断.md",
+    "03_Development/tasks/T-004_修复DefaultAssistantSentinel",
+    "03_Development/tasks/T-003_BaselineDebug",
+    "03_Development/tasks/T-002_DataApi端点",
+    "03_Development/tasks/T-001_源码地图",
+    "03_Development/tasks"
+  ]
+}
