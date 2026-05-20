@@ -14,6 +14,7 @@ const validRegistry = {
     isAvailable: () => true,
     capabilities: {
       image_to_text: {
+        mode: 'background',
         prepare: () => ({
           mode: 'background',
           execute: async () => ({
@@ -44,6 +45,7 @@ const validRegistry = {
     isAvailable: () => true,
     capabilities: {
       document_to_markdown: {
+        mode: 'remote-poll',
         prepare: () => ({
           mode: 'remote-poll',
           startRemote: async () => ({
@@ -58,7 +60,9 @@ const validRegistry = {
               kind: 'markdown',
               markdownContent: '# done'
             }
-          })
+          }),
+          toPersistable: (_remoteContext, providerTaskId) => ({ providerTaskId }),
+          rehydrate: (persisted) => ({ providerTaskId: persisted.providerTaskId, remoteContext: {} })
         })
       }
     }
@@ -88,6 +92,7 @@ type TypedRemoteContext = {
 }
 
 const validTypedRemoteContextHandler: FileProcessingCapabilityHandler<'document_to_markdown', TypedRemoteContext> = {
+  mode: 'remote-poll',
   prepare: () => ({
     mode: 'remote-poll',
     startRemote: async () => ({
@@ -104,6 +109,11 @@ const validTypedRemoteContextHandler: FileProcessingCapabilityHandler<'document_
       remoteContext: {
         stage: task.remoteContext.stage === 'parsing' ? 'exporting' : task.remoteContext.stage
       }
+    }),
+    toPersistable: (remoteContext, providerTaskId) => ({ providerTaskId, stage: remoteContext.stage }),
+    rehydrate: (persisted) => ({
+      providerTaskId: persisted.providerTaskId,
+      remoteContext: { stage: (persisted.stage ?? 'parsing') as TypedRemoteContext['stage'] }
     })
   })
 }
