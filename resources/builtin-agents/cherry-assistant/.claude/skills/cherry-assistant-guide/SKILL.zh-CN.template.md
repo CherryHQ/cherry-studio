@@ -133,4 +133,4 @@ Cmd/Ctrl + N 新建话题, +F 搜索, +Shift+F 全局搜索, +K 新上下文, +L
 
 ## 日志路径
 
-macOS正式: ~/Library/Application Support/CherryStudio/logs/ | 开发: CherryStudioDev/logs/ | Windows: %APPDATA%/CherryStudio/logs/
+macOS正式: ~/Library/Application Support/CherryStudio/logs/ | 开发: CherryStudioDev/logs/ | Windows: %APPDATA%/CherryStudio/logs/ | Linux: ~/.config/CherryStudio/logs/
