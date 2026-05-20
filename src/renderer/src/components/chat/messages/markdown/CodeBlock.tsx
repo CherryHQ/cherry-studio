@@ -2,10 +2,9 @@ import { ClickableFilePath } from '@renderer/components/chat/messages/tools/agen
 import { CodeBlockView, HtmlArtifactsCard } from '@renderer/components/CodeBlockView'
 import { isWin } from '@renderer/config/constant'
 import { getCodeBlockId } from '@renderer/utils/markdown'
-import { mermaid } from '@streamdown/mermaid'
 import type { Node } from 'mdast'
 import React, { memo, useCallback, useMemo } from 'react'
-import { Streamdown, useIsCodeFenceIncomplete } from 'streamdown'
+import { useIsCodeFenceIncomplete } from 'streamdown'
 
 import { useMessageRenderConfig, useOptionalMessageListActions } from '../MessageListProvider'
 import { isInlineAbsoluteFilePath } from '../utils/filePath'
@@ -23,18 +22,6 @@ const INLINE_CODE_CLASS =
 const INLINE_FILE_PATH_CODE_CLASS = `${INLINE_CODE_CLASS} max-w-full align-middle break-all! [&>span]:translate-y-px`
 
 const mergeClassNames = (...classNames: Array<string | undefined>) => classNames.filter(Boolean).join(' ')
-
-const getFence = (code: string, fenceChar: '`' | '~') => {
-  const pattern = fenceChar === '`' ? /`{3,}/g : /~{3,}/g
-  const maxFenceLength = Math.max(0, ...Array.from(code.matchAll(pattern), (match) => match[0].length))
-  return fenceChar.repeat(Math.max(3, maxFenceLength + 1))
-}
-
-const createFencedCode = (language: string, code: string) => {
-  const fenceChar = code.includes('```') && !code.includes('~~~') ? '~' : '`'
-  const fence = getFence(code, fenceChar)
-  return `${fence}${language}\n${code}\n${fence}`
-}
 
 const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
   const languageMatch = /language-([\w-+]+)/.exec(className || '')
@@ -69,14 +56,6 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
   )
 
   if (language !== null) {
-    if (language === 'mermaid') {
-      return (
-        <Streamdown mode="static" plugins={{ mermaid }} isAnimating={isIncomplete}>
-          {createFencedCode(language, children)}
-        </Streamdown>
-      )
-    }
-
     // Fancy code block
     if (codeFancyBlock) {
       if (language === 'html') {

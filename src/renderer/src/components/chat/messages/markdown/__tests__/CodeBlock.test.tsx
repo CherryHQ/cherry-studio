@@ -49,20 +49,7 @@ vi.mock('@renderer/utils/markdown', () => ({
   getCodeBlockId: mocks.getCodeBlockId
 }))
 
-vi.mock('@streamdown/mermaid', () => ({
-  mermaid: { language: 'mermaid', name: 'mermaid', type: 'diagram' }
-}))
-
 vi.mock('streamdown', () => ({
-  Streamdown: ({ children, isAnimating, mode, plugins }: any) => (
-    <div
-      data-testid="streamdown-code-block"
-      data-has-mermaid={String(Boolean(plugins?.mermaid))}
-      data-is-animating={String(isAnimating)}
-      data-mode={mode}>
-      {children}
-    </div>
-  ),
   useIsCodeFenceIncomplete: () => mocks.isCodeFenceIncomplete
 }))
 
@@ -172,14 +159,17 @@ describe('CodeBlock', () => {
       }
     )
 
-    it('should delegate mermaid code fences back to Streamdown', () => {
+    it('should render mermaid code fences with the app code block view', () => {
       render(<CodeBlock {...defaultProps} className="language-mermaid" children="graph TD; A-->B;" />)
 
-      const streamdown = screen.getByTestId('streamdown-code-block')
-      expect(streamdown).toHaveAttribute('data-mode', 'static')
-      expect(streamdown).toHaveAttribute('data-has-mermaid', 'true')
-      expect(streamdown).toHaveTextContent('```mermaid')
-      expect(mocks.CodeBlockView).not.toHaveBeenCalled()
+      expect(screen.getByText('graph TD; A-->B;')).toBeInTheDocument()
+      expect(mocks.CodeBlockView).toHaveBeenCalled()
+      expect(mocks.CodeBlockView.mock.calls[0][0]).toEqual(
+        expect.objectContaining({
+          language: 'mermaid',
+          children: 'graph TD; A-->B;'
+        })
+      )
       expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
     })
   })
