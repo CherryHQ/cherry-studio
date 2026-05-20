@@ -14,6 +14,8 @@
     "start": "electron-vite preview",
     "generate:openapi": "tsx scripts/generate-openapi-spec.ts && biome format --write src/main/apiServer/generated/openapi-spec.json",
     "openapi:check": "tsx scripts/generate-openapi-spec.ts --check",
+    "build:builtin-knowledge": "tsx scripts/generate-cherry-assistant-knowledge",
+    "build:builtin-knowledge:check": "tsx scripts/generate-cherry-assistant-knowledge --check",
     "dev": "npm run generate:openapi && dotenv electron-vite dev",
     "dev:watch": "dotenv electron-vite dev -- -w",
     "debug": "electron-vite -- --inspect --sourcemap --remote-debugging-port=9222",

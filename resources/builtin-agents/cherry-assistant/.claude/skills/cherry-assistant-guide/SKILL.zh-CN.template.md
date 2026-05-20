@@ -90,9 +90,9 @@ navigate({ path: '/settings/provider', query: { id: 'anthropic' } })
 
 **数据备份**: 设置→数据管理。方式: 本地ZIP/WebDAV(坚果云等)/S3(AWS/MinIO/R2)/局域网传输。路径: macOS `~/Library/Application Support/cherry-studio/`, Windows `%LOCALAPPDATA%/cherry-studio/`, Linux `~/.config/cherry-studio/`
 
-## 支持的 Provider（63+）
+## 支持的 Provider（{{providers_count}}+）
 
-国际: Anthropic, OpenAI, Azure OpenAI, Google Gemini, VertexAI, GitHub Models, GitHub Copilot, Mistral, AWS Bedrock | 聚合: Cherry In, AiHubMix, ocoolAI, PPIO, DMXAPI, BurnCloud, TokenFlux, 302.AI, SophNet, OpenRouter, New API, AIOnly, Vercel AI Gateway | 国内: DeepSeek, AlayaNew, 七牛, Cephalon, 蓝耘, PH8, 智谱, 零一万物 Yi, Moonshot, 百川, 通义, 阶跃, 豆包, 无问芯穹, MiniMax, 魔搭, 希壤, 混元, 腾讯云 TI, 百度智能云, LongCat, 小米 MiMo, MiniMax Global, Z.ai | 本地: Ollama, OpenVINO Model Server, LM Studio, GPUStack | 加速: 硅基流动 SiliconFlow, Groq, Together, Fireworks, Hyperbolic, Cerebras | 其他: NVIDIA, Grok, Jina, Perplexity, Voyage AI, Poe, HuggingFace | 支持任何 OpenAI 兼容端点
+{{providers_summary}}
 
 ## 快捷键
 
@@ -100,7 +100,7 @@ Cmd/Ctrl + N 新建话题, +F 搜索, +Shift+F 全局搜索, +K 新上下文, +L
 
 ## 多语言
 
-12种: 英/简中/繁中/日/法/德/西/葡/俄/罗马尼亚/希腊/越南。切换: 设置→通用→语言
+{{languages_count}}种: {{languages_summary}}。切换: 设置→通用→语言
 
 ## 新手 FAQ
 
