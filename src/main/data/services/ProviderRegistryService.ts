@@ -25,7 +25,7 @@ import { buildRuntimeEndpointConfigs, ENDPOINT_TYPE, REASONING_EFFORT } from '@c
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/apiErrors'
-import type { Model, RuntimeModelPricing, RuntimeReasoning } from '@shared/data/types/model'
+import type { ImageGenerationSupport, Model, RuntimeModelPricing, RuntimeReasoning } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { EndpointConfig, ProviderWebsites, ReasoningFormatType } from '@shared/data/types/provider'
 
@@ -541,6 +541,24 @@ class ProviderRegistryService {
     }
 
     return results
+  }
+
+  /**
+   * Read the painting-page metadata block the registry exposes for a
+   * (provider, model) pair. Drives the generic painting form: providers
+   * opting into `useRegistryForm` derive their field set from this block
+   * instead of a hand-rolled `fields.ts`.
+   *
+   * Returns `null` when the model is unknown to the registry or has no
+   * `imageGeneration` configured — the renderer treats that as "no derived
+   * fields" and falls back to the provider's `fields.byTab`.
+   *
+   * Used by: GET /providers/:providerId/models/:modelId/image-generation-support
+   * (greedy `:modelId` capture for HuggingFace-style ids containing `/`).
+   */
+  async getImageGenerationSupport(providerId: string, modelId: string): Promise<ImageGenerationSupport | null> {
+    const { presetModel } = await this.lookupModel(providerId, modelId)
+    return presetModel?.imageGeneration ?? null
   }
 }
 

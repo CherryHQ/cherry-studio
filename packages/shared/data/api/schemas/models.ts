@@ -9,6 +9,7 @@ import * as z from 'zod'
 
 import {
   ENDPOINT_TYPE,
+  type ImageGenerationSupport,
   MODALITY,
   type Model,
   MODEL_CAPABILITY,
@@ -233,6 +234,30 @@ export type ModelSchemas = {
       params: { providerId: string }
       query: ResolveProviderModelsQuery
       response: Model[]
+    }
+  }
+
+  /**
+   * Read the painting-page metadata block (`ImageGenerationSupport`) the
+   * registry exposes for a (provider, model) pair. Drives the generic
+   * painting form so providers opting into `useRegistryForm` can render
+   * sizes/batch/seed/etc. fields without hand-rolled per-vendor `fields.ts`.
+   *
+   * Returns `null` when the model is not in the registry or carries no
+   * `imageGeneration` block — the renderer treats `null` as "no derived
+   * fields" and falls back to the provider's own `fields.byTab`.
+   *
+   * Greedy `:modelId*` preserves HuggingFace-style ids that contain `/`
+   * (e.g. `Kwai-Kolors/Kolors`). Trailing static anchor follows the
+   * documented middle-greedy pattern from
+   * docs/references/data/api-design-guidelines.md.
+   *
+   * @example GET /providers/silicon/models/Kwai-Kolors/Kolors/image-generation-support
+   */
+  '/providers/:providerId/models/:modelId*/image-generation-support': {
+    GET: {
+      params: { providerId: string; modelId: string }
+      response: ImageGenerationSupport | null
     }
   }
 }

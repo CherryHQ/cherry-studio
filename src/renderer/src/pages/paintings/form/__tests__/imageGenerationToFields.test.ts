@@ -1,4 +1,4 @@
-import type { ImageGenerationSupport } from '@cherrystudio/provider-registry'
+import type { ImageGenerationSupport } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
 import { imageGenerationToFields } from '../imageGenerationToFields'
@@ -150,5 +150,36 @@ describe('imageGenerationToFields', () => {
   it('emits no slider when batch is omitted', () => {
     const items = imageGenerationToFields({ sizes: ['1024x1024'], sizeMode: 'pixel' })
     expect(items.find((i) => i.key === 'numImages')).toBeUndefined()
+  })
+
+  it('renames emitted keys via opts.keyMap (silicon legacy field names)', () => {
+    const items = imageGenerationToFields(
+      {
+        sizes: ['1024x1024'],
+        sizeMode: 'pixel',
+        batch: { min: 1, max: 4, default: 1 },
+        supports: { numInferenceSteps: { min: 1, max: 50, default: 25 } }
+      },
+      { keyMap: { size: 'imageSize', numInferenceSteps: 'steps' } }
+    )
+    const keys = items.map((i) => i.key)
+    expect(keys).toContain('imageSize')
+    expect(keys).not.toContain('size')
+    expect(keys).toContain('steps')
+    expect(keys).not.toContain('numInferenceSteps')
+    expect(keys).toContain('numImages')
+  })
+
+  it('emits canonical keys when keyMap is missing or empty', () => {
+    const support: ImageGenerationSupport = {
+      sizes: ['1024x1024'],
+      sizeMode: 'pixel',
+      batch: { min: 1, max: 4 },
+      supports: { seed: true }
+    }
+    const a = imageGenerationToFields(support).map((i) => i.key)
+    const b = imageGenerationToFields(support, { keyMap: {} }).map((i) => i.key)
+    expect(a).toEqual(b)
+    expect(a).toEqual(['size', 'numImages', 'seed'])
   })
 })

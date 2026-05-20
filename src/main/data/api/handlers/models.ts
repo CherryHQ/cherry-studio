@@ -169,5 +169,11 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
       const ids = Array.isArray(parsed.ids) ? parsed.ids : [parsed.ids]
       return await providerRegistryService.resolveModels(params.providerId, ids)
     }
+  },
+
+  '/providers/:providerId/models/:modelId*/image-generation-support': {
+    GET: async ({ params }) => {
+      return await providerRegistryService.getImageGenerationSupport(params.providerId, params.modelId)
+    }
   }
 }

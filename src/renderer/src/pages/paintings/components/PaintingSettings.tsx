@@ -3,7 +3,9 @@ import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { imageGenerationToFields } from '../form/imageGenerationToFields'
 import { PaintingFieldRenderer } from '../form/PaintingFieldRenderer'
+import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
 import { usePaintingModelCatalog } from '../hooks/usePaintingModelCatalog'
 import { usePaintingProviderOptions } from '../hooks/usePaintingProviderOptions'
 import { usePaintingProviderRuntime } from '../hooks/usePaintingProviderRuntime'
@@ -55,7 +57,27 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange,
     painting,
     shouldPrefetch: false
   })
-  const configItems = useMemo(() => providerDefinition.fields.byTab[tab] || [], [providerDefinition.fields.byTab, tab])
+  // Always call the hook (rules-of-hooks); it stays disabled when the
+  // provider doesn't opt in or has no model selected.
+  const registrySupport = useImageGenerationSupport(
+    providerDefinition.useRegistryForm ? painting.providerId : undefined,
+    providerDefinition.useRegistryForm ? painting.model : undefined
+  )
+  const configItems = useMemo(() => {
+    if (providerDefinition.useRegistryForm) {
+      const derived = imageGenerationToFields(registrySupport, { keyMap: providerDefinition.registryKeyMap })
+      // Fall back to the provider's own fields on a registry miss so the page
+      // never renders empty during the first load or for unknown models.
+      return derived.length > 0 ? derived : providerDefinition.fields.byTab[tab] || []
+    }
+    return providerDefinition.fields.byTab[tab] || []
+  }, [
+    providerDefinition.useRegistryForm,
+    providerDefinition.registryKeyMap,
+    providerDefinition.fields.byTab,
+    registrySupport,
+    tab
+  ])
 
   const handleImageUpload = useCallback(
     (key: string, file: File) => {

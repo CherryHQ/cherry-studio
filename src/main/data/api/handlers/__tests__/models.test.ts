@@ -13,7 +13,8 @@ const {
   createMock,
   bulkUpdateMock,
   lookupModelMock,
-  resolveModelsMock
+  resolveModelsMock,
+  getImageGenerationSupportMock
 } = vi.hoisted(() => ({
   listMock: vi.fn(),
   getByKeyMock: vi.fn(),
@@ -22,7 +23,8 @@ const {
   createMock: vi.fn(),
   bulkUpdateMock: vi.fn(),
   lookupModelMock: vi.fn(),
-  resolveModelsMock: vi.fn()
+  resolveModelsMock: vi.fn(),
+  getImageGenerationSupportMock: vi.fn()
 }))
 
 vi.mock('@data/services/ModelService', () => ({
@@ -39,7 +41,8 @@ vi.mock('@data/services/ModelService', () => ({
 vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: {
     lookupModel: lookupModelMock,
-    resolveModels: resolveModelsMock
+    resolveModels: resolveModelsMock,
+    getImageGenerationSupport: getImageGenerationSupportMock
   }
 }))
 
@@ -373,5 +376,36 @@ describe('/providers/:providerId/models:resolve', () => {
     ).rejects.toThrow()
 
     expect(resolveModelsMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('/providers/:providerId/models/:modelId*/image-generation-support', () => {
+  it('forwards (providerId, modelId) to the registry service and returns the block', async () => {
+    const block = {
+      modes: ['generate'],
+      sizes: ['1024x1024'],
+      sizeMode: 'pixel',
+      defaultSize: '1024x1024',
+      batch: { min: 1, max: 4, default: 1 },
+      supports: { seed: true }
+    }
+    getImageGenerationSupportMock.mockResolvedValueOnce(block)
+
+    const result = await modelHandlers['/providers/:providerId/models/:modelId*/image-generation-support'].GET({
+      params: { providerId: 'silicon', modelId: 'Kwai-Kolors/Kolors' }
+    } as never)
+
+    expect(getImageGenerationSupportMock).toHaveBeenCalledWith('silicon', 'Kwai-Kolors/Kolors')
+    expect(result).toBe(block)
+  })
+
+  it('returns null when the registry has no metadata for the pair', async () => {
+    getImageGenerationSupportMock.mockResolvedValueOnce(null)
+
+    const result = await modelHandlers['/providers/:providerId/models/:modelId*/image-generation-support'].GET({
+      params: { providerId: 'silicon', modelId: 'unknown-model' }
+    } as never)
+
+    expect(result).toBeNull()
   })
 })
