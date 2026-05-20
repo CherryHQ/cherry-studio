@@ -1,4 +1,5 @@
 import type { PpioPaintingData as PaintingData } from '../../model/types/paintingData'
+import { loadPaintingModelOptions } from '../../model/utils/paintingModelOptions'
 import type { PaintingProvider } from '../types'
 import { getModelsByMode, type PpioMode } from './config'
 import { createDefaultPpioPainting } from './config'
@@ -15,13 +16,20 @@ export const ppioProvider = {
     ],
     defaultTab: 'ppio_draw',
     tabToDbMode: (tab: string) => (tab === 'ppio_draw' ? 'draw' : 'edit'),
-    getModels: (tab: string) => {
-      const models = getModelsByMode(tab as PpioMode)
-      return {
-        type: 'static' as const,
-        options: models.map((m) => ({ label: m.name, value: m.id, group: m.group }))
+    // Dropdown = (user's enabled ppio image-gen models) ∩ (PPIO_MODELS routing
+    // table for the current mode). PPIO_MODELS stays as the transport routing
+    // index (endpoint + sync/async per modelId); only the dropdown source
+    // moves to the user's actual enabled set.
+    getModels: (tab: string) => ({
+      type: 'async' as const,
+      loader: async () => {
+        const userEnabled = await loadPaintingModelOptions('ppio')
+        const supportedById = new Map(getModelsByMode(tab as PpioMode).map((m) => [m.id, m]))
+        return userEnabled
+          .filter((opt) => supportedById.has(opt.value))
+          .map((opt) => ({ ...opt, group: supportedById.get(opt.value)?.group ?? opt.group }))
       }
-    },
+    }),
     createPaintingData: ({ tab }) => createDefaultPpioPainting(tab)
   },
   fields: {

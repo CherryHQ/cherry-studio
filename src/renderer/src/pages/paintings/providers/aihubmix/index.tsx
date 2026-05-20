@@ -5,6 +5,7 @@ import type { TFunction } from 'i18next'
 import { SettingHelpLink } from '../../../settings'
 import type { AihubmixPaintingData as PaintingData } from '../../model/types/paintingData'
 import type { PaintingProviderRuntime } from '../../model/types/paintingProviderRuntime'
+import { loadPaintingModelOptions } from '../../model/utils/paintingModelOptions'
 import type { PaintingProvider } from '../types'
 import { createDefaultAihubmixPainting } from './config'
 import { aihubmixFields, getStaticModelsForAihubmixMode } from './fields'
@@ -31,9 +32,19 @@ export const aihubmixProvider = {
     ],
     defaultTab: 'generate',
     tabToDbMode: (tab: string) => tab,
+    // Dropdown = (user's enabled aihubmix image-gen models) ∩ (aihubmix's per-tab
+    // transport whitelist). The static list is now strictly a transport routing
+    // hint, not the source of "what the user can pick" — that's their actual
+    // enabled model set.
     getModels: (tab: string) => ({
-      type: 'static' as const,
-      options: getStaticModelsForAihubmixMode(tab as 'generate' | 'remix' | 'upscale')
+      type: 'async' as const,
+      loader: async () => {
+        const userEnabled = await loadPaintingModelOptions('aihubmix')
+        const supported = new Set(
+          getStaticModelsForAihubmixMode(tab as 'generate' | 'remix' | 'upscale').map((m) => m.value)
+        )
+        return userEnabled.filter((opt) => supported.has(opt.value))
+      }
     }),
     createPaintingData: ({ tab }) => createDefaultAihubmixPainting(tab)
   },
