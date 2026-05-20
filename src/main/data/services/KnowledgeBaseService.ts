@@ -20,7 +20,7 @@ import {
   type KnowledgeBase,
   KnowledgeBaseSchema
 } from '@shared/data/types/knowledge'
-import { desc, eq, sql } from 'drizzle-orm'
+import { desc, eq, type SQL, sql } from 'drizzle-orm'
 
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
@@ -62,6 +62,14 @@ function rowToKnowledgeBase(row: KnowledgeBaseRow): KnowledgeBase {
   })
 }
 
+function buildSearchPredicate(search: string | undefined): SQL | undefined {
+  const trimmed = search?.trim()
+  if (!trimmed) return undefined
+
+  const pattern = `%${trimmed.replace(/[\\%_]/g, '\\$&')}%`
+  return sql`${knowledgeBaseTable.name} LIKE ${pattern} ESCAPE '\\'`
+}
+
 export class KnowledgeBaseService {
   private get db() {
     return application.get('DbService').getDb()
@@ -70,15 +78,17 @@ export class KnowledgeBaseService {
   async list(query: ListKnowledgeBasesQuery): Promise<OffsetPaginationResponse<KnowledgeBase>> {
     const { page, limit } = query
     const offset = (page - 1) * limit
+    const whereClause = buildSearchPredicate(query.search)
 
     const [rows, [{ count }]] = await Promise.all([
       this.db
         .select()
         .from(knowledgeBaseTable)
+        .where(whereClause)
         .orderBy(desc(knowledgeBaseTable.createdAt), desc(knowledgeBaseTable.id))
         .limit(limit)
         .offset(offset),
-      this.db.select({ count: sql<number>`count(*)` }).from(knowledgeBaseTable)
+      this.db.select({ count: sql<number>`count(*)` }).from(knowledgeBaseTable).where(whereClause)
     ])
 
     return {

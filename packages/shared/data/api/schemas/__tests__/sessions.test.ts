@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest'
 import {
   AgentSessionMessageEntitySchema,
   CreateAgentSessionMessageSchema,
-  CreateAgentSessionMessagesSchema
+  CreateAgentSessionMessagesSchema,
+  ListSessionsQuerySchema
 } from '../sessions'
 
 describe('AgentSessionMessage schemas', () => {
@@ -45,5 +46,27 @@ describe('AgentSessionMessage schemas', () => {
     })
 
     expect(parsed.runtimeResumeToken).toBeUndefined()
+  })
+})
+
+describe('ListSessionsQuerySchema', () => {
+  it('trims search while preserving existing cursor pagination fields', () => {
+    expect(
+      ListSessionsQuerySchema.parse({
+        agentId: 'agent-1',
+        cursor: 'cursor-1',
+        limit: '10',
+        search: '  plan  '
+      })
+    ).toEqual({
+      agentId: 'agent-1',
+      cursor: 'cursor-1',
+      limit: 10,
+      search: 'plan'
+    })
+  })
+
+  it('rejects blank search', () => {
+    expect(() => ListSessionsQuerySchema.parse({ search: '   ' })).toThrow()
   })
 })

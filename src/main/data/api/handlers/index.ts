@@ -18,6 +18,7 @@ import { agentChannelHandlers } from './agentChannels'
 import { agentHandlers } from './agents'
 import { assistantHandlers } from './assistants'
 import { fileHandlers } from './files'
+import { globalSearchHandlers } from './globalSearch'
 import { groupHandlers } from './groups'
 import { jobHandlers } from './jobs'
 import { knowledgeHandlers } from './knowledges'
@@ -62,5 +63,6 @@ export const apiHandlers: ApiImplementation = {
   ...pinHandlers,
   ...promptHandlers,
   ...workspaceHandlers,
-  ...jobHandlers
+  ...jobHandlers,
+  ...globalSearchHandlers
 }

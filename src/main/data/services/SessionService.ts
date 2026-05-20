@@ -17,7 +17,7 @@ import type {
   ListSessionsQuery,
   UpdateSessionDto
 } from '@shared/data/api/schemas/sessions'
-import { and, asc, desc, eq, gt, or, type SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
@@ -66,6 +66,17 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     createdAt: timestampToISO(row.session.createdAt),
     updatedAt: timestampToISO(row.session.updatedAt)
   }
+}
+
+function buildSearchPredicate(search: string | undefined): SQL | undefined {
+  const trimmed = search?.trim()
+  if (!trimmed) return undefined
+
+  const pattern = `%${trimmed.replace(/[\\%_]/g, '\\$&')}%`
+  const nameMatch = sql`${sessionsTable.name} LIKE ${pattern} ESCAPE '\\'`
+  const descriptionMatch = sql`${sessionsTable.description} LIKE ${pattern} ESCAPE '\\'`
+
+  return or(nameMatch, descriptionMatch)
 }
 
 export class SessionService {
@@ -133,6 +144,8 @@ export class SessionService {
 
     const filters: SQL[] = []
     if (query.agentId) filters.push(eq(sessionsTable.agentId, query.agentId))
+    const search = buildSearchPredicate(query.search)
+    if (search) filters.push(search)
     if (cursor) {
       // Strict tuple: (orderKey, id) > (cursor.key, cursor.id)
       filters.push(

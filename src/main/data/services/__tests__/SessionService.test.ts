@@ -193,6 +193,62 @@ describe('SessionService', () => {
     expect(page2.nextCursor).toBeUndefined()
   })
 
+  it('searches sessions by name and description', async () => {
+    await dbh.db.insert(agentSessionTable).values([
+      {
+        id: 'session-name-hit',
+        agentId: 'agent-session-test',
+        name: 'Deploy checklist',
+        description: '',
+        orderKey: 'a0'
+      },
+      {
+        id: 'session-description-hit',
+        agentId: 'agent-session-test',
+        name: 'Notes',
+        description: 'Incident response drill',
+        orderKey: 'a1'
+      },
+      {
+        id: 'session-miss',
+        agentId: 'agent-session-test',
+        name: 'Backlog',
+        description: '',
+        orderKey: 'a2'
+      }
+    ])
+
+    await expect(sessionService.listByCursor({ search: 'Deploy' })).resolves.toMatchObject({
+      items: [{ id: 'session-name-hit' }]
+    })
+    await expect(sessionService.listByCursor({ search: 'response' })).resolves.toMatchObject({
+      items: [{ id: 'session-description-hit' }]
+    })
+  })
+
+  it('treats % and _ in session search as literal characters', async () => {
+    await dbh.db.insert(agentSessionTable).values([
+      {
+        id: 'session-wildcard-literal',
+        agentId: 'agent-session-test',
+        name: 'Deploy 100%_done',
+        description: '',
+        orderKey: 'a0'
+      },
+      {
+        id: 'session-wildcard-expanded',
+        agentId: 'agent-session-test',
+        name: 'Deploy 100xxdone',
+        description: '',
+        orderKey: 'a1'
+      }
+    ])
+
+    const result = await sessionService.listByCursor({ search: '100%_' })
+
+    expect(result.items.map((item) => item.id)).toEqual(['session-wildcard-literal'])
+  })
+
   it('clears workspace bindings when the workspace row is deleted', async () => {
     const workspace = await workspaceService.findOrCreateByPath(path.join(root, 'transient'))
     const session = await createSession('Workspace delete', workspace.id)

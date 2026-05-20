@@ -115,9 +115,11 @@ export type UpdateSessionDto = z.infer<typeof UpdateSessionSchema>
 export const ListSessionsQuerySchema = z.strictObject({
   agentId: z.string().optional(),
   cursor: z.string().optional(),
-  limit: z.coerce.number().int().positive().max(200).optional()
+  limit: z.coerce.number().int().positive().max(200).optional(),
+  search: z.string().trim().min(1).optional()
 })
-export type ListSessionsQuery = z.infer<typeof ListSessionsQuerySchema>
+export type ListSessionsQueryParams = z.input<typeof ListSessionsQuerySchema>
+export type ListSessionsQuery = z.output<typeof ListSessionsQuerySchema>
 
 // ============================================================================
 // API Schema definitions
@@ -126,7 +128,7 @@ export type ListSessionsQuery = z.infer<typeof ListSessionsQuerySchema>
 export type SessionSchemas = {
   '/sessions': {
     GET: {
-      query?: ListSessionsQuery
+      query?: ListSessionsQueryParams
       response: CursorPaginationResponse<AgentSessionEntity>
     }
     POST: {
