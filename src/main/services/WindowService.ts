@@ -189,9 +189,9 @@ export class WindowService {
     mainWindow.once('ready-to-show', () => {
       mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
 
-      // show window only when laucn to tray not set
+      // macOS always opens as an app-first experience; other platforms keep their tray startup behavior.
       const isLaunchToTray = configManager.getLaunchToTray()
-      if (!isLaunchToTray) {
+      if (isMac || !isLaunchToTray) {
         //[mac]hacky-fix: miniWindow set visibleOnFullScreen:true will cause dock icon disappeared
         void app.dock?.show()
         mainWindow.show()
@@ -409,15 +409,14 @@ export class WindowService {
 
       mainWindow.hide()
 
-      //for mac users, should hide dock icon if close to tray
-      if (isMac && isTrayOnClose) {
-        app.dock?.hide()
+      if (isMac) {
+        void app.dock?.show()
+        return
+      }
 
-        mainWindow.once('show', () => {
-          //restore the window can hide by cmd+h when the window is shown again
-          // https://github.com/electron/electron/pull/47970
-          void app.dock?.show()
-        })
+      //for mac users, should hide dock icon if close to tray
+      if (isTrayOnClose) {
+        app.dock?.hide()
       }
     })
 
@@ -438,8 +437,13 @@ export class WindowService {
     }
 
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      if (isMac) {
+        void app.dock?.show()
+      }
+
       if (this.mainWindow.isMinimized()) {
         this.mainWindow.restore()
+        this.mainWindow.focus()
         return
       }
 

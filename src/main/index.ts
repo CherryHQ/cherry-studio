@@ -16,7 +16,9 @@ import process from 'node:process'
 
 import { registerIpc } from './ipc'
 import { agentService } from './services/agents'
+import { collaborationRuntimeService } from './services/agents/services/CollaborationRuntimeService'
 import { schedulerService } from './services/agents/services/SchedulerService'
+import { workerRuntimeService } from './services/agents/services/WorkerRuntimeService'
 import { bootstrapBuiltinAgents } from './services/agents/services/builtin/BuiltinAgentBootstrap'
 import { channelManager } from './services/agents/services/channels'
 import { registerSessionStreamIpc } from './services/agents/services/channels/sessionStreamIpc'
@@ -148,10 +150,9 @@ if (!app.requestSingleInstanceLock()) {
     // Set app user model id for windows
     electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
 
-    // Mac: Hide dock icon before window creation when launch to tray is set
-    const isLaunchToTray = configManager.getLaunchToTray()
-    if (isLaunchToTray) {
-      app.dock?.hide()
+    // macOS should behave like a normal app even if older configs enabled launch-to-tray.
+    if (process.platform === 'darwin' && configManager.getLaunchToTray()) {
+      configManager.setLaunchToTray(false)
     }
 
     // Check for backup restore marker and complete restoration (highest priority, before window creation)
@@ -180,9 +181,8 @@ if (!app.requestSingleInstanceLock()) {
       const mainWindow = windowService.getMainWindow()
       if (!mainWindow || mainWindow.isDestroyed()) {
         windowService.createMainWindow()
-      } else {
-        windowService.showMainWindow()
       }
+      windowService.showMainWindow()
     })
 
     registerShortcuts(mainWindow)
@@ -209,6 +209,9 @@ if (!app.requestSingleInstanceLock()) {
       // TODO: v2 lifecycle
       await bootstrapBuiltinAgents()
 
+      // Probe workers in background — don't block the API server on shell spawns
+      void workerRuntimeService.ensureStartupWorkersReady()
+
       // Start API server if enabled or if agents exist
       try {
         const config = await apiServerService.getCurrentConfig()
@@ -234,6 +237,7 @@ if (!app.requestSingleInstanceLock()) {
 
         // Restore CherryClaw schedulers after services are ready
         await schedulerService.restoreSchedulers()
+        collaborationRuntimeService.start()
 
         // Register IPC handlers for session stream before starting channels
         registerSessionStreamIpc()
@@ -300,6 +304,7 @@ if (!app.requestSingleInstanceLock()) {
     }
 
     try {
+      collaborationRuntimeService.stop()
       schedulerService.stopAll()
       await channelManager.stop()
       await analyticsService.destroy()

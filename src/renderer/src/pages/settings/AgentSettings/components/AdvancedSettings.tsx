@@ -22,18 +22,27 @@ export const AdvancedSettings: React.FC<AgentOrSessionSettingsProps> = ({ agentB
   const [configuration, setConfiguration] = useState<AgentConfigurationState>(defaultConfiguration)
   const [maxTurnsInput, setMaxTurnsInput] = useState<number>(defaultConfiguration.max_turns)
   const [envVarsText, setEnvVarsText] = useState<string>('')
+  const [workerCommand, setWorkerCommand] = useState<string>('')
+  const [workerArgsText, setWorkerArgsText] = useState<string>('')
+  const [workerTagsText, setWorkerTagsText] = useState<string>('')
 
   useEffect(() => {
     if (!agentBase) {
       setConfiguration(defaultConfiguration)
       setMaxTurnsInput(defaultConfiguration.max_turns)
       setEnvVarsText('')
+      setWorkerCommand('')
+      setWorkerArgsText('')
+      setWorkerTagsText('')
       return
     }
     const parsed: AgentConfigurationState = AgentConfigurationSchema.parse(agentBase.configuration ?? {})
     setConfiguration(parsed)
     setMaxTurnsInput(parsed.max_turns)
     setEnvVarsText(serializeKeyValueString(parsed.env_vars ?? {}))
+    setWorkerCommand(typeof parsed.worker_command === 'string' ? parsed.worker_command : '')
+    setWorkerArgsText(Array.isArray(parsed.worker_args) ? parsed.worker_args.join('\n') : '')
+    setWorkerTagsText(Array.isArray(parsed.worker_capability_tags) ? parsed.worker_capability_tags.join(', ') : '')
   }, [agentBase])
 
   const commitMaxTurns = useCallback(() => {
@@ -62,6 +71,62 @@ export const AdvancedSettings: React.FC<AgentOrSessionSettingsProps> = ({ agentB
     setConfiguration(next)
     void update({ id: agentBase.id, configuration: next } satisfies UpdateAgentBaseForm)
   }, [agentBase, configuration, envVarsText, update])
+
+  const commitWorkerCommand = useCallback(() => {
+    if (!agentBase) return
+    const sanitized = workerCommand.trim()
+    if ((configuration.worker_command ?? '') === sanitized) {
+      setWorkerCommand(sanitized)
+      return
+    }
+    const next: AgentConfigurationState = {
+      ...configuration,
+      worker_command: sanitized || undefined
+    }
+    setConfiguration(next)
+    setWorkerCommand(sanitized)
+    void update({ id: agentBase.id, configuration: next } satisfies UpdateAgentBaseForm)
+  }, [agentBase, configuration, update, workerCommand])
+
+  const commitWorkerArgs = useCallback(() => {
+    if (!agentBase) return
+    const parsed = workerArgsText
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+    const currentArgs = Array.isArray(configuration.worker_args) ? configuration.worker_args : []
+    if (JSON.stringify(parsed) === JSON.stringify(currentArgs)) {
+      setWorkerArgsText(parsed.join('\n'))
+      return
+    }
+    const next: AgentConfigurationState = {
+      ...configuration,
+      worker_args: parsed.length > 0 ? parsed : undefined
+    }
+    setConfiguration(next)
+    setWorkerArgsText(parsed.join('\n'))
+    void update({ id: agentBase.id, configuration: next } satisfies UpdateAgentBaseForm)
+  }, [agentBase, configuration, update, workerArgsText])
+
+  const commitWorkerTags = useCallback(() => {
+    if (!agentBase) return
+    const parsed = workerTagsText
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+    const currentTags = Array.isArray(configuration.worker_capability_tags) ? configuration.worker_capability_tags : []
+    if (JSON.stringify(parsed) === JSON.stringify(currentTags)) {
+      setWorkerTagsText(parsed.join(', '))
+      return
+    }
+    const next: AgentConfigurationState = {
+      ...configuration,
+      worker_capability_tags: parsed.length > 0 ? parsed : undefined
+    }
+    setConfiguration(next)
+    setWorkerTagsText(parsed.join(', '))
+    void update({ id: agentBase.id, configuration: next } satisfies UpdateAgentBaseForm)
+  }, [agentBase, configuration, update, workerTagsText])
 
   if (!agentBase) {
     return null
@@ -111,6 +176,55 @@ export const AdvancedSettings: React.FC<AgentOrSessionSettingsProps> = ({ agentB
             style={{ width: '100%' }}
           />
           <span className="mt-1 text-foreground-500 text-xs">{t('agent.settings.advance.envVars.helper')}</span>
+        </div>
+      </SettingsItem>
+      <SettingsItem>
+        <SettingsTitle>Worker Command</SettingsTitle>
+        <div className="my-2 flex w-full flex-col gap-2">
+          <Input
+            value={workerCommand}
+            onChange={(e) => setWorkerCommand(e.target.value)}
+            onBlur={commitWorkerCommand}
+            onPressEnter={commitWorkerCommand}
+            placeholder="/opt/homebrew/bin/codex"
+            aria-label="Worker Command"
+          />
+          <span className="mt-1 text-foreground-500 text-xs">
+            CLI-backed workers use this executable. Leave empty for built-in Claude Code agents.
+          </span>
+        </div>
+      </SettingsItem>
+      <SettingsItem>
+        <SettingsTitle>Worker Args</SettingsTitle>
+        <div className="my-2 flex w-full flex-col gap-2">
+          <TextArea
+            rows={4}
+            value={workerArgsText}
+            onChange={(e) => setWorkerArgsText(e.target.value)}
+            onBlur={commitWorkerArgs}
+            placeholder={'run\n--cd\n{{cwd}}\n{{prompt}}'}
+            aria-label="Worker Args"
+            style={{ width: '100%' }}
+          />
+          <span className="mt-1 text-foreground-500 text-xs">
+            {'One argument per line. Supports `{{prompt}}`, `{{cwd}}`, and `{{sessionId}}`.'}
+          </span>
+        </div>
+      </SettingsItem>
+      <SettingsItem divider={false}>
+        <SettingsTitle>Capability Tags</SettingsTitle>
+        <div className="my-2 flex w-full flex-col gap-2">
+          <Input
+            value={workerTagsText}
+            onChange={(e) => setWorkerTagsText(e.target.value)}
+            onBlur={commitWorkerTags}
+            onPressEnter={commitWorkerTags}
+            placeholder="code, music, review"
+            aria-label="Capability Tags"
+          />
+          <span className="mt-1 text-foreground-500 text-xs">
+            Comma-separated tags for later room routing. Example: `code, music, research`.
+          </span>
         </div>
       </SettingsItem>
     </SettingsContainer>

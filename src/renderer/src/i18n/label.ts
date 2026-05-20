@@ -143,6 +143,7 @@ const titleKeyMap = {
   // TODO: update i18n key
   store: 'title.store',
   apps: 'title.apps',
+  collaboration: 'collaboration.title',
   code: 'title.code',
   files: 'title.files',
   home: 'title.home',
@@ -155,7 +156,7 @@ const titleKeyMap = {
   settings: 'title.settings',
   translate: 'title.translate',
   openclaw: 'openclaw.title',
-  agents: 'agent.sidebar_title'
+  agents: 'agent.private_chat_title'
 } as const
 
 export const getTitleLabel = (key: string): string => {
@@ -186,7 +187,8 @@ export const getThemeModeLabel = (key: string): string => {
 
 const sidebarIconKeyMap = {
   assistants: 'assistants.title',
-  agents: 'agent.sidebar_title',
+  agents: 'agent.private_chat_title',
+  collaboration: 'collaboration.title',
   store: 'assistants.presets.title',
   paintings: 'paintings.title',
   translate: 'translate.title',

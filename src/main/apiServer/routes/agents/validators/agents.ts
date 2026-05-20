@@ -1,9 +1,11 @@
 import {
   AgentIdParamSchema,
+  AgentStyleModeSchema,
   CreateAgentRequestSchema,
   ReplaceAgentRequestSchema,
   UpdateAgentRequestSchema
 } from '@types'
+import * as z from 'zod'
 
 import { createZodValidator } from './zodValidator'
 
@@ -21,4 +23,11 @@ export const validateAgentUpdate = createZodValidator({
 
 export const validateAgentId = createZodValidator({
   params: AgentIdParamSchema
+})
+
+export const validateAgentStyleMode = createZodValidator({
+  params: AgentIdParamSchema,
+  body: z.object({
+    style_mode: AgentStyleModeSchema
+  })
 })

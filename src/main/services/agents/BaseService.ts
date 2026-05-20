@@ -18,6 +18,15 @@ import { builtinTools } from './services/claudecode/tools'
 const logger = loggerService.withContext('BaseService')
 const MCP_TOOL_ID_PREFIX = 'mcp__'
 const MCP_TOOL_LEGACY_PREFIX = 'mcp_'
+const modelOptionalWorkerTypes: readonly AgentType[] = [
+  'codex',
+  'opencode',
+  'gemini-cli',
+  'hermes',
+  'aider',
+  'shell-script',
+  'openclaw-bot'
+]
 
 const buildMcpToolId = (serverId: string, toolName: string) => `${MCP_TOOL_ID_PREFIX}${serverId}__${toolName}`
 const toLegacyMcpToolId = (toolId: string) => {
@@ -294,6 +303,10 @@ export abstract class BaseService {
     agentType: AgentType,
     models: Partial<Record<AgentModelField, string | undefined>>
   ): Promise<void> {
+    if (modelOptionalWorkerTypes.includes(agentType)) {
+      return
+    }
+
     const entries = Object.entries(models) as [AgentModelField, string | undefined][]
     if (entries.length === 0) {
       return

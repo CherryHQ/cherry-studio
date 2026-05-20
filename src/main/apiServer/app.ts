@@ -11,9 +11,11 @@ import { agentsRoutes } from './routes/agents'
 import { channelsRouter } from './routes/channels'
 import { chatRoutes } from './routes/chat'
 import { clawMcpRoutes } from './routes/claw-mcp'
+import { collaborationRouter } from './routes/collaboration'
 import { knowledgeRoutes } from './routes/knowledge'
 import { mcpRoutes } from './routes/mcp'
 import { messagesProviderRoutes, messagesRoutes } from './routes/messages'
+import { mobileRouter } from './routes/mobile'
 import { modelsRoutes } from './routes/models'
 import { tasksRouter } from './routes/tasks'
 
@@ -56,7 +58,7 @@ app.use(
   cors({
     origin: '*',
     allowedHeaders: ['Content-Type', 'Authorization'],
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
   })
 )
 
@@ -135,6 +137,7 @@ app.get('/', (_req, res) => {
       mcp_server: 'GET /v1/mcps/:server_id',
       mcp_proxy: 'ALL /v1/mcps/:server_id/mcp',
       agents: 'GET /v1/agents',
+      collaboration: 'GET /v1/collaboration/workspaces',
       channels: 'GET /v1/channels',
       agent_sessions: 'GET /v1/agents/:agentId/sessions',
       session_messages: 'GET /v1/agents/:agentId/sessions/:sessionId/messages',
@@ -146,6 +149,8 @@ app.get('/', (_req, res) => {
 
 // Setup OpenAPI documentation before protected routes so docs remain public
 setupOpenAPIDocumentation(app)
+
+app.use('/mobile', mobileRouter)
 
 // Provider-specific messages route requires authentication
 app.use('/:provider/v1/messages', authMiddleware, extendMessagesTimeout, messagesProviderRoutes)
@@ -159,6 +164,7 @@ apiRouter.use('/mcps', mcpRoutes)
 apiRouter.use('/messages', extendMessagesTimeout, messagesRoutes)
 apiRouter.use('/models', modelsRoutes)
 apiRouter.use('/agents', agentsRoutes)
+apiRouter.use('/collaboration', collaborationRouter)
 apiRouter.use('/channels', channelsRouter)
 apiRouter.use('/tasks', tasksRouter)
 apiRouter.use('/claw', clawMcpRoutes)

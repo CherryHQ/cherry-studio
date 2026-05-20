@@ -99,7 +99,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     anthropicApiHost: 'https://api.siliconflow.cn',
     models: SYSTEM_MODELS.silicon,
     isSystem: true,
-    enabled: false
+    enabled: true
   },
   aihubmix: {
     id: 'aihubmix',
@@ -110,7 +110,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     anthropicApiHost: 'https://aihubmix.com',
     models: SYSTEM_MODELS.aihubmix,
     isSystem: true,
-    enabled: false
+    enabled: true
   },
   ovms: {
     id: 'ovms',
@@ -130,7 +130,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiHost: 'https://api.ocoolai.com',
     models: SYSTEM_MODELS.ocoolai,
     isSystem: true,
-    enabled: false
+    enabled: true
   },
   zhipu: {
     id: 'zhipu',
@@ -141,7 +141,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     anthropicApiHost: 'https://open.bigmodel.cn/api/anthropic',
     models: SYSTEM_MODELS.zhipu,
     isSystem: true,
-    enabled: false
+    enabled: true
   },
   zai: {
     id: 'zai',
@@ -152,7 +152,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     anthropicApiHost: 'https://api.z.ai/api/anthropic',
     models: SYSTEM_MODELS.zai,
     isSystem: true,
-    enabled: false
+    enabled: true
   },
   deepseek: {
     id: 'deepseek',
@@ -163,7 +163,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     anthropicApiHost: 'https://api.deepseek.com/anthropic',
     models: SYSTEM_MODELS.deepseek,
     isSystem: true,
-    enabled: false
+    enabled: true
   },
   alayanew: {
     id: 'alayanew',
@@ -173,7 +173,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiHost: 'https://deepseek.alayanew.com',
     models: SYSTEM_MODELS.alayanew,
     isSystem: true,
-    enabled: false
+    enabled: true
   },
   dmxapi: {
     id: 'dmxapi',
@@ -184,7 +184,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     anthropicApiHost: 'https://www.dmxapi.cn',
     models: SYSTEM_MODELS.dmxapi,
     isSystem: true,
-    enabled: false
+    enabled: true
   },
   aionly: {
     id: 'aionly',
@@ -194,7 +194,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiHost: 'https://api.aiionly.com',
     models: SYSTEM_MODELS.aionly,
     isSystem: true,
-    enabled: false
+    enabled: true
   },
   burncloud: {
     id: 'burncloud',
@@ -287,7 +287,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     anthropicApiHost: 'https://dashscope.aliyuncs.com/apps/anthropic',
     models: SYSTEM_MODELS.dashscope,
     isSystem: true,
-    enabled: false
+    enabled: true
   },
   minimax: {
     id: 'minimax',
@@ -298,7 +298,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     anthropicApiHost: 'https://api.minimaxi.com/anthropic',
     models: SYSTEM_MODELS.minimax,
     isSystem: true,
-    enabled: false
+    enabled: true
   },
   'minimax-global': {
     id: 'minimax-global',
@@ -355,7 +355,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     anthropicApiHost: 'http://localhost:3000',
     models: SYSTEM_MODELS['new-api'],
     isSystem: true,
-    enabled: false
+    enabled: true
   },
   ollama: {
     id: 'ollama',
@@ -366,7 +366,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     anthropicApiHost: 'http://localhost:11434',
     models: SYSTEM_MODELS.ollama,
     isSystem: true,
-    enabled: false
+    enabled: true
   },
   lmstudio: {
     id: 'lmstudio',
@@ -397,7 +397,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiHost: 'https://api.openai.com',
     models: SYSTEM_MODELS.openai,
     isSystem: true,
-    enabled: false,
+    enabled: true,
     serviceTier: OpenAIServiceTiers.auto
   },
   'azure-openai': {
@@ -613,7 +613,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiHost: 'https://wishub-x1.ctyun.cn',
     models: SYSTEM_MODELS.xirang,
     isSystem: true,
-    enabled: false
+    enabled: true
   },
   hunyuan: {
     id: 'hunyuan',

@@ -113,6 +113,25 @@ function addProvider(state: RootState, id: string) {
   }
 }
 
+const DEFAULT_ENABLED_MODEL_PROVIDER_IDS = [
+  'dashscope',
+  'new-api',
+  'xirang',
+  'deepseek',
+  'ollama',
+  'minimax',
+  'cherryin',
+  'silicon',
+  'aihubmix',
+  'ocoolai',
+  'zhipu',
+  'zai',
+  'alayanew',
+  'dmxapi',
+  'aionly',
+  'openai'
+]
+
 // Fix missing provider
 function fixMissingProvider(state: RootState) {
   SYSTEM_PROVIDERS.forEach((p) => {
@@ -3410,6 +3429,67 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 206 error', error as Error)
+      return state
+    }
+  },
+  '207': (state: RootState) => {
+    try {
+      if (state.settings?.sidebarIcons) {
+        if (!state.settings.sidebarIcons.visible.includes('collaboration')) {
+          const agentsIndex = state.settings.sidebarIcons.visible.indexOf('agents')
+          if (agentsIndex !== -1) {
+            state.settings.sidebarIcons.visible = [
+              ...state.settings.sidebarIcons.visible.slice(0, agentsIndex + 1),
+              'collaboration',
+              ...state.settings.sidebarIcons.visible.slice(agentsIndex + 1)
+            ]
+          } else {
+            state.settings.sidebarIcons.visible = [...state.settings.sidebarIcons.visible, 'collaboration']
+          }
+        }
+      }
+      if (state.tabs && !state.tabs.tabs.some((tab: { id: string }) => tab.id === 'collaboration')) {
+        const agentsIndex = state.tabs.tabs.findIndex((tab: { id: string }) => tab.id === 'agents')
+        const insertIndex = agentsIndex !== -1 ? agentsIndex + 1 : state.tabs.tabs.length
+        state.tabs.tabs.splice(insertIndex, 0, { id: 'collaboration', path: '/collaboration' })
+      }
+      logger.info('migrate 207 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 207 error', error as Error)
+      return state
+    }
+  },
+  '208': (state: RootState) => {
+    try {
+      if (state.settings?.sidebarIcons) {
+        state.settings.sidebarIcons.visible = state.settings.sidebarIcons.visible.filter(
+          (icon) => icon !== 'collaboration'
+        )
+      }
+      if (state.tabs?.tabs) {
+        state.tabs.tabs = state.tabs.tabs.filter((tab: { id: string }) => tab.id !== 'collaboration')
+        if (state.tabs.activeTabId === 'collaboration') {
+          state.tabs.activeTabId = 'home'
+        }
+      }
+      logger.info('migrate 208 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 208 error', error as Error)
+      return state
+    }
+  },
+  '209': (state: RootState) => {
+    try {
+      DEFAULT_ENABLED_MODEL_PROVIDER_IDS.forEach((id) => {
+        addProvider(state, id)
+        updateProvider(state, id, { enabled: true })
+      })
+      logger.info('migrate 209 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 209 error', error as Error)
       return state
     }
   }

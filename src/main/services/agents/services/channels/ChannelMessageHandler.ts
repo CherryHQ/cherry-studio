@@ -607,9 +607,9 @@ export class ChannelMessageHandler {
 
         switch (value.type) {
           case 'text-delta':
-            // text-delta values are cumulative within a block
+            // text-delta values are incremental within a block
             if (value.text) {
-              currentBlockText = value.text
+              currentBlockText += value.text
               // Notify adapter of text update — adapter owns its own throttle/flush
               const fullText = completedText + currentBlockText
               adapter.onTextUpdate(chatId, fullText).catch(() => {})

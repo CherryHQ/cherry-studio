@@ -56,6 +56,13 @@
       "when": 1776236285350,
       "tag": "0007_strange_galactus",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1778094997329,
+      "tag": "0008_known_gressill",
+      "breakpoints": true
     }
   ],
   "version": "7"

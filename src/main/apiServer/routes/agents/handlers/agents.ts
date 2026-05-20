@@ -2,7 +2,8 @@ import { loggerService } from '@logger'
 import { AgentModelValidationError, agentService, sessionService } from '@main/services/agents'
 import { channelManager } from '@main/services/agents/services/channels'
 import { schedulerService } from '@main/services/agents/services/SchedulerService'
-import type { CherryClawConfiguration, ListAgentsResponse } from '@types'
+import type { AgentStyleMode, CherryClawConfiguration, ListAgentsResponse } from '@types'
+import { AGENT_STYLE_MODE_PRESETS, AgentConfigurationSchema } from '@types'
 import { type ReplaceAgentRequest, type UpdateAgentRequest } from '@types'
 import type { Request, Response } from 'express'
 
@@ -546,6 +547,57 @@ export const patchAgent = async (req: Request, res: Response): Promise<Response>
         message: `Failed to partially update agent: ${error.message}`,
         type: 'internal_error',
         code: 'agent_patch_failed'
+      }
+    })
+  }
+}
+
+export const updateAgentStyleMode = async (req: Request, res: Response): Promise<Response> => {
+  const { agentId } = req.params
+  try {
+    const { validatedBody } = req as ValidationRequest
+    const styleMode = (validatedBody as { style_mode: AgentStyleMode }).style_mode
+    const existing = await agentService.getAgent(agentId)
+
+    if (!existing) {
+      return res.status(404).json({
+        error: {
+          message: 'Agent not found',
+          type: 'not_found',
+          code: 'agent_not_found'
+        }
+      })
+    }
+
+    const preset = AGENT_STYLE_MODE_PRESETS[styleMode]
+    const configuration = {
+      ...AgentConfigurationSchema.parse(existing.configuration ?? {}),
+      style_mode: styleMode,
+      temperature: preset.temperature,
+      top_p: preset.top_p
+    }
+
+    const agent = await agentService.updateAgent(agentId, { configuration })
+
+    if (!agent) {
+      return res.status(404).json({
+        error: {
+          message: 'Agent not found',
+          type: 'not_found',
+          code: 'agent_not_found'
+        }
+      })
+    }
+
+    syncSchedulerIfNeeded(agentId, agent)
+    return res.json(agent)
+  } catch (error: any) {
+    logger.error('Error updating agent style mode', { error, agentId })
+    return res.status(500).json({
+      error: {
+        message: 'Failed to update agent style mode: ' + error.message,
+        type: 'internal_error',
+        code: 'agent_style_mode_update_failed'
       }
     })
   }

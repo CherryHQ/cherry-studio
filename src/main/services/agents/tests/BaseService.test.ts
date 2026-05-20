@@ -157,6 +157,12 @@ describe('BaseService.validateAgentModels', () => {
     await expect(service.validateModels('claude-code', { model: 'openai:gpt-4' })).resolves.not.toThrow()
     expect(provider.apiKey).toBe('sk-existing-key')
   })
+
+  it('skips model validation entirely for external worker types', async () => {
+    mockValidateModelId.mockClear()
+    await expect(service.validateModels('codex', { model: undefined })).resolves.not.toThrow()
+    expect(mockValidateModelId).not.toHaveBeenCalled()
+  })
 })
 
 describe('BaseService.resolveAccessiblePaths', () => {

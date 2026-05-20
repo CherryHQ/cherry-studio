@@ -2111,6 +2111,28 @@ export type ChannelStreamController = {
   assistantMessageId: string
 }
 
+type ChannelStreamMirrorOptions = {
+  persistToBackend?: boolean
+  modelRef?: string | Model
+}
+
+const resolveChannelStreamModel = (modelRef?: string | Model): Model | undefined => {
+  if (!modelRef) return undefined
+
+  if (typeof modelRef !== 'string') {
+    return modelRef
+  }
+
+  const separatorIndex = modelRef.indexOf(':')
+  if (separatorIndex > 0) {
+    const providerId = modelRef.slice(0, separatorIndex)
+    const modelId = modelRef.slice(separatorIndex + 1)
+    return getModel(modelId, providerId) ?? { id: modelId, provider: providerId, name: modelId, group: '' }
+  }
+
+  return getModel(modelRef) ?? { id: modelRef, provider: '', name: modelRef, group: '' }
+}
+
 /**
  * Dispatches an IM channel user message to Redux and persists to DB.
  * Call this BEFORE setupChannelStream so the user message appears first.
@@ -2120,7 +2142,8 @@ export const addChannelUserMessage = (
   topicId: string,
   agentId: string,
   text: string,
-  images?: Array<{ data: string; media_type: string }>
+  images?: Array<{ data: string; media_type: string }>,
+  options: ChannelStreamMirrorOptions = {}
 ) => {
   const now = new Date().toISOString()
   const userMsgId = uuid()
@@ -2165,9 +2188,11 @@ export const addChannelUserMessage = (
   }
   dispatch(newMessagesActions.addMessage({ topicId, message: userMessage }))
 
-  dbService.appendMessage(topicId, userMessage, allBlocks).catch((err) => {
-    logger.error('Failed to persist channel user message', err as Error)
-  })
+  if (options.persistToBackend !== false) {
+    dbService.appendMessage(topicId, userMessage, allBlocks).catch((err) => {
+      logger.error('Failed to persist channel user message', err as Error)
+    })
+  }
 }
 
 /**
@@ -2180,19 +2205,20 @@ export const setupChannelStream = (
   getState: () => RootState,
   topicId: string,
   agentId: string,
-  modelId?: string
+  modelRef?: string | Model,
+  options: ChannelStreamMirrorOptions = {}
 ): ChannelStreamController => {
-  const model: Model | undefined =
-    (modelId ? getModel(modelId) : undefined) ??
-    (modelId ? { id: modelId, provider: '', name: '', group: '' } : undefined)
+  const model = resolveChannelStreamModel(options.modelRef ?? modelRef)
   const assistantMessage = createAssistantMessage(agentId, topicId, {
     ...(model ? { modelId: model.id, model } : {})
   })
   dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
   dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
-  dbService.appendMessage(topicId, assistantMessage, []).catch((err) => {
-    logger.error('Failed to persist initial channel assistant message', err as Error)
-  })
+  if (options.persistToBackend !== false) {
+    dbService.appendMessage(topicId, assistantMessage, []).catch((err) => {
+      logger.error('Failed to persist initial channel assistant message', err as Error)
+    })
+  }
 
   let streamController: ReadableStreamDefaultController<TextStreamPart<Record<string, any>>> | null = null
   const stream = new ReadableStream<TextStreamPart<Record<string, any>>>({

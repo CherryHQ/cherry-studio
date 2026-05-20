@@ -1,8 +1,6 @@
-import { permissionModeCards } from '@renderer/config/agent'
 import type { PermissionMode, UpdateAgentBaseForm } from '@renderer/types'
-import { Tag } from 'antd'
+import { Switch } from 'antd'
 import { uniq } from 'lodash'
-import { CheckCircle, ShieldAlert } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,8 +11,7 @@ import {
   computeModeDefaults,
   defaultConfiguration,
   SettingsContainer,
-  SettingsItem,
-  SettingsTitle
+  SettingsItem
 } from '../shared'
 
 export const PermissionModeSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }) => {
@@ -108,54 +105,24 @@ export const PermissionModeSettings: FC<AgentOrSessionSettingsProps> = ({ agentB
 
   return (
     <SettingsContainer>
-      <SettingsItem divider={false}>
-        <SettingsTitle>{t('agent.settings.permissionMode.title', 'Permission Mode')}</SettingsTitle>
-        <div className="mt-2 flex flex-col gap-3">
-          {permissionModeCards.map((card) => {
-            const isSelected = card.mode === selectedMode
-            const disabled = card.unsupported
-            const showCaution = card.caution
-
-            return (
-              <div
-                key={card.mode}
-                className={`flex flex-col gap-2 overflow-hidden rounded-lg border p-4 transition-colors ${
-                  isSelected
-                    ? 'border-primary bg-primary-50/30 dark:bg-primary-950/20'
-                    : 'border-default-200 hover:bg-default-50 dark:hover:bg-default-900/20'
-                } ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
-                onClick={() => !disabled && handleSelectPermissionMode(card.mode)}>
-                {/* Header */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <span className="whitespace-normal break-words text-left font-semibold text-sm">
-                      {t(card.titleKey, card.titleFallback)}
-                    </span>
-                    <span className="whitespace-normal break-words text-left text-[var(--color-text-2)] text-xs">
-                      {t(card.descriptionKey, card.descriptionFallback)}
-                    </span>
-                  </div>
-                  {disabled && <Tag color="warning">{t('common.coming_soon', 'Coming soon')}</Tag>}
-                  {isSelected && !disabled && <CheckCircle className="flex-shrink-0 text-primary" size={20} />}
-                </div>
-
-                {/* Body */}
-                {showCaution && (
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-start gap-2 rounded-md bg-[var(--color-error-bg)]">
-                      <ShieldAlert className="flex-shrink-0 text-[var(--color-error)]" size={16} />
-                      <span className="text-[var(--color-error)] text-xs">
-                        {t(
-                          'agent.settings.tooling.permissionMode.bypassPermissions.warning',
-                          'Use with caution — all tools will run without asking for approval.'
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )
-          })}
+      <SettingsItem divider={false} style={{ padding: '8px 0' }}>
+        <div className="flex items-center justify-between gap-6 w-full">
+          <div className="flex flex-col gap-1.5 flex-1 pr-4">
+            <span className="text-[14px] font-medium text-[var(--color-text)]">自动审核</span>
+            <span className="text-[12px] leading-relaxed text-[var(--color-text-2)]">
+              {agentBase.name || 'Agent'} 可以读取和编辑其工作区中的文件。{agentBase.name || 'Agent'}{' '}
+              会自动审核额外访问权限请求。自动审核可能会出错。
+              <a href="#" className="text-primary hover:underline cursor-help ml-1">
+                了解更多有关高风险的信息。
+              </a>
+            </span>
+          </div>
+          <div className="flex-shrink-0">
+            <Switch
+              checked={selectedMode === 'bypassPermissions'}
+              onChange={(checked) => handleSelectPermissionMode(checked ? 'bypassPermissions' : 'default')}
+            />
+          </div>
         </div>
       </SettingsItem>
     </SettingsContainer>

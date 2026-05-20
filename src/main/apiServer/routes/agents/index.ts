@@ -6,6 +6,7 @@ import {
   validateAgent,
   validateAgentId,
   validateAgentReplace,
+  validateAgentStyleMode,
   validateAgentUpdate,
   validatePagination,
   validateSession,
@@ -539,6 +540,14 @@ agentsRouter.put('/:agentId', validateAgentId, validateAgentReplace, handleValid
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 agentsRouter.patch('/:agentId', validateAgentId, validateAgentUpdate, handleValidationErrors, agentHandlers.patchAgent)
+
+agentsRouter.patch(
+  '/:agentId/style-mode',
+  validateAgentStyleMode,
+  handleValidationErrors,
+  agentHandlers.updateAgentStyleMode
+)
+
 /**
  * @swagger
  * /agents/{agentId}:

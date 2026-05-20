@@ -570,6 +570,7 @@
       }
     },
     "sidebar_title": "Agents",
+    "private_chat_title": "私聊",
     "todo": {
       "panel": {
         "title": "已完成 {{completed}}/{{total}} 個任務"
@@ -771,6 +772,9 @@
     "zoom": "縮放",
     "zoomIn": "放大",
     "zoomOut": "縮小"
+  },
+  "collaboration": {
+    "title": "協作"
   },
   "assistants": {
     "abbr": "助手",
