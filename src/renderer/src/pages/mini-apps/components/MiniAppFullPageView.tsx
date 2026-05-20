@@ -108,7 +108,7 @@ const MiniAppFullPageView: FC<Props> = ({ app }) => {
 
       <div className="relative min-h-0 flex-1 overflow-hidden bg-card">
         {!isReady && (
-          <div className="absolute inset-0 z-[100] flex items-center justify-center bg-card">
+          <div className="absolute inset-0 z-100 flex items-center justify-center bg-card">
             <div className="pointer-events-none flex flex-col items-center">
               <LogoAvatar logo={getMiniAppsLogo(app.logo) ?? app.logo} size={60} />
               <BeatLoader color="var(--color-text-2)" size={8} style={{ marginTop: 12 }} />

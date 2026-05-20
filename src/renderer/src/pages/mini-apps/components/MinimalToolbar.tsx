@@ -225,7 +225,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
   }, [currentUrl, app.url])
 
   return (
-    <div className="flex h-[35px] shrink-0 items-center justify-between bg-background px-3">
+    <div className="flex h-8.75 shrink-0 items-center justify-between bg-background px-3">
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-0.5">
           <Tooltip content={t('miniApp.popup.goBack')} placement="bottom">

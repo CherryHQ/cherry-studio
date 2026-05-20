@@ -318,10 +318,10 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         onChange={(e) => setQuery(e.target.value)}
         spellCheck={false}
         placeholder={t('common.search')}
-        className="h-8 w-[240px] border-0 bg-transparent px-2 py-0 shadow-none focus-visible:border-transparent focus-visible:ring-0"
+        className="h-8 w-60 border-0 bg-transparent px-2 py-0 shadow-none focus-visible:border-transparent focus-visible:ring-0"
       />
       <span
-        className="min-w-[44px] text-center text-foreground-secondary text-sm tabular-nums"
+        className="min-w-11 text-center text-foreground-secondary text-sm tabular-nums"
         title={noResultTitle}
         role="status"
         aria-live="polite"
