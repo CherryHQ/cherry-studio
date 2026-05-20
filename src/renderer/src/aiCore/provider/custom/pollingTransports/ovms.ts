@@ -75,9 +75,7 @@ class OvmsTransport implements PollingTransport {
       return { imageUrls: base64s }
     }
 
-    const urls = items
-      .filter((item: { url?: string }) => item.url)
-      .map((item: { url: string }) => item.url)
+    const urls = items.filter((item: { url?: string }) => item.url).map((item: { url: string }) => item.url)
     return { imageUrls: urls }
   }
 

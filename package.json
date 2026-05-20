@@ -315,6 +315,7 @@
     "commander": "^14.0.2",
     "concurrently": "^9.2.1",
     "cors": "2.8.5",
+    "croner": "^10.0.1",
     "country-flag-emoji-polyfill": "0.1.8",
     "dayjs": "^1.11.11",
     "dexie": "^4.0.8",

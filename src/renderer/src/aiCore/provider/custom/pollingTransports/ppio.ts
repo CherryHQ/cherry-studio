@@ -200,7 +200,13 @@ class PpioTransport implements PollingTransport {
     const requestParams = this.buildRequestParams(input, params, descriptor.id)
 
     if (descriptor.isSync) {
-      const result = await this.request<PpioSyncResult>(descriptor.endpoint, requestParams, 'POST', 120000, input.signal)
+      const result = await this.request<PpioSyncResult>(
+        descriptor.endpoint,
+        requestParams,
+        'POST',
+        120000,
+        input.signal
+      )
       return { imageUrls: result.images }
     }
 

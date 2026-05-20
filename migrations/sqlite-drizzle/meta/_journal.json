@@ -179,8 +179,15 @@
     {
       "idx": 25,
       "version": "6",
-      "when": 1779076813639,
-      "tag": "0025_gigantic_kingpin",
+      "when": 1779183817228,
+      "tag": "0025_left_black_tarantula",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1779254577190,
+      "tag": "0026_familiar_lionheart",
       "breakpoints": true
     }
   ],

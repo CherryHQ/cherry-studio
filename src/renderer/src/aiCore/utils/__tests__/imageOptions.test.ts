@@ -73,10 +73,7 @@ describe('buildImageProviderOptions', () => {
 
   it("drops the 'auto' sentinel for openai-family (background/moderation/quality)", () => {
     expect(
-      buildImageProviderOptions(
-        'newapi',
-        params({ quality: 'auto', background: 'auto', moderation: 'auto' })
-      )
+      buildImageProviderOptions('newapi', params({ quality: 'auto', background: 'auto', moderation: 'auto' }))
     ).toEqual({})
     expect(buildImageProviderOptions('newapi', params({ quality: 'auto', background: 'transparent' }))).toEqual({
       openai: { background: 'transparent' },

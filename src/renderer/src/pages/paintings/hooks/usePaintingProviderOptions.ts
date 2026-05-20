@@ -1,8 +1,7 @@
 import { useModels } from '@renderer/hooks/useModels'
 import { useProviders } from '@renderer/hooks/useProviders'
-import { useEffect, useMemo, useState } from 'react'
-
 import type { Model } from '@shared/data/types/model'
+import { useEffect, useMemo, useState } from 'react'
 
 import { isPaintingNewApiProvider } from '../model/types/paintingProviderRuntime'
 import { supportsImageGenerationEndpoint } from '../model/utils/paintingModelOptions'

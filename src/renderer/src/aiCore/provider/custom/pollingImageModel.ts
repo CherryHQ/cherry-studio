@@ -74,8 +74,7 @@ export function createPollingImageModel(
         throw createAbortError('Image generation aborted')
       }
 
-      const providerParams = ((options.providerOptions?.[provider] as Record<string, unknown> | undefined) ??
-        {}) as Record<string, unknown>
+      const providerParams = (options.providerOptions?.[provider] as Record<string, unknown> | undefined) ?? {}
 
       const onProgress =
         typeof providerParams.onProgress === 'function'

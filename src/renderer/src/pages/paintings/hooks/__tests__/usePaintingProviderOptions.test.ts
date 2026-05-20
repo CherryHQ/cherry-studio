@@ -18,7 +18,17 @@ describe('buildPaintingProviderOptions', () => {
   it('keeps every legacy static-catalog provider visible even with zero v2 models (coexistence, no regression)', () => {
     const result = buildPaintingProviderOptions({ models: [], newApiProviderIds: [], ...NO_OVMS })
     // ovms filtered out when not running; the rest stay
-    expect(result).toEqual(['zhipu', 'aihubmix', 'silicon', 'dmxapi', 'tokenflux', 'new-api', 'cherryin', 'aionly', 'ppio'])
+    expect(result).toEqual([
+      'zhipu',
+      'aihubmix',
+      'silicon',
+      'dmxapi',
+      'tokenflux',
+      'new-api',
+      'cherryin',
+      'aionly',
+      'ppio'
+    ])
   })
 
   it('auto-includes a brand-new provider whose v2 model is image-capable (no allowlist edit) — the extensibility win', () => {

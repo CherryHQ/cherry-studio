@@ -1,7 +1,6 @@
-import i18next from 'i18next'
-
 import { createPaintingGenerateError } from '@renderer/pages/paintings/model/paintingGenerateError'
 import { readErrorMessage } from '@renderer/pages/paintings/providers/shared/readErrorMessage'
+import i18next from 'i18next'
 
 import type { PollingSubmitInput, PollingTransport } from '../pollingImageModel'
 

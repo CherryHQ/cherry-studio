@@ -25,7 +25,7 @@ import type { OllamaProviderSettings } from 'ollama-ai-provider-v2'
 import { createOllama } from 'ollama-ai-provider-v2'
 import { createVoyage, type VoyageProviderSettings } from 'voyage-ai-provider'
 
-import { type AihubmixProviderSettings, createAihubmix } from '../custom/aihubmix'
+import { type AihubmixProviderSettings, createAihubmix } from '../custom/aihubmix-provider'
 import { createDmxapiProvider, type DmxapiProviderSettings } from '../custom/dmxapi-provider'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapi-provider'
 import { createOvmsProvider, type OvmsProviderSettings } from '../custom/ovms-provider'

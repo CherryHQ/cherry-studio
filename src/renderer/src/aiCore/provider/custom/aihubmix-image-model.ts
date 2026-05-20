@@ -23,7 +23,6 @@ import type { ImageModelV3, ImageModelV3CallOptions } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
-
 import { createPaintingGenerateError } from '@renderer/pages/paintings/model/paintingGenerateError'
 import { readErrorMessage } from '@renderer/pages/paintings/providers/shared/readErrorMessage'
 
@@ -77,10 +76,7 @@ function toBlob(file: AihubmixImageFile): Blob {
   return new Blob([file.data as unknown as BlobPart], { type: file.mediaType })
 }
 
-export function createAihubmixImageModel(
-  modelId: string,
-  opts: CreateAihubmixImageModelOptions
-): ImageModelV3 {
+export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixImageModelOptions): ImageModelV3 {
   const { baseURL, resolveApiKey, headers, fetch: customFetch } = opts
 
   // Provider `baseURL` already includes the OpenAI-compat `/v1` suffix
@@ -90,7 +86,7 @@ export function createAihubmixImageModel(
   // special endpoints, so strip the `/v1` suffix to reproduce those URLs.
   const apiRoot = baseURL.replace(/\/v1\/?$/, '')
 
-  const fetchImpl: FetchFunction = customFetch ?? (globalThis.fetch as FetchFunction)
+  const fetchImpl: FetchFunction = customFetch ?? globalThis.fetch
 
   const doGenerate = async (
     options: ImageModelV3CallOptions

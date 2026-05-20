@@ -71,7 +71,7 @@ import { getProviderById } from '@renderer/services/ProviderService'
 import type { AwsBedrockAuthType, Model, Provider } from '@renderer/types'
 
 import { COPILOT_DEFAULT_HEADERS } from '../constants'
-import type { AihubmixProviderSettings } from '../custom/aihubmix/aihubmix-provider'
+import type { AihubmixProviderSettings } from '../custom/aihubmix-provider'
 import type { DmxapiProviderSettings } from '../custom/dmxapi-provider'
 import type { NewApiProviderSettings } from '../custom/newapi-provider'
 import type { OvmsProviderSettings } from '../custom/ovms-provider'

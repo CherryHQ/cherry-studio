@@ -43,8 +43,7 @@ describe('AihubmixImageModel', () => {
   const resolveApiKey = () => 'sk-test'
   const headers = () => ({ Authorization: 'Bearer sk-test', 'APP-Code': 'MLTG2087' })
 
-  const make = (modelId: string) =>
-    createAihubmixImageModel(modelId, { baseURL, resolveApiKey, headers })
+  const make = (modelId: string) => createAihubmixImageModel(modelId, { baseURL, resolveApiKey, headers })
 
   const callOptions = (overrides: Partial<ImageModelV3CallOptions> = {}): ImageModelV3CallOptions =>
     ({
@@ -323,10 +322,7 @@ describe('AihubmixImageModel', () => {
         const options = callOptions({ providerOptions: { aihubmix: { mode: 'generate', quality: 'high' } } as any })
         const result = await make(id).doGenerate(options)
 
-        expect(InnerCtor).toHaveBeenCalledWith(
-          id,
-          expect.objectContaining({ provider: 'aihubmix.image', headers })
-        )
+        expect(InnerCtor).toHaveBeenCalledWith(id, expect.objectContaining({ provider: 'aihubmix.image', headers }))
         const ctorConfig = InnerCtor.mock.calls[0][1] as { url: (a: { path: string }) => string }
         expect(ctorConfig.url({ path: '/images/generations' })).toBe('https://aihubmix.com/v1/images/generations')
         expect(innerDoGenerate).toHaveBeenCalledWith(options)
