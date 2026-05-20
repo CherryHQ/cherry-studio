@@ -1,4 +1,5 @@
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import MiniAppIcon from '@renderer/components/Icons/MiniAppIcon'
 import IndicatorLight from '@renderer/components/IndicatorLight'
@@ -10,7 +11,6 @@ import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { FC, KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
   app: MiniApp
@@ -118,22 +118,49 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast, variant = 'defaul
     return null
   }
 
+  const isLaunchpad = variant === 'launchpad'
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <Container $variant={variant} onClick={handleClick} {...activationProps}>
-          <IconContainer className="mini-app-icon-frame" $variant={variant}>
-            <MiniAppIcon size={size} app={app} appearance={variant === 'launchpad' ? 'plain' : 'avatar'} />
+        <div
+          className={cn(
+            'flex cursor-pointer flex-col items-center justify-center overflow-hidden outline-none',
+            isLaunchpad
+              ? 'min-h-[104px] w-[92px] bg-transparent pt-1 hover:[&_.mini-app-icon-frame]:bg-ghost-hover focus-visible:[&_.mini-app-icon-frame]:border-border-active focus-visible:[&_.mini-app-icon-frame]:shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-ring)_30%,transparent)]'
+              : 'min-h-[85px]'
+          )}
+          onClick={handleClick}
+          {...activationProps}>
+          <div
+            className={cn(
+              'mini-app-icon-frame relative flex items-center justify-center',
+              isLaunchpad &&
+                'size-[58px] rounded-[14px] border border-border-subtle bg-transparent transition-[border-color,background-color] duration-[160ms] ease-in-out motion-reduce:transition-none'
+            )}>
+            <MiniAppIcon size={size} app={app} appearance={isLaunchpad ? 'plain' : 'avatar'} />
             {isOpened && (
-              <StyledIndicator $variant={variant}>
+              <div
+                className={cn(
+                  'absolute rounded-full bg-background',
+                  isLaunchpad
+                    ? '-right-[3px] -bottom-[3px] p-[3px] shadow-[0_0_0_1px_var(--color-border-subtle)]'
+                    : '-right-0.5 -bottom-0.5 p-0.5'
+                )}>
                 <IndicatorLight color="#22c55e" size={6} animation={!isActive} />
-              </StyledIndicator>
+              </div>
             )}
-          </IconContainer>
-          <AppTitle $variant={variant}>
-            {variant === 'launchpad' ? displayName : <MarqueeText>{displayName}</MarqueeText>}
-          </AppTitle>
-        </Container>
+          </div>
+          <div
+            className={cn(
+              'w-full select-none text-center text-foreground-secondary',
+              isLaunchpad
+                ? 'mt-2 min-h-9 max-w-[92px] overflow-hidden whitespace-normal text-[13px] leading-[18px] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box] [overflow-wrap:anywhere]'
+                : 'mt-[5px] max-w-20 text-xs leading-normal'
+            )}>
+            {isLaunchpad ? displayName : <MarqueeText>{displayName}</MarqueeText>}
+          </div>
+        </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem onSelect={handleTogglePin}>{togglePinLabel}</ContextMenuItem>
@@ -147,91 +174,5 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast, variant = 'defaul
     </ContextMenu>
   )
 }
-
-const Container = styled.div<{ $variant: 'default' | 'launchpad' }>`
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  cursor: pointer;
-  overflow: hidden;
-  min-height: ${({ $variant }) => ($variant === 'launchpad' ? '104px' : '85px')};
-  outline: none;
-
-  ${({ $variant }) =>
-    $variant === 'launchpad'
-      ? `
-        width: 92px;
-        padding: 4px 0 0;
-        background: transparent;
-
-        &:hover .mini-app-icon-frame {
-          background: var(--color-ghost-hover);
-        }
-
-        &:focus-visible .mini-app-icon-frame {
-          border-color: var(--color-border-active);
-          box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-ring) 30%, transparent);
-        }
-      `
-      : ''}
-`
-
-const IconContainer = styled.div<{ $variant: 'default' | 'launchpad' }>`
-  position: relative;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-
-  ${({ $variant }) =>
-    $variant === 'launchpad'
-      ? `
-        width: 58px;
-        height: 58px;
-        border-radius: 14px;
-        border: 1px solid var(--color-border-subtle);
-        background: transparent;
-        transition: border-color 160ms ease, background-color 160ms ease;
-
-        @media (prefers-reduced-motion: reduce) {
-          transition: none;
-        }
-      `
-      : ''}
-`
-
-const StyledIndicator = styled.div<{ $variant: 'default' | 'launchpad' }>`
-  position: absolute;
-  right: ${({ $variant }) => ($variant === 'launchpad' ? '-3px' : '-2px')};
-  bottom: ${({ $variant }) => ($variant === 'launchpad' ? '-3px' : '-2px')};
-  padding: ${({ $variant }) => ($variant === 'launchpad' ? '3px' : '2px')};
-  background: var(--color-background);
-  border-radius: 50%;
-  box-shadow: ${({ $variant }) => ($variant === 'launchpad' ? '0 0 0 1px var(--color-border-subtle)' : 'none')};
-`
-
-const AppTitle = styled.div<{ $variant: 'default' | 'launchpad' }>`
-  font-size: ${({ $variant }) => ($variant === 'launchpad' ? '13px' : '12px')};
-  margin-top: ${({ $variant }) => ($variant === 'launchpad' ? '8px' : '5px')};
-  color: var(--color-foreground-secondary);
-  width: 100%;
-  max-width: ${({ $variant }) => ($variant === 'launchpad' ? '92px' : '80px')};
-  line-height: ${({ $variant }) => ($variant === 'launchpad' ? '18px' : 'normal')};
-  text-align: center;
-  user-select: none;
-
-  ${({ $variant }) =>
-    $variant === 'launchpad'
-      ? `
-        min-height: 36px;
-        overflow: hidden;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        white-space: normal;
-        overflow-wrap: anywhere;
-      `
-      : ''}
-`
 
 export default MiniApp
