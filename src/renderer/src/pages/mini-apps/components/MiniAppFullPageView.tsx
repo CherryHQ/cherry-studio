@@ -2,6 +2,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { LogoAvatar } from '@renderer/components/Icons'
 import WebviewContainer from '@renderer/components/MiniApp/WebviewContainer'
+import { getMiniAppsLogo } from '@renderer/config/miniApps'
 import { getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { WebviewTag } from 'electron'
@@ -110,7 +111,7 @@ const MiniAppFullPageView: FC<Props> = ({ app }) => {
         {!isReady && (
           <LoadingMask>
             <LoadingOverlay>
-              <LogoAvatar logo={app.logo} size={60} />
+              <LogoAvatar logo={getMiniAppsLogo(app.logo) ?? app.logo} size={60} />
               <BeatLoader color="var(--color-text-2)" size={8} style={{ marginTop: 12 }} />
             </LoadingOverlay>
           </LoadingMask>

@@ -1,6 +1,6 @@
-import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { Button, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { Check, ChevronsUpDown } from 'lucide-react'
+import { Check, ChevronDown } from 'lucide-react'
 import type { CSSProperties, KeyboardEvent, ReactNode } from 'react'
 import { isValidElement, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -125,7 +125,7 @@ const Selector = <V extends string | number>({
     setOpen(nextOpen)
   }
 
-  const handleTriggerKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+  const handleTriggerKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (disabled) return
 
     if (event.key === 'Enter' || event.key === ' ') {
@@ -190,28 +190,25 @@ const Selector = <V extends string | number>({
   return (
     <Popover open={open && !disabled} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
-        <div
+        <Button
+          variant="secondary"
+          size="sm"
           role="combobox"
           aria-label={accessibleLabel || undefined}
           aria-expanded={open && !disabled}
           aria-disabled={disabled || undefined}
           tabIndex={disabled ? -1 : 0}
           className={cn(
-            'inline-flex min-w-0 items-center gap-1 rounded-full px-2.5 py-1 text-left leading-none outline-hidden transition-colors',
-            'hover:bg-muted focus-visible:bg-muted',
-            open && !disabled && 'bg-muted',
+            'min-w-0 text-left leading-none',
+            open && !disabled && 'bg-secondary-active',
             disabled && 'cursor-not-allowed opacity-60',
             isPlaceholder && 'text-muted-foreground'
           )}
           onKeyDown={handleTriggerKeyDown}
           style={{ fontSize: size, ...style }}>
           <span className="min-w-0 truncate">{label}</span>
-          <ChevronsUpDown
-            aria-hidden="true"
-            size={size + 3}
-            className="shrink-0 rounded bg-muted px-0 py-0.5 transition-colors"
-          />
-        </div>
+          <ChevronDown aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
+        </Button>
       </PopoverTrigger>
       <PopoverContent
         align={popoverPlacement.align}

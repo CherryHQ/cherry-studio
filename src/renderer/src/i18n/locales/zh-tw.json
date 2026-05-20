@@ -5909,8 +5909,13 @@
       },
       "disabled": "隱藏的小程式",
       "display_title": "小程式顯示設定",
-      "empty": "把要隱藏的小程式從左側拖曳到這裡",
+      "empty": "在左側清單點擊隱藏圖示，小程式會移到這裡",
+      "group": {
+        "display": "顯示管理",
+        "preferences": "使用偏好"
+      },
       "open_link_external": {
+        "description": "新視窗連結用系統預設瀏覽器開啟",
         "title": "在瀏覽器中開啟新視窗連結"
       },
       "region": {
@@ -5962,7 +5967,7 @@
       },
       "disabled": "隱藏的小程式",
       "display_title": "小程式顯示設定",
-      "empty": "把要隱藏的小程式從左側拖曳到這裡",
+      "empty": "在左側清單點擊隱藏圖示，小程式會移到這裡",
       "open_link_external": {
         "title": "在瀏覽器中開啟新視窗連結"
       },

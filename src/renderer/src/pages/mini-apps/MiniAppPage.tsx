@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { LogoAvatar } from '@renderer/components/Icons'
+import { getMiniAppsLogo } from '@renderer/config/miniApps'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { getWebviewLoaded, onWebviewStateChange, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
@@ -183,7 +184,7 @@ const MiniAppPage: FC = () => {
       <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} appId={app.appId} />
       {!isReady && (
         <LoadingMask>
-          <LogoAvatar logo={app.logo} size={60} />
+          <LogoAvatar logo={getMiniAppsLogo(app.logo) ?? app.logo} size={60} />
           <BeatLoader color="var(--color-text-2)" size={8} style={{ marginTop: 12 }} />
         </LoadingMask>
       )}

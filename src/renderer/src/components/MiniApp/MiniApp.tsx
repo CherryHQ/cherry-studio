@@ -8,7 +8,7 @@ import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import type { FC } from 'react'
+import type { FC, KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -17,11 +17,12 @@ interface Props {
   onClick?: () => void
   size?: number
   isLast?: boolean
+  variant?: 'default' | 'launchpad'
 }
 
 const logger = loggerService.withContext('App')
 
-const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
+const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast, variant = 'default' }) => {
   const { t } = useTranslation()
   const {
     miniApps,
@@ -49,6 +50,21 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
     openTab(`/app/mini-app/${app.appId}`, { title: displayName, icon: app.logo })
     onClick?.()
   }
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return
+    e.preventDefault()
+    handleClick()
+  }
+  const activationProps =
+    variant === 'launchpad'
+      ? ({
+          onKeyDown: handleKeyDown,
+          tabIndex: 0,
+          role: 'button',
+          'aria-label': displayName
+        } as const)
+      : {}
 
   const reportFailure = (fallbackKey: string) => (err: unknown) => {
     const e = toDataApiError(err)
@@ -105,16 +121,16 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <Container onClick={handleClick}>
-          <IconContainer>
-            <MiniAppIcon size={size} app={app} />
+        <Container $variant={variant} onClick={handleClick} {...activationProps}>
+          <IconContainer className="mini-app-icon-frame" $variant={variant}>
+            <MiniAppIcon size={size} app={app} appearance={variant === 'launchpad' ? 'plain' : 'avatar'} />
             {isOpened && (
-              <StyledIndicator>
+              <StyledIndicator $variant={variant}>
                 <IndicatorLight color="#22c55e" size={6} animation={!isActive} />
               </StyledIndicator>
             )}
           </IconContainer>
-          <AppTitle>
+          <AppTitle $variant={variant}>
             <MarqueeText>{displayName}</MarqueeText>
           </AppTitle>
         </Container>
@@ -132,40 +148,77 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   )
 }
 
-const Container = styled.div`
+const Container = styled.div<{ $variant: 'default' | 'launchpad' }>`
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   cursor: pointer;
   overflow: hidden;
-  min-height: 85px;
+  min-height: ${({ $variant }) => ($variant === 'launchpad' ? '104px' : '85px')};
+  outline: none;
+
+  ${({ $variant }) =>
+    $variant === 'launchpad'
+      ? `
+        width: 92px;
+        padding: 4px 0 0;
+        background: transparent;
+
+        &:hover .mini-app-icon-frame {
+          background: var(--color-ghost-hover);
+        }
+
+        &:focus-visible .mini-app-icon-frame {
+          border-color: var(--color-border-active);
+          box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-ring) 30%, transparent);
+        }
+      `
+      : ''}
 `
 
-const IconContainer = styled.div`
+const IconContainer = styled.div<{ $variant: 'default' | 'launchpad' }>`
   position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
+
+  ${({ $variant }) =>
+    $variant === 'launchpad'
+      ? `
+        width: 58px;
+        height: 58px;
+        border-radius: 14px;
+        border: 1px solid var(--color-border-subtle);
+        background: transparent;
+        transition: border-color 160ms ease, background-color 160ms ease;
+
+        @media (prefers-reduced-motion: reduce) {
+          transition: none;
+        }
+      `
+      : ''}
 `
 
-const StyledIndicator = styled.div`
+const StyledIndicator = styled.div<{ $variant: 'default' | 'launchpad' }>`
   position: absolute;
-  bottom: -2px;
-  right: -2px;
-  padding: 2px;
+  right: ${({ $variant }) => ($variant === 'launchpad' ? '-3px' : '-2px')};
+  bottom: ${({ $variant }) => ($variant === 'launchpad' ? '-3px' : '-2px')};
+  padding: ${({ $variant }) => ($variant === 'launchpad' ? '3px' : '2px')};
   background: var(--color-background);
   border-radius: 50%;
+  box-shadow: ${({ $variant }) => ($variant === 'launchpad' ? '0 0 0 1px var(--color-border-subtle)' : 'none')};
 `
 
-const AppTitle = styled.div`
-  font-size: 12px;
-  margin-top: 5px;
-  color: var(--color-text-soft);
+const AppTitle = styled.div<{ $variant: 'default' | 'launchpad' }>`
+  font-size: ${({ $variant }) => ($variant === 'launchpad' ? '13px' : '12px')};
+  margin-top: ${({ $variant }) => ($variant === 'launchpad' ? '8px' : '5px')};
+  color: var(--color-foreground-secondary);
+  width: 100%;
+  max-width: ${({ $variant }) => ($variant === 'launchpad' ? '92px' : '80px')};
+  line-height: ${({ $variant }) => ($variant === 'launchpad' ? '18px' : 'normal')};
   text-align: center;
   user-select: none;
-  width: 100%;
-  max-width: 80px;
 `
 
 export default MiniApp
