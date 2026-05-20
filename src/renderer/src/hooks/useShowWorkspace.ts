@@ -1,14 +1,11 @@
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { selectNotesSettings, updateNotesSettings } from '@renderer/store/note'
+import { usePreference } from '@data/hooks/usePreference'
 
 export function useShowWorkspace() {
-  const dispatch = useAppDispatch()
-  const settings = useAppSelector(selectNotesSettings)
-  const showWorkspace = settings.showWorkspace
+  const [showWorkspace, setShowWorkspace] = usePreference('feature.notes.show_workspace')
 
   return {
     showWorkspace,
-    setShowWorkspace: (show: boolean) => dispatch(updateNotesSettings({ showWorkspace: show })),
-    toggleShowWorkspace: () => dispatch(updateNotesSettings({ showWorkspace: !showWorkspace }))
+    setShowWorkspace: (show: boolean) => void setShowWorkspace(show),
+    toggleShowWorkspace: () => void setShowWorkspace(!showWorkspace)
   }
 }

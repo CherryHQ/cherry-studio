@@ -146,8 +146,8 @@ const NotesSettings: FC = () => {
               { label: t('notes.settings.editor.edit_mode.preview_mode'), value: 'preview' },
               { label: t('notes.settings.editor.edit_mode.source_mode'), value: 'source' }
             ]}
-            value={settings.defaultEditMode as string}
-            onChange={(value: Omit<EditorView, 'read'>) => updateSettings({ defaultEditMode: value })}
+            value={settings.defaultEditMode}
+            onChange={(value: Exclude<EditorView, 'read'>) => updateSettings({ defaultEditMode: value })}
           />
         </SettingRow>
         <SettingHelpText>{t('notes.settings.editor.edit_mode.description')}</SettingHelpText>

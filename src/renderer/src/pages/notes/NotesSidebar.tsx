@@ -9,8 +9,6 @@ import {
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
-import { useAppSelector } from '@renderer/store'
-import { selectSortType } from '@renderer/store/note'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { FilePlus, Folder, FolderUp, Loader2, Upload, X } from 'lucide-react'
 import type { FC } from 'react'
@@ -43,6 +41,8 @@ interface NotesSidebarProps {
   onSortNodes: (sortType: NotesSortType) => void
   onUploadFiles: (files: File[]) => void
   notesTree: NotesTreeNode[]
+  activeFilePath?: string
+  sortType: NotesSortType
   selectedFolderId?: string | null
 }
 
@@ -58,11 +58,12 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   onSortNodes,
   onUploadFiles,
   notesTree,
+  activeFilePath,
+  sortType,
   selectedFolderId
 }) => {
   const { t } = useTranslation()
-  const { activeNode } = useActiveNode(notesTree)
-  const sortType = useAppSelector(selectSortType)
+  const { activeNode } = useActiveNode(notesTree, activeFilePath)
   const [isShowStarred, setIsShowStarred] = useState(false)
   const [isShowSearch, setIsShowSearch] = useState(false)
   const [searchKeyword, setSearchKeyword] = useState('')
@@ -424,7 +425,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                 </div>
 
                 {isDragOverSidebar && (
-                  <div className="pointer-events-none absolute inset-0 rounded border-primary border-2 border-dashed bg-primary/10" />
+                  <div className="pointer-events-none absolute inset-0 rounded border-2 border-primary border-dashed bg-primary/10" />
                 )}
               </div>
             </NotesSearchContext>

@@ -1,6 +1,4 @@
 import { loggerService } from '@logger'
-import store from '@renderer/store'
-import { setNotesPath } from '@renderer/store/note'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { getFileDirectory } from '@renderer/utils'
 
@@ -42,9 +40,6 @@ export function sortTree(nodes: NotesTreeNode[], sortType: NotesSortType): Notes
 export async function addDir(name: string, parentPath: string): Promise<{ path: string; name: string }> {
   const resolved = await resolveNotesPath(parentPath)
   const basePath = resolved.path
-  if (resolved.isFallback) {
-    store.dispatch(setNotesPath(basePath))
-  }
   const { safeName } = await window.api.file.checkFileName(basePath, name, false)
   const fullPath = `${basePath}/${safeName}`
   await window.api.file.mkdir(fullPath)
@@ -58,9 +53,6 @@ export async function addNote(
 ): Promise<{ path: string; name: string }> {
   const resolved = await resolveNotesPath(parentPath)
   const basePath = resolved.path
-  if (resolved.isFallback) {
-    store.dispatch(setNotesPath(basePath))
-  }
   const { safeName } = await window.api.file.checkFileName(basePath, name, true)
   const notePath = `${basePath}/${safeName}${MARKDOWN_EXT}`
   await window.api.file.write(notePath, content)

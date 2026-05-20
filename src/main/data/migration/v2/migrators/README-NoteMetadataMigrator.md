@@ -1,0 +1,32 @@
+# NoteMetadataMigrator
+
+Migrates legacy notes UI metadata from Redux into the SQLite `note_metadata` table.
+
+## Source
+
+- Redux category: `note`
+- Fields read: `notesPath`, `starredPaths`, `expandedPaths`
+
+## Target
+
+- Table: `note_metadata`
+- Unique key: `rootPath + path`
+
+## Mapping
+
+| Legacy field | Target field |
+| --- | --- |
+| `notesPath` | `rootPath` |
+| `starredPaths[]` | `path`, `isStarred = true` |
+| `expandedPaths[]` | `path`, `isExpanded = true`, `nodeType = folder` |
+
+Starred paths ending in `.md` are treated as files; other starred paths are treated as folders. If a path appears in both starred and expanded lists, both flags are preserved in one row.
+
+## Dropped Fields
+
+- `activeFilePath`: moved to Cache runtime state, not SQLite metadata.
+- `activeNodeId`: derived from `activeFilePath + notesTree`, not migrated.
+
+## Notes
+
+The Markdown files and scanned directory tree remain the source of truth. This migrator only preserves long-lived node metadata.

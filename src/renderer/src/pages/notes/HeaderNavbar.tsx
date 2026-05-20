@@ -32,9 +32,16 @@ import NotesSettings from './NotesSettings'
 
 const logger = loggerService.withContext('HeaderNavbar')
 
-const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpandPath, onRenameNode }) => {
+const HeaderNavbar = ({
+  notesTree,
+  activeFilePath,
+  getCurrentNoteContent,
+  onToggleStar,
+  onExpandPath,
+  onRenameNode
+}) => {
   const { showWorkspace, toggleShowWorkspace } = useShowWorkspace()
-  const { activeNode } = useActiveNode(notesTree)
+  const { activeNode } = useActiveNode(notesTree, activeFilePath)
   const [breadcrumbItems, setBreadcrumbItems] = useState<
     Array<{ key: string; title: string; treePath: string; isFolder: boolean }>
   >([])
