@@ -1,4 +1,6 @@
 import { InfoTooltip } from '@cherrystudio/ui'
+import type { ImageGenerationMode } from '@shared/data/types/model'
+import type { PaintingMode } from '@shared/data/types/painting'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,6 +16,16 @@ import type { BaseConfigItem } from '../providers/shared/providerFieldSchema'
 import { resolvePaintingProviderDefinition, resolvePaintingTabForMode } from '../utils/paintingProviderMode'
 import { PaintingSettingsExtras } from './PaintingProviderViews'
 import PaintingSectionTitle from './PaintingSectionTitle'
+
+/** Bridge a vendor's PaintingMode to the canonical registry mode enum. */
+function tabToImageGenerationMode(dbMode: PaintingMode): ImageGenerationMode | undefined {
+  if (dbMode === 'generate' || dbMode === 'draw') return 'generate'
+  if (dbMode === 'edit') return 'edit'
+  if (dbMode === 'remix') return 'remix'
+  if (dbMode === 'upscale') return 'upscale'
+  if (dbMode === 'merge') return 'merge'
+  return undefined
+}
 
 function resolveItemOptions(item: BaseConfigItem, painting: Record<string, unknown>) {
   return typeof item.options === 'function' ? item.options(item, painting) : (item.options ?? [])
@@ -66,7 +78,13 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange,
   const configItems = useMemo(() => {
     const ownFields = providerDefinition.fields.byTab[tab] || []
     if (providerDefinition.useRegistryForm) {
-      const derived = imageGenerationToFields(registrySupport, { keyMap: providerDefinition.registryKeyMap })
+      // Current tab feeds the per-mode merge so registry's
+      // `modeSchemas[currentMode]` overrides extend the top-level shape
+      // (ideogram remix gains `imageWeight`, upscale gains `resemblance` etc.).
+      const derived = imageGenerationToFields(registrySupport, {
+        keyMap: providerDefinition.registryKeyMap,
+        mode: tabToImageGenerationMode(providerDefinition.mode.tabToDbMode(tab))
+      })
       // Fall back to the provider's own fields on a registry miss so the page
       // never renders empty during the first load or for unknown models.
       if (derived.length === 0) return ownFields

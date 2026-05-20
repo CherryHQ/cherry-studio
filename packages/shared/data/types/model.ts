@@ -13,6 +13,7 @@
 import type {
   Currency,
   EndpointType,
+  ImageGenerationMode,
   ImageGenerationSupport,
   Modality,
   ModelCapability,
@@ -33,7 +34,15 @@ import * as z from 'zod'
 export { CURRENCY, ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY, objectValues, REASONING_EFFORT }
 
 // Re-export types for consumers
-export type { Currency, EndpointType, ImageGenerationSupport, Modality, ModelCapability, ReasoningEffort }
+export type {
+  Currency,
+  EndpointType,
+  ImageGenerationMode,
+  ImageGenerationSupport,
+  Modality,
+  ModelCapability,
+  ReasoningEffort
+}
 
 /** Price per token schema */
 export const PricePerTokenSchema = z.object({

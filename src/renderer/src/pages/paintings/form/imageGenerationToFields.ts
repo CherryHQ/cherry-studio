@@ -1,6 +1,25 @@
-import type { ImageGenerationSupport } from '@shared/data/types/model'
+import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
 
 import type { BaseConfigItem, OptionItem } from '../providers/shared/providerFieldSchema'
+
+/**
+ * Merge top-level `ImageGenerationSupport` with the per-mode override
+ * declared under `modeSchemas[mode]`. Per-mode values win on conflict.
+ * `supports` is merged at the field level (per-mode `imageWeight` does
+ * not erase top-level `aspectRatio`, etc.).
+ */
+function effectiveSupport(
+  support: ImageGenerationSupport,
+  mode: ImageGenerationMode | undefined
+): ImageGenerationSupport {
+  const override = mode ? support.modeSchemas?.[mode] : undefined
+  if (!override) return support
+  const merged: ImageGenerationSupport = { ...support, ...override }
+  if (support.supports || override.supports) {
+    merged.supports = { ...(support.supports ?? {}), ...(override.supports ?? {}) }
+  }
+  return merged
+}
 
 /**
  * Map an `ImageGenerationSupport` descriptor (from the provider registry, per
@@ -12,18 +31,20 @@ import type { BaseConfigItem, OptionItem } from '../providers/shared/providerFie
  * Field keys are canonical (`size`, `numImages`, `negativePrompt`, `seed`,
  * `numInferenceSteps`, `guidanceScale`, `safetyTolerance`, `quality`,
  * `moderation`, `background`, `aspectRatio`, `styleType`, `renderingSpeed`,
- * `personGeneration`, `promptEnhancement`, `magicPromptOption`). Providers
- * whose persisted `PaintingData` uses different field names can pass
- * `opts.keyMap` to alias a canonical key to a legacy name without renaming
- * stored data (e.g. silicon: `{ size: 'imageSize', numInferenceSteps: 'steps' }`).
- * `modes` is ignored here — modes drive provider-level tabs today, not
- * field-level controls (revisit in A.6).
+ * `personGeneration`, `promptEnhancement`, `magicPromptOption`, `imageWeight`,
+ * `resemblance`, `detail`). Providers whose persisted `PaintingData` uses
+ * different field names can pass `opts.keyMap` to alias a canonical key to a
+ * legacy name without renaming stored data.
+ *
+ * `opts.mode` selects which mode-specific schema to merge in (registry's
+ * `modeSchemas[mode]` overrides top-level). Omit for single-mode models.
  */
 export function imageGenerationToFields(
-  support: ImageGenerationSupport | undefined,
-  opts?: { keyMap?: Record<string, string> }
+  raw: ImageGenerationSupport | undefined,
+  opts?: { keyMap?: Record<string, string>; mode?: ImageGenerationMode }
 ): BaseConfigItem[] {
-  if (!support) return []
+  if (!raw) return []
+  const support = effectiveSupport(raw, opts?.mode)
   const items: BaseConfigItem[] = []
   const remap = (key: string) => opts?.keyMap?.[key] ?? key
 
@@ -206,6 +227,36 @@ export function imageGenerationToFields(
       key: remap('personGeneration'),
       title: 'paintings.person_generation',
       options: s.personGeneration.map((v) => ({ label: v, value: v }))
+    })
+  }
+  if (s.imageWeight) {
+    items.push({
+      type: 'slider',
+      key: remap('imageWeight'),
+      title: 'paintings.image_weight',
+      min: s.imageWeight.min ?? 1,
+      max: s.imageWeight.max ?? 100,
+      initialValue: s.imageWeight.default ?? s.imageWeight.min ?? 50
+    })
+  }
+  if (s.resemblance) {
+    items.push({
+      type: 'slider',
+      key: remap('resemblance'),
+      title: 'paintings.resemblance',
+      min: s.resemblance.min ?? 1,
+      max: s.resemblance.max ?? 100,
+      initialValue: s.resemblance.default ?? s.resemblance.min ?? 50
+    })
+  }
+  if (s.detail) {
+    items.push({
+      type: 'slider',
+      key: remap('detail'),
+      title: 'paintings.detail',
+      min: s.detail.min ?? 1,
+      max: s.detail.max ?? 100,
+      initialValue: s.detail.default ?? s.detail.min ?? 50
     })
   }
 

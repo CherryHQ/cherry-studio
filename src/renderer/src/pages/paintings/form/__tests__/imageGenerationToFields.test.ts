@@ -199,6 +199,37 @@ describe('imageGenerationToFields', () => {
     expect(sizeValues).not.toContain('custom')
   })
 
+  it('per-mode modeSchemas: ideogram-v3 remix adds imageWeight while preserving top-level fields', () => {
+    const support: ImageGenerationSupport = {
+      modes: ['generate', 'remix', 'upscale'],
+      sizes: ['1:1', '16:9', '9:16'],
+      sizeMode: 'aspect',
+      defaultSize: '1:1',
+      batch: { min: 1, max: 8, default: 1 },
+      supports: { negativePrompt: true, seed: true, styleType: ['AUTO', 'REALISTIC'] },
+      modeSchemas: {
+        remix: { supports: { imageWeight: { min: 1, max: 100, default: 50 } } },
+        upscale: { supports: { resemblance: { min: 1, max: 100, default: 50 }, detail: { min: 1, max: 100 } } }
+      }
+    }
+
+    const generateKeys = imageGenerationToFields(support, { mode: 'generate' }).map((i) => i.key)
+    expect(generateKeys).toContain('negativePrompt')
+    expect(generateKeys).toContain('styleType')
+    expect(generateKeys).not.toContain('imageWeight')
+    expect(generateKeys).not.toContain('resemblance')
+
+    const remixKeys = imageGenerationToFields(support, { mode: 'remix' }).map((i) => i.key)
+    expect(remixKeys).toContain('imageWeight')
+    expect(remixKeys).toContain('styleType') // top-level survives the merge
+    expect(remixKeys).not.toContain('resemblance')
+
+    const upscaleKeys = imageGenerationToFields(support, { mode: 'upscale' }).map((i) => i.key)
+    expect(upscaleKeys).toContain('resemblance')
+    expect(upscaleKeys).toContain('detail')
+    expect(upscaleKeys).not.toContain('imageWeight')
+  })
+
   it('emits canonical keys when keyMap is missing or empty', () => {
     const support: ImageGenerationSupport = {
       sizes: ['1024x1024'],

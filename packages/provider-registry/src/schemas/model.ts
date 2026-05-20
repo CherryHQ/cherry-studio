@@ -80,33 +80,18 @@ const NumericRangeWithDefaultSchema = z
     message: 'min must be less than or equal to max'
   })
 
-export const ImageGenerationSupportSchema = z.object({
-  /** Modes available; `['generate']` assumed when absent. */
-  modes: z.array(ImageGenerationModeSchema).optional(),
-
-  /**
-   * Accepted `size` values — pixel sizes (`'1024x1024'`), aspect ratios
-   * (`'1:1'`, `'16:9'`), or the `'auto'` sentinel. The UI renders these
-   * as a select; `sizeMode` decides how to label the column.
-   */
+/**
+ * Image-generation params a model accepts, in registry shape. Used by the
+ * top-level `ImageGenerationSupportSchema` AND as the value of the per-mode
+ * `modeSchemas` map below — kept as a separate const because the latter
+ * references it (partial) and zod doesn't recurse cleanly.
+ */
+const ImageGenerationParamsShape = z.object({
   sizes: z.array(z.string()).optional(),
   sizeMode: ImageSizeModeSchema.optional(),
-  /** Default size value the UI should preselect (must be in `sizes`). */
   defaultSize: z.string().optional(),
-  /**
-   * Whether the `'auto'` sentinel should reach the AI SDK as
-   * "omit the `size` field" (R2 painting-only `allowAutoSize`) rather than
-   * being coerced to `'1024x1024'`.
-   */
   allowAutoSize: z.boolean().optional(),
-
-  /** Per-call batch limits (a.k.a. `n` / `numImages`). */
   batch: NumericRangeWithDefaultSchema.optional(),
-
-  /**
-   * Per-control capability flags. Each is independently optional — only
-   * populate the ones the model actually accepts.
-   */
   supports: z
     .object({
       negativePrompt: z.boolean().optional(),
@@ -122,33 +107,36 @@ export const ImageGenerationSupportSchema = z.object({
       aspectRatio: z.array(z.string()).optional(),
       styleType: z.array(z.string()).optional(),
       renderingSpeed: z.array(z.string()).optional(),
-      personGeneration: z.array(z.string()).optional()
+      personGeneration: z.array(z.string()).optional(),
+      imageWeight: NumericRangeWithDefaultSchema.optional(),
+      resemblance: NumericRangeWithDefaultSchema.optional(),
+      detail: NumericRangeWithDefaultSchema.optional()
     })
     .optional(),
-
-  /**
-   * Custom-size range when the model accepts arbitrary width × height in
-   * addition to (or instead of) the predefined `sizes` list. The painting
-   * page renders a "custom" option whose width/height inputs are validated
-   * against this range (e.g. CogView / dmxapi's `is_custom_size` flag).
-   */
   customSize: z
     .object({
       min: z.number(),
       max: z.number()
     })
     .optional(),
-
-  /**
-   * Vendor-specific request-body extras the painting transport must include
-   * unchanged when calling this model
-   */
   vendorParams: z.record(z.string(), z.unknown()).optional(),
-
-  /**
-   * Vendor's dynamic form schema
-   */
   inputSchema: z.record(z.string(), z.unknown()).optional()
+})
+
+export const ImageGenerationSupportSchema = ImageGenerationParamsShape.extend({
+  /** Modes available; `['generate']` assumed when absent. */
+  modes: z.array(ImageGenerationModeSchema).optional(),
+  /**
+   * Per-mode overrides. When a model accepts different params in
+   * `edit` / `remix` / `upscale` than in `generate` (Ideogram V_3 remix
+   * accepts `imageWeight`, upscale accepts `resemblance`/`detail`),
+   * declare those mode-specific shapes here. The painting page derives
+   * fields by merging top-level params with `modeSchemas[currentMode]`.
+   *
+   * Optional — simple single-mode models leave this absent and just use
+   * the top-level shape.
+   */
+  modeSchemas: z.partialRecord(ImageGenerationModeSchema, ImageGenerationParamsShape.partial()).optional()
 })
 
 // Parameter support configuration
