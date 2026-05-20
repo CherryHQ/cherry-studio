@@ -20,6 +20,8 @@
     "debug": "pnpm rebuild:electron && dotenv -- electron-vite -- --inspect --sourcemap --remote-debugging-port=9222",
     "build": "npm run typecheck && electron-vite build",
     "build:check": "pnpm lint && pnpm docs:check-links && pnpm test",
+    "build:builtin-knowledge": "tsx scripts/generate-cherry-assistant-knowledge",
+    "build:builtin-knowledge:check": "tsx scripts/generate-cherry-assistant-knowledge --check",
     "build:unpack": "dotenv npm run build && electron-builder --dir",
     "build:win": "dotenv npm run build && electron-builder --win --x64 --arm64",
     "build:win:x64": "dotenv npm run build && electron-builder --win --x64",

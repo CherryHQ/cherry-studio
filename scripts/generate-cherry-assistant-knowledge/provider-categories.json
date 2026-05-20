@@ -1,0 +1,99 @@
+{
+  "comment": "Maps SystemProviderIds (from src/renderer/src/types/provider.ts) to category bucket + bilingual display names used by the Cherry Assistant knowledge base. New IDs added to SystemProviderIds but missing here will fall into 'other' with the raw ID as their display name (loud rather than silent). Keep in sync with SystemProviderIds.",
+  "categories": {
+    "international": {
+      "label": { "zh-CN": "国际", "en-US": "International" },
+      "providers": [
+        { "id": "openai", "name": { "zh-CN": "OpenAI", "en-US": "OpenAI" } },
+        { "id": "anthropic", "name": { "zh-CN": "Anthropic", "en-US": "Anthropic" } },
+        { "id": "gemini", "name": { "zh-CN": "Google Gemini", "en-US": "Google Gemini" } },
+        { "id": "azure-openai", "name": { "zh-CN": "Azure OpenAI", "en-US": "Azure OpenAI" } },
+        { "id": "vertexai", "name": { "zh-CN": "VertexAI", "en-US": "VertexAI" } },
+        { "id": "aws-bedrock", "name": { "zh-CN": "AWS Bedrock", "en-US": "AWS Bedrock" } },
+        { "id": "mistral", "name": { "zh-CN": "Mistral", "en-US": "Mistral" } },
+        { "id": "github", "name": { "zh-CN": "GitHub Models", "en-US": "GitHub Models" } },
+        { "id": "copilot", "name": { "zh-CN": "GitHub Copilot", "en-US": "GitHub Copilot" } }
+      ]
+    },
+    "aggregator": {
+      "label": { "zh-CN": "聚合", "en-US": "Aggregator" },
+      "providers": [
+        { "id": "cherryin", "name": { "zh-CN": "Cherry In", "en-US": "Cherry In" } },
+        { "id": "openrouter", "name": { "zh-CN": "OpenRouter", "en-US": "OpenRouter" } },
+        { "id": "aihubmix", "name": { "zh-CN": "AiHubMix", "en-US": "AiHubMix" } },
+        { "id": "ocoolai", "name": { "zh-CN": "ocoolAI", "en-US": "ocoolAI" } },
+        { "id": "ppio", "name": { "zh-CN": "PPIO", "en-US": "PPIO" } },
+        { "id": "302ai", "name": { "zh-CN": "302.AI", "en-US": "302.AI" } },
+        { "id": "new-api", "name": { "zh-CN": "New API", "en-US": "New API" } },
+        { "id": "gateway", "name": { "zh-CN": "Vercel AI Gateway", "en-US": "Vercel AI Gateway" } },
+        { "id": "dmxapi", "name": { "zh-CN": "DMXAPI", "en-US": "DMXAPI" } },
+        { "id": "aionly", "name": { "zh-CN": "AIOnly", "en-US": "AIOnly" } },
+        { "id": "burncloud", "name": { "zh-CN": "BurnCloud", "en-US": "BurnCloud" } },
+        { "id": "tokenflux", "name": { "zh-CN": "TokenFlux", "en-US": "TokenFlux" } },
+        { "id": "sophnet", "name": { "zh-CN": "SophNet", "en-US": "SophNet" } }
+      ]
+    },
+    "china": {
+      "label": { "zh-CN": "国内", "en-US": "China" },
+      "providers": [
+        { "id": "deepseek", "name": { "zh-CN": "DeepSeek", "en-US": "DeepSeek" } },
+        { "id": "zhipu", "name": { "zh-CN": "智谱", "en-US": "ZhiPu" } },
+        { "id": "moonshot", "name": { "zh-CN": "Moonshot", "en-US": "Moonshot" } },
+        { "id": "baichuan", "name": { "zh-CN": "百川", "en-US": "Baichuan" } },
+        { "id": "dashscope", "name": { "zh-CN": "通义", "en-US": "Qwen" } },
+        { "id": "stepfun", "name": { "zh-CN": "阶跃", "en-US": "StepFun" } },
+        { "id": "doubao", "name": { "zh-CN": "豆包", "en-US": "Doubao" } },
+        { "id": "minimax", "name": { "zh-CN": "MiniMax", "en-US": "MiniMax" } },
+        { "id": "minimax-global", "name": { "zh-CN": "MiniMax Global", "en-US": "MiniMax Global" } },
+        { "id": "hunyuan", "name": { "zh-CN": "混元", "en-US": "Hunyuan" } },
+        { "id": "baidu-cloud", "name": { "zh-CN": "百度智能云", "en-US": "Baidu Cloud" } },
+        { "id": "tencent-cloud-ti", "name": { "zh-CN": "腾讯云 TI", "en-US": "Tencent Cloud TI" } },
+        { "id": "modelscope", "name": { "zh-CN": "魔搭", "en-US": "ModelScope" } },
+        { "id": "yi", "name": { "zh-CN": "零一万物 Yi", "en-US": "Yi" } },
+        { "id": "mimo", "name": { "zh-CN": "小米 MiMo", "en-US": "Xiaomi MiMo" } },
+        { "id": "zai", "name": { "zh-CN": "Z.ai", "en-US": "Z.ai" } },
+        { "id": "longcat", "name": { "zh-CN": "LongCat", "en-US": "LongCat" } },
+        { "id": "infini", "name": { "zh-CN": "无问芯穹", "en-US": "Infini" } },
+        { "id": "qiniu", "name": { "zh-CN": "七牛", "en-US": "Qiniu" } },
+        { "id": "xirang", "name": { "zh-CN": "希壤", "en-US": "Xirang" } },
+        { "id": "cephalon", "name": { "zh-CN": "Cephalon", "en-US": "Cephalon" } },
+        { "id": "lanyun", "name": { "zh-CN": "蓝耘", "en-US": "Lanyun" } },
+        { "id": "ph8", "name": { "zh-CN": "PH8", "en-US": "PH8" } },
+        { "id": "alayanew", "name": { "zh-CN": "AlayaNew", "en-US": "AlayaNew" } }
+      ]
+    },
+    "local": {
+      "label": { "zh-CN": "本地", "en-US": "Local" },
+      "providers": [
+        { "id": "ollama", "name": { "zh-CN": "Ollama", "en-US": "Ollama" } },
+        { "id": "lmstudio", "name": { "zh-CN": "LM Studio", "en-US": "LM Studio" } },
+        { "id": "ovms", "name": { "zh-CN": "OpenVINO Model Server", "en-US": "OpenVINO Model Server" } },
+        { "id": "gpustack", "name": { "zh-CN": "GPUStack", "en-US": "GPUStack" } }
+      ]
+    },
+    "accelerator": {
+      "label": { "zh-CN": "加速", "en-US": "Accelerator" },
+      "providers": [
+        { "id": "groq", "name": { "zh-CN": "Groq", "en-US": "Groq" } },
+        { "id": "together", "name": { "zh-CN": "Together", "en-US": "Together" } },
+        { "id": "fireworks", "name": { "zh-CN": "Fireworks", "en-US": "Fireworks" } },
+        { "id": "cerebras", "name": { "zh-CN": "Cerebras", "en-US": "Cerebras" } },
+        { "id": "hyperbolic", "name": { "zh-CN": "Hyperbolic", "en-US": "Hyperbolic" } },
+        { "id": "silicon", "name": { "zh-CN": "硅基流动 SiliconFlow", "en-US": "SiliconFlow" } }
+      ]
+    },
+    "other": {
+      "label": { "zh-CN": "其他", "en-US": "Other" },
+      "providers": [
+        { "id": "perplexity", "name": { "zh-CN": "Perplexity", "en-US": "Perplexity" } },
+        { "id": "grok", "name": { "zh-CN": "Grok", "en-US": "Grok" } },
+        { "id": "jina", "name": { "zh-CN": "Jina", "en-US": "Jina" } },
+        { "id": "huggingface", "name": { "zh-CN": "HuggingFace", "en-US": "HuggingFace" } },
+        { "id": "voyageai", "name": { "zh-CN": "Voyage AI", "en-US": "Voyage AI" } },
+        { "id": "poe", "name": { "zh-CN": "Poe", "en-US": "Poe" } },
+        { "id": "nvidia", "name": { "zh-CN": "NVIDIA", "en-US": "NVIDIA" } }
+      ]
+    }
+  },
+  "order": ["international", "aggregator", "china", "local", "accelerator", "other"]
+}
