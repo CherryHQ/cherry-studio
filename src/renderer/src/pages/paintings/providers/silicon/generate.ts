@@ -3,7 +3,6 @@ import { createPaintingGenerateError } from '../../model/paintingGenerateError'
 import type { SiliconPaintingData } from '../../model/types/paintingData'
 import { checkProviderEnabled } from '../../utils/checkProviderEnabled'
 import type { GenerateInput } from '../types'
-import { TEXT_TO_IMAGES_MODELS } from './defaults'
 
 export async function generateWithSilicon(input: GenerateInput<SiliconPaintingData>) {
   const { painting, provider, abortController } = input
@@ -22,7 +21,6 @@ export async function generateWithSilicon(input: GenerateInput<SiliconPaintingDa
     apiKey,
     modelId,
     prompt,
-    model: TEXT_TO_IMAGES_MODELS.find((item) => item.id === modelId),
     aiSdkParams: {
       negativePrompt: painting.negativePrompt || '',
       imageSize: painting.imageSize || '1024x1024',

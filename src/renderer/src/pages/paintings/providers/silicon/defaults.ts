@@ -6,20 +6,7 @@ import ImageSize9_16 from '@renderer/assets/images/paintings/image-size-9-16.svg
 import ImageSize16_9 from '@renderer/assets/images/paintings/image-size-16-9.svg'
 import { uuid } from '@renderer/utils'
 
-export const TEXT_TO_IMAGES_MODELS = [
-  {
-    id: 'Kwai-Kolors/Kolors',
-    provider: 'silicon',
-    name: 'Kolors',
-    group: 'Kwai-Kolors'
-  },
-  {
-    id: 'Qwen/Qwen-Image',
-    provider: 'silicon',
-    name: 'Qwen-Image',
-    group: 'qwen'
-  }
-]
+import type { ModelOption } from '../../model/types/paintingModel'
 
 export const SILICON_IMAGE_SIZES = [
   { label: '1:1', value: '1024x1024', icon: ImageSize1_1 },
@@ -32,7 +19,7 @@ export const SILICON_IMAGE_SIZES = [
 
 export const generateSiliconRandomSeed = () => Math.floor(Math.random() * 1000000).toString()
 
-export function createDefaultSiliconPainting() {
+export function createDefaultSiliconPainting(modelOptions?: ModelOption[]) {
   return {
     id: uuid(),
     providerId: 'silicon' as const,
@@ -45,6 +32,6 @@ export function createDefaultSiliconPainting() {
     seed: generateSiliconRandomSeed(),
     steps: 25,
     guidanceScale: 4.5,
-    model: TEXT_TO_IMAGES_MODELS[0].id
+    model: modelOptions?.[0]?.value ?? ''
   }
 }

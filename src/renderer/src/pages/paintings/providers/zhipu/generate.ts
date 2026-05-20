@@ -3,7 +3,6 @@ import { createPaintingGenerateError } from '../../model/paintingGenerateError'
 import type { ZhipuPaintingData } from '../../model/types/paintingData'
 import { checkProviderEnabled } from '../../utils/checkProviderEnabled'
 import type { GenerateInput } from '../types'
-import { ZHIPU_PAINTING_MODELS } from './config'
 
 /**
  * Resolve Zhipu's `imageSize` from the painting state, enforcing the four
@@ -39,7 +38,6 @@ export async function generateWithZhipu(input: GenerateInput<ZhipuPaintingData>)
     apiKey,
     modelId: painting.model,
     prompt,
-    model: ZHIPU_PAINTING_MODELS.find((item) => item.id === painting.model),
     aiSdkParams: {
       negativePrompt: painting.negativePrompt,
       imageSize: resolveZhipuImageSize(painting),

@@ -13,12 +13,21 @@ export function createModelOptionFromModel(model: Model): ModelOption {
   }
 }
 
+/**
+ * A model is a painting-page candidate when it claims the `image-generation`
+ * capability OR exposes one of the OpenAI image endpoints. The two checks are
+ * OR'd — declaring an unrelated endpoint (`openai-chat-completions`) on a
+ * model that ALSO sets `image-generation` capability must not exclude it.
+ */
 export function supportsImageGenerationEndpoint(model: Model): boolean {
-  if (model.endpointTypes?.length) {
-    return model.endpointTypes.includes(ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION)
+  if (model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION)) {
+    return true
   }
-
-  return model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION)
+  return (
+    model.endpointTypes?.some(
+      (e) => e === ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION || e === ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
+    ) ?? false
+  )
 }
 
 export function getPaintingModelOptions(providerId: string, models: Model[]): ModelOption[] {

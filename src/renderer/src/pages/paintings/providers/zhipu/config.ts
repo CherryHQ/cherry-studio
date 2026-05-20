@@ -1,23 +1,9 @@
-import type { Model } from '@renderer/types'
 import { uuid } from '@renderer/utils'
+
+import type { ModelOption } from '../../model/types/paintingModel'
 
 export const COURSE_URL = 'https://docs.bigmodel.cn/cn/guide/models/image-generation/cogview-4'
 export const TOP_UP_URL = 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/iv'
-
-export const ZHIPU_PAINTING_MODELS: Model[] = [
-  {
-    id: 'cogview-3-flash',
-    provider: 'zhipu',
-    name: 'CogView-3-Flash',
-    group: 'CogView'
-  },
-  {
-    id: 'cogview-4-250304',
-    provider: 'zhipu',
-    name: 'CogView-4-250304',
-    group: 'CogView'
-  }
-]
 
 export const DEFAULT_PAINTING = {
   id: uuid(),
@@ -29,7 +15,7 @@ export const DEFAULT_PAINTING = {
   imageSize: '1024x1024',
   numImages: 1,
   seed: '',
-  model: 'cogview-3-flash',
+  model: '',
   quality: 'standard'
 }
 
@@ -48,9 +34,10 @@ export const IMAGE_SIZES = [
   { label: 'paintings.zhipu.image_sizes.720x1440', value: '720x1440' }
 ]
 
-export function createDefaultZhipuPainting() {
+export function createDefaultZhipuPainting(modelOptions?: ModelOption[]) {
   return {
     ...DEFAULT_PAINTING,
-    id: uuid()
+    id: uuid(),
+    model: modelOptions?.[0]?.value ?? ''
   }
 }

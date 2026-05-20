@@ -53,9 +53,9 @@ export interface GeneratePaintingOptions {
    */
   readonly downloadOptions?: DownloadImagesOptions
   /**
-   * Override the synthesized `Model` placeholder when the vendor has a
-   * static catalog match (silicon's `TEXT_TO_IMAGES_MODELS`, zhipu's
-   * `ZHIPU_PAINTING_MODELS`).
+   * Override the synthesized `Model` placeholder when the caller already has
+   * a richer `Model` shape on hand. Most callers omit this and rely on the
+   * synthesized placeholder, which only needs `id` / `provider` / `name`.
    */
   readonly model?: Model
 }
