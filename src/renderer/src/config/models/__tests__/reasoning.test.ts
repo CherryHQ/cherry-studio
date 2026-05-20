@@ -1882,6 +1882,22 @@ describe('isGemini3ThinkingTokenModel', () => {
         group: ''
       })
     ).toBe(true)
+    expect(
+      isGemini3ThinkingTokenModel({
+        id: 'gemini-flash-latest',
+        name: '',
+        provider: '',
+        group: ''
+      })
+    ).toBe(true)
+    expect(
+      isGemini3ThinkingTokenModel({
+        id: 'gemini-pro-latest',
+        name: '',
+        provider: '',
+        group: ''
+      })
+    ).toBe(true)
   })
 
   it('should return false for Gemini 3 image models', () => {
