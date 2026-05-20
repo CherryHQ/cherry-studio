@@ -3,17 +3,11 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import type * as KnowledgeV2Utils from '../../utils'
 import DetailHeader from '../DetailHeader'
 
-vi.mock('@renderer/pages/knowledge/utils', async (importOriginal) => {
-  const actual = await importOriginal<typeof KnowledgeV2Utils>()
-
-  return {
-    ...actual,
-    formatRelativeTime: () => '2小时前'
-  }
-})
+vi.mock('@renderer/utils/time', () => ({
+  formatRelativeTime: () => '2小时前'
+}))
 
 vi.mock('@cherrystudio/ui', async () => {
   const React = await import('react')

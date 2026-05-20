@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import KnowledgeItemRow from '../KnowledgeItemRow'
 import { createFileItem, createUrlItem } from './testUtils'
 
-vi.mock('@renderer/pages/knowledge/utils', () => ({
+vi.mock('@renderer/utils/time', () => ({
   formatRelativeTime: () => '刚刚'
 }))
 

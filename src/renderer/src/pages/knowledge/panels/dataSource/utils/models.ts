@@ -1,5 +1,5 @@
-import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
 import { formatFileSize } from '@renderer/utils'
+import { formatRelativeTime } from '@renderer/utils/time'
 import type { KnowledgeItem, KnowledgeItemOf, KnowledgeItemType } from '@shared/data/types/knowledge'
 import type { LucideIcon } from 'lucide-react'
 import { FileText, Folder, Globe, Link2, StickyNote } from 'lucide-react'

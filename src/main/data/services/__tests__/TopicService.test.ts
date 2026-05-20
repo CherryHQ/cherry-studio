@@ -190,6 +190,25 @@ describe('TopicService', () => {
       expect(result.items.map((t) => t.id)).toEqual(['p1', 'u1'])
     })
 
+    it('lists recent search matches with updatedAtFrom applied in the topic service', async () => {
+      const service = new TopicService()
+      const cutoff = Date.parse('2026-05-01T00:00:00.000Z')
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-old', name: 'Research old', orderKey: 'a0', createdAt: 1, updatedAt: cutoff - 1 },
+        { id: 'topic-newer', name: 'Research newer', orderKey: 'a1', createdAt: 1, updatedAt: cutoff + 2000 },
+        { id: 'topic-newest', name: 'Research newest', orderKey: 'a2', createdAt: 1, updatedAt: cutoff + 3000 },
+        { id: 'topic-other', name: 'Other', orderKey: 'a3', createdAt: 1, updatedAt: cutoff + 4000 }
+      ])
+
+      const result = await service.listRecentSearchMatches({
+        q: 'Research',
+        limit: 10,
+        updatedAtFrom: cutoff
+      })
+
+      expect(result.map((topic) => topic.id)).toEqual(['topic-newest', 'topic-newer'])
+    })
+
     it('ignores pin rows with entityType other than topic', async () => {
       // Polymorphic pin table — only entityType='topic' should join into the
       // topic listing. A stray pin for a different entityType must not affect

@@ -2214,7 +2214,7 @@
     "quickApps": {
       "hide": "Hide {{name}}",
       "manage": "Manage",
-      "manager_description": "Click the eye to hide or show",
+      "manager_description": "Drag to reorder, click the eye to hide or show",
       "manager_title": "Manage quick apps",
       "reset": "Reset",
       "save_failed": "Failed to save quick apps",
@@ -2228,6 +2228,14 @@
       "knowledge-base": "Knowledge",
       "session": "Session",
       "topic": "Topic"
+    },
+    "timeFilters": {
+      "any": "Any time",
+      "label": "Updated time",
+      "month": "Last month",
+      "quarter": "Last 3 months",
+      "today": "Today",
+      "week": "Last 7 days"
     }
   },
   "gpustack": {

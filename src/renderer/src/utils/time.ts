@@ -2,8 +2,13 @@ const MINUTE_MS = 60 * 1000
 const HOUR_MS = 60 * MINUTE_MS
 const DAY_MS = 24 * HOUR_MS
 
-export const formatRelativeTime = (value: string, language: string, now = Date.now()) => {
-  const diffMs = new Date(value).getTime() - now
+export const formatRelativeTime = (value: string | undefined, language: string, now = Date.now()) => {
+  if (!value) return undefined
+
+  const time = Date.parse(value)
+  if (!Number.isFinite(time)) return undefined
+
+  const diffMs = time - now
   const absMs = Math.abs(diffMs)
   const formatter = new Intl.RelativeTimeFormat(language, { numeric: 'auto' })
 

@@ -94,6 +94,26 @@ describe('KnowledgeBaseService', () => {
       expect(result.total).toBe(1)
       expect(result.items.map((item) => item.id)).toEqual(['kb-literal'])
     })
+
+    it('filters by updatedAtFrom and can sort by updatedAt descending', async () => {
+      const cutoff = Date.parse('2026-05-01T00:00:00.000Z')
+      await seedKnowledgeBase({ id: 'kb-old', name: 'Research old', updatedAt: cutoff - 1 })
+      await seedKnowledgeBase({ id: 'kb-newer', name: 'Research newer', updatedAt: cutoff + 2000 })
+      await seedKnowledgeBase({ id: 'kb-newest', name: 'Research newest', updatedAt: cutoff + 3000 })
+      await seedKnowledgeBase({ id: 'kb-other', name: 'Other', updatedAt: cutoff + 4000 })
+
+      const result = await service.list({
+        page: 1,
+        limit: 10,
+        search: 'Research',
+        updatedAtFrom: cutoff,
+        sortBy: 'updatedAt',
+        orderBy: 'desc'
+      })
+
+      expect(result.items.map((item) => item.id)).toEqual(['kb-newest', 'kb-newer'])
+      expect(result.total).toBe(2)
+    })
   })
 
   describe('getById', () => {

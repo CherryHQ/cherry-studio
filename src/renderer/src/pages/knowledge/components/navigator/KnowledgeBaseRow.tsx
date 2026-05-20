@@ -1,6 +1,6 @@
 import { Button, ConfirmDialog } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
+import { formatRelativeTime } from '@renderer/utils/time'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

@@ -40,13 +40,14 @@ describe('globalSearchHandlers', () => {
       expect(result).toBe(response)
     })
 
-    it('forwards type filters and explicit limitPerType', async () => {
+    it('forwards type, time, and explicit limit filters', async () => {
       searchMock.mockResolvedValueOnce({ query: 'agent', groups: [] })
 
       await globalSearchHandlers['/global-search'].GET({
         query: {
           q: 'agent',
           types: ['agent', 'session'],
+          updatedAtFrom: '2026-05-01T00:00:00.000Z',
           limitPerType: GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE
         }
       } as never)
@@ -54,6 +55,7 @@ describe('globalSearchHandlers', () => {
       expect(searchMock).toHaveBeenCalledWith({
         q: 'agent',
         types: ['agent', 'session'],
+        updatedAtFrom: '2026-05-01T00:00:00.000Z',
         limitPerType: GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE
       })
     })

@@ -20,13 +20,18 @@ import {
   type KnowledgeBase,
   KnowledgeBaseSchema
 } from '@shared/data/types/knowledge'
-import { desc, eq, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, type SQL, sql } from 'drizzle-orm'
 
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeBaseService')
 
 type KnowledgeBaseRow = typeof knowledgeBaseTable.$inferSelect
+type ListKnowledgeBasesServiceQuery = ListKnowledgeBasesQuery & {
+  updatedAtFrom?: number
+  sortBy?: 'updatedAt'
+  orderBy?: 'asc' | 'desc'
+}
 
 function validateKnowledgeBaseConfig(config: {
   chunkSize: number
@@ -75,17 +80,28 @@ export class KnowledgeBaseService {
     return application.get('DbService').getDb()
   }
 
-  async list(query: ListKnowledgeBasesQuery): Promise<OffsetPaginationResponse<KnowledgeBase>> {
+  async list(query: ListKnowledgeBasesServiceQuery): Promise<OffsetPaginationResponse<KnowledgeBase>> {
     const { page, limit } = query
     const offset = (page - 1) * limit
-    const whereClause = buildSearchPredicate(query.search)
+    const conditions: SQL[] = []
+    const search = buildSearchPredicate(query.search)
+    if (search) conditions.push(search)
+    if (query.updatedAtFrom !== undefined) {
+      conditions.push(gte(knowledgeBaseTable.updatedAt, query.updatedAtFrom))
+    }
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined
+    const orderFn = query.orderBy === 'asc' ? asc : desc
+    const orderByClauses =
+      query.sortBy === 'updatedAt'
+        ? [orderFn(knowledgeBaseTable.updatedAt), asc(knowledgeBaseTable.id)]
+        : [desc(knowledgeBaseTable.createdAt), desc(knowledgeBaseTable.id)]
 
     const [rows, [{ count }]] = await Promise.all([
       this.db
         .select()
         .from(knowledgeBaseTable)
         .where(whereClause)
-        .orderBy(desc(knowledgeBaseTable.createdAt), desc(knowledgeBaseTable.id))
+        .orderBy(...orderByClauses)
         .limit(limit)
         .offset(offset),
       this.db.select({ count: sql<number>`count(*)` }).from(knowledgeBaseTable).where(whereClause)

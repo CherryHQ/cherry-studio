@@ -1,6 +1,6 @@
 import { Button, ConfirmDialog, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
+import { formatRelativeTime } from '@renderer/utils/time'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { Clock3, FileText, MoreHorizontal, PencilLine, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'

@@ -2214,7 +2214,7 @@
     "quickApps": {
       "hide": "隱藏 {{name}}",
       "manage": "管理",
-      "manager_description": "點擊眼睛隱藏/顯示",
+      "manager_description": "拖曳排序，點擊眼睛隱藏/顯示",
       "manager_title": "管理快捷應用",
       "reset": "重置",
       "save_failed": "儲存快捷應用失敗",
@@ -2228,6 +2228,14 @@
       "knowledge-base": "知識庫",
       "session": "會話",
       "topic": "話題"
+    },
+    "timeFilters": {
+      "any": "不限時間",
+      "label": "更新時間",
+      "month": "最近 1 個月",
+      "quarter": "最近 3 個月",
+      "today": "今天",
+      "week": "最近 1 周"
     }
   },
   "gpustack": {

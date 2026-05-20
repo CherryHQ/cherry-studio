@@ -20,10 +20,14 @@ import {
 } from '@shared/data/api/schemas/agents'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { and, asc, count, desc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('AgentService')
+
+type AgentListOptions = ListOptions & {
+  updatedAtFrom?: number
+}
 
 function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
   const { data, invalidKeys } = sanitizeAgentConfiguration(raw)
@@ -115,7 +119,7 @@ export class AgentService {
     return rowToAgent(row.agent, row.modelName || null)
   }
 
-  async listAgents(options: ListOptions = {}): Promise<{ agents: AgentEntity[]; total: number }> {
+  async listAgents(options: AgentListOptions = {}): Promise<{ agents: AgentEntity[]; total: number }> {
     const database = application.get('DbService').getDb()
 
     // AND-compose deletedAt-null + optional search. Search runs LIKE against
@@ -127,6 +131,9 @@ export class AgentService {
       const descMatch = sql`${agentsTable.description} LIKE ${pattern} ESCAPE '\\'`
       const searchClause = or(nameMatch, descMatch)
       if (searchClause) conditions.push(searchClause)
+    }
+    if (options.updatedAtFrom !== undefined) {
+      conditions.push(gte(agentsTable.updatedAt, options.updatedAtFrom))
     }
     const whereClause = and(...conditions)
 
@@ -149,6 +156,15 @@ export class AgentService {
     }
     const sortField = sortByToColumn[sortBy] ?? agentsTable.createdAt
     const orderFn = orderBy === 'asc' ? asc : desc
+    const orderByClauses =
+      sortBy === 'updatedAt'
+        ? [orderFn(sortField), asc(agentsTable.id)]
+        : [
+            sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`,
+            asc(pinTable.orderKey),
+            orderFn(sortField),
+            asc(agentsTable.id)
+          ]
 
     // Pin-aware ordering: LEFT JOIN with the pin table, push pinned rows to
     // the top (sorted by pin.orderKey ASC), then unpinned rows by the
@@ -160,11 +176,7 @@ export class AgentService {
       .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
       .leftJoin(pinTable, and(eq(pinTable.entityType, 'agent'), eq(pinTable.entityId, agentsTable.id)))
       .where(whereClause)
-      .orderBy(
-        sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`,
-        asc(pinTable.orderKey),
-        orderFn(sortField)
-      )
+      .orderBy(...orderByClauses)
 
     const result =
       options.limit !== undefined

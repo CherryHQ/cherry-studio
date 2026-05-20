@@ -13,16 +13,29 @@ import type {
 
 const GLOBAL_SEARCH_TYPES: GlobalSearchType[] = ['assistant', 'agent', 'topic', 'session', 'knowledge-base']
 
+function getUpdatedAtFromMs(updatedAtFrom: string | undefined): number | undefined {
+  if (!updatedAtFrom) return undefined
+  const value = Date.parse(updatedAtFrom)
+  return Number.isFinite(value) ? value : undefined
+}
+
+function getAgentAvatar(configuration: unknown): string | undefined {
+  if (!configuration || typeof configuration !== 'object') return undefined
+  const avatar = (configuration as { avatar?: unknown }).avatar
+  return typeof avatar === 'string' ? avatar : undefined
+}
+
 export class GlobalSearchService {
   async search(query: GlobalSearchQuery): Promise<GlobalSearchResponse> {
     const requestedTypes = new Set(query.types ?? GLOBAL_SEARCH_TYPES)
     const types = GLOBAL_SEARCH_TYPES.filter((type) => requestedTypes.has(type))
+    const updatedAtFromMs = getUpdatedAtFromMs(query.updatedAtFrom)
 
     const groups = await Promise.all(
       types.map(
         async (type): Promise<GlobalSearchGroup> => ({
           type,
-          items: await this.searchType(type, query.q, query.limitPerType)
+          items: await this.searchType(type, query.q, query.limitPerType, updatedAtFromMs)
         })
       )
     )
@@ -33,24 +46,41 @@ export class GlobalSearchService {
     }
   }
 
-  private async searchType(type: GlobalSearchType, q: string, limit: number): Promise<GlobalSearchItem[]> {
+  private async searchType(
+    type: GlobalSearchType,
+    q: string,
+    limit: number,
+    updatedAtFromMs: number | undefined
+  ): Promise<GlobalSearchItem[]> {
     switch (type) {
       case 'assistant':
-        return await this.searchAssistants(q, limit)
+        return await this.searchAssistants(q, limit, updatedAtFromMs)
       case 'agent':
-        return await this.searchAgents(q, limit)
+        return await this.searchAgents(q, limit, updatedAtFromMs)
       case 'topic':
-        return await this.searchTopics(q, limit)
+        return await this.searchTopics(q, limit, updatedAtFromMs)
       case 'session':
-        return await this.searchSessions(q, limit)
+        return await this.searchSessions(q, limit, updatedAtFromMs)
       case 'knowledge-base':
-        return await this.searchKnowledgeBases(q, limit)
+        return await this.searchKnowledgeBases(q, limit, updatedAtFromMs)
     }
   }
 
-  private async searchAssistants(q: string, limit: number): Promise<GlobalSearchItem[]> {
-    const result = await assistantDataService.list({ search: q, page: 1, limit })
-    return result.items.map((item) => ({
+  private async searchAssistants(
+    q: string,
+    limit: number,
+    updatedAtFromMs: number | undefined
+  ): Promise<GlobalSearchItem[]> {
+    const { items } = await assistantDataService.list({
+      search: q,
+      page: 1,
+      limit,
+      updatedAtFrom: updatedAtFromMs,
+      sortBy: 'updatedAt',
+      orderBy: 'desc'
+    })
+
+    return items.map((item) => ({
       type: 'assistant',
       id: item.id,
       title: item.name,
@@ -61,36 +91,62 @@ export class GlobalSearchService {
     }))
   }
 
-  private async searchAgents(q: string, limit: number): Promise<GlobalSearchItem[]> {
-    const result = await agentService.listAgents({ search: q, limit, offset: 0 })
-    return result.agents.map((item) => ({
+  private async searchAgents(
+    q: string,
+    limit: number,
+    updatedAtFromMs: number | undefined
+  ): Promise<GlobalSearchItem[]> {
+    const { agents } = await agentService.listAgents({
+      search: q,
+      limit,
+      offset: 0,
+      updatedAtFrom: updatedAtFromMs,
+      sortBy: 'updatedAt',
+      orderBy: 'desc'
+    })
+
+    return agents.map((item) => ({
       type: 'agent',
       id: item.id,
       title: item.name,
       subtitle: item.description || undefined,
-      emoji: item.configuration?.avatar || undefined,
+      emoji: getAgentAvatar(item.configuration),
       updatedAt: item.updatedAt,
       target: { agentId: item.id }
     }))
   }
 
-  private async searchTopics(q: string, limit: number): Promise<GlobalSearchItem[]> {
-    const result = await topicService.listByCursor({ q, limit })
-    const assistantNames = await this.getAssistantNameMap(result.items.map((item) => item.assistantId))
-    return result.items.map((item) => ({
+  private async searchTopics(
+    q: string,
+    limit: number,
+    updatedAtFromMs: number | undefined
+  ): Promise<GlobalSearchItem[]> {
+    const items = await topicService.listRecentSearchMatches({ q, limit, updatedAtFrom: updatedAtFromMs })
+
+    const assistantNames = await this.getAssistantNameMap(items.map((item) => item.assistantId))
+    return items.map((item) => ({
       type: 'topic',
       id: item.id,
       title: item.name,
       subtitle: item.assistantId ? assistantNames.get(item.assistantId) : undefined,
       updatedAt: item.updatedAt,
-      target: { topicId: item.id, assistantId: item.assistantId }
+      target: { topicId: item.id, assistantId: item.assistantId ?? undefined }
     }))
   }
 
-  private async searchSessions(q: string, limit: number): Promise<GlobalSearchItem[]> {
-    const result = await sessionService.listByCursor({ search: q, limit })
-    const agentNames = await this.getAgentNameMap(result.items.map((item) => item.agentId))
-    return result.items.map((item) => ({
+  private async searchSessions(
+    q: string,
+    limit: number,
+    updatedAtFromMs: number | undefined
+  ): Promise<GlobalSearchItem[]> {
+    const items = await sessionService.listRecentSearchMatches({
+      search: q,
+      limit,
+      updatedAtFrom: updatedAtFromMs
+    })
+
+    const agentNames = await this.getAgentNameMap(items.map((item) => item.agentId))
+    return items.map((item) => ({
       type: 'session',
       id: item.id,
       title: item.name,
@@ -100,9 +156,21 @@ export class GlobalSearchService {
     }))
   }
 
-  private async searchKnowledgeBases(q: string, limit: number): Promise<GlobalSearchItem[]> {
-    const result = await knowledgeBaseService.list({ search: q, page: 1, limit })
-    return result.items.map((item) => ({
+  private async searchKnowledgeBases(
+    q: string,
+    limit: number,
+    updatedAtFromMs: number | undefined
+  ): Promise<GlobalSearchItem[]> {
+    const { items } = await knowledgeBaseService.list({
+      search: q,
+      page: 1,
+      limit,
+      updatedAtFrom: updatedAtFromMs,
+      sortBy: 'updatedAt',
+      orderBy: 'desc'
+    })
+
+    return items.map((item) => ({
       type: 'knowledge-base',
       id: item.id,
       title: item.name,

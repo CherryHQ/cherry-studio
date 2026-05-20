@@ -181,6 +181,75 @@ describe('GlobalSearchService', () => {
     expect(result.groups[0].items).toHaveLength(1)
   })
 
+  it('orders assistant matches by updatedAt', async () => {
+    await seedGlobalSearchRows()
+    const oldUpdatedAt = Date.parse('2026-04-01T00:00:00.000Z')
+    const freshUpdatedAt = Date.parse('2026-05-10T00:00:00.000Z')
+
+    await dbh.db.update(assistantTable).set({ updatedAt: oldUpdatedAt })
+    await dbh.db.insert(assistantTable).values({
+      id: '77777777-7777-4777-8777-777777777777',
+      name: 'Needle Fresh Assistant',
+      prompt: '',
+      emoji: '✨',
+      description: 'Fresh assistant result',
+      modelId: null,
+      settings: DEFAULT_ASSISTANT_SETTINGS,
+      orderKey: 'a1',
+      updatedAt: freshUpdatedAt
+    })
+
+    const result = await service.search(
+      GlobalSearchQuerySchema.parse({ q: 'Needle', types: ['assistant'], limitPerType: 5 })
+    )
+
+    expect(result.groups[0].items.map((item) => item.id)).toEqual([
+      '77777777-7777-4777-8777-777777777777',
+      '11111111-1111-4111-8111-111111111111'
+    ])
+  })
+
+  it('filters matches by updatedAtFrom when provided', async () => {
+    await seedGlobalSearchRows()
+    const oldUpdatedAt = Date.parse('2026-04-01T00:00:00.000Z')
+    const freshUpdatedAt = Date.parse('2026-05-10T00:00:00.000Z')
+
+    await dbh.db.update(assistantTable).set({ updatedAt: oldUpdatedAt })
+    await dbh.db.insert(assistantTable).values({
+      id: '77777777-7777-4777-8777-777777777777',
+      name: 'Needle Fresh Assistant',
+      prompt: '',
+      emoji: '✨',
+      description: 'Fresh assistant result',
+      modelId: null,
+      settings: DEFAULT_ASSISTANT_SETTINGS,
+      orderKey: 'a1',
+      updatedAt: freshUpdatedAt
+    })
+
+    const result = await service.search(
+      GlobalSearchQuerySchema.parse({
+        q: 'Needle',
+        types: ['assistant'],
+        limitPerType: 5,
+        updatedAtFrom: '2026-05-01T00:00:00.000Z'
+      })
+    )
+
+    expect(result.groups).toEqual([
+      {
+        type: 'assistant',
+        items: [
+          expect.objectContaining({
+            id: '77777777-7777-4777-8777-777777777777',
+            title: 'Needle Fresh Assistant',
+            updatedAt: '2026-05-10T00:00:00.000Z'
+          })
+        ]
+      }
+    ])
+  })
+
   it('returns empty item groups when no entity matches', async () => {
     const result = await service.search(GlobalSearchQuerySchema.parse({ q: 'missing', limitPerType: 2 }))
 

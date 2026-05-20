@@ -17,6 +17,7 @@ export type GlobalSearchType = z.infer<typeof GlobalSearchTypeSchema>
 export const GlobalSearchQuerySchema = z.strictObject({
   q: z.string().trim().min(1),
   types: z.array(GlobalSearchTypeSchema).min(1).optional(),
+  updatedAtFrom: z.iso.datetime().optional(),
   limitPerType: z.coerce
     .number()
     .int()

@@ -229,7 +229,7 @@ describe('AgentService', () => {
         name: 'bound',
         model: 'anthropic::claude-sonnet-4-5'
       })
-      const missing = await insertAgent({
+      const unbound = await insertAgent({
         id: 'agent_model_test_2',
         name: 'missing',
         model: deletedModelId
@@ -242,7 +242,7 @@ describe('AgentService', () => {
       const byId = new Map(agents.map((agent) => [agent.id, agent]))
 
       expect(byId.get(bound.id)?.modelName).toBe('Claude Sonnet 4.5')
-      expect(byId.get(missing.id)?.modelName).toBeNull()
+      expect(byId.get(unbound.id)?.modelName).toBeNull()
     })
 
     it('filters by search against name OR description', async () => {
@@ -253,6 +253,25 @@ describe('AgentService', () => {
       const { agents } = await agentService.listAgents({ search: 'research' })
 
       expect(agents.map((agent) => agent.id).sort()).toEqual(['agent_search_1', 'agent_search_2'])
+    })
+
+    it('filters by updatedAtFrom while preserving service-owned search and sorting', async () => {
+      const cutoff = Date.parse('2026-05-01T00:00:00.000Z')
+      await insertAgent({ id: 'agent_old', name: 'Research old', updatedAt: cutoff - 1 })
+      await insertAgent({ id: 'agent_newer', name: 'Research newer', updatedAt: cutoff + 2000 })
+      await insertAgent({ id: 'agent_newest', name: 'Research newest', updatedAt: cutoff + 3000 })
+      await insertAgent({ id: 'agent_other', name: 'Other', updatedAt: cutoff + 4000 })
+
+      const { agents, total } = await agentService.listAgents({
+        search: 'research',
+        limit: 10,
+        updatedAtFrom: cutoff,
+        sortBy: 'updatedAt',
+        orderBy: 'desc'
+      })
+
+      expect(agents.map((agent) => agent.id)).toEqual(['agent_newest', 'agent_newer'])
+      expect(total).toBe(2)
     })
   })
 })
