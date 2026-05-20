@@ -66,4 +66,34 @@ describe('TokenFluxTransport', () => {
     const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
     expect(body).toEqual({ model: 'flux-pro', input: { prompt: 'a dog', steps: 30 } })
   })
+
+  it('forwards the abort signal to the submit fetch (R4)', async () => {
+    vi.useRealTimers()
+    const transport = createTokenFluxTransport({ apiKey: 'token' })
+    const controller = new AbortController()
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((_url, init) => {
+      return new Promise((_resolve, reject) => {
+        ;(init?.signal as AbortSignal | undefined)?.addEventListener('abort', () => {
+          const e = new Error('aborted')
+          e.name = 'AbortError'
+          reject(e)
+        })
+      })
+    })
+
+    const promise = transport.submit({
+      prompt: 'a dog',
+      n: 1,
+      size: undefined,
+      seed: undefined,
+      files: undefined,
+      mask: undefined,
+      providerParams: { model: 'flux-pro', inputParams: {} },
+      signal: controller.signal
+    })
+    controller.abort()
+
+    await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
+    expect((fetchMock.mock.calls[0][1] as RequestInit).signal).toBe(controller.signal)
+  })
 })

@@ -9,10 +9,10 @@ import type { GenerateInput } from '../types'
 
 /**
  * Unified TokenFlux painting adapter on the AI-SDK-native `PollingImageModel`
- * (proven `providers/zhipu/generate.ts` pattern). Validation mirrors the
- * bespoke `generateWithTokenFlux` exactly. The TokenFlux submit/poll transport
- * runs inside the custom `ImageModelV3`; the patched `ai` SDK auto-downloads
- * the returned image URLs into base64 read by `convertImageResult`.
+ * — the sole TokenFlux painting path (the bespoke generate.ts was deleted in
+ * the cutover). The submit/poll transport runs inside the custom
+ * `ImageModelV3`; URL outputs go through the main-process `downloadImages`
+ * (R1) — proxy-aware, per-URL partial success, empty-URL toast all preserved.
  *
  * The dynamic `input_schema` fields (`painting.inputParams`) and progress
  * are forwarded through `providerOptions['tokenflux']` (passed by reference
@@ -59,7 +59,7 @@ export async function generateWithTokenFluxUnified(input: GenerateInput<TokenFlu
       }
     }
 
-    const images = await aiProvider.generateImage({
+    const out = await aiProvider.generatePaintingImage({
       model: modelId,
       prompt,
       imageSize: '1024x1024',
@@ -68,8 +68,13 @@ export async function generateWithTokenFluxUnified(input: GenerateInput<TokenFlu
       signal: abortController.signal
     })
 
-    if (images.length > 0) {
-      return { base64s: images }
+    const urls = out.flatMap((o) => (o.type === 'url' ? [o.url] : []))
+    if (urls.length > 0) {
+      return { urls }
+    }
+    const base64s = out.flatMap((o) => (o.type === 'base64' ? [o.base64] : []))
+    if (base64s.length > 0) {
+      return { base64s }
     }
 
     return undefined

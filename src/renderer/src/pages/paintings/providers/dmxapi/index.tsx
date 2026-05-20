@@ -10,7 +10,6 @@ import type { ModelOption } from '../../model/types/paintingModel'
 import type { PaintingProvider } from '../types'
 import { COURSE_URL, DEFAULT_PAINTING, GetModelGroup, MODEOPTIONS, TOP_UP_URL } from './config'
 import { buildDmxapiConfigFields } from './fields'
-import { generateWithDmxapi } from './generate'
 import { generateWithDmxapiUnified } from './generateUnified'
 import {
   clearDmxapiFileMap,
@@ -20,18 +19,6 @@ import {
   setDmxapiModelGroups,
   toDmxapiDbMode
 } from './runtime'
-
-/**
- * Bespoke direct-fetch → AI-SDK-native single-shot `PollingImageModel` switch,
- * keyed by painting provider id (dmxapi / ovms).
- *
- * EMPTY by default: every single-shot provider keeps its legacy bespoke path
- * (`generateWithDmxapi` / `generateWithOvms`), so runtime behavior is unchanged
- * (zero regression). The unified path is wired and type-checked but opt-in —
- * add a provider id here only after manual verification, and remove it to roll
- * back. Bespoke `generate.ts`/`runtime.ts` stay until Phase 4.
- */
-export const UNIFIED_SINGLESHOT_PROVIDERS = new Set<string>([])
 
 const generateRandomSeed = () => Math.floor(Math.random() * 1000000).toString()
 
@@ -146,8 +133,7 @@ export const dmxapiProvider = {
       return { model: modelId } as Partial<DmxapiPainting>
     }
   },
-  generate: (input) =>
-    UNIFIED_SINGLESHOT_PROVIDERS.has('dmxapi') ? generateWithDmxapiUnified(input) : generateWithDmxapi(input)
+  generate: (input) => generateWithDmxapiUnified(input)
 } satisfies PaintingProvider<DmxapiPainting>
 
 export { DmxapiSetting } from './components'

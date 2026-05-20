@@ -8,6 +8,8 @@ vi.mock('i18next', () => ({
   }
 }))
 
+vi.mock('@renderer/i18n', () => ({ default: { t: (k: string) => k } }))
+
 /**
  * Covers the relocated DMXAPI single-shot request building (V1 JSON
  * generations / V2 FormData edits + merge), response parsing, abort and the
@@ -162,17 +164,27 @@ describe('DmxapiTransport', () => {
     expect(result).toEqual({ imageUrls: ['data:image/png;base64,QUJD', 'https://img/c.png'] })
   })
 
-  it('throws a token error on 401 and a balance error on 403', async () => {
+  it('throws typed REQ_ERROR_TOKEN on 401 and REQ_ERROR_NO_BALANCE on 403', async () => {
     const transport = createDmxapiTransport({ apiKey: 'bad' })
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('', { status: 401 }))
     await expect(
       transport.submit({ ...baseInput, prompt: 'p', providerParams: { model: 'm', n: 1, mode: 'generation' } })
-    ).rejects.toThrow(/invalid token/)
+    ).rejects.toMatchObject({ name: 'PaintingGenerateError', code: 'REQ_ERROR_TOKEN' })
 
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('', { status: 403 }))
     await expect(
       transport.submit({ ...baseInput, prompt: 'p', providerParams: { model: 'm', n: 1, mode: 'generation' } })
-    ).rejects.toThrow(/insufficient balance/)
+    ).rejects.toMatchObject({ name: 'PaintingGenerateError', code: 'REQ_ERROR_NO_BALANCE' })
+  })
+
+  it('throws REMOTE_ERROR with the parsed body message on other non-ok status', async () => {
+    const transport = createDmxapiTransport({ apiKey: 'token' })
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: { message: 'rate limited' } }), { status: 429 })
+    )
+    await expect(
+      transport.submit({ ...baseInput, prompt: 'p', providerParams: { model: 'm', n: 1, mode: 'generation' } })
+    ).rejects.toMatchObject({ name: 'PaintingGenerateError', code: 'REMOTE_ERROR', message: 'rate limited' })
   })
 
   it('forwards the abort signal to fetch', async () => {

@@ -1,5 +1,8 @@
 import i18next from 'i18next'
 
+import { createPaintingGenerateError } from '@renderer/pages/paintings/model/paintingGenerateError'
+import { readErrorMessage } from '@renderer/pages/paintings/providers/shared/readErrorMessage'
+
 import type { PollingSubmitInput, PollingTransport } from '../pollingImageModel'
 
 /**
@@ -166,10 +169,10 @@ class DmxapiTransport implements PollingTransport {
     })
 
     if (!response.ok) {
-      if (response.status === 401) throw new Error('DMXAPI request failed: invalid token')
-      if (response.status === 403) throw new Error('DMXAPI request failed: insufficient balance')
-      const message = (await response.text().catch(() => '')).slice(0, 500)
-      throw new Error(`DMXAPI request failed: ${response.status} - ${message}`)
+      if (response.status === 401) throw createPaintingGenerateError('REQ_ERROR_TOKEN')
+      if (response.status === 403) throw createPaintingGenerateError('REQ_ERROR_NO_BALANCE')
+      const message = await readErrorMessage(response, 'paintings.generate_failed')
+      throw createPaintingGenerateError('REMOTE_ERROR', { message })
     }
 
     const data = await response.json()

@@ -11,13 +11,15 @@ import { getDmxapiFileMap } from './runtime'
 
 /**
  * Unified DMXAPI painting adapter on the AI-SDK-native single-shot
- * `PollingImageModel` (proven `providers/zhipu/generate.ts` /
- * `providers/ppio/generateUnified.ts` pattern). Validation mirrors the bespoke
- * `generateWithDmxapi` exactly. The DMXAPI request/response (V1 JSON
- * generations vs V2 FormData edits, Bearer auth, `extend_params`, seed `-1`
- * sentinel, `style_type` prepend, inline-base64 / FormData blobs) runs inside
- * the relocated transport; the patched `ai` SDK passes the returned image
- * URLs / `data:` strings through `convertImageResult`.
+ * `PollingImageModel` — the sole DMXAPI painting path (the bespoke
+ * single-shot was deleted in the cutover). The DMXAPI request/response
+ * (V1 JSON generations vs V2 FormData edits, Bearer auth, `extend_params`,
+ * seed `-1` sentinel, `style_type` prepend, inline-base64 / FormData blobs)
+ * runs inside the relocated transport; URL outputs go through the
+ * main-process `downloadImages` with `allowBase64DataUrls` (some DMXAPI
+ * models return data URLs in the URL slot), base64 outputs are saved
+ * directly. Typed 401/403 errors map to `REQ_ERROR_TOKEN` /
+ * `REQ_ERROR_NO_BALANCE` (transport, R3).
  *
  * DMXAPI file blobs (the `getDmxapiFileMap()` upload store, mode-keyed) and all
  * provider-specific painting fields are forwarded by reference through
@@ -91,7 +93,7 @@ export async function generateWithDmxapiUnified(input: GenerateInput<DmxapiPaint
       }
     }
 
-    const images = await aiProvider.generateImage({
+    const out = await aiProvider.generatePaintingImage({
       model: modelId,
       prompt: painting.prompt ?? '',
       imageSize: painting.image_size ?? '1024x1024',
@@ -100,8 +102,16 @@ export async function generateWithDmxapiUnified(input: GenerateInput<DmxapiPaint
       signal: abortController.signal
     })
 
-    if (images.length > 0) {
-      return { base64s: images }
+    // DMXAPI's `data.data[].url` items may be either http URLs or inline
+    // `data:` URLs (depending on the model); the bespoke path passed both
+    // through `downloadImages` with `allowBase64DataUrls:true`.
+    const urls = out.flatMap((o) => (o.type === 'url' ? [o.url] : []))
+    if (urls.length > 0) {
+      return { urls, downloadOptions: { allowBase64DataUrls: true } }
+    }
+    const base64s = out.flatMap((o) => (o.type === 'base64' ? [o.base64] : []))
+    if (base64s.length > 0) {
+      return { base64s }
     }
 
     return undefined

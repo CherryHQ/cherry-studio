@@ -9,15 +9,18 @@ import type { GenerateInput } from '../types'
 import { getModelConfig, getModelsByMode } from './config'
 
 /**
- * Unified PPIO painting adapter on the AI-SDK-native `PollingImageModel`
- * (proven `providers/zhipu/generate.ts` pattern). Validation mirrors the
- * bespoke `generateWithPpio` exactly. The PPIO submit/poll transport runs
- * inside the custom `ImageModelV3`; the patched `ai` SDK auto-downloads the
- * returned image URLs into base64 read by `convertImageResult`.
+ * Unified PPIO painting adapter on the AI-SDK-native `PollingImageModel` —
+ * the sole PPIO painting path (the bespoke generate.ts was deleted in the
+ * cutover). The submit/poll transport runs inside the custom `ImageModelV3`;
+ * signed-CDN URL results go through the main-process `downloadImages` (R1)
+ * with the bespoke proxy/auth handling, per-URL partial success, and the
+ * empty-URL toast intact.
  *
- * Provider-specific painting fields and the polling `onProgress` callback are
- * forwarded through `providerOptions['ppio']` (passed by reference through the
- * plugin chain, so the non-JSON callback survives to `doGenerate`).
+ * Provider-specific painting fields, the polling `onProgress` callback, and
+ * the submit-time task-id callback (parity with the bespoke
+ * `onGenerationStateChange({ generationTaskId })`) are forwarded through
+ * `providerOptions['ppio']` (passed by reference through the plugin chain,
+ * so the non-JSON callbacks survive to `doGenerate`).
  */
 export async function generateWithPpioUnified(input: GenerateInput<PpioPainting>) {
   const { painting, provider, abortController } = input
@@ -77,11 +80,14 @@ export async function generateWithPpioUnified(input: GenerateInput<PpioPainting>
         outputFormat: painting.outputFormat,
         onProgress: (progress: number) => {
           input.onGenerationStateChange?.({ generationProgress: progress })
+        },
+        onSubmitTaskId: (taskId: string) => {
+          input.onGenerationStateChange?.({ generationTaskId: taskId })
         }
       }
     }
 
-    const images = await aiProvider.generateImage({
+    const out = await aiProvider.generatePaintingImage({
       model: modelId,
       prompt: painting.prompt ?? '',
       imageSize: painting.size ?? '1024x1024',
@@ -90,8 +96,13 @@ export async function generateWithPpioUnified(input: GenerateInput<PpioPainting>
       signal: abortController.signal
     })
 
-    if (images.length > 0) {
-      return { base64s: images }
+    const urls = out.flatMap((o) => (o.type === 'url' ? [o.url] : []))
+    if (urls.length > 0) {
+      return { urls }
+    }
+    const base64s = out.flatMap((o) => (o.type === 'base64' ? [o.base64] : []))
+    if (base64s.length > 0) {
+      return { base64s }
     }
 
     return undefined

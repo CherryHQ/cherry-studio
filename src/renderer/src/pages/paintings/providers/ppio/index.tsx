@@ -3,21 +3,8 @@ import type { PaintingProvider } from '../types'
 import { getModelsByMode, type PpioMode } from './config'
 import { createDefaultPpioPainting } from './config'
 import { ppioFields } from './fields'
-import { generateWithPpio } from './generate'
 import { generateWithPpioUnified } from './generateUnified'
 import { getPpioPreviewSrc, handlePpioImageUpload, ppioImagePlaceholder } from './imageUpload'
-
-/**
- * Bespoke direct-fetch → AI-SDK-native `PollingImageModel` switch, keyed by
- * painting provider id (ppio / tokenflux).
- *
- * EMPTY by default: every polling provider keeps its legacy bespoke path
- * (`generateWithPpio` / `generateWithTokenFlux`), so runtime behavior is
- * unchanged (zero regression). The unified path is wired and type-checked but
- * opt-in — add a provider id here only after manual verification, and remove
- * it to roll back. Bespoke `generate.ts`/`service.ts` stay until Phase 4.
- */
-export const UNIFIED_POLLING_PROVIDERS = new Set<string>([])
 
 export const ppioProvider = {
   id: 'ppio',
@@ -46,6 +33,5 @@ export const ppioProvider = {
     getPreviewSrc: ({ key, painting }) => getPpioPreviewSrc(key, painting),
     placeholder: ppioImagePlaceholder
   },
-  generate: (input) =>
-    UNIFIED_POLLING_PROVIDERS.has('ppio') ? generateWithPpioUnified(input) : generateWithPpio(input)
+  generate: (input) => generateWithPpioUnified(input)
 } satisfies PaintingProvider<PaintingData>

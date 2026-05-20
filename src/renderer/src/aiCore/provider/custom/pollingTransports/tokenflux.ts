@@ -79,10 +79,10 @@ class TokenFluxTransport implements PollingTransport {
       model: params.model ?? '',
       input: {
         prompt: input.prompt ?? '',
-        ...(params.inputParams ?? {})
+        ...params.inputParams
       }
     }
-    const generationId = await this.createGeneration(request)
+    const generationId = await this.createGeneration(request, input.signal)
     return { taskId: generationId }
   }
 

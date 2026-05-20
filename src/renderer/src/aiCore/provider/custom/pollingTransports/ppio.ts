@@ -106,6 +106,9 @@ export interface PpioProviderParams {
   resolution?: string
   outputFormat?: string
   onProgress?: (progress: number) => void
+  /** Painting telemetry: called once with the PPIO async task id (parity with
+   * the bespoke `onGenerationStateChange({ generationTaskId })` callback). */
+  onSubmitTaskId?: (taskId: string) => void
 }
 
 export interface PpioTransportSettings {
@@ -197,11 +200,22 @@ class PpioTransport implements PollingTransport {
     const requestParams = this.buildRequestParams(input, params, descriptor.id)
 
     if (descriptor.isSync) {
-      const result = await this.request<PpioSyncResult>(descriptor.endpoint, requestParams)
+      const result = await this.request<PpioSyncResult>(descriptor.endpoint, requestParams, 'POST', 120000, input.signal)
       return { imageUrls: result.images }
     }
 
-    const result = await this.request<{ task_id: string }>(descriptor.endpoint, requestParams)
+    const result = await this.request<{ task_id: string }>(
+      descriptor.endpoint,
+      requestParams,
+      'POST',
+      120000,
+      input.signal
+    )
+    // Surface the async task id so the painting layer can record/resume it
+    // (parity with the bespoke `onGenerationStateChange({ generationTaskId })`).
+    if (typeof params.onSubmitTaskId === 'function') {
+      params.onSubmitTaskId(result.task_id)
+    }
     return { taskId: result.task_id }
   }
 
@@ -351,10 +365,12 @@ class PpioTransport implements PollingTransport {
   }
 
   private buildEraserParams(input: PollingSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
+    // Bespoke omitted `prompt` entirely when unset; preserve that (eraser is
+    // one of the no-prompt models, so an empty string would change the body).
     return {
       image: painting.imageFile,
       mask: painting.ppioMask,
-      prompt: input.prompt,
+      ...(input.prompt ? { prompt: input.prompt } : {}),
       output_format: painting.outputFormat || 'jpeg'
     }
   }

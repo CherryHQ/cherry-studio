@@ -8,14 +8,13 @@ import type { GenerateInput } from '../types'
 
 /**
  * Unified OVMS painting adapter on the AI-SDK-native single-shot
- * `PollingImageModel` (proven `providers/zhipu/generate.ts` /
- * `providers/ppio/generateUnified.ts` pattern). Validation mirrors the bespoke
- * `generateWithOvms` exactly — OVMS is a local OpenVINO Model Server with NO
- * auth, so (unlike every other adapter) it does NOT call `checkProviderEnabled`
- * and passes an empty `apiKey`. The single `${apiHost}/images/generations`
- * request/response runs inside the relocated transport; the patched `ai` SDK
- * passes the returned image URLs / `data:` strings through
- * `convertImageResult`.
+ * `PollingImageModel` — the sole OVMS painting path (the bespoke
+ * single-shot was deleted in the cutover). OVMS is a local OpenVINO Model
+ * Server with NO auth, so (unlike every other adapter) it does NOT call
+ * `checkProviderEnabled` and passes an empty `apiKey`. The single
+ * `${apiHost}/images/generations` request/response runs inside the
+ * relocated transport; URL outputs go through the main-process
+ * `downloadImages`, base64 outputs are saved directly (via R1).
  *
  * Provider-specific painting fields are forwarded through
  * `providerOptions['ovms']`; the local host arrives as the resolved
@@ -61,7 +60,7 @@ export async function generateWithOvmsUnified(input: GenerateInput<OvmsPaintingD
       }
     }
 
-    const images = await aiProvider.generateImage({
+    const out = await aiProvider.generatePaintingImage({
       model: modelId,
       prompt: painting.prompt ?? '',
       imageSize: painting.size ?? '512x512',
@@ -70,8 +69,15 @@ export async function generateWithOvmsUnified(input: GenerateInput<OvmsPaintingD
       signal: abortController.signal
     })
 
-    if (images.length > 0) {
-      return { base64s: images }
+    // OVMS may return either http URLs (download via main process) or
+    // base64; bespoke distinguished the two and so do we.
+    const urls = out.flatMap((o) => (o.type === 'url' ? [o.url] : []))
+    if (urls.length > 0) {
+      return { urls }
+    }
+    const base64s = out.flatMap((o) => (o.type === 'base64' ? [o.base64] : []))
+    if (base64s.length > 0) {
+      return { base64s }
     }
 
     return undefined
