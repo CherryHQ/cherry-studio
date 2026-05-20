@@ -2184,6 +2184,42 @@
     "title": "文件",
     "type": "类型"
   },
+  "globalSearch": {
+    "clear": "清空搜索",
+    "error": "搜索失败",
+    "filters": {
+      "agent": "智能体",
+      "all": "全部",
+      "assistant": "助手",
+      "conversation": "对话",
+      "knowledge": "知识库",
+      "label": "搜索类型"
+    },
+    "groups": {
+      "agent": "智能体",
+      "assistant": "助手",
+      "conversation": "对话",
+      "knowledge-base": "知识库",
+      "recent": "最近",
+      "session": "工作",
+      "topic": "话题"
+    },
+    "keyboard": {
+      "select": "选择"
+    },
+    "no_recent": "暂无最近访问",
+    "open": "打开全局搜索",
+    "open_failed": "打开搜索结果失败",
+    "placeholder": "开始输入搜索...",
+    "recent_hint": "输入关键词搜索对话、助手、智能体和知识库",
+    "resultTypes": {
+      "agent": "智能体",
+      "assistant": "助手",
+      "knowledge-base": "知识库",
+      "session": "会话",
+      "topic": "话题"
+    }
+  },
   "gpustack": {
     "keep_alive_time": {
       "description": "模型在内存中保持的时间（默认：5 分钟）",

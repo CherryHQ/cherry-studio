@@ -1,25 +1,55 @@
 import '@renderer/databases'
 
+import { usePersistCache } from '@renderer/data/hooks/useCache'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { cn } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
+import { useCallback, useEffect, useMemo } from 'react'
 
 import { useTabs } from '../../hooks/useTabs'
 import Sidebar from '../app/Sidebar'
+import { createRecentRouteEntryFromTab, upsertGlobalSearchRecentEntry } from '../global-search/globalSearchGroups'
 import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
 import { AppShellTabBar } from './AppShellTabBar'
 import { TabRouter } from './TabRouter'
 
 export const AppShell = () => {
   const isMacTransparentWindow = useMacTransparentWindow()
-  const { tabs, activeTabId, setActiveTab, closeTab, updateTab, addTab, reorderTabs, pinTab, unpinTab } = useTabs()
+  const { tabs, activeTabId, setActiveTab, closeTab, updateTab, reorderTabs, pinTab, unpinTab } = useTabs()
+  const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
+  const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
+
+  const recordRouteVisit = useCallback(
+    (tab: typeof activeTab, lastAccessTime = tab?.lastAccessTime) => {
+      if (!tab) return
+
+      const entry = createRecentRouteEntryFromTab(tab, lastAccessTime)
+      if (!entry) return
+
+      const nextItems = upsertGlobalSearchRecentEntry(recentItems, entry)
+      if (nextItems !== recentItems) {
+        setRecentItems(nextItems)
+      }
+    },
+    [recentItems, setRecentItems]
+  )
+
+  useEffect(() => {
+    recordRouteVisit(activeTab)
+  }, [activeTab, recordRouteVisit])
 
   // Sync internal navigation back to tab state. Clear the per-entity icon
   // override too — it was supplied for a specific URL (e.g. a mini-app's
   // logo on /app/mini-app/<id>) and no longer applies once the user
   // navigates elsewhere inside the same tab.
   const handleUrlChange = (tabId: string, url: string) => {
-    updateTab(tabId, { url, title: getDefaultRouteTitle(url), icon: undefined })
+    const title = getDefaultRouteTitle(url)
+    updateTab(tabId, { url, title, icon: undefined, lastAccessTime: Date.now() })
+
+    const tab = tabs.find((candidate) => candidate.id === tabId)
+    if (tab) {
+      recordRouteVisit({ ...tab, url, title, icon: undefined }, Date.now())
+    }
   }
 
   return (
@@ -34,7 +64,6 @@ export const AppShell = () => {
         activeTabId={activeTabId}
         setActiveTab={setActiveTab}
         closeTab={closeTab}
-        addTab={addTab}
         reorderTabs={reorderTabs}
         pinTab={pinTab}
         unpinTab={unpinTab}

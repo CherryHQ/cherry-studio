@@ -1,0 +1,228 @@
+import type { GlobalSearchResponse } from '@shared/data/api/schemas/globalSearch'
+import { describe, expect, it } from 'vitest'
+
+import {
+  buildGlobalSearchGroups,
+  createRecentRouteEntryFromTab,
+  createRecentSessionEntryFromSession,
+  createRecentTopicEntryFromTopic,
+  getGlobalSearchTypes,
+  GLOBAL_SEARCH_DISPLAY_RECENT_LIMIT,
+  GLOBAL_SEARCH_RECENT_ITEM_LIMIT,
+  upsertGlobalSearchRecentEntry
+} from '../globalSearchGroups'
+
+describe('globalSearchGroups', () => {
+  it('keeps recent items de-duplicated and capped by latest access', () => {
+    const entries = Array.from({ length: GLOBAL_SEARCH_RECENT_ITEM_LIMIT }, (_, index) => ({
+      kind: 'topic' as const,
+      topicId: `topic-${index}`,
+      title: `Topic ${index}`,
+      lastAccessTime: index
+    }))
+
+    const next = upsertGlobalSearchRecentEntry(entries, {
+      kind: 'topic',
+      topicId: 'topic-10',
+      title: 'Updated topic',
+      lastAccessTime: 100
+    })
+
+    expect(next).toHaveLength(GLOBAL_SEARCH_RECENT_ITEM_LIMIT)
+    expect(next[0]).toEqual({
+      kind: 'topic',
+      topicId: 'topic-10',
+      title: 'Updated topic',
+      lastAccessTime: 100
+    })
+    expect(next.filter((entry) => entry.kind === 'topic' && entry.topicId === 'topic-10')).toHaveLength(1)
+  })
+
+  it('shows recent items only before a search query is entered', () => {
+    const recentItems = Array.from({ length: GLOBAL_SEARCH_DISPLAY_RECENT_LIMIT + 1 }, (_, index) => ({
+      kind: 'route' as const,
+      url: `/app/item-${index}`,
+      title: `Item ${index}`,
+      lastAccessTime: 100 - index
+    }))
+
+    expect(
+      buildGlobalSearchGroups({
+        query: '',
+        filter: 'all',
+        recentItems,
+        response: undefined
+      })
+    ).toEqual([
+      expect.objectContaining({
+        id: 'recent',
+        items: expect.arrayContaining([expect.objectContaining({ id: 'route:/app/item-0' })])
+      })
+    ])
+
+    const response: GlobalSearchResponse = {
+      query: 'agent',
+      groups: [
+        {
+          type: 'assistant',
+          items: [
+            {
+              type: 'assistant',
+              id: 'assistant-1',
+              title: 'Assistant',
+              target: { assistantId: 'assistant-1' }
+            }
+          ]
+        }
+      ]
+    }
+
+    expect(
+      buildGlobalSearchGroups({
+        query: 'agent',
+        filter: 'all',
+        recentItems,
+        response
+      }).map((group) => group.id)
+    ).toEqual(['assistant'])
+  })
+
+  it('includes knowledge bases in all search and supports knowledge filtering', () => {
+    const response: GlobalSearchResponse = {
+      query: 'docs',
+      groups: [
+        {
+          type: 'knowledge-base',
+          items: [
+            {
+              type: 'knowledge-base',
+              id: 'knowledge-1',
+              title: 'Docs',
+              target: { knowledgeBaseId: 'knowledge-1' }
+            }
+          ]
+        }
+      ]
+    }
+
+    expect(getGlobalSearchTypes('all')).toEqual(['topic', 'session', 'assistant', 'agent', 'knowledge-base'])
+    expect(getGlobalSearchTypes('knowledge')).toEqual(['knowledge-base'])
+    expect(
+      buildGlobalSearchGroups({
+        query: 'docs',
+        filter: 'all',
+        recentItems: [],
+        response
+      })
+    ).toEqual([
+      expect.objectContaining({
+        id: 'knowledge-base',
+        items: [expect.objectContaining({ id: 'knowledge-base:knowledge-1' })]
+      })
+    ])
+  })
+
+  it('creates entity-level recent entries and skips coarse chat routes', () => {
+    expect(
+      createRecentRouteEntryFromTab({
+        id: 'chat',
+        type: 'route',
+        url: '/app/chat',
+        title: 'Chat',
+        lastAccessTime: 10
+      })
+    ).toBeNull()
+
+    expect(
+      createRecentTopicEntryFromTopic(
+        {
+          id: 'topic-1',
+          name: 'Topic title',
+          assistantId: 'assistant-1'
+        },
+        20
+      )
+    ).toEqual({
+      kind: 'topic',
+      topicId: 'topic-1',
+      title: 'Topic title',
+      assistantId: 'assistant-1',
+      lastAccessTime: 20
+    })
+
+    expect(
+      createRecentSessionEntryFromSession(
+        {
+          id: 'session-1',
+          name: 'Session title',
+          agentId: 'agent-1'
+        },
+        30
+      )
+    ).toEqual({
+      kind: 'session',
+      sessionId: 'session-1',
+      title: 'Session title',
+      agentId: 'agent-1',
+      lastAccessTime: 30
+    })
+  })
+
+  it('maps conversation filter to topic and session search types and separate groups', () => {
+    const response: GlobalSearchResponse = {
+      query: 'plan',
+      groups: [
+        {
+          type: 'topic',
+          items: [
+            {
+              type: 'topic',
+              id: 'topic-1',
+              title: 'Topic',
+              target: { topicId: 'topic-1' }
+            }
+          ]
+        },
+        {
+          type: 'session',
+          items: [
+            {
+              type: 'session',
+              id: 'session-1',
+              title: 'Session',
+              target: { sessionId: 'session-1', agentId: 'agent-1' }
+            }
+          ]
+        }
+      ]
+    }
+
+    expect(getGlobalSearchTypes('conversation')).toEqual(['topic', 'session'])
+    expect(
+      buildGlobalSearchGroups({
+        query: 'plan',
+        filter: 'conversation',
+        recentItems: [],
+        response
+      })
+    ).toEqual([
+      expect.objectContaining({
+        id: 'topic',
+        items: [expect.objectContaining({ id: 'topic:topic-1' })]
+      }),
+      expect.objectContaining({
+        id: 'session',
+        items: [expect.objectContaining({ id: 'session:session-1' })]
+      })
+    ])
+
+    expect(
+      buildGlobalSearchGroups({
+        query: 'plan',
+        filter: 'all',
+        recentItems: [],
+        response
+      }).map((group) => group.id)
+    ).toEqual(['topic', 'session'])
+  })
+})

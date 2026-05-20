@@ -1,5 +1,5 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
-import HistoryPage from '@renderer/pages/history/HistoryPage'
+import { GlobalSearchPanel } from '@renderer/components/global-search/GlobalSearchPanel'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -41,11 +41,12 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="flex h-[80vh] max-h-[80vh] max-w-[700px] flex-col overflow-hidden rounded-[20px] p-0 pb-4">
+        overlayClassName="bg-black/50 backdrop-blur-[8px]"
+        className="flex h-[80vh] max-h-[80vh] w-[70vw] max-w-[70vw] flex-col gap-0 overflow-hidden rounded-[32px] border border-border-subtle bg-background p-0 shadow-2xl sm:max-w-[70vw]">
         <DialogHeader className="sr-only">
-          <DialogTitle>{t('common.search')}</DialogTitle>
+          <DialogTitle>{t('globalSearch.open')}</DialogTitle>
         </DialogHeader>
-        <HistoryPage />
+        <GlobalSearchPanel onClose={closePopup} />
       </DialogContent>
     </Dialog>
   )

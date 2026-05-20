@@ -55,6 +55,7 @@ export class GlobalSearchService {
       id: item.id,
       title: item.name,
       subtitle: item.description || undefined,
+      emoji: item.emoji,
       updatedAt: item.updatedAt,
       target: { assistantId: item.id }
     }))
@@ -67,6 +68,7 @@ export class GlobalSearchService {
       id: item.id,
       title: item.name,
       subtitle: item.description || undefined,
+      emoji: item.configuration?.avatar || undefined,
       updatedAt: item.updatedAt,
       target: { agentId: item.id }
     }))
@@ -74,10 +76,12 @@ export class GlobalSearchService {
 
   private async searchTopics(q: string, limit: number): Promise<GlobalSearchItem[]> {
     const result = await topicService.listByCursor({ q, limit })
+    const assistantNames = await this.getAssistantNameMap(result.items.map((item) => item.assistantId))
     return result.items.map((item) => ({
       type: 'topic',
       id: item.id,
       title: item.name,
+      subtitle: item.assistantId ? assistantNames.get(item.assistantId) : undefined,
       updatedAt: item.updatedAt,
       target: { topicId: item.id, assistantId: item.assistantId }
     }))
@@ -85,11 +89,12 @@ export class GlobalSearchService {
 
   private async searchSessions(q: string, limit: number): Promise<GlobalSearchItem[]> {
     const result = await sessionService.listByCursor({ search: q, limit })
+    const agentNames = await this.getAgentNameMap(result.items.map((item) => item.agentId))
     return result.items.map((item) => ({
       type: 'session',
       id: item.id,
       title: item.name,
-      subtitle: item.description || undefined,
+      subtitle: item.agentId ? agentNames.get(item.agentId) : undefined,
       updatedAt: item.updatedAt,
       target: { sessionId: item.id, agentId: item.agentId }
     }))
@@ -101,9 +106,35 @@ export class GlobalSearchService {
       type: 'knowledge-base',
       id: item.id,
       title: item.name,
+      emoji: item.emoji,
       updatedAt: item.updatedAt,
       target: { knowledgeBaseId: item.id }
     }))
+  }
+
+  private async getAssistantNameMap(ids: Array<string | undefined>): Promise<Map<string, string>> {
+    const uniqueIds = [...new Set(ids.filter((id): id is string => !!id))]
+    const pairs = await Promise.all(
+      uniqueIds.map(async (id) => {
+        const result = await assistantDataService.list({ id, page: 1, limit: 1 })
+        const assistant = result.items[0]
+        return assistant ? ([id, assistant.name] as const) : undefined
+      })
+    )
+
+    return new Map(pairs.filter((pair): pair is readonly [string, string] => !!pair))
+  }
+
+  private async getAgentNameMap(ids: Array<string | null>): Promise<Map<string, string>> {
+    const uniqueIds = [...new Set(ids.filter((id): id is string => !!id))]
+    const pairs = await Promise.all(
+      uniqueIds.map(async (id) => {
+        const agent = await agentService.getAgent(id)
+        return agent ? ([id, agent.name] as const) : undefined
+      })
+    )
+
+    return new Map(pairs.filter((pair): pair is readonly [string, string] => !!pair))
   }
 }
 

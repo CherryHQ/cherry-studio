@@ -39,6 +39,7 @@ export type GlobalSearchItem = {
   id: string
   title: string
   subtitle?: string
+  emoji?: string
   updatedAt?: string
   target: GlobalSearchTarget
 }

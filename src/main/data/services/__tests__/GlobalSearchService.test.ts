@@ -57,6 +57,7 @@ describe('GlobalSearchService', () => {
       description: 'Agent result',
       instructions: 'Help',
       model: null,
+      configuration: { avatar: '🧠' },
       orderKey: 'a0'
     })
     await dbh.db.insert(topicTable).values({
@@ -110,6 +111,7 @@ describe('GlobalSearchService', () => {
           type: 'assistant',
           id: '11111111-1111-4111-8111-111111111111',
           title: 'Needle Assistant',
+          emoji: '🌟',
           target: { assistantId: '11111111-1111-4111-8111-111111111111' }
         })
       ],
@@ -118,6 +120,7 @@ describe('GlobalSearchService', () => {
           type: 'agent',
           id: '22222222-2222-4222-8222-222222222222',
           title: 'Needle Agent',
+          emoji: '🧠',
           target: { agentId: '22222222-2222-4222-8222-222222222222' }
         })
       ],
@@ -126,6 +129,7 @@ describe('GlobalSearchService', () => {
           type: 'topic',
           id: '33333333-3333-4333-8333-333333333333',
           title: 'Needle Topic',
+          subtitle: 'Needle Assistant',
           target: {
             topicId: '33333333-3333-4333-8333-333333333333',
             assistantId: '11111111-1111-4111-8111-111111111111'
@@ -137,6 +141,7 @@ describe('GlobalSearchService', () => {
           type: 'session',
           id: '44444444-4444-4444-8444-444444444444',
           title: 'Needle Session',
+          subtitle: 'Needle Agent',
           target: {
             sessionId: '44444444-4444-4444-8444-444444444444',
             agentId: '22222222-2222-4222-8222-222222222222'
@@ -148,6 +153,7 @@ describe('GlobalSearchService', () => {
           type: 'knowledge-base',
           id: '55555555-5555-4555-8555-555555555555',
           title: 'Needle Knowledge',
+          emoji: '📁',
           target: {
             knowledgeBaseId: '55555555-5555-4555-8555-555555555555'
           }

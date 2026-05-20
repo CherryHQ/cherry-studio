@@ -1,9 +1,14 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
+import {
+  createRecentSessionEntryFromSession,
+  upsertGlobalSearchRecentEntry
+} from '@renderer/components/global-search/globalSearchGroups'
 import { useCache, usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
+import { useSession } from '@renderer/hooks/agents/useSession'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { type TemporaryConversationDefaults, useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
@@ -30,6 +35,9 @@ const AgentPage = () => {
   const [activeSessionId, setActiveSessionId] = useCache('agent.active_session_id')
   const [lastUsedAgentId, setLastUsedAgentId] = usePersistCache('ui.agent.last_used_agent_id')
   const [lastUsedWorkspaceId, setLastUsedWorkspaceId] = usePersistCache('ui.agent.last_used_workspace_id')
+  const { session: activeSession } = useSession(activeSessionId)
+  const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
+  const lastRecordedRecentSessionRef = useRef<string | undefined>(undefined)
   const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
   const sessionRevealRequestIdRef = useRef(0)
   const initialTemporarySessionEvaluatedRef = useRef(false)
@@ -54,6 +62,19 @@ const AgentPage = () => {
   useShortcut('topic.toggle_show_topics', () => {
     void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
   })
+
+  useEffect(() => {
+    if (!activeSession) return
+
+    const signature = `${activeSession.id}:${activeSession.name}:${activeSession.agentId ?? ''}`
+    if (lastRecordedRecentSessionRef.current === signature) return
+
+    const nextItems = upsertGlobalSearchRecentEntry(recentItems, createRecentSessionEntryFromSession(activeSession))
+    lastRecordedRecentSessionRef.current = signature
+    if (nextItems !== recentItems) {
+      setRecentItems(nextItems)
+    }
+  }, [activeSession, recentItems, setRecentItems])
 
   useEffect(() => {
     void window.api.window.setMinimumSize(showSidebar ? MIN_WINDOW_WIDTH : SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
@@ -85,6 +106,16 @@ const AgentPage = () => {
     },
     [discardTemporaryConversation, setActiveSessionId, setShowSidebar]
   )
+
+  useEffect(() => {
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION, (sessionId) => {
+      handleHistorySessionSelect(sessionId as string)
+    })
+
+    return () => {
+      unsubscribe()
+    }
+  }, [handleHistorySessionSelect])
 
   const startTemporarySession = useCallback(
     async (defaults: TemporaryConversationDefaults) => {

@@ -6,11 +6,11 @@ import {
   ContextMenuTrigger,
   Tooltip
 } from '@cherrystudio/ui'
+import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { isMac } from '@renderer/config/constant'
 import { getMiniAppsLogo } from '@renderer/config/miniApps'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { cn, uuid } from '@renderer/utils'
-import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
+import { cn } from '@renderer/utils'
 import { ChevronsLeft, Pin, PinOff, Plus, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -43,7 +43,6 @@ const TabIcon: FC<{ tab: Tab; size: number; className?: string }> = ({ tab, size
 }
 
 const DEFAULT_TAB_ID = 'chat'
-const LAUNCHPAD_URL = '/app/launchpad'
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -52,7 +51,7 @@ type AppShellTabBarProps = {
   activeTabId: string
   setActiveTab: (id: string) => void
   closeTab: (id: string) => void
-  addTab: (tab: Tab) => void
+  addTab?: (tab: Tab) => void
   reorderTabs: (type: 'pinned' | 'normal', oldIndex: number, newIndex: number) => void
   pinTab: (id: string) => void
   unpinTab: (id: string) => void
@@ -305,7 +304,6 @@ export const AppShellTabBar = ({
   activeTabId,
   setActiveTab,
   closeTab,
-  addTab,
   reorderTabs,
   pinTab,
   unpinTab,
@@ -385,13 +383,8 @@ export const AppShellTabBar = ({
 
   // ─── Action handlers ────────────────────────────────────────────────────────
 
-  const handleAddTab = () => {
-    addTab({
-      id: uuid(),
-      type: 'route',
-      url: LAUNCHPAD_URL,
-      title: getDefaultRouteTitle(LAUNCHPAD_URL)
-    })
+  const handleOpenGlobalSearch = () => {
+    void SearchPopup.show()
   }
 
   // ─── Render ─────────────────────────────────────────────────────────────────
@@ -509,12 +502,13 @@ export const AppShellTabBar = ({
           {!isDetached && (
             <button
               type="button"
-              onClick={handleAddTab}
+              aria-label={t('globalSearch.open')}
+              onClick={handleOpenGlobalSearch}
               className={cn(
                 'sticky right-0 ml-0.5 flex h-7 w-7 shrink-0 appearance-none items-center justify-center rounded-[10px] border-0 bg-transparent p-0 text-muted-foreground shadow-none transition-colors [-webkit-app-region:no-drag] hover:text-sidebar-foreground',
                 isMacTransparentWindow ? 'hover:bg-white/50 dark:hover:bg-white/8' : 'hover:bg-sidebar-accent'
               )}
-              title={t('tab.new')}>
+              title={t('globalSearch.open')}>
               <Plus size={14} />
             </button>
           )}

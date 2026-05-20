@@ -6,6 +6,7 @@ import {
   useUpdateKnowledgeBase
 } from '@renderer/hooks/useKnowledgeBase'
 import { useKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -172,6 +173,17 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     setSelectedBaseId(baseId)
     setSelectedItemId(null)
   }, [])
+
+  useEffect(() => {
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE, (baseId) => {
+      if (typeof baseId !== 'string') return
+      selectBase(baseId)
+    })
+
+    return () => {
+      unsubscribe()
+    }
+  }, [selectBase])
 
   const handleSetActiveTab = useCallback((tab: KnowledgeTabKey) => {
     setActiveTab(tab)

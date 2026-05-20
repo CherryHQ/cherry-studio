@@ -2184,6 +2184,42 @@
     "title": "Files",
     "type": "Type"
   },
+  "globalSearch": {
+    "clear": "Clear search",
+    "error": "Search failed",
+    "filters": {
+      "agent": "Agent",
+      "all": "All",
+      "assistant": "Assistant",
+      "conversation": "Conversation",
+      "knowledge": "Knowledge",
+      "label": "Search type"
+    },
+    "groups": {
+      "agent": "Agent",
+      "assistant": "Assistant",
+      "conversation": "Conversation",
+      "knowledge-base": "Knowledge",
+      "recent": "Recent",
+      "session": "Work",
+      "topic": "Topic"
+    },
+    "keyboard": {
+      "select": "Select"
+    },
+    "no_recent": "No recent routes",
+    "open": "Open global search",
+    "open_failed": "Failed to open search result",
+    "placeholder": "Start typing to search...",
+    "recent_hint": "Type to search conversations, assistants, agents, and knowledge",
+    "resultTypes": {
+      "agent": "Agent",
+      "assistant": "Assistant",
+      "knowledge-base": "Knowledge",
+      "session": "Session",
+      "topic": "Topic"
+    }
+  },
   "gpustack": {
     "keep_alive_time": {
       "description": "The time in minutes to keep the connection alive, default is 5 minutes.",

@@ -2184,6 +2184,42 @@
     "title": "檔案",
     "type": "類型"
   },
+  "globalSearch": {
+    "clear": "清空搜尋",
+    "error": "搜尋失敗",
+    "filters": {
+      "agent": "智能體",
+      "all": "全部",
+      "assistant": "助手",
+      "conversation": "對話",
+      "knowledge": "知識庫",
+      "label": "搜尋類型"
+    },
+    "groups": {
+      "agent": "智能體",
+      "assistant": "助手",
+      "conversation": "對話",
+      "knowledge-base": "知識庫",
+      "recent": "最近",
+      "session": "工作",
+      "topic": "話題"
+    },
+    "keyboard": {
+      "select": "選擇"
+    },
+    "no_recent": "暫無最近訪問",
+    "open": "開啟全域搜尋",
+    "open_failed": "開啟搜尋結果失敗",
+    "placeholder": "開始輸入搜尋...",
+    "recent_hint": "輸入關鍵詞搜尋對話、助手、智能體和知識庫",
+    "resultTypes": {
+      "agent": "智能體",
+      "assistant": "助手",
+      "knowledge-base": "知識庫",
+      "session": "會話",
+      "topic": "話題"
+    }
+  },
   "gpustack": {
     "keep_alive_time": {
       "description": "模型在記憶體中保持的時間（預設為 5 分鐘）",
