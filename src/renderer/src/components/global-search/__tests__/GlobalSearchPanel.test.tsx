@@ -346,6 +346,16 @@ describe('GlobalSearchPanel', () => {
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
   })
 
+  it('hides the quick app button area when requested', () => {
+    render(<GlobalSearchPanel hideQuickApps onClose={mocks.onClose} />)
+
+    expect(screen.queryByRole('button', { name: 'Chat' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Translate' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Manage' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Search type' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Updated time' })).toBeInTheDocument()
+  })
+
   it('opens shortcut navigation in a new tab when the active tab is pinned', async () => {
     const user = userEvent.setup()
     mocks.activeTab = {

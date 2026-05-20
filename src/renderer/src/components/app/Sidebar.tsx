@@ -17,6 +17,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useTranslation } from 'react-i18next'
 
 import { useTabs } from '../../hooks/useTabs'
+import SearchPopup from '../Popups/SearchPopup'
 import UserPopup from '../Popups/UserPopup'
 import { Sidebar as UISidebar } from '../Sidebar'
 import { getSidebarLayout } from '../Sidebar/constants'
@@ -140,15 +141,21 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     [activeTab, updateTab, openTab, defaultPaintingProvider]
   )
 
+  const handleOpenGlobalSearch = useCallback(() => {
+    void SearchPopup.show({ hideQuickApps: true })
+  }, [])
+
   // Common props shared between normal and floating sidebar
   const sidebarProps = {
     activeItem,
     items,
     title: 'Cherry Studio',
     logo: APP_LOGO,
+    searchLabel: t('common.search'),
     user: sidebarUser,
     dockedTabs: [],
     onItemClick: handleNavigate,
+    onSearchClick: handleOpenGlobalSearch,
     onCloseDockedTab: noop
   }
 

@@ -70,6 +70,7 @@ import {
 } from './globalSearchGroups'
 
 type GlobalSearchPanelProps = {
+  hideQuickApps?: boolean
   onClose: () => void
 }
 
@@ -229,7 +230,7 @@ function getKnowledgeBaseTargetId(target: GlobalSearchItem['target']) {
   return 'knowledgeBaseId' in target && typeof target.knowledgeBaseId === 'string' ? target.knowledgeBaseId : undefined
 }
 
-export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
+export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSearchPanelProps) {
   const { t, i18n } = useTranslation()
   const { openTab } = useTabs()
   const { defaultPaintingProvider } = useSettings()
@@ -580,14 +581,16 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
           )}
         </div>
 
-        <GlobalSearchQuickAppsBar
-          active={panelMode === 'menu-manager'}
-          icons={shortcutSidebarIcons}
-          onManage={handleQuickAppsManage}
-          onOpen={handleSidebarShortcutOpen}
-        />
+        {!hideQuickApps && (
+          <GlobalSearchQuickAppsBar
+            active={panelMode === 'menu-manager'}
+            icons={shortcutSidebarIcons}
+            onManage={handleQuickAppsManage}
+            onOpen={handleSidebarShortcutOpen}
+          />
+        )}
 
-        <div className="-ml-2 flex h-8 items-center gap-1.5">
+        <div className={cn('-ml-2 flex h-8 items-center gap-1.5', hideQuickApps && 'mt-3')}>
           <DropdownMenu open={filterMenuOpen} onOpenChange={setFilterMenuOpen}>
             <DropdownMenuTrigger asChild>
               <Button

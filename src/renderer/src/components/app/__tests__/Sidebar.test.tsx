@@ -1,58 +1,81 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+// @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest'
+
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import AppSidebar from '../Sidebar'
-
-const setSidebarWidthMock = vi.fn()
-const updateTabMock = vi.fn()
-const openTabMock = vi.fn()
+const mocks = vi.hoisted(() => ({
+  openTab: vi.fn(),
+  setSidebarWidth: vi.fn(),
+  showSearchPopup: vi.fn(),
+  updateTab: vi.fn()
+}))
 
 vi.mock('@data/hooks/useCache', () => ({
-  usePersistCache: () => [0, setSidebarWidthMock]
+  usePersistCache: () => [0, mocks.setSidebarWidth]
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
+    if (key === 'app.user.name') return ['JD']
     if (key === 'ui.sidebar.icons.visible') return [['assistants']]
-    if (key === 'app.user.name') return ['Tester']
     return [undefined]
   }
 }))
 
 vi.mock('@renderer/config/env', () => ({
-  AppLogo: 'app-logo.png'
+  AppLogo: 'logo.png'
+}))
+
+vi.mock('@renderer/config/sidebar', () => ({
+  getRequiredSidebarIconsVisible: (icons: string[]) => icons,
+  getSidebarMenuPath: () => '/app/chat',
+  resolveSidebarActiveItem: () => 'assistants',
+  SIDEBAR_ICON_COMPONENTS: {
+    assistants: () => <span data-testid="assistants-icon" />
+  }
 }))
 
 vi.mock('@renderer/hooks/useAvatar', () => ({
-  default: () => ''
+  default: () => undefined
 }))
 
 vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: () => ({ defaultPaintingProvider: 'default' })
+  useSettings: () => ({ defaultPaintingProvider: undefined })
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
-  getSidebarIconLabel: (icon: string) => icon
+  getSidebarIconLabel: () => 'Chat'
 }))
 
 vi.mock('@renderer/utils/routeTitle', () => ({
-  getDefaultRouteTitle: (path: string) => path
-}))
-
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key })
+  getDefaultRouteTitle: () => 'Chat'
 }))
 
 vi.mock('../../../hooks/useTabs', () => ({
   useTabs: () => ({
-    activeTab: { id: 'tab-1', url: '/app/chat', isPinned: false },
-    updateTab: updateTabMock,
-    openTab: openTabMock
+    activeTab: {
+      id: 'chat',
+      type: 'route',
+      url: '/app/chat',
+      title: 'Chat'
+    },
+    openTab: mocks.openTab,
+    updateTab: mocks.updateTab
   })
 }))
 
+vi.mock('../../Popups/SearchPopup', () => ({
+  default: {
+    show: mocks.showSearchPopup
+  }
+}))
+
 vi.mock('../../Popups/UserPopup', () => ({
-  default: { show: vi.fn() }
+  default: {
+    show: vi.fn()
+  }
 }))
 
 vi.mock('../../Icons/SVGIcon', () => ({
@@ -60,7 +83,21 @@ vi.mock('../../Icons/SVGIcon', () => ({
 }))
 
 vi.mock('../../Sidebar', () => ({
-  Sidebar: ({ isFloating, isFloatingClosing, onDismiss, onHoverChange }: any) =>
+  Sidebar: ({
+    isFloating,
+    isFloatingClosing,
+    onDismiss,
+    onHoverChange,
+    onSearchClick,
+    searchLabel
+  }: {
+    isFloating?: boolean
+    isFloatingClosing?: boolean
+    onDismiss?: () => void
+    onHoverChange?: (hovering: boolean) => void
+    onSearchClick?: () => void
+    searchLabel?: string
+  }) =>
     isFloating ? (
       <div
         className={isFloatingClosing ? 'slide-out-to-left-2 animate-out' : 'slide-in-from-left-2 animate-in'}
@@ -70,21 +107,38 @@ vi.mock('../../Sidebar', () => ({
         </button>
       </div>
     ) : (
-      <button type="button" onClick={() => onHoverChange?.(true)}>
-        reveal
-      </button>
+      <>
+        <button type="button" onClick={() => onHoverChange?.(true)}>
+          reveal
+        </button>
+        <button type="button" onClick={onSearchClick}>
+          {searchLabel}
+        </button>
+      </>
     )
 }))
 
-describe('App Sidebar', () => {
-  afterEach(() => {
-    vi.clearAllMocks()
-    vi.useRealTimers()
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: { defaultValue?: string }) => {
+      if (key === 'common.search') return 'Search'
+      return options?.defaultValue ?? key
+    }
   })
+}))
 
+import Sidebar from '../Sidebar'
+
+afterEach(() => {
+  cleanup()
+  vi.clearAllMocks()
+  vi.useRealTimers()
+})
+
+describe('app Sidebar', () => {
   it('keeps the floating sidebar mounted for its closing animation before unmounting', () => {
     vi.useFakeTimers()
-    render(<AppSidebar />)
+    render(<Sidebar />)
 
     fireEvent.click(screen.getByRole('button', { name: 'reveal' }))
     expect(screen.getByTestId('floating-sidebar')).toHaveClass('animate-in', 'slide-in-from-left-2')
@@ -101,5 +155,15 @@ describe('App Sidebar', () => {
       vi.advanceTimersByTime(1)
     })
     expect(screen.queryByTestId('floating-sidebar')).not.toBeInTheDocument()
+  })
+
+  it('opens global search from the sidebar search entry', async () => {
+    const user = userEvent.setup()
+
+    render(<Sidebar />)
+
+    await user.click(screen.getByRole('button', { name: 'Search' }))
+
+    expect(mocks.showSearchPopup).toHaveBeenCalledWith({ hideQuickApps: true })
   })
 })

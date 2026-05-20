@@ -135,15 +135,17 @@ export function Sidebar({
 
           {showSearch && (
             <div className="px-3 py-2">
-              <div
+              <button
+                type="button"
+                aria-label={searchLabel}
                 onClick={() => {
                   onSearchClick?.()
                   handleDismiss()
                 }}
-                className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent/50 px-2.5 py-1.5 text-muted-foreground text-xs transition-colors [-webkit-app-region:no-drag] hover:bg-accent">
-                <Search size={13} />
+                className="flex h-9 w-full cursor-pointer items-center gap-2 rounded-xl px-2.5 text-left font-medium text-muted-foreground text-sm transition-colors [-webkit-app-region:no-drag] hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring">
+                <Search size={16} strokeWidth={1.6} />
                 <span>{searchLabel}</span>
-              </div>
+              </button>
             </div>
           )}
 
@@ -215,13 +217,26 @@ export function Sidebar({
       {/* Search */}
       {showSearch &&
         (layout === 'full' ? (
-          <div className="px-3 py-2">
-            <div
+          <div className="px-2 py-2">
+            <button
+              type="button"
+              aria-label={searchLabel}
               onClick={onSearchClick}
-              className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent px-2.5 py-1.5 text-muted-foreground text-xs transition-colors [-webkit-app-region:no-drag] hover:bg-accent">
-              <Search size={13} />
+              className="flex h-9 w-full cursor-pointer items-center gap-2 rounded-xl px-2.5 text-left font-medium text-muted-foreground text-sm transition-colors [-webkit-app-region:no-drag] hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring">
+              <Search size={16} strokeWidth={1.6} />
               <span>{searchLabel}</span>
-            </div>
+            </button>
+          </div>
+        ) : layout === 'vertical-card' ? (
+          <div className="px-1.5 py-1.5 [-webkit-app-region:no-drag]">
+            <button
+              type="button"
+              aria-label={searchLabel}
+              onClick={onSearchClick}
+              className="relative flex w-full flex-col items-center gap-0.5 rounded-lg py-2.5 text-muted-foreground transition-all duration-150 hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring">
+              <Search size={18} strokeWidth={1.6} />
+              <span className="text-[9px] leading-tight">{searchLabel}</span>
+            </button>
           </div>
         ) : (
           <div className="flex justify-center py-1.5 [-webkit-app-region:no-drag]">
@@ -229,8 +244,8 @@ export function Sidebar({
               <button
                 type="button"
                 onClick={onSearchClick}
-                className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
-                <Search size={16} strokeWidth={1.6} />
+                className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-all duration-150 hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring">
+                <Search size={18} strokeWidth={1.6} />
               </button>
             </SidebarTooltip>
           </div>
