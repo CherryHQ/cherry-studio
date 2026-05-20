@@ -17239,6 +17239,314 @@
           "perMillionTokens": 0.39999999999999997
         }
       }
+    },
+    {
+      "providerId": "dmxapi",
+      "modelId": "doubao-seedream-4-0-250828"
+    },
+    {
+      "providerId": "dmxapi",
+      "modelId": "doubao-seedream-4-5-251128"
+    },
+    {
+      "providerId": "dmxapi",
+      "modelId": "gemini-2.5-flash-image"
+    },
+    {
+      "providerId": "dmxapi",
+      "modelId": "musesteamer-air-image"
+    },
+    {
+      "providerId": "dmxapi",
+      "modelId": "nano-banana"
+    },
+    {
+      "providerId": "dmxapi",
+      "modelId": "nano-banana-2"
+    },
+    {
+      "providerId": "dmxapi",
+      "modelId": "qwen-image"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "black-forest-labs/flux-1.1-pro-ultra"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "black-forest-labs/flux-2-flex"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "black-forest-labs/flux-2-klein-4b"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "black-forest-labs/flux-2-max"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "black-forest-labs/flux-2-pro"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "black-forest-labs/flux-dev"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "black-forest-labs/flux-dev-lora"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "black-forest-labs/flux-fill-pro"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "black-forest-labs/flux-kontext-dev"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "black-forest-labs/flux-kontext-max"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "black-forest-labs/flux-kontext-pro"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "black-forest-labs/flux-pro"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "black-forest-labs/flux-schnell"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "bria/eraser"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "bria/expand-image"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "bria/fibo"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "bria/fibo-edit"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "bria/generate-background"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "bria/genfill"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "bria/image-3.2"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "bytedance/seedream-3"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "bytedance/seedream-4"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "bytedance/seedream-4.5"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "flux-kontext-apps/multi-image-kontext-max"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "flux-kontext-apps/multi-image-kontext-pro"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "flux-kontext-apps/multi-image-list"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "flux-kontext-apps/restore-image"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "fofr/color-matcher"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "google/imagen-3"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "google/imagen-3-fast"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "google/imagen-4"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "google/imagen-4-fast"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "google/imagen-4-ultra"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "google/nano-banana"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "google/nano-banana-pro"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "ideogram-ai/ideogram-v2"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "ideogram-ai/ideogram-v2-turbo"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "ideogram-ai/ideogram-v2a"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "ideogram-ai/ideogram-v2a-turbo"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "ideogram-ai/ideogram-v3-balanced"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "ideogram-ai/ideogram-v3-quality"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "ideogram-ai/ideogram-v3-turbo"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "leonardoai/lucid-origin"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "luma/photon"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "luma/photon-flash"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "minimax/image-01"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "openai/gpt-image-1"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "openai/gpt-image-1.5"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "prunaai/flux-fast"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "prunaai/flux-kontext-fast"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "prunaai/hidream-l1-fast"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "prunaai/p-image"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "prunaai/p-image-edit"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "prunaai/p-image-lora"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "prunaai/wan-2.2-image"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "prunaai/z-image-turbo"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "qwen/qwen-image"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "qwen/qwen-image-edit"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "qwen/qwen-image-edit-plus"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "recraft-ai/recraft-v3"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "recraft-ai/recraft-v3-svg"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "recraft-ai/recraft-v4"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "recraft-ai/recraft-v4-pro"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "recraft-ai/recraft-v4-pro-svg"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "recraft-ai/recraft-v4-svg"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "stability-ai/stable-diffusion-3.5-large"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "stability-ai/stable-diffusion-3.5-large-turbo"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "stability-ai/stable-diffusion-3.5-medium"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "tencent/hunyuan-image-3"
+    },
+    {
+      "providerId": "tokenflux",
+      "modelId": "xai/grok-imagine-image"
     }
   ]
 }

@@ -65,7 +65,7 @@ export const ReasoningSupportSchema = z.object({
  * string array for enums). All fields are optional — a missing field means
  * "the model doesn't support this control; the UI hides it".
  */
-export const ImageGenerationModeSchema = z.enum(['generate', 'edit', 'remix', 'upscale'])
+export const ImageGenerationModeSchema = z.enum(['generate', 'edit', 'remix', 'upscale', 'merge'])
 
 /** Pixel sizes (`'1024x1024'`), aspect ratios (`'1:1'`), or both. */
 export const ImageSizeModeSchema = z.enum(['pixel', 'aspect', 'either'])
@@ -124,7 +124,31 @@ export const ImageGenerationSupportSchema = z.object({
       renderingSpeed: z.array(z.string()).optional(),
       personGeneration: z.array(z.string()).optional()
     })
-    .optional()
+    .optional(),
+
+  /**
+   * Custom-size range when the model accepts arbitrary width × height in
+   * addition to (or instead of) the predefined `sizes` list. The painting
+   * page renders a "custom" option whose width/height inputs are validated
+   * against this range (e.g. CogView / dmxapi's `is_custom_size` flag).
+   */
+  customSize: z
+    .object({
+      min: z.number(),
+      max: z.number()
+    })
+    .optional(),
+
+  /**
+   * Vendor-specific request-body extras the painting transport must include
+   * unchanged when calling this model
+   */
+  vendorParams: z.record(z.string(), z.unknown()).optional(),
+
+  /**
+   * Vendor's dynamic form schema
+   */
+  inputSchema: z.record(z.string(), z.unknown()).optional()
 })
 
 // Parameter support configuration
