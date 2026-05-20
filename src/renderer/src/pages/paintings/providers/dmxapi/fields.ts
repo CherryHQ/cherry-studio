@@ -1,46 +1,16 @@
 import { generationModeType } from '../../model/types/paintingData'
 import { STYLE_TYPE_OPTIONS } from './config'
-import { getDmxapiModelMeta } from './runtime'
 
+/**
+ * Vendor-specific extras for dmxapi's painting form. `size` and `customSize`
+ * are derived from the registry's `imageGeneration` block (per-model);
+ * these three rows are dmxapi's bespoke UI knobs that don't fit the
+ * canonical schema (`style_type` is dmxapi's 27-Chinese-style enum,
+ * `autoCreate` is a vendor product flag, `seed` is conditional on the
+ * generation mode).
+ */
 export function buildDmxapiConfigFields(): any[] {
   return [
-    {
-      type: 'sizeChips',
-      key: 'image_size',
-      title: 'paintings.image.size',
-      options: (_config: any, painting: Record<string, unknown>) => {
-        const meta = getDmxapiModelMeta(painting.model as string | undefined)
-        const sizes = (meta?.image_sizes || []).map((size) => ({
-          label: size.label,
-          value: size.value
-        }))
-        if (meta?.is_custom_size) {
-          sizes.push({ label: 'paintings.custom_size', value: 'custom' })
-        }
-        return sizes
-      }
-    },
-    {
-      type: 'customSize',
-      key: 'customSize',
-      title: 'paintings.custom_size',
-      widthKey: 'customWidth',
-      heightKey: 'customHeight',
-      sizeKey: 'image_size',
-      condition: (painting: Record<string, unknown>) => {
-        if (painting.image_size !== 'custom' && !String(painting.image_size || '').match(/^\d+x\d+$/)) return false
-        const meta = getDmxapiModelMeta(painting.model as string | undefined)
-        if (!meta?.is_custom_size) return false
-        const presetValues = (meta?.image_sizes || []).map((size) => size.value)
-        return !presetValues.includes(String(painting.image_size))
-      },
-      validation: {
-        minWidth: 512,
-        maxWidth: 2048,
-        minHeight: 512,
-        maxHeight: 2048
-      }
-    },
     {
       type: 'input',
       key: 'seed',

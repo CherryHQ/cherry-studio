@@ -123,6 +123,12 @@ export const dmxapiProvider = {
       }
     }
   },
+  // size + customSize derive from each model's `imageGeneration` block in
+  // the registry (Phase A/B). dmxapi's vendor extras — style_type chips,
+  // autoCreate switch, conditional seed input — are kept in `byTab` and
+  // appended after the registry-derived fields by PaintingSettings.
+  useRegistryForm: true,
+  registryKeyMap: { size: 'image_size' },
   fields: {
     byTab: Object.fromEntries(MODEOPTIONS.map((mode) => [mode.value, buildDmxapiConfigFields()])),
     onModelChange: ({ modelId, modelOptions }) => {

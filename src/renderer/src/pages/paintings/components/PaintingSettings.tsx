@@ -64,13 +64,20 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange,
     providerDefinition.useRegistryForm ? painting.model : undefined
   )
   const configItems = useMemo(() => {
+    const ownFields = providerDefinition.fields.byTab[tab] || []
     if (providerDefinition.useRegistryForm) {
       const derived = imageGenerationToFields(registrySupport, { keyMap: providerDefinition.registryKeyMap })
       // Fall back to the provider's own fields on a registry miss so the page
       // never renders empty during the first load or for unknown models.
-      return derived.length > 0 ? derived : providerDefinition.fields.byTab[tab] || []
+      if (derived.length === 0) return ownFields
+      // When the provider declares `useRegistryForm` AND ships its own
+      // `fields.byTab`, treat the byTab list as "extra fields" appended
+      // after the registry-derived ones. Lets a provider compose registry
+      // size/batch/etc. with vendor-specific UI knobs that don't fit the
+      // standard registry schema (dmxapi's `style_type`, `autoCreate`).
+      return [...derived, ...ownFields]
     }
-    return providerDefinition.fields.byTab[tab] || []
+    return ownFields
   }, [
     providerDefinition.useRegistryForm,
     providerDefinition.registryKeyMap,
