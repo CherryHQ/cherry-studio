@@ -24,6 +24,8 @@
     "avatar": "🍒",
     "permission_mode": "default",
     "max_turns": 100,
+    "soul_enabled": true,
+    "bootstrap_completed": true,
     "env_vars": {}
   },
   "skills": ["cherry-assistant-guide", "faq-collector", "issue-reporter", "skills-manager"]
