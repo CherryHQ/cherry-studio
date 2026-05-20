@@ -1,6 +1,5 @@
 import { createPaintingGenerateError } from '@renderer/pages/paintings/model/paintingGenerateError'
 import { readErrorMessage } from '@renderer/pages/paintings/providers/shared/readErrorMessage'
-import i18next from 'i18next'
 
 import type { PollingSubmitInput, PollingTransport } from '../pollingImageModel'
 
@@ -47,7 +46,6 @@ export interface DmxapiProviderParams {
   n?: number
   imageSize?: string
   seed?: string
-  styleType?: string
   mode?: string
   extendParams?: Record<string, unknown>
   imageFiles?: DmxapiTransportFile[]
@@ -90,10 +88,6 @@ class DmxapiTransport implements PollingTransport {
       body.seed = -1
     }
 
-    if (params.styleType) {
-      body.prompt = prompt + i18next.t('paintings.dmxapi.style') + params.styleType
-    }
-
     const files = params.imageFiles ?? []
     if (files.length > 0) {
       const file = files[0]
@@ -116,9 +110,6 @@ class DmxapiTransport implements PollingTransport {
     }
 
     if (params.imageSize) body.size = params.imageSize
-    if (params.styleType) {
-      body.prompt = prompt + ' style: ' + params.styleType
-    }
 
     const formData = new FormData()
     for (const key in body) {

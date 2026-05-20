@@ -9,9 +9,9 @@ import { getDmxapiFileMap } from './runtime'
  * Unified DMXAPI painting adapter.
  *
  * DMXAPI's request shape (V1 JSON / V2 FormData, Bearer auth, `extend_params`,
- * seed `-1` sentinel, `style_type` prepend, inline-base64 / FormData blobs)
- * lives in the polling transport; this file only feeds the canonical
- * `generatePainting` pipeline with DMXAPI's vendor extras via `providerBag`.
+ * seed `-1` sentinel, inline-base64 / FormData blobs) lives in the polling
+ * transport; this file only feeds the canonical `generatePainting` pipeline
+ * with DMXAPI's vendor extras via `providerBag`.
  *
  * Upload blobs (`getDmxapiFileMap()` store, mode-keyed) are pre-converted to
  * `{ mediaType, data, name }` tuples before `canonicalGenerate` fires so the
@@ -57,7 +57,6 @@ export async function generateWithDmxapiUnified(input: GenerateInput<DmxapiPaint
       n: painting.n,
       imageSize: painting.image_size,
       seed: painting.seed,
-      styleType: painting.style_type,
       mode,
       extendParams: painting.extend_params,
       imageFiles

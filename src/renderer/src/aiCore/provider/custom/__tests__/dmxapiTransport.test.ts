@@ -28,7 +28,7 @@ describe('DmxapiTransport', () => {
     mask: undefined
   } as const
 
-  it('builds a V1 JSON generations request with seed -1 sentinel, style_type prepend and extend_params', async () => {
+  it('builds a V1 JSON generations request with seed -1 sentinel and extend_params', async () => {
     const transport = createDmxapiTransport({ apiKey: 'token', baseURL: 'https://www.dmxapi.com' })
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
@@ -42,7 +42,6 @@ describe('DmxapiTransport', () => {
         n: 2,
         imageSize: '1328x1328',
         seed: '-5',
-        styleType: 'anime',
         mode: 'generation',
         extendParams: { foo: 'bar' }
       }
@@ -55,7 +54,7 @@ describe('DmxapiTransport', () => {
     expect((init.headers as Record<string, string>)['User-Agent']).toBe('DMXAPI/1.0.0 (https://www.dmxapi.com)')
     const body = JSON.parse(init.body as string)
     expect(body).toMatchObject({
-      prompt: 'a fox, Style: anime',
+      prompt: 'a fox',
       model: 'flux-1',
       n: 2,
       size: '1328x1328',
@@ -115,7 +114,6 @@ describe('DmxapiTransport', () => {
         model: 'flux-1',
         n: 1,
         imageSize: '1024x1024',
-        styleType: 'oil',
         mode: 'merge',
         imageFiles: [
           { mediaType: 'image/png', data: new Uint8Array([1]), name: 'a.png' },
@@ -128,7 +126,7 @@ describe('DmxapiTransport', () => {
     expect(call[0]).toBe('https://www.dmxapi.com/v1/images/edits')
     const form = (call[1] as RequestInit).body as FormData
     expect(form).toBeInstanceOf(FormData)
-    expect(form.get('prompt')).toBe('merge these style: oil')
+    expect(form.get('prompt')).toBe('merge these')
     expect(form.get('model')).toBe('flux-1')
     expect(form.get('size')).toBe('1024x1024')
     expect(form.getAll('image')).toHaveLength(2)

@@ -52,7 +52,6 @@ export interface DmxapiPaintingData extends PaintingDataBase {
   aspect_ratio?: string
   image_size?: string
   seed?: string
-  style_type?: string
   autoCreate?: boolean
   generationMode?: generationModeType
   priceModel?: string
