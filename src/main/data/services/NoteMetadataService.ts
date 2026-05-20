@@ -75,22 +75,30 @@ export class NoteMetadataService {
       updateValues.isExpanded = normalized.isExpanded
     }
 
-    const [row] = await withSqliteErrors(
+    const row = await withSqliteErrors(
       () =>
-        this.db
-          .insert(noteMetadataTable)
-          .values({
-            rootPath: normalized.rootPath,
-            path: normalized.path,
-            nodeType: normalized.nodeType,
-            isStarred: normalized.isStarred ?? false,
-            isExpanded: normalized.isExpanded ?? false
-          })
-          .onConflictDoUpdate({
-            target: [noteMetadataTable.rootPath, noteMetadataTable.path],
-            set: updateValues
-          })
-          .returning(),
+        this.db.transaction(async (tx) => {
+          const [upserted] = await tx
+            .insert(noteMetadataTable)
+            .values({
+              rootPath: normalized.rootPath,
+              path: normalized.path,
+              nodeType: normalized.nodeType,
+              isStarred: normalized.isStarred ?? false,
+              isExpanded: normalized.isExpanded ?? false
+            })
+            .onConflictDoUpdate({
+              target: [noteMetadataTable.rootPath, noteMetadataTable.path],
+              set: updateValues
+            })
+            .returning()
+
+          if (!upserted.isStarred && !upserted.isExpanded) {
+            await tx.delete(noteMetadataTable).where(eq(noteMetadataTable.id, upserted.id))
+          }
+
+          return upserted
+        }),
       defaultHandlersFor('NoteMetadata', `${normalized.rootPath}:${normalized.path}`)
     )
 
