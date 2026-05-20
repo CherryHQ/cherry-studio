@@ -35,7 +35,7 @@ describe('imageGenerationToFields', () => {
     expect(byKey.numImages?.min).toBe(1)
     expect(byKey.numImages?.max).toBe(10)
     expect(byKey.quality?.type).toBe('select')
-    expect((byKey.quality?.options as { value: string }[]).map((o) => o.value)).toEqual([
+    expect((byKey.quality!.options as { value: string }[]).map((o) => o.value)).toEqual([
       'low',
       'medium',
       'high',
@@ -59,7 +59,7 @@ describe('imageGenerationToFields', () => {
     })
     const byKey = Object.fromEntries(items.map((i) => [i.key, i]))
     expect(byKey.size?.type).toBe('select')
-    expect((byKey.size?.options as { value: string }[]).map((o) => o.value)).toEqual([
+    expect((byKey.size!.options as { value: string }[]).map((o) => o.value)).toEqual([
       '1:1',
       '9:16',
       '16:9',
@@ -69,7 +69,7 @@ describe('imageGenerationToFields', () => {
     expect(byKey.numImages?.max).toBe(1)
     expect(byKey.seed?.type).toBe('input')
     expect(byKey.personGeneration?.type).toBe('select')
-    expect((byKey.personGeneration?.options as { value: string }[]).map((o) => o.value)).toContain('DONT_ALLOW')
+    expect((byKey.personGeneration!.options as { value: string }[]).map((o) => o.value)).toContain('DONT_ALLOW')
   })
 
   it('flux-kontext-pro: safetyTolerance slider with default 6', () => {
