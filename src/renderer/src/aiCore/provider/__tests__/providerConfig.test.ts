@@ -71,8 +71,12 @@ import { getProviderById } from '@renderer/services/ProviderService'
 import type { AwsBedrockAuthType, Model, Provider } from '@renderer/types'
 
 import { COPILOT_DEFAULT_HEADERS } from '../constants'
-import type { AihubmixProviderSettings } from '../custom/aihubmix-provider'
+import type { AihubmixProviderSettings } from '../custom/aihubmix/aihubmix-provider'
+import type { DmxapiProviderSettings } from '../custom/dmxapi-provider'
 import type { NewApiProviderSettings } from '../custom/newapi-provider'
+import type { OvmsProviderSettings } from '../custom/ovms-provider'
+import type { PpioProviderSettings } from '../custom/ppio-provider'
+import type { TokenFluxProviderSettings } from '../custom/tokenflux-provider'
 import { adaptProvider, formatProviderApiHost, getActualProvider, providerToAiSdkConfig } from '../providerConfig'
 
 const { __mockGetState: mockGetState } = vi.mocked(await import('@renderer/store')) as unknown as {
@@ -851,6 +855,74 @@ describe('providerToAiSdkConfig', () => {
       const settings = config.providerSettings as AihubmixProviderSettings
       expect(settings.baseURL).toBeTruthy()
       expect(settings.apiKey).toBe('test-key')
+    })
+  })
+
+  // The four vendor providers (PPIO / TokenFlux / DMXAPI / OVMS) serve chat
+  // and image off ONE ProviderV3 each. `baseURL` carries the user-configured
+  // chat host so OpenAICompatibleChatLanguageModel reaches the right
+  // endpoint; `imageBaseURL` carries the painting transport host (legacy
+  // pinned for PPIO/TokenFlux, user-overridable with default fallback for
+  // DMXAPI/OVMS) so the polling image transport stays byte-identical to
+  // the bespoke service. See `providerConfig.ts:buildPpioConfig` etc.
+
+  describe('PPIO builder', () => {
+    it('passes chat apiHost as baseURL and pins imageBaseURL to the image default', async () => {
+      const provider = makeProvider({
+        id: 'ppio',
+        type: 'openai',
+        apiHost: 'https://api.ppinfra.com/v3/openai/'
+      })
+      const config = await providerToAiSdkConfig(provider, makeModel('z-image-turbo', provider.id))
+      expect(config.providerId).toBe('ppio')
+      const settings = config.providerSettings as PpioProviderSettings
+      expect(settings.baseURL).toContain('api.ppinfra.com')
+      expect(settings.imageBaseURL).toBe('https://api.ppio.com')
+    })
+  })
+
+  describe('TokenFlux builder', () => {
+    it('passes chat apiHost as baseURL and pins imageBaseURL to the image default', async () => {
+      const provider = makeProvider({
+        id: 'tokenflux',
+        type: 'openai',
+        apiHost: 'https://api.tokenflux.ai/openai/v1'
+      })
+      const config = await providerToAiSdkConfig(provider, makeModel('flux-pro', provider.id))
+      expect(config.providerId).toBe('tokenflux')
+      const settings = config.providerSettings as TokenFluxProviderSettings
+      expect(settings.baseURL).toContain('api.tokenflux.ai')
+      expect(settings.imageBaseURL).toBe('https://api.tokenflux.ai')
+    })
+  })
+
+  describe('DMXAPI builder', () => {
+    it('mirrors user apiHost to both baseURL and imageBaseURL (user-overridable image host)', async () => {
+      const provider = makeProvider({
+        id: 'dmxapi',
+        type: 'openai',
+        apiHost: 'https://www.dmxapi.cn'
+      })
+      const config = await providerToAiSdkConfig(provider, makeModel('gpt-image-1', provider.id))
+      expect(config.providerId).toBe('dmxapi')
+      const settings = config.providerSettings as DmxapiProviderSettings
+      expect(settings.baseURL).toContain('www.dmxapi.cn')
+      expect(settings.imageBaseURL).toContain('www.dmxapi.cn')
+    })
+  })
+
+  describe('OVMS builder', () => {
+    it('mirrors user apiHost to both baseURL and imageBaseURL', async () => {
+      const provider = makeProvider({
+        id: 'ovms',
+        type: 'openai',
+        apiHost: 'http://localhost:8000/v3/'
+      })
+      const config = await providerToAiSdkConfig(provider, makeModel('llama', provider.id))
+      expect(config.providerId).toBe('ovms')
+      const settings = config.providerSettings as OvmsProviderSettings
+      expect(settings.baseURL).toContain('localhost:8000')
+      expect(settings.imageBaseURL).toContain('localhost:8000')
     })
   })
 

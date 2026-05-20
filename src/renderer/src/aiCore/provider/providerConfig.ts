@@ -376,11 +376,15 @@ function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
 }
 
 /**
- * PPIO/TokenFlux paintings transports POST to fixed image API hosts
- * (`https://api.ppio.com`, `https://api.tokenflux.ai`) — NOT the provider's
- * chat `apiHost` (PPIO chat is `api.ppinfra.com/v3/openai`, TokenFlux is
- * `api.tokenflux.ai/openai/v1`). Pinning `baseURL` to the transport default
- * keeps request URLs byte-identical to the legacy bespoke services.
+ * PPIO/TokenFlux providers serve BOTH chat and image off one ProviderV3, but
+ * the two endpoints live on different hosts/paths:
+ *   PPIO chat = `api.ppinfra.com/v3/openai`    image = `api.ppio.com`
+ *   TokenFlux chat = `api.tokenflux.ai/openai/v1`    image = `api.tokenflux.ai`
+ * `baseURL` carries the resolved chat `apiHost` for the OpenAICompatible
+ * chat/embedding models; `imageBaseURL` carries the legacy pinned image host
+ * that the polling transport uses — keeping the painting request URLs
+ * byte-identical to the bespoke services while letting chat reach the right
+ * endpoint.
  */
 function buildPpioConfig(ctx: BuilderContext): ProviderConfig<'ppio'> {
   return {
@@ -388,7 +392,7 @@ function buildPpioConfig(ctx: BuilderContext): ProviderConfig<'ppio'> {
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
-      baseURL: DEFAULT_PPIO_BASE_URL,
+      imageBaseURL: DEFAULT_PPIO_BASE_URL,
       headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
     }
   }
@@ -400,18 +404,20 @@ function buildTokenFluxConfig(ctx: BuilderContext): ProviderConfig<'tokenflux'> 
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
-      baseURL: DEFAULT_TOKENFLUX_BASE_URL,
+      imageBaseURL: DEFAULT_TOKENFLUX_BASE_URL,
       headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
     }
   }
 }
 
 /**
- * DMXAPI/OVMS paintings transports POST to the user/runtime-configured image
- * host (DMXAPI is user-configurable across platforms — .com/.cn/enterprise —,
- * OVMS is a local OpenVINO Model Server). Unlike PPIO/TokenFlux (pinned default
- * host), `baseURL` must be the resolved `apiHost` (`ctx.baseConfig.baseURL`);
- * `DEFAULT_*` is only an empty-fallback. OVMS carries no auth header.
+ * DMXAPI/OVMS providers serve chat + image off one ProviderV3. Unlike
+ * PPIO/TokenFlux (where the image host is pinned to a different domain),
+ * DMXAPI's image host follows the user-configured `apiHost` (cross-platform
+ * .com/.cn/enterprise), and OVMS is a local OpenVINO server where chat and
+ * image share `localhost` (only path differs). `baseURL` carries the chat
+ * apiHost; `imageBaseURL` mirrors it (with `DEFAULT_*` as empty-fallback) so
+ * the polling transport keeps the same user override. OVMS carries no auth.
  */
 function buildDmxapiConfig(ctx: BuilderContext): ProviderConfig<'dmxapi'> {
   return {
@@ -420,6 +426,7 @@ function buildDmxapiConfig(ctx: BuilderContext): ProviderConfig<'dmxapi'> {
     providerSettings: {
       ...ctx.baseConfig,
       baseURL: ctx.baseConfig.baseURL || DEFAULT_DMXAPI_BASE_URL,
+      imageBaseURL: ctx.baseConfig.baseURL || DEFAULT_DMXAPI_BASE_URL,
       headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
     }
   }
@@ -431,7 +438,8 @@ function buildOvmsConfig(ctx: BuilderContext): ProviderConfig<'ovms'> {
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
-      baseURL: ctx.baseConfig.baseURL || DEFAULT_OVMS_BASE_URL
+      baseURL: ctx.baseConfig.baseURL || DEFAULT_OVMS_BASE_URL,
+      imageBaseURL: ctx.baseConfig.baseURL || DEFAULT_OVMS_BASE_URL
     }
   }
 }

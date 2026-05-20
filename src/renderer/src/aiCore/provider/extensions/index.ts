@@ -25,12 +25,12 @@ import type { OllamaProviderSettings } from 'ollama-ai-provider-v2'
 import { createOllama } from 'ollama-ai-provider-v2'
 import { createVoyage, type VoyageProviderSettings } from 'voyage-ai-provider'
 
-import { type AihubmixProviderSettings, createAihubmix } from '../custom/aihubmix-provider'
-import { createDmxapiImageProvider, type DmxapiImageProviderSettings } from '../custom/dmxapi-image-provider'
+import { type AihubmixProviderSettings, createAihubmix } from '../custom/aihubmix'
+import { createDmxapiProvider, type DmxapiProviderSettings } from '../custom/dmxapi-provider'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapi-provider'
-import { createOvmsImageProvider, type OvmsImageProviderSettings } from '../custom/ovms-image-provider'
-import { createPpioImageProvider, type PpioImageProviderSettings } from '../custom/ppio-image-provider'
-import { createTokenFluxImageProvider, type TokenFluxImageProviderSettings } from '../custom/tokenflux-image-provider'
+import { createOvmsProvider, type OvmsProviderSettings } from '../custom/ovms-provider'
+import { createPpioProvider, type PpioProviderSettings } from '../custom/ppio-provider'
+import { createTokenFluxProvider, type TokenFluxProviderSettings } from '../custom/tokenflux-provider'
 
 /**
  * Google Vertex AI Extension
@@ -208,40 +208,40 @@ export const TogetherAIExtension = ProviderExtension.create({
 } as const satisfies ProviderExtensionConfig<TogetherAIProviderSettings, ProviderV3, 'togetherai'>)
 
 /**
- * PPIO Extension - image-only async submit/poll provider (paintings page)
+ * PPIO Extension - unified chat + embedding + image (async submit/poll for painting)
  */
 export const PpioExtension = ProviderExtension.create({
   name: 'ppio',
   supportsImageGeneration: true,
-  create: createPpioImageProvider
-} as const satisfies ProviderExtensionConfig<PpioImageProviderSettings, ProviderV3, 'ppio'>)
+  create: createPpioProvider
+} as const satisfies ProviderExtensionConfig<PpioProviderSettings, ProviderV3, 'ppio'>)
 
 /**
- * TokenFlux Extension - image-only async submit/poll provider (paintings page)
+ * TokenFlux Extension - unified chat + embedding + image (async submit/poll for painting)
  */
 export const TokenFluxExtension = ProviderExtension.create({
   name: 'tokenflux',
   supportsImageGeneration: true,
-  create: createTokenFluxImageProvider
-} as const satisfies ProviderExtensionConfig<TokenFluxImageProviderSettings, ProviderV3, 'tokenflux'>)
+  create: createTokenFluxProvider
+} as const satisfies ProviderExtensionConfig<TokenFluxProviderSettings, ProviderV3, 'tokenflux'>)
 
 /**
- * DMXAPI Extension - image-only single-shot provider (paintings page)
+ * DMXAPI Extension - unified chat + embedding + image (single-shot for painting)
  */
 export const DmxapiExtension = ProviderExtension.create({
   name: 'dmxapi',
   supportsImageGeneration: true,
-  create: createDmxapiImageProvider
-} as const satisfies ProviderExtensionConfig<DmxapiImageProviderSettings, ProviderV3, 'dmxapi'>)
+  create: createDmxapiProvider
+} as const satisfies ProviderExtensionConfig<DmxapiProviderSettings, ProviderV3, 'dmxapi'>)
 
 /**
- * OVMS Extension - image-only single-shot provider (local OpenVINO, paintings page)
+ * OVMS Extension - unified chat + embedding + image (local OpenVINO Model Server, no auth)
  */
 export const OvmsExtension = ProviderExtension.create({
   name: 'ovms',
   supportsImageGeneration: true,
-  create: createOvmsImageProvider
-} as const satisfies ProviderExtensionConfig<OvmsImageProviderSettings, ProviderV3, 'ovms'>)
+  create: createOvmsProvider
+} as const satisfies ProviderExtensionConfig<OvmsProviderSettings, ProviderV3, 'ovms'>)
 
 /**
  * Voyage AI Extension - embeddings and reranking
