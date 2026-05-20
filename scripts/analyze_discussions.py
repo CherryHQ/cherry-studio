@@ -1,102 +1,76 @@
 #!/usr/bin/env python3
 """
-analyze_discussions.py — GitHub Discussions analyzer for Cherry Studio.
-
-Reads /tmp/gh_discussions.json (from `gh api graphql`) and produces
-.context/discussion_analysis.json.
-
-Usage:
-    python3 scripts/analyze_discussions.py
+Analyze GitHub Discussions data.
+Input:  /tmp/gh_discussions.json (GraphQL response)
+Output: .context/discussion_analysis.json
 """
 
 import json
-import sys
-from collections import Counter
 from datetime import datetime, timezone, timedelta
+from collections import Counter
 from pathlib import Path
 
+TODAY = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 CONTEXT_DIR = Path(__file__).parent.parent / ".context"
 CONTEXT_DIR.mkdir(exist_ok=True)
 
-NOW = datetime.now(timezone.utc)
 
+def main():
+    with open("/tmp/gh_discussions.json") as f:
+        data = json.load(f)
 
-def load_json(path: str) -> dict | None:
-    p = Path(path)
-    if not p.exists():
-        print(f"[WARN] {path} not found", file=sys.stderr)
-        return None
-    with open(p) as f:
-        return json.load(f)
+    nodes = data["data"]["repository"]["discussions"]["nodes"]
+    cutoff_7d = TODAY - timedelta(days=7)
+    cutoff_30d = TODAY - timedelta(days=30)
 
-
-def parse_dt(s: str) -> datetime:
-    return datetime.fromisoformat(s.replace("Z", "+00:00"))
-
-
-def main() -> None:
-    raw = load_json("/tmp/gh_discussions.json")
-    if raw is None:
-        # Write a placeholder
-        out = CONTEXT_DIR / "discussion_analysis.json"
-        out.write_text(json.dumps({
-            "generated_at": NOW.isoformat(),
-            "date": NOW.strftime("%Y-%m-%d"),
-            "data_note": "gh_discussions.json not found. Run the GraphQL query first.",
-        }, indent=2))
-        print("[WARN] No discussions data; wrote placeholder.")
-        return
-
-    nodes = raw.get("data", {}).get("repository", {}).get("discussions", {}).get("nodes", [])
-    print(f"[INFO] Loaded {len(nodes)} discussions")
-
-    category_counts: Counter = Counter()
+    category_dist: Counter = Counter()
     unanswered = []
-    top_upvoted = []
-    recent_active = []
+    hot_discussions = []
+    recent_7d = recent_30d = 0
 
     for d in nodes:
-        cat = d.get("category", {}).get("name", "Unknown")
-        category_counts[cat] += 1
-        upvotes = d.get("upvoteCount", 0)
-        comments = d.get("comments", {}).get("totalCount", 0)
-        answered = d.get("answer") is not None
-        updated = parse_dt(d["updatedAt"]) if d.get("updatedAt") else NOW
-        inactive_days = (NOW - updated).days
-
-        entry = {
+        category = d["category"]["name"]
+        category_dist[category] += 1
+        updated = datetime.fromisoformat(d["updatedAt"].replace("Z", "+00:00"))
+        if updated >= cutoff_7d:
+            recent_7d += 1
+        if updated >= cutoff_30d:
+            recent_30d += 1
+        if d.get("answer") is None and category not in ("Announcements",):
+            unanswered.append({
+                "number": d["number"],
+                "title": d["title"],
+                "category": category,
+                "upvotes": d.get("upvoteCount", 0),
+                "comments": d["comments"]["totalCount"],
+                "updatedAt": d["updatedAt"],
+            })
+        hot_discussions.append({
             "number": d["number"],
-            "title": d["title"][:80],
-            "category": cat,
-            "upvotes": upvotes,
-            "comments": comments,
-            "answered": answered,
-            "inactive_days": inactive_days,
-            "author": d.get("author", {}).get("login", "?"),
-        }
+            "title": d["title"],
+            "category": category,
+            "upvotes": d.get("upvoteCount", 0),
+            "comments": d["comments"]["totalCount"],
+            "answered": d.get("answer") is not None,
+        })
 
-        if not answered and cat not in ("Announcements",):
-            unanswered.append(entry)
-        if upvotes >= 5:
-            top_upvoted.append(entry)
-        if inactive_days <= 7:
-            recent_active.append(entry)
+    hot_discussions.sort(key=lambda x: x["upvotes"] + x["comments"], reverse=True)
+    unanswered.sort(key=lambda x: x["upvotes"] + x["comments"], reverse=True)
 
-    analysis = {
-        "generated_at": NOW.isoformat(),
-        "date": NOW.strftime("%Y-%m-%d"),
+    result = {
+        "generated_at": TODAY.isoformat(),
         "total_discussions": len(nodes),
-        "category_breakdown": dict(category_counts.most_common()),
+        "recent_7d": recent_7d,
+        "recent_30d": recent_30d,
+        "category_distribution": dict(category_dist.most_common()),
         "unanswered_count": len(unanswered),
-        "unanswered_top10": sorted(unanswered, key=lambda x: -x["upvotes"])[:10],
-        "top_upvoted": sorted(top_upvoted, key=lambda x: -x["upvotes"])[:10],
-        "recent_active_7d": sorted(recent_active, key=lambda x: x["inactive_days"])[:10],
+        "top_unanswered": unanswered[:10],
+        "hot_discussions": hot_discussions[:15],
     }
 
     out = CONTEXT_DIR / "discussion_analysis.json"
-    out.write_text(json.dumps(analysis, indent=2, ensure_ascii=False))
-    print(f"[OK] Written: {out}")
-    print(f"     Total: {len(nodes)}, Unanswered: {len(unanswered)}, Top upvoted: {len(top_upvoted)}")
+    out.write_text(json.dumps(result, indent=2, ensure_ascii=False))
+    print(f"Wrote {out}")
 
 
 if __name__ == "__main__":

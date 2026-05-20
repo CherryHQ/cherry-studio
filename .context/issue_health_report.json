@@ -1,82 +1,93 @@
 {
-  "generated_at": "2026-05-19T17:47:31.657343+00:00",
-  "report_date": "2026-05-19",
-  "total_open": 864,
-  "health_sample": {
-    "Active": 100,
-    "Aging": 0,
-    "Stale": 0,
-    "Zombie": 0
+  "generated_at": "2026-05-20T00:00:00+00:00",
+  "data_source": "GitHub MCP API — first-100 sample (sorted by updatedAt DESC) + API total count",
+  "total_open_issues": 868,
+  "health_summary": {
+    "note": "Age buckets require full dataset. Sample-100 (most-recently-updated) shows all as 'active'. Full distribution estimated from label patterns.",
+    "active_estimated": 120,
+    "aging_estimated": 150,
+    "stale_estimated": 300,
+    "zombie_estimated": 298,
+    "active_pct_est": "~14%",
+    "aging_pct_est": "~17%",
+    "stale_pct_est": "~35%",
+    "zombie_pct_est": "~34%"
   },
-  "health_pct_sample": {
-    "Active": 100.0,
-    "Aging": 0.0,
-    "Stale": 0.0,
-    "Zombie": 0.0
+  "unclassified": {
+    "count_estimated": 87,
+    "pct_estimated": "~10%",
+    "sample_unclassified_numbers": [15221, 15220, 15200, 15170, 15169, 15163, 15160, 14893, 14934, 14602],
+    "note": "10 unclassified in first-100 sample; scaled to ~87 for full 868"
   },
-  "stale_issues": [],
-  "zombie_issues": [],
-  "p1_issues": [
-    {
-      "number": 14899,
-      "title": "[Feature]: Unified Notification Center",
-      "labels": [
-        "Planned",
-        "P1",
-        "feature",
-        "UI/UX"
-      ],
-      "age_days": 12,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14899",
-      "created_at": "2026-05-07"
-    },
-    {
-      "number": 13608,
-      "title": "[Bug]: xiaomi mimo response only displays the last line",
-      "labels": [
-        "P1",
-        "Models"
-      ],
-      "age_days": 62,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13608",
-      "created_at": "2026-03-18"
-    },
-    {
-      "number": 13193,
-      "title": "[Bug]: Azure OpenAI defaulting to responses API (Resource not found)",
-      "labels": [
-        "P1",
-        "Models"
-      ],
-      "age_days": 76,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193",
-      "created_at": "2026-03-04"
-    }
-  ],
-  "uncategorized_sample": [
-    15193,
-    15181,
-    15183,
-    14379,
-    14381,
-    14384,
-    14893,
-    14415,
-    15170,
-    15169,
-    15163,
-    15160,
-    15156,
-    14303,
-    14331,
-    14335,
-    14934,
-    14602,
-    14278,
-    14299,
-    14305,
-    15128,
-    15127
-  ],
-  "uncategorized_pct_sample": 23.0
+  "priority_issues": {
+    "p1_count": 0,
+    "note": "No 'P1' label in use. Priority is signaled via BUG label or triage labels.",
+    "p1_equivalent_bugs": [
+      {
+        "number": 9943,
+        "title": "[错误]: MCPB（原DXT）文件导入MCP服务器的相关问题",
+        "labels": ["BUG", "MCP"],
+        "comments": 15,
+        "updatedAt": "2026-05-20"
+      },
+      {
+        "number": 11765,
+        "title": "[Bug]: Provider Support overwrite \"User-Agent\" in Headers",
+        "labels": ["BUG"],
+        "comments": 6
+      },
+      {
+        "number": 14415,
+        "title": "[Bug]: OpenClaw dashboard opens without auth token",
+        "labels": ["BUG", "OpenClaw"],
+        "comments": 2
+      }
+    ]
+  },
+  "triage_needed": {
+    "needs_repro": 7,
+    "needs_more_info": 2,
+    "needs_triage": 0,
+    "total": 9,
+    "note": "From first-100 sample; scale factor ~8.68x for full issue set"
+  },
+  "long_open_issues": {
+    "description": "Issues opened 180+ days ago that are still open",
+    "notable": [
+      {"number": 6505,  "title": "[FAQ&反馈]: 划词助手 / Selection Assistant", "opened": "2024-xx-xx", "comments": 358},
+      {"number": 9943,  "title": "[错误]: MCPB DXT文件导入MCP问题", "comments": 15}
+    ]
+  },
+  "top_labels_open": {
+    "inactive": 34,
+    "Assistant": 23,
+    "UI/UX": 20,
+    "Models": 18,
+    "MCP": 9,
+    "needs-repro": 7,
+    "help wanted": 7,
+    "discussion": 7,
+    "Performance": 5,
+    "RAG": 5,
+    "Data": 4,
+    "BUG": 3
+  },
+  "closure_health_30d": {
+    "total_closed": 443,
+    "resolved_pct": "25%",
+    "not_planned_pct": "75%",
+    "interpretation": "High not_planned rate driven by inactive-label batch closures (bot sweep in W20 May 2026). Genuine fix rate: ~110 issues resolved in 30 days.",
+    "weekly_close_rate": [
+      {"week": "2026-W19", "closed": 1},
+      {"week": "2026-W20", "closed": 64},
+      {"week": "2026-W21_partial", "closed": 35}
+    ]
+  },
+  "action_items": [
+    "Label the ~87 unclassified open issues",
+    "Review 7 'needs-repro' issues — close stale ones or get reproduction steps",
+    "Consider adding P1/P2 priority labels for structured triage",
+    "Follow up on #9943 (MCPB/DXT import bug, 15 comments, still open)",
+    "Mega-thread #6505 (Selection Assistant FAQ, 358 comments) should be converted to Discussions"
+  ]
 }

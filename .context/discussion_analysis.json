@@ -1,5 +1,18 @@
 {
-  "generated_at": "2026-05-19T17:47:31.657343+00:00",
-  "report_date": "2026-05-19",
-  "note": "Discussions require GraphQL API via gh CLI; MCP tool does not expose Discussions endpoint. Skipped in this run."
+  "generated_at": "2026-05-20T00:00:00+00:00",
+  "data_source": "Note: GitHub Discussions GraphQL requires gh CLI or direct API token. This placeholder was generated from MCP-available data. Run `python3 scripts/analyze_discussions.py` after `gh api graphql` to refresh.",
+  "status": "placeholder",
+  "total_discussions": null,
+  "note": "Discussions data unavailable in this run (no gh CLI). The analyze_discussions.py script is ready for environments with gh CLI access.",
+  "known_active_discussion": {
+    "number": 6505,
+    "title": "[FAQ&反馈]: 划词助手 / Selection Assistant",
+    "type": "Issue (mega-thread)",
+    "comments": 358,
+    "note": "Highest-comment thread in the repo — effectively a discussion hub"
+  },
+  "script_instructions": {
+    "fetch_cmd": "gh api graphql -f query='{ repository(owner: \"CherryHQ\", name: \"cherry-studio\") { discussions(first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { number title category { name } author { login } createdAt updatedAt upvoteCount comments { totalCount } labels(first: 10) { nodes { name } } answer { author { login } createdAt } } } } }' > /tmp/gh_discussions.json",
+    "analyze_cmd": "python3 scripts/analyze_discussions.py"
+  }
 }

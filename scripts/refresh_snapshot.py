@@ -1,152 +1,145 @@
 #!/usr/bin/env python3
 """
-refresh_snapshot.py — Daily GitHub snapshot builder for Cherry Studio.
-
-Reads from /tmp/gh_*.json files (written by `gh` CLI or MCP tool output) and
-produces .context/latest_snapshot_summary.json.
-
-Usage:
-    python3 scripts/refresh_snapshot.py
+Refresh the latest snapshot summary from GitHub data files.
+Input:  /tmp/gh_open_issues.json, /tmp/gh_closed_issues_30d.json,
+        /tmp/gh_open_prs.json,    /tmp/gh_closed_prs_30d.json
+Output: .context/latest_snapshot_summary.json
 """
 
 import json
-import sys
+import os
 from datetime import datetime, timezone, timedelta
+from collections import Counter
 from pathlib import Path
 
+TODAY = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 CONTEXT_DIR = Path(__file__).parent.parent / ".context"
 CONTEXT_DIR.mkdir(exist_ok=True)
 
-NOW = datetime.now(timezone.utc)
-CUTOFF_30D = NOW - timedelta(days=30)
-CUTOFF_7D = NOW - timedelta(days=7)
 
-
-def load_json(path: str) -> dict | list | None:
-    p = Path(path)
-    if not p.exists():
-        print(f"[WARN] {path} not found, skipping.", file=sys.stderr)
-        return None
-    with open(p) as f:
+def load(path: str) -> list | dict:
+    with open(path) as f:
         return json.load(f)
 
 
-def parse_dt(s: str) -> datetime:
-    return datetime.fromisoformat(s.replace("Z", "+00:00"))
+def age_bucket(updated_at: str) -> str:
+    dt = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+    days = (TODAY - dt).days
+    if days < 7:
+        return "active"
+    elif days < 30:
+        return "aging"
+    elif days < 90:
+        return "stale"
+    return "zombie"
 
 
-def label_names(raw: list) -> list[str]:
-    return [l["name"] if isinstance(l, dict) else l for l in raw]
+def extract_labels(issue: dict) -> list[str]:
+    labels = issue.get("labels", [])
+    if isinstance(labels, list) and labels and isinstance(labels[0], dict):
+        return [lb["name"] for lb in labels]
+    return [lb for lb in labels if isinstance(lb, str)]
 
 
 def analyze_issues(issues: list) -> dict:
-    health = {"Active": 0, "Aging": 0, "Stale": 0, "Zombie": 0}
-    label_counts: dict[str, int] = {}
-    unlabeled = 0
+    label_dist: Counter = Counter()
+    age_dist: Counter = Counter()
+    unclassified = 0
+    p1 = []
+    bug_count = 0
 
-    for iss in issues:
-        labels = label_names(iss.get("labels", []))
-        created = parse_dt(iss["createdAt"] if "createdAt" in iss else iss["created_at"])
-        age_days = (NOW - created).days
-
-        if age_days <= 7:
-            health["Active"] += 1
-        elif age_days <= 30:
-            health["Aging"] += 1
-        elif age_days <= 90:
-            health["Stale"] += 1
-        else:
-            health["Zombie"] += 1
-
-        for lb in labels:
-            label_counts[lb] = label_counts.get(lb, 0) + 1
+    for issue in issues:
+        labels = extract_labels(issue)
         if not labels:
-            unlabeled += 1
+            unclassified += 1
+        for lb in labels:
+            label_dist[lb] += 1
+        bucket = age_bucket(issue.get("updatedAt", issue.get("updated_at", TODAY.isoformat())))
+        age_dist[bucket] += 1
+        if "P1" in labels:
+            p1.append({"number": issue["number"], "title": issue["title"],
+                       "labels": labels, "updatedAt": issue.get("updatedAt", "")})
+        if any(lb.upper() in ("BUG", "P1") for lb in labels):
+            bug_count += 1
 
     return {
-        "health": health,
-        "label_counts": dict(sorted(label_counts.items(), key=lambda x: -x[1])[:30]),
-        "unlabeled": unlabeled,
-        "total": len(issues),
+        "label_distribution": dict(label_dist.most_common(20)),
+        "age_buckets": dict(age_dist),
+        "unclassified_count": unclassified,
+        "unclassified_pct": f"{unclassified / max(len(issues), 1) * 100:.1f}%",
+        "p1_issues": p1,
+        "bug_count": bug_count,
     }
 
 
 def analyze_prs(prs: list) -> dict:
-    v2_open = [p for p in prs if p.get("baseRefName", p.get("base", {}).get("ref", "")) == "v2"]
-    draft = [p for p in prs if p.get("isDraft", p.get("draft", False))]
-    stale = []
-    for p in prs:
-        created = parse_dt(p.get("createdAt", p.get("created_at", NOW.isoformat())))
-        if (NOW - created).days > 30:
-            stale.append(p["number"])
+    base_dist: Counter = Counter()
+    label_dist: Counter = Counter()
+    merged_7d = merged_30d = 0
+    cutoff_7d = TODAY - timedelta(days=7)
+    cutoff_30d = TODAY - timedelta(days=30)
+
+    for pr in prs:
+        base_dist[pr.get("baseRefName", pr.get("base", {}).get("ref", "unknown"))] += 1
+        for lb in extract_labels(pr):
+            label_dist[lb] += 1
+        merged_at = pr.get("mergedAt") or pr.get("merged_at")
+        if merged_at:
+            dt = datetime.fromisoformat(merged_at.replace("Z", "+00:00"))
+            if dt >= cutoff_7d:
+                merged_7d += 1
+            if dt >= cutoff_30d:
+                merged_30d += 1
+
     return {
-        "total": len(prs),
-        "v2_count": len(v2_open),
-        "draft_count": len(draft),
-        "stale_over_30d": len(stale),
+        "base_branch_distribution": dict(base_dist),
+        "label_distribution": dict(label_dist.most_common(15)),
+        "merged_last_7d": merged_7d,
+        "merged_last_30d": merged_30d,
     }
 
 
-def analyze_v2_merged(prs: list) -> dict:
-    merged = []
-    for p in prs:
-        merged_at = p.get("mergedAt", p.get("merged_at"))
-        if merged_at and parse_dt(merged_at) >= CUTOFF_30D:
-            merged.append({
-                "number": p["number"],
-                "title": p["title"][:80],
-                "merged_at": merged_at[:10],
-                "author": p.get("author", {}).get("login", p.get("user", {}).get("login", "?")),
-            })
-    return {
-        "merged_30d_count": len(merged),
-        "top_merges": merged[:20],
-    }
+def main():
+    open_issues = load("/tmp/gh_open_issues.json")
+    closed_issues = load("/tmp/gh_closed_issues_30d.json")
+    open_prs = load("/tmp/gh_open_prs.json")
+    closed_prs = load("/tmp/gh_closed_prs_30d.json")
 
+    issue_analysis = analyze_issues(open_issues)
+    closed_analysis = analyze_issues(closed_issues)
+    pr_open_analysis = analyze_prs(open_prs)
+    pr_closed_analysis = analyze_prs(closed_prs)
 
-def main() -> None:
-    open_issues_raw = load_json("/tmp/gh_open_issues.json") or []
-    closed_issues_raw = load_json("/tmp/gh_closed_issues_30d.json") or []
-    open_prs_raw = load_json("/tmp/gh_open_prs.json") or []
-    closed_prs_raw = load_json("/tmp/gh_closed_prs_30d.json") or []
-    v2_merged_raw = load_json("/tmp/v2_merged_prs.json") or []
-    v2_open_raw = load_json("/tmp/v2_open_prs.json") or []
-
-    issue_stats = analyze_issues(open_issues_raw)
-    open_pr_stats = analyze_prs(open_prs_raw)
-    v2_merged_stats = analyze_v2_merged(v2_merged_raw)
+    # Top commented
+    top_commented = sorted(open_issues, key=lambda x: x.get("comments", 0), reverse=True)[:10]
 
     snapshot = {
-        "generated_at": NOW.isoformat(),
-        "date": NOW.strftime("%Y-%m-%d"),
-        "source": "GitHub CLI / MCP (cherryhq/cherry-studio)",
-        "issues": {
-            "open_total": len(open_issues_raw),
-            "closed_last_30d": len(closed_issues_raw),
-            "unlabeled_pct": f"{issue_stats['unlabeled'] / max(issue_stats['total'], 1) * 100:.1f}%",
-            "label_distribution": issue_stats["label_counts"],
-            "health_distribution": issue_stats["health"],
+        "generated_at": TODAY.isoformat(),
+        "open_issues": {
+            "total": len(open_issues),
+            **issue_analysis,
+            "top_commented": [
+                {"number": i["number"], "title": i["title"], "comments": i.get("comments", 0)}
+                for i in top_commented
+            ],
         },
-        "pull_requests": {
-            "open_total": open_pr_stats["total"],
-            "open_v2": len(v2_open_raw),
-            "open_v2_draft": sum(1 for p in v2_open_raw if p.get("isDraft", p.get("draft", False))),
-            "stale_prs_over_30d": open_pr_stats["stale_over_30d"],
-            "merged_to_v2_last_30d": v2_merged_stats["merged_30d_count"],
+        "closed_issues_30d": {
+            "total": len(closed_issues),
+            "label_distribution": closed_analysis["label_distribution"],
         },
-        "v2_branch": {
-            "merged_30d_count": v2_merged_stats["merged_30d_count"],
-            "top_recent_merges": v2_merged_stats["top_merges"],
+        "open_prs": {
+            "total": len(open_prs),
+            **pr_open_analysis,
+        },
+        "merged_prs_30d": {
+            "total": pr_closed_analysis["merged_last_30d"],
+            "last_7d": pr_closed_analysis["merged_last_7d"],
         },
     }
 
     out = CONTEXT_DIR / "latest_snapshot_summary.json"
     out.write_text(json.dumps(snapshot, indent=2, ensure_ascii=False))
-    print(f"[OK] Written: {out}")
-    print(f"     Open Issues: {snapshot['issues']['open_total']}")
-    print(f"     Closed 30d:  {snapshot['issues']['closed_last_30d']}")
-    print(f"     Open PRs:    {snapshot['pull_requests']['open_total']}")
-    print(f"     v2 merged:   {snapshot['v2_branch']['merged_30d_count']}")
+    print(f"Wrote {out}")
 
 
 if __name__ == "__main__":
