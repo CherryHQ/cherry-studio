@@ -2,6 +2,7 @@ import '@renderer/databases'
 
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { cn } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -10,6 +11,7 @@ import { useTabs } from '../../hooks/useTabs'
 import Sidebar from '../app/Sidebar'
 import { createRecentRouteEntryFromTab, upsertGlobalSearchRecentEntry } from '../global-search/globalSearchGroups'
 import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
+import SearchPopup from '../Popups/SearchPopup'
 import { AppShellTabBar } from './AppShellTabBar'
 import { TabRouter } from './TabRouter'
 
@@ -18,6 +20,12 @@ export const AppShell = () => {
   const { tabs, activeTabId, setActiveTab, closeTab, updateTab, reorderTabs, pinTab, unpinTab } = useTabs()
   const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
+
+  const handleOpenGlobalSearch = useCallback(() => {
+    void SearchPopup.show()
+  }, [])
+
+  useShortcut('general.search', handleOpenGlobalSearch)
 
   const recordRouteVisit = useCallback(
     (tab: typeof activeTab, lastAccessTime = tab?.lastAccessTime) => {

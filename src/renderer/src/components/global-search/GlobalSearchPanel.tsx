@@ -2,8 +2,7 @@ import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
+  DropdownMenuItem,
   DropdownMenuTrigger,
   Input,
   Kbd,
@@ -17,6 +16,7 @@ import { useQuery } from '@data/hooks/useDataApi'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import HighlightText from '@renderer/components/HighlightText'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { GroupedVirtualList, type GroupedVirtualListGroup } from '@renderer/components/VirtualList'
 import {
   getDefaultSidebarIconPreferences,
@@ -501,6 +501,10 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
 
   const handleInputKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
+      // IME candidate confirmation still emits keydown; do not let panel shortcuts intercept it.
+      // oxlint-disable-next-line no-deprecated
+      if (event.nativeEvent.isComposing || event.keyCode === 229) return
+
       if (event.key === 'Escape') {
         event.preventDefault()
         onClose()
@@ -583,7 +587,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
           onOpen={handleSidebarShortcutOpen}
         />
 
-        <div className="flex h-8 items-center gap-1.5">
+        <div className="-ml-2 flex h-8 items-center gap-1.5">
           <DropdownMenu open={filterMenuOpen} onOpenChange={setFilterMenuOpen}>
             <DropdownMenuTrigger asChild>
               <Button
@@ -597,18 +601,17 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="z-[90] min-w-[132px] rounded-[10px] p-1">
-              <DropdownMenuRadioGroup
-                value={filter}
-                onValueChange={(value) => handleFilterSelect(value as GlobalSearchFilter)}>
-                {FILTERS.map((filterOption) => (
-                  <DropdownMenuRadioItem
-                    key={filterOption}
-                    value={filterOption}
-                    className="h-8 rounded-[7px] font-medium text-xs">
-                    {t(getFilterLabelKey(filterOption))}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
+              {FILTERS.map((filterOption) => (
+                <DropdownMenuItem
+                  key={filterOption}
+                  onSelect={() => handleFilterSelect(filterOption)}
+                  className={cn(
+                    'h-8 rounded-[7px] font-medium text-xs',
+                    filter === filterOption && 'bg-accent text-accent-foreground'
+                  )}>
+                  {t(getFilterLabelKey(filterOption))}
+                </DropdownMenuItem>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
           <DropdownMenu>
@@ -624,18 +627,17 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="z-[90] min-w-[132px] rounded-[10px] p-1">
-              <DropdownMenuRadioGroup
-                value={timeFilter}
-                onValueChange={(value) => handleTimeFilterSelect(value as GlobalSearchTimeFilter)}>
-                {TIME_FILTERS.map((filterOption) => (
-                  <DropdownMenuRadioItem
-                    key={filterOption}
-                    value={filterOption}
-                    className="h-8 rounded-[7px] font-medium text-xs">
-                    {t(getTimeFilterLabelKey(filterOption))}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
+              {TIME_FILTERS.map((filterOption) => (
+                <DropdownMenuItem
+                  key={filterOption}
+                  onSelect={() => handleTimeFilterSelect(filterOption)}
+                  className={cn(
+                    'h-8 rounded-[7px] font-medium text-xs',
+                    timeFilter === filterOption && 'bg-accent text-accent-foreground'
+                  )}>
+                  {t(getTimeFilterLabelKey(filterOption))}
+                </DropdownMenuItem>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -727,45 +729,47 @@ function GlobalSearchQuickAppsBar({
 
   return (
     <div className="mt-3 pb-2">
-      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+      <Scrollbar className="flex gap-6 overflow-x-auto overflow-y-hidden pb-1 [scrollbar-gutter:auto] hover:[&::-webkit-scrollbar-thumb]:bg-[var(--color-scrollbar-thumb)]">
         {icons.map((icon) => {
           const Icon = SIDEBAR_ICON_COMPONENTS[icon]
           const label = getSidebarIconLabel(icon)
 
           return (
-            <Button
-              key={icon}
-              type="button"
-              variant="ghost"
-              aria-label={label}
-              onClick={() => onOpen(icon)}
-              className="flex h-[66px] w-[68px] shrink-0 flex-col items-center justify-center gap-1.5 rounded-[12px] px-1 text-muted-foreground hover:bg-muted/50 hover:text-foreground">
-              <span className="flex size-9 items-center justify-center rounded-[10px] bg-muted/60 text-muted-foreground">
+            <div key={icon} className="flex shrink-0 flex-col items-center gap-1.5">
+              <Button
+                type="button"
+                variant="ghost"
+                aria-label={label}
+                onClick={() => onOpen(icon)}
+                className="size-9 rounded-[10px] bg-muted/60 p-0 text-muted-foreground hover:bg-muted hover:text-foreground">
                 <Icon className="size-5" />
-              </span>
-              <span className="w-full truncate text-center font-medium text-xs">{label}</span>
-            </Button>
+              </Button>
+              <span className="max-w-14 truncate text-center font-medium text-muted-foreground text-xs">{label}</span>
+            </div>
           )
         })}
-        <Button
-          type="button"
-          variant="ghost"
-          aria-pressed={active}
-          onClick={onManage}
-          className={cn(
-            'flex h-[66px] w-[68px] shrink-0 flex-col items-center justify-center gap-1.5 rounded-[12px] px-1 text-muted-foreground hover:bg-muted/50 hover:text-foreground',
-            active && 'bg-muted/60 text-foreground'
-          )}>
-          <span
+        <div className="flex shrink-0 flex-col items-center gap-1.5">
+          <Button
+            type="button"
+            variant="ghost"
+            aria-label={t('globalSearch.quickApps.manage')}
+            aria-pressed={active}
+            onClick={onManage}
             className={cn(
-              'flex size-9 items-center justify-center rounded-[10px] bg-muted/60 text-muted-foreground',
-              active && 'bg-background text-foreground'
+              'size-9 rounded-[10px] bg-muted/60 p-0 text-muted-foreground hover:bg-muted hover:text-foreground',
+              active && 'bg-muted text-foreground'
             )}>
             <Settings className="size-5" />
+          </Button>
+          <span
+            className={cn(
+              'max-w-14 truncate text-center font-medium text-muted-foreground text-xs',
+              active && 'text-foreground'
+            )}>
+            {t('globalSearch.quickApps.manage')}
           </span>
-          <span className="w-full truncate text-center font-medium text-xs">{t('globalSearch.quickApps.manage')}</span>
-        </Button>
-      </div>
+        </div>
+      </Scrollbar>
     </div>
   )
 }

@@ -4,7 +4,7 @@ import '@testing-library/jest-dom/vitest'
 import type { GlobalSearchResponse } from '@shared/data/api/schemas/globalSearch'
 import type { GlobalSearchRecentEntry, Tab } from '@shared/data/cache/cacheValueTypes'
 import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -56,33 +56,14 @@ vi.mock('@cherrystudio/ui', () => ({
     void _align
     return <div {...props}>{children}</div>
   },
-  DropdownMenuRadioGroup: ({
+  DropdownMenuItem: ({
     children,
-    value,
-    onValueChange
-  }: React.ComponentProps<'div'> & { value?: string; onValueChange?: (value: string) => void }) => (
-    <div role="radiogroup">
-      {React.Children.map(children, (child) =>
-        React.isValidElement(child)
-          ? React.cloneElement(child as React.ReactElement<Record<string, unknown>>, {
-              selectedValue: value,
-              onSelectValue: onValueChange
-            })
-          : child
-      )}
-    </div>
-  ),
-  DropdownMenuRadioItem: ({
-    children,
-    value,
-    selectedValue,
-    onSelectValue
+    onSelect,
+    ...props
   }: React.ComponentProps<'button'> & {
-    value: string
-    selectedValue?: string
-    onSelectValue?: (value: string) => void
+    onSelect?: () => void
   }) => (
-    <button type="button" role="radio" aria-checked={selectedValue === value} onClick={() => onSelectValue?.(value)}>
+    <button type="button" role="menuitem" onClick={onSelect} {...props}>
       {children}
     </button>
   ),
@@ -549,7 +530,7 @@ describe('GlobalSearchPanel', () => {
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
     await user.click(screen.getByRole('button', { name: 'Search type' }))
-    await user.click(screen.getByRole('radio', { name: 'Conversation' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Conversation' }))
     await user.type(screen.getByLabelText('Start typing to search...'), 'plan')
 
     await waitFor(() => {
@@ -572,7 +553,7 @@ describe('GlobalSearchPanel', () => {
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
     await user.click(screen.getByRole('button', { name: 'Search type' }))
-    await user.click(screen.getByRole('radio', { name: 'Knowledge' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Knowledge' }))
     await user.type(screen.getByLabelText('Start typing to search...'), 'docs')
 
     await waitFor(() => {
@@ -595,8 +576,8 @@ describe('GlobalSearchPanel', () => {
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
     await user.click(screen.getByRole('button', { name: 'Updated time' }))
-    expect(screen.getByRole('radio', { name: 'Last 7 days' }).parentElement?.parentElement).toHaveClass('z-[90]')
-    await user.click(screen.getByRole('radio', { name: 'Last 7 days' }))
+    expect(screen.getByRole('menuitem', { name: 'Last 7 days' }).parentElement).toHaveClass('z-[90]')
+    await user.click(screen.getByRole('menuitem', { name: 'Last 7 days' }))
     await user.type(screen.getByLabelText('Start typing to search...'), 'plan')
 
     await waitFor(() => {
@@ -677,6 +658,38 @@ describe('GlobalSearchPanel', () => {
       forceNew: true
     })
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not open the active result when Enter confirms an IME candidate', async () => {
+    const user = userEvent.setup()
+    mocks.queryResult = {
+      query: 'assistant',
+      groups: [
+        {
+          type: 'assistant',
+          items: [
+            {
+              type: 'assistant',
+              id: 'assistant-1',
+              title: 'Writing Assistant',
+              target: { assistantId: 'assistant-1' }
+            }
+          ]
+        }
+      ]
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    const input = screen.getByLabelText('Start typing to search...')
+    await user.type(input, 'assistant')
+    await screen.findByRole('option', { name: /Writing Assistant/ })
+
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
+    fireEvent.keyDown(input, { key: 'Enter', keyCode: 229 })
+
+    expect(mocks.openTab).not.toHaveBeenCalled()
+    expect(mocks.onClose).not.toHaveBeenCalled()
   })
 
   it('opens the active knowledge base result with Enter', async () => {
