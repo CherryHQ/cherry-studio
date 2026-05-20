@@ -25,7 +25,7 @@ function pathArray(value: unknown): string[] {
 
   return value
     .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
-    .map(normalizePathValue)
+    .map((item) => normalizePathValue(item.trim()))
 }
 
 export class NoteMigrator extends BaseMigrator {
@@ -54,7 +54,7 @@ export class NoteMigrator extends BaseMigrator {
       return { success: true, itemCount: 0 }
     }
 
-    const rootPath = typeof state.notesPath === 'string' ? normalizePathValue(state.notesPath) : ''
+    const rootPath = typeof state.notesPath === 'string' ? normalizePathValue(state.notesPath.trim()) : ''
     const starredPaths = pathArray(state.starredPaths)
     const expandedPaths = pathArray(state.expandedPaths)
 

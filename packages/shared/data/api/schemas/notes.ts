@@ -2,7 +2,7 @@ import * as z from 'zod'
 
 import type { Note } from '../../types/note'
 
-const NotePathSchema = z.string().min(1)
+const NotePathSchema = z.string().refine((value) => value.trim().length > 0, 'path must not be blank')
 
 export const ListNoteQuerySchema = z.strictObject({
   rootPath: NotePathSchema

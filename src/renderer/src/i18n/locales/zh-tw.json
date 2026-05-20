@@ -3406,6 +3406,10 @@
     "export_success": "成功匯出至知識庫",
     "export_to_word_failed": "匯出為 Word 失敗",
     "folder": "資料夾",
+    "load_failed": "筆記載入失敗",
+    "load_failed_description": "無法讀取該檔案。為保護筆記內容，已停用編輯。",
+    "metadata_sync_failed": "檔案已更新，但筆記狀態同步失敗，請重試該操作。",
+    "metadata_update_failed": "筆記狀態更新失敗",
     "new_folder": "新增資料夾",
     "new_note": "新增筆記",
     "no_content_to_copy": "沒有內容可複製",
@@ -3418,6 +3422,7 @@
     "rename": "重新命名",
     "rename_changed": "基於安全性考量，檔名已從 {{original}} 變更為 {{final}}",
     "save": "儲存到筆記",
+    "save_blocked_load_failed": "筆記載入失敗，已阻止儲存",
     "search": {
       "both": "名稱 + 內容",
       "content": "內容",

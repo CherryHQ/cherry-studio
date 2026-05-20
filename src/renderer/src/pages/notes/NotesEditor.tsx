@@ -9,12 +9,13 @@ import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import type { EditorView } from '@renderer/types'
 import { SpellCheck } from 'lucide-react'
 import type { FC, RefObject } from 'react'
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface NotesEditorProps {
   activeNodeId?: string
   currentContent: string
+  contentLoadError?: Error
   tokenCount: number
   editorRef: RefObject<RichEditorRef | null>
   codeEditorRef: RefObject<CodeEditorHandles | null>
@@ -22,7 +23,7 @@ interface NotesEditorProps {
 }
 
 const NotesEditor: FC<NotesEditorProps> = memo(
-  ({ activeNodeId, currentContent, tokenCount, onMarkdownChange, editorRef, codeEditorRef }) => {
+  ({ activeNodeId, currentContent, contentLoadError, tokenCount, onMarkdownChange, editorRef, codeEditorRef }) => {
     const { t } = useTranslation()
     const { settings } = useNotesSettings()
     const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
@@ -34,10 +35,20 @@ const NotesEditor: FC<NotesEditorProps> = memo(
       }
     }, [settings.defaultEditMode, settings.defaultViewMode])
     const [tmpViewMode, setTmpViewMode] = useState(currentViewMode)
+    const currentViewModeRef = useRef(currentViewMode)
+    const userViewModeOverrideRef = useRef(false)
 
     useEffect(() => {
-      setTmpViewMode(currentViewMode)
+      currentViewModeRef.current = currentViewMode
+      if (!userViewModeOverrideRef.current) {
+        setTmpViewMode(currentViewMode)
+      }
     }, [currentViewMode])
+
+    useEffect(() => {
+      userViewModeOverrideRef.current = false
+      setTmpViewMode(currentViewModeRef.current)
+    }, [activeNodeId])
 
     const handleCommandsReady = useCallback((commandAPI: Pick<RichEditorRef, 'unregisterCommand'>) => {
       const disabledCommands = ['image', 'inlineMath']
@@ -50,6 +61,19 @@ const NotesEditor: FC<NotesEditorProps> = memo(
       return (
         <div className="flex h-full w-full flex-1 items-center justify-center">
           <EmptyState preset="no-note" title={t('notes.empty')} compact />
+        </div>
+      )
+    }
+
+    if (contentLoadError) {
+      return (
+        <div className="flex h-full w-full flex-1 items-center justify-center">
+          <EmptyState
+            preset="no-note"
+            title={t('notes.load_failed')}
+            description={t('notes.load_failed_description')}
+            compact
+          />
         </div>
       )
     }
@@ -112,7 +136,10 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               )}
               <Selector
                 value={tmpViewMode as EditorView}
-                onChange={(value: EditorView) => setTmpViewMode(value)}
+                onChange={(value: EditorView) => {
+                  userViewModeOverrideRef.current = true
+                  setTmpViewMode(value)
+                }}
                 options={[
                   { label: t('notes.settings.editor.edit_mode.preview_mode'), value: 'preview' },
                   { label: t('notes.settings.editor.edit_mode.source_mode'), value: 'source' },

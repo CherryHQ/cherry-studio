@@ -8,7 +8,7 @@ import { useCallback, useMemo } from 'react'
 const logger = loggerService.withContext('useNote')
 
 export function useNote(rootPath: string) {
-  const normalizedRootPath = useMemo(() => (rootPath ? normalizePathValue(rootPath) : ''), [rootPath])
+  const normalizedRootPath = useMemo(() => (rootPath.trim() ? normalizePathValue(rootPath.trim()) : ''), [rootPath])
   const {
     data: notes = [],
     isLoading,
@@ -17,7 +17,7 @@ export function useNote(rootPath: string) {
     refetch
   } = useQuery('/notes', {
     query: { rootPath: normalizedRootPath },
-    enabled: !!rootPath
+    enabled: !!normalizedRootPath
   })
 
   const { trigger: upsertNote } = useMutation('PATCH', '/notes', {
@@ -39,7 +39,7 @@ export function useNote(rootPath: string) {
       node: Pick<NotesTreeNode, 'externalPath' | 'type'>,
       patch: Pick<Partial<Note>, 'isStarred' | 'isExpanded'>
     ) => {
-      if (!rootPath || node.type === 'hint') {
+      if (!rootPath.trim() || node.type === 'hint') {
         return
       }
 
@@ -61,27 +61,37 @@ export function useNote(rootPath: string) {
 
   const removePath = useCallback(
     async (path: string, recursive: boolean) => {
-      await deleteNote({
-        query: {
-          rootPath: normalizedRootPath,
-          path: normalizePathValue(path),
-          recursive
-        }
-      })
+      try {
+        await deleteNote({
+          query: {
+            rootPath: normalizedRootPath,
+            path: normalizePathValue(path),
+            recursive
+          }
+        })
+      } catch (mutationError) {
+        logger.error('Failed to delete note metadata path', mutationError as Error)
+        throw mutationError
+      }
     },
     [deleteNote, normalizedRootPath]
   )
 
   const rewritePath = useCallback(
     async (fromPath: string, toPath: string, recursive: boolean) => {
-      await rewriteNotePath({
-        body: {
-          rootPath: normalizedRootPath,
-          fromPath: normalizePathValue(fromPath),
-          toPath: normalizePathValue(toPath),
-          recursive
-        }
-      })
+      try {
+        await rewriteNotePath({
+          body: {
+            rootPath: normalizedRootPath,
+            fromPath: normalizePathValue(fromPath),
+            toPath: normalizePathValue(toPath),
+            recursive
+          }
+        })
+      } catch (mutationError) {
+        logger.error('Failed to rewrite note metadata path', mutationError as Error)
+        throw mutationError
+      }
     },
     [normalizedRootPath, rewriteNotePath]
   )

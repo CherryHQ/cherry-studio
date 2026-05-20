@@ -9,7 +9,9 @@ import { describe, expect, it } from 'vitest'
 const ROOT_A = '/Users/test/Notes'
 const ROOT_B = '/Users/test/OtherNotes'
 const FOLDER = '/Users/test/Notes/Folder'
+const SIBLING_FOLDER = '/Users/test/Notes/Folder2'
 const NOTE = '/Users/test/Notes/Folder/a.md'
+const WINDOWS_NOTE = 'C:\\Users\\test\\Notes\\Folder\\windows.md'
 const RENAMED_FOLDER = '/Users/test/Notes/Renamed'
 
 describe('NoteService', () => {
@@ -73,16 +75,53 @@ describe('NoteService', () => {
     await expect(noteService.upsert({ rootPath: ROOT_A, path: FOLDER, isExpanded: false })).resolves.toBeNull()
 
     expect(await noteService.listByRoot(ROOT_A)).toHaveLength(0)
+
+    await expect(
+      noteService.upsert({
+        rootPath: ROOT_A,
+        path: '/Users/test/Notes/missing.md',
+        isStarred: false,
+        isExpanded: false
+      })
+    ).resolves.toBeNull()
+    expect(await noteService.listByRoot(ROOT_A)).toHaveLength(0)
   })
 
   it('should delete a path recursively when requested', async () => {
     await noteService.upsert({ rootPath: ROOT_A, path: FOLDER, isExpanded: true })
     await noteService.upsert({ rootPath: ROOT_A, path: NOTE, isStarred: true })
+    await noteService.upsert({ rootPath: ROOT_A, path: SIBLING_FOLDER, isExpanded: true })
 
     await noteService.deleteByPath({ rootPath: ROOT_A, path: FOLDER, recursive: true })
 
     const rows = await dbh.db.select().from(noteTable).where(eq(noteTable.rootPath, ROOT_A))
-    expect(rows).toHaveLength(0)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].path).toBe(SIBLING_FOLDER)
+  })
+
+  it('should rewrite a single file path without touching descendants', async () => {
+    await noteService.upsert({ rootPath: ROOT_A, path: NOTE, isStarred: true })
+    await noteService.upsert({ rootPath: ROOT_A, path: `${NOTE}/child.md`, isStarred: true })
+
+    const result = await noteService.rewritePath({
+      rootPath: ROOT_A,
+      fromPath: NOTE,
+      toPath: '/Users/test/Notes/Folder/b.md',
+      recursive: false
+    })
+
+    expect(result.updated).toBe(1)
+    const rows = await dbh.db.select().from(noteTable).where(eq(noteTable.rootPath, ROOT_A))
+    expect(rows.find((row) => row.path === '/Users/test/Notes/Folder/b.md')).toMatchObject({ isStarred: true })
+    expect(rows.find((row) => row.path === `${NOTE}/child.md`)).toMatchObject({ isStarred: true })
+  })
+
+  it('should normalize Windows path separators', async () => {
+    await noteService.upsert({ rootPath: ROOT_A, path: WINDOWS_NOTE, isStarred: true })
+
+    const rows = await noteService.listByRoot(ROOT_A)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].path).toBe('C:/Users/test/Notes/Folder/windows.md')
   })
 
   it('should rewrite folder paths recursively', async () => {

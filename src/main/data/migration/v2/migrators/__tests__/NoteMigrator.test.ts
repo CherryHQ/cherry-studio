@@ -78,6 +78,53 @@ describe('NoteMigrator', () => {
     })
   })
 
+  it('should trim legacy paths before migration', async () => {
+    const ctx = createTestContext(
+      {
+        note: {
+          notesPath: '  /Users/test/Notes  ',
+          starredPaths: ['  /Users/test/Notes/Folder/a.md  '],
+          expandedPaths: ['  /Users/test/Notes/Folder  ']
+        }
+      },
+      dbh.db
+    ) as any
+
+    await migrator.prepare(ctx)
+    await migrator.execute(ctx)
+
+    const rows = await dbh.db.select().from(noteTable).where(eq(noteTable.rootPath, '/Users/test/Notes'))
+    expect(rows).toHaveLength(2)
+    expect(rows.map((row) => row.path).sort()).toEqual(['/Users/test/Notes/Folder', '/Users/test/Notes/Folder/a.md'])
+  })
+
+  it('should merge migrated state into existing note rows idempotently', async () => {
+    await dbh.db.insert(noteTable).values({
+      rootPath: '/Users/test/Notes',
+      path: '/Users/test/Notes/Folder/a.md',
+      isStarred: false,
+      isExpanded: true
+    })
+    const ctx = createTestContext(
+      {
+        note: {
+          notesPath: '/Users/test/Notes',
+          starredPaths: ['/Users/test/Notes/Folder/a.md'],
+          expandedPaths: ['/Users/test/Notes/Folder/a.md']
+        }
+      },
+      dbh.db
+    ) as any
+
+    await migrator.prepare(ctx)
+    await migrator.execute(ctx)
+    await migrator.execute(ctx)
+
+    const rows = await dbh.db.select().from(noteTable).where(eq(noteTable.rootPath, '/Users/test/Notes'))
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ path: '/Users/test/Notes/Folder/a.md', isStarred: true, isExpanded: true })
+  })
+
   it('should not migrate notes when legacy notesPath is empty', async () => {
     const ctx = createTestContext(
       {

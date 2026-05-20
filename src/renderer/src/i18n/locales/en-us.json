@@ -3406,6 +3406,10 @@
     "export_success": "Successfully exported to the knowledge base",
     "export_to_word_failed": "Failed to export to Word",
     "folder": "folder",
+    "load_failed": "Failed to load note",
+    "load_failed_description": "The file could not be read. Editing is disabled to protect the note content.",
+    "metadata_sync_failed": "File updated, but note state sync failed. Please retry the operation.",
+    "metadata_update_failed": "Failed to update note state",
     "new_folder": "New Folder",
     "new_note": "Create a new note",
     "no_content_to_copy": "No content to copy",
@@ -3418,6 +3422,7 @@
     "rename": "Rename",
     "rename_changed": "Due to security policies, the filename has been changed from {{original}} to {{final}}",
     "save": "Save to Notes",
+    "save_blocked_load_failed": "Save blocked because the note failed to load",
     "search": {
       "both": "Name+Content",
       "content": "Content",

@@ -73,6 +73,10 @@ export class NoteService {
         note: ['At least one note field is required']
       })
     }
+    if (normalized.isStarred === false && normalized.isExpanded === false) {
+      await this.deleteByPath({ rootPath: normalized.rootPath, path: normalized.path })
+      return null
+    }
 
     const row = await withSqliteErrors(
       () =>
@@ -82,8 +86,7 @@ export class NoteService {
             .values({
               rootPath: normalized.rootPath,
               path: normalized.path,
-              isStarred: normalized.isStarred ?? false,
-              isExpanded: normalized.isExpanded ?? false
+              ...updateValues
             })
             .onConflictDoUpdate({
               target: [noteTable.rootPath, noteTable.path],
@@ -160,9 +163,12 @@ export class NoteService {
               )
             )
 
-          for (const rewrite of rewrites) {
-            await tx.update(noteTable).set({ path: rewrite.path }).where(eq(noteTable.id, rewrite.id))
-          }
+          const pathCase = sql<string>`CASE ${noteTable.id} ${sql.join(
+            rewrites.map((rewrite) => sql`WHEN ${rewrite.id} THEN ${rewrite.path}`),
+            sql` `
+          )} ELSE ${noteTable.path} END`
+
+          await tx.update(noteTable).set({ path: pathCase }).where(inArray(noteTable.id, sourceIds))
 
           return { updated: rows.length }
         }),

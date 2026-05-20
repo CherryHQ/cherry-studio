@@ -3406,6 +3406,10 @@
     "export_success": "成功导出到知识库",
     "export_to_word_failed": "导出为 Word 失败",
     "folder": "文件夹",
+    "load_failed": "笔记加载失败",
+    "load_failed_description": "无法读取该文件。为保护笔记内容，已禁用编辑。",
+    "metadata_sync_failed": "文件已更新，但笔记状态同步失败，请重试该操作。",
+    "metadata_update_failed": "笔记状态更新失败",
     "new_folder": "新建文件夹",
     "new_note": "新建笔记",
     "no_content_to_copy": "没有内容可复制",
@@ -3418,6 +3422,7 @@
     "rename": "重命名",
     "rename_changed": "由于安全策略，文件名已从 {{original}} 更改为 {{final}}",
     "save": "保存到笔记",
+    "save_blocked_load_failed": "笔记加载失败，已阻止保存",
     "search": {
       "both": "名称+内容",
       "content": "内容",

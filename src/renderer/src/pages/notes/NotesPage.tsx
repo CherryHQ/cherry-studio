@@ -57,7 +57,8 @@ const NotesPage: FC = () => {
   const expandedSetRef = useRef(expandedSet)
   const { activeNode } = useActiveNode(notesTree, activeFilePath)
   const { invalidateFileContent } = useFileContentSync()
-  const { data: currentContent = '' } = useFileContent(activeFilePath)
+  const { data: currentContent = '', error: currentContentError } = useFileContent(activeFilePath)
+  const contentLoadError = activeFilePath ? currentContentError : undefined
 
   const [tokenCount, setTokenCount] = useState(0)
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
@@ -70,6 +71,7 @@ const NotesPage: FC = () => {
 
   const activeFilePathRef = useRef<string | undefined>(activeFilePath)
   const currentContentRef = useRef(currentContent)
+  const contentLoadErrorRef = useRef<Error | undefined>(contentLoadError as Error | undefined)
 
   const mergeTreeState = useCallback((nodes: NotesTreeNode[]): NotesTreeNode[] => {
     return nodes.map((node) => {
@@ -133,6 +135,11 @@ const NotesPage: FC = () => {
     async (content: string, filePath?: string) => {
       const targetPath = filePath || activeFilePath
       if (!targetPath || content.trim() === currentContent.trim()) return
+      if (contentLoadErrorRef.current && targetPath === activeFilePathRef.current) {
+        logger.warn('Skipped note save because current file content failed to load', { targetPath })
+        window.toast.error(t('notes.save_blocked_load_failed'))
+        return
+      }
 
       try {
         await window.api.file.write(targetPath, content)
@@ -142,7 +149,7 @@ const NotesPage: FC = () => {
         logger.error('Failed to save note:', error as Error)
       }
     },
-    [activeFilePath, currentContent, invalidateFileContent]
+    [activeFilePath, currentContent, invalidateFileContent, t]
   )
 
   // 防抖保存函数，在停止输入后才保存，避免输入过程中的文件写入
@@ -161,13 +168,18 @@ const NotesPage: FC = () => {
 
   const handleMarkdownChange = useCallback(
     (newMarkdown: string) => {
+      if (contentLoadError) {
+        logger.warn('Ignored note edit because current file content failed to load', { activeFilePath })
+        window.toast.error(t('notes.save_blocked_load_failed'))
+        return
+      }
       // 记录最新内容和文件路径，用于兜底保存
       lastContentRef.current = newMarkdown
       lastFilePathRef.current = activeFilePath
       // 捕获当前文件路径，避免在防抖执行时文件路径已改变的竞态条件
       debouncedSave(newMarkdown, activeFilePath)
     },
-    [debouncedSave, activeFilePath]
+    [debouncedSave, activeFilePath, contentLoadError, t]
   )
 
   useEffect(() => {
@@ -177,6 +189,17 @@ const NotesPage: FC = () => {
   useEffect(() => {
     currentContentRef.current = currentContent
   }, [currentContent])
+
+  useEffect(() => {
+    contentLoadErrorRef.current = contentLoadError as Error | undefined
+  }, [contentLoadError])
+
+  useEffect(() => {
+    if (contentLoadError) {
+      logger.error('Failed to load note content:', contentLoadError)
+      window.toast.error(t('notes.load_failed'))
+    }
+  }, [contentLoadError, t])
 
   useEffect(() => {
     saveCurrentNoteRef.current = saveCurrentNote
@@ -441,10 +464,27 @@ const NotesPage: FC = () => {
     (node: NotesTreeNode, patch: Parameters<typeof patchNode>[1]) => {
       void patchNode(node, patch).catch((error) => {
         logger.error('Failed to persist note patch:', error as Error)
-        void refreshTree()
+        window.toast.error(t('notes.metadata_update_failed'))
+        void refreshTree().catch((refreshError) => {
+          logger.error('Failed to refresh notes tree after metadata patch failure:', refreshError as Error)
+        })
       })
     },
-    [patchNode, refreshTree]
+    [patchNode, refreshTree, t]
+  )
+
+  const syncMetadataAfterFileOperation = useCallback(
+    async (operation: () => Promise<void>) => {
+      try {
+        await operation()
+      } catch (error) {
+        logger.error('Failed to sync note metadata after file operation:', error as Error)
+        window.toast.error(t('notes.metadata_sync_failed'))
+        await refreshTree()
+        throw error
+      }
+    },
+    [refreshTree, t]
   )
 
   const setFolderExpandedByPath = useCallback(
@@ -563,7 +603,9 @@ const NotesPage: FC = () => {
 
         await delNode(nodeToDelete)
 
-        await removePath(nodeToDelete.externalPath, nodeToDelete.type === 'folder')
+        await syncMetadataAfterFileOperation(() =>
+          removePath(nodeToDelete.externalPath, nodeToDelete.type === 'folder')
+        )
 
         const normalizedActivePath = activeFilePath ? normalizePathValue(activeFilePath) : undefined
         const normalizedDeletePath = normalizePathValue(nodeToDelete.externalPath)
@@ -583,7 +625,7 @@ const NotesPage: FC = () => {
         logger.error('Failed to delete node:', error as Error)
       }
     },
-    [notesTree, activeFilePath, refreshTree, removePath, setActiveFilePath]
+    [notesTree, activeFilePath, refreshTree, removePath, setActiveFilePath, syncMetadataAfterFileOperation]
   )
 
   // 重命名节点
@@ -612,7 +654,7 @@ const NotesPage: FC = () => {
           setActiveFilePath(nextActivePath)
         }
 
-        await rewritePath(oldPath, renamed.path, node.type === 'folder')
+        await syncMetadataAfterFileOperation(() => rewritePath(oldPath, renamed.path, node.type === 'folder'))
 
         await refreshTree()
       } catch (error) {
@@ -623,7 +665,7 @@ const NotesPage: FC = () => {
         }, 500)
       }
     },
-    [activeFilePath, notesTree, refreshTree, rewritePath, setActiveFilePath]
+    [activeFilePath, notesTree, refreshTree, rewritePath, setActiveFilePath, syncMetadataAfterFileOperation]
   )
 
   // 处理文件上传
@@ -744,7 +786,9 @@ const NotesPage: FC = () => {
           await window.api.file.moveDir(sourceNode.externalPath, destinationPath)
         }
 
-        await rewritePath(sourceNode.externalPath, destinationPath, sourceNode.type === 'folder')
+        await syncMetadataAfterFileOperation(() =>
+          rewritePath(sourceNode.externalPath, destinationPath, sourceNode.type === 'folder')
+        )
         setFolderExpandedByPath(normalizedTargetParent, true)
 
         const normalizedActivePath = activeFilePath ? normalizePathValue(activeFilePath) : undefined
@@ -769,7 +813,16 @@ const NotesPage: FC = () => {
         logger.error('Failed to move nodes:', error as Error)
       }
     },
-    [activeFilePath, notesPath, notesTree, refreshTree, rewritePath, setActiveFilePath, setFolderExpandedByPath]
+    [
+      activeFilePath,
+      notesPath,
+      notesTree,
+      refreshTree,
+      rewritePath,
+      setActiveFilePath,
+      setFolderExpandedByPath,
+      syncMetadataAfterFileOperation
+    ]
   )
 
   // 处理节点排序
@@ -914,6 +967,7 @@ const NotesPage: FC = () => {
           <NotesEditor
             activeNodeId={activeNode?.id}
             currentContent={currentContent}
+            contentLoadError={contentLoadError as Error | undefined}
             tokenCount={tokenCount}
             onMarkdownChange={handleMarkdownChange}
             editorRef={editorRef}
