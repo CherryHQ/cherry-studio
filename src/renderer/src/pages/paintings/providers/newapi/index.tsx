@@ -17,14 +17,22 @@ import { generateWithNewApiUnified } from './generateUnified'
 /**
  * Bespoke direct-fetch → AI-SDK-native switch, keyed by painting provider id.
  *
- * new-api and aionly are cut over to the unified files-driven path
- * (`generateWithNewApiUnified`); cherryin stays on bespoke `generateWithNewApi`
- * because its unified resolution goes through `buildCherryinConfig` — a
- * different config builder than `createNewApi` — and that path has not been
- * parity-verified. Remove cherryin from this set's complement (i.e. add it to
- * the set) only after a dedicated cherryin check.
+ * new-api, aionly, and cherryin are cut over to the unified files-driven
+ * path (`generateWithNewApiUnified`). cherryin routes through
+ * `buildCherryinConfig` → `createCherryIn`'s native `OpenAIImageModel` at
+ * `https://open.cherryin.net/v1/images/generations` with `Bearer <key>` — the
+ * exact endpoint and auth the bespoke path sent. For `gpt-image-1` (the only
+ * SUPPORTED_MODEL) the request body is byte-equivalent (size omitted on
+ * `'auto'` via R2 `allowAutoSize`, quality/background/moderation forwarded
+ * under `providerOptions.openai`).
+ *
+ * Bespoke `generateWithNewApi` is retained as the fallback for custom user
+ * providers with `presetProviderId === 'new-api'` (their `providerId` is the
+ * user's custom id, never in this set); the unified path's
+ * `buildOpenAICompatibleConfig` resolution for those ids has not been
+ * parity-checked.
  */
-const UNIFIED_NEWAPI_PROVIDERS = new Set<string>(['new-api', 'aionly'])
+const UNIFIED_NEWAPI_PROVIDERS = new Set<string>(['new-api', 'aionly', 'cherryin'])
 
 export function NewApiHeaderActions({ provider, t }: { provider: PaintingProviderRuntime; t: TFunction }) {
   const Icon = resolveProviderIcon(provider.id)
