@@ -90,7 +90,6 @@ vi.mock('@renderer/pages/shared/messages/hooks/useMessageListRenderConfig', () =
       renderInputMessageAsMarkdown: false,
       codeFancyBlock: true,
       thoughtAutoCollapse: true,
-      mathEngine: 'KaTeX',
       mathEnableSingleDollar: false,
       showMessageOutline: false,
       multiModelMessageStyle: 'horizontal',

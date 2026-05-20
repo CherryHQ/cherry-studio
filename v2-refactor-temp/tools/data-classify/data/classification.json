@@ -1373,11 +1373,11 @@
         },
         {
           "originalKey": "mathEngine",
-          "type": "PreferenceTypes.MathEngine",
+          "type": "string",
           "defaultValue": "KaTeX",
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "chat.message.math.engine"
+          "status": "pending",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "mathEnableSingleDollar",

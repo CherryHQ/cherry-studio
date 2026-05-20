@@ -5,7 +5,7 @@ import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useLanguages } from '@renderer/hooks/translate'
 import { SettingGroup as PageSettingGroup, SettingTitle } from '@renderer/pages/settings'
-import type { CodeStyleVarious, MathEngine } from '@renderer/types'
+import type { CodeStyleVarious } from '@renderer/types'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
@@ -57,7 +57,6 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
   const [multiModelMessageStyle, setMultiModelMessageStyle] = usePreference('chat.message.multi_model.style')
   const [pasteLongTextAsFile, setPasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
   const [pasteLongTextThreshold, setPasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
-  const [mathEngine, setMathEngine] = usePreference('chat.message.math.engine')
   const [mathEnableSingleDollar, setMathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
   const [showInputEstimatedTokens, setShowInputEstimatedTokens] = usePreference('chat.input.show_estimated_tokens')
   const [renderInputMessageAsMarkdown, setRenderInputMessageAsMarkdown] = usePreference(
@@ -118,15 +117,6 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
     ],
     [t]
   )
-
-  const mathEngineItems = useMemo<SelectOption<MathEngine>[]>(
-    () => [
-      { value: 'KaTeX', label: 'KaTeX' },
-      { value: 'none', label: t('settings.math.engine.none') }
-    ],
-    [t]
-  )
-  const selectedMathEngine: MathEngine = mathEngine === 'none' ? 'none' : 'KaTeX'
 
   const codeStyleItems = useMemo<SelectOption<CodeStyleVarious>[]>(
     () => themeNames.map((themeName) => ({ value: themeName, label: themeName })),
@@ -440,22 +430,6 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
       {renderSection(
         t('settings.math.title'),
         <>
-          <SettingRow>
-            <SettingRowTitleSmall>{t('settings.math.engine.label')}</SettingRowTitleSmall>
-            <Select value={selectedMathEngine} onValueChange={setMathEngine}>
-              <SelectTrigger size="sm" className="w-[220px] text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="text-sm">
-                {mathEngineItems.map((item) => (
-                  <SelectItem className="text-sm" key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </SettingRow>
-          <SettingDivider />
           <SettingRow>
             <SettingSwitch
               checked={mathEnableSingleDollar}

@@ -9,7 +9,7 @@ import Markdown from '../Markdown'
 
 // Mock dependencies
 const mockMathSettings = vi.hoisted(() => ({
-  current: { mathEngine: 'KaTeX', mathEnableSingleDollar: true }
+  current: { mathEnableSingleDollar: true }
 }))
 const mockStreamdown = vi.hoisted(() => ({
   defaultRemarkPlugins: {
@@ -23,7 +23,6 @@ const mockUseTranslation = vi.fn()
 // Mock hooks
 vi.mock('../../MessageListProvider', () => ({
   useMessageRenderConfig: () => ({
-    mathEngine: mockMathSettings.current.mathEngine,
     mathEnableSingleDollar: mockMathSettings.current.mathEnableSingleDollar
   })
 }))
@@ -180,7 +179,7 @@ describe('Markdown', () => {
     vi.clearAllMocks()
 
     // Default settings
-    mockMathSettings.current = { mathEngine: 'KaTeX', mathEnableSingleDollar: true }
+    mockMathSettings.current = { mathEnableSingleDollar: true }
     mockUseTranslation.mockReturnValue({
       t: (key: string) => (key === 'message.chat.completion.paused' ? 'Paused' : key)
     })
@@ -300,22 +299,13 @@ describe('Markdown', () => {
     })
   })
 
-  describe('math engine configuration', () => {
-    it('should configure KaTeX when mathEngine is KaTeX', () => {
-      mockMathSettings.current = { mathEngine: 'KaTeX', mathEnableSingleDollar: true }
+  describe('math plugin configuration', () => {
+    it('should configure KaTeX math rendering', () => {
+      mockMathSettings.current = { mathEnableSingleDollar: true }
 
       render(<Markdown block={createMarkdownSource()} />)
 
-      // Component should render successfully with KaTeX configuration
-      expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
-    })
-
-    it('should not load math plugins when mathEngine is none', () => {
-      mockMathSettings.current = { mathEngine: 'none', mathEnableSingleDollar: true }
-
-      render(<Markdown block={createMarkdownSource()} />)
-
-      // Component should render successfully without math plugins
+      // Component should render successfully with KaTeX configuration.
       expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
     })
   })
@@ -394,16 +384,15 @@ describe('Markdown', () => {
       expect(screen.getByTestId('markdown-content')).toHaveTextContent('Updated')
     })
 
-    it('should re-render when math engine changes', () => {
-      mockMathSettings.current = { mathEngine: 'KaTeX', mathEnableSingleDollar: true }
+    it('should re-render when math single-dollar setting changes', () => {
+      mockMathSettings.current = { mathEnableSingleDollar: true }
       const { rerender } = render(<Markdown block={createMarkdownSource()} />)
 
       expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
 
-      mockMathSettings.current = { mathEngine: 'none', mathEnableSingleDollar: true }
+      mockMathSettings.current = { mathEnableSingleDollar: false }
       rerender(<Markdown block={createMarkdownSource()} />)
 
-      // Should still render correctly with math disabled
       expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
     })
   })

@@ -327,22 +327,17 @@ interface Props {
 
 const Markdown: FC<Props> = ({ block, postProcess }) => {
   const { t } = useTranslation()
-  const { mathEngine, mathEnableSingleDollar } = useMessageRenderConfig()
+  const { mathEnableSingleDollar } = useMessageRenderConfig()
   const isStreaming = block.status === 'streaming'
 
   const plugins = useMemo<PluginConfig>(() => {
-    const result: PluginConfig = {
+    return {
       code,
       cjk,
+      math: createMathPlugin({ singleDollarTextMath: mathEnableSingleDollar }),
       mermaid
     }
-    if (mathEngine !== 'none') {
-      result.math = createMathPlugin({
-        singleDollarTextMath: mathEnableSingleDollar
-      })
-    }
-    return result
-  }, [mathEngine, mathEnableSingleDollar])
+  }, [mathEnableSingleDollar])
 
   const remarkPlugins = useMemo(() => {
     return [...STREAMDOWN_DEFAULT_REMARK_PLUGINS, remarkAlert as Pluggable]

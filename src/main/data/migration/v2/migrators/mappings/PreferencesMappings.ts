@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-05-18T10:10:33.805Z
+ * Generated at: 2026-05-20T04:43:19.076Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -241,10 +241,6 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'codeFancyBlock',
       targetKey: 'chat.code.fancy_block'
-    },
-    {
-      originalKey: 'mathEngine',
-      targetKey: 'chat.message.math.engine'
     },
     {
       originalKey: 'mathEnableSingleDollar',
@@ -807,11 +803,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 178
+ * - Redux Store项: 177
  * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
  * - DexieSettings项: 4
  * - localStorage项: 0
- * - 总配置项: 183
+ * - 总配置项: 182
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

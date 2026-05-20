@@ -175,7 +175,6 @@ vi.mock('../MessageListProvider', () => ({
       renderInputMessageAsMarkdown: false,
       codeFancyBlock: true,
       thoughtAutoCollapse: true,
-      mathEngine: 'KaTeX',
       mathEnableSingleDollar: false,
       showMessageOutline: settings.showMessageOutline,
       multiModelMessageStyle: settings.multiModelMessageStyle,

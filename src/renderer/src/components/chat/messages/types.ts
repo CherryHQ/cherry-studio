@@ -3,7 +3,6 @@ import type { SerializedError } from '@renderer/types/error'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type {
   ChatMessageStyle,
-  MathEngine,
   MultiModelGridPopoverTrigger,
   MultiModelMessageStyle,
   SendMessageShortcut
@@ -221,7 +220,6 @@ export interface MessageRenderConfig {
   renderInputMessageAsMarkdown: boolean
   codeFancyBlock: boolean
   thoughtAutoCollapse: boolean
-  mathEngine: MathEngine
   mathEnableSingleDollar: boolean
   showMessageOutline: boolean
   multiModelMessageStyle: MultiModelMessageStyle
@@ -238,7 +236,6 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
   renderInputMessageAsMarkdown: false,
   codeFancyBlock: true,
   thoughtAutoCollapse: true,
-  mathEngine: 'KaTeX',
   mathEnableSingleDollar: false,
   showMessageOutline: false,
   multiModelMessageStyle: 'horizontal',

@@ -11,7 +11,6 @@ export function useMessageListRenderConfig() {
   const [renderInputMessageAsMarkdown] = usePreference('chat.message.render_as_markdown')
   const [codeFancyBlock] = usePreference('chat.code.fancy_block')
   const [thoughtAutoCollapse] = usePreference('chat.message.thought.auto_collapse')
-  const [mathEngine] = usePreference('chat.message.math.engine')
   const [mathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
   const [showMessageOutline] = usePreference('chat.message.show_outline')
   const [multiModelMessageStyle] = usePreference('chat.message.multi_model.style')
@@ -30,7 +29,6 @@ export function useMessageListRenderConfig() {
       renderInputMessageAsMarkdown,
       codeFancyBlock,
       thoughtAutoCollapse,
-      mathEngine,
       mathEnableSingleDollar,
       showMessageOutline,
       multiModelMessageStyle,
@@ -41,7 +39,6 @@ export function useMessageListRenderConfig() {
       fontSize,
       codeFancyBlock,
       mathEnableSingleDollar,
-      mathEngine,
       messageFont,
       messageStyle,
       multiModelGridColumns,

@@ -24,7 +24,6 @@ const mocks = vi.hoisted(() => ({
     'chat.message.multi_model.style': 'horizontal',
     'chat.input.paste_long_text_as_file': false,
     'chat.input.paste_long_text_threshold': 1500,
-    'chat.message.math.engine': 'KaTeX',
     'chat.message.math.single_dollar': true,
     'chat.input.show_estimated_tokens': false,
     'chat.message.render_as_markdown': false,
@@ -126,7 +125,8 @@ describe('ChatPreferenceSections', () => {
 
     expect(screen.getByText('settings.messages.use_serif_font')).toBeInTheDocument()
     expect(screen.getByText('settings.messages.wide_mode')).toBeInTheDocument()
-    expect(screen.getByText('settings.math.engine.label')).toBeInTheDocument()
+    expect(screen.queryByText('settings.math.engine.label')).toBeNull()
+    expect(screen.getByText('settings.math.single_dollar.label')).toBeInTheDocument()
     expect(screen.getByText('chat.settings.code_fancy_block.label')).toBeInTheDocument()
     expect(screen.queryByText('settings.messages.prompt')).toBeNull()
     expect(screen.queryByText('settings.messages.show_message_outline')).toBeNull()
