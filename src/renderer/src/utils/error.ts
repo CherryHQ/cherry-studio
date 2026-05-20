@@ -228,6 +228,7 @@ export const serializeError = (error: AiSdkErrorUnion): SerializedError => {
       : serializeNoSuchToolError(error.originalError)
   if ('functionality' in error) serializedError.functionality = error.functionality
   if ('provider' in error) serializedError.provider = error.provider
+  if ('source' in error) serializedError.source = error.source as string
 
   return serializedError
 }
