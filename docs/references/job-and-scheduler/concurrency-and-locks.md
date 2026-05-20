@@ -34,6 +34,17 @@ JobManager uses four orthogonal lock layers to keep correctness under concurrent
 
 **Example**: `KnowledgeRuntimeService.runWithBaseWriteLockForBase(baseId, fn)` — singleton-owned mutex keyed by baseId, so even if recovery spawns a new handler instance, both old and new code paths acquire the same lock and write atomically.
 
+## Lock acquisition order
+
+Layer 0 (global) and Layer 1 (per-queue) are both `async-mutex` instances. Every call site that needs to hold both takes them in a **fixed order**:
+
+1. Layer 1 — per-queue mutex (specific to the queue being dispatched)
+2. Layer 0 — global dispatch mutex
+
+Release order is reverse: Layer 0 first, Layer 1 second. This invariant is what makes deadlock between the two layers impossible — if any path inverted the order (took global first, then per-queue), two dispatchers operating on different queues could each be waiting for the lock the other holds.
+
+Layers 2 and 3 are not mutexes in the same sense (a counter and a handler-owned resource lock respectively), so they fall outside this ordering rule. When you add a new dispatch site or refactor existing claim paths, mirror the existing pattern in `JobManager.dispatch` to keep this invariant intact — there is no runtime detection of misordering.
+
 ## Common trap
 
 **"Setting `queue=base.${baseId}` with `concurrency=1` replaces business-level locks."** WRONG.
