@@ -37843,7 +37843,33 @@
       "outputModalities": ["image"],
       "family": "Kolors",
       "ownedBy": "Kwai-Kolors",
-      "openWeights": true
+      "openWeights": true,
+      "imageGeneration": {
+        "modes": ["generate"],
+        "sizes": ["1024x1024", "1280x960", "960x1280", "768x1024", "1024x768"],
+        "sizeMode": "pixel",
+        "defaultSize": "1024x1024",
+        "batch": {
+          "min": 1,
+          "max": 4,
+          "default": 1
+        },
+        "supports": {
+          "negativePrompt": true,
+          "seed": true,
+          "promptEnhancement": true,
+          "numInferenceSteps": {
+            "min": 1,
+            "max": 50,
+            "default": 25
+          },
+          "guidanceScale": {
+            "min": 1,
+            "max": 20,
+            "default": 4.5
+          }
+        }
+      }
     },
     {
       "id": "Qwen/Qwen-Image",
@@ -37853,7 +37879,33 @@
       "outputModalities": ["image"],
       "family": "Qwen",
       "ownedBy": "Alibaba",
-      "openWeights": true
+      "openWeights": true,
+      "imageGeneration": {
+        "modes": ["generate"],
+        "sizes": ["1024x1024", "1280x960", "960x1280", "768x1024", "1024x768"],
+        "sizeMode": "pixel",
+        "defaultSize": "1024x1024",
+        "batch": {
+          "min": 1,
+          "max": 4,
+          "default": 1
+        },
+        "supports": {
+          "negativePrompt": true,
+          "seed": true,
+          "promptEnhancement": true,
+          "numInferenceSteps": {
+            "min": 1,
+            "max": 50,
+            "default": 25
+          },
+          "guidanceScale": {
+            "min": 1,
+            "max": 20,
+            "default": 4.5
+          }
+        }
+      }
     }
   ]
 }
