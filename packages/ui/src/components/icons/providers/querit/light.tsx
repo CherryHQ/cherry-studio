@@ -11,7 +11,7 @@ const QueritLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
       width="1em"
       height="1em"
       fill="none"
-      viewBox="17.439 13.569 85.603 89.081"
+      viewBox="9 9 102 102"
       {...props}>
       <g clipPath={`url(#${iconId}-queritlight__a)`}>
         <path

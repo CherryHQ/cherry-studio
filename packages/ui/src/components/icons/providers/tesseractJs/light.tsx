@@ -5,7 +5,7 @@ const TesseractJsLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="14 14 92 92" {...props}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
       <g clipPath={`url(#${iconId}-tesseractjslight__a)`}>
         <path
           fill="#1866C0"

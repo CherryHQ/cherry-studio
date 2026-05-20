@@ -5,13 +5,7 @@ const MetaLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="1em"
-      height="1em"
-      fill="none"
-      viewBox="15.984 28.541 88 59.122"
-      {...props}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
       <g clipPath={`url(#${iconId}-metalight__a)`}>
         <mask
           id={`${iconId}-metalight__b`}

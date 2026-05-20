@@ -5,10 +5,10 @@ const NotebooklmLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="16 16 88 88" {...props}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
       <g clipPath={`url(#${iconId}-notebooklmlight__a)`}>
         <path
-          fill="#fff"
+          fill="#EAEAEA"
           d="M60 103C83.7482 103 103 83.7482 103 60C103 36.2518 83.7482 17 60 17C36.2518 17 17 36.2518 17 60C17 83.7482 36.2518 103 60 103Z"
         />
         <mask

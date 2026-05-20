@@ -11,7 +11,7 @@ const XiaoyiLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
       width="1em"
       height="1em"
       fill="none"
-      viewBox="16 16 88 88"
+      viewBox="9 9 102 102"
       {...props}>
       <g clipPath={`url(#${iconId}-xiaoyilight__a)`}>
         <path fill={`url(#${iconId}-xiaoyilight__b)`} d="M17 17H103V103H17z" />

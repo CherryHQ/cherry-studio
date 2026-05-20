@@ -5,13 +5,7 @@ const MistralLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="1em"
-      height="1em"
-      fill="none"
-      viewBox="17.5 29.431 85.001 61.111"
-      {...props}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
       <g clipPath={`url(#${iconId}-mistrallight__a)`}>
         <path fill="#FA500F" d="M89.6379 65.8985H77.7793V77.7222H89.6379V65.8985Z" />
         <path fill="#E10500" d="M101.501 77.718H65.9297V89.5421H101.501V77.718Z" />

@@ -11,7 +11,7 @@ const DangbeiLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
       width="1em"
       height="1em"
       fill="none"
-      viewBox="18.973 22.998 83.054 74.528"
+      viewBox="9 9 102 102"
       {...props}>
       <g clipPath={`url(#${iconId}-dangbeilight__a)`}>
         <mask
