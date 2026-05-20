@@ -1,29 +1,22 @@
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { AppLogo } from '@renderer/config/env'
+import {
+  getRequiredSidebarIconsVisible,
+  getSidebarMenuPath,
+  resolveSidebarActiveItem,
+  SIDEBAR_ICON_COMPONENTS
+} from '@renderer/config/sidebar'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getSidebarIconLabel } from '@renderer/i18n/label'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarIcon as SidebarIconType } from '@shared/data/preference/preferenceTypes'
-import {
-  Code,
-  FileSearch,
-  Folder,
-  Languages,
-  LayoutGrid,
-  MessageSquare,
-  MousePointerClick,
-  NotepadText,
-  Palette,
-  Sparkle
-} from 'lucide-react'
 import type { Ref } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useTabs } from '../../hooks/useTabs'
-import { OpenClawSidebarIcon } from '../Icons/SVGIcon'
 import UserPopup from '../Popups/UserPopup'
 import { Sidebar as UISidebar } from '../Sidebar'
 import { getSidebarLayout } from '../Sidebar/constants'
@@ -33,48 +26,6 @@ const APP_LOGO = <img src={AppLogo} alt="Cherry Studio" className="h-9 w-9 round
 const noop = () => {}
 const FLOATING_SIDEBAR_EXIT_MS = 200
 type FloatingSidebarState = 'closed' | 'open' | 'closing'
-
-const routePrefixMap: Record<SidebarIconType, string> = {
-  assistants: '/app/chat',
-  agents: '/app/agents',
-  store: '/app/library',
-  paintings: '/app/paintings',
-  translate: '/app/translate',
-  mini_app: '/app/mini-app',
-  knowledge: '/app/knowledge',
-  files: '/app/files',
-  code_tools: '/app/code',
-  notes: '/app/notes',
-  openclaw: '/app/openclaw'
-}
-
-const iconMap: Record<SidebarIconType, SidebarMenuItem['icon']> = {
-  assistants: MessageSquare,
-  agents: MousePointerClick,
-  store: Sparkle,
-  paintings: Palette,
-  translate: Languages,
-  mini_app: LayoutGrid,
-  knowledge: FileSearch,
-  files: Folder,
-  code_tools: Code,
-  notes: NotepadText,
-  openclaw: OpenClawSidebarIcon
-}
-
-function getMenuPath(icon: SidebarIconType, defaultPaintingProvider: string): string {
-  if (icon === 'paintings') {
-    return `/app/paintings/${defaultPaintingProvider}`
-  }
-  return routePrefixMap[icon] || ''
-}
-
-function resolveActiveItem(pathname: string): SidebarIconType | '' {
-  const match = (Object.entries(routePrefixMap) as Array<[SidebarIconType, string]>).find(
-    ([, prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`)
-  )
-  return match?.[0] || ''
-}
 
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
@@ -145,9 +96,9 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const items = useMemo<SidebarMenuItem[]>(
     () =>
-      visibleSidebarIcons.flatMap((icon) => {
-        const path = getMenuPath(icon, defaultPaintingProvider)
-        const Icon = iconMap[icon]
+      getRequiredSidebarIconsVisible(visibleSidebarIcons).flatMap((icon) => {
+        const path = getSidebarMenuPath(icon, defaultPaintingProvider)
+        const Icon = SIDEBAR_ICON_COMPONENTS[icon]
         if (!path || !Icon) {
           return []
         }
@@ -162,12 +113,12 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     [defaultPaintingProvider, visibleSidebarIcons]
   )
 
-  const activeItem = resolveActiveItem(pathname)
+  const activeItem = resolveSidebarActiveItem(pathname)
 
   const handleNavigate = useCallback(
     async (menuItemId: string) => {
       const menuId = menuItemId as SidebarIconType
-      const path = getMenuPath(menuId, defaultPaintingProvider)
+      const path = getSidebarMenuPath(menuId, defaultPaintingProvider)
       if (!path) return
 
       if (activeTab?.url === path) return

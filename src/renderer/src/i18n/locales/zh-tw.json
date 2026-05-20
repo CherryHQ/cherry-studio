@@ -2211,6 +2211,16 @@
     "open": "開啟全域搜尋",
     "open_failed": "開啟搜尋結果失敗",
     "placeholder": "開始輸入搜尋...",
+    "quickApps": {
+      "hide": "隱藏 {{name}}",
+      "manage": "管理",
+      "manager_description": "點擊眼睛隱藏/顯示",
+      "manager_title": "管理快捷應用",
+      "reset": "重置",
+      "save_failed": "儲存快捷應用失敗",
+      "show": "顯示 {{name}}",
+      "title": "快捷應用"
+    },
     "recent_hint": "輸入關鍵詞搜尋對話、助手、智能體和知識庫",
     "resultTypes": {
       "agent": "智能體",

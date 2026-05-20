@@ -2211,6 +2211,16 @@
     "open": "Open global search",
     "open_failed": "Failed to open search result",
     "placeholder": "Start typing to search...",
+    "quickApps": {
+      "hide": "Hide {{name}}",
+      "manage": "Manage",
+      "manager_description": "Click the eye to hide or show",
+      "manager_title": "Manage quick apps",
+      "reset": "Reset",
+      "save_failed": "Failed to save quick apps",
+      "show": "Show {{name}}",
+      "title": "Quick apps"
+    },
     "recent_hint": "Type to search conversations, assistants, agents, and knowledge",
     "resultTypes": {
       "agent": "Agent",

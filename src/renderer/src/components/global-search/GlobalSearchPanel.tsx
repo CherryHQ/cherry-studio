@@ -3,24 +3,42 @@ import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { usePersistCache } from '@data/hooks/useCache'
 import { useQuery } from '@data/hooks/useDataApi'
+import { useMultiplePreferences } from '@data/hooks/usePreference'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { GroupedVirtualList, type GroupedVirtualListGroup } from '@renderer/components/VirtualList'
+import {
+  buildSidebarIconManagerItems,
+  getDefaultSidebarIconPreferences,
+  getRequiredSidebarIconsVisible,
+  getSidebarIconPreferencesFromVisibleIcons,
+  getSidebarMenuPath,
+  REQUIRED_SIDEBAR_ICONS,
+  SIDEBAR_ICON_COMPONENTS
+} from '@renderer/config/sidebar'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { mapApiTopicToRendererTopic } from '@renderer/hooks/useTopic'
+import { getSidebarIconLabel } from '@renderer/i18n/label'
 import { buildLibraryEditSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
+import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { GlobalSearchItem } from '@shared/data/api/schemas/globalSearch'
+import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
 import {
   Bot,
   ChevronDown,
   Clock3,
   CornerDownLeft,
+  Eye,
+  EyeOff,
   FileSearch,
   Funnel,
   MessageSquare,
   MousePointerClick,
+  RotateCcw,
   Search,
+  Settings,
   Sparkles,
   X
 } from 'lucide-react'
@@ -40,7 +58,20 @@ type GlobalSearchPanelProps = {
   onClose: () => void
 }
 
+type GlobalSearchPanelMode = 'search' | 'menu-manager'
+
 const FILTERS: GlobalSearchFilter[] = ['all', 'conversation', 'assistant', 'agent', 'knowledge']
+const FILTER_LABEL_KEYS: Record<GlobalSearchFilter, string> = {
+  all: 'globalSearch.filters.all',
+  conversation: 'globalSearch.filters.conversation',
+  assistant: 'globalSearch.filters.assistant',
+  agent: 'globalSearch.filters.agent',
+  knowledge: 'globalSearch.filters.knowledge'
+}
+const SIDEBAR_ICON_PREFERENCE_KEYS = {
+  visible: 'ui.sidebar.icons.visible',
+  invisible: 'ui.sidebar.icons.invisible'
+} as const
 
 const RESULT_ICONS: Record<GlobalSearchItem['type'], typeof MessageSquare> = {
   topic: MessageSquare,
@@ -62,6 +93,10 @@ function getGroupLabelKey(groupId: GlobalSearchGroupId) {
 
 function getResultTypeLabelKey(type: GlobalSearchItem['type']) {
   return type === 'knowledge-base' ? 'common.knowledge_base' : `globalSearch.resultTypes.${type}`
+}
+
+function getFilterLabelKey(filter: GlobalSearchFilter) {
+  return FILTER_LABEL_KEYS[filter]
 }
 
 function getResultSubtitle(result: GlobalSearchItem, t: (key: string) => string) {
@@ -95,14 +130,18 @@ function getKnowledgeBaseTargetId(target: GlobalSearchItem['target']) {
 export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const { t } = useTranslation()
   const { openTab } = useTabs()
+  const { defaultPaintingProvider } = useSettings()
   const inputRef = useRef<HTMLInputElement>(null)
   const filterMenuRef = useRef<HTMLDivElement>(null)
   const [query, setQuery] = useState('')
+  const [panelMode, setPanelMode] = useState<GlobalSearchPanelMode>('search')
   const deferredQuery = useDeferredValue(query.trim())
   const [filter, setFilter] = useState<GlobalSearchFilter>('all')
   const [filterMenuOpen, setFilterMenuOpen] = useState(false)
   const [activeItemId, setActiveItemId] = useState<string | undefined>()
   const [recentItems] = usePersistCache('ui.global_search.recent_items')
+  const [sidebarIconPreferences, setSidebarIconPreferences] = useMultiplePreferences(SIDEBAR_ICON_PREFERENCE_KEYS)
+  const visibleSidebarIcons = sidebarIconPreferences.visible
   const hasQuery = deferredQuery.length > 0
   const searchTypes = useMemo(() => getGlobalSearchTypes(filter), [filter])
 
@@ -139,6 +178,15 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const selectableItems = useMemo(() => groups.flatMap((group) => group.items), [groups])
   const shouldShowRecentHint =
     !hasQuery && !isLoading && !error && selectableItems.length > 0 && selectableItems.length < 3
+  const sidebarPreferenceManagerIcons = useMemo(() => buildSidebarIconManagerItems(), [])
+  const visibleSidebarIconSet = useMemo(
+    () => new Set<SidebarIcon>(getRequiredSidebarIconsVisible(visibleSidebarIcons)),
+    [visibleSidebarIcons]
+  )
+  const shortcutSidebarIcons = useMemo(
+    () => sidebarPreferenceManagerIcons.filter((icon) => visibleSidebarIconSet.has(icon)),
+    [sidebarPreferenceManagerIcons, visibleSidebarIconSet]
+  )
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -178,6 +226,61 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       current && selectableItems.some((item) => item.id === current) ? current : selectableItems[0].id
     )
   }, [selectableItems])
+
+  const persistSidebarIconPreferences = useCallback(
+    async ({ visible, invisible }: { visible: SidebarIcon[]; invisible: SidebarIcon[] }) => {
+      try {
+        await setSidebarIconPreferences({ visible, invisible })
+      } catch {
+        window.toast?.error(t('globalSearch.quickApps.save_failed'))
+      }
+    },
+    [setSidebarIconPreferences, t]
+  )
+
+  const handleSidebarShortcutOpen = useCallback(
+    (icon: SidebarIcon) => {
+      const path = getSidebarMenuPath(icon, defaultPaintingProvider)
+      if (!path) return
+
+      openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
+      onClose()
+    },
+    [defaultPaintingProvider, onClose, openTab]
+  )
+
+  const handleSidebarManagerVisibilityChange = useCallback(
+    (icon: SidebarIcon, nextVisible: boolean) => {
+      const nextVisibleIcons = new Set(visibleSidebarIconSet)
+
+      if (nextVisible) {
+        nextVisibleIcons.add(icon)
+      } else if (!REQUIRED_SIDEBAR_ICONS.includes(icon)) {
+        nextVisibleIcons.delete(icon)
+      }
+
+      const preferences = getSidebarIconPreferencesFromVisibleIcons({
+        visibleIcons: nextVisibleIcons
+      })
+
+      void persistSidebarIconPreferences(preferences)
+    },
+    [persistSidebarIconPreferences, visibleSidebarIconSet]
+  )
+
+  const handleSidebarManagerReset = useCallback(() => {
+    const preferences = getDefaultSidebarIconPreferences()
+    void persistSidebarIconPreferences(preferences)
+  }, [persistSidebarIconPreferences])
+
+  const handleQuickAppsManage = useCallback(() => {
+    if (panelMode === 'menu-manager') {
+      setPanelMode('search')
+      return
+    }
+
+    setPanelMode('menu-manager')
+  }, [panelMode])
 
   const openTopic = useCallback(
     async (topicId: string) => {
@@ -301,6 +404,10 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         return
       }
 
+      if (panelMode === 'menu-manager') {
+        return
+      }
+
       if (event.key === 'ArrowDown') {
         event.preventDefault()
         moveActiveItem(1)
@@ -320,7 +427,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         void openPanelItem(item)
       }
     },
-    [activeItemId, moveActiveItem, onClose, openPanelItem, selectableItems]
+    [activeItemId, moveActiveItem, onClose, openPanelItem, panelMode, selectableItems]
   )
 
   const handleFilterSelect = useCallback((nextFilter: GlobalSearchFilter) => {
@@ -338,7 +445,10 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
           <Input
             ref={inputRef}
             value={query}
-            onChange={(event) => setQuery(event.target.value.trimStart())}
+            onChange={(event) => {
+              setQuery(event.target.value.trimStart())
+              setPanelMode('search')
+            }}
             onKeyDown={handleInputKeyDown}
             placeholder={t('globalSearch.placeholder')}
             aria-label={t('globalSearch.placeholder')}
@@ -349,12 +459,22 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
             <button
               type="button"
               aria-label={t('globalSearch.clear')}
-              onClick={() => setQuery('')}
+              onClick={() => {
+                setQuery('')
+                setPanelMode('search')
+              }}
               className="-translate-y-1/2 absolute top-1/2 right-3 flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
               <X className="size-4" />
             </button>
           )}
         </div>
+
+        <GlobalSearchQuickAppsBar
+          active={panelMode === 'menu-manager'}
+          icons={shortcutSidebarIcons}
+          onManage={handleQuickAppsManage}
+          onOpen={handleSidebarShortcutOpen}
+        />
 
         <div ref={filterMenuRef} className="relative flex h-8 items-center">
           <Button
@@ -366,7 +486,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
             aria-label={t('globalSearch.filters.label')}
             onClick={() => setFilterMenuOpen((open) => !open)}>
             <Funnel className="size-3.5" />
-            <span>{t(`globalSearch.filters.${filter}`)}</span>
+            <span>{t(getFilterLabelKey(filter))}</span>
             <ChevronDown className="size-3.5" />
           </Button>
           {filterMenuOpen && (
@@ -384,7 +504,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
                       'flex h-8 w-full items-center rounded-[7px] px-2 text-left font-medium text-xs transition-colors hover:bg-accent',
                       isSelected ? 'text-foreground' : 'text-muted-foreground'
                     )}>
-                    {t(`globalSearch.filters.${filterOption}`)}
+                    {t(getFilterLabelKey(filterOption))}
                   </button>
                 )
               })}
@@ -394,7 +514,14 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       </div>
 
       <div className="min-h-0 flex-1 border-border-subtle border-t">
-        {isLoading && hasQuery ? (
+        {panelMode === 'menu-manager' ? (
+          <GlobalSearchQuickAppManager
+            icons={sidebarPreferenceManagerIcons}
+            visibleIcons={visibleSidebarIconSet}
+            onReset={handleSidebarManagerReset}
+            onVisibilityChange={handleSidebarManagerVisibilityChange}
+          />
+        ) : isLoading && hasQuery ? (
           <GlobalSearchState label={t('common.loading')} />
         ) : error ? (
           <GlobalSearchState label={t('globalSearch.error')} />
@@ -444,6 +571,161 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
           <span>{t('common.close')}</span>
         </KbdGroup>
       </div>
+    </div>
+  )
+}
+
+type GlobalSearchQuickAppManagerItem = {
+  icon: SidebarIcon
+  label: string
+  visible: boolean
+}
+
+function GlobalSearchQuickAppsBar({
+  active,
+  icons,
+  onManage,
+  onOpen
+}: {
+  active: boolean
+  icons: SidebarIcon[]
+  onManage: () => void
+  onOpen: (icon: SidebarIcon) => void
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <div className="mt-3 pb-2">
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+        {icons.map((icon) => {
+          const Icon = SIDEBAR_ICON_COMPONENTS[icon]
+          const label = getSidebarIconLabel(icon)
+
+          return (
+            <Button
+              key={icon}
+              type="button"
+              variant="ghost"
+              aria-label={label}
+              onClick={() => onOpen(icon)}
+              className="flex h-[66px] w-[68px] shrink-0 flex-col items-center justify-center gap-1.5 rounded-[12px] px-1 text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+              <span className="flex size-9 items-center justify-center rounded-[10px] bg-muted/60 text-muted-foreground">
+                <Icon className="size-5" />
+              </span>
+              <span className="w-full truncate text-center font-medium text-xs">{label}</span>
+            </Button>
+          )
+        })}
+        <Button
+          type="button"
+          variant="ghost"
+          aria-pressed={active}
+          onClick={onManage}
+          className={cn(
+            'flex h-[66px] w-[68px] shrink-0 flex-col items-center justify-center gap-1.5 rounded-[12px] px-1 text-muted-foreground hover:bg-muted/50 hover:text-foreground',
+            active && 'bg-muted/60 text-foreground'
+          )}>
+          <span
+            className={cn(
+              'flex size-9 items-center justify-center rounded-[10px] bg-muted/60 text-muted-foreground',
+              active && 'bg-background text-foreground'
+            )}>
+            <Settings className="size-5" />
+          </span>
+          <span className="w-full truncate text-center font-medium text-xs">{t('globalSearch.quickApps.manage')}</span>
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function GlobalSearchQuickAppManager({
+  icons,
+  onReset,
+  onVisibilityChange,
+  visibleIcons
+}: {
+  icons: SidebarIcon[]
+  visibleIcons: ReadonlySet<SidebarIcon>
+  onReset: () => void
+  onVisibilityChange: (icon: SidebarIcon, visible: boolean) => void
+}) {
+  const { t } = useTranslation()
+  const items = useMemo<GlobalSearchQuickAppManagerItem[]>(
+    () =>
+      icons.map((icon) => ({
+        icon,
+        label: getSidebarIconLabel(icon),
+        visible: visibleIcons.has(icon)
+      })),
+    [icons, visibleIcons]
+  )
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex shrink-0 items-center justify-between gap-3 px-5 py-3">
+        <div className="min-w-0">
+          <div className="font-medium text-foreground text-sm">{t('globalSearch.quickApps.manager_title')}</div>
+          <div className="truncate text-muted-foreground text-xs">
+            {t('globalSearch.quickApps.manager_description')}
+          </div>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={onReset}
+          className="h-8 shrink-0 gap-1.5 rounded-[8px] px-2 text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground">
+          <RotateCcw className="size-3.5" />
+          <span>{t('globalSearch.quickApps.reset')}</span>
+        </Button>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3">
+        <div className="flex w-full flex-col gap-1" data-testid="quick-app-manager-list">
+          {items.map((item) => (
+            <GlobalSearchQuickAppManagerRow key={item.icon} item={item} onVisibilityChange={onVisibilityChange} />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function GlobalSearchQuickAppManagerRow({
+  item,
+  onVisibilityChange
+}: {
+  item: GlobalSearchQuickAppManagerItem
+  onVisibilityChange: (icon: SidebarIcon, visible: boolean) => void
+}) {
+  const { t } = useTranslation()
+  const Icon = SIDEBAR_ICON_COMPONENTS[item.icon]
+  const isRequired = REQUIRED_SIDEBAR_ICONS.includes(item.icon)
+  const nextVisible = !item.visible
+
+  return (
+    <div
+      className={cn(
+        'flex h-[56px] items-center gap-3 rounded-[12px] px-3 transition-colors',
+        'hover:bg-muted/40',
+        item.visible ? 'text-foreground' : 'text-muted-foreground opacity-60'
+      )}>
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted/60 text-muted-foreground">
+        <Icon className="size-4" />
+      </span>
+      <span className="min-w-0 flex-1 truncate font-medium text-sm">{item.label}</span>
+      <Button
+        type="button"
+        variant="ghost"
+        disabled={isRequired}
+        aria-label={t(item.visible ? 'globalSearch.quickApps.hide' : 'globalSearch.quickApps.show', {
+          name: item.label
+        })}
+        aria-pressed={item.visible}
+        onClick={() => onVisibilityChange(item.icon, nextVisible)}
+        className="size-8 shrink-0 rounded-[8px] p-0 text-muted-foreground hover:bg-muted/50 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40">
+        {item.visible ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+      </Button>
     </div>
   )
 }

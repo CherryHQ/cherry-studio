@@ -2211,6 +2211,16 @@
     "open": "打开全局搜索",
     "open_failed": "打开搜索结果失败",
     "placeholder": "开始输入搜索...",
+    "quickApps": {
+      "hide": "隐藏 {{name}}",
+      "manage": "管理",
+      "manager_description": "点击眼睛隐藏/显示",
+      "manager_title": "管理快捷应用",
+      "reset": "重置",
+      "save_failed": "保存快捷应用失败",
+      "show": "显示 {{name}}",
+      "title": "快捷应用"
+    },
     "recent_hint": "输入关键词搜索对话、助手、智能体和知识库",
     "resultTypes": {
       "agent": "智能体",
