@@ -1,0 +1,262 @@
+{
+  "TEXT_TO_IMAGES": {
+    "baidu": [
+      {
+        "id": "musesteamer-air-image",
+        "provider": "baidu",
+        "name": "air-image（￥0.04）",
+        "price": "￥收费/图",
+        "image_sizes": [
+          { "label": "1:1（1024x1024）", "value": "1024x1024" },
+          { "label": "4:3（1152x864）", "value": "1152x864" },
+          { "label": "3:4（864x1152）", "value": "864x1152" },
+          { "label": "16:9（1664x928）", "value": "1664x928" },
+          { "label": "9:16（928x1664）", "value": "928x1664" }
+        ],
+        "is_custom_size": false,
+        "max_image_size": 2048,
+        "min_image_size": 512
+      }
+    ],
+    "Doubao": [
+      {
+        "id": "doubao-seedream-4-5-251128",
+        "provider": "doubao",
+        "name": "即梦seedream-4.5（￥0.25）",
+        "price": "￥收费/图",
+        "image_sizes": [
+          { "label": "1:1（2048x2048）", "value": "2048x2048" },
+          { "label": "4:3（2304x1728）", "value": "2304x1728" },
+          { "label": "3:4（1728x2304）", "value": "1728x2304" },
+          { "label": "16:9（2560x1440）", "value": "2560x1440" },
+          { "label": "9:16（1440x2560）", "value": "1440x2560" },
+          { "label": "3:2（2496x1664）", "value": "2496x1664" },
+          { "label": "2:3（1664x2496）", "value": "1664x2496" },
+          { "label": "21:9（3024x1296）", "value": "3024x1296" }
+        ],
+        "is_custom_size": false,
+        "max_image_size": 2048,
+        "min_image_size": 512,
+        "extend_params": { "response_format": "b64_json" }
+      },
+      {
+        "id": "doubao-seedream-4-0-250828",
+        "provider": "doubao",
+        "name": "即梦seedream-4.0（￥0.15）",
+        "price": "￥收费/图",
+        "image_sizes": [
+          { "label": "1:1（2048x2048）", "value": "2048x2048" },
+          { "label": "4:3（2304x1728）", "value": "2304x1728" },
+          { "label": "3:4（1728x2304）", "value": "1728x2304" },
+          { "label": "16:9（2560x1440）", "value": "2560x1440" },
+          { "label": "9:16（1440x2560）", "value": "1440x2560" },
+          { "label": "3:2（2496x1664）", "value": "2496x1664" },
+          { "label": "2:3（1664x2496）", "value": "1664x2496" },
+          { "label": "21:9（3024x1296）", "value": "3024x1296" }
+        ],
+        "is_custom_size": false,
+        "max_image_size": 2048,
+        "min_image_size": 512,
+        "extend_params": { "response_format": "b64_json" }
+      }
+    ],
+    "OpenAI": [],
+    "Black Forest Labs": [],
+    "Google": [
+      {
+        "id": "nano-banana",
+        "provider": "Google",
+        "name": "nano-banana（¥0.25）",
+        "price": "￥收费/图",
+        "image_sizes": [
+          { "label": "1:1", "value": "1:1" },
+          { "label": "16:9", "value": "16:9" },
+          { "label": "9:16", "value": "9:16" },
+          { "label": "4:3", "value": "4:3" },
+          { "label": "3:4", "value": "3:4" }
+        ],
+        "is_custom_size": false
+      },
+      {
+        "id": "gemini-2.5-flash-image",
+        "provider": "Google",
+        "name": "gemini-2.5-flash-image（¥0.25）",
+        "price": "￥收费/图",
+        "image_sizes": [{ "label": "1:1", "value": "1x1" }],
+        "is_custom_size": false
+      }
+    ],
+    "Qwen": [
+      {
+        "id": "qwen-image",
+        "provider": "qwen",
+        "name": "qwen-image（¥0.25）",
+        "price": "￥收费/图",
+        "image_sizes": [
+          { "label": "1664*928", "value": "1664*928" },
+          { "label": "1472*1140", "value": "1472*1140" },
+          { "label": "1328*1328", "value": "1328*1328" },
+          { "label": "1140*1472", "value": "1140*1472" },
+          { "label": "928*1664", "value": "928*1664" }
+        ],
+        "is_custom_size": false
+      }
+    ]
+  },
+  "IMAGE_EDIT": {
+    "Doubao": [
+      {
+        "id": "doubao-seedream-4-5-251128",
+        "provider": "doubao",
+        "name": "即梦seedream-4.5（￥0.25）",
+        "price": "￥收费/图",
+        "image_sizes": [
+          { "label": "1:1（2048x2048）", "value": "2048x2048" },
+          { "label": "4:3（2304x1728）", "value": "2304x1728" },
+          { "label": "3:4（1728x2304）", "value": "1728x2304" },
+          { "label": "16:9（2560x1440）", "value": "2560x1440" },
+          { "label": "9:16（1440x2560）", "value": "1440x2560" },
+          { "label": "3:2（2496x1664）", "value": "2496x1664" },
+          { "label": "2:3（1664x2496）", "value": "1664x2496" },
+          { "label": "21:9（3024x1296）", "value": "3024x1296" }
+        ],
+        "is_custom_size": false,
+        "max_image_size": 2048,
+        "min_image_size": 512,
+        "extend_params": { "response_format": "b64_json" }
+      },
+      {
+        "id": "doubao-seedream-4-0-250828",
+        "provider": "doubao",
+        "name": "即梦seedream-4.0（￥0.15）",
+        "price": "￥收费/图",
+        "image_sizes": [
+          { "label": "1:1（2048x2048）", "value": "2048x2048" },
+          { "label": "4:3（2304x1728）", "value": "2304x1728" },
+          { "label": "3:4（1728x2304）", "value": "1728x2304" },
+          { "label": "16:9（2560x1440）", "value": "2560x1440" },
+          { "label": "9:16（1440x2560）", "value": "1440x2560" },
+          { "label": "3:2（2496x1664）", "value": "2496x1664" },
+          { "label": "2:3（1664x2496）", "value": "1664x2496" },
+          { "label": "21:9（3024x1296）", "value": "3024x1296" }
+        ],
+        "is_custom_size": false,
+        "max_image_size": 2048,
+        "min_image_size": 512,
+        "extend_params": { "response_format": "b64_json" }
+      }
+    ],
+    "OpenAI": [],
+    "Black Forest Labs": [],
+    "Google": [
+      {
+        "id": "nano-banana-2",
+        "provider": "Google",
+        "name": "nano-banana-2（¥0.3）",
+        "price": "￥收费/图",
+        "image_sizes": [
+          { "label": "1:1", "value": "1:1" },
+          { "label": "16:9", "value": "16:9" },
+          { "label": "9:16", "value": "9:16" },
+          { "label": "4:3", "value": "4:3" },
+          { "label": "3:4", "value": "3:4" }
+        ],
+        "is_custom_size": false
+      },
+      {
+        "id": "nano-banana",
+        "provider": "Google",
+        "name": "nano-banana（¥0.25）",
+        "price": "￥收费/图",
+        "image_sizes": [{ "label": "原图尺寸", "value": "1x1" }],
+        "is_custom_size": false
+      },
+      {
+        "id": "gemini-2.5-flash-image",
+        "provider": "Google",
+        "name": "gemini-2.5-flash-image（¥0.25）",
+        "price": "￥收费/图",
+        "image_sizes": [{ "label": "原图尺寸", "value": "1x1" }],
+        "is_custom_size": false
+      }
+    ]
+  },
+  "IMAGE_MERGE": {
+    "Doubao": [
+      {
+        "id": "doubao-seedream-4-5-251128",
+        "provider": "doubao",
+        "name": "即梦seedream-4.5（￥0.25）",
+        "price": "￥收费/图",
+        "image_sizes": [
+          { "label": "1:1（2048x2048）", "value": "2048x2048" },
+          { "label": "4:3（2304x1728）", "value": "2304x1728" },
+          { "label": "3:4（1728x2304）", "value": "1728x2304" },
+          { "label": "16:9（2560x1440）", "value": "2560x1440" },
+          { "label": "9:16（1440x2560）", "value": "1440x2560" },
+          { "label": "3:2（2496x1664）", "value": "2496x1664" },
+          { "label": "2:3（1664x2496）", "value": "1664x2496" },
+          { "label": "21:9（3024x1296）", "value": "3024x1296" }
+        ],
+        "is_custom_size": false,
+        "max_image_size": 2048,
+        "min_image_size": 512,
+        "extend_params": { "response_format": "b64_json" }
+      },
+      {
+        "id": "doubao-seedream-4-0-250828",
+        "provider": "doubao",
+        "name": "即梦seedream-4.0（￥0.15）",
+        "price": "￥收费/图",
+        "image_sizes": [
+          { "label": "1:1（2048x2048）", "value": "2048x2048" },
+          { "label": "4:3（2304x1728）", "value": "2304x1728" },
+          { "label": "3:4（1728x2304）", "value": "1728x2304" },
+          { "label": "16:9（2560x1440）", "value": "2560x1440" },
+          { "label": "9:16（1440x2560）", "value": "1440x2560" },
+          { "label": "3:2（2496x1664）", "value": "2496x1664" },
+          { "label": "2:3（1664x2496）", "value": "1664x2496" },
+          { "label": "21:9（3024x1296）", "value": "3024x1296" }
+        ],
+        "is_custom_size": false,
+        "max_image_size": 2048,
+        "min_image_size": 512,
+        "extend_params": { "response_format": "b64_json" }
+      }
+    ],
+    "OpenAI": [],
+    "Black Forest Labs": [],
+    "Google": [
+      {
+        "id": "nano-banana-2",
+        "provider": "Google",
+        "name": "nano-banana-2（¥0.3）",
+        "price": "￥收费/图",
+        "image_sizes": [
+          { "label": "1:1", "value": "1:1" },
+          { "label": "16:9", "value": "16:9" },
+          { "label": "9:16", "value": "9:16" },
+          { "label": "4:3", "value": "4:3" },
+          { "label": "3:4", "value": "3:4" }
+        ],
+        "is_custom_size": false
+      },
+      {
+        "id": "nano-banana",
+        "provider": "Google",
+        "name": "nano-banana（¥0.25）",
+        "price": "￥收费/图",
+        "image_sizes": [{ "label": "原图尺寸", "value": "1x1" }],
+        "is_custom_size": false
+      },
+      {
+        "id": "gemini-2.5-flash-image",
+        "provider": "Google",
+        "name": "gemini-2.5-flash-image（¥0.25）",
+        "price": "￥收费/图",
+        "image_sizes": [{ "label": "原图尺寸", "value": "1x1" }],
+        "is_custom_size": false
+      }
+    ]
+  }
+}

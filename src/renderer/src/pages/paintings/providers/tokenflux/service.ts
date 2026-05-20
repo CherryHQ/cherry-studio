@@ -1,14 +1,13 @@
 import { loggerService } from '@logger'
 import type { FileMetadata } from '@renderer/types'
-import md5 from 'md5'
 
 import { createPaintingGenerateError } from '../../model/paintingGenerateError'
+import bundledCatalog from './catalog.json'
 import type { TokenFluxModel } from './config'
 
 const logger = loggerService.withContext('TokenFluxService')
 
 const TOKENFLUX_IMAGE_API_HOST = 'https://api.tokenflux.ai'
-const TOKENFLUX_MODELS_CACHE_TTL_MS = 60 * 60 * 1000
 const TOKENFLUX_DOWNLOAD_TIMEOUT_MS = 120000
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
@@ -29,8 +28,6 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string)
     )
   })
 }
-
-const modelsCache = new Map<string, { expiresAt: number; models: TokenFluxModel[] }>()
 
 function createAbortError(message: string): Error {
   const error = new Error(message)
@@ -53,12 +50,6 @@ export interface TokenFluxGenerationResponse {
     status: string
     images?: Array<{ url: string }>
   }
-  message?: string
-}
-
-export interface TokenFluxModelsResponse {
-  success: boolean
-  data?: TokenFluxModel[]
   message?: string
 }
 
@@ -90,39 +81,22 @@ export class TokenFluxService {
     })
   }
 
-  async fetchModels(signal?: AbortSignal): Promise<TokenFluxModel[]> {
-    const cacheKey = `tokenflux_models_${TOKENFLUX_IMAGE_API_HOST}_${md5(this.apiKey || 'anonymous')}`
-    const cachedModels = modelsCache.get(cacheKey)
-    if (cachedModels && cachedModels.expiresAt > Date.now()) {
-      return cachedModels.models
-    }
-
-    const response = await fetch(`${TOKENFLUX_IMAGE_API_HOST}/v1/images/models`, {
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`
-      },
-      signal
-    })
-
-    const data: TokenFluxModelsResponse = await this.handleResponse(response)
-
-    if (!data.success || !data.data) {
-      throw createPaintingGenerateError('REMOTE_ERROR', { message: 'Failed to fetch models' })
-    }
-
-    // Host is constant; drop entries for rotated keys so they don't linger forever.
-    for (const existingKey of modelsCache.keys()) {
-      if (existingKey !== cacheKey) {
-        modelsCache.delete(existingKey)
-      }
-    }
-
-    modelsCache.set(cacheKey, {
-      expiresAt: Date.now() + TOKENFLUX_MODELS_CACHE_TTL_MS,
-      models: data.data
-    })
-
-    return data.data
+  /**
+   * Return TokenFlux's painting catalog (model id, name, input_schema, etc.).
+   *
+   * Historically this hit `https://api.tokenflux.ai/v1/images/models` on every
+   * painting-page open — required an apiKey for `Authorization: Bearer`,
+   * blocked offline use, and produced a loading flash. The catalog is small
+   * enough (~200KB, 70 models) and changes rarely enough that bundling it
+   * with the app is the right tradeoff. Refresh cadence is now "next app
+   * version" via the registry/import pipeline.
+   *
+   * Kept `async` to preserve the call-site contract — the painting page's
+   * async loader path expects a Promise — so future remote refreshes can be
+   * dropped in here without a callsite migration.
+   */
+  async fetchModels(): Promise<TokenFluxModel[]> {
+    return bundledCatalog as unknown as TokenFluxModel[]
   }
 
   async createGeneration(request: TokenFluxGenerationRequest, signal?: AbortSignal): Promise<string> {
