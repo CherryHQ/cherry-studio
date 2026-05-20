@@ -1,22 +1,22 @@
 import { describe, expect, it } from 'vitest'
 
-import { UpsertNoteMetadataSchema } from '../notes'
+import { UpsertNoteSchema } from '../notes'
 
-describe('note metadata DTO schemas', () => {
+describe('note DTO schemas', () => {
   it('rejects empty upsert payloads', () => {
-    expect(() => UpsertNoteMetadataSchema.parse({ rootPath: '/notes', path: 'a.md' })).toThrow(
-      'At least one note metadata field is required'
+    expect(() => UpsertNoteSchema.parse({ rootPath: '/notes', path: 'a.md' })).toThrow(
+      'At least one note field is required'
     )
   })
 
   it('accepts starred or expanded updates', () => {
-    expect(UpsertNoteMetadataSchema.parse({ rootPath: '/notes', path: 'a.md', isStarred: true })).toEqual({
+    expect(UpsertNoteSchema.parse({ rootPath: '/notes', path: 'a.md', isStarred: true })).toEqual({
       rootPath: '/notes',
       path: 'a.md',
       isStarred: true
     })
 
-    expect(UpsertNoteMetadataSchema.parse({ rootPath: '/notes', path: 'a.md', isExpanded: false })).toEqual({
+    expect(UpsertNoteSchema.parse({ rootPath: '/notes', path: 'a.md', isExpanded: false })).toEqual({
       rootPath: '/notes',
       path: 'a.md',
       isExpanded: false

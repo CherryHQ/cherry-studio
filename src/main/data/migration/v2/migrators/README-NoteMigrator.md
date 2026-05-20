@@ -1,6 +1,6 @@
-# NoteMetadataMigrator
+# NoteMigrator
 
-Migrates legacy notes UI metadata from Redux into the SQLite `note_metadata` table.
+Migrates legacy notes UI state from Redux into the SQLite `note` table.
 
 ## Source
 
@@ -9,7 +9,7 @@ Migrates legacy notes UI metadata from Redux into the SQLite `note_metadata` tab
 
 ## Target
 
-- Table: `note_metadata`
+- Table: `note`
 - Unique key: `rootPath + path`
 
 ## Mapping
@@ -24,9 +24,9 @@ If a path appears in both starred and expanded lists, both flags are preserved i
 
 ## Dropped Fields
 
-- `activeFilePath`: moved to Cache runtime state, not SQLite metadata.
+- `activeFilePath`: moved to Cache runtime state, not SQLite.
 - `activeNodeId`: derived from `activeFilePath + notesTree`, not migrated.
 
 ## Notes
 
-The Markdown files and scanned directory tree remain the source of truth. This migrator only preserves long-lived node metadata.
+The Markdown files and scanned directory tree remain the source of truth. This migrator only preserves long-lived note row state.

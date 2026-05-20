@@ -1,12 +1,9 @@
 import { application } from '@application'
-import { type NoteMetadataSelect, noteMetadataTable } from '@data/db/schemas/noteMetadata'
+import { type NoteSelect, noteTable } from '@data/db/schemas/note'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
-import type {
-  DeleteNoteMetadataQuery,
-  RewriteNoteMetadataPathDto,
-  UpsertNoteMetadataDto
-} from '@shared/data/api/schemas/notes'
-import type { NoteMetadata } from '@shared/data/types/noteMetadata'
+import { DataApiErrorFactory } from '@shared/data/api'
+import type { DeleteNoteQuery, RewriteNotePathDto, UpsertNoteDto } from '@shared/data/api/schemas/notes'
+import type { Note } from '@shared/data/types/note'
 import { and, asc, eq, inArray, not, sql } from 'drizzle-orm'
 
 import { timestampToISO } from './utils/rowMappers'
@@ -25,7 +22,7 @@ function normalizeDto<T extends { rootPath: string; path?: string; fromPath?: st
   }
 }
 
-function rowToNoteMetadata(row: NoteMetadataSelect): NoteMetadata {
+function rowToNote(row: NoteSelect): Note {
   return {
     id: row.id,
     rootPath: row.rootPath,
@@ -39,44 +36,49 @@ function rowToNoteMetadata(row: NoteMetadataSelect): NoteMetadata {
 
 function pathCondition(path: string, recursive: boolean = false) {
   if (!recursive) {
-    return eq(noteMetadataTable.path, path)
+    return eq(noteTable.path, path)
   }
 
   const prefix = `${path}/`
-  return sql`(${noteMetadataTable.path} = ${path} OR substr(${noteMetadataTable.path}, 1, ${prefix.length}) = ${prefix})`
+  return sql`(${noteTable.path} = ${path} OR substr(${noteTable.path}, 1, ${prefix.length}) = ${prefix})`
 }
 
-export class NoteMetadataService {
+export class NoteService {
   private get db() {
     return application.get('DbService').getDb()
   }
 
-  async listByRoot(rootPath: string): Promise<NoteMetadata[]> {
+  async listByRoot(rootPath: string): Promise<Note[]> {
     const normalizedRootPath = normalizePathValue(rootPath)
     const rows = await this.db
       .select()
-      .from(noteMetadataTable)
-      .where(eq(noteMetadataTable.rootPath, normalizedRootPath))
-      .orderBy(asc(noteMetadataTable.path))
-    return rows.map(rowToNoteMetadata)
+      .from(noteTable)
+      .where(eq(noteTable.rootPath, normalizedRootPath))
+      .orderBy(asc(noteTable.path))
+    return rows.map(rowToNote)
   }
 
-  async upsert(dto: UpsertNoteMetadataDto): Promise<NoteMetadata | null> {
+  async upsert(dto: UpsertNoteDto): Promise<Note | null> {
     const normalized = normalizeDto(dto)
 
-    const updateValues: Partial<Pick<NoteMetadataSelect, 'isStarred' | 'isExpanded'>> = {}
+    const updateValues: Partial<Pick<NoteSelect, 'isStarred' | 'isExpanded'>> = {}
     if (normalized.isStarred !== undefined) {
       updateValues.isStarred = normalized.isStarred
     }
     if (normalized.isExpanded !== undefined) {
       updateValues.isExpanded = normalized.isExpanded
     }
+    if (Object.keys(updateValues).length === 0) {
+      throw DataApiErrorFactory.validation({
+        note: ['At least one note field is required']
+      })
+    }
 
     const row = await withSqliteErrors(
       () =>
         this.db.transaction(async (tx) => {
           const [upserted] = await tx
-            .insert(noteMetadataTable)
+            .insert(noteTable)
             .values({
               rootPath: normalized.rootPath,
               path: normalized.path,
@@ -84,41 +86,41 @@ export class NoteMetadataService {
               isExpanded: normalized.isExpanded ?? false
             })
             .onConflictDoUpdate({
-              target: [noteMetadataTable.rootPath, noteMetadataTable.path],
+              target: [noteTable.rootPath, noteTable.path],
               set: updateValues
             })
             .returning()
 
           if (!upserted.isStarred && !upserted.isExpanded) {
-            await tx.delete(noteMetadataTable).where(eq(noteMetadataTable.id, upserted.id))
+            await tx.delete(noteTable).where(eq(noteTable.id, upserted.id))
             return null
           }
 
           return upserted
         }),
-      defaultHandlersFor('NoteMetadata', `${normalized.rootPath}:${normalized.path}`)
+      defaultHandlersFor('Note', `${normalized.rootPath}:${normalized.path}`)
     )
 
-    return row ? rowToNoteMetadata(row) : null
+    return row ? rowToNote(row) : null
   }
 
-  async deleteByPath(query: DeleteNoteMetadataQuery): Promise<void> {
+  async deleteByPath(query: DeleteNoteQuery): Promise<void> {
     const normalized = normalizeDto(query)
     await withSqliteErrors(
       () =>
         this.db
-          .delete(noteMetadataTable)
+          .delete(noteTable)
           .where(
             and(
-              eq(noteMetadataTable.rootPath, normalized.rootPath),
+              eq(noteTable.rootPath, normalized.rootPath),
               pathCondition(normalized.path, normalized.recursive ?? false)
             )
           ),
-      defaultHandlersFor('NoteMetadata', `${normalized.rootPath}:${normalized.path}`)
+      defaultHandlersFor('Note', `${normalized.rootPath}:${normalized.path}`)
     )
   }
 
-  async rewritePath(dto: RewriteNoteMetadataPathDto): Promise<{ updated: number }> {
+  async rewritePath(dto: RewriteNotePathDto): Promise<{ updated: number }> {
     const normalized = normalizeDto(dto)
 
     return withSqliteErrors(
@@ -126,10 +128,10 @@ export class NoteMetadataService {
         this.db.transaction(async (tx) => {
           const rows = await tx
             .select()
-            .from(noteMetadataTable)
+            .from(noteTable)
             .where(
               and(
-                eq(noteMetadataTable.rootPath, normalized.rootPath),
+                eq(noteTable.rootPath, normalized.rootPath),
                 pathCondition(normalized.fromPath, normalized.recursive ?? false)
               )
             )
@@ -149,24 +151,24 @@ export class NoteMetadataService {
           const targetPaths = [...new Set(rewrites.map((rewrite) => rewrite.path))]
 
           await tx
-            .delete(noteMetadataTable)
+            .delete(noteTable)
             .where(
               and(
-                eq(noteMetadataTable.rootPath, normalized.rootPath),
-                inArray(noteMetadataTable.path, targetPaths),
-                not(inArray(noteMetadataTable.id, sourceIds))
+                eq(noteTable.rootPath, normalized.rootPath),
+                inArray(noteTable.path, targetPaths),
+                not(inArray(noteTable.id, sourceIds))
               )
             )
 
           for (const rewrite of rewrites) {
-            await tx.update(noteMetadataTable).set({ path: rewrite.path }).where(eq(noteMetadataTable.id, rewrite.id))
+            await tx.update(noteTable).set({ path: rewrite.path }).where(eq(noteTable.id, rewrite.id))
           }
 
           return { updated: rows.length }
         }),
-      defaultHandlersFor('NoteMetadata', `${normalized.rootPath}:${normalized.fromPath}`)
+      defaultHandlersFor('Note', `${normalized.rootPath}:${normalized.fromPath}`)
     )
   }
 }
 
-export const noteMetadataService = new NoteMetadataService()
+export const noteService = new NoteService()

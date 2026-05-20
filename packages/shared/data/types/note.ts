@@ -1,9 +1,9 @@
 import * as z from 'zod'
 
-export const NoteMetadataIdSchema = z.uuidv4()
+export const NoteIdSchema = z.uuidv4()
 
-export const NoteMetadataSchema = z.strictObject({
-  id: NoteMetadataIdSchema,
+export const NoteSchema = z.strictObject({
+  id: NoteIdSchema,
   rootPath: z.string().min(1),
   path: z.string().min(1),
   isStarred: z.boolean(),
@@ -11,4 +11,4 @@ export const NoteMetadataSchema = z.strictObject({
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })
-export type NoteMetadata = z.infer<typeof NoteMetadataSchema>
+export type Note = z.infer<typeof NoteSchema>

@@ -2,8 +2,8 @@ import { integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 
-export const noteMetadataTable = sqliteTable(
-  'note_metadata',
+export const noteTable = sqliteTable(
+  'note',
   {
     id: uuidPrimaryKey(),
     rootPath: text('root_path').notNull(),
@@ -12,8 +12,8 @@ export const noteMetadataTable = sqliteTable(
     isExpanded: integer('is_expanded', { mode: 'boolean' }).notNull().default(false),
     ...createUpdateTimestamps
   },
-  (t) => [uniqueIndex('note_metadata_root_path_path_unique_idx').on(t.rootPath, t.path)]
+  (t) => [uniqueIndex('note_root_path_path_unique_idx').on(t.rootPath, t.path)]
 )
 
-export type NoteMetadataInsert = typeof noteMetadataTable.$inferInsert
-export type NoteMetadataSelect = typeof noteMetadataTable.$inferSelect
+export type NoteInsert = typeof noteTable.$inferInsert
+export type NoteSelect = typeof noteTable.$inferSelect

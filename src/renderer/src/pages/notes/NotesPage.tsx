@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import type { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useCache } from '@renderer/data/hooks/useCache'
-import { useNoteMetadata } from '@renderer/hooks/useNoteMetadata'
+import { useNote } from '@renderer/hooks/useNote'
 import { useActiveNode, useFileContent, useFileContentSync } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
@@ -46,13 +46,13 @@ const NotesPage: FC = () => {
   const { showWorkspace } = useShowWorkspace()
   const [activeFilePath, setActiveFilePath] = useCache('notes.active_file_path')
   const { settings, notesPath, updateNotesPath, sortType, updateSortType } = useNotesSettings()
-  const { metadataByPath, starredPaths, expandedPaths, patchNode, removePath, rewritePath } = useNoteMetadata(notesPath)
+  const { noteByPath, starredPaths, expandedPaths, patchNode, removePath, rewritePath } = useNote(notesPath)
 
   // 混合策略：useLiveQuery用于笔记树，React Query用于文件内容
   const [notesTree, setNotesTree] = useState<NotesTreeNode[]>([])
   const starredSet = useMemo(() => new Set(starredPaths), [starredPaths])
   const expandedSet = useMemo(() => new Set(expandedPaths), [expandedPaths])
-  const metadataByPathRef = useRef(metadataByPath)
+  const noteByPathRef = useRef(noteByPath)
   const starredSetRef = useRef(starredSet)
   const expandedSetRef = useRef(expandedSet)
   const { activeNode } = useActiveNode(notesTree, activeFilePath)
@@ -74,15 +74,15 @@ const NotesPage: FC = () => {
   const mergeTreeState = useCallback((nodes: NotesTreeNode[]): NotesTreeNode[] => {
     return nodes.map((node) => {
       const normalizedPath = normalizePathValue(node.externalPath)
-      const currentMetadata = metadataByPathRef.current.get(normalizedPath)
+      const currentNote = noteByPathRef.current.get(normalizedPath)
       const merged: NotesTreeNode = {
         ...node,
         externalPath: normalizedPath,
-        isStarred: currentMetadata?.isStarred ?? starredSetRef.current.has(normalizedPath)
+        isStarred: currentNote?.isStarred ?? starredSetRef.current.has(normalizedPath)
       }
 
       if (node.type === 'folder') {
-        merged.expanded = currentMetadata?.isExpanded ?? expandedSetRef.current.has(normalizedPath)
+        merged.expanded = currentNote?.isExpanded ?? expandedSetRef.current.has(normalizedPath)
         merged.children = node.children ? mergeTreeState(node.children) : []
       }
 
@@ -120,13 +120,13 @@ const NotesPage: FC = () => {
 
   // Re-merge tree state when starred or expanded paths change
   useEffect(() => {
-    metadataByPathRef.current = metadataByPath
+    noteByPathRef.current = noteByPath
     starredSetRef.current = starredSet
     expandedSetRef.current = expandedSet
     if (notesTree.length > 0) {
       setNotesTree((prev) => mergeTreeState(prev))
     }
-  }, [expandedSet, mergeTreeState, metadataByPath, notesTree.length, starredSet])
+  }, [expandedSet, mergeTreeState, noteByPath, notesTree.length, starredSet])
 
   // 保存当前笔记内容
   const saveCurrentNote = useCallback(
@@ -440,7 +440,7 @@ const NotesPage: FC = () => {
   const persistMetadataPatch = useCallback(
     (node: NotesTreeNode, patch: Parameters<typeof patchNode>[1]) => {
       void patchNode(node, patch).catch((error) => {
-        logger.error('Failed to persist note metadata patch:', error as Error)
+        logger.error('Failed to persist note patch:', error as Error)
         void refreshTree()
       })
     },

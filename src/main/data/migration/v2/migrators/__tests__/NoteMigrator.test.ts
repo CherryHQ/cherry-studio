@@ -1,10 +1,10 @@
-import { noteMetadataTable } from '@data/db/schemas/noteMetadata'
+import { noteTable } from '@data/db/schemas/note'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { ReduxStateReader } from '../../utils/ReduxStateReader'
-import { NoteMetadataMigrator } from '../NoteMetadataMigrator'
+import { NoteMigrator } from '../NoteMigrator'
 
 function createTestContext(reduxData: Record<string, unknown>, db: any) {
   return {
@@ -29,12 +29,12 @@ function createTestContext(reduxData: Record<string, unknown>, db: any) {
   }
 }
 
-describe('NoteMetadataMigrator', () => {
+describe('NoteMigrator', () => {
   const dbh = setupTestDatabase()
-  let migrator: NoteMetadataMigrator
+  let migrator: NoteMigrator
 
   beforeEach(() => {
-    migrator = new NoteMetadataMigrator()
+    migrator = new NoteMigrator()
   })
 
   it('should skip when note state is missing', async () => {
@@ -49,7 +49,7 @@ describe('NoteMetadataMigrator', () => {
     expect(validate.success).toBe(true)
   })
 
-  it('should migrate starred and expanded paths into note_metadata', async () => {
+  it('should migrate starred and expanded paths into note', async () => {
     const ctx = createTestContext(
       {
         note: {
@@ -66,10 +66,7 @@ describe('NoteMetadataMigrator', () => {
     await expect(migrator.prepare(ctx)).resolves.toMatchObject({ success: true, itemCount: 2 })
     await expect(migrator.execute(ctx)).resolves.toMatchObject({ success: true, processedCount: 2 })
 
-    const rows = await dbh.db
-      .select()
-      .from(noteMetadataTable)
-      .where(eq(noteMetadataTable.rootPath, '/Users/test/Notes'))
+    const rows = await dbh.db.select().from(noteTable).where(eq(noteTable.rootPath, '/Users/test/Notes'))
     expect(rows).toHaveLength(2)
     expect(rows.find((row) => row.path.endsWith('/a.md'))).toMatchObject({
       isStarred: true,
@@ -81,7 +78,7 @@ describe('NoteMetadataMigrator', () => {
     })
   })
 
-  it('should not migrate metadata when legacy notesPath is empty', async () => {
+  it('should not migrate notes when legacy notesPath is empty', async () => {
     const ctx = createTestContext(
       {
         note: {
@@ -99,7 +96,7 @@ describe('NoteMetadataMigrator', () => {
     expect(prepare.success).toBe(true)
     expect(prepare.itemCount).toBe(0)
     expect(prepare.warnings?.[0]).toContain('notesPath is empty')
-    const rows = await dbh.db.select().from(noteMetadataTable)
+    const rows = await dbh.db.select().from(noteTable)
     expect(rows).toHaveLength(0)
   })
 })

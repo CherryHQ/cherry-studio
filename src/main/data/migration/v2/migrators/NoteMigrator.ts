@@ -1,4 +1,4 @@
-import { type NoteMetadataInsert, noteMetadataTable } from '@data/db/schemas/noteMetadata'
+import { type NoteInsert, noteTable } from '@data/db/schemas/note'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { eq, sql } from 'drizzle-orm'
@@ -6,7 +6,7 @@ import { eq, sql } from 'drizzle-orm'
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
 
-const logger = loggerService.withContext('NoteMetadataMigrator')
+const logger = loggerService.withContext('NoteMigrator')
 
 interface LegacyNoteState {
   notesPath?: unknown
@@ -28,13 +28,13 @@ function pathArray(value: unknown): string[] {
     .map(normalizePathValue)
 }
 
-export class NoteMetadataMigrator extends BaseMigrator {
-  readonly id = 'note-metadata'
-  readonly name = 'Note Metadata'
-  readonly description = 'Migrate notes starred and expanded metadata from Redux to SQLite'
+export class NoteMigrator extends BaseMigrator {
+  readonly id = 'note'
+  readonly name = 'Note'
+  readonly description = 'Migrate notes starred and expanded state from Redux to SQLite'
   readonly order = 1.1
 
-  private preparedRows: NoteMetadataInsert[] = []
+  private preparedRows: NoteInsert[] = []
   private skippedCount = 0
 
   override reset(): void {
@@ -50,7 +50,7 @@ export class NoteMetadataMigrator extends BaseMigrator {
     const state = ctx.sources.reduxState.getCategory<LegacyNoteState>('note')
 
     if (!state) {
-      logger.info('No note state found, skipping note metadata migration')
+      logger.info('No note state found, skipping note migration')
       return { success: true, itemCount: 0 }
     }
 
@@ -62,12 +62,12 @@ export class NoteMetadataMigrator extends BaseMigrator {
       const skipped = new Set([...starredPaths, ...expandedPaths]).size
       this.skippedCount = skipped
       if (skipped > 0) {
-        warnings.push('Skipped note metadata because legacy notesPath is empty')
+        warnings.push('Skipped note because legacy notesPath is empty')
       }
       return { success: true, itemCount: 0, warnings }
     }
 
-    const rows = new Map<string, NoteMetadataInsert>()
+    const rows = new Map<string, NoteInsert>()
 
     for (const path of starredPaths) {
       rows.set(path, {
@@ -102,10 +102,10 @@ export class NoteMetadataMigrator extends BaseMigrator {
       await ctx.db.transaction(async (tx) => {
         for (const row of this.preparedRows) {
           await tx
-            .insert(noteMetadataTable)
+            .insert(noteTable)
             .values(row)
             .onConflictDoUpdate({
-              target: [noteMetadataTable.rootPath, noteMetadataTable.path],
+              target: [noteTable.rootPath, noteTable.path],
               set: {
                 isStarred: row.isStarred,
                 isExpanded: row.isExpanded
@@ -142,8 +142,8 @@ export class NoteMetadataMigrator extends BaseMigrator {
       const rootPath = this.preparedRows[0].rootPath
       const result = await ctx.db
         .select({ count: sql<number>`count(*)` })
-        .from(noteMetadataTable)
-        .where(eq(noteMetadataTable.rootPath, rootPath))
+        .from(noteTable)
+        .where(eq(noteTable.rootPath, rootPath))
         .get()
       const count = result?.count ?? 0
       const errors =
@@ -152,7 +152,7 @@ export class NoteMetadataMigrator extends BaseMigrator {
           : [
               {
                 key: 'count_mismatch',
-                message: 'Migrated note metadata count is lower than expected'
+                message: 'Migrated note count is lower than expected'
               }
             ]
 

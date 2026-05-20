@@ -1,4 +1,4 @@
-CREATE TABLE `note_metadata` (
+CREATE TABLE `note` (
 	`id` text PRIMARY KEY NOT NULL,
 	`root_path` text NOT NULL,
 	`path` text NOT NULL,
@@ -8,4 +8,4 @@ CREATE TABLE `note_metadata` (
 	`updated_at` integer NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `note_metadata_root_path_path_unique_idx` ON `note_metadata` (`root_path`,`path`);
+CREATE UNIQUE INDEX `note_root_path_path_unique_idx` ON `note` (`root_path`,`path`);

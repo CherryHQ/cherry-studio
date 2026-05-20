@@ -2734,8 +2734,8 @@
         }
       }
     },
-    "note_metadata": {
-      "name": "note_metadata",
+    "note": {
+      "name": "note",
       "columns": {
         "id": {
           "name": "id",
@@ -2790,8 +2790,8 @@
         }
       },
       "indexes": {
-        "note_metadata_root_path_path_unique_idx": {
-          "name": "note_metadata_root_path_path_unique_idx",
+        "note_root_path_path_unique_idx": {
+          "name": "note_root_path_path_unique_idx",
           "columns": ["root_path", "path"],
           "isUnique": true
         }

@@ -1,36 +1,36 @@
-import { noteMetadataService } from '@data/services/NoteMetadataService'
+import { noteService } from '@data/services/NoteService'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import {
-  DeleteNoteMetadataQuerySchema,
-  ListNoteMetadataQuerySchema,
+  DeleteNoteQuerySchema,
+  ListNoteQuerySchema,
   type NoteSchemas,
-  RewriteNoteMetadataPathSchema,
-  UpsertNoteMetadataSchema
+  RewriteNotePathSchema,
+  UpsertNoteSchema
 } from '@shared/data/api/schemas/notes'
 
 export const noteHandlers: HandlersFor<NoteSchemas> = {
-  '/notes/metadata': {
+  '/notes': {
     GET: async ({ query }) => {
-      const parsed = ListNoteMetadataQuerySchema.parse(query)
-      return await noteMetadataService.listByRoot(parsed.rootPath)
+      const parsed = ListNoteQuerySchema.parse(query)
+      return await noteService.listByRoot(parsed.rootPath)
     },
 
     PATCH: async ({ body }) => {
-      const parsed = UpsertNoteMetadataSchema.parse(body)
-      return await noteMetadataService.upsert(parsed)
+      const parsed = UpsertNoteSchema.parse(body)
+      return await noteService.upsert(parsed)
     },
 
     DELETE: async ({ query }) => {
-      const parsed = DeleteNoteMetadataQuerySchema.parse(query)
-      await noteMetadataService.deleteByPath(parsed)
+      const parsed = DeleteNoteQuerySchema.parse(query)
+      await noteService.deleteByPath(parsed)
       return undefined
     }
   },
 
-  '/notes/metadata/path': {
+  '/notes/path': {
     PATCH: async ({ body }) => {
-      const parsed = RewriteNoteMetadataPathSchema.parse(body)
-      return await noteMetadataService.rewritePath(parsed)
+      const parsed = RewriteNotePathSchema.parse(body)
+      return await noteService.rewritePath(parsed)
     }
   }
 }

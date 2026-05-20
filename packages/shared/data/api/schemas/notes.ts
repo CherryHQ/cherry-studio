@@ -1,15 +1,15 @@
 import * as z from 'zod'
 
-import type { NoteMetadata } from '../../types/noteMetadata'
+import type { Note } from '../../types/note'
 
 const NotePathSchema = z.string().min(1)
 
-export const ListNoteMetadataQuerySchema = z.strictObject({
+export const ListNoteQuerySchema = z.strictObject({
   rootPath: NotePathSchema
 })
-export type ListNoteMetadataQuery = z.infer<typeof ListNoteMetadataQuerySchema>
+export type ListNoteQuery = z.infer<typeof ListNoteQuerySchema>
 
-export const UpsertNoteMetadataSchema = z
+export const UpsertNoteSchema = z
   .strictObject({
     rootPath: NotePathSchema,
     path: NotePathSchema,
@@ -17,44 +17,44 @@ export const UpsertNoteMetadataSchema = z
     isExpanded: z.boolean().optional()
   })
   .refine((value) => value.isStarred !== undefined || value.isExpanded !== undefined, {
-    message: 'At least one note metadata field is required'
+    message: 'At least one note field is required'
   })
-export type UpsertNoteMetadataDto = z.infer<typeof UpsertNoteMetadataSchema>
+export type UpsertNoteDto = z.infer<typeof UpsertNoteSchema>
 
-export const DeleteNoteMetadataQuerySchema = z.strictObject({
+export const DeleteNoteQuerySchema = z.strictObject({
   rootPath: NotePathSchema,
   path: NotePathSchema,
   recursive: z.boolean().optional()
 })
-export type DeleteNoteMetadataQuery = z.infer<typeof DeleteNoteMetadataQuerySchema>
+export type DeleteNoteQuery = z.infer<typeof DeleteNoteQuerySchema>
 
-export const RewriteNoteMetadataPathSchema = z.strictObject({
+export const RewriteNotePathSchema = z.strictObject({
   rootPath: NotePathSchema,
   fromPath: NotePathSchema,
   toPath: NotePathSchema,
   recursive: z.boolean().optional()
 })
-export type RewriteNoteMetadataPathDto = z.infer<typeof RewriteNoteMetadataPathSchema>
+export type RewriteNotePathDto = z.infer<typeof RewriteNotePathSchema>
 
 export type NoteSchemas = {
-  '/notes/metadata': {
+  '/notes': {
     GET: {
-      query: ListNoteMetadataQuery
-      response: NoteMetadata[]
+      query: ListNoteQuery
+      response: Note[]
     }
     PATCH: {
-      body: UpsertNoteMetadataDto
-      response: NoteMetadata | null
+      body: UpsertNoteDto
+      response: Note | null
     }
     DELETE: {
-      query: DeleteNoteMetadataQuery
+      query: DeleteNoteQuery
       response: void
     }
   }
 
-  '/notes/metadata/path': {
+  '/notes/path': {
     PATCH: {
-      body: RewriteNoteMetadataPathDto
+      body: RewriteNotePathDto
       response: { updated: number }
     }
   }
