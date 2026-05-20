@@ -16,7 +16,7 @@ function effectiveSupport(
   if (!override) return support
   const merged: ImageGenerationSupport = { ...support, ...override }
   if (support.supports || override.supports) {
-    merged.supports = { ...(support.supports ?? {}), ...(override.supports ?? {}) }
+    merged.supports = { ...support.supports, ...override.supports }
   }
   return merged
 }

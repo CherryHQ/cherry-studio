@@ -181,7 +181,7 @@ describe('imageGenerationToFields', () => {
     })
     const byKey = Object.fromEntries(items.map((i) => [i.key, i]))
     expect(byKey.size?.type).toBe('sizeChips')
-    const sizeValues = (byKey.size?.options as { value: string }[]).map((o) => o.value)
+    const sizeValues = (byKey.size!.options as { value: string }[]).map((o) => o.value)
     expect(sizeValues).toContain('1024x1024')
     expect(sizeValues).toContain('custom')
     expect(byKey.customSize?.type).toBe('customSize')
