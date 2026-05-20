@@ -1,8 +1,5 @@
-import { AiProvider } from '@renderer/aiCore'
-import type { Model } from '@renderer/types'
-
+import { generatePainting } from '../../model/generatePainting'
 import { createPaintingGenerateError } from '../../model/paintingGenerateError'
-import { runPainting } from '../../model/paintingGenerationService'
 import type { AihubmixPaintingData } from '../../model/types/paintingData'
 import { checkProviderEnabled } from '../../utils/checkProviderEnabled'
 import type { GenerateInput } from '../types'
@@ -10,14 +7,12 @@ import { getAihubmixUploadedFile } from './imageUpload'
 
 /**
  * Unified AiHubMix painting adapter on the composed AI-SDK-native
- * `createAihubmix().imageModel` (Phase 4a) — the sole AiHubMix painting path
- * (the bespoke single-shot `generate.ts` was deleted in the cutover). The
- * provider-specific request/response
- * (gemini stream, Ideogram V_3 FormData, Ideogram V_1/V_2 JSON, and the
- * default gpt-image/FLUX/imagen delegate) runs inside the composed
- * `ImageModelV3`; the patched `ai` SDK passes the returned image URLs /
- * `data:` strings through `convertImageResult` (http urls are downloaded to
- * base64).
+ * `createAihubmix().imageModel` (Phase 4a) — the sole AiHubMix painting path.
+ * The provider-specific request/response (gemini stream, Ideogram V_3
+ * FormData, Ideogram V_1/V_2 JSON, and the default gpt-image/FLUX/imagen
+ * delegate) runs inside the composed `ImageModelV3`; R1 routes URL outputs
+ * back through the main-process downloader (Ideogram URLs keep the bespoke
+ * proxy-warning hint).
  *
  * All bespoke painting fields and the remix/upscale upload blob are forwarded
  * by reference through `providerOptions.aihubmix` — the exact key the inner
@@ -90,106 +85,55 @@ export async function generateWithAihubmixUnified(input: GenerateInput) {
   const { painting: rawPainting, provider, tab, abortController } = input
   const painting = rawPainting as AihubmixPaintingData
   const mode = tab as 'generate' | 'remix' | 'upscale'
-
   const apiKey = await checkProviderEnabled(provider)
-
+  if (!painting.model) throw createPaintingGenerateError('MISSING_REQUIRED_FIELDS')
   const prompt = painting.prompt || ''
-
-  if (!painting.model) {
-    throw createPaintingGenerateError('MISSING_REQUIRED_FIELDS')
-  }
-
-  if (mode !== 'upscale' && !prompt.trim()) {
-    throw createPaintingGenerateError('PROMPT_REQUIRED')
-  }
-
-  const modelId = painting.model
+  if (mode !== 'upscale' && !prompt.trim()) throw createPaintingGenerateError('PROMPT_REQUIRED')
 
   let uploadFile: File | null = null
   if (mode === 'remix' || mode === 'upscale') {
-    if (!painting.imageFile) {
-      throw createPaintingGenerateError('IMAGE_REQUIRED')
-    }
+    if (!painting.imageFile) throw createPaintingGenerateError('IMAGE_REQUIRED')
     uploadFile = getAihubmixUploadedFile(painting.imageFile)
-    if (!uploadFile) {
-      throw createPaintingGenerateError('IMAGE_RETRY_REQUIRED')
-    }
+    if (!uploadFile) throw createPaintingGenerateError('IMAGE_RETRY_REQUIRED')
   }
 
-  return runPainting(async () => {
-    const model = {
-      id: modelId,
-      provider: provider.id,
-      name: modelId,
-      group: ''
-    } as Model
+  const imageFiles = uploadFile
+    ? [{ mediaType: uploadFile.type, data: new Uint8Array(await uploadFile.arrayBuffer()), name: uploadFile.name }]
+    : undefined
 
-    const aiProvider = new AiProvider(model, {
-      id: provider.id,
-      type: 'openai',
-      name: provider.name,
-      apiKey,
-      apiHost: provider.apiHost,
-      models: [model],
-      enabled: provider.isEnabled
-    })
+  const { imageSize, batchSize, safetyTolerance } = resolveModelParams(painting.model, painting)
 
-    const imageFiles = uploadFile
-      ? [
-          {
-            mediaType: uploadFile.type,
-            data: new Uint8Array(await uploadFile.arrayBuffer()),
-            name: uploadFile.name
-          }
-        ]
-      : undefined
-
-    const { imageSize, batchSize, safetyTolerance } = resolveModelParams(modelId, painting)
-
-    const aihubmixProviderOptions = {
-      aihubmix: {
-        mode,
-        aspectRatio: painting.aspectRatio,
-        imageSize: painting.imageSize,
-        styleType: painting.styleType,
-        renderingSpeed: painting.renderingSpeed,
-        numImages: painting.numImages,
-        seed: painting.seed,
-        negativePrompt: painting.negativePrompt,
-        magicPromptOption: painting.magicPromptOption,
-        imageWeight: painting.imageWeight,
-        resemblance: painting.resemblance,
-        detail: painting.detail,
-        personGeneration: painting.personGeneration,
-        quality: painting.quality,
-        moderation: painting.moderation,
-        safety_tolerance: safetyTolerance,
-        n: painting.n,
-        imageFiles
-      }
-    }
-
-    const out = await aiProvider.generatePaintingImage({
-      model: modelId,
-      prompt,
-      imageSize,
-      batchSize,
-      providerOptions: aihubmixProviderOptions,
-      signal: abortController.signal
-    })
-
-    // Ideogram (V_1/V_2/V_3) returns proxied URLs — download them through the
-    // main-process downloader with the bespoke proxy hint; gpt-image / FLUX /
-    // imagen come back as base64.
-    const urls = out.flatMap((o) => (o.type === 'url' ? [o.url] : []))
-    if (urls.length > 0) {
-      return { urls, downloadOptions: { showProxyWarning: true } }
-    }
-    const base64s = out.flatMap((o) => (o.type === 'base64' ? [o.base64] : []))
-    if (base64s.length > 0) {
-      return { base64s }
-    }
-
-    return undefined
+  // Ideogram (V_1/V_2/V_3) returns proxied URLs — download them through the
+  // main-process downloader with the bespoke proxy hint; gpt-image / FLUX /
+  // imagen come back as base64. `generatePainting` stamps `downloadOptions`
+  // only on the URL branch.
+  return generatePainting({
+    provider,
+    signal: abortController.signal,
+    apiKey,
+    modelId: painting.model,
+    prompt,
+    aiSdkParams: { imageSize, batchSize },
+    providerBag: {
+      mode,
+      aspectRatio: painting.aspectRatio,
+      imageSize: painting.imageSize,
+      styleType: painting.styleType,
+      renderingSpeed: painting.renderingSpeed,
+      numImages: painting.numImages,
+      seed: painting.seed,
+      negativePrompt: painting.negativePrompt,
+      magicPromptOption: painting.magicPromptOption,
+      imageWeight: painting.imageWeight,
+      resemblance: painting.resemblance,
+      detail: painting.detail,
+      personGeneration: painting.personGeneration,
+      quality: painting.quality,
+      moderation: painting.moderation,
+      safety_tolerance: safetyTolerance,
+      n: painting.n,
+      imageFiles
+    },
+    downloadOptions: { showProxyWarning: true }
   })
 }
