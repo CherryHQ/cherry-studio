@@ -62,36 +62,48 @@ export async function generateWithNewApiUnified(input: GenerateInput<PaintingDat
 
     const editFiles = getEditImageFiles(painting.id)
 
-    let images: string[]
+    // Edit still flows through editImage (URL outputs aren't expected from
+    // gpt-image edits; base64 is the norm). Both paths set `allowAutoSize`
+    // so `painting.size === 'auto'` omits the `size` field entirely instead
+    // of forcing it to `1024x1024` (R2).
     if (editFiles.length > 0) {
-      const inputImages = await Promise.all(
-        editFiles.map(async (file) => new Uint8Array(await file.arrayBuffer()))
-      )
-      images = await aiProvider.editImage({
+      const inputImages = await Promise.all(editFiles.map(async (file) => new Uint8Array(await file.arrayBuffer())))
+      const images = await aiProvider.editImage({
         model: modelId,
         prompt,
         inputImages,
         imageSize,
+        allowAutoSize: true,
         quality: painting.quality,
         background: painting.background,
         moderation: painting.moderation,
         signal: abortController.signal
       })
-    } else {
-      images = await aiProvider.generateImage({
-        model: modelId,
-        prompt,
-        imageSize: imageSize ?? '1024x1024',
-        batchSize: painting.n ?? 1,
-        quality: painting.quality,
-        background: painting.background,
-        moderation: painting.moderation,
-        signal: abortController.signal
-      })
+      if (images.length > 0) {
+        return { base64s: images }
+      }
+      return undefined
     }
 
-    if (images.length > 0) {
-      return { base64s: images }
+    const out = await aiProvider.generatePaintingImage({
+      model: modelId,
+      prompt,
+      imageSize,
+      allowAutoSize: true,
+      batchSize: painting.n ?? 1,
+      quality: painting.quality,
+      background: painting.background,
+      moderation: painting.moderation,
+      signal: abortController.signal
+    })
+
+    const urls = out.flatMap((o) => (o.type === 'url' ? [o.url] : []))
+    if (urls.length > 0) {
+      return { urls }
+    }
+    const base64s = out.flatMap((o) => (o.type === 'base64' ? [o.base64] : []))
+    if (base64s.length > 0) {
+      return { base64s }
     }
 
     return undefined

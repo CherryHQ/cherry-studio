@@ -40,6 +40,24 @@ function mergeExtraProviderOptions(
   return merged
 }
 
+/**
+ * Resolve the AI SDK `size` parameter from the caller's `imageSize`.
+ *
+ * `undefined` (returned only when `allowAutoSize` is true) tells the caller to
+ * omit the `size` field entirely — preserving the bespoke painting behavior
+ * where `painting.size === 'auto'` did NOT send `size:'1024x1024'` to the
+ * server (some backends, e.g. newapi gpt-image, treat `auto` differently from
+ * an explicit `1024x1024`).
+ */
+function resolveImageSize(
+  imageSize: string | undefined,
+  allowAutoSize: boolean | undefined
+): `${number}x${number}` | undefined {
+  if (imageSize) return imageSize as `${number}x${number}`
+  if (allowAutoSize) return undefined
+  return '1024x1024'
+}
+
 export type AiProviderConfig = AiSdkMiddlewareConfig & {
   assistant: Assistant
   // topicId for tracing
@@ -414,7 +432,7 @@ export default class AiProvider {
    * 使用现代化 AI SDK 的图像生成实现
    */
   private async modernGenerateImage(params: GenerateImageParams, providerConfig: ProviderConfig): Promise<string[]> {
-    const { model, prompt, imageSize, batchSize, signal } = params
+    const { model, prompt, imageSize, batchSize, signal, allowAutoSize } = params
 
     // Forward the remaining params (negativePrompt/seed/steps/guidance/
     // promptEnhancement/personGeneration/quality) via AI SDK providerOptions —
@@ -426,9 +444,10 @@ export default class AiProvider {
     )
 
     // 转换参数格式
+    const resolvedSize = resolveImageSize(imageSize, allowAutoSize)
     const aiSdkParams = {
       prompt,
-      size: (imageSize || '1024x1024') as `${number}x${number}`,
+      ...(resolvedSize !== undefined && { size: resolvedSize }),
       n: batchSize || 1,
       // Cast: extra providerOptions may carry non-JSON callbacks (e.g. the
       // polling `onProgress`) which the AI SDK passes through by reference.
@@ -461,16 +480,17 @@ export default class AiProvider {
     params: GenerateImageParams,
     providerConfig: ProviderConfig
   ): Promise<ClassifiedImage[]> {
-    const { model, prompt, imageSize, batchSize, signal } = params
+    const { model, prompt, imageSize, batchSize, signal, allowAutoSize } = params
 
     const providerOptions = mergeExtraProviderOptions(
       buildImageProviderOptions(providerConfig.providerId, params),
       params.providerOptions
     )
 
+    const resolvedSize = resolveImageSize(imageSize, allowAutoSize)
     const aiSdkParams = {
       prompt,
-      size: (imageSize || '1024x1024') as `${number}x${number}`,
+      ...(resolvedSize !== undefined && { size: resolvedSize }),
       n: batchSize || 1,
       experimental_download: passthroughImageDownload,
       ...(Object.keys(providerOptions).length > 0 && {
@@ -505,7 +525,7 @@ export default class AiProvider {
    * 通过 AI SDK 的 generateImage 并传入 prompt.images 参数实现编辑功能
    */
   private async modernEditImage(params: EditImageParams, providerConfig: ProviderConfig): Promise<string[]> {
-    const { model, prompt, inputImages, mask, imageSize, signal } = params
+    const { model, prompt, inputImages, mask, imageSize, signal, allowAutoSize } = params
 
     // Parity with modernGenerateImage: forward quality/background/moderation via
     // providerOptions, keyed by the resolved provider id (the providerOptions key
@@ -522,6 +542,7 @@ export default class AiProvider {
     )
 
     // 使用 AI SDK 的 generateImage，通过 prompt.images 实现编辑
+    const resolvedSize = resolveImageSize(imageSize, allowAutoSize)
     const result = await executor.generateImage({
       model: model,
       prompt: {
@@ -529,7 +550,7 @@ export default class AiProvider {
         images: inputImages, // 输入图像（必需）
         ...(mask && { mask }) // 可选的 mask（用于 inpainting）
       },
-      size: (imageSize || '1024x1024') as `${number}x${number}`,
+      ...(resolvedSize !== undefined && { size: resolvedSize }),
       // Cast: see modernGenerateImage — extra providerOptions may carry
       // non-JSON callbacks the AI SDK passes through by reference.
       ...(Object.keys(providerOptions).length > 0 && {

@@ -17,14 +17,14 @@ import { generateWithNewApiUnified } from './generateUnified'
 /**
  * Bespoke direct-fetch → AI-SDK-native switch, keyed by painting provider id.
  *
- * EMPTY by default: every newapi/cherryin/aionly provider keeps the legacy
- * bespoke `generateWithNewApi` path, so runtime behavior is unchanged (zero
- * regression). The unified files-driven path (`generateWithNewApiUnified`) is
- * wired and type-checked but opt-in — add a provider id here only after manual
- * verification, and remove it to roll back. Bespoke `generate.ts` stays until
- * Phase 4.
+ * new-api and aionly are cut over to the unified files-driven path
+ * (`generateWithNewApiUnified`); cherryin stays on bespoke `generateWithNewApi`
+ * because its unified resolution goes through `buildCherryinConfig` — a
+ * different config builder than `createNewApi` — and that path has not been
+ * parity-verified. Remove cherryin from this set's complement (i.e. add it to
+ * the set) only after a dedicated cherryin check.
  */
-const UNIFIED_NEWAPI_PROVIDERS = new Set<string>([])
+const UNIFIED_NEWAPI_PROVIDERS = new Set<string>(['new-api', 'aionly'])
 
 export function NewApiHeaderActions({ provider, t }: { provider: PaintingProviderRuntime; t: TFunction }) {
   const Icon = resolveProviderIcon(provider.id)

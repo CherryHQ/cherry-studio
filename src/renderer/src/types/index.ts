@@ -583,8 +583,16 @@ export type GenerateImageParams = {
   model: string
   prompt: string
   negativePrompt?: string
-  imageSize: string
+  imageSize?: string
   batchSize: number
+  /**
+   * Painting-only opt-in: when true and `imageSize` is undefined, `AiProvider`
+   * skips the `'1024x1024'` default so `size` is omitted from the request body
+   * entirely (matches the bespoke `painting.size === 'auto' → undefined`
+   * handling for models whose server-side default differs from 1024×1024).
+   * Chat callers must leave this unset to keep the legacy default.
+   */
+  allowAutoSize?: boolean
   seed?: string
   numInferenceSteps?: number
   guidanceScale?: number
@@ -620,6 +628,8 @@ export type EditImageParams = {
   mask?: Buffer | Uint8Array | string
   /** 输出图像尺寸 */
   imageSize?: string
+  /** See {@link GenerateImageParams.allowAutoSize}. */
+  allowAutoSize?: boolean
   /** OpenAI image-body quality (e.g. 'high'/'auto'); forwarded via providerOptions */
   quality?: string
   /** OpenAI image-body field (e.g. 'transparent'/'opaque'/'auto') */
