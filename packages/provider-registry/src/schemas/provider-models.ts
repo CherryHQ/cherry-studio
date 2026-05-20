@@ -9,6 +9,7 @@ import * as z from 'zod'
 
 import { ModelIdSchema, ProviderIdSchema, VersionSchema } from './common'
 import {
+  ImageGenerationSupportSchema,
   ModalitySchema,
   ModelCapabilityTypeSchema,
   ModelPricingSchema,
@@ -58,6 +59,12 @@ export const ProviderModelOverrideSchema = z.object({
   pricing: ModelPricingSchema.partial().optional(),
   reasoning: ReasoningSupportSchema.optional(),
   parameterSupport: ParameterSupportSchema.partial().optional(),
+  /** Per-(provider, model) painting-page metadata — anchored on the
+   * (providerId, modelId) tuple where the painting page actually consumes it,
+   * rather than on canonical `models.json`. Lets two providers that proxy the
+   * same canonical model expose different painting UIs (different size
+   * options, batch caps, etc.) if their server-side surfaces differ. */
+  imageGeneration: ImageGenerationSupportSchema.optional(),
 
   // Endpoint type overrides (when model uses different endpoints than provider default)
   endpointTypes: z.array(EndpointTypeSchema).optional(),

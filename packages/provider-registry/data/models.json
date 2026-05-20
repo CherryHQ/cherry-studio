@@ -5579,33 +5579,7 @@
       "contextWindow": 4096,
       "family": "flux",
       "ownedBy": "bfl",
-      "openWeights": false,
-      "imageGeneration": {
-        "modes": ["generate"],
-        "sizes": ["1024x1024", "1280x1024", "1024x1280"],
-        "sizeMode": "pixel",
-        "defaultSize": "1024x1024",
-        "batch": {
-          "min": 1,
-          "max": 4,
-          "default": 1
-        },
-        "supports": {
-          "negativePrompt": true,
-          "seed": true,
-          "promptEnhancement": true,
-          "numInferenceSteps": {
-            "min": 1,
-            "max": 50,
-            "default": 25
-          },
-          "guidanceScale": {
-            "min": 0,
-            "max": 20,
-            "default": 4.5
-          }
-        }
-      }
+      "openWeights": false
     },
     {
       "id": "command-a-translate-08-2025",
@@ -8586,26 +8560,7 @@
       "contextWindow": 512,
       "family": "flux",
       "ownedBy": "bfl",
-      "openWeights": false,
-      "imageGeneration": {
-        "modes": ["generate"],
-        "sizes": ["1024x1024", "1024x768", "768x1024", "1024x1408", "1408x1024"],
-        "sizeMode": "pixel",
-        "defaultSize": "1024x1024",
-        "batch": {
-          "min": 1,
-          "max": 4,
-          "default": 1
-        },
-        "supports": {
-          "seed": true,
-          "safetyTolerance": {
-            "min": 0,
-            "max": 6,
-            "default": 6
-          }
-        }
-      }
+      "openWeights": false
     },
     {
       "id": "flux-kontext-max",
@@ -20623,25 +20578,7 @@
       "contextWindow": 150,
       "family": "ideogram",
       "ownedBy": "ideogram",
-      "openWeights": false,
-      "imageGeneration": {
-        "modes": ["generate", "remix", "upscale"],
-        "sizes": ["ASPECT_1_1", "ASPECT_16_9", "ASPECT_9_16", "ASPECT_4_3", "ASPECT_3_4"],
-        "sizeMode": "aspect",
-        "defaultSize": "ASPECT_1_1",
-        "batch": {
-          "min": 1,
-          "max": 8,
-          "default": 1
-        },
-        "supports": {
-          "negativePrompt": true,
-          "seed": true,
-          "magicPromptOption": true,
-          "styleType": ["AUTO", "GENERAL", "REALISTIC", "DESIGN", "RENDER_3D", "ANIME"],
-          "renderingSpeed": ["TURBO", "DEFAULT", "QUALITY"]
-        }
-      }
+      "openWeights": false
     },
     {
       "id": "ideogram-v2a-turbo",
@@ -20663,24 +20600,7 @@
       "contextWindow": 150,
       "family": "ideogram",
       "ownedBy": "ideogram",
-      "openWeights": false,
-      "imageGeneration": {
-        "modes": ["generate", "remix", "upscale"],
-        "sizes": ["ASPECT_1_1", "ASPECT_16_9", "ASPECT_9_16", "ASPECT_4_3", "ASPECT_3_4"],
-        "sizeMode": "aspect",
-        "defaultSize": "ASPECT_1_1",
-        "batch": {
-          "min": 1,
-          "max": 8,
-          "default": 1
-        },
-        "supports": {
-          "negativePrompt": true,
-          "seed": true,
-          "magicPromptOption": true,
-          "styleType": ["AUTO", "GENERAL", "REALISTIC", "DESIGN", "RENDER_3D", "ANIME"]
-        }
-      }
+      "openWeights": false
     },
     {
       "id": "runway",
@@ -20800,22 +20720,7 @@
       "contextWindow": 480,
       "family": "imagen",
       "ownedBy": "google",
-      "openWeights": false,
-      "imageGeneration": {
-        "modes": ["generate"],
-        "sizes": ["1:1", "9:16", "16:9", "3:4", "4:3"],
-        "sizeMode": "aspect",
-        "defaultSize": "1:1",
-        "batch": {
-          "min": 1,
-          "max": 4,
-          "default": 1
-        },
-        "supports": {
-          "seed": true,
-          "personGeneration": ["ALLOW_ADULT", "ALLOW_ALL", "DONT_ALLOW"]
-        }
-      }
+      "openWeights": false
     },
     {
       "id": "imagen-3",
@@ -20837,22 +20742,7 @@
       "contextWindow": 480,
       "family": "imagen",
       "ownedBy": "google",
-      "openWeights": false,
-      "imageGeneration": {
-        "modes": ["generate"],
-        "sizes": ["1:1", "9:16", "16:9", "3:4", "4:3"],
-        "sizeMode": "aspect",
-        "defaultSize": "1:1",
-        "batch": {
-          "min": 1,
-          "max": 1,
-          "default": 1
-        },
-        "supports": {
-          "seed": true,
-          "personGeneration": ["ALLOW_ADULT", "ALLOW_ALL", "DONT_ALLOW"]
-        }
-      }
+      "openWeights": false
     },
     {
       "id": "veo-3-1",
@@ -21093,23 +20983,7 @@
         }
       },
       "ownedBy": "openai",
-      "openWeights": false,
-      "imageGeneration": {
-        "modes": ["generate", "edit"],
-        "sizes": ["auto", "1024x1024", "1536x1024", "1024x1536"],
-        "sizeMode": "pixel",
-        "defaultSize": "auto",
-        "allowAutoSize": true,
-        "batch": {
-          "min": 1,
-          "max": 10,
-          "default": 1
-        },
-        "supports": {
-          "quality": ["low", "medium", "high", "auto"],
-          "background": ["transparent", "opaque", "auto"]
-        }
-      }
+      "openWeights": false
     },
     {
       "id": "gpt-image-1-mini",
@@ -21134,23 +21008,7 @@
       },
       "family": "gpt",
       "ownedBy": "openai",
-      "openWeights": false,
-      "imageGeneration": {
-        "modes": ["generate", "edit"],
-        "sizes": ["auto", "1024x1024", "1536x1024", "1024x1536"],
-        "sizeMode": "pixel",
-        "defaultSize": "auto",
-        "allowAutoSize": true,
-        "batch": {
-          "min": 1,
-          "max": 10,
-          "default": 1
-        },
-        "supports": {
-          "quality": ["low", "medium", "high", "auto"],
-          "background": ["transparent", "opaque", "auto"]
-        }
-      }
+      "openWeights": false
     },
     {
       "id": "gpt-4o-aug",
@@ -21202,24 +21060,7 @@
       },
       "family": "gpt",
       "ownedBy": "openai",
-      "openWeights": false,
-      "imageGeneration": {
-        "modes": ["generate", "edit"],
-        "sizes": ["auto", "1024x1024", "1536x1024", "1024x1536"],
-        "sizeMode": "pixel",
-        "defaultSize": "auto",
-        "allowAutoSize": true,
-        "batch": {
-          "min": 1,
-          "max": 10,
-          "default": 1
-        },
-        "supports": {
-          "quality": ["low", "medium", "high", "auto"],
-          "moderation": ["low", "auto"],
-          "background": ["transparent", "opaque", "auto"]
-        }
-      }
+      "openWeights": false
     },
     {
       "id": "gpt-4-classic-0314",
