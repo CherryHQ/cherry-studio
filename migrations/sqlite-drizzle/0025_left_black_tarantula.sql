@@ -1,7 +1,7 @@
 CREATE TABLE `job_schedule` (
 	`id` text PRIMARY KEY NOT NULL,
 	`type` text NOT NULL,
-	`name` text,
+	`name` text DEFAULT '' NOT NULL,
 	`trigger` text NOT NULL,
 	`job_input_template` text NOT NULL,
 	`enabled` integer DEFAULT true NOT NULL,
