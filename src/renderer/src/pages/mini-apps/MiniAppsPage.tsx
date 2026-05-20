@@ -75,11 +75,7 @@ const MiniAppsPage: FC = () => {
         </div>
 
         {/* Body: loading / error / empty / grid */}
-        <Scrollbar
-          className="min-h-0 flex-1 px-8 pb-10"
-          // Top fade-out: a longer, gentler fade so icons scrolling under the search bar
-          // ease out instead of cutting off. Kept ≤ the grid's pt so the resting first row stays crisp.
-          style={{ maskImage: 'linear-gradient(to bottom, transparent 0, black 40px)' }}>
+        <Scrollbar className="min-h-0 flex-1 px-8 pb-10">
           <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col">
             {isLoading ? (
               <div className="flex flex-1 items-center justify-center">
