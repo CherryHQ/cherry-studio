@@ -1,0 +1,177 @@
+import type { ImageGenerationSupport } from '@cherrystudio/provider-registry'
+
+import type { BaseConfigItem, OptionItem } from '../providers/shared/providerFieldSchema'
+
+/**
+ * Map an `ImageGenerationSupport` descriptor (from the provider registry, per
+ * model) to the existing `BaseConfigItem[]` shape that
+ * `PaintingFieldRenderer` already knows how to render. Keeps the renderer
+ * pipeline unchanged — only the field-list source switches from a hand-rolled
+ * per-provider `fields.ts` to this derivation.
+ *
+ * Field keys are canonical (`size`, `numImages`, `negativePrompt`, `seed`,
+ * `numInferenceSteps`, `guidanceScale`, `safetyTolerance`, `quality`,
+ * `moderation`, `background`, `aspectRatio`, `styleType`, `renderingSpeed`,
+ * `personGeneration`, `promptEnhancement`, `magicPromptOption`). Providers
+ * opting into the registry-driven path (A.5) must align their `PaintingData`
+ * field names to these. `modes` is ignored here — modes drive provider-level
+ * tabs today, not field-level controls (revisit in A.6).
+ */
+export function imageGenerationToFields(support: ImageGenerationSupport | undefined): BaseConfigItem[] {
+  if (!support) return []
+  const items: BaseConfigItem[] = []
+
+  // size
+  if (support.sizes && support.sizes.length > 0) {
+    const options: OptionItem[] = support.sizes.map((v) => ({ label: v, value: v }))
+    if (support.sizeMode === 'pixel') {
+      items.push({
+        type: 'sizeChips',
+        key: 'size',
+        title: 'paintings.image.size',
+        options,
+        initialValue: support.defaultSize,
+        columns: 3
+      })
+    } else {
+      items.push({
+        type: 'select',
+        key: 'size',
+        title: 'paintings.image.size',
+        options,
+        initialValue: support.defaultSize
+      })
+    }
+  }
+
+  // batch (numImages)
+  if (support.batch && (support.batch.min !== undefined || support.batch.max !== undefined)) {
+    items.push({
+      type: 'slider',
+      key: 'numImages',
+      title: 'paintings.number_images',
+      tooltip: 'paintings.number_images_tip',
+      min: support.batch.min ?? 1,
+      max: support.batch.max ?? 1,
+      initialValue: support.batch.default ?? support.batch.min ?? 1
+    })
+  }
+
+  const s = support.supports
+  if (!s) return items
+
+  if (s.negativePrompt) {
+    items.push({
+      type: 'textarea',
+      key: 'negativePrompt',
+      title: 'paintings.negative_prompt',
+      tooltip: 'paintings.negative_prompt_tip'
+    })
+  }
+  if (s.seed) {
+    items.push({ type: 'input', key: 'seed', title: 'paintings.seed', tooltip: 'paintings.seed_tip' })
+  }
+  if (s.promptEnhancement) {
+    items.push({
+      type: 'switch',
+      key: 'promptEnhancement',
+      title: 'paintings.prompt_enhancement',
+      tooltip: 'paintings.prompt_enhancement_tip',
+      initialValue: false
+    })
+  }
+  if (s.magicPromptOption) {
+    items.push({ type: 'switch', key: 'magicPromptOption', title: 'paintings.magic_prompt', initialValue: false })
+  }
+  if (s.numInferenceSteps) {
+    items.push({
+      type: 'slider',
+      key: 'numInferenceSteps',
+      title: 'paintings.inference_steps',
+      tooltip: 'paintings.inference_steps_tip',
+      min: s.numInferenceSteps.min ?? 1,
+      max: s.numInferenceSteps.max ?? 50,
+      initialValue: s.numInferenceSteps.default ?? 25
+    })
+  }
+  if (s.guidanceScale) {
+    items.push({
+      type: 'slider',
+      key: 'guidanceScale',
+      title: 'paintings.guidance_scale',
+      tooltip: 'paintings.guidance_scale_tip',
+      min: s.guidanceScale.min ?? 0,
+      max: s.guidanceScale.max ?? 20,
+      step: 0.1,
+      initialValue: s.guidanceScale.default ?? 4.5
+    })
+  }
+  if (s.safetyTolerance) {
+    items.push({
+      type: 'slider',
+      key: 'safetyTolerance',
+      title: 'paintings.safety_tolerance',
+      min: s.safetyTolerance.min ?? 0,
+      max: s.safetyTolerance.max ?? 6,
+      initialValue: s.safetyTolerance.default ?? s.safetyTolerance.max ?? 6
+    })
+  }
+  if (s.quality) {
+    items.push({
+      type: 'select',
+      key: 'quality',
+      title: 'paintings.quality',
+      options: s.quality.map((v) => ({ label: v, value: v }))
+    })
+  }
+  if (s.moderation) {
+    items.push({
+      type: 'select',
+      key: 'moderation',
+      title: 'paintings.moderation',
+      options: s.moderation.map((v) => ({ label: v, value: v }))
+    })
+  }
+  if (s.background) {
+    items.push({
+      type: 'select',
+      key: 'background',
+      title: 'paintings.background',
+      options: s.background.map((v) => ({ label: v, value: v }))
+    })
+  }
+  if (s.aspectRatio) {
+    items.push({
+      type: 'select',
+      key: 'aspectRatio',
+      title: 'paintings.aspect_ratio',
+      options: s.aspectRatio.map((v) => ({ label: v, value: v }))
+    })
+  }
+  if (s.styleType) {
+    items.push({
+      type: 'select',
+      key: 'styleType',
+      title: 'paintings.style_type',
+      options: s.styleType.map((v) => ({ label: v, value: v }))
+    })
+  }
+  if (s.renderingSpeed) {
+    items.push({
+      type: 'select',
+      key: 'renderingSpeed',
+      title: 'paintings.rendering_speed',
+      options: s.renderingSpeed.map((v) => ({ label: v, value: v }))
+    })
+  }
+  if (s.personGeneration) {
+    items.push({
+      type: 'select',
+      key: 'personGeneration',
+      title: 'paintings.person_generation',
+      options: s.personGeneration.map((v) => ({ label: v, value: v }))
+    })
+  }
+
+  return items
+}
