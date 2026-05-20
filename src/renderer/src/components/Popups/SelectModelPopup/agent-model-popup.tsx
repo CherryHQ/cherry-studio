@@ -4,6 +4,7 @@ import type { AdaptedApiModel, ApiModel, ApiModelsFilter, Model, Provider } from
 import { apiModelAdapter } from '@renderer/utils/model'
 import { groupBy, sortBy } from 'lodash'
 import React, { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import SelectModelPopupView, { createModelPopup } from './base-popup'
 
@@ -42,6 +43,7 @@ const buildFallbackProvider = (providerId: string, model: AdaptedApiModel): Prov
 }
 
 const PopupContainer: React.FC<Props> = ({ model, apiFilter, modelFilter, showTagFilter = true, resolve }) => {
+  const { t } = useTranslation()
   const { models, isLoading } = useApiModels(apiFilter)
   const allProviders = useAllProviders()
 
@@ -85,6 +87,22 @@ const PopupContainer: React.FC<Props> = ({ model, apiFilter, modelFilter, showTa
       showTagFilter={showTagFilter}
       showPinnedModels={false}
       prioritizedProviderIds={['cherryin']}
+      emptyDescription={
+        <span>
+          {t('agent.add.model.empty', 'No compatible models found for this Agent type.')}{' '}
+          <a
+            href="https://docs.cherry-ai.com/advanced-basic/agent"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              window.api.openWebsite('https://docs.cherry-ai.com/advanced-basic/agent')
+            }}>
+            {t('agent.add.model.empty_docs', 'View setup guide')}
+          </a>
+        </span>
+      }
       resolve={(value) => {
         if (value && isAdaptedApiModel(value)) {
           resolve(value.origin)

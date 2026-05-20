@@ -23,7 +23,7 @@ import { parseKeyValueString, serializeKeyValueString } from '@renderer/utils/en
 import { getAnthropicSupportedProviders } from '@renderer/utils/provider'
 import type { GitBashPathInfo } from '@shared/config/constant'
 import { Button, Input, Modal, Select, Switch, Tooltip } from 'antd'
-import { Info } from 'lucide-react'
+import { ExternalLink, Info } from 'lucide-react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -401,6 +401,16 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
                     setOpen(false)
                     resolve(undefined)
                   }}
+                  extraTopItem={
+                    <DocsLinkItem
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        window.api.openWebsite('https://docs.cherry-ai.com/advanced-basic/agent')
+                      }}>
+                      <ExternalLink size={14} />
+                      {t('agent.add.model.docs_link', 'Custom Anthropic-compatible provider')}
+                    </DocsLinkItem>
+                  }
                 />
               </div>
               <SelectAgentBaseModelButton
@@ -638,6 +648,18 @@ const RequiredMark = styled.span`
 const HelpText = styled.div`
   font-size: 12px;
   color: var(--color-text-3);
+`
+
+// Documentation link styled like a popover provider item
+const DocsLinkItem = styled.div`
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  &:hover {
+    color: var(--color-link);
+  }
 `
 
 const LabelWithButton = styled.div`
