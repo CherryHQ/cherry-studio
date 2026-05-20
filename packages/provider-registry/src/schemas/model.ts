@@ -105,6 +105,14 @@ const ImageGenerationParamsShape = z.object({
       moderation: z.array(z.string()).optional(),
       background: z.array(z.string()).optional(),
       aspectRatio: z.array(z.string()).optional(),
+      /**
+       * Image-resolution tier as a sibling control to size/aspectRatio
+       * (gemini-3-pro-image-preview accepts `1K`/`2K`/`4K` independently
+       * from its aspect ratio). Rendered as `sizeChips` under the
+       * canonical key `imageResolution`; vendors persisting it under a
+       * different field name use per-model `keyMap` to alias.
+       */
+      imageResolution: z.array(z.string()).optional(),
       styleType: z.array(z.string()).optional(),
       renderingSpeed: z.array(z.string()).optional(),
       personGeneration: z.array(z.string()).optional(),
@@ -120,7 +128,17 @@ const ImageGenerationParamsShape = z.object({
     })
     .optional(),
   vendorParams: z.record(z.string(), z.unknown()).optional(),
-  inputSchema: z.record(z.string(), z.unknown()).optional()
+  inputSchema: z.record(z.string(), z.unknown()).optional(),
+  /**
+   * Per-model alias map from canonical field key (used by the painting form
+   * renderer and by `imageGenerationToFields`) to the persisted `PaintingData`
+   * field name. Layers on top of `PaintingProvider.registryKeyMap` —
+   * per-model entries win on collision. Use this when models within the
+   * same provider persist the same logical control under different field
+   * names (aihubmix stores batch as `n` for gpt-image, `numberOfImages` for
+   * imagen, and `numImages` for ideogram).
+   */
+  keyMap: z.record(z.string(), z.string()).optional()
 })
 
 export const ImageGenerationSupportSchema = ImageGenerationParamsShape.extend({

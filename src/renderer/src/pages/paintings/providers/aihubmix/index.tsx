@@ -7,10 +7,10 @@ import type { AihubmixPaintingData as PaintingData } from '../../model/types/pai
 import type { PaintingProviderRuntime } from '../../model/types/paintingProviderRuntime'
 import { loadPaintingModelOptions } from '../../model/utils/paintingModelOptions'
 import type { PaintingProvider } from '../types'
-import { createDefaultAihubmixPainting } from './config'
-import { aihubmixFields, getStaticModelsForAihubmixMode } from './fields'
+import { createDefaultAihubmixPainting } from './defaults'
 import { generateWithAihubmixUnified } from './generateUnified'
 import { aihubmixImagePlaceholder, getAihubmixPreviewSrc, handleAihubmixImageUpload } from './imageUpload'
+import { getStaticModelsForAihubmixMode } from './models'
 
 export function AihubmixHeaderActions({ provider, t }: { provider: PaintingProviderRuntime; t: TFunction }) {
   const Icon = resolveProviderIcon('aihubmix')
@@ -48,8 +48,15 @@ export const aihubmixProvider = {
     }),
     createPaintingData: ({ tab }) => createDefaultAihubmixPainting(tab)
   },
+  // Field list comes from the registry's per-model `imageGeneration`
+  // block (see packages/provider-registry/data/models.json). The
+  // per-model `keyMap` aliases canonical keys (numImages, size,
+  // imageResolution) to the legacy persisted field names (n,
+  // numberOfImages, aspectRatio, imageSize) so existing PaintingData
+  // shape is preserved.
+  useRegistryForm: true,
   fields: {
-    byTab: aihubmixFields,
+    byTab: {},
     onModelChange: ({ modelId }) => ({ model: modelId })
   },
   prompt: {

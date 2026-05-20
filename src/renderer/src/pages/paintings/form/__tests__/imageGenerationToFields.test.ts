@@ -242,4 +242,23 @@ describe('imageGenerationToFields', () => {
     expect(a).toEqual(b)
     expect(a).toEqual(['size', 'numImages', 'seed'])
   })
+
+  it('per-model support.keyMap overrides opts.keyMap on collision; other keys fall through', () => {
+    const support: ImageGenerationSupport = {
+      sizes: ['1024x1024'],
+      sizeMode: 'pixel',
+      batch: { min: 1, max: 10 },
+      supports: { seed: true },
+      // aihubmix gpt-image stores batch as `n` even though provider-level
+      // map (silicon-flavored) would alias `size` → `imageSize`.
+      keyMap: { numImages: 'n' }
+    }
+    const keys = imageGenerationToFields(support, {
+      keyMap: { size: 'imageSize', numImages: 'wouldBeOverridden' }
+    }).map((i) => i.key)
+    expect(keys).toContain('imageSize') // provider-level still applies
+    expect(keys).toContain('n') // per-model wins for numImages
+    expect(keys).not.toContain('wouldBeOverridden')
+    expect(keys).toContain('seed') // unaffected fields stay canonical
+  })
 })

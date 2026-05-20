@@ -46,7 +46,12 @@ export function imageGenerationToFields(
   if (!raw) return []
   const support = effectiveSupport(raw, opts?.mode)
   const items: BaseConfigItem[] = []
-  const remap = (key: string) => opts?.keyMap?.[key] ?? key
+  // Per-model `support.keyMap` from registry wins on collision so a model
+  // whose stored field name diverges from the canonical key (gpt-image
+  // batch → `n`, imagen batch → `numberOfImages`) overrides the provider's
+  // default mapping for that field while leaving the rest intact.
+  const mergedKeyMap = { ...opts?.keyMap, ...support.keyMap }
+  const remap = (key: string) => mergedKeyMap[key] ?? key
 
   // size
   if (support.sizes && support.sizes.length > 0) {
@@ -199,10 +204,20 @@ export function imageGenerationToFields(
   }
   if (s.aspectRatio) {
     items.push({
-      type: 'select',
+      type: 'sizeChips',
       key: remap('aspectRatio'),
       title: 'paintings.aspect_ratio',
-      options: s.aspectRatio.map((v) => ({ label: v, value: v }))
+      options: s.aspectRatio.map((v) => ({ label: v, value: v })),
+      columns: 3
+    })
+  }
+  if (s.imageResolution) {
+    items.push({
+      type: 'sizeChips',
+      key: remap('imageResolution'),
+      title: 'paintings.image.size',
+      options: s.imageResolution.map((v) => ({ label: v, value: v })),
+      columns: 3
     })
   }
   if (s.styleType) {

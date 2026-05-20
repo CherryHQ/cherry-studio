@@ -1918,7 +1918,17 @@
         }
       },
       "ownedBy": "google",
-      "openWeights": false
+      "openWeights": false,
+      "imageGeneration": {
+        "modes": ["generate"],
+        "supports": {
+          "aspectRatio": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
+          "imageResolution": ["1K", "2K", "4K"]
+        },
+        "keyMap": {
+          "imageResolution": "imageSize"
+        }
+      }
     },
     {
       "id": "doubao-seed-1-6-thinking-250715",
@@ -21071,7 +21081,27 @@
       },
       "family": "gpt",
       "ownedBy": "openai",
-      "openWeights": false
+      "openWeights": false,
+      "imageGeneration": {
+        "modes": ["generate", "edit"],
+        "sizes": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+        "sizeMode": "pixel",
+        "defaultSize": "1024x1024",
+        "allowAutoSize": true,
+        "batch": {
+          "min": 1,
+          "max": 10,
+          "default": 1
+        },
+        "keyMap": {
+          "numImages": "n"
+        },
+        "supports": {
+          "quality": ["auto", "low", "medium", "high"],
+          "moderation": ["auto", "low"],
+          "background": ["auto", "transparent", "opaque"]
+        }
+      }
     },
     {
       "id": "gpt-4-classic-0314",
@@ -47343,6 +47373,727 @@
         "supports": {
           "negativePrompt": true,
           "seed": true
+        }
+      }
+    },
+    {
+      "id": "gpt-image-2",
+      "name": "GPT-Image-2",
+      "description": "OpenAI gpt-image-2 — text-to-image generation via aihubmix.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["generate"],
+        "sizes": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+        "sizeMode": "pixel",
+        "defaultSize": "1024x1024",
+        "allowAutoSize": true,
+        "batch": {
+          "min": 1,
+          "max": 10,
+          "default": 1
+        },
+        "keyMap": {
+          "numImages": "n"
+        },
+        "supports": {
+          "quality": ["auto", "low", "medium", "high"],
+          "background": ["auto", "opaque"]
+        }
+      }
+    },
+    {
+      "id": "imagen-4.0-generate-preview-06-06",
+      "name": "Imagen 4.0 Preview",
+      "description": "Google Imagen 4.0 (preview) via aihubmix — text-to-image with aspect-ratio and person-generation controls.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["generate"],
+        "batch": {
+          "min": 1,
+          "max": 4,
+          "default": 4
+        },
+        "keyMap": {
+          "numImages": "numberOfImages"
+        },
+        "supports": {
+          "aspectRatio": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
+          "personGeneration": ["ALLOW_ALL", "ALLOW_ADULT", "DONT_ALLOW"]
+        }
+      }
+    },
+    {
+      "id": "imagen-4.0-ultra-generate-preview-06-06",
+      "name": "Imagen 4.0 Ultra Preview",
+      "description": "Google Imagen 4.0 Ultra (preview) via aihubmix — single-image generation with aspect-ratio and person-generation controls.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["generate"],
+        "supports": {
+          "aspectRatio": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
+          "personGeneration": ["ALLOW_ALL", "ALLOW_ADULT", "DONT_ALLOW"]
+        }
+      }
+    },
+    {
+      "id": "FLUX.1-Kontext-pro",
+      "name": "FLUX.1 Kontext Pro",
+      "description": "Black Forest Labs FLUX.1 Kontext Pro via aihubmix.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["generate"],
+        "supports": {
+          "safetyTolerance": {
+            "min": 0,
+            "max": 6,
+            "default": 6
+          }
+        }
+      }
+    },
+    {
+      "id": "V_3",
+      "name": "Ideogram V_3",
+      "description": "Ideogram V_3 via aihubmix.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["generate", "remix", "upscale"],
+        "batch": {
+          "min": 1,
+          "max": 8
+        },
+        "keyMap": {
+          "size": "aspectRatio"
+        },
+        "modeSchemas": {
+          "generate": {
+            "sizes": [
+              "ASPECT_1_1",
+              "ASPECT_1_2",
+              "ASPECT_1_3",
+              "ASPECT_2_3",
+              "ASPECT_3_4",
+              "ASPECT_4_5",
+              "ASPECT_9_16",
+              "ASPECT_10_16",
+              "ASPECT_2_1",
+              "ASPECT_3_1",
+              "ASPECT_3_2",
+              "ASPECT_4_3",
+              "ASPECT_5_4",
+              "ASPECT_16_9",
+              "ASPECT_16_10"
+            ],
+            "sizeMode": "aspect",
+            "supports": {
+              "negativePrompt": true,
+              "seed": true,
+              "magicPromptOption": true,
+              "styleType": ["AUTO", "GENERAL", "REALISTIC", "DESIGN"],
+              "renderingSpeed": ["DEFAULT", "TURBO", "QUALITY"]
+            }
+          },
+          "remix": {
+            "sizes": [
+              "ASPECT_1_1",
+              "ASPECT_1_2",
+              "ASPECT_1_3",
+              "ASPECT_2_3",
+              "ASPECT_3_4",
+              "ASPECT_4_5",
+              "ASPECT_9_16",
+              "ASPECT_10_16",
+              "ASPECT_2_1",
+              "ASPECT_3_1",
+              "ASPECT_3_2",
+              "ASPECT_4_3",
+              "ASPECT_5_4",
+              "ASPECT_16_9",
+              "ASPECT_16_10"
+            ],
+            "sizeMode": "aspect",
+            "supports": {
+              "negativePrompt": true,
+              "seed": true,
+              "magicPromptOption": true,
+              "styleType": ["AUTO", "GENERAL", "REALISTIC", "DESIGN"],
+              "renderingSpeed": ["DEFAULT", "TURBO", "QUALITY"],
+              "imageWeight": {
+                "min": 1,
+                "max": 100
+              }
+            }
+          },
+          "upscale": {
+            "supports": {
+              "seed": true,
+              "magicPromptOption": true,
+              "resemblance": {
+                "min": 1,
+                "max": 100
+              },
+              "detail": {
+                "min": 1,
+                "max": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "V_2",
+      "name": "Ideogram V_2",
+      "description": "Ideogram V_2 via aihubmix.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["generate", "remix", "upscale"],
+        "batch": {
+          "min": 1,
+          "max": 8
+        },
+        "keyMap": {
+          "size": "aspectRatio"
+        },
+        "modeSchemas": {
+          "generate": {
+            "sizes": [
+              "ASPECT_1_1",
+              "ASPECT_1_2",
+              "ASPECT_1_3",
+              "ASPECT_2_3",
+              "ASPECT_3_4",
+              "ASPECT_4_5",
+              "ASPECT_9_16",
+              "ASPECT_10_16",
+              "ASPECT_2_1",
+              "ASPECT_3_1",
+              "ASPECT_3_2",
+              "ASPECT_4_3",
+              "ASPECT_5_4",
+              "ASPECT_16_9",
+              "ASPECT_16_10"
+            ],
+            "sizeMode": "aspect",
+            "supports": {
+              "negativePrompt": true,
+              "seed": true,
+              "magicPromptOption": true,
+              "styleType": ["AUTO", "GENERAL", "REALISTIC", "DESIGN", "RENDER_3D", "ANIME"]
+            }
+          },
+          "remix": {
+            "sizes": [
+              "ASPECT_1_1",
+              "ASPECT_1_2",
+              "ASPECT_1_3",
+              "ASPECT_2_3",
+              "ASPECT_3_4",
+              "ASPECT_4_5",
+              "ASPECT_9_16",
+              "ASPECT_10_16",
+              "ASPECT_2_1",
+              "ASPECT_3_1",
+              "ASPECT_3_2",
+              "ASPECT_4_3",
+              "ASPECT_5_4",
+              "ASPECT_16_9",
+              "ASPECT_16_10"
+            ],
+            "sizeMode": "aspect",
+            "supports": {
+              "negativePrompt": true,
+              "seed": true,
+              "magicPromptOption": true,
+              "styleType": ["AUTO", "GENERAL", "REALISTIC", "DESIGN", "RENDER_3D", "ANIME"],
+              "renderingSpeed": ["DEFAULT", "TURBO", "QUALITY"],
+              "imageWeight": {
+                "min": 1,
+                "max": 100
+              }
+            }
+          },
+          "upscale": {
+            "supports": {
+              "seed": true,
+              "magicPromptOption": true,
+              "resemblance": {
+                "min": 1,
+                "max": 100
+              },
+              "detail": {
+                "min": 1,
+                "max": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "V_2_TURBO",
+      "name": "Ideogram V_2 Turbo",
+      "description": "Ideogram V_2 Turbo via aihubmix.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["generate", "remix", "upscale"],
+        "batch": {
+          "min": 1,
+          "max": 8
+        },
+        "keyMap": {
+          "size": "aspectRatio"
+        },
+        "modeSchemas": {
+          "generate": {
+            "sizes": [
+              "ASPECT_1_1",
+              "ASPECT_1_2",
+              "ASPECT_1_3",
+              "ASPECT_2_3",
+              "ASPECT_3_4",
+              "ASPECT_4_5",
+              "ASPECT_9_16",
+              "ASPECT_10_16",
+              "ASPECT_2_1",
+              "ASPECT_3_1",
+              "ASPECT_3_2",
+              "ASPECT_4_3",
+              "ASPECT_5_4",
+              "ASPECT_16_9",
+              "ASPECT_16_10"
+            ],
+            "sizeMode": "aspect",
+            "supports": {
+              "negativePrompt": true,
+              "seed": true,
+              "magicPromptOption": true,
+              "styleType": ["AUTO", "GENERAL", "REALISTIC", "DESIGN", "RENDER_3D", "ANIME"]
+            }
+          },
+          "remix": {
+            "sizes": [
+              "ASPECT_1_1",
+              "ASPECT_1_2",
+              "ASPECT_1_3",
+              "ASPECT_2_3",
+              "ASPECT_3_4",
+              "ASPECT_4_5",
+              "ASPECT_9_16",
+              "ASPECT_10_16",
+              "ASPECT_2_1",
+              "ASPECT_3_1",
+              "ASPECT_3_2",
+              "ASPECT_4_3",
+              "ASPECT_5_4",
+              "ASPECT_16_9",
+              "ASPECT_16_10"
+            ],
+            "sizeMode": "aspect",
+            "supports": {
+              "negativePrompt": true,
+              "seed": true,
+              "magicPromptOption": true,
+              "styleType": ["AUTO", "GENERAL", "REALISTIC", "DESIGN", "RENDER_3D", "ANIME"],
+              "renderingSpeed": ["DEFAULT", "TURBO", "QUALITY"],
+              "imageWeight": {
+                "min": 1,
+                "max": 100
+              }
+            }
+          },
+          "upscale": {
+            "supports": {
+              "seed": true,
+              "magicPromptOption": true,
+              "resemblance": {
+                "min": 1,
+                "max": 100
+              },
+              "detail": {
+                "min": 1,
+                "max": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "V_2A",
+      "name": "Ideogram V_2A",
+      "description": "Ideogram V_2A via aihubmix.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["generate", "remix", "upscale"],
+        "batch": {
+          "min": 1,
+          "max": 8
+        },
+        "keyMap": {
+          "size": "aspectRatio"
+        },
+        "modeSchemas": {
+          "generate": {
+            "sizes": [
+              "ASPECT_1_1",
+              "ASPECT_1_2",
+              "ASPECT_1_3",
+              "ASPECT_2_3",
+              "ASPECT_3_4",
+              "ASPECT_4_5",
+              "ASPECT_9_16",
+              "ASPECT_10_16",
+              "ASPECT_2_1",
+              "ASPECT_3_1",
+              "ASPECT_3_2",
+              "ASPECT_4_3",
+              "ASPECT_5_4",
+              "ASPECT_16_9",
+              "ASPECT_16_10"
+            ],
+            "sizeMode": "aspect",
+            "supports": {
+              "negativePrompt": true,
+              "seed": true,
+              "magicPromptOption": true,
+              "styleType": ["AUTO", "GENERAL", "REALISTIC", "DESIGN", "RENDER_3D", "ANIME"]
+            }
+          },
+          "remix": {
+            "sizes": [
+              "ASPECT_1_1",
+              "ASPECT_1_2",
+              "ASPECT_1_3",
+              "ASPECT_2_3",
+              "ASPECT_3_4",
+              "ASPECT_4_5",
+              "ASPECT_9_16",
+              "ASPECT_10_16",
+              "ASPECT_2_1",
+              "ASPECT_3_1",
+              "ASPECT_3_2",
+              "ASPECT_4_3",
+              "ASPECT_5_4",
+              "ASPECT_16_9",
+              "ASPECT_16_10"
+            ],
+            "sizeMode": "aspect",
+            "supports": {
+              "negativePrompt": true,
+              "seed": true,
+              "magicPromptOption": true,
+              "styleType": ["AUTO", "GENERAL", "REALISTIC", "DESIGN", "RENDER_3D", "ANIME"],
+              "renderingSpeed": ["DEFAULT", "TURBO", "QUALITY"],
+              "imageWeight": {
+                "min": 1,
+                "max": 100
+              }
+            }
+          },
+          "upscale": {
+            "supports": {
+              "seed": true,
+              "magicPromptOption": true,
+              "resemblance": {
+                "min": 1,
+                "max": 100
+              },
+              "detail": {
+                "min": 1,
+                "max": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "V_2A_TURBO",
+      "name": "Ideogram V_2A Turbo",
+      "description": "Ideogram V_2A Turbo via aihubmix.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["generate", "remix", "upscale"],
+        "batch": {
+          "min": 1,
+          "max": 8
+        },
+        "keyMap": {
+          "size": "aspectRatio"
+        },
+        "modeSchemas": {
+          "generate": {
+            "sizes": [
+              "ASPECT_1_1",
+              "ASPECT_1_2",
+              "ASPECT_1_3",
+              "ASPECT_2_3",
+              "ASPECT_3_4",
+              "ASPECT_4_5",
+              "ASPECT_9_16",
+              "ASPECT_10_16",
+              "ASPECT_2_1",
+              "ASPECT_3_1",
+              "ASPECT_3_2",
+              "ASPECT_4_3",
+              "ASPECT_5_4",
+              "ASPECT_16_9",
+              "ASPECT_16_10"
+            ],
+            "sizeMode": "aspect",
+            "supports": {
+              "negativePrompt": true,
+              "seed": true,
+              "magicPromptOption": true,
+              "styleType": ["AUTO", "GENERAL", "REALISTIC", "DESIGN", "RENDER_3D", "ANIME"]
+            }
+          },
+          "remix": {
+            "sizes": [
+              "ASPECT_1_1",
+              "ASPECT_1_2",
+              "ASPECT_1_3",
+              "ASPECT_2_3",
+              "ASPECT_3_4",
+              "ASPECT_4_5",
+              "ASPECT_9_16",
+              "ASPECT_10_16",
+              "ASPECT_2_1",
+              "ASPECT_3_1",
+              "ASPECT_3_2",
+              "ASPECT_4_3",
+              "ASPECT_5_4",
+              "ASPECT_16_9",
+              "ASPECT_16_10"
+            ],
+            "sizeMode": "aspect",
+            "supports": {
+              "negativePrompt": true,
+              "seed": true,
+              "magicPromptOption": true,
+              "styleType": ["AUTO", "GENERAL", "REALISTIC", "DESIGN", "RENDER_3D", "ANIME"],
+              "renderingSpeed": ["DEFAULT", "TURBO", "QUALITY"],
+              "imageWeight": {
+                "min": 1,
+                "max": 100
+              }
+            }
+          },
+          "upscale": {
+            "supports": {
+              "seed": true,
+              "magicPromptOption": true,
+              "resemblance": {
+                "min": 1,
+                "max": 100
+              },
+              "detail": {
+                "min": 1,
+                "max": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "V_1",
+      "name": "Ideogram V_1",
+      "description": "Ideogram V_1 via aihubmix.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["generate", "remix", "upscale"],
+        "batch": {
+          "min": 1,
+          "max": 8
+        },
+        "keyMap": {
+          "size": "aspectRatio"
+        },
+        "modeSchemas": {
+          "generate": {
+            "sizes": [
+              "ASPECT_1_1",
+              "ASPECT_1_2",
+              "ASPECT_1_3",
+              "ASPECT_2_3",
+              "ASPECT_3_4",
+              "ASPECT_4_5",
+              "ASPECT_9_16",
+              "ASPECT_10_16",
+              "ASPECT_2_1",
+              "ASPECT_3_1",
+              "ASPECT_3_2",
+              "ASPECT_4_3",
+              "ASPECT_5_4",
+              "ASPECT_16_9",
+              "ASPECT_16_10"
+            ],
+            "sizeMode": "aspect",
+            "supports": {
+              "negativePrompt": true,
+              "seed": true,
+              "magicPromptOption": true,
+              "styleType": ["AUTO", "GENERAL", "REALISTIC", "DESIGN", "RENDER_3D", "ANIME"]
+            }
+          },
+          "remix": {
+            "sizes": [
+              "ASPECT_1_1",
+              "ASPECT_1_2",
+              "ASPECT_1_3",
+              "ASPECT_2_3",
+              "ASPECT_3_4",
+              "ASPECT_4_5",
+              "ASPECT_9_16",
+              "ASPECT_10_16",
+              "ASPECT_2_1",
+              "ASPECT_3_1",
+              "ASPECT_3_2",
+              "ASPECT_4_3",
+              "ASPECT_5_4",
+              "ASPECT_16_9",
+              "ASPECT_16_10"
+            ],
+            "sizeMode": "aspect",
+            "supports": {
+              "negativePrompt": true,
+              "seed": true,
+              "magicPromptOption": true,
+              "styleType": ["AUTO", "GENERAL", "REALISTIC", "DESIGN", "RENDER_3D", "ANIME"],
+              "renderingSpeed": ["DEFAULT", "TURBO", "QUALITY"],
+              "imageWeight": {
+                "min": 1,
+                "max": 100
+              }
+            }
+          },
+          "upscale": {
+            "supports": {
+              "seed": true,
+              "magicPromptOption": true,
+              "resemblance": {
+                "min": 1,
+                "max": 100
+              },
+              "detail": {
+                "min": 1,
+                "max": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "V_1_TURBO",
+      "name": "Ideogram V_1 Turbo",
+      "description": "Ideogram V_1 Turbo via aihubmix.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["generate", "remix", "upscale"],
+        "batch": {
+          "min": 1,
+          "max": 8
+        },
+        "keyMap": {
+          "size": "aspectRatio"
+        },
+        "modeSchemas": {
+          "generate": {
+            "sizes": [
+              "ASPECT_1_1",
+              "ASPECT_1_2",
+              "ASPECT_1_3",
+              "ASPECT_2_3",
+              "ASPECT_3_4",
+              "ASPECT_4_5",
+              "ASPECT_9_16",
+              "ASPECT_10_16",
+              "ASPECT_2_1",
+              "ASPECT_3_1",
+              "ASPECT_3_2",
+              "ASPECT_4_3",
+              "ASPECT_5_4",
+              "ASPECT_16_9",
+              "ASPECT_16_10"
+            ],
+            "sizeMode": "aspect",
+            "supports": {
+              "negativePrompt": true,
+              "seed": true,
+              "magicPromptOption": true,
+              "styleType": ["AUTO", "GENERAL", "REALISTIC", "DESIGN", "RENDER_3D", "ANIME"]
+            }
+          },
+          "remix": {
+            "sizes": [
+              "ASPECT_1_1",
+              "ASPECT_1_2",
+              "ASPECT_1_3",
+              "ASPECT_2_3",
+              "ASPECT_3_4",
+              "ASPECT_4_5",
+              "ASPECT_9_16",
+              "ASPECT_10_16",
+              "ASPECT_2_1",
+              "ASPECT_3_1",
+              "ASPECT_3_2",
+              "ASPECT_4_3",
+              "ASPECT_5_4",
+              "ASPECT_16_9",
+              "ASPECT_16_10"
+            ],
+            "sizeMode": "aspect",
+            "supports": {
+              "negativePrompt": true,
+              "seed": true,
+              "magicPromptOption": true,
+              "styleType": ["AUTO", "GENERAL", "REALISTIC", "DESIGN", "RENDER_3D", "ANIME"],
+              "renderingSpeed": ["DEFAULT", "TURBO", "QUALITY"],
+              "imageWeight": {
+                "min": 1,
+                "max": 100
+              }
+            }
+          },
+          "upscale": {
+            "supports": {
+              "seed": true,
+              "magicPromptOption": true,
+              "resemblance": {
+                "min": 1,
+                "max": 100
+              },
+              "detail": {
+                "min": 1,
+                "max": 100
+              }
+            }
+          }
         }
       }
     }
