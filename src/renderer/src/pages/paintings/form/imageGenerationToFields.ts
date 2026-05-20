@@ -145,6 +145,22 @@ export function imageGenerationToFields(
       initialValue: false
     })
   }
+  if (s.addWatermark) {
+    items.push({
+      type: 'switch',
+      key: remap('addWatermark'),
+      title: 'paintings.watermark',
+      initialValue: false
+    })
+  }
+  if (s.outputFormat) {
+    items.push({
+      type: 'select',
+      key: remap('outputFormat'),
+      title: 'paintings.ppio.output_format',
+      options: s.outputFormat.map((v) => ({ label: v, value: v }))
+    })
+  }
   if (s.numInferenceSteps) {
     items.push({
       type: 'slider',

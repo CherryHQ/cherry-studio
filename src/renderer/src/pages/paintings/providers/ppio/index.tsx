@@ -1,11 +1,10 @@
 import type { PpioPaintingData as PaintingData } from '../../model/types/paintingData'
 import { loadPaintingModelOptions } from '../../model/utils/paintingModelOptions'
 import type { PaintingProvider } from '../types'
-import { getModelsByMode, type PpioMode } from './config'
-import { createDefaultPpioPainting } from './config'
-import { ppioFields } from './fields'
+import { createDefaultPpioPainting } from './defaults'
 import { generateWithPpioUnified } from './generateUnified'
 import { getPpioPreviewSrc, handlePpioImageUpload, ppioImagePlaceholder } from './imageUpload'
+import { getModelsByMode, type PpioMode } from './models'
 
 export const ppioProvider = {
   id: 'ppio',
@@ -32,8 +31,14 @@ export const ppioProvider = {
     }),
     createPaintingData: ({ tab }) => createDefaultPpioPainting(tab)
   },
+  // Field list comes from the registry's per-model `imageGeneration`
+  // block (see packages/provider-registry/data/models.json). Per-model
+  // keyMap aliases canonical keys to legacy field names — `seed` →
+  // `ppioSeed`, `promptEnhancement` → `usePreLlm`, `imageResolution`
+  // → `resolution` — so existing PaintingData shape stays intact.
+  useRegistryForm: true,
   fields: {
-    byTab: ppioFields,
+    byTab: {},
     onModelChange: ({ modelId }) => ({ model: modelId }) as Partial<PaintingData>
   },
   image: {

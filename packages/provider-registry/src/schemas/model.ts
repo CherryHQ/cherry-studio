@@ -98,6 +98,10 @@ const ImageGenerationParamsShape = z.object({
       seed: z.boolean().optional(),
       promptEnhancement: z.boolean().optional(),
       magicPromptOption: z.boolean().optional(),
+      /** Vendor-side auto-watermark toggle (jimeng/hunyuan/seedream/qwen-image). */
+      addWatermark: z.boolean().optional(),
+      /** Output encoding selector (e.g. ['jpeg','png','webp']). Rendered as a select. */
+      outputFormat: z.array(z.string()).optional(),
       numInferenceSteps: NumericRangeWithDefaultSchema.optional(),
       guidanceScale: NumericRangeWithDefaultSchema.optional(),
       safetyTolerance: NumericRangeWithDefaultSchema.optional(),

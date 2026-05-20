@@ -22574,7 +22574,18 @@
         }
       },
       "ownedBy": "alibaba",
-      "name": "Qwen Image Edit"
+      "name": "Qwen Image Edit",
+      "imageGeneration": {
+        "modes": ["edit"],
+        "keyMap": {
+          "seed": "ppioSeed"
+        },
+        "supports": {
+          "seed": true,
+          "addWatermark": true,
+          "outputFormat": ["jpeg", "png", "webp"]
+        }
+      }
     },
     {
       "id": "qwen-image-plus",
@@ -35269,7 +35280,18 @@
       "id": "z-image-turbo",
       "name": "z-image-turbo",
       "capabilities": ["image-generation"],
-      "ownedBy": "dashscope"
+      "ownedBy": "dashscope",
+      "imageGeneration": {
+        "modes": ["generate"],
+        "sizes": ["1024x1024", "1024x1536", "1536x1024", "1536x1536", "768x1024", "1024x768"],
+        "sizeMode": "pixel",
+        "keyMap": {
+          "seed": "ppioSeed"
+        },
+        "supports": {
+          "seed": true
+        }
+      }
     },
     {
       "id": "qwen3-vl-plus-2025-12-19",
@@ -48095,6 +48117,214 @@
             }
           }
         }
+      }
+    },
+    {
+      "id": "jimeng-txt2img-v3.1",
+      "name": "即梦文生图 3.1",
+      "description": "画面效果升级，美感塑造、风格精准多样及画面细节丰富。",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["generate"],
+        "sizes": ["1328x1328", "1472x1104", "1584x1056", "1664x936", "2016x864", "2048x2048"],
+        "sizeMode": "pixel",
+        "defaultSize": "1328x1328",
+        "keyMap": {
+          "seed": "ppioSeed",
+          "promptEnhancement": "usePreLlm"
+        },
+        "supports": {
+          "seed": true,
+          "promptEnhancement": true,
+          "addWatermark": true
+        }
+      }
+    },
+    {
+      "id": "jimeng-txt2img-v3.0",
+      "name": "即梦文生图 3.0",
+      "description": "文字响应准确度、图文排版、层次美感和语义理解能力显著提升。",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["generate"],
+        "sizes": ["1328x1328", "1472x1104", "1584x1056", "1664x936", "2016x864", "2048x2048"],
+        "sizeMode": "pixel",
+        "defaultSize": "1328x1328",
+        "keyMap": {
+          "seed": "ppioSeed",
+          "promptEnhancement": "usePreLlm"
+        },
+        "supports": {
+          "seed": true,
+          "promptEnhancement": true,
+          "addWatermark": true
+        }
+      }
+    },
+    {
+      "id": "hunyuan-image-3",
+      "name": "Hunyuan Image 3",
+      "description": "高质量、富有情感和故事性的图片生成。",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["generate"],
+        "sizes": ["1024x1024", "1024x1536", "1536x1024", "1536x1536", "768x1024", "1024x768"],
+        "sizeMode": "pixel",
+        "keyMap": {
+          "seed": "ppioSeed"
+        },
+        "supports": {
+          "seed": true,
+          "addWatermark": true
+        }
+      }
+    },
+    {
+      "id": "qwen-image-txt2img",
+      "name": "Qwen-Image 文生图",
+      "description": "擅长创建带有本地文本的图形海报。",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["generate"],
+        "sizes": ["1024x1024", "1024x1536", "1536x1024", "1536x1536", "768x1024", "1024x768"],
+        "sizeMode": "pixel",
+        "supports": {
+          "addWatermark": true
+        }
+      }
+    },
+    {
+      "id": "z-image-turbo-lora",
+      "name": "Z Image Turbo LoRA",
+      "description": "支持自定义 LoRA 权重的高速图像生成。",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["generate"],
+        "sizes": ["1024x1024", "1024x1536", "1536x1024", "1536x1536", "768x1024", "1024x768"],
+        "sizeMode": "pixel",
+        "keyMap": {
+          "seed": "ppioSeed"
+        },
+        "supports": {
+          "seed": true
+        }
+      }
+    },
+    {
+      "id": "seedream-4.5-draw",
+      "name": "Seedream 4.5",
+      "description": "支持文生图、组图生成功能。",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["generate"],
+        "sizes": ["1K", "2K", "4K", "2048x2048", "2304x1728", "1728x2304", "2560x1440", "1440x2560"],
+        "sizeMode": "pixel",
+        "supports": {
+          "addWatermark": true
+        }
+      }
+    },
+    {
+      "id": "seedream-4.0-draw",
+      "name": "Seedream 4.0",
+      "description": "支持4K分辨率的图像生成。",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["generate"],
+        "sizes": ["1K", "2K", "4K", "2048x2048", "2304x1728", "1728x2304", "2560x1440", "1440x2560"],
+        "sizeMode": "pixel",
+        "supports": {
+          "addWatermark": true
+        }
+      }
+    },
+    {
+      "id": "seedream-4.5-edit",
+      "name": "Seedream 4.5 图生图",
+      "description": "基于参考图生成新图像。",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["edit"],
+        "sizes": ["1K", "2K", "4K", "2048x2048", "2304x1728", "1728x2304", "2560x1440", "1440x2560"],
+        "sizeMode": "pixel",
+        "supports": {
+          "addWatermark": true
+        }
+      }
+    },
+    {
+      "id": "seedream-4.0-edit",
+      "name": "Seedream 4.0 图生图",
+      "description": "基于参考图生成新图像。",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["edit"],
+        "sizes": ["1K", "2K", "4K", "2048x2048", "2304x1728", "1728x2304", "2560x1440", "1440x2560"],
+        "sizeMode": "pixel",
+        "supports": {
+          "addWatermark": true
+        }
+      }
+    },
+    {
+      "id": "image-upscaler",
+      "name": "图像高清化",
+      "description": "将低分辨率图像提升到更高分辨率。",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["edit"],
+        "keyMap": {
+          "imageResolution": "resolution"
+        },
+        "supports": {
+          "imageResolution": ["2k", "4k", "8k"],
+          "outputFormat": ["jpeg", "png", "webp"]
+        }
+      }
+    },
+    {
+      "id": "image-eraser",
+      "name": "图像擦除",
+      "description": "通过遮罩智能移除图像中的对象。",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["edit"],
+        "supports": {
+          "outputFormat": ["jpeg", "png", "webp"]
+        }
+      }
+    },
+    {
+      "id": "image-remove-background",
+      "name": "图像背景移除",
+      "description": "智能识别并移除图像背景。",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["edit"]
       }
     }
   ]
