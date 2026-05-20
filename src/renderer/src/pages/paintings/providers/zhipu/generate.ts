@@ -66,7 +66,10 @@ export async function generateWithZhipu(input: GenerateInput<ZhipuPaintingData>)
       actualImageSize = `${customWidth}x${customHeight}`
     }
 
-    const images = await aiProvider.generateImage({
+    // R1: classify each output so URL-returning Zhipu models (should there
+    // be any in the future) route through the main-process downloader.
+    // CogView returns base64 today → the `{ base64s }` branch fires.
+    const out = await aiProvider.generatePaintingImage({
       model: modelId,
       prompt: painting.prompt,
       negativePrompt: painting.negativePrompt,
@@ -76,8 +79,13 @@ export async function generateWithZhipu(input: GenerateInput<ZhipuPaintingData>)
       signal: abortController.signal
     })
 
-    if (images.length > 0) {
-      return { base64s: images }
+    const urls = out.flatMap((o) => (o.type === 'url' ? [o.url] : []))
+    if (urls.length > 0) {
+      return { urls }
+    }
+    const base64s = out.flatMap((o) => (o.type === 'base64' ? [o.base64] : []))
+    if (base64s.length > 0) {
+      return { base64s }
     }
 
     return undefined

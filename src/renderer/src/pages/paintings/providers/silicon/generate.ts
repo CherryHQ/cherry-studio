@@ -44,7 +44,11 @@ export async function generateWithSilicon(input: GenerateInput<SiliconPaintingDa
     })
     const numImages = Number(painting.numImages) || 1
 
-    const urls = await AI.generateImage({
+    // R1: SiliconFlow's signed-CDN URL responses now flow back through the
+    // main-process downloader (`downloadImages`) instead of the renderer
+    // `fetch` the patched SDK would otherwise use. Base64-returning models
+    // still take the `{ base64s }` branch.
+    const out = await AI.generatePaintingImage({
       model: modelId,
       prompt,
       negativePrompt: painting.negativePrompt || '',
@@ -57,8 +61,13 @@ export async function generateWithSilicon(input: GenerateInput<SiliconPaintingDa
       promptEnhancement: painting.promptEnhancement || false
     })
 
+    const urls = out.flatMap((o) => (o.type === 'url' ? [o.url] : []))
     if (urls.length > 0) {
       return { urls }
+    }
+    const base64s = out.flatMap((o) => (o.type === 'base64' ? [o.base64] : []))
+    if (base64s.length > 0) {
+      return { base64s }
     }
 
     return undefined
