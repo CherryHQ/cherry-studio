@@ -141,7 +141,7 @@ const WebviewArea = styled.div`
   flex: 1;
   position: relative;
   overflow: hidden;
-  background-color: var(--color-background);
+  background-color: var(--color-card);
   min-height: 0; /* Ensure flex child can shrink */
 `
 
@@ -151,7 +151,7 @@ const LoadingMask = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: var(--color-background);
+  background-color: var(--color-card);
   z-index: 100;
   display: flex;
   align-items: center;

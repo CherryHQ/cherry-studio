@@ -1,6 +1,7 @@
 import { Button, EmptyState, SearchInput } from '@cherrystudio/ui'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import App from '@renderer/components/MiniApp/MiniApp'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { isDataApiError } from '@shared/data/api'
 import { Menu, Plus } from 'lucide-react'
@@ -61,7 +62,7 @@ const MiniAppsPage: FC = () => {
         </div>
 
         {/* Search */}
-        <div className="px-8 pt-5">
+        <div className="-mt-2 px-8">
           <div className="mx-auto max-w-lg">
             <SearchInput
               value={search}
@@ -74,8 +75,8 @@ const MiniAppsPage: FC = () => {
         </div>
 
         {/* Body: loading / error / empty / grid */}
-        <div
-          className="min-h-0 flex-1 overflow-y-auto px-8 pb-10"
+        <Scrollbar
+          className="min-h-0 flex-1 px-8 pb-10"
           // Top fade-out: a longer, gentler fade so icons scrolling under the search bar
           // ease out instead of cutting off. Kept ≤ the grid's pt so the resting first row stays crisp.
           style={{ maskImage: 'linear-gradient(to bottom, transparent 0, black 40px)' }}>
@@ -103,7 +104,7 @@ const MiniAppsPage: FC = () => {
               </div>
             )}
           </div>
-        </div>
+        </Scrollbar>
 
         <MiniAppSettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)}>
           {/* Generous gap so the two groups read as distinct, not as one list. */}

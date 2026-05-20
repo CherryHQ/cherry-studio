@@ -131,7 +131,7 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast, variant = 'defaul
             )}
           </IconContainer>
           <AppTitle $variant={variant}>
-            <MarqueeText>{displayName}</MarqueeText>
+            {variant === 'launchpad' ? displayName : <MarqueeText>{displayName}</MarqueeText>}
           </AppTitle>
         </Container>
       </ContextMenuTrigger>
@@ -219,6 +219,19 @@ const AppTitle = styled.div<{ $variant: 'default' | 'launchpad' }>`
   line-height: ${({ $variant }) => ($variant === 'launchpad' ? '18px' : 'normal')};
   text-align: center;
   user-select: none;
+
+  ${({ $variant }) =>
+    $variant === 'launchpad'
+      ? `
+        min-height: 36px;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        white-space: normal;
+        overflow-wrap: anywhere;
+      `
+      : ''}
 `
 
 export default MiniApp

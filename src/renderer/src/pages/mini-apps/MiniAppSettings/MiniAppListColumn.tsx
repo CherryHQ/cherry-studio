@@ -35,7 +35,7 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
         <span className="text-xs tabular-nums">{count}</span>
       </div>
       {apps.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center px-2 py-6 text-center text-muted-foreground text-sm">
+        <div className="flex flex-1 items-center justify-center px-2 py-6 text-center text-muted-foreground text-xs">
           {emptyText}
         </div>
       ) : (

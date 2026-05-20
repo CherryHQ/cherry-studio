@@ -215,7 +215,7 @@ const LoadingMask = styled.div`
   flex-direction: column; /* Vertical stacking */
   align-items: center;
   justify-content: center;
-  background: var(--color-background);
+  background: var(--color-card);
   z-index: 4;
   gap: 12px;
 `
