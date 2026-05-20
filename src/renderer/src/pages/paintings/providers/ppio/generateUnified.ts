@@ -1,63 +1,59 @@
-import { generatePainting } from '../../model/generatePainting'
+import { canonicalGenerate } from '../../model/canonicalGenerate'
 import { createPaintingGenerateError } from '../../model/paintingGenerateError'
 import type { PpioPaintingData as PpioPainting } from '../../model/types/paintingData'
-import { checkProviderEnabled } from '../../utils/checkProviderEnabled'
 import type { GenerateInput } from '../types'
 import { getModelConfig, getModelsByMode } from './config'
 
-/**
- * Unified PPIO painting adapter. The submit/poll transport runs inside the
- * custom `ImageModelV3`; signed-CDN URL results go through the main-process
- * `downloadImages` (R1) with proxy/auth handling, per-URL partial success,
- * and the empty-URL toast intact.
- *
- * `onProgress` (polling progress) and `onSubmitTaskId` (parity with the
- * bespoke `onGenerationStateChange({ generationTaskId })`) are forwarded by
- * reference through `providerOptions['ppio']` so the non-JSON callbacks
- * survive the plugin chain to `PpioTransport.submit`/`poll`.
- */
+/** Models that accept an empty prompt (the painting page enforces non-empty by default). */
 const NO_PROMPT_MODELS = new Set(['image-upscaler', 'image-remove-background', 'image-eraser'])
 
+/**
+ * Unified PPIO painting adapter.
+ *
+ * PPIO's transport (submit/poll via `PpioTransport`) lives in the custom
+ * `ImageModelV3`; signed-CDN URL results route back through the main-process
+ * `downloadImages` (R1). Per-model endpoint routing and sync/async dispatch
+ * come from `PPIO_MODELS` (transport routing table, not a UI catalog) — the
+ * dropdown source itself is the user's enabled image-gen models filtered by
+ * `loadPaintingModelOptions(providerId)` (Stage 3).
+ *
+ * `onProgress` / `onSubmitTaskId` callbacks are forwarded via providerBag so
+ * non-JSON references survive the AI-SDK plugin chain to PpioTransport.
+ */
 export async function generateWithPpioUnified(input: GenerateInput<PpioPainting>) {
-  const { painting, provider, abortController } = input
-  const apiKey = await checkProviderEnabled(provider)
-  const modelId = painting.model
-  if (!modelId) throw createPaintingGenerateError('MISSING_REQUIRED_FIELDS')
-  const modelConfig = getModelConfig(modelId)
-  if (!modelConfig) throw createPaintingGenerateError('MISSING_REQUIRED_FIELDS')
-  if (getModelsByMode('ppio_edit').some((m) => m.id === modelId) && !painting.imageFile) {
-    throw createPaintingGenerateError('EDIT_IMAGE_REQUIRED')
-  }
-  if (!NO_PROMPT_MODELS.has(modelId) && !painting.prompt?.trim()) {
-    throw createPaintingGenerateError('PROMPT_REQUIRED')
-  }
-
-  return generatePainting({
-    provider,
-    signal: abortController.signal,
-    apiKey,
-    modelId,
-    prompt: painting.prompt ?? '',
-    aiSdkParams: {
-      imageSize: painting.size ?? '1024x1024',
-      batchSize: 1
+  return canonicalGenerate(input, {
+    requirePrompt: (painting) => !painting.model || !NO_PROMPT_MODELS.has(painting.model),
+    preValidate: (painting) => {
+      const modelId = painting.model
+      if (!modelId) return // canonicalGenerate's MISSING_REQUIRED_FIELDS will fire next
+      if (!getModelConfig(modelId)) throw createPaintingGenerateError('MISSING_REQUIRED_FIELDS')
+      if (getModelsByMode('ppio_edit').some((m) => m.id === modelId) && !painting.imageFile) {
+        throw createPaintingGenerateError('EDIT_IMAGE_REQUIRED')
+      }
     },
-    providerBag: {
-      model: modelId,
-      modelDescriptor: { id: modelConfig.id, endpoint: modelConfig.endpoint, isSync: modelConfig.isSync },
-      size: painting.size,
-      ppioSeed: painting.ppioSeed,
-      usePreLlm: painting.usePreLlm,
-      addWatermark: painting.addWatermark,
-      imageFile: painting.imageFile,
-      ppioMask: painting.ppioMask,
-      resolution: painting.resolution,
-      outputFormat: painting.outputFormat,
-      onProgress: (progress: number) => {
-        input.onGenerationStateChange?.({ generationProgress: progress })
-      },
-      onSubmitTaskId: (taskId: string) => {
-        input.onGenerationStateChange?.({ generationTaskId: taskId })
+    fieldMap: { imageSize: 'size' },
+    defaults: { imageSize: '1024x1024', batchSize: 1 },
+    providerBag: (painting) => {
+      const modelConfig = painting.model ? getModelConfig(painting.model) : undefined
+      return {
+        model: painting.model,
+        modelDescriptor: modelConfig
+          ? { id: modelConfig.id, endpoint: modelConfig.endpoint, isSync: modelConfig.isSync }
+          : undefined,
+        size: painting.size,
+        ppioSeed: painting.ppioSeed,
+        usePreLlm: painting.usePreLlm,
+        addWatermark: painting.addWatermark,
+        imageFile: painting.imageFile,
+        ppioMask: painting.ppioMask,
+        resolution: painting.resolution,
+        outputFormat: painting.outputFormat,
+        onProgress: (progress: number) => {
+          input.onGenerationStateChange?.({ generationProgress: progress })
+        },
+        onSubmitTaskId: (taskId: string) => {
+          input.onGenerationStateChange?.({ generationTaskId: taskId })
+        }
       }
     }
   })

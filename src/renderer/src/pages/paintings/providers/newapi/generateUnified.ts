@@ -1,7 +1,7 @@
 import { AiProvider } from '@renderer/aiCore'
 import type { Model } from '@renderer/types'
 
-import { generatePainting } from '../../model/generatePainting'
+import { canonicalGenerate } from '../../model/canonicalGenerate'
 import { createPaintingGenerateError } from '../../model/paintingGenerateError'
 import { runPainting } from '../../model/paintingGenerationService'
 import type { OpenApiCompatiblePaintingData as PaintingData } from '../../model/types/paintingData'
@@ -10,23 +10,32 @@ import type { GenerateInput } from '../types'
 import { getEditImageFiles } from './editFiles'
 
 /**
- * Unified newapi/cherryin/aionly painting adapter on the AI-SDK-native
- * files-driven image call.
+ * Unified newapi/cherryin/aionly painting adapter.
  *
- * The AI SDK has no separate "edit" call: a string prompt routes to
- * `/images/generations`; a `{ text, images }` prompt routes to
- * `/images/edits` (both `OpenAIImageModel` and `OpenAICompatibleImageModel`
- * branch purely on `files != null`). We branch on whether edit images exist,
- * NOT on `tab`. The edit branch calls `aiProvider.editImage` directly (no
- * URL-classification needed — gpt-image edits return base64 only); the
- * generate branch goes through the shared `generatePainting` skeleton.
- *
- * `quality`/`background`/`moderation` are forwarded verbatim (including the
- * `'auto'` sentinel, which `buildImageProviderOptions` omits) so the bespoke
- * `'auto'`-stripping behavior is preserved at the providerOptions layer.
+ * The AI SDK routes `/images/generations` vs `/images/edits` purely on
+ * whether `files` are attached — so we branch on `editFiles.length > 0`, not
+ * on `tab`. The edit branch calls `aiProvider.editImage` directly (no
+ * URL-classification needed — gpt-image edits return base64 only). The
+ * generate branch delegates to `canonicalGenerate` with newapi's
+ * `painting.size === 'auto'` quirk encoded as a resolver.
  */
 export async function generateWithNewApiUnified(input: GenerateInput<PaintingData>) {
   const { painting, provider, abortController } = input
+  const editFiles = getEditImageFiles(painting.id)
+  if (editFiles.length === 0) {
+    return canonicalGenerate(input, {
+      fieldMap: { batchSize: 'n' },
+      // `painting.size === 'auto'` must omit `imageSize` entirely and set
+      // `allowAutoSize: true` so AiProvider skips the 1024×1024 default.
+      // Resolver returns undefined for 'auto', which skips the field — the
+      // constant `allowAutoSize: true` below handles the rest.
+      resolvers: { imageSize: (p) => (p.size && p.size !== 'auto' ? p.size : undefined) },
+      constants: { allowAutoSize: true }
+    })
+  }
+
+  // Edit branch — stays bespoke because the AI SDK exposes edit through a
+  // separate `editImage(...)` call (base64-only return, no URL classification).
   const apiKey = await checkProviderEnabled(provider)
   if (!apiKey) throw createPaintingGenerateError('NO_API_KEY')
   const prompt = painting.prompt?.trim()
@@ -34,53 +43,30 @@ export async function generateWithNewApiUnified(input: GenerateInput<PaintingDat
   if (!painting.model) throw createPaintingGenerateError('MISSING_REQUIRED_FIELDS')
 
   const imageSize = painting.size && painting.size !== 'auto' ? painting.size : undefined
-  const editFiles = getEditImageFiles(painting.id)
 
-  // Edit branch — `aiProvider.editImage` (not `generatePaintingImage`) because
-  // the AI SDK routes edits through `/images/edits` based on `files != null`.
-  if (editFiles.length > 0) {
-    return runPainting(async () => {
-      const model: Model = { id: painting.model!, provider: provider.id, name: painting.model!, group: '' }
-      const ai = new AiProvider(model, {
-        id: provider.id,
-        type: 'openai',
-        name: provider.name,
-        apiKey,
-        apiHost: provider.apiHost,
-        models: [model],
-        enabled: provider.isEnabled
-      })
-      const inputImages = await Promise.all(editFiles.map(async (file) => new Uint8Array(await file.arrayBuffer())))
-      const images = await ai.editImage({
-        model: painting.model!,
-        prompt,
-        inputImages,
-        imageSize,
-        allowAutoSize: true,
-        quality: painting.quality,
-        background: painting.background,
-        moderation: painting.moderation,
-        signal: abortController.signal
-      })
-      return images.length > 0 ? { base64s: images } : undefined
+  return runPainting(async () => {
+    const model: Model = { id: painting.model!, provider: provider.id, name: painting.model!, group: '' }
+    const ai = new AiProvider(model, {
+      id: provider.id,
+      type: 'openai',
+      name: provider.name,
+      apiKey,
+      apiHost: provider.apiHost,
+      models: [model],
+      enabled: provider.isEnabled
     })
-  }
-
-  // Generate branch — `allowAutoSize:true` so `painting.size === 'auto'`
-  // omits `size` entirely instead of being coerced to `1024x1024` (R2).
-  return generatePainting({
-    provider,
-    signal: abortController.signal,
-    apiKey,
-    modelId: painting.model,
-    prompt,
-    aiSdkParams: {
+    const inputImages = await Promise.all(editFiles.map(async (file) => new Uint8Array(await file.arrayBuffer())))
+    const images = await ai.editImage({
+      model: painting.model!,
+      prompt,
+      inputImages,
       imageSize,
       allowAutoSize: true,
-      batchSize: painting.n ?? 1,
       quality: painting.quality,
       background: painting.background,
-      moderation: painting.moderation
-    }
+      moderation: painting.moderation,
+      signal: abortController.signal
+    })
+    return images.length > 0 ? { base64s: images } : undefined
   })
 }

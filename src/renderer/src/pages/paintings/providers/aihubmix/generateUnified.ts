@@ -1,7 +1,6 @@
-import { generatePainting } from '../../model/generatePainting'
+import { canonicalGenerate } from '../../model/canonicalGenerate'
 import { createPaintingGenerateError } from '../../model/paintingGenerateError'
 import type { AihubmixPaintingData } from '../../model/types/paintingData'
-import { checkProviderEnabled } from '../../utils/checkProviderEnabled'
 import type { GenerateInput } from '../types'
 import { getAihubmixUploadedFile } from './imageUpload'
 
@@ -16,9 +15,8 @@ import { getAihubmixUploadedFile } from './imageUpload'
  *
  * All bespoke painting fields and the remix/upscale upload blob are forwarded
  * by reference through `providerOptions.aihubmix` — the exact key the inner
- * `OpenAICompatibleImageModel` also reads (`providerOptionsKey` =
- * `'aihubmix.image'.split('.')[0]` = `'aihubmix'`), so the default-delegate
- * models still receive their fields.
+ * `OpenAICompatibleImageModel` also reads, so the default-delegate models
+ * still receive their fields.
  */
 
 /** The painting fields the per-model parameter rules read. */
@@ -28,11 +26,8 @@ type ModelParamInput = Pick<
 >
 
 interface ResolvedModelParams {
-  /** AI-SDK `imageSize` (pixel size for most models, aspect ratio for imagen). */
   imageSize: string
-  /** AI-SDK `batchSize`. */
   batchSize: number
-  /** Forwarded as `providerOptions.aihubmix.safety_tolerance`. */
   safetyTolerance: number | undefined
 }
 
@@ -41,21 +36,18 @@ const pixelSize = (p: ModelParamInput) => (p.size && p.size !== 'auto' ? p.size 
 const numImagesBatch = (p: ModelParamInput) => p.numImages ?? p.n ?? 1
 
 /**
- * Per-model-family parameter shaping, relocated table-first from the bespoke
- * `generate.ts` if/else chain. First rule whose `match` passes wins; the
- * `default` rule (no `match`) is the fallthrough. Adding a model family is one
- * row, not another branch.
+ * Per-model-family parameter shaping. First rule whose `match` passes wins;
+ * the `default` rule (no `match`) is the fallthrough. Adding a model family
+ * is one row, not another branch.
  */
 const MODEL_PARAM_RULES: ReadonlyArray<{
   match?: (modelId: string) => boolean
   resolve: (p: ModelParamInput) => ResolvedModelParams
 }> = [
-  // imagen-4.0-ultra: aspect-ratio size, capped at a single image.
   {
     match: (id) => id.startsWith('imagen-4.0-ultra-generate'),
     resolve: (p) => ({ imageSize: aspectRatioSize(p), batchSize: 1, safetyTolerance: p.safetyTolerance })
   },
-  // other imagen-*: aspect-ratio size, numberOfImages batch.
   {
     match: (id) => id.startsWith('imagen-'),
     resolve: (p) => ({
@@ -64,12 +56,10 @@ const MODEL_PARAM_RULES: ReadonlyArray<{
       safetyTolerance: p.safetyTolerance
     })
   },
-  // FLUX.1-Kontext-pro: pixel size, defaults safety_tolerance to 6 when unset.
   {
     match: (id) => id === 'FLUX.1-Kontext-pro',
     resolve: (p) => ({ imageSize: pixelSize(p), batchSize: numImagesBatch(p), safetyTolerance: p.safetyTolerance ?? 6 })
   },
-  // gpt-image-1/2 and any other id: pixel size, raw safety_tolerance.
   {
     resolve: (p) => ({ imageSize: pixelSize(p), batchSize: numImagesBatch(p), safetyTolerance: p.safetyTolerance })
   }
@@ -77,62 +67,60 @@ const MODEL_PARAM_RULES: ReadonlyArray<{
 
 function resolveModelParams(modelId: string, painting: ModelParamInput): ResolvedModelParams {
   const rule = MODEL_PARAM_RULES.find((r) => !r.match || r.match(modelId))
-  // The last rule has no `match`, so `find` always resolves.
   return rule!.resolve(painting)
 }
 
 export async function generateWithAihubmixUnified(input: GenerateInput) {
-  const { painting: rawPainting, provider, tab, abortController } = input
-  const painting = rawPainting as AihubmixPaintingData
+  // The painting provider registry passes the union `GenerateInput<PaintingData>`;
+  // narrow once at the entry so the resolver/providerBag callbacks receive
+  // the typed `AihubmixPaintingData` instead of the union (which excludes
+  // `aspectRatio` / `styleType` / etc).
+  const narrowedInput = input as GenerateInput<AihubmixPaintingData>
+  const painting = narrowedInput.painting
+  const { tab } = input
   const mode = tab as 'generate' | 'remix' | 'upscale'
-  const apiKey = await checkProviderEnabled(provider)
-  if (!painting.model) throw createPaintingGenerateError('MISSING_REQUIRED_FIELDS')
-  const prompt = painting.prompt || ''
-  if (mode !== 'upscale' && !prompt.trim()) throw createPaintingGenerateError('PROMPT_REQUIRED')
 
-  let uploadFile: File | null = null
+  // Pre-fetch the upload blob synchronously so providerBag (which
+  // canonicalGenerate invokes sync) hands it off by reference.
+  let imageFiles: { mediaType: string; data: Uint8Array; name: string }[] | undefined
   if (mode === 'remix' || mode === 'upscale') {
     if (!painting.imageFile) throw createPaintingGenerateError('IMAGE_REQUIRED')
-    uploadFile = getAihubmixUploadedFile(painting.imageFile)
+    const uploadFile = getAihubmixUploadedFile(painting.imageFile)
     if (!uploadFile) throw createPaintingGenerateError('IMAGE_RETRY_REQUIRED')
+    imageFiles = [
+      { mediaType: uploadFile.type, data: new Uint8Array(await uploadFile.arrayBuffer()), name: uploadFile.name }
+    ]
   }
 
-  const imageFiles = uploadFile
-    ? [{ mediaType: uploadFile.type, data: new Uint8Array(await uploadFile.arrayBuffer()), name: uploadFile.name }]
-    : undefined
-
-  const { imageSize, batchSize, safetyTolerance } = resolveModelParams(painting.model, painting)
-
-  // Ideogram (V_1/V_2/V_3) returns proxied URLs — download them through the
-  // main-process downloader with the bespoke proxy hint; gpt-image / FLUX /
-  // imagen come back as base64. `generatePainting` stamps `downloadOptions`
-  // only on the URL branch.
-  return generatePainting({
-    provider,
-    signal: abortController.signal,
-    apiKey,
-    modelId: painting.model,
-    prompt,
-    aiSdkParams: { imageSize, batchSize },
-    providerBag: {
-      mode,
-      aspectRatio: painting.aspectRatio,
-      imageSize: painting.imageSize,
-      styleType: painting.styleType,
-      renderingSpeed: painting.renderingSpeed,
-      numImages: painting.numImages,
-      seed: painting.seed,
-      negativePrompt: painting.negativePrompt,
-      magicPromptOption: painting.magicPromptOption,
-      imageWeight: painting.imageWeight,
-      resemblance: painting.resemblance,
-      detail: painting.detail,
-      personGeneration: painting.personGeneration,
-      quality: painting.quality,
-      moderation: painting.moderation,
-      safety_tolerance: safetyTolerance,
-      n: painting.n,
-      imageFiles
+  return canonicalGenerate(narrowedInput, {
+    // Upscale tab accepts an empty prompt; generate/remix require it.
+    requirePrompt: mode !== 'upscale',
+    resolvers: {
+      imageSize: (p) => (p.model ? resolveModelParams(p.model, p).imageSize : undefined),
+      batchSize: (p) => (p.model ? resolveModelParams(p.model, p).batchSize : 1)
+    },
+    providerBag: (p) => {
+      const safetyTolerance = p.model ? resolveModelParams(p.model, p).safetyTolerance : undefined
+      return {
+        mode,
+        aspectRatio: p.aspectRatio,
+        imageSize: p.imageSize,
+        styleType: p.styleType,
+        renderingSpeed: p.renderingSpeed,
+        numImages: p.numImages,
+        seed: p.seed,
+        negativePrompt: p.negativePrompt,
+        magicPromptOption: p.magicPromptOption,
+        imageWeight: p.imageWeight,
+        resemblance: p.resemblance,
+        detail: p.detail,
+        personGeneration: p.personGeneration,
+        quality: p.quality,
+        moderation: p.moderation,
+        safety_tolerance: safetyTolerance,
+        n: p.n,
+        imageFiles
+      }
     },
     downloadOptions: { showProxyWarning: true }
   })
