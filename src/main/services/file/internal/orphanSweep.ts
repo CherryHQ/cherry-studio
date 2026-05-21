@@ -45,7 +45,7 @@ import type { OrphanCheckerRegistry } from '@data/services/orphan/FileRefChecker
 import { loggerService } from '@logger'
 import { allSourceTypes, type FileEntryId, type FileEntryOrigin, type FileRefSourceType } from '@shared/data/types/file'
 
-const logger = loggerService.withContext('file/orphanSweep')
+const logger = loggerService.withContext('FileManager:orphanSweep')
 
 function assertNever(x: never): never {
   throw new Error(`Unhandled discriminant: ${JSON.stringify(x)}`)
