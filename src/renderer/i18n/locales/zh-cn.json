@@ -4824,6 +4824,14 @@
         "triggerSelectedCount": "已选 {{count}} 个模型",
         "valueProp": "当前传入 value"
       },
+      "onboarding": {
+        "closePreview": "关闭预览",
+        "description": "打开后会以预览模式渲染引导流程，所有选择都不会影响真实设置。",
+        "mockedLoginToast": "预览模式：已模拟登录",
+        "modelSettingsPlaceholder": "模型设置区域（预览中已隐藏，避免修改真实设置）",
+        "openPreview": "打开引导预览",
+        "title": "引导流程"
+      },
       "title": "开发环境组件测试"
     },
     "data": {

@@ -4824,6 +4824,14 @@
         "triggerSelectedCount": "已選 {{count}} 個模型",
         "valueProp": "目前傳入 value"
       },
+      "onboarding": {
+        "closePreview": "關閉預覽",
+        "description": "打開後會以預覽模式渲染引導流程，所有選擇都不會影響真實設定。",
+        "mockedLoginToast": "預覽模式：已模擬登入",
+        "modelSettingsPlaceholder": "模型設定區域（預覽中已隱藏，避免修改真實設定）",
+        "openPreview": "打開引導預覽",
+        "title": "引導流程"
+      },
       "title": "開發環境元件測試"
     },
     "data": {

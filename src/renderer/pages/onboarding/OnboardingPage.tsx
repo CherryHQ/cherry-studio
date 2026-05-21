@@ -25,11 +25,18 @@ const OnboardingPage: FC<OnboardingPageProps> = ({ onComplete, previewMode }) =>
       </div>
       <div className="flex flex-1 px-2 pb-2">
         <div className="relative flex flex-1 overflow-hidden rounded-xl bg-(--color-background)">
-          <SkipButton onSkip={onComplete} />
+          {!previewMode && <SkipButton onSkip={onComplete} />}
           {step === 'data-sharing' && <DataSharingPage setStep={setStep} previewMode={previewMode} />}
-          {step === 'welcome' && <WelcomePage setStep={setStep} setCherryInLoggedIn={setCherryInLoggedIn} />}
+          {step === 'welcome' && (
+            <WelcomePage setStep={setStep} setCherryInLoggedIn={setCherryInLoggedIn} previewMode={previewMode} />
+          )}
           {step === 'select-model' && (
-            <SelectModelPage cherryInLoggedIn={cherryInLoggedIn} setStep={setStep} onComplete={onComplete} />
+            <SelectModelPage
+              cherryInLoggedIn={cherryInLoggedIn}
+              setStep={setStep}
+              onComplete={onComplete}
+              previewMode={previewMode}
+            />
           )}
         </div>
       </div>

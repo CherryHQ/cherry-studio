@@ -4824,6 +4824,14 @@
         "triggerSelectedCount": "{{count}} modele selectate",
         "valueProp": "Propunerea de valoare actuală"
       },
+      "onboarding": {
+        "closePreview": "[to be translated]:Close preview",
+        "description": "[to be translated]:Opens the onboarding flow in preview mode. None of your choices will affect real settings.",
+        "mockedLoginToast": "[to be translated]:Preview mode: mocked login",
+        "modelSettingsPlaceholder": "[to be translated]:Model settings area (hidden in preview to avoid changing real settings)",
+        "openPreview": "[to be translated]:Open preview",
+        "title": "[to be translated]:Onboarding flow"
+      },
       "title": "Componenta Laborator Dezvoltare"
     },
     "data": {

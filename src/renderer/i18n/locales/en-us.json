@@ -4824,6 +4824,14 @@
         "triggerSelectedCount": "{{count}} models selected",
         "valueProp": "Current Value Prop"
       },
+      "onboarding": {
+        "closePreview": "Close preview",
+        "description": "Opens the onboarding flow in preview mode. None of your choices will affect real settings.",
+        "mockedLoginToast": "Preview mode: mocked login",
+        "modelSettingsPlaceholder": "Model settings area (hidden in preview to avoid changing real settings)",
+        "openPreview": "Open preview",
+        "title": "Onboarding flow"
+      },
       "title": "Development Component Lab"
     },
     "data": {
