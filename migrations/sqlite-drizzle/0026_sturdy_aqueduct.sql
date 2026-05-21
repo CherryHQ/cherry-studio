@@ -28,5 +28,9 @@ ALTER TABLE `__new_file_entry` RENAME TO `file_entry`;--> statement-breakpoint
 PRAGMA foreign_keys=ON;--> statement-breakpoint
 CREATE INDEX `fe_deleted_at_idx` ON `file_entry` (`deleted_at`);--> statement-breakpoint
 CREATE INDEX `fe_created_at_idx` ON `file_entry` (`created_at`);--> statement-breakpoint
-CREATE UNIQUE INDEX `fe_external_path_lower_unique_idx` ON `file_entry` (`lower("external_path")`);--> statement-breakpoint
+-- Functional index on `lower(external_path)`. drizzle-kit's rebuild path
+-- wraps the whole expression in backticks (`lower("external_path")`) which
+-- SQLite reads as a single quoted identifier instead of a function call;
+-- preserve the original 0023 syntax — bare `lower("external_path")` — by hand.
+CREATE UNIQUE INDEX `fe_external_path_lower_unique_idx` ON `file_entry` (lower("external_path"));--> statement-breakpoint
 CREATE INDEX `fe_external_path_idx` ON `file_entry` (`external_path`);
