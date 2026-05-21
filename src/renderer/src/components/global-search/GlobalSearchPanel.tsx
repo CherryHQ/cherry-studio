@@ -45,6 +45,7 @@ import {
   getMessageSearchSources,
   type GlobalMessageSearchPanelGroup,
   type GlobalMessageSearchPanelItem,
+  type GlobalMessageSearchResult,
   type GlobalMessageSearchSourceFilter,
   type GlobalSearchFilter,
   type GlobalSearchPanelGroup,
@@ -221,6 +222,53 @@ function getSessionTargetId(target: GlobalSearchItem['target']) {
 
 function getKnowledgeBaseTargetId(target: GlobalSearchItem['target']) {
   return 'knowledgeBaseId' in target && typeof target.knowledgeBaseId === 'string' ? target.knowledgeBaseId : undefined
+}
+
+type GlobalSearchMessageJumpTarget =
+  | {
+      sourceType: 'topic'
+      topicId: string
+      messageId: string
+    }
+  | {
+      sourceType: 'session'
+      sessionId: string
+      messageId: string
+    }
+
+function getMessageSearchResultJumpTarget(result: GlobalMessageSearchResult): GlobalSearchMessageJumpTarget {
+  if (result.sourceType === 'topic') {
+    return {
+      sourceType: 'topic',
+      topicId: result.topicId,
+      messageId: result.messageId
+    }
+  }
+
+  return {
+    sourceType: 'session',
+    sessionId: result.sessionId,
+    messageId: result.messageId
+  }
+}
+
+function getPreviewMessageJumpTarget(
+  target: GlobalSearchMessagePreviewTarget,
+  messageId: string
+): GlobalSearchMessageJumpTarget {
+  if (target.sourceType === 'topic') {
+    return {
+      sourceType: 'topic',
+      topicId: target.topicId,
+      messageId
+    }
+  }
+
+  return {
+    sourceType: 'session',
+    sessionId: target.sessionId,
+    messageId
+  }
 }
 
 export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSearchPanelProps) {
@@ -540,6 +588,24 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
     [onClose, openTab]
   )
 
+  const jumpToMessage = useCallback(
+    (target: GlobalSearchMessageJumpTarget) => {
+      if (target.sourceType === 'topic') {
+        void openTopicMessageById(target.topicId, target.messageId).catch(() => {
+          window.toast?.error(t('globalSearch.open_failed'))
+        })
+        return
+      }
+
+      try {
+        openSessionMessageById(target.sessionId, target.messageId)
+      } catch {
+        window.toast?.error(t('globalSearch.open_failed'))
+      }
+    },
+    [openSessionMessageById, openTopicMessageById, t]
+  )
+
   const openMessagePanelItem = useCallback((item: GlobalMessageSearchPanelItem) => {
     if (item.kind === 'more') {
       setExpandedMessageParentIds((current) => {
@@ -573,47 +639,25 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
     })
   }, [])
 
-  const openMessagePanelItemDirectly = useCallback(
+  const jumpMessagePanelItem = useCallback(
     (item: GlobalMessageSearchPanelItem) => {
       if (item.kind === 'more') {
         openMessagePanelItem(item)
         return
       }
 
-      if (item.result.sourceType === 'topic') {
-        void openTopicMessageById(item.result.topicId, item.result.messageId).catch(() => {
-          window.toast?.error(t('globalSearch.open_failed'))
-        })
-        return
-      }
-
-      try {
-        openSessionMessageById(item.result.sessionId, item.result.messageId)
-      } catch {
-        window.toast?.error(t('globalSearch.open_failed'))
-      }
+      jumpToMessage(getMessageSearchResultJumpTarget(item.result))
     },
-    [openMessagePanelItem, openSessionMessageById, openTopicMessageById, t]
+    [jumpToMessage, openMessagePanelItem]
   )
 
   const openMessagePreviewMessage = useCallback(
     (messageId: string) => {
       if (!messagePreviewTarget) return
 
-      if (messagePreviewTarget.sourceType === 'topic') {
-        void openTopicMessageById(messagePreviewTarget.topicId, messageId).catch(() => {
-          window.toast?.error(t('globalSearch.open_failed'))
-        })
-        return
-      }
-
-      try {
-        openSessionMessageById(messagePreviewTarget.sessionId, messageId)
-      } catch {
-        window.toast?.error(t('globalSearch.open_failed'))
-      }
+      jumpToMessage(getPreviewMessageJumpTarget(messagePreviewTarget, messageId))
     },
-    [messagePreviewTarget, openSessionMessageById, openTopicMessageById, t]
+    [jumpToMessage, messagePreviewTarget]
   )
 
   const openPanelItem = useCallback(
@@ -794,7 +838,7 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
             userName={userName}
             onMouseEnter={() => setActiveItemId(item.id)}
             onOpen={() => openMessagePanelItem(item)}
-            onJump={() => openMessagePanelItemDirectly(item)}
+            onJump={() => jumpMessagePanelItem(item)}
           />
         )}
       />
