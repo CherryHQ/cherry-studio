@@ -1,5 +1,5 @@
-import { createPaintingGenerateError } from '@renderer/pages/paintings/model/paintingGenerateError'
-import { readErrorMessage } from '@renderer/pages/paintings/providers/shared/readErrorMessage'
+import { createPaintingGenerateError } from '@renderer/aiCore/errors/paintingGenerateError'
+import { readErrorMessage } from '@renderer/aiCore/errors/readErrorMessage'
 
 import type { PollingSubmitInput, PollingTransport } from '../pollingImageModel'
 

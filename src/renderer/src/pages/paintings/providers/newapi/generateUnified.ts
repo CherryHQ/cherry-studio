@@ -1,8 +1,8 @@
 import { AiProvider } from '@renderer/aiCore'
+import { createPaintingGenerateError } from '@renderer/aiCore/errors/paintingGenerateError'
 import type { Model } from '@renderer/types'
 
 import { canonicalGenerate } from '../../model/canonicalGenerate'
-import { createPaintingGenerateError } from '../../model/paintingGenerateError'
 import { runPainting } from '../../model/paintingGenerationService'
 import type { OpenApiCompatiblePaintingData as PaintingData } from '../../model/types/paintingData'
 import { checkProviderEnabled } from '../../utils/checkProviderEnabled'

@@ -34,7 +34,12 @@ export interface TokenFluxProvider extends ProviderV3 {
  * aimed at `settings.imageBaseURL` (defaults to `DEFAULT_TOKENFLUX_BASE_URL`).
  */
 export function createTokenFluxProvider(settings: TokenFluxProviderSettings = {}): TokenFluxProvider {
-  const { baseURL = '', fetch: customFetch } = settings
+  const { baseURL, fetch: customFetch } = settings
+  if (!baseURL) {
+    throw new Error(
+      'TokenFlux provider requires a non-empty `baseURL`. An empty value would resolve fetch paths against the renderer process origin (app://, file://) and surface as opaque "Failed to fetch" errors.'
+    )
+  }
 
   const resolveApiKey = () =>
     loadApiKey({ apiKey: settings.apiKey, environmentVariableName: 'TOKENFLUX_API_KEY', description: 'TokenFlux' })

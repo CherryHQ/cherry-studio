@@ -1,5 +1,6 @@
+import { createPaintingGenerateError } from '@renderer/aiCore/errors/paintingGenerateError'
+
 import { canonicalGenerate } from '../../model/canonicalGenerate'
-import { createPaintingGenerateError } from '../../model/paintingGenerateError'
 import type { PpioPaintingData as PpioPainting } from '../../model/types/paintingData'
 import type { GenerateInput } from '../types'
 import { getModelConfig, getModelsByMode } from './models'

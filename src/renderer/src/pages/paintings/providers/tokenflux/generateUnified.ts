@@ -1,5 +1,6 @@
+import { createPaintingGenerateError } from '@renderer/aiCore/errors/paintingGenerateError'
+
 import { canonicalGenerate } from '../../model/canonicalGenerate'
-import { createPaintingGenerateError } from '../../model/paintingGenerateError'
 import type { TokenFluxPaintingData as TokenFluxPainting } from '../../model/types/paintingData'
 import type { GenerateInput } from '../types'
 

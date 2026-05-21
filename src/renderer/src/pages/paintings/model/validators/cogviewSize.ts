@@ -1,4 +1,4 @@
-import { createPaintingGenerateError } from '../paintingGenerateError'
+import { createPaintingGenerateError } from '@renderer/aiCore/errors/paintingGenerateError'
 
 /**
  * Resolve Zhipu CogView's `imageSize` from a painting state, enforcing the

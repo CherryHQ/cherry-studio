@@ -1,9 +1,12 @@
 import { loggerService } from '@logger'
+import {
+  createPaintingGenerateError,
+  normalizePaintingGenerateError
+} from '@renderer/aiCore/errors/paintingGenerateError'
 import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types'
 
 import { downloadImages } from '../utils/downloadImages'
-import { createPaintingGenerateError, normalizePaintingGenerateError } from './paintingGenerateError'
 
 const logger = loggerService.withContext('paintings/generation')
 

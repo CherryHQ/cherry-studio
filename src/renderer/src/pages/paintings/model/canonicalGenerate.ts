@@ -1,10 +1,10 @@
+import { createPaintingGenerateError } from '@renderer/aiCore/errors/paintingGenerateError'
 import type { FileMetadata, GenerateImageParams } from '@renderer/types'
 
 import type { GenerateInput } from '../providers/types'
 import { checkProviderEnabled } from '../utils/checkProviderEnabled'
 import type { DownloadImagesOptions } from '../utils/downloadImages'
 import { generatePainting } from './generatePainting'
-import { createPaintingGenerateError } from './paintingGenerateError'
 import type { PaintingData } from './types/paintingData'
 
 /**

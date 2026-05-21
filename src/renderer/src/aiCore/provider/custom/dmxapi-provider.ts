@@ -37,7 +37,12 @@ export interface DmxapiProvider extends ProviderV3 {
  * createDmxapiTransport` aimed at `settings.imageBaseURL`.
  */
 export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): DmxapiProvider {
-  const { baseURL = '', fetch: customFetch } = settings
+  const { baseURL, fetch: customFetch } = settings
+  if (!baseURL) {
+    throw new Error(
+      'DMXAPI provider requires a non-empty `baseURL`. An empty value would resolve fetch paths against the renderer process origin (app://, file://) and surface as opaque "Failed to fetch" errors.'
+    )
+  }
 
   const resolveApiKey = () =>
     loadApiKey({ apiKey: settings.apiKey, environmentVariableName: 'DMXAPI_API_KEY', description: 'DMXAPI' })

@@ -50,6 +50,20 @@ export class PpioApiError extends Error {
   }
 }
 
+/**
+ * Terminal failure from the PPIO task lifecycle (status === TASK_STATUS_FAILED).
+ * Carries the vendor's `task.reason` verbatim — replaces the prior pattern of
+ * `new Error(reason ?? 'Task failed')` + `error.message.includes('Task failed')`
+ * substring matching, which misclassified non-empty reasons ("Insufficient
+ * credits", "NSFW detected") as transient and silently retried them 10 times.
+ */
+export class PpioTaskFailedError extends Error {
+  constructor(reason: string) {
+    super(reason)
+    this.name = 'PpioTaskFailedError'
+  }
+}
+
 export type PpioTaskStatus =
   | 'TASK_STATUS_QUEUED'
   | 'TASK_STATUS_PROCESSING'
@@ -427,18 +441,21 @@ class PpioTransport implements PollingTransport {
         }
 
         if (result.task.status === 'TASK_STATUS_FAILED') {
-          throw new Error(result.task.reason || 'Task failed')
+          throw new PpioTaskFailedError(result.task.reason || 'Task failed')
         }
       } catch (error) {
         if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
           throw createAbortError('Task polling aborted')
         }
 
+        // Terminal classifications — propagate without retrying. Anything else
+        // falls through to transient handling below (network blips, transient
+        // 5xx, etc.).
         if (error instanceof PpioApiError) {
           throw error
         }
 
-        if (error instanceof Error && error.message.includes('Task failed')) {
+        if (error instanceof PpioTaskFailedError) {
           throw error
         }
 

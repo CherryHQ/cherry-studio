@@ -23,8 +23,8 @@ import type { ImageModelV3, ImageModelV3CallOptions } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
-import { createPaintingGenerateError } from '@renderer/pages/paintings/model/paintingGenerateError'
-import { readErrorMessage } from '@renderer/pages/paintings/providers/shared/readErrorMessage'
+import { createPaintingGenerateError } from '@renderer/aiCore/errors/paintingGenerateError'
+import { readErrorMessage } from '@renderer/aiCore/errors/readErrorMessage'
 
 const logger = loggerService.withContext('AihubmixImageModel')
 

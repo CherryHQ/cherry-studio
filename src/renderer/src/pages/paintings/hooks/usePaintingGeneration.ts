@@ -1,7 +1,11 @@
+import { loggerService } from '@logger'
+import { presentPaintingGenerateError } from '@renderer/aiCore/errors/paintingGenerateError'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { uuid } from '@renderer/utils'
 import type { PaintingMode } from '@shared/data/types/painting'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
+
+const logger = loggerService.withContext('paintings/generation')
 
 import { paintingDataToCreateDto, paintingParamsForPersistence } from '../model/mappers/paintingDataToCreateDto'
 import { paintingDataToUpdateDto } from '../model/mappers/paintingDataToUpdateDto'
@@ -11,7 +15,6 @@ import {
   clearPaintingAbortController,
   registerPaintingAbortController
 } from '../model/paintingAbortControllerStore'
-import { presentPaintingGenerateError } from '../model/paintingGenerateError'
 import type { PaintingData } from '../model/types/paintingData'
 import { cleanRuntime, type PaintingGenerationState, withRuntime } from '../model/utils/paintingGenerationParams'
 import { moveEditImageFiles } from '../providers/newapi/editFiles'
@@ -134,9 +137,35 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
         onGenerationStateChange: updateGenerationState
       })
       await generationStateQueue
-      // A mid-generation persistence failure was already surfaced by the queue's
-      // catch handler; do not proceed as if the in-progress state was saved.
-      if (generationStatePersistFailed) return
+      // A mid-generation persistence failure was already surfaced by the
+      // queue's catch handler. Don't continue as if the in-progress state
+      // was saved — and crucially, force the painting into a terminal
+      // 'failed' state. Otherwise the DB still reads 'running'; the next
+      // refresh re-hydrates 'running' into the UI; the controller is
+      // cleared in the `finally` below; so the painting would be stuck
+      // on the spinner with no way to cancel.
+      if (generationStatePersistFailed) {
+        const failedState: PaintingGenerationState = {
+          ...generationState,
+          generationStatus: 'failed',
+          generationError: 'Mid-stream state persistence failed'
+        }
+        try {
+          const updatedRecord = await updatePainting(targetPainting.id, {
+            params: withRuntime(paintingParamsForPersistence(targetPainting), failedState)
+          })
+          applyIfVisible(await recordToPaintingData(updatedRecord))
+          await refresh()
+        } catch (persistErr) {
+          // Even the failed-state write failed. Push the failed state to
+          // the in-memory record so the UI at least stops spinning;
+          // skip `refresh()` because it would re-hydrate the stale
+          // 'running' from DB and undo this fallback.
+          logger.error('Failed to persist painting failed-state (early-return path)', persistErr as Error)
+          applyIfVisible({ ...targetPainting, ...failedState } as PaintingData)
+        }
+        return
+      }
       const updatedRecord = await updatePainting(targetPainting.id, {
         files: {
           output: files.map((file) => file.id),
@@ -161,8 +190,14 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
         })
         applyIfVisible(await recordToPaintingData(updatedRecord))
         await refresh()
-      } catch {
-        await refresh()
+      } catch (persistErr) {
+        // Failed-state persistence ALSO failed — push the failed state
+        // to the in-memory record so the spinner stops. Skipping
+        // `refresh()` because it would re-fetch the stale 'running'
+        // from DB and overwrite this fallback. The original `error`
+        // gets surfaced via `presentPaintingGenerateError` below.
+        logger.error('Failed to persist painting failed-state (catch path)', persistErr as Error)
+        applyIfVisible({ ...targetPainting, ...failedState } as PaintingData)
       }
       if (!isCanceled) {
         presentPaintingGenerateError(error)

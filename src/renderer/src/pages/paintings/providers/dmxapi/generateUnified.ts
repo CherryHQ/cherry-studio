@@ -1,5 +1,6 @@
+import { createPaintingGenerateError } from '@renderer/aiCore/errors/paintingGenerateError'
+
 import { canonicalGenerate } from '../../model/canonicalGenerate'
-import { createPaintingGenerateError } from '../../model/paintingGenerateError'
 import type { DmxapiPaintingData as DmxapiPainting } from '../../model/types/paintingData'
 import { generationModeType } from '../../model/types/paintingData'
 import type { GenerateInput } from '../types'

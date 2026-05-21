@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createPpioTransport } from '../pollingTransports/ppio'
+import { createPpioTransport, PpioTaskFailedError } from '../pollingTransports/ppio'
 
 /**
  * Ported from the legacy `providers/ppio/__tests__/PpioService.test.ts` plus
@@ -35,13 +35,29 @@ describe('PpioTransport', () => {
     expect(getTaskResultSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('rejects on TASK_STATUS_FAILED whose reason contains "Task failed" (relocated behavior)', async () => {
+  it('rejects on TASK_STATUS_FAILED with PpioTaskFailedError (no reason → "Task failed" fallback)', async () => {
     const transport = createPpioTransport({ apiKey: 'token' })
     vi.spyOn(transport, 'getTaskResult').mockResolvedValue({
       task: { task_id: 'task-1', status: 'TASK_STATUS_FAILED', task_type: 'image' }
     })
 
+    await expect(transport.pollTaskResult('task-1')).rejects.toBeInstanceOf(PpioTaskFailedError)
     await expect(transport.pollTaskResult('task-1')).rejects.toThrow('Task failed')
+  })
+
+  it('surfaces vendor reason verbatim instead of silently retrying it as transient', async () => {
+    const transport = createPpioTransport({ apiKey: 'token' })
+    const getTaskResultSpy = vi.spyOn(transport, 'getTaskResult').mockResolvedValue({
+      task: { task_id: 'task-1', status: 'TASK_STATUS_FAILED', reason: 'Insufficient credits', task_type: 'image' }
+    })
+
+    const promise = transport.pollTaskResult('task-1').catch((e) => e)
+    const error = await promise
+
+    expect(error).toBeInstanceOf(PpioTaskFailedError)
+    expect((error as Error).message).toBe('Insufficient credits')
+    // Terminal failure → exactly one call; no transient-retry storm.
+    expect(getTaskResultSpy).toHaveBeenCalledTimes(1)
   })
 
   it('gives up after the transient-retry cap (10)', async () => {
