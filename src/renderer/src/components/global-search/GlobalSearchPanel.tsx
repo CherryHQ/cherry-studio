@@ -566,7 +566,9 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
   )
 
   const openSessionMessageById = useCallback(
-    (sessionId: string, messageId: string) => {
+    async (sessionId: string, messageId: string) => {
+      await dataApiService.get(`/sessions/${sessionId}`)
+      await invalidateCache(['/sessions', `/sessions/${sessionId}`, `/sessions/${sessionId}/messages`])
       cacheService.set('agent.active_session_id', sessionId)
       openTab('/app/agents')
       window.requestAnimationFrame(() => {
@@ -574,7 +576,7 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
       })
       onClose()
     },
-    [onClose, openTab]
+    [invalidateCache, onClose, openTab]
   )
 
   const openKnowledgeBase = useCallback(
@@ -597,11 +599,9 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
         return
       }
 
-      try {
-        openSessionMessageById(target.sessionId, target.messageId)
-      } catch {
+      void openSessionMessageById(target.sessionId, target.messageId).catch(() => {
         window.toast?.error(t('globalSearch.open_failed'))
-      }
+      })
     },
     [openSessionMessageById, openTopicMessageById, t]
   )

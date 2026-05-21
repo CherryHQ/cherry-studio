@@ -1165,6 +1165,12 @@ describe('GlobalSearchPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Open preview target' }))
 
     await waitFor(() => {
+      expect(mocks.dataApiGet).toHaveBeenCalledWith('/sessions/session-1')
+      expect(mocks.invalidateCache).toHaveBeenCalledWith([
+        '/sessions',
+        '/sessions/session-1',
+        '/sessions/session-1/messages'
+      ])
       expect(mocks.cacheSet).toHaveBeenCalledWith('agent.active_session_id', 'session-1')
       expect(mocks.openTab).toHaveBeenCalledWith('/app/agents')
       expect(mocks.eventEmit).toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE', {
@@ -1172,6 +1178,10 @@ describe('GlobalSearchPanel', () => {
         messageId: 'session-message-1'
       })
     })
+    expect(mocks.dataApiGet.mock.invocationCallOrder[0]).toBeLessThan(mocks.invalidateCache.mock.invocationCallOrder[0])
+    expect(mocks.invalidateCache.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.eventEmit.mock.invocationCallOrder.at(-1) ?? Number.MAX_SAFE_INTEGER
+    )
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
   })
 
@@ -1200,6 +1210,12 @@ describe('GlobalSearchPanel', () => {
 
     expect(screen.queryByRole('complementary', { name: 'Message preview' })).not.toBeInTheDocument()
     await waitFor(() => {
+      expect(mocks.dataApiGet).toHaveBeenCalledWith('/sessions/session-1')
+      expect(mocks.invalidateCache).toHaveBeenCalledWith([
+        '/sessions',
+        '/sessions/session-1',
+        '/sessions/session-1/messages'
+      ])
       expect(mocks.cacheSet).toHaveBeenCalledWith('agent.active_session_id', 'session-1')
       expect(mocks.openTab).toHaveBeenCalledWith('/app/agents')
       expect(mocks.eventEmit).toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE', {
