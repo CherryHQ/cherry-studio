@@ -6,8 +6,7 @@ import { canonicalGenerate } from '../../model/canonicalGenerate'
 import type { OvmsPaintingData as PaintingData } from '../../model/types/paintingData'
 import { loadPaintingModelOptions } from '../../model/utils/paintingModelOptions'
 import { createSingleModeProvider, type PaintingProviderDefinition } from '../types'
-import { createDefaultOvmsPainting, OVMS_MODELS } from './config'
-import { createOvmsFields } from './fields'
+import { createDefaultOvmsPainting, OVMS_MODELS } from './defaults'
 
 export function OvmsHeaderActions({ t }: { t: TFunction }) {
   const Icon = resolveProviderIcon('ovms')
@@ -27,7 +26,14 @@ export const ovmsProvider: PaintingProviderDefinition = createSingleModeProvider
     loader: () => loadPaintingModelOptions('ovms')
   },
   createPaintingData: ({ modelOptions }) => createDefaultOvmsPainting(modelOptions),
-  fields: createOvmsFields(),
+  // Field list comes from the registry's provider-level `paintingDefaults`
+  // (see packages/provider-registry/data/providers.json) — OVMS users
+  // register arbitrary local model ids, so per-model registry entries
+  // can't be enumerated, but the API contract (size / num_inference_steps
+  // / rng_seed) is fixed provider-wide. keyMap aliases canonical keys to
+  // OVMS's snake_case persisted field names.
+  useRegistryForm: true,
+  fields: [],
   onModelChange: ({ modelId }) => ({ model: modelId }),
   prompt: {
     disabled: ({ painting, isLoading }) => isLoading || !painting.model || painting.model === OVMS_MODELS[0]?.value

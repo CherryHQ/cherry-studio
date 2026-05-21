@@ -76,6 +76,17 @@
           "baseUrl": "http://localhost:8000/v3/"
         }
       },
+      "paintingDefaults": {
+        "modes": ["generate"],
+        "sizes": ["512x512", "768x768", "1024x1024"],
+        "sizeMode": "pixel",
+        "defaultSize": "512x512",
+        "keyMap": { "numInferenceSteps": "num_inference_steps", "seed": "rng_seed" },
+        "supports": {
+          "numInferenceSteps": { "min": 1, "max": 100, "default": 4 },
+          "seed": true
+        }
+      },
       "metadata": {
         "website": {
           "official": "https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html",

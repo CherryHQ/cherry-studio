@@ -328,6 +328,69 @@ describe('ProviderRegistryService', () => {
       expect(models[0].name).toBe('GPT-4o')
     })
 
+    it('getImageGenerationSupport returns the model block when present', async () => {
+      const block = { modes: ['generate'], sizes: ['1024x1024'], sizeMode: 'pixel' as const }
+      mockReadModels.mockReturnValue({
+        version: '1.0',
+        models: [{ id: 'sd-1-5', name: 'SD 1.5', imageGeneration: block }]
+      } as ReturnType<typeof readModelRegistry>)
+      mockReadProviderModels.mockReturnValue({ version: '1.0', overrides: [] } as ReturnType<
+        typeof readProviderModelRegistry
+      >)
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [
+          {
+            id: 'ovms',
+            name: 'OVMS',
+            defaultChatEndpoint: null,
+            metadata: { website: { official: 'https://openvino.ai' } },
+            paintingDefaults: { modes: ['generate'], sizes: ['512x512'], sizeMode: 'pixel' as const }
+          }
+        ]
+      } as ReturnType<typeof readProviderRegistry>)
+      const result = await providerRegistryService.getImageGenerationSupport('ovms', 'sd-1-5')
+      expect(result).toEqual(block)
+    })
+
+    it('getImageGenerationSupport falls back to provider.paintingDefaults when model is unknown', async () => {
+      const defaults = {
+        modes: ['generate'],
+        sizes: ['512x512', '768x768', '1024x1024'],
+        sizeMode: 'pixel' as const,
+        defaultSize: '512x512',
+        keyMap: { numInferenceSteps: 'num_inference_steps', seed: 'rng_seed' },
+        supports: {
+          seed: true,
+          numInferenceSteps: { min: 1, max: 100, default: 4 }
+        }
+      }
+      mockReadModels.mockReturnValue({ version: '1.0', models: [] } as ReturnType<typeof readModelRegistry>)
+      mockReadProviderModels.mockReturnValue({ version: '1.0', overrides: [] } as ReturnType<
+        typeof readProviderModelRegistry
+      >)
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [
+          {
+            id: 'ovms',
+            name: 'OVMS',
+            defaultChatEndpoint: null,
+            metadata: { website: { official: 'https://openvino.ai' } },
+            paintingDefaults: defaults
+          }
+        ]
+      } as ReturnType<typeof readProviderRegistry>)
+      const result = await providerRegistryService.getImageGenerationSupport('ovms', 'user-custom-sd')
+      expect(result).toEqual(defaults)
+    })
+
+    it('getImageGenerationSupport returns null when neither model nor provider has the block', async () => {
+      setupRegistryData()
+      const result = await providerRegistryService.getImageGenerationSupport('openai', 'gpt-4o')
+      expect(result).toBeNull()
+    })
+
     it('should prefer persisted provider endpoint config over registry reasoning defaults', async () => {
       setupRegistryData()
       await dbh.db.insert(userProviderTable).values({

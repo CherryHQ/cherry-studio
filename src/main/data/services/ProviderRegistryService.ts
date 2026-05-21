@@ -549,16 +549,21 @@ class ProviderRegistryService {
    * opting into `useRegistryForm` derive their field set from this block
    * instead of a hand-rolled `fields.ts`.
    *
-   * Returns `null` when the model is unknown to the registry or has no
-   * `imageGeneration` configured — the renderer treats that as "no derived
-   * fields" and falls back to the provider's `fields.byTab`.
+   * Resolution order:
+   *  1. Model-level `imageGeneration` from `models.json` (per-model UI).
+   *  2. Provider-level `paintingDefaults` from `providers.json` (fallback
+   *     for providers whose model catalog can't be enumerated in
+   *     advance — OVMS user-served checkpoints, etc.).
+   *  3. `null` — renderer falls back to the provider's `fields.byTab`.
    *
    * Used by: GET /providers/:providerId/models/:modelId/image-generation-support
    * (greedy `:modelId` capture for HuggingFace-style ids containing `/`).
    */
   async getImageGenerationSupport(providerId: string, modelId: string): Promise<ImageGenerationSupport | null> {
     const { presetModel } = await this.lookupModel(providerId, modelId)
-    return presetModel?.imageGeneration ?? null
+    if (presetModel?.imageGeneration) return presetModel.imageGeneration
+    const registryProvider = this.findRegistryProvider(providerId)
+    return registryProvider?.paintingDefaults ?? null
   }
 }
 
