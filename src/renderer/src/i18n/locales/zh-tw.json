@@ -1803,13 +1803,13 @@
     "maxEmbeddingsPerCall": "每次呼叫的最大嵌入",
     "message": "錯誤訊息",
     "missing_user_message": "無法切換模型回應：原始使用者訊息已被刪除。請傳送新訊息以獲得此模型回應。",
-    "model_not_support_image": "所選模型不支援圖片輸入。請切換至支援圖片的模型（如 GPT-4o、Claude 3、Gemini）來重新生成。",
     "model": {
       "exists": "模型已存在",
       "not_exists": "模型不存在"
     },
     "modelId": "模型 ID",
     "modelType": "模型類型",
+    "model_not_support_image": "所選模型不支援圖片輸入。請切換至支援圖片的模型（如 GPT-4o、Claude 3、Gemini）來重新生成。",
     "name": "錯誤名稱",
     "no_api_key": "API 金鑰未設定",
     "no_response": "無回應",

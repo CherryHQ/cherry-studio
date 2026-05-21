@@ -1809,6 +1809,7 @@
     },
     "modelId": "ID do modelo",
     "modelType": "Tipo de modelo",
+    "model_not_support_image": "[to be translated]:The selected model does not support image input. Please switch to a model that supports images (e.g., GPT-4o, Claude 3, Gemini) to regenerate.",
     "name": "Nome do erro",
     "no_api_key": "A chave da API não foi configurada",
     "no_response": "Sem resposta",

@@ -1809,6 +1809,7 @@
     },
     "modelId": "ID mô hình",
     "modelType": "Loại mô hình",
+    "model_not_support_image": "[to be translated]:The selected model does not support image input. Please switch to a model that supports images (e.g., GPT-4o, Claude 3, Gemini) to regenerate.",
     "name": "Tên lỗi",
     "no_api_key": "Khóa API chưa được cấu hình",
     "no_response": "Không có phản hồi",

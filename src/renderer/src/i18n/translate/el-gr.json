@@ -1809,6 +1809,7 @@
     },
     "modelId": "Αναγνωριστικό μοντέλου",
     "modelType": "Τύπος μοντέλου",
+    "model_not_support_image": "[to be translated]:The selected model does not support image input. Please switch to a model that supports images (e.g., GPT-4o, Claude 3, Gemini) to regenerate.",
     "name": "Λάθος όνομα",
     "no_api_key": "Δεν έχετε ρυθμίσει το κλειδί API",
     "no_response": "Καμία απάντηση",

@@ -1809,6 +1809,7 @@
     },
     "modelId": "ID model",
     "modelType": "Tip model",
+    "model_not_support_image": "[to be translated]:The selected model does not support image input. Please switch to a model that supports images (e.g., GPT-4o, Claude 3, Gemini) to regenerate.",
     "name": "Nume eroare",
     "no_api_key": "Cheia API nu este configurată",
     "no_response": "Niciun răspuns",

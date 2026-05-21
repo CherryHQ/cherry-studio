@@ -1803,13 +1803,13 @@
     "maxEmbeddingsPerCall": "Max Embeddings Per Call",
     "message": "Error Message",
     "missing_user_message": "Cannot switch model response: The original user message has been deleted. Please send a new message to get a response with this model.",
-    "model_not_support_image": "The selected model does not support image input. Please switch to a model that supports images (e.g., GPT-4o, Claude 3, Gemini) to regenerate.",
     "model": {
       "exists": "Model already exists",
       "not_exists": "Model does not exist"
     },
     "modelId": "Model ID",
     "modelType": "Model Type",
+    "model_not_support_image": "The selected model does not support image input. Please switch to a model that supports images (e.g., GPT-4o, Claude 3, Gemini) to regenerate.",
     "name": "Error name",
     "no_api_key": "API key is not configured",
     "no_response": "No response",
