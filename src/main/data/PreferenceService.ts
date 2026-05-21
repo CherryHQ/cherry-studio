@@ -25,7 +25,6 @@ import { BrowserWindow } from 'electron'
 import { isEqual } from 'lodash'
 
 import { preferenceTable } from './db/schemas/preference'
-import type { DbType } from './db/types'
 
 const logger = loggerService.withContext('PreferenceService')
 
@@ -195,9 +194,6 @@ export class PreferenceService extends BaseService {
   // Custom notifier for main process change notifications
   private notifier = new PreferenceNotifier()
 
-  // Database reference, set during onInit
-  private db!: DbType
-
   constructor() {
     super()
   }
@@ -207,9 +203,8 @@ export class PreferenceService extends BaseService {
    */
   protected async onInit(): Promise<void> {
     try {
-      const dbService = application.get('DbService')
-      this.db = dbService.getDb()
-      const results = await this.db.select().from(preferenceTable).where(eq(preferenceTable.scope, DefaultScope))
+      const db = application.get('DbService').getDb()
+      const results = await db.select().from(preferenceTable).where(eq(preferenceTable.scope, DefaultScope))
 
       // Update cache with database values, keeping defaults for missing keys
       for (const result of results) {
@@ -334,12 +329,14 @@ export class PreferenceService extends BaseService {
         return
       }
 
-      await this.db
-        .update(preferenceTable)
-        .set({
-          value: value as any
-        })
-        .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, key)))
+      await application.get('DbService').withWriteTx((tx) =>
+        tx
+          .update(preferenceTable)
+          .set({
+            value: value as any
+          })
+          .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, key)))
+      )
 
       // Update memory cache immediately — safe after type guard + cache key check
       ;(this.cache as Record<string, unknown>)[key] = value
@@ -453,7 +450,7 @@ export class PreferenceService extends BaseService {
 
       // Write changed preference values to DB
       if (Object.keys(actualUpdates).length > 0) {
-        await this.db.transaction(async (tx) => {
+        await application.get('DbService').withWriteTx(async (tx) => {
           for (const [key, value] of Object.entries(actualUpdates)) {
             await tx
               .update(preferenceTable)
