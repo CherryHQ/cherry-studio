@@ -39,10 +39,10 @@ describe('PageSidePanel', () => {
       expect(onClose).toHaveBeenCalledTimes(1)
     })
 
-    it('uses a stronger dark-mode backdrop', () => {
+    it('uses the same backdrop scrim as the dialog', () => {
       const { container } = render(<PageSidePanel open={true} onClose={vi.fn()} />)
       const backdrop = container.querySelector('[data-slot="page-side-panel-backdrop"]')!
-      expect(backdrop).toHaveClass('bg-black/20', 'dark:bg-black/60')
+      expect(backdrop).toHaveClass('bg-black/50')
     })
 
     it('calls onClose when close button is clicked', () => {

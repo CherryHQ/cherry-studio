@@ -1,4 +1,5 @@
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import MiniAppIcon from '@renderer/components/Icons/MiniAppIcon'
 import IndicatorLight from '@renderer/components/IndicatorLight'
@@ -8,20 +9,20 @@ import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import type { FC } from 'react'
+import type { FC, KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
   app: MiniApp
   onClick?: () => void
   size?: number
   isLast?: boolean
+  variant?: 'default' | 'launchpad'
 }
 
 const logger = loggerService.withContext('App')
 
-const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
+const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast, variant = 'default' }) => {
   const { t } = useTranslation()
   const {
     miniApps,
@@ -49,6 +50,21 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
     openTab(`/app/mini-app/${app.appId}`, { title: displayName, icon: app.logo })
     onClick?.()
   }
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return
+    e.preventDefault()
+    handleClick()
+  }
+  const activationProps =
+    variant === 'launchpad'
+      ? ({
+          onKeyDown: handleKeyDown,
+          tabIndex: 0,
+          role: 'button',
+          'aria-label': displayName
+        } as const)
+      : {}
 
   const reportFailure = (fallbackKey: string) => (err: unknown) => {
     const e = toDataApiError(err)
@@ -102,22 +118,49 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
     return null
   }
 
+  const isLaunchpad = variant === 'launchpad'
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <Container onClick={handleClick}>
-          <IconContainer>
-            <MiniAppIcon size={size} app={app} />
+        <div
+          className={cn(
+            'flex cursor-pointer flex-col items-center justify-center overflow-hidden outline-none',
+            isLaunchpad
+              ? 'min-h-[104px] w-[92px] bg-transparent pt-1 hover:[&_.mini-app-icon-frame]:bg-ghost-hover focus-visible:[&_.mini-app-icon-frame]:border-border-active focus-visible:[&_.mini-app-icon-frame]:shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-ring)_30%,transparent)]'
+              : 'min-h-[85px]'
+          )}
+          onClick={handleClick}
+          {...activationProps}>
+          <div
+            className={cn(
+              'mini-app-icon-frame relative flex items-center justify-center',
+              isLaunchpad &&
+                'size-[58px] rounded-[14px] border border-border-subtle bg-transparent transition-[border-color,background-color] duration-[160ms] ease-in-out motion-reduce:transition-none'
+            )}>
+            <MiniAppIcon size={size} app={app} appearance={isLaunchpad ? 'plain' : 'avatar'} />
             {isOpened && (
-              <StyledIndicator>
+              <div
+                className={cn(
+                  'absolute rounded-full bg-background',
+                  isLaunchpad
+                    ? '-right-[3px] -bottom-[3px] p-[3px] shadow-[0_0_0_1px_var(--color-border-subtle)]'
+                    : '-right-0.5 -bottom-0.5 p-0.5'
+                )}>
                 <IndicatorLight color="#22c55e" size={6} animation={!isActive} />
-              </StyledIndicator>
+              </div>
             )}
-          </IconContainer>
-          <AppTitle>
-            <MarqueeText>{displayName}</MarqueeText>
-          </AppTitle>
-        </Container>
+          </div>
+          <div
+            className={cn(
+              'w-full select-none text-center text-foreground-secondary',
+              isLaunchpad
+                ? 'mt-2 min-h-9 max-w-[92px] overflow-hidden whitespace-normal text-[13px] leading-[18px] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box] [overflow-wrap:anywhere]'
+                : 'mt-[5px] max-w-20 text-xs leading-normal'
+            )}>
+            {isLaunchpad ? displayName : <MarqueeText>{displayName}</MarqueeText>}
+          </div>
+        </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem onSelect={handleTogglePin}>{togglePinLabel}</ContextMenuItem>
@@ -131,41 +174,5 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
     </ContextMenu>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  cursor: pointer;
-  overflow: hidden;
-  min-height: 85px;
-`
-
-const IconContainer = styled.div`
-  position: relative;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-`
-
-const StyledIndicator = styled.div`
-  position: absolute;
-  bottom: -2px;
-  right: -2px;
-  padding: 2px;
-  background: var(--color-background);
-  border-radius: 50%;
-`
-
-const AppTitle = styled.div`
-  font-size: 12px;
-  margin-top: 5px;
-  color: var(--color-text-soft);
-  text-align: center;
-  user-select: none;
-  width: 100%;
-  max-width: 80px;
-`
 
 export default MiniApp
