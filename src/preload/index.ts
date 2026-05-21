@@ -28,7 +28,6 @@ import type {
   UpgradeChannel
 } from '@shared/data/preference/preferenceTypes'
 import type {
-  FileProcessingTaskResult,
   FileProcessingTaskStartResult,
   ListAvailableFileProcessorsResult
 } from '@shared/data/types/fileProcessing'
@@ -842,10 +841,6 @@ const api = {
       file: FileMetadata
       processorId?: FileProcessorId
     }): Promise<FileProcessingTaskStartResult> => ipcRenderer.invoke(IpcChannel.FileProcessing_StartTask, payload),
-    getTask: (payload: { taskId: string }): Promise<FileProcessingTaskResult> =>
-      ipcRenderer.invoke(IpcChannel.FileProcessing_GetTask, payload),
-    cancelTask: (payload: { taskId: string }): Promise<FileProcessingTaskResult> =>
-      ipcRenderer.invoke(IpcChannel.FileProcessing_CancelTask, payload),
     listAvailableProcessors: (): Promise<ListAvailableFileProcessorsResult> =>
       ipcRenderer.invoke(IpcChannel.FileProcessing_ListAvailableProcessors)
   },

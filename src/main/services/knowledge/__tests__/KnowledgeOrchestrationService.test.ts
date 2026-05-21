@@ -7,15 +7,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   runtimeAddItemsMock,
+  runtimeCancelAllJobsForBaseMock,
   runtimeCreateBaseMock,
   runtimeDeleteBaseArtifactsMock,
-  runtimeDeleteBaseMock,
   runtimeDeleteItemChunkMock,
   runtimeDeleteItemsMock,
   runtimeListItemChunksMock,
   runtimeReindexItemsMock,
   runtimeSearchMock,
-  failItemsMock,
+  runtimeWaitForBaseWriteLocksMock,
   knowledgeBaseCreateMock,
   knowledgeBaseDeleteMock,
   knowledgeBaseGetByIdMock,
@@ -26,15 +26,15 @@ const {
   knowledgeItemGetLeafDescendantItemsMock
 } = vi.hoisted(() => ({
   runtimeAddItemsMock: vi.fn(),
+  runtimeCancelAllJobsForBaseMock: vi.fn(),
   runtimeCreateBaseMock: vi.fn(),
   runtimeDeleteBaseArtifactsMock: vi.fn(),
-  runtimeDeleteBaseMock: vi.fn(),
   runtimeDeleteItemChunkMock: vi.fn(),
   runtimeDeleteItemsMock: vi.fn(),
   runtimeListItemChunksMock: vi.fn(),
   runtimeReindexItemsMock: vi.fn(),
   runtimeSearchMock: vi.fn(),
-  failItemsMock: vi.fn(),
+  runtimeWaitForBaseWriteLocksMock: vi.fn(),
   knowledgeBaseCreateMock: vi.fn(),
   knowledgeBaseDeleteMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
@@ -50,14 +50,15 @@ vi.mock('@application', async () => {
   return mockApplicationFactory({
     KnowledgeRuntimeService: {
       addItems: runtimeAddItemsMock,
+      cancelAllJobsForBase: runtimeCancelAllJobsForBaseMock,
       createBase: runtimeCreateBaseMock,
-      deleteBase: runtimeDeleteBaseMock,
       deleteBaseArtifacts: runtimeDeleteBaseArtifactsMock,
       deleteItemChunk: runtimeDeleteItemChunkMock,
       deleteItems: runtimeDeleteItemsMock,
       listItemChunks: runtimeListItemChunksMock,
       reindexItems: runtimeReindexItemsMock,
-      search: runtimeSearchMock
+      search: runtimeSearchMock,
+      waitForBaseWriteLocks: runtimeWaitForBaseWriteLocksMock
     }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
@@ -101,10 +102,6 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
     getItemsByBaseId: knowledgeItemGetItemsByBaseIdMock,
     getLeafDescendantItems: knowledgeItemGetLeafDescendantItemsMock
   }
-}))
-
-vi.mock('../runtime/utils/cleanup', () => ({
-  failItems: failItemsMock
 }))
 
 const { KnowledgeOrchestrationService, KnowledgeRuntimeAddItemsPartialError } = await import(
@@ -233,15 +230,15 @@ describe('KnowledgeOrchestrationService', () => {
     knowledgeItemGetItemsByBaseIdMock.mockResolvedValue([])
     knowledgeItemGetLeafDescendantItemsMock.mockResolvedValue([createNoteItem()])
     runtimeAddItemsMock.mockResolvedValue(undefined)
+    runtimeCancelAllJobsForBaseMock.mockResolvedValue(undefined)
     runtimeCreateBaseMock.mockResolvedValue(undefined)
-    runtimeDeleteBaseMock.mockResolvedValue([])
     runtimeDeleteBaseArtifactsMock.mockResolvedValue(undefined)
     runtimeDeleteItemChunkMock.mockResolvedValue(undefined)
     runtimeDeleteItemsMock.mockResolvedValue(undefined)
-    failItemsMock.mockResolvedValue(undefined)
     runtimeListItemChunksMock.mockResolvedValue([])
     runtimeReindexItemsMock.mockResolvedValue(undefined)
     runtimeSearchMock.mockResolvedValue([])
+    runtimeWaitForBaseWriteLocksMock.mockResolvedValue(undefined)
   })
 
   it('uses WhenReady phase and depends on KnowledgeRuntimeService', () => {
@@ -302,60 +299,65 @@ describe('KnowledgeOrchestrationService', () => {
     expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
   })
 
-  it('deletes the SQLite base before deleting vector artifacts', async () => {
+  it('cancels active jobs, waits for locks, then deletes artifacts + SQLite in order', async () => {
     const service = new KnowledgeOrchestrationService()
 
     await expect(service.deleteBase('kb-1')).resolves.toBeUndefined()
 
-    expect(runtimeDeleteBaseMock).toHaveBeenCalledWith('kb-1')
-    expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
+    expect(runtimeCancelAllJobsForBaseMock).toHaveBeenCalledWith('kb-1')
+    expect(runtimeWaitForBaseWriteLocksMock).toHaveBeenCalledWith('kb-1', 35_000)
     expect(runtimeDeleteBaseArtifactsMock).toHaveBeenCalledWith('kb-1')
-    expect(knowledgeBaseDeleteMock.mock.invocationCallOrder[0]).toBeLessThan(
-      runtimeDeleteBaseArtifactsMock.mock.invocationCallOrder[0]
-    )
+    expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
+
+    const orders = {
+      cancel: runtimeCancelAllJobsForBaseMock.mock.invocationCallOrder[0],
+      wait: runtimeWaitForBaseWriteLocksMock.mock.invocationCallOrder[0],
+      artifacts: runtimeDeleteBaseArtifactsMock.mock.invocationCallOrder[0],
+      dbDelete: knowledgeBaseDeleteMock.mock.invocationCallOrder[0]
+    }
+    expect(orders.cancel).toBeLessThan(orders.wait)
+    expect(orders.wait).toBeLessThan(orders.artifacts)
+    expect(orders.artifacts).toBeLessThan(orders.dbDelete)
   })
 
-  it('does not delete the SQLite base when runtime base interruption fails', async () => {
+  it('aborts before the artifact delete when cancellation fails', async () => {
     const service = new KnowledgeOrchestrationService()
-    const deleteError = new Error('base interruption failed')
-    runtimeDeleteBaseMock.mockRejectedValueOnce(deleteError)
+    const cancelError = new Error('cancel failed')
+    runtimeCancelAllJobsForBaseMock.mockRejectedValueOnce(cancelError)
 
-    await expect(service.deleteBase('kb-1')).rejects.toBe(deleteError)
+    await expect(service.deleteBase('kb-1')).rejects.toBe(cancelError)
 
-    expect(runtimeDeleteBaseMock).toHaveBeenCalledWith('kb-1')
+    expect(runtimeWaitForBaseWriteLocksMock).not.toHaveBeenCalled()
+    expect(runtimeDeleteBaseArtifactsMock).not.toHaveBeenCalled()
     expect(knowledgeBaseDeleteMock).not.toHaveBeenCalled()
-    expect(runtimeDeleteBaseArtifactsMock).not.toHaveBeenCalled()
   })
 
-  it('marks interrupted runtime items failed when SQLite base deletion fails', async () => {
+  it('skips SQLite delete when artifact cleanup fails (so user can retry from UI)', async () => {
     const service = new KnowledgeOrchestrationService()
-    const deleteError = new Error('sqlite delete failed')
-    runtimeDeleteBaseMock.mockResolvedValueOnce(['item-1', 'item-2'])
-    knowledgeBaseDeleteMock.mockRejectedValueOnce(deleteError)
+    const artifactError = new Error('artifact delete failed')
+    runtimeDeleteBaseArtifactsMock.mockRejectedValueOnce(artifactError)
 
-    await expect(service.deleteBase('kb-1')).rejects.toBe(deleteError)
+    await expect(service.deleteBase('kb-1')).rejects.toBe(artifactError)
 
-    expect(failItemsMock).toHaveBeenCalledWith(['item-1', 'item-2'], 'sqlite delete failed')
-    expect(runtimeDeleteBaseArtifactsMock).not.toHaveBeenCalled()
+    expect(knowledgeBaseDeleteMock).not.toHaveBeenCalled()
   })
 
-  it('reports partial deletion when post-SQLite artifact cleanup fails', async () => {
+  it('wraps post-artifact SQLite failure as a partial-cleanup invalid-operation error', async () => {
     const service = new KnowledgeOrchestrationService()
-    runtimeDeleteBaseArtifactsMock.mockRejectedValueOnce(new Error('artifact delete failed'))
+    knowledgeBaseDeleteMock.mockRejectedValueOnce(new Error('sqlite delete failed'))
 
     await expect(service.deleteBase('kb-1')).rejects.toMatchObject({
       message: expect.stringContaining(
-        'Invalid operation: deleteBase - SQLite knowledge base was deleted, but vector artifact cleanup failed: artifact delete failed'
+        'Invalid operation: deleteBase - Vector artifacts were deleted, but SQLite knowledge base cleanup failed: sqlite delete failed'
       ),
       details: {
         operation: 'deleteBase',
-        reason: expect.stringContaining('SQLite knowledge base was deleted, but vector artifact cleanup failed')
+        reason: expect.stringContaining('Vector artifacts were deleted, but SQLite knowledge base cleanup failed')
       }
     })
 
-    expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
     expect(runtimeDeleteBaseArtifactsMock).toHaveBeenCalledWith('kb-1')
-    expect(failItemsMock).not.toHaveBeenCalled()
+    expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
   })
 
   it('restores a failed base by creating a new base from source config and adding root items', async () => {
@@ -658,7 +660,7 @@ describe('KnowledgeOrchestrationService', () => {
     knowledgeBaseGetByIdMock.mockResolvedValueOnce(sourceBase)
     knowledgeItemGetItemsByBaseIdMock.mockResolvedValueOnce([root])
     runtimeAddItemsMock.mockRejectedValueOnce(error)
-    runtimeDeleteBaseMock.mockRejectedValueOnce(new Error('cleanup failed'))
+    runtimeCancelAllJobsForBaseMock.mockRejectedValueOnce(new Error('cleanup failed'))
 
     await expect(
       service.restoreBase({
