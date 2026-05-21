@@ -565,16 +565,16 @@ describe('runStartupFileSweep (FS-level)', () => {
     expect(report.actualDeleteCount).toBe(0)
   })
 
-  it('emits one structured orphan-file-sweep log on completion', async () => {
+  it('emits one structured orphan-file-sweep debug log on completion', async () => {
     const orphanId = '019606a0-0000-7000-8000-00000000ee60'
     const orphanPath = path.join(filesDir, `${orphanId}.txt`)
     await writeFile(orphanPath, 'o')
     const ancient = (Date.now() - 10 * 60 * 1000) / 1000
     await utimes(orphanPath, ancient, ancient)
 
-    const infoSpy = vi.spyOn(loggerService, 'info')
+    const debugSpy = vi.spyOn(loggerService, 'debug')
     await runStartupFileSweep({ fileEntryService })
-    expect(infoSpy).toHaveBeenCalledWith(
+    expect(debugSpy).toHaveBeenCalledWith(
       'orphan-file-sweep',
       expect.objectContaining({ event: 'orphan-file-sweep', outcome: 'completed' })
     )
