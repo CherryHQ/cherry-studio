@@ -3559,6 +3559,25 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "data_sharing": {
+      "change_later": "您可以隨時在設定中更改",
+      "next": "下一步",
+      "private": {
+        "description": "不共享匿名使用資料，也不會上傳效能、模型使用或功能互動等統計資訊。",
+        "title": "隱私模式"
+      },
+      "share": {
+        "description": "共享匿名使用資料，幫助我們改進 Cherry Studio。",
+        "items": {
+          "feature_interaction": "功能互動資料",
+          "model_usage": "模型使用情況",
+          "performance": "效能指標"
+        },
+        "title": "幫助改進 Cherry Studio"
+      },
+      "subtitle": "選擇您希望如何共享資料。您的選擇將幫助我們改進，您也可以隨時在設定中更改。",
+      "title": "您希望如何共享資料？"
+    },
     "select_model": {
       "change_later": "您可以隨時在設定中更改此項目",
       "start": "開始使用",

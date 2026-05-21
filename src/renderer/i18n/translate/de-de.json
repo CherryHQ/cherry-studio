@@ -3559,6 +3559,25 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "data_sharing": {
+      "change_later": "[to be translated]:You can change this anytime in Settings",
+      "next": "[to be translated]:Next",
+      "private": {
+        "description": "[to be translated]:Do not share any anonymous usage data — no performance, model usage, or feature interaction statistics will be uploaded.",
+        "title": "[to be translated]:Private mode"
+      },
+      "share": {
+        "description": "[to be translated]:Share anonymous usage data to help us improve Cherry Studio.",
+        "items": {
+          "feature_interaction": "[to be translated]:Feature interactions",
+          "model_usage": "[to be translated]:Model usage",
+          "performance": "[to be translated]:Performance metrics"
+        },
+        "title": "[to be translated]:Help improve Cherry Studio"
+      },
+      "subtitle": "[to be translated]:Choose how you'd like to share data. Your choice helps us improve and can be changed anytime in Settings.",
+      "title": "[to be translated]:How would you like to share data?"
+    },
     "select_model": {
       "change_later": "Sie können dies jederzeit in den Einstellungen ändern.",
       "start": "Loslegen",
