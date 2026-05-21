@@ -50,7 +50,7 @@
 
 | 旧 `FileMetadata` 的角色 | v2 对应类型      | 说明                                                                         |
 | ------------------------ | ---------------- | ---------------------------------------------------------------------------- |
-| DB 行 / 持久化身份       | `FileEntry`      | 带 `id`、`origin`、`trashedAt`；有 lifecycle；Zod brand 强制走 sanctioned 生产路径 |
+| DB 行 / 持久化身份       | `FileEntry`      | 带 `id`、`origin`、`deletedAt`；有 lifecycle；Zod brand 强制走 sanctioned 生产路径 |
 | 磁盘描述符 / 临时传参    | `FileInfo`       | 带 `path`、`modifiedAt`；live view；任意构造                                 |
 | 跨边界引用（两者通用）   | `FileHandle`     | tagged union；IPC 边界首选签名                                               |
 
@@ -346,7 +346,7 @@ ORDER BY ref_count DESC
 
 - 删除操作原子性：业务侧只管 file_ref，不需要跨表 trigger
 - 抗误删：短时间内重新引用该文件不会 fail（比如 "undo" 删除一条 message 时）
-- 与 internal `trashedAt` 软删的哲学一致（延迟、可逆）；external 虽然没有软删状态，但延迟 orphan 清理仍然提供"重新引用不失败"的好处
+- 与 internal `deletedAt` 软删的哲学一致（延迟、可逆）；external 虽然没有软删状态，但延迟 orphan 清理仍然提供"重新引用不失败"的好处
 
 #### 2.3.11 UI 变化
 
@@ -1155,8 +1155,8 @@ interface FileEntry {
   ext: string | null; // 扩展名，**不含前导点**（'pdf'），无扩展名时 null
   size: number;
   externalPath: string | null;
-  // trashedAt 仅 internal 可非空；external 恒为 null（fe_external_no_trash CHECK）
-  trashedAt: number | null;
+  // deletedAt 仅 internal 可非空；external 恒为 null（fe_external_no_delete CHECK）
+  deletedAt: number | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -1478,7 +1478,7 @@ async function migrateFileEntry(oldFile: DexieFileRow): Promise<FileEntryRow> {
       oldFile.origin === "external"
         ? canonicalizeExternalPath(oldFile.path)
         : null,
-    trashedAt: null, // Dexie 没软删除字段；external 也不允许 trashed（fe_external_no_trash）
+    deletedAt: null, // Dexie 没软删除字段；external 也不允许 trashed（fe_external_no_delete）
     createdAt: toMs(oldFile.created_at), // ISO → ms
     updatedAt: toMs(oldFile.created_at), // Dexie 无 updatedAt，用 createdAt
   };

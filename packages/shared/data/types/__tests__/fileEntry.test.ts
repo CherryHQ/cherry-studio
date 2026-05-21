@@ -9,7 +9,7 @@ const TS = 1700000000000
 
 // After the BO/DB split, each variant's schema declares only its own fields
 // (strictObject — extra keys are rejected). Internal has no `externalPath` and
-// `trashedAt` is optional; external has no `size` and no `trashedAt`. Factories
+// `deletedAt` is optional; external has no `size` and no `deletedAt`. Factories
 // match that shape so callers only set fields that belong on the arm.
 function makeInternal(overrides: Record<string, unknown> = {}) {
   return {
@@ -179,24 +179,24 @@ describe('FileEntrySchema origin invariants', () => {
 
 // ─── Trash ───
 
-describe('FileEntrySchema trash (trashedAt)', () => {
-  // After I19 the internal arm types `trashedAt` as `optional number` — present
+describe('FileEntrySchema trash (deletedAt)', () => {
+  // After I19 the internal arm types `deletedAt` as `optional number` — present
   // when trashed, absent (undefined) when live. The external arm drops the
-  // field entirely (the DB CHECK fe_external_no_trash already forbids it).
+  // field entirely (the DB CHECK fe_external_no_delete already forbids it).
 
-  it('accepts active internal entry (trashedAt absent)', () => {
+  it('accepts active internal entry (deletedAt absent)', () => {
     expect(FileEntrySchema.safeParse(makeInternal()).success).toBe(true)
   })
 
   it('accepts trashed internal entry', () => {
-    expect(FileEntrySchema.safeParse(makeInternal({ trashedAt: TS })).success).toBe(true)
+    expect(FileEntrySchema.safeParse(makeInternal({ deletedAt: TS })).success).toBe(true)
   })
 
-  it('rejects trashed external entry (strictObject — external has no trashedAt field)', () => {
-    expect(FileEntrySchema.safeParse(makeExternal({ trashedAt: TS })).success).toBe(false)
+  it('rejects trashed external entry (strictObject — external has no deletedAt field)', () => {
+    expect(FileEntrySchema.safeParse(makeExternal({ deletedAt: TS })).success).toBe(false)
   })
 
-  it('accepts external entry (no trashedAt field by construction)', () => {
+  it('accepts external entry (no deletedAt field by construction)', () => {
     expect(FileEntrySchema.safeParse(makeExternal()).success).toBe(true)
   })
 })
