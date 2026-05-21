@@ -36,6 +36,7 @@ type V1ChannelTaskSubscription = {
 }
 
 const HEARTBEAT_INTERVAL_FALLBACK_MS = 60 * 60_000
+const HEARTBEAT_TASK_NAME = 'heartbeat'
 
 const logger = loggerService.withContext('AgentsMigrator')
 
@@ -328,12 +329,27 @@ export class AgentsMigrator extends BaseMigrator {
     )
 
     const idMap = new Map<string, string>()
+    const usedNames = new Set<string>()
     let migratedCount = 0
     let droppedNameCount = 0
+    let droppedHeartbeatCount = 0
+    let droppedTriggerCount = 0
 
     for (const v1 of v1Tasks) {
+      // v1 modelled `heartbeat` as a normal `scheduled_tasks` row owned by the
+      // legacy SchedulerService.ensureHeartbeatTask path. v2 no longer auto-
+      // creates these — heartbeat will be re-introduced as a dedicated
+      // mechanism (tracked as a follow-up) — so we drop these rows here. This
+      // also sidesteps the UNIQUE(type, name) collision when v1 has ≥2
+      // CherryClaw agents (each with its own row named 'heartbeat').
+      if (v1.name?.trim() === HEARTBEAT_TASK_NAME) {
+        droppedHeartbeatCount++
+        continue
+      }
+
       const trigger = this.buildTriggerFromV1(v1)
       if (!trigger) {
+        droppedTriggerCount++
         logger.warn('Skipping v1 task with unparseable schedule', {
           v1Id: v1.id,
           type: v1.schedule_type,
@@ -354,11 +370,22 @@ export class AgentsMigrator extends BaseMigrator {
           : `task_${v1.id}`.slice(0, 200)
       if (sanitizedName !== rawName) droppedNameCount++
 
+      // v1 had no uniqueness on (agent_id, name); two agents could both own a
+      // task with the same name. v2's `UNIQUE(type, name)` would reject the
+      // second insert. Append the legacy id slice on collision to keep both
+      // rows; the name is user-visible only and the suffix is recoverable.
+      let finalName = sanitizedName
+      if (usedNames.has(finalName)) {
+        const idSuffix = `_${v1.id.slice(0, 8)}`
+        finalName = `${sanitizedName.slice(0, 200 - idSuffix.length)}${idSuffix}`
+      }
+      usedNames.add(finalName)
+
       const inserted = await db
         .insert(jobScheduleTable)
         .values({
           type: 'agent.task',
-          name: sanitizedName,
+          name: finalName,
           trigger,
           jobInputTemplate: {
             agentId: v1.agent_id,
@@ -402,7 +429,9 @@ export class AgentsMigrator extends BaseMigrator {
     logger.info('Scheduled tasks migrated', {
       schedules: migratedCount,
       channelLinks: subCount,
-      sanitizedNames: droppedNameCount
+      sanitizedNames: droppedNameCount,
+      droppedHeartbeats: droppedHeartbeatCount,
+      droppedUnparseableTriggers: droppedTriggerCount
     })
   }
 

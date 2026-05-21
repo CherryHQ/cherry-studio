@@ -1,23 +1,26 @@
 /**
- * Thin-facade behaviour tests for AgentTaskService.
+ * Behaviour tests for AgentTaskService.
  *
- * These do NOT spin up the real JobManager — that's exercised by the
- * JobManager integration suite. Here we just verify the facade is wiring
- * the right calls with the right shapes.
+ * DbService is wired to a real `setupTestDatabase()`-backed SQLite instance so
+ * `assertAutonomous` reads the real `agent` table and `createTask` exercises
+ * real `agent_channel_task` writes (including FK enforcement). JobManager and
+ * the higher-level Job/Schedule services stay mocked — the full JobManager is
+ * covered by its own integration suite.
  */
 
+import { agentTable } from '@data/db/schemas/agent'
+import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
+import { jobScheduleTable } from '@data/db/schemas/job'
 import type { CreateTaskDto } from '@shared/data/api/schemas/agents'
-import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
+import type { JobScheduleSnapshot, JobSnapshot, Trigger } from '@shared/data/api/schemas/jobs'
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', async () => {
   const mod = await import('@test-mocks/main/application')
   return mod.mockApplicationFactory()
 })
-
-const dbDeleteMock = vi.fn()
-const dbInsertMock = vi.fn()
-const dbSelectMock = vi.fn()
 
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: { getSubscribedChannels: vi.fn() }
@@ -26,7 +29,7 @@ vi.mock('@data/services/JobScheduleService', () => ({
   jobScheduleService: { getById: vi.fn(), listAll: vi.fn() }
 }))
 vi.mock('@data/services/JobService', () => ({
-  jobService: { list: vi.fn() }
+  jobService: { list: vi.fn(), count: vi.fn() }
 }))
 
 import { application } from '@application'
@@ -38,8 +41,9 @@ import { agentTaskService } from '../AgentTaskService'
 
 const AGENT_ID = 'agent-a1'
 const TASK_ID = 'sched-1'
+const CHANNEL_ID = 'channel-1'
 
-const validTrigger = { kind: 'interval' as const, ms: 60_000 }
+const validTrigger: Trigger = { kind: 'interval', ms: 60_000 }
 const validDto: CreateTaskDto = {
   name: 'daily-report',
   prompt: 'Summarise yesterday',
@@ -92,59 +96,76 @@ function makeJobSnapshot(overrides: Partial<JobSnapshot> = {}): JobSnapshot {
   }
 }
 
-const registerJobScheduleMock = vi.fn()
-const updateJobScheduleMock = vi.fn()
-const unregisterJobScheduleByIdMock = vi.fn()
+describe('AgentTaskService', () => {
+  const dbh = setupTestDatabase()
 
-function setupApplicationMocks(opts: { configuration?: Record<string, unknown> | null } = {}) {
-  const { configuration = { soul_enabled: true } } = opts
-  const fakeQueryChain = {
-    from: () => ({
-      where: () => ({
-        limit: () => Promise.resolve(configuration === null ? [] : [{ configuration }])
-      })
+  const registerJobScheduleMock = vi.fn()
+  const updateJobScheduleMock = vi.fn()
+  const unregisterJobScheduleByIdMock = vi.fn()
+
+  /** Seed an `agent` row with optional configuration overrides. */
+  async function seedAgent(configuration: Record<string, unknown> | null = { soul_enabled: true }): Promise<void> {
+    await dbh.db.insert(agentTable).values({
+      id: AGENT_ID,
+      type: 'claude-code',
+      name: 'Test Agent',
+      instructions: 'h',
+      model: 'sonnet',
+      sortOrder: 0,
+      configuration: configuration ?? undefined
     })
   }
-  dbSelectMock.mockReturnValue(fakeQueryChain)
-  dbInsertMock.mockReturnValue({
-    values: () => ({ onConflictDoNothing: () => Promise.resolve() })
-  })
-  dbDeleteMock.mockReturnValue({ where: () => Promise.resolve() })
 
-  vi.mocked(application.get).mockImplementation((name: string) => {
-    if (name === 'DbService') {
-      return {
-        getDb: () => ({
-          select: dbSelectMock,
-          insert: dbInsertMock,
-          delete: dbDeleteMock
-        })
-      } as never
-    }
-    if (name === 'JobManager') {
-      return {
-        registerJobSchedule: registerJobScheduleMock,
-        updateJobSchedule: updateJobScheduleMock,
-        unregisterJobScheduleById: unregisterJobScheduleByIdMock
-      } as never
-    }
-    throw new Error(`Unexpected application.get('${name}')`)
-  })
-}
+  /** Seed an `agent_channel` row so FK from `agent_channel_task.channel_id` resolves. */
+  async function seedChannel(): Promise<void> {
+    await dbh.db.insert(agentChannelTable).values({
+      id: CHANNEL_ID,
+      type: 'telegram',
+      name: 'TG',
+      agentId: AGENT_ID,
+      config: { bot_token: 'x', allowed_chat_ids: [] },
+      isActive: true
+    })
+  }
 
-describe('AgentTaskService (thin facade)', () => {
+  /** Seed a `job_schedule` row so FK from `agent_channel_task.task_id` resolves. */
+  async function seedSchedule(id: string = TASK_ID, name: string = 'daily-report'): Promise<void> {
+    await dbh.db.insert(jobScheduleTable).values({
+      id,
+      type: 'agent.task',
+      name,
+      trigger: validTrigger,
+      jobInputTemplate: { agentId: AGENT_ID, prompt: 'p', timeoutMinutes: 5 },
+      enabled: true,
+      catchUpPolicy: { kind: 'skip-missed' },
+      metadata: {}
+    })
+  }
+
   beforeEach(() => {
     registerJobScheduleMock.mockReset()
     updateJobScheduleMock.mockReset()
     unregisterJobScheduleByIdMock.mockReset()
-    dbSelectMock.mockReset()
-    dbInsertMock.mockReset()
-    dbDeleteMock.mockReset()
     vi.mocked(agentChannelService.getSubscribedChannels).mockReset()
     vi.mocked(agentChannelService.getSubscribedChannels).mockResolvedValue([])
     vi.mocked(jobScheduleService.getById).mockReset()
     vi.mocked(jobScheduleService.listAll).mockReset()
     vi.mocked(jobService.list).mockReset()
+    vi.mocked(jobService.count).mockReset()
+
+    vi.mocked(application.get).mockImplementation((name: string) => {
+      if (name === 'DbService') {
+        return { getDb: () => dbh.db } as never
+      }
+      if (name === 'JobManager') {
+        return {
+          registerJobSchedule: registerJobScheduleMock,
+          updateJobSchedule: updateJobScheduleMock,
+          unregisterJobScheduleById: unregisterJobScheduleByIdMock
+        } as never
+      }
+      throw new Error(`Unexpected application.get('${name}')`)
+    })
   })
 
   afterEach(() => {
@@ -153,8 +174,11 @@ describe('AgentTaskService (thin facade)', () => {
 
   describe('createTask', () => {
     it('registers a schedule with agent.task type when the agent is autonomous', async () => {
-      setupApplicationMocks()
-      registerJobScheduleMock.mockResolvedValueOnce({ id: TASK_ID })
+      await seedAgent({ soul_enabled: true })
+      registerJobScheduleMock.mockImplementationOnce(async () => {
+        await seedSchedule()
+        return { id: TASK_ID }
+      })
       vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSnapshot())
 
       const result = await agentTaskService.createTask(AGENT_ID, validDto)
@@ -170,8 +194,7 @@ describe('AgentTaskService (thin facade)', () => {
     })
 
     it('throws notFound when the agent does not exist', async () => {
-      setupApplicationMocks({ configuration: null })
-
+      // No seed — the SELECT against `agent` returns zero rows.
       await expect(agentTaskService.createTask(AGENT_ID, validDto)).rejects.toMatchObject({
         message: expect.stringContaining('Agent')
       })
@@ -179,7 +202,7 @@ describe('AgentTaskService (thin facade)', () => {
     })
 
     it('throws invalidOperation when the agent is not autonomous', async () => {
-      setupApplicationMocks({ configuration: { soul_enabled: false } })
+      await seedAgent({ soul_enabled: false })
 
       await expect(agentTaskService.createTask(AGENT_ID, validDto)).rejects.toMatchObject({
         message: expect.stringContaining('Soul Mode')
@@ -188,17 +211,53 @@ describe('AgentTaskService (thin facade)', () => {
     })
 
     it('accepts bypassPermissions as a valid autonomous configuration', async () => {
-      setupApplicationMocks({ configuration: { permission_mode: 'bypassPermissions' } })
-      registerJobScheduleMock.mockResolvedValueOnce({ id: TASK_ID })
+      await seedAgent({ permission_mode: 'bypassPermissions' })
+      registerJobScheduleMock.mockImplementationOnce(async () => {
+        await seedSchedule()
+        return { id: TASK_ID }
+      })
       vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSnapshot())
 
       await expect(agentTaskService.createTask(AGENT_ID, validDto)).resolves.toMatchObject({ id: TASK_ID })
+    })
+
+    it('inserts agent_channel_task rows when channelIds are provided', async () => {
+      await seedAgent()
+      await seedChannel()
+      registerJobScheduleMock.mockImplementationOnce(async () => {
+        await seedSchedule()
+        return { id: TASK_ID }
+      })
+      vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSnapshot())
+
+      await agentTaskService.createTask(AGENT_ID, { ...validDto, channelIds: [CHANNEL_ID] })
+
+      const links = await dbh.db
+        .select({ taskId: agentChannelTaskTable.taskId, channelId: agentChannelTaskTable.channelId })
+        .from(agentChannelTaskTable)
+        .where(eq(agentChannelTaskTable.taskId, TASK_ID))
+      expect(links).toEqual([{ taskId: TASK_ID, channelId: CHANNEL_ID }])
+    })
+
+    it('rolls back the schedule when channel insert fails (FK violation)', async () => {
+      await seedAgent()
+      // Do NOT seed the channel — the channel_id FK on agent_channel_task will fail.
+      registerJobScheduleMock.mockImplementationOnce(async () => {
+        await seedSchedule()
+        return { id: TASK_ID }
+      })
+      unregisterJobScheduleByIdMock.mockResolvedValueOnce(true)
+
+      await expect(
+        agentTaskService.createTask(AGENT_ID, { ...validDto, channelIds: ['no-such-channel'] })
+      ).rejects.toThrow()
+
+      expect(unregisterJobScheduleByIdMock).toHaveBeenCalledWith(TASK_ID)
     })
   })
 
   describe('getTask', () => {
     it('returns the entity when agentId matches the snapshot template', async () => {
-      setupApplicationMocks()
       vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSnapshot())
 
       const result = await agentTaskService.getTask(AGENT_ID, TASK_ID)
@@ -207,7 +266,6 @@ describe('AgentTaskService (thin facade)', () => {
     })
 
     it('returns null when agentId does not match', async () => {
-      setupApplicationMocks()
       vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(
         makeSnapshot({ jobInputTemplate: { agentId: 'other-agent', prompt: 'x', timeoutMinutes: 2 } })
       )
@@ -217,7 +275,6 @@ describe('AgentTaskService (thin facade)', () => {
     })
 
     it('returns null when the schedule does not exist', async () => {
-      setupApplicationMocks()
       vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(null)
 
       const result = await agentTaskService.getTask(AGENT_ID, TASK_ID)
@@ -225,7 +282,6 @@ describe('AgentTaskService (thin facade)', () => {
     })
 
     it('derives status=paused when the schedule is disabled', async () => {
-      setupApplicationMocks()
       vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSnapshot({ enabled: false }))
 
       const result = await agentTaskService.getTask(AGENT_ID, TASK_ID)
@@ -233,7 +289,6 @@ describe('AgentTaskService (thin facade)', () => {
     })
 
     it('derives status=completed for an exhausted once trigger', async () => {
-      setupApplicationMocks()
       vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(
         makeSnapshot({
           trigger: { kind: 'once', at: 0 },
@@ -250,7 +305,6 @@ describe('AgentTaskService (thin facade)', () => {
 
   describe('listTasks', () => {
     it('filters by agentId and excludes heartbeat tasks by default', async () => {
-      setupApplicationMocks()
       vi.mocked(jobScheduleService.listAll).mockResolvedValueOnce([
         makeSnapshot({ id: 's1', name: 'a' }),
         makeSnapshot({
@@ -269,7 +323,6 @@ describe('AgentTaskService (thin facade)', () => {
     })
 
     it('returns heartbeat tasks when includeHeartbeat=true', async () => {
-      setupApplicationMocks()
       vi.mocked(jobScheduleService.listAll).mockResolvedValueOnce([
         makeSnapshot({ id: 's1', name: 'a' }),
         makeSnapshot({ id: 's3', name: 'heartbeat' })
@@ -283,7 +336,6 @@ describe('AgentTaskService (thin facade)', () => {
 
   describe('updateTask', () => {
     it('forwards trigger and enabled patches and rebuilds jobInputTemplate when prompt changed', async () => {
-      setupApplicationMocks()
       vi.mocked(jobScheduleService.getById)
         .mockResolvedValueOnce(makeSnapshot()) // getTask lookup
         .mockResolvedValueOnce(makeSnapshot()) // mid-update re-read
@@ -307,7 +359,6 @@ describe('AgentTaskService (thin facade)', () => {
     })
 
     it('does not touch jobInputTemplate when only enabled changed', async () => {
-      setupApplicationMocks()
       vi.mocked(jobScheduleService.getById)
         .mockResolvedValueOnce(makeSnapshot())
         .mockResolvedValueOnce(makeSnapshot())
@@ -322,7 +373,6 @@ describe('AgentTaskService (thin facade)', () => {
     })
 
     it('returns null when the task does not exist', async () => {
-      setupApplicationMocks()
       vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(null)
 
       const result = await agentTaskService.updateTask(AGENT_ID, TASK_ID, { enabled: false })
@@ -333,7 +383,6 @@ describe('AgentTaskService (thin facade)', () => {
 
   describe('deleteTask', () => {
     it('delegates to unregisterJobScheduleById when the task exists', async () => {
-      setupApplicationMocks()
       vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSnapshot())
       unregisterJobScheduleByIdMock.mockResolvedValueOnce(true)
 
@@ -344,7 +393,6 @@ describe('AgentTaskService (thin facade)', () => {
     })
 
     it('returns false (without deleting) when the task does not belong to the agent', async () => {
-      setupApplicationMocks()
       vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(
         makeSnapshot({ jobInputTemplate: { agentId: 'other', prompt: 'x', timeoutMinutes: 2 } })
       )
@@ -357,12 +405,12 @@ describe('AgentTaskService (thin facade)', () => {
 
   describe('getTaskLogs', () => {
     it('maps jobs to TaskRunLogEntity with the new field names', async () => {
-      setupApplicationMocks()
       vi.mocked(jobService.list).mockResolvedValueOnce([
         makeJobSnapshot({ id: 'j1', status: 'completed' }),
         makeJobSnapshot({ id: 'j2', status: 'pending', startedAt: null, finishedAt: null }),
         makeJobSnapshot({ id: 'j3', status: 'failed', error: { code: 'X', message: 'boom', retryable: false } })
       ])
+      vi.mocked(jobService.count).mockResolvedValueOnce(3)
 
       const result = await agentTaskService.getTaskLogs(TASK_ID)
 
@@ -380,6 +428,21 @@ describe('AgentTaskService (thin facade)', () => {
       expect(result.logs[0]).not.toHaveProperty('taskId')
       expect(result.logs[0]).not.toHaveProperty('runAt')
       expect(result.logs[0]).toHaveProperty('startedAt')
+    })
+
+    it('passes limit/offset to jobService.list and reports the full count separately', async () => {
+      vi.mocked(jobService.list).mockResolvedValueOnce([
+        makeJobSnapshot({ id: 'j5', status: 'completed' }),
+        makeJobSnapshot({ id: 'j6', status: 'completed' })
+      ])
+      vi.mocked(jobService.count).mockResolvedValueOnce(42)
+
+      const result = await agentTaskService.getTaskLogs(TASK_ID, { limit: 2, offset: 10 })
+
+      expect(jobService.list).toHaveBeenCalledWith({ scheduleId: TASK_ID, limit: 2, offset: 10 })
+      expect(jobService.count).toHaveBeenCalledWith({ scheduleId: TASK_ID })
+      expect(result.logs).toHaveLength(2)
+      expect(result.total).toBe(42)
     })
   })
 })

@@ -17,6 +17,43 @@ migration:
 lose visibility of historical scheduled-task executions. Future runs are
 visible in the task history view (driven by `jobTable WHERE scheduleId = ?`).
 
+### 1a. v1 heartbeat scheduled-task rows are dropped
+
+v1 modelled heartbeat as a regular `scheduled_tasks` row (named `'heartbeat'`,
+prompt `__heartbeat__`) created by `SchedulerService.ensureHeartbeatTask`. v2
+no longer auto-creates these rows, so migrating them serves no purpose — the
+migrator silently skips any v1 row with `name = 'heartbeat'`. The agent-level
+`heartbeat_enabled` / `heartbeat_interval` configuration and the per-workspace
+`heartbeat.md` file are unaffected; a future release will reintroduce the
+heartbeat mechanism on top of the new job system.
+
+### 1b. v1 rows with unparseable schedules are dropped
+
+If a legacy `scheduled_tasks` row has a `schedule_type` v2 cannot decode into
+a `Trigger` (empty cron expression, non-numeric interval, unparseable once
+timestamp, or an unknown `schedule_type`), the migrator drops the row and
+logs a warning. The drop count surfaces in the `Scheduled tasks migrated`
+log line as `droppedUnparseableTriggers`.
+
+### 1c. v1 same-named tasks across agents get a suffix
+
+v1 had no uniqueness constraint on scheduled-task names; two agents owned by
+the same user could each carry a task literally named "Daily summary". v2
+enforces `UNIQUE(type, name)` on `job_schedule`, so the migrator appends
+`_<v1-id-prefix>` (8 chars of the legacy row id) to the second and subsequent
+duplicates. The original task data is preserved verbatim apart from the name.
+
+### 1d. v1 `once` tasks scheduled for a past timestamp fire on first v2 start
+
+A v1 once-task that v1 already fired carries `status = 'completed'`, which
+migrates to `enabled = false` and stays dormant under v2. But an unfired v1
+once-task whose target time has already passed (because the v1 app was closed
+at that moment) migrates as `enabled = true` with `at < now()`. JobManager
+treats this as "due immediately" and fires the task during startup recovery.
+This matches v1's "next poll fires due tasks" behaviour modulo timing —
+acceptable but worth noting if a long-past once-task should be edited or
+disabled before the v2 upgrade.
+
 ### 2. Per-attempt visibility ends
 
 Each scheduled run is now represented by exactly one row in the new job system.

@@ -258,3 +258,171 @@ describe('AgentsMigrator > migrateScheduledTasksTs', () => {
     expect(schedules).toHaveLength(3)
   })
 })
+
+describe('AgentsMigrator > migrateScheduledTasksTs (edge cases)', () => {
+  const dbh = setupTestDatabase()
+  let tempDir: string
+
+  beforeAll(() => {
+    tempDir = mkdtempSync(join(tmpdir(), 'cs-agents-task-edge-'))
+  })
+
+  afterAll(() => {
+    rmSync(tempDir, { recursive: true, force: true })
+  })
+
+  type SeedRow = {
+    id: string
+    agentId: string
+    name: string
+    prompt?: string
+    scheduleType: string
+    scheduleValue: string
+    status?: string
+  }
+
+  async function seedCustomLegacy(file: string, rows: SeedRow[]): Promise<void> {
+    const client = createClient({ url: pathToFileURL(file).href })
+    try {
+      await client.execute(`
+        CREATE TABLE scheduled_tasks (
+          id TEXT PRIMARY KEY,
+          agent_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          prompt TEXT NOT NULL,
+          schedule_type TEXT NOT NULL,
+          schedule_value TEXT NOT NULL,
+          timeout_minutes INTEGER,
+          status TEXT NOT NULL
+        )
+      `)
+      await client.execute(`
+        CREATE TABLE channel_task_subscriptions (
+          channel_id TEXT NOT NULL,
+          task_id TEXT NOT NULL,
+          PRIMARY KEY (channel_id, task_id)
+        )
+      `)
+      for (const r of rows) {
+        await client.execute({
+          sql: `INSERT INTO scheduled_tasks (id, agent_id, name, prompt, schedule_type, schedule_value, timeout_minutes, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          args: [r.id, r.agentId, r.name, r.prompt ?? 'p', r.scheduleType, r.scheduleValue, null, r.status ?? 'active']
+        })
+      }
+    } finally {
+      client.close()
+    }
+  }
+
+  async function ensureAgents(ids: string[]): Promise<void> {
+    for (const id of ids) {
+      await dbh.db.insert(agentTable).values({
+        id,
+        type: 'claude-code',
+        name: `Agent ${id}`,
+        instructions: 'helper',
+        model: 'sonnet',
+        sortOrder: 0
+      })
+    }
+  }
+
+  async function runOn(file: string): Promise<void> {
+    await dbh.db.run(sql.raw(`ATTACH DATABASE '${file}' AS agents_legacy`))
+    try {
+      const migrator = new AgentsMigrator()
+      await (
+        migrator as unknown as { migrateScheduledTasksTs: (db: typeof dbh.db) => Promise<void> }
+      ).migrateScheduledTasksTs(dbh.db)
+    } finally {
+      await dbh.db.run(sql.raw('DETACH DATABASE agents_legacy'))
+    }
+  }
+
+  it('drops v1 heartbeat rows (even when multiple agents each have one)', async () => {
+    const file = join(tempDir, 'heartbeat.db')
+    await seedCustomLegacy(file, [
+      {
+        id: 'h1',
+        agentId: 'agent-x',
+        name: 'heartbeat',
+        prompt: '__heartbeat__',
+        scheduleType: 'interval',
+        scheduleValue: '30'
+      },
+      {
+        id: 'h2',
+        agentId: 'agent-y',
+        name: 'heartbeat',
+        prompt: '__heartbeat__',
+        scheduleType: 'interval',
+        scheduleValue: '30'
+      },
+      { id: 'ok', agentId: 'agent-x', name: 'Daily report', scheduleType: 'cron', scheduleValue: '0 9 * * *' }
+    ])
+    await ensureAgents(['agent-x', 'agent-y'])
+
+    await runOn(file)
+
+    const rows = await dbh.db.select().from(jobScheduleTable).where(eq(jobScheduleTable.type, 'agent.task'))
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.name).toBe('Daily report')
+  })
+
+  it('appends a v1-id suffix to duplicate non-heartbeat names', async () => {
+    const file = join(tempDir, 'dedupe.db')
+    await seedCustomLegacy(file, [
+      {
+        id: 'aaaaaaaa-1111',
+        agentId: 'agent-x',
+        name: 'Daily report',
+        scheduleType: 'cron',
+        scheduleValue: '0 9 * * *'
+      },
+      {
+        id: 'bbbbbbbb-2222',
+        agentId: 'agent-y',
+        name: 'Daily report',
+        scheduleType: 'cron',
+        scheduleValue: '0 10 * * *'
+      }
+    ])
+    await ensureAgents(['agent-x', 'agent-y'])
+
+    await runOn(file)
+
+    const rows = await dbh.db
+      .select({ name: jobScheduleTable.name })
+      .from(jobScheduleTable)
+      .where(eq(jobScheduleTable.type, 'agent.task'))
+    const names = rows.map((r) => r.name).sort()
+    expect(names).toHaveLength(2)
+    expect(names).toContain('Daily report')
+    // Second row keeps its meaning but is disambiguated.
+    expect(names.some((n) => n.startsWith('Daily report_') && n.length > 'Daily report'.length)).toBe(true)
+  })
+
+  it('drops v1 rows whose trigger cannot be decoded into a v2 Trigger', async () => {
+    const file = join(tempDir, 'malformed.db')
+    await seedCustomLegacy(file, [
+      // empty cron expression
+      { id: 'm1', agentId: 'agent-x', name: 'BadCron', scheduleType: 'cron', scheduleValue: '   ' },
+      // unparseable once timestamp
+      { id: 'm2', agentId: 'agent-x', name: 'BadOnce', scheduleType: 'once', scheduleValue: 'not-a-date' },
+      // unknown schedule_type
+      { id: 'm3', agentId: 'agent-x', name: 'BadType', scheduleType: 'weekly', scheduleValue: 'mon' },
+      // good row to confirm the loop continues past drops
+      { id: 'ok', agentId: 'agent-x', name: 'GoodCron', scheduleType: 'cron', scheduleValue: '*/5 * * * *' }
+    ])
+    await ensureAgents(['agent-x'])
+
+    await runOn(file)
+
+    const rows = await dbh.db
+      .select({ name: jobScheduleTable.name })
+      .from(jobScheduleTable)
+      .where(eq(jobScheduleTable.type, 'agent.task'))
+    expect(rows.map((r) => r.name)).toEqual(['GoodCron'])
+  })
+})

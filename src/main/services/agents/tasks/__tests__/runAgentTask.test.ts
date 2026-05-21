@@ -123,12 +123,25 @@ function makeSchedule(name: string | null = 'heartbeat') {
 }
 
 describe('runAgentTask', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.mocked(jobService.getById).mockReset()
     vi.mocked(jobService.list).mockReset()
     vi.mocked(jobScheduleService.getById).mockReset()
     vi.mocked(agentService.getAgent).mockReset()
     vi.mocked(readHeartbeat).mockReset()
+    // Reset queues on mocks shared with other tests so unconsumed
+    // `mockResolvedValueOnce` from earlier specs cannot leak into this one.
+    const channelService = await import('@data/services/AgentChannelService')
+    vi.mocked(channelService.agentChannelService.getSubscribedChannels).mockReset()
+    const sessionService = await import('@data/services/AgentSessionService')
+    vi.mocked(sessionService.agentSessionService.getSession).mockReset()
+    vi.mocked(sessionService.agentSessionService.createSession).mockReset()
+    const orchestrator = await import('@main/services/agents/services/SessionMessageOrchestrator')
+    vi.mocked(orchestrator.sessionMessageOrchestrator.createSessionMessage).mockReset()
+    const cm = await import('@main/services/agents/services/channels/ChannelManager')
+    vi.mocked(cm.channelManager.getAdapter).mockReset()
+    const ipc = await import('@main/services/agents/services/channels/sessionStreamIpc')
+    vi.mocked(ipc.broadcastSessionChanged).mockReset()
   })
 
   afterEach(() => {
@@ -200,6 +213,83 @@ describe('runAgentTask', () => {
     ).rejects.toThrow('Failed to create session for agent a1')
 
     expect(readHeartbeat).not.toHaveBeenCalled()
+  })
+
+  it('routes final delivery to onStreamError (not onStreamComplete) when signal aborts mid-stream', async () => {
+    vi.mocked(jobService.getById).mockResolvedValueOnce(makeJobSnapshot())
+    vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSchedule('user-task'))
+    vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent({ heartbeat_enabled: true }))
+    vi.mocked(jobService.list).mockResolvedValueOnce([]) // no prior completed run
+
+    const channelService = await import('@data/services/AgentChannelService')
+    vi.mocked(channelService.agentChannelService.getSubscribedChannels).mockResolvedValueOnce([
+      { id: 'ch-1', sessionId: null } as never
+    ])
+
+    const sessionService = await import('@data/services/AgentSessionService')
+    const sessionEntity = {
+      id: 'sess-new',
+      agentId: 'a1',
+      agentType: 'claude-code',
+      accessiblePaths: [],
+      model: 'sonnet',
+      createdAt: '2026-05-20T00:00:00.000Z',
+      updatedAt: '2026-05-20T00:00:00.000Z'
+    } as unknown as AgentSessionEntity
+    vi.mocked(sessionService.agentSessionService.createSession).mockResolvedValueOnce(sessionEntity)
+
+    const onStreamComplete = vi.fn().mockResolvedValue(true)
+    const onStreamError = vi.fn().mockResolvedValue(undefined)
+    const onTextUpdate = vi.fn().mockResolvedValue(undefined)
+    const sendMessage = vi.fn().mockResolvedValue(undefined)
+    const channelManager = await import('@main/services/agents/services/channels/ChannelManager')
+    vi.mocked(channelManager.channelManager.getAdapter).mockReturnValue({
+      channelId: 'ch-1',
+      notifyChatIds: ['chat-1'],
+      onStreamComplete,
+      onStreamError,
+      onTextUpdate,
+      sendMessage
+    } as never)
+
+    // Pre-aborted signal + pre-closed stream: removes timing races. When the
+    // orchestrator yields its stream, `reader.read()` resolves immediately with
+    // `done:true`; `makeRunController` propagates the outer abort into the inner
+    // controller synchronously, so `signal.aborted` is `true` by the time the
+    // final-delivery check runs.
+    const stream = new ReadableStream({
+      start(c) {
+        c.close()
+      }
+    })
+
+    const orchestrator = await import('@main/services/agents/services/SessionMessageOrchestrator')
+    vi.mocked(orchestrator.sessionMessageOrchestrator.createSessionMessage).mockResolvedValueOnce({
+      stream,
+      completion: Promise.resolve({})
+    } as never)
+
+    const outerAbort = new AbortController()
+    outerAbort.abort(new Error('cancelled by user'))
+
+    await expect(
+      runAgentTask(
+        makeCtx({
+          signal: outerAbort.signal,
+          // timeoutMinutes=0 disables the per-task timer so the abort comes
+          // purely from the outer signal — what we want to exercise.
+          input: { agentId: 'a1', prompt: 'do something', timeoutMinutes: 0 }
+        })
+      )
+    ).rejects.toThrow(/cancelled/)
+
+    expect(onStreamError).toHaveBeenCalledTimes(1)
+    expect(onStreamError).toHaveBeenCalledWith('chat-1', expect.stringContaining('cancelled'))
+    expect(onStreamComplete).not.toHaveBeenCalled()
+    expect(sendMessage).not.toHaveBeenCalled()
+
+    const sessionIpc = await import('@main/services/agents/services/channels/sessionStreamIpc')
+    expect(vi.mocked(sessionIpc.broadcastSessionChanged)).toHaveBeenCalledWith('a1', 'sess-new', false)
   })
 
   it('reuses an existing session id from the last completed run when available', async () => {

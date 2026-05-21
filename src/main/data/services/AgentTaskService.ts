@@ -96,12 +96,30 @@ export class AgentTaskService {
       catchUpPolicy: { kind: 'skip-missed' }
     })
 
+    // Channel binding is a separate write outside JobManager's reach. If it
+    // fails, the schedule is already DB-committed and in-memory armed — leaving
+    // it half-armed would surprise the user (UI says "create failed" but the
+    // schedule still fires). Roll the schedule back so the operation is atomic
+    // from the caller's perspective.
     if (dto.channelIds?.length) {
-      const database = application.get('DbService').getDb()
-      await database
-        .insert(agentChannelTaskTable)
-        .values(dto.channelIds.map((channelId) => ({ channelId, taskId: id })))
-        .onConflictDoNothing()
+      try {
+        const database = application.get('DbService').getDb()
+        await database
+          .insert(agentChannelTaskTable)
+          .values(dto.channelIds.map((channelId) => ({ channelId, taskId: id })))
+          .onConflictDoNothing()
+      } catch (channelErr) {
+        await application
+          .get('JobManager')
+          .unregisterJobScheduleById(id)
+          .catch((cleanupErr) =>
+            logger.error('Failed to roll back schedule after channel insert error', cleanupErr as Error, {
+              taskId: id,
+              agentId
+            })
+          )
+        throw channelErr
+      }
     }
 
     const snapshot = await jobScheduleService.getById(id)
@@ -205,17 +223,12 @@ export class AgentTaskService {
   }
 
   async getTaskLogs(taskId: string, options: ListOptions = {}): Promise<{ logs: TaskRunLogEntity[]; total: number }> {
-    const jobs = await jobService.list({ scheduleId: taskId })
-    const total = jobs.length
-    const sliced =
-      options.limit !== undefined
-        ? options.offset !== undefined
-          ? jobs.slice(options.offset, options.offset + options.limit)
-          : jobs.slice(0, options.limit)
-        : jobs
-
+    const [jobs, total] = await Promise.all([
+      jobService.list({ scheduleId: taskId, limit: options.limit, offset: options.offset }),
+      jobService.count({ scheduleId: taskId })
+    ])
     return {
-      logs: sliced.map((j) => this.toTaskRunLogEntity(j)),
+      logs: jobs.map((j) => this.toTaskRunLogEntity(j)),
       total
     }
   }

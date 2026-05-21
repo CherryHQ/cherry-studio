@@ -175,25 +175,33 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       .map((ch) => channelManager.getAdapter(ch.id))
       .filter((a): a is ChannelAdapter => a !== undefined)
 
-    resultText = await collectAndStreamResponse(stream, targetAdapters)
+    resultText = await collectAndStreamResponse(stream, targetAdapters, controller.signal)
     await completion
 
-    // Notify renderer so the session list refreshes and messages can be loaded.
-    broadcastSessionChanged(agentId, session.id, true)
+    const aborted = controller.signal.aborted
+    // Tell the renderer the session changed regardless, but flag whether the
+    // run actually completed — UIs key off this to distinguish "session has a
+    // new full reply" from "session was interrupted mid-stream".
+    broadcastSessionChanged(agentId, session.id, !aborted)
 
-    if (controller.signal.aborted) {
+    if (aborted) {
       const reason = controller.signal.reason
       throw reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted'))
     }
   } catch (err) {
     runError = err instanceof Error ? err : new Error(String(err))
     // Best-effort channel notification before re-throwing — failure to notify
-    // a channel should not mask the real error reaching the Job runtime.
-    await notifyTaskError(
-      { id: scheduleId, name: taskName, durationMs: Date.now() - startTimeMs },
-      runError.message,
-      subscribedChannels
-    )
+    // a channel should not mask the real error reaching the Job runtime. On
+    // user-initiated cancel we skip this: `collectAndStreamResponse` has
+    // already surfaced the cancel via `onStreamError`, and a second "[Task
+    // failed]" message would read as a duplicate / surprising notification.
+    if (!controller.signal.aborted) {
+      await notifyTaskError(
+        { id: scheduleId, name: taskName, durationMs: Date.now() - startTimeMs },
+        runError.message,
+        subscribedChannels
+      )
+    }
     throw runError
   } finally {
     dispose()
@@ -208,10 +216,19 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
 /**
  * Read the orchestrator stream, accumulate the assistant reply, and fan out
  * each text-delta to channel adapters as they arrive. Mirrors the legacy
- * `SchedulerService.collectAndStreamResponse` so the on-channel UX (typing
- * indicator, intermediate text) is byte-equivalent.
+ * `SchedulerService.collectAndStreamResponse` for the happy-path on-channel
+ * UX (typing indicator, intermediate text).
+ *
+ * On `signal.aborted` we route the final-delivery through `onStreamError`
+ * rather than `onStreamComplete`/`sendMessage`, so channels receive an
+ * explicit cancellation marker instead of a "completed reply" with whatever
+ * partial text accumulated up to the abort.
  */
-async function collectAndStreamResponse(stream: ReadableStream, adapters: ChannelAdapter[]): Promise<string> {
+async function collectAndStreamResponse(
+  stream: ReadableStream,
+  adapters: ChannelAdapter[],
+  signal: AbortSignal
+): Promise<string> {
   const reader = stream.getReader()
   let completedText = ''
   let currentBlockText = ''
@@ -253,6 +270,21 @@ async function collectAndStreamResponse(stream: ReadableStream, adapters: Channe
     }
 
     const finalText = (completedText + currentBlockText).replace(/\n+$/, '')
+
+    // Cancellation path: the orchestrator closes the stream cleanly on abort
+    // (no thrown error), so we reach here with `signal.aborted === true`.
+    // Skip the "complete" broadcast — channels would otherwise interpret the
+    // partial text as a successful reply.
+    if (signal.aborted) {
+      const reason = signal.reason
+      const message = reason instanceof Error ? reason.message : String(reason ?? 'Task cancelled')
+      for (const { adapter, chatId } of adapterChats) {
+        adapter
+          .onStreamError(chatId, message)
+          .catch((err) => logger.debug('Adapter onStreamError error', { channelId: adapter.channelId, err }))
+      }
+      return finalText
+    }
 
     for (const { adapter, chatId } of adapterChats) {
       try {
