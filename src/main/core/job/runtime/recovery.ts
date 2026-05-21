@@ -21,6 +21,13 @@ export interface RecoveryStats {
  *
  * Step order matters: cancelRequested=true overrides any strategy — those
  * jobs are cancelled regardless. The strategy then applies to the rest.
+ *
+ * Write serialization note: `jobService.cancelByIds` / `resetToPendingByIds`
+ * are thin wrappers over `DbService.withWriteTx`, so each call below is
+ * already serialized against concurrent JobManager writes through the
+ * process-wide write mutex (Layer 0). No explicit transaction composition is
+ * needed here — recovery is restartable and per-handler iterations do not
+ * require cross-call atomicity.
  */
 export async function runStartupRecovery(handlers: ReadonlyMap<string, JobHandler>): Promise<RecoveryStats> {
   const stats: RecoveryStats = { cancelled: 0, pendingReset: 0, delayedKept: 0, singletonKept: 0 }

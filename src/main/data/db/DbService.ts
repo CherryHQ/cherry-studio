@@ -4,6 +4,7 @@ import { createClient } from '@libsql/client'
 import { loggerService } from '@logger'
 import { BaseService, ErrorHandling, Injectable, Priority, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
+import { Mutex } from 'async-mutex'
 import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/libsql'
 import { migrate } from 'drizzle-orm/libsql/migrator'
@@ -14,7 +15,9 @@ import { pathToFileURL } from 'url'
 import { CUSTOM_SQL_STATEMENTS } from './customSqls'
 import { seeders } from './seeding'
 import { SeedRunner } from './seeding/SeedRunner'
-import type { DbType } from './types'
+import type { DbOrTx, DbType } from './types'
+
+const WRITE_BUSY_RETRY_DELAY_MS = 50
 
 const logger = loggerService.withContext('DbService')
 
@@ -41,6 +44,7 @@ export class DbService extends BaseService {
   private client: Client
   private db: DbType
   private pragmasConfigured = false
+  private readonly writeMutex = new Mutex()
 
   constructor() {
     super()
@@ -163,6 +167,75 @@ export class DbService extends BaseService {
       throw new Error('Database is not initialized, please call init() first!')
     }
     return this.db
+  }
+
+  /**
+   * Serialized write transaction. All write paths SHOULD use this instead of
+   * `getDb().transaction()` to avoid SQLITE_BUSY caused by libsql client-ts
+   * upstream issue #288 (busy_timeout ineffective for async transactions).
+   *
+   * Defense in depth:
+   *   1. Process-wide FIFO mutex (async-mutex) serializes write transactions
+   *      so OUR writes never collide with each other. Non-cancellable —
+   *      callers MUST NOT invoke `writeMutex.cancel()`; shutdown coordinates
+   *      via service lifecycle, not lock cancellation.
+   *   2. libsql client defaults to `BEGIN IMMEDIATE` (drizzle libsql adapter
+   *      drops the config arg; libsql core sets mode="write" → BEGIN
+   *      IMMEDIATE). So a transaction acquires the write lock at BEGIN, not
+   *      lazily on first write — read-then-write tx never fails mid-way.
+   *   3. Single 50ms BUSY retry guards against transient external locks
+   *      (legacy direct `db.transaction()` callsites not yet migrated, or
+   *      external processes opening the db during dev).
+   *
+   * Reads do NOT need this — WAL mode gives readers snapshot isolation that
+   * is never blocked by writers.
+   *
+   * ## Concurrency semantics for callers
+   *
+   * - `acquire()` never throws; later callers wait (pending Promise) until
+   *   earlier callers release. No `SQLITE_BUSY` ever surfaces from us to the
+   *   caller unless the single retry also fails due to external interference.
+   * - FIFO ordering: enqueue order = lock-acquire order = DB write order.
+   *
+   * ## Invariant for `fn`
+   *
+   * `fn` MUST only perform DB operations. Do NOT `await` network IO, file IO,
+   * or handler execution inside `fn` — that would starve the mutex queue.
+   *
+   * @example Single write
+   * ```ts
+   * await dbService.withWriteTx((tx) =>
+   *   jobService.setMetadataTx(tx, id, metadata)
+   * )
+   * ```
+   *
+   * @example Compose multiple writes into one transaction
+   * ```ts
+   * await dbService.withWriteTx(async (tx) => {
+   *   await jobService.cancelByIdsTx(tx, ids, error)
+   *   await jobService.resetToPendingByIdsTx(tx, otherIds)
+   * })
+   * ```
+   */
+  public async withWriteTx<T>(fn: (tx: DbOrTx) => Promise<T>): Promise<T> {
+    if (!this.isReady) {
+      throw new Error('Database is not initialized, please call init() first!')
+    }
+    const release = await this.writeMutex.acquire()
+    try {
+      try {
+        return await this.db.transaction(fn)
+      } catch (err) {
+        if ((err as { code?: string }).code !== 'SQLITE_BUSY') throw err
+        logger.warn('withWriteTx: SQLITE_BUSY, retrying once', {
+          delayMs: WRITE_BUSY_RETRY_DELAY_MS
+        })
+        await new Promise((resolve) => setTimeout(resolve, WRITE_BUSY_RETRY_DELAY_MS))
+        return await this.db.transaction(fn)
+      }
+    } finally {
+      release()
+    }
   }
 
   /**
