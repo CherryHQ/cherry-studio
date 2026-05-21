@@ -120,23 +120,25 @@ async function bootstrapManager(opts: BootstrapOptions = {}): Promise<{
   await scheduler._doInit()
   await jobManager._doInit()
 
-  // Startup recovery now lives in `onAllReady` behind a 60s wall-clock delay.
-  // Fake setTimeout (and its paired clearTimeout — leaving clearTimeout real
-  // leaks the fake-timer entry) so the delay collapses, then await both the
-  // timer advance and the lifecycle hook promise.
+  // Startup recovery now runs as a deferred service-level task: `onAllReady`
+  // schedules a setTimeout (60s "quiet window") and returns synchronously (the
+  // framework fires `_doAllReady` fire-and-forget). Skip the quiet window via
+  // fake timers — `toFake` must pair setTimeout with clearTimeout, otherwise
+  // the timer queue keeps dangling entries — then await `_recoveryDone` (set
+  // inside the timer callback) for the deferred flow.
   //
-  // onAllReady resurrects queues for non-terminal rows and dispatchAll()
-  // immediately claims them. The dispatch microtask chain runs *after*
-  // await allReadyPromise resolves but *before* useRealTimers. If we switch
-  // back to real timers at that moment, the handler's internal setTimeout
-  // (registered as a fake timer while we're still in fake mode) gets
-  // cancelled and the handler hangs forever. Drain the dispatch chain under
-  // fake timers — advance generously so handler internal sleeps fire and
-  // finalizeJob completes before we switch back.
+  // The recovery flow resurrects queues for non-terminal rows and `dispatchAll`
+  // immediately claims them. The dispatch microtask chain runs *after* the
+  // recovery promise resolves but *before* useRealTimers. If we switch back to
+  // real timers at that moment, the handler's internal setTimeout (registered
+  // as a fake timer while we're still in fake mode) gets cancelled and the
+  // handler hangs forever. Drain the dispatch chain under fake timers —
+  // advance generously so handler internal sleeps fire and finalizeJob
+  // completes before we switch back.
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-  const allReadyPromise = jobManager._doAllReady()
+  void jobManager._doAllReady()
   await vi.advanceTimersByTimeAsync(60_000)
-  await allReadyPromise
+  await (jobManager as unknown as { _recoveryDone?: Promise<void> })._recoveryDone
   for (let i = 0; i < 5; i++) {
     await vi.advanceTimersByTimeAsync(100)
   }
@@ -377,8 +379,9 @@ describe('JobManager integration', () => {
         handlers: [['task.f13', makeSlowHandler('retry') as JobHandler]]
       })
 
-      // bootstrapManager already awaits _doAllReady() with fake timers.
-      // Handler spawned outside dispatch mutex — drain + poll with explicit
+      // bootstrapManager already advanced fake timers past the startup quiet
+      // window and awaited `_recoveryDone`, so resurrection has run. Handler
+      // is spawned outside the dispatch mutex — drain + poll with explicit
       // deadline so timeout surfaces cleanly.
       await drainAllQueues(jobManager)
       const deadline = Date.now() + 1000

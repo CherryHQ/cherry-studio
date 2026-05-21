@@ -370,7 +370,7 @@ export default defineConfig([
       }
     },
     rules: {
-      'renderer-styles/no-legacy-css-vars': 'warn'
+      'renderer-styles/no-legacy-css-vars': process.env.NO_LEGACY_CSS_WARN ? 'off' : 'warn'
     }
   },
   // Schema key naming convention (cache & preferences)
