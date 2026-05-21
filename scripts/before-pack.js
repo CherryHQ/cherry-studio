@@ -57,14 +57,6 @@ exports.default = async function (context) {
   const platformName = context.packager.platform.name
   const platform = platformToArch[platformName]
 
-  // Download rtk binary for the target platform
-  try {
-    console.log(`Downloading rtk binary for ${platform}-${arch}...`)
-    execSync(`node "${path.join(__dirname, 'download-rtk-binaries.js')}" ${platform} ${arch}`, { stdio: 'inherit' })
-  } catch (error) {
-    console.warn(`Warning: rtk binary download failed (non-fatal): ${error.message}`)
-  }
-
   // Download mise binary for the target platform
   console.log(`Downloading mise binary for ${platform}-${arch}...`)
   execFileSync('node', [path.join(__dirname, 'download-mise-binary.js'), platform, arch], { stdio: 'inherit' })
@@ -138,16 +130,16 @@ exports.default = async function (context) {
     })
     .map((f) => '!node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep/' + f + '/**')
 
-  // Exclude binaries for other platform-arch combinations (rtk, mise, etc.)
+  // Exclude binaries for other platform-arch combinations (mise, etc.)
   const currentPlatformKey = `${platform}-${arch}`
   const allBinaryPlatforms = ['darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64', 'win32-x64']
-  const excludeRtkFilters = allBinaryPlatforms
+  const excludeBinaryFilters = allBinaryPlatforms
     .filter((p) => p !== currentPlatformKey)
     .map((p) => '!resources/binaries/' + p + '/**')
 
   if (context.arch === Arch.arm64) {
-    await excludePackages([...arm64ExcludePackages, ...excludeRipgrepFilters, ...excludeRtkFilters])
+    await excludePackages([...arm64ExcludePackages, ...excludeRipgrepFilters, ...excludeBinaryFilters])
   } else {
-    await excludePackages([...x64ExcludePackages, ...excludeRipgrepFilters, ...excludeRtkFilters])
+    await excludePackages([...x64ExcludePackages, ...excludeRipgrepFilters, ...excludeBinaryFilters])
   }
 }

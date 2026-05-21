@@ -6256,6 +6256,7 @@
         "opencode": "开源 AI 编程代理，支持 75+ 模型并集成 GitHub Actions 自动化工作流。",
         "pi": "AI 代理工具包，包含编程代理 CLI、统一 LLM API、TUI/Web UI 和 Slack 机器人。",
         "rg": "快速文本搜索工具 (ripgrep)，grep 的替代品。",
+        "rtk": "CLI 代理工具，通过压缩终端输出来减少 LLM token 消耗。",
         "uv": "用于 MCP 服务与依赖安装的 Python 包管理工具。"
       },
       "update": "更新到最新版本"
