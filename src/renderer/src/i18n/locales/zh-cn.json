@@ -10,7 +10,7 @@
         "supported_providers": "支持的服务商",
         "tooltip": "目前，只有支持 Anthropic 端点的模型可用于 Agent 功能。",
         "view_providers": "查看支持的服务商",
-        "docs_link": "自定义 Anthropic 兼容服务商",
+        "docs_link": "自定义供应商",
         "empty": "未找到适用于当前 Agent 类型的模型。",
         "empty_docs": "查看配置指南"
       },

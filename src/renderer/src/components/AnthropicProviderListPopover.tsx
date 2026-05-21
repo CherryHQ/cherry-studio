@@ -6,7 +6,6 @@ import { getFancyProviderName } from '@renderer/utils'
 import { getClaudeSupportedProviders } from '@renderer/utils/provider'
 import type { PopoverProps } from 'antd'
 import { Popover } from 'antd'
-import { Divider } from 'antd'
 import { ArrowUpRight, HelpCircle } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
@@ -72,13 +71,8 @@ const AnthropicProviderListPopover: FC<AnthropicProviderListPopoverProps> = ({
   const content = (
     <PopoverContent>
       <PopoverTitle>{t('code.supported_providers')}</PopoverTitle>
-      {extraTopItem && (
-        <>
-          {extraTopItem}
-          {providers.length > 0 && <Divider />}
-        </>
-      )}
       <ProviderListContainer>
+        {extraTopItem}
         {providers.map((provider) =>
           useWindowNavigate ? (
             <ProviderItem key={provider.id} onClick={() => handleClick(provider.id)}>
