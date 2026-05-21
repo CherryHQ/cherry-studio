@@ -12,7 +12,7 @@ import {
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { usePersistCache } from '@data/hooks/useCache'
-import { useQuery } from '@data/hooks/useDataApi'
+import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import HighlightText from '@renderer/components/HighlightText'
@@ -37,7 +37,10 @@ import { cn } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { formatRelativeTime } from '@renderer/utils/time'
 import type { GlobalSearchItem } from '@shared/data/api/schemas/globalSearch'
+import type { SearchMessageResult } from '@shared/data/api/schemas/messages'
+import type { SessionSearchMessageResult } from '@shared/data/api/schemas/sessions'
 import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
+import type { KeywordMatchMode } from '@shared/utils/keywordSearch'
 import dayjs from 'dayjs'
 import {
   Bot,
@@ -61,8 +64,13 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } f
 import { useTranslation } from 'react-i18next'
 
 import {
+  buildGlobalMessageSearchGroups,
   buildGlobalSearchGroups,
   getGlobalSearchTypes,
+  getMessageSearchSources,
+  type GlobalMessageSearchPanelGroup,
+  type GlobalMessageSearchPanelItem,
+  type GlobalMessageSearchSourceFilter,
   type GlobalSearchFilter,
   type GlobalSearchGroupId,
   type GlobalSearchPanelGroup,
@@ -74,16 +82,34 @@ type GlobalSearchPanelProps = {
   onClose: () => void
 }
 
-type GlobalSearchPanelMode = 'search' | 'menu-manager'
+type GlobalSearchPanelMode = 'search' | 'menu-manager' | 'message-search'
 type GlobalSearchTimeFilter = 'any' | 'today' | 'week' | 'month' | 'quarter'
+type GlobalMessageSearchMatchMode = KeywordMatchMode
 
 const FILTERS: GlobalSearchFilter[] = ['all', 'conversation', 'assistant', 'agent', 'knowledge']
+const MESSAGE_SOURCE_FILTERS: GlobalMessageSearchSourceFilter[] = ['all', 'topic', 'session']
+const MESSAGE_MATCH_MODES: GlobalMessageSearchMatchMode[] = ['whole-word', 'substring']
 const FILTER_LABEL_KEYS: Record<GlobalSearchFilter, string> = {
   all: 'globalSearch.filters.all',
   conversation: 'globalSearch.filters.conversation',
   assistant: 'globalSearch.filters.assistant',
   agent: 'globalSearch.filters.agent',
   knowledge: 'globalSearch.filters.knowledge'
+}
+const MESSAGE_SOURCE_FILTER_LABEL_KEYS: Record<GlobalMessageSearchSourceFilter, string> = {
+  all: 'globalSearch.messageSearch.sources.all',
+  topic: 'globalSearch.messageSearch.sources.topic',
+  session: 'globalSearch.messageSearch.sources.session'
+}
+const MESSAGE_MATCH_MODE_LABEL_KEYS: Record<GlobalMessageSearchMatchMode, string> = {
+  'whole-word': 'globalSearch.messageSearch.matchModes.wholeWord',
+  substring: 'globalSearch.messageSearch.matchModes.substring'
+}
+const MESSAGE_ROLE_LABEL_KEYS: Record<NonNullable<SessionSearchMessageResult['role']>, string> = {
+  assistant: 'globalSearch.messageSearch.roles.assistant',
+  system: 'globalSearch.messageSearch.roles.system',
+  tool: 'globalSearch.messageSearch.roles.tool',
+  user: 'globalSearch.messageSearch.roles.user'
 }
 const TIME_FILTERS: GlobalSearchTimeFilter[] = ['any', 'today', 'week', 'month', 'quarter']
 const TIME_FILTER_LABEL_KEYS: Record<GlobalSearchTimeFilter, string> = {
@@ -126,6 +152,18 @@ function getFilterLabelKey(filter: GlobalSearchFilter) {
 
 function getTimeFilterLabelKey(filter: GlobalSearchTimeFilter) {
   return TIME_FILTER_LABEL_KEYS[filter]
+}
+
+function getMessageSourceFilterLabelKey(filter: GlobalMessageSearchSourceFilter) {
+  return MESSAGE_SOURCE_FILTER_LABEL_KEYS[filter]
+}
+
+function getMessageMatchModeLabelKey(matchMode: GlobalMessageSearchMatchMode) {
+  return MESSAGE_MATCH_MODE_LABEL_KEYS[matchMode]
+}
+
+function getMessageRoleLabelKey(role: NonNullable<SessionSearchMessageResult['role']>) {
+  return MESSAGE_ROLE_LABEL_KEYS[role]
 }
 
 function getUpdatedAtFromForTimeFilter(filter: GlobalSearchTimeFilter): string | undefined {
@@ -234,6 +272,7 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
   const { t, i18n } = useTranslation()
   const { openTab } = useTabs()
   const { defaultPaintingProvider } = useSettings()
+  const invalidateCache = useInvalidateCache()
   const inputRef = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState('')
   const [panelMode, setPanelMode] = useState<GlobalSearchPanelMode>('search')
@@ -241,13 +280,28 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
   const [filter, setFilter] = useState<GlobalSearchFilter>('all')
   const [filterMenuOpen, setFilterMenuOpen] = useState(false)
   const [timeFilter, setTimeFilter] = useState<GlobalSearchTimeFilter>('any')
+  const [messageSourceFilter, setMessageSourceFilter] = useState<GlobalMessageSearchSourceFilter>('all')
+  const [messageMatchMode, setMessageMatchMode] = useState<GlobalMessageSearchMatchMode>('whole-word')
+  const [expandedMessageParentIds, setExpandedMessageParentIds] = useState<ReadonlySet<string>>(() => new Set())
   const [activeItemId, setActiveItemId] = useState<string | undefined>()
   const [recentItems] = usePersistCache('ui.global_search.recent_items')
   const [sidebarIconPreferences, setSidebarIconPreferences] = useMultiplePreferences(SIDEBAR_ICON_PREFERENCE_KEYS)
   const visibleSidebarIcons = sidebarIconPreferences.visible
   const hasQuery = deferredQuery.length > 0
+  const isMessageSearchMode = panelMode === 'message-search'
   const searchTypes = useMemo(() => getGlobalSearchTypes(filter), [filter])
+  const messageSearchSources = useMemo(() => getMessageSearchSources(messageSourceFilter), [messageSourceFilter])
+  const shouldSearchTopicMessages = messageSearchSources.includes('topic')
+  const shouldSearchSessionMessages = messageSearchSources.includes('session')
   const updatedAtFrom = useMemo(() => getUpdatedAtFromForTimeFilter(timeFilter), [timeFilter])
+  const messageSearchQuery = useMemo(
+    () => ({
+      q: deferredQuery,
+      matchMode: messageMatchMode,
+      limit: 50
+    }),
+    [deferredQuery, messageMatchMode]
+  )
   const searchQuery = useMemo(
     () => ({
       q: deferredQuery,
@@ -258,8 +312,28 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
     [deferredQuery, searchTypes, updatedAtFrom]
   )
 
+  const {
+    data: topicMessageData,
+    isLoading: isTopicMessageLoading,
+    error: topicMessageError
+  } = useQuery('/messages/search', {
+    enabled: hasQuery && isMessageSearchMode && shouldSearchTopicMessages,
+    query: messageSearchQuery
+  })
+  const {
+    data: sessionMessageData,
+    isLoading: isSessionMessageLoading,
+    error: sessionMessageError
+  } = useQuery('/sessions/messages/search', {
+    enabled: hasQuery && isMessageSearchMode && shouldSearchSessionMessages,
+    query: messageSearchQuery
+  })
+  const isMessageLoading =
+    (shouldSearchTopicMessages && isTopicMessageLoading) || (shouldSearchSessionMessages && isSessionMessageLoading)
+  const messageError = topicMessageError ?? sessionMessageError
+
   const { data, isLoading, error } = useQuery('/global-search', {
-    enabled: hasQuery,
+    enabled: hasQuery && panelMode === 'search',
     query: searchQuery
   })
 
@@ -274,6 +348,34 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
     [data, deferredQuery, filter, recentItems]
   )
 
+  const messageGroups = useMemo(() => {
+    const items = [
+      ...(shouldSearchTopicMessages
+        ? (topicMessageData?.items ?? []).map((item) => ({ ...item, sourceType: 'topic' as const }))
+        : []),
+      ...(shouldSearchSessionMessages
+        ? (sessionMessageData?.items ?? []).map((item) => ({ ...item, sourceType: 'session' as const }))
+        : [])
+    ].sort((a, b) => {
+      const timeA = Date.parse(a.createdAt) || 0
+      const timeB = Date.parse(b.createdAt) || 0
+      if (timeA !== timeB) return timeB - timeA
+      if (a.sourceType !== b.sourceType) return a.sourceType === 'topic' ? -1 : 1
+      return b.messageId.localeCompare(a.messageId)
+    })
+
+    return buildGlobalMessageSearchGroups({
+      expandedParentIds: expandedMessageParentIds,
+      items
+    })
+  }, [
+    expandedMessageParentIds,
+    sessionMessageData?.items,
+    shouldSearchSessionMessages,
+    shouldSearchTopicMessages,
+    topicMessageData?.items
+  ])
+
   const virtualGroups = useMemo<ReadonlyArray<GroupedVirtualListGroup<GlobalSearchPanelGroup, GlobalSearchPanelItem>>>(
     () =>
       groups.map((group) => ({
@@ -284,7 +386,24 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
     [groups]
   )
 
-  const selectableItems = useMemo(() => groups.flatMap((group) => group.items), [groups])
+  const messageVirtualGroups = useMemo<
+    ReadonlyArray<GroupedVirtualListGroup<GlobalMessageSearchPanelGroup, GlobalMessageSearchPanelItem>>
+  >(
+    () =>
+      messageGroups.map((group) => ({
+        group,
+        header: group,
+        items: group.items
+      })),
+    [messageGroups]
+  )
+
+  const selectableItems = useMemo(() => {
+    if (panelMode !== 'search') return []
+    return groups.flatMap((group) => group.items)
+  }, [groups, panelMode])
+  const messageSelectableItems = useMemo(() => messageGroups.flatMap((group) => group.items), [messageGroups])
+  const keyboardItems = isMessageSearchMode ? messageSelectableItems : selectableItems
   const shouldShowRecentHint =
     !hasQuery && !isLoading && !error && selectableItems.length > 0 && selectableItems.length < 3
   const sidebarPreferenceManagerIcons = useMemo(
@@ -305,15 +424,19 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
   }, [])
 
   useEffect(() => {
-    if (selectableItems.length === 0) {
+    setExpandedMessageParentIds(new Set())
+  }, [deferredQuery, messageSourceFilter])
+
+  useEffect(() => {
+    if (keyboardItems.length === 0) {
       setActiveItemId(undefined)
       return
     }
 
     setActiveItemId((current) =>
-      current && selectableItems.some((item) => item.id === current) ? current : selectableItems[0].id
+      current && keyboardItems.some((item) => item.id === current) ? current : keyboardItems[0].id
     )
-  }, [selectableItems])
+  }, [keyboardItems])
 
   const persistSidebarIconPreferences = useCallback(
     async ({ visible, invisible }: { visible: SidebarIcon[]; invisible: SidebarIcon[] }) => {
@@ -412,6 +535,44 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
     [onClose, openTab]
   )
 
+  const openTopicMessage = useCallback(
+    async (result: SearchMessageResult) => {
+      const apiTopic = await dataApiService.get(`/topics/${result.topicId}`)
+      const topic = {
+        ...mapApiTopicToRendererTopic(apiTopic),
+        activeNodeId: result.messageId
+      }
+
+      await dataApiService.put(`/topics/${result.topicId}/active-node`, { body: { nodeId: result.messageId } })
+      await invalidateCache(`/topics/${result.topicId}/messages`)
+      cacheService.set('topic.active', topic)
+      openTab('/app/chat')
+      window.setTimeout(() => {
+        void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC, topic)
+        window.setTimeout(() => {
+          void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + result.messageId, true)
+        }, 300)
+      }, 0)
+      onClose()
+    },
+    [invalidateCache, onClose, openTab]
+  )
+
+  const openSessionMessage = useCallback(
+    (result: SessionSearchMessageResult) => {
+      cacheService.set('agent.active_session_id', result.sessionId)
+      openTab('/app/agents')
+      window.setTimeout(() => {
+        void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE, {
+          sessionId: result.sessionId,
+          messageId: result.messageId
+        })
+      }, 0)
+      onClose()
+    },
+    [onClose, openTab]
+  )
+
   const openKnowledgeBase = useCallback(
     (knowledgeBaseId: string) => {
       openTab('/app/knowledge')
@@ -421,6 +582,31 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
       onClose()
     },
     [onClose, openTab]
+  )
+
+  const openMessagePanelItem = useCallback(
+    async (item: GlobalMessageSearchPanelItem) => {
+      if (item.kind === 'more') {
+        setExpandedMessageParentIds((current) => {
+          const next = new Set(current)
+          next.add(item.parentId)
+          return next
+        })
+        return
+      }
+
+      try {
+        if (item.result.sourceType === 'topic') {
+          await openTopicMessage(item.result)
+          return
+        }
+
+        openSessionMessage(item.result)
+      } catch {
+        window.toast?.error(t('globalSearch.open_failed'))
+      }
+    },
+    [openSessionMessage, openTopicMessage, t]
   )
 
   const openPanelItem = useCallback(
@@ -488,16 +674,16 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
 
   const moveActiveItem = useCallback(
     (direction: 1 | -1) => {
-      if (selectableItems.length === 0) return
+      if (keyboardItems.length === 0) return
 
       const currentIndex = Math.max(
         0,
-        selectableItems.findIndex((item) => item.id === activeItemId)
+        keyboardItems.findIndex((item) => item.id === activeItemId)
       )
-      const nextIndex = (currentIndex + direction + selectableItems.length) % selectableItems.length
-      setActiveItemId(selectableItems[nextIndex].id)
+      const nextIndex = (currentIndex + direction + keyboardItems.length) % keyboardItems.length
+      setActiveItemId(keyboardItems[nextIndex].id)
     },
-    [activeItemId, selectableItems]
+    [activeItemId, keyboardItems]
   )
 
   const handleInputKeyDown = useCallback(
@@ -529,13 +715,26 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
       }
 
       if (event.key === 'Enter') {
-        const item = selectableItems.find((candidate) => candidate.id === activeItemId)
+        const item = keyboardItems.find((candidate) => candidate.id === activeItemId)
         if (!item) return
         event.preventDefault()
-        void openPanelItem(item)
+        if (isMessageSearchMode) {
+          void openMessagePanelItem(item as GlobalMessageSearchPanelItem)
+          return
+        }
+        void openPanelItem(item as GlobalSearchPanelItem)
       }
     },
-    [activeItemId, moveActiveItem, onClose, openPanelItem, panelMode, selectableItems]
+    [
+      activeItemId,
+      isMessageSearchMode,
+      keyboardItems,
+      moveActiveItem,
+      onClose,
+      openMessagePanelItem,
+      openPanelItem,
+      panelMode
+    ]
   )
 
   const handleFilterSelect = useCallback((nextFilter: GlobalSearchFilter) => {
@@ -547,7 +746,17 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
     setTimeFilter(nextFilter)
   }, [])
 
+  const handleMessageSourceFilterSelect = useCallback((nextFilter: GlobalMessageSearchSourceFilter) => {
+    setMessageSourceFilter(nextFilter)
+  }, [])
+
+  const handleMessageMatchModeSelect = useCallback((nextMatchMode: GlobalMessageSearchMatchMode) => {
+    setMessageMatchMode(nextMatchMode)
+  }, [])
+
   const showEmptyState = !isLoading && !error && selectableItems.length === 0
+  const showMessageEmptyState =
+    !isMessageLoading && !messageError && (hasQuery ? messageSelectableItems.length === 0 : true)
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
@@ -559,13 +768,13 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
             value={query}
             onChange={(event) => {
               setQuery(event.target.value.trimStart())
-              setPanelMode('search')
+              setPanelMode((current) => (current === 'menu-manager' ? 'search' : current))
             }}
             onKeyDown={handleInputKeyDown}
             placeholder={t('globalSearch.placeholder')}
             aria-label={t('globalSearch.placeholder')}
             spellCheck={false}
-            className="h-11 rounded-[22px] border-border-subtle bg-muted/20 pr-11 pl-12 text-[15px] shadow-none placeholder:text-muted-foreground focus-visible:ring-1"
+            className="h-11 rounded-[22px] border-border-subtle bg-muted/20 pr-20 pl-12 text-[15px] shadow-none placeholder:text-muted-foreground focus-visible:ring-1"
           />
           {query && (
             <button
@@ -573,15 +782,28 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
               aria-label={t('globalSearch.clear')}
               onClick={() => {
                 setQuery('')
-                setPanelMode('search')
+                setPanelMode((current) => (current === 'menu-manager' ? 'search' : current))
               }}
-              className="-translate-y-1/2 absolute top-1/2 right-3 flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+              className="-translate-y-1/2 absolute top-1/2 right-11 flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
               <X className="size-4" />
             </button>
           )}
+          <button
+            type="button"
+            aria-label={t('globalSearch.messageSearch.open')}
+            aria-pressed={isMessageSearchMode}
+            onClick={() => {
+              setPanelMode((current) => (current === 'message-search' ? 'search' : 'message-search'))
+            }}
+            className={cn(
+              '-translate-y-1/2 absolute top-1/2 right-3 flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+              isMessageSearchMode && 'bg-accent text-foreground'
+            )}>
+            <MessageSquare className="size-4" />
+          </button>
         </div>
 
-        {!hideQuickApps && (
+        {!hideQuickApps && !isMessageSearchMode && (
           <GlobalSearchQuickAppsBar
             active={panelMode === 'menu-manager'}
             icons={shortcutSidebarIcons}
@@ -591,58 +813,117 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
         )}
 
         <div className={cn('-ml-2 flex h-8 items-center gap-1.5', hideQuickApps && 'mt-3')}>
-          <DropdownMenu open={filterMenuOpen} onOpenChange={setFilterMenuOpen}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                className="h-7 gap-1.5 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground"
-                aria-label={t('globalSearch.filters.label')}>
-                <Funnel className="size-3.5" />
-                <span>{t(getFilterLabelKey(filter))}</span>
-                <ChevronDown className="size-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="z-[90] min-w-[132px] rounded-[10px] p-1">
-              {FILTERS.map((filterOption) => (
-                <DropdownMenuItem
-                  key={filterOption}
-                  onSelect={() => handleFilterSelect(filterOption)}
-                  className={cn(
-                    'h-8 rounded-[7px] font-medium text-xs',
-                    filter === filterOption && 'bg-accent text-accent-foreground'
-                  )}>
-                  {t(getFilterLabelKey(filterOption))}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                className="h-7 gap-1.5 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground"
-                aria-label={t('globalSearch.timeFilters.label')}>
-                <Clock3 className="size-3.5" />
-                <span>{t(getTimeFilterLabelKey(timeFilter))}</span>
-                <ChevronDown className="size-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="z-[90] min-w-[132px] rounded-[10px] p-1">
-              {TIME_FILTERS.map((filterOption) => (
-                <DropdownMenuItem
-                  key={filterOption}
-                  onSelect={() => handleTimeFilterSelect(filterOption)}
-                  className={cn(
-                    'h-8 rounded-[7px] font-medium text-xs',
-                    timeFilter === filterOption && 'bg-accent text-accent-foreground'
-                  )}>
-                  {t(getTimeFilterLabelKey(filterOption))}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {isMessageSearchMode ? (
+            <>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-7 gap-1.5 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground"
+                    aria-label={t('globalSearch.messageSearch.sourceLabel')}>
+                    <Funnel className="size-3.5" />
+                    <span>{t(getMessageSourceFilterLabelKey(messageSourceFilter))}</span>
+                    <ChevronDown className="size-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="z-[90] min-w-[132px] rounded-[10px] p-1">
+                  {MESSAGE_SOURCE_FILTERS.map((filterOption) => (
+                    <DropdownMenuItem
+                      key={filterOption}
+                      onSelect={() => handleMessageSourceFilterSelect(filterOption)}
+                      className={cn(
+                        'h-8 rounded-[7px] font-medium text-xs',
+                        messageSourceFilter === filterOption && 'bg-accent text-accent-foreground'
+                      )}>
+                      {t(getMessageSourceFilterLabelKey(filterOption))}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-7 gap-1.5 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground"
+                    aria-label={t('globalSearch.messageSearch.matchModeLabel')}>
+                    <Search className="size-3.5" />
+                    <span>{t(getMessageMatchModeLabelKey(messageMatchMode))}</span>
+                    <ChevronDown className="size-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="z-[90] min-w-[132px] rounded-[10px] p-1">
+                  {MESSAGE_MATCH_MODES.map((matchModeOption) => (
+                    <DropdownMenuItem
+                      key={matchModeOption}
+                      onSelect={() => handleMessageMatchModeSelect(matchModeOption)}
+                      className={cn(
+                        'h-8 rounded-[7px] font-medium text-xs',
+                        messageMatchMode === matchModeOption && 'bg-accent text-accent-foreground'
+                      )}>
+                      {t(getMessageMatchModeLabelKey(matchModeOption))}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          ) : (
+            <>
+              <DropdownMenu open={filterMenuOpen} onOpenChange={setFilterMenuOpen}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-7 gap-1.5 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground"
+                    aria-label={t('globalSearch.filters.label')}>
+                    <Funnel className="size-3.5" />
+                    <span>{t(getFilterLabelKey(filter))}</span>
+                    <ChevronDown className="size-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="z-[90] min-w-[132px] rounded-[10px] p-1">
+                  {FILTERS.map((filterOption) => (
+                    <DropdownMenuItem
+                      key={filterOption}
+                      onSelect={() => handleFilterSelect(filterOption)}
+                      className={cn(
+                        'h-8 rounded-[7px] font-medium text-xs',
+                        filter === filterOption && 'bg-accent text-accent-foreground'
+                      )}>
+                      {t(getFilterLabelKey(filterOption))}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-7 gap-1.5 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground"
+                    aria-label={t('globalSearch.timeFilters.label')}>
+                    <Clock3 className="size-3.5" />
+                    <span>{t(getTimeFilterLabelKey(timeFilter))}</span>
+                    <ChevronDown className="size-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="z-[90] min-w-[132px] rounded-[10px] p-1">
+                  {TIME_FILTERS.map((filterOption) => (
+                    <DropdownMenuItem
+                      key={filterOption}
+                      onSelect={() => handleTimeFilterSelect(filterOption)}
+                      className={cn(
+                        'h-8 rounded-[7px] font-medium text-xs',
+                        timeFilter === filterOption && 'bg-accent text-accent-foreground'
+                      )}>
+                      {t(getTimeFilterLabelKey(filterOption))}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          )}
         </div>
       </div>
 
@@ -655,6 +936,33 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
             onReset={handleSidebarManagerReset}
             onVisibilityChange={handleSidebarManagerVisibilityChange}
           />
+        ) : isMessageSearchMode ? (
+          isMessageLoading && hasQuery ? (
+            <GlobalSearchState label={t('common.loading')} />
+          ) : messageError ? (
+            <GlobalSearchState label={t('globalSearch.error')} />
+          ) : showMessageEmptyState ? (
+            <GlobalSearchState label={hasQuery ? t('common.no_results') : t('globalSearch.messageSearch.hint')} />
+          ) : (
+            <GroupedVirtualList
+              role="listbox"
+              groups={messageVirtualGroups}
+              estimateGroupHeaderSize={() => 36}
+              estimateItemSize={() => 64}
+              className="pt-1 pb-2"
+              renderGroupHeader={(group) => <GlobalMessageSearchGroupHeader group={group} />}
+              renderItem={(item) => (
+                <GlobalMessageSearchRow
+                  item={item}
+                  active={item.id === activeItemId}
+                  language={i18n.language}
+                  query={deferredQuery}
+                  onMouseEnter={() => setActiveItemId(item.id)}
+                  onOpen={() => void openMessagePanelItem(item)}
+                />
+              )}
+            />
+          )
         ) : isLoading && hasQuery ? (
           <GlobalSearchState label={t('common.loading')} />
         ) : error ? (
@@ -953,6 +1261,96 @@ function GlobalSearchRow({
           {updatedAtLabel}
         </span>
       )}
+    </button>
+  )
+}
+
+function GlobalMessageSearchGroupHeader({ group }: { group: GlobalMessageSearchPanelGroup }) {
+  const { t } = useTranslation()
+  const Icon = group.sourceType === 'topic' ? MessageSquare : MousePointerClick
+  const sourceLabelKey =
+    group.sourceType === 'topic'
+      ? 'globalSearch.messageSearch.sources.topic'
+      : 'globalSearch.messageSearch.sources.session'
+
+  return (
+    <div className="flex h-9 items-center gap-2 px-5 pt-1 text-muted-foreground text-sm">
+      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted/50">
+        <Icon className="size-3.5" />
+      </span>
+      <span className="min-w-0 flex-1 truncate font-medium text-foreground">{group.title || t('common.unnamed')}</span>
+      <span className="shrink-0 text-xs">{t(sourceLabelKey)}</span>
+      <span className="shrink-0 text-xs">·</span>
+      <span className="shrink-0 text-xs">{group.total}</span>
+    </div>
+  )
+}
+
+function GlobalMessageSearchRow({
+  active,
+  item,
+  language,
+  query,
+  onMouseEnter,
+  onOpen
+}: {
+  active: boolean
+  item: GlobalMessageSearchPanelItem
+  language: string
+  query: string
+  onMouseEnter: () => void
+  onOpen: () => void
+}) {
+  const { t } = useTranslation()
+
+  if (item.kind === 'more') {
+    return (
+      <button
+        type="button"
+        role="option"
+        aria-selected={active}
+        onMouseEnter={onMouseEnter}
+        onClick={onOpen}
+        className={cn(
+          'mx-5 mb-1 flex h-9 w-[calc(100%-2.5rem)] items-center gap-1 rounded-[8px] py-0 pr-3 pl-12 text-left font-medium text-sm transition-colors',
+          active
+            ? 'bg-muted/60 text-accent-foreground'
+            : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
+        )}>
+        <span>{t('globalSearch.messageSearch.more', { count: item.remainingCount })}</span>
+        <ChevronDown className="size-4" />
+      </button>
+    )
+  }
+
+  const updatedAtLabel = formatRelativeTime(item.result.createdAt, language)
+
+  return (
+    <button
+      type="button"
+      role="option"
+      aria-selected={active}
+      onMouseEnter={onMouseEnter}
+      onClick={onOpen}
+      className={cn(
+        'mx-5 flex min-h-[60px] w-[calc(100%-2.5rem)] items-start rounded-[10px] py-2 pr-3 pl-12 text-left transition-colors',
+        active ? 'bg-muted/60 text-accent-foreground' : 'hover:bg-muted/40'
+      )}>
+      <span className="min-w-0 flex-1">
+        <span className="line-clamp-2 text-foreground text-sm leading-5">
+          <HighlightText text={item.result.snippet} keyword={query} />
+        </span>
+        <span className="mt-1 flex items-center gap-2 text-muted-foreground text-xs leading-4">
+          {item.result.sourceType === 'session' && item.result.role && (
+            <span>{t(getMessageRoleLabelKey(item.result.role))}</span>
+          )}
+          {updatedAtLabel && (
+            <span title={item.result.createdAt} className="truncate">
+              {updatedAtLabel}
+            </span>
+          )}
+        </span>
+      </span>
     </button>
   )
 }

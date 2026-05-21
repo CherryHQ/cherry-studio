@@ -2,6 +2,8 @@
 import '@testing-library/jest-dom/vitest'
 
 import type { GlobalSearchResponse } from '@shared/data/api/schemas/globalSearch'
+import type { SearchMessagesResponse } from '@shared/data/api/schemas/messages'
+import type { SearchSessionMessagesResponse } from '@shared/data/api/schemas/sessions'
 import type { GlobalSearchRecentEntry, Tab } from '@shared/data/cache/cacheValueTypes'
 import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -14,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   onClose: vi.fn(),
   useQuery: vi.fn(),
   queryResult: undefined as GlobalSearchResponse | undefined,
+  messageQueryResult: undefined as SearchMessagesResponse | undefined,
+  sessionMessageQueryResult: undefined as SearchSessionMessagesResponse | undefined,
   recentItems: [] as GlobalSearchRecentEntry[],
   preferenceValues: {
     'ui.sidebar.icons.visible': ['assistants', 'agents', 'translate'] as SidebarIcon[],
@@ -23,6 +27,8 @@ const mocks = vi.hoisted(() => ({
   setPreferences: vi.fn(),
   cacheSet: vi.fn(),
   dataApiGet: vi.fn(),
+  dataApiPut: vi.fn(),
+  invalidateCache: vi.fn(),
   eventEmit: vi.fn(),
   activeTab: {
     id: 'chat',
@@ -119,6 +125,7 @@ vi.mock('@data/hooks/useCache', () => ({
 }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
+  useInvalidateCache: () => mocks.invalidateCache,
   useQuery: (...args: unknown[]) => mocks.useQuery(...args)
 }))
 
@@ -148,7 +155,7 @@ vi.mock('@data/CacheService', () => ({
 }))
 
 vi.mock('@data/DataApiService', () => ({
-  dataApiService: { get: mocks.dataApiGet }
+  dataApiService: { get: mocks.dataApiGet, put: mocks.dataApiPut }
 }))
 
 vi.mock('@renderer/hooks/useTopic', () => ({
@@ -157,8 +164,10 @@ vi.mock('@renderer/hooks/useTopic', () => ({
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
+    LOCATE_MESSAGE: 'LOCATE_MESSAGE',
     GLOBAL_SEARCH_SELECT_TOPIC: 'GLOBAL_SEARCH_SELECT_TOPIC',
     GLOBAL_SEARCH_SELECT_AGENT_SESSION: 'GLOBAL_SEARCH_SELECT_AGENT_SESSION',
+    GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE: 'GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE',
     GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE: 'GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE'
   },
   EventEmitter: { emit: mocks.eventEmit }
@@ -204,6 +213,20 @@ vi.mock('react-i18next', () => ({
           'globalSearch.groups.agent': 'Agent',
           'globalSearch.groups.knowledge-base': 'Knowledge',
           'globalSearch.keyboard.select': 'Select',
+          'globalSearch.messageSearch.hint': 'Type to search message content',
+          'globalSearch.messageSearch.matchModeLabel': 'Match mode',
+          'globalSearch.messageSearch.matchModes.substring': 'Substring',
+          'globalSearch.messageSearch.matchModes.wholeWord': 'Whole word',
+          'globalSearch.messageSearch.more': 'Show {{count}} more results',
+          'globalSearch.messageSearch.open': 'Search messages',
+          'globalSearch.messageSearch.roles.assistant': 'Assistant role',
+          'globalSearch.messageSearch.roles.system': 'System role',
+          'globalSearch.messageSearch.roles.tool': 'Tool role',
+          'globalSearch.messageSearch.roles.user': 'User role',
+          'globalSearch.messageSearch.sourceLabel': 'Message source',
+          'globalSearch.messageSearch.sources.all': 'All messages',
+          'globalSearch.messageSearch.sources.session': 'Session messages',
+          'globalSearch.messageSearch.sources.topic': 'Topic messages',
           'globalSearch.quickApps.hide': 'Hide {{name}}',
           'globalSearch.quickApps.manage': 'Manage',
           'globalSearch.quickApps.manager_description': 'Drag to reorder, click the eye to hide or show',
@@ -230,7 +253,7 @@ vi.mock('react-i18next', () => ({
           'common.unnamed': 'Unnamed'
         }[key] ?? key
 
-      return label.replace('{{name}}', options?.name ?? 'Agent')
+      return label.replace('{{name}}', options?.name ?? 'Agent').replace('{{count}}', options?.count ?? '0')
     },
     i18n: { language: 'en-US' }
   })
@@ -254,6 +277,8 @@ describe('GlobalSearchPanel', () => {
       }
     ]
     mocks.queryResult = undefined
+    mocks.messageQueryResult = undefined
+    mocks.sessionMessageQueryResult = undefined
     mocks.preferenceValues = {
       'ui.sidebar.icons.visible': ['assistants', 'agents', 'translate'],
       'ui.sidebar.icons.invisible': ['knowledge']
@@ -265,8 +290,13 @@ describe('GlobalSearchPanel', () => {
       url: '/app/chat',
       title: 'Chat'
     }
-    mocks.useQuery.mockImplementation(() => ({
-      data: mocks.queryResult,
+    mocks.useQuery.mockImplementation((path: string) => ({
+      data:
+        path === '/messages/search'
+          ? mocks.messageQueryResult
+          : path === '/sessions/messages/search'
+            ? mocks.sessionMessageQueryResult
+            : mocks.queryResult,
       isLoading: false,
       error: undefined
     }))
@@ -578,6 +608,243 @@ describe('GlobalSearchPanel', () => {
         })
       )
     })
+  })
+
+  it('switches to message search mode and hides quick apps', async () => {
+    const user = userEvent.setup()
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'Search messages' }))
+    expect(screen.queryByRole('button', { name: 'Chat' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Message source' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Match mode' })).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
+
+    await waitFor(() => {
+      expect(mocks.useQuery).toHaveBeenCalledWith(
+        '/messages/search',
+        expect.objectContaining({
+          enabled: true,
+          query: expect.objectContaining({
+            q: 'needle'
+          })
+        })
+      )
+      expect(mocks.useQuery).toHaveBeenCalledWith(
+        '/sessions/messages/search',
+        expect.objectContaining({
+          enabled: true,
+          query: expect.objectContaining({
+            q: 'needle'
+          })
+        })
+      )
+    })
+  })
+
+  it('passes selected message sources to message search', async () => {
+    const user = userEvent.setup()
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'Search messages' }))
+    await user.click(screen.getByRole('button', { name: 'Message source' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Session messages' }))
+    await user.type(screen.getByLabelText('Start typing to search...'), 'report')
+
+    await waitFor(() => {
+      expect(mocks.useQuery).toHaveBeenCalledWith(
+        '/messages/search',
+        expect.objectContaining({
+          enabled: false
+        })
+      )
+      expect(mocks.useQuery).toHaveBeenCalledWith(
+        '/sessions/messages/search',
+        expect.objectContaining({
+          enabled: true,
+          query: expect.objectContaining({
+            q: 'report'
+          })
+        })
+      )
+    })
+  })
+
+  it('renders message search results as parent groups with expandable children', async () => {
+    const user = userEvent.setup()
+    mocks.messageQueryResult = {
+      items: [
+        {
+          messageId: 'message-1',
+          topicId: 'topic-1',
+          topicName: 'Topic A',
+          topicCreatedAt: '2026-01-01T00:00:00.000Z',
+          topicUpdatedAt: '2026-01-01T00:00:00.000Z',
+          snippet: 'needle message one',
+          createdAt: '2026-01-01T00:00:04.000Z'
+        },
+        {
+          messageId: 'message-2',
+          topicId: 'topic-1',
+          topicName: 'Topic A',
+          topicCreatedAt: '2026-01-01T00:00:00.000Z',
+          topicUpdatedAt: '2026-01-01T00:00:00.000Z',
+          snippet: 'needle message two',
+          createdAt: '2026-01-01T00:00:03.000Z'
+        },
+        {
+          messageId: 'message-3',
+          topicId: 'topic-1',
+          topicName: 'Topic A',
+          topicCreatedAt: '2026-01-01T00:00:00.000Z',
+          topicUpdatedAt: '2026-01-01T00:00:00.000Z',
+          snippet: 'needle message three',
+          createdAt: '2026-01-01T00:00:02.000Z'
+        },
+        {
+          messageId: 'message-4',
+          topicId: 'topic-1',
+          topicName: 'Topic A',
+          topicCreatedAt: '2026-01-01T00:00:00.000Z',
+          topicUpdatedAt: '2026-01-01T00:00:00.000Z',
+          snippet: 'needle message four',
+          createdAt: '2026-01-01T00:00:01.000Z'
+        }
+      ]
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'Search messages' }))
+    await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
+
+    expect(await screen.findByText('Topic A')).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /needle message one/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByRole('option', { name: /needle message four/ })).not.toBeInTheDocument()
+
+    await user.keyboard('{ArrowUp}')
+    expect(screen.getByRole('option', { name: 'Show 1 more results' })).toHaveAttribute('aria-selected', 'true')
+    await user.keyboard('{Enter}')
+
+    expect(screen.getByRole('option', { name: /needle message four/ })).toBeInTheDocument()
+  })
+
+  it('invalidates the topic message cache before locating a topic message result', async () => {
+    const user = userEvent.setup()
+    const topic = {
+      id: 'topic-1',
+      name: 'Topic A',
+      assistantId: 'assistant-1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    }
+    mocks.dataApiGet.mockResolvedValue(topic)
+    mocks.messageQueryResult = {
+      items: [
+        {
+          messageId: 'message-1',
+          topicId: 'topic-1',
+          topicName: 'Topic A',
+          topicCreatedAt: '2026-01-01T00:00:00.000Z',
+          topicUpdatedAt: '2026-01-01T00:00:00.000Z',
+          snippet: 'needle topic reply',
+          createdAt: new Date().toISOString()
+        }
+      ]
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'Search messages' }))
+    await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
+    await user.click(await screen.findByRole('option', { name: /needle topic reply/ }))
+
+    await waitFor(() => {
+      expect(mocks.dataApiPut).toHaveBeenCalledWith('/topics/topic-1/active-node', { body: { nodeId: 'message-1' } })
+      expect(mocks.invalidateCache).toHaveBeenCalledWith('/topics/topic-1/messages')
+      expect(mocks.cacheSet).toHaveBeenCalledWith(
+        'topic.active',
+        expect.objectContaining({ activeNodeId: 'message-1' })
+      )
+    })
+    await waitFor(() => {
+      expect(mocks.eventEmit).toHaveBeenCalledWith('LOCATE_MESSAGE:message-1', true)
+    })
+    expect(mocks.dataApiPut.mock.invocationCallOrder[0]).toBeLessThan(mocks.invalidateCache.mock.invocationCallOrder[0])
+    expect(mocks.invalidateCache.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.eventEmit.mock.invocationCallOrder.at(-1) ?? Number.MAX_SAFE_INTEGER
+    )
+    expect(mocks.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens session message search results through the agent route and locate event', async () => {
+    const user = userEvent.setup()
+    mocks.sessionMessageQueryResult = {
+      items: [
+        {
+          messageId: 'session-message-1',
+          sessionId: 'session-1',
+          sessionName: 'Session A',
+          agentId: 'agent-1',
+          agentName: 'Agent',
+          role: 'assistant',
+          snippet: 'needle session reply',
+          createdAt: new Date().toISOString()
+        }
+      ]
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'Search messages' }))
+    await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
+    expect(await screen.findByText('Assistant role')).toBeInTheDocument()
+    await user.click(await screen.findByRole('option', { name: /needle session reply/ }))
+
+    await waitFor(() => {
+      expect(mocks.cacheSet).toHaveBeenCalledWith('agent.active_session_id', 'session-1')
+      expect(mocks.openTab).toHaveBeenCalledWith('/app/agents')
+      expect(mocks.eventEmit).toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE', {
+        sessionId: 'session-1',
+        messageId: 'session-message-1'
+      })
+    })
+    expect(mocks.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens the active message search result with Enter', async () => {
+    const user = userEvent.setup()
+    mocks.sessionMessageQueryResult = {
+      items: [
+        {
+          messageId: 'session-message-1',
+          sessionId: 'session-1',
+          sessionName: 'Session A',
+          snippet: 'needle session reply',
+          createdAt: new Date().toISOString()
+        }
+      ]
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    const input = screen.getByLabelText('Start typing to search...')
+    await user.click(screen.getByRole('button', { name: 'Search messages' }))
+    await user.type(input, 'needle')
+    await screen.findByRole('option', { name: /needle session reply/ })
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => {
+      expect(mocks.eventEmit).toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE', {
+        sessionId: 'session-1',
+        messageId: 'session-message-1'
+      })
+    })
+    expect(mocks.onClose).toHaveBeenCalledTimes(1)
   })
 
   it('adds updatedAtFrom when a time filter is selected', async () => {

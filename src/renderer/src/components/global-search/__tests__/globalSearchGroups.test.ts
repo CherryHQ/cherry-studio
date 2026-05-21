@@ -2,11 +2,14 @@ import type { GlobalSearchResponse } from '@shared/data/api/schemas/globalSearch
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildGlobalMessageSearchGroups,
   buildGlobalSearchGroups,
   createRecentRouteEntryFromTab,
   createRecentSessionEntryFromSession,
   createRecentTopicEntryFromTopic,
   getGlobalSearchTypes,
+  getMessageSearchSources,
+  GLOBAL_MESSAGE_SEARCH_GROUP_COLLAPSED_LIMIT,
   GLOBAL_SEARCH_DISPLAY_RECENT_LIMIT,
   GLOBAL_SEARCH_RECENT_ITEM_LIMIT,
   upsertGlobalSearchRecentEntry
@@ -224,5 +227,54 @@ describe('globalSearchGroups', () => {
         response
       }).map((group) => group.id)
     ).toEqual(['topic', 'session'])
+  })
+
+  it('maps message search source filters and groups message results by parent', () => {
+    expect(getMessageSearchSources('all')).toEqual(['topic', 'session'])
+    expect(getMessageSearchSources('topic')).toEqual(['topic'])
+    expect(getMessageSearchSources('session')).toEqual(['session'])
+
+    const groups = buildGlobalMessageSearchGroups({
+      expandedParentIds: new Set(),
+      items: [
+        ...Array.from({ length: GLOBAL_MESSAGE_SEARCH_GROUP_COLLAPSED_LIMIT + 1 }, (_, index) => ({
+          sourceType: 'topic' as const,
+          messageId: `message-${index}`,
+          topicId: 'topic-1',
+          topicName: 'Topic',
+          topicCreatedAt: '2026-01-01T00:00:00.000Z',
+          topicUpdatedAt: '2026-01-01T00:00:00.000Z',
+          snippet: `Snippet ${index}`,
+          createdAt: `2026-01-01T00:00:0${index}.000Z`
+        })),
+        {
+          sourceType: 'session',
+          messageId: 'session-message-1',
+          sessionId: 'session-1',
+          sessionName: 'Session',
+          snippet: 'Session snippet',
+          createdAt: '2026-01-01T00:00:10.000Z'
+        }
+      ]
+    })
+
+    expect(groups).toHaveLength(2)
+    expect(groups[0]).toEqual(
+      expect.objectContaining({
+        id: 'topic:topic-1',
+        sourceType: 'topic',
+        title: 'Topic',
+        total: GLOBAL_MESSAGE_SEARCH_GROUP_COLLAPSED_LIMIT + 1,
+        items: expect.arrayContaining([expect.objectContaining({ kind: 'more', remainingCount: 1 })])
+      })
+    )
+    expect(groups[1]).toEqual(
+      expect.objectContaining({
+        id: 'session:session-1',
+        sourceType: 'session',
+        title: 'Session',
+        total: 1
+      })
+    )
   })
 })

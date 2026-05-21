@@ -2207,6 +2207,28 @@
     "keyboard": {
       "select": "選擇"
     },
+    "messageSearch": {
+      "hint": "輸入關鍵詞搜尋訊息正文",
+      "matchModeLabel": "匹配方式",
+      "matchModes": {
+        "substring": "子串匹配",
+        "wholeWord": "整詞匹配"
+      },
+      "more": "查看更多 {{count}} 條結果",
+      "open": "搜尋訊息",
+      "roles": {
+        "assistant": "助手",
+        "system": "系統",
+        "tool": "工具",
+        "user": "使用者"
+      },
+      "sourceLabel": "訊息來源",
+      "sources": {
+        "all": "全部訊息",
+        "session": "會話訊息",
+        "topic": "話題訊息"
+      }
+    },
     "no_recent": "暫無最近訪問",
     "open": "開啟全域搜尋",
     "open_failed": "開啟搜尋結果失敗",

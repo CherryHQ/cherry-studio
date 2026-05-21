@@ -1,12 +1,19 @@
 import type { GlobalSearchItem, GlobalSearchResponse, GlobalSearchType } from '@shared/data/api/schemas/globalSearch'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { SearchMessageResult } from '@shared/data/api/schemas/messages'
+import type { AgentSessionEntity, SessionSearchMessageResult } from '@shared/data/api/schemas/sessions'
 import type { GlobalSearchRecentEntry, Tab } from '@shared/data/cache/cacheValueTypes'
 import type { Topic } from '@types'
 
 export const GLOBAL_SEARCH_RECENT_ITEM_LIMIT = 20
 export const GLOBAL_SEARCH_DISPLAY_RECENT_LIMIT = 6
+export const GLOBAL_MESSAGE_SEARCH_GROUP_COLLAPSED_LIMIT = 3
 
 export type GlobalSearchFilter = 'all' | 'conversation' | 'assistant' | 'agent' | 'knowledge'
+export type GlobalMessageSearchSourceFilter = 'all' | 'topic' | 'session'
+export type GlobalTopicMessageSearchResult = SearchMessageResult & { sourceType: 'topic' }
+export type GlobalSessionMessageSearchResult = SessionSearchMessageResult & { sourceType: 'session' }
+export type GlobalMessageSearchResult = GlobalTopicMessageSearchResult | GlobalSessionMessageSearchResult
+type GlobalMessageSearchSource = GlobalMessageSearchResult['sourceType']
 
 export type GlobalSearchGroupId =
   | 'recent'
@@ -34,6 +41,28 @@ export type GlobalSearchPanelGroup = {
   items: GlobalSearchPanelItem[]
 }
 
+export type GlobalMessageSearchPanelItem =
+  | {
+      kind: 'message'
+      id: string
+      parentId: string
+      result: GlobalMessageSearchResult
+    }
+  | {
+      kind: 'more'
+      id: string
+      parentId: string
+      remainingCount: number
+    }
+
+export type GlobalMessageSearchPanelGroup = {
+  id: string
+  sourceType: GlobalMessageSearchSource
+  title: string
+  total: number
+  items: GlobalMessageSearchPanelItem[]
+}
+
 const FILTER_TYPES: Record<GlobalSearchFilter, GlobalSearchType[]> = {
   all: ['topic', 'session', 'assistant', 'agent', 'knowledge-base'],
   conversation: ['topic', 'session'],
@@ -47,6 +76,17 @@ const COARSE_ENTITY_ROUTE_PATHS = new Set(['/app/chat', '/app/agents'])
 
 export function getGlobalSearchTypes(filter: GlobalSearchFilter): GlobalSearchType[] {
   return FILTER_TYPES[filter]
+}
+
+export function getMessageSearchSources(filter: GlobalMessageSearchSourceFilter): GlobalMessageSearchSource[] {
+  switch (filter) {
+    case 'topic':
+      return ['topic']
+    case 'session':
+      return ['session']
+    case 'all':
+      return ['topic', 'session']
+  }
 }
 
 export function getGlobalSearchRecentEntryId(entry: GlobalSearchRecentEntry): string {
@@ -214,4 +254,65 @@ export function buildGlobalSearchGroups({
   }
 
   return groups
+}
+
+export function buildGlobalMessageSearchGroups({
+  expandedParentIds,
+  items
+}: {
+  expandedParentIds: ReadonlySet<string>
+  items: readonly GlobalMessageSearchResult[]
+}): GlobalMessageSearchPanelGroup[] {
+  const groupsByParent = new Map<
+    string,
+    { sourceType: GlobalMessageSearchSource; title: string; results: GlobalMessageSearchResult[] }
+  >()
+
+  for (const result of items) {
+    const parentId = result.sourceType === 'topic' ? `topic:${result.topicId}` : `session:${result.sessionId}`
+    const title = result.sourceType === 'topic' ? result.topicName : result.sessionName
+    const group = groupsByParent.get(parentId)
+
+    if (group) {
+      group.results.push(result)
+      continue
+    }
+
+    groupsByParent.set(parentId, {
+      sourceType: result.sourceType,
+      title,
+      results: [result]
+    })
+  }
+
+  return Array.from(groupsByParent.entries()).map(([parentId, group]) => {
+    const expanded = expandedParentIds.has(parentId)
+    const visibleResults = expanded
+      ? group.results
+      : group.results.slice(0, GLOBAL_MESSAGE_SEARCH_GROUP_COLLAPSED_LIMIT)
+    const items: GlobalMessageSearchPanelItem[] = visibleResults.map((result) => ({
+      kind: 'message',
+      id: `${parentId}:${result.messageId}`,
+      parentId,
+      result
+    }))
+    const remainingCount = group.results.length - visibleResults.length
+
+    if (remainingCount > 0) {
+      items.push({
+        kind: 'more',
+        id: `${parentId}:more`,
+        parentId,
+        remainingCount
+      })
+    }
+
+    return {
+      id: parentId,
+      sourceType: group.sourceType,
+      title: group.title,
+      total: group.results.length,
+      items
+    }
+  })
 }

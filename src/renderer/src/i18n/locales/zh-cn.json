@@ -2207,6 +2207,28 @@
     "keyboard": {
       "select": "选择"
     },
+    "messageSearch": {
+      "hint": "输入关键词搜索消息正文",
+      "matchModeLabel": "匹配方式",
+      "matchModes": {
+        "substring": "子串匹配",
+        "wholeWord": "整词匹配"
+      },
+      "more": "查看更多 {{count}} 条结果",
+      "open": "搜索消息",
+      "roles": {
+        "assistant": "助手",
+        "system": "系统",
+        "tool": "工具",
+        "user": "用户"
+      },
+      "sourceLabel": "消息来源",
+      "sources": {
+        "all": "全部消息",
+        "session": "会话消息",
+        "topic": "话题消息"
+      }
+    },
     "no_recent": "暂无最近访问",
     "open": "打开全局搜索",
     "open_failed": "打开搜索结果失败",

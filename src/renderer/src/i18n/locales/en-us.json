@@ -2207,6 +2207,28 @@
     "keyboard": {
       "select": "Select"
     },
+    "messageSearch": {
+      "hint": "Type to search message content",
+      "matchModeLabel": "Match mode",
+      "matchModes": {
+        "substring": "Substring",
+        "wholeWord": "Whole word"
+      },
+      "more": "Show {{count}} more results",
+      "open": "Search messages",
+      "roles": {
+        "assistant": "Assistant",
+        "system": "System",
+        "tool": "Tool",
+        "user": "User"
+      },
+      "sourceLabel": "Message source",
+      "sources": {
+        "all": "All messages",
+        "session": "Session messages",
+        "topic": "Topic messages"
+      }
+    },
     "no_recent": "No recent routes",
     "open": "Open global search",
     "open_failed": "Failed to open search result",
