@@ -29,6 +29,43 @@ Analyze codebase patterns to recommend tailored Claude Code automations across a
 
 ## Workflow
 
+### Phase 0: Confirm Before Scanning（Cherry Studio addition）
+
+This scan reads many files (package.json, source structure, .claude/, framework
+configs, dependencies) and produces detailed analysis. **It is token-intensive**
+— a typical run on a medium-sized repo consumes **20–40K tokens** of model
+context, plus model output for the recommendations themselves.
+
+Before doing **any** filesystem reads or Bash calls, you MUST:
+
+1. **Announce the scan plan** in one short paragraph: what dirs/files you will
+   read, why each is needed, and the token-budget estimate. Example phrasing:
+
+   > 我准备扫描当前工作目录的 `package.json`/`pyproject.toml`/`go.mod` 等清单文件 +
+   > `src/` `tests/` 项目结构 + 已有的 `.claude/` 配置 + CLAUDE.md，给出 hook /
+   > subagent / skill / MCP 推荐。预计消耗 **~30K tokens**（实际取决于仓库大小）。
+
+2. **Ask explicit confirmation** with a clear yes/no question — in Cherry Studio
+   the chat UI surfaces this as a confirmation button:
+
+   > **继续扫描吗？** / **Proceed with scan?**
+
+3. **Wait for explicit "yes" / "继续" / "go ahead"** before proceeding to Phase 1.
+   Treat anything ambiguous as a no.
+
+4. **If the user declines or hesitates**, offer alternatives:
+   - **Narrower scope**: scan only one directory the user names → smaller budget
+   - **Verbal-only**: skip the scan, recommend based on what the user describes
+     (project type, frameworks, pain points)
+   - **Defer**: note the request to memory/FACT.md so a future session can pick
+     it up without re-asking
+
+5. **Skip Phase 0 only if** the user has already explicitly granted scan
+   permission earlier in the same session (e.g. their first message was
+   "scan my repo and recommend automations now").
+
+Only after explicit confirmation, proceed with Phase 1 below.
+
 ### Phase 1: Codebase Analysis
 
 Gather project context:
