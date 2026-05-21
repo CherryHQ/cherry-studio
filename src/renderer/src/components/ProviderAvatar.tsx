@@ -1,8 +1,10 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
 import { Avatar, AvatarFallback, AvatarImage } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import type { Provider } from '@renderer/types'
 import { generateColorFromChar, getFirstCharacter, getForegroundColor } from '@renderer/utils'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import React from 'react'
 
 interface ProviderAvatarPrimitiveProps {
@@ -33,14 +35,24 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
   className,
   style
 }) => {
+  const { theme } = useTheme()
   // Resolve the icon: prefer `logo` prop, fall back to `logoSrc` for backwards compat
   const resolvedLogo = logo ?? logoSrc
 
-  // If logo is a CompoundIcon, render its Avatar sub-component
+  // If logo is a CompoundIcon, render one concrete theme variant to avoid duplicate light/dark SVGs.
   if (resolvedLogo && typeof resolvedLogo !== 'string') {
     const Icon = resolvedLogo
-    const resolvedSize = size ?? (style?.width as number | undefined)
-    return <Icon.Avatar size={resolvedSize} className={className} />
+    const styleSize = typeof style?.width === 'number' ? style.width : undefined
+    const resolvedSize = size ?? styleSize ?? 32
+    const iconSize = resolvedSize * 0.7
+
+    return (
+      <Avatar className={className} style={{ width: resolvedSize, height: resolvedSize, ...style }}>
+        <AvatarFallback className="bg-background text-foreground">
+          <Icon variant={theme === ThemeMode.dark ? 'dark' : 'light'} style={{ width: iconSize, height: iconSize }} />
+        </AvatarFallback>
+      </Avatar>
+    )
   }
 
   // If logo source is a string URL, render image avatar

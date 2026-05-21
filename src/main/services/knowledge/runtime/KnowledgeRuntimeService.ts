@@ -3,71 +3,70 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api'
 import {
-  type KnowledgeBase,
   KnowledgeChunkMetadataSchema,
   type KnowledgeItem,
   type KnowledgeItemChunk,
-  type KnowledgeItemOf,
   type KnowledgeRuntimeAddItemInput,
   type KnowledgeSearchResult
 } from '@shared/data/types/knowledge'
 import { MetadataMode } from '@vectorstores/core'
 import { embedMany } from 'ai'
 
-import { KnowledgeQueueManager } from '../queue/KnowledgeQueueManager'
-import type {
-  IndexLeafTaskEntry,
-  KnowledgeQueueTaskContext,
-  KnowledgeQueueTaskDescriptor,
-  KnowledgeQueueTaskEntry,
-  PrepareRootTaskEntry
-} from '../queue/types'
-import { loadKnowledgeItemDocuments } from '../readers/KnowledgeReader'
 import { rerankKnowledgeSearchResults } from '../rerank/rerank'
-import type { IndexableKnowledgeItem } from '../types/items'
-import { chunkDocuments } from '../utils/chunk'
-import { embedDocuments } from '../utils/embed'
-import { filterIndexableKnowledgeItems, isIndexableKnowledgeItem } from '../utils/items'
+import { indexLeafJobHandler } from '../tasks/indexLeafJobHandler'
+import { prepareRootJobHandler } from '../tasks/prepareRootJobHandler'
+import { filterIndexableKnowledgeItems, isContainerKnowledgeItem } from '../utils/items'
 import { getEmbedModel } from '../utils/model'
 import { mapChunkDocument } from './utils/chunks'
-import { deleteItemVectors, deleteVectorsForEntries, failItems } from './utils/cleanup'
-import { prepareKnowledgeItem } from './utils/prepare'
+import { deleteItemVectors } from './utils/cleanup'
 import { applyRelevanceThreshold, getInitialSearchScoreKind, withSearchRanks } from './utils/search'
 
 const logger = loggerService.withContext('KnowledgeRuntimeService')
 
-const SHUTDOWN_INTERRUPTED_REASON = 'Knowledge task interrupted by service shutdown'
-const DELETE_INTERRUPTED_REASON = 'Knowledge task interrupted by item deletion'
-const REINDEX_INTERRUPTED_REASON = 'Knowledge task interrupted by reindex'
-const KNOWLEDGE_EMPTY_CONTENT_REASON = 'KNOWLEDGE_EMPTY_CONTENT'
+const ACTIVE_STATUSES = ['pending', 'delayed', 'running'] as const
+const ACTIVE_JOB_LIMIT = 5000
+const DEFAULT_LOCK_WAIT_TIMEOUT_MS = 35_000
 const SEARCH_TOKEN_PATTERN = /[\p{L}\p{N}_]+/u
 
-type QueueTaskLogContext = {
-  baseId: string
-  itemId: string
-  kind: KnowledgeQueueTaskEntry['kind']
-}
-
-const assertNeverKnowledgeItem = (item: never): never => {
-  throw new Error(`Unsupported knowledge item type: ${String((item as { type?: unknown }).type)}`)
-}
+type JobInputWithItem = { itemId?: string } | null
 
 @Injectable('KnowledgeRuntimeService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['KnowledgeVectorStoreService'])
 export class KnowledgeRuntimeService extends BaseService {
-  private queue = new KnowledgeQueueManager()
+  /**
+   * Layer 3 business mutex per knowledge base. Promise-chain serialization
+   * keeps vector-store writes and DB status flips together across all handler
+   * instances, including instances created after crash + retry.
+   *
+   * @internal Handlers reach this only via runWithBaseWriteLockForBase().
+   */
+  private readonly baseWriteLocks = new Map<string, Promise<void>>()
 
   protected onInit(): void {
-    this.queue = new KnowledgeQueueManager()
+    const jobManager = application.get('JobManager')
+    jobManager.registerHandler('knowledge.prepare-root', prepareRootJobHandler)
+    jobManager.registerHandler('knowledge.index-leaf', indexLeafJobHandler)
   }
 
   protected async onStop(): Promise<void> {
-    const interruptedEntries = this.queue.interruptAll(SHUTDOWN_INTERRUPTED_REASON)
-    await this.queue.waitForRunning(interruptedEntries.map((entry) => entry.itemId))
-    await this.cleanupInterruptedEntries(interruptedEntries, SHUTDOWN_INTERRUPTED_REASON)
+    const jobManager = application.get('JobManager')
+    await Promise.allSettled([
+      jobManager.cancelMany({ type: 'knowledge.prepare-root' }, 'service-shutdown'),
+      jobManager.cancelMany({ type: 'knowledge.index-leaf' }, 'service-shutdown')
+    ])
+    // Cap the drain wait so a wedged handler cannot block process exit beyond
+    // the outer Application shutdown timeout (5s). Stragglers past this point
+    // are recovered on next startup.
+    await this.waitForBaseWriteLocks(undefined, DEFAULT_LOCK_WAIT_TIMEOUT_MS)
+    // Intentionally no item.status rollback. Items left in 'processing' here
+    // are recovered after restart: JobManager.onAllReady's startup-recovery
+    // flips their jobs back to 'pending' and the handler re-runs. The handler
+    // early-returns when item.status is already 'completed', so the only
+    // observable cost is the brief window where item.status lingers as
+    // 'processing' between shutdown and next startup recovery.
   }
 
   async createBase(baseId: string): Promise<void> {
@@ -76,32 +75,14 @@ export class KnowledgeRuntimeService extends BaseService {
     await vectorStoreService.createStore(base)
   }
 
-  async deleteBase(baseId: string): Promise<string[]> {
-    const interruptedEntries = this.queue.interruptBase(baseId, DELETE_INTERRUPTED_REASON)
-    await this.queue.waitForRunning(interruptedEntries.map((entry) => entry.itemId))
-
-    let cleanupEntries: Array<{ base: KnowledgeBase; baseId: string; itemIds: string[] }>
-    try {
-      cleanupEntries = await this.expandInterruptedEntries(interruptedEntries)
-    } catch (error) {
-      const normalizedError = error instanceof Error ? error : new Error(String(error))
-      await this.persistFailureStateBestEffort(
-        interruptedEntries.map((entry) => entry.itemId),
-        normalizedError.message,
-        {
-          baseId,
-          operation: 'deleteBase'
-        }
-      )
-      throw error
-    }
-
-    return cleanupEntries.flatMap((entry) => entry.itemIds)
-  }
-
   async deleteBaseArtifacts(baseId: string): Promise<void> {
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
     await vectorStoreService.deleteStore(baseId)
+  }
+
+  async cancelAllJobsForBase(baseId: string): Promise<void> {
+    const jobManager = application.get('JobManager')
+    await jobManager.cancelMany({ queue: `base.${baseId}` }, 'delete-base')
   }
 
   async addItems(baseId: string, inputs: KnowledgeRuntimeAddItemInput[]): Promise<void> {
@@ -112,15 +93,19 @@ export class KnowledgeRuntimeService extends BaseService {
     const base = await knowledgeBaseService.getById(baseId)
     const acceptedItems: KnowledgeItem[] = []
 
-    await this.queue.runWithBaseWriteLockForBase(base.id, async () => {
+    // Hold the Layer 3 lock across create + status + enqueue so a concurrent
+    // reindexItems cannot interleave its list-and-cancel pass partway through.
+    await this.runWithBaseWriteLockForBase(base.id, async () => {
       try {
         for (const input of inputs) {
           const createdItem = await knowledgeItemService.create(base.id, input)
           acceptedItems.push(createdItem)
-          acceptedItems[acceptedItems.length - 1] =
-            createdItem.type === 'directory' || createdItem.type === 'sitemap'
-              ? await knowledgeItemService.updateStatus(createdItem.id, 'processing', { phase: 'preparing' })
-              : await knowledgeItemService.updateStatus(createdItem.id, 'processing')
+          acceptedItems[acceptedItems.length - 1] = isContainerKnowledgeItem(createdItem)
+            ? await knowledgeItemService.updateStatus(createdItem.id, 'processing', { phase: 'preparing' })
+            : await knowledgeItemService.updateStatus(createdItem.id, 'processing')
+        }
+        for (const item of acceptedItems) {
+          await this.enqueueRootItem(item)
         }
       } catch (error) {
         const normalizedError = error instanceof Error ? error : new Error(String(error))
@@ -133,83 +118,126 @@ export class KnowledgeRuntimeService extends BaseService {
         throw error
       }
     })
-
-    for (const item of acceptedItems) {
-      await this.submitRuntimeItem(base, item)
-    }
   }
 
   async reindexItems(baseId: string, rootItems: KnowledgeItem[]): Promise<void> {
+    const jobManager = application.get('JobManager')
     const base = await knowledgeBaseService.getById(baseId)
     const rootIds = [...new Set(rootItems.map((item) => item.id))]
-    let interruptIds = rootIds
 
-    try {
-      const interrupted = await this.interruptRootsAndDescendants(base.id, rootIds, REINDEX_INTERRUPTED_REASON)
-      interruptIds = interrupted.interruptIds
+    // Phase 1 (locked): identify active jobs whose itemId falls inside our
+    // subtree. Without the lock a concurrent addItems could land between list
+    // and cancel, smuggling new jobs past our cleanup.
+    let jobIdsToCancel: string[] = []
+    await this.runWithBaseWriteLockForBase(baseId, async () => {
+      const allItems = await knowledgeItemService.getDescendantAndSelfItems(baseId, rootIds)
+      const allItemIds = new Set(allItems.map((item) => item.id))
+      const activeJobs = await jobManager.list({
+        queue: `base.${baseId}`,
+        status: [...ACTIVE_STATUSES],
+        limit: ACTIVE_JOB_LIMIT
+      })
+      jobIdsToCancel = activeJobs
+        .filter((job) => allItemIds.has((job.input as JobInputWithItem)?.itemId ?? ''))
+        .map((job) => job.id)
+    })
 
+    // Phase 2 (unlocked): JobManager.cancel waits up to cancelTimeoutMs per
+    // in-flight job for the handler to react. Cancelling in parallel bounds
+    // total wait by the slowest single handler, not the sum across all.
+    await Promise.all(
+      jobIdsToCancel.map((jobId) =>
+        jobManager.cancel(jobId, 'reindex').catch((error) => {
+          logger.warn('reindex cancel failed (job may already be terminal)', {
+            jobId,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        })
+      )
+    )
+
+    // Phase 3: wait for any straggler Layer 3 locks to drain.
+    // 35s = JobManager.cancelTimeoutMs (30s) + 5s buffer.
+    await this.waitForBaseWriteLocks(baseId, DEFAULT_LOCK_WAIT_TIMEOUT_MS)
+
+    // Phase 4 (locked): clean stale vectors + stale leaf DB rows for any
+    // container roots, then re-enqueue.
+    await this.runWithBaseWriteLockForBase(baseId, async () => {
       const leafItems = filterIndexableKnowledgeItems(
-        await knowledgeItemService.getLeafDescendantItems(base.id, rootIds)
+        await knowledgeItemService.getLeafDescendantItems(baseId, rootIds)
       )
-      await this.deleteItemVectorsOrFailItems(
-        base,
-        leafItems.map((item) => item.id),
-        interruptIds,
-        { baseId: base.id, operation: 'reindexItems', rootIds }
-      )
-
-      const containerItems = rootItems.filter(
-        (item): item is KnowledgeItemOf<'directory'> | KnowledgeItemOf<'sitemap'> =>
-          item.type === 'directory' || item.type === 'sitemap'
-      )
-      if (containerItems.length > 0) {
-        // Reindexing directory/sitemap roots rebuilds their leaf children from the source:
-        // old leaf items are deleted here, then preparation creates fresh leaf items to index.
-        await knowledgeItemService.deleteLeafDescendantItems(
-          base.id,
-          containerItems.map((item) => item.id)
+      if (leafItems.length > 0) {
+        await deleteItemVectors(
+          base,
+          leafItems.map((item) => item.id)
         )
       }
 
-      for (const containerItem of containerItems) {
-        const preparedRoot = await knowledgeItemService.updateStatus(containerItem.id, 'processing', {
-          phase: 'preparing'
-        })
-        await this.submitRuntimeItem(base, preparedRoot)
+      const containers = rootItems.filter(isContainerKnowledgeItem)
+      if (containers.length > 0) {
+        // Drop the previous expansion so prepare-root can recreate fresh leaves.
+        await knowledgeItemService.deleteLeafDescendantItems(
+          baseId,
+          containers.map((item) => item.id)
+        )
       }
 
-      for (const leafItem of rootItems.filter(isIndexableKnowledgeItem)) {
-        const processingItem = await knowledgeItemService.updateStatus(leafItem.id, 'processing')
-        if (isIndexableKnowledgeItem(processingItem)) {
-          this.enqueueIndexItem(base, processingItem)
-        }
+      for (const item of rootItems) {
+        await knowledgeItemService.updateStatus(
+          item.id,
+          'processing',
+          isContainerKnowledgeItem(item) ? { phase: 'preparing' } : undefined
+        )
+        await this.enqueueRootItem(item)
       }
-    } catch (error) {
-      await this.failItemsAndRethrow(interruptIds, error, { baseId: base.id, operation: 'reindexItems', rootIds })
-    }
+    })
   }
 
   async deleteItems(baseId: string, rootItems: KnowledgeItem[]): Promise<void> {
+    const jobManager = application.get('JobManager')
     const base = await knowledgeBaseService.getById(baseId)
     const rootIds = [...new Set(rootItems.map((item) => item.id))]
-    let interruptIds = rootIds
 
-    try {
-      const interrupted = await this.interruptRootsAndDescendants(base.id, rootIds, DELETE_INTERRUPTED_REASON)
-      interruptIds = interrupted.interruptIds
+    let jobIdsToCancel: string[] = []
+    await this.runWithBaseWriteLockForBase(baseId, async () => {
+      const allItems = await knowledgeItemService.getDescendantAndSelfItems(baseId, rootIds)
+      const allItemIds = new Set(allItems.map((item) => item.id))
+      const activeJobs = await jobManager.list({
+        queue: `base.${baseId}`,
+        status: [...ACTIVE_STATUSES],
+        limit: ACTIVE_JOB_LIMIT
+      })
+      jobIdsToCancel = activeJobs
+        .filter((job) => allItemIds.has((job.input as JobInputWithItem)?.itemId ?? ''))
+        .map((job) => job.id)
+    })
 
+    await Promise.all(
+      jobIdsToCancel.map((jobId) =>
+        jobManager.cancel(jobId, 'delete-items').catch((error) => {
+          logger.warn('delete-items cancel failed (job may already be terminal)', {
+            jobId,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        })
+      )
+    )
+
+    await this.waitForBaseWriteLocks(baseId, DEFAULT_LOCK_WAIT_TIMEOUT_MS)
+
+    // Cleanup vectors for leaf items in the subtree. The orchestration layer
+    // deletes the knowledge_item DB rows after this returns.
+    await this.runWithBaseWriteLockForBase(baseId, async () => {
       const leafItems = filterIndexableKnowledgeItems(
-        await knowledgeItemService.getLeafDescendantItems(base.id, rootIds)
+        await knowledgeItemService.getLeafDescendantItems(baseId, rootIds)
       )
-      await this.deleteItemVectorsOrFailItems(
-        base,
-        leafItems.map((item) => item.id),
-        interruptIds,
-        { baseId: base.id, operation: 'deleteItems', rootIds }
-      )
-    } catch (error) {
-      await this.failItemsAndRethrow(interruptIds, error, { baseId: base.id, operation: 'deleteItems', rootIds })
-    }
+      if (leafItems.length > 0) {
+        await deleteItemVectors(
+          base,
+          leafItems.map((item) => item.id)
+        )
+      }
+    })
   }
 
   async search(baseId: string, query: string): Promise<KnowledgeSearchResult[]> {
@@ -284,221 +312,97 @@ export class KnowledgeRuntimeService extends BaseService {
     await vectorStore.deleteByIdAndExternalId(chunkId, itemId)
   }
 
-  private async submitRuntimeItem(base: KnowledgeBase, item: KnowledgeItem): Promise<void> {
-    switch (item.type) {
-      case 'file':
-      case 'url':
-      case 'note':
-        this.enqueueIndexItem(base, item)
-        return
-      case 'directory':
-      case 'sitemap':
-        this.enqueuePrepareRoot(base, item)
-        return
-      default:
-        assertNeverKnowledgeItem(item)
+  /**
+   * Acquire the Layer 3 mutex for `baseId`, run `task`, release the mutex.
+   * Promise-chain serialization composes naturally across handler instances
+   * (including those re-instantiated after crash + retry).
+   *
+   * @internal Knowledge job handlers call this through
+   *   `application.get('KnowledgeRuntimeService').runWithBaseWriteLockForBase(...)`.
+   *   Do not call from outside the knowledge module — the lock is a private
+   *   invariant of the indexing pipeline.
+   */
+  async runWithBaseWriteLockForBase<T>(baseId: string, task: () => Promise<T>): Promise<T> {
+    const previousLock = this.baseWriteLocks.get(baseId) ?? Promise.resolve()
+    let releaseCurrentLock!: () => void
+    const currentLock = new Promise<void>((resolve) => {
+      releaseCurrentLock = resolve
+    })
+    const nextLock = previousLock.catch(() => undefined).then(() => currentLock)
+
+    this.baseWriteLocks.set(baseId, nextLock)
+
+    try {
+      await previousLock.catch(() => undefined)
+      return await task()
+    } finally {
+      releaseCurrentLock()
+      if (this.baseWriteLocks.get(baseId) === nextLock) {
+        this.baseWriteLocks.delete(baseId)
+      }
     }
   }
 
-  private enqueueIndexItem(base: KnowledgeBase, item: IndexableKnowledgeItem): void {
-    const wasAlreadyQueued = this.hasQueuedItem(item.id)
-    let didStart = false
-    const promise = this.queue.enqueue({
-      base,
-      item,
-      kind: 'index-leaf',
-      execute: (context) => {
-        didStart = true
-        return this.executeIndexTask(context)
-      }
+  /**
+   * Wait for Layer 3 locks to drain. When `baseId` is given waits only for
+   * that base; otherwise waits for every active lock. `timeoutMs` caps the
+   * wait; on timeout this logs a warning and returns so the caller (e.g.
+   * deleteBase) can proceed past a wedged handler.
+   */
+  async waitForBaseWriteLocks(baseId?: string, timeoutMs?: number): Promise<void> {
+    const locks =
+      baseId === undefined
+        ? [...this.baseWriteLocks.values()]
+        : [this.baseWriteLocks.get(baseId)].filter((l): l is Promise<void> => l !== undefined)
+
+    if (locks.length === 0) {
+      return
+    }
+
+    const allSettled = Promise.allSettled(locks).then(() => undefined)
+    if (timeoutMs === undefined) {
+      await allSettled
+      return
+    }
+
+    let timeoutHandle: NodeJS.Timeout | undefined
+    const timeout = new Promise<'timeout'>((resolve) => {
+      timeoutHandle = setTimeout(() => resolve('timeout'), timeoutMs)
     })
-
-    void promise.catch((error) => {
-      if (wasAlreadyQueued || didStart) {
-        return
-      }
-
-      void this.failItemsAfterEnqueueRejection([item.id], error, {
-        baseId: base.id,
-        itemId: item.id,
-        kind: 'index-leaf'
-      })
-    })
-  }
-
-  private enqueuePrepareRoot(
-    base: KnowledgeBase,
-    item: KnowledgeItemOf<'directory'> | KnowledgeItemOf<'sitemap'>
-  ): void {
-    const wasAlreadyQueued = this.hasQueuedItem(item.id)
-    let didStart = false
-    const promise = this.queue.enqueue({
-      base,
-      item,
-      kind: 'prepare-root',
-      execute: (context) => {
-        didStart = true
-        return this.executePrepareTask(context)
-      }
-    })
-
-    void promise.catch((error) => {
-      if (wasAlreadyQueued || didStart) {
-        return
-      }
-
-      void this.failItemsAfterEnqueueRejection([item.id], error, {
-        baseId: base.id,
-        itemId: item.id,
-        kind: 'prepare-root'
-      })
-    })
-  }
-
-  private async executePrepareTask(context: KnowledgeQueueTaskContext<PrepareRootTaskEntry>): Promise<void> {
-    const { base, item } = context
-    const createdItemIds = new Set<string>([item.id])
 
     try {
-      const leafItems = await prepareKnowledgeItem({
-        baseId: base.id,
-        item,
-        onCreatedItem: (createdItem) => createdItemIds.add(createdItem.id),
-        runMutation: (task) => context.runWithBaseWriteLock(task),
-        signal: context.signal
-      })
-
-      for (const leafItem of leafItems) {
-        if (await this.shouldEnqueueLeaf(leafItem.id)) {
-          context.signal.throwIfAborted()
-          this.enqueueIndexItem(base, leafItem)
-        }
+      const winner = await Promise.race([allSettled.then(() => 'done' as const), timeout])
+      if (winner === 'timeout') {
+        logger.warn('waitForBaseWriteLocks timed out', {
+          baseId: baseId ?? null,
+          timeoutMs,
+          lockCount: locks.length
+        })
       }
-
-      await context.runWithBaseWriteLock(async () => {
-        await knowledgeItemService.updateStatus(item.id, 'processing')
-        context.signal.throwIfAborted()
-      })
-    } catch (error) {
-      if (context.signal.aborted) {
-        context.signal.throwIfAborted()
-        throw error
+    } finally {
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle)
       }
-
-      const normalizedError = error instanceof Error ? error : new Error(String(error))
-      await this.cleanupFailedItems(base, [...createdItemIds], item, normalizedError)
-      throw normalizedError
     }
   }
 
-  private async executeIndexTask(context: KnowledgeQueueTaskContext<IndexLeafTaskEntry>): Promise<void> {
-    const { base, item } = context
+  private async enqueueRootItem(item: KnowledgeItem): Promise<void> {
+    const jobManager = application.get('JobManager')
 
-    try {
-      await this.indexLeafItem(base, item, context)
-    } catch (error) {
-      if (context.signal.aborted) {
-        context.signal.throwIfAborted()
-        throw error
-      }
-
-      const normalizedError = error instanceof Error ? error : new Error(String(error))
-      await this.cleanupFailedItems(base, [item.id], item, normalizedError)
-      throw normalizedError
-    }
-  }
-
-  private async indexLeafItem(
-    base: KnowledgeBase,
-    item: IndexableKnowledgeItem,
-    context: KnowledgeQueueTaskContext<IndexLeafTaskEntry>
-  ): Promise<void> {
-    context.signal.throwIfAborted()
-    await context.runWithBaseWriteLock(() =>
-      knowledgeItemService.updateStatus(item.id, 'processing', { phase: 'reading' })
-    )
-    const documents = await this.runTaskStep(context, () => loadKnowledgeItemDocuments(item, context.signal))
-    this.assertHasIndexableContent(documents)
-    const chunks = await this.runTaskStep(context, () => chunkDocuments(base, item, documents))
-    this.assertHasIndexableContent(chunks)
-    await context.runWithBaseWriteLock(() =>
-      knowledgeItemService.updateStatus(item.id, 'processing', { phase: 'embedding' })
-    )
-    const nodes = await this.runTaskStep(context, () => embedDocuments(getEmbedModel(base), chunks, context.signal))
-
-    await context.runWithBaseWriteLock(async () => {
-      const vectorStoreService = application.get('KnowledgeVectorStoreService')
-      const activeVectorStore = await this.runTaskStep(context, () => vectorStoreService.createStore(base))
-
-      await this.runTaskStep(context, () => activeVectorStore.add(nodes))
-      await knowledgeItemService.updateStatus(item.id, 'completed')
-    })
-  }
-
-  private async cleanupFailedItems(
-    base: KnowledgeBase,
-    itemIds: string[],
-    logItem: KnowledgeItem,
-    error: Error
-  ): Promise<void> {
-    logger.error('Failed to process knowledge item runtime task', error, {
-      baseId: base.id,
-      itemId: logItem.id,
-      itemType: logItem.type
-    })
-
-    try {
-      await deleteItemVectors(base, itemIds)
-    } catch (cleanupError) {
-      logger.error(
-        'Failed to cleanup knowledge item vectors after runtime failure',
-        cleanupError instanceof Error ? cleanupError : new Error(String(cleanupError)),
-        {
-          baseId: base.id,
-          itemIds
-        }
+    if (isContainerKnowledgeItem(item)) {
+      await jobManager.enqueue(
+        'knowledge.prepare-root',
+        { baseId: item.baseId, itemId: item.id },
+        { idempotencyKey: `knowledge:${item.baseId}:${item.id}` }
       )
+      return
     }
 
-    await this.persistFailureStateBestEffort(itemIds, error.message, {
-      baseId: base.id,
-      itemId: logItem.id,
-      itemType: logItem.type,
-      operation: 'runtimeTaskFailure'
-    })
-  }
-
-  private async persistFailureStateBestEffort(
-    itemIds: string[],
-    reason: string,
-    context: Record<string, unknown>
-  ): Promise<void> {
-    try {
-      await failItems(itemIds, reason)
-    } catch (error) {
-      logger.error(
-        'Failed to persist knowledge item failure state during runtime cleanup',
-        error instanceof Error ? error : new Error(String(error)),
-        {
-          ...context,
-          itemIds,
-          reason
-        }
-      )
-    }
-  }
-
-  private async deleteItemVectorsOrFailItems(
-    base: KnowledgeBase,
-    vectorItemIds: string[],
-    failureItemIds: string[],
-    context: Record<string, unknown>
-  ): Promise<void> {
-    try {
-      await deleteItemVectors(base, vectorItemIds)
-    } catch (error) {
-      await this.failItemsAndRethrow(failureItemIds, error, context)
-    }
+    await jobManager.enqueue(
+      'knowledge.index-leaf',
+      { baseId: item.baseId, itemId: item.id, parentJobId: null },
+      { idempotencyKey: `knowledge:${item.baseId}:${item.id}` }
+    )
   }
 
   private async deleteAcceptedItemsBestEffort(
@@ -523,143 +427,5 @@ export class KnowledgeRuntimeService extends BaseService {
         )
       }
     }
-  }
-
-  private async failItemsAndRethrow(
-    itemIds: string[],
-    error: unknown,
-    context: Record<string, unknown>
-  ): Promise<never> {
-    const normalizedError = error instanceof Error ? error : new Error(String(error))
-    await this.persistFailureStateBestEffort(itemIds, normalizedError.message, {
-      ...context,
-      operation: context.operation ?? 'strictRuntimeCleanup'
-    })
-    throw error
-  }
-
-  private hasQueuedItem(itemId: string): boolean {
-    const snapshot = this.queue.getSnapshot()
-    return [...snapshot.pending, ...snapshot.running].some((entry) => entry.itemId === itemId)
-  }
-
-  private async failItemsAfterEnqueueRejection(
-    itemIds: string[],
-    error: unknown,
-    context: QueueTaskLogContext
-  ): Promise<void> {
-    const normalizedError = error instanceof Error ? error : new Error(String(error))
-    logger.error('Knowledge queue rejected runtime task before execution', normalizedError, context)
-
-    try {
-      await failItems(itemIds, normalizedError.message)
-    } catch (failureStateError) {
-      logger.error(
-        'Failed to persist knowledge item failure state after queue enqueue rejection',
-        failureStateError instanceof Error ? failureStateError : new Error(String(failureStateError)),
-        {
-          ...context,
-          itemIds,
-          enqueueError: normalizedError.message
-        }
-      )
-    }
-  }
-
-  private async interruptRootsAndDescendants(
-    baseId: string,
-    rootIds: string[],
-    reason: string
-  ): Promise<{ descendantItems: KnowledgeItem[]; interruptIds: string[] }> {
-    // Stop roots before descendant lookup so an active expansion cannot enqueue fresh children during cleanup.
-    this.queue.interruptItems(rootIds, reason)
-    await this.queue.waitForRunning(rootIds)
-
-    const descendantItems = await knowledgeItemService.getDescendantItems(baseId, rootIds)
-    const interruptIds = [...rootIds, ...descendantItems.map((item) => item.id)]
-    this.queue.interruptItems(interruptIds, reason)
-    await this.queue.waitForRunning(interruptIds)
-
-    return { descendantItems, interruptIds }
-  }
-
-  private async runTaskStep<T>(context: KnowledgeQueueTaskContext, step: () => Promise<T> | T): Promise<T> {
-    context.signal.throwIfAborted()
-    const result = await step()
-    context.signal.throwIfAborted()
-    return result
-  }
-
-  private assertHasIndexableContent<T>(items: T[]): void {
-    if (items.length === 0) {
-      throw new Error(KNOWLEDGE_EMPTY_CONTENT_REASON)
-    }
-  }
-
-  private async shouldEnqueueLeaf(itemId: string): Promise<boolean> {
-    try {
-      const item = await knowledgeItemService.getById(itemId)
-      return isIndexableKnowledgeItem(item) && item.status === 'processing'
-    } catch (error) {
-      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
-        return false
-      }
-
-      throw error
-    }
-  }
-
-  private async cleanupInterruptedEntries(entries: KnowledgeQueueTaskDescriptor[], reason: string): Promise<void> {
-    const cleanupEntries = await this.expandInterruptedEntries(entries)
-    await this.deleteVectorsForQueueEntries(cleanupEntries)
-    await this.persistFailureStateBestEffort(
-      cleanupEntries.flatMap((entry) => entry.itemIds),
-      reason,
-      {
-        operation: 'interruptedRuntimeCleanup'
-      }
-    )
-  }
-
-  private async expandInterruptedEntries(
-    entries: KnowledgeQueueTaskDescriptor[]
-  ): Promise<Array<{ base: KnowledgeBase; baseId: string; itemIds: string[] }>> {
-    const expandedEntries: Array<{ base: KnowledgeBase; baseId: string; itemIds: string[] }> = []
-
-    for (const entry of entries) {
-      if (entry.kind === 'index-leaf') {
-        expandedEntries.push({ base: entry.base, baseId: entry.baseId, itemIds: [entry.itemId] })
-        continue
-      }
-
-      const descendantItems = await knowledgeItemService.getDescendantItems(entry.baseId, [entry.itemId])
-      expandedEntries.push({
-        base: entry.base,
-        baseId: entry.baseId,
-        itemIds: [entry.itemId, ...descendantItems.map((item) => item.id)]
-      })
-    }
-
-    return expandedEntries
-  }
-
-  private async deleteVectorsForQueueEntries(
-    entries: Array<{ base: KnowledgeBase; baseId: string; itemIds: string[] }>
-  ): Promise<void> {
-    const entriesByBase = new Map<string, { base: KnowledgeBase; itemIds: string[] }>()
-    for (const entry of entries) {
-      const existing = entriesByBase.get(entry.baseId)
-      if (existing) {
-        existing.itemIds.push(...entry.itemIds)
-        continue
-      }
-
-      entriesByBase.set(entry.baseId, {
-        base: entry.base,
-        itemIds: entry.itemIds
-      })
-    }
-
-    await deleteVectorsForEntries([...entriesByBase.values()])
   }
 }

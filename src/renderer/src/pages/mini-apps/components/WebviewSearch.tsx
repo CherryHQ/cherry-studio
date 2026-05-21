@@ -1,6 +1,5 @@
+import { Button, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import type { InputRef } from 'antd'
-import { Button, Input } from 'antd'
 import type { WebviewTag } from 'electron'
 import { ChevronDown, ChevronUp, X } from 'lucide-react'
 import type { FC } from 'react'
@@ -23,7 +22,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
   const [query, setQuery] = useState('')
   const [matchCount, setMatchCount] = useState(0)
   const [activeIndex, setActiveIndex] = useState(0)
-  const inputRef = useRef<InputRef>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const focusFrameRef = useRef<number | null>(null)
   const lastAppIdRef = useRef<string>(appId)
   const attachedWebviewRef = useRef<WebviewTag | null>(null)
@@ -311,7 +310,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
   const disableNavigation = !query || matchCount === 0
 
   return (
-    <div className="pointer-events-auto absolute top-3 right-3 z-50 flex items-center gap-2 rounded-xl border border-default-200 bg-background px-2 py-1 shadow-lg">
+    <div className="pointer-events-auto absolute top-3 right-3 z-50 flex items-center gap-2 rounded-xl border border-border bg-card px-2 py-1 shadow-lg">
       <Input
         ref={inputRef}
         autoFocus
@@ -319,47 +318,47 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         onChange={(e) => setQuery(e.target.value)}
         spellCheck={false}
         placeholder={t('common.search')}
-        size="small"
-        variant="borderless"
-        className="w-[240px]"
-        style={{ height: '32px' }}
+        className="h-8 w-60 border-0 bg-transparent px-2 py-0 shadow-none focus-visible:border-transparent focus-visible:ring-0"
       />
       <span
-        className="min-w-[44px] text-center text-default-500 text-small tabular-nums"
+        className="min-w-11 text-center text-foreground-secondary text-sm tabular-nums"
         title={noResultTitle}
         role="status"
         aria-live="polite"
         aria-atomic="true">
         {matchLabel}
       </span>
-      <div className="h-4 w-px bg-default-200" />
+      <div className="h-4 w-px bg-border" />
       <Button
-        size="small"
-        type="text"
+        type="button"
+        variant="ghost"
+        size="icon-sm"
         onClick={goToPrevious}
         disabled={disableNavigation}
         aria-label={t('common.previous_match')}
-        icon={<ChevronUp size={16} className="w-6" />}
-        className="text-default-500 hover:text-default-900"
-      />
+        className="text-foreground-secondary shadow-none hover:text-foreground">
+        <ChevronUp size={16} />
+      </Button>
       <Button
-        size="small"
-        type="text"
+        type="button"
+        variant="ghost"
+        size="icon-sm"
         onClick={goToNext}
         disabled={disableNavigation}
         aria-label={t('common.next_match')}
-        icon={<ChevronDown size={16} className="w-6" />}
-        className="text-default-500 hover:text-default-900"
-      />
-      <div className="h-4 w-px bg-default-200" />
+        className="text-foreground-secondary shadow-none hover:text-foreground">
+        <ChevronDown size={16} />
+      </Button>
+      <div className="h-4 w-px bg-border" />
       <Button
-        size="small"
-        type="text"
+        type="button"
+        variant="ghost"
+        size="icon-sm"
         onClick={closeSearch}
         aria-label={t('common.close')}
-        icon={<X size={16} className="w-6" />}
-        className="text-default-500 hover:text-default-900"
-      />
+        className="text-foreground-secondary shadow-none hover:text-foreground">
+        <X size={16} />
+      </Button>
     </div>
   )
 }

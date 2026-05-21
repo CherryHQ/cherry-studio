@@ -10,7 +10,7 @@ const buttonVariants = cva(
     'rounded-md font-normal transition-all',
     'disabled:pointer-events-none disabled:opacity-40',
     "[&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 [&_.lucide:not(.lucide-custom)]:text-current outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
-    'aria-loading:cursor-progress aria-loading:opacity-40',
+    'data-[loading=true]:cursor-progress data-[loading=true]:opacity-40',
     'shadow-xs'
   ),
   {
@@ -83,7 +83,8 @@ function Button({
       data-variant={variant ?? 'default'}
       className={cn(buttonVariants({ variant, size, className }))}
       disabled={disabled || loading}
-      aria-loading={loading}
+      aria-busy={loading || undefined}
+      data-loading={loading || undefined}
       {...props}>
       {/* asChild mode does not support loading because Slot requires a single child element */}
       {asChild ? (

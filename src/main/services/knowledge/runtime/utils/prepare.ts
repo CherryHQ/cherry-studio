@@ -9,7 +9,7 @@ import {
 
 import type { IndexableKnowledgeItem } from '../../types/items'
 import { expandDirectoryOwnerToTree, type ExpandedDirectoryNode } from '../../utils/directory'
-import { isIndexableKnowledgeItem } from '../../utils/items'
+import { isContainerKnowledgeItem, isIndexableKnowledgeItem } from '../../utils/items'
 import { expandSitemapOwnerToCreateItems } from '../../utils/sitemap'
 
 const logger = loggerService.withContext('KnowledgeRuntimePrepare')
@@ -165,7 +165,7 @@ async function createRuntimeItem<T extends KnowledgeItemType>(
   onCreatedItem(createdItem)
 
   const processingItem = await runMutation(() =>
-    createdItem.type === 'directory' || createdItem.type === 'sitemap'
+    isContainerKnowledgeItem(createdItem)
       ? knowledgeItemService.updateStatus(createdItem.id, 'processing', { phase: 'preparing' })
       : knowledgeItemService.updateStatus(createdItem.id, 'processing')
   )

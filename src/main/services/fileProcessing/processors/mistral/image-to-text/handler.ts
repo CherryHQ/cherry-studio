@@ -13,6 +13,7 @@ import type { PreparedMistralContext } from '../types'
 import { buildTextExtractionResult, executeExtraction, prepareDocumentPayload } from '../utils'
 
 export const mistralImageToTextHandler: FileProcessingCapabilityHandler<'image_to_text'> = {
+  mode: 'background',
   prepare(file, config, signal) {
     signal?.throwIfAborted()
     const context = prepareContext(file, config, signal)

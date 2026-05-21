@@ -21,6 +21,7 @@ type IconType = 'icons' | 'providers' | 'models'
 
 const DEFAULT_TYPE: IconType = 'icons'
 const HASH_CACHE_FILE = path.join(__dirname, '../.icons-hash.json')
+const LOGO_MINIMUM_FRAME_RATIO = 100 / 120
 
 const SOURCE_DIR_MAP: Record<IconType, string> = {
   icons: path.join(__dirname, '../icons/general'),
@@ -61,6 +62,26 @@ function parseTypeArg(): IconType {
   if (value === 'icons' || value === 'providers' || value === 'models') return value
 
   throw new Error(`Invalid --type value: ${value}. Use "icons", "providers", or "models".`)
+}
+
+function parseOnlyArg(): Set<string> | null {
+  const arg = process.argv.find((item) => item.startsWith('--only='))
+  if (!arg) return null
+
+  const values = arg
+    .split('=')[1]
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+
+  return values.length > 0 ? new Set(values) : null
+}
+
+function matchesOnly(only: Set<string> | null, dirName: string, filename: string): boolean {
+  if (!only) return true
+
+  const basename = filename.replace(/\.svg$/, '')
+  return only.has(dirName) || only.has(basename) || only.has(toCamelCase(filename))
 }
 
 async function ensureOutputDir(type: IconType): Promise<string> {
@@ -121,11 +142,71 @@ function extractColorPrimary(svgContent: string): string {
   return maxColor
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function collectStaticSvgReferences(jsCode: string): Set<string> {
+  const references = new Set<string>()
+
+  for (const [, id] of jsCode.matchAll(/\bid="([^"]+)"/g)) {
+    references.add(id)
+  }
+
+  for (const [, id] of jsCode.matchAll(/url\(#([^)]+)\)/g)) {
+    references.add(id)
+  }
+
+  for (const [, id] of jsCode.matchAll(/\b(?:href|xlinkHref)="#([^"]+)"/g)) {
+    references.add(id)
+  }
+
+  return references
+}
+
+function scopeStaticSvgReferences(jsCode: string, componentName: string): string {
+  const references = collectStaticSvgReferences(jsCode)
+  if (references.size === 0) return jsCode
+
+  let scopedCode = jsCode.replace(
+    `import type { SVGProps } from 'react'`,
+    `import { type SVGProps, useId } from 'react'`
+  )
+
+  for (const id of references) {
+    const escapedId = escapeRegExp(id)
+    scopedCode = scopedCode
+      .replace(new RegExp(`\\bid="${escapedId}"`, 'g'), `id={\`\${iconId}-${id}\`}`)
+      .replace(new RegExp(`="url\\(#${escapedId}\\)"`, 'g'), `={\`url(#\${iconId}-${id})\`}`)
+      .replace(new RegExp(`(['"])url\\(#${escapedId}\\)\\1`, 'g'), `\`url(#\${iconId}-${id})\``)
+      .replace(new RegExp(`\\bhref="#${escapedId}"`, 'g'), `href={\`#\${iconId}-${id}\`}`)
+      .replace(new RegExp(`\\bxlinkHref="#${escapedId}"`, 'g'), `xlinkHref={\`#\${iconId}-${id}\`}`)
+  }
+
+  const componentStart = `const ${componentName}: IconComponent = (props: SVGProps<SVGSVGElement>) => (`
+  const componentEnd = `\n)\nexport { ${componentName} }`
+
+  if (!scopedCode.includes(componentStart) || !scopedCode.includes(componentEnd)) {
+    throw new Error(`Unable to scope SVG ids for ${componentName}: unexpected generated component shape`)
+  }
+
+  return scopedCode
+    .replace(
+      componentStart,
+      `const ${componentName}: IconComponent = (props: SVGProps<SVGSVGElement>) => {\n  const iconId = useId()\n\n  return (`
+    )
+    .replace(componentEnd, `\n  )\n}\nexport { ${componentName} }`)
+}
+
 /**
  * Run SVGR transform on SVG content, return TSX code.
  */
-async function svgrTransform(svgCode: string, componentName: string): Promise<string> {
-  const processedSvg = tightenSvgViewBox(ensureViewBox(svgCode))
+async function svgrTransform(
+  svgCode: string,
+  componentName: string,
+  options: { minimumFrameRatio?: number } = {}
+): Promise<string> {
+  const processedSvg = tightenSvgViewBox(ensureViewBox(svgCode), options)
 
   let jsCode = await transform(
     processedSvg,
@@ -192,6 +273,7 @@ async function svgrTransform(svgCode: string, componentName: string): Promise<st
     `import type { SVGProps } from 'react'\n\nimport type { IconComponent } from '../../types'`
   )
   jsCode = jsCode.replace(`const ${componentName} =`, `const ${componentName}: IconComponent =`)
+  jsCode = scopeStaticSvgReferences(jsCode, componentName)
 
   return jsCode
 }
@@ -221,18 +303,23 @@ async function generateLogoDirDual(
   pair: LightDarkSvgPair,
   outputDir: string,
   dirName: string,
-  componentName: string
+  componentName: string,
+  options: { minimumFrameRatio?: number } = {}
 ): Promise<void> {
   const logoDir = path.join(outputDir, dirName)
   await fs.mkdir(logoDir, { recursive: true })
 
   const lightSvg = await fs.readFile(pair.light, 'utf-8')
-  const lightTsx = await svgrTransform(lightSvg, `${componentName}Light`)
+  const lightTsx = await svgrTransform(lightSvg, `${componentName}Light`, {
+    minimumFrameRatio: options.minimumFrameRatio
+  })
   await fs.writeFile(path.join(logoDir, 'light.tsx'), lightTsx, 'utf-8')
 
   if (pair.dark) {
     const darkSvg = await fs.readFile(pair.dark, 'utf-8')
-    const darkTsx = await svgrTransform(darkSvg, `${componentName}Dark`)
+    const darkTsx = await svgrTransform(darkSvg, `${componentName}Dark`, {
+      minimumFrameRatio: options.minimumFrameRatio
+    })
     await fs.writeFile(path.join(logoDir, 'dark.tsx'), darkTsx, 'utf-8')
   } else {
     await fs.rm(path.join(logoDir, 'dark.tsx'), { force: true })
@@ -301,19 +388,24 @@ ${exports}
 async function main() {
   const type = parseTypeArg()
   const force = process.argv.includes('--force')
+  const only = parseOnlyArg()
 
-  console.log(`Starting icon generation (type: ${type})${force ? ' [FORCE]' : ''}...\n`)
+  console.log(
+    `Starting icon generation (type: ${type})${force ? ' [FORCE]' : ''}${only ? ` [ONLY: ${[...only].join(', ')}]` : ''}...\n`
+  )
 
   const outputDir = await ensureOutputDir(type)
 
   if (type === 'providers' || type === 'models') {
     const svgMap = buildLightDarkSvgMap(type)
     console.log(`Found ${svgMap.size} light/dark SVG pairs in ${SOURCE_DIR_MAP[type]}\n`)
-    const removedStale = await removeStaleLogoDirs(outputDir, new Set(svgMap.keys()))
-    if (removedStale > 0)
-      console.log(`Removed ${removedStale} stale generated icon director${removedStale === 1 ? 'y' : 'ies'}\n`)
+    if (!only) {
+      const removedStale = await removeStaleLogoDirs(outputDir, new Set(svgMap.keys()))
+      if (removedStale > 0)
+        console.log(`Removed ${removedStale} stale generated icon director${removedStale === 1 ? 'y' : 'ies'}\n`)
+    }
 
-    const hashCache = force ? {} : await loadHashCache()
+    const hashCache = force && !only ? {} : await loadHashCache()
     const newHashCache: HashCache = { ...hashCache }
     let generated = 0
     let skipped = 0
@@ -321,6 +413,8 @@ async function main() {
     for (const [dirName, pair] of svgMap) {
       // dirName is camelCase; we need the original file basename for componentName
       const baseFile = path.basename(pair.light)
+      if (!matchesOnly(only, dirName, baseFile)) continue
+
       const componentName = toPascalCase(baseFile)
 
       try {
@@ -346,7 +440,9 @@ async function main() {
           continue
         }
 
-        await generateLogoDirDual(pair, outputDir, dirName, componentName)
+        await generateLogoDirDual(pair, outputDir, dirName, componentName, {
+          minimumFrameRatio: type === 'providers' ? LOGO_MINIMUM_FRAME_RATIO : undefined
+        })
         newHashCache[cacheKey] = hash
         generated++
         console.log(`  ${baseFile} -> ${componentName}{Light${pair.dark ? ',Dark' : ''}}`)

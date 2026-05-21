@@ -109,6 +109,21 @@ After this declaration:
 - Renaming a type surfaces every call site via the TypeScript error pipeline
 - Wrong payload shape is a compile error
 
+## Renderer-side consumers
+
+The renderer never enqueues, cancels, or otherwise mutates jobs through the DataApi. It only observes job state read-only:
+
+- `useJob(jobId)` → current `JobSnapshot` (status / counters / error / ...). Source: shared cache `jobs.state.${id}` with GET `/jobs/:id` as a cold-start fallback.
+- `useJobProgress(jobId)` → fine-grained progress. Source: shared cache `jobs.progress.${id}` only.
+
+Triggering a job is owned by the relevant business module in main:
+
+1. The business service decides the semantics — which job type, what payload, queue, idempotency key, max attempts, timeout.
+2. It calls `application.get('JobManager').enqueue(...)` directly.
+3. If the renderer needs to initiate the work, the business module exposes a dedicated IPC channel (e.g. `IpcChannel.Knowledge_IndexFile`); the IPC handler internally calls `JobManager.enqueue(...)`.
+
+This keeps `JobRegistry`'s compile-time `JobPayloadOf<K>` type safety intact and prevents the renderer from depending on JobManager infrastructure details (queue names, retry policies, idempotency keys).
+
 ## See also
 
 - [concurrency-and-locks.md](./concurrency-and-locks.md) — The full four-layer lock model

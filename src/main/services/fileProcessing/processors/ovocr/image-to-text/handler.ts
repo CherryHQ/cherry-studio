@@ -2,6 +2,7 @@ import type { FileProcessingCapabilityHandler } from '../../types'
 import { executeExtraction, prepareContext } from '../utils'
 
 export const ovocrImageToTextHandler: FileProcessingCapabilityHandler<'image_to_text'> = {
+  mode: 'background',
   prepare(file, config, signal) {
     const context = prepareContext(file, config, signal)
 

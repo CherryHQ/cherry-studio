@@ -22,6 +22,7 @@ import {
 const logger = loggerService.withContext('MistralDocumentToMarkdownHandler')
 
 export const mistralDocumentToMarkdownHandler: FileProcessingCapabilityHandler<'document_to_markdown'> = {
+  mode: 'background',
   prepare(file, config, signal) {
     signal?.throwIfAborted()
     const context = prepareContext(file, config, signal)
