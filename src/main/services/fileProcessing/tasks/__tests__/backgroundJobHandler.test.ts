@@ -156,4 +156,11 @@ describe('backgroundJobHandler.execute', () => {
 
     await expect(backgroundJobHandler.execute(createCtx())).rejects.toThrow(/mode mismatch/i)
   })
+
+  it('rejects when prepared.mode does not match handler.mode (drift guard)', async () => {
+    capabilityHandlerMock.mode = 'background'
+    setupCapability({ mode: 'remote-poll', execute: preparedExecuteMock })
+
+    await expect(backgroundJobHandler.execute(createCtx())).rejects.toThrow(/mode mismatch/i)
+  })
 })

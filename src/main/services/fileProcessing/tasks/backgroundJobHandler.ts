@@ -64,13 +64,12 @@ export const backgroundJobHandler: JobHandler<FileProcessingJobPayload> = {
     } catch (error) {
       if (artifactsMayExist) {
         const cleaned = await cleanupFileProcessingResultsDir(ctx.jobId)
-        if (cleaned) {
-          logger.warn('Cleaned up partial artifacts after background execution failed', {
-            jobId: ctx.jobId,
-            processorId: config.id,
-            feature
-          })
-        }
+        logger.warn('Background execution failed after artifacts may have been created', {
+          jobId: ctx.jobId,
+          processorId: config.id,
+          feature,
+          cleaned
+        })
       }
       throw error
     }

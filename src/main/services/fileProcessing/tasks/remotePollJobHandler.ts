@@ -84,7 +84,9 @@ export const remotePollJobHandler: JobHandler<FileProcessingJobPayload> = {
         )
 
         if (result.status === 'failed') {
-          throw new Error(result.error)
+          const message =
+            result.error?.trim() || `${config.id} ${feature} failed (no diagnostic, providerTaskId=${providerTaskId})`
+          throw new Error(message)
         }
 
         if (result.status === 'completed') {
@@ -106,13 +108,12 @@ export const remotePollJobHandler: JobHandler<FileProcessingJobPayload> = {
     } catch (error) {
       if (artifactsMayExist) {
         const cleaned = await cleanupFileProcessingResultsDir(ctx.jobId)
-        if (cleaned) {
-          logger.warn('Cleaned up partial artifacts after remote-poll execution failed', {
-            jobId: ctx.jobId,
-            processorId: config.id,
-            feature
-          })
-        }
+        logger.warn('Remote-poll execution failed after artifacts may have been created', {
+          jobId: ctx.jobId,
+          processorId: config.id,
+          feature,
+          cleaned
+        })
       }
       throw error
     }

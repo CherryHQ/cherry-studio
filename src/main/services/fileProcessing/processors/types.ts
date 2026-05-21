@@ -59,6 +59,12 @@ export type FileProcessingRemotePollResult<
   | {
       status: 'pending' | 'processing'
       progress: number
+      /**
+       * Return a new reference when the remote context has changed since the
+       * last poll; the dispatcher uses identity comparison (`!==`) to detect
+       * state mutation and persist it. Returning the same reference will be
+       * treated as 'no change' and skip metadata persistence.
+       */
       remoteContext?: RemoteContext
     }
   | {

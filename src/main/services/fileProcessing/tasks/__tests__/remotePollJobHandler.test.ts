@@ -273,4 +273,22 @@ describe('remotePollJobHandler.execute', () => {
     await expect(remotePollJobHandler.execute(createCtx())).rejects.toThrow('disk full')
     expect(cleanupResultsDirMock).toHaveBeenCalledWith('job-2')
   })
+
+  it('rejects when prepared.mode does not match handler.mode (drift guard)', async () => {
+    capabilityHandlerMock.mode = 'remote-poll'
+    capabilityHandlerMock.prepare.mockResolvedValue({
+      mode: 'background',
+      execute: vi.fn()
+    })
+    processorRegistryMock.doc2x = {
+      capabilities: { document_to_markdown: capabilityHandlerMock },
+      isAvailable: () => true
+    }
+    resolveProcessorConfigByFeatureMock.mockReturnValue({
+      id: 'doc2x',
+      capabilities: [{ feature: 'document_to_markdown', inputs: ['document'] }]
+    })
+
+    await expect(remotePollJobHandler.execute(createCtx())).rejects.toThrow(/mode mismatch/i)
+  })
 })

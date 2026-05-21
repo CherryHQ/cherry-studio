@@ -106,7 +106,7 @@ export function assertModeMatches(
 ): void {
   if (handler.mode !== expected) {
     throw new Error(
-      `Capability handler mode mismatch: handler.mode='${handler.mode}' but job type expects '${expected}'`
+      `Internal error - Capability handler mode mismatch: handler.mode='${handler.mode}' but job type expects '${expected}'`
     )
   }
 }
