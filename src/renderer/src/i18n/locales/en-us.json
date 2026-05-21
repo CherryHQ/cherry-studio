@@ -1763,7 +1763,6 @@
     "diagnosis": {
       "ai_button": "AI Diagnosis",
       "ai_done": "Diagnosed",
-      "ai_failed": "AI diagnosis unavailable, showing basic classification",
       "ai_loading": "Diagnosing",
       "ai_result": "AI Diagnosis Result",
       "auth": "API Key is invalid, please check and reconfigure",

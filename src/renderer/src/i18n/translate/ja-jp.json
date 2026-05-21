@@ -1763,7 +1763,6 @@
     "diagnosis": {
       "ai_button": "AI 診断",
       "ai_done": "診断完了",
-      "ai_failed": "[to be translated]:AI diagnosis unavailable, showing basic classification",
       "ai_loading": "診断中",
       "ai_result": "AI 診断結果",
       "auth": "API Key が無効です。確認して再設定してください",

@@ -1763,7 +1763,6 @@
     "diagnosis": {
       "ai_button": "AI 诊断",
       "ai_done": "已诊断",
-      "ai_failed": "AI 诊断暂不可用，已为你显示基础分类",
       "ai_loading": "正在诊断",
       "ai_result": "AI 诊断结果",
       "auth": "API Key 无效，请检查并重新配置",

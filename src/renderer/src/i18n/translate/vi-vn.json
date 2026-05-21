@@ -1763,7 +1763,6 @@
     "diagnosis": {
       "ai_button": "Chẩn đoán bằng AI",
       "ai_done": "Chẩn đoán",
-      "ai_failed": "[to be translated]:AI diagnosis unavailable, showing basic classification",
       "ai_loading": "Chẩn đoán",
       "ai_result": "Kết quả chẩn đoán AI",
       "auth": "Khóa API không hợp lệ, vui lòng kiểm tra và cấu hình lại",

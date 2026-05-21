@@ -49,11 +49,6 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('country/region') ||
     msg.includes('region not supported') ||
     msg.includes('not available in your') ||
-    msg.includes('not available in your region') ||
-    msg.includes('not available in your country') ||
-    msg.includes('geographic') ||
-    msg.includes('geo-block') ||
-    msg.includes('geo block') ||
     (msg.includes('territory') && (numStatus === 403 || msg.includes('unsupported')))
   ) {
     return { category: 'region', i18nKey: 'error.diagnosis.region', navTarget: '/settings/general' }
@@ -114,8 +109,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('maximum context length') ||
     msg.includes('context window') ||
     msg.includes('prompt is too long') ||
-    msg.includes('input is too long') ||
-    msg.includes('exceeds the maximum')
+    msg.includes('input is too long')
   ) {
     return { category: 'context_length', i18nKey: 'error.diagnosis.context_length', navTarget: null }
   }
@@ -193,9 +187,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('socks') ||
     msg.includes('certificate') ||
     msg.includes('self-signed') ||
-    msg.includes('unable_to_verify_leaf_signature') ||
-    msg.includes('tls') ||
-    msg.includes('ssl handshake')
+    msg.includes('unable_to_verify_leaf_signature')
   ) {
     return { category: 'proxy', i18nKey: 'error.diagnosis.proxy', navTarget: '/settings/general' }
   }

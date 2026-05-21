@@ -1763,7 +1763,6 @@
     "diagnosis": {
       "ai_button": "ИИ-диагностика",
       "ai_done": "Диагностировано",
-      "ai_failed": "[to be translated]:AI diagnosis unavailable, showing basic classification",
       "ai_loading": "Диагностика",
       "ai_result": "Результат ИИ-диагностики",
       "auth": "API-ключ недействителен, проверьте и перенастройте",

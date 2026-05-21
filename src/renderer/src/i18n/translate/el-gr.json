@@ -1763,7 +1763,6 @@
     "diagnosis": {
       "ai_button": "Διάγνωση AI",
       "ai_done": "Διαγνώστηκε",
-      "ai_failed": "[to be translated]:AI diagnosis unavailable, showing basic classification",
       "ai_loading": "Γίνεται διάγνωση",
       "ai_result": "Αποτέλεσμα διάγνωσης AI",
       "auth": "Μη έγκυρο κλειδί API, ελέγξτε και ρυθμίστε ξανά",

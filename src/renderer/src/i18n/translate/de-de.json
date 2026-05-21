@@ -1763,7 +1763,6 @@
     "diagnosis": {
       "ai_button": "KI-Diagnose",
       "ai_done": "Diagnostiziert",
-      "ai_failed": "[to be translated]:AI diagnosis unavailable, showing basic classification",
       "ai_loading": "Wird diagnostiziert",
       "ai_result": "KI-Diagnoseergebnis",
       "auth": "API-Schlüssel ungültig, bitte überprüfen und neu konfigurieren",

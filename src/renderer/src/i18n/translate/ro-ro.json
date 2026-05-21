@@ -1763,7 +1763,6 @@
     "diagnosis": {
       "ai_button": "Diagnostic IA",
       "ai_done": "Diagnosticat",
-      "ai_failed": "[to be translated]:AI diagnosis unavailable, showing basic classification",
       "ai_loading": "Se diagnostichează",
       "ai_result": "Rezultatul diagnosticului IA",
       "auth": "Cheie API invalidă, verificați și reconfigurați",
