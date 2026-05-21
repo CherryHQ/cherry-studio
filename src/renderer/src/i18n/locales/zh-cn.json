@@ -1307,6 +1307,9 @@
         "ask_here": "针对此处提问",
         "open_as_branch": "展开为分支",
         "panel": {
+          "close": "关闭分支面板",
+          "close_disabled_tooltip": "分支清理将在后续步骤接入。",
+          "conversation_header": "分支 #{{id}}",
           "create_branch": "创建分支",
           "error": {
             "create_failed": "创建分支失败，请重试。",
@@ -1314,7 +1317,10 @@
           },
           "follow_up_label": "追问",
           "follow_up_placeholder": "针对选中的内容提问…",
-          "from": "选自",
+          "from": "选中内容",
+          "from_message": "选自消息 #{{id}}",
+          "placeholder_branch_ready_detail": "分支主题 #{{id}} 已就绪，模型流式回复将在下一步接入。",
+          "placeholder_branch_ready_title": "分支已创建——消息流接入留待下一步。",
           "title": "从选区创建分支"
         }
       },

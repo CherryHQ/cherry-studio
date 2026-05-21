@@ -9,6 +9,7 @@ import { SelectChatModelPopup } from '@renderer/components/Popups/SelectModelPop
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { isEmbeddingModel, isRerankModel, isWebSearchModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useBranchFork } from '@renderer/hooks/useBranchFork'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowTopics } from '@renderer/hooks/useStore'
@@ -20,13 +21,14 @@ import { Flex } from 'antd'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import ChatNavbar from './components/ChatNavBar'
 import Inputbar from './Inputbar/Inputbar'
+import { type BranchAnchor, BranchPane } from './Messages/BranchPanel'
 import ChatNavigation from './Messages/ChatNavigation'
 import Messages from './Messages/Messages'
 import Tabs from './Tabs'
@@ -53,6 +55,34 @@ const Chat: FC<Props> = (props) => {
   const mainRef = React.useRef<HTMLDivElement>(null)
   const contentSearchRef = React.useRef<ContentSearchRef>(null)
   const [filterIncludeUser, setFilterIncludeUser] = useState(false)
+
+  // T-006D-2B state lift: branchAnchor + branchTopic live at the Chat layer
+  // so the side panel can be a layout sibling of <Main>. Messages.tsx forwards
+  // SelectionContextMenu's onOpenBranchPanel via the `onOpenBranchAnchor`
+  // prop into setBranchAnchor below.
+  //
+  // S2' deliberately does NOT render any branch UI. The state lift is what
+  // we're verifying here; BranchPane (composer / conversation) lands in S3'.
+  const [branchAnchor, setBranchAnchor] = useState<BranchAnchor | null>(null)
+  const [branchTopic, setBranchTopic] = useState<Topic | null>(null)
+
+  const branchFork = useBranchFork({
+    assistant,
+    topic: props.activeTopic,
+    onCreated: (created) => {
+      setBranchTopic(created)
+    }
+  })
+
+  useEffect(() => {
+    if (branchAnchor || branchTopic) {
+      logger.debug("T-006D-2B S2' state lift", {
+        anchorMessageId: branchAnchor?.messageId,
+        branchTopicId: branchTopic?.id,
+        forkStatus: branchFork.status
+      })
+    }
+  }, [branchAnchor, branchTopic, branchFork.status])
 
   const { setTimeoutTimer } = useTimer()
 
@@ -184,6 +214,7 @@ const Chat: FC<Props> = (props) => {
                   assistant={assistant}
                   topic={props.activeTopic}
                   setActiveTopic={props.setActiveTopic}
+                  onOpenBranchAnchor={setBranchAnchor}
                   onComponentUpdate={messagesComponentUpdateHandler}
                   onFirstUpdate={messagesComponentFirstUpdateHandler}
                 />
@@ -222,6 +253,24 @@ const Chat: FC<Props> = (props) => {
             </motion.div>
           )}
         </AnimatePresence>
+        {/*
+          T-006D-2B side-by-side branch pane. Mirrors the right-Tabs motion
+          pattern above. Width/opacity animate; the inner content is rendered
+          unconditionally so the slide-out doesn't snap to empty.
+        */}
+        <BranchPane
+          anchor={branchAnchor}
+          branchTopic={branchTopic}
+          status={branchFork.status}
+          errorMessage={branchFork.errorMessage}
+          onCreate={(followUp) => {
+            if (branchAnchor) void branchFork.fork(branchAnchor, followUp)
+          }}
+          onComposeCancel={() => {
+            setBranchAnchor(null)
+            branchFork.reset()
+          }}
+        />
       </RowFlex>
     </Container>
   )

@@ -14,6 +14,7 @@ Chat APP-Docs/
 
 ## 快速入口
 
+- **新会话第一份读什么？** → [03_Development/交接.md](./03_Development/交接.md) ⭐ Handoff summary（2026-05-21）
 - **今天能做什么？** → [03_Development/当前状态.md](./03_Development/当前状态.md)
 - **下一步该做什么？** → [03_Development/下一步.md](./03_Development/下一步.md)
 - **代码在哪？** → [02_Architecture/源码地图.md](./02_Architecture/源码地图.md)

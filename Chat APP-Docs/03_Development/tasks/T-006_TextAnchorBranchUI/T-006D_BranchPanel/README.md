@@ -8,9 +8,14 @@
 
 | ID | 主题 | 状态 | 入口 |
 |---|---|---|---|
-| T-006D-1 | Shell 原型（Dialog + state + 字段显示 + 占位 handler） | ✅ 代码完成；⏳ commit | [T-006D-1_Shell/](./T-006D-1_Shell/) |
-| T-006D-2 | 真实 fork 调用 + useCache anchor 持久化 + 流式 disable | ⏳ 待启动 | — |
-| T-006D-3（可选） | Sheet 侧滑替代 Dialog + "针对此处提问" 注入 inputbar | ⏳ 待启动 | — |
+| T-006D-1 | Shell 原型（Dialog + state + 字段显示 + 占位 handler） | ✅ commit `76ee326a0` | [T-006D-1_Shell/](./T-006D-1_Shell/) |
+| T-006D-2A | 真实 fork MVP（POST /topics + setActiveTopic 跳转） | ❌ 技术通；**产品方向不对**（跳转 ≠ side-by-side），不 commit | [T-006D-2_RealFork/](./T-006D-2_RealFork/) |
+| **T-006D-2B**（重设计） | **Side-by-side branch panel**：Chat.tsx 持 branchTopic 本地 state + 复用 MessageGroup 渲染流 + `topic.prompt` 注入选区系统提示 + 关闭即 DELETE | 🧠 preflight 完成 → ⏳ 待批准 S1'–S7' 实施 | [T-006D-2_RealFork/preflight.md](./T-006D-2_RealFork/preflight.md) |
+| T-006D-2C-0 | 流式中 disable Ask/Open 菜单项（与 D-2B 正交） | ⏳ | — |
+| T-006D-2C-1..4 | cleanup（DELETE retry / abort-during-stream / Graduate / 服务端 branch kind） | ⏳ 仅 preflight 登记 | — |
+| T-006D-2D | 主目标注入开关（W2 第 ② 段） | ⏳ 看 S4' 实测决定 | — |
+| T-006D-2E | 精确子串 `<mark>` 高亮 | ⏳ | — |
+| T-006D-3（可选） | Sheet 侧滑变体 + "针对此处提问" 注入 inputbar | ⏳ | — |
 
 ## 目标
 
