@@ -47,4 +47,4 @@ Chat APP-Docs/
 | T-004 | 修复 default assistant sentinel（方案 B） | ✅ 自动化完成，⏳ 待手动验证 | [任务.md](./03_Development/tasks/T-004_修复DefaultAssistantSentinel/任务.md) |
 | T-005A | 诊断 assistant message 写入 FK 失败（modelId 短 id） | ✅ 诊断完成 | [任务.md](./03_Development/tasks/T-005A_AssistantMessageFK/任务.md) |
 | T-005B | 修 assistant message modelId FK（StreamingService 一处清洗） | ✅ commit `15ad2eb08`，⏳ 待手动验证 | [任务.md](./03_Development/tasks/T-005B_修复ModelIdFK/任务.md) |
-| T-006 | Text Anchor Branch UI 原型（含 A–F 子任务） | 🧠 设计完成；🔧 子任务实施待启动 | [README.md](./03_Development/tasks/T-006_TextAnchorBranchUI/README.md) |
+| T-006 | Text Anchor Branch UI 原型（含 A–F 子任务） | 🧠 设计 ✅；T-006B ✅ commit `d579fdcf2`；T-006C / T-006D-1 ✅ staged 未 commit；其余 ⏳ | [README.md](./03_Development/tasks/T-006_TextAnchorBranchUI/README.md) |

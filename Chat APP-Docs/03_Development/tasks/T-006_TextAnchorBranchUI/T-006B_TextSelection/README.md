@@ -1,6 +1,6 @@
 # T-006B 文本选中捕获
 
-**状态**：✅ 代码完成 + 自动化全过；⏳ 待 commit
+**状态**：✅ 已完成 + 已 commit：`d579fdcf2`（feat(messages): tag MainTextBlock DOM with messageId/blockId for branch anchor）
 **依赖**：无（与 T-006A 并行）
 **实际工作量**：< 0.5 天
 

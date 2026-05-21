@@ -1303,6 +1303,17 @@
       }
     },
     "message": {
+      "anchor": {
+        "ask_here": "Ask about this",
+        "open_as_branch": "Open as branch",
+        "panel": {
+          "create_branch": "Create branch",
+          "follow_up_label": "Follow-up question",
+          "follow_up_placeholder": "Ask about the selected text…",
+          "from": "Selected from",
+          "title": "Branch from selection"
+        }
+      },
       "new": {
         "branch": {
           "created": "New Branch Created",

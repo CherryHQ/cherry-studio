@@ -1303,6 +1303,17 @@
       }
     },
     "message": {
+      "anchor": {
+        "ask_here": "針對此處提問",
+        "open_as_branch": "展開為分支",
+        "panel": {
+          "create_branch": "建立分支",
+          "follow_up_label": "追問",
+          "follow_up_placeholder": "針對選取的內容提問…",
+          "from": "選自",
+          "title": "從選區建立分支"
+        }
+      },
       "new": {
         "branch": {
           "created": "新分支已建立",

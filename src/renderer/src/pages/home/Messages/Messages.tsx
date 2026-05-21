@@ -10,6 +10,7 @@ import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { autoRenameTopic } from '@renderer/hooks/useTopic'
+import { type BranchAnchor, BranchPanel } from '@renderer/pages/home/Messages/BranchPanel'
 import SelectionBox from '@renderer/pages/home/Messages/SelectionBox'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -61,6 +62,10 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isProcessingContext, setIsProcessingContext] = useState(false)
+  // T-006D-1: shell BranchPanel state. Anchor is captured by
+  // SelectionContextMenu and cleared when the panel closes. Persistence is
+  // out of scope for the shell prototype (see [[T-006D-1]] / [[设计.md §3]]).
+  const [branchAnchor, setBranchAnchor] = useState<BranchAnchor | null>(null)
 
   const { addTopic } = useAssistant(assistant.id)
   const [showPrompt] = usePreference('chat.message.show_prompt')
@@ -317,7 +322,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
           scrollableTarget="messages"
           inverse
           style={{ overflow: 'visible' }}>
-          <SelectionContextMenu>
+          <SelectionContextMenu onOpenBranchPanel={setBranchAnchor}>
             <ScrollContainer>
               {groupedMessages.map(([key, groupMessages]) => (
                 <MessageGroup
@@ -344,6 +349,13 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
         scrollContainerRef={scrollContainerRef}
         messageElements={messageElements.current}
         handleSelectMessage={handleSelectMessage}
+      />
+      <BranchPanel
+        anchor={branchAnchor}
+        open={branchAnchor !== null}
+        onOpenChange={(open) => {
+          if (!open) setBranchAnchor(null)
+        }}
       />
     </MessagesContainer>
   )

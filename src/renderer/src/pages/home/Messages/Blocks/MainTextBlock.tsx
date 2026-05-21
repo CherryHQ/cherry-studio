@@ -54,8 +54,10 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
         </Flex>
       )}
       {/* Branch-anchor DOM scope: identifies this block + its message for
-          Selection → (messageId, blockId) resolution. See T-006B. */}
-      <div data-message-id={messageId} data-block-id={block.id}>
+          Selection → (messageId, blockId, role) resolution. See T-006B. The
+          role attribute lets SelectionContextMenu restrict branch actions to
+          assistant text only. */}
+      <div data-message-id={messageId} data-block-id={block.id} data-message-role={role}>
         {role === 'user' && !renderInputMessageAsMarkdown ? (
           <p className="markdown" style={{ whiteSpace: 'pre-wrap' }}>
             {block.content}

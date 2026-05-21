@@ -14,10 +14,20 @@
 export interface BlockContext {
   messageId: string
   blockId: string
+  /** Author of the message the block belongs to, mirrored from
+   *  `MainTextBlock`'s `data-message-role` attribute. `null` when the wrapper
+   *  predates the attribute or the role is unknown — callers should treat
+   *  that as "not assistant" when gating branch-anchor actions. */
+  role: 'user' | 'assistant' | 'system' | null
 }
 
 const BLOCK_ID_ATTR = 'data-block-id'
 const MESSAGE_ID_ATTR = 'data-message-id'
+const MESSAGE_ROLE_ATTR = 'data-message-role'
+
+function parseRole(raw: string | null | undefined): BlockContext['role'] {
+  return raw === 'user' || raw === 'assistant' || raw === 'system' ? raw : null
+}
 
 /**
  * Walk up the tree from `node` until an `Element` carrying `attr` is found.
@@ -53,5 +63,7 @@ export function findBlockContext(range: Range | null | undefined): BlockContext 
   const messageId = messageEl?.getAttribute(MESSAGE_ID_ATTR)
   if (!messageId) return null
 
-  return { messageId, blockId }
+  const role = parseRole(startBlock.getAttribute(MESSAGE_ROLE_ATTR))
+
+  return { messageId, blockId, role }
 }

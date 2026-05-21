@@ -19,7 +19,7 @@
 | T-004 | 修复 default assistant sentinel（方案 B） | [T-004_修复DefaultAssistantSentinel/](./T-004_修复DefaultAssistantSentinel/) | ✅ 自动化完成；⏳ 用户手动验证 |
 | T-005A | 诊断 assistant message 写入 FK 失败（modelId 短 id） | [T-005A_AssistantMessageFK/](./T-005A_AssistantMessageFK/) | ✅ 诊断完成 |
 | T-005B | 修 assistant message modelId FK（StreamingService 一处清洗） | [T-005B_修复ModelIdFK/](./T-005B_修复ModelIdFK/) | ✅ commit `15ad2eb08`；⏳ 用户手动验证 |
-| T-006 | Text Anchor Branch UI 原型（设计 + 6 子任务） | [T-006_TextAnchorBranchUI/](./T-006_TextAnchorBranchUI/) | 🧠 设计完成；🔧 实施待启动 |
+| T-006 | Text Anchor Branch UI 原型（设计 + 6 子任务） | [T-006_TextAnchorBranchUI/](./T-006_TextAnchorBranchUI/) | 🧠 设计完成；🔧 T-006B ✅ commit `d579fdcf2`；T-006C / T-006D-1 ✅ staged 未 commit；T-006D-2 / T-006A / T-006E / T-006F ⏳ |
 
 ## 命名约定
 
