@@ -63,17 +63,16 @@
 
 ## 4. Runtime 与任务队列
 
-- 明确 in-memory queue 的产品边界。
-  - 当前队列是单进程内存队列，默认并发 5。
-  - 同一 base 的写入通过 per-base write lock 串行化。
-  - 当前没有持久化任务表、自动重试、重启后自动恢复。
-  - 后续如果需要可靠任务恢复，应增加持久化任务模型和恢复策略。
-  - 参考：`src/main/services/knowledge/queue/KnowledgeQueueManager.ts`
+- ✅ 持久化任务表 + 自动恢复（Phase 4 已落地）。
+  - knowledge.prepare-root / knowledge.index-leaf 走 `JobManager`，`jobTable` 持久化。
+  - 默认 per-base 并发 5、全局 cap 50；同一 base 的写入仍通过 `KnowledgeRuntimeService.runWithBaseWriteLockForBase` 串行。
+  - `recovery: 'retry'` + `JobManager.onAllReady` 启动后 60s 跑 startup recovery，自动重新 dispatch 未完成 job。
+  - 参考：`src/main/services/knowledge/tasks/prepareRootJobHandler.ts`、`src/main/services/knowledge/tasks/indexLeafJobHandler.ts`。
 
 - 收敛失败清理与恢复体验。
-  - 运行中任务在 shutdown / delete / reindex 中断后会尝试清理向量并标记 item failed。
-  - 部分失败状态持久化和清理属于 best-effort。
-  - 后续需要决定是否提供更明确的用户可见恢复入口或后台修复任务。
+  - shutdown 不再 fail items；重启后由 startup recovery 自动重新 dispatch（handler 入口对 `item.status === 'completed'` 早退）。
+  - delete / reindex 走业务层 list + filter + `jobManager.cancel`，残留 vectors 由 `LibSQLVectorStore.replaceByExternalId` 的单事务原子性保证不出现双倍 chunk。
+  - 后续若需要更明确的用户可见恢复入口或后台修复任务，可在此基础上构建。
   - 参考：`src/main/services/knowledge/runtime/KnowledgeRuntimeService.ts`
 
 - 处理 base 删除后的 artifact 清理风险。
@@ -103,9 +102,8 @@
 
 ## 6. 发布与文档收尾
 
-- 补 Knowledge V2 的 breaking changes 记录。
-  - 用户可感知的 v2 变更应写入 `v2-refactor-temp/docs/breaking-changes/`。
-  - 当前尚未看到 Knowledge V2 专项条目。
+- ✅ Knowledge V2 首条 breaking changes 已落地（`2026-05-20-knowledge-job-auto-recovery.md`）。
+  - 后续若再有用户可感知的 v2 变更，继续写入 `v2-refactor-temp/docs/breaking-changes/`。
   - 参考：`v2-refactor-temp/docs/breaking-changes/README.md`
 
 - 更新后端决策文档中已落地的变化。
