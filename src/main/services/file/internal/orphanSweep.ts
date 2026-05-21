@@ -373,7 +373,7 @@ function logFileSweep(report: FileSweepReport): void {
   const payload = { event: 'orphan-file-sweep', ...report }
   switch (report.outcome) {
     case 'completed':
-      logger.info('orphan-file-sweep', payload)
+      logger.debug('orphan-file-sweep', payload)
       return
     case 'partial':
       logger.warn('orphan-file-sweep', payload)
