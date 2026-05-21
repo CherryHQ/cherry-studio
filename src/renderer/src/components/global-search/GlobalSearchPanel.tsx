@@ -573,6 +573,29 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
     })
   }, [])
 
+  const openMessagePanelItemDirectly = useCallback(
+    (item: GlobalMessageSearchPanelItem) => {
+      if (item.kind === 'more') {
+        openMessagePanelItem(item)
+        return
+      }
+
+      if (item.result.sourceType === 'topic') {
+        void openTopicMessageById(item.result.topicId, item.result.messageId).catch(() => {
+          window.toast?.error(t('globalSearch.open_failed'))
+        })
+        return
+      }
+
+      try {
+        openSessionMessageById(item.result.sessionId, item.result.messageId)
+      } catch {
+        window.toast?.error(t('globalSearch.open_failed'))
+      }
+    },
+    [openMessagePanelItem, openSessionMessageById, openTopicMessageById, t]
+  )
+
   const openMessagePreviewMessage = useCallback(
     (messageId: string) => {
       if (!messagePreviewTarget) return
@@ -771,6 +794,7 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
             userName={userName}
             onMouseEnter={() => setActiveItemId(item.id)}
             onOpen={() => openMessagePanelItem(item)}
+            onJump={() => openMessagePanelItemDirectly(item)}
           />
         )}
       />

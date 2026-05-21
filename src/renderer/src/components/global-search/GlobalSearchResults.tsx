@@ -4,7 +4,17 @@ import { cn } from '@renderer/utils'
 import { formatRelativeTime } from '@renderer/utils/time'
 import type { GlobalSearchItem } from '@shared/data/api/schemas/globalSearch'
 import type { SessionSearchMessageResult } from '@shared/data/api/schemas/sessions'
-import { Bot, ChevronDown, Clock3, FileSearch, MessageSquare, MousePointerClick, Sparkles } from 'lucide-react'
+import {
+  ArrowRight,
+  Bot,
+  ChevronDown,
+  Clock3,
+  FileSearch,
+  MessageSquare,
+  MousePointerClick,
+  Sparkles
+} from 'lucide-react'
+import type { MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type {
@@ -191,7 +201,8 @@ export function GlobalMessageSearchRow({
   query,
   userName,
   onMouseEnter,
-  onOpen
+  onOpen,
+  onJump
 }: {
   active: boolean
   item: GlobalMessageSearchPanelItem
@@ -200,6 +211,7 @@ export function GlobalMessageSearchRow({
   userName?: string
   onMouseEnter: () => void
   onOpen: () => void
+  onJump: () => void
 }) {
   const { t } = useTranslation()
 
@@ -227,16 +239,21 @@ export function GlobalMessageSearchRow({
 
   const updatedAtLabel = formatRelativeTime(item.result.createdAt, language)
   const actorLabel = getMessageActorLabel(item, t, userName)
+  const jumpLabel = t('globalSearch.messageSearch.jumpToMessage')
+  const handleJumpClick = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    onJump()
+  }
 
   return (
-    <button
-      type="button"
+    <div
       role="option"
       aria-selected={active}
       onMouseEnter={onMouseEnter}
       onClick={onOpen}
       className={cn(
-        'mx-5 flex h-11 w-[calc(100%-2.5rem)] items-center gap-2 rounded-[10px] pr-3 pl-8 text-left transition-colors',
+        'group mx-5 flex h-11 w-[calc(100%-2.5rem)] cursor-pointer items-center gap-2 rounded-[10px] pr-3 pl-8 text-left transition-colors',
         active ? 'bg-muted/60 text-accent-foreground' : 'hover:bg-muted/40'
       )}>
       <span className="min-w-0 flex-1 truncate text-foreground/90 text-sm leading-5">
@@ -246,12 +263,22 @@ export function GlobalMessageSearchRow({
       </span>
       {updatedAtLabel && (
         <span
-          className="shrink-0 whitespace-nowrap text-muted-foreground text-xs leading-4"
+          className="relative ml-2 flex h-7 min-w-19 shrink-0 items-center justify-end"
           title={item.result.createdAt}>
-          {updatedAtLabel}
+          <span className="whitespace-nowrap text-muted-foreground text-xs leading-4 transition-opacity group-focus-within:opacity-0 group-hover:opacity-0">
+            {updatedAtLabel}
+          </span>
+          <button
+            type="button"
+            aria-label={jumpLabel}
+            title={jumpLabel}
+            onClick={handleJumpClick}
+            className="pointer-events-none absolute right-0 flex size-7 items-center justify-center rounded-[7px] text-muted-foreground opacity-0 transition-[background-color,color,opacity] hover:bg-accent hover:text-foreground group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
+            <ArrowRight className="size-4" />
+          </button>
         </span>
       )}
-    </button>
+    </div>
   )
 }
 

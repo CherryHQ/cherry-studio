@@ -2212,6 +2212,7 @@
     "messageSearch": {
       "entry": "訊息",
       "hint": "輸入關鍵詞搜尋訊息正文",
+      "jumpToMessage": "跳轉到訊息",
       "matchModeLabel": "匹配方式",
       "matchModes": {
         "substring": "子串匹配",

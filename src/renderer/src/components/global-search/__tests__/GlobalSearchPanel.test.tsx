@@ -295,6 +295,7 @@ vi.mock('react-i18next', () => ({
           'globalSearch.messageSearch.matchModeLabel': 'Match mode',
           'globalSearch.messageSearch.matchModes.substring': 'Substring',
           'globalSearch.messageSearch.matchModes.wholeWord': 'Whole word',
+          'globalSearch.messageSearch.jumpToMessage': 'Jump to message',
           'globalSearch.messageSearch.more': 'Show {{count}} more results',
           'globalSearch.messageSearch.open': 'Search messages',
           'globalSearch.messageSearch.roles.assistant': 'Assistant role',
@@ -1040,6 +1041,51 @@ describe('GlobalSearchPanel', () => {
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
   })
 
+  it('jumps directly from a topic message search row action', async () => {
+    const user = userEvent.setup()
+    const topic = {
+      id: 'topic-1',
+      name: 'Topic A',
+      assistantId: 'assistant-1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    }
+    mocks.dataApiGet.mockResolvedValue(topic)
+    mocks.messageQueryResult = {
+      items: [
+        {
+          messageId: 'message-1',
+          topicId: 'topic-1',
+          topicName: 'Topic A',
+          topicCreatedAt: '2026-01-01T00:00:00.000Z',
+          topicUpdatedAt: '2026-01-01T00:00:00.000Z',
+          snippet: 'needle topic reply',
+          createdAt: new Date().toISOString()
+        }
+      ]
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.click(screen.getByRole('radio', { name: 'Messages' }))
+    await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
+    await user.click(await screen.findByRole('button', { name: 'Jump to message' }))
+
+    expect(screen.queryByRole('complementary', { name: 'Message preview' })).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(mocks.dataApiPut).toHaveBeenCalledWith('/topics/topic-1/active-node', { body: { nodeId: 'message-1' } })
+      expect(mocks.eventEmit).toHaveBeenCalledWith(
+        'GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE',
+        expect.objectContaining({
+          messageId: 'message-1',
+          topic: expect.objectContaining({ activeNodeId: 'message-1', id: 'topic-1' })
+        })
+      )
+    })
+    expect(mocks.onClose).toHaveBeenCalledTimes(1)
+  })
+
   it('locates the clicked preview message instead of the original search hit', async () => {
     const user = userEvent.setup()
     const topic = {
@@ -1118,6 +1164,41 @@ describe('GlobalSearchPanel', () => {
 
     await user.click(screen.getByRole('button', { name: 'Open preview target' }))
 
+    await waitFor(() => {
+      expect(mocks.cacheSet).toHaveBeenCalledWith('agent.active_session_id', 'session-1')
+      expect(mocks.openTab).toHaveBeenCalledWith('/app/agents')
+      expect(mocks.eventEmit).toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE', {
+        sessionId: 'session-1',
+        messageId: 'session-message-1'
+      })
+    })
+    expect(mocks.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('jumps directly from a session message search row action', async () => {
+    const user = userEvent.setup()
+    mocks.sessionMessageQueryResult = {
+      items: [
+        {
+          messageId: 'session-message-1',
+          sessionId: 'session-1',
+          sessionName: 'Session A',
+          agentId: 'agent-1',
+          agentName: 'Agent',
+          role: 'assistant',
+          snippet: 'needle session reply',
+          createdAt: new Date().toISOString()
+        }
+      ]
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.click(screen.getByRole('radio', { name: 'Messages' }))
+    await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
+    await user.click(await screen.findByRole('button', { name: 'Jump to message' }))
+
+    expect(screen.queryByRole('complementary', { name: 'Message preview' })).not.toBeInTheDocument()
     await waitFor(() => {
       expect(mocks.cacheSet).toHaveBeenCalledWith('agent.active_session_id', 'session-1')
       expect(mocks.openTab).toHaveBeenCalledWith('/app/agents')

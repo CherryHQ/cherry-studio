@@ -2212,6 +2212,7 @@
     "messageSearch": {
       "entry": "Messages",
       "hint": "Type to search message content",
+      "jumpToMessage": "Jump to message",
       "matchModeLabel": "Match mode",
       "matchModes": {
         "substring": "Substring",
