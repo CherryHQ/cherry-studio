@@ -8,8 +8,8 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import predefinedTools from '@shared/data/predefined-tools.json'
 import type { MiseTool } from '@shared/data/preference/preferenceTypes'
+import { PREDEFINED_MISE_TOOLS } from '@shared/data/presets/mise-tools'
 import { IpcChannel } from '@shared/IpcChannel'
 import { BrowserWindow } from 'electron'
 
@@ -102,9 +102,10 @@ export class MiseService extends BaseService {
     const prefService = application.get('PreferenceService')
     let tools = prefService.get('feature.mise.tools')
     if (tools.length === 0) {
-      const coreTools: MiseTool[] = predefinedTools
-        .filter((t) => t.coreDep)
-        .map((t) => ({ name: t.name, tool: t.tool }))
+      const coreTools: MiseTool[] = PREDEFINED_MISE_TOOLS.filter((t) => t.coreDep).map((t) => ({
+        name: t.name,
+        tool: t.tool
+      }))
       if (coreTools.length > 0) {
         void prefService.set('feature.mise.tools', coreTools)
         tools = coreTools
@@ -205,6 +206,9 @@ export class MiseService extends BaseService {
     return null
   }
 
+  // Intentionally isolates HOME/XDG to prevent mise from reading user-level
+  // configs (.npmrc, .netrc, etc.). Only public registry installs are supported;
+  // private registry auth tokens are not passed through.
   private buildIsolatedEnv(): Record<string, string> {
     const dataDir = application.getPath('feature.mise.data')
     const env: Record<string, string> = {}
@@ -378,6 +382,7 @@ export class MiseService extends BaseService {
 
       state.updatedAt = new Date().toISOString()
       this.saveState(state)
+      this.broadcastReconcileFailures(result.failed)
 
       return result
     })
@@ -434,6 +439,16 @@ export class MiseService extends BaseService {
     const registry = await this.loadRegistry()
     const q = query.toLowerCase()
     return registry.filter((entry) => entry.name.toLowerCase().includes(q)).slice(0, 50)
+  }
+
+  private broadcastReconcileFailures(failed: ReconcileResult['failed']) {
+    if (failed.length === 0 || (failed.length === 1 && failed[0].name === '*')) return
+    const names = failed.map((f) => f.name).join(', ')
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) {
+        win.webContents.send(IpcChannel.Mise_ReconcileFailed, names)
+      }
+    }
   }
 
   async removeTool(toolName: string): Promise<void> {

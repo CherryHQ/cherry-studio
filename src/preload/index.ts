@@ -548,6 +548,13 @@ const api = {
       return () => {
         ipcRenderer.off(IpcChannel.Mise_StateChanged, listener)
       }
+    },
+    onReconcileFailed: (callback: (failedNames: string) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, names: string) => callback(names)
+      ipcRenderer.on(IpcChannel.Mise_ReconcileFailed, listener)
+      return () => {
+        ipcRenderer.off(IpcChannel.Mise_ReconcileFailed, listener)
+      }
     }
   },
   protocol: {

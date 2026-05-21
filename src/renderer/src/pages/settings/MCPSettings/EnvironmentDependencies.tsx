@@ -16,7 +16,7 @@ import { loggerService } from '@logger'
 import { cn } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { MiseTool } from '@shared/data/preference/preferenceTypes'
-import { useNavigate } from '@tanstack/react-router'
+import { type MiseToolPreset, PREDEFINED_MISE_TOOLS } from '@shared/data/presets/mise-tools'
 import {
   Download,
   ExternalLink,
@@ -26,39 +26,16 @@ import {
   RefreshCw,
   SquareArrowOutUpRight,
   Terminal,
-  Trash2,
-  TriangleAlert
+  Trash2
 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-interface EnvironmentDependenciesProps {
-  mini?: boolean
-}
-
 interface MiseState {
   updatedAt: string
   tools: Record<string, { name: string; tool: string; version: string; installedAt: string }>
 }
-
-import predefinedToolsData from '@shared/data/predefined-tools.json'
-
-interface PredefinedTool {
-  name: string
-  displayName: string
-  tool: string
-  version?: string
-  icon?: string
-  description: string
-  repoUrl: string
-  homepage?: string
-  coreDep?: boolean
-}
-
-const PREDEFINED_TOOLS: PredefinedTool[] = predefinedToolsData
-
-const CORE_DEPS = new Set(PREDEFINED_TOOLS.filter((t) => t.coreDep).map((t) => t.name))
 
 const logger = loggerService.withContext('EnvironmentDependencies')
 
@@ -69,7 +46,7 @@ const ToolIcon: FC<{ icon?: string; className?: string }> = ({ icon, className }
   return <Terminal className={cn('size-5', className)} />
 }
 
-const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = false }) => {
+const EnvironmentDependencies: FC = () => {
   const [miseState, setMiseState] = useState<MiseState | null>(null)
   const [installingTools, setInstallingTools] = useState<Set<string>>(new Set())
   const [binariesDir, setBinariesDir] = useState<string | null>(null)
@@ -77,7 +54,6 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const { t } = useTranslation()
-  const navigate = useNavigate()
 
   const refreshState = useCallback(async () => {
     try {
@@ -91,8 +67,15 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
   useEffect(() => {
     void refreshState()
-    return window.api.mise.onStateChanged((state) => setMiseState(state))
-  }, [refreshState])
+    const unsub1 = window.api.mise.onStateChanged((state) => setMiseState(state))
+    const unsub2 = window.api.mise.onReconcileFailed((names) => {
+      window.toast.error(`${t('settings.plugins.installError')}: ${names}`)
+    })
+    return () => {
+      unsub1()
+      unsub2()
+    }
+  }, [refreshState, t])
 
   const installTool = async (tool: MiseTool) => {
     setInstallingTools((prev) => new Set(prev).add(tool.name))
@@ -112,7 +95,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   }
 
   const handleAddCustomTool = async (tool: MiseTool) => {
-    const allNames = [...PREDEFINED_TOOLS.map((p) => p.name), ...customTools.map((c) => c.name)]
+    const allNames = [...PREDEFINED_MISE_TOOLS.map((p) => p.name), ...customTools.map((c) => c.name)]
     if (allNames.includes(tool.name)) {
       window.toast.error(t('settings.plugins.duplicateName'))
       throw new Error('duplicate')
@@ -131,30 +114,13 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     setDeleteTarget(null)
   }
 
-  if (mini) {
-    if (!miseState) return null
-    const coreDepsInstalled = Array.from(CORE_DEPS).every((name) => Boolean(miseState.tools[name]))
-    if (coreDepsInstalled) return null
-
-    return (
-      <Button
-        className="nodrag h-8 rounded-lg px-2 text-destructive shadow-none hover:text-destructive"
-        variant="ghost"
-        aria-label={t('settings.plugins.coreDepsMissing')}
-        title={t('settings.plugins.coreDepsMissing')}
-        onClick={() => navigate({ to: '/settings/plugins' })}>
-        <TriangleAlert size={14} />
-      </Button>
-    )
-  }
-
   const openBinariesDir = () => {
     if (binariesDir) {
       void window.api.openPath(binariesDir)
     }
   }
 
-  const totalCount = PREDEFINED_TOOLS.length + customTools.length
+  const totalCount = PREDEFINED_MISE_TOOLS.length + customTools.length
 
   return (
     <div className="flex flex-col gap-5">
@@ -167,10 +133,10 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {PREDEFINED_TOOLS.map((tool) => {
+        {PREDEFINED_MISE_TOOLS.map((tool) => {
           const installed = miseState?.tools[tool.name]
           return (
-            <PredefinedToolCard
+            <MiseToolPresetCard
               key={tool.name}
               tool={tool}
               installed={!!installed}
@@ -231,8 +197,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   )
 }
 
-const PredefinedToolCard: FC<{
-  tool: PredefinedTool
+const MiseToolPresetCard: FC<{
+  tool: MiseToolPreset
   installed: boolean
   installedVersion?: string
   installing: boolean

@@ -38,6 +38,11 @@ const MISE_PACKAGES = {
     file: `mise-v${MISE_VERSION}-windows-x64.exe`,
     binary: 'mise.exe',
     sha256: '580401ddbc9977f94db85bbea51323f5aea6953dbe2a452cb49c2adcf1d8f7c0'
+  },
+  'win32-arm64': {
+    file: `mise-v${MISE_VERSION}-windows-arm64.exe`,
+    binary: 'mise.exe',
+    sha256: 'd29b9909d2aa1c85e4a43b9b4be24b2015423628ae29b15d7e677ab00fccd47e'
   }
 }
 

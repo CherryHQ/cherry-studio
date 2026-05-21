@@ -495,7 +495,8 @@ export enum IpcChannel {
   Mise_RemoveTool = 'mise:remove-tool',
   Mise_GetState = 'mise:get-state',
   Mise_SearchRegistry = 'mise:search-registry',
-  Mise_StateChanged = 'mise:state-changed'
+  Mise_StateChanged = 'mise:state-changed',
+  Mise_ReconcileFailed = 'mise:reconcile-failed'
 
   // ──────────────────────────────────────────────────────────────
   // TODO(v2): the following IPC channels are still referenced via

@@ -132,7 +132,7 @@ exports.default = async function (context) {
 
   // Exclude binaries for other platform-arch combinations (mise, etc.)
   const currentPlatformKey = `${platform}-${arch}`
-  const allBinaryPlatforms = ['darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64', 'win32-x64']
+  const allBinaryPlatforms = ['darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64']
   const excludeBinaryFilters = allBinaryPlatforms
     .filter((p) => p !== currentPlatformKey)
     .map((p) => '!resources/binaries/' + p + '/**')

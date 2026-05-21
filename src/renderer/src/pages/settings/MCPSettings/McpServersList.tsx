@@ -27,7 +27,7 @@ import { useTranslation } from 'react-i18next'
 
 import { SettingTitle } from '..'
 import AddMcpServerModal from './AddMcpServerModal'
-import EnvironmentDependencies from './EnvironmentDependencies'
+import EnvironmentDependenciesIndicator from './EnvironmentDependenciesIndicator'
 import McpServerCard from './McpServerCard'
 
 const McpServersList: FC = () => {
@@ -157,7 +157,7 @@ const McpServersList: FC = () => {
           />
         </div>
         <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-          <EnvironmentDependencies mini />
+          <EnvironmentDependenciesIndicator />
           <Button
             variant="ghost"
             className="h-8 rounded-lg px-2.5 text-xs shadow-none"
