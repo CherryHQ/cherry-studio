@@ -89,7 +89,7 @@ function PageSidePanel({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
             data-slot="page-side-panel-backdrop"
-            className={cn('fixed inset-0 z-[60] bg-black/20 dark:bg-black/60', backdropClassName)}
+            className={cn('fixed inset-0 z-[60] bg-black/50', backdropClassName)}
             onClick={handleClose}
           />
           <motion.aside
@@ -108,17 +108,14 @@ function PageSidePanel({
             transition={{ type: 'spring', damping: 30, stiffness: 350 }}
             data-slot="page-side-panel"
             className={cn(
-              'absolute top-2 bottom-2 z-[70] flex w-100 flex-col overflow-hidden rounded-md border border-border/30 bg-card text-card-foreground shadow-2xl outline-none',
+              'absolute top-2 bottom-2 z-[70] flex w-100 flex-col overflow-hidden rounded-3xl bg-card text-card-foreground shadow-xl outline-none',
               side === 'right' ? 'right-2' : 'left-2',
               contentClassName
             )}>
             {hasHeader && (
               <div
                 data-slot="page-side-panel-header"
-                className={cn(
-                  'flex h-11 shrink-0 items-center justify-between border-border/15 border-b px-4',
-                  headerClassName
-                )}>
+                className={cn('flex shrink-0 items-center justify-between px-6 pt-6 pb-3', headerClassName)}>
                 <div id={header ? headerId : undefined} className="min-w-0 flex flex-1 items-center">
                   {header}
                 </div>
@@ -143,23 +140,23 @@ function PageSidePanel({
                     aria-label={closeLabel}
                     data-slot="page-side-panel-close"
                     className={cn(
-                      'ml-3 shrink-0 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground',
+                      'ml-3 shrink-0 rounded-md opacity-70 shadow-none transition-opacity hover:bg-transparent hover:opacity-100',
                       closeButtonClassName
                     )}>
-                    <XIcon size={13} />
+                    <XIcon size={16} />
                   </Button>
                 )}
               </div>
             )}
 
-            <Scrollbar data-slot="page-side-panel-body" className={cn('flex-1 space-y-4 px-4 py-4', bodyClassName)}>
+            <Scrollbar data-slot="page-side-panel-body" className={cn('flex-1 space-y-4 px-6 py-4', bodyClassName)}>
               {children}
             </Scrollbar>
 
             {footer && (
               <div
                 data-slot="page-side-panel-footer"
-                className={cn('shrink-0 space-y-2.5 border-border/15 border-t px-4 py-3', footerClassName)}>
+                className={cn('shrink-0 space-y-2.5 px-6 pt-3 pb-6', footerClassName)}>
                 {footer}
               </div>
             )}

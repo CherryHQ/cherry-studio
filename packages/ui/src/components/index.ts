@@ -54,6 +54,7 @@ export { Box, Center, ColFlex, Flex, RowFlex, SpaceBetweenRowFlex } from './comp
 export { default as HorizontalScrollContainer } from './composites/HorizontalScrollContainer'
 export { PageSidePanel, type PageSidePanelPlacement, type PageSidePanelProps } from './composites/PageSidePanel'
 export { default as Scrollbar } from './composites/Scrollbar'
+export { SearchInput, type SearchInputProps } from './composites/SearchInput'
 export { SelectDropdown, type SelectDropdownProps } from './composites/SelectDropdown'
 
 // Icon Components — import from '@cherrystudio/ui/icons' path

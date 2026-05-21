@@ -1,14 +1,8 @@
 import type { LoggerService } from '@main/core/logger/LoggerService'
-import type {
-  CatchUpPolicy,
-  JobError,
-  JobSnapshot,
-  JobStatus,
-  RetryPolicy,
-  Trigger
-} from '@shared/data/api/schemas/jobs'
+import type { JobError, JobSnapshot, JobStatus } from '@shared/data/api/schemas/jobs'
 
 import type { JobPayloadOf, JobType } from './jobRegistry'
+import type { CatchUpPolicy, RetryPolicy, Trigger } from './scheduleTypes'
 
 /**
  * Startup recovery strategy declared at handler registration. Determines how

@@ -1,9 +1,10 @@
-import { Button, EmptyState, Input } from '@cherrystudio/ui'
+import { Button, EmptyState, SearchInput } from '@cherrystudio/ui'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import App from '@renderer/components/MiniApp/MiniApp'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { isDataApiError } from '@shared/data/api'
-import { ArrowLeftRight, LayoutGrid, Menu, Plus, RotateCcw, Search, X } from 'lucide-react'
+import { Menu, Plus } from 'lucide-react'
 import type { FC } from 'react'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -40,14 +41,9 @@ const MiniAppsPage: FC = () => {
       </Navbar>
 
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-        {/* Title row + top-right action buttons */}
-        <div className="flex h-11 shrink-0 items-center justify-between px-4">
-          <div className="flex items-center gap-1.5 text-xs">
-            <LayoutGrid size={13} className="text-muted-foreground" strokeWidth={1.6} />
-            <span className="text-foreground">{t('miniApp.title')}</span>
-            <span className="ml-1 text-[10px] text-muted-foreground/40">{filteredApps.length}</span>
-          </div>
-          <div className="flex items-center gap-0.5">
+        {/* Top-right action buttons */}
+        <div className="flex shrink-0 items-start justify-end p-3">
+          <div className="flex items-center gap-1">
             <Button
               variant="ghost"
               size="icon-sm"
@@ -66,72 +62,52 @@ const MiniAppsPage: FC = () => {
         </div>
 
         {/* Search */}
-        <div className="px-6 py-2">
-          <div className="relative mx-auto max-w-md">
-            <Search size={13} className="-translate-y-1/2 absolute top-1/2 left-3 z-10 text-muted-foreground/40" />
-            <Input
-              type="text"
+        <div className="-mt-2 px-8">
+          <div className="mx-auto max-w-lg">
+            <SearchInput
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onClear={() => setSearch('')}
               placeholder={t('common.search')}
-              className="h-auto rounded-3xs border-border/50 bg-muted/20 py-1.5 pr-7 pl-8 text-xs shadow-none placeholder:text-muted-foreground/30 focus-visible:border-primary/30 focus-visible:ring-0"
+              clearLabel={t('common.clear')}
             />
-            {search && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setSearch('')}
-                aria-label={t('common.clear')}
-                className="-translate-y-1/2 absolute top-1/2 right-1 text-muted-foreground shadow-none hover:text-foreground">
-                <X size={12} />
-              </Button>
-            )}
           </div>
         </div>
 
         {/* Body: loading / error / empty / grid */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-          <div className="mx-auto max-w-3xl space-y-5">
+        <Scrollbar className="min-h-0 flex-1 px-8 pb-10">
+          <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col">
             {isLoading ? (
-              <div className="flex h-full items-center justify-center">
-                <BeatLoader color="var(--color-text-2)" size={8} />
+              <div className="flex flex-1 items-center justify-center">
+                <BeatLoader color="var(--color-foreground-secondary)" size={8} />
               </div>
             ) : error ? (
-              <div className="flex h-full items-center justify-center text-muted-foreground text-xs">
+              <div className="flex flex-1 items-center justify-center text-muted-foreground text-xs">
                 {isDataApiError(error) ? error.message : t('common.error')}
               </div>
             ) : filteredApps.length === 0 ? (
-              <EmptyState
-                preset={search ? 'no-result' : 'no-miniapp'}
-                title={search ? t('common.no_results') : t('miniApp.title')}
-              />
+              <div className="flex flex-1 items-center justify-center">
+                <EmptyState
+                  preset={search ? 'no-result' : 'no-miniapp'}
+                  title={search ? t('common.no_results') : t('miniApp.title')}
+                />
+              </div>
             ) : (
-              <div className="grid grid-cols-4 gap-x-2 gap-y-4 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-8">
+              <div className="grid w-full grid-cols-[repeat(auto-fill,minmax(84px,92px))] justify-center gap-x-4 gap-y-8 px-2 pt-12 pb-8 sm:gap-x-5 md:gap-x-6">
                 {filteredApps.map((app) => (
-                  <App key={app.appId} app={app} size={44} />
+                  <App key={app.appId} app={app} size={44} variant="launchpad" />
                 ))}
               </div>
             )}
           </div>
-        </div>
+        </Scrollbar>
 
-        <MiniAppSettingsPanel
-          open={settingsOpen}
-          onClose={() => setSettingsOpen(false)}
-          headerActions={
-            <>
-              <Button variant="ghost" size="sm" onClick={visibility.swap} className="gap-1 text-[11px]">
-                <ArrowLeftRight size={12} />
-                {t('common.swap')}
-              </Button>
-              <Button variant="ghost" size="sm" onClick={visibility.reset} className="gap-1 text-[11px]">
-                <RotateCcw size={12} />
-                {t('common.reset')}
-              </Button>
-            </>
-          }>
-          <MiniAppListPair {...visibility} />
-          <MiniAppDisplaySettings />
+        <MiniAppSettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)}>
+          {/* Generous gap so the two groups read as distinct, not as one list. */}
+          <div className="flex flex-col gap-8">
+            <MiniAppListPair {...visibility} />
+            <MiniAppDisplaySettings />
+          </div>
         </MiniAppSettingsPanel>
         <NewMiniAppPanel open={newAppOpen} onClose={() => setNewAppOpen(false)} />
       </div>

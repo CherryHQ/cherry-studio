@@ -1,6 +1,7 @@
 import { jobScheduleTable } from '@data/db/schemas/job'
 import { jobScheduleService } from '@data/services/JobScheduleService'
-import { JOB_ERROR_CODES, type Trigger } from '@shared/data/api/schemas/jobs'
+import { JOB_ERROR_CODES } from '@main/core/job/errorCodes'
+import type { Trigger } from '@main/core/job/scheduleTypes'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
