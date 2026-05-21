@@ -3,8 +3,7 @@
  *
  * The capability handler + processor registry + result-persistence layer are
  * mocked at the module boundary; only the JobHandler's execute() orchestration
- * is exercised here (control flow, abort handling, artifact cleanup on
- * post-success failure).
+ * is exercised here (control flow, abort handling, and artifact commit).
  */
 import type { JobContext } from '@main/core/job/types'
 import type { FileInfo } from '@shared/file/types'
@@ -17,8 +16,7 @@ const {
   processorRegistryMock,
   fileManagerGetByIdMock,
   toFileInfoMock,
-  persistArtifactMock,
-  cleanupArtifactsMock,
+  commitOutputMock,
   capabilityHandlerMock,
   preparedExecuteMock
 } = vi.hoisted(() => ({
@@ -26,8 +24,7 @@ const {
   processorRegistryMock: {} as Record<string, unknown>,
   fileManagerGetByIdMock: vi.fn(),
   toFileInfoMock: vi.fn(),
-  persistArtifactMock: vi.fn(),
-  cleanupArtifactsMock: vi.fn(),
+  commitOutputMock: vi.fn(),
   capabilityHandlerMock: {
     mode: 'background' as 'background' | 'remote-poll',
     prepare: vi.fn()
@@ -58,8 +55,7 @@ vi.mock('@main/services/file', () => ({
 
 vi.mock('../../persistence/FileProcessingArtifactPersistence', () => ({
   fileProcessingArtifactPersistence: {
-    persistArtifact: persistArtifactMock,
-    cleanupArtifacts: cleanupArtifactsMock
+    commitOutput: commitOutputMock
   }
 }))
 
@@ -119,55 +115,51 @@ beforeEach(() => {
 describe('backgroundJobHandler.execute', () => {
   it('returns inline text artifact for image_to_text output', async () => {
     preparedExecuteMock.mockResolvedValue({ kind: 'text', text: 'recognized text' })
-    persistArtifactMock.mockResolvedValue([{ kind: 'text', format: 'plain', text: 'recognized text' }])
+    commitOutputMock.mockResolvedValue([{ kind: 'text', format: 'plain', text: 'recognized text' }])
     setupCapability({ mode: 'background', execute: preparedExecuteMock })
 
     const result = (await backgroundJobHandler.execute(createCtx())) as { artifacts: unknown[] }
 
-    expect(persistArtifactMock).toHaveBeenCalledWith({
+    expect(commitOutputMock).toHaveBeenCalledWith({
       taskId: 'job-1',
       output: { kind: 'text', text: 'recognized text' },
       signal: expect.any(AbortSignal)
     })
     expect(result.artifacts).toEqual([{ kind: 'text', format: 'plain', text: 'recognized text' }])
-    expect(cleanupArtifactsMock).not.toHaveBeenCalled()
   })
 
   it('persists markdown output to disk and returns file artifact', async () => {
     preparedExecuteMock.mockResolvedValue({ kind: 'markdown', markdownContent: '# hello' })
-    persistArtifactMock.mockResolvedValue([{ kind: 'file', format: 'markdown', fileEntryId: ARTIFACT_ENTRY_ID }])
+    commitOutputMock.mockResolvedValue([{ kind: 'file', format: 'markdown', fileEntryId: ARTIFACT_ENTRY_ID }])
     setupCapability({ mode: 'background', execute: preparedExecuteMock })
 
     const result = (await backgroundJobHandler.execute(createCtx())) as { artifacts: unknown[] }
 
-    expect(persistArtifactMock).toHaveBeenCalledWith({
+    expect(commitOutputMock).toHaveBeenCalledWith({
       taskId: 'job-1',
       output: { kind: 'markdown', markdownContent: '# hello' },
       signal: expect.any(AbortSignal)
     })
     expect(result.artifacts).toEqual([{ kind: 'file', format: 'markdown', fileEntryId: ARTIFACT_ENTRY_ID }])
-    expect(cleanupArtifactsMock).not.toHaveBeenCalled()
   })
 
-  it('propagates execute() errors and does NOT cleanup (no partial artifacts yet)', async () => {
+  it('propagates execute() errors without committing artifacts', async () => {
     preparedExecuteMock.mockRejectedValue(new Error('tesseract crashed'))
     setupCapability({ mode: 'background', execute: preparedExecuteMock })
 
     await expect(backgroundJobHandler.execute(createCtx())).rejects.toThrow('tesseract crashed')
-    expect(cleanupArtifactsMock).not.toHaveBeenCalled()
-    expect(persistArtifactMock).not.toHaveBeenCalled()
+    expect(commitOutputMock).not.toHaveBeenCalled()
   })
 
-  it('cleans up partial artifacts when artifact persistence throws after execute success', async () => {
+  it('propagates artifact commit errors', async () => {
     preparedExecuteMock.mockResolvedValue({ kind: 'markdown', markdownContent: '# hello' })
-    persistArtifactMock.mockRejectedValue(new Error('disk full'))
+    commitOutputMock.mockRejectedValue(new Error('disk full'))
     setupCapability({ mode: 'background', execute: preparedExecuteMock })
 
     await expect(backgroundJobHandler.execute(createCtx())).rejects.toThrow('disk full')
-    expect(cleanupArtifactsMock).toHaveBeenCalledWith({ taskId: 'job-1', artifacts: undefined })
   })
 
-  it('throws AbortError when ctx.signal is aborted between execute() and createArtifacts()', async () => {
+  it('throws AbortError when ctx.signal is aborted between execute() and commit', async () => {
     const controller = new AbortController()
     preparedExecuteMock.mockImplementation(async () => {
       controller.abort()
@@ -176,8 +168,7 @@ describe('backgroundJobHandler.execute', () => {
     setupCapability({ mode: 'background', execute: preparedExecuteMock })
 
     await expect(backgroundJobHandler.execute(createCtx({ signal: controller.signal }))).rejects.toThrow(/abort/i)
-    expect(persistArtifactMock).not.toHaveBeenCalled()
-    expect(cleanupArtifactsMock).not.toHaveBeenCalled()
+    expect(commitOutputMock).not.toHaveBeenCalled()
   })
 
   it('rejects when handler.mode does not match (drift guard)', async () => {

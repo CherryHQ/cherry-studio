@@ -48,7 +48,7 @@ describe('FileProcessingArtifactPersistence', () => {
     const signal = new AbortController().signal
 
     await expect(
-      fileProcessingArtifactPersistence.persistArtifact({
+      fileProcessingArtifactPersistence.commitOutput({
         taskId: 'task-1',
         output: {
           kind: 'markdown',
@@ -82,7 +82,7 @@ describe('FileProcessingArtifactPersistence', () => {
 
   it('returns text artifacts without touching markdown staging or FileManager', async () => {
     await expect(
-      fileProcessingArtifactPersistence.persistArtifact({
+      fileProcessingArtifactPersistence.commitOutput({
         taskId: 'task-1',
         output: {
           kind: 'text',
@@ -107,7 +107,7 @@ describe('FileProcessingArtifactPersistence', () => {
     createInternalEntryMock.mockRejectedValueOnce(new Error('internal create failed'))
 
     await expect(
-      fileProcessingArtifactPersistence.persistArtifact({
+      fileProcessingArtifactPersistence.commitOutput({
         taskId: 'task-1',
         output: {
           kind: 'markdown',
@@ -123,7 +123,7 @@ describe('FileProcessingArtifactPersistence', () => {
     persistResultMock.mockRejectedValueOnce(new Error('normalization failed'))
 
     await expect(
-      fileProcessingArtifactPersistence.persistArtifact({
+      fileProcessingArtifactPersistence.commitOutput({
         taskId: 'task-1',
         output: {
           kind: 'markdown',
@@ -136,41 +136,52 @@ describe('FileProcessingArtifactPersistence', () => {
     expect(cleanupResultsDirMock).toHaveBeenCalledWith('task-1')
   })
 
-  it('cleans up only FileManager-backed artifacts', async () => {
-    await fileProcessingArtifactPersistence.cleanupArtifacts({
-      taskId: 'task-1',
-      artifacts: [
-        {
-          kind: 'text',
-          format: 'plain',
-          text: 'ocr text'
-        },
-        {
-          kind: 'file',
-          format: 'markdown',
-          fileEntryId: '019606a0-0000-7000-8000-000000000101'
-        }
-      ]
+  it('rolls back a created FileManager entry when commit is aborted after entry creation', async () => {
+    const controller = new AbortController()
+    createInternalEntryMock.mockImplementationOnce(async () => {
+      controller.abort()
+      return {
+        id: '019606a0-0000-7000-8000-000000000101' as FileEntryId
+      }
     })
+
+    await expect(
+      fileProcessingArtifactPersistence.commitOutput({
+        taskId: 'task-1',
+        output: {
+          kind: 'markdown',
+          markdownContent: '# aborted'
+        },
+        signal: controller.signal
+      })
+    ).rejects.toThrow(/abort/i)
 
     expect(application.get).toHaveBeenCalledWith('FileManager')
     expect(permanentDeleteMock).toHaveBeenCalledWith('019606a0-0000-7000-8000-000000000101')
+    expect(cleanupResultsDirMock).toHaveBeenCalledWith('task-1')
   })
 
-  it('does not fail artifact cleanup when FileManager deletion fails', async () => {
+  it('keeps the original commit error when rollback deletion fails', async () => {
+    const controller = new AbortController()
+    createInternalEntryMock.mockImplementationOnce(async () => {
+      controller.abort()
+      return {
+        id: '019606a0-0000-7000-8000-000000000101' as FileEntryId
+      }
+    })
     permanentDeleteMock.mockRejectedValueOnce(new Error('delete failed'))
 
     await expect(
-      fileProcessingArtifactPersistence.cleanupArtifacts({
+      fileProcessingArtifactPersistence.commitOutput({
         taskId: 'task-1',
-        artifacts: [
-          {
-            kind: 'file',
-            format: 'markdown',
-            fileEntryId: '019606a0-0000-7000-8000-000000000101'
-          }
-        ]
+        output: {
+          kind: 'markdown',
+          markdownContent: '# aborted'
+        },
+        signal: controller.signal
       })
-    ).resolves.toBeUndefined()
+    ).rejects.toThrow(/abort/i)
+
+    expect(permanentDeleteMock).toHaveBeenCalledWith('019606a0-0000-7000-8000-000000000101')
   })
 })

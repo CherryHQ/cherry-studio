@@ -12,8 +12,7 @@ import type {
 } from '../processors/types'
 import {
   assertModeMatches,
-  cleanupArtifacts,
-  createArtifacts,
+  commitFileProcessingOutput,
   type FileProcessingJobOutput,
   type FileProcessingJobPayload,
   getCapabilityHandler
@@ -79,47 +78,33 @@ export const remotePollJobHandler: JobHandler<FileProcessingJobPayload> = {
       ctx.reportProgress(start.progress, { stage: 'started' })
     }
 
-    let artifactsMayExist = false
-    try {
-      while (!ctx.signal.aborted) {
-        const result: FileProcessingRemotePollResult = await remote.pollRemote(
-          { providerTaskId, remoteContext },
-          ctx.signal
-        )
+    while (!ctx.signal.aborted) {
+      const result: FileProcessingRemotePollResult = await remote.pollRemote(
+        { providerTaskId, remoteContext },
+        ctx.signal
+      )
 
-        if (result.status === 'failed') {
-          const message =
-            result.error?.trim() || `${config.id} ${feature} failed (no diagnostic, providerTaskId=${providerTaskId})`
-          throw new Error(message)
-        }
-
-        if (result.status === 'completed') {
-          artifactsMayExist = true
-          const artifacts = await createArtifacts(ctx.jobId, result.output, ctx.signal)
-          return { artifacts } satisfies FileProcessingJobOutput
-        }
-
-        ctx.reportProgress(result.progress, { stage: 'polling' })
-
-        if (result.remoteContext !== undefined && result.remoteContext !== remoteContext) {
-          remoteContext = result.remoteContext
-          await ctx.patchMetadata({ remoteState: remote.toPersistable(remoteContext, providerTaskId) })
-        }
-
-        await sleepWithSignal(POLL_INTERVAL_MS, ctx.signal)
+      if (result.status === 'failed') {
+        const message =
+          result.error?.trim() || `${config.id} ${feature} failed (no diagnostic, providerTaskId=${providerTaskId})`
+        throw new Error(message)
       }
-      throw new DOMException('aborted', 'AbortError')
-    } catch (error) {
-      if (artifactsMayExist) {
-        await cleanupArtifacts(ctx.jobId)
-        logger.warn('Remote-poll execution failed after artifacts may have been created', {
-          jobId: ctx.jobId,
-          processorId: config.id,
-          feature
-        })
+
+      if (result.status === 'completed') {
+        const artifacts = await commitFileProcessingOutput(ctx.jobId, result.output, ctx.signal)
+        return { artifacts } satisfies FileProcessingJobOutput
       }
-      throw error
+
+      ctx.reportProgress(result.progress, { stage: 'polling' })
+
+      if (result.remoteContext !== undefined && result.remoteContext !== remoteContext) {
+        remoteContext = result.remoteContext
+        await ctx.patchMetadata({ remoteState: remote.toPersistable(remoteContext, providerTaskId) })
+      }
+
+      await sleepWithSignal(POLL_INTERVAL_MS, ctx.signal)
     }
+    throw new DOMException('aborted', 'AbortError')
   }
 }
 

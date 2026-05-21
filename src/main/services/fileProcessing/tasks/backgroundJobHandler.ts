@@ -1,5 +1,4 @@
 import { application } from '@application'
-import { loggerService } from '@logger'
 import type { JobHandler } from '@main/core/job/types'
 import { toFileInfo } from '@main/services/file'
 
@@ -8,14 +7,11 @@ import type { PreparedBackgroundTask } from '../processors/types'
 import {
   assertFileTypeSupported,
   assertModeMatches,
-  cleanupArtifacts,
-  createArtifacts,
+  commitFileProcessingOutput,
   type FileProcessingJobOutput,
   type FileProcessingJobPayload,
   getCapabilityHandler
 } from './shared'
-
-const logger = loggerService.withContext('FileProcessing:BackgroundJobHandler')
 
 /**
  * Handles capability handlers whose execution is a single awaited call against
@@ -51,30 +47,16 @@ export const backgroundJobHandler: JobHandler<FileProcessingJobPayload> = {
     assertModeMatches(prepared, 'background')
     const background = prepared as PreparedBackgroundTask
 
-    let artifactsMayExist = false
-    try {
-      const output = await background.execute({
-        signal: ctx.signal,
-        reportProgress: (progress) => ctx.reportProgress(progress)
-      })
+    const output = await background.execute({
+      signal: ctx.signal,
+      reportProgress: (progress) => ctx.reportProgress(progress)
+    })
 
-      if (ctx.signal.aborted) {
-        throw new DOMException('aborted', 'AbortError')
-      }
-
-      artifactsMayExist = true
-      const artifacts = await createArtifacts(ctx.jobId, output, ctx.signal)
-      return { artifacts } satisfies FileProcessingJobOutput
-    } catch (error) {
-      if (artifactsMayExist) {
-        await cleanupArtifacts(ctx.jobId)
-        logger.warn('Background execution failed after artifacts may have been created', {
-          jobId: ctx.jobId,
-          processorId: config.id,
-          feature
-        })
-      }
-      throw error
+    if (ctx.signal.aborted) {
+      throw new DOMException('aborted', 'AbortError')
     }
+
+    const artifacts = await commitFileProcessingOutput(ctx.jobId, output, ctx.signal)
+    return { artifacts } satisfies FileProcessingJobOutput
   }
 }

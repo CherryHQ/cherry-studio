@@ -38,29 +38,21 @@ export interface FileProcessingJobOutput {
 }
 
 /**
- * Project a capability output into persistable artifacts. Text outputs become
- * inline artifacts; markdown / zip outputs are written to disk by
- * FileProcessingArtifactPersistence under a per-jobId staging directory, then
- * registered as FileManager internal artifacts.
- *
- * The caller is responsible for `cleanupFileProcessingResultsDir(jobId)` on
- * failure or cancellation after this returns successfully — disk artifacts are
- * the only on-disk state outside jobTable.
+ * Commit a capability output into artifacts. Text outputs become inline
+ * artifacts; markdown / zip outputs are written to a per-jobId staging
+ * directory, registered as FileManager internal artifacts, and rolled back on
+ * commit failure by FileProcessingArtifactPersistence.
  */
-export async function createArtifacts(
+export async function commitFileProcessingOutput(
   jobId: string,
   output: FileProcessingHandlerOutput,
   signal: AbortSignal
 ): Promise<FileProcessingArtifact[]> {
-  return await fileProcessingArtifactPersistence.persistArtifact({
+  return await fileProcessingArtifactPersistence.commitOutput({
     taskId: jobId,
     output,
     signal
   })
-}
-
-export function cleanupArtifacts(jobId: string, artifacts?: FileProcessingArtifact[]): Promise<void> {
-  return fileProcessingArtifactPersistence.cleanupArtifacts({ taskId: jobId, artifacts })
 }
 
 /** Look up the capability handler for (processorId, feature). Throws on missing. */

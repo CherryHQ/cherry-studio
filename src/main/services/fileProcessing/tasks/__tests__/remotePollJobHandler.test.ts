@@ -18,8 +18,7 @@ const {
   processorRegistryMock,
   fileManagerGetByIdMock,
   toFileInfoMock,
-  persistArtifactMock,
-  cleanupArtifactsMock,
+  commitOutputMock,
   capabilityHandlerMock,
   startRemoteMock,
   pollRemoteMock,
@@ -30,8 +29,7 @@ const {
   processorRegistryMock: {} as Record<string, unknown>,
   fileManagerGetByIdMock: vi.fn(),
   toFileInfoMock: vi.fn(),
-  persistArtifactMock: vi.fn(),
-  cleanupArtifactsMock: vi.fn(),
+  commitOutputMock: vi.fn(),
   capabilityHandlerMock: {
     mode: 'remote-poll' as const,
     prepare: vi.fn()
@@ -65,8 +63,7 @@ vi.mock('@main/services/file', () => ({
 
 vi.mock('../../persistence/FileProcessingArtifactPersistence', () => ({
   fileProcessingArtifactPersistence: {
-    persistArtifact: persistArtifactMock,
-    cleanupArtifacts: cleanupArtifactsMock
+    commitOutput: commitOutputMock
   }
 }))
 
@@ -153,7 +150,7 @@ describe('remotePollJobHandler.execute', () => {
       status: 'completed',
       output: { kind: 'remote-zip-url', downloadUrl: 'https://example.com/x.zip', configuredApiHost: remoteCtx.apiHost }
     })
-    persistArtifactMock.mockResolvedValue([{ kind: 'file', format: 'markdown', fileEntryId: ARTIFACT_ENTRY_ID }])
+    commitOutputMock.mockResolvedValue([{ kind: 'file', format: 'markdown', fileEntryId: ARTIFACT_ENTRY_ID }])
 
     const ctx = createCtx()
     const result = (await remotePollJobHandler.execute(ctx)) as { artifacts: unknown[] }
@@ -185,7 +182,7 @@ describe('remotePollJobHandler.execute', () => {
       status: 'completed',
       output: { kind: 'remote-zip-url', downloadUrl: 'https://x.zip', configuredApiHost: remoteCtx.apiHost }
     })
-    persistArtifactMock.mockResolvedValue([{ kind: 'file', format: 'markdown', fileEntryId: ARTIFACT_ENTRY_ID }])
+    commitOutputMock.mockResolvedValue([{ kind: 'file', format: 'markdown', fileEntryId: ARTIFACT_ENTRY_ID }])
 
     const ctx = createCtx()
     await remotePollJobHandler.execute(ctx)
@@ -204,7 +201,7 @@ describe('remotePollJobHandler.execute', () => {
       status: 'completed',
       output: { kind: 'remote-zip-url', downloadUrl: 'https://x.zip', configuredApiHost: restoredCtx.apiHost }
     })
-    persistArtifactMock.mockResolvedValue([{ kind: 'file', format: 'markdown', fileEntryId: ARTIFACT_ENTRY_ID }])
+    commitOutputMock.mockResolvedValue([{ kind: 'file', format: 'markdown', fileEntryId: ARTIFACT_ENTRY_ID }])
 
     const ctx = createCtx({
       metadata: { remoteState: { providerTaskId: 'recovered-task', stage: 'exporting', apiHost: restoredCtx.apiHost } }
@@ -243,7 +240,7 @@ describe('remotePollJobHandler.execute', () => {
         status: 'completed',
         output: { kind: 'remote-zip-url', downloadUrl: 'https://x.zip', configuredApiHost: 'https://h' }
       })
-    persistArtifactMock.mockResolvedValue([{ kind: 'file', format: 'markdown', fileEntryId: ARTIFACT_ENTRY_ID }])
+    commitOutputMock.mockResolvedValue([{ kind: 'file', format: 'markdown', fileEntryId: ARTIFACT_ENTRY_ID }])
 
     const ctx = createCtx()
     const exec = remotePollJobHandler.execute(ctx)
@@ -256,7 +253,7 @@ describe('remotePollJobHandler.execute', () => {
     expect(patchPayloads[1]).toEqual({ remoteState: { providerTaskId: 't', stage: 'exporting', apiHost: 'https://h' } })
   })
 
-  it('throws and cleans up when pollRemote returns failed status (after artifacts persisted)', async () => {
+  it('throws without committing artifacts when pollRemote returns failed status', async () => {
     setupCapability()
     startRemoteMock.mockResolvedValue({
       providerTaskId: 't',
@@ -268,7 +265,7 @@ describe('remotePollJobHandler.execute', () => {
     pollRemoteMock.mockResolvedValue({ status: 'failed', error: 'remote rejected' })
 
     await expect(remotePollJobHandler.execute(createCtx())).rejects.toThrow('remote rejected')
-    expect(cleanupArtifactsMock).not.toHaveBeenCalled()
+    expect(commitOutputMock).not.toHaveBeenCalled()
   })
 
   it('propagates AbortError when startRemote() rejects with it (no artifacts yet → no cleanup)', async () => {
@@ -276,10 +273,10 @@ describe('remotePollJobHandler.execute', () => {
     startRemoteMock.mockRejectedValue(new DOMException('aborted', 'AbortError'))
 
     await expect(remotePollJobHandler.execute(createCtx())).rejects.toThrow(/abort/i)
-    expect(cleanupArtifactsMock).not.toHaveBeenCalled()
+    expect(commitOutputMock).not.toHaveBeenCalled()
   })
 
-  it('cleans up partial artifacts when artifact persistence throws on completed poll', async () => {
+  it('propagates artifact commit errors on completed poll', async () => {
     setupCapability()
     startRemoteMock.mockResolvedValue({
       providerTaskId: 't',
@@ -292,10 +289,9 @@ describe('remotePollJobHandler.execute', () => {
       status: 'completed',
       output: { kind: 'remote-zip-url', downloadUrl: 'https://x.zip', configuredApiHost: 'https://h' }
     })
-    persistArtifactMock.mockRejectedValue(new Error('disk full'))
+    commitOutputMock.mockRejectedValue(new Error('disk full'))
 
     await expect(remotePollJobHandler.execute(createCtx())).rejects.toThrow('disk full')
-    expect(cleanupArtifactsMock).toHaveBeenCalledWith({ taskId: 'job-2', artifacts: undefined })
   })
 
   it('rejects when prepared.mode does not match handler.mode (drift guard)', async () => {

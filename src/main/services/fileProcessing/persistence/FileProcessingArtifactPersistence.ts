@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import type { FileEntryId } from '@shared/data/types/file'
 import type { FileProcessingArtifact } from '@shared/data/types/fileProcessing'
 import type { FilePath } from '@shared/file/types'
 
@@ -13,7 +14,7 @@ import {
 const logger = loggerService.withContext('FileProcessingArtifactPersistence')
 
 class FileProcessingArtifactPersistence {
-  async persistArtifact(options: {
+  async commitOutput(options: {
     taskId: string
     output: FileProcessingHandlerOutput
     signal?: AbortSignal
@@ -35,26 +36,14 @@ class FileProcessingArtifactPersistence {
     }
   }
 
-  async cleanupArtifacts(options: { taskId: string; artifacts?: FileProcessingArtifact[] }): Promise<void> {
-    const fileEntryIds = options.artifacts?.flatMap((artifact) =>
-      artifact.kind === 'file' ? [artifact.fileEntryId] : []
-    )
-
-    if (!fileEntryIds || fileEntryIds.length === 0) {
-      return
-    }
-
-    const fileManager = application.get('FileManager')
-
-    for (const fileEntryId of fileEntryIds) {
-      try {
-        await fileManager.permanentDelete(fileEntryId)
-      } catch (error) {
-        logger.warn('Failed to cleanup orphaned file processing file entry artifact', error as Error, {
-          taskId: options.taskId,
-          fileEntryId
-        })
-      }
+  private async rollbackFileEntryArtifact(taskId: string, fileEntryId: FileEntryId): Promise<void> {
+    try {
+      await application.get('FileManager').permanentDelete(fileEntryId)
+    } catch (error) {
+      logger.warn('Failed to rollback file processing file entry artifact', error as Error, {
+        taskId,
+        fileEntryId
+      })
     }
   }
 
@@ -64,6 +53,7 @@ class FileProcessingArtifactPersistence {
     signal?: AbortSignal
   ): Promise<FileProcessingArtifact> {
     let markdownPath: FilePath | undefined
+    let fileEntryId: FileEntryId | undefined
 
     try {
       markdownPath = await markdownResultStore.persistResult({
@@ -71,6 +61,7 @@ class FileProcessingArtifactPersistence {
         result,
         signal
       })
+      signal?.throwIfAborted()
 
       // Current artifact contract is markdown-only. ZIP sibling assets remain
       // staging-only and are discarded by the cleanup below.
@@ -78,12 +69,19 @@ class FileProcessingArtifactPersistence {
         source: 'path',
         path: markdownPath
       })
+      fileEntryId = entry.id
+      signal?.throwIfAborted()
 
       return {
         kind: 'file',
         format: 'markdown',
         fileEntryId: entry.id
       }
+    } catch (error) {
+      if (fileEntryId) {
+        await this.rollbackFileEntryArtifact(taskId, fileEntryId)
+      }
+      throw error
     } finally {
       const cleaned = await cleanupFileProcessingResultsDir(taskId)
 
