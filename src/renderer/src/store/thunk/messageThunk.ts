@@ -17,6 +17,7 @@
 import { loggerService } from '@logger'
 import { AiSdkToChunkAdapter } from '@renderer/aiCore/chunk/AiSdkToChunkAdapter'
 import { AgentApiClient } from '@renderer/api/agent'
+import { isVisionModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { getModel } from '@renderer/hooks/useModel'
 import { fetchMessagesSummary, transformMessagesAndFetch } from '@renderer/services/ApiService'
@@ -56,7 +57,7 @@ import {
   createTranslationBlock,
   resetAssistantMessage
 } from '@renderer/utils/messageUtils/create'
-import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { getTopicQueue, waitForTopicQueue } from '@renderer/utils/queue'
 import { IpcChannel } from '@shared/IpcChannel'
 import { defaultAppHeaders } from '@shared/utils'
@@ -1227,6 +1228,43 @@ export const resendMessageThunk =
         logger.warn(`Failed to clear keyv cache for message ${userMessageToResend.id}:`, error as Error)
       }
 
+      // Check if user message has images and validate model support
+      const userImageBlocks = findImageBlocks(userMessageToResend)
+      if (userImageBlocks.length > 0) {
+        // Check assistant model for single message case (no existing assistant messages)
+        if (assistantMessagesToReset.length === 0 && !userMessageToResend?.mentions?.length) {
+          if (assistant.model && !isVisionModel(assistant.model)) {
+            window.toast.error(t('error.model_not_support_image'))
+            logger.warn(
+              `[resendMessageThunk] Model ${assistant.model.name} does not support images, but user message has image blocks.`
+            )
+            return
+          }
+        }
+        // Check existing assistant messages' models
+        if (assistantMessagesToReset.length > 0 && !userMessageToResend?.mentions?.length) {
+          const invalidModels = assistantMessagesToReset.filter((m) => m.model && !isVisionModel(m.model))
+          if (invalidModels.length > 0) {
+            window.toast.error(t('error.model_not_support_image'))
+            logger.warn(
+              `[resendMessageThunk] Model ${invalidModels.map((m) => m.model!.name).join(', ')} does not support images, but user message has image blocks.`
+            )
+            return
+          }
+        }
+        // Check mentioned models for multi-model case
+        if (userMessageToResend?.mentions?.length) {
+          const invalidModels = userMessageToResend.mentions.filter((m) => !isVisionModel(m))
+          if (invalidModels.length > 0) {
+            window.toast.error(t('error.model_not_support_image'))
+            logger.warn(
+              `[resendMessageThunk] Mentioned models ${invalidModels.map((m) => m.name).join(', ')} do not support images, but user message has image blocks.`
+            )
+            return
+          }
+        }
+      }
+
       const resetDataList: Message[] = []
 
       if (assistantMessagesToReset.length === 0 && !userMessageToResend?.mentions?.length) {
@@ -1368,6 +1406,19 @@ export const regenerateAssistantResponseThunk =
           `[regenerateAssistantResponseThunk] Original user query (askId: ${assistantMessageToRegenerate.askId}) not found for assistant message ${assistantMessageToRegenerate.id}. Cannot regenerate.`
         )
         return
+      }
+
+      // 2.5. Check if user message has images and new model supports vision
+      const userImageBlocks = findImageBlocks(originalUserQuery)
+      if (userImageBlocks.length > 0) {
+        const modelToUse = assistantMessageToRegenerate.modelId ? assistantMessageToRegenerate.model : assistant.model
+        if (modelToUse && !isVisionModel(modelToUse)) {
+          window.toast.error(t('error.model_not_support_image'))
+          logger.warn(
+            `[regenerateAssistantResponseThunk] Model ${modelToUse.name} does not support images, but user message has image blocks.`
+          )
+          return
+        }
       }
 
       // 3. Verify the assistant message itself exists in entities

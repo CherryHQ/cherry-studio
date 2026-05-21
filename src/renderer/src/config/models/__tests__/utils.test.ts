@@ -13,6 +13,7 @@ import {
   isClaude47SeriesModel,
   isDeepSeekModel,
   isGemini3FlashModel,
+  isGemini3Model,
   isGemini3ProModel,
   isGemini31ProModel,
   isGeminiModel,
@@ -394,6 +395,24 @@ describe('model utils', () => {
     describe('isGeminiModel', () => {
       it('detects Gemini models', () => {
         expect(isGeminiModel(createModel({ id: 'Gemini-2.0' }))).toBe(true)
+      })
+    })
+
+    describe('isGemini3Model', () => {
+      it('detects explicit Gemini 3.x models', () => {
+        expect(isGemini3Model(createModel({ id: 'gemini-3-flash' }))).toBe(true)
+        expect(isGemini3Model(createModel({ id: 'gemini-3.5-flash' }))).toBe(true)
+        expect(isGemini3Model(createModel({ id: 'gemini-3.1-pro-preview' }))).toBe(true)
+      })
+
+      it('detects Gemini 3.x latest aliases', () => {
+        expect(isGemini3Model(createModel({ id: 'gemini-flash-latest' }))).toBe(true)
+        expect(isGemini3Model(createModel({ id: 'gemini-pro-latest' }))).toBe(true)
+      })
+
+      it('returns false for non-Gemini 3 models', () => {
+        expect(isGemini3Model(createModel({ id: 'gemini-2.5-flash' }))).toBe(false)
+        expect(isGemini3Model(createModel({ id: 'gemini-flash-lite-latest' }))).toBe(false)
       })
     })
 
