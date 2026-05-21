@@ -8,6 +8,7 @@ import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { SelectChatModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { isEmbeddingModel, isRerankModel, isWebSearchModel } from '@renderer/config/models'
+import { BranchAssistantContext, type BranchAssistantOverride } from '@renderer/context/BranchAssistantContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useBranchFork } from '@renderer/hooks/useBranchFork'
 import { useChatContext } from '@renderer/hooks/useChatContext'
@@ -21,7 +22,7 @@ import { Flex } from 'antd'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -74,9 +75,22 @@ const Chat: FC<Props> = (props) => {
     }
   })
 
+  // Synthetic assistant for the branch subtree. Same id as the main assistant,
+  // but `.topics` transiently carries the branch topic (with `prompt` set by
+  // useBranchFork). messageThunk:854 reads `topic.prompt` from this object's
+  // `.topics` array — that's why regenerate / resend / edit / delete inside
+  // the branch must see this synthetic, not the Redux one. Stable reference
+  // via useMemo so useAssistant's downstream useMemo / useEffect don't churn.
+  const branchOverride = useMemo<BranchAssistantOverride | null>(() => {
+    if (!branchTopic) return null
+    return {
+      assistant: { ...assistant, topics: [...assistant.topics, branchTopic] }
+    }
+  }, [assistant, branchTopic])
+
   useEffect(() => {
     if (branchAnchor || branchTopic) {
-      logger.debug("T-006D-2B S2' state lift", {
+      logger.debug('T-006D-2B branch panel state', {
         anchorMessageId: branchAnchor?.messageId,
         branchTopicId: branchTopic?.id,
         forkStatus: branchFork.status
@@ -186,7 +200,17 @@ const Chat: FC<Props> = (props) => {
 
   return (
     <Container id="chat" className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
-      <RowFlex>
+      {/*
+        T-006D-2B S5' scroll-fix: Container is a flex column with a bounded
+        height (calc(100vh - var(--navbar-height))). RowFlex sits inside as a
+        column-flex item without an intrinsic height — main chat works only
+        because <Main> overrides via inline `style={{ height: mainHeight }}`.
+        BranchPane doesn't carry that override, so without h-full here its
+        motion.div has no height anchor and the inner overflow-y-auto can't
+        scroll. h-full propagates the Container height down into RowFlex →
+        BranchPane → BranchMessageStream.
+      */}
+      <RowFlex className="h-full">
         <motion.div
           layout
           transition={{ duration: 0.3, ease: 'easeInOut' }}
@@ -257,20 +281,27 @@ const Chat: FC<Props> = (props) => {
           T-006D-2B side-by-side branch pane. Mirrors the right-Tabs motion
           pattern above. Width/opacity animate; the inner content is rendered
           unconditionally so the slide-out doesn't snap to empty.
+
+          The Provider scope is intentionally limited to <BranchPane> — the
+          main chat is outside this subtree, so its useAssistant() lookups
+          see `null` from useContext and keep their original Redux behaviour
+          bit-for-bit identical.
         */}
-        <BranchPane
-          anchor={branchAnchor}
-          branchTopic={branchTopic}
-          status={branchFork.status}
-          errorMessage={branchFork.errorMessage}
-          onCreate={(followUp) => {
-            if (branchAnchor) void branchFork.fork(branchAnchor, followUp)
-          }}
-          onComposeCancel={() => {
-            setBranchAnchor(null)
-            branchFork.reset()
-          }}
-        />
+        <BranchAssistantContext value={branchOverride}>
+          <BranchPane
+            anchor={branchAnchor}
+            branchTopic={branchTopic}
+            status={branchFork.status}
+            errorMessage={branchFork.errorMessage}
+            onCreate={(followUp) => {
+              if (branchAnchor) void branchFork.fork(branchAnchor, followUp)
+            }}
+            onComposeCancel={() => {
+              setBranchAnchor(null)
+              branchFork.reset()
+            }}
+          />
+        </BranchAssistantContext>
       </RowFlex>
     </Container>
   )

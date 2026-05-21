@@ -129,4 +129,12 @@ describe('BranchMessageStream (T-006D-2B Gate #3 — branch isolation)', () => {
     // sanity: mainTopic exists in fixture but we only render the branch
     expect(mainTopic.id).toBe('topic-main-9')
   })
+
+  // NOTE — deliberately no unit test for the scroll-to-bottom effect: jsdom
+  // has no layout engine, so a stubbed `scrollHeight` + observed `scrollTop`
+  // is a false-green that can never catch the real failure mode here, which
+  // is a flex-height-chain bug (overflow-y-auto only scrolls when every
+  // ancestor — Container → RowFlex → BranchPane motion.div → conversation
+  // column → BranchMessageStream — passes down a bounded height with
+  // min-h-0). Verification for that lives in manual `pnpm dev` only.
 })

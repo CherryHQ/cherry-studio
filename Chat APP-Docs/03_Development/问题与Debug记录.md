@@ -8,9 +8,31 @@
 | ID | 标题 | 复现 | 严重度 | 关联任务 | 诊断文档 |
 |---|---|---|---|---|---|
 | D-006 | fresh install 默认模型仍是 CherryAI Qwen，不自动选 Ollama | `rm -rf ~/Library/Application\ Support/CherryStudioDev && pnpm dev` → 新建 topic 默认 model 是 Qwen \| CherryAI | 🟢 小毛刺，可手动切；非 baseline 阻塞 | 暂未建任务；等 v2 用户偏好 / 默认模型策略迁移时一起处理 | （无） |
-| D-007 | Regenerate 切到 Ollama 后点旧回复 refresh 无明显反应 | 切到 Ollama 模型 → 在历史 assistant 消息上点 refresh / regenerate | 🟢 候选 issue；与 D-005 已分离（D-005 已 closed，D-007 仍待复测） | 用户在 T-009 关闭后可单独复测；如仍存在则开 T-010 | （无） |
+| D-007 | Regenerate 切到 Ollama 后点旧回复 refresh 无明显反应 | 切到 Ollama 模型 → 在历史 assistant 消息上点 refresh / regenerate | 🟢 候选 issue；主聊天侧；与 D-009 分支侧无关 | 用户在 T-009 关闭后可单独复测；如仍存在则开 T-010 | （无） |
+| D-009 | 分支 panel 内 regenerate / edit / delete 让模型瞎（系统提示丢失） | 主对话→选 assistant 文本→Open as branch→Create→在分支 assistant 消息上点 regenerate | 🟡 闸门级；首发 OK，二次操作不聚焦 selectedText | T-006D-2B 范围；Option 1 (BranchAssistantContext) 代码已实施，未 commit 等用户视觉验证 | **见下方 D-009 根因** |
 
-> 注：D-006 / D-007 是用户明确要求**先记录、不优先修**的候选 issue。
+> 注：D-006 / D-007 是用户明确要求**先记录、不优先修**的候选 issue。D-009 是 D-2B 范围内发现，Option 1 代码已实施，视觉验证通过后即 closed + commit。
+
+### D-009 根因 + 修法
+
+**根因**（源码追溯）：
+- `Message.tsx:73` `const { assistant } = useAssistant(message.assistantId)` — 从 Redux `state.assistants[].assistants[]` 全局查
+- 分支 user message 的 `assistantId` 等于主 assistant 的 id（同源），所以查得到，但 **Redux assistant 对象的 `.topics[]` 不含 branch topic**（preflight §W4：useBranchFork 故意不 `dispatch(addTopic)` 保持侧边栏干净）
+- 取到的 assistant 沿 `resendMessage(msg, assistant)` / `regenerateAssistantMessage(msg, assistant)` 传到 thunks，再到 `fetchAndProcessAssistantResponseImpl(...origAssistant)`
+- `messageThunk.ts:854` `origAssistant.topics.find(t => t.id === topicId)` → **undefined**（branch topic 不在 Redux assistant.topics）→ `topic?.prompt` 三元 → 用 origAssistant 原样 → **branch system prompt 丢失** → 模型瞎
+- **不是** EventEmitter 缺注册：MessageMenubar 走 hook + props，不依赖 Messages.tsx 顶层的 SEND_MESSAGE/NEW_BRANCH 等事件
+
+**修法（Option 1，已实施，未 commit）**：
+- 新建 `src/renderer/src/context/BranchAssistantContext.tsx`：`BranchAssistantOverride` Context（default `null`）+ `useBranchAssistantOverride` reader + `resolveAssistantSource(id, reduxAssistant, override)` 纯函数承载 strict-match guardrail
+- `useAssistant.ts` 三行接入：`override = useBranchAssistantOverride()` → `reduxAssistant = useAppSelector(...)` → `assistant = resolveAssistantSource(id, reduxAssistant, override)`。其余逻辑 bit-for-bit 未动
+- `Chat.tsx` 计算 synthetic = `{ ...assistant, topics: [...assistant.topics, branchTopic] }` 并用 `<BranchAssistantContext value={...}>` **仅包 `<BranchPane>` 子树**（主聊天在 Provider 外，行为零变化）
+- `useBranchFork.ts` 撤掉 `[T-006D-2B watch#1]` / `[T-006D-2B watch#3]` 调试日志（含 promptPreview / setTimeout redux 回读），保留 silent-killer warn 守卫
+- 回归测试：`src/renderer/src/context/__tests__/BranchAssistantContext.test.ts` 4 用例覆盖 (1) null override → Redux (2) Provider + 严格匹配 → synthetic (3) Provider + id 不匹配 → Redux (4) stale Provider value → Redux
+
+**待视觉验证**：分支内 regenerate / edit / delete 模型仍聚焦 selectedText；主聊天行为零变化；console 不出现 watch# 字样。
+
+**附带遗留（不在 D-009 修复范围）**：
+- **T-006D-2C-5** (preflight cleanup task)：`resendMessageThunk:1340` 和 `regenerateAssistantResponseThunk:1461` 调 `db.topics.update(branchTopicId, ...)` 写 Dexie。分支 topic 仅走 v2 SQLite，Dexie 不存在 → update 0 rows，不抛错也不写入。**功能不受影响**但产生静默状态不一致。Cleanup 留到分支识别机制做完时一起修
 
 ## 已 closed 问题
 
@@ -23,6 +45,7 @@
 | D-003 | Ollama 自动模型同步失败（Provider 0/0 Enabled + Chat picker 看不到 Ollama） | D-003A 诊断 [T-007](./tasks/T-007_OllamaProviderFix/) + D-003B 修复（`providers.json` 加 `defaultChatEndpoint: "ollama-chat"`）；D-003C 诊断 [T-008](./tasks/T-008_ChatPickerV1V2Gap/) + 评估 [T-008B](./tasks/T-008_ChatPickerV1V2Gap/方案B评估.md) + 实施 [T-008C](./tasks/T-008C_ChatPickerV2Migration/)（chat-model-popup 切 v2 + CHERRYAI fallback） | 2026-05-21 | 用户 2026-05-21 fresh install 实测：Ollama Provider 同步模型 ✅、Chat picker 可选 Ollama ✅、gemma4:e4b 正常生成 assistant 回复 ✅ |
 | D-005 | assistant 回复结束后底部 3 个点（BeatLoader）一直转 | [T-009](./tasks/T-009_StreamingNotDispatchedToRedux/) 修复 — `newMessage.ts:275` 取消注释 SUCCESS 转换 + `StreamingService.finalize` 末尾防御性 dispatch | 2026-05-21 | 用户 2026-05-21 fresh install 实测：回复完成后 BeatLoader 消失 ✅、操作栏正常出现 ✅ |
 | D-004 | Ask about this / Open as branch 在 assistant 回复文本上仍 disabled | 与 D-005 同源修复（PROCESSING→SUCCESS 转换打通后 MainTextBlock wrapper 正常渲染）；不需要 T-009B | 2026-05-21 | 用户 2026-05-21 fresh install 实测：DevTools 能看到 `role: assistant` 的 `data-message-id` + `data-block-id` wrapper ✅、选中文本后 Ask about this / Open as branch 可点击 ✅ |
+| D-008 | 分支 panel 内消息流无法滚动，超出一屏的内容看不到 | 主对话 fork 分支 → 让分支 assistant 生成超长 markdown → 分支 panel 内无 scrollbar，底部被裁切 | T-006D-2B 范围；修 = `RowFlex` 加 `h-full`（主聊天靠 `<Main style={height: mainHeight}>` 强撑高度，不依赖 RowFlex；BranchPane 不带这个 override，h-full 链断在 RowFlex 处）；同时 BranchPane motion.div 加 `h-full` 作 belt-and-suspenders；BranchMessageStream 自挂 `overflow-y-auto`；删除 jsdom 跑通但实际无效的 false-green scroll 单测 | 2026-05-22 | 用户 2026-05-22 视觉验证：long branch reply 可滚 ✅、quote box 留在 scroll 上方 ✅、宽窄不同 branch width 都能滚 ✅ |
 
 ## 命名约定
 

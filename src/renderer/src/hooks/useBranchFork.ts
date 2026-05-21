@@ -163,32 +163,14 @@ export function useBranchFork(args: UseBranchForkArgs): UseBranchForkResult {
       // (sidebar stays clean). `messageThunk.ts:854` calls
       // `origAssistant.topics.find(t => t.id === topicId)` and reaches the
       // branch topic via this transient array — the same object reference
-      // carrying the prompt we just built.
+      // carrying the prompt we just built. The branch subtree's continued
+      // access to this synthetic assistant (for regenerate / edit / mini
+      // composer in later steps) goes through BranchAssistantContext in
+      // Chat.tsx, not through this hook.
       const assistantWithBranch: Assistant = {
         ...assistant,
         topics: [...assistant.topics, branchTopic]
       }
-
-      // Watch-item #1 evidence: this is what messageThunk.ts:854 will see as
-      // origAssistant. The .topics.find(...) call there resolves topic.prompt
-      // from THIS in-memory array — not from DataApi (CreateTopicDto has no
-      // prompt field). When the live model responds focused on the selected
-      // text, that confirms the path; if it ignores the selection, suspect
-      // this lookup chain first.
-      logger.debug('[T-006D-2B watch#1] dispatching sendMessage with synthetic assistant.topics', {
-        branchTopicId: branchTopic.id,
-        promptLength: branchTopic.prompt.length,
-        promptPreview: `${branchTopic.prompt.slice(0, 120)}…`,
-        // Object-identity assertion: the topic carrying prompt is the same
-        // object messageThunk:854 will .find() back.
-        sameReference: assistantWithBranch.topics.at(-1) === branchTopic,
-        // The full topics list passed in. messageThunk reads from THIS array.
-        syntheticTopics: assistantWithBranch.topics.map((t) => ({
-          id: t.id,
-          hasPrompt: !!t.prompt,
-          promptHead: t.prompt ? `${t.prompt.slice(0, 40)}…` : undefined
-        }))
-      })
 
       const { message, blocks } = getUserMessage({
         assistant: assistantWithBranch,
@@ -197,21 +179,6 @@ export function useBranchFork(args: UseBranchForkArgs): UseBranchForkResult {
       })
 
       void dispatch(sendMessageThunk(message, blocks, assistantWithBranch, branchTopic.id))
-
-      // Watch-item #3 evidence: confirm messages land in
-      // state.messages.messageIdsByTopic[branchTopicId] WITHOUT adding the
-      // branch topic to Redux assistants.topics. If this logs >=1 message id
-      // a moment later, the sidebar-clean path works.
-      const branchIdForLog = branchTopic.id
-      window.setTimeout(() => {
-        const state = store.getState() as { messages?: { messageIdsByTopic?: Record<string, string[]> } }
-        const ids = state.messages?.messageIdsByTopic?.[branchIdForLog] ?? []
-        logger.debug('[T-006D-2B watch#3] redux state.messages.messageIdsByTopic[branchTopicId]', {
-          branchTopicId: branchIdForLog,
-          messageIdCount: ids.length,
-          messageIds: ids.slice(0, 4)
-        })
-      }, 800)
 
       onCreated(branchTopic)
       setStatus('idle')

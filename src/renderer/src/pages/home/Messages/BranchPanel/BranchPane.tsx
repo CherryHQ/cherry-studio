@@ -60,7 +60,11 @@ export default function BranchPane({ anchor, branchTopic, status, errorMessage, 
       animate={{ width: isVisible ? 420 : 0, opacity: isVisible ? 1 : 0 }}
       transition={{ duration: 0.3, ease: 'easeInOut' }}
       style={{ overflow: 'hidden' }}
-      className="border-border border-l bg-accent/40">
+      // h-full is required to anchor the inner overflow-y-auto chain — see
+      // Chat.tsx RowFlex note. Without it the motion.div has no bounded
+      // height (animate only sets width), the inner `h-full` div resolves to
+      // 0, and the scroll container collapses.
+      className="h-full border-border border-l bg-accent/40">
       {/*
         We render the inner content unconditionally so the slide-out animation
         doesn't snap the children to empty mid-collapse. shrink-0 + fixed inner
@@ -93,28 +97,31 @@ export default function BranchPane({ anchor, branchTopic, status, errorMessage, 
           </Button>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        {/*
+          S5' scroll fix: the outer body is a vertical flex column that does
+          NOT scroll. The compose state renders the composer (small, no scroll
+          needed). The conversation state lays out: quote box (fixed, top) +
+          BranchMessageStream (owns its own overflow-y-auto + scroll-to-bottom).
+          Quote box is no longer `sticky` — sticky requires the scroll
+          container to be an ancestor, and after this fix the scroll container
+          lives INSIDE the stream, not above the quote.
+        */}
+        <div className="flex min-h-0 flex-1 flex-col">
           {isComposing && anchor && (
-            <BranchComposer
-              anchor={anchor}
-              status={status}
-              errorMessage={errorMessage}
-              onCreate={onCreate}
-              onCancel={onComposeCancel}
-            />
+            <div className="overflow-y-auto">
+              <BranchComposer
+                anchor={anchor}
+                status={status}
+                errorMessage={errorMessage}
+                onCreate={onCreate}
+                onCancel={onComposeCancel}
+              />
+            </div>
           )}
           {isConversation && branchTopic && (
-            <div className="flex h-full min-h-0 flex-col">
-              {/*
-                Sticky quote box at the top of the conversation state — keeps
-                the visual link between the source selection and the branch
-                reply visible while the user reads. anchor is intentionally
-                NOT cleared on Create in Chat.tsx, so it's available here.
-              */}
+            <>
               {anchor && (
-                <div
-                  className="sticky top-0 z-10 border-border border-b bg-accent/40 px-4 py-3"
-                  data-testid="branch-pane-quote">
+                <div className="shrink-0 border-border border-b bg-accent/40 px-4 py-3" data-testid="branch-pane-quote">
                   <div className="mb-1 text-muted-foreground text-xs">{t('chat.message.anchor.panel.from')}</div>
                   <blockquote className="border-accent border-l-2 bg-background/60 px-3 py-2 text-sm italic">
                     {anchor.selectedText}
@@ -122,7 +129,7 @@ export default function BranchPane({ anchor, branchTopic, status, errorMessage, 
                 </div>
               )}
               <BranchMessageStream topic={branchTopic} />
-            </div>
+            </>
           )}
         </div>
       </div>

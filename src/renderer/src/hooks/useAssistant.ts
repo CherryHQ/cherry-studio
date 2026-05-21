@@ -6,6 +6,7 @@ import {
   MODEL_SUPPORTED_OPTIONS,
   MODEL_SUPPORTED_REASONING_EFFORT
 } from '@renderer/config/models'
+import { resolveAssistantSource, useBranchAssistantOverride } from '@renderer/context/BranchAssistantContext'
 import { cacheService } from '@renderer/data/CacheService'
 import { db } from '@renderer/databases'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
@@ -75,7 +76,16 @@ export function useAssistants() {
 }
 
 export function useAssistant(id: string) {
-  const assistant = useAppSelector((state) => state.assistants.assistants.find((a) => a.id === id) as Assistant)
+  // Hooks must be called unconditionally. The override path only diverges at
+  // the `assistant` source line below; everything else (model resolution,
+  // settings persistence, callbacks, useEffect deps) stays identical to the
+  // pre-T-006D-2B behaviour so the main chat is bit-for-bit unaffected.
+  const branchOverride = useBranchAssistantOverride()
+  const reduxAssistant = useAppSelector((state) => state.assistants.assistants.find((a) => a.id === id) as Assistant)
+  // Source decision is delegated to a pure helper so the strict-match
+  // guardrail (Provider present AND id strictly matches synthetic) has its
+  // own unit-test coverage without dragging this whole hook into a test.
+  const assistant = resolveAssistantSource(id, reduxAssistant, branchOverride)
   const dispatch = useAppDispatch()
   const { defaultModel } = useDefaultModel()
 
