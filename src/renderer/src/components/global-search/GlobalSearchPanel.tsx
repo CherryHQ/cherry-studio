@@ -13,7 +13,7 @@ import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { usePersistCache } from '@data/hooks/useCache'
 import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
-import { useMultiplePreferences } from '@data/hooks/usePreference'
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { GroupedVirtualList, type GroupedVirtualListGroup } from '@renderer/components/VirtualList'
 import {
   getDefaultSidebarIconPreferences,
@@ -233,6 +233,7 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
   const [expandedMessageParentIds, setExpandedMessageParentIds] = useState<ReadonlySet<string>>(() => new Set())
   const [activeItemId, setActiveItemId] = useState<string | undefined>()
   const [recentItems] = usePersistCache('ui.global_search.recent_items')
+  const [userName] = usePreference('app.user.name')
   const [sidebarIconPreferences, setSidebarIconPreferences] = useMultiplePreferences(SIDEBAR_ICON_PREFERENCE_KEYS)
   const visibleSidebarIcons = sidebarIconPreferences.visible
   const hasQuery = deferredQuery.length > 0
@@ -876,8 +877,8 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
             <GroupedVirtualList
               role="listbox"
               groups={messageVirtualGroups}
-              estimateGroupHeaderSize={() => 36}
-              estimateItemSize={() => 64}
+              estimateGroupHeaderSize={() => 32}
+              estimateItemSize={() => 44}
               className="pt-1 pb-2"
               renderGroupHeader={(group) => <GlobalMessageSearchGroupHeader group={group} />}
               renderItem={(item) => (
@@ -886,6 +887,7 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
                   active={item.id === activeItemId}
                   language={i18n.language}
                   query={deferredQuery}
+                  userName={userName}
                   onMouseEnter={() => setActiveItemId(item.id)}
                   onOpen={() => void openMessagePanelItem(item)}
                 />

@@ -238,6 +238,7 @@ type MessageSearchRow = {
   topicId: string
   topicName: string
   topicAssistantId: string | null
+  role: string
   topicCreatedAt: number
   topicUpdatedAt: number
   searchableText: string
@@ -692,6 +693,7 @@ export class MessageService {
               m.topic_id AS "topicId",
               t.name AS "topicName",
               t.assistant_id AS "topicAssistantId",
+              m.role,
               t.created_at AS "topicCreatedAt",
               t.updated_at AS "topicUpdatedAt",
               m.searchable_text AS "searchableText",
@@ -719,6 +721,7 @@ export class MessageService {
               message.topic_id AS "topicId",
               t.name AS "topicName",
               t.assistant_id AS "topicAssistantId",
+              message.role,
               t.created_at AS "topicCreatedAt",
               t.updated_at AS "topicUpdatedAt",
               message.searchable_text AS "searchableText",
@@ -757,6 +760,7 @@ export class MessageService {
           topicId: row.topicId,
           topicName: row.topicName,
           topicAssistantId: row.topicAssistantId ?? undefined,
+          role: ['user', 'assistant'].includes(row.role) ? (row.role as 'user' | 'assistant') : undefined,
           topicCreatedAt: timestampToISO(Number(row.topicCreatedAt)),
           topicUpdatedAt: timestampToISO(Number(row.topicUpdatedAt)),
           snippet: buildSearchSnippet(searchableText, terms, matchMode),

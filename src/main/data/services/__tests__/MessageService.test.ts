@@ -192,6 +192,7 @@ describe('MessageService', () => {
         topicId: 'topic-search',
         topicName: '',
         topicAssistantId: undefined,
+        role: 'assistant',
         topicCreatedAt: expect.any(String),
         topicUpdatedAt: expect.any(String)
       })

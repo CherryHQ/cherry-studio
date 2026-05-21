@@ -2191,19 +2191,19 @@
       "agent": "Agent",
       "all": "All",
       "assistant": "Assistant",
-      "conversation": "Conversation",
+      "conversation": "Work",
       "knowledge": "Knowledge",
       "label": "Search type",
-      "session": "Session",
+      "session": "Work",
       "topic": "Topic"
     },
     "groups": {
       "agent": "Agent",
       "assistant": "Assistant",
-      "conversation": "Conversation",
+      "conversation": "Work",
       "knowledge-base": "Knowledge",
       "recent": "Recent",
-      "session": "Session",
+      "session": "Work",
       "topic": "Topic"
     },
     "keyboard": {
@@ -2228,7 +2228,7 @@
       "sourceLabel": "Message source",
       "sources": {
         "all": "All messages",
-        "session": "Session messages",
+        "session": "Work messages",
         "topic": "Topic messages"
       }
     },
@@ -2246,12 +2246,12 @@
       "show": "Show {{name}}",
       "title": "Quick apps"
     },
-    "recent_hint": "Type to search conversations, assistants, agents, and knowledge",
+    "recent_hint": "Type to search work, assistants, agents, and knowledge",
     "resultTypes": {
       "agent": "Agent",
       "assistant": "Assistant",
       "knowledge-base": "Knowledge",
-      "session": "Session",
+      "session": "Work",
       "topic": "Topic"
     },
     "timeFilters": {

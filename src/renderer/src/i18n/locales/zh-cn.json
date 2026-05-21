@@ -2191,19 +2191,19 @@
       "agent": "智能体",
       "all": "全部",
       "assistant": "助手",
-      "conversation": "对话",
+      "conversation": "工作",
       "knowledge": "知识库",
       "label": "搜索类型",
-      "session": "对话",
+      "session": "工作",
       "topic": "话题"
     },
     "groups": {
       "agent": "智能体",
       "assistant": "助手",
-      "conversation": "对话",
+      "conversation": "工作",
       "knowledge-base": "知识库",
       "recent": "最近",
-      "session": "对话",
+      "session": "工作",
       "topic": "话题"
     },
     "keyboard": {
@@ -2228,7 +2228,7 @@
       "sourceLabel": "消息来源",
       "sources": {
         "all": "全部消息",
-        "session": "会话消息",
+        "session": "工作消息",
         "topic": "话题消息"
       }
     },
@@ -2246,12 +2246,12 @@
       "show": "显示 {{name}}",
       "title": "快捷应用"
     },
-    "recent_hint": "输入关键词搜索对话、助手、智能体和知识库",
+    "recent_hint": "输入关键词搜索工作、助手、智能体和知识库",
     "resultTypes": {
       "agent": "智能体",
       "assistant": "助手",
       "knowledge-base": "知识库",
-      "session": "会话",
+      "session": "工作",
       "topic": "话题"
     },
     "timeFilters": {

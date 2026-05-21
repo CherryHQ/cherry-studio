@@ -2191,19 +2191,19 @@
       "agent": "智能體",
       "all": "全部",
       "assistant": "助手",
-      "conversation": "對話",
+      "conversation": "工作",
       "knowledge": "知識庫",
       "label": "搜尋類型",
-      "session": "對話",
+      "session": "工作",
       "topic": "話題"
     },
     "groups": {
       "agent": "智能體",
       "assistant": "助手",
-      "conversation": "對話",
+      "conversation": "工作",
       "knowledge-base": "知識庫",
       "recent": "最近",
-      "session": "對話",
+      "session": "工作",
       "topic": "話題"
     },
     "keyboard": {
@@ -2228,7 +2228,7 @@
       "sourceLabel": "訊息來源",
       "sources": {
         "all": "全部訊息",
-        "session": "會話訊息",
+        "session": "工作訊息",
         "topic": "話題訊息"
       }
     },
@@ -2246,12 +2246,12 @@
       "show": "顯示 {{name}}",
       "title": "快捷應用"
     },
-    "recent_hint": "輸入關鍵詞搜尋對話、助手、智能體和知識庫",
+    "recent_hint": "輸入關鍵詞搜尋工作、助手、智能體和知識庫",
     "resultTypes": {
       "agent": "智能體",
       "assistant": "助手",
       "knowledge-base": "知識庫",
-      "session": "會話",
+      "session": "工作",
       "topic": "話題"
     },
     "timeFilters": {

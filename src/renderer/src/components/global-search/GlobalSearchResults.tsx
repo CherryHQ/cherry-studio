@@ -65,6 +65,18 @@ function getMessageRoleLabelKey(role: NonNullable<SessionSearchMessageResult['ro
   return MESSAGE_ROLE_LABEL_KEYS[role]
 }
 
+function getMessageActorLabel(
+  result: GlobalMessageSearchPanelItem & { kind: 'message' },
+  t: (key: string) => string,
+  userName?: string
+) {
+  if (!result.result.role || result.result.role === 'user') {
+    return userName?.trim() || t(getMessageRoleLabelKey('user'))
+  }
+
+  return t(getMessageRoleLabelKey(result.result.role))
+}
+
 function getResultSubtitle(result: GlobalSearchItem, t: (key: string) => string) {
   if (result.type === 'topic' || result.type === 'session') {
     return result.subtitle
@@ -156,14 +168,18 @@ export function GlobalMessageSearchGroupHeader({ group }: { group: GlobalMessage
       : 'globalSearch.messageSearch.sources.session'
 
   return (
-    <div className="flex h-9 items-center gap-2 px-5 pt-1 text-muted-foreground text-sm">
+    <div className="flex h-8 items-center gap-2 px-5 text-sm">
       <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted/50">
         <Icon className="size-3.5" />
       </span>
-      <span className="min-w-0 flex-1 truncate font-medium text-foreground">{group.title || t('common.unnamed')}</span>
-      <span className="shrink-0 text-xs">{t(sourceLabelKey)}</span>
-      <span className="shrink-0 text-xs">·</span>
-      <span className="shrink-0 text-xs">{group.total}</span>
+      <span className="min-w-0 flex-1 truncate font-semibold text-foreground">
+        {group.title || t('common.unnamed')}
+      </span>
+      <span className="ml-2 flex h-5 shrink-0 items-center gap-1 rounded-[6px] bg-muted/40 px-1.5 font-medium text-muted-foreground text-xs">
+        <span>{t(sourceLabelKey)}</span>
+        <span>·</span>
+        <span>{group.total}</span>
+      </span>
     </div>
   )
 }
@@ -173,6 +189,7 @@ export function GlobalMessageSearchRow({
   item,
   language,
   query,
+  userName,
   onMouseEnter,
   onOpen
 }: {
@@ -180,6 +197,7 @@ export function GlobalMessageSearchRow({
   item: GlobalMessageSearchPanelItem
   language: string
   query: string
+  userName?: string
   onMouseEnter: () => void
   onOpen: () => void
 }) {
@@ -194,7 +212,7 @@ export function GlobalMessageSearchRow({
         onMouseEnter={onMouseEnter}
         onClick={onOpen}
         className={cn(
-          'mx-5 mb-1 flex h-9 w-[calc(100%-2.5rem)] items-center gap-1 rounded-[8px] py-0 pr-3 pl-12 text-left font-medium text-sm transition-colors',
+          'mx-5 mb-1 flex h-8 w-[calc(100%-2.5rem)] items-center gap-1 rounded-[8px] py-0 pr-3 pl-8 text-left font-medium text-xs transition-colors',
           active
             ? 'bg-muted/60 text-accent-foreground'
             : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
@@ -206,6 +224,7 @@ export function GlobalMessageSearchRow({
   }
 
   const updatedAtLabel = formatRelativeTime(item.result.createdAt, language)
+  const actorLabel = getMessageActorLabel(item, t, userName)
 
   return (
     <button
@@ -215,24 +234,21 @@ export function GlobalMessageSearchRow({
       onMouseEnter={onMouseEnter}
       onClick={onOpen}
       className={cn(
-        'mx-5 flex min-h-[60px] w-[calc(100%-2.5rem)] items-start rounded-[10px] py-2 pr-3 pl-12 text-left transition-colors',
+        'mx-5 flex h-11 w-[calc(100%-2.5rem)] items-center gap-2 rounded-[10px] pr-3 pl-8 text-left transition-colors',
         active ? 'bg-muted/60 text-accent-foreground' : 'hover:bg-muted/40'
       )}>
-      <span className="min-w-0 flex-1">
-        <span className="line-clamp-2 text-foreground text-sm leading-5">
-          <HighlightText text={item.result.snippet} keyword={query} />
-        </span>
-        <span className="mt-1 flex items-center gap-2 text-muted-foreground text-xs leading-4">
-          {item.result.sourceType === 'session' && item.result.role && (
-            <span>{t(getMessageRoleLabelKey(item.result.role))}</span>
-          )}
-          {updatedAtLabel && (
-            <span title={item.result.createdAt} className="truncate">
-              {updatedAtLabel}
-            </span>
-          )}
-        </span>
+      <span className="min-w-0 flex-1 truncate text-foreground/90 text-sm leading-5">
+        <span className="font-medium text-muted-foreground">{actorLabel}</span>
+        <span className="text-muted-foreground">: </span>
+        <HighlightText text={item.result.snippet} keyword={query} />
       </span>
+      {updatedAtLabel && (
+        <span
+          className="shrink-0 whitespace-nowrap text-muted-foreground text-xs leading-4"
+          title={item.result.createdAt}>
+          {updatedAtLabel}
+        </span>
+      )}
     </button>
   )
 }

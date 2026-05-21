@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   sessionMessageQueryResult: undefined as SearchSessionMessagesResponse | undefined,
   recentItems: [] as GlobalSearchRecentEntry[],
   preferenceValues: {
+    'app.user.name': 'JD',
     'ui.sidebar.icons.visible': ['assistants', 'agents', 'translate'] as SidebarIcon[],
     'ui.sidebar.icons.invisible': ['knowledge'] as SidebarIcon[]
   } as Record<string, unknown>,
@@ -153,6 +154,7 @@ vi.mock('@data/hooks/useDataApi', () => ({
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
+  usePreference: (key: string) => [mocks.preferenceValues[key], vi.fn()],
   useMultiplePreferences: (keys: Record<string, string>) => [
     Object.fromEntries(
       Object.entries(keys).map(([localKey, preferenceKey]) => [localKey, mocks.preferenceValues[preferenceKey]])
@@ -226,17 +228,17 @@ vi.mock('react-i18next', () => ({
           'globalSearch.clear': 'Clear search',
           'globalSearch.filters.label': 'Search type',
           'globalSearch.filters.all': 'All',
-          'globalSearch.filters.conversation': 'Conversation',
+          'globalSearch.filters.conversation': 'Work',
           'globalSearch.filters.topic': 'Topic',
-          'globalSearch.filters.session': 'Session',
+          'globalSearch.filters.session': 'Work',
           'globalSearch.filters.assistant': 'Assistant',
           'globalSearch.filters.agent': 'Agent',
           'globalSearch.filters.knowledge': 'Knowledge',
           'globalSearch.groups.recent': 'Recent',
           'globalSearch.groups.assistant': 'Assistant',
-          'globalSearch.groups.conversation': 'Conversation',
+          'globalSearch.groups.conversation': 'Work',
           'globalSearch.groups.topic': 'Topic',
-          'globalSearch.groups.session': 'Session',
+          'globalSearch.groups.session': 'Work',
           'globalSearch.groups.agent': 'Agent',
           'globalSearch.groups.knowledge-base': 'Knowledge',
           'globalSearch.keyboard.select': 'Select',
@@ -253,7 +255,7 @@ vi.mock('react-i18next', () => ({
           'globalSearch.messageSearch.roles.user': 'User role',
           'globalSearch.messageSearch.sourceLabel': 'Message source',
           'globalSearch.messageSearch.sources.all': 'All messages',
-          'globalSearch.messageSearch.sources.session': 'Session messages',
+          'globalSearch.messageSearch.sources.session': 'Work messages',
           'globalSearch.messageSearch.sources.topic': 'Topic messages',
           'globalSearch.quickApps.hide': 'Hide {{name}}',
           'globalSearch.quickApps.manage': 'Manage',
@@ -308,6 +310,7 @@ describe('GlobalSearchPanel', () => {
     mocks.messageQueryResult = undefined
     mocks.sessionMessageQueryResult = undefined
     mocks.preferenceValues = {
+      'app.user.name': 'JD',
       'ui.sidebar.icons.visible': ['assistants', 'agents', 'translate'],
       'ui.sidebar.icons.invisible': ['knowledge']
     }
@@ -413,7 +416,7 @@ describe('GlobalSearchPanel', () => {
     expect(screen.getByRole('radio', { name: 'Messages' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Search type: All' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Search type: Topic' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Search type: Session' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Search type: Work' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Updated time' })).toBeInTheDocument()
   })
 
@@ -622,7 +625,7 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
-    await user.click(screen.getByRole('button', { name: 'Search type: Session' }))
+    await user.click(screen.getByRole('button', { name: 'Search type: Work' }))
     await user.type(screen.getByLabelText('Start typing to search...'), 'plan')
 
     await waitFor(() => {
@@ -746,7 +749,7 @@ describe('GlobalSearchPanel', () => {
     expect(screen.queryByRole('button', { name: 'Message source: Topic messages' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Search type: All' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Search type: Topic' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Search type: Session' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Search type: Work' })).toBeInTheDocument()
 
     await user.type(screen.getByLabelText('Start typing to search...'), 'assistant')
 
@@ -769,7 +772,7 @@ describe('GlobalSearchPanel', () => {
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
     await user.click(screen.getByRole('radio', { name: 'Messages' }))
-    await user.click(screen.getByRole('button', { name: 'Message source: Session messages' }))
+    await user.click(screen.getByRole('button', { name: 'Message source: Work messages' }))
     await user.type(screen.getByLabelText('Start typing to search...'), 'report')
 
     await waitFor(() => {
@@ -797,7 +800,7 @@ describe('GlobalSearchPanel', () => {
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
     await user.click(screen.getByRole('radio', { name: 'Messages' }))
-    const sessionSourceFilter = screen.getByRole('button', { name: 'Message source: Session messages' })
+    const sessionSourceFilter = screen.getByRole('button', { name: 'Message source: Work messages' })
 
     await user.click(sessionSourceFilter)
     expect(sessionSourceFilter).toHaveAttribute('aria-pressed', 'true')
@@ -839,6 +842,7 @@ describe('GlobalSearchPanel', () => {
           topicName: 'Topic A',
           topicCreatedAt: '2026-01-01T00:00:00.000Z',
           topicUpdatedAt: '2026-01-01T00:00:00.000Z',
+          role: 'user',
           snippet: 'needle message one',
           createdAt: '2026-01-01T00:00:04.000Z'
         },
@@ -878,6 +882,7 @@ describe('GlobalSearchPanel', () => {
     await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
 
     expect(await screen.findByText('Topic A')).toBeInTheDocument()
+    expect(screen.getAllByText('JD')).not.toHaveLength(0)
     expect(screen.getByRole('option', { name: /needle message one/ })).toHaveAttribute('aria-selected', 'true')
     expect(screen.queryByRole('option', { name: /needle message four/ })).not.toBeInTheDocument()
 
