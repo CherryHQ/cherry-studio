@@ -230,4 +230,28 @@ describe('FileManager — skip-once DB sweep via marker comparison', () => {
     // DB sweep was indeed skipped
     expect(fm.getOrphanReport().outcome).toBe('unknown')
   })
+
+  it('SKIP-6: DB read error in getMigrationCompletedAt falls through to DB sweep (transient hiccup safety)', async () => {
+    // JSDoc on getMigrationCompletedAt guarantees a DB read error is treated
+    // as "no migration record" so the orphan sweep still runs — a sweep is
+    // more useful than silently no-op'ing on a transient DB hiccup.
+    MockMainDbServiceUtils.setDb({
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            get: vi.fn().mockRejectedValue(new Error('transient DB hiccup'))
+          })
+        })
+      })
+    })
+    const spy = vi.spyOn(fm['deps'].fileEntryService, 'findUnreferenced')
+
+    await fm.runStartupSweeps()
+
+    expect(spy).toHaveBeenCalled()
+    expect(fm.getOrphanReport().outcome).not.toBe('unknown')
+    // marker NOT advanced — completedAt was null so the skip branch wasn't taken
+    expect(bootConfigSetMock).not.toHaveBeenCalled()
+    spy.mockRestore()
+  })
 })
