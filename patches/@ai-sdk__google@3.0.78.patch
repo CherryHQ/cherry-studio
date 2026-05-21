@@ -1,0 +1,52 @@
+diff --git a/dist/index.js b/dist/index.js
+index 85aa506..ce9b5f9 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -718,7 +718,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
+ 
+ // src/get-model-path.ts
+ function getModelPath(modelId) {
+-  return modelId.includes("/") ? modelId : `models/${modelId}`;
++  return modelId.includes("models/") ? modelId : `models/${modelId}`;
+ }
+ 
+ // src/google-generative-ai-options.ts
+diff --git a/dist/index.mjs b/dist/index.mjs
+index b7954d3..675780b 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -724,7 +724,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
+ 
+ // src/get-model-path.ts
+ function getModelPath(modelId) {
+-  return modelId.includes("/") ? modelId : `models/${modelId}`;
++  return modelId.includes("models/") ? modelId : `models/${modelId}`;
+ }
+ 
+ // src/google-generative-ai-options.ts
+diff --git a/dist/internal/index.js b/dist/internal/index.js
+index b859757..aedf3c2 100644
+--- a/dist/internal/index.js
++++ b/dist/internal/index.js
+@@ -501,7 +501,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
+ 
+ // src/get-model-path.ts
+ function getModelPath(modelId) {
+-  return modelId.includes("/") ? modelId : `models/${modelId}`;
++  return modelId.includes("models/") ? modelId : `models/${modelId}`;
+ }
+ 
+ // src/google-error.ts
+diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
+index a0988bd..a8fdf1f 100644
+--- a/dist/internal/index.mjs
++++ b/dist/internal/index.mjs
+@@ -484,7 +484,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
+ 
+ // src/get-model-path.ts
+ function getModelPath(modelId) {
+-  return modelId.includes("/") ? modelId : `models/${modelId}`;
++  return modelId.includes("models/") ? modelId : `models/${modelId}`;
+ }
+ 
+ // src/google-error.ts
