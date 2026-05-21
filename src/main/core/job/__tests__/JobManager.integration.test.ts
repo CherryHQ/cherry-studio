@@ -1,21 +1,25 @@
 /**
- * Integration tests for the Job/Scheduler backbone (Phase 1 Step 19).
+ * Integration tests for the Job/Scheduler backbone.
  *
- * Covers scenarios that smoke tests (Step 18) deliberately skip:
+ * Covers scenarios that smoke tests deliberately skip:
  *   - Startup recovery: abandon / retry / singleton state transitions across
  *     "process restart" (modelled by inserting rows directly to simulate a
- *     crash, then bootstrapping a fresh JobManager whose onReady runs
- *     runStartupRecovery)
+ *     crash, then bootstrapping a fresh JobManager whose onAllReady runs
+ *     runStartupRecovery + queue resurrection)
  *   - Orphan running jobs (handler no longer registered) → cancelled
+ *   - Pending row resurrection: pre-existing pending row from a previous run
+ *     is dispatched to completion after onAllReady (covers the case where the
+ *     in-memory queue Map is empty on cold start and dispatchAll would
+ *     otherwise iterate nothing)
  *   - Graceful shutdown: handlers observe AbortSignal and finish promptly
  *   - Layer 0 + Layer 1 mutex: multiple queues dispatching in parallel without
  *     libsql SQLITE_BUSY (regression guard for upstream issue #288)
  *
- * Note on scope: recovery is asserted at the state-transition level only — we
- * do NOT assert that pending jobs subsequently complete, because JobManager's
- * `this.queues` map is empty on cold start (queues are ensured by enqueue, not
- * by recovery). Resurrecting and completing recovered jobs is a separate
- * follow-up — out of scope for Step 19.
+ * Note on scope: retry / singleton cases assert the full recovery →
+ * resurrect → dispatch → completed chain. The terminal assertion is load-
+ * bearing — without queue resurrection the row would stay pending forever
+ * on cold start, so reaching completed is the actual contract these tests
+ * enforce.
  */
 
 import { application } from '@application'
@@ -116,14 +120,28 @@ async function bootstrapManager(opts: BootstrapOptions = {}): Promise<{
   await scheduler._doInit()
   await jobManager._doInit()
 
-  // Startup recovery now lives in `onAllReady` behind a 60s wall-clock delay.
-  // Fake setTimeout (and its paired clearTimeout — leaving clearTimeout real
-  // leaks the fake-timer entry) so the delay collapses, then await both the
-  // timer advance and the lifecycle hook promise.
+  // Startup recovery now runs as a deferred service-level task: `onAllReady`
+  // schedules a setTimeout (60s "quiet window") and returns synchronously (the
+  // framework fires `_doAllReady` fire-and-forget). Skip the quiet window via
+  // fake timers — `toFake` must pair setTimeout with clearTimeout, otherwise
+  // the timer queue keeps dangling entries — then await `_recoveryDone` (set
+  // inside the timer callback) for the deferred flow.
+  //
+  // The recovery flow resurrects queues for non-terminal rows and `dispatchAll`
+  // immediately claims them. The dispatch microtask chain runs *after* the
+  // recovery promise resolves but *before* useRealTimers. If we switch back to
+  // real timers at that moment, the handler's internal setTimeout (registered
+  // as a fake timer while we're still in fake mode) gets cancelled and the
+  // handler hangs forever. Drain the dispatch chain under fake timers —
+  // advance generously so handler internal sleeps fire and finalizeJob
+  // completes before we switch back.
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-  const allReadyPromise = jobManager._doAllReady()
+  void jobManager._doAllReady()
   await vi.advanceTimersByTimeAsync(60_000)
-  await allReadyPromise
+  await (jobManager as unknown as { _recoveryDone?: Promise<void> })._recoveryDone
+  for (let i = 0; i < 5; i++) {
+    await vi.advanceTimersByTimeAsync(100)
+  }
   vi.useRealTimers()
   return { scheduler, jobManager }
 }
@@ -224,13 +242,25 @@ describe('JobManager integration', () => {
         handlers: [['task.retry', makeSlowHandler('retry') as JobHandler]]
       })
 
-      const running = await jobService.getById(runningId)
-      const delayed = await jobService.getById(delayedId)
+      // recovery: running → pending. Queue resurrection then ensures the
+      // task.retry queue and dispatches, so the row proceeds through running
+      // back to the handler — assert the terminal completed state, not the
+      // transient pending one.
+      await drainAllQueues(jobManager)
+      const deadline = Date.now() + 1000
+      while (Date.now() < deadline) {
+        const row = await jobService.getById(runningId)
+        if (row && row.status !== 'pending' && row.status !== 'running') break
+        await new Promise((r) => setTimeout(r, 20))
+      }
+      await drainAllQueues(jobManager)
 
-      // running was reset to pending (recovery state transition).
-      expect(running?.status).toBe('pending')
-      // delayed remains delayed until its scheduledAt arrives.
-      expect(delayed?.status).toBe('delayed')
+      const finalRunning = await jobService.getById(runningId)
+      expect(finalRunning?.status).toBe('completed')
+
+      // delayed remains delayed until its scheduledAt arrives (+60s in future).
+      const finalDelayed = await jobService.getById(delayedId)
+      expect(finalDelayed?.status).toBe('delayed')
 
       await teardownManager(scheduler, jobManager)
     })
@@ -277,13 +307,22 @@ describe('JobManager integration', () => {
         handlers: [['task.singleton', makeSlowHandler('singleton') as JobHandler]]
       })
 
-      const older = await jobService.getById(olderId)
-      const newer = await jobService.getById(newerId)
+      // singleton recovery: keep newest non-terminal (newer = pending), cancel
+      // older (running). Queue resurrection then ensures the task.singleton
+      // queue and dispatches `newer` through to completion.
+      await drainAllQueues(jobManager)
+      const deadline = Date.now() + 1000
+      while (Date.now() < deadline) {
+        const row = await jobService.getById(newerId)
+        if (row && row.status !== 'pending' && row.status !== 'running') break
+        await new Promise((r) => setTimeout(r, 20))
+      }
+      await drainAllQueues(jobManager)
 
-      // Newer was pending — singleton recovery keeps it as-is.
-      expect(newer?.status).toBe('pending')
-      // Older (running) gets cancelled because it is not the newest.
-      expect(older?.status).toBe('cancelled')
+      const finalOlder = await jobService.getById(olderId)
+      const finalNewer = await jobService.getById(newerId)
+      expect(finalOlder?.status).toBe('cancelled')
+      expect(finalNewer?.status).toBe('completed')
 
       await teardownManager(scheduler, jobManager)
     })
@@ -310,6 +349,52 @@ describe('JobManager integration', () => {
       const orphans = await dbh.select().from(jobTable).where(eq(jobTable.type, 'task.gone'))
       expect(orphans).toHaveLength(1)
       expect(orphans[0].status).toBe('cancelled')
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('resurrects a pending row left from a previous run after onAllReady', async () => {
+      const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
+
+      // Pre-insert pending row simulating "process died with row in pending,
+      // no queue ever ensured in memory". scheduledAt in past so immediately
+      // claimable. Without queue resurrection, dispatchAll() would iterate
+      // empty this.queues and never claim this row.
+      const [inserted] = await dbh
+        .insert(jobTable)
+        .values({
+          type: 'task.f13',
+          status: 'pending',
+          queue: 'task.f13',
+          scheduledAt: Date.now() - 1000,
+          attempt: 0,
+          maxAttempts: 1,
+          input: { message: 'resurrected', sleepMs: 5 },
+          cancelRequested: false,
+          metadata: {}
+        })
+        .returning()
+
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['task.f13', makeSlowHandler('retry') as JobHandler]]
+      })
+
+      // bootstrapManager already advanced fake timers past the startup quiet
+      // window and awaited `_recoveryDone`, so resurrection has run. Handler
+      // is spawned outside the dispatch mutex — drain + poll with explicit
+      // deadline so timeout surfaces cleanly.
+      await drainAllQueues(jobManager)
+      const deadline = Date.now() + 1000
+      while (Date.now() < deadline) {
+        const row = await jobService.getById(inserted.id)
+        if (row && row.status !== 'pending' && row.status !== 'running') break
+        await new Promise((r) => setTimeout(r, 20))
+      }
+      await drainAllQueues(jobManager)
+
+      const final = await jobService.getById(inserted.id)
+      expect(final?.status).toBe('completed')
+      expect(final?.output).toEqual({ echoed: 'echo: resurrected' })
 
       await teardownManager(scheduler, jobManager)
     })

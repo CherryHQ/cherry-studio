@@ -191,7 +191,7 @@ export class MainWindowService extends BaseService {
 
 ## Recurring Timers
 
-`this.registerInterval(callback, intervalMs)` for periodic work scoped to the service lifecycle (GC, polls, heartbeats). Started immediately, `unref`'d, exception-isolated, auto-cleared on `onStop()`. Returns a `Disposable`.
+`this.registerInterval(callback, intervalMs)` for periodic work scoped to the service lifecycle (GC, polls, heartbeats). Started immediately, `unref`'d, exception-isolated (every tick's throw is caught and logged independently, so one failure cannot stop the loop), auto-cleared on `onStop()`. Returns a `Disposable`.
 
 ```typescript
 private gcInterval: Disposable | null = null
@@ -209,6 +209,65 @@ private startGc() {
 If the field is never read (e.g., fire-and-forget from `onInit`), drop it entirely.
 
 **Do not use for**: activation-scoped timers (manage manually in `onActivate`/`onDeactivate`), one-shot delays (use `setTimeout`), connection-scoped heartbeats (manage in the connection).
+
+## onAllReady Business Work Pattern
+
+`onAllReady` is invoked once after every service across every phase has finished `onInit` / `onReady`, and is a [post-bootstrap supplement](./lifecycle-overview.md#onallready-system-wide-readiness) — `LifecycleManager.allReady()` does **not** await it. Two consequences shape how the hook should be used:
+
+1. **`_allReadyCalled` is at-most-once.** Each service instance's `onAllReady` fires exactly once. `restart()` does not re-trigger it. Code that needs to run on every (re)start belongs in `onInit` / `onReady`, not `onAllReady`.
+2. **Hook return value is not observed by the framework.** If you `await` long-running business work inside `onAllReady`, the framework neither waits nor knows. Bootstrap proceeds immediately. The hook is essentially "fire-and-forget" from the framework's perspective.
+
+If a service needs deferred work that should run *after* the system is ready (a quiet window, a one-shot recovery sweep, etc.), the supplement hook is the right place to **schedule** it, not to **run** it:
+
+```typescript
+@Injectable('DeferredWorkExampleService')
+class DeferredWorkExampleService extends BaseService {
+  private _isShuttingDown = false
+  private _workDone: Promise<void> | undefined
+
+  protected override onAllReady(): void {
+    // Schedule the deferred work via setTimeout, return synchronously.
+    const handle = setTimeout(() => {
+      if (this._isShuttingDown) return
+      this._workDone = this.runDeferredWork()
+    }, 60_000)
+
+    // Hand the timer to BaseService so onStop's _cleanupDisposables clears it.
+    this.registerDisposable(() => clearTimeout(handle))
+  }
+
+  private async runDeferredWork(): Promise<void> {
+    // Check the shutdown flag between every IO step so a teardown arriving
+    // mid-flight short-circuits the remainder.
+    if (this._isShuttingDown) return
+    await this.stepOne()
+
+    if (this._isShuttingDown) return
+    await this.stepTwo()
+  }
+
+  protected override async onStop(): Promise<void> {
+    this._isShuttingDown = true
+
+    // Join the deferred work if it had already started.
+    if (this._workDone) {
+      try {
+        await this._workDone
+      } catch {
+        // Errors are already logged inside runDeferredWork.
+      }
+    }
+  }
+}
+```
+
+Three invariants keep this safe:
+
+- **Shutdown flag**: `_isShuttingDown` is checked at the timer callback entry and between every IO step inside the deferred flow, so a teardown arriving in either window short-circuits cleanly.
+- **Disposable timer**: `registerDisposable(() => clearTimeout(handle))` guarantees the timer is cleared by `_cleanupDisposables` even if the service stops before the quiet window elapses.
+- **`onStop` join**: assigning the flow's `Promise` to `this._workDone` and awaiting it from `onStop` gives the framework a way to wait out a mid-flight step before tearing down dependent resources.
+
+Real-world example: `JobManager.onAllReady` registers a `setTimeout` that fires ~60 seconds later and then runs the recovery flow. See [job-and-scheduler/overview.md — Startup Recovery](../job-and-scheduler/overview.md#startup-recovery).
 
 ## Service Events (Emitter / Event)
 

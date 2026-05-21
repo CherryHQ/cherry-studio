@@ -53,10 +53,10 @@ const GC_KEEP_PER_TYPE = 100
 const DELAYED_PROMOTION_INTERVAL_MS = 5 * 60 * 1000 // 5min
 
 /**
- * Wall-clock delay between `LifecycleManager.allReady()` completing and JobManager
+ * Wall-clock "quiet window" between `onAllReady` firing and JobManager actually
  * running its startup recovery. Lets cold-start IO (DB warm-up, window paints,
  * client-side bootstrap) settle before scheduled work piles on. Hardcoded — the
- * test fixture skips this wait via fake timers.
+ * test fixture skips this wait via fake timers, then awaits `_recoveryDone`.
  */
 const JOB_MANAGER_STARTUP_DELAY_MS = 60_000
 
@@ -117,11 +117,22 @@ export class JobManager extends BaseService {
   private readonly scheduleDisposables = new Map<string, Disposable>()
   private readonly globalMaxConcurrency = DEFAULT_GLOBAL_MAX_CONCURRENCY
   /**
-   * Flipped to `true` in `onStop` so the in-flight `onAllReady` (which may be
-   * sleeping inside the startup-delay timer) can short-circuit on resume
-   * instead of triggering recovery against a tearing-down container.
+   * Flipped to `true` in `onStop` so the deferred startup recovery — whether still
+   * pending inside the startup-delay timer or already mid-flight inside
+   * `runStartupRecoveryFlow` — short-circuits before touching a tearing-down
+   * container. Checked at the timer callback entry and between every IO step
+   * of the recovery flow.
    */
-  private _onAllReadyStopRequested = false
+  private _isShuttingDown = false
+
+  /**
+   * Promise tracking the deferred startup recovery flow. Assigned in the
+   * setTimeout callback once the flow actually starts. `onStop` awaits it to
+   * join the flow before disposing of in-flight resources. `protected` (not
+   * `private`) so test fixtures can `await` it without invoking the real
+   * 60 s timer; production code MUST NOT depend on this field.
+   */
+  protected _recoveryDone: Promise<void> | undefined
 
   // ---------------- Lifecycle ----------------
 
@@ -146,38 +157,107 @@ export class JobManager extends BaseService {
   }
 
   /**
-   * Runs after every service's `onReady` resolves. Handler registry is
-   * guaranteed populated at this point, so it is safe to walk
-   * `jobScheduleTable` and arm cron entries without misidentifying schedules
-   * as orphans. Each phase is wrapped in its own try/catch so a single
-   * failure (e.g. a malformed trigger) cannot leave the session with zero
-   * armed schedules.
+   * Schedules deferred startup recovery as a service-level business task — NOT
+   * a lifecycle initialization side effect.
+   *
+   * `onAllReady` returns synchronously after registering a `setTimeout`; the
+   * 60 s "quiet window" lets cold-start IO (DB warm-up, window paints, client
+   * bootstrap) settle before scheduled work resumes. The deferred flow is
+   * owned by JobManager itself (joined by `onStop` via `_recoveryDone`), not
+   * by the lifecycle framework — `LifecycleManager.allReady()` is
+   * fire-and-forget and does NOT await this hook.
+   *
+   * Handler registry is guaranteed populated by the time the timer fires
+   * because every consumer's `onInit` (and `onReady`) has run, regardless of
+   * the consumer's phase. The shutdown short-circuit handles the case where a
+   * teardown arrives inside the quiet window — see `_isShuttingDown`.
    */
-  protected override async onAllReady(): Promise<void> {
-    // Interruptible cold-start delay: `onStop` flips the flag so a teardown
-    // arriving during the wait short-circuits the rest of recovery.
-    await new Promise<void>((resolve) => setTimeout(resolve, JOB_MANAGER_STARTUP_DELAY_MS))
-    if (this._onAllReadyStopRequested) {
-      logger.info('onAllReady: stop requested during startup delay, skipping recovery')
-      return
-    }
+  protected override onAllReady(): void {
+    const handle = setTimeout(() => {
+      if (this._isShuttingDown) {
+        logger.info('Startup recovery skipped: shutdown requested during quiet window')
+        return
+      }
+      this._recoveryDone = this.runStartupRecoveryFlow()
+    }, JOB_MANAGER_STARTUP_DELAY_MS)
+    this.registerDisposable(() => clearTimeout(handle))
+  }
 
+  /**
+   * Deferred startup recovery. Each IO step is wrapped in its own try/catch so
+   * a single failure (e.g. a malformed trigger) cannot leave the session with
+   * zero armed schedules. `_isShuttingDown` is re-checked between every step
+   * so a teardown arriving mid-flight short-circuits the remainder.
+   *
+   * Step order is significant:
+   *
+   *   1. `runStartupRecovery` resets non-terminal rows per handler strategy
+   *      (abandon / retry / singleton) and honours `cancelRequested` overrides.
+   *
+   *   2. Resurrect queues for any non-terminal rows from previous runs so
+   *      pending dispatch lands on the next tick. `dispatchAll()` iterates
+   *      `this.queues`, which is empty on cold start — pending rows reset by
+   *      recovery would otherwise wait until the next `enqueue` arrives and
+   *      lazily ensures a queue. Walking distinct `(queue, type)` pairs lets
+   *      pending rows dispatch immediately; delayed rows piggyback because
+   *      the queue is in place ahead of the next `promoteDelayedDue` tick.
+   *
+   *      Concurrency consistency: `ensureQueue` here uses
+   *      `handler.defaultConcurrency ?? 1`, identical to the `enqueue` path
+   *      — cold-start resurrection cannot drift from steady-state behaviour.
+   *      First-writer-wins: `ensureQueue` ignores concurrency when the queue
+   *      already exists, so if multiple types share a queue name, the first
+   *      `(queue, type)` pair from the SQL groupBy decides concurrency. No
+   *      shipped type does this today, but the semantics live here in case
+   *      future code does. `detectAndDispatchOverdue` (step 3) and
+   *      `armSchedule` (step 4) both route through `enqueue`, which calls
+   *      `ensureQueue` again on the same queue names — those re-ensures are
+   *      no-ops thanks to first-writer-wins.
+   *
+   *   3. Catch-up FIRST, then arm. Two reasons:
+   *        a. `detectAndDispatchOverdue` reads `lastRun` / `nextRun` from the
+   *           DB and is independent of in-process scheduler state — arming
+   *           order cannot change its decisions.
+   *        b. If we armed first, a cron schedule with `protect: true` could
+   *           still fire its natural calendar concurrently with our catch-up
+   *           enqueue (`protect` only blocks overlapping callbacks, not
+   *           external callers). Sequencing catch-up before arm guarantees
+   *           the make-up enqueue lands before croner's first natural fire.
+   *
+   *   4. `dispatchAll` kicks per-queue pumps so pending rows reset by step 1
+   *      start running immediately rather than waiting on the next enqueue.
+   */
+  private async runStartupRecoveryFlow(): Promise<void> {
     try {
+      if (this._isShuttingDown) return
       const stats = await runStartupRecovery(this.handlers)
       logger.info('Startup recovery complete', stats)
     } catch (err) {
       logger.error('Startup recovery failed', err as Error)
     }
 
-    // Catch-up FIRST, then arm. Two reasons:
-    //   1. `detectAndDispatchOverdue` reads `lastRun` / `nextRun` from the DB
-    //      and is independent of in-process scheduler state — arming order
-    //      cannot change its decisions.
-    //   2. If we armed first, a cron schedule with `protect: true` could
-    //      still fire its natural calendar concurrently with our catch-up
-    //      enqueue (protect only blocks overlapping callbacks, not external
-    //      callers). Sequencing catch-up before arm guarantees the make-up
-    //      enqueue lands before croner's first natural fire.
+    if (this._isShuttingDown) return
+    try {
+      const activeQueues = await jobService.getDistinctActiveQueues()
+      for (const { queue, type } of activeQueues) {
+        if (this._isShuttingDown) return
+        const handler = this.handlers.get(type)
+        if (!handler) {
+          // runStartupRecovery should have cancelled orphan rows already, so
+          // a missing handler here is a recovery-implementation regression.
+          logger.warn('Orphan (queue, type) survived recovery — skipping ensureQueue', { queue, type })
+          continue
+        }
+        this.ensureQueue(queue, handler.defaultConcurrency ?? 1)
+      }
+      if (activeQueues.length > 0) {
+        logger.info('Resurrected queues from non-terminal jobs', { count: activeQueues.length })
+      }
+    } catch (err) {
+      logger.error('Queue resurrection failed', err as Error)
+    }
+
+    if (this._isShuttingDown) return
     let schedules: JobScheduleSnapshot[] = []
     try {
       schedules = await jobScheduleService.listEnabled()
@@ -187,6 +267,7 @@ export class JobManager extends BaseService {
     }
 
     for (const schedule of schedules) {
+      if (this._isShuttingDown) return
       try {
         this.armSchedule(schedule)
       } catch (err) {
@@ -194,17 +275,31 @@ export class JobManager extends BaseService {
       }
     }
 
+    if (this._isShuttingDown) return
     try {
       this.dispatchAll()
     } catch (err) {
       logger.error('dispatchAll failed', err as Error)
     }
 
-    logger.info('JobManager onAllReady complete', { schedules: schedules.length })
+    logger.info('JobManager startup recovery complete', { schedules: schedules.length })
   }
 
   protected override async onStop(): Promise<void> {
-    this._onAllReadyStopRequested = true
+    this._isShuttingDown = true
+
+    // Join the deferred startup recovery flow if it had already started before
+    // shutdown. The flag flip above also short-circuits any mid-flight IO step
+    // currently running inside `runStartupRecoveryFlow`, so this `await` only
+    // waits for that step to finish — not for the entire flow.
+    if (this._recoveryDone) {
+      try {
+        await this._recoveryDone
+      } catch {
+        // Errors are already logged inside `runStartupRecoveryFlow`.
+      }
+    }
+
     const inFlight = Array.from(this.abortControllers.keys())
     for (const controller of this.abortControllers.values()) {
       controller.abort(new Error('JobManager shutdown'))
@@ -257,13 +352,12 @@ export class JobManager extends BaseService {
 
   /**
    * Register a handler for a JobRegistry type. Must be called from the owning
-   * service's `onInit` so the handler is in place before
-   * `JobManager.onAllReady`'s startup recovery (which begins ~60s after
-   * `LifecycleManager.allReady()` resolves). Registering from a business
-   * service's `onAllReady` is unsafe — that hook runs in parallel with
-   * `JobManager.onAllReady`, racing against startup recovery and letting
-   * existing non-terminal jobs for this type get treated as orphans and
-   * cancelled.
+   * service's `onInit` so the handler is in place before JobManager's startup
+   * recovery runs (~60 s after `onAllReady` fires, owned by `runStartupRecoveryFlow`).
+   * Registering from a business service's `onAllReady` is unsafe — that hook
+   * fires in parallel with JobManager's `onAllReady`, and by the time the
+   * deferred recovery wakes up, existing non-terminal jobs for an unregistered
+   * type get treated as orphans and cancelled.
    *
    * @param type - JobRegistry key (compile-time validated via declaration merging)
    * @param handler - Handler implementation; `recovery` is required
@@ -461,8 +555,8 @@ export class JobManager extends BaseService {
   /**
    * Cancel all non-terminal jobs matching the filter. Aborts in-flight
    * AbortControllers in this process and transitions pending / delayed rows
-   * directly to `cancelled`. Covers reset() semantics for Phase 4 Knowledge
-   * reset and Phase 3 FileProcessing batch cancellation.
+   * directly to `cancelled`. Used by knowledge-base reset and file-processing
+   * batch cancellation.
    *
    * Running jobs settle asynchronously through the normal handler-execute
    * flow (handler observes `signal.aborted`) and are NOT counted as
@@ -1228,6 +1322,11 @@ export class JobManager extends BaseService {
   private async detectAndDispatchOverdue(schedules: JobScheduleSnapshot[]): Promise<void> {
     const nowMs = Date.now()
     for (const schedule of schedules) {
+      // Mirror `runStartupRecoveryFlow`'s per-step shutdown check so a teardown
+      // arriving mid-loop short-circuits the remainder; without this an
+      // `onStop` invocation has to wait for every schedule's `onMissed` +
+      // `enqueue` round-trip to finish before `_recoveryDone` resolves.
+      if (this._isShuttingDown) return
       const handler = this.handlers.get(schedule.type)
       if (!handler) continue
       const action = computeCatchUpAction(schedule, handler, nowMs)
@@ -1321,10 +1420,6 @@ export class JobManager extends BaseService {
   }
 
   private makeError(code: string, message: string, params?: Record<string, unknown>): Error {
-    const err = new Error(`${code}: ${message}`)
-    ;(err as Error & { code: string; params?: Record<string, unknown>; retryable: boolean }).code = code
-    ;(err as Error & { code: string; params?: Record<string, unknown>; retryable: boolean }).params = params
-    ;(err as Error & { code: string; params?: Record<string, unknown>; retryable: boolean }).retryable = false
-    return err
+    return Object.assign(new Error(`${code}: ${message}`), { code, params, retryable: false })
   }
 }

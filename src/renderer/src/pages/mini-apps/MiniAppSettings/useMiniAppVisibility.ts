@@ -57,7 +57,7 @@ export function useMiniAppVisibility() {
   // sibling action (e.g. right-clicking an app and picking "Add to Launchpad"
   // while this panel is open) leaves the membership identical but changes
   // status, and the local row's stale `status` then misclassifies the row in
-  // `swap`/`reset`/`reorderVisible` filters that key off `a.status`.
+  // `swap` / `reset` / `reorderVisible` filters that key off `a.status`.
   useEffect(() => {
     setVisible((prev) => (sameRowsByIdAndStatus(prev, miniApps) ? prev : miniApps))
     setHidden((prev) => (sameRowsByIdAndStatus(prev, disabled || []) ? prev : disabled || []))

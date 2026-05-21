@@ -1,5 +1,5 @@
 /**
- * Schedule-control unit tests (F15 + updateJobSchedule branch coverage).
+ * Schedule-control unit tests (by-id / by-name APIs + updateJobSchedule branch coverage).
  *
  * Covers the public schedule APIs that the agent.task migration depends on:
  *   - by-id and by-name pause / resume / triggerNow / unregister
@@ -83,13 +83,14 @@ describe('JobManager schedule control APIs', () => {
     await scheduler._doInit()
     await jobManager._doInit()
 
-    // Skip the 60s startup delay so `onAllReady` resolves promptly. `toFake`
-    // must pair setTimeout with clearTimeout — leaving clearTimeout real would
-    // leak the fake-timer entry created by the delay's setTimeout.
+    // `onAllReady` schedules startup recovery via setTimeout and returns
+    // synchronously. Skip the 60s quiet window via fake timers, then await
+    // `_recoveryDone` (set inside the timer callback) for the deferred flow.
+    // `toFake` must pair setTimeout with clearTimeout.
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-    const allReady = jobManager._doAllReady()
+    void jobManager._doAllReady()
     await vi.advanceTimersByTimeAsync(60_000)
-    await allReady
+    await (jobManager as unknown as { _recoveryDone?: Promise<void> })._recoveryDone
     vi.useRealTimers()
   })
 

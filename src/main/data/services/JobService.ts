@@ -67,6 +67,30 @@ export class JobService {
     return rows.map((r) => this.rowToSnapshot(r))
   }
 
+  /**
+   * Total count of jobs matching the same filter shape as `list()`. WHERE
+   * composition mirrors `list()` so `count(f) === list(f).length` when no
+   * pagination is applied.
+   */
+  async count(filter: Omit<JobListFilter, 'limit' | 'offset'> = {}): Promise<number> {
+    const db = this.getDb()
+    const conditions: SQL[] = []
+    if (filter.status?.length) conditions.push(inArray(jobTable.status, filter.status))
+    if (filter.queue) conditions.push(eq(jobTable.queue, filter.queue))
+    if (filter.type) conditions.push(eq(jobTable.type, filter.type))
+    if (filter.scheduleId) conditions.push(eq(jobTable.scheduleId, filter.scheduleId))
+
+    const query = conditions.length
+      ? db
+          .select({ count: count() })
+          .from(jobTable)
+          .where(and(...conditions))
+      : db.select({ count: count() }).from(jobTable)
+
+    const [r] = await query
+    return r?.count ?? 0
+  }
+
   async getById(id: string): Promise<JobSnapshot | null> {
     const [row] = await this.getDb().select().from(jobTable).where(eq(jobTable.id, id)).limit(1)
     return row ? this.rowToSnapshot(row) : null
@@ -265,6 +289,32 @@ export class JobService {
       .from(jobTable)
       .where(and(eq(jobTable.type, type), inArray(jobTable.status, NON_TERMINAL_STATUSES)))
       .orderBy(desc(jobTable.createdAt), desc(jobTable.id))
+  }
+
+  /**
+   * Distinct (queue, type) pairs across all non-terminal jobs (pending /
+   * delayed / running). JobManager.onAllReady uses this after startup recovery
+   * to ensure a DispatchQueue exists for each queue that owns recoverable
+   * rows — without this, dispatchAll iterates an empty this.queues Map on
+   * cold start and recovered pending rows wait until the next enqueue arrives.
+   *
+   * `delayed` rows are included so the queue is in place ahead of the next
+   * promoteDelayedDue tick. `running` is included for cheap insurance —
+   * recovery should have transitioned all running rows to pending or cancelled
+   * by the time this runs, but keeping them in the result set is harmless.
+   *
+   * Returned shape: Array<{ queue, type }>. If multiple types share a queue
+   * name (legal — enqueue accepts any string), distinct returns one row per
+   * (queue, type). The caller's ensureQueue(queueName, concurrency) keeps the
+   * FIRST inserted concurrency value (first-writer-wins). All currently
+   * shipped callers use type as queue, so this is a forward-compat note.
+   */
+  async getDistinctActiveQueues(): Promise<Array<{ queue: string; type: string }>> {
+    return this.getDb()
+      .select({ queue: jobTable.queue, type: jobTable.type })
+      .from(jobTable)
+      .where(inArray(jobTable.status, NON_TERMINAL_STATUSES))
+      .groupBy(jobTable.queue, jobTable.type)
   }
 
   async resetToPendingByIds(jobIds: string[]): Promise<void> {
