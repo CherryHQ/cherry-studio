@@ -210,9 +210,8 @@ export async function uploadNotes(files: File[], targetPath: string): Promise<Up
       await window.api.file.resumeFileWatcher()
     }
   } catch (error) {
-    logger.error('Batch upload failed, falling back to legacy method:', error as Error)
-    // Fall back to old method if new method fails
-    return uploadNotesLegacy(files, targetPath)
+    logger.error('Batch upload failed:', error as Error)
+    throw error
   }
 }
 
@@ -342,10 +341,8 @@ async function createFolders(folders: Set<string>): Promise<void> {
     try {
       await window.api.file.mkdir(folder)
     } catch (error) {
-      logger.debug('Skip existing folder while uploading notes', {
-        folder,
-        error: (error as Error).message
-      })
+      logger.error('Failed to create folder while uploading notes', error as Error)
+      throw error
     }
   }
 }

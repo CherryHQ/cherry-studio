@@ -3395,6 +3395,7 @@
     "crossPlatformRestoreWarning": "偵測到從其他裝置恢復設定，但筆記目錄為空。請將筆記檔案複製到：{{path}}",
     "delete": "刪除",
     "delete_confirm": "確定要刪除此 {{type}} 嗎？",
+    "delete_failed": "刪除筆記失敗",
     "delete_folder_confirm": "確定要刪除資料夾 \"{{name}}\" 及其所有內容嗎？",
     "delete_note_confirm": "確定要刪除筆記 \"{{name}}\" 嗎？",
     "drop_markdown_hint": "拖曳 .md 檔案或資料夾到此處匯入",
@@ -3478,6 +3479,7 @@
         },
         "view_mode_description": "設定新標籤頁的預設檢視模式。"
       },
+      "save_failed": "儲存筆記設定失敗",
       "title": "更多選項"
     },
     "show_starred": "顯示收藏的筆記",

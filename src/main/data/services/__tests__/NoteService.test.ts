@@ -11,7 +11,6 @@ const ROOT_B = '/Users/test/OtherNotes'
 const FOLDER = '/Users/test/Notes/Folder'
 const SIBLING_FOLDER = '/Users/test/Notes/Folder2'
 const NOTE = '/Users/test/Notes/Folder/a.md'
-const WINDOWS_NOTE = 'C:\\Users\\test\\Notes\\Folder\\windows.md'
 const RENAMED_FOLDER = '/Users/test/Notes/Renamed'
 
 describe('NoteService', () => {
@@ -114,14 +113,6 @@ describe('NoteService', () => {
     const rows = await dbh.db.select().from(noteTable).where(eq(noteTable.rootPath, ROOT_A))
     expect(rows.find((row) => row.path === '/Users/test/Notes/Folder/b.md')).toMatchObject({ isStarred: true })
     expect(rows.find((row) => row.path === `${NOTE}/child.md`)).toMatchObject({ isStarred: true })
-  })
-
-  it('should normalize Windows path separators', async () => {
-    await noteService.upsert({ rootPath: ROOT_A, path: WINDOWS_NOTE, isStarred: true })
-
-    const rows = await noteService.listByRoot(ROOT_A)
-    expect(rows).toHaveLength(1)
-    expect(rows[0].path).toBe('C:/Users/test/Notes/Folder/windows.md')
   })
 
   it('should rewrite folder paths recursively', async () => {

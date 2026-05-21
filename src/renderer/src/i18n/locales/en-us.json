@@ -3395,6 +3395,7 @@
     "crossPlatformRestoreWarning": "Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
     "delete": "delete",
     "delete_confirm": "Are you sure you want to delete this {{type}}?",
+    "delete_failed": "Failed to delete note",
     "delete_folder_confirm": "Are you sure you want to delete the folder \"{{name}}\" and all of its contents?",
     "delete_note_confirm": "Are you sure you want to delete the note \"{{name}}\"?",
     "drop_markdown_hint": "Drop .md files or folders here to import",
@@ -3478,6 +3479,7 @@
         },
         "view_mode_description": "Sets the default view mode for the new tab page."
       },
+      "save_failed": "Failed to save notes settings",
       "title": "Notes"
     },
     "show_starred": "Show favorite notes",

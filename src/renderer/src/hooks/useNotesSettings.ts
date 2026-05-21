@@ -1,6 +1,22 @@
-import { usePreference } from '@data/hooks/usePreference'
+import { useMultiplePreferences } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import type { EditorView } from '@renderer/types'
 import type { NotesSortType } from '@renderer/types/note'
+import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('useNotesSettings')
+
+const NOTES_SETTINGS_PREFERENCE_KEYS = {
+  isFullWidth: 'feature.notes.full_width',
+  fontFamily: 'feature.notes.font_family',
+  fontSize: 'feature.notes.font_size',
+  showTableOfContents: 'feature.notes.show_table_of_contents',
+  defaultViewMode: 'feature.notes.default_view_mode',
+  defaultEditMode: 'feature.notes.default_edit_mode',
+  showTabStatus: 'feature.notes.show_tab_status',
+  notesPath: 'feature.notes.path',
+  sortType: 'feature.notes.sort_type'
+} as const
 
 export interface NotesSettings {
   isFullWidth: boolean
@@ -9,58 +25,51 @@ export interface NotesSettings {
   showTableOfContents: boolean
   defaultViewMode: 'edit' | 'read'
   defaultEditMode: Exclude<EditorView, 'read'>
+  // Reserved for a tab-status display toggle; persisted now so v1 settings migrate losslessly.
   showTabStatus: boolean
-  showWorkspace: boolean
 }
 
 export const useNotesSettings = () => {
-  const [isFullWidth, setIsFullWidth] = usePreference('feature.notes.full_width')
-  const [fontFamily, setFontFamily] = usePreference('feature.notes.font_family')
-  const [fontSize, setFontSize] = usePreference('feature.notes.font_size')
-  const [showTableOfContents, setShowTableOfContents] = usePreference('feature.notes.show_table_of_contents')
-  const [defaultViewMode, setDefaultViewMode] = usePreference('feature.notes.default_view_mode')
-  const [defaultEditMode, setDefaultEditMode] = usePreference('feature.notes.default_edit_mode')
-  const [showTabStatus, setShowTabStatus] = usePreference('feature.notes.show_tab_status')
-  const [showWorkspace, setShowWorkspace] = usePreference('feature.notes.show_workspace')
-  const [notesPath, setNotesPath] = usePreference('feature.notes.path')
-  const [sortType, setSortType] = usePreference('feature.notes.sort_type')
+  const { t } = useTranslation()
+  const [values, setValues] = useMultiplePreferences(NOTES_SETTINGS_PREFERENCE_KEYS)
 
   const settings: NotesSettings = {
-    isFullWidth,
-    fontFamily: fontFamily as NotesSettings['fontFamily'],
-    fontSize,
-    showTableOfContents,
-    defaultViewMode: defaultViewMode as NotesSettings['defaultViewMode'],
-    defaultEditMode: defaultEditMode as NotesSettings['defaultEditMode'],
-    showTabStatus,
-    showWorkspace
+    isFullWidth: values.isFullWidth,
+    fontFamily: values.fontFamily as NotesSettings['fontFamily'],
+    fontSize: values.fontSize,
+    showTableOfContents: values.showTableOfContents,
+    defaultViewMode: values.defaultViewMode as NotesSettings['defaultViewMode'],
+    defaultEditMode: values.defaultEditMode as NotesSettings['defaultEditMode'],
+    showTabStatus: values.showTabStatus
   }
 
   const updateSettings = (newSettings: Partial<NotesSettings>) => {
-    if (newSettings.isFullWidth !== undefined) void setIsFullWidth(newSettings.isFullWidth)
-    if (newSettings.fontFamily !== undefined) void setFontFamily(newSettings.fontFamily)
-    if (newSettings.fontSize !== undefined) void setFontSize(newSettings.fontSize)
-    if (newSettings.showTableOfContents !== undefined) void setShowTableOfContents(newSettings.showTableOfContents)
-    if (newSettings.defaultViewMode !== undefined) void setDefaultViewMode(newSettings.defaultViewMode)
-    if (newSettings.defaultEditMode !== undefined) void setDefaultEditMode(newSettings.defaultEditMode)
-    if (newSettings.showTabStatus !== undefined) void setShowTabStatus(newSettings.showTabStatus)
-    if (newSettings.showWorkspace !== undefined) void setShowWorkspace(newSettings.showWorkspace)
+    void setValues(newSettings).catch((error) => {
+      logger.error('Failed to update notes settings', error as Error)
+      window.toast.error(t('notes.settings.save_failed'))
+    })
   }
 
   const updateNotesPath = (path: string) => {
-    void setNotesPath(path)
+    void setValues({ notesPath: path }).catch((error) => {
+      logger.error('Failed to update notes path', error as Error)
+      window.toast.error(t('notes.settings.save_failed'))
+    })
   }
 
   const updateSortType = (value: NotesSortType) => {
-    void setSortType(value)
+    void setValues({ sortType: value }).catch((error) => {
+      logger.error('Failed to update notes sort type', error as Error)
+      window.toast.error(t('notes.settings.save_failed'))
+    })
   }
 
   return {
     settings,
     updateSettings,
-    notesPath,
+    notesPath: values.notesPath,
     updateNotesPath,
-    sortType: sortType as NotesSortType,
+    sortType: values.sortType as NotesSortType,
     updateSortType
   }
 }

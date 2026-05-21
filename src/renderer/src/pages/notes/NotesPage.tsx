@@ -27,6 +27,7 @@ import {
 } from '@renderer/services/NotesTreeService'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import type { FileChangeEvent } from '@shared/config/types'
+import type { Note } from '@shared/data/types/note'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
@@ -39,6 +40,8 @@ import NotesSidebar from './NotesSidebar'
 
 const logger = loggerService.withContext('NotesPage')
 
+type NoteMetadataSnapshot = Pick<Note, 'path' | 'isStarred' | 'isExpanded'>
+
 const NotesPage: FC = () => {
   const editorRef = useRef<RichEditorRef>(null)
   const codeEditorRef = useRef<CodeEditorHandles>(null)
@@ -46,15 +49,11 @@ const NotesPage: FC = () => {
   const { showWorkspace } = useShowWorkspace()
   const [activeFilePath, setActiveFilePath] = useCache('notes.active_file_path')
   const { settings, notesPath, updateNotesPath, sortType, updateSortType } = useNotesSettings()
-  const { noteByPath, starredPaths, expandedPaths, patchNode, removePath, rewritePath } = useNote(notesPath)
+  const { noteByPath, patchNode, removePath, rewritePath } = useNote(notesPath)
 
   // 混合策略：useLiveQuery用于笔记树，React Query用于文件内容
   const [notesTree, setNotesTree] = useState<NotesTreeNode[]>([])
-  const starredSet = useMemo(() => new Set(starredPaths), [starredPaths])
-  const expandedSet = useMemo(() => new Set(expandedPaths), [expandedPaths])
   const noteByPathRef = useRef(noteByPath)
-  const starredSetRef = useRef(starredSet)
-  const expandedSetRef = useRef(expandedSet)
   const { activeNode } = useActiveNode(notesTree, activeFilePath)
   const { invalidateFileContent } = useFileContentSync()
   const { data: currentContent = '', error: currentContentError } = useFileContent(activeFilePath)
@@ -80,11 +79,11 @@ const NotesPage: FC = () => {
       const merged: NotesTreeNode = {
         ...node,
         externalPath: normalizedPath,
-        isStarred: currentNote?.isStarred ?? starredSetRef.current.has(normalizedPath)
+        isStarred: currentNote?.isStarred ?? false
       }
 
       if (node.type === 'folder') {
-        merged.expanded = currentNote?.isExpanded ?? expandedSetRef.current.has(normalizedPath)
+        merged.expanded = currentNote?.isExpanded ?? false
         merged.children = node.children ? mergeTreeState(node.children) : []
       }
 
@@ -120,15 +119,13 @@ const NotesPage: FC = () => {
     void refreshTree()
   }, [refreshTree])
 
-  // Re-merge tree state when starred or expanded paths change
+  // Re-merge tree state when note metadata changes
   useEffect(() => {
     noteByPathRef.current = noteByPath
-    starredSetRef.current = starredSet
-    expandedSetRef.current = expandedSet
     if (notesTree.length > 0) {
       setNotesTree((prev) => mergeTreeState(prev))
     }
-  }, [expandedSet, mergeTreeState, noteByPath, notesTree.length, starredSet])
+  }, [mergeTreeState, noteByPath, notesTree.length])
 
   // 保存当前笔记内容
   const saveCurrentNote = useCallback(
@@ -473,12 +470,60 @@ const NotesPage: FC = () => {
     [patchNode, refreshTree, t]
   )
 
+  const getMetadataSnapshot = useCallback((path: string, recursive: boolean): NoteMetadataSnapshot[] => {
+    const normalizedPath = normalizePathValue(path)
+    const prefix = `${normalizedPath}/`
+
+    return [...noteByPathRef.current.values()]
+      .filter((note) => note.path === normalizedPath || (recursive && note.path.startsWith(prefix)))
+      .map((note) => ({
+        path: note.path,
+        isStarred: note.isStarred,
+        isExpanded: note.isExpanded
+      }))
+  }, [])
+
+  const restoreMetadataSnapshot = useCallback(
+    async (snapshot: NoteMetadataSnapshot[]) => {
+      await Promise.all(
+        snapshot.map((note) =>
+          patchNode(
+            {
+              externalPath: note.path,
+              type: note.isExpanded ? 'folder' : 'file'
+            },
+            {
+              isStarred: note.isStarred,
+              isExpanded: note.isExpanded
+            }
+          )
+        )
+      )
+    },
+    [patchNode]
+  )
+
+  const rollbackFileMove = useCallback(async (fromPath: string, toPath: string, nodeType: NotesTreeNode['type']) => {
+    if (nodeType === 'folder') {
+      await window.api.file.moveDir(fromPath, toPath)
+      return
+    }
+    await window.api.file.move(fromPath, toPath)
+  }, [])
+
   const syncMetadataAfterFileOperation = useCallback(
-    async (operation: () => Promise<void>) => {
+    async (operation: () => Promise<void>, rollback?: () => Promise<void>) => {
       try {
         await operation()
       } catch (error) {
         logger.error('Failed to sync note metadata after file operation:', error as Error)
+        if (rollback) {
+          try {
+            await rollback()
+          } catch (rollbackError) {
+            logger.error('Failed to rollback note file operation after metadata sync failure:', rollbackError as Error)
+          }
+        }
         window.toast.error(t('notes.metadata_sync_failed'))
         await refreshTree()
         throw error
@@ -601,11 +646,15 @@ const NotesPage: FC = () => {
         const nodeToDelete = findNode(notesTree, nodeId)
         if (!nodeToDelete) return
 
-        await delNode(nodeToDelete)
+        const metadataSnapshot = getMetadataSnapshot(nodeToDelete.externalPath, nodeToDelete.type === 'folder')
+        await removePath(nodeToDelete.externalPath, nodeToDelete.type === 'folder')
 
-        await syncMetadataAfterFileOperation(() =>
-          removePath(nodeToDelete.externalPath, nodeToDelete.type === 'folder')
-        )
+        try {
+          await delNode(nodeToDelete)
+        } catch (fileError) {
+          await restoreMetadataSnapshot(metadataSnapshot)
+          throw fileError
+        }
 
         const normalizedActivePath = activeFilePath ? normalizePathValue(activeFilePath) : undefined
         const normalizedDeletePath = normalizePathValue(nodeToDelete.externalPath)
@@ -623,9 +672,21 @@ const NotesPage: FC = () => {
         await refreshTree()
       } catch (error) {
         logger.error('Failed to delete node:', error as Error)
+        if (error instanceof Error && error.message) {
+          window.toast.error(t('notes.delete_failed'))
+        }
       }
     },
-    [notesTree, activeFilePath, refreshTree, removePath, setActiveFilePath, syncMetadataAfterFileOperation]
+    [
+      activeFilePath,
+      getMetadataSnapshot,
+      notesTree,
+      refreshTree,
+      removePath,
+      restoreMetadataSnapshot,
+      setActiveFilePath,
+      t
+    ]
   )
 
   // 重命名节点
@@ -641,20 +702,26 @@ const NotesPage: FC = () => {
 
         const oldPath = node.externalPath
         const renamed = await renameEntry(node, newName)
+        let nextActivePath: string | undefined
 
         if (node.type === 'file' && activeFilePath === oldPath) {
           debouncedSaveRef.current?.cancel()
-          lastFilePathRef.current = renamed.path
-          setActiveFilePath(renamed.path)
+          nextActivePath = renamed.path
         } else if (node.type === 'folder' && activeFilePath && activeFilePath.startsWith(`${oldPath}/`)) {
           const suffix = activeFilePath.slice(oldPath.length)
-          const nextActivePath = `${renamed.path}${suffix}`
           debouncedSaveRef.current?.cancel()
+          nextActivePath = `${renamed.path}${suffix}`
+        }
+
+        await syncMetadataAfterFileOperation(
+          () => rewritePath(oldPath, renamed.path, node.type === 'folder'),
+          () => rollbackFileMove(renamed.path, oldPath, node.type)
+        )
+
+        if (nextActivePath) {
           lastFilePathRef.current = nextActivePath
           setActiveFilePath(nextActivePath)
         }
-
-        await syncMetadataAfterFileOperation(() => rewritePath(oldPath, renamed.path, node.type === 'folder'))
 
         await refreshTree()
       } catch (error) {
@@ -665,7 +732,15 @@ const NotesPage: FC = () => {
         }, 500)
       }
     },
-    [activeFilePath, notesTree, refreshTree, rewritePath, setActiveFilePath, syncMetadataAfterFileOperation]
+    [
+      activeFilePath,
+      notesTree,
+      refreshTree,
+      rewritePath,
+      rollbackFileMove,
+      setActiveFilePath,
+      syncMetadataAfterFileOperation
+    ]
   )
 
   // 处理文件上传
@@ -786,26 +861,30 @@ const NotesPage: FC = () => {
           await window.api.file.moveDir(sourceNode.externalPath, destinationPath)
         }
 
-        await syncMetadataAfterFileOperation(() =>
-          rewritePath(sourceNode.externalPath, destinationPath, sourceNode.type === 'folder')
+        await syncMetadataAfterFileOperation(
+          () => rewritePath(sourceNode.externalPath, destinationPath, sourceNode.type === 'folder'),
+          () => rollbackFileMove(destinationPath, sourceNode.externalPath, sourceNode.type)
         )
         setFolderExpandedByPath(normalizedTargetParent, true)
 
         const normalizedActivePath = activeFilePath ? normalizePathValue(activeFilePath) : undefined
+        let nextActivePath: string | undefined
         if (normalizedActivePath) {
           if (normalizedActivePath === sourceNode.externalPath) {
             // Cancel debounced save to prevent saving to old path
             debouncedSaveRef.current?.cancel()
-            lastFilePathRef.current = destinationPath
-            setActiveFilePath(destinationPath)
+            nextActivePath = destinationPath
           } else if (sourceNode.type === 'folder' && normalizedActivePath.startsWith(`${sourceNode.externalPath}/`)) {
             const suffix = normalizedActivePath.slice(sourceNode.externalPath.length)
-            const newActivePath = `${destinationPath}${suffix}`
             // Cancel debounced save to prevent saving to old path
             debouncedSaveRef.current?.cancel()
-            lastFilePathRef.current = newActivePath
-            setActiveFilePath(newActivePath)
+            nextActivePath = `${destinationPath}${suffix}`
           }
+        }
+
+        if (nextActivePath) {
+          lastFilePathRef.current = nextActivePath
+          setActiveFilePath(nextActivePath)
         }
 
         await refreshTree()
@@ -819,6 +898,7 @@ const NotesPage: FC = () => {
       notesTree,
       refreshTree,
       rewritePath,
+      rollbackFileMove,
       setActiveFilePath,
       setFolderExpandedByPath,
       syncMetadataAfterFileOperation

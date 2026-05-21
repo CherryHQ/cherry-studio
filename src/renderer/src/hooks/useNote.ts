@@ -9,13 +9,7 @@ const logger = loggerService.withContext('useNote')
 
 export function useNote(rootPath: string) {
   const normalizedRootPath = useMemo(() => (rootPath.trim() ? normalizePathValue(rootPath.trim()) : ''), [rootPath])
-  const {
-    data: notes = [],
-    isLoading,
-    isRefreshing,
-    error,
-    refetch
-  } = useQuery('/notes', {
+  const { data: notes = [] } = useQuery('/notes', {
     query: { rootPath: normalizedRootPath },
     enabled: !!normalizedRootPath
   })
@@ -30,8 +24,6 @@ export function useNote(rootPath: string) {
     refresh: ['/notes']
   })
 
-  const starredPaths = useMemo(() => notes.filter((item) => item.isStarred).map((item) => item.path), [notes])
-  const expandedPaths = useMemo(() => notes.filter((item) => item.isExpanded).map((item) => item.path), [notes])
   const noteByPath = useMemo(() => new Map(notes.map((item) => [item.path, item])), [notes])
 
   const patchNode = useCallback(
@@ -99,12 +91,6 @@ export function useNote(rootPath: string) {
   return {
     notes,
     noteByPath,
-    starredPaths,
-    expandedPaths,
-    isLoading,
-    isRefreshing,
-    error,
-    refetch,
     patchNode,
     removePath,
     rewritePath

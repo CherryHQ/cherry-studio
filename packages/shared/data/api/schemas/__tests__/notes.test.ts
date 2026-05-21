@@ -10,7 +10,7 @@ describe('note DTO schemas', () => {
   })
 
   it('accepts starred or expanded updates', () => {
-    expect(UpsertNoteSchema.parse({ rootPath: '/notes', path: 'a.md', isStarred: true })).toEqual({
+    expect(UpsertNoteSchema.parse({ rootPath: ' /notes ', path: ' a.md ', isStarred: true })).toEqual({
       rootPath: '/notes',
       path: 'a.md',
       isStarred: true
@@ -32,5 +32,38 @@ describe('note DTO schemas', () => {
     expect(() => RewriteNotePathSchema.parse({ rootPath: '/notes', fromPath: 'a.md', toPath: '   ' })).toThrow(
       'path must not be blank'
     )
+  })
+
+  it('rejects paths over the API length limit', () => {
+    const longPath = 'a'.repeat(501)
+
+    expect(() => ListNoteQuerySchema.parse({ rootPath: longPath })).toThrow('path is too long')
+    expect(() => UpsertNoteSchema.parse({ rootPath: '/notes', path: longPath, isStarred: true })).toThrow(
+      'path is too long'
+    )
+  })
+
+  it('normalizes path separators at the API boundary', () => {
+    expect(
+      RewriteNotePathSchema.parse({
+        rootPath: 'C:\\Users\\test\\Notes',
+        fromPath: 'C:\\Users\\test\\Notes\\a.md',
+        toPath: 'C:\\Users\\test\\Notes\\b.md'
+      })
+    ).toEqual({
+      rootPath: 'C:/Users/test/Notes',
+      fromPath: 'C:/Users/test/Notes/a.md',
+      toPath: 'C:/Users/test/Notes/b.md'
+    })
+  })
+
+  it('rejects rewrite requests where source and target paths are the same', () => {
+    expect(() =>
+      RewriteNotePathSchema.parse({
+        rootPath: '/notes',
+        fromPath: '/notes/a.md',
+        toPath: '/notes/a.md'
+      })
+    ).toThrow('fromPath and toPath must differ')
   })
 })

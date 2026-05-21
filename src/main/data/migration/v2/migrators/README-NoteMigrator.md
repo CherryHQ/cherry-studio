@@ -26,6 +26,8 @@ If a path appears in both starred and expanded lists, both flags are preserved i
 
 - `activeFilePath`: moved to Cache runtime state, not SQLite.
 - `activeNodeId`: derived from `activeFilePath + notesTree`, not migrated.
+- `notesPath`: also migrated to the `feature.notes.path` Preference by the Preferences migrator.
+- `sortType`: migrated to the `feature.notes.sort_type` Preference by the Preferences migrator.
 
 ## Notes
 

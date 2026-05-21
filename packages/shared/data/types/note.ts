@@ -2,6 +2,10 @@ import * as z from 'zod'
 
 export const NoteIdSchema = z.uuidv4()
 
+/**
+ * Invariant: at least one of `isStarred` or `isExpanded` is true.
+ * Rows where both become false are auto-deleted by `NoteService.upsert`.
+ */
 export const NoteSchema = z.strictObject({
   id: NoteIdSchema,
   rootPath: z.string().min(1),

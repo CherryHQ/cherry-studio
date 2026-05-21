@@ -3395,6 +3395,7 @@
     "crossPlatformRestoreWarning": "检测到从其他设备恢复配置，但笔记目录为空。请将笔记文件复制到: {{path}}",
     "delete": "删除",
     "delete_confirm": "确定要删除这个{{type}}吗？",
+    "delete_failed": "删除笔记失败",
     "delete_folder_confirm": "确定要删除文件夹 \"{{name}}\" 及其所有内容吗？",
     "delete_note_confirm": "确定要删除笔记 \"{{name}}\" 吗？",
     "drop_markdown_hint": "拖拽 .md 文件或目录到此处导入",
@@ -3478,6 +3479,7 @@
         },
         "view_mode_description": "设置新标签页的默认视图模式。"
       },
+      "save_failed": "保存笔记设置失败",
       "title": "笔记"
     },
     "show_starred": "显示收藏的笔记",

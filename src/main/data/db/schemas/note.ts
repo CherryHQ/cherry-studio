@@ -6,6 +6,7 @@ export const noteTable = sqliteTable(
   'note',
   {
     id: uuidPrimaryKey(),
+    // Paths are forward-slash-normalized at the API boundary. The unique index does byte comparison.
     rootPath: text('root_path').notNull(),
     path: text().notNull(),
     isStarred: integer('is_starred', { mode: 'boolean' }).notNull().default(false),

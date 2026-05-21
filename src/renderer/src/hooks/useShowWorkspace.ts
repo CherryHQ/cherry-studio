@@ -1,26 +1,26 @@
 import { usePreference } from '@data/hooks/usePreference'
-import { useCallback, useEffect, useRef } from 'react'
+import { loggerService } from '@logger'
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('useShowWorkspace')
 
 export function useShowWorkspace() {
+  const { t } = useTranslation()
   const [showWorkspace, setShowWorkspace] = usePreference('feature.notes.show_workspace')
-  const showWorkspaceRef = useRef(showWorkspace)
-
-  useEffect(() => {
-    showWorkspaceRef.current = showWorkspace
-  }, [showWorkspace])
 
   const updateShowWorkspace = useCallback(
     (show: boolean) => {
-      showWorkspaceRef.current = show
-      void setShowWorkspace(show)
+      void setShowWorkspace(show).catch((error) => {
+        logger.error('Failed to update notes workspace visibility', error as Error)
+        window.toast.error(t('notes.settings.save_failed'))
+      })
     },
-    [setShowWorkspace]
+    [setShowWorkspace, t]
   )
   const toggleShowWorkspace = useCallback(() => {
-    const nextShowWorkspace = !showWorkspaceRef.current
-    showWorkspaceRef.current = nextShowWorkspace
-    void setShowWorkspace(nextShowWorkspace)
-  }, [setShowWorkspace])
+    updateShowWorkspace(!showWorkspace)
+  }, [showWorkspace, updateShowWorkspace])
 
   return {
     showWorkspace,
