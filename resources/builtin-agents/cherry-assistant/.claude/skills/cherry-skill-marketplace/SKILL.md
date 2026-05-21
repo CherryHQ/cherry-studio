@@ -90,9 +90,35 @@ description: Cherry Studio 内置 Skill 市场。通过 `mcp__skills__skills` MC
    - 路径在 `{userData}/Skills/{name}/`，可以在 `/settings/skills` UI 里手动改
    - 如果不好用，可以让我 `mcp__skills__skills` action=remove name="my-skill" 卸载
 
+## 推荐 Skill 速查（按使用频率）
+
+按常见需求 → 该装哪个 / 内置已有，按下表查（**identifier 字段需要 `search` 后取真实值**，因为版本可能变化）：
+
+| 用户说 | 推荐 skill | 来源 | 触发关键词 |
+|--------|-----------|------|----------|
+| 「写个文档 / PRD / README / 纪要」 | `cherry-doc-writer` | **已内置** | 写文档、起草、draft |
+| 「做个 PPT / 演示 / 分享」 | `cherry-web-ppt` | **已内置** | PPT、deck、slides、演示 |
+| 「分析数据 / 看 CSV / 画趋势」 | `cherry-data-analyst` | **已内置** | 数据分析、报表、CSV |
+| 「做个网页 / 落地页 / SaaS 主页」 | `web-designer` | marketplace | 落地页、landing |
+| 「做个海报 / 提示词 / 配图」 | `art-director` | marketplace | 海报、提示词、prompt |
+| 「写企业级 PRD（飞书白板 + 图表）」 | `enterprise-prd` | marketplace | 详细 PRD、需求文档 |
+| 「拆个书 / 读书笔记」 | `speed-reader` | marketplace | 拆书、读书笔记 |
+| 「Cherry Studio 社区版 GitHub PRD」 | `prd-creator` | marketplace | 社区需求、issue PRD |
+| 「写电子杂志风网页 PPT」 | `magazine-web-ppt` | marketplace | 杂志风、editorial |
+| 「飞书相关（消息 / 文档 / 日历 / ...）」 | `lark-*` 系列 | marketplace | 飞书、Lark |
+
+### 用法
+
+1. 看到用户说「做个 PPT」→ 优先用**已内置**的 `cherry-web-ppt`，直接 SKILL 触发，不用调 MCP 工具
+2. 看到用户说「做个杂志风发布会页」→ 内置的不够精致，提议安装 marketplace 的 `magazine-web-ppt`：
+   - `mcp__skills__skills` action=search query="magazine ppt"
+   - 拿真实 identifier 后 → 给用户看 → 授权 → install
+3. 表里没有 → 走通用搜索流程
+
 ## 跟其他 skill 的协作
 
 - **cherry-assistant-guide**：Cherry Studio 产品本身的问题 → 走它，不走 marketplace
+- **cherry-doc-writer / cherry-web-ppt / cherry-data-analyst**：内置三件套，常见需求直接用，不必先搜 marketplace
 - **faq-collector**：装完 skill 解决了用户问题 → 主动问要不要收录 FAQ
 - **issue-reporter**：skill 用着用着发现 bug → issue-reporter 提 issue 反馈给 skill 作者
 - **skills-manager**（fallback）：仅当 `mcp__skills__skills` 工具调用失败（说明环境没有 Cherry Studio MCP）才考虑切换到 npx CLI 路径
