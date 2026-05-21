@@ -8,6 +8,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import predefinedTools from '@shared/data/predefined-tools.json'
 import type { MiseTool } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 
@@ -61,7 +62,9 @@ const MISE_PASSTHROUGH_ENV = [
 const TOOL_NAME_RE = /^[a-zA-Z][a-zA-Z0-9_-]*$/
 const TOOL_KEY_RE = /^[a-zA-Z0-9@:/_.-]+$/
 
-function validateMiseTool(tool: MiseTool): void {
+const WRAPPER_BACKENDS = new Set(['npm', 'pipx'])
+
+export function validateMiseTool(tool: MiseTool): void {
   if (!tool.name || !TOOL_NAME_RE.test(tool.name)) {
     throw new Error(`Invalid tool name: ${tool.name}`)
   }
@@ -79,6 +82,7 @@ export class MiseService extends BaseService {
   private miseBin: string | null = null
   private isolatedEnv: Record<string, string> | null = null
   private registryCache: Array<{ name: string; tool: string }> | null = null
+  private stateLock: Promise<unknown> = Promise.resolve()
 
   protected async onInit() {
     this.registerIpcHandlers()
@@ -91,7 +95,18 @@ export class MiseService extends BaseService {
     logger.info('mise binary found', { path: this.miseBin })
     this.isolatedEnv = this.buildIsolatedEnv()
 
-    const tools = application.get('PreferenceService').get('feature.mise.tools')
+    const prefService = application.get('PreferenceService')
+    let tools = prefService.get('feature.mise.tools')
+    if (tools.length === 0) {
+      const coreTools: MiseTool[] = predefinedTools
+        .filter((t) => t.coreDep)
+        .map((t) => ({ name: t.name, tool: t.tool }))
+      if (coreTools.length > 0) {
+        void prefService.set('feature.mise.tools', coreTools)
+        tools = coreTools
+        logger.info('Auto-seeded core dependency tools', { tools: coreTools.map((t) => t.name) })
+      }
+    }
     if (tools.length > 0) {
       this.reconcile(tools).catch((err) => logger.error('Initial reconcile failed', err))
     }
@@ -214,6 +229,12 @@ export class MiseService extends BaseService {
     return execFileAsync(this.miseBin, args, { cwd, env: this.isolatedEnv!, timeout: 120_000 })
   }
 
+  private withStateLock<T>(fn: () => Promise<T>): Promise<T> {
+    const next = this.stateLock.then(fn, fn)
+    this.stateLock = next.catch(() => {})
+    return next
+  }
+
   private async installBinary(tool: MiseTool): Promise<string> {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cherry-mise-'))
     try {
@@ -224,23 +245,27 @@ export class MiseService extends BaseService {
       await this.runMise(['trust', tmpDir], tmpDir)
       await this.runMise(['install', tool.tool], tmpDir)
 
-      const { stdout: srcPath } = await this.runMise(['which', tool.name], tmpDir)
-      const trimmedPath = srcPath.trim()
-      if (!trimmedPath) {
-        throw new Error(`mise which ${tool.name} returned empty path`)
-      }
-
       const { stdout: versionOut } = await this.runMise(['which', tool.name, '--version'], tmpDir)
       const installedVersion = versionOut.trim()
 
-      const binaryName = isWin ? `${tool.name}.exe` : tool.name
       const binDir = application.getPath('cherry.bin')
       fs.mkdirSync(binDir, { recursive: true })
-      const dstPath = path.join(binDir, binaryName)
 
-      fs.copyFileSync(trimmedPath, dstPath)
-      if (!isWin) {
-        fs.chmodSync(dstPath, 0o755)
+      const backend = tool.tool.split(':')[0]
+      if (WRAPPER_BACKENDS.has(backend)) {
+        const dstPath = path.join(binDir, isWin ? `${tool.name}.cmd` : tool.name)
+        this.writeToolWrapper(dstPath, tool, installedVersion)
+      } else {
+        const { stdout: srcPath } = await this.runMise(['which', tool.name], tmpDir)
+        const trimmedPath = srcPath.trim()
+        if (!trimmedPath) {
+          throw new Error(`mise which ${tool.name} returned empty path`)
+        }
+        const dstPath = path.join(binDir, isWin ? `${tool.name}.exe` : tool.name)
+        fs.copyFileSync(trimmedPath, dstPath)
+        if (!isWin) {
+          fs.chmodSync(dstPath, 0o755)
+        }
       }
 
       return installedVersion
@@ -249,11 +274,27 @@ export class MiseService extends BaseService {
     }
   }
 
+  private writeToolWrapper(dstPath: string, tool: MiseTool, version: string): void {
+    const dataDir = application.getPath('feature.mise.data')
+    const miseBin = this.miseBin!
+    if (isWin) {
+      const script = `@echo off\r\nset "MISE_DATA_DIR=${dataDir}"\r\nset "MISE_YES=1"\r\n"${miseBin}" x "${tool.tool}@${version}" -- "${tool.name}" %*\r\n`
+      fs.writeFileSync(dstPath, script)
+    } else {
+      const script = `#!/bin/sh\nMISE_DATA_DIR='${dataDir}' MISE_YES=1 exec '${miseBin}' x '${tool.tool}@${version}' -- '${tool.name}' "$@"\n`
+      fs.writeFileSync(dstPath, script, { mode: 0o755 })
+    }
+  }
+
   private loadState(): MiseState {
     const statePath = application.getPath('feature.mise.state_file')
     try {
       const data = fs.readFileSync(statePath, 'utf-8')
-      return JSON.parse(data)
+      const parsed = JSON.parse(data)
+      if (!parsed || typeof parsed !== 'object' || typeof parsed.tools !== 'object' || parsed.tools === null) {
+        return { updatedAt: '', tools: {} }
+      }
+      return { updatedAt: String(parsed.updatedAt ?? ''), tools: parsed.tools }
     } catch {
       return { updatedAt: '', tools: {} }
     }
@@ -273,39 +314,41 @@ export class MiseService extends BaseService {
       return { installed: [], failed: [{ name: '*', error: 'mise binary not available' }], skipped: [] }
     }
 
-    const state = this.loadState()
-    const result: ReconcileResult = { installed: [], failed: [], skipped: [] }
+    return this.withStateLock(async () => {
+      const state = this.loadState()
+      const result: ReconcileResult = { installed: [], failed: [], skipped: [] }
 
-    for (const tool of tools) {
-      const existing = state.tools[tool.name]
-      if (existing && tool.version && existing.version === tool.version) {
-        logger.info('Tool already at target version, skipping', { name: tool.name, version: tool.version })
-        result.skipped.push(tool.name)
-        continue
-      }
-
-      try {
-        logger.info('Installing tool', { name: tool.name, tool: tool.tool, version: tool.version || 'latest' })
-        const installedVersion = await this.installBinary(tool)
-        state.tools[tool.name] = {
-          name: tool.name,
-          tool: tool.tool,
-          version: installedVersion,
-          installedAt: new Date().toISOString()
+      for (const tool of tools) {
+        const existing = state.tools[tool.name]
+        if (existing && tool.version && existing.version === tool.version) {
+          logger.info('Tool already at target version, skipping', { name: tool.name, version: tool.version })
+          result.skipped.push(tool.name)
+          continue
         }
-        result.installed.push(tool.name)
-        logger.info('Tool installed', { name: tool.name, version: installedVersion })
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        logger.error('Tool install failed', { name: tool.name, error: msg })
-        result.failed.push({ name: tool.name, error: msg })
+
+        try {
+          logger.info('Installing tool', { name: tool.name, tool: tool.tool, version: tool.version || 'latest' })
+          const installedVersion = await this.installBinary(tool)
+          state.tools[tool.name] = {
+            name: tool.name,
+            tool: tool.tool,
+            version: installedVersion,
+            installedAt: new Date().toISOString()
+          }
+          result.installed.push(tool.name)
+          logger.info('Tool installed', { name: tool.name, version: installedVersion })
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          logger.error('Tool install failed', { name: tool.name, error: msg })
+          result.failed.push({ name: tool.name, error: msg })
+        }
       }
-    }
 
-    state.updatedAt = new Date().toISOString()
-    this.saveState(state)
+      state.updatedAt = new Date().toISOString()
+      this.saveState(state)
 
-    return result
+      return result
+    })
   }
 
   async installTool(tool: MiseTool): Promise<{ version: string }> {
@@ -315,17 +358,19 @@ export class MiseService extends BaseService {
 
     const version = await this.installBinary(tool)
 
-    const state = this.loadState()
-    state.tools[tool.name] = {
-      name: tool.name,
-      tool: tool.tool,
-      version,
-      installedAt: new Date().toISOString()
-    }
-    state.updatedAt = new Date().toISOString()
-    this.saveState(state)
+    return this.withStateLock(async () => {
+      const state = this.loadState()
+      state.tools[tool.name] = {
+        name: tool.name,
+        tool: tool.tool,
+        version,
+        installedAt: new Date().toISOString()
+      }
+      state.updatedAt = new Date().toISOString()
+      this.saveState(state)
 
-    return { version }
+      return { version }
+    })
   }
 
   private async loadRegistry(): Promise<Array<{ name: string; tool: string }>> {
@@ -365,15 +410,20 @@ export class MiseService extends BaseService {
   }
 
   async removeTool(toolName: string): Promise<void> {
-    const binaryName = isWin ? `${toolName}.exe` : toolName
-    const binPath = path.join(application.getPath('cherry.bin'), binaryName)
-    if (fs.existsSync(binPath)) {
-      fs.unlinkSync(binPath)
+    const binDir = application.getPath('cherry.bin')
+    for (const ext of isWin ? ['.exe', '.cmd'] : ['']) {
+      const binPath = path.join(binDir, `${toolName}${ext}`)
+      if (fs.existsSync(binPath)) {
+        fs.unlinkSync(binPath)
+      }
     }
 
-    const state = this.loadState()
-    delete state.tools[toolName]
-    state.updatedAt = new Date().toISOString()
-    this.saveState(state)
+    return this.withStateLock(async () => {
+      const state = this.loadState()
+      if (!state.tools[toolName]) return
+      delete state.tools[toolName]
+      state.updatedAt = new Date().toISOString()
+      this.saveState(state)
+    })
   }
 }

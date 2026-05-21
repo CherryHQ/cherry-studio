@@ -30,7 +30,7 @@ import {
   TriangleAlert
 } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface EnvironmentDependenciesProps {
@@ -113,7 +113,10 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
   const handleAddCustomTool = async (tool: MiseTool) => {
     const allNames = [...PREDEFINED_TOOLS.map((p) => p.name), ...customTools.map((c) => c.name)]
-    if (allNames.includes(tool.name)) return
+    if (allNames.includes(tool.name)) {
+      window.toast.error(t('settings.plugins.duplicateName'))
+      throw new Error('duplicate')
+    }
 
     const updated = [...customTools, tool]
     await setCustomTools(updated)
@@ -129,15 +132,16 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   }
 
   if (mini) {
-    const coreDepsInstalled = [...CORE_DEPS].every((name) => miseState?.tools[name])
-    if (coreDepsInstalled) {
-      return null
-    }
+    if (!miseState) return null
+    const coreDepsInstalled = Array.from(CORE_DEPS).every((name) => Boolean(miseState.tools[name]))
+    if (coreDepsInstalled) return null
 
     return (
       <Button
         className="nodrag h-8 rounded-lg px-2 text-destructive shadow-none hover:text-destructive"
         variant="ghost"
+        aria-label={t('settings.plugins.coreDepsMissing')}
+        title={t('settings.plugins.coreDepsMissing')}
         onClick={() => navigate({ to: '/settings/plugins' })}>
         <TriangleAlert size={14} />
       </Button>
@@ -313,6 +317,8 @@ const PredefinedToolCard: FC<{
           <button
             type="button"
             onClick={onOpenPath}
+            aria-label={t('settings.plugins.openBinariesDir')}
+            title={t('settings.plugins.openBinariesDir')}
             className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground">
             <FolderOpen className="size-3" />
           </button>
@@ -397,6 +403,8 @@ const CustomToolCard: FC<{
             variant="ghost"
             size="icon-sm"
             className="text-foreground/40 hover:text-destructive"
+            aria-label={t('settings.plugins.remove')}
+            title={t('settings.plugins.remove')}
             onClick={onRemove}>
             <Trash2 className="size-3.5" />
           </Button>
@@ -428,7 +436,7 @@ function AddToolDialog({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onAdd: (tool: MiseTool) => void
+  onAdd: (tool: MiseTool) => Promise<void>
 }) {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
@@ -438,6 +446,7 @@ function AddToolDialog({
   const [selectedTool, setSelectedTool] = useState('')
   const [version, setVersion] = useState('')
   const [adding, setAdding] = useState(false)
+  const searchIdRef = useRef(0)
 
   const reset = () => {
     setQuery('')
@@ -455,15 +464,16 @@ function AddToolDialog({
       return
     }
 
+    const id = ++searchIdRef.current
     const timer = setTimeout(async () => {
       setSearching(true)
       try {
         const res = await window.api.mise.searchRegistry(query.trim())
-        setResults(res)
+        if (id === searchIdRef.current) setResults(res)
       } catch {
-        setResults([])
+        if (id === searchIdRef.current) setResults([])
       } finally {
-        setSearching(false)
+        if (id === searchIdRef.current) setSearching(false)
       }
     }, 300)
 
@@ -481,9 +491,11 @@ function AddToolDialog({
     if (!selectedName.trim() || !selectedTool.trim()) return
     setAdding(true)
     try {
-      onAdd({ name: selectedName.trim(), tool: selectedTool.trim(), version: version.trim() || undefined })
+      await onAdd({ name: selectedName.trim(), tool: selectedTool.trim(), version: version.trim() || undefined })
       reset()
       onOpenChange(false)
+    } catch {
+      // keep dialog open on failure
     } finally {
       setAdding(false)
     }

@@ -54,11 +54,12 @@ vi.mock('node:child_process', () => ({
   })
 }))
 
-vi.mock('node:util', () => ({
-  promisify: () => mockExecFileAsync
-}))
+vi.mock('node:util', async (importOriginal) => {
+  const actual = await importOriginal()
+  return { ...(actual as object), promisify: () => mockExecFileAsync }
+})
 
-const { MiseService } = await import('../MiseService')
+const { MiseService, validateMiseTool } = await import('../MiseService')
 
 describe('MiseService', () => {
   beforeEach(() => {
@@ -120,8 +121,8 @@ describe('MiseService', () => {
       mockExecFileAsync
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // trust
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // install
-        .mockResolvedValueOnce({ stdout: '/path/to/fd\n', stderr: '' }) // which
         .mockResolvedValueOnce({ stdout: '10.1.0\n', stderr: '' }) // which --version
+        .mockResolvedValueOnce({ stdout: '/path/to/fd\n', stderr: '' }) // which (path)
 
       const result = await service.reconcile([{ name: 'fd', tool: 'github:sharkdp/fd' }])
 
@@ -160,12 +161,12 @@ describe('MiseService', () => {
       mockExecFileAsync
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // trust fd
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // install fd
-        .mockResolvedValueOnce({ stdout: '/path/to/fd\n', stderr: '' }) // which fd
         .mockResolvedValueOnce({ stdout: '10.0.0\n', stderr: '' }) // which fd --version
+        .mockResolvedValueOnce({ stdout: '/path/to/fd\n', stderr: '' }) // which fd (path)
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // trust rg
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // install rg
-        .mockResolvedValueOnce({ stdout: '/path/to/rg\n', stderr: '' }) // which rg
         .mockResolvedValueOnce({ stdout: '15.0.0\n', stderr: '' }) // which rg --version
+        .mockResolvedValueOnce({ stdout: '/path/to/rg\n', stderr: '' }) // which rg (path)
 
       const result = await service.reconcile([
         { name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' },
@@ -217,7 +218,7 @@ describe('MiseService', () => {
       await service.removeTool('nonexistent')
 
       expect(mockFs.unlinkSync).not.toHaveBeenCalled()
-      expect(mockFs.writeFileSync).toHaveBeenCalled()
+      expect(mockFs.writeFileSync).not.toHaveBeenCalled()
     })
   })
 
@@ -242,8 +243,8 @@ describe('MiseService', () => {
       mockExecFileAsync
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // trust
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // install
-        .mockResolvedValueOnce({ stdout: '/path/to/fd\n', stderr: '' }) // which
         .mockResolvedValueOnce({ stdout: '10.0.0\n', stderr: '' }) // which --version
+        .mockResolvedValueOnce({ stdout: '/path/to/fd\n', stderr: '' }) // which (path)
 
       const result = await service.installTool({ name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' })
 
@@ -288,6 +289,106 @@ describe('MiseService', () => {
       expect(channels).toContain('mise:get-state')
       expect(channels).toContain('mise:reconcile')
       expect(channels).toContain('mise:search-registry')
+    })
+  })
+
+  describe('validateMiseTool', () => {
+    it.each([
+      ['../etc', 'fd', undefined],
+      ['', 'fd', undefined],
+      ['fd; rm -rf /', 'fd', undefined],
+      ['fd\x00', 'fd', undefined],
+      ['123fd', 'fd', undefined]
+    ])('rejects invalid tool name=%j', (name, tool, version) => {
+      expect(() => validateMiseTool({ name, tool, version })).toThrow('Invalid tool name')
+    })
+
+    it.each([
+      ['fd', '', undefined],
+      ['fd', 'tool; echo', undefined],
+      ['fd', 'tool name', undefined]
+    ])('rejects invalid tool key=%j tool=%j', (name, tool, version) => {
+      expect(() => validateMiseTool({ name, tool, version })).toThrow('Invalid tool key')
+    })
+
+    it.each([
+      ['fd', 'fd', 'version; echo'],
+      ['fd', 'fd', 'ver sion']
+    ])('rejects invalid version=%j', (name, tool, version) => {
+      expect(() => validateMiseTool({ name, tool, version })).toThrow('Invalid tool version')
+    })
+
+    it('accepts valid tool definitions', () => {
+      expect(() => validateMiseTool({ name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' })).not.toThrow()
+      expect(() => validateMiseTool({ name: 'ntn', tool: 'npm:ntn' })).not.toThrow()
+      expect(() => validateMiseTool({ name: 'hermes', tool: 'pipx:hermes-agent' })).not.toThrow()
+    })
+  })
+
+  describe('buildIsolatedEnv', () => {
+    it('filters out non-whitelisted environment variables', () => {
+      const original = { ...process.env }
+      try {
+        process.env['AWS_ACCESS_KEY_ID'] = 'test-key'
+        process.env['OPENAI_API_KEY'] = 'sk-test'
+        process.env['SECRET_TOKEN'] = 'secret'
+
+        const service = new MiseService()
+        ;(service as any).miseBin = '/mock/mise'
+        const env = (service as any).buildIsolatedEnv()
+
+        expect(env['AWS_ACCESS_KEY_ID']).toBeUndefined()
+        expect(env['OPENAI_API_KEY']).toBeUndefined()
+        expect(env['SECRET_TOKEN']).toBeUndefined()
+        expect(env['MISE_DATA_DIR']).toBeDefined()
+      } finally {
+        process.env = original
+      }
+    })
+
+    it('passes through whitelisted variables', () => {
+      const original = { ...process.env }
+      try {
+        process.env['GITHUB_TOKEN'] = 'ghp_test'
+        process.env['HTTPS_PROXY'] = 'http://proxy:8080'
+
+        const service = new MiseService()
+        ;(service as any).miseBin = '/mock/mise'
+        const env = (service as any).buildIsolatedEnv()
+
+        expect(env['GITHUB_TOKEN']).toBe('ghp_test')
+        expect(env['HTTPS_PROXY']).toBe('http://proxy:8080')
+      } finally {
+        process.env = original
+      }
+    })
+  })
+
+  describe('installBinary wrapper', () => {
+    it('writes wrapper script for npm: backend tools', async () => {
+      const service = new MiseService()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      mockFs.readFileSync.mockImplementation(() => {
+        throw new Error('ENOENT')
+      })
+
+      mockExecFileAsync
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // trust
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // install
+        .mockResolvedValueOnce({ stdout: '1.0.0\n', stderr: '' }) // which --version
+
+      const result = await service.installTool({ name: 'ntn', tool: 'npm:ntn', version: '1.0.0' })
+
+      expect(result.version).toBe('1.0.0')
+      expect(mockFs.copyFileSync).not.toHaveBeenCalled()
+      const writeCall = mockFs.writeFileSync.mock.calls.find(
+        (c: any[]) => typeof c[0] === 'string' && c[0].includes('ntn')
+      )
+      expect(writeCall).toBeDefined()
+      expect(writeCall![1]).toContain('mise')
+      expect(writeCall![1]).toContain('npm:ntn@1.0.0')
     })
   })
 })

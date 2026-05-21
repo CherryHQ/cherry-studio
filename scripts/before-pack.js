@@ -1,5 +1,5 @@
 const { Arch } = require('electron-builder')
-const { execSync } = require('child_process')
+const { execFileSync, execSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
 const { parse, stringify } = require('yaml')
@@ -66,12 +66,8 @@ exports.default = async function (context) {
   }
 
   // Download mise binary for the target platform
-  try {
-    console.log(`Downloading mise binary for ${platform}-${arch}...`)
-    execSync(`node "${path.join(__dirname, 'download-mise-binary.js')}" ${platform} ${arch}`, { stdio: 'inherit' })
-  } catch (error) {
-    console.warn(`Warning: mise binary download failed (non-fatal): ${error.message}`)
-  }
+  console.log(`Downloading mise binary for ${platform}-${arch}...`)
+  execFileSync('node', [path.join(__dirname, 'download-mise-binary.js'), platform, arch], { stdio: 'inherit' })
 
   const downloadPackages = async () => {
     // Skip if target platform and architecture match current system
