@@ -790,11 +790,13 @@ describe('buildClaudeCodeSessionSettings', () => {
     // per-call approval — a namespace wildcard would silently re-include it.
     expect(settings.allowedTools).toContain('mcp__assistant__navigate')
     expect(settings.allowedTools).toContain('mcp__assistant__apply_setting')
+    expect(settings.allowedTools).toContain('mcp__assistant__create_agent')
     expect(settings.allowedTools).not.toContain('mcp__assistant__*')
     expect(settings.allowedTools).not.toContain('mcp__assistant__diagnose')
     const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]
     expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__navigate')
     expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__apply_setting')
+    expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__create_agent')
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__diagnose')
     expect(snapshotOptions.autoAllowRuntimeNamePrefixes ?? []).toEqual([])
   })

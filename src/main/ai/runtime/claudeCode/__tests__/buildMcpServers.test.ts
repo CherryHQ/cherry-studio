@@ -123,7 +123,8 @@ describe('adjustAllowedToolsForMcp', () => {
         'mcp__cherry-tools__kb_search',
         'mcp__cherry-tools__kb_list',
         'mcp__assistant__navigate',
-        'mcp__assistant__apply_setting'
+        'mcp__assistant__apply_setting',
+        'mcp__assistant__create_agent'
       ])
     )
     expect(allowed).not.toContain('mcp__cherry-tools__kb_manage')

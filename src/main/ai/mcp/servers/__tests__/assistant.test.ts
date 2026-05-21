@@ -7,8 +7,13 @@ import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceServi
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  agentCreate: vi.fn(),
   mcpList: vi.fn(),
   providerGetById: vi.fn()
+}))
+
+vi.mock('@data/services/AgentService', () => ({
+  agentService: { createAgent: mocks.agentCreate }
 }))
 
 vi.mock('@data/services/McpServerService', () => ({
@@ -28,9 +33,62 @@ afterEach(() => {
 
 beforeEach(() => {
   MockMainPreferenceServiceUtils.resetMocks()
+  mocks.agentCreate.mockReset()
   mocks.mcpList.mockReset()
   mocks.providerGetById.mockReset()
   mocks.mcpList.mockReturnValue({ items: [] })
+  mocks.agentCreate.mockReturnValue({
+    id: 'agent-created',
+    name: 'Reviewer',
+    model: 'anthropic::claude-sonnet'
+  })
+})
+
+describe('create_agent', () => {
+  it('creates an agent through the v2 data service', async () => {
+    const server = new AssistantServer()
+    const result = await (
+      server as unknown as {
+        createAgent: (args: Record<string, string>) => Promise<{ content: Array<{ text: string }> }>
+      }
+    ).createAgent({
+      name: ' Reviewer ',
+      description: ' Reviews code ',
+      instructions: ' Review Python code. ',
+      model: 'anthropic::claude-sonnet'
+    })
+
+    expect(mocks.agentCreate).toHaveBeenCalledWith({
+      type: 'claude-code',
+      name: 'Reviewer',
+      description: 'Reviews code',
+      instructions: 'Review Python code.',
+      model: 'anthropic::claude-sonnet',
+      configuration: {
+        permission_mode: 'default',
+        max_turns: 100,
+        env_vars: {}
+      }
+    })
+    expect(result.content[0].text).toContain('agent-created')
+  })
+
+  it('rejects legacy single-colon model ids', async () => {
+    const server = new AssistantServer()
+
+    await expect(
+      (
+        server as unknown as {
+          createAgent: (args: Record<string, string>) => Promise<unknown>
+        }
+      ).createAgent({
+        name: 'Reviewer',
+        instructions: 'Review code.',
+        model: 'anthropic:claude-sonnet'
+      })
+    ).rejects.toThrow('providerId::modelId')
+    expect(mocks.agentCreate).not.toHaveBeenCalled()
+  })
 })
 
 describe('isBlockedSourceFile', () => {
