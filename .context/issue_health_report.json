@@ -1,93 +1,103 @@
 {
-  "generated_at": "2026-05-20T00:00:00+00:00",
-  "data_source": "GitHub MCP API — first-100 sample (sorted by updatedAt DESC) + API total count",
-  "total_open_issues": 868,
-  "health_summary": {
-    "note": "Age buckets require full dataset. Sample-100 (most-recently-updated) shows all as 'active'. Full distribution estimated from label patterns.",
-    "active_estimated": 120,
-    "aging_estimated": 150,
-    "stale_estimated": 300,
-    "zombie_estimated": 298,
-    "active_pct_est": "~14%",
-    "aging_pct_est": "~17%",
-    "stale_pct_est": "~35%",
-    "zombie_pct_est": "~34%"
+  "meta": {
+    "generated_at": "2026-05-21",
+    "data_source": "GitHub Search API",
+    "methodology": "Health buckets based on issue updatedAt field relative to 2026-05-21"
   },
-  "unclassified": {
-    "count_estimated": 87,
-    "pct_estimated": "~10%",
-    "sample_unclassified_numbers": [15221, 15220, 15200, 15170, 15169, 15163, 15160, 14893, 14934, 14602],
-    "note": "10 unclassified in first-100 sample; scaled to ~87 for full 868"
-  },
-  "priority_issues": {
-    "p1_count": 0,
-    "note": "No 'P1' label in use. Priority is signaled via BUG label or triage labels.",
-    "p1_equivalent_bugs": [
-      {
-        "number": 9943,
-        "title": "[错误]: MCPB（原DXT）文件导入MCP服务器的相关问题",
-        "labels": ["BUG", "MCP"],
-        "comments": 15,
-        "updatedAt": "2026-05-20"
+  "summary": {
+    "total_open_issues": 878,
+    "health_buckets": {
+      "active_and_aging": {
+        "count": 564,
+        "pct": 64.2,
+        "description": "Updated within last 30 days (2026-04-21 to 2026-05-21)"
       },
-      {
-        "number": 11765,
-        "title": "[Bug]: Provider Support overwrite \"User-Agent\" in Headers",
-        "labels": ["BUG"],
-        "comments": 6
+      "stale": {
+        "count": 310,
+        "pct": 35.3,
+        "description": "Not updated for 30-90 days (2026-02-21 to 2026-04-21)",
+        "note": "Computed as: 314 (not updated since Apr 21) minus 4 zombie"
       },
-      {
-        "number": 14415,
-        "title": "[Bug]: OpenClaw dashboard opens without auth token",
-        "labels": ["BUG", "OpenClaw"],
-        "comments": 2
+      "zombie": {
+        "count": 4,
+        "pct": 0.5,
+        "description": "Not updated for >90 days (before 2026-02-21)",
+        "examples": [
+          "#11578 - Upgrade to MCP protocol 2025-11-25 spec (by DeJeune, MCP label, created 2025-11-30)"
+        ]
       }
-    ]
+    }
   },
-  "triage_needed": {
+  "triage_backlog": {
+    "no_label": 74,
+    "no_label_pct": 8.4,
     "needs_repro": 7,
     "needs_more_info": 2,
-    "needs_triage": 0,
-    "total": 9,
-    "note": "From first-100 sample; scale factor ~8.68x for full issue set"
+    "inactive_tagged": 31,
+    "total_needing_triage": 114,
+    "note": "Many issues tagged 'inactive' are effectively closed-pending; they inflate the open count"
   },
-  "long_open_issues": {
-    "description": "Issues opened 180+ days ago that are still open",
-    "notable": [
-      {"number": 6505,  "title": "[FAQ&反馈]: 划词助手 / Selection Assistant", "opened": "2024-xx-xx", "comments": 358},
-      {"number": 9943,  "title": "[错误]: MCPB DXT文件导入MCP问题", "comments": 15}
-    ]
+  "bug_breakdown": {
+    "total_bug_issues": 109,
+    "sample_health_of_50_bugs": {
+      "active_lt_7d": 8,
+      "aging_7_to_30d": 5,
+      "stale_30_to_90d": 37,
+      "zombie_gt_90d": 0
+    },
+    "note": "74% of sampled bug issues are stale — not updated in 30-90 days"
   },
-  "top_labels_open": {
-    "inactive": 34,
-    "Assistant": 23,
-    "UI/UX": 20,
-    "Models": 18,
-    "MCP": 9,
-    "needs-repro": 7,
-    "help wanted": 7,
-    "discussion": 7,
-    "Performance": 5,
-    "RAG": 5,
-    "Data": 4,
-    "BUG": 3
-  },
-  "closure_health_30d": {
-    "total_closed": 443,
-    "resolved_pct": "25%",
-    "not_planned_pct": "75%",
-    "interpretation": "High not_planned rate driven by inactive-label batch closures (bot sweep in W20 May 2026). Genuine fix rate: ~110 issues resolved in 30 days.",
-    "weekly_close_rate": [
-      {"week": "2026-W19", "closed": 1},
-      {"week": "2026-W20", "closed": 64},
-      {"week": "2026-W21_partial", "closed": 35}
-    ]
-  },
-  "action_items": [
-    "Label the ~87 unclassified open issues",
-    "Review 7 'needs-repro' issues — close stale ones or get reproduction steps",
-    "Consider adding P1/P2 priority labels for structured triage",
-    "Follow up on #9943 (MCPB/DXT import bug, 15 comments, still open)",
-    "Mega-thread #6505 (Selection Assistant FAQ, 358 comments) should be converted to Discussions"
+  "critical_unresolved": [
+    {
+      "number": 9943,
+      "title": "[错误]: MCPB（原DXT）文件导入MCP服务器的相关问题",
+      "age_days": 257,
+      "comments": 15,
+      "labels": ["BUG", "MCP"],
+      "health": "Stale",
+      "action": "Needs owner assignment and resolution"
+    },
+    {
+      "number": 11765,
+      "title": "[Bug]: Provider Support overwrite 'User-Agent' in Headers",
+      "age_days": 163,
+      "comments": 6,
+      "labels": ["BUG", "Models"],
+      "health": "Stale",
+      "action": "Long-standing regression, needs investigation"
+    },
+    {
+      "number": 14248,
+      "title": "[Bug]: App crashes on long response generation",
+      "age_days": 45,
+      "comments": 4,
+      "labels": ["Planned", "Performance", "inactive", "v2"],
+      "health": "Aging",
+      "action": "Planned for v2 — ensure tracked in v2 roadmap"
+    },
+    {
+      "number": 14996,
+      "title": "[Bug]: Agent API 400 errors with Qwen/Gemma local models",
+      "age_days": 9,
+      "comments": 8,
+      "labels": ["needs-repro", "Assistant", "Models"],
+      "health": "Active",
+      "action": "High engagement, needs repro verification soon"
+    },
+    {
+      "number": 15193,
+      "title": "[Bug] API Server crashes after switching model — port conflict",
+      "age_days": 1,
+      "comments": 3,
+      "labels": ["Connectivity"],
+      "health": "Active",
+      "action": "New crash report, high severity — triage immediately"
+    }
+  ],
+  "recommendations": [
+    "Run a batch triage on 310 stale issues — close 'inactive'-tagged ones that have no further activity",
+    "74 no-label issues need classification within 48h of creation",
+    "Bug area stale rate (74%) is too high — consider a bug-bash sprint",
+    "Issue #9943 (MCP import, 257 days, 15 comments) needs a definitive resolution or close-with-explanation"
   ]
 }

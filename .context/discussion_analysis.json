@@ -1,18 +1,85 @@
 {
-  "generated_at": "2026-05-20T00:00:00+00:00",
-  "data_source": "Note: GitHub Discussions GraphQL requires gh CLI or direct API token. This placeholder was generated from MCP-available data. Run `python3 scripts/analyze_discussions.py` after `gh api graphql` to refresh.",
-  "status": "placeholder",
-  "total_discussions": null,
-  "note": "Discussions data unavailable in this run (no gh CLI). The analyze_discussions.py script is ready for environments with gh CLI access.",
-  "known_active_discussion": {
-    "number": 6505,
-    "title": "[FAQ&反馈]: 划词助手 / Selection Assistant",
-    "type": "Issue (mega-thread)",
-    "comments": 358,
-    "note": "Highest-comment thread in the repo — effectively a discussion hub"
+  "meta": {
+    "generated_at": "2026-05-21",
+    "data_source": "GitHub Discussions GraphQL API — not available in this execution environment",
+    "status": "unavailable",
+    "note": "GitHub Discussions GraphQL requires a separate tool not available via the MCP server used in this session. Data below is from the Issues API as a proxy for community engagement."
   },
-  "script_instructions": {
-    "fetch_cmd": "gh api graphql -f query='{ repository(owner: \"CherryHQ\", name: \"cherry-studio\") { discussions(first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { number title category { name } author { login } createdAt updatedAt upvoteCount comments { totalCount } labels(first: 10) { nodes { name } } answer { author { login } createdAt } } } } }' > /tmp/gh_discussions.json",
-    "analyze_cmd": "python3 scripts/analyze_discussions.py"
-  }
+  "community_engagement_proxy": {
+    "note": "Derived from Issues API data as a proxy for discussion health",
+    "top_engaged_issues": [
+      {
+        "number": 9943,
+        "title": "[错误]: MCPB（原DXT）文件导入MCP服务器的相关问题",
+        "comments": 15,
+        "labels": ["BUG", "MCP"],
+        "age_days": 257,
+        "engagement": "high",
+        "language": "zh"
+      },
+      {
+        "number": 14996,
+        "title": "[Bug]: Using Qwen or Gemma local models to create agents — API 400 errors",
+        "comments": 8,
+        "labels": ["needs-repro", "Assistant", "Models"],
+        "age_days": 9,
+        "engagement": "high",
+        "language": "en"
+      },
+      {
+        "number": 11765,
+        "title": "[Bug]: Provider Support overwrite 'User-Agent' in Headers",
+        "comments": 6,
+        "labels": ["BUG", "Models"],
+        "age_days": 163,
+        "engagement": "medium",
+        "language": "en"
+      },
+      {
+        "number": 7455,
+        "title": "[功能]: 自动更新完成后能否将下载的新版本文件清理掉？",
+        "comments": 6,
+        "labels": ["feature", "inactive"],
+        "age_days": 332,
+        "engagement": "medium",
+        "language": "zh"
+      },
+      {
+        "number": 13082,
+        "title": "[Bug]: Frequent lag during normal operations",
+        "comments": 5,
+        "labels": ["BUG", "Planned", "Performance", "v2"],
+        "age_days": 80,
+        "engagement": "medium",
+        "language": "en"
+      }
+    ],
+    "language_distribution_estimate": {
+      "chinese_zh": "~45%",
+      "english_en": "~55%",
+      "note": "Rough estimate based on sampled issue titles"
+    },
+    "hot_feature_requests": [
+      {
+        "number": 15244,
+        "title": "[Feature]: Cherry CLI — Terminal Tool with Full GUI Feature Parity (V2)",
+        "author": "SiinXu",
+        "created_at": "2026-05-21",
+        "reactions_plus1": 2,
+        "note": "Proposed by team member — major feature for v2"
+      }
+    ],
+    "hot_areas_by_label": {
+      "Models": "Most active — 19 open + 21 closed in 30d",
+      "MCP": "Sustained engagement — 10 open, #9943 is oldest high-engagement issue",
+      "Assistant": "Growing — 19 open issues, agent-related bugs increasing",
+      "UI/UX": "High volume — 25 open, mostly cosmetic/UX improvements",
+      "inactive": "Backlog concern — 31 issues tagged inactive still open"
+    }
+  },
+  "action_items": [
+    "Enable Discussions GraphQL access in future sessions for richer analysis",
+    "Close/resolve #9943 (MCP import, 257 days old) — community keeps returning to it",
+    "Address agent API 400 errors (#14996) — 8 comments in 9 days shows user impact"
+  ]
 }

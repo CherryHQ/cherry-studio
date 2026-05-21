@@ -1,203 +1,157 @@
 {
-  "generated_at": "2026-05-20T00:00:00+00:00",
-  "data_source": "GitHub MCP API (100-item pages; totals from API metadata)",
-  "note": "Age buckets computed from first-100 sample (most-recently-updated). Full 868 issues span a wider age range.",
-  "open_issues": {
-    "total": 868,
-    "unclassified_count": 87,
-    "unclassified_pct": "~10.0%",
-    "label_distribution": {
-      "inactive": 34,
-      "Assistant": 23,
-      "UI/UX": 20,
-      "Models": 18,
-      "MCP": 9,
+  "meta": {
+    "generated_at": "2026-05-21",
+    "data_source": "GitHub API via MCP tools",
+    "note": "Issues/PRs health computed from GitHub search queries. Issue health buckets use updatedAt as proxy for activity."
+  },
+  "issues": {
+    "open_total": 878,
+    "no_label_total": 74,
+    "no_label_pct": 8.4,
+    "bug_label_total": 109,
+    "closed_last_30d": 389,
+    "close_rate_per_day": 13.0,
+    "close_outcome_last_30d": {
+      "completed": 25,
+      "not_planned_pct": 75,
+      "completed_pct": 25
+    },
+    "avg_days_to_close_30d": 39.35,
+    "health": {
+      "active_and_aging_lt_30d": 564,
+      "stale_30_to_90d": 310,
+      "zombie_gt_90d": 4,
+      "note": "Active = updated <7d, Aging = 7-30d. Combined here as 564 due to API limitation on 7-day bucket. Stale = 30-90d (314 total not updated since Apr-21) minus 4 zombie."
+    },
+    "label_distribution_top15": {
+      "inactive": 31,
+      "UI/UX": 25,
+      "Models": 19,
+      "Assistant": 19,
+      "MCP": 10,
       "needs-repro": 7,
-      "help wanted": 7,
-      "discussion": 7,
       "Performance": 5,
-      "RAG": 5,
       "Data": 4,
-      "BUG": 3,
-      "feature": 2,
-      "Planned": 2,
+      "BUG": 4,
+      "feature": 3,
+      "help wanted": 3,
+      "discussion": 3,
       "needs-more-info": 2,
       "Connectivity": 1,
-      "prd": 1,
-      "ready-for-dev": 1,
-      "v2": 1,
-      "Blocked: v2": 1
+      "prd": 1
     },
-    "age_buckets_sample100": {
-      "note": "Based on top-100 most-recently-updated issues only",
-      "active": 100,
-      "aging": 0,
-      "stale": 0,
-      "zombie": 0
-    },
-    "p1_issues": [],
-    "p1_note": "No 'P1' label in use. Priority signaled via 'BUG' label (3 issues in sample).",
-    "bug_issues": [
+    "p1_urgent": [
       {
         "number": 9943,
         "title": "[错误]: MCPB（原DXT）文件导入MCP服务器的相关问题",
         "labels": ["BUG", "MCP"],
-        "comments": 15
+        "comments": 15,
+        "age_days": 257,
+        "reason": "Highest comment count, long-standing unresolved MCP import bug"
+      },
+      {
+        "number": 14996,
+        "title": "[Bug]: Using Qwen or Gemma local models to create agents frequently encounters API 400 errors",
+        "labels": ["needs-repro", "Assistant", "Models"],
+        "comments": 8,
+        "age_days": 9,
+        "reason": "High comment velocity, agent creation broken for local models"
       },
       {
         "number": 11765,
-        "title": "[Bug]: Provider Support overwrite \"User-Agent\" in Headers",
-        "labels": ["BUG"],
-        "comments": 6
+        "title": "[Bug]: Provider Support overwrite 'User-Agent' in Headers",
+        "labels": ["BUG", "Models"],
+        "comments": 6,
+        "age_days": 163,
+        "reason": "Long-standing, 6 comments, affects all providers"
       },
       {
-        "number": 14415,
-        "title": "[Bug]: OpenClaw dashboard opens without auth token",
-        "labels": ["BUG", "OpenClaw"],
-        "comments": 2
+        "number": 15193,
+        "title": "[Bug] API Server crashes after switching model — port conflict between API Server",
+        "labels": ["Connectivity"],
+        "comments": 3,
+        "age_days": 1,
+        "reason": "API server crash on model switch, high severity"
+      },
+      {
+        "number": 15209,
+        "title": "[Bug]: Critical Issue: If I upload a PDF and send some text, the PDF is not sent",
+        "labels": ["needs-repro"],
+        "comments": 2,
+        "age_days": 1,
+        "reason": "Self-described critical, file upload regression"
+      },
+      {
+        "number": 14248,
+        "title": "[Bug]: The app crashes when generating long responses",
+        "labels": ["Planned", "Performance", "inactive", "v2"],
+        "comments": 4,
+        "age_days": 45,
+        "reason": "App crash on long responses, planned for v2"
       }
     ],
-    "top_commented": [
-      {"number": 6505,  "title": "[FAQ&反馈]: 划词助手 / Selection Assistant", "comments": 358},
-      {"number": 9943,  "title": "[错误]: MCPB（原DXT）文件导入MCP服务器的相关问题", "comments": 15},
-      {"number": 14996, "title": "[Bug]: Using Qwen or Gemma local models to create agents frequently encounters API 400 errors", "comments": 8},
-      {"number": 11906, "title": "[Feature]: Add video upload support", "comments": 7},
-      {"number": 11765, "title": "[Bug]: Provider Support overwrite \"User-Agent\" in Headers", "comments": 6}
+    "top_commented_issues": [
+      { "number": 9943,  "comments": 15, "title": "[错误]: MCPB（原DXT）文件导入MCP服务器的相关问题" },
+      { "number": 14996, "comments": 8,  "title": "[Bug]: Agent API 400 errors with Qwen/Gemma local models" },
+      { "number": 7455,  "comments": 6,  "title": "[功能]: 自动更新完成后清理下载文件" },
+      { "number": 11765, "comments": 6,  "title": "[Bug]: Provider overwrites User-Agent in Headers" },
+      { "number": 13082, "comments": 5,  "title": "[Bug]: Frequent lag during normal operations" }
     ]
   },
-  "closed_issues_30d": {
-    "total": 443,
-    "items_sampled": 100,
-    "closure_intent": {
-      "not_planned": 75,
-      "completed": 25,
-      "note": "75% closed as 'not_planned' (inactive/invalid); 25% actually resolved"
+  "pull_requests": {
+    "open_total": 325,
+    "open_by_base": {
+      "main": 246,
+      "v2": 74,
+      "other": 5
     },
-    "weekly_close_rate": [
-      {"week": "2026-W19", "count": 1},
-      {"week": "2026-W20", "count": 64},
-      {"week": "2026-W21", "count": 35}
+    "open_age_distribution_sample100": {
+      "lt_7d": 65,
+      "7_to_30d": 35,
+      "gt_30d": 0
+    },
+    "stale_open_prs": 0,
+    "top_authors_sample100": [
+      { "login": "LWWZH",         "open_prs": 14 },
+      { "login": "404-Page-Found","open_prs": 9 },
+      { "login": "DeJeune",       "open_prs": 6 },
+      { "login": "GeorgeDong32",  "open_prs": 6 },
+      { "login": "mturac",        "open_prs": 6 },
+      { "login": "kangfenmao",    "open_prs": 5 }
     ],
-    "label_distribution": {
-      "inactive": 79,
-      "Models": 21,
-      "UI/UX": 16,
-      "help wanted": 11,
-      "discussion": 11,
-      "BUG": 9,
-      "Assistant": 8,
-      "needs-repro": 8,
-      "MCP": 8,
-      "RAG": 5
-    },
-    "top_issues_by_comments": [
-      {"number": 9112,  "title": "[错误]: 升级时，提示Cherry Studio无法关闭，无法升级", "comments": 28},
-      {"number": 12079, "title": "[Bug]: cherry-studio cannot read the file since today", "comments": 15},
-      {"number": 14027, "title": "[Bug]: Aliyun Bailian Agent Mode Failed", "comments": 14}
-    ]
-  },
-  "open_prs": {
-    "total_sampled": 100,
-    "note": "First-page sample; actual total may be higher",
-    "base_branch_distribution": {
-      "main": 63,
-      "v2": 34,
-      "DeJeune/ai-service": 2,
-      "feat/chat-page": 1
-    },
-    "label_distribution": {
-      "v2": 25,
+    "top_labels_sample100": {
+      "v2": 24,
       "Blocked: v2": 3,
       "dependencies": 2,
-      "github_actions": 2,
-      "Dev Team": 1,
-      "WIP": 1,
-      "needs-triage": 1
+      "github_actions": 2
     },
-    "age_buckets": {
-      "fresh_0_7d": 42,
-      "aging_7_30d": 47,
-      "stale_30_90d": 5,
-      "long_running_90d_plus": 6
-    },
-    "long_running_notable": [
-      {"number": 10162, "title": "CherryStudio v2: Data & UI Refactoring", "createdAt": "2025-09-14"},
-      {"number": 10090, "title": "[WIP] feat: terminal", "createdAt": "2025-09-10"},
-      {"number": 10941, "title": "feat: extract selected text with KaTeX support", "createdAt": "2025-10-24"},
-      {"number": 12150, "title": "refactor(files): File Management System Architecture", "createdAt": "2025-12-26"},
-      {"number": 12345, "title": "fix: adding # after custom API to disable suffix not working", "createdAt": "2026-01-07"},
-      {"number": 12659, "title": "feat(backup): add v2 backup system refactor plan document", "createdAt": "2026-01-30"}
-    ]
+    "active_milestone": {
+      "title": "v1.9.7",
+      "open_issues": 11,
+      "notable_pr": "PR #15241 hotfix(ai-diagnosis) by SiinXu — in milestone"
+    }
   },
-  "merged_prs_30d": {
-    "total_merged": 70,
-    "merged_last_7d": 38,
-    "top_contributors": [
-      {"author": "kangfenmao", "count": 10},
-      {"author": "zhangjiadi225", "count": 10},
-      {"author": "DeJeune", "count": 9},
-      {"author": "eeee0717", "count": 7},
-      {"author": "kovsu", "count": 4},
-      {"author": "Cherry-Yiran", "count": 4}
-    ],
-    "base_branch_distribution": {
-      "main": 53,
-      "v2": 33,
-      "feat/chat-page": 10,
-      "DeJeune/ai-service": 3,
-      "DeJeune/agent-runtime": 1
+  "closed_issues_30d": {
+    "total": 389,
+    "items_analyzed": 100,
+    "avg_close_days": 39.35,
+    "median_close_days": 40.68,
+    "daily_close_rate": 12.97,
+    "peak_close_day": { "date": "2026-05-14", "count": 18 },
+    "by_outcome": {
+      "not_planned": 75,
+      "completed": 25
     },
-    "closed_no_merge": 30,
-    "blocked_v2_count": 8
-  },
-  "v2_branch": {
-    "open_prs": {
-      "total": 73,
-      "drafts": 18,
-      "ready": 55,
-      "recent_7d": 15,
-      "recent_30d": 58,
-      "top_contributors": {
-        "DeJeune": 13,
-        "LWWZH": 12,
-        "EurFelux": 11,
-        "404-Page-Found": 6,
-        "kangfenmao": 4,
-        "kovsu": 4,
-        "0xfullex": 3
-      },
-      "label_distribution": {
-        "v2": 54,
-        "Pending": 1,
-        "Blocked: v2": 1,
-        "ready-to-merge": 1
-      }
-    },
-    "merged_prs": {
-      "total_in_sample": 64,
-      "merged_last_7d": 5,
-      "merged_last_30d": 39,
-      "monthly_cadence": {
-        "2026-04": 33,
-        "2026-05": 31
-      },
-      "by_commit_type": {
-        "refactor": 24,
-        "feat": 23,
-        "fix": 8,
-        "docs": 5,
-        "chore": 2,
-        "other": 2
-      },
-      "top_contributors": {
-        "DeJeune": 15,
-        "eeee0717": 11,
-        "kangfenmao": 10,
-        "zhangjiadi225": 8,
-        "vaayne": 7,
-        "jidan745le": 5,
-        "Cherry-Yiran": 4
-      }
+    "top_labels_closed": {
+      "inactive": 79,
+      "Models": 21,
+      "UI/UX": 18,
+      "help wanted": 11,
+      "discussion": 11,
+      "Assistant": 9,
+      "BUG": 9,
+      "needs-repro": 8,
+      "MCP": 8
     }
   }
 }
