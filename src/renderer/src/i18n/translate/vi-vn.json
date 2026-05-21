@@ -3318,6 +3318,7 @@
     "embedding_model_tooltip": "Thêm vào Cài đặt -> Nhà cung cấp mô hình -> Quản lý",
     "enable_tool_use": "Bật sử dụng công cụ",
     "filter": {
+      "by_provider": "Lọc theo nhà cung cấp",
       "by_tag": "Lọc theo thẻ",
       "selected": "Thẻ đã chọn"
     },

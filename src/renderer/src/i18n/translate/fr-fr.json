@@ -3318,6 +3318,7 @@
     "embedding_model_tooltip": "Cliquez sur le bouton Gérer dans Paramètres -> Services de modèles pour ajouter",
     "enable_tool_use": "Appel d'outil",
     "filter": {
+      "by_provider": "Filtrer par fournisseur",
       "by_tag": "Filtrer par étiquette",
       "selected": "Étiquette sélectionnée"
     },

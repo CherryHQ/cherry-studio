@@ -3318,6 +3318,7 @@
     "embedding_model_tooltip": "In Einstellungen -> Modelldienste auf Verwalten klicken zum Hinzufügen",
     "enable_tool_use": "Tool-Aufruf",
     "filter": {
+      "by_provider": "Nach Anbieter filtern",
       "by_tag": "Nach Tag filtern",
       "selected": "Ausgewählte Tags"
     },

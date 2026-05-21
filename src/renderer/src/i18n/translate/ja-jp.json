@@ -3318,6 +3318,7 @@
     "embedding_model_tooltip": "設定->モデルサービス->管理で追加",
     "enable_tool_use": "ツール呼び出し",
     "filter": {
+      "by_provider": "プロバイダーでフィルター",
       "by_tag": "タグでフィルター",
       "selected": "選択済みのタグ"
     },

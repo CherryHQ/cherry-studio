@@ -3318,6 +3318,7 @@
     "embedding_model_tooltip": "Adaugă în Setări->Furnizor Model->Gestionează",
     "enable_tool_use": "Activează utilizarea instrumentelor",
     "filter": {
+      "by_provider": "Filtrează după furnizor",
       "by_tag": "Filtrează după etichetă",
       "selected": "Etichete selectate"
     },

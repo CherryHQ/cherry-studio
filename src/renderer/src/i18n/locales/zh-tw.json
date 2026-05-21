@@ -3318,6 +3318,7 @@
     "embedding_model_tooltip": "在設定 -> 模型服務中點選管理按鈕新增",
     "enable_tool_use": "工具呼叫",
     "filter": {
+      "by_provider": "按服務商篩選",
       "by_tag": "按標籤篩選",
       "selected": "已選標籤"
     },

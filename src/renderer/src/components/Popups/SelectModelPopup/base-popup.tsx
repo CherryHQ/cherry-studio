@@ -30,6 +30,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { useModelTagFilter } from './filters'
+import ProviderFilterSection from './ProviderFilterSection'
 import SelectModelSearchBar from './searchbar'
 import TagFilterSection from './TagFilterSection'
 import type { FlatListItem, FlatListModel } from './types'
@@ -67,6 +68,7 @@ const SelectModelPopupView: React.FC<Props> = ({
   const listRef = useRef<DynamicVirtualListRef>(null)
   const [_searchText, setSearchText] = useState('')
   const searchText = useDeferredValue(_searchText)
+  const [hiddenProviderIds, setHiddenProviderIds] = useState<Set<string>>(new Set())
 
   // 当前选中的模型ID
   const currentModelId = model ? getModelUniqId(model) : ''
@@ -103,13 +105,30 @@ const SelectModelPopupView: React.FC<Props> = ({
     })
   }, [providers, prioritizedProviderIds])
 
+  const visibleProviders = useMemo(
+    () => sortedProviders.filter((provider) => !hiddenProviderIds.has(provider.id)),
+    [sortedProviders, hiddenProviderIds]
+  )
+
+  const toggleProvider = useCallback((providerId: string) => {
+    setHiddenProviderIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(providerId)) {
+        next.delete(providerId)
+      } else {
+        next.add(providerId)
+      }
+      return next
+    })
+  }, [])
+
   // 计算要显示的可用标签列表
   const availableTags = useMemo(() => {
-    const models = sortedProviders.flatMap((provider) => provider.models)
+    const models = visibleProviders.flatMap((provider) => provider.models)
     return objectEntries(getModelTags(models))
       .filter(([, state]) => state)
       .map(([tag]) => tag)
-  }, [sortedProviders])
+  }, [visibleProviders])
 
   // 根据输入的文本筛选模型
   const searchFilter = useCallback(
@@ -180,7 +199,7 @@ const SelectModelPopupView: React.FC<Props> = ({
     const pinnedModelIds = new Set(pinnedModels)
     const finalModelFilter = (model: Model) => !showTagFilter || tagFilter(model)
     const duplicateNamesByProvider = new Map<string, Set<string>>(
-      sortedProviders.map((provider) => [
+      visibleProviders.map((provider) => [
         provider.id,
         getDuplicateModelNames(searchFilter(provider).filter(finalModelFilter))
       ])
@@ -188,7 +207,7 @@ const SelectModelPopupView: React.FC<Props> = ({
 
     // 添加置顶模型分组（仅在无搜索文本时）
     if (searchText.length === 0 && showPinnedModels && pinnedModelIds.size > 0) {
-      const pinnedItems = sortedProviders.flatMap((provider) =>
+      const pinnedItems = visibleProviders.flatMap((provider) =>
         provider.models
           .filter((item) => pinnedModelIds.has(getModelUniqId(item)))
           .filter(finalModelFilter)
@@ -211,7 +230,7 @@ const SelectModelPopupView: React.FC<Props> = ({
     }
 
     // 添加常规模型分组
-    sortedProviders.forEach((provider) => {
+    visibleProviders.forEach((provider) => {
       const filteredModels = searchFilter(provider)
         .filter((item) => !showPinnedModels || searchText.length > 0 || !pinnedModelIds.has(getModelUniqId(item)))
         .filter(finalModelFilter)
@@ -262,7 +281,7 @@ const SelectModelPopupView: React.FC<Props> = ({
     pinnedModels,
     showPinnedModels,
     searchText.length,
-    sortedProviders,
+    visibleProviders,
     showTagFilter,
     tagFilter,
     createModelItem,
@@ -478,6 +497,11 @@ const SelectModelPopupView: React.FC<Props> = ({
       {showTagFilter && (
         <>
           <TagFilterSection availableTags={availableTags} tagSelection={tagSelection} onToggleTag={toggleTag} />
+          <ProviderFilterSection
+            providers={sortedProviders}
+            hiddenProviderIds={hiddenProviderIds}
+            onToggleProvider={toggleProvider}
+          />
           <Divider style={{ margin: 0, borderBlockStartWidth: 0.5 }} />
         </>
       )}

@@ -3318,6 +3318,7 @@
     "embedding_model_tooltip": "Add in Settings->Model Provider->Manage",
     "enable_tool_use": "Enable Tool Use",
     "filter": {
+      "by_provider": "Filter by provider",
       "by_tag": "Filter by tag",
       "selected": "Selected tags"
     },
