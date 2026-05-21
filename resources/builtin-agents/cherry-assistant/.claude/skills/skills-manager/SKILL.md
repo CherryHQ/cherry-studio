@@ -1,9 +1,11 @@
 ---
 name: skills-manager
-description: 搜索、安装和创建 Claude Code Agent Skills。当用户想要搜索技能、安装工具、创建自定义 Skill，或者说"find a skill"、"搜索技能"、"帮我做个 skill"、"create a skill"时触发。也适用于用户说"有没有做 X 的工具"、"我想扩展 Agent 能力"的场景。
+description: **兜底**：通过 npx CLI 管理 Claude Code Agent Skills（搜索/安装/创建）。**仅当当前环境没有 Cherry Studio 的 `mcp__skills__skills` MCP 工具时使用**（如 Cherry Assistant 被复制到 Cherry Studio 外当独立 agent 运行）。在 Cherry Studio 内运行时，**优先用 `cherry-skill-marketplace` skill**——它直通三家 registry、装完自动 enable、UX 更顺。当 `mcp__skills__skills` 调用报错（tool not found），或者用户明确说"用 npx 装"时才触发本 skill。
 ---
 
-# Skills Manager
+# Skills Manager (npx fallback)
+
+> **这是 fallback skill。** 在 Cherry Studio 内使用 Cherry Assistant 时，请优先用 `cherry-skill-marketplace`。本 skill 仅在 MCP 工具不可用时启用。
 
 ## 搜索和安装
 

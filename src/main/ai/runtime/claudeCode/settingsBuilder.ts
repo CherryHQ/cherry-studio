@@ -283,7 +283,7 @@ export async function buildClaudeCodeSessionSettings(
   await prepareClaudeCodeWorkspaceDirectory(session)
 
   // 2. Environment variables
-  const env = await buildEnvironment(provider, agent)
+  const env = await buildEnvironment(provider, agent, cwd)
 
   // 3. Plugins
   const workspacePlugins = await discoverPlugins(cwd, session.agentId)
@@ -531,7 +531,11 @@ function workspacePathErrorMessage(path: string, status: PathStatus): string {
     : t('agent.session.workspace_status.inaccessible', { path })
 }
 
-async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise<Record<string, string | undefined>> {
+async function buildEnvironment(
+  provider: Provider,
+  agent: AgentEntity,
+  workspacePath: string
+): Promise<Record<string, string | undefined>> {
   const loginShellEnv = await getShellEnv()
   const customGitBashPath = isWin ? autoDiscoverGitBash() : null
   const bunPath = await getBinaryPath('bun')
@@ -579,6 +583,7 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
     ENABLE_TOOL_SEARCH: 'auto',
     CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
     CHERRY_STUDIO_BUN_PATH: bunPath,
+    WORKSPACE_ROOT: workspacePath,
     ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
   }
 
@@ -603,6 +608,7 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
       'CHERRY_STUDIO_NODE_PROXY_RULES',
       'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
       'CHERRY_STUDIO_BUN_PATH',
+      'WORKSPACE_ROOT',
       'NODE_OPTIONS',
       '__PROTO__',
       'CONSTRUCTOR',
