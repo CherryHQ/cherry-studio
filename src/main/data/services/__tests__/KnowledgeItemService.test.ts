@@ -9,14 +9,23 @@ import type { FileEntryId } from '@shared/data/types/file'
 import type { CreateKnowledgeItemDto } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceExport, MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 describe('KnowledgeItemService', () => {
   const dbh = setupTestDatabase()
+  const defaultWithWriteTx = MockMainDbServiceExport.dbService.withWriteTx.getMockImplementation()
   let service: KnowledgeItemService
 
+  if (!defaultWithWriteTx) {
+    throw new Error('KnowledgeItemService tests require MockMainDbService.withWriteTx to have a default implementation')
+  }
+
   beforeEach(async () => {
+    vi.mocked(MockMainDbServiceExport.dbService.withWriteTx).mockImplementation(async (fn) =>
+      dbh.db.transaction((tx) => fn(tx))
+    )
     service = new KnowledgeItemService()
     await dbh.db.insert(userProviderTable).values({
       providerId: 'openai',
@@ -46,6 +55,14 @@ describe('KnowledgeItemService', () => {
       searchMode: 'hybrid'
     })
   })
+
+  afterEach(() => {
+    vi.mocked(MockMainDbServiceExport.dbService.withWriteTx).mockImplementation(defaultWithWriteTx)
+  })
+
+  function getWriteTxCallCount() {
+    return MockMainDbServiceUtils.getMockCallCounts().withWriteTx
+  }
 
   async function seedItem(overrides: Partial<typeof knowledgeItemTable.$inferInsert> = {}) {
     const values: typeof knowledgeItemTable.$inferInsert = {
@@ -200,6 +217,7 @@ describe('KnowledgeItemService', () => {
         type: 'directory',
         data: { source: '/tmp/files', path: '/tmp/files' }
       }
+      const beforeWriteTx = getWriteTxCallCount()
 
       const result = await service.create('kb-1', item)
 
@@ -212,6 +230,7 @@ describe('KnowledgeItemService', () => {
         error: null,
         data: item.data
       })
+      expect(getWriteTxCallCount()).toBe(beforeWriteTx + 1)
     })
 
     it('creates a FileManager reference for file knowledge items', async () => {
@@ -576,6 +595,7 @@ describe('KnowledgeItemService', () => {
 
     it('updates processing status and clears stale error fields', async () => {
       const seeded = await seedItem()
+      const beforeWriteTx = getWriteTxCallCount()
 
       const result = await service.updateStatus(seeded.id, 'processing', {
         phase: 'reading'
@@ -592,6 +612,7 @@ describe('KnowledgeItemService', () => {
         phase: 'reading',
         error: null
       })
+      expect(getWriteTxCallCount()).toBe(beforeWriteTx + 2)
     })
 
     it('clears stale phase and error when only status is supplied', async () => {
@@ -686,11 +707,13 @@ describe('KnowledgeItemService', () => {
   describe('delete', () => {
     it('deletes the requested item by id', async () => {
       const seeded = await seedItem()
+      const beforeWriteTx = getWriteTxCallCount()
 
       await expect(service.delete(seeded.id)).resolves.toBeUndefined()
 
       const rows = await dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, seeded.id))
       expect(rows).toHaveLength(0)
+      expect(getWriteTxCallCount()).toBe(beforeWriteTx + 2)
     })
 
     it('cleans file refs when deleting file items', async () => {
@@ -769,6 +792,7 @@ describe('KnowledgeItemService', () => {
         type: 'note',
         data: { source: 'keep me', content: 'keep me' }
       })
+      const beforeWriteTx = getWriteTxCallCount()
 
       await service.deleteLeafDescendantItems('kb-1', ['dir-root'])
 
@@ -776,6 +800,7 @@ describe('KnowledgeItemService', () => {
       expect(remaining.map((r) => r.id)).toEqual(['dir-root', 'other'])
       const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, fileItemId))
       expect(refs).toHaveLength(0)
+      expect(getWriteTxCallCount()).toBe(beforeWriteTx + 1)
     })
 
     it('throws NotFound when deleting a missing knowledge item', async () => {
@@ -799,6 +824,7 @@ describe('KnowledgeItemService', () => {
         data: { source: '/docs', path: '/docs' },
         status: 'processing'
       })
+      const beforeWriteTx = getWriteTxCallCount()
 
       await service.reconcileContainers('kb-1', ['dir-root'])
 
@@ -807,6 +833,7 @@ describe('KnowledgeItemService', () => {
         status: 'completed',
         error: null
       })
+      expect(getWriteTxCallCount()).toBe(beforeWriteTx + 1)
     })
 
     it('marks nested containers completed after leaf descendants are deleted', async () => {

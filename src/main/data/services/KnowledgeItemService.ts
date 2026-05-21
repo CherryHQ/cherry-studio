@@ -8,7 +8,7 @@ import { application } from '@application'
 import { fileRefTable } from '@data/db/schemas/file'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
-import type { DbType } from '@data/db/types'
+import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import type { OffsetPaginationResponse } from '@shared/data/api'
 import { DataApiErrorFactory } from '@shared/data/api'
@@ -33,6 +33,7 @@ const SQLITE_INARRAY_CHUNK = 500
 
 type KnowledgeItemRow = typeof knowledgeItemTable.$inferSelect
 type KnowledgeItemQueryRunner = Pick<DbType, 'all'>
+type KnowledgeItemWriteTx = DbOrTx & KnowledgeItemQueryRunner
 type FileRefInsertDb = Pick<DbType, 'insert'>
 type FileRefDeleteDb = Pick<DbType, 'delete'>
 
@@ -97,6 +98,11 @@ export class KnowledgeItemService {
     return dbService.getDb()
   }
 
+  private async withWriteTx<T>(task: (tx: KnowledgeItemWriteTx) => Promise<T>): Promise<T> {
+    const dbService = application.get('DbService')
+    return dbService.withWriteTx((tx) => task(tx as KnowledgeItemWriteTx))
+  }
+
   async list(baseId: string, query: ListKnowledgeItemsQuery): Promise<OffsetPaginationResponse<KnowledgeItem>> {
     await knowledgeBaseService.getById(baseId)
     const { page, limit, type, groupId } = query
@@ -153,7 +159,7 @@ export class KnowledgeItemService {
   async create(baseId: string, item: CreateKnowledgeItemDto): Promise<KnowledgeItem> {
     await this.validateGroupOwner(baseId, item.groupId)
 
-    const [row] = await this.db.transaction(async (tx) => {
+    const [row] = await this.withWriteTx(async (tx) => {
       const createdRows = await withSqliteErrors(
         () =>
           tx
@@ -367,7 +373,7 @@ export class KnowledgeItemService {
       return
     }
 
-    await this.db.transaction(async (tx) => {
+    await this.withWriteTx(async (tx) => {
       const deletedIds = await this.getDescendantIdsForDb(tx, baseId, uniqueRootIds)
       await cleanupKnowledgeItemFileRefs(tx, deletedIds)
 
@@ -487,7 +493,7 @@ export class KnowledgeItemService {
       })
     }
 
-    const { item, startContainerIds } = await this.db.transaction(async (tx) => {
+    const { item, startContainerIds } = await this.withWriteTx(async (tx) => {
       const [existingRow] = await tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
 
       if (!existingRow) {
@@ -519,7 +525,7 @@ export class KnowledgeItemService {
   }
 
   async reconcileContainers(baseId: string, startContainerIds: Array<string | null | undefined>): Promise<void> {
-    await this.db.transaction(async (tx) => {
+    await this.withWriteTx(async (tx) => {
       const queue = [...new Set(startContainerIds.filter((id): id is string => Boolean(id)))]
       const visited = new Set<string>()
 
@@ -586,7 +592,7 @@ export class KnowledgeItemService {
   }
 
   async delete(id: string): Promise<void> {
-    const deleted = await this.db.transaction(async (tx) => {
+    const deleted = await this.withWriteTx(async (tx) => {
       const [existingRow] = await tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
 
       if (!existingRow) {
