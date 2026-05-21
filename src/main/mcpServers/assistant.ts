@@ -3,9 +3,11 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { themeService } from '@main/services/ThemeService'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
+import { ThemeMode } from '@types'
 import { app } from 'electron'
 
 const logger = loggerService.withContext('MCPServer:Assistant')
@@ -78,6 +80,35 @@ const DIAGNOSE_TOOL: Tool = {
   }
 }
 
+// Whitelist of settings Cherry Assistant can write directly. Each entry maps a
+// `setting` key to its allowed `value` enum. Settings not in this map are
+// rejected — adding a new one requires explicit code change so a destructive
+// or sensitive setting can never be flipped via prompt injection.
+const APPLY_SETTING_ALLOWED: Record<string, readonly string[]> = {
+  theme: [ThemeMode.light, ThemeMode.dark, ThemeMode.system]
+}
+
+const APPLY_SETTING_TOOL: Tool = {
+  name: 'apply_setting',
+  description:
+    'Apply a low-risk Cherry Studio setting change directly (e.g. switch theme). The change takes effect immediately — no further user click required. Only a small whitelist is allowed; destructive operations (clearing data, deleting providers, resetting config) are NEVER exposed here and must still be done by the user in the UI. Currently supported: theme (light|dark|system).',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      setting: {
+        type: 'string',
+        enum: Object.keys(APPLY_SETTING_ALLOWED),
+        description: 'Which setting to change. Currently only "theme" is supported.'
+      },
+      value: {
+        type: 'string',
+        description: 'New value. Must be valid for the chosen setting (theme → light/dark/system).'
+      }
+    },
+    required: ['setting', 'value']
+  }
+}
+
 // Health check cache: { providerId -> { result, timestamp } }
 const healthCache = new Map<string, { result: unknown; timestamp: number }>()
 const HEALTH_CACHE_TTL = 30_000 // 30 seconds
@@ -102,7 +133,7 @@ class AssistantServer {
 
   private setupHandlers() {
     this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [NAVIGATE_TOOL, DIAGNOSE_TOOL]
+      tools: [NAVIGATE_TOOL, DIAGNOSE_TOOL, APPLY_SETTING_TOOL]
     }))
 
     this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -115,6 +146,8 @@ class AssistantServer {
             return await this.navigate(args as Record<string, string | Record<string, string> | undefined>)
           case 'diagnose':
             return await this.diagnose(args)
+          case 'apply_setting':
+            return await this.applySetting(args as Record<string, string | undefined>)
           default:
             throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`)
         }
@@ -160,6 +193,39 @@ class AssistantServer {
     logger.info('Navigate tool called (deferred to user click)', { path: fullPath })
     return {
       content: [{ type: 'text' as const, text: `Navigate link created: ${fullPath}` }]
+    }
+  }
+
+  private async applySetting(args: Record<string, string | undefined>) {
+    const setting = args.setting
+    const value = args.value
+    if (!setting) throw new McpError(ErrorCode.InvalidParams, "'setting' is required for apply_setting")
+    if (!value) throw new McpError(ErrorCode.InvalidParams, "'value' is required for apply_setting")
+
+    const allowedValues = APPLY_SETTING_ALLOWED[setting]
+    if (!allowedValues) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `Setting '${setting}' is not on the apply_setting whitelist. Allowed: ${Object.keys(APPLY_SETTING_ALLOWED).join(', ')}`
+      )
+    }
+    if (!allowedValues.includes(value)) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `Value '${value}' is not valid for setting '${setting}'. Allowed: ${allowedValues.join(', ')}`
+      )
+    }
+
+    switch (setting) {
+      case 'theme':
+        themeService.setTheme(value as ThemeMode)
+        logger.info('apply_setting: theme applied', { value })
+        return {
+          content: [{ type: 'text' as const, text: `Theme switched to ${value}. Change applied immediately.` }]
+        }
+      default:
+        // Unreachable — covered by allowedValues check above
+        throw new McpError(ErrorCode.InvalidParams, `apply_setting handler missing for '${setting}'`)
     }
   }
 
