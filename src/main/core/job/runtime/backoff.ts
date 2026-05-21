@@ -1,4 +1,4 @@
-import type { RetryPolicy } from '@shared/data/api/schemas/jobs'
+import type { RetryPolicy } from '../scheduleTypes'
 
 /**
  * Retry delay in ms for the given attempt number.

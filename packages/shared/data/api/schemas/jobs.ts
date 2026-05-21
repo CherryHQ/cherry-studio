@@ -1,14 +1,15 @@
 /**
- * Jobs / Schedules domain API Schema definitions.
+ * Jobs DataApi schema definitions — read-only surface.
  *
- * Entity schemas live here (Rule C/D in api/README.md). Field atoms,
- * discriminated unions for Trigger / CatchUpPolicy / RetryPolicy, and the
- * Job + JobSchedule snapshots that both the DataApi response and the renderer
- * useJob hook consume.
+ * This file holds only entities the renderer consumes through `useJob` /
+ * `useJobProgress` and via cache values at `jobs.state.${id}` /
+ * `jobs.progress.${id}`. The Job DataApi exposes GET endpoints only;
+ * triggering / cancelling / scheduling jobs is workflow orchestration on
+ * infrastructure and lives in main (`JobManager` + business services).
  *
- * NOTE: Handler runtime types (JobHandler / JobContext / JobMissEvent /
- * JobSettledEvent) are NOT in shared — they belong to main-process internals
- * at src/main/core/job/types.ts. Renderer never instantiates them.
+ * Schedule, Trigger, RetryPolicy, CatchUpPolicy, and `JOB_ERROR_CODES` are
+ * main-process-only types — they do not cross the IPC boundary and live in
+ * `src/main/core/job/scheduleTypes.ts` and `src/main/core/job/errorCodes.ts`.
  */
 
 import * as z from 'zod'
@@ -28,8 +29,8 @@ export const isTerminalStatus = (status: JobStatus): boolean =>
 
 /**
  * Stable error structure crossing the IPC boundary. `code` is an English
- * constant; renderer maps it to a localized message via
- * `t(\`errors.jobs.${code.toLowerCase()}\`, params)`.
+ * constant (see `src/main/core/job/errorCodes.ts`); renderer maps it to a
+ * localized message via `t(\`errors.jobs.${code.toLowerCase()}\`, params)`.
  */
 export const JobErrorSchema = z.strictObject({
   code: z.string(),
@@ -38,55 +39,6 @@ export const JobErrorSchema = z.strictObject({
   retryable: z.boolean()
 })
 export type JobError = z.infer<typeof JobErrorSchema>
-
-// ============================================================================
-// Trigger (discriminated union: cron / interval / once)
-// ============================================================================
-
-export const CronTriggerSchema = z.strictObject({
-  kind: z.literal('cron'),
-  expr: z.string().min(1),
-  timezone: z.string().optional(),
-  /** Stop after N firings (croner maxRuns). For trial/test windows. */
-  limit: z.number().int().min(1).optional()
-})
-
-export const IntervalTriggerSchema = z.strictObject({
-  kind: z.literal('interval'),
-  ms: z.number().int().min(1),
-  anchor: z.enum(['createdAt', 'lastRun']).optional()
-})
-
-export const OnceTriggerSchema = z.strictObject({
-  kind: z.literal('once'),
-  /** Unix ms timestamp at which to fire exactly once. */
-  at: z.number().int().min(0)
-})
-
-export const TriggerSchema = z.discriminatedUnion('kind', [CronTriggerSchema, IntervalTriggerSchema, OnceTriggerSchema])
-export type Trigger = z.infer<typeof TriggerSchema>
-
-// ============================================================================
-// CatchUpPolicy (Phase 1: skip-missed / after-startup; after-idle descoped)
-// ============================================================================
-
-export const CatchUpPolicySchema = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.literal('skip-missed') }),
-  z.strictObject({ kind: z.literal('after-startup'), minutes: z.number().int().min(0) })
-])
-export type CatchUpPolicy = z.infer<typeof CatchUpPolicySchema>
-
-// ============================================================================
-// RetryPolicy
-// ============================================================================
-
-export const RetryPolicySchema = z.strictObject({
-  maxAttempts: z.number().int().min(1),
-  backoff: z.enum(['exponential', 'fixed', 'none']),
-  baseDelayMs: z.number().int().min(0),
-  maxDelayMs: z.number().int().min(0)
-})
-export type RetryPolicy = z.infer<typeof RetryPolicySchema>
 
 // ============================================================================
 // Job entity (renderer-visible snapshot)
@@ -118,26 +70,6 @@ export const JobSnapshotSchema = z.strictObject({
 export type JobSnapshot = z.infer<typeof JobSnapshotSchema>
 
 // ============================================================================
-// JobSchedule entity
-// ============================================================================
-
-export const JobScheduleSnapshotSchema = z.strictObject({
-  id: z.string(),
-  type: z.string(),
-  name: z.string().nullable(),
-  trigger: TriggerSchema,
-  jobInputTemplate: z.unknown(),
-  enabled: z.boolean(),
-  nextRun: z.string().nullable(),
-  lastRun: z.string().nullable(),
-  catchUpPolicy: CatchUpPolicySchema,
-  metadata: z.record(z.string(), z.unknown()),
-  createdAt: z.string(),
-  updatedAt: z.string()
-})
-export type JobScheduleSnapshot = z.infer<typeof JobScheduleSnapshotSchema>
-
-// ============================================================================
 // JobProgress (cache value at jobs.progress.${id}, never DB-persisted)
 // ============================================================================
 
@@ -146,100 +78,6 @@ export const JobProgressSchema = z.strictObject({
   detail: z.unknown().optional()
 })
 export type JobProgress = z.infer<typeof JobProgressSchema>
-
-// ============================================================================
-// DTO schemas (request payloads) — used by DataApi handlers + JobManager IPC
-// ============================================================================
-
-/**
- * Enqueue input. `type` is checked against the runtime handler registry by
- * JobManager.enqueue; the schema only enforces shape. `input` is unknown here
- * because JobRegistry compile-time mapping is main-process only.
- */
-export const EnqueueJobInputSchema = z.strictObject({
-  type: z.string().min(1),
-  input: z.unknown(),
-  queue: z.string().optional(),
-  priority: z.number().int().optional(),
-  idempotencyKey: z.string().optional(),
-  scheduledAt: z
-    .string()
-    .refine((s) => !Number.isNaN(Date.parse(s)), { message: 'scheduledAt must be a parseable ISO timestamp' })
-    .optional(),
-  parentId: z.string().optional(),
-  timeoutMs: z.number().int().min(1).optional(),
-  maxAttempts: z.number().int().min(1).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional()
-})
-export type EnqueueJobDto = z.infer<typeof EnqueueJobInputSchema>
-
-export const CancelJobInputSchema = z.strictObject({
-  /** Max 500 chars; enforced again in JobManager IPC validation. */
-  reason: z.string().max(500).optional()
-})
-export type CancelJobDto = z.infer<typeof CancelJobInputSchema>
-
-/**
- * Name soft-constraint validator. Length 1-200, no control chars, trim
- * surrounding whitespace, no `__` prefix (reserved for system schedules).
- * Allows Unicode (中文/emoji ok) — name is a user-facing label.
- */
-export const JobScheduleNameAtomSchema = z
-  .string()
-  .min(1)
-  .max(200)
-  .refine((s) => s === s.trim(), { message: 'name must be trimmed' })
-  .refine(
-    (s) => {
-      for (let i = 0; i < s.length; i++) {
-        const code = s.charCodeAt(i)
-        if (code === 0 || code === 9 || code === 10 || code === 13) return false
-      }
-      return true
-    },
-    { message: 'name cannot contain control characters (NUL/TAB/LF/CR)' }
-  )
-  .refine((s) => !s.startsWith('__'), { message: 'name cannot start with "__" (reserved)' })
-
-export const CreateJobScheduleInputSchema = z.strictObject({
-  type: z.string().min(1),
-  name: JobScheduleNameAtomSchema.nullable().optional(),
-  trigger: TriggerSchema,
-  jobInputTemplate: z.unknown(),
-  catchUpPolicy: CatchUpPolicySchema,
-  metadata: z.record(z.string(), z.unknown()).optional(),
-  enabled: z.boolean().optional()
-})
-export type CreateJobScheduleDto = z.infer<typeof CreateJobScheduleInputSchema>
-
-export const UpdateJobScheduleInputSchema = z.strictObject({
-  name: JobScheduleNameAtomSchema.nullable().optional(),
-  trigger: TriggerSchema.optional(),
-  jobInputTemplate: z.unknown().optional(),
-  catchUpPolicy: CatchUpPolicySchema.optional(),
-  enabled: z.boolean().optional(),
-  metadata: z.record(z.string(), z.unknown()).optional()
-})
-export type UpdateJobScheduleDto = z.infer<typeof UpdateJobScheduleInputSchema>
-
-// ============================================================================
-// Error codes (constants for JobManager + DataApi handler + renderer i18n)
-// ============================================================================
-
-export const JOB_ERROR_CODES = {
-  UNKNOWN_TYPE: 'JOB_UNKNOWN_TYPE',
-  PAYLOAD_TOO_LARGE: 'JOB_PAYLOAD_TOO_LARGE',
-  CANCEL_REASON_TOO_LONG: 'JOB_CANCEL_REASON_TOO_LONG',
-  SCHEDULE_NOT_FOUND_BY_NAME: 'JOB_SCHEDULE_NOT_FOUND_BY_NAME',
-  SCHEDULE_NAME_REQUIRED: 'JOB_SCHEDULE_NAME_REQUIRED',
-  SCHEDULE_NAME_INVALID: 'JOB_SCHEDULE_NAME_INVALID',
-  SCHEDULE_NAME_CONFLICT: 'JOB_SCHEDULE_NAME_CONFLICT',
-  SCHEDULE_SINGLETON_EXISTS: 'JOB_SCHEDULE_SINGLETON_EXISTS',
-  HANDLER_TIMEOUT: 'JOB_HANDLER_TIMEOUT',
-  HANDLER_THREW: 'JOB_HANDLER_THREW',
-  CANCELLED: 'JOB_CANCELLED'
-} as const
-export type JobErrorCode = (typeof JOB_ERROR_CODES)[keyof typeof JOB_ERROR_CODES]
 
 // ============================================================================
 // API endpoint schemas
@@ -283,9 +121,6 @@ export const ListJobsQuerySchema = z.strictObject({
 /** Input shape (URL query strings). Use {@link ListJobsQuerySchema} to parse. */
 export type ListJobsQueryParams = z.input<typeof ListJobsQuerySchema>
 
-/** DELETE /jobs/:id query — optional `reason` (≤ 500 chars), mirrors body shape. */
-export type CancelJobQueryParams = z.input<typeof CancelJobInputSchema>
-
 export type JobSchemas = {
   '/jobs': {
     /** List jobs, ordered by createdAt DESC. Supports status/queue/type/scheduleId filters and pagination. */
@@ -293,23 +128,12 @@ export type JobSchemas = {
       query?: ListJobsQueryParams
       response: JobSnapshot[]
     }
-    /** Enqueue a job. `type` must match a registered handler in main; payload size ≤ 1MB. */
-    POST: {
-      body: EnqueueJobDto
-      response: JobSnapshot
-    }
   }
   '/jobs/:id': {
     /** Fetch a single job snapshot. 404 if id does not exist. */
     GET: {
       params: { id: string }
       response: JobSnapshot
-    }
-    /** Cancel a job. Idempotent — already-terminal jobs accept but do nothing. */
-    DELETE: {
-      params: { id: string }
-      query?: CancelJobQueryParams
-      response: void
     }
   }
 }

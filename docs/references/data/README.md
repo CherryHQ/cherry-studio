@@ -18,7 +18,7 @@ This is the main entry point for Cherry Studio's data management documentation. 
 
 ### Reference Guides (Coding Standards)
 - [API Design Guidelines](./api-design-guidelines.md) - RESTful design rules
-- [Database Patterns](./database-patterns.md) - DB naming, schema patterns
+- [Database Patterns](./database-patterns.md) - DB naming, schema patterns, [Write Serialization (`withWriteTx`)](./database-patterns.md#write-serialization-dbservicewritewritetx) — required for concurrent write paths to avoid libsql #288 SQLITE_BUSY
 - [API Types](./api-types.md) - API type system, schemas, error handling
 - [Cache Schema Guide](./cache-schema-guide.md) - Adding new cache keys (fixed and template)
 - [Preference Schema Guide](./preference-schema-guide.md) - Adding new preference keys
