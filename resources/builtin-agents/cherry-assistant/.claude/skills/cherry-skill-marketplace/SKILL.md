@@ -99,6 +99,7 @@ description: Cherry Studio 内置 Skill 市场。通过 `mcp__skills__skills` MC
 | 「写个文档 / PRD / README / 纪要」 | `cherry-doc-writer` | **已内置** | 写文档、起草、draft |
 | 「做个 PPT / 演示 / 分享」 | `cherry-web-ppt` | **已内置** | PPT、deck、slides、演示 |
 | 「分析数据 / 看 CSV / 画趋势」 | `cherry-data-analyst` | **已内置** | 数据分析、报表、CSV |
+| 「帮我设置 Claude Code / 推荐自动化」 | `claude-automation-recommender` | **已内置**（Anthropic 官方 `claude-code-setup` 插件） | recommend automations、set up Claude Code、有什么 hook / subagent 推荐 |
 | 「做个网页 / 落地页 / SaaS 主页」 | `web-designer` | marketplace | 落地页、landing |
 | 「做个海报 / 提示词 / 配图」 | `art-director` | marketplace | 海报、提示词、prompt |
 | 「写企业级 PRD（飞书白板 + 图表）」 | `enterprise-prd` | marketplace | 详细 PRD、需求文档 |
