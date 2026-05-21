@@ -67,6 +67,30 @@ export class JobService {
     return rows.map((r) => this.rowToSnapshot(r))
   }
 
+  /**
+   * Total count of jobs matching the same filter shape as `list()`. WHERE
+   * composition mirrors `list()` so `count(f) === list(f).length` when no
+   * pagination is applied.
+   */
+  async count(filter: Omit<JobListFilter, 'limit' | 'offset'> = {}): Promise<number> {
+    const db = this.getDb()
+    const conditions: SQL[] = []
+    if (filter.status?.length) conditions.push(inArray(jobTable.status, filter.status))
+    if (filter.queue) conditions.push(eq(jobTable.queue, filter.queue))
+    if (filter.type) conditions.push(eq(jobTable.type, filter.type))
+    if (filter.scheduleId) conditions.push(eq(jobTable.scheduleId, filter.scheduleId))
+
+    const query = conditions.length
+      ? db
+          .select({ count: count() })
+          .from(jobTable)
+          .where(and(...conditions))
+      : db.select({ count: count() }).from(jobTable)
+
+    const [r] = await query
+    return r?.count ?? 0
+  }
+
   async getById(id: string): Promise<JobSnapshot | null> {
     const [row] = await this.getDb().select().from(jobTable).where(eq(jobTable.id, id)).limit(1)
     return row ? this.rowToSnapshot(row) : null

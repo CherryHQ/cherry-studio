@@ -220,7 +220,7 @@ export class Application {
         }
         logger.error('Background phase failed:', err)
       })
-      await this.lifecycleManager.allReady()
+      this.lifecycleManager.allReady()
     } catch (error) {
       if (error instanceof ServiceInitError) {
         await this.handleFatalServiceError(error)
