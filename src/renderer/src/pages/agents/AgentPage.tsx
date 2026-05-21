@@ -39,6 +39,7 @@ const AgentPage = () => {
   const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const lastRecordedRecentSessionRef = useRef<string | undefined>(undefined)
   const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
+  const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const sessionRevealRequestIdRef = useRef(0)
   const initialTemporarySessionEvaluatedRef = useRef(false)
   const [replacingTemporaryAgent, setReplacingTemporaryAgent] = useState(false)
@@ -108,12 +109,21 @@ const AgentPage = () => {
   )
 
   useEffect(() => {
-    const unsubscribe = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION, (sessionId) => {
+    const unsubscribeSession = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION, (sessionId) => {
+      setPendingLocateMessageId(undefined)
       handleHistorySessionSelect(sessionId as string)
+    })
+    const unsubscribeMessage = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE, (payload) => {
+      const { messageId, sessionId } = payload as { messageId?: string; sessionId?: string }
+      if (!sessionId || !messageId) return
+
+      setPendingLocateMessageId(messageId)
+      handleHistorySessionSelect(sessionId)
     })
 
     return () => {
-      unsubscribe()
+      unsubscribeSession()
+      unsubscribeMessage()
     }
   }, [handleHistorySessionSelect])
 
@@ -275,6 +285,10 @@ const AgentPage = () => {
       temporaryAgentConversation
     ]
   )
+  const handleLocateMessageHandled = useCallback(() => {
+    setPendingLocateMessageId(undefined)
+  }, [])
+
   const historyOverlay = (
     <HistoryRecordsPage
       mode="agent"
@@ -323,6 +337,8 @@ const AgentPage = () => {
           onDraftWorkspaceChange={replaceTemporaryWorkspace}
           onVisibleAgentChange={setLastUsedAgentId}
           onVisibleWorkspaceChange={setLastUsedWorkspaceId}
+          locateMessageId={pendingLocateMessageId}
+          onLocateMessageHandled={handleLocateMessageHandled}
           replacingTemporaryAgent={replacingTemporaryAgent}
           replacingTemporaryWorkspace={replacingTemporaryWorkspace}
         />

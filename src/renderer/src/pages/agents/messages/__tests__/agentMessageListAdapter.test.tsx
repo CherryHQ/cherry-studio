@@ -56,6 +56,10 @@ const headerCapabilitiesMock = vi.hoisted(() => ({
   openUserProfile: vi.fn()
 }))
 const navigateMock = vi.hoisted(() => vi.fn())
+const eventMocks = vi.hoisted(() => ({
+  emit: vi.fn(),
+  on: vi.fn(() => vi.fn())
+}))
 
 vi.mock('@data/hooks/useCache', () => ({
   useCache: (key: string) => {
@@ -152,6 +156,13 @@ vi.mock('@renderer/pages/shared/messages/hooks/useMessageHeaderCapabilities', ()
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock
+}))
+
+vi.mock('@renderer/services/EventService', () => ({
+  EVENT_NAMES: {
+    LOCATE_MESSAGE: 'LOCATE_MESSAGE'
+  },
+  EventEmitter: eventMocks
 }))
 
 const { useAgentMessageListProviderValue } = await import('../agentMessageListAdapter')
@@ -302,12 +313,53 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.openPath).toEqual(expect.any(Function))
     expect(value?.actions.showInFolder).toEqual(expect.any(Function))
     expect(value?.actions.abortTool).toEqual(expect.any(Function))
+    expect(value?.actions.bindRuntime).toEqual(expect.any(Function))
+    expect(value?.actions.bindMessageRuntime).toEqual(expect.any(Function))
+    expect(value?.actions.bindMessageGroupRuntime).toEqual(expect.any(Function))
+    expect(value?.actions.locateMessage).toEqual(expect.any(Function))
 
     value?.actions.navigateToRoute?.({ path: '/settings/provider', query: { id: 'provider-1' } })
     expect(navigateMock).toHaveBeenCalledWith({
       to: '/settings/provider',
       search: { id: 'provider-1' }
     })
+
+    const locateMessage = vi.fn()
+    const startEditing = vi.fn()
+    const unbindMessageRuntime = value?.actions.bindMessageRuntime?.('assistant-1', { locateMessage, startEditing })
+    expect(eventMocks.on).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', locateMessage)
+    unbindMessageRuntime?.()
+
+    const locateMessageGroup = vi.fn()
+    value?.actions.bindMessageGroupRuntime?.(['user-1', 'assistant-1'], { locateMessage: locateMessageGroup })
+    expect(eventMocks.on).toHaveBeenCalledWith('LOCATE_MESSAGE:user-1', expect.any(Function))
+    expect(eventMocks.on).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', expect.any(Function))
+
+    const listLocateMessage = vi.fn()
+    const unbindRuntime = value?.actions.bindRuntime?.({
+      scrollToBottom: vi.fn(),
+      locateMessage: listLocateMessage,
+      copyTopicImage: vi.fn(),
+      exportTopicImage: vi.fn()
+    })
+
+    vi.useFakeTimers()
+    try {
+      eventMocks.emit.mockClear()
+      value?.actions.locateMessage?.('assistant-1', true)
+      expect(listLocateMessage).toHaveBeenCalledWith('assistant-1')
+      expect(eventMocks.emit).not.toHaveBeenCalled()
+
+      vi.advanceTimersByTime(100)
+      expect(eventMocks.emit).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', true)
+    } finally {
+      vi.useRealTimers()
+      unbindRuntime?.()
+    }
+
+    eventMocks.emit.mockClear()
+    value?.actions.locateMessage?.('assistant-1', true)
+    expect(eventMocks.emit).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', true)
   })
 
   it('does not expose selected delete action without delete capability', () => {

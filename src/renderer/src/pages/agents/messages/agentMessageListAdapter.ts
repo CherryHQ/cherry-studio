@@ -1,9 +1,12 @@
 import { hasPartParentToolCallId } from '@renderer/components/chat/messages/tools/toolParentMetadata'
 import type {
+  MessageGroupRuntime,
   MessageListActions,
   MessageListMeta,
   MessageListProviderValue,
-  MessageListState
+  MessageListRuntime,
+  MessageListState,
+  MessageRuntime
 } from '@renderer/components/chat/messages/types'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { useMessageActivityState } from '@renderer/pages/shared/messages/hooks/useMessageActivityState'
@@ -22,10 +25,29 @@ import {
   pickMessageLeafActions,
   pickMessageLeafState
 } from '@renderer/pages/shared/messages/messageListProviderBuilder'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useMemo } from 'react'
+
+const LOCATE_MESSAGE_HIGHLIGHT_DELAY_MS = 100
+
+const agentMessageListRuntimes = new Map<string, MessageListRuntime>()
+
+export function locateAgentMessageInList(topicId: string, messageId: string, highlight?: boolean): boolean {
+  const runtime = agentMessageListRuntimes.get(topicId)
+  if (!runtime) {
+    void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, highlight)
+    return false
+  }
+
+  runtime.locateMessage(messageId)
+  window.setTimeout(() => {
+    void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, highlight)
+  }, LOCATE_MESSAGE_HIGHLIGHT_DELAY_MS)
+  return true
+}
 
 interface AgentMessageListParams {
   topic: Topic
@@ -120,6 +142,40 @@ export function useAgentMessageListProviderValue({
     [navigate]
   )
 
+  const bindRuntime = useCallback(
+    (runtime: MessageListRuntime) => {
+      agentMessageListRuntimes.set(topic.id, runtime)
+
+      return () => {
+        if (agentMessageListRuntimes.get(topic.id) === runtime) {
+          agentMessageListRuntimes.delete(topic.id)
+        }
+      }
+    },
+    [topic.id]
+  )
+
+  const bindMessageRuntime = useCallback((messageId: string, runtime: MessageRuntime) => {
+    const unsubscribes = [EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, runtime.locateMessage)]
+
+    return () => unsubscribes.forEach((unsub) => unsub())
+  }, [])
+
+  const bindMessageGroupRuntime = useCallback((messageIds: string[], runtime: MessageGroupRuntime) => {
+    const unsubscribes = messageIds.map((messageId) =>
+      EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, () => runtime.locateMessage(messageId))
+    )
+
+    return () => unsubscribes.forEach((unsub) => unsub())
+  }, [])
+
+  const locateMessage = useCallback(
+    (messageId: string, highlight?: boolean) => {
+      locateAgentMessageInList(topic.id, messageId, highlight)
+    },
+    [topic.id]
+  )
+
   const state = useMemo<MessageListState>(
     () => ({
       topic,
@@ -162,6 +218,7 @@ export function useAgentMessageListProviderValue({
   const actions = useMemo<MessageListActions>(
     () => ({
       loadOlder,
+      bindRuntime,
       deleteMessage,
       ...exportActions,
       ...errorActions,
@@ -175,12 +232,18 @@ export function useAgentMessageListProviderValue({
       openAgentToolFlow,
       showInFolder,
       abortTool,
+      bindMessageRuntime,
+      bindMessageGroupRuntime,
+      locateMessage,
       ...selectionController.actions,
       updateMessageUiState: messageUiStateCache.updateMessageUiState,
       updateRenderConfig
     }),
     [
       abortTool,
+      bindRuntime,
+      bindMessageGroupRuntime,
+      bindMessageRuntime,
       deleteMessage,
       editorCapabilities,
       errorActions,
@@ -189,6 +252,7 @@ export function useAgentMessageListProviderValue({
       leafCapabilities,
       navigateToRoute,
       loadOlder,
+      locateMessage,
       messageUiStateCache.updateMessageUiState,
       openCitationsPanel,
       openAgentToolFlow,
