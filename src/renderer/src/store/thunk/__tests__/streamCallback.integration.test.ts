@@ -86,6 +86,7 @@ vi.mock('@renderer/config/models', async (importOriginal) => {
       ollama: [],
       'new-api': [],
       lmstudio: [],
+      'atomic-chat': [],
       anthropic: [],
       openai: [],
       'azure-openai': [],

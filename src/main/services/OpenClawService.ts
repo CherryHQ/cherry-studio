@@ -95,7 +95,8 @@ const OPENCLAW_API_TYPES = {
  */
 const NO_KEY_PLACEHOLDERS: Record<string, string> = {
   ollama: 'ollama',
-  lmstudio: 'lmstudio'
+  lmstudio: 'lmstudio',
+  'atomic-chat': 'atomic-chat'
 }
 
 /**

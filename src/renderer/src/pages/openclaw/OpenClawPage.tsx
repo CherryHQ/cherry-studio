@@ -89,8 +89,8 @@ const OpenClawPage: FC = () => {
   const [uninstallSuccess, setUninstallSuccess] = useState(false)
   const [isOpenClawUpdating, setIsOpenClawUpdating] = useState(false)
 
-  const noApiKeyProviders = ['ollama', 'lmstudio', 'gpustack']
-  const availableProviders = providers.filter((p) => p.enabled && (p.apiKey || noApiKeyProviders.includes(p.type)))
+  const noApiKeyProviders = ['ollama', 'lmstudio', 'gpustack', 'atomic-chat']
+  const availableProviders = providers.filter((p) => p.enabled && (p.apiKey || noApiKeyProviders.includes(p.id)))
 
   const selectedModelInfo = useMemo(() => {
     if (!selectedModelUniqId) return null

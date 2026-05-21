@@ -3373,13 +3373,16 @@ const migrateConfig = {
     try {
       localStorage.setItem('onboarding-completed', 'true')
 
-      // Add anthropicApiHost to lmstudio and ollama providers for CodeTools compatibility
+      // Add anthropicApiHost to local OpenAI-compatible providers for CodeTools compatibility
       state.llm.providers.forEach((provider) => {
         if (provider.id === 'lmstudio' && !provider.anthropicApiHost) {
           provider.anthropicApiHost = 'http://localhost:1234'
         }
         if (provider.id === 'ollama' && !provider.anthropicApiHost) {
           provider.anthropicApiHost = provider.apiHost || 'http://localhost:11434'
+        }
+        if (provider.id === 'atomic-chat' && !provider.anthropicApiHost) {
+          provider.anthropicApiHost = 'http://127.0.0.1:1337'
         }
       })
 
@@ -3410,6 +3413,23 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 206 error', error as Error)
+      return state
+    }
+  },
+  '207': (state: RootState) => {
+    try {
+      addProvider(state, 'atomic-chat')
+
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'atomic-chat' && !provider.anthropicApiHost) {
+          provider.anthropicApiHost = 'http://127.0.0.1:1337'
+        }
+      })
+
+      logger.info('migrate 207 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 207 error', error as Error)
       return state
     }
   }

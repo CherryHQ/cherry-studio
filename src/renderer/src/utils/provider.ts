@@ -67,6 +67,7 @@ export const isSupportStreamOptionsProvider = (provider: Provider) => {
 const NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER = [
   'ollama',
   'lmstudio',
+  'atomic-chat',
   'nvidia',
   'gpustack'
 ] as const satisfies SystemProviderId[]
@@ -184,6 +185,7 @@ export const isSupportAPIVersionProvider = (provider: Provider) => {
 export const NOT_SUPPORT_API_KEY_PROVIDERS: readonly SystemProviderId[] = [
   'ollama',
   'lmstudio',
+  'atomic-chat',
   'vertexai',
   'aws-bedrock',
   'copilot'

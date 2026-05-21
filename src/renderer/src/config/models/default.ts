@@ -256,6 +256,7 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ovms: [],
   ollama: [],
   lmstudio: [],
+  'atomic-chat': [],
   silicon: [
     {
       id: 'deepseek-ai/DeepSeek-V3.2',
