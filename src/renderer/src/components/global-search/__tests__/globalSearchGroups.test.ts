@@ -288,4 +288,48 @@ describe('globalSearchGroups', () => {
       })
     )
   })
+
+  it('orders messages from oldest to newest within each message search group', () => {
+    const groups = buildGlobalMessageSearchGroups({
+      expandedParentIds: new Set(['topic:topic-1']),
+      items: [
+        {
+          sourceType: 'topic',
+          messageId: 'message-late',
+          topicId: 'topic-1',
+          topicName: 'Topic',
+          topicCreatedAt: '2026-01-01T00:00:00.000Z',
+          topicUpdatedAt: '2026-01-01T00:00:00.000Z',
+          snippet: 'Late snippet',
+          createdAt: '2026-01-01T00:00:30.000Z'
+        },
+        {
+          sourceType: 'topic',
+          messageId: 'message-early',
+          topicId: 'topic-1',
+          topicName: 'Topic',
+          topicCreatedAt: '2026-01-01T00:00:00.000Z',
+          topicUpdatedAt: '2026-01-01T00:00:00.000Z',
+          snippet: 'Early snippet',
+          createdAt: '2026-01-01T00:00:10.000Z'
+        },
+        {
+          sourceType: 'topic',
+          messageId: 'message-middle',
+          topicId: 'topic-1',
+          topicName: 'Topic',
+          topicCreatedAt: '2026-01-01T00:00:00.000Z',
+          topicUpdatedAt: '2026-01-01T00:00:00.000Z',
+          snippet: 'Middle snippet',
+          createdAt: '2026-01-01T00:00:20.000Z'
+        }
+      ]
+    })
+
+    expect(
+      groups[0]?.items
+        .filter((item) => item.kind === 'message')
+        .map((item) => (item.kind === 'message' ? item.result.messageId : item.id))
+    ).toEqual(['message-early', 'message-middle', 'message-late'])
+  })
 })

@@ -361,8 +361,8 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
         ? (sessionMessageData?.items ?? []).map((item) => ({ ...item, sourceType: 'session' as const }))
         : [])
     ].sort((a, b) => {
-      const timeA = Date.parse(a.createdAt) || 0
-      const timeB = Date.parse(b.createdAt) || 0
+      const timeA = dayjs(a.createdAt).valueOf() || 0
+      const timeB = dayjs(b.createdAt).valueOf() || 0
       if (timeA !== timeB) return timeB - timeA
       if (a.sourceType !== b.sourceType) return a.sourceType === 'topic' ? -1 : 1
       return b.messageId.localeCompare(a.messageId)

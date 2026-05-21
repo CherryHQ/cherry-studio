@@ -3,6 +3,7 @@ import type { SearchMessageResult } from '@shared/data/api/schemas/messages'
 import type { AgentSessionEntity, SessionSearchMessageResult } from '@shared/data/api/schemas/sessions'
 import type { GlobalSearchRecentEntry, Tab } from '@shared/data/cache/cacheValueTypes'
 import type { Topic } from '@types'
+import dayjs from 'dayjs'
 
 export const GLOBAL_SEARCH_RECENT_ITEM_LIMIT = 20
 export const GLOBAL_SEARCH_DISPLAY_RECENT_LIMIT = 6
@@ -284,9 +285,15 @@ export function buildGlobalMessageSearchGroups({
 
   return Array.from(groupsByParent.entries()).map(([parentId, group]) => {
     const expanded = expandedParentIds.has(parentId)
+    const orderedResults = [...group.results].sort((a, b) => {
+      const timeA = dayjs(a.createdAt).valueOf() || 0
+      const timeB = dayjs(b.createdAt).valueOf() || 0
+      if (timeA !== timeB) return timeA - timeB
+      return a.messageId.localeCompare(b.messageId)
+    })
     const visibleResults = expanded
-      ? group.results
-      : group.results.slice(0, GLOBAL_MESSAGE_SEARCH_GROUP_COLLAPSED_LIMIT)
+      ? orderedResults
+      : orderedResults.slice(0, GLOBAL_MESSAGE_SEARCH_GROUP_COLLAPSED_LIMIT)
     const items: GlobalMessageSearchPanelItem[] = visibleResults.map((result) => ({
       kind: 'message',
       id: `${parentId}:${result.messageId}`,

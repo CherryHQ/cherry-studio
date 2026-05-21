@@ -968,14 +968,14 @@ describe('GlobalSearchPanel', () => {
 
     expect(await screen.findByText('Topic A')).toBeInTheDocument()
     expect(screen.getAllByText('JD')).not.toHaveLength(0)
-    expect(screen.getByRole('option', { name: /needle message one/ })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.queryByRole('option', { name: /needle message four/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /needle message four/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByRole('option', { name: /needle message one/ })).not.toBeInTheDocument()
 
     await user.keyboard('{ArrowUp}')
     expect(screen.getByRole('option', { name: 'Show 1 more results' })).toHaveAttribute('aria-selected', 'true')
     await user.keyboard('{Enter}')
 
-    expect(screen.getByRole('option', { name: /needle message four/ })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /needle message one/ })).toBeInTheDocument()
   })
 
   it('opens a topic message preview before locating the selected message', async () => {
