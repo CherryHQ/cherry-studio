@@ -28,6 +28,7 @@
     "max_turns": 100,
     "soul_enabled": true,
     "bootstrap_completed": true,
+    "builtin_role": "assistant",
     "env_vars": {}
   },
   "skills": [
