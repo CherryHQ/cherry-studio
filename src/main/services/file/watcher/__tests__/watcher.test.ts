@@ -69,9 +69,8 @@ describe('createDirectoryWatcher', () => {
 
     const w = createDirectoryWatcher(dir as FilePath, { stabilityThresholdMs: 0 })
     await waitForReady(w)
-    const eventPromise = waitForEvent(w, (e) => e.kind === 'add' && e.path === target)
     await writeFile(target, 'hello')
-    const ev = await eventPromise
+    const ev = await waitForEvent(w, (e) => e.kind === 'add' && e.path === target)
     expect(ev.kind).toBe('add')
     expect(
       await danglingCache.check({
@@ -97,9 +96,8 @@ describe('createDirectoryWatcher', () => {
 
     const w = createDirectoryWatcher(dir as FilePath, { stabilityThresholdMs: 0 })
     await waitForReady(w)
-    const eventPromise = waitForEvent(w, (e) => e.kind === 'unlink' && e.path === target)
     await rm(target)
-    const ev = await eventPromise
+    const ev = await waitForEvent(w, (e) => e.kind === 'unlink' && e.path === target)
     expect(ev.kind).toBe('unlink')
     expect(
       await danglingCache.check({
@@ -127,14 +125,12 @@ describe('createDirectoryWatcher', () => {
     await waitForReady(w)
 
     // First write registers the file (fires 'add'); second write fires 'change'.
-    const addPromise = waitForEvent(w, (e) => e.kind === 'add' && e.path === target, 8000)
     await writeFile(target, 'v1')
-    await addPromise
+    await waitForEvent(w, (e) => e.kind === 'add' && e.path === target, 8000)
     // Brief settle so chokidar's awaitWriteFinish window closes on the add.
     await new Promise((r) => setTimeout(r, 250))
-    const changePromise = waitForEvent(w, (e) => e.kind === 'change' && e.path === target, 8000)
     await writeFile(target, 'v2-content-larger')
-    const ev = await changePromise
+    const ev = await waitForEvent(w, (e) => e.kind === 'change' && e.path === target, 8000)
     expect(ev.kind).toBe('change')
     await w.close()
   })
@@ -175,11 +171,10 @@ describe('createDirectoryWatcher', () => {
 
       const w = createDirectoryWatcher(dir as FilePath, { stabilityThresholdMs: 0 })
       await waitForReady(w)
-      const eventPromise = waitForEvent(w, (e) => e.kind === 'add' && e.path?.endsWith('.txt'))
       await writeFile(writtenPath, 'hello')
       // The emitted event still carries the raw OS path (NFD) — the cache leg
       // alone is normalized, so external subscribers see what the FS sees.
-      const ev = await eventPromise
+      const ev = await waitForEvent(w, (e) => e.kind === 'add' && e.path?.endsWith('.txt'))
       if (ev.kind !== 'add') throw new Error('expected add event')
       expect(ev.path).toBe(writtenPath)
 
