@@ -8,12 +8,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   agentCreate: vi.fn(),
+  setLaunchOnBoot: vi.fn(),
   mcpList: vi.fn(),
   providerGetById: vi.fn()
 }))
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: { createAgent: mocks.agentCreate }
+}))
+
+vi.mock('@main/services/AppService', () => ({
+  appService: { setAppLaunchOnBoot: mocks.setLaunchOnBoot }
 }))
 
 vi.mock('@data/services/McpServerService', () => ({
@@ -34,6 +39,7 @@ afterEach(() => {
 beforeEach(() => {
   MockMainPreferenceServiceUtils.resetMocks()
   mocks.agentCreate.mockReset()
+  mocks.setLaunchOnBoot.mockReset()
   mocks.mcpList.mockReset()
   mocks.providerGetById.mockReset()
   mocks.mcpList.mockReturnValue({ items: [] })
@@ -41,6 +47,37 @@ beforeEach(() => {
     id: 'agent-created',
     name: 'Reviewer',
     model: 'anthropic::claude-sonnet'
+  })
+})
+
+describe('apply_setting', () => {
+  async function applySetting(args: Record<string, string>) {
+    const server = new AssistantServer()
+    return await (
+      server as unknown as {
+        applySetting: (input: Record<string, string>) => Promise<{ content: Array<{ text: string }> }>
+      }
+    ).applySetting(args)
+  }
+
+  it('updates the v2 theme preference', async () => {
+    await applySetting({ setting: 'theme', value: 'dark' })
+
+    expect(MockMainPreferenceServiceUtils.getPreferenceValue('ui.theme_mode')).toBe('dark')
+  })
+
+  it('registers launch-on-boot with the OS and persists the preference', async () => {
+    await applySetting({ setting: 'launch_on_boot', value: 'true' })
+
+    expect(mocks.setLaunchOnBoot).toHaveBeenCalledWith(true)
+    expect(MockMainPreferenceServiceUtils.getPreferenceValue('app.launch_on_boot')).toBe(true)
+  })
+
+  it('rejects values outside the setting whitelist', async () => {
+    await expect(applySetting({ setting: 'launch_on_boot', value: 'yes' })).rejects.toThrow(
+      "Value 'yes' is not valid"
+    )
+    expect(mocks.setLaunchOnBoot).not.toHaveBeenCalled()
   })
 })
 

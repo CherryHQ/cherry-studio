@@ -7,6 +7,7 @@ import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
+import { appService } from '@main/services/AppService'
 import { redactUrlToOrigin } from '@main/utils/redactUrl'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
@@ -128,12 +129,47 @@ const DIAGNOSE_TOOL: Tool = {
   }
 }
 
-// Whitelist of settings Cherry Assistant can write directly. Each entry maps a
-// `setting` key to its allowed `value` enum. Settings not in this map are
-// rejected — adding a new one requires explicit code change so a destructive
-// or sensitive setting can never be flipped via prompt injection.
-const APPLY_SETTING_ALLOWED: Record<string, readonly string[]> = {
-  theme: [ThemeMode.light, ThemeMode.dark, ThemeMode.system]
+// Whitelist of settings Cherry Assistant can write directly. Each entry binds
+// a `setting` key to a value validator and an `apply` function that performs
+// the write. Settings not in this map are rejected — adding a new one
+// requires explicit code change so a destructive or sensitive setting can
+// never be flipped via prompt injection.
+//
+// All booleans are passed as the string 'true' / 'false' (MCP tool inputs
+// are JSON Schema strings); the handler parses them. Returns the message
+// shown back to the agent (and through it, the user).
+interface ApplySettingEntry {
+  allowed: readonly string[]
+  apply: (value: string) => Promise<string> | string
+  /** Human-readable hint shown in the tool description. */
+  hint: string
+}
+
+const BOOL_VALUES: readonly string[] = ['true', 'false']
+const parseBool = (v: string) => v === 'true'
+
+// Only settings whose change is observable to the user without an app restart
+// are listed here. Restart-required or background-only persisted toggles were
+// audited and deliberately excluded — see Cherry Assistant PR for the matrix.
+const APPLY_SETTING_REGISTRY: Record<string, ApplySettingEntry> = {
+  theme: {
+    allowed: [ThemeMode.light, ThemeMode.dark, ThemeMode.system],
+    hint: 'theme: light | dark | system',
+    apply: async (value) => {
+      await application.get('PreferenceService').set('ui.theme_mode', value as ThemeMode)
+      return `Theme switched to ${value}.`
+    }
+  },
+  launch_on_boot: {
+    allowed: BOOL_VALUES,
+    hint: 'launch_on_boot: true | false (register/unregister Cherry Studio as an OS login item — effect on next OS boot)',
+    apply: async (value) => {
+      const enabled = parseBool(value)
+      await appService.setAppLaunchOnBoot(enabled)
+      await application.get('PreferenceService').set('app.launch_on_boot', enabled)
+      return `Launch-on-boot ${enabled ? 'enabled' : 'disabled'}. Registered with the OS — takes effect at next system boot.`
+    }
+  }
 }
 
 const CREATE_AGENT_TOOL: Tool = {
@@ -174,19 +210,23 @@ The tool returns the new agent id. After creation, call mcp__assistant__navigate
 
 const APPLY_SETTING_TOOL: Tool = {
   name: 'apply_setting',
-  description:
-    'Apply a low-risk Cherry Studio setting change directly (e.g. switch theme). The change takes effect immediately — no further user click required. Only a small whitelist is allowed; destructive operations (clearing data, deleting providers, resetting config) are NEVER exposed here and must still be done by the user in the UI. Currently supported: theme (light|dark|system).',
+  description: `Apply a low-risk Cherry Studio setting change directly. Only the whitelist below is supported; destructive operations are never exposed here.
+
+Supported settings:
+${Object.values(APPLY_SETTING_REGISTRY)
+  .map((entry) => `- ${entry.hint}`)
+  .join('\n')}`,
   inputSchema: {
     type: 'object',
     properties: {
       setting: {
         type: 'string',
-        enum: Object.keys(APPLY_SETTING_ALLOWED),
-        description: 'Which setting to change. Currently only "theme" is supported.'
+        enum: Object.keys(APPLY_SETTING_REGISTRY),
+        description: 'Which setting to change.'
       },
       value: {
         type: 'string',
-        description: 'New value. Must be valid for the chosen setting (theme → light/dark/system).'
+        description: 'New value. For booleans use the literal string "true" or "false".'
       }
     },
     required: ['setting', 'value']
@@ -288,30 +328,24 @@ class AssistantServer {
     if (!setting) throw new McpError(ErrorCode.InvalidParams, "'setting' is required for apply_setting")
     if (!value) throw new McpError(ErrorCode.InvalidParams, "'value' is required for apply_setting")
 
-    const allowedValues = APPLY_SETTING_ALLOWED[setting]
-    if (!allowedValues) {
+    const entry = APPLY_SETTING_REGISTRY[setting]
+    if (!entry) {
       throw new McpError(
         ErrorCode.InvalidParams,
-        `Setting '${setting}' is not on the apply_setting whitelist. Allowed: ${Object.keys(APPLY_SETTING_ALLOWED).join(', ')}`
+        `Setting '${setting}' is not on the apply_setting whitelist. Allowed: ${Object.keys(APPLY_SETTING_REGISTRY).join(', ')}`
       )
     }
-    if (!allowedValues.includes(value)) {
+    if (!entry.allowed.includes(value)) {
       throw new McpError(
         ErrorCode.InvalidParams,
-        `Value '${value}' is not valid for setting '${setting}'. Allowed: ${allowedValues.join(', ')}`
+        `Value '${value}' is not valid for setting '${setting}'. Allowed: ${entry.allowed.join(', ')}`
       )
     }
 
-    switch (setting) {
-      case 'theme':
-        await application.get('PreferenceService').set('ui.theme_mode', value as ThemeMode)
-        logger.info('apply_setting: theme applied', { value })
-        return {
-          content: [{ type: 'text' as const, text: `Theme switched to ${value}. Change applied immediately.` }]
-        }
-      default:
-        // Unreachable — covered by allowedValues check above
-        throw new McpError(ErrorCode.InvalidParams, `apply_setting handler missing for '${setting}'`)
+    const message = await entry.apply(value)
+    logger.info('apply_setting succeeded', { setting, value })
+    return {
+      content: [{ type: 'text' as const, text: message }]
     }
   }
 
