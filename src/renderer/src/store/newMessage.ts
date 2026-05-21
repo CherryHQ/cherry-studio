@@ -271,8 +271,16 @@ export const messagesSlice = createSlice({
           status === MessageBlockStatus.SUCCESS &&
           messageToUpdate.status === AssistantMessageStatus.PROCESSING
         ) {
-          // Tentative success - may need refinement
-          // changes.status = AssistantMessageStatus.SUCCESS
+          // T-009 D-005: enabling this transition so PROCESSING → SUCCESS once a
+          // streaming block completes. Without it `isMessageProcessing(message)`
+          // stays true forever, the BeatLoader 3-dots placeholder never goes
+          // away, and the message action bar (copy / regenerate / quote / ...)
+          // never appears. The comment hedged "may need refinement" because a
+          // single SUCCESS block isn't always the whole message — but the
+          // alternative (never transitioning here) is strictly worse: callers
+          // that need a stricter view can override via streamingService.finalize
+          // or newMessagesActions.updateMessage directly.
+          changes.status = AssistantMessageStatus.SUCCESS
         }
       }
 

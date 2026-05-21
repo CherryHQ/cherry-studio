@@ -223,6 +223,20 @@ class StreamingService {
         await dataApiService.patch(`/messages/${task.messageId}`, { body: dataApiPayload })
       }
 
+      // T-009 D-005 (defensive): mirror the final status into Redux so the
+      // message-level status is authoritative even when `upsertBlockReference`
+      // never fired the PROCESSING → SUCCESS transition (e.g. messages that
+      // emit no blocks, abort/error paths, multi-model groups). Without this
+      // the action bar can stay hidden behind the BeatLoader placeholder even
+      // after the DB row is `success`.
+      store.dispatch(
+        newMessagesActions.updateMessage({
+          topicId: task.topicId,
+          messageId,
+          updates: { status }
+        })
+      )
+
       this.endTask(messageId)
       logger.debug('Finalized streaming task', { messageId, status })
     } catch (error) {

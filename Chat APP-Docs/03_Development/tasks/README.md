@@ -23,7 +23,7 @@
 | T-007 | Ollama Provider 自动模型同步失败诊断 + 修复（D-003A / D-003B） | [T-007_OllamaProviderFix/](./T-007_OllamaProviderFix/) | ✅ 已验证关闭（2026-05-21；与 T-008C 一起手测通过；D-003 closed） |
 | T-008 | Chat Select Model 弹窗 v1/v2 数据断层（D-003C） | [T-008_ChatPickerV1V2Gap/](./T-008_ChatPickerV1V2Gap/) | ✅ 诊断 + T-008B 评估 + T-008C 实施全部完成（2026-05-21） |
 | T-008C | Chat 模型选择器迁 v2（方案 B 实施） | [T-008C_ChatPickerV2Migration/](./T-008C_ChatPickerV2Migration/) | ✅ 已验证关闭（2026-05-21；fresh install 实测 Ollama + gemma4:e4b 通过） |
-| T-009 | 流式管线不回灌 Redux（D-004 + D-005 同源诊断） | [T-009_StreamingNotDispatchedToRedux/](./T-009_StreamingNotDispatchedToRedux/) | 🩺 诊断完成；🔧 方案 A（cache→Redux 桥）/ B（渲染层切 cache）/ C（完成时单次 dispatch）待用户选 |
+| T-009 | message.status 不转 SUCCESS（D-005 + D-004 同源） | [T-009_StreamingNotDispatchedToRedux/](./T-009_StreamingNotDispatchedToRedux/) | ✅ 已验证关闭（2026-05-21；D-004 + D-005 closed；BeatLoader 消失 + 操作栏出现 + assistant wrapper + Ask/Open 可点） |
 
 ## 命名约定
 

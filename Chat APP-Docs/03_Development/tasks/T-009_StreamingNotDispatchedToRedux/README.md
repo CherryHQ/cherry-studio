@@ -1,8 +1,9 @@
 # T-009 流式数据未回灌 Redux（D-004 + D-005 同源诊断）
 
-**关联 issue**：D-004（assistant 文本上 Ask/Open 仍 disabled）+ D-005（assistant 回复结束后底部三个点不消失）
-**状态**：🩺 诊断完成；🔧 修复方案待用户决策（A: cache→Redux 桥 / B: 渲染层切 cache / C: 完成时单次 dispatch）
+**关联 issue**：D-005（已 closed 2026-05-21）+ D-004（已 closed 2026-05-21，D-005 同源）
+**状态**：✅ **已完成 + 已验证关闭** —— 修复实施 + 自动化全过 + 用户 fresh install 端到端实测通过（D-005 BeatLoader 消失 + 操作栏出现；D-004 wrapper 出现 + Ask/Open 可点击）
 **记录日期**：2026-05-21
+**重要更正**：诊断初版把根因写成"streaming 管线完全不 dispatch Redux"，实际**几乎所有写入点都已经 dispatch**（`StreamingService.{addBlock, updateBlock, updateMessage}` 都调 `store.dispatch`，注释明确写「TODO: temp fix, it will be removed after message refraction」）。真正的 bug 是 `newMessage.ts:275` 的 SUCCESS 状态转换被**注释掉**了。详见 [诊断.md §1.1](./诊断.md)。D-004 推测为 D-005 副作用 → 修完 D-005 实测确认成立。
 
 ## 文件
 
@@ -10,36 +11,40 @@
 - [诊断.md](./诊断.md) — 完整调用链 + 同源解释 + 3 条修复路径
 - 本 README — 一句话产出 + 修复矩阵
 
-## 一句话
+## 一句话（修正版）
 
-T-008C 修了 Chat picker，但更深一层的同款"v1/v2 数据断层"还没修：**整条流式管线（StreamingService + BlockManager + 所有 callbacks）写的是 `cacheService` 内存 + DataApi/SQLite，但完全不 dispatch 到 Redux `messageBlocksSelectors` / `messages` slice**。然而 `MessageBlockRenderer`（`Blocks/index.tsx:117-123`）仍然只读 Redux。结果：
+`newMessage.ts:275` 的 SUCCESS 状态转换被注释掉了 —— 流式块完成时 reducer 收到 status=SUCCESS 但**静默不更新 message.status**。结果 `message.status` 永远停在 PROCESSING，`isMessageProcessing(message)` 永远 true，`Blocks/index.tsx:253-265` 的 `PlaceholderBlock`（BeatLoader 3 个点）永远渲染、操作栏一直被遮蔽 —— 这就是 **D-005**。
 
-- Redux 的 assistant Message 永远是 fresh-create 状态：`blocks: []`、`status: PENDING`
-- `MessageBlockRenderer` 拿不到任何 block → MainTextBlock 不被渲染 → 没有 `data-message-id` + `data-block-id` + `data-message-role="assistant"` wrapper → `findBlockContext` 返回 null → Ask/Open 永远 disabled（**D-004**）
-- `isMessageProcessing(message)` 因 `status === PENDING` 永远 true → `Blocks/index.tsx:253-265` 的 `PlaceholderBlock` 永远渲染 → BeatLoader 永远转（**D-005**）
+D-004 的"assistant wrapper 不存在"现象按代码分析**应该**已经通过 `addBlock` 里的 `upsertOneBlock` + `upsertBlockReference` dispatch 拿到 Redux 渲染（MainTextBlock 应渲染），所以 D-004 可能是 D-005 引发的副作用（render gating 或 user 查询时机），也可能是用户当时跑 DOM 查询时机的偶然。修完 D-005 + fresh install 复测后再决定是否要单独追 D-004。
 
-D-004 和 D-005 **是同一个 bug 的两个面**，修一处都修。
+## 已实施修复（合并方案 A 思路，但比初评小得多）
 
-## 用户能看到 assistant 文本的解释
+净 **+24 / -2** 业务行，2 个文件：
 
-如果用户**确实看到了 assistant 回复文本**（非空白），那是因为 `loadTopicMessagesThunk` 在切换 topic 或 fresh load 时**从 SQLite 重新拉**了 assistant message + blocks 到 Redux —— 即 streaming 结束后切走再切回来才能看到。**在流中或刚结束未切 topic 时，Redux 仍是空的**。这是诊断的关键提示。
+| 文件 | 改动 | 作用 |
+|---|---|---|
+| [`src/renderer/src/store/newMessage.ts:275`](../../../src/renderer/src/store/newMessage.ts) | 取消注释 `changes.status = AssistantMessageStatus.SUCCESS` + 加 T-009 说明注释 | 流式块 SUCCESS 时把 message.status 转 SUCCESS → `isMessageProcessing` 返回 false → BeatLoader 消失 |
+| [`src/renderer/src/services/messageStreaming/StreamingService.ts` finalize](../../../src/renderer/src/services/messageStreaming/StreamingService.ts) | 在 DataApi PATCH 成功之后追加 `store.dispatch(newMessagesActions.updateMessage({ updates: { status } }))` | 防御层：覆盖 upsertBlockReference 不会触发的边界情况（空块流、abort、多模型组），让 Redux message.status 永远跟 DataApi 同步 |
+
+加上原本就在的 `addBlock` / `updateBlock` / `updateMessage` 三个 dispatch 入口 ≈ "桥 = 已完整"。所以原方案 A 评估的 30 行 → 实际 24 行（多数是注释）。
+
+## 自动化校验（已通过）
+
+| 项 | 命令 | 结果 |
+|---|---|---|
+| Format | `pnpm biome format --write <3 files>` | ✅ |
+| oxlint | `pnpm oxlint <3 files>` | ✅ 0/0 |
+| ESLint | `npx eslint <3 files>` | ✅ 静默 |
+| Typecheck (web) | `pnpm typecheck:web` | ✅ 0 输出 |
+| Vitest（聚焦 reducer 测试）| `vitest run --project renderer src/.../newMessage.upsertBlockReference.test.ts` | ✅ 6/6 |
+| Vitest（回归 9 文件 / 74 用例：store + thunk + Blocks + SelectionContextMenu + chat picker） | 同上扩展 | ✅ 74/74 |
 
 ## 与 T-007 / T-008C 的关系
 
-T-007 D-003B 修了 providers.json 数据 / T-008C D-003C 修了 Chat picker 数据源；本 issue 是**消息渲染层**的同款问题：v2 写 / v1 读，没有桥。3 个 issue 同源 = "v2 迁移做了一半"。
-
-## 修复矩阵（详见 [诊断.md §6](./诊断.md)）
-
-| 方案 | 触发 | 改动 | 优 | 劣 |
-|---|---|---|---|---|
-| **A: cache→Redux 桥** | streamingService.{addBlock, updateBlock, updateMessage, finalize} 同步 dispatch | ~30 行 in StreamingService | 实时反应；流中也对 | 双写两个 store，留 v2 迁移技术债 |
-| **B: 渲染层切 cache** | Blocks/index.tsx 读 useSharedCache(getBlockKey)，message 读 useSharedCache(getMessageKey)；fallback Redux | ~50 行 in renderer | 单一数据源；与 v2 方向对齐 | 影响 MessageBlockRenderer 主链路；测试要重写 |
-| **C: 完成时单次 dispatch** | onComplete callback finalize 之后 dispatch upsertManyBlocks + updateMessage | ~10 行 in baseCallbacks | 最小手术 | 流中仍卡 3 点 + 空 wrapper；只解决"完成后"的视图问题 |
-
-**短期推荐 A**（与 T-008C 选 A 同款短期策略：解锁 T-006 Text Anchor 实测，留双写技术债到 v2 完整迁移）。
+T-007 D-003B 修了 providers.json 数据 / T-008C D-003C 修了 Chat picker 数据源 / T-009 D-005 修 message 状态转换 —— 3 个看似不相关的 issue 都源自"v2 迁移半成品"留下的小坑，1-50 行级别就能定位修复。
 
 ## 不在范围
 
-- 修复 v1/v2 渲染层完整迁移（属于 v2 大方向独立 task）
-- 修 streaming 中 useSmoothStream 的 reset 时机（与本 issue 同源但要等渲染层切换确定后再决定）
-- 修 regenerate / 默认模型策略（独立 issue D-006 / D-007）
+- 修 D-006（默认模型仍 CherryAI）/ D-007（regenerate 无反应）
+- 修 streaming 中 useSmoothStream 的 reset 时机
+- v2 渲染层完整迁移（独立大 task）
