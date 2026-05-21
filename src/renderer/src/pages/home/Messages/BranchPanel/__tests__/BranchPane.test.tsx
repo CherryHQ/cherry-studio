@@ -5,6 +5,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import BranchPane from '../BranchPane'
 import type { BranchAnchor } from '../types'
 
+// Stub BranchMessageStream so BranchPane tests stay pure layout/routing —
+// the stream's own contract is verified in BranchMessageStream.test.tsx.
+vi.mock('../BranchMessageStream', () => ({
+  default: (props: { topic: Topic }) => <div data-testid="branch-message-stream" data-topic-id={props.topic.id} />
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
@@ -34,16 +40,49 @@ describe('BranchPane (T-006D-2B container + state routing)', () => {
     render(<BranchPane anchor={anchor} branchTopic={null} status="idle" onCreate={vi.fn()} onComposeCancel={vi.fn()} />)
 
     expect(screen.getByTestId('branch-composer-quote')).toBeInTheDocument()
-    expect(screen.queryByTestId('branch-pane-conversation-placeholder')).toBeNull()
+    expect(screen.queryByTestId('branch-message-stream')).toBeNull()
   })
 
-  it('conversation state: renders placeholder when branchTopic is set', () => {
+  it('conversation state: renders BranchMessageStream bound to the branch topic id', () => {
+    // In real flow Chat.tsx keeps anchor alive into the conversation state so
+    // the quote box stays visible.
+    render(
+      <BranchPane
+        anchor={anchor}
+        branchTopic={branchTopic}
+        status="idle"
+        onCreate={vi.fn()}
+        onComposeCancel={vi.fn()}
+      />
+    )
+
+    const stream = screen.getByTestId('branch-message-stream')
+    expect(stream).toBeInTheDocument()
+    expect(stream.getAttribute('data-topic-id')).toBe(branchTopic.id)
+    expect(screen.queryByTestId('branch-composer-quote')).toBeNull()
+  })
+
+  it('conversation state: sticky quote box shows selectedText from anchor when both are present', () => {
+    render(
+      <BranchPane
+        anchor={anchor}
+        branchTopic={branchTopic}
+        status="idle"
+        onCreate={vi.fn()}
+        onComposeCancel={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('branch-pane-quote')).toHaveTextContent(anchor.selectedText)
+  })
+
+  it('conversation state: quote box is omitted if anchor was already cleared', () => {
     render(
       <BranchPane anchor={null} branchTopic={branchTopic} status="idle" onCreate={vi.fn()} onComposeCancel={vi.fn()} />
     )
 
-    expect(screen.getByTestId('branch-pane-conversation-placeholder')).toBeInTheDocument()
-    expect(screen.queryByTestId('branch-composer-quote')).toBeNull()
+    expect(screen.queryByTestId('branch-pane-quote')).toBeNull()
+    expect(screen.getByTestId('branch-message-stream')).toBeInTheDocument()
   })
 
   it('close button is enabled in compose state and calls onComposeCancel', () => {

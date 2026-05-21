@@ -5,6 +5,7 @@ import { motion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 
 import BranchComposer from './BranchComposer'
+import BranchMessageStream from './BranchMessageStream'
 import type { BranchAnchor } from './types'
 
 type ForkStatus = 'idle' | 'creating' | 'error'
@@ -102,16 +103,25 @@ export default function BranchPane({ anchor, branchTopic, status, errorMessage, 
               onCancel={onComposeCancel}
             />
           )}
-          {isConversation && (
-            <div
-              className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-muted-foreground text-sm"
-              data-testid="branch-pane-conversation-placeholder">
-              <div className="font-medium">{t('chat.message.anchor.panel.placeholder_branch_ready_title')}</div>
-              <div className="text-xs">
-                {t('chat.message.anchor.panel.placeholder_branch_ready_detail', {
-                  id: branchTopic?.id.slice(0, 8)
-                })}
-              </div>
+          {isConversation && branchTopic && (
+            <div className="flex h-full min-h-0 flex-col">
+              {/*
+                Sticky quote box at the top of the conversation state — keeps
+                the visual link between the source selection and the branch
+                reply visible while the user reads. anchor is intentionally
+                NOT cleared on Create in Chat.tsx, so it's available here.
+              */}
+              {anchor && (
+                <div
+                  className="sticky top-0 z-10 border-border border-b bg-accent/40 px-4 py-3"
+                  data-testid="branch-pane-quote">
+                  <div className="mb-1 text-muted-foreground text-xs">{t('chat.message.anchor.panel.from')}</div>
+                  <blockquote className="border-accent border-l-2 bg-background/60 px-3 py-2 text-sm italic">
+                    {anchor.selectedText}
+                  </blockquote>
+                </div>
+              )}
+              <BranchMessageStream topic={branchTopic} />
             </div>
           )}
         </div>

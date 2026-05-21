@@ -1311,6 +1311,7 @@
           "close_disabled_tooltip": "分支清理將在後續步驟接入。",
           "conversation_header": "分支 #{{id}}",
           "create_branch": "建立分支",
+          "empty_stream": "等待模型回覆…",
           "error": {
             "create_failed": "建立分支失敗，請重試。",
             "followup_required": "請輸入追問內容。"
@@ -1319,8 +1320,6 @@
           "follow_up_placeholder": "針對選取的內容提問…",
           "from": "選取內容",
           "from_message": "選自訊息 #{{id}}",
-          "placeholder_branch_ready_detail": "分支主題 #{{id}} 已就緒，模型串流回覆將在下一步接入。",
-          "placeholder_branch_ready_title": "分支已建立——訊息流接入留待下一步。",
           "title": "從選區建立分支"
         }
       },

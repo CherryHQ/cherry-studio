@@ -1311,6 +1311,7 @@
           "close_disabled_tooltip": "Branch cleanup ships in a follow-up step.",
           "conversation_header": "Branch #{{id}}",
           "create_branch": "Create branch",
+          "empty_stream": "Waiting for the model to reply…",
           "error": {
             "create_failed": "Failed to create branch. Please try again.",
             "followup_required": "Please enter a follow-up question."
@@ -1319,8 +1320,6 @@
           "follow_up_placeholder": "Ask about the selected text…",
           "from": "Selected passage",
           "from_message": "From message #{{id}}",
-          "placeholder_branch_ready_detail": "The branch topic #{{id}} is live. The streamed reply will render here in the next step.",
-          "placeholder_branch_ready_title": "Branch created — message stream wiring lands next.",
           "title": "Branch from selection"
         }
       },
