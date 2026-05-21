@@ -8,7 +8,6 @@ import type { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 import type { Assistant, EditImageParams, GenerateImageParams, Model, Provider } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { getLowerBaseModelName } from '@renderer/utils'
-import { buildClaudeCodeSystemModelMessage } from '@shared/anthropic'
 
 import AiSdkToChunkAdapter from './chunk/AiSdkToChunkAdapter'
 import { buildPlugins } from './plugins/PluginBuilder'
@@ -109,22 +108,6 @@ export default class AiProvider {
     logger.debug('Using provider config for completions', this.config)
 
     // 注意：模型对象将由 createExecutor 内部处理，不再需要预先创建
-
-    if (this.actualProvider.id === 'anthropic' && this.actualProvider.authType === 'oauth') {
-      // 类型守卫：确保 system 是 string、Array 或 undefined
-      const system = params.system
-      let systemParam: string | Array<any> | undefined
-      if (typeof system === 'string' || Array.isArray(system) || system === undefined) {
-        systemParam = system
-      } else {
-        // SystemModelMessage 类型，转换为 string
-        systemParam = undefined
-      }
-
-      const claudeCodeSystemMessage = buildClaudeCodeSystemModelMessage(systemParam)
-      params.system = undefined // 清除原有system，避免重复
-      params.messages = [...claudeCodeSystemMessage, ...(params.messages || [])]
-    }
 
     if (middlewareConfig.topicId && (await preferenceService.get('app.developer_mode.enabled'))) {
       // TypeScript类型窄化：确保topicId是string类型
@@ -258,7 +241,8 @@ export default class AiProvider {
         middlewareConfig.enableWebSearch,
         undefined,
         undefined,
-        providerConfig.providerId
+        providerConfig.providerId,
+        middlewareConfig.idleTimeout
       )
 
       const streamResult = await executor.streamText({
@@ -320,15 +304,15 @@ export default class AiProvider {
    * 获取模型列表
    * 使用 ModelListService 统一处理各 Provider 的模型列表获取
    */
-  public async models(): Promise<Model[]> {
-    return await listModels(this.actualProvider)
+  public async models(options?: { throwOnError?: boolean }): Promise<Model[]> {
+    return await listModels(this.actualProvider, undefined, options)
   }
 
   /**
    * 获取嵌入模型的维度
    * 使用 AI SDK embedMany 测试获取维度
    */
-  public async getEmbeddingDimensions(model: Model): Promise<number> {
+  public async getEmbeddingDimensions(model: Model, signal?: AbortSignal): Promise<number> {
     // 确保 config 已定义
     if (!this.config) {
       this.config = await Promise.resolve(providerToAiSdkConfig(this.actualProvider, model))
@@ -343,7 +327,8 @@ export default class AiProvider {
     // 使用 AI SDK embedMany 测试获取维度
     const result = await executor.embedMany({
       model: model.id,
-      values: ['test']
+      values: ['test'],
+      abortSignal: signal
     })
 
     return result.embeddings[0].length

@@ -29,7 +29,7 @@ interface QuitPreventionHold extends Disposable {
  * Manages services, windows, and Electron app events
  */
 export class Application {
-  private static readonly SHUTDOWN_TIMEOUT_MS = 5000
+  public static readonly SHUTDOWN_TIMEOUT_MS = 5000
 
   private static instance: Application | null = null
   private container: ServiceContainer
@@ -220,7 +220,7 @@ export class Application {
         }
         logger.error('Background phase failed:', err)
       })
-      await this.lifecycleManager.allReady()
+      this.lifecycleManager.allReady()
     } catch (error) {
       if (error instanceof ServiceInitError) {
         await this.handleFatalServiceError(error)

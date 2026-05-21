@@ -19,6 +19,7 @@ import { agentHandlers } from './agents'
 import { assistantHandlers } from './assistants'
 import { fileHandlers } from './files'
 import { groupHandlers } from './groups'
+import { jobHandlers } from './jobs'
 import { knowledgeHandlers } from './knowledges'
 import { mcpServerHandlers } from './mcpServers'
 import { messageHandlers } from './messages'
@@ -56,5 +57,6 @@ export const apiHandlers: ApiImplementation = {
   ...tagHandlers,
   ...groupHandlers,
   ...pinHandlers,
-  ...promptHandlers
+  ...promptHandlers,
+  ...jobHandlers
 }

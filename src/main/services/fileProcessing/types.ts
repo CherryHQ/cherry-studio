@@ -19,19 +19,3 @@ export interface StartFileProcessingTaskResolvedInput {
   fileEntryId: FileEntryId
   processorId?: FileProcessorId
 }
-
-export interface StartFileProcessingTaskOptions {
-  signal?: AbortSignal
-}
-
-export interface GetFileProcessingTaskInput {
-  taskId: string
-}
-
-export interface GetFileProcessingTaskOptions {
-  signal?: AbortSignal
-}
-
-export interface CancelFileProcessingTaskInput {
-  taskId: string
-}

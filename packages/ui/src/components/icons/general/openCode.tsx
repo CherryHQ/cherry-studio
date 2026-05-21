@@ -3,7 +3,7 @@ const OpenCode = (props: SVGProps<SVGSVGElement>) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
     <g clipPath="url(#opencode__a)">
       <path
-        fill="#000"
+        fill="currentColor"
         fillRule="evenodd"
         d="M77.2 34.2H42.8V85.8H77.2V34.2ZM94.4 103H25.6V17H94.4V103Z"
         clipRule="evenodd"

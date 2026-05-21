@@ -93,24 +93,14 @@ const createWindowKeyv = () => {
 
 interface WindowMockApi {
   copilot?: { getToken: ReturnType<typeof vi.fn> }
-  anthropic_oauth?: { getAccessToken: ReturnType<typeof vi.fn> }
   cherryai?: { generateSignature: ReturnType<typeof vi.fn> }
 }
 
-const setupWindowMock = (options?: {
-  withCopilotToken?: boolean
-  withAnthropicOAuth?: boolean
-  withCherryAI?: boolean
-}) => {
+const setupWindowMock = (options?: { withCopilotToken?: boolean; withCherryAI?: boolean }) => {
   const api: WindowMockApi = {}
   if (options?.withCopilotToken) {
     api.copilot = {
       getToken: vi.fn().mockResolvedValue({ token: 'mock-copilot-token' })
-    }
-  }
-  if (options?.withAnthropicOAuth) {
-    api.anthropic_oauth = {
-      getAccessToken: vi.fn().mockResolvedValue('mock-oauth-token')
     }
   }
   if (options?.withCherryAI) {
@@ -565,7 +555,7 @@ describe('adaptProvider', () => {
 
 describe('providerToAiSdkConfig', () => {
   beforeEach(() => {
-    setupWindowMock({ withCopilotToken: true, withAnthropicOAuth: true, withCherryAI: true })
+    setupWindowMock({ withCopilotToken: true, withCherryAI: true })
     setupStoreMock()
     vi.clearAllMocks()
   })
@@ -620,25 +610,6 @@ describe('providerToAiSdkConfig', () => {
       const settings = config.providerSettings as OpenAICompatibleProviderSettings
       expect(settings.name).toBe('cherryai')
       expect(typeof settings.fetch).toBe('function')
-    })
-  })
-
-  describe('Anthropic OAuth builder', () => {
-    it('uses OAuth token with bearer auth', async () => {
-      const provider = makeProvider({
-        id: 'anthropic',
-        type: 'anthropic',
-        apiHost: 'https://api.anthropic.com/v1',
-        authType: 'oauth'
-      })
-
-      const config = await providerToAiSdkConfig(provider, makeModel('claude-3-5-sonnet', 'anthropic'))
-
-      expect(config.providerId).toBe('anthropic')
-      const settings = config.providerSettings as { baseURL: string; apiKey: string; headers: Record<string, string> }
-      expect(settings.baseURL).toBe('https://api.anthropic.com/v1')
-      expect(settings.headers.Authorization).toBe('Bearer mock-oauth-token')
-      expect(settings.apiKey).toBe('')
     })
   })
 

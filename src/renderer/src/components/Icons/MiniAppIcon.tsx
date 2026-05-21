@@ -17,15 +17,14 @@ const MiniAppIcon: FC<Props> = ({ app, size = 48, style, sidebar = false }) => {
     // CompoundIcon: render its Avatar sub-component
     if (logo && typeof logo !== 'string') {
       const Icon = logo
-      return <Icon.Avatar size={size} className="select-none" shape="rounded" />
+      return <Icon.Avatar size={size} className="select-none border border-border" shape="rounded" />
     }
 
     return (
       <img
         src={typeof logo === 'string' ? logo : app.logo}
-        className="select-none rounded-2xl"
+        className="select-none rounded-2xl border border-border"
         style={{
-          border: app.bordered ? '0.5px solid var(--color-border)' : 'none',
           width: `${size}px`,
           height: `${size}px`,
           backgroundColor: app.background,

@@ -39,6 +39,7 @@ export function prepareContext(
 }
 
 export const tesseractImageToTextHandler: FileProcessingCapabilityHandler<'image_to_text'> = {
+  mode: 'background',
   prepare(file, config, signal) {
     const context: PreparedTesseractContext = prepareContext(file, config, signal)
 

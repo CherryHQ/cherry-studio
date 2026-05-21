@@ -1335,12 +1335,17 @@ async function invalidatePathPatterns(cache: Cache, globalMutate: ScopedMutator,
  * that themselves contain `/` (e.g., `/models/:uniqueModelId*` where the id is
  * `openai:gpt-4/variant`).
  *
+ * The leading `/` anchor in the placeholder regex distinguishes path params
+ * (`/:providerId`) from verb-style RPC suffixes (`models:resolve`,
+ * `models:reconcile`) — the latter are static literal segments and must not be
+ * substituted, even when other params are supplied.
+ *
  * @internal
  * @throws Error if a placeholder has no corresponding value in `params`
  */
 function resolveTemplate(path: string, params?: Record<string, string | number>): string {
   if (!params || !path.includes(':')) return path
-  return path.replace(/:([a-zA-Z][a-zA-Z0-9]*)\*?/g, (_match, key) => {
+  return path.replace(/(?<=\/):([a-zA-Z][a-zA-Z0-9]*)\*?/g, (_match, key) => {
     const value = params[key]
     if (value === undefined || value === null) {
       throw new Error(`Missing param "${key}" for path "${path}"`)

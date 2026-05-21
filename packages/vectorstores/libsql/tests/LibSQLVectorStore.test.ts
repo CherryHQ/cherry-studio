@@ -1286,6 +1286,166 @@ describe('LibSQLVectorStore', () => {
     })
   })
 
+  describe('replaceByExternalId', () => {
+    it('should atomically replace chunks bound to an external_id', async () => {
+      await store.add([
+        new TextNode({
+          id_: 'old-chunk-1',
+          text: 'old chunk 1 content',
+          embedding: [0.1, 0.2],
+          metadata: { itemId: 'item-1', chunkIndex: 0 },
+          relationships: { [NodeRelationship.SOURCE]: { nodeId: 'item-1', metadata: {} } }
+        }),
+        new TextNode({
+          id_: 'old-chunk-2',
+          text: 'old chunk 2 content',
+          embedding: [0.3, 0.4],
+          metadata: { itemId: 'item-1', chunkIndex: 1 },
+          relationships: { [NodeRelationship.SOURCE]: { nodeId: 'item-1', metadata: {} } }
+        })
+      ])
+
+      const newIds = await store.replaceByExternalId('item-1', [
+        new TextNode({
+          id_: 'new-chunk-1',
+          text: 'replacement chunk',
+          embedding: [0.9, 0.1],
+          metadata: { itemId: 'item-1', chunkIndex: 0 },
+          relationships: { [NodeRelationship.SOURCE]: { nodeId: 'item-1', metadata: {} } }
+        })
+      ])
+
+      expect(newIds).toEqual(['new-chunk-1'])
+
+      const rows = await client.execute(
+        "SELECT id, external_id FROM test_embeddings WHERE external_id = 'item-1' ORDER BY id"
+      )
+      expect(rows.rows).toHaveLength(1)
+      expect(rows.rows[0]).toMatchObject({ id: 'new-chunk-1', external_id: 'item-1' })
+    })
+
+    it('should preserve old chunks when insert phase fails (transaction rollback)', async () => {
+      await store.add([
+        new TextNode({
+          id_: 'preserved-chunk-1',
+          text: 'must survive rollback',
+          embedding: [0.1, 0.2],
+          metadata: { itemId: 'item-1', chunkIndex: 0 },
+          relationships: { [NodeRelationship.SOURCE]: { nodeId: 'item-1', metadata: {} } }
+        }),
+        new TextNode({
+          id_: 'preserved-chunk-2',
+          text: 'also must survive',
+          embedding: [0.3, 0.4],
+          metadata: { itemId: 'item-1', chunkIndex: 1 },
+          relationships: { [NodeRelationship.SOURCE]: { nodeId: 'item-1', metadata: {} } }
+        })
+      ])
+
+      const batchSpy = vi.spyOn(client, 'batch').mockImplementation(async () => {
+        throw new Error('simulated batch failure')
+      })
+
+      await expect(
+        store.replaceByExternalId('item-1', [
+          new TextNode({
+            id_: 'should-not-appear',
+            text: 'this should never be persisted',
+            embedding: [0.5, 0.6],
+            metadata: { itemId: 'item-1', chunkIndex: 0 },
+            relationships: { [NodeRelationship.SOURCE]: { nodeId: 'item-1', metadata: {} } }
+          })
+        ])
+      ).rejects.toThrow('simulated batch failure')
+
+      batchSpy.mockRestore()
+
+      const rows = await client.execute("SELECT id FROM test_embeddings WHERE external_id = 'item-1' ORDER BY id")
+      expect(rows.rows.map((row) => row.id)).toEqual(['preserved-chunk-1', 'preserved-chunk-2'])
+    })
+
+    it('should issue batch with transactionMode "write"', async () => {
+      const batchSpy = vi.spyOn(client, 'batch')
+
+      await store.replaceByExternalId('item-1', [
+        new TextNode({
+          id_: 'tx-mode-chunk',
+          text: 'verify tx mode',
+          embedding: [0.1, 0.2],
+          metadata: { itemId: 'item-1', chunkIndex: 0 },
+          relationships: { [NodeRelationship.SOURCE]: { nodeId: 'item-1', metadata: {} } }
+        })
+      ])
+
+      expect(batchSpy).toHaveBeenCalledTimes(1)
+      expect(batchSpy.mock.calls[0]?.[1]).toBe('write')
+      batchSpy.mockRestore()
+    })
+
+    it('should treat empty node list as delete-by-external_id', async () => {
+      await store.add([
+        new TextNode({
+          id_: 'doomed-chunk',
+          text: 'will be cleared',
+          embedding: [0.1, 0.2],
+          metadata: { itemId: 'item-1', chunkIndex: 0 },
+          relationships: { [NodeRelationship.SOURCE]: { nodeId: 'item-1', metadata: {} } }
+        })
+      ])
+
+      const ids = await store.replaceByExternalId('item-1', [])
+      expect(ids).toEqual([])
+
+      const rows = await client.execute("SELECT id FROM test_embeddings WHERE external_id = 'item-1'")
+      expect(rows.rows).toHaveLength(0)
+    })
+
+    it('should scope replace by collection', async () => {
+      const otherCollectionStore = new LibSQLVectorStore({
+        client,
+        tableName: 'test_embeddings',
+        dimensions: 2,
+        collection: 'other'
+      })
+      await otherCollectionStore.add([
+        new TextNode({
+          id_: 'other-collection-chunk',
+          text: 'do not touch',
+          embedding: [0.1, 0.2],
+          metadata: { itemId: 'item-shared', chunkIndex: 0 },
+          relationships: { [NodeRelationship.SOURCE]: { nodeId: 'item-shared', metadata: {} } }
+        })
+      ])
+
+      await store.add([
+        new TextNode({
+          id_: 'default-chunk-original',
+          text: 'default collection original',
+          embedding: [0.3, 0.4],
+          metadata: { itemId: 'item-shared', chunkIndex: 0 },
+          relationships: { [NodeRelationship.SOURCE]: { nodeId: 'item-shared', metadata: {} } }
+        })
+      ])
+
+      await store.replaceByExternalId('item-shared', [
+        new TextNode({
+          id_: 'default-chunk-replaced',
+          text: 'default collection replaced',
+          embedding: [0.5, 0.6],
+          metadata: { itemId: 'item-shared', chunkIndex: 0 },
+          relationships: { [NodeRelationship.SOURCE]: { nodeId: 'item-shared', metadata: {} } }
+        })
+      ])
+
+      const rows = await client.execute(
+        "SELECT id, collection FROM test_embeddings WHERE external_id = 'item-shared' ORDER BY collection, id"
+      )
+      expect(rows.rows).toHaveLength(2)
+      expect(rows.rows[0]).toMatchObject({ id: 'default-chunk-replaced', collection: store.getCollection() })
+      expect(rows.rows[1]).toMatchObject({ id: 'other-collection-chunk', collection: 'other' })
+    })
+  })
+
   describe('listByExternalId', () => {
     it('should list documents by external_id in chunk order without embeddings', async () => {
       await store.add([

@@ -7,6 +7,7 @@ import type { PreparedPaddleQueryContext, PreparedPaddleStartContext } from '../
 import { createJob, resolveJsonlResult, waitForJobCompletion } from '../utils'
 
 export const paddleImageToTextHandler: FileProcessingCapabilityHandler<'image_to_text'> = {
+  mode: 'background',
   prepare(file, config, signal) {
     signal?.throwIfAborted()
     const startContext = prepareStartContext(file, config, signal)

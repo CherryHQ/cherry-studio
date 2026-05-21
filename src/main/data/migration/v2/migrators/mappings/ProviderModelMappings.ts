@@ -6,8 +6,7 @@ import {
   ENDPOINT_TYPE,
   type EndpointType,
   MODEL_CAPABILITY,
-  type ModelCapability,
-  normalizeModelId
+  type ModelCapability
 } from '@cherrystudio/provider-registry'
 import type { NewUserModel } from '@data/db/schemas/userModel'
 import type { NewUserProvider } from '@data/db/schemas/userProvider'
@@ -68,12 +67,16 @@ const ENDPOINT_MAP: Partial<Record<string, EndpointType>> = {
   'openai-response': ENDPOINT_TYPE.OPENAI_RESPONSES,
   anthropic: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
   gemini: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  'azure-openai': ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  vertexai: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
   'image-generation': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
   'jina-rerank': ENDPOINT_TYPE.JINA_RERANK,
   'new-api': ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
   gateway: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
   ollama: ENDPOINT_TYPE.OLLAMA_CHAT
 }
+
+const PROVIDER_TYPES_WITHOUT_DEFAULT_ENDPOINT = new Set(['aws-bedrock'])
 
 const REASONING_FORMAT_MAP: Partial<Record<LegacyProvider['type'], ReasoningFormatType>> = {
   openai: 'openai-chat',
@@ -152,28 +155,45 @@ const SYSTEM_PROVIDER_IDS = new Set([
   'zai'
 ])
 
-export function transformProvider(
-  legacy: LegacyProvider,
-  settings: OldLlmSettings,
-  sortOrder: number
-): NewUserProvider {
+const TYPE_TO_PRESET_PROVIDER_ID: Partial<Record<LegacyProvider['type'], string>> = {
+  'azure-openai': 'azure-openai',
+  'aws-bedrock': 'aws-bedrock',
+  vertexai: 'vertexai',
+  'vertex-anthropic': 'vertexai',
+  ollama: 'ollama'
+}
+
+const PRESET_PROVIDER_ID_ALIASES: Record<string, string> = {
+  zai: 'zhipu',
+  'minimax-global': 'minimax'
+}
+
+function resolvePresetProviderId(legacy: LegacyProvider): string | null {
+  if (SYSTEM_PROVIDER_IDS.has(legacy.id)) {
+    return PRESET_PROVIDER_ID_ALIASES[legacy.id] ?? legacy.id
+  }
+  return TYPE_TO_PRESET_PROVIDER_ID[legacy.type] ?? null
+}
+
+type NewUserProviderInput = Omit<NewUserProvider, 'orderKey'>
+
+export function transformProvider(legacy: LegacyProvider, settings: OldLlmSettings): NewUserProviderInput {
   const endpointType = ENDPOINT_MAP[legacy.type]
-  if (legacy.type && !endpointType) {
+  if (legacy.type && !endpointType && !PROVIDER_TYPES_WITHOUT_DEFAULT_ENDPOINT.has(legacy.type)) {
     logger.warn('Unknown provider type dropped during migration', { providerId: legacy.id, legacyType: legacy.type })
   }
 
   return {
     providerId: legacy.id,
-    presetProviderId: SYSTEM_PROVIDER_IDS.has(legacy.id) ? legacy.id : null,
+    presetProviderId: resolvePresetProviderId(legacy),
     name: legacy.name,
     endpointConfigs: buildEndpointConfigs(legacy, endpointType),
     defaultChatEndpoint: endpointType ?? null,
-    apiKeys: buildApiKeys(legacy.apiKey),
+    apiKeys: buildProviderApiKeys(legacy, settings),
     authConfig: buildAuthConfig(legacy, settings),
     apiFeatures: buildApiFeatures(legacy),
     providerSettings: buildProviderSettings(legacy, settings),
-    isEnabled: legacy.enabled ?? true,
-    sortOrder
+    isEnabled: legacy.enabled ?? true
   }
 }
 
@@ -192,7 +212,6 @@ function buildEndpointConfigs(
     configs[ep] = { ...configs[ep], baseUrl: legacy.anthropicApiHost }
   }
 
-  // Assign reasoning format type to the default endpoint
   const reasoningFormatType = REASONING_FORMAT_MAP[legacy.type]
   if (endpointType !== undefined && reasoningFormatType) {
     configs[endpointType] = { ...configs[endpointType], reasoningFormatType }
@@ -217,14 +236,30 @@ function buildApiKeys(apiKey: string): ApiKeyEntry[] {
     }))
 }
 
+function isAwsBedrockProvider(legacy: LegacyProvider): boolean {
+  return legacy.id === 'aws-bedrock' || legacy.type === 'aws-bedrock'
+}
+
+function isAzureOpenAIProvider(legacy: LegacyProvider): boolean {
+  return legacy.id === 'azure-openai' || legacy.type === 'azure-openai'
+}
+
+function buildProviderApiKeys(legacy: LegacyProvider, settings: OldLlmSettings): ApiKeyEntry[] {
+  if (isAwsBedrockProvider(legacy) && settings.awsBedrock?.authType === 'apiKey') {
+    return buildApiKeys(settings.awsBedrock.apiKey ?? '')
+  }
+
+  return buildApiKeys(legacy.apiKey)
+}
+
 function buildAuthConfig(legacy: LegacyProvider, settings: OldLlmSettings): AuthConfig | null {
-  if (legacy.isVertex && settings.vertexai) {
+  if (legacy.isVertex) {
     const vertex = settings.vertexai
     return {
       type: 'iam-gcp',
-      project: vertex.projectId ?? '',
-      location: vertex.location ?? '',
-      credentials: vertex.serviceAccount
+      project: vertex?.projectId ?? '',
+      location: vertex?.location ?? '',
+      credentials: vertex?.serviceAccount
         ? {
             privateKey: vertex.serviceAccount.privateKey,
             clientEmail: vertex.serviceAccount.clientEmail
@@ -233,20 +268,24 @@ function buildAuthConfig(legacy: LegacyProvider, settings: OldLlmSettings): Auth
     }
   }
 
-  if (legacy.id === 'aws-bedrock' && settings.awsBedrock) {
+  if (isAwsBedrockProvider(legacy)) {
     const aws = settings.awsBedrock
+    if (aws?.authType === 'apiKey') {
+      return { type: 'api-key-aws', region: aws.region ?? '' }
+    }
+
     return {
       type: 'iam-aws',
-      region: aws.region ?? '',
-      accessKeyId: aws.accessKeyId,
-      secretAccessKey: aws.secretAccessKey
+      region: aws?.region ?? '',
+      accessKeyId: aws?.accessKeyId,
+      secretAccessKey: aws?.secretAccessKey
     }
   }
 
-  if (legacy.id === 'azure-openai' && legacy.apiVersion) {
+  if (isAzureOpenAIProvider(legacy)) {
     return {
       type: 'iam-azure',
-      apiVersion: legacy.apiVersion
+      apiVersion: legacy.apiVersion ?? ''
     }
   }
 
@@ -264,6 +303,14 @@ function buildAuthConfig(legacy: LegacyProvider, settings: OldLlmSettings): Auth
   }
 
   if (legacy.authType === 'oauth') {
+    // Legacy Anthropic web OAuth was removed end-to-end. Tokens lived in a
+    // separate credentials file that's no longer read; carrying authType
+    // 'oauth' forward would leave the v2 row in an unrecoverable state.
+    // Re-seat as api-key so the user can paste a key and the renderer's
+    // api-key UI is the canonical path.
+    if (legacy.id === 'anthropic' || legacy.type === 'anthropic') {
+      return { type: 'api-key' }
+    }
     return {
       type: 'oauth',
       clientId: ''
@@ -378,7 +425,7 @@ function buildProviderSettings(legacy: LegacyProvider, llmSettings: OldLlmSettin
   return hasValue ? settings : null
 }
 
-export function transformModel(legacy: LegacyModel, providerId: string, sortOrder: number): NewUserModel {
+export function transformModel(legacy: LegacyModel, providerId: string): Omit<NewUserModel, 'orderKey'> {
   const hasCustomizedCapabilities =
     legacy.capabilities?.some((capability) => capability.isUserSelected !== undefined) ?? false
 
@@ -386,8 +433,12 @@ export function transformModel(legacy: LegacyModel, providerId: string, sortOrde
     id: createUniqueModelId(providerId, legacy.id),
     providerId,
     modelId: legacy.id,
-    presetModelId: normalizeModelId(legacy.id),
-    name: legacy.name ?? null,
+    // Leave presetModelId null here. enrichModelRow looks up the registry and
+    // sets presetModelId only when a real preset matches; setting it here
+    // unconditionally would mark fully-custom v1 models as preset overrides
+    // (symmetric to the v1 default-name bug fixed in db3e1f76).
+    presetModelId: null,
+    name: legacy.name ?? legacy.id,
     description: legacy.description ?? null,
     group: legacy.group ?? null,
     capabilities: mapCapabilities(legacy.capabilities),
@@ -396,20 +447,19 @@ export function transformModel(legacy: LegacyModel, providerId: string, sortOrde
     endpointTypes: mapEndpointTypes(legacy.endpoint_type, legacy.supported_endpoint_types),
     contextWindow: null,
     maxOutputTokens: null,
-    supportsStreaming: legacy.supported_text_delta ?? null,
+    supportsStreaming: legacy.supported_text_delta ?? true,
     reasoning: null,
     parameters: null,
     pricing: mapPricing(legacy.pricing),
     isEnabled: true,
     isHidden: false,
-    sortOrder,
     userOverrides: hasCustomizedCapabilities ? ['capabilities'] : null
   }
 }
 
-function mapCapabilities(capabilities?: LegacyModel['capabilities']): ModelCapability[] | null {
+function mapCapabilities(capabilities?: LegacyModel['capabilities']): ModelCapability[] {
   if (!capabilities || capabilities.length === 0) {
-    return null
+    return []
   }
 
   const mapped: ModelCapability[] = []
@@ -422,7 +472,7 @@ function mapCapabilities(capabilities?: LegacyModel['capabilities']): ModelCapab
     }
   }
 
-  return mapped.length > 0 ? Array.from(new Set(mapped)) : null
+  return mapped.length > 0 ? Array.from(new Set(mapped)) : []
 }
 
 function mapEndpointTypes(

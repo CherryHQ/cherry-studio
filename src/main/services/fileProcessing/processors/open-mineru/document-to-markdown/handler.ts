@@ -7,6 +7,7 @@ import type { PreparedOpenMineruContext } from '../types'
 import { executeTask } from '../utils'
 
 export const openMineruDocumentToMarkdownHandler: FileProcessingCapabilityHandler<'document_to_markdown'> = {
+  mode: 'background',
   prepare(file, config, signal) {
     signal?.throwIfAborted()
     const preparedContext: PreparedOpenMineruContext = prepareContext(file, config, signal)

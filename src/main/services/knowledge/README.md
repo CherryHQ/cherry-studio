@@ -118,7 +118,7 @@ Example: a user adds `/docs`.
 ## `deleteBase`
 
 `deleteBase` removes a knowledge base by stopping runtime work first, deleting
-the user-visible SQLite state second, and deleting vector-search artifacts last.
+vector-search artifacts second, and deleting the user-visible SQLite state last.
 
 Vector artifacts are the persisted vector-search resources for a base. They are
 not the SQLite base/item rows. For example, if `kb-1` indexes `guide.md`, SQLite
@@ -128,49 +128,50 @@ vector store file, table, or collection.
 
 The normal flow is:
 
-1. Stop all pending/running runtime tasks for the base and wait for running
-   tasks to finish interrupting.
-2. Delete the SQLite base and its items.
+1. Stop all pending/running runtime tasks for the base.
+2. Wait for active base write locks to drain.
 3. Delete the base's vector artifacts.
+4. Delete the SQLite base and its items.
 
 Example: a user deletes `kb-1`.
 
 - Stop any indexing or directory/sitemap preparation tasks for `kb-1`.
-- Delete `kb-1` and its knowledge items from SQLite.
+- Wait for in-flight vector/database writes for `kb-1` to finish or time out.
 - Delete `kb-1`'s vector store resources.
+- Delete `kb-1` and its knowledge items from SQLite.
 - The UI should no longer show `kb-1`.
 
-The SQLite deletion is the user-visible deletion boundary. Once the SQLite base
-is deleted, the base should not be restored just because later artifact cleanup
-failed.
+The artifact deletion is the retry boundary. If artifact cleanup fails, keep the
+SQLite base visible so the user still has a UI affordance to retry deletion. The
+reverse order would leave orphan vector files with no base row to act on.
 
 Failure boundaries:
 
-- If runtime task interruption fails, do not delete SQLite state and do not
-  delete vector artifacts. The base remains visible.
-- If SQLite deletion fails after runtime tasks were interrupted, keep vector
-  artifacts and mark the interrupted items `failed` best-effort with the SQLite
-  deletion error. The base remains visible.
-- If vector artifact deletion fails after SQLite deletion succeeds, report a
-  partial cleanup failure. The base is already deleted from the user's point of
-  view, and the remaining vector artifacts should be handled by retry or orphan
-  cleanup rather than restoring the base.
+- If runtime task interruption or lock waiting fails, do not delete vector
+  artifacts and do not delete SQLite state. The base remains visible.
+- If vector artifact deletion fails, do not delete SQLite state. The base
+  remains visible and the user can retry deletion.
+- If SQLite deletion fails after vector artifact deletion succeeds, return a
+  partial cleanup error. The base may still be visible, but its vectors are
+  already gone; a later retry can finish SQLite cleanup, or recovery can handle
+  the inconsistent base.
 
-Example: `runtime.deleteBase('kb-1')` interrupts `item-1` and `item-2`, but
-SQLite deletion fails with `sqlite delete failed`.
+Example: deleting vector artifacts for `kb-1` fails with
+`artifact delete failed`.
 
 - Keep `kb-1` in SQLite.
-- Do not delete vector artifacts.
-- Mark `item-1` and `item-2` as `failed` with `sqlite delete failed`
-  best-effort.
-- Return the SQLite deletion error.
+- Keep its items visible.
+- Return the artifact deletion error.
+- The user can retry delete from the UI.
 
-Example: SQLite deletion of `kb-1` succeeds, but deleting the vector store file
-fails with `artifact delete failed`.
+Example: vector artifacts for `kb-1` are deleted, but SQLite deletion fails with
+`sqlite delete failed`.
 
-- `kb-1` is already gone from SQLite and should stay gone.
-- Report that SQLite deletion succeeded but vector artifact cleanup failed.
-- Leave follow-up cleanup to artifact retry/orphan cleanup paths.
+- `kb-1` may still be visible in SQLite.
+- Its vector-search artifacts are already gone.
+- Return a partial cleanup error explaining that artifact cleanup succeeded but
+  SQLite cleanup failed.
+- A later retry can finish deleting the base row.
 
 ## `deleteItems`
 

@@ -3,6 +3,7 @@ import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowled
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { KnowledgeItemService } from '@data/services/KnowledgeItemService'
+import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { CreateKnowledgeItemDto } from '@shared/data/types/knowledge'
@@ -19,7 +20,8 @@ describe('KnowledgeItemService', () => {
     service = new KnowledgeItemService()
     await dbh.db.insert(userProviderTable).values({
       providerId: 'openai',
-      name: 'OpenAI'
+      name: 'OpenAI',
+      orderKey: generateOrderKeyBetween(null, null)
     })
     await dbh.db.insert(userModelTable).values({
       id: createUniqueModelId('openai', 'text-embedding-3-large'),
@@ -29,7 +31,7 @@ describe('KnowledgeItemService', () => {
       name: 'text-embedding-3-large',
       isEnabled: true,
       isHidden: false,
-      sortOrder: 0
+      orderKey: generateOrderKeyBetween(null, null)
     })
     await dbh.db.insert(knowledgeBaseTable).values({
       id: 'kb-1',
@@ -512,6 +514,57 @@ describe('KnowledgeItemService', () => {
 
     it('returns an empty list when no roots are provided', async () => {
       await expect(service.getDescendantItems('kb-1', [])).resolves.toEqual([])
+    })
+  })
+
+  describe('getDescendantAndSelfItems', () => {
+    it('returns every descendant in the requested subtrees plus the roots themselves', async () => {
+      await seedItem({ id: 'dir-root', type: 'directory', data: { source: '/root', path: '/root' } })
+      await seedItem({
+        id: 'dir-child',
+        groupId: 'dir-root',
+        type: 'directory',
+        data: { source: '/root/child', path: '/root/child' }
+      })
+      await seedItem({
+        id: 'file-child',
+        groupId: 'dir-child',
+        type: 'file',
+        data: createFileItemData('file-child')
+      })
+      await seedItem({
+        id: 'note-root',
+        type: 'note',
+        data: { source: 'root note', content: 'root note' }
+      })
+
+      const result = await service.getDescendantAndSelfItems('kb-1', ['dir-root', 'note-root', 'missing'])
+
+      expect(result.map((item) => item.id).sort()).toEqual(['dir-child', 'dir-root', 'file-child', 'note-root'])
+    })
+
+    it('deduplicates when an ancestor and its descendant are both passed as roots', async () => {
+      await seedItem({ id: 'dir-root', type: 'directory', data: { source: '/root', path: '/root' } })
+      await seedItem({
+        id: 'dir-child',
+        groupId: 'dir-root',
+        type: 'directory',
+        data: { source: '/root/child', path: '/root/child' }
+      })
+      await seedItem({
+        id: 'file-child',
+        groupId: 'dir-child',
+        type: 'file',
+        data: createFileItemData('file-child')
+      })
+
+      const result = await service.getDescendantAndSelfItems('kb-1', ['dir-root', 'dir-child'])
+
+      expect(result.map((item) => item.id).sort()).toEqual(['dir-child', 'dir-root', 'file-child'])
+    })
+
+    it('returns an empty list when no roots are provided', async () => {
+      await expect(service.getDescendantAndSelfItems('kb-1', [])).resolves.toEqual([])
     })
   })
 

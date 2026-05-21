@@ -11,6 +11,7 @@ import { SystemOcrOptionsSchema } from '../types'
 const logger = loggerService.withContext('FileProcessing:SystemImageToTextHandler')
 
 export const systemImageToTextHandler: FileProcessingCapabilityHandler<'image_to_text'> = {
+  mode: 'background',
   prepare(file, config, signal) {
     signal?.throwIfAborted()
     const context = prepareContext(file, config, signal)

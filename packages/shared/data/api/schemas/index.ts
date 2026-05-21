@@ -25,6 +25,7 @@ import type { AgentSchemas } from './agents'
 import type { AssistantSchemas } from './assistants'
 import type { FileSchemas } from './files'
 import type { GroupSchemas } from './groups'
+import type { JobSchemas } from './jobs'
 import type { KnowledgeSchemas } from './knowledges'
 import type { MCPServerSchemas } from './mcpServers'
 import type { MessageSchemas } from './messages'
@@ -67,5 +68,6 @@ export type ApiSchemas = AssertValidSchemas<
     GroupSchemas &
     PinSchemas &
     AgentSchemas &
-    AgentChannelSchemas
+    AgentChannelSchemas &
+    JobSchemas
 >

@@ -1,11 +1,11 @@
 import { exec } from 'node:child_process'
 import fs from 'node:fs/promises'
+import path from 'node:path'
 import { promisify } from 'node:util'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { WindowType } from '@main/core/window/types'
 import { app } from 'electron'
 
 import { handleMcpProtocolUrl } from './handlers/mcpInstall'
@@ -41,11 +41,20 @@ export class ProtocolService extends BaseService {
     app.on('open-url', openUrlHandler)
     this.registerDisposable(() => app.removeListener('open-url', openUrlHandler))
 
-    // 3) Windows/Linux second-instance: URL-dispatch only.
-    //    MainWindowService attaches a SEPARATE listener on the same event for showMainWindow().
-    //    Both fire; EventEmitter supports multiple listeners. See MainWindowService.onInit.
+    // 3) Windows/Linux second-instance: sole owner.
+    //    - argv carries `cherrystudio://...` → dispatch to URL handler; each handler
+    //      self-routes focus (mcp / navigate raise Main, providers / oauth do not),
+    //      so we never raise Main behind their backs.
+    //    - argv carries no URL → plain re-launch (user double-clicked the icon while
+    //      the app is running); surface the main window. MainWindowService is
+    //      WhenReady, fully alive by the time any 'second-instance' can fire.
     const secondInstanceHandler = (_event: Electron.Event, argv: string[]) => {
-      this.handleArgvForUrl(argv)
+      const url = argv.find((arg) => arg.startsWith(`${CHERRY_STUDIO_PROTOCOL}://`))
+      if (url) {
+        this.handleProtocolUrl(url)
+      } else {
+        application.get('MainWindowService').showMainWindow()
+      }
     }
     app.on('second-instance', secondInstanceHandler)
     this.registerDisposable(() => app.removeListener('second-instance', secondInstanceHandler))
@@ -60,13 +69,18 @@ export class ProtocolService extends BaseService {
   }
 
   private registerProtocolScheme() {
+    // In dev, Electron needs the app entry as an absolute path; launchers often
+    // pass "." as argv[1], which becomes invalid when the OS invokes the
+    // protocol handler from a different cwd.
     if (process.defaultApp) {
       if (process.argv.length >= 2) {
-        app.setAsDefaultProtocolClient(CHERRY_STUDIO_PROTOCOL, process.execPath, [process.argv[1]])
+        const entry = process.argv[1]
+        const absoluteEntry = path.isAbsolute(entry) ? entry : path.resolve(process.cwd(), entry)
+        app.setAsDefaultProtocolClient(CHERRY_STUDIO_PROTOCOL, process.execPath, [absoluteEntry])
       }
+    } else {
+      app.setAsDefaultProtocolClient(CHERRY_STUDIO_PROTOCOL)
     }
-
-    app.setAsDefaultProtocolClient(CHERRY_STUDIO_PROTOCOL)
   }
 
   private handleProtocolUrl(url: string) {
@@ -88,9 +102,35 @@ export class ProtocolService extends BaseService {
         case 'navigate':
           handleNavigateProtocolUrl(urlObj)
           return
+        case 'oauth':
+          // CherryIN OAuth callback. CherryINOAuthService delivers the result
+          // point-to-point to the renderer that started the flow, so the `code`
+          // never reaches unrelated windows. PPIO/Nutstore deep links use
+          // different hosts and still go through the broadcast fallback below.
+          application
+            .get('CherryINOAuthService')
+            .handleOAuthCallback(urlObj)
+            .catch((error) => logger.error('Failed to handle CherryIN OAuth callback', error as Error))
+          return
       }
 
-      application.get('WindowManager').broadcastToType(WindowType.Main, 'protocol-data', {
+      // Default branch: deep link with no main-process handler. Fan out to every
+      // managed renderer (Main / Settings / SubWindow / pooled tool surfaces);
+      // consumers (oauth.ts, useNutstoreSSO, ...) filter by urlObj.hostname/pathname.
+      // broadcast() — not broadcastToType(Main) — because the flow-initiating
+      // window is not necessarily Main: the Settings window owns CherryIN OAuth
+      // in v2. Trade-off: the payload reaches renderers that don't need it; if
+      // selective routing is required (e.g. to confine OAuth `code`), promote
+      // that scheme to its own switch case alongside mcp/providers/navigate.
+      //
+      // TODO(security): any future OAuth-style host added to this scheme MUST
+      // get its own switch case above instead of falling through here — leaving
+      // it on the default broadcast would fan out `code` / `token` query params
+      // to renderers that have no business seeing them. Reviewer flagged in
+      // PR #14631 review #4282327822 (Important #5). When adding such a host,
+      // either route it through a dedicated case or add a parameter allowlist /
+      // sensitive-name strip to this default broadcast.
+      application.get('WindowManager').broadcast('protocol-data', {
         url,
         params: Object.fromEntries(params.entries())
       })

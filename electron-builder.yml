@@ -146,38 +146,40 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.9.4 - Bug Fixes & Model Support
+    Cherry Studio 1.9.6 - Bug Fixes
 
     🐛 Bug Fixes
-    - [OpenCode] NEWAPI provider models now appear in the dropdown and route correctly
-    - [Image Generation] Fixed gpt-image-2/gpt-image-1.5 editing and generation across multiple providers
-    - [Models] Fixed Kimi K2.6 requests being rejected due to unsupported temperature settings
-    - [Gateway] Fixed Vercel AI Gateway model list fetch failing due to missing authentication
-    - [Copilot] Fixed GitHub Copilot model synchronization
-
-    ✨ New Features
-    - [Models] Added MiMo V2.5 model support with reasoning and calling capabilities
-    - [Models] Added DeepSeek V4+ model support with reasoning effort control (high/max)
-    - [Models] Mistral Small 4 now supports vision and adjustable reasoning effort
-
-    💄 Improvements
-    - [Agents] Removed auto-injected @cherry/browser MCP (re-enable manually if needed)
+    - [AI] Fixed crash when chat model's stored provider no longer exists
+    - [AI] Fixed streaming requests aborted after 30 minutes during active data transfer (affected models with extended thinking)
+    - [Agents] Fixed agent session creation failures when provider settings change
+    - [Agents] Fixed deepseek-r1 models incorrectly showing function_calling label causing errors in Agent mode
+    - [Agents] Use task name instead of agent name for cron task sessions
+    - [MCP] Fixed approval card not auto-expanding to show Run/Cancel buttons
+    - [MCP] Clean up OAuth tokens when deleting servers
+    - [Code Tools] Fixed Codex CLI launch failure when using OpenAI or other reserved providers
+    - [Claude Code] Fixed launch failures caused by auth conflicts with provider environment variables
+    - [Image] Fixed gpt-image-2 multi-turn editing crash
+    - [Knowledge] Fixed HTTP/HTTPS/FTP URLs being stripped from Markdown documents
+    - [OpenMinerU] Fixed preprocessing ENOENT errors due to ZIP structure change
+    - [Qiniu] Fixed PDF upload regression for GPT-5.4 models
+    - [Settings] Minor alignment fix for provider model list actions
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.9.4 - 错误修复与模型支持
+    Cherry Studio 1.9.6 - 错误修复
 
     🐛 问题修复
-    - [OpenCode] NEWAPI 服务商模型现在显示在列表中并正确路由
-    - [图像生成] 修复多个服务商的 gpt-image-2/gpt-image-1.5 编辑和生成问题
-    - [模型] 修复 Kimi K2.6 因不支持的温度设置导致请求失败
-    - [网关] 修复 Vercel AI Gateway 模型列表获取因缺少认证而失败
-    - [Copilot] 修复 GitHub Copilot 模型同步问题
-
-    ✨ 新功能
-    - [模型] 添加 MiMo V2.5 模型支持，包含推理和调用能力
-    - [模型] 添加 DeepSeek V4+ 模型支持，支持推理强度控制 (high/max)
-    - [模型] Mistral Small 4 现在支持视觉和可调节推理强度
-
-    💄 改进
-    - [智能体] 移除自动注入的 @cherry/browser MCP（如需要请手动重新启用）
+    - [AI] 修复聊天模型的存储提供商不存在时导致的崩溃
+    - [AI] 修复活跃数据传输期间流式请求在 30 分钟后被中断的问题（影响具有扩展思考的模型）
+    - [智能体] 修复提供商设置更改时智能体会话创建失败的问题
+    - [智能体] 修复 deepseek-r1 模型错误显示 function_calling 标签导致智能体模式出错
+    - [智能体] 定时任务会话现在使用任务名称而非智能体名称
+    - [MCP] 修复批准卡片未自动展开以显示运行/取消按钮的问题
+    - [MCP] 删除服务器时清理 OAuth 令牌
+    - [代码工具] 修复使用 OpenAI 或其他保留提供商时 Codex CLI 启动失败的问题
+    - [Claude Code] 修复提供商环境变量导致身份验证冲突从而无法启动的问题
+    - [图像] 修复 gpt-image-2 多轮编辑崩溃问题
+    - [知识库] 修复 Markdown 文档中的 HTTP/HTTPS/FTP URL 被移除的问题
+    - [OpenMinerU] 修复 ZIP 结构变更导致的预处理 ENOENT 错误
+    - [七牛云] 修复 GPT-5.4 模型的 PDF 上传回归问题
+    - [设置] 提供商模型列表操作的微小对齐修复
     <!--LANG:END-->

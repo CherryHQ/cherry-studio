@@ -71,6 +71,22 @@ describe('SelectDropdown', () => {
       fireEvent.click(screen.getByText('Alpha'))
       expect(onSelect).toHaveBeenCalledWith('1')
     })
+
+    it('handles wheel scrolling for non-virtualized lists rendered inside modal dialogs', () => {
+      render(<SelectDropdown {...defaultProps} />)
+      fireEvent.click(screen.getByRole('button'))
+
+      const scroller = screen.getByText('Alpha').closest('button')?.parentElement?.parentElement as HTMLDivElement
+      Object.defineProperties(scroller, {
+        clientHeight: { configurable: true, value: 20 },
+        scrollHeight: { configurable: true, value: 100 },
+        scrollTop: { configurable: true, writable: true, value: 0 }
+      })
+
+      fireEvent.wheel(scroller, { deltaY: 2, deltaMode: 1 })
+
+      expect(scroller.scrollTop).toBe(32)
+    })
   })
 
   describe('empty state', () => {
