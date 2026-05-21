@@ -306,7 +306,9 @@ describe('MiseService', () => {
     it.each([
       ['fd', '', undefined],
       ['fd', 'tool; echo', undefined],
-      ['fd', 'tool name', undefined]
+      ['fd', 'tool name', undefined],
+      ['fd', '../../../etc/passwd', undefined],
+      ['fd', 'github://evil', undefined]
     ])('rejects invalid tool key=%j tool=%j', (name, tool, version) => {
       expect(() => validateMiseTool({ name, tool, version })).toThrow('Invalid tool key')
     })

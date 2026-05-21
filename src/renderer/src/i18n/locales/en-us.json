@@ -6234,6 +6234,7 @@
       "description": "Manage binary tools and runtime dependencies required by the app.",
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",
+      "installError": "Failed to install tool",
       "installing": "Installing...",
       "notInstalled": "Not installed",
       "openBinariesDir": "Open binaries directory",

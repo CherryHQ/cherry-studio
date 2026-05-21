@@ -60,7 +60,7 @@ const MISE_PASSTHROUGH_ENV = [
 ]
 
 const TOOL_NAME_RE = /^[a-zA-Z][a-zA-Z0-9_-]*$/
-const TOOL_KEY_RE = /^[a-zA-Z0-9@:/_.-]+$/
+const TOOL_KEY_RE = /^(?!.*\.\.)(?!.*\/\/)[a-zA-Z0-9@:/_.-]+$/
 
 const WRAPPER_BACKENDS = new Set(['npm', 'pipx'])
 

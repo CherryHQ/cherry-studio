@@ -6234,6 +6234,7 @@
       "description": "管理應用程式執行所需的二進位工具和執行階段依賴。",
       "duplicateName": "已存在相同名稱的工具",
       "fieldVersion": "版本（選填，預設為最新）",
+      "installError": "工具安裝失敗",
       "installing": "安裝中...",
       "notInstalled": "未安裝",
       "openBinariesDir": "開啟二進位檔案目錄",

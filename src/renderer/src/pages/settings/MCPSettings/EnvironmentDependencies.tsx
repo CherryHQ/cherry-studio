@@ -100,7 +100,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       await window.api.mise.installTool(tool)
     } catch (error) {
       logger.error('Failed to install tool', error as Error)
-      window.toast.error(`${t('settings.mcp.installError')}: ${formatErrorMessage(error)}`)
+      window.toast.error(`${t('settings.plugins.installError')}: ${formatErrorMessage(error)}`)
     } finally {
       setInstallingTools((prev) => {
         const next = new Set(prev)

@@ -6234,6 +6234,7 @@
       "description": "管理应用运行所需的二进制工具和运行时依赖。",
       "duplicateName": "已存在相同名称的工具",
       "fieldVersion": "版本（可选，默认为最新）",
+      "installError": "工具安装失败",
       "installing": "安装中...",
       "notInstalled": "未安装",
       "openBinariesDir": "打开二进制文件目录",

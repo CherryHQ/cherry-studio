@@ -21,6 +21,7 @@ import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes
 import type {
   FileProcessorFeature,
   FileProcessorId,
+  MiseTool,
   SelectionActionItem,
   UnifiedPreferenceKeyType,
   UnifiedPreferenceMultipleResultType,
@@ -536,8 +537,7 @@ const api = {
   // Mise tool manager
   mise: {
     reconcile: () => ipcRenderer.invoke(IpcChannel.Mise_Reconcile),
-    installTool: (tool: { name: string; tool: string; version?: string }) =>
-      ipcRenderer.invoke(IpcChannel.Mise_InstallTool, tool),
+    installTool: (tool: MiseTool) => ipcRenderer.invoke(IpcChannel.Mise_InstallTool, tool),
     removeTool: (toolName: string) => ipcRenderer.invoke(IpcChannel.Mise_RemoveTool, toolName),
     getState: () => ipcRenderer.invoke(IpcChannel.Mise_GetState),
     searchRegistry: (query: string): Promise<Array<{ name: string; tool: string }>> =>
