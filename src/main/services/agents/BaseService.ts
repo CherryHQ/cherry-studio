@@ -301,7 +301,11 @@ export abstract class BaseService {
 
     // Local providers that don't require a real API key (use placeholder).
     // Note: lmstudio doesn't support Anthropic API format, only ollama does.
-    const localProvidersWithoutApiKey: readonly string[] = ['ollama', 'lmstudio', 'atomic-chat'] satisfies SystemProviderId[]
+    const localProvidersWithoutApiKey: readonly string[] = [
+      'ollama',
+      'lmstudio',
+      'atomic-chat'
+    ] satisfies SystemProviderId[]
 
     for (const [field, rawValue] of entries) {
       if (rawValue === undefined || rawValue === null) {
