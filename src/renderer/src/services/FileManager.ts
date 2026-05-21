@@ -112,13 +112,7 @@ class FileManager {
 
   static async deleteFiles(files: FileMetadata[]): Promise<void> {
     if (!files || files.length === 0) return
-
-    const results = await Promise.allSettled(files.map((file) => this.deleteFile(file.id)))
-
-    const failed = results.filter((r) => r.status === 'rejected')
-    if (failed.length > 0) {
-      logger.warn(`File deletions completed with ${failed.length} files failed to delete:`, failed)
-    }
+    await Promise.all(files.map((file) => this.deleteFile(file.id)))
   }
 
   static async allFiles(): Promise<FileMetadata[]> {
