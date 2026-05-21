@@ -14,13 +14,36 @@ import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
 import type {
   AgentSessionMessageEntity,
   CreateAgentSessionMessageDto,
-  CreateAgentSessionMessagesDto
+  CreateAgentSessionMessagesDto,
+  SearchSessionMessagesQueryParams,
+  SearchSessionMessagesResponse,
+  SessionSearchMessageResult
 } from '@shared/data/api/schemas/sessions'
 import { SESSION_MESSAGES_DEFAULT_LIMIT, SESSION_MESSAGES_MAX_LIMIT } from '@shared/data/api/schemas/sessions'
-import { and, desc, eq, isNotNull, lt, or } from 'drizzle-orm'
+import { buildKeywordRegexes, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
+import { buildSearchSnippet, stripMarkdownFormatting } from '@shared/utils/messageSearch'
+import { and, desc, eq, isNotNull, lt, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
 const logger = loggerService.withContext('SessionMessageService')
+const SEARCH_CHUNK_SIZE = 200
+const MIN_FTS_TERM_LENGTH = 3
+
+type SessionMessageSearchRow = {
+  rowId: string
+  sessionId: string
+  sessionName: string
+  agentId: string | null
+  agentName: string | null
+  role: string
+  searchableText: string
+  createdAt: number
+}
+
+type InternalSessionSearchMessageResult = SessionSearchMessageResult & {
+  cursorCreatedAt: number
+  cursorId: string
+}
 
 // Cursor wire format: `<createdAt-ms>:<id>`. Stale/legacy cursors fall back
 // to first page (warn) instead of throwing — opaque server-issued tokens.
@@ -41,7 +64,152 @@ function decodeMessageCursor(raw: string): { createdAt: number; id: string } | n
   return { createdAt, id }
 }
 
+function escapeLikeTerm(term: string): string {
+  return term.replace(/[\\%_]/g, '\\$&')
+}
+
+function encodeMessageCursor(createdAt: number | string, id: string): string {
+  return `${createdAt}:${id}`
+}
+
+function quoteFtsTerm(term: string): string {
+  return `"${term.replace(/"/g, '""')}"`
+}
+
+function canUseFts(terms: string[]): boolean {
+  return terms.every((term) => term.length >= MIN_FTS_TERM_LENGTH)
+}
+
 export class AgentSessionMessageService {
+  async search(query: SearchSessionMessagesQueryParams): Promise<SearchSessionMessagesResponse> {
+    const terms = splitKeywordsToTerms(query.q)
+    if (terms.length === 0) return { items: [] }
+
+    const db = application.get('DbService').getDb()
+    const matchMode = query.matchMode ?? 'whole-word'
+    const limit = query.limit ?? 500
+    const fetchLimit = limit + 1
+    const regexes = buildKeywordRegexes(terms, { matchMode, flags: 'i' })
+    const cursor = query.cursor ? decodeMessageCursor(query.cursor) : null
+    const results: InternalSessionSearchMessageResult[] = []
+    const useFts = matchMode === 'whole-word' && canUseFts(terms)
+    const ftsQuery = terms.map(quoteFtsTerm).join(' AND ')
+    const likeConditions = terms.map((term) => {
+      const pattern = `%${escapeLikeTerm(term.toLowerCase())}%`
+      return sql`lower(sm.searchable_text) LIKE ${pattern} ESCAPE '\\'`
+    })
+    const sessionCondition = query.sessionId ? sql`s.id = ${query.sessionId}` : sql`1 = 1`
+    const messageSessionCondition = query.sessionId ? sql`sm.session_id = ${query.sessionId}` : sql`1 = 1`
+    let offset = 0
+
+    while (results.length < fetchLimit) {
+      const rows = useFts
+        ? await db.all<SessionMessageSearchRow>(sql`
+            SELECT
+              sm.id AS "rowId",
+              sm.searchable_text AS "searchableText",
+              sm.session_id AS "sessionId",
+              s.name AS "sessionName",
+              s.agent_id AS "agentId",
+              a.name AS "agentName",
+              sm.role,
+              sm.created_at AS "createdAt"
+            FROM agent_session_message_fts
+            JOIN agent_session_message sm ON sm.rowid = agent_session_message_fts.rowid
+            JOIN agent_session s ON s.id = sm.session_id
+            LEFT JOIN agent a ON a.id = s.agent_id
+            WHERE agent_session_message_fts MATCH ${ftsQuery}
+              AND sm.searchable_text != ''
+              AND ${sessionCondition}
+              AND ${
+                cursor
+                  ? sql`(sm.created_at < ${cursor.createdAt} OR (sm.created_at = ${cursor.createdAt} AND sm.id < ${cursor.id}))`
+                  : sql`1 = 1`
+              }
+            ORDER BY sm.created_at DESC, sm.id DESC
+            LIMIT ${SEARCH_CHUNK_SIZE}
+            OFFSET ${offset}
+          `)
+        : await db.all<SessionMessageSearchRow>(sql`
+            SELECT
+              sm.id AS "rowId",
+              sm.searchable_text AS "searchableText",
+              sm.session_id AS "sessionId",
+              s.name AS "sessionName",
+              s.agent_id AS "agentId",
+              a.name AS "agentName",
+              sm.role,
+              sm.created_at AS "createdAt"
+            FROM agent_session_message sm
+            JOIN agent_session s ON s.id = sm.session_id
+            LEFT JOIN agent a ON a.id = s.agent_id
+            WHERE sm.searchable_text != ''
+              AND ${messageSessionCondition}
+              AND ${sql.join(likeConditions, sql` AND `)}
+              AND ${
+                cursor
+                  ? sql`(sm.created_at < ${cursor.createdAt} OR (sm.created_at = ${cursor.createdAt} AND sm.id < ${cursor.id}))`
+                  : sql`1 = 1`
+              }
+            ORDER BY sm.created_at DESC, sm.id DESC
+            LIMIT ${SEARCH_CHUNK_SIZE}
+            OFFSET ${offset}
+          `)
+
+      if (rows.length === 0) break
+      offset += rows.length
+
+      for (const row of rows) {
+        const searchableText = row.searchableText
+        if (!searchableText) continue
+
+        const plainText = stripMarkdownFormatting(searchableText)
+        const matches = regexes.every((regex) => {
+          regex.lastIndex = 0
+          return regex.test(plainText)
+        })
+        if (!matches) continue
+
+        results.push({
+          messageId: row.rowId,
+          sessionId: row.sessionId,
+          sessionName: row.sessionName,
+          agentId: row.agentId ?? undefined,
+          agentName: row.agentName ?? undefined,
+          role: ['user', 'assistant', 'tool', 'system'].includes(row.role)
+            ? (row.role as 'user' | 'assistant' | 'tool' | 'system')
+            : undefined,
+          snippet: buildSearchSnippet(searchableText, terms, matchMode),
+          createdAt: timestampToISO(Number(row.createdAt)),
+          cursorCreatedAt: Number(row.createdAt),
+          cursorId: row.rowId
+        })
+
+        if (results.length >= fetchLimit) break
+      }
+    }
+
+    const itemsWithCursor = results.slice(0, limit)
+    const nextCursorBoundary = results.length > limit ? itemsWithCursor.at(-1) : undefined
+    return {
+      items: itemsWithCursor.map(({ cursorCreatedAt: _cursorCreatedAt, cursorId: _cursorId, ...item }) => item),
+      nextCursor: nextCursorBoundary
+        ? encodeMessageCursor(nextCursorBoundary.cursorCreatedAt, nextCursorBoundary.cursorId)
+        : undefined
+    }
+  }
+
+  async sessionMessageExists(id: string): Promise<boolean> {
+    const database = application.get('DbService').getDb()
+    const result = await database
+      .select({ id: sessionMessagesTable.id })
+      .from(sessionMessagesTable)
+      .where(eq(sessionMessagesTable.id, id))
+      .limit(1)
+
+    return result.length > 0
+  }
+
   /**
    * Cursor-paginated message read. Walks newest-first; an absent cursor
    * returns the most recent page, each `nextCursor` walks one page older.

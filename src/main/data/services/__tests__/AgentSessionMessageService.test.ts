@@ -1,3 +1,4 @@
+import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
@@ -152,5 +153,173 @@ describe('AgentSessionMessageService', () => {
 
     expect(staleMatches.rows).toHaveLength(0)
     expect(targetMatches.rows.map((row) => String(row[0]))).toEqual([USER_MESSAGE_ID])
+  })
+
+  it('searches session message parts text', async () => {
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-search',
+      type: 'claude-code',
+      name: 'Search Agent',
+      instructions: 'Search instructions',
+      model: null,
+      orderKey: 'a0'
+    })
+    await dbh.db.insert(agentSessionTable).values({
+      id: 'session-search',
+      agentId: 'agent-search',
+      name: 'Session Search',
+      orderKey: 's0',
+      createdAt: 150,
+      updatedAt: 150
+    })
+    await dbh.db.insert(agentSessionMessageTable).values({
+      id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d101',
+      sessionId: 'session-search',
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: 'The session message has a unique needle.' }] },
+      status: 'success',
+      createdAt: 300,
+      updatedAt: 300
+    })
+
+    const result = await agentSessionMessageService.search({ q: 'needle', matchMode: 'substring' })
+
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        messageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d101',
+        sessionId: 'session-search',
+        sessionName: 'Session Search',
+        agentId: 'agent-search',
+        agentName: 'Search Agent',
+        role: 'assistant'
+      })
+    ])
+    expect(result.items[0].snippet).toContain('unique needle')
+  })
+
+  it('matches extracted text instead of serialized JSON escapes', async () => {
+    await dbh.db.insert(agentSessionTable).values({
+      id: 'session-escaped',
+      name: 'Session Escaped',
+      orderKey: 'se0'
+    })
+    await dbh.db.insert(agentSessionMessageTable).values({
+      id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d102',
+      sessionId: 'session-escaped',
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: 'line one\nline two' }] },
+      status: 'success',
+      createdAt: 300,
+      updatedAt: 300
+    })
+
+    const result = await agentSessionMessageService.search({
+      q: '"line one\nline two"',
+      matchMode: 'substring'
+    })
+
+    expect(result.items.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d102'])
+  })
+
+  it('filters session message search by session id', async () => {
+    await dbh.db.insert(agentSessionTable).values([
+      {
+        id: 'session-source-filter',
+        name: 'Session Source Filter',
+        orderKey: 'sf0'
+      },
+      {
+        id: 'session-source-other',
+        name: 'Session Source Other',
+        orderKey: 'sf1'
+      }
+    ])
+    await dbh.db.insert(agentSessionMessageTable).values([
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d103',
+        sessionId: 'session-source-filter',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'session-only needle' }] },
+        status: 'success',
+        createdAt: 300,
+        updatedAt: 300
+      },
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d104',
+        sessionId: 'session-source-other',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'other session needle' }] },
+        status: 'success',
+        createdAt: 200,
+        updatedAt: 200
+      }
+    ])
+
+    const result = await agentSessionMessageService.search({
+      q: 'needle',
+      matchMode: 'substring',
+      sessionId: 'session-source-filter'
+    })
+
+    expect(result.items.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d103'])
+  })
+
+  it('paginates search with message ids as row-id cursors', async () => {
+    await dbh.db.insert(agentSessionTable).values({
+      id: 'session-page',
+      name: 'Session Page',
+      orderKey: 'sp0'
+    })
+    await dbh.db.insert(agentSessionMessageTable).values([
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d105',
+        sessionId: 'session-page',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'needle oldest' }] },
+        status: 'success',
+        createdAt: 100,
+        updatedAt: 100
+      },
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d106',
+        sessionId: 'session-page',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'needle middle' }] },
+        status: 'success',
+        createdAt: 200,
+        updatedAt: 200
+      },
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d107',
+        sessionId: 'session-page',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'needle newest' }] },
+        status: 'success',
+        createdAt: 300,
+        updatedAt: 300
+      }
+    ])
+
+    const firstPage = await agentSessionMessageService.search({
+      q: 'needle',
+      matchMode: 'substring',
+      sessionId: 'session-page',
+      limit: 2
+    })
+    const secondPage = await agentSessionMessageService.search({
+      q: 'needle',
+      matchMode: 'substring',
+      sessionId: 'session-page',
+      limit: 2,
+      cursor: firstPage.nextCursor
+    })
+
+    expect(firstPage.items.map((item) => item.messageId)).toEqual([
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d107',
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d106'
+    ])
+    expect(firstPage.nextCursor).toBe('200:018f6ed6-73b8-7f40-8d0d-9bb2f8f1d106')
+    expect(secondPage.items.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d105'])
+    expect(secondPage.nextCursor).toBeUndefined()
   })
 })

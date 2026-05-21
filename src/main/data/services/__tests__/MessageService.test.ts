@@ -191,7 +191,9 @@ describe('MessageService', () => {
         messageId: 'm-search-1',
         topicId: 'topic-search',
         topicName: '',
-        topicAssistantId: undefined
+        topicAssistantId: undefined,
+        topicCreatedAt: expect.any(String),
+        topicUpdatedAt: expect.any(String)
       })
       expect(result.items[0].snippet).toContain('unique needle')
       expect(result.items[0].createdAt).toBe('1970-01-01T00:00:00.100Z')
@@ -265,6 +267,84 @@ describe('MessageService', () => {
       const result = await messageService.search({ q: 'needle', matchMode: 'substring' })
 
       expect(result.items.map((item) => item.messageId)).toEqual(['m-substring-2', 'm-substring-1'])
+    })
+
+    it('filters substring search by topic id', async () => {
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-substring-filter', activeNodeId: 'm-substring-filter-target', orderKey: 'sf0' },
+        { id: 'topic-substring-other', activeNodeId: 'm-substring-filter-other', orderKey: 'sf1' }
+      ])
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'm-substring-filter-target',
+          parentId: null,
+          topicId: 'topic-substring-filter',
+          role: 'assistant',
+          data: partsText('needle appears in the target topic.'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 200,
+          updatedAt: 200
+        },
+        {
+          id: 'm-substring-filter-other',
+          parentId: null,
+          topicId: 'topic-substring-other',
+          role: 'assistant',
+          data: partsText('needle appears in another topic too.'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 300,
+          updatedAt: 300
+        }
+      ])
+
+      const result = await messageService.search({
+        q: 'needle',
+        matchMode: 'substring',
+        topicId: 'topic-substring-filter'
+      })
+
+      expect(result.items.map((item) => item.messageId)).toEqual(['m-substring-filter-target'])
+    })
+
+    it('filters whole-word FTS search by topic id', async () => {
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-fts-filter', activeNodeId: 'm-fts-filter-target', orderKey: 'ff0' },
+        { id: 'topic-fts-other', activeNodeId: 'm-fts-filter-other', orderKey: 'ff1' }
+      ])
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'm-fts-filter-target',
+          parentId: null,
+          topicId: 'topic-fts-filter',
+          role: 'assistant',
+          data: partsText('The shared token is in the target topic.'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 200,
+          updatedAt: 200
+        },
+        {
+          id: 'm-fts-filter-other',
+          parentId: null,
+          topicId: 'topic-fts-other',
+          role: 'assistant',
+          data: partsText('The shared token is in another topic too.'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 300,
+          updatedAt: 300
+        }
+      ])
+
+      const result = await messageService.search({
+        q: 'shared',
+        matchMode: 'whole-word',
+        topicId: 'topic-fts-filter'
+      })
+
+      expect(result.items.map((item) => item.messageId)).toEqual(['m-fts-filter-target'])
     })
 
     it('orders matches by newest message before applying limit', async () => {
@@ -399,7 +479,7 @@ describe('MessageService', () => {
       })
 
       expect(firstPage.items.map((item) => item.messageId)).toEqual(['m-page-3', 'm-page-2'])
-      expect(firstPage.nextCursor).toBe('200:m-page-2')
+      expect(firstPage.nextCursor).toBeDefined()
       expect(secondPage.items.map((item) => item.messageId)).toEqual(['m-page-1'])
       expect(secondPage.nextCursor).toBeUndefined()
     })

@@ -4,7 +4,8 @@ import {
   AgentSessionMessageEntitySchema,
   CreateAgentSessionMessageSchema,
   CreateAgentSessionMessagesSchema,
-  ListSessionsQuerySchema
+  ListSessionsQuerySchema,
+  SearchSessionMessagesQuerySchema
 } from '../sessions'
 
 describe('AgentSessionMessage schemas', () => {
@@ -68,5 +69,29 @@ describe('ListSessionsQuerySchema', () => {
 
   it('rejects blank search', () => {
     expect(() => ListSessionsQuerySchema.parse({ search: '   ' })).toThrow()
+  })
+})
+
+describe('SearchSessionMessagesQuerySchema', () => {
+  it('normalizes session message search queries', () => {
+    expect(SearchSessionMessagesQuerySchema.parse({ q: '  deploy  ' })).toEqual({
+      q: 'deploy'
+    })
+  })
+
+  it('accepts session filter and pagination', () => {
+    expect(
+      SearchSessionMessagesQuerySchema.parse({
+        q: 'plan',
+        sessionId: 'session-1',
+        matchMode: 'substring',
+        limit: '20'
+      })
+    ).toEqual({
+      q: 'plan',
+      sessionId: 'session-1',
+      matchMode: 'substring',
+      limit: 20
+    })
   })
 })

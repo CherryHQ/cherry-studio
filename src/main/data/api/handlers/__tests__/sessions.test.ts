@@ -7,6 +7,7 @@ const {
   updateMock,
   deleteMock,
   listSessionMessagesMock,
+  searchSessionMessagesMock,
   deleteSessionMessageMock,
   reorderMock,
   reorderBatchMock
@@ -17,6 +18,7 @@ const {
   updateMock: vi.fn(),
   deleteMock: vi.fn(),
   listSessionMessagesMock: vi.fn(),
+  searchSessionMessagesMock: vi.fn(),
   deleteSessionMessageMock: vi.fn(),
   reorderMock: vi.fn(),
   reorderBatchMock: vi.fn()
@@ -37,6 +39,7 @@ vi.mock('@data/services/SessionService', () => ({
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     listSessionMessages: listSessionMessagesMock,
+    search: searchSessionMessagesMock,
     deleteSessionMessage: deleteSessionMessageMock
   }
 }))
@@ -77,6 +80,30 @@ describe('sessionHandlers', () => {
       ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
       expect(listByCursorMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('/sessions/messages/search', () => {
+    it('forwards normalized session message search query', async () => {
+      const response = { items: [], nextCursor: undefined }
+      searchSessionMessagesMock.mockResolvedValueOnce(response)
+
+      const result = await sessionHandlers['/sessions/messages/search'].GET({
+        query: {
+          q: '  needle  ',
+          sessionId: 'session-1',
+          matchMode: 'substring',
+          limit: '10'
+        }
+      } as never)
+
+      expect(searchSessionMessagesMock).toHaveBeenCalledWith({
+        q: 'needle',
+        sessionId: 'session-1',
+        matchMode: 'substring',
+        limit: 10
+      })
+      expect(result).toBe(response)
     })
   })
 })

@@ -680,6 +680,8 @@ export class MessageService {
     })
     const results: InternalSearchMessageResult[] = []
     const cursor = decodeSearchCursor(query.cursor)
+    const topicCondition = query.topicId ? sql`m.topic_id = ${query.topicId}` : sql`1 = 1`
+    const topicConditionForMessageAlias = query.topicId ? sql`message.topic_id = ${query.topicId}` : sql`1 = 1`
     let offset = 0
 
     while (results.length < fetchLimit) {
@@ -701,6 +703,7 @@ export class MessageService {
               AND m.deleted_at IS NULL
               AND t.deleted_at IS NULL
               AND m.searchable_text != ''
+              AND ${topicCondition}
               AND ${
                 cursor
                   ? sql`(m.created_at < ${cursor.createdAt} OR (m.created_at = ${cursor.createdAt} AND m.id < ${cursor.id}))`
@@ -725,6 +728,7 @@ export class MessageService {
             WHERE message.deleted_at IS NULL
               AND t.deleted_at IS NULL
               AND message.searchable_text != ''
+              AND ${topicConditionForMessageAlias}
               AND ${sql.join(likeConditions, sql` AND `)}
               AND ${
                 cursor

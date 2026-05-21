@@ -1,0 +1,41 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { searchMock } = vi.hoisted(() => ({
+  searchMock: vi.fn()
+}))
+
+vi.mock('@data/services/MessageService', () => ({
+  messageService: {
+    search: searchMock
+  }
+}))
+
+import { messageHandlers } from '../messages'
+
+describe('messageHandlers', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('/messages/search', () => {
+    it('forwards normalized topic message search query', async () => {
+      const response = { items: [], nextCursor: undefined }
+      searchMock.mockResolvedValueOnce(response)
+
+      const result = await messageHandlers['/messages/search'].GET({
+        query: {
+          q: '  needle  ',
+          matchMode: 'substring',
+          limit: '10'
+        }
+      } as never)
+
+      expect(searchMock).toHaveBeenCalledWith({
+        q: 'needle',
+        matchMode: 'substring',
+        limit: 10
+      })
+      expect(result).toBe(response)
+    })
+  })
+})
