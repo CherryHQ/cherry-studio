@@ -8,21 +8,14 @@ export const GLOBAL_SEARCH_RECENT_ITEM_LIMIT = 20
 export const GLOBAL_SEARCH_DISPLAY_RECENT_LIMIT = 6
 export const GLOBAL_MESSAGE_SEARCH_GROUP_COLLAPSED_LIMIT = 3
 
-export type GlobalSearchFilter = 'all' | 'conversation' | 'assistant' | 'agent' | 'knowledge'
+export type GlobalSearchFilter = 'all' | 'topic' | 'session' | 'assistant' | 'agent' | 'knowledge'
 export type GlobalMessageSearchSourceFilter = 'all' | 'topic' | 'session'
 export type GlobalTopicMessageSearchResult = SearchMessageResult & { sourceType: 'topic' }
 export type GlobalSessionMessageSearchResult = SessionSearchMessageResult & { sourceType: 'session' }
 export type GlobalMessageSearchResult = GlobalTopicMessageSearchResult | GlobalSessionMessageSearchResult
 type GlobalMessageSearchSource = GlobalMessageSearchResult['sourceType']
 
-export type GlobalSearchGroupId =
-  | 'recent'
-  | 'conversation'
-  | 'topic'
-  | 'session'
-  | 'assistant'
-  | 'agent'
-  | 'knowledge-base'
+export type GlobalSearchGroupId = 'recent' | 'topic' | 'session' | 'assistant' | 'agent' | 'knowledge-base'
 
 export type GlobalSearchPanelItem =
   | {
@@ -65,7 +58,8 @@ export type GlobalMessageSearchPanelGroup = {
 
 const FILTER_TYPES: Record<GlobalSearchFilter, GlobalSearchType[]> = {
   all: ['topic', 'session', 'assistant', 'agent', 'knowledge-base'],
-  conversation: ['topic', 'session'],
+  topic: ['topic'],
+  session: ['session'],
   assistant: ['assistant'],
   agent: ['agent'],
   knowledge: ['knowledge-base']
@@ -205,19 +199,22 @@ export function buildGlobalSearchGroups({
   }
 
   const groups: GlobalSearchPanelGroup[] = []
-  const includeConversation = filter === 'all' || filter === 'conversation'
+  const includeTopic = filter === 'all' || filter === 'topic'
+  const includeSession = filter === 'all' || filter === 'session'
   const includeAssistant = filter === 'all' || filter === 'assistant'
   const includeAgent = filter === 'all' || filter === 'agent'
   const includeKnowledge = filter === 'all' || filter === 'knowledge'
 
-  if (includeConversation) {
+  if (includeTopic) {
     const topicItems = (itemsByType.get('topic') ?? []).map((result) => ({
       kind: 'result' as const,
       id: `${result.type}:${result.id}`,
       result
     }))
     if (topicItems.length > 0) groups.push({ id: 'topic', items: topicItems })
+  }
 
+  if (includeSession) {
     const sessionItems = (itemsByType.get('session') ?? []).map((result) => ({
       kind: 'result' as const,
       id: `${result.type}:${result.id}`,

@@ -171,7 +171,7 @@ describe('globalSearchGroups', () => {
     })
   })
 
-  it('maps conversation filter to topic and session search types and separate groups', () => {
+  it('maps topic and session filters to separate search types and groups', () => {
     const response: GlobalSearchResponse = {
       query: 'plan',
       groups: [
@@ -200,11 +200,12 @@ describe('globalSearchGroups', () => {
       ]
     }
 
-    expect(getGlobalSearchTypes('conversation')).toEqual(['topic', 'session'])
+    expect(getGlobalSearchTypes('topic')).toEqual(['topic'])
+    expect(getGlobalSearchTypes('session')).toEqual(['session'])
     expect(
       buildGlobalSearchGroups({
         query: 'plan',
-        filter: 'conversation',
+        filter: 'topic',
         recentItems: [],
         response
       })
@@ -212,7 +213,17 @@ describe('globalSearchGroups', () => {
       expect.objectContaining({
         id: 'topic',
         items: [expect.objectContaining({ id: 'topic:topic-1' })]
-      }),
+      })
+    ])
+
+    expect(
+      buildGlobalSearchGroups({
+        query: 'plan',
+        filter: 'session',
+        recentItems: [],
+        response
+      })
+    ).toEqual([
       expect.objectContaining({
         id: 'session',
         items: [expect.objectContaining({ id: 'session:session-1' })]

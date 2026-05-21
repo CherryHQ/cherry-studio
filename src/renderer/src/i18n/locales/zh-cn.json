@@ -2193,7 +2193,9 @@
       "assistant": "助手",
       "conversation": "对话",
       "knowledge": "知识库",
-      "label": "搜索类型"
+      "label": "搜索类型",
+      "session": "对话",
+      "topic": "话题"
     },
     "groups": {
       "agent": "智能体",
@@ -2201,13 +2203,14 @@
       "conversation": "对话",
       "knowledge-base": "知识库",
       "recent": "最近",
-      "session": "工作",
+      "session": "对话",
       "topic": "话题"
     },
     "keyboard": {
       "select": "选择"
     },
     "messageSearch": {
+      "entry": "消息",
       "hint": "输入关键词搜索消息正文",
       "matchModeLabel": "匹配方式",
       "matchModes": {
