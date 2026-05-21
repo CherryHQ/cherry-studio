@@ -322,7 +322,7 @@ describe('FileMigrator size handling', () => {
     vi.clearAllMocks()
   })
 
-  it('non-numeric size falls back to 0 with a warning carrying the row id and raw value', async () => {
+  it('non-numeric size: row treated as malformed and skipped, warning carries row id and raw value', async () => {
     const row = makeInternalRow({
       id: '550e8400-e29b-41d4-a716-446655440010',
       size: 'big' as unknown as number
@@ -337,13 +337,13 @@ describe('FileMigrator size handling', () => {
     expect(joined).toContain('Invalid size')
     expect(joined).toContain(row.id)
     expect(joined).toContain('"big"')
+    expect(joined).toContain('treating row as malformed')
 
-    const inserted = insertValues.mock.calls[0][0]
-    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
-    expect(firstRow.size).toBe(0)
+    // Row was skipped — no insert happened (single-row fixture).
+    expect(insertValues).not.toHaveBeenCalled()
   })
 
-  it('negative size falls back to 0 with a warning', async () => {
+  it('negative size: row treated as malformed and skipped, warning carries raw value', async () => {
     const row = makeInternalRow({ id: '550e8400-e29b-41d4-a716-446655440011', size: -1 })
     const { ctx, insertValues } = createMockContext([row])
     const m = new FileMigrator()
@@ -353,10 +353,9 @@ describe('FileMigrator size handling', () => {
     const joined = (result.warnings ?? []).join('\n')
     expect(joined).toContain('Invalid size')
     expect(joined).toContain('-1')
+    expect(joined).toContain('treating row as malformed')
 
-    const inserted = insertValues.mock.calls[0][0]
-    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
-    expect(firstRow.size).toBe(0)
+    expect(insertValues).not.toHaveBeenCalled()
   })
 })
 

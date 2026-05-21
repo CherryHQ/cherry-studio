@@ -124,7 +124,12 @@ function toFileEntry(
   if (isInternal) {
     const validSize = typeof row.size === 'number' && row.size >= 0
     if (!validSize) {
-      onWarning(`Invalid size for file id=${row.id}; falling back to 0. raw=${JSON.stringify(row.size)}`)
+      // size column has a DB CHECK but accepts 0 (legitimate empty files),
+      // so a garbage v1 size would land indistinguishably as a 0-byte file in
+      // the v2 UI. Treat as malformed row instead — the caller skips it with
+      // a warning. Physical orphans are reclaimed by the startup FS sweep.
+      onWarning(`Invalid size for file id=${row.id}; treating row as malformed. raw=${JSON.stringify(row.size)}`)
+      return null
     }
     return {
       id: row.id,
@@ -133,7 +138,7 @@ function toFileEntry(
         ? path.basename(row.origin_name, row.origin_name.includes('.') ? path.extname(row.origin_name) : '')
         : row.name,
       ext,
-      size: validSize ? row.size : 0,
+      size: row.size,
       externalPath: null,
       trashedAt: null,
       createdAt,
