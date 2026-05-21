@@ -175,6 +175,13 @@
       "when": 1778738430302,
       "tag": "0024_eager_patriot",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1779183817228,
+      "tag": "0025_left_black_tarantula",
+      "breakpoints": true
     }
   ],
   "version": "7"

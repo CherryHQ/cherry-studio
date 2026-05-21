@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import ModelListSyncDrawer from './ModelListSyncDrawer'
+import { useAutoPullOnApiKeyChange } from './useAutoPullOnApiKeyChange'
 import { useProviderModelPullReconcile } from './useProviderModelPullReconcile'
 
 interface ProviderModelPullReconcileProps {
@@ -16,6 +17,7 @@ interface ProviderModelPullReconcileProps {
 const ProviderModelPullReconcile: React.FC<ProviderModelPullReconcileProps> = ({ providerId, disabled }) => {
   const { t } = useTranslation()
   const pullReconcile = useProviderModelPullReconcile(providerId)
+  useAutoPullOnApiKeyChange(providerId, pullReconcile.openPullReconcile)
 
   return (
     <>

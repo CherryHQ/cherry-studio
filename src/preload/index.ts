@@ -28,7 +28,6 @@ import type {
   UpgradeChannel
 } from '@shared/data/preference/preferenceTypes'
 import type {
-  FileProcessingTaskResult,
   FileProcessingTaskStartResult,
   ListAvailableFileProcessorsResult
 } from '@shared/data/types/fileProcessing'
@@ -817,14 +816,6 @@ const api = {
     addStreamMessage: (spanId: string, modelName: string, context: string, message: any) =>
       ipcRenderer.invoke(IpcChannel.TRACE_ADD_STREAM_MESSAGE, spanId, modelName, context, message)
   },
-  anthropic_oauth: {
-    startOAuthFlow: () => ipcRenderer.invoke(IpcChannel.Anthropic_StartOAuthFlow),
-    completeOAuthWithCode: (code: string) => ipcRenderer.invoke(IpcChannel.Anthropic_CompleteOAuthWithCode, code),
-    cancelOAuthFlow: () => ipcRenderer.invoke(IpcChannel.Anthropic_CancelOAuthFlow),
-    getAccessToken: () => ipcRenderer.invoke(IpcChannel.Anthropic_GetAccessToken),
-    hasCredentials: () => ipcRenderer.invoke(IpcChannel.Anthropic_HasCredentials),
-    clearCredentials: () => ipcRenderer.invoke(IpcChannel.Anthropic_ClearCredentials)
-  },
   codeCli: {
     run: (
       cliTool: string,
@@ -854,10 +845,6 @@ const api = {
       file: FileMetadata
       processorId?: FileProcessorId
     }): Promise<FileProcessingTaskStartResult> => ipcRenderer.invoke(IpcChannel.FileProcessing_StartTask, payload),
-    getTask: (payload: { taskId: string }): Promise<FileProcessingTaskResult> =>
-      ipcRenderer.invoke(IpcChannel.FileProcessing_GetTask, payload),
-    cancelTask: (payload: { taskId: string }): Promise<FileProcessingTaskResult> =>
-      ipcRenderer.invoke(IpcChannel.FileProcessing_CancelTask, payload),
     listAvailableProcessors: (): Promise<ListAvailableFileProcessorsResult> =>
       ipcRenderer.invoke(IpcChannel.FileProcessing_ListAvailableProcessors)
   },

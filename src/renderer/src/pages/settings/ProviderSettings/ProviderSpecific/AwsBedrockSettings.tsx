@@ -27,20 +27,23 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
   const { inputApiKey, setInputApiKey, commitInputApiKeyNow } = useAuthenticationApiKey()
 
   const isIamMode = provider?.authType === 'iam-aws'
-  const awsConfig = authConfig?.type === 'iam-aws' ? authConfig : null
+  const iamConfig = authConfig?.type === 'iam-aws' ? authConfig : null
+  const apiKeyAwsConfig = authConfig?.type === 'api-key-aws' ? authConfig : null
+  // Region lives on both variants — read whichever one is active.
+  const currentRegion = iamConfig?.region ?? apiKeyAwsConfig?.region ?? ''
 
   const apiKeyWebsite = provider?.websites?.apiKey
 
-  const [localAccessKeyId, setLocalAccessKeyId] = useState(awsConfig?.accessKeyId ?? '')
-  const [localSecretAccessKey, setLocalSecretAccessKey] = useState(awsConfig?.secretAccessKey ?? '')
-  const [localRegion, setLocalRegion] = useState(awsConfig?.region ?? '')
+  const [localAccessKeyId, setLocalAccessKeyId] = useState(iamConfig?.accessKeyId ?? '')
+  const [localSecretAccessKey, setLocalSecretAccessKey] = useState(iamConfig?.secretAccessKey ?? '')
+  const [localRegion, setLocalRegion] = useState(currentRegion)
   const isIamDraftDirtyRef = useRef(false)
 
   const resetLocalIamConfig = useCallback(() => {
-    setLocalAccessKeyId(awsConfig?.accessKeyId ?? '')
-    setLocalSecretAccessKey(awsConfig?.secretAccessKey ?? '')
-    setLocalRegion(awsConfig?.region ?? '')
-  }, [awsConfig?.accessKeyId, awsConfig?.secretAccessKey, awsConfig?.region])
+    setLocalAccessKeyId(iamConfig?.accessKeyId ?? '')
+    setLocalSecretAccessKey(iamConfig?.secretAccessKey ?? '')
+    setLocalRegion(currentRegion)
+  }, [iamConfig?.accessKeyId, iamConfig?.secretAccessKey, currentRegion])
 
   useEffect(() => {
     if (!isIamDraftDirtyRef.current) {
@@ -52,12 +55,27 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
     isIamDraftDirtyRef.current = true
   }
 
+  // Both AWS variants need a region to reach a working Bedrock endpoint.
+  // Reject persisting an empty one (no silent 'us-east-1' default, no empty
+  // string) so the user explicitly supplies it before it is written.
+  const ensureRegionProvided = () => {
+    if (localRegion.trim().length > 0) {
+      return true
+    }
+    window.toast.warning(t('settings.provider.aws-bedrock.region_required'))
+    return false
+  }
+
   const handleAuthTypeChange = async (value: string) => {
+    if (!ensureRegionProvided()) {
+      return
+    }
     try {
+      const region = localRegion.trim()
       if (value === 'iam') {
-        await updateAuthConfig({ type: 'iam-aws', region: localRegion || 'us-east-1' })
+        await updateAuthConfig({ type: 'iam-aws', region })
       } else {
-        await updateAuthConfig({ type: 'api-key' })
+        await updateAuthConfig({ type: 'api-key-aws', region })
       }
       isIamDraftDirtyRef.current = false
     } catch (error) {
@@ -67,10 +85,13 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
   }
 
   const saveIamConfig = async () => {
+    if (!ensureRegionProvided()) {
+      return
+    }
     try {
       await updateAuthConfig({
         type: 'iam-aws' as const,
-        region: localRegion,
+        region: localRegion.trim(),
         accessKeyId: localAccessKeyId,
         secretAccessKey: localSecretAccessKey
       })
@@ -83,12 +104,26 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
     }
   }
 
+  const saveApiKeyAwsRegion = async () => {
+    try {
+      await updateAuthConfig({ type: 'api-key-aws', region: localRegion.trim() })
+      isIamDraftDirtyRef.current = false
+    } catch (error) {
+      logger.error('Failed to save AWS Bedrock api-key region', { providerId, error })
+      window.toast.error(t('settings.provider.save_failed'))
+      isIamDraftDirtyRef.current = false
+      resetLocalIamConfig()
+    }
+  }
+
   const saveRegion = async () => {
+    if (!ensureRegionProvided()) {
+      return
+    }
     if (isIamMode) {
       await saveIamConfig()
     } else {
-      isIamDraftDirtyRef.current = false
-      resetLocalIamConfig()
+      await saveApiKeyAwsRegion()
     }
   }
 

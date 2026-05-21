@@ -19,6 +19,7 @@ export const doc2xDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
   'document_to_markdown',
   Doc2xQueryContext
 > = {
+  mode: 'remote-poll',
   prepare(file, config, signal) {
     signal?.throwIfAborted()
     const startContext = prepareStartContext(file, config, signal)
@@ -59,6 +60,26 @@ export const doc2xDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
         }
 
         return handleExportStage(task.providerTaskId, context)
+      },
+      toPersistable(remoteContext, providerTaskId) {
+        return {
+          providerTaskId,
+          stage: remoteContext.stage,
+          apiHost: remoteContext.apiHost
+        }
+      },
+      rehydrate(persisted, restoredConfig) {
+        if (!persisted.apiHost) {
+          throw new Error('doc2x rehydrate: missing apiHost in persisted remote state')
+        }
+        return {
+          providerTaskId: persisted.providerTaskId,
+          remoteContext: {
+            apiHost: persisted.apiHost,
+            apiKey: getRequiredApiKey(restoredConfig, 'doc2x'),
+            stage: (persisted.stage ?? 'parsing') as Doc2xTaskStage
+          }
+        }
       }
     }
   }

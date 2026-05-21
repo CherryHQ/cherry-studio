@@ -1,5 +1,6 @@
 import { Button, Checkbox } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { getModelLogo } from '@renderer/config/models'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { AlertTriangle, CheckCircle2, Plus, Trash2 } from 'lucide-react'
@@ -24,6 +25,10 @@ function modelIdLine(uniqueModelId: UniqueModelId, apiModelId?: string) {
 }
 
 function ModelGlyph({ model }: { model: Model }) {
+  const Icon = getModelLogo(model)
+  if (Icon) {
+    return <Icon.Avatar size={20} />
+  }
   const letter = (model.name || model.apiModelId || '?').slice(0, 1).toUpperCase()
   return <div className={modelSyncClasses.fetchAvatar}>{letter}</div>
 }

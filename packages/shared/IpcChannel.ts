@@ -206,8 +206,6 @@ export enum IpcChannel {
   KnowledgeRuntime_DeleteItemChunk = 'knowledge-runtime:delete-item-chunk',
 
   FileProcessing_StartTask = 'file-processing:start-task',
-  FileProcessing_GetTask = 'file-processing:get-task',
-  FileProcessing_CancelTask = 'file-processing:cancel-task',
   FileProcessing_ListAvailableProcessors = 'file-processing:list-available-processors',
 
   //file
@@ -402,14 +400,6 @@ export enum IpcChannel {
   ApiServer_Ready = 'api-server:ready',
   // NOTE: This api is not be used.
   ApiServer_GetConfig = 'api-server:get-config',
-
-  // Anthropic OAuth
-  Anthropic_StartOAuthFlow = 'anthropic:start-oauth-flow',
-  Anthropic_CompleteOAuthWithCode = 'anthropic:complete-oauth-with-code',
-  Anthropic_CancelOAuthFlow = 'anthropic:cancel-oauth-flow',
-  Anthropic_GetAccessToken = 'anthropic:get-access-token',
-  Anthropic_HasCredentials = 'anthropic:has-credentials',
-  Anthropic_ClearCredentials = 'anthropic:clear-credentials',
 
   // ExternalApps
   ExternalApps_DetectInstalled = 'external-apps:detect-installed',

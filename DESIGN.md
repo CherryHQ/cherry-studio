@@ -307,6 +307,7 @@ All button hover states share a consistent pattern:
 - Background: `var(--color-background)`
 - Border: 1px solid `var(--color-input)`
 - Radius: `var(--radius-md)` (8px)
+- Shadow: none — inputs stay flat at rest; per the depth philosophy, shadows are reserved for hover feedback and floating elements
 - Focus ring: `var(--border-width-2)` `var(--color-ring)`
 - Font: `var(--font-family-sans)` between `var(--font-size-body-sm)` and `var(--font-size-body-md)`, `var(--font-weight-regular)`
 - Placeholder: `var(--color-foreground-muted)`
@@ -447,7 +448,7 @@ Source: `Switch` and `DescriptionSwitch` from `@cherrystudio/ui` (`packages/ui/s
 | `var(--radius-lg)` | 10px | Cards, panels, dialogs |
 | `var(--radius-xl)` | 14px | Large cards, hero sections |
 | `var(--radius-2xl)` | 18px | Feature cards, prominent containers |
-| `var(--radius-3xl)` | 22px | Marketing cards, large modals |
+| `var(--radius-3xl)` | 22px | Marketing cards, large modals, side drawers |
 | `var(--radius-4xl)` | 26px | Display surfaces |
 | `var(--radius-round)` | 9999px | Pills, avatars, circular buttons |
 
@@ -484,7 +485,7 @@ Cherry Studio uses a dual depth system: **surface color layering** for structura
 | `var(--shadow-sm)` | Cards, small floating elements |
 | `var(--shadow-md)` | Dropdowns, tooltips |
 | `var(--shadow-lg)` | Modals, large panels |
-| `var(--shadow-xl)` | Full-screen overlays |
+| `var(--shadow-xl)` | Side drawers, full-screen overlays |
 | `var(--shadow-2xl)` | Hero cards, peak emphasis |
 
 **Inset shadows (5 levels):** `var(--inset-shadow-2xs)` · `var(--inset-shadow-xs)` · `var(--inset-shadow-sm)` · `var(--inset-shadow-md)` · `var(--inset-shadow-lg)` — for pressed inputs, sunken areas.
@@ -551,7 +552,7 @@ Cherry Studio uses a dual depth system: **surface color layering** for structura
 - Use the heading presets (`heading-sm/md/lg/xl`) for new headings — they bundle font / size / weight / line-height / letter-spacing consistently
 - Use primitive color scales (`--color-blue-*`, `--color-green-*`, etc.) for charts and data visualization
 - Apply `var(--radius-round)` specifically for pills, avatars, and circular buttons
-- Use `var(--shadow-md)` to `var(--shadow-lg)` for floating elements (popovers, modals, dropdowns)
+- Use `var(--shadow-md)` to `var(--shadow-lg)` for floating elements (popovers, modals, dropdowns), and `var(--shadow-xl)` for side drawers that need stronger separation from the dimmed page
 - Use glass tokens (`--color-glass` + `backdrop-filter: blur(var(--color-glass-blur))`) for translucent floating chrome
 
 ### Don't
@@ -565,7 +566,7 @@ Cherry Studio uses a dual depth system: **surface color layering** for structura
 - Don't use `var(--color-popover)` background for cards or vice versa — each elevation level has its specific token
 - **Don't hard-code hex / rgba / oklch values** — always reference semantic tokens so light/dark mode works automatically
 - Don't use `border-border/60`, `border-border/40`, `border-border/30`, or `border-border/15` — choose a semantic border token instead
-- Don't apply `var(--shadow-xl)` or `var(--shadow-2xl)` to standard UI elements — heavy shadows break the flat aesthetic
+- Don't apply `var(--shadow-xl)` or `var(--shadow-2xl)` to standard UI elements — reserve `var(--shadow-xl)` for side drawers and full-screen overlays, and `var(--shadow-2xl)` for peak display emphasis
 
 ## 9. Responsive Behavior
 
