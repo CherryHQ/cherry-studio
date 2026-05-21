@@ -102,9 +102,8 @@
 
 ## 6. 发布与文档收尾
 
-- 补 Knowledge V2 的 breaking changes 记录。
-  - 用户可感知的 v2 变更应写入 `v2-refactor-temp/docs/breaking-changes/`。
-  - 当前尚未看到 Knowledge V2 专项条目。
+- ✅ Knowledge V2 首条 breaking changes 已落地（`2026-05-20-knowledge-job-auto-recovery.md`）。
+  - 后续若再有用户可感知的 v2 变更，继续写入 `v2-refactor-temp/docs/breaking-changes/`。
   - 参考：`v2-refactor-temp/docs/breaking-changes/README.md`
 
 - 更新后端决策文档中已落地的变化。

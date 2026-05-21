@@ -305,7 +305,7 @@ describe('KnowledgeRuntimeService (Phase 4 JobManager backbone)', () => {
       expect(enqueueMock).toHaveBeenCalledTimes(1)
       const [type, payload] = enqueueMock.mock.calls[0]
       expect(type).toBe('knowledge.prepare-root')
-      expect(payload).toEqual({ baseId: 'kb-1', itemId: 'dir-1', itemType: 'directory' })
+      expect(payload).toEqual({ baseId: 'kb-1', itemId: 'dir-1' })
     })
 
     it('rolls back accepted items when one input fails partway through', async () => {
@@ -358,7 +358,7 @@ describe('KnowledgeRuntimeService (Phase 4 JobManager backbone)', () => {
       expect(knowledgeItemDeleteLeafDescendantItemsMock).toHaveBeenCalledWith('kb-1', ['dir-1'])
       expect(enqueueMock).toHaveBeenCalledWith(
         'knowledge.prepare-root',
-        expect.objectContaining({ itemId: 'dir-1', itemType: 'directory' }),
+        expect.objectContaining({ itemId: 'dir-1' }),
         expect.objectContaining({ idempotencyKey: 'knowledge:kb-1:dir-1' })
       )
     })

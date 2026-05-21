@@ -299,28 +299,28 @@ describe('KnowledgeOrchestrationService', () => {
     expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
   })
 
-  it('cancels active jobs, waits for locks, then deletes SQLite + artifacts in order', async () => {
+  it('cancels active jobs, waits for locks, then deletes artifacts + SQLite in order', async () => {
     const service = new KnowledgeOrchestrationService()
 
     await expect(service.deleteBase('kb-1')).resolves.toBeUndefined()
 
     expect(runtimeCancelAllJobsForBaseMock).toHaveBeenCalledWith('kb-1')
     expect(runtimeWaitForBaseWriteLocksMock).toHaveBeenCalledWith('kb-1', 35_000)
-    expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
     expect(runtimeDeleteBaseArtifactsMock).toHaveBeenCalledWith('kb-1')
+    expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
 
     const orders = {
       cancel: runtimeCancelAllJobsForBaseMock.mock.invocationCallOrder[0],
       wait: runtimeWaitForBaseWriteLocksMock.mock.invocationCallOrder[0],
-      dbDelete: knowledgeBaseDeleteMock.mock.invocationCallOrder[0],
-      artifacts: runtimeDeleteBaseArtifactsMock.mock.invocationCallOrder[0]
+      artifacts: runtimeDeleteBaseArtifactsMock.mock.invocationCallOrder[0],
+      dbDelete: knowledgeBaseDeleteMock.mock.invocationCallOrder[0]
     }
     expect(orders.cancel).toBeLessThan(orders.wait)
-    expect(orders.wait).toBeLessThan(orders.dbDelete)
-    expect(orders.dbDelete).toBeLessThan(orders.artifacts)
+    expect(orders.wait).toBeLessThan(orders.artifacts)
+    expect(orders.artifacts).toBeLessThan(orders.dbDelete)
   })
 
-  it('aborts before the DB row delete when cancellation fails', async () => {
+  it('aborts before the artifact delete when cancellation fails', async () => {
     const service = new KnowledgeOrchestrationService()
     const cancelError = new Error('cancel failed')
     runtimeCancelAllJobsForBaseMock.mockRejectedValueOnce(cancelError)
@@ -328,36 +328,36 @@ describe('KnowledgeOrchestrationService', () => {
     await expect(service.deleteBase('kb-1')).rejects.toBe(cancelError)
 
     expect(runtimeWaitForBaseWriteLocksMock).not.toHaveBeenCalled()
+    expect(runtimeDeleteBaseArtifactsMock).not.toHaveBeenCalled()
     expect(knowledgeBaseDeleteMock).not.toHaveBeenCalled()
-    expect(runtimeDeleteBaseArtifactsMock).not.toHaveBeenCalled()
   })
 
-  it('skips artifact cleanup when the SQLite base delete fails', async () => {
+  it('skips SQLite delete when artifact cleanup fails (so user can retry from UI)', async () => {
     const service = new KnowledgeOrchestrationService()
-    const deleteError = new Error('sqlite delete failed')
-    knowledgeBaseDeleteMock.mockRejectedValueOnce(deleteError)
+    const artifactError = new Error('artifact delete failed')
+    runtimeDeleteBaseArtifactsMock.mockRejectedValueOnce(artifactError)
 
-    await expect(service.deleteBase('kb-1')).rejects.toBe(deleteError)
+    await expect(service.deleteBase('kb-1')).rejects.toBe(artifactError)
 
-    expect(runtimeDeleteBaseArtifactsMock).not.toHaveBeenCalled()
+    expect(knowledgeBaseDeleteMock).not.toHaveBeenCalled()
   })
 
-  it('wraps post-SQLite artifact failure as a partial-cleanup invalid-operation error', async () => {
+  it('wraps post-artifact SQLite failure as a partial-cleanup invalid-operation error', async () => {
     const service = new KnowledgeOrchestrationService()
-    runtimeDeleteBaseArtifactsMock.mockRejectedValueOnce(new Error('artifact delete failed'))
+    knowledgeBaseDeleteMock.mockRejectedValueOnce(new Error('sqlite delete failed'))
 
     await expect(service.deleteBase('kb-1')).rejects.toMatchObject({
       message: expect.stringContaining(
-        'Invalid operation: deleteBase - SQLite knowledge base was deleted, but vector artifact cleanup failed: artifact delete failed'
+        'Invalid operation: deleteBase - Vector artifacts were deleted, but SQLite knowledge base cleanup failed: sqlite delete failed'
       ),
       details: {
         operation: 'deleteBase',
-        reason: expect.stringContaining('SQLite knowledge base was deleted, but vector artifact cleanup failed')
+        reason: expect.stringContaining('Vector artifacts were deleted, but SQLite knowledge base cleanup failed')
       }
     })
 
-    expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
     expect(runtimeDeleteBaseArtifactsMock).toHaveBeenCalledWith('kb-1')
+    expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
   })
 
   it('restores a failed base by creating a new base from source config and adding root items', async () => {

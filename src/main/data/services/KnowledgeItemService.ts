@@ -249,6 +249,10 @@ export class KnowledgeItemService {
     })
   }
 
+  // TODO: wrap the id collection and row fetch in a single db.transaction so a
+  // concurrent delete between the two queries cannot surface as dataInconsistent.
+  // Sibling methods getDescendantItems / getLeafDescendantItems share the same
+  // two-query shape and the same race; fix all three together.
   async getDescendantAndSelfItems(baseId: string, rootIds: string[]): Promise<KnowledgeItem[]> {
     const subtreeIds = await this.getDescendantAndSelfIds(baseId, rootIds)
 

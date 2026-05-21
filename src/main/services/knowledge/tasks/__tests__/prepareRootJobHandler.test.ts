@@ -102,12 +102,11 @@ function createLeafItem(id: string): KnowledgeItem {
 function createCtx(overrides: Partial<JobContext<unknown>> = {}): JobContext<{
   baseId: string
   itemId: string
-  itemType: 'directory' | 'sitemap'
 }> {
   const controller = new AbortController()
   return {
     jobId: 'job-prepare-root-1',
-    input: { baseId: 'kb-1', itemId: 'dir-1', itemType: 'directory' as const },
+    input: { baseId: 'kb-1', itemId: 'dir-1' },
     attempt: 1,
     signal: controller.signal,
     metadata: {},
@@ -120,7 +119,7 @@ function createCtx(overrides: Partial<JobContext<unknown>> = {}): JobContext<{
       warn: vi.fn()
     } as unknown as JobContext['logger'],
     ...overrides
-  } as JobContext<{ baseId: string; itemId: string; itemType: 'directory' | 'sitemap' }>
+  } as JobContext<{ baseId: string; itemId: string }>
 }
 
 describe('prepareRootJobHandler', () => {
@@ -146,9 +145,7 @@ describe('prepareRootJobHandler', () => {
       baseDelayMs: 2000,
       maxDelayMs: 60_000
     })
-    expect(prepareRootJobHandler.defaultQueue?.({ baseId: 'kb-42', itemId: 'x', itemType: 'directory' })).toBe(
-      'base.kb-42'
-    )
+    expect(prepareRootJobHandler.defaultQueue?.({ baseId: 'kb-42', itemId: 'x' })).toBe('base.kb-42')
   })
 
   it('expands the container and enqueues one knowledge.index-leaf job per leaf', async () => {

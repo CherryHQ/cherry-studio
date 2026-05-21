@@ -17,7 +17,7 @@ import { embedMany } from 'ai'
 import { rerankKnowledgeSearchResults } from '../rerank/rerank'
 import { indexLeafJobHandler } from '../tasks/indexLeafJobHandler'
 import { prepareRootJobHandler } from '../tasks/prepareRootJobHandler'
-import { filterIndexableKnowledgeItems } from '../utils/items'
+import { filterIndexableKnowledgeItems, isContainerKnowledgeItem } from '../utils/items'
 import { getEmbedModel } from '../utils/model'
 import { mapChunkDocument } from './utils/chunks'
 import { deleteItemVectors } from './utils/cleanup'
@@ -53,14 +53,14 @@ export class KnowledgeRuntimeService extends BaseService {
 
   protected async onStop(): Promise<void> {
     const jobManager = application.get('JobManager')
-    // Two passes by type are simpler than introducing a queue-prefix filter:
-    // the `base.${baseId}` queue convention means there is no shared knowledge
-    // queue we can target with a single cancelMany call.
     await Promise.allSettled([
       jobManager.cancelMany({ type: 'knowledge.prepare-root' }, 'service-shutdown'),
       jobManager.cancelMany({ type: 'knowledge.index-leaf' }, 'service-shutdown')
     ])
-    await this.waitForBaseWriteLocks()
+    // Cap the drain wait so a wedged handler cannot block process exit beyond
+    // the outer Application shutdown timeout (5s). Stragglers past this point
+    // are recovered on next startup.
+    await this.waitForBaseWriteLocks(undefined, DEFAULT_LOCK_WAIT_TIMEOUT_MS)
     // Intentionally no item.status rollback. Items left in 'processing' here
     // are recovered after restart: JobManager.onAllReady's startup-recovery
     // flips their jobs back to 'pending' and the handler re-runs. The handler
@@ -100,8 +100,7 @@ export class KnowledgeRuntimeService extends BaseService {
         for (const input of inputs) {
           const createdItem = await knowledgeItemService.create(base.id, input)
           acceptedItems.push(createdItem)
-          const isContainer = createdItem.type === 'directory' || createdItem.type === 'sitemap'
-          acceptedItems[acceptedItems.length - 1] = isContainer
+          acceptedItems[acceptedItems.length - 1] = isContainerKnowledgeItem(createdItem)
             ? await knowledgeItemService.updateStatus(createdItem.id, 'processing', { phase: 'preparing' })
             : await knowledgeItemService.updateStatus(createdItem.id, 'processing')
         }
@@ -174,10 +173,9 @@ export class KnowledgeRuntimeService extends BaseService {
         )
       }
 
-      const containers = rootItems.filter((item) => item.type === 'directory' || item.type === 'sitemap')
+      const containers = rootItems.filter(isContainerKnowledgeItem)
       if (containers.length > 0) {
-        // Reindexing a container rebuilds its leaf children from source —
-        // delete the previous expansion so prepareKnowledgeItem can recreate fresh.
+        // Drop the previous expansion so prepare-root can recreate fresh leaves.
         await knowledgeItemService.deleteLeafDescendantItems(
           baseId,
           containers.map((item) => item.id)
@@ -185,8 +183,11 @@ export class KnowledgeRuntimeService extends BaseService {
       }
 
       for (const item of rootItems) {
-        const isContainer = item.type === 'directory' || item.type === 'sitemap'
-        await knowledgeItemService.updateStatus(item.id, 'processing', isContainer ? { phase: 'preparing' } : undefined)
+        await knowledgeItemService.updateStatus(
+          item.id,
+          'processing',
+          isContainerKnowledgeItem(item) ? { phase: 'preparing' } : undefined
+        )
         await this.enqueueRootItem(item)
       }
     })
@@ -387,12 +388,11 @@ export class KnowledgeRuntimeService extends BaseService {
 
   private async enqueueRootItem(item: KnowledgeItem): Promise<void> {
     const jobManager = application.get('JobManager')
-    const isContainer = item.type === 'directory' || item.type === 'sitemap'
 
-    if (isContainer) {
+    if (isContainerKnowledgeItem(item)) {
       await jobManager.enqueue(
         'knowledge.prepare-root',
-        { baseId: item.baseId, itemId: item.id, itemType: item.type },
+        { baseId: item.baseId, itemId: item.id },
         { idempotencyKey: `knowledge:${item.baseId}:${item.id}` }
       )
       return

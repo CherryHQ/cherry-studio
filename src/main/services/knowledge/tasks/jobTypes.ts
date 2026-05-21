@@ -8,12 +8,13 @@
  * does not directly reference the sibling handler.
  */
 
+import type { JobPayloadOf } from '@main/core/job/jobRegistry'
+
 declare module '@main/core/job/jobRegistry' {
   interface JobRegistry {
     'knowledge.prepare-root': {
       baseId: string
       itemId: string
-      itemType: 'directory' | 'sitemap'
     }
     'knowledge.index-leaf': {
       baseId: string
@@ -23,14 +24,5 @@ declare module '@main/core/job/jobRegistry' {
   }
 }
 
-export type KnowledgePrepareRootPayload = {
-  baseId: string
-  itemId: string
-  itemType: 'directory' | 'sitemap'
-}
-
-export type KnowledgeIndexLeafPayload = {
-  baseId: string
-  itemId: string
-  parentJobId: string | null
-}
+export type KnowledgePrepareRootPayload = JobPayloadOf<'knowledge.prepare-root'>
+export type KnowledgeIndexLeafPayload = JobPayloadOf<'knowledge.index-leaf'>

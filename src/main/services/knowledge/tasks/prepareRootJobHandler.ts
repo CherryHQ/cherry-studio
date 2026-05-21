@@ -8,6 +8,8 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { JobHandler } from '@main/core/job/types'
+import { ErrorCode, isDataApiError } from '@shared/data/api'
+import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
 import { prepareKnowledgeItem } from '../runtime/utils/prepare'
 import type { KnowledgePrepareRootPayload } from './jobTypes'
@@ -35,8 +37,25 @@ export const prepareRootJobHandler: JobHandler<KnowledgePrepareRootPayload> = {
     const jobManager = application.get('JobManager')
 
     ctx.signal.throwIfAborted()
-    await knowledgeBaseService.getById(baseId)
-    const item = await knowledgeItemService.getById(itemId)
+    // Treat NOT_FOUND on either lookup as "base was deleted concurrently" —
+    // return cleanly so the job settles as 'completed' rather than burning
+    // retry attempts on dead rows.
+    let item: KnowledgeItem
+    try {
+      await knowledgeBaseService.getById(baseId)
+      item = await knowledgeItemService.getById(itemId)
+    } catch (error) {
+      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+        logger.info('Skipping prepare-root for missing base or item (likely deleted concurrently)', {
+          baseId,
+          itemId,
+          jobId: ctx.jobId
+        })
+        ctx.reportProgress(100, { stage: 'item-gone' })
+        return
+      }
+      throw error
+    }
 
     // Idempotent retry preamble — safe to run on every attempt:
     //
@@ -130,5 +149,30 @@ export const prepareRootJobHandler: JobHandler<KnowledgePrepareRootPayload> = {
       currentFile: leafItems.length,
       totalFiles: leafItems.length
     })
+  },
+
+  // Flip the container's status to 'failed' once retries exhaust or the job is
+  // cancelled. Without this the container stays 'processing' (its phase is
+  // 'preparing'); reconcileContainers' phase-non-null branch would also keep
+  // every ancestor stuck.
+  async onSettled(event) {
+    if (event.status === 'completed') return
+
+    const jobManager = application.get('JobManager')
+    const snapshot = await jobManager.get(event.jobId)
+    const input = snapshot?.input as { itemId?: string } | undefined
+    if (!input?.itemId) return
+
+    const reason = event.error?.message?.trim() || `Job ${event.status}`
+    try {
+      await knowledgeItemService.updateStatus(input.itemId, 'failed', { error: reason })
+    } catch (error) {
+      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return
+      logger.error(
+        'Failed to flip knowledge container to failed in onSettled',
+        error instanceof Error ? error : new Error(String(error)),
+        { jobId: event.jobId, itemId: input.itemId }
+      )
+    }
   }
 }

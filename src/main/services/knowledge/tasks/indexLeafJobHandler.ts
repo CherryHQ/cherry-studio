@@ -7,6 +7,8 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { JobHandler } from '@main/core/job/types'
+import { ErrorCode, isDataApiError } from '@shared/data/api'
+import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 
 import { loadKnowledgeItemDocuments } from '../readers/KnowledgeReader'
 import { chunkDocuments } from '../utils/chunk'
@@ -42,8 +44,26 @@ export const indexLeafJobHandler: JobHandler<KnowledgeIndexLeafPayload> = {
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
 
     ctx.signal.throwIfAborted()
-    const base = await knowledgeBaseService.getById(baseId)
-    const item = await knowledgeItemService.getById(itemId)
+    // Read base + item up front. If either is gone the base was deleted
+    // concurrently — return cleanly so the job settles as 'completed' and
+    // does not burn retry attempts on a dead row.
+    let base: KnowledgeBase
+    let item: KnowledgeItem
+    try {
+      base = await knowledgeBaseService.getById(baseId)
+      item = await knowledgeItemService.getById(itemId)
+    } catch (error) {
+      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+        logger.info('Skipping index-leaf for missing base or item (likely deleted concurrently)', {
+          baseId,
+          itemId,
+          jobId: ctx.jobId
+        })
+        ctx.reportProgress(100, { stage: 'item-gone', currentFile: 1, totalFiles: 1 })
+        return
+      }
+      throw error
+    }
 
     if (!isIndexableKnowledgeItem(item)) {
       throw new Error(`indexLeafJobHandler received non-leaf knowledge item: id=${itemId} type=${item.type}`)
@@ -96,5 +116,32 @@ export const indexLeafJobHandler: JobHandler<KnowledgeIndexLeafPayload> = {
     })
 
     ctx.reportProgress(100, { stage: 'done', currentFile: 1, totalFiles: 1 })
+  },
+
+  // Flip knowledge_item.status to 'failed' once retries exhaust or the job is
+  // cancelled. Without this, the item lingers in 'processing' and
+  // reconcileContainers keeps the parent in 'processing' forever — UI shows a
+  // perpetual spinner because startup recovery does not resurrect terminal
+  // (failed/cancelled) job rows.
+  async onSettled(event) {
+    if (event.status === 'completed') return
+
+    const jobManager = application.get('JobManager')
+    const snapshot = await jobManager.get(event.jobId)
+    const input = snapshot?.input as { itemId?: string } | undefined
+    if (!input?.itemId) return
+
+    const reason = event.error?.message?.trim() || `Job ${event.status}`
+    try {
+      await knowledgeItemService.updateStatus(input.itemId, 'failed', { error: reason })
+    } catch (error) {
+      // Item was deleted concurrently (deleteBase / deleteItems race) — nothing to flip.
+      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return
+      logger.error(
+        'Failed to flip knowledge item to failed in onSettled',
+        error instanceof Error ? error : new Error(String(error)),
+        { jobId: event.jobId, itemId: input.itemId }
+      )
+    }
   }
 }
