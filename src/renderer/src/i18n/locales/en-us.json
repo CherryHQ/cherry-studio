@@ -5909,8 +5909,13 @@
       },
       "disabled": "Hidden Mini Apps",
       "display_title": "Mini App Display Settings",
-      "empty": "Drag mini apps from the left to hide them",
+      "empty": "Click the hide icon on an app on the left and it will move here",
+      "group": {
+        "display": "Display management",
+        "preferences": "Preferences"
+      },
       "open_link_external": {
+        "description": "Opens new-window links in your default browser",
         "title": "Open new-window links in browser"
       },
       "region": {
@@ -5962,7 +5967,7 @@
       },
       "disabled": "Hidden Mini Apps",
       "display_title": "Mini App Display Settings",
-      "empty": "Drag mini apps from the left to hide them",
+      "empty": "Click the hide icon on an app on the left and it will move here",
       "open_link_external": {
         "title": "Open new-window links in browser"
       },

@@ -133,22 +133,19 @@
 它负责：
 
 1. 创建 runtime add 传入的 `knowledge_item`
-2. `prepare-root` / `index-leaf` 任务入队与执行
-3. `knowledge_item.status` / `phase` 的有限状态推进
-4. 失败与中断原因写回数据库
-5. 向量库实例的获取、删除和清理
-6. 检索后的 rerank 串联
-7. stop / delete / reindex 时的 queue 中断与向量清理补偿
+2. 注册 `knowledge.prepare-root` / `knowledge.index-leaf` JobHandler，并把 root item 入队到 `JobManager`
+3. `knowledge_item.status` / `phase` 的有限状态推进（含 handler `onSettled` 在 retry 耗尽 / cancel 时把 item 标记为 `failed`）
+4. 向量库实例的获取、删除，以及 delete / reindex 时的向量清理
+5. 检索后的 rerank 串联
+6. delete / reindex 时通过 `jobManager.list + filter + cancel` 取消相关 job，并等待 Layer 3 base write lock 释放
 
 它不负责：
 
 1. `knowledge_base` 的主数据 CRUD
 2. caller-facing IPC workflow 编排
 3. `directory` / `sitemap` owner item 的对外展开入口
-4. 持久化任务队列
-5. 自动重试
-6. 恢复未完成索引任务继续执行
-7. 暴露调度器内部概念给调用方
+4. 任务队列的进程内实现（由 `JobManager` 提供持久化、调度、startup recovery、retry）
+5. 向调用方暴露 `JobManager` / queue / job id 等调度内部概念
 
 ## 3.1 `KnowledgeOrchestrationService` 的定位
 
@@ -286,15 +283,12 @@ item 删除时，调用方应理解为两件独立的事：
 1. runtime IPC `delete-items`
    - 通过 orchestration 进入删除 workflow
    - 将传入 ids 归一化为 top-level roots
-   - 中断 root `prepare-root` / `index-leaf`
-   - fresh 查询 descendants
-   - 中断 descendants 的 `prepare-root` / `index-leaf`
-   - 删除 item 及其级联子项的向量
+   - `jobManager.list({ queue: 'base.${baseId}', status: non-terminal }) + filter` 取出 subtree 内的 active job，并 `jobManager.cancel(...)` 取消
+   - 在 Layer 3 base write lock 内删除 item 及其级联子项的向量
 2. orchestration 在 runtime cleanup 后删除 SQLite root rows
    - 数据库 cascade 删除 grouped descendants
 
-base 删除时会先中断并等待该 base 的 runtime work，然后删除 SQLite base 和关联 items。
-SQLite 删除成功后，再 best-effort 删除该 base 的 vector artifacts；artifact 清理失败只记录日志，不回滚已完成的 SQLite 删除。
+base 删除时先 `cancelAllJobsForBase(baseId)`，再 `waitForBaseWriteLocks(baseId, 35s)`，然后删除 vector artifacts，最后删除 SQLite base。artifact 清理失败时 SQLite 行保留，用户可从 UI 重试删除。
 
 当前实现下，Data API 删除并不会替调用方清理向量库，也不会替调用方中断 runtime 任务。
 
@@ -322,53 +316,27 @@ IPC create-base(CreateKnowledgeBaseDto)
 
 ```text
 IPC delete-base(baseId)
- -> KnowledgeRuntimeService.deleteBase(baseId)
- -> KnowledgeBaseService.delete(baseId)
+ -> KnowledgeRuntimeService.cancelAllJobsForBase(baseId)
+ -> KnowledgeRuntimeService.waitForBaseWriteLocks(baseId, 35_000)
  -> KnowledgeRuntimeService.deleteBaseArtifacts(baseId)
+ -> KnowledgeBaseService.delete(baseId)
 ```
 
-runtime 删除阶段会先中断该 base 下 pending / running runtime task，等待 running task settle，并返回被中断 item ids。
-随后 data service 删除 SQLite base 和关联 items。
-SQLite 删除成功后，orchestration 再调用 artifact cleanup 删除该 base 对应的 vector store；该 cleanup 失败只记录日志。
-如果 SQLite 删除失败，orchestration 会把被中断 items 标记为 failed，然后把 SQLite 删除错误抛给调用方。
+orchestration 通过 `JobManager.cancelMany({ queue: 'base.${baseId}' })` 取消该 base 的全部 active job，然后等待 Layer 3 base write lock 在 35s 内 drain（超时只记录 warn）。先删 vector artifacts、再删 SQLite base：artifact 删除失败时 SQLite 行保留，用户可从 UI 重试；SQLite 删除失败时已删 artifacts 不会恢复，orchestration 抛出 `invalidOperation`。job 状态由 `JobManager` 自行 finalize，handler `onSettled` 把对应 `knowledge_item.status` 翻为 `failed`。
 
 ## 6. 当前 Queue 模型
 
-当前实现使用一个进程内 runtime queue：
+队列实现完全收敛到 `JobManager`：
 
-1. queue 持有者是 `KnowledgeRuntimeService`
-2. queue 为单实例 in-memory queue
-3. 默认 `concurrency = 5`
-4. 所有 base 的 runtime task 共用这一条 queue
-5. queue task 分为 `prepare-root` 和 `index-leaf`
-6. delete / reindex 不进入 queue，而是先中断相关 runtime task，再直接删除向量
+1. 每个 base 一条独立队列 `base.${baseId}`
+2. 任务类型：`knowledge.prepare-root` 与 `knowledge.index-leaf`
+3. 持久化：每个 job 落 `jobTable`；进程崩溃后由 `JobManager.onAllReady` 在 60s 后跑 startup recovery，把残留的 `running` 行翻回 `pending` 并重新 dispatch
+4. 并发：默认 per-base 并发 5，全局 cap 50（由 `JobManager` 控制）
+5. retry：`recovery: 'retry'`，最多 3 次，指数退避（leaf 1s→30s，prepare-root 2s→60s）
+6. 同一 base 的写串行化由 `KnowledgeRuntimeService.runWithBaseWriteLockForBase` 在 handler 内部承担（Layer 3 mutex，跨 handler 实例共享）
+7. delete / reindex 不再入队，而是 `jobManager.list + filter + jobManager.cancel`，再走 `runWithBaseWriteLockForBase` 直接清向量
 
-当前实现没有落地以下旧设计假设：
-
-1. 不是“每个 knowledge base 一条串行 queue”
-2. 不是 round-robin scheduler
-3. 没有全局持久化任务表
-
-queue 内部维护 `entries` map，entry 上记录：
-
-1. `base`
-2. `baseId`
-3. `itemId`
-4. `kind = prepare-root | index-leaf`
-5. `status = pending | running | settled`
-6. `controller`
-7. `promise`
-8. `runPromise`
-9. `interruptError`
-
-这些状态只用于：
-
-1. 跟踪哪些 runtime task 仍在等待执行
-2. 跟踪哪些 runtime task 正在运行
-3. 在 delete / reindex / shutdown 时中断对应任务
-4. 在 shutdown 时识别哪些 item 被中断并做失败补偿
-
-它们不是对外数据模型的一部分。
+进程内不再有 `entries` map / `controller` / `runPromise` / `interruptError` 等内存队列状态——这些概念已下沉到 `JobManager`。
 
 ## 7. 当前索引执行链路
 
@@ -378,29 +346,21 @@ queue 内部维护 `entries` map，entry 上记录：
 addItems
  -> create leaf item
  -> status = processing, phase = null
- -> queue task index-leaf
- -> phase = reading
- -> loadKnowledgeItemDocuments(item)
- -> chunkDocuments(base, item, documents)
- -> phase = embedding
- -> getEmbedModel(base)
- -> embedDocuments(model, chunks)
- -> runWithBaseWriteLock
-    -> KnowledgeVectorStoreService.createStore(base)
-    -> vectorStore.add(nodes)
- -> status = completed, phase = null
+ -> enqueue knowledge.index-leaf
+ -> handler.execute:
+    -> phase = reading
+    -> loadKnowledgeItemDocuments(item)
+    -> chunkDocuments(base, item, documents)
+    -> phase = embedding
+    -> getEmbedModel(base)
+    -> embedDocuments(model, chunks)
+    -> runWithBaseWriteLockForBase
+       -> KnowledgeVectorStoreService.createStore(base)
+       -> vectorStore.replaceByExternalId(itemId, nodes)  // 单事务 DELETE + INSERT
+       -> status = completed, phase = null
 ```
 
-任意非中断错误抛出时：
-
-```text
-catch error
- -> logger.error(...)
- -> best-effort cleanup vectors
- -> status = failed, phase = null
- -> error = normalizedError.message
- -> 向上抛出异常
-```
+非中断错误抛出时，由 `JobManager` 调度 retry（最多 3 次）。Retry 耗尽或 job cancel 时 handler `onSettled` 把 `knowledge_item.status` 翻为 `failed`，error message 写入行；旧 chunks 由 `replaceByExternalId` 的事务保留（未发生过的 INSERT 不会改动 DB）。
 
 `directory` / `sitemap` 的一次 preparation 流程，当前是：
 
@@ -449,7 +409,7 @@ preparation 被 interrupt 时：
 2. `processing, phase = reading`：leaf 正在读取 source documents
 3. `processing, phase = embedding`：leaf 正在 embedding / 写入 vector store
 4. `completed, phase = null`：leaf indexing 完成，或 container 没有 active children
-5. `failed, phase = null`：runtime task 失败、interrupt cleanup 失败，或 shutdown 中断补偿
+5. `failed, phase = null`：handler `onSettled` 在 retry 耗尽或 cancel 时写入，error 字段保留原因
 
 也就是说：
 
@@ -467,26 +427,22 @@ preparation 被 interrupt 时：
 
 当前做一件事：
 
-1. 重新创建进程内 `KnowledgeQueueManager`
+1. 向 `JobManager` 注册 `knowledge.prepare-root` 与 `knowledge.index-leaf` 两个 `JobHandler`。
 
-当前没有启动时“扫描中间状态并补偿失败”或“自动恢复索引任务”的逻辑。
+启动时的「自动恢复」由 `JobManager.onAllReady` 统一负责：在 60s 延迟后跑 startup recovery，把 `jobTable.status='running'` 的行翻回 `'pending'`，handler 被重新 dispatch。`KnowledgeRuntimeService` 不再独立扫描中间状态。
 
 ### 9.2 `KnowledgeRuntimeService.onStop`
 
 当前 stop 流程是：
 
-1. 调用 `queue.interruptAll(SHUTDOWN_INTERRUPTED_REASON)`
-2. 收集中断的 `prepare-root` / `index-leaf` entries
-3. 等待相关 running task settle
-4. 对 `index-leaf` 清理对应 leaf vectors
-5. 对 `prepare-root` fresh 查询 descendants，并清理 root / descendants vectors
-6. 将这些 item 批量写为 `failed`
+1. `jobManager.cancelMany({ type: 'knowledge.prepare-root' })` 与 `jobManager.cancelMany({ type: 'knowledge.index-leaf' })` 取消两类 active job
+2. `waitForBaseWriteLocks()` 等待全部 Layer 3 base write lock 释放
 
 这意味着：
 
-1. 当前做了停止时的失败补偿
-2. 当前会在 stop 时清理被中断 item 的向量残留
-3. 但没有做重启后的自动恢复
+1. 不再在 stop 时把 item.status 从 `processing` 回滚到 `idle`/`failed`；item 短暂停留在 `processing` 是预期。
+2. 重启后由 `JobManager.onAllReady` startup recovery 自动重新 dispatch；handler 入口的 `item.status === 'completed'` 早退分支保证不会浪费 embedding 调用。
+3. 不再在 stop 时清理被中断 item 的向量残留；vector 一致性由 handler 内 `LibSQLVectorStore.replaceByExternalId`（DELETE + INSERT 单事务）保证。
 
 ### 9.3 `KnowledgeVectorStoreService.onStop`
 
@@ -626,27 +582,22 @@ getEmbedModel(base)
 
 当前实现没有做：
 
-1. 每个 base 一条串行 queue
-2. round-robin scheduler
-3. 独立的 `KnowledgeTaskService`
-4. 独立的 `KnowledgeExecutionService`
-5. 持久化任务队列
-6. 自动恢复索引继续执行
-7. 自动重试
-8. chunk 级 queue
-9. 用户添加 nested `directory` / `sitemap`
-10. 真正可用的 rerank runtime 配置接入
-11. 非 `ollama` embedding provider 支持
-12. `fileProcessorId` 驱动的文件处理链路
+1. round-robin scheduler
+2. 独立的 `KnowledgeTaskService`
+3. 独立的 `KnowledgeExecutionService`
+4. chunk 级 queue
+5. 用户添加 nested `directory` / `sitemap`
+6. 真正可用的 rerank runtime 配置接入
+7. 非 `ollama` embedding provider 支持
+8. `fileProcessorId` 驱动的文件处理链路
 
 ## 13. 后续更新本文档时的原则
 
 后续只有在以下行为真正落地之后，才应更新本文档：
 
-1. runtime queue 从单队列改成 per-base queue
-2. rerank runtime 配置真正接通
-3. `fileProcessorId` 开始参与 runtime 执行链路
-4. 用户添加 nested `directory` / `sitemap`
-5. queue interrupt 从当前 root + fresh descendants 模型改成 stable-loop 或 generation/runId 模型
+1. rerank runtime 配置真正接通
+2. `fileProcessorId` 开始参与 runtime 执行链路
+3. 用户添加 nested `directory` / `sitemap`
+4. queue interrupt 从当前 list+filter+cancel 模型改成 stable-loop 或 generation/runId 模型
 
 在这些行为落地之前，文档应继续以“当前已实现”为准，不提前写成目标设计。

@@ -5909,8 +5909,13 @@
       },
       "disabled": "隐藏的小程序",
       "display_title": "小程序显示设置",
-      "empty": "把要隐藏的小程序从左侧拖拽到这里",
+      "empty": "在左侧列表点击隐藏图标，小程序会移到这里",
+      "group": {
+        "display": "显示管理",
+        "preferences": "使用偏好"
+      },
       "open_link_external": {
+        "description": "新窗口链接用系统默认浏览器打开",
         "title": "在浏览器中打开新窗口链接"
       },
       "region": {
@@ -5962,7 +5967,7 @@
       },
       "disabled": "隐藏的小程序",
       "display_title": "小程序显示设置",
-      "empty": "把要隐藏的小程序从左侧拖拽到这里",
+      "empty": "在左侧列表点击隐藏图标，小程序会移到这里",
       "open_link_external": {
         "title": "在浏览器中打开新窗口链接"
       },

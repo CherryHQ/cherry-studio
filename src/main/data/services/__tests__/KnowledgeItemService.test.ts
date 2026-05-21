@@ -479,6 +479,57 @@ describe('KnowledgeItemService', () => {
     })
   })
 
+  describe('getDescendantAndSelfItems', () => {
+    it('returns every descendant in the requested subtrees plus the roots themselves', async () => {
+      await seedItem({ id: 'dir-root', type: 'directory', data: { source: '/root', path: '/root' } })
+      await seedItem({
+        id: 'dir-child',
+        groupId: 'dir-root',
+        type: 'directory',
+        data: { source: '/root/child', path: '/root/child' }
+      })
+      await seedItem({
+        id: 'file-child',
+        groupId: 'dir-child',
+        type: 'file',
+        data: createFileItemData('file-child')
+      })
+      await seedItem({
+        id: 'note-root',
+        type: 'note',
+        data: { source: 'root note', content: 'root note' }
+      })
+
+      const result = await service.getDescendantAndSelfItems('kb-1', ['dir-root', 'note-root', 'missing'])
+
+      expect(result.map((item) => item.id).sort()).toEqual(['dir-child', 'dir-root', 'file-child', 'note-root'])
+    })
+
+    it('deduplicates when an ancestor and its descendant are both passed as roots', async () => {
+      await seedItem({ id: 'dir-root', type: 'directory', data: { source: '/root', path: '/root' } })
+      await seedItem({
+        id: 'dir-child',
+        groupId: 'dir-root',
+        type: 'directory',
+        data: { source: '/root/child', path: '/root/child' }
+      })
+      await seedItem({
+        id: 'file-child',
+        groupId: 'dir-child',
+        type: 'file',
+        data: createFileItemData('file-child')
+      })
+
+      const result = await service.getDescendantAndSelfItems('kb-1', ['dir-root', 'dir-child'])
+
+      expect(result.map((item) => item.id).sort()).toEqual(['dir-child', 'dir-root', 'file-child'])
+    })
+
+    it('returns an empty list when no roots are provided', async () => {
+      await expect(service.getDescendantAndSelfItems('kb-1', [])).resolves.toEqual([])
+    })
+  })
+
   describe('updateStatus', () => {
     async function getItemRow(id: string) {
       const [row] = await dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)

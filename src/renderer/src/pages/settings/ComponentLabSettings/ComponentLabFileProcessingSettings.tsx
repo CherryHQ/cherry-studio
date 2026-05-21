@@ -1,17 +1,15 @@
 import { Badge, Button } from '@cherrystudio/ui'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
+import { useJob, useJobProgress } from '@renderer/hooks/useJob'
 import { formatErrorMessage } from '@renderer/utils/error'
+import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
-import type {
-  FileProcessingArtifact,
-  FileProcessingTaskResult,
-  FileProcessingTaskStatus
-} from '@shared/data/types/fileProcessing'
+import type { FileProcessingArtifact } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import { CheckCircle2, CircleAlert, FileText, Image, Loader2, Play, Upload } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAvailableFileProcessors } from '../FileProcessingSettings/hooks/useAvailableFileProcessors'
@@ -21,11 +19,14 @@ const FILE_PROCESSING_KEYS = {
   overrides: 'feature.file_processing.overrides'
 } as const
 
-const POLL_INTERVAL_MS = 1000
 const TEXT_PREVIEW_LIMIT = 500
 
 type LabFeature = Extract<FileProcessorFeature, 'image_to_text' | 'document_to_markdown'>
-type LabRunStatus = FileProcessingTaskStatus | 'idle' | 'starting'
+type LabRunStatus = JobSnapshot['status'] | 'idle' | 'starting'
+
+interface FileProcessingJobOutput {
+  artifacts: FileProcessingArtifact[]
+}
 
 type LabSectionConfig = {
   feature: LabFeature
@@ -40,18 +41,12 @@ type LabSectionConfig = {
   testId: string
 }
 
-type ProcessorRunState = {
-  processorId: FileProcessorId
-  status: LabRunStatus
-  progress: number
-  taskId?: string
-  startedAt?: number
-  durationMs?: number
-  artifacts?: FileProcessingArtifact[]
-  error?: string
+type ProcessorRun = {
+  jobId: string
+  startedAt: number
 }
 
-type RunStateByFeature = Record<LabFeature, Partial<Record<FileProcessorId, ProcessorRunState>>>
+type RunMap = Record<LabFeature, Partial<Record<FileProcessorId, ProcessorRun>>>
 
 const LAB_SECTIONS: readonly LabSectionConfig[] = [
   {
@@ -79,12 +74,6 @@ const LAB_SECTIONS: readonly LabSectionConfig[] = [
     testId: 'markdown'
   }
 ]
-
-const TERMINAL_STATUSES = new Set<FileProcessingTaskStatus>(['completed', 'failed', 'cancelled'])
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, ms))
-}
 
 function getProcessorsForFeature(
   processors: readonly FileProcessorMerged[],
@@ -116,51 +105,6 @@ function getArtifactPreview(artifact: FileProcessingArtifact): string {
   return artifact.text.length > TEXT_PREVIEW_LIMIT ? `${artifact.text.slice(0, TEXT_PREVIEW_LIMIT)}...` : artifact.text
 }
 
-function createInitialRunState(processorId: FileProcessorId): ProcessorRunState {
-  return {
-    processorId,
-    status: 'starting',
-    progress: 0,
-    startedAt: Date.now()
-  }
-}
-
-function buildTerminalRunState(result: FileProcessingTaskResult, startedAt?: number): Partial<ProcessorRunState> {
-  const durationMs = startedAt ? Date.now() - startedAt : undefined
-
-  if (result.status === 'completed') {
-    return {
-      status: result.status,
-      progress: result.progress,
-      durationMs,
-      artifacts: result.artifacts
-    }
-  }
-
-  if (result.status === 'failed') {
-    return {
-      status: result.status,
-      progress: result.progress,
-      durationMs,
-      error: result.error
-    }
-  }
-
-  if (result.status === 'cancelled') {
-    return {
-      status: result.status,
-      progress: result.progress,
-      durationMs,
-      error: result.reason
-    }
-  }
-
-  return {
-    status: result.status,
-    progress: result.progress
-  }
-}
-
 function StatusIcon({ status }: { status: LabRunStatus }) {
   if (status === 'completed') {
     return <CheckCircle2 className="size-4 text-success" />
@@ -170,28 +114,86 @@ function StatusIcon({ status }: { status: LabRunStatus }) {
     return <CircleAlert className="size-4 text-destructive" />
   }
 
-  if (status === 'processing' || status === 'pending' || status === 'starting') {
+  if (status === 'running' || status === 'pending' || status === 'delayed' || status === 'starting') {
     return <Loader2 className="size-4 animate-spin text-muted-foreground" />
   }
 
   return null
 }
 
-function ProcessorResultCard({ processor, state }: { processor: FileProcessorMerged; state?: ProcessorRunState }) {
-  const { t } = useTranslation()
-  const status = state?.status ?? 'idle'
-
+function ProcessorResultCard({ processor, run }: { processor: FileProcessorMerged; run?: ProcessorRun }) {
   return (
     <div
       className="rounded-xl border border-border bg-background p-3"
       data-testid={`file-processing-result-${processor.id}`}>
+      {run ? (
+        <ProcessorJobView processor={processor} jobId={run.jobId} startedAt={run.startedAt} />
+      ) : (
+        <ProcessorIdleHeader processor={processor} />
+      )}
+    </div>
+  )
+}
+
+function ProcessorIdleHeader({ processor }: { processor: FileProcessorMerged }) {
+  const { t } = useTranslation()
+
+  return (
+    <>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="truncate font-medium text-foreground text-sm">{t(getProcessorNameKey(processor.id))}</div>
           <div className="mt-1 text-muted-foreground text-xs">
-            {t('settings.componentLab.fileProcessing.duration', {
-              seconds: getDurationSeconds(state?.durationMs)
-            })}
+            {t('settings.componentLab.fileProcessing.duration', { seconds: '-' })}
+          </div>
+        </div>
+        <Badge variant="outline" className="gap-1">
+          <StatusIcon status="idle" />
+          {t(`settings.componentLab.fileProcessing.status.idle`)}
+        </Badge>
+      </div>
+
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+        <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: '0%' }} />
+      </div>
+    </>
+  )
+}
+
+function ProcessorJobView({
+  processor,
+  jobId,
+  startedAt
+}: {
+  processor: FileProcessorMerged
+  jobId: string
+  startedAt: number
+}) {
+  const { t } = useTranslation()
+  const { data: snapshot, isTerminal } = useJob(jobId)
+  const jobProgress = useJobProgress(jobId)
+
+  const status: LabRunStatus = snapshot?.status ?? 'starting'
+  const artifacts = useMemo<FileProcessingArtifact[] | undefined>(() => {
+    if (!isTerminal || snapshot?.status !== 'completed') return undefined
+    return (snapshot.output as FileProcessingJobOutput | undefined)?.artifacts
+  }, [isTerminal, snapshot?.output, snapshot?.status])
+  const errorMessage = useMemo(() => {
+    if (!isTerminal) return undefined
+    if (snapshot?.status === 'failed') return snapshot.error?.message
+    if (snapshot?.status === 'cancelled') return snapshot.error?.message ?? 'cancelled'
+    return undefined
+  }, [isTerminal, snapshot])
+  const durationMs = useMemo(() => (isTerminal ? Date.now() - startedAt : undefined), [isTerminal, startedAt])
+  const displayProgress = status === 'completed' ? 100 : (jobProgress?.progress ?? 0)
+
+  return (
+    <>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="truncate font-medium text-foreground text-sm">{t(getProcessorNameKey(processor.id))}</div>
+          <div className="mt-1 text-muted-foreground text-xs">
+            {t('settings.componentLab.fileProcessing.duration', { seconds: getDurationSeconds(durationMs) })}
           </div>
         </div>
         <Badge variant={status === 'failed' || status === 'cancelled' ? 'destructive' : 'outline'} className="gap-1">
@@ -201,27 +203,22 @@ function ProcessorResultCard({ processor, state }: { processor: FileProcessorMer
       </div>
 
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
-        <div
-          className="h-full rounded-full bg-primary transition-[width]"
-          style={{ width: `${state?.progress ?? 0}%` }}
-        />
+        <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${displayProgress}%` }} />
       </div>
 
-      {state?.taskId ? (
-        <div className="mt-2 truncate text-muted-foreground text-xs">
-          {t('settings.componentLab.fileProcessing.taskId')}: {state.taskId}
-        </div>
-      ) : null}
+      <div className="mt-2 truncate text-muted-foreground text-xs">
+        {t('settings.componentLab.fileProcessing.taskId')}: {jobId}
+      </div>
 
-      {state?.error ? (
+      {errorMessage ? (
         <pre className="mt-3 max-h-32 overflow-auto whitespace-pre-wrap rounded-lg border border-destructive/20 bg-destructive/5 p-2 font-mono text-destructive text-xs leading-5">
-          {state.error}
+          {errorMessage}
         </pre>
       ) : null}
 
-      {state?.artifacts?.length ? (
+      {artifacts?.length ? (
         <div className="mt-3 space-y-2">
-          {state.artifacts.map((artifact, index) => (
+          {artifacts.map((artifact, index) => (
             <div key={`${artifact.kind}-${index}`} className="rounded-lg border border-border/70 bg-muted/20 p-2">
               <div className="mb-1 text-muted-foreground text-xs">
                 {artifact.kind === 'file'
@@ -235,7 +232,7 @@ function ProcessorResultCard({ processor, state }: { processor: FileProcessorMer
           ))}
         </div>
       ) : null}
-    </div>
+    </>
   )
 }
 
@@ -269,114 +266,12 @@ const ComponentLabFileProcessingSettings: FC = () => {
   }, [availableProcessors.processorIds, processors])
 
   const [selectedFiles, setSelectedFiles] = useState<Partial<Record<LabFeature, FileMetadata>>>({})
-  const [runStates, setRunStates] = useState<RunStateByFeature>({
+  const [runs, setRuns] = useState<RunMap>({
     document_to_markdown: {},
     image_to_text: {}
   })
-  const [runningFeatures, setRunningFeatures] = useState<Partial<Record<LabFeature, boolean>>>({})
+  const [startingFeatures, setStartingFeatures] = useState<Partial<Record<LabFeature, boolean>>>({})
   const [sectionErrors, setSectionErrors] = useState<Partial<Record<LabFeature, string>>>({})
-
-  const mountedRef = useRef(true)
-  const runIdRef = useRef<Record<LabFeature, number>>({
-    document_to_markdown: 0,
-    image_to_text: 0
-  })
-
-  useEffect(() => {
-    mountedRef.current = true
-
-    return () => {
-      mountedRef.current = false
-      runIdRef.current.document_to_markdown += 1
-      runIdRef.current.image_to_text += 1
-    }
-  }, [])
-
-  const updateProcessorState = useCallback(
-    (feature: LabFeature, processorId: FileProcessorId, updates: Partial<ProcessorRunState>) => {
-      if (!mountedRef.current) {
-        return
-      }
-
-      setRunStates((current) => {
-        const previous = current[feature][processorId]
-
-        return {
-          ...current,
-          [feature]: {
-            ...current[feature],
-            [processorId]: {
-              processorId,
-              status: 'idle',
-              progress: 0,
-              ...previous,
-              ...updates
-            }
-          }
-        }
-      })
-    },
-    []
-  )
-
-  const isCurrentRun = useCallback((feature: LabFeature, runId: number) => {
-    return mountedRef.current && runIdRef.current[feature] === runId
-  }, [])
-
-  const pollTask = useCallback(
-    async (feature: LabFeature, processorId: FileProcessorId, taskId: string, startedAt: number, runId: number) => {
-      while (isCurrentRun(feature, runId)) {
-        const result = await window.api.fileProcessing.getTask({ taskId })
-        updateProcessorState(feature, processorId, buildTerminalRunState(result, startedAt))
-
-        if (TERMINAL_STATUSES.has(result.status)) {
-          return
-        }
-
-        await sleep(POLL_INTERVAL_MS)
-      }
-    },
-    [isCurrentRun, updateProcessorState]
-  )
-
-  const runProcessor = useCallback(
-    async (feature: LabFeature, file: FileMetadata, processorId: FileProcessorId, runId: number) => {
-      const startedAt = Date.now()
-
-      try {
-        const startResult = await window.api.fileProcessing.startTask({
-          feature,
-          file,
-          processorId
-        })
-
-        if (!isCurrentRun(feature, runId)) {
-          return
-        }
-
-        updateProcessorState(feature, processorId, {
-          taskId: startResult.taskId,
-          status: startResult.status,
-          progress: startResult.progress,
-          startedAt
-        })
-
-        await pollTask(feature, processorId, startResult.taskId, startedAt, runId)
-      } catch (error) {
-        if (!isCurrentRun(feature, runId)) {
-          return
-        }
-
-        updateProcessorState(feature, processorId, {
-          status: 'failed',
-          progress: 0,
-          durationMs: Date.now() - startedAt,
-          error: formatErrorMessage(error)
-        })
-      }
-    },
-    [isCurrentRun, pollTask, updateProcessorState]
-  )
 
   const handleSelectFile = useCallback(
     async (section: LabSectionConfig) => {
@@ -413,7 +308,7 @@ const ComponentLabFileProcessingSettings: FC = () => {
       const file = selectedFiles[section.feature]
       const processorsForFeature = processorsByFeature[section.feature]
 
-      if (!file || runningFeatures[section.feature]) {
+      if (!file || startingFeatures[section.feature]) {
         return
       }
 
@@ -425,27 +320,40 @@ const ComponentLabFileProcessingSettings: FC = () => {
         return
       }
 
-      const runId = runIdRef.current[section.feature] + 1
-      runIdRef.current[section.feature] = runId
-
       setSectionErrors((current) => ({ ...current, [section.feature]: undefined }))
-      setRunningFeatures((current) => ({ ...current, [section.feature]: true }))
-      setRunStates((current) => ({
-        ...current,
-        [section.feature]: Object.fromEntries(
-          processorsForFeature.map((processor) => [processor.id, createInitialRunState(processor.id)])
-        )
-      }))
+      setStartingFeatures((current) => ({ ...current, [section.feature]: true }))
+      // Clear stale runs from a previous file selection.
+      setRuns((current) => ({ ...current, [section.feature]: {} }))
 
-      await Promise.allSettled(
-        processorsForFeature.map((processor) => runProcessor(section.feature, file, processor.id, runId))
+      const startedAt = Date.now()
+      const results = await Promise.allSettled(
+        processorsForFeature.map(async (processor) => {
+          const startResult = await window.api.fileProcessing.startTask({
+            feature: section.feature,
+            file,
+            processorId: processor.id
+          })
+          return { processorId: processor.id, jobId: startResult.taskId }
+        })
       )
 
-      if (isCurrentRun(section.feature, runId)) {
-        setRunningFeatures((current) => ({ ...current, [section.feature]: false }))
+      const nextRuns: Partial<Record<FileProcessorId, ProcessorRun>> = {}
+      const errors: string[] = []
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          nextRuns[result.value.processorId] = { jobId: result.value.jobId, startedAt }
+        } else {
+          errors.push(formatErrorMessage(result.reason))
+        }
       }
+
+      setRuns((current) => ({ ...current, [section.feature]: nextRuns }))
+      if (errors.length) {
+        setSectionErrors((current) => ({ ...current, [section.feature]: errors.join('\n') }))
+      }
+      setStartingFeatures((current) => ({ ...current, [section.feature]: false }))
     },
-    [isCurrentRun, processorsByFeature, runProcessor, runningFeatures, selectedFiles, t]
+    [processorsByFeature, selectedFiles, startingFeatures, t]
   )
 
   return (
@@ -461,8 +369,8 @@ const ComponentLabFileProcessingSettings: FC = () => {
         {LAB_SECTIONS.map((section) => {
           const file = selectedFiles[section.feature]
           const processorsForFeature = processorsByFeature[section.feature]
-          const isRunning = Boolean(runningFeatures[section.feature])
-          const sectionRunStates = runStates[section.feature]
+          const isStarting = Boolean(startingFeatures[section.feature])
+          const sectionRuns = runs[section.feature]
 
           return (
             <section
@@ -491,8 +399,8 @@ const ComponentLabFileProcessingSettings: FC = () => {
                 </Button>
                 <Button
                   size="sm"
-                  loading={isRunning}
-                  disabled={!file || isRunning}
+                  loading={isStarting}
+                  disabled={!file || isStarting}
                   onClick={() => void handleStart(section)}>
                   <Play className="size-4" />
                   {t(section.startKey)}
@@ -511,11 +419,7 @@ const ComponentLabFileProcessingSettings: FC = () => {
 
               <div className="mt-4 grid gap-3">
                 {processorsForFeature.map((processor) => (
-                  <ProcessorResultCard
-                    key={processor.id}
-                    processor={processor}
-                    state={sectionRunStates[processor.id]}
-                  />
+                  <ProcessorResultCard key={processor.id} processor={processor} run={sectionRuns[processor.id]} />
                 ))}
               </div>
             </section>

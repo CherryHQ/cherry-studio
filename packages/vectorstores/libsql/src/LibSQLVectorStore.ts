@@ -297,13 +297,10 @@ export class LibSQLVectorStore extends BaseVectorStore {
     }
   }
 
-  async add(embeddingResults: BaseNode<Metadata>[]): Promise<string[]> {
-    if (embeddingResults.length === 0) {
-      console.warn('Empty list sent to LibSQLVectorStore::add')
-      return []
-    }
-
-    await this.ensureInitialized()
+  private buildInsertStatement(embeddingResults: BaseNode<Metadata>[]): {
+    statement: InStatement
+    insertedIds: string[]
+  } {
     const data = this.getDataToInsert(embeddingResults)
 
     const placeholders = data
@@ -327,9 +324,50 @@ export class LibSQLVectorStore extends BaseVectorStore {
 
     const flattenedParams = data.flat()
     const validParams = toInArgs(flattenedParams)
-    const statement: InStatement = { sql, args: validParams }
+    return {
+      statement: { sql, args: validParams },
+      insertedIds: data.map((row) => String(row[0]))
+    }
+  }
+
+  async add(embeddingResults: BaseNode<Metadata>[]): Promise<string[]> {
+    if (embeddingResults.length === 0) {
+      console.warn('Empty list sent to LibSQLVectorStore::add')
+      return []
+    }
+
+    await this.ensureInitialized()
+    const { statement, insertedIds } = this.buildInsertStatement(embeddingResults)
     await this.clientInstance.execute(statement)
-    return data.map((row) => String(row[0]))
+    return insertedIds
+  }
+
+  /**
+   * Atomically replace all chunks bound to a given `external_id` (i.e. an
+   * item/document) with a new set of chunks. DELETE + INSERT execute inside a
+   * single libSQL transaction (`client.batch(..., 'write')`): if INSERT fails
+   * the DELETE is rolled back, so existing chunks are never lost on partial
+   * failure. Crash-retrying a handler that calls this method is therefore
+   * idempotent — chunks always reflect the latest successful embedding.
+   */
+  async replaceByExternalId(externalId: string, embeddingResults: BaseNode<Metadata>[]): Promise<string[]> {
+    await this.ensureInitialized()
+
+    const collectionCriteria = this.collection.length ? 'AND collection = ?' : ''
+    const deleteArgs = this.collection.length ? [externalId, this.collection] : [externalId]
+    const deleteStatement: InStatement = {
+      sql: `DELETE FROM ${this.tableName} WHERE external_id = ? ${collectionCriteria}`,
+      args: toInArgs(deleteArgs)
+    }
+
+    if (embeddingResults.length === 0) {
+      await this.clientInstance.batch([deleteStatement], 'write')
+      return []
+    }
+
+    const { statement: insertStatement, insertedIds } = this.buildInsertStatement(embeddingResults)
+    await this.clientInstance.batch([deleteStatement, insertStatement], 'write')
+    return insertedIds
   }
 
   async delete(refDocId: string, _deleteKwargs?: object): Promise<void> {

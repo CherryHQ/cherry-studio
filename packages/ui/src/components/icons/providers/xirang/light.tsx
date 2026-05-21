@@ -2,13 +2,7 @@ import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
 const XirangLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="1em"
-    height="1em"
-    fill="none"
-    viewBox="17.745 36.497 84.507 50.757"
-    {...props}>
+  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
     <path
       fill="#DF0428"
       fillRule="evenodd"
