@@ -16,7 +16,6 @@ import {
 } from '@shared/data/types/knowledge'
 import { IpcChannel } from '@shared/IpcChannel'
 
-import { failItems } from './runtime/utils/cleanup'
 import {
   KnowledgeRuntimeAddItemsPayloadSchema,
   KnowledgeRuntimeBasePayloadSchema,
@@ -117,39 +116,33 @@ export class KnowledgeOrchestrationService extends BaseService {
 
   async deleteBase(baseId: string): Promise<void> {
     const runtime = application.get('KnowledgeRuntimeService')
-    const interruptedItemIds = await runtime.deleteBase(baseId)
+
+    // Cancel everything queued for this base, then wait up to 35s for Layer 3
+    // locks to drain. If the wait times out a wedged handler can still write
+    // to the libSQL file via replaceByExternalId — but the artifact delete
+    // below removes the whole file, so any such orphan rows go with it.
+    await runtime.cancelAllJobsForBase(baseId)
+    await runtime.waitForBaseWriteLocks(baseId, 35_000)
+
+    // Artifact delete first so a failure here leaves the SQLite row in place
+    // and the user can retry deletion from the UI. The reverse order would
+    // strand orphan vector files on disk with no UI affordance to clean up.
+    try {
+      await runtime.deleteBaseArtifacts(baseId)
+    } catch (error) {
+      const normalizedError = error instanceof Error ? error : new Error(String(error))
+      logger.error('Failed to delete knowledge base vector artifacts', normalizedError, { baseId })
+      throw error
+    }
 
     try {
       await knowledgeBaseService.delete(baseId)
     } catch (error) {
       const normalizedError = error instanceof Error ? error : new Error(String(error))
-      try {
-        await failItems(interruptedItemIds, normalizedError.message)
-      } catch (failureStateError) {
-        logger.error(
-          'Failed to persist runtime item failure state after knowledge base deletion failed',
-          failureStateError instanceof Error ? failureStateError : new Error(String(failureStateError)),
-          {
-            baseId,
-            interruptedItemIds,
-            deleteError: normalizedError.message
-          }
-        )
-      }
-      throw error
-    }
-
-    try {
-      await runtime.deleteBaseArtifacts(baseId)
-    } catch (error) {
-      const normalizedError = error instanceof Error ? error : new Error(String(error))
-      logger.error('Failed to delete knowledge base vector artifacts after SQLite deletion', normalizedError, {
-        baseId,
-        interruptedItemIds
-      })
+      logger.error('Failed to delete knowledge base SQLite row after artifact cleanup', normalizedError, { baseId })
       throw DataApiErrorFactory.invalidOperation(
         'deleteBase',
-        `SQLite knowledge base was deleted, but vector artifact cleanup failed: ${normalizedError.message}`
+        `Vector artifacts were deleted, but SQLite knowledge base cleanup failed: ${normalizedError.message}`
       )
     }
   }

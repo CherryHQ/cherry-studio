@@ -164,6 +164,8 @@ export const generateToolEnvironment = ({
 
   switch (tool) {
     case codeCLI.claudeCode: {
+      // https://code.claude.com/docs/en/env-vars
+      env.CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST = '1'
       env.ANTHROPIC_BASE_URL =
         getCodeCliApiBaseUrl(model, 'anthropic') || modelProvider.anthropicApiHost || modelProvider.apiHost
       env.ANTHROPIC_MODEL = model.id
@@ -190,11 +192,10 @@ export const generateToolEnvironment = ({
       env.OPENAI_MODEL = model.id
       break
     case codeCLI.openaiCodex:
-      env.OPENAI_API_KEY = apiKey
-      env.OPENAI_BASE_URL = formattedBaseUrl
-      env.OPENAI_MODEL = model.id
-      env.OPENAI_MODEL_PROVIDER = modelProvider.id
-      env.OPENAI_MODEL_PROVIDER_NAME = modelProvider.name
+      env.CHERRY_CODEX_API_KEY = apiKey
+      env.CHERRY_CODEX_BASE_URL = formattedBaseUrl
+      env.CHERRY_CODEX_PROVIDER_ID = modelProvider.id
+      env.CHERRY_CODEX_PROVIDER_NAME = sanitizeProviderName(getFancyProviderName(modelProvider))
       break
 
     case codeCLI.iFlowCli:

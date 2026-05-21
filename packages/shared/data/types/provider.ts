@@ -70,9 +70,9 @@ export function isServiceTier(tier: string | null | undefined): tier is ServiceT
 
 export const ApiKeyEntrySchema = z.object({
   /** UUID for referencing this key */
-  id: z.string(),
-  /** Actual key value (encrypted in storage) */
-  key: z.string(),
+  id: z.string().min(1),
+  /** Actual key value (trimmed; empty values are rejected) */
+  key: z.string().trim().min(1),
   /** User-friendly label */
   label: z.string().optional(),
   /** Whether this key is enabled */
@@ -83,7 +83,7 @@ export type ApiKeyEntry = z.infer<typeof ApiKeyEntrySchema>
 export const RuntimeApiKeySchema = ApiKeyEntrySchema.omit({ key: true })
 export type RuntimeApiKey = z.infer<typeof RuntimeApiKeySchema>
 
-export const AuthTypeSchema = z.enum(['api-key', 'oauth', 'iam-aws', 'iam-gcp', 'iam-azure'])
+export const AuthTypeSchema = z.enum(['api-key', 'oauth', 'iam-aws', 'api-key-aws', 'iam-gcp', 'iam-azure'])
 export type AuthType = z.infer<typeof AuthTypeSchema>
 
 const AuthConfigApiKey = z.object({
@@ -109,6 +109,17 @@ const AuthConfigIamAws = z.object({
   secretAccessKey: z.string().optional()
 })
 
+/**
+ * AWS Bedrock api-key auth. AWS issues short-lived bearer tokens that work
+ * as a `Bearer` header against the regional Bedrock endpoint, so this still
+ * needs a region — region is *not* in the generic `api-key` variant because
+ * only AWS uses it that way.
+ */
+const AuthConfigApiKeyAws = z.object({
+  type: z.literal('api-key-aws'),
+  region: z.string()
+})
+
 const AuthConfigIamGcp = z.object({
   type: z.literal('iam-gcp'),
   project: z.string(),
@@ -126,6 +137,7 @@ export const AuthConfigSchema = z.discriminatedUnion('type', [
   AuthConfigApiKey,
   AuthConfigOAuth,
   AuthConfigIamAws,
+  AuthConfigApiKeyAws,
   AuthConfigIamGcp,
   AuthConfigIamAzure
 ])
@@ -231,6 +243,8 @@ export const ProviderSchema = z.object({
   name: z.string(),
   /** Description */
   description: z.string().optional(),
+  /** Preset provider website links */
+  websites: ProviderWebsitesSchema.optional(),
   /** Per-endpoint-type configuration (baseUrl, reasoningFormatType, modelsApiUrls) */
   endpointConfigs: z.record(EndpointTypeSchema, EndpointConfigSchema).optional() as z.ZodOptional<
     z.ZodType<Partial<Record<EndpointType, EndpointConfig>>>

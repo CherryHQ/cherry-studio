@@ -199,20 +199,23 @@ export interface NewApiOAuthConfig {
 }
 
 /**
- * CherryIN OAuth flow using Authorization Code with PKCE
- * PKCE generation and token exchange happen in the main process for security
- * @param setKey - Callback to set the API key
- * @param config - OAuth configuration (oauthServer, apiHost)
+ * CherryIN OAuth flow using Authorization Code with PKCE.
+ *
+ * PKCE, token exchange and API-key fetch all happen in the main process
+ * (`CherryINOAuthService`); the deep-link callback is routed by `ProtocolService`
+ * directly to this renderer's webContents (captured at `startOAuthFlow` time),
+ * so we just await a single point-to-point IPC event keyed by `state`.
  */
-export const oauthWithCherryIn = async (setKey: (key: string) => void, config: NewApiOAuthConfig): Promise<string> => {
+export const oauthWithCherryIn = async (
+  setKey: (key: string) => void | Promise<void>,
+  config: NewApiOAuthConfig
+): Promise<string> => {
   const { oauthServer, apiHost } = config
 
-  // Start OAuth flow in main process (generates PKCE params and returns auth URL)
   const { authUrl, state } = await window.api.cherryin.startOAuthFlow(oauthServer, apiHost)
 
   logger.debug('Opening authorization URL')
 
-  // Open in popup window
   window.open(
     authUrl,
     'oauth',
@@ -222,60 +225,33 @@ export const oauthWithCherryIn = async (setKey: (key: string) => void, config: N
   return new Promise<string>((resolve, reject) => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null
 
-    const removeListener = window.api.protocol.onReceiveData(async (data) => {
-      try {
-        const url = new URL(data.url)
+    const removeListener = window.api.cherryin.onOAuthResult(async (result) => {
+      // Defensive: another concurrent CherryIN flow on the same window would
+      // hit the same listener; main only ever pushes for our state, but filter
+      // anyway to keep the contract explicit.
+      if (result.state !== state) return
 
-        // Only handle our OAuth callback
-        if (url.hostname !== 'oauth' || url.pathname !== '/callback') {
-          return
-        }
+      cleanup()
 
-        const params = new URLSearchParams(url.search)
-        const code = params.get('code')
-        const returnedState = params.get('state')
-        const error = params.get('error')
-
-        // Handle OAuth errors
-        if (error) {
-          const errorDesc = params.get('error_description') || error
-          logger.error(`Error: ${errorDesc}`)
-          reject(new Error(`OAuth error: ${errorDesc}`))
-          cleanup()
-          return
-        }
-
-        if (!code) {
-          reject(new Error('No authorization code received'))
-          cleanup()
-          return
-        }
-
-        // Verify state matches (CSRF protection)
-        if (returnedState !== state) {
-          logger.debug('State mismatch, ignoring callback')
-          return
-        }
-
-        logger.debug('Exchanging code for token via main process')
-
-        // Exchange code for tokens in main process (has PKCE code_verifier)
-        const { apiKeys } = await window.api.cherryin.exchangeToken(code, state)
-
-        if (apiKeys) {
-          logger.debug('Successfully obtained API keys')
-          setKey(apiKeys)
-          resolve(apiKeys)
-        } else {
-          reject(new Error('No API keys received'))
-        }
-
-        cleanup()
-      } catch (error) {
-        logger.error('Error processing callback:', error as Error)
-        reject(error)
-        cleanup()
+      if ('error' in result) {
+        logger.error(`OAuth error: ${result.error}`)
+        reject(new Error(result.error))
+        return
       }
+
+      if (!result.apiKeys) {
+        reject(new Error('No API keys received'))
+        return
+      }
+
+      logger.debug('Successfully obtained API keys')
+      try {
+        await setKey(result.apiKeys)
+      } catch (err) {
+        reject(err)
+        return
+      }
+      resolve(result.apiKeys)
     })
 
     function cleanup(): void {
@@ -286,7 +262,6 @@ export const oauthWithCherryIn = async (setKey: (key: string) => void, config: N
       }
     }
 
-    // Timeout after 10 minutes
     timeoutId = setTimeout(
       () => {
         logger.warn('Flow timed out')

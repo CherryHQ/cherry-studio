@@ -56,7 +56,8 @@ const FUNCTION_CALLING_EXCLUDED_MODELS = [
   'gemini-2.5-flash-image(?:-[\\w-]+)?',
   'gemini-2.0-flash-preview-image-generation',
   'gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?',
-  'deepseek-v3.2-speciale'
+  'deepseek-v3.2-speciale',
+  'deepseek-r1(?:[-:][\\w.-]+)?'
 ]
 
 export const FUNCTION_CALLING_REGEX = new RegExp(

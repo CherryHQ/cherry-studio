@@ -17,7 +17,7 @@ const meta: Meta<typeof Button> = {
   argTypes: {
     variant: {
       control: { type: 'select' },
-      options: ['default', 'destructive', 'outline', 'secondary', 'ghost', 'link'],
+      options: ['default', 'destructive', 'outline', 'secondary', 'emphasis', 'ghost', 'link'],
       description: 'The visual style variant of the button'
     },
     size: {
@@ -72,6 +72,20 @@ export const Outline: Story = {
   }
 }
 
+export const Emphasis: Story = {
+  args: {
+    variant: 'emphasis',
+    children: 'Emphasis'
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'High-emphasis primary action — e.g. a dialog confirm button. Solid dark background, strong CTA.'
+      }
+    }
+  }
+}
+
 export const Ghost: Story = {
   args: {
     variant: 'ghost',
@@ -94,6 +108,7 @@ export const AllVariants: Story = {
       <Button variant="secondary">Secondary</Button>
       <Button variant="destructive">Destructive</Button>
       <Button variant="outline">Outline</Button>
+      <Button variant="emphasis">Emphasis</Button>
       <Button variant="ghost">Ghost</Button>
       <Button variant="link">Link</Button>
     </div>

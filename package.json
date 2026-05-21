@@ -63,9 +63,9 @@
     "test:ui": "vitest --ui",
     "test:watch": "vitest",
     "test:e2e": "pnpm playwright test",
-    "test:lint": "oxlint --deny-warnings && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --cache",
+    "test:lint": "oxlint --deny-warnings && NO_LEGACY_CSS_WARN=true eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --cache",
     "test:scripts": "vitest scripts",
-    "lint": "oxlint --fix && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --cache && pnpm typecheck && pnpm i18n:check && pnpm format",
+    "lint": "oxlint --fix && NO_LEGACY_CSS_WARN=true eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --cache && pnpm typecheck && pnpm i18n:check && pnpm format",
     "format": "biome format --write && biome lint --write",
     "format:check": "biome format && biome lint",
     "bench": "vitest bench --run",
@@ -315,6 +315,7 @@
     "commander": "^14.0.2",
     "concurrently": "^9.2.1",
     "cors": "2.8.5",
+    "croner": "^10.0.1",
     "country-flag-emoji-polyfill": "0.1.8",
     "dayjs": "^1.11.11",
     "dexie": "^4.0.8",
@@ -516,7 +517,8 @@
       "@ai-sdk/google@3.0.64": "patches/@ai-sdk__google@3.0.64.patch",
       "@libsql/client@0.15.15": "patches/@libsql__client@0.15.15.patch",
       "@ai-sdk/anthropic": "patches/@ai-sdk__anthropic.patch",
-      "@ai-sdk/deepseek@2.0.30": "patches/@ai-sdk__deepseek@2.0.30.patch"
+      "@ai-sdk/deepseek@2.0.30": "patches/@ai-sdk__deepseek@2.0.30.patch",
+      "@cherrystudio/embedjs-loader-web@0.1.31": "patches/@cherrystudio__embedjs-loader-web@0.1.31.patch"
     },
     "onlyBuiltDependencies": [
       "@j178/prek",

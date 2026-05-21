@@ -10,6 +10,7 @@ import { loggerService } from '@logger'
 import { isAnthropicModel, isGeminiModel } from '@renderer/config/models'
 import { isOpenAILLMModel } from '@renderer/config/models/openai'
 import type { Model, Provider, ProviderType } from '@renderer/types'
+import { SystemProviderIds } from '@renderer/types'
 import { extractPdfText } from '@shared/utils/pdf'
 import type { LanguageModelMiddleware } from 'ai'
 import i18n from 'i18next'
@@ -34,11 +35,17 @@ const PDF_NATIVE_PROVIDER_TYPES = new Set<ProviderType>([
   'vertex-anthropic' // Vertex AI with Anthropic models
 ])
 
+const PDF_FORCE_TEXT_EXTRACTION_PROVIDER_IDS = new Set<string>([SystemProviderIds.qiniu])
+
 function isPdfFilePart(part: ContentPart): part is LanguageModelV3FilePart & { mediaType: 'application/pdf' } {
   return part.type === 'file' && part.mediaType === 'application/pdf'
 }
 
 function supportsNativePdf(provider: Provider, model: Model): boolean {
+  if (PDF_FORCE_TEXT_EXTRACTION_PROVIDER_IDS.has(provider.id)) {
+    return false
+  }
+
   // OpenAI, Claude, and Gemini models always support native PDF regardless of provider
   if (isOpenAILLMModel(model) || isAnthropicModel(model) || isGeminiModel(model)) {
     return true

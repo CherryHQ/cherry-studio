@@ -249,6 +249,65 @@ export class KnowledgeItemService {
     })
   }
 
+  // TODO: wrap the id collection and row fetch in a single db.transaction so a
+  // concurrent delete between the two queries cannot surface as dataInconsistent.
+  // Sibling methods getDescendantItems / getLeafDescendantItems share the same
+  // two-query shape and the same race; fix all three together.
+  async getDescendantAndSelfItems(baseId: string, rootIds: string[]): Promise<KnowledgeItem[]> {
+    const subtreeIds = await this.getDescendantAndSelfIds(baseId, rootIds)
+
+    if (subtreeIds.length === 0) {
+      return []
+    }
+
+    const rows = await this.db
+      .select()
+      .from(knowledgeItemTable)
+      .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, subtreeIds)))
+    const rowsById = new Map(rows.map((row) => [row.id, row]))
+
+    return subtreeIds.map((id) => {
+      const row = rowsById.get(id)
+
+      if (!row) {
+        throw DataApiErrorFactory.dataInconsistent('KnowledgeItem', `Subtree row missing for id '${id}'`)
+      }
+
+      return rowToKnowledgeItem(row)
+    })
+  }
+
+  private async getDescendantAndSelfIds(baseId: string, rootIds: string[]): Promise<string[]> {
+    const uniqueRootIds = [...new Set(rootIds)]
+
+    if (uniqueRootIds.length === 0) {
+      return []
+    }
+
+    const rows = await this.db.all<{ id: string }>(sql`
+      WITH RECURSIVE subtree AS (
+        SELECT id
+        FROM knowledge_item
+        WHERE base_id = ${baseId}
+          AND id IN (${sql.join(
+            uniqueRootIds.map((id) => sql`${id}`),
+            sql`, `
+          )})
+
+        UNION ALL
+
+        SELECT child.id
+        FROM knowledge_item child
+        INNER JOIN subtree parent ON child.group_id = parent.id
+        WHERE child.base_id = ${baseId}
+      )
+      SELECT DISTINCT id
+      FROM subtree
+    `)
+
+    return rows.map((row) => row.id)
+  }
+
   private async getDescendantIds(baseId: string, rootIds: string[]): Promise<string[]> {
     const uniqueRootIds = [...new Set(rootIds)]
 

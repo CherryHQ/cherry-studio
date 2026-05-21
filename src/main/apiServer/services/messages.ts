@@ -1,8 +1,7 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import type { MessageCreateParams, MessageStreamEvent } from '@anthropic-ai/sdk/resources'
 import { loggerService } from '@logger'
-import { anthropicService } from '@main/services/AnthropicService'
-import { buildClaudeCodeSystemMessage, getSdkClient } from '@shared/anthropic'
+import { getSdkClient } from '@shared/anthropic'
 import type { Provider } from '@types'
 import type { Response } from 'express'
 
@@ -97,12 +96,7 @@ export class MessagesService {
   }
 
   async getClient(provider: Provider, extraHeaders?: Record<string, string | string[]>): Promise<Anthropic> {
-    // Create Anthropic client for the provider
-    if (provider.authType === 'oauth') {
-      const oauthToken = await anthropicService.getValidAccessToken()
-      return getSdkClient(provider, oauthToken, extraHeaders)
-    }
-    return getSdkClient(provider, null, extraHeaders)
+    return getSdkClient(provider, extraHeaders)
   }
 
   prepareHeaders(headers: Record<string, string | string[] | undefined>): Record<string, string | string[]> {
@@ -124,7 +118,7 @@ export class MessagesService {
     return extraHeaders
   }
 
-  createAnthropicRequest(request: MessageCreateParams, provider: Provider, modelId?: string): MessageCreateParams {
+  createAnthropicRequest(request: MessageCreateParams, modelId?: string): MessageCreateParams {
     const anthropicRequest: MessageCreateParams = {
       ...request,
       stream: !!request.stream
@@ -133,11 +127,6 @@ export class MessagesService {
     // Override model if provided
     if (modelId) {
       anthropicRequest.model = modelId
-    }
-
-    // Add Claude Code system message for OAuth providers
-    if (provider.type === 'anthropic' && provider.authType === 'oauth') {
-      anthropicRequest.system = buildClaudeCodeSystemMessage(request.system)
     }
 
     return anthropicRequest
@@ -293,7 +282,7 @@ export class MessagesService {
     const { provider, request, extraHeaders, modelId } = options
 
     const client = await this.getClient(provider, extraHeaders)
-    const anthropicRequest = this.createAnthropicRequest(request, provider, modelId)
+    const anthropicRequest = this.createAnthropicRequest(request, modelId)
 
     const messageCount = Array.isArray(request.messages) ? request.messages.length : 0
 

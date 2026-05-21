@@ -9,7 +9,6 @@ import {
   useProviderApiKeys,
   useProviderAuthConfig,
   useProviderMutations,
-  useProviderRegistryModels,
   useProviders
 } from '../useProviders'
 
@@ -287,6 +286,32 @@ describe('useProviderMutations', () => {
     })
   })
 
+  it('should set up PATCH api-key mutation with /* wildcard refresh', () => {
+    renderHook(() => useProviderMutations('openai'))
+
+    const updateKeyCall = mockUseMutation.mock.calls.find(
+      (c: any[]) => c[0] === 'PATCH' && c[1] === '/providers/:providerId/api-keys/:keyId'
+    )
+
+    expect(updateKeyCall).toBeDefined()
+    expect(updateKeyCall![2]).toEqual({
+      refresh: ['/providers', '/providers/openai', '/providers/openai/*']
+    })
+  })
+
+  it('should set up PUT api-keys mutation with /* wildcard refresh', () => {
+    renderHook(() => useProviderMutations('openai'))
+
+    const replaceKeysCall = mockUseMutation.mock.calls.find(
+      (c: any[]) => c[0] === 'PUT' && c[1] === '/providers/:providerId/api-keys'
+    )
+
+    expect(replaceKeysCall).toBeDefined()
+    expect(replaceKeysCall![2]).toEqual({
+      refresh: ['/providers', '/providers/openai', '/providers/openai/*']
+    })
+  })
+
   it('should build correct refresh paths for hyphenated provider IDs', () => {
     renderHook(() => useProviderMutations('openai-main'))
 
@@ -352,10 +377,13 @@ describe('useProviderMutations', () => {
     expect(mockTrigger).toHaveBeenCalledWith({ params: { providerId: 'openai' }, body: { authConfig } })
   })
 
-  it('should update API keys via patchTrigger — /* wildcard covers sub-path, no manual invalidate', async () => {
-    const mockTrigger = vi.fn().mockResolvedValue({})
-    mockUseMutation.mockImplementation(() => ({
-      trigger: mockTrigger,
+  it('should update API keys via dedicated PUT api-keys resource', async () => {
+    const replaceKeysTrigger = vi.fn().mockResolvedValue({})
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger:
+        _method === 'PUT' && path === '/providers/:providerId/api-keys'
+          ? replaceKeysTrigger
+          : vi.fn().mockResolvedValue({}),
       isLoading: false,
       error: undefined
     }))
@@ -367,7 +395,7 @@ describe('useProviderMutations', () => {
       await result.current.updateApiKeys(apiKeys)
     })
 
-    expect(mockTrigger).toHaveBeenCalledWith({ params: { providerId: 'openai' }, body: { apiKeys } })
+    expect(replaceKeysTrigger).toHaveBeenCalledWith({ params: { providerId: 'openai' }, body: { keys: apiKeys } })
   })
 
   it('should log and rethrow updateProvider errors', async () => {
@@ -542,8 +570,11 @@ describe('useProviderMutations', () => {
   it('should log and rethrow updateApiKeys errors', async () => {
     const error = new Error('API key update failed')
     const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
-    mockUseMutation.mockImplementation(() => ({
-      trigger: vi.fn().mockRejectedValue(error),
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger:
+        _method === 'PUT' && path === '/providers/:providerId/api-keys'
+          ? vi.fn().mockRejectedValue(error)
+          : vi.fn().mockResolvedValue({}),
       isLoading: false,
       error: undefined
     }))
@@ -557,6 +588,29 @@ describe('useProviderMutations', () => {
     })
 
     expect(loggerSpy).toHaveBeenCalledWith('Failed to update API keys', { providerId: 'openai', error })
+  })
+
+  it('should call updateApiKey trigger with providerId, keyId and body', async () => {
+    const updateKeyTrigger = vi.fn().mockResolvedValue({})
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger:
+        _method === 'PATCH' && path === '/providers/:providerId/api-keys/:keyId'
+          ? updateKeyTrigger
+          : vi.fn().mockResolvedValue({}),
+      isLoading: false,
+      error: undefined
+    }))
+
+    const { result } = renderHook(() => useProviderMutations('openai'))
+
+    await act(async () => {
+      await result.current.updateApiKey('key-1', { label: 'Primary', isEnabled: false })
+    })
+
+    expect(updateKeyTrigger).toHaveBeenCalledWith({
+      params: { providerId: 'openai', keyId: 'key-1' },
+      body: { label: 'Primary', isEnabled: false }
+    })
   })
 
   it('should expose isUpdating and isDeleting loading states', () => {
@@ -681,40 +735,6 @@ describe('useProviderApiKeys', () => {
     renderHook(() => useProviderApiKeys('openai-main'))
 
     expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId/api-keys', {
-      params: { providerId: 'openai-main' }
-    })
-  })
-})
-
-describe('useProviderRegistryModels', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('should query registry models for a provider', () => {
-    const mockModels = [{ id: 'gpt-4o', name: 'GPT-4o', providerId: 'openai' }]
-    mockUseQuery.mockImplementation(() => ({
-      data: mockModels,
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      refetch: vi.fn().mockResolvedValue(undefined),
-      mutate: vi.fn()
-    }))
-
-    const { result } = renderHook(() => useProviderRegistryModels('openai'))
-
-    expect(result.current.data).toEqual(mockModels)
-    expect(result.current.isLoading).toBe(false)
-    expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId/registry-models', {
-      params: { providerId: 'openai' }
-    })
-  })
-
-  it('should build correct params for hyphenated provider IDs', () => {
-    renderHook(() => useProviderRegistryModels('openai-main'))
-
-    expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId/registry-models', {
       params: { providerId: 'openai-main' }
     })
   })

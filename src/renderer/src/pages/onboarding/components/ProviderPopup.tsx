@@ -1,12 +1,12 @@
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import i18n from '@renderer/i18n'
-import ProviderList from '@renderer/pages/settings/ProviderSettings/ProviderList'
+import { ProviderSettingsPage } from '@renderer/pages/settings/ProviderSettings'
 
 export default class ProviderPopup {
   static show() {
     return GeneralPopup.show({
       title: i18n.t('onboarding.welcome.select_other_provider'),
-      content: <ProviderList isOnboarding />,
+      content: <ProviderSettingsPage isOnboarding />,
       footer: null,
       width: 'min(1200px, 80vw)',
       styles: {
