@@ -662,6 +662,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       autoAllowTools.add('mcp__assistant__navigate')
       autoAllowTools.add('mcp__assistant__diagnose')
       autoAllowTools.add('mcp__assistant__apply_setting')
+      autoAllowTools.add('mcp__assistant__create_agent')
       if (Array.isArray(options.allowedTools) && options.allowedTools.length > 0) {
         if (!options.allowedTools.includes('mcp__assistant__*')) {
           options.allowedTools = [...options.allowedTools, 'mcp__assistant__*']

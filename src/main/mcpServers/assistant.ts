@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { agentService } from '@main/services/agents/services/AgentService'
 import appService from '@main/services/AppService'
 import { configManager } from '@main/services/ConfigManager'
 import { themeService } from '@main/services/ThemeService'
@@ -181,6 +182,42 @@ const APPLY_SETTING_REGISTRY: Record<string, ApplySettingEntry> = {
   }
 }
 
+const CREATE_AGENT_TOOL: Tool = {
+  name: 'create_agent',
+  description: `Create a new Cherry Studio Agent on behalf of the user. Use this when the user explicitly asks to create / build / make a new agent (e.g. "帮我建一个专门做 Python 代码 review 的 Agent"). MUST collect requirements via conversation first, then SHOW the proposed config to the user for confirmation, and only call this tool after explicit user agreement.
+
+Safety rules:
+- type is fixed to 'claude-code' (lightweight; CherryClaw / channels are out of scope here)
+- accessible_paths is left empty so the new agent gets the standard isolated workspace
+- permission_mode defaults to 'default' (read-mostly); user can change later in the UI
+
+The tool returns the new agent id. After creation, you should call mcp__assistant__navigate to /agents to show the user the new agent.`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      name: {
+        type: 'string',
+        description: 'Short human-readable name (e.g. "Python Reviewer", "周报助手"). Required.'
+      },
+      description: {
+        type: 'string',
+        description: 'One-line description shown in the agent list. Optional but recommended.'
+      },
+      instructions: {
+        type: 'string',
+        description:
+          "The agent's system prompt — role, behavior, output format. Required. Write it in the user's preferred language. Keep concise (under ~300 lines)."
+      },
+      model: {
+        type: 'string',
+        description:
+          'Model id in the form "providerId:modelName" (e.g. "cherryin:agent/glm-5.1", "anthropic:claude-3-5-sonnet-20241022"). Default to the same model Cherry Assistant itself is currently using unless the user specifies otherwise.'
+      }
+    },
+    required: ['name', 'instructions', 'model']
+  }
+}
+
 const APPLY_SETTING_TOOL: Tool = {
   name: 'apply_setting',
   description: `Apply a low-risk Cherry Studio setting change directly — takes effect immediately, no further user click. Only the whitelist below is supported; destructive operations (clearing data, deleting providers, resetting config) are NEVER exposed here and must still be done by the user in the UI.
@@ -231,7 +268,7 @@ class AssistantServer {
 
   private setupHandlers() {
     this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [NAVIGATE_TOOL, DIAGNOSE_TOOL, APPLY_SETTING_TOOL]
+      tools: [NAVIGATE_TOOL, DIAGNOSE_TOOL, APPLY_SETTING_TOOL, CREATE_AGENT_TOOL]
     }))
 
     this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -246,6 +283,8 @@ class AssistantServer {
             return await this.diagnose(args)
           case 'apply_setting':
             return await this.applySetting(args as Record<string, string | undefined>)
+          case 'create_agent':
+            return await this.createAgent(args as Record<string, string | undefined>)
           default:
             throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`)
         }
@@ -318,6 +357,55 @@ class AssistantServer {
     logger.info('apply_setting succeeded', { setting, value })
     return {
       content: [{ type: 'text' as const, text: message }]
+    }
+  }
+
+  private async createAgent(args: Record<string, string | undefined>) {
+    const name = args.name?.trim()
+    const instructions = args.instructions?.trim()
+    const model = args.model?.trim()
+    const description = args.description?.trim() || undefined
+
+    if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for create_agent")
+    if (!instructions) throw new McpError(ErrorCode.InvalidParams, "'instructions' is required for create_agent")
+    if (!model) throw new McpError(ErrorCode.InvalidParams, "'model' is required for create_agent")
+
+    // model id is conventionally "providerId:modelName"; reject obviously
+    // malformed values so we surface useful errors before AgentService tries
+    // to validate against the model registry.
+    if (!model.includes(':')) {
+      throw new McpError(ErrorCode.InvalidParams, `'model' must be in the form "providerId:modelName" (got "${model}")`)
+    }
+
+    try {
+      const result = await agentService.createAgent({
+        type: 'claude-code',
+        name,
+        description,
+        instructions,
+        model,
+        // Empty paths → AgentService.resolveAccessiblePaths assigns the
+        // standard per-agent workspace under userData/Data/Agents/{id}/.
+        accessible_paths: [],
+        configuration: {
+          permission_mode: 'default',
+          max_turns: 100,
+          env_vars: {}
+        }
+      })
+      logger.info('create_agent succeeded', { agentId: result.id, name })
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Agent created. id=${result.id}, name=${result.name}, model=${result.model}. Use navigate to /agents to open it.`
+          }
+        ]
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      logger.error('create_agent failed', { error: msg, name })
+      throw new McpError(ErrorCode.InternalError, `Failed to create agent: ${msg}`)
     }
   }
 
