@@ -588,6 +588,7 @@ export class KnowledgeMigrator extends BaseMigrator {
       // legacyFileId is already the v2 fileEntryId. Items without a fileId
       // are bucketed via `recordSkippedWarning` so the user / postmortem sees
       // the count + a few example item ids instead of a silent drop.
+      // Cross-run idempotency lives at the engine level (verifyAndClearNewTables) — no onConflict guard needed here.
       const now = Date.now()
 
       for (const base of this.preparedBases) {
