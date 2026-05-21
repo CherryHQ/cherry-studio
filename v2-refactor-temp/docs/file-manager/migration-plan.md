@@ -1055,15 +1055,16 @@ IPC 批量方法内部 `Promise.all` 一次 RT 完成——效率等同旧方案
 
 这意味着 renderer 侧的 path helper 是**必要但最小**的：仅为这两个场景存在，不做其他扩展。
 
-**Q3: 历史 message block 里内嵌 FileMetadata 的兼容方式** ✅ **已决定**
+**Q3: 历史 message block 里内嵌 FileMetadata 的兼容方式** ✅ **已决定**（终态；落地分两步）
 
-**迁移到 file_ref**：历史 message blocks 的 `file: FileMetadata` 字段在 v2 消息模型里不再内嵌文件对象，而是通过 `file_ref` 表建立关系（`sourceType='chat_message'`, `sourceId=messageId`, `fileEntryId=...`, `role='attachment' | 'image'`）。
+**终态**：历史 message blocks 的 `file: FileMetadata` 字段在 v2 消息模型里不再内嵌文件对象，而是通过 `file_ref` 表建立关系（`sourceType='chat_message'`, `sourceId=messageId`, `fileEntryId=...`, `role='attachment' | 'image'`）。
 
-- FileMigrator / ChatMigrator 在迁移时对每个 MessageBlock 的 `file.id` 建立 file_ref 行
-- V2 message block JSON 只存 `fileEntryId: string`（或直接引用），渲染时通过 id 查 FileEntry
-- 不需要 shim 反推 path——block JSON 里连 path 都没了
+**落地拆分**：
 
-这条和 §2.3（count 用 file_ref 取代）+ RFC §10（FileMigrator 设计）一致。
+- ✅ **Batch 0 已落地**：v2 message block JSON 只存 `fileEntryId: string`（`ImageBlock.fileId` / `FileBlock.fileId`），渲染时通过 id 查 FileEntry；ChatMigrator 已透传 v1 `block.file.id` → v2 `fileId`。不需要 shim 反推 path——block JSON 里连 path 都没了。
+- ⏳ **延后**：`file_ref` 反向索引行的写入随 chat 域整体迁移到 v2 file_ref 服务时一并上线（同步注册 `'chat_message'` sourceType；见 §2.10.3 表格里 ChatMigrator 行的延后说明）。延后期间，附件可达性由 inline `fileId` 维持，仅 file_ref 反查能力暂缺。
+
+这条和 §2.3（count 用 file_ref 取代）+ RFC §8.4 ChatMigrator 延后说明一致。
 
 **Q4: Path 暴露到 renderer 的方式** ✅ **已决定**（经架构师复核后收紧）
 
@@ -1572,8 +1573,8 @@ if (sample.length > 0 && missing / sample.length > 0.5) {
 
 | 引用源（v1）                            | 责任 migrator                | sourceType         | role           | 写入时机                                                                       |
 | --------------------------------------- | ---------------------------- | ------------------ | -------------- | ------------------------------------------------------------------------------ |
-| `message_blocks.file.id`（FILE block）  | ChatMigrator                 | `'chat_message'`   | `'attachment'` | 迁移每条 message_block 时                                                      |
-| `message_blocks.file.id`（IMAGE block） | ChatMigrator                 | `'chat_message'`   | `'image'`      | 同上                                                                           |
+| `message_blocks.file.id`（FILE block）  | ChatMigrator（**延后**）     | `'chat_message'`   | `'attachment'` | 随 chat 域整体迁移上线（PR #15067 已显式 defer）；上线 PR 同时把 `'chat_message'` 加入 `FileRefSourceType` union + 新增 `createRefSchema` variant + 注册 `SourceTypeChecker`。延后期间 `'chat_message'` 不在 union，OrphanRefScanner 扫不到。v1 `block.file.id` 已透传为 v2 `ImageBlock.fileId` / `FileBlock.fileId`（inline JSON），无数据丢失，仅缺反向索引 |
+| `message_blocks.file.id`（IMAGE block） | ChatMigrator（**延后**）     | `'chat_message'`   | `'image'`      | 同上                                                                           |
 | Redux `paintings[].files[].id`          | PaintingMigrator（**延后**） | `'painting'`       | `'asset'`      | painting 域整体迁移上线后；上线 PR 同时把 `'painting'` 加入 `FileRefSourceType` union + 新增 `createRefSchema` variant + 注册 `SourceTypeChecker`。延后期间 `'painting'` 不在 union，OrphanRefScanner 扫不到（见 §2.3.9 / §6 Q7） |
 | `knowledge_items.data.file.id`          | KnowledgeMigrator            | `'knowledge_item'` | `'source'`     | 迁移每个 knowledge_item 时同步写（见 §6 Q9 关于现有 `loadFileLookup` 的去向）  |
 | AI provider upload cache                | （延后到 FileUploadService） | —                  | —              | 本轮不迁；`purpose` 字段丢弃（见 §2.2）                                        |
@@ -1703,7 +1704,7 @@ FileMigrator 完成时发出一条 `info`-级结构化日志记录（通过 `log
 2. `MigrationContext.sharedData` 协议扩展（添加 `fileMigrator.idRemap` / `fileMigrator.knownIds` 的 key 与读写工具，建议封装成 `getFileMigratorProducts(ctx)` helper 避免各 migrator 自己 cast `unknown`）
 3. FileMigrator 本体（含 §2.10.2 抽样验证 + §2.10.3 idRemap 计算 + §2.10.4 失败处理 + §2.10.5 日志记录）
 4. KnowledgeMigrator 改造（决议见 §6 Q9 后落地：在现有 `data.file.id` 处理流程后追加 file_ref 写入；`loadFileLookup` 去留按 Q9 结论）
-5. ChatMigrator 改造（在 message_block 流式迁移中追加 file_ref 写入；与现有 RFC §10 范围合并）
+5. ChatMigrator 改造（**延后**，PR #15067 已 defer；与 chat 域 file_ref 服务同 PR 上线，三表面同步——`allSourceTypes` 增加 `'chat_message'`、`createRefSchema` 变体、`OrphanRefScanner` checker）
 6. PaintingMigrator 跟随 painting 域整体迁移（**不阻塞** v2 主线）
 
 ---
