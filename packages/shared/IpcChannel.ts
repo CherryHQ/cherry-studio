@@ -290,7 +290,6 @@ export enum IpcChannel {
   // events
   BackupProgress = 'backup-progress',
   ThemeUpdated = 'theme:updated',
-  LanguageUpdated = 'app:language-updated',
   RestoreProgress = 'restore-progress',
   UpdateError = 'update-error',
   UpdateAvailable = 'update-available',

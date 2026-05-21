@@ -10,10 +10,8 @@ import { themeService } from '@main/services/ThemeService'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
-import { IpcChannel } from '@shared/IpcChannel'
-import type { LanguageVarious } from '@types'
 import { ThemeMode } from '@types'
-import { app, BrowserWindow } from 'electron'
+import { app } from 'electron'
 
 const logger = loggerService.withContext('MCPServer:Assistant')
 
@@ -101,22 +99,6 @@ interface ApplySettingEntry {
   hint: string
 }
 
-// Supported UI languages (must stay in sync with src/renderer/src/i18n/).
-const SUPPORTED_LANGUAGES: readonly string[] = [
-  'en-US',
-  'zh-CN',
-  'zh-TW',
-  'ja-JP',
-  'fr-FR',
-  'de-DE',
-  'es-ES',
-  'pt-PT',
-  'ru-RU',
-  'ro-RO',
-  'el-GR',
-  'vi-VN'
-]
-
 const BOOL_VALUES: readonly string[] = ['true', 'false']
 const parseBool = (v: string) => v === 'true'
 
@@ -127,20 +109,6 @@ const APPLY_SETTING_REGISTRY: Record<string, ApplySettingEntry> = {
     apply: (value) => {
       themeService.setTheme(value as ThemeMode)
       return `Theme switched to ${value}.`
-    }
-  },
-  language: {
-    allowed: SUPPORTED_LANGUAGES,
-    hint: `language: ${SUPPORTED_LANGUAGES.join(' | ')}`,
-    apply: (value) => {
-      configManager.setLanguage(value as LanguageVarious)
-      // Persisting alone is not enough: the renderer's i18next + Redux
-      // settings.language live independently. Broadcast so each window can
-      // refresh i18n.changeLanguage / Redux setLanguage / dayjs locale.
-      for (const win of BrowserWindow.getAllWindows()) {
-        win.webContents.send(IpcChannel.LanguageUpdated, value)
-      }
-      return `UI language switched to ${value}.`
     }
   },
   tray: {
