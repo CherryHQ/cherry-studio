@@ -1,7 +1,12 @@
 import { sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps, uuidPrimaryKey, uuidPrimaryKeyOrdered } from './_columnHelpers'
+import {
+  createUpdateDeleteTimestamps,
+  createUpdateTimestamps,
+  uuidPrimaryKey,
+  uuidPrimaryKeyOrdered
+} from './_columnHelpers'
 
 /**
  * NOTE: `file_upload` (AI provider upload cache) is intentionally NOT included
@@ -46,20 +51,15 @@ export const fileEntryTable = sqliteTable(
     /** Absolute path to the user-provided file. Non-null iff origin='external' */
     externalPath: text(),
 
-    // ─── Trash ───
-    /**
-     * Non-null = trashed (ms epoch). Internal-only.
-     *
-     * External entries cannot be trashed (enforced by `fe_external_no_delete`
-     * check constraint). Their lifecycle is monotonic: create via
-     * `ensureExternalEntry`, update in place, or remove immediately via
-     * `permanentDelete` (DB-only — the physical file is left untouched;
-     * path-level deletion is a separate, explicit unmanaged `@main/utils/file/fs.remove(path)`).
-     */
-    deletedAt: integer(),
-
     // ─── Timestamps ───
-    ...createUpdateTimestamps
+    // `deletedAt` is soft-delete (NULL = not deleted). Internal-only —
+    // external entries cannot be soft-deleted (enforced by
+    // `fe_external_no_delete`); their lifecycle is monotonic: create via
+    // `ensureExternalEntry`, update in place, or remove immediately via
+    // `permanentDelete` (DB-only — the physical file is left untouched;
+    // path-level deletion is a separate, explicit unmanaged
+    // `@main/utils/file/fs.remove(path)`).
+    ...createUpdateDeleteTimestamps
   },
   (t) => [
     index('fe_deleted_at_idx').on(t.deletedAt),
