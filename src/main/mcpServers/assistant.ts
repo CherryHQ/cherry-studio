@@ -5,7 +5,6 @@ import path from 'node:path'
 import { loggerService } from '@logger'
 import { agentService } from '@main/services/agents/services/AgentService'
 import appService from '@main/services/AppService'
-import { configManager } from '@main/services/ConfigManager'
 import { themeService } from '@main/services/ThemeService'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
@@ -102,6 +101,9 @@ interface ApplySettingEntry {
 const BOOL_VALUES: readonly string[] = ['true', 'false']
 const parseBool = (v: string) => v === 'true'
 
+// Only settings whose change is observable to the user without an app restart
+// are listed here. Restart-required or background-only persisted toggles were
+// audited and deliberately excluded — see Cherry Assistant PR for the matrix.
 const APPLY_SETTING_REGISTRY: Record<string, ApplySettingEntry> = {
   theme: {
     allowed: [ThemeMode.light, ThemeMode.dark, ThemeMode.system],
@@ -111,48 +113,12 @@ const APPLY_SETTING_REGISTRY: Record<string, ApplySettingEntry> = {
       return `Theme switched to ${value}.`
     }
   },
-  tray: {
-    allowed: BOOL_VALUES,
-    hint: 'tray: true | false (show menu-bar / system-tray icon)',
-    apply: (value) => {
-      configManager.setTray(parseBool(value))
-      return `Tray icon ${parseBool(value) ? 'enabled' : 'disabled'}.`
-    }
-  },
-  launch_to_tray: {
-    allowed: BOOL_VALUES,
-    hint: 'launch_to_tray: true | false (start the app hidden in the tray)',
-    apply: (value) => {
-      configManager.setLaunchToTray(parseBool(value))
-      return `Launch-to-tray ${parseBool(value) ? 'enabled' : 'disabled'}.`
-    }
-  },
-  tray_on_close: {
-    allowed: BOOL_VALUES,
-    hint: 'tray_on_close: true | false (clicking close minimizes to tray instead of quitting)',
-    apply: (value) => {
-      configManager.setTrayOnClose(parseBool(value))
-      return `Tray-on-close ${parseBool(value) ? 'enabled' : 'disabled'}.`
-    }
-  },
-  auto_update: {
-    allowed: BOOL_VALUES,
-    hint: 'auto_update: true | false (download updates automatically in the background)',
-    apply: (value) => {
-      // Note: only persists the preference. The AppUpdater instance (created
-      // in ipc.ts) is not a shared singleton, so it won't re-evaluate its
-      // schedule until app restart. Acceptable trade-off — the next launch
-      // honors the new setting.
-      configManager.setAutoUpdate(parseBool(value))
-      return `Auto-update preference set to ${parseBool(value) ? 'on' : 'off'}. Takes effect on next app restart.`
-    }
-  },
   launch_on_boot: {
     allowed: BOOL_VALUES,
-    hint: 'launch_on_boot: true | false (start Cherry Studio when you log into the OS)',
+    hint: 'launch_on_boot: true | false (register/unregister Cherry Studio as an OS login item — effect on next OS boot)',
     apply: async (value) => {
       await appService.setAppLaunchOnBoot(parseBool(value))
-      return `Launch-on-boot ${parseBool(value) ? 'enabled' : 'disabled'}.`
+      return `Launch-on-boot ${parseBool(value) ? 'enabled' : 'disabled'}. Registered with the OS — takes effect at next system boot.`
     }
   }
 }
