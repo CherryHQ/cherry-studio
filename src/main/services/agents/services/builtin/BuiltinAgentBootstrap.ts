@@ -17,6 +17,15 @@ import { provisionBuiltinAgent } from './BuiltinAgentProvisioner'
 
 const logger = loggerService.withContext('BuiltinAgentBootstrap')
 const RETRY_DELAYS_MS = [5000, 15000, 30000]
+/**
+ * After the initial fast retries, fall back to a slow poll for the
+ * `no_model` skippedReason. This handles the common scenario where the
+ * user opens the app, sees the OOBE flow, and takes longer than ~50s
+ * to configure a Provider — without the slow poll, bootstrap would give
+ * up and the user would have to restart the app to see the default
+ * agents. Refs #14252.
+ */
+const SLOW_POLL_INTERVAL_MS = 60_000
 const retryAttempts = new Map<string, number>()
 const retryTimers = new Map<string, NodeJS.Timeout>()
 
@@ -45,14 +54,31 @@ function clearRetry(agentId: string): void {
   retryAttempts.delete(agentId)
 }
 
-function scheduleRetry(agentId: string, label: string, initFn: () => Promise<void>): void {
+function scheduleRetry(
+  agentId: string,
+  label: string,
+  initFn: () => Promise<void>,
+  recoverable: boolean = false
+): void {
   if (retryTimers.has(agentId)) {
     return
   }
 
   const attempt = retryAttempts.get(agentId) ?? 0
-  const delay = RETRY_DELAYS_MS[attempt]
-  if (delay === undefined) {
+  let delay: number
+  let mode: 'fast' | 'slow-poll'
+
+  if (attempt < RETRY_DELAYS_MS.length) {
+    delay = RETRY_DELAYS_MS[attempt]
+    mode = 'fast'
+  } else if (recoverable) {
+    // Fast retries exhausted but the failure is the kind that resolves itself
+    // when external state changes (e.g. user adds a Provider). Slow-poll
+    // indefinitely so the agent appears as soon as the precondition is met,
+    // without forcing the user to restart the app.
+    delay = SLOW_POLL_INTERVAL_MS
+    mode = 'slow-poll'
+  } else {
     logger.info(`Built-in ${label} bootstrap retries exhausted`, { agentId, attempts: attempt })
     return
   }
@@ -61,7 +87,8 @@ function scheduleRetry(agentId: string, label: string, initFn: () => Promise<voi
   logger.info(`Scheduling built-in ${label} bootstrap retry`, {
     agentId,
     attempt: attempt + 1,
-    delayMs: delay
+    delayMs: delay,
+    mode
   })
 
   const timer = setTimeout(() => {
@@ -100,7 +127,11 @@ async function handleInitResult(
     return
   }
 
-  scheduleRetry(agentId, label, initFn)
+  // `no_model` resolves when the user adds a Provider, so let the retry
+  // loop slow-poll instead of giving up after 3 attempts. Other reasons
+  // (DB errors, IO failures) still exhaust fast.
+  const recoverable = result.skippedReason === 'no_model'
+  scheduleRetry(agentId, label, initFn, recoverable)
 }
 
 // ── CherryClaw ──────────────────────────────────────────────────────
