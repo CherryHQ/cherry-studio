@@ -48,3 +48,5 @@ Chat APP-Docs/
 | T-005A | 诊断 assistant message 写入 FK 失败（modelId 短 id） | ✅ 诊断完成 | [任务.md](./03_Development/tasks/T-005A_AssistantMessageFK/任务.md) |
 | T-005B | 修 assistant message modelId FK（StreamingService 一处清洗） | ✅ commit `15ad2eb08`，⏳ 待手动验证 | [任务.md](./03_Development/tasks/T-005B_修复ModelIdFK/任务.md) |
 | T-006 | Text Anchor Branch UI 原型（含 A–F 子任务） | 🧠 设计 ✅；T-006B ✅ commit `d579fdcf2`；T-006C / T-006D-1 ✅ staged 未 commit；其余 ⏳ | [README.md](./03_Development/tasks/T-006_TextAnchorBranchUI/README.md) |
+| T-007 | Ollama Provider 自动模型同步失败诊断 + 修复（D-003A / D-003B） | 🩺 诊断 ✅；🔧 修复 ✅；用户手测 ✅（Provider 通；Chat 弹窗未通 → T-008） | [验证.md](./03_Development/tasks/T-007_OllamaProviderFix/验证.md) |
+| T-008 | Chat Select Model 弹窗 v1/v2 数据断层（D-003C） | 🩺 诊断 ✅；🩺 T-008B 方案 B 可行性 ✅；🔧 ~50 行单文件实施待用户拍板 | [方案B评估.md](./03_Development/tasks/T-008_ChatPickerV1V2Gap/方案B评估.md) |

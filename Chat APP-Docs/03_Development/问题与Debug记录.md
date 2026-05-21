@@ -7,7 +7,7 @@
 
 | ID | 标题 | 复现 | 严重度 | 关联任务 | 诊断文档 |
 |---|---|---|---|---|---|
-| D-003 | Ollama 自动模型同步失败（Provider 显示 0/0 Enabled，日志 Invalid JSON response） | 启动 dev，前提是本地 ollama 正常（`ollama list` 有内容，`curl /v1/models` 正常 JSON）—— 进入 Ollama Provider 设置 → 看到 "Model list 0/0 Enabled" / Select Model 搜 ollama 无结果 | 🟡 non-blocking | （尚未建任务；待后续 T-006 诊断） | [本文 §D-003 详细记录](#d-003-详细记录) |
+| D-003 | Ollama 自动模型同步失败（Provider 显示 0/0 Enabled，日志 Invalid JSON response；Chat 弹窗仍搜不到 Ollama） | 启动 dev，前提是本地 ollama 正常（`ollama list` 有内容，`curl /v1/models` 正常 JSON）—— 进入 Ollama Provider 设置 / Chat Select Model 弹窗 | 🟡 non-blocking | 🩺 [T-007 D-003A](./tasks/T-007_OllamaProviderFix/) 诊断 ✅ + [D-003B](./tasks/T-007_OllamaProviderFix/) 修复 ✅（Provider 设置页通了）；🩺 [T-008 D-003C](./tasks/T-008_ChatPickerV1V2Gap/) 诊断 ✅；[T-008B 方案 B 可行性](./tasks/T-008_ChatPickerV1V2Gap/方案B评估.md) ✅ —— **~50 行 src 单文件改动，推荐直接实施，跳过 A** | [tasks/T-008_ChatPickerV1V2Gap/方案B评估.md](./tasks/T-008_ChatPickerV1V2Gap/方案B评估.md) |
 
 ## 待终态确认（自动化已修，手动验证 pending）
 
@@ -37,8 +37,13 @@
 ## D-003 详细记录
 
 > **记录日期**：2026-05-20 深夜
-> **状态**：🟡 open / non-blocking
-> **决策**：先记录，**不**深入排查；不阻塞 Phase 3 Expand Branch UI-only 原型
+> **D-003A 诊断完成**：2026-05-21（T-007）
+> **D-003B 修复实施**：2026-05-21（T-007）—— `providers.json:425` 加 `"defaultChatEndpoint": "ollama-chat"`，自动化校验过，用户 fresh install 验证 Provider 设置页 ✅
+> **D-003C 诊断完成**：2026-05-21（T-008）—— Chat 弹窗仍读 v1 Redux，与 v2 DataApi 无桥接；CherryAI 显示是 selector 硬编码
+> **T-008B 方案 B 可行性确认**：2026-05-21 —— 重新评估后只需改 **1 个文件 ~50 行**（chat-model-popup.tsx）+ 重写测试，复用现成 `toV1ProviderShim`/`toV1ModelShim`，下游 0 改动。**比方案 A（双写桥）更干净，推荐直接走 B**
+> **状态**：🩺 D-003A/C 诊断 ✅；🔧 D-003B 修复 ✅（部分）；⏳ D-003C 待用户拍板实施 B
+> **完整诊断**：[T-007 D-003A/B](./tasks/T-007_OllamaProviderFix/诊断.md) + [T-008 D-003C](./tasks/T-008_ChatPickerV1V2Gap/诊断.md) + [T-008B 方案 B 评估](./tasks/T-008_ChatPickerV1V2Gap/方案B评估.md)
+> **手测步骤**：[T-007 验证](./tasks/T-007_OllamaProviderFix/验证.md)
 
 ### 现象（用户观察，未代码验证）
 
@@ -57,21 +62,17 @@
 3. 在 Cherry Studio 设置中找到 Ollama Provider
 4. 观察：模型列表为空、auto sync 报错、Select Model 搜不到
 
-### 假设空间（**全部未验证，留给未来 T-006 诊断时核查**）
+### 根因（T-007 诊断确认）
 
-按可能性排序：
+`packages/provider-registry/data/providers.json` 里 Ollama 条目**没有 `defaultChatEndpoint` 字段**，且 endpointConfigs 同时含 `ollama-chat` 和 `anthropic-messages`。`getProviderHostTopology.resolvePrimaryEndpoint` 的优先级表是 `[openai-chat-completions, openai-responses, anthropic-messages, google-generate-content, ollama-chat]` —— Ollama 在前两位都没有，于是**第 3 位 `anthropic-messages` 命中**（永远轮不到第 5 位的 `ollama-chat`）。
 
-1. **Provider 配置数据/类型错位**
-   - 用户看到 Ollama 设置页有 `Anthropic API Host` / `/v1/messages` 字段 —— 强提示 Ollama provider 的 schema / form 在某条路径上被当成了 Anthropic-like
-   - 可能是 v2 PresetProviderSeeder 给 Ollama 写入的预设配置错了；或者前端 form 渲染时拿错了 schema
-   - 需要看：`src/main/data/db/seeding/seeders/presetProviderSeeder.ts` 给 Ollama 的预设 + provider 设置页的 form schema
-2. **自动同步请求打错 endpoint**
-   - 若代码硬编码 `/v1/messages`（Anthropic 路径），而 Ollama 模型列表应该是 `/api/tags` 或 `/v1/models` → 返回不是 model list JSON → "Invalid JSON response"
-   - 用户已经测过 ollama 的 `/v1/models` 返回正常 JSON —— 间接说明可能是 Cherry **没走** `/v1/models` 这条路径
-3. **JSON parser 期望的形状不匹配 OpenAI/Ollama 返回结构**
-   - `/v1/models` 返回的是 OpenAI 兼容形状（`{ data: [...] }`），而 parser 可能在 expect `{ models: [...] }`（Ollama 原生 `/api/tags` 形状）—— 单纯 shape mismatch
-4. **provider type / category 字段错位**
-   - v2 schema 里 provider 有 `type` / `endpointTypes` 等区分；如果 Ollama 行的 `type` 被错填为 `'anthropic'`，整条同步链都会走 Anthropic 适配器
+三个错位现象同源：
+
+1. **form 渲染 Anthropic 字段** —— `ApiHost.tsx:65–82` 用 `primaryEndpoint === 'anthropic-messages'` 切换组件 → 渲染 `AnthropicApiHostField`（i18n key `settings.provider.anthropic_api_host`，副本预览带 `/v1/messages`）。
+2. **auto sync 用错 type** —— `v1ProviderShim.v1ProviderTypeFromV2` 在 `defaultChatEndpoint` 为 null 时 fallback 到 `OPENAI_CHAT_COMPLETIONS` → switch 走 `default: return 'openai'`。
+3. **auto sync 用空 apiHost** —— `v1ProviderShim.defaultChatBaseUrl` 同样 fallback 到 OPENAI_CHAT_COMPLETIONS → 查 `endpointConfigs['openai-chat-completions'].baseUrl` 不存在 → 返回 `''`。Legacy AiProvider 拿到 `{ type: 'openai', apiHost: '' }` 去请求模型列表 → 命中 OpenAI 默认 host 或空 URL → 非 JSON 响应 → "Invalid JSON response"。
+
+横向对照：63 个 provider 里有 8 个没写 `defaultChatEndpoint`，其中 ovms / new-api / lmstudio 的 endpointConfigs 含 `openai-chat-completions` → 优先级表第 1 位命中 → "运气好"没事。Ollama 是**唯一一个主端点 key 不是 OpenAI 兼容**且缺 `defaultChatEndpoint` 的 provider，所以单点暴雷。
 
 ### 跟既有 baseline bug 的关系
 
@@ -88,15 +89,44 @@
 
 如果只是要测真实 AI 回复，**临时绕路**：手动添加一个非 Ollama provider（OpenAI / Anthropic 等只要 API key 通），不阻塞 Phase 3。
 
-### 待办（不在本次范围）
+### 已实施修复（D-003B，2026-05-21）
 
-未来开 T-006 诊断时要核查：
+在 `packages/provider-registry/data/providers.json:425` 给 Ollama 条目加一行：
 
-- [ ] `src/main/data/db/seeding/seeders/presetProviderSeeder.ts` 中 Ollama 行的 `type` / `endpointTypes` / `baseUrl` / `apiPath` 等字段是否正确（应该是 `'openai'` 兼容路径或 `'ollama'` 专用类型）
-- [ ] Provider auto-sync 的实现位置（grep `Provider auto model sync failed` 字符串可直达）
-- [ ] Provider 设置页 form schema 是否按 `provider.type` 分支渲染；为何 Ollama 渲染出了 Anthropic 字段
-- [ ] `Invalid JSON response` 是 sync 层包装的还是 fetch 层的；定位到具体 parse 调用，看期望 schema vs 实际返回 shape
-- [ ] fresh install 时 Ollama provider 行是否正确入库（`SELECT * FROM user_provider WHERE id LIKE '%ollama%'`）
+```diff
+   {
+     "id": "ollama",
+     "name": "Ollama",
+     "description": "Ollama - AI model provider",
++    "defaultChatEndpoint": "ollama-chat",
+     "endpointConfigs": { ... }
+   }
+```
+
+Schema 安全（`ProviderConfigSchema.refine` 只要求该值是 endpointConfigs 的某个 key，`ollama-chat` 符合）。
+
+**自动化校验已过**：
+- seeder 测试 4/4（real RegistryLoader + zod schema + DB row transform）
+- ApiHost / useProviderAutoModelSync / useProviderEndpoints 共 16/16
+- typecheck:web + typecheck:node 静默通过
+
+⏳ 手动 fresh install 验证步骤见 [tasks/T-007_OllamaProviderFix/验证.md](./tasks/T-007_OllamaProviderFix/验证.md)。
+
+这一行同时治三个错位：
+
+| 现象 | 修复路径 |
+|---|---|
+| form 显 Anthropic 字段 | `resolvePrimaryEndpoint` 在 `provider.defaultChatEndpoint` 上短路 → `'ollama-chat'` → `isAnthropicPrimaryEndpoint = false` |
+| sync 用 `type: 'openai'` | `v1ProviderTypeFromV2` 的 `ep = v2.defaultChatEndpoint` = `'ollama-chat'` → switch 命中 OLLAMA_CHAT → `'ollama'` |
+| sync 用空 apiHost | `defaultChatBaseUrl` 同一路径 → `endpointConfigs['ollama-chat'].baseUrl` = `http://localhost:11434` |
+
+详细验证步骤见 [tasks/T-007_OllamaProviderFix/诊断.md §5](./tasks/T-007_OllamaProviderFix/诊断.md)。
+
+**未做 / 待后续**：
+
+- 老用户 DB 升级路径（已入库 `defaultChatEndpoint = null` 的行如何迁移到 `'ollama-chat'`）—— 待用户决定是否做迁移或要求 fresh install
+- 把 `defaultChatEndpoint` 改为 schema required（cleanup task）
+- 调整 `PRIMARY_CHAT_ENDPOINT_PRIORITY` 顺序（防御层，影响面大，不必要）
 
 ### 引用
 
