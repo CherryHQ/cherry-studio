@@ -1308,6 +1308,10 @@
         "open_as_branch": "Open as branch",
         "panel": {
           "create_branch": "Create branch",
+          "error": {
+            "create_failed": "Failed to create branch. Please try again.",
+            "followup_required": "Please enter a follow-up question."
+          },
           "follow_up_label": "Follow-up question",
           "follow_up_placeholder": "Ask about the selected text…",
           "from": "Selected from",

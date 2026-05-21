@@ -1308,6 +1308,10 @@
         "open_as_branch": "展開為分支",
         "panel": {
           "create_branch": "建立分支",
+          "error": {
+            "create_failed": "建立分支失敗，請重試。",
+            "followup_required": "請輸入追問內容。"
+          },
           "follow_up_label": "追問",
           "follow_up_placeholder": "針對選取的內容提問…",
           "from": "選自",
