@@ -709,13 +709,19 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   /**
-   * Run both the FS-level orphan sweep (file-manager-architecture §10) and
-   * the DB-level orphan-ref/entry sweep (file-manager-architecture §7 Layer 3)
-   * concurrently, returning once both
-   * settle. The fire-and-forget call site in `onInit` (line above) is what
-   * keeps the ready signal unblocked — this method itself awaits both
-   * branches so tests and explicit callers can deterministically observe
-   * the side effects (e.g. `await fm.runStartupSweeps()`).
+   * Run the FS-level orphan sweep (file-manager-architecture §10) and
+   * the DB-level orphan-ref/entry sweep (file-manager-architecture §7
+   * Layer 3), returning once they settle. The DB sweep is skipped
+   * exactly once (and only the FS sweep runs) when the migration
+   * marker mismatches `migration_v2_status.completedAt` — this gives a
+   * grace window after first-boot post-migration and after a v2 backup
+   * restore (see file-manager-architecture §10.10 Post-Migration / Backup-Restore Skip).
+   *
+   * The fire-and-forget call site in `onInit` (line above) is what
+   * keeps the ready signal unblocked — this method itself awaits the
+   * sweep(s) before returning so tests and explicit callers can
+   * deterministically observe the side effects (e.g.
+   * `await fm.runStartupSweeps()`).
    *
    * Both branches absorb their own errors via inner try/catch (returning a
    * `'failed'` report); the outer `.catch()` here is a belt-and-suspenders
@@ -730,7 +736,7 @@ export class FileManager extends BaseService implements IFileManager {
 
     // Skip DB sweep once when migration marker mismatches current completedAt.
     // This provides a grace window after first-boot post-migration and after a
-    // v2 backup restore (see file-manager-architecture §migration-skip-once).
+    // v2 backup restore (see file-manager-architecture §10.10 Post-Migration / Backup-Restore Skip).
     const completedAt = await this.getMigrationCompletedAt()
     const marker = bootConfigService.get('file.lastProcessedMigrationCompletedAt')
 

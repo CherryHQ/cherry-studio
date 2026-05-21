@@ -1152,6 +1152,30 @@ file_module's crash window is very narrow:
 
 No WAL / pending_fs_ops table needed. Orphan sweep covers the internal crash residue; the external side naturally doesn't need it (delete failure just leaves it on disk).
 
+### 10.10 Post-Migration / Backup-Restore Skip
+
+The DB sweep (§7 Layer 3) is **skipped exactly once** on startup when the BootConfig marker `file.lastProcessedMigrationCompletedAt` mismatches the current `app_state.migration_v2_status.completedAt`. The FS sweep (§10.2) runs unconditionally; only the DB branch is gated.
+
+#### Why skip the DB sweep in these windows
+
+DB sweep treats any `file_entry` with no incoming `file_ref` as a no-reference orphan and deletes it. This is correct in steady state but produces false positives in two transitional windows:
+
+| Window | DB state | Why DB sweep would over-delete |
+|---|---|---|
+| First boot after v1→v2 migration | FileMigrator has imported every v1 file into `file_entry`. KnowledgeMigrator has populated `file_ref` for knowledge-item files only. All other domains (messages, painting, translate, paste, ...) still need their consumer migrators (Batches A-E) to wire up the `file_ref` rows. | The unwired `file_entry` rows look like orphans even though their consumer migration just hasn't landed yet. |
+| First boot after a v2 backup restore | `app_state` is the backup-time snapshot. Physical Files directory may have drifted (user-initiated changes between backup and restore points, partial restore). | DB sweep would judge the snapshot's reference graph against post-restore physical reality. |
+
+The marker is advanced to the current `completedAt` after the skip, so this is a one-time grace window per transition — steady-state startups run both sweeps as usual.
+
+#### Why this works without explicit coordination
+
+The mechanism relies on two existing invariants:
+
+1. **`file.lastProcessedMigrationCompletedAt` is intentionally NOT included in the backup product** (see `bootConfigSchemas.ts`). A restored `app_state` carries the OLD `completedAt`; this BootConfig marker carries the pre-restore (machine-local) value. The mismatch is structural — no "restore detection" flag or post-restore hook is needed.
+2. **Migration runs in preboot followed by `app.relaunch()`**. The process boundary serializes ordering: any lifecycle service starts strictly after migration completed in the previous process. No coordinating `Signal<void>` on MigrationEngine is required.
+
+Consumer: `FileManager.runStartupSweeps` in `src/main/services/file/FileManager.ts`.
+
 ---
 
 ## 11. DanglingCache (External Presence Tracker)
