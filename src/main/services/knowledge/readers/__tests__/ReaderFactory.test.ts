@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const fetchMock = vi.hoisted(() => vi.fn())
 const loggerWarnMock = vi.hoisted(() => vi.fn())
 const fileManagerGetByIdMock = vi.hoisted(() => vi.fn())
+const fileManagerGetDanglingStateMock = vi.hoisted(() => vi.fn())
 const customReaderSpies = vi.hoisted(() => ({
   drafts: vi.fn(async (item: KnowledgeItemOf<'file'>) => [{ metadata: { reader: 'drafts', itemId: item.id } }]),
   epub: vi.fn(async (item: KnowledgeItemOf<'file'>) => [{ metadata: { reader: 'epub', itemId: item.id } }])
@@ -21,7 +22,8 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     FileManager: {
-      getById: fileManagerGetByIdMock
+      getById: fileManagerGetByIdMock,
+      getDanglingState: fileManagerGetDanglingStateMock
     }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
@@ -234,6 +236,8 @@ describe('loadKnowledgeItemDocuments', () => {
     Object.values(customReaderSpies).forEach((spy) => spy.mockClear())
     Object.values(readerSpies).forEach((spy) => spy.mockClear())
     fileManagerGetByIdMock.mockReset()
+    fileManagerGetDanglingStateMock.mockReset()
+    fileManagerGetDanglingStateMock.mockResolvedValue('present')
     fileManagerGetByIdMock.mockImplementation(async (fileEntryId: string) => ({
       id: fileEntryId,
       origin: 'external',
@@ -358,6 +362,39 @@ describe('loadKnowledgeItemDocuments', () => {
     fileManagerGetByIdMock.mockRejectedValueOnce(new Error('FileEntry not found'))
 
     await expect(loadKnowledgeItemDocuments(item)).rejects.toThrow('FileEntry not found')
+  })
+
+  it('fails with a stable error when the FileManager entry is dangling', async () => {
+    const item = createFileItem('.txt')
+    fileManagerGetByIdMock.mockResolvedValueOnce({
+      id: item.data.fileEntryId,
+      origin: 'external',
+      name: 'sample',
+      ext: 'txt',
+      externalPath: item.data.source,
+      createdAt: 1775114958369,
+      updatedAt: 1775114958369
+    })
+    fileManagerGetDanglingStateMock.mockResolvedValueOnce('missing')
+
+    await expect(loadKnowledgeItemDocuments(item)).rejects.toThrow('Source file is missing')
+    expect(readerSpies.text).not.toHaveBeenCalled()
+  })
+
+  it('fails with a stable error when the source file disappears after dangling check', async () => {
+    const item = createFileItem('.txt')
+    fileManagerGetByIdMock.mockResolvedValueOnce({
+      id: item.data.fileEntryId,
+      origin: 'external',
+      name: 'sample',
+      ext: 'txt',
+      externalPath: item.data.source,
+      createdAt: 1775114958369,
+      updatedAt: 1775114958369
+    })
+    readerSpies.text.mockRejectedValueOnce(Object.assign(new Error('ENOENT: no such file'), { code: 'ENOENT' }))
+
+    await expect(loadKnowledgeItemDocuments(item)).rejects.toThrow('Source file is missing')
   })
 
   it('creates a note reader that returns a single Document', async () => {

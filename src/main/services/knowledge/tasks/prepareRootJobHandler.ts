@@ -11,7 +11,7 @@ import type { JobHandler } from '@main/core/job/types'
 import { ErrorCode, isDataApiError } from '@shared/data/api'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
-import { prepareKnowledgeItem } from '../runtime/utils/prepare'
+import { commitPreparedKnowledgeItem, expandKnowledgeItemForRuntime } from '../runtime/utils/prepare'
 import type { KnowledgePrepareRootPayload } from './jobTypes'
 
 const logger = loggerService.withContext('prepareRootJobHandler')
@@ -94,55 +94,76 @@ export const prepareRootJobHandler: JobHandler<KnowledgePrepareRootPayload> = {
       )
     }
 
-    // (2) Delete leaf descendants created by previous attempts so a fresh scan
-    //     does not collide with stale rows. Wrapped in Layer 3 lock to
-    //     serialize against any concurrent indexer touching the base.
-    await runtime.runWithBaseWriteLockForBase(baseId, async () => {
-      await knowledgeItemService.deleteLeafDescendantItems(baseId, [itemId])
-    })
-
     ctx.signal.throwIfAborted()
     ctx.reportProgress(0, { stage: 'scanning' })
+    const prepared = await expandKnowledgeItemForRuntime({ item, signal: ctx.signal })
 
-    // Expand the container into leaf items inside Layer 3 lock. The
-    // prepareKnowledgeItem helper expects a `runMutation` adapter so it can
-    // serialize DB writes; we are already holding the lock, so the adapter
-    // becomes the identity function.
+    ctx.signal.throwIfAborted()
+    ctx.reportProgress(50, { stage: 'committing', currentFile: 0, totalFiles: 0 })
+
+    // Commit the prepared tree under the Layer 3 lock. External discovery
+    // (directory scan / sitemap fetch / FileManager upsert) runs before this
+    // point; the lock is reserved for Knowledge state changes and child job
+    // submission so a concurrent delete/reindex cannot interleave with a
+    // half-accepted expansion.
     const leafItems = await runtime.runWithBaseWriteLockForBase(baseId, async () => {
       ctx.signal.throwIfAborted()
-      const leaves = await prepareKnowledgeItem({
+
+      try {
+        await knowledgeBaseService.getById(baseId)
+        item = await knowledgeItemService.getById(itemId)
+      } catch (error) {
+        if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+          logger.info('Skipping prepare-root commit for missing base or item (likely deleted concurrently)', {
+            baseId,
+            itemId,
+            jobId: ctx.jobId
+          })
+          return []
+        }
+        throw error
+      }
+
+      await knowledgeItemService.deleteLeafDescendantItems(baseId, [itemId])
+
+      const leaves = await commitPreparedKnowledgeItem({
         baseId,
         item,
+        prepared,
         onCreatedItem: () => {},
         runMutation: async (task) => await task(),
         signal: ctx.signal
       })
+      if (leaves.length === 0) {
+        return []
+      }
+
       await knowledgeItemService.updateStatus(itemId, 'processing')
+      ctx.reportProgress(50, {
+        stage: 'enqueuing',
+        currentFile: 0,
+        totalFiles: leaves.length
+      })
+
+      for (const [index, leaf] of leaves.entries()) {
+        ctx.signal.throwIfAborted()
+        await jobManager.enqueue(
+          'knowledge.index-leaf',
+          { baseId, itemId: leaf.id, parentJobId: ctx.jobId },
+          {
+            idempotencyKey: `knowledge:${baseId}:${leaf.id}`,
+            parentId: ctx.jobId
+          }
+        )
+        ctx.reportProgress(50 + Math.round(((index + 1) / Math.max(leaves.length, 1)) * 50), {
+          stage: 'enqueuing',
+          currentFile: index + 1,
+          totalFiles: leaves.length
+        })
+      }
+
       return leaves
     })
-
-    ctx.reportProgress(50, {
-      stage: 'enqueuing',
-      currentFile: 0,
-      totalFiles: leafItems.length
-    })
-
-    for (const [index, leaf] of leafItems.entries()) {
-      ctx.signal.throwIfAborted()
-      await jobManager.enqueue(
-        'knowledge.index-leaf',
-        { baseId, itemId: leaf.id, parentJobId: ctx.jobId },
-        {
-          idempotencyKey: `knowledge:${baseId}:${leaf.id}`,
-          parentId: ctx.jobId
-        }
-      )
-      ctx.reportProgress(50 + Math.round(((index + 1) / Math.max(leafItems.length, 1)) * 50), {
-        stage: 'enqueuing',
-        currentFile: index + 1,
-        totalFiles: leafItems.length
-      })
-    }
 
     ctx.reportProgress(100, {
       stage: 'done',

@@ -38,9 +38,9 @@ vi.mock('../../../utils/sitemap', () => ({
   expandSitemapOwnerToCreateItems: expandSitemapOwnerToCreateItemsMock
 }))
 
-import type { PrepareKnowledgeItemOptions } from '../prepare'
+import type { CommitPreparedKnowledgeItemOptions, PrepareKnowledgeItemOptions } from '../prepare'
 
-const { prepareKnowledgeItem } = await import('../prepare')
+const { commitPreparedKnowledgeItem, expandKnowledgeItemForRuntime, prepareKnowledgeItem } = await import('../prepare')
 
 const baseId = 'kb-1'
 
@@ -56,7 +56,21 @@ function createPrepareOptions(item: KnowledgeItem, onCreatedItem = vi.fn()): Pre
   }
 }
 
-function createDirectoryItem(id = 'dir-1', groupId: string | null = null): KnowledgeItem {
+function createCommitOptions(
+  item: KnowledgeItem,
+  prepared: CommitPreparedKnowledgeItemOptions['prepared'],
+  onCreatedItem = vi.fn()
+): CommitPreparedKnowledgeItemOptions {
+  return {
+    ...createPrepareOptions(item, onCreatedItem),
+    prepared
+  }
+}
+
+function createDirectoryItem(
+  id = 'dir-1',
+  groupId: string | null = null
+): Extract<KnowledgeItem, { type: 'directory' }> {
   return {
     id,
     baseId,
@@ -71,7 +85,7 @@ function createDirectoryItem(id = 'dir-1', groupId: string | null = null): Knowl
   }
 }
 
-function createSitemapItem(): KnowledgeItem {
+function createSitemapItem(): Extract<KnowledgeItem, { type: 'sitemap' }> {
   return {
     id: 'sitemap-1',
     baseId,
@@ -86,7 +100,7 @@ function createSitemapItem(): KnowledgeItem {
   }
 }
 
-function createNoteItem(id = 'note-1'): KnowledgeItem {
+function createNoteItem(id = 'note-1'): Extract<KnowledgeItem, { type: 'note' }> {
   return {
     id,
     baseId,
@@ -101,7 +115,7 @@ function createNoteItem(id = 'note-1'): KnowledgeItem {
   }
 }
 
-function createFileItem(id = 'file-1', groupId: string | null = null): KnowledgeItem {
+function createFileItem(id = 'file-1', groupId: string | null = null): Extract<KnowledgeItem, { type: 'file' }> {
   return {
     id,
     baseId,
@@ -157,21 +171,22 @@ describe('prepareKnowledgeItem', () => {
     )
   })
 
-  it('returns leaf items directly', async () => {
+  it('expands leaf items without database mutation', async () => {
     const note = createNoteItem()
 
-    await expect(prepareKnowledgeItem(createPrepareOptions(note))).resolves.toEqual([note])
+    await expect(expandKnowledgeItemForRuntime({ item: note, signal: new AbortController().signal })).resolves.toEqual({
+      kind: 'leaf',
+      item: note
+    })
 
     expect(knowledgeItemCreateMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
   })
 
-  it('expands directory trees and returns only file leaves', async () => {
+  it('expands directory trees without creating child items', async () => {
     const root = createDirectoryItem('dir-root')
     const childDir = createDirectoryItem('dir-child', root.id)
     const childFile = createFileItem('file-child', childDir.id)
-    knowledgeItemCreateMock.mockResolvedValueOnce(childDir).mockResolvedValueOnce(childFile)
-    knowledgeItemUpdateStatusMock.mockResolvedValueOnce(childDir).mockResolvedValueOnce(childFile)
     expandDirectoryOwnerToTreeMock.mockResolvedValueOnce([
       {
         type: 'directory',
@@ -185,10 +200,56 @@ describe('prepareKnowledgeItem', () => {
       }
     ])
 
-    const options = createPrepareOptions(root)
-    await expect(prepareKnowledgeItem(options)).resolves.toEqual([childFile])
+    const signal = new AbortController().signal
+    await expect(expandKnowledgeItemForRuntime({ item: root, signal })).resolves.toEqual({
+      kind: 'directory',
+      children: [
+        {
+          type: 'directory',
+          data: childDir.data,
+          children: [
+            {
+              type: 'file',
+              data: childFile.data
+            }
+          ]
+        }
+      ]
+    })
 
-    expect(expandDirectoryOwnerToTreeMock).toHaveBeenCalledWith(root, options.signal)
+    expect(expandDirectoryOwnerToTreeMock).toHaveBeenCalledWith(root, signal)
+    expect(knowledgeItemCreateMock).not.toHaveBeenCalled()
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
+  })
+
+  it('commits prepared directory trees and returns only file leaves', async () => {
+    const root = createDirectoryItem('dir-root')
+    const childDir = createDirectoryItem('dir-child', root.id)
+    const childFile = createFileItem('file-child', childDir.id)
+    knowledgeItemCreateMock.mockResolvedValueOnce(childDir).mockResolvedValueOnce(childFile)
+    knowledgeItemUpdateStatusMock.mockResolvedValueOnce(childDir).mockResolvedValueOnce(childFile)
+
+    await expect(
+      commitPreparedKnowledgeItem(
+        createCommitOptions(root, {
+          kind: 'directory',
+          children: [
+            {
+              type: 'directory',
+              data: childDir.data,
+              children: [
+                {
+                  type: 'file',
+                  data: childFile.data
+                }
+              ]
+            }
+          ]
+        })
+      )
+    ).resolves.toEqual([childFile])
+
+    expect(expandDirectoryOwnerToTreeMock).not.toHaveBeenCalled()
     expect(knowledgeItemCreateMock).toHaveBeenNthCalledWith(1, baseId, {
       groupId: root.id,
       type: 'directory',
@@ -204,11 +265,12 @@ describe('prepareKnowledgeItem', () => {
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(childFile.id, 'processing')
   })
 
-  it('marks empty directory roots failed and returns no leaves', async () => {
+  it('marks empty prepared directory roots failed and returns no leaves', async () => {
     const root = createDirectoryItem('dir-root')
-    expandDirectoryOwnerToTreeMock.mockResolvedValueOnce([])
 
-    await expect(prepareKnowledgeItem(createPrepareOptions(root))).resolves.toEqual([])
+    await expect(
+      commitPreparedKnowledgeItem(createCommitOptions(root, { kind: 'directory', children: [] }))
+    ).resolves.toEqual([])
 
     expect(loggerWarnMock).toHaveBeenCalledWith('Directory expansion produced no indexable files', {
       baseId,
@@ -220,14 +282,14 @@ describe('prepareKnowledgeItem', () => {
     })
   })
 
-  it('marks empty sitemap roots failed and returns no leaves', async () => {
+  it('marks empty prepared sitemap roots failed and returns no leaves', async () => {
     const sitemap = createSitemapItem()
-    expandSitemapOwnerToCreateItemsMock.mockResolvedValueOnce([])
 
-    const options = createPrepareOptions(sitemap)
-    await expect(prepareKnowledgeItem(options)).resolves.toEqual([])
+    await expect(
+      commitPreparedKnowledgeItem(createCommitOptions(sitemap, { kind: 'sitemap', children: [] }))
+    ).resolves.toEqual([])
 
-    expect(expandSitemapOwnerToCreateItemsMock).toHaveBeenCalledWith(sitemap, options.signal)
+    expect(expandSitemapOwnerToCreateItemsMock).not.toHaveBeenCalled()
     expect(loggerWarnMock).toHaveBeenCalledWith('Sitemap expansion produced no indexable URLs', {
       baseId,
       itemId: sitemap.id,
@@ -238,7 +300,7 @@ describe('prepareKnowledgeItem', () => {
     })
   })
 
-  it('expands sitemap items into url children and returns url leaves', async () => {
+  it('expands sitemap items without creating child items', async () => {
     const sitemap = createSitemapItem()
     const urlChild: KnowledgeItem = {
       id: 'url-child',
@@ -255,10 +317,43 @@ describe('prepareKnowledgeItem', () => {
     expandSitemapOwnerToCreateItemsMock.mockResolvedValueOnce([
       { groupId: sitemap.id, type: 'url', data: urlChild.data }
     ])
+
+    const signal = new AbortController().signal
+    await expect(expandKnowledgeItemForRuntime({ item: sitemap, signal })).resolves.toEqual({
+      kind: 'sitemap',
+      children: [{ groupId: sitemap.id, type: 'url', data: urlChild.data }]
+    })
+
+    expect(expandSitemapOwnerToCreateItemsMock).toHaveBeenCalledWith(sitemap, signal)
+    expect(knowledgeItemCreateMock).not.toHaveBeenCalled()
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
+  })
+
+  it('commits prepared sitemap items into url children and returns url leaves', async () => {
+    const sitemap = createSitemapItem()
+    const urlChild: KnowledgeItem = {
+      id: 'url-child',
+      baseId,
+      groupId: sitemap.id,
+      type: 'url',
+      data: { source: 'https://example.com/page-1', url: 'https://example.com/page-1' },
+      status: 'processing',
+      phase: null,
+      error: null,
+      createdAt: '2026-04-08T00:00:00.000Z',
+      updatedAt: '2026-04-08T00:00:00.000Z'
+    }
     knowledgeItemCreateMock.mockResolvedValueOnce(urlChild)
     knowledgeItemUpdateStatusMock.mockResolvedValueOnce(urlChild)
 
-    await expect(prepareKnowledgeItem(createPrepareOptions(sitemap))).resolves.toEqual([urlChild])
+    await expect(
+      commitPreparedKnowledgeItem(
+        createCommitOptions(sitemap, {
+          kind: 'sitemap',
+          children: [{ groupId: sitemap.id, type: 'url', data: urlChild.data }]
+        })
+      )
+    ).resolves.toEqual([urlChild])
 
     expect(knowledgeItemCreateMock).toHaveBeenCalledWith(baseId, {
       groupId: sitemap.id,
@@ -283,13 +378,21 @@ describe('prepareKnowledgeItem', () => {
       updatedAt: '2026-04-08T00:00:00.000Z'
     }
     const onCreatedItem = vi.fn()
-    expandSitemapOwnerToCreateItemsMock.mockResolvedValueOnce([
-      { groupId: sitemap.id, type: 'url', data: urlChild.data }
-    ])
     knowledgeItemCreateMock.mockResolvedValueOnce(urlChild)
     knowledgeItemUpdateStatusMock.mockRejectedValueOnce(new Error('status failed'))
 
-    await expect(prepareKnowledgeItem(createPrepareOptions(sitemap, onCreatedItem))).rejects.toThrow('status failed')
+    await expect(
+      commitPreparedKnowledgeItem(
+        createCommitOptions(
+          sitemap,
+          {
+            kind: 'sitemap',
+            children: [{ groupId: sitemap.id, type: 'url', data: urlChild.data }]
+          },
+          onCreatedItem
+        )
+      )
+    ).rejects.toThrow('status failed')
 
     expect(onCreatedItem).toHaveBeenCalledWith(urlChild)
   })
@@ -329,5 +432,31 @@ describe('prepareKnowledgeItem', () => {
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith(sitemap.id, 'failed', {
       error: 'sitemap expansion failed'
     })
+  })
+
+  it('keeps the original prepareKnowledgeItem entry point as expand then commit', async () => {
+    const sitemap = createSitemapItem()
+    const urlChild: KnowledgeItem = {
+      id: 'url-child',
+      baseId,
+      groupId: sitemap.id,
+      type: 'url',
+      data: { source: 'https://example.com/page-1', url: 'https://example.com/page-1' },
+      status: 'processing',
+      phase: null,
+      error: null,
+      createdAt: '2026-04-08T00:00:00.000Z',
+      updatedAt: '2026-04-08T00:00:00.000Z'
+    }
+    expandSitemapOwnerToCreateItemsMock.mockResolvedValueOnce([
+      { groupId: sitemap.id, type: 'url', data: urlChild.data }
+    ])
+    knowledgeItemCreateMock.mockResolvedValueOnce(urlChild)
+    knowledgeItemUpdateStatusMock.mockResolvedValueOnce(urlChild)
+
+    await expect(prepareKnowledgeItem(createPrepareOptions(sitemap))).resolves.toEqual([urlChild])
+
+    expect(expandSitemapOwnerToCreateItemsMock).toHaveBeenCalled()
+    expect(knowledgeItemCreateMock).toHaveBeenCalled()
   })
 })

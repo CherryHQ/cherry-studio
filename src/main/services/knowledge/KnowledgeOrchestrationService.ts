@@ -28,10 +28,10 @@ import {
   KnowledgeRuntimeRestoreBasePayloadSchema,
   KnowledgeRuntimeSearchPayloadSchema
 } from './types/ipc'
+import { SOURCE_FILE_MISSING_ERROR } from './utils/errors'
 import { normalizeKnowledgeFileData } from './utils/file'
 
 const logger = loggerService.withContext('KnowledgeOrchestrationService')
-const SOURCE_FILE_MISSING_REINDEX_ERROR = 'Source file is missing'
 
 function createRestoreBaseDto(sourceBase: KnowledgeBase, dto: RestoreKnowledgeBaseDto): CreateKnowledgeBaseDto {
   // The new vector store is shaped from dto.dimensions. Callers must resolve it
@@ -325,7 +325,7 @@ export class KnowledgeOrchestrationService extends BaseService {
     ).then((ids) => ids.filter((id): id is string => id !== null))
 
     if (missingFileIds.length > 0) {
-      await failItems(missingFileIds, SOURCE_FILE_MISSING_REINDEX_ERROR)
+      await failItems(missingFileIds, SOURCE_FILE_MISSING_ERROR)
     }
 
     const missingFileIdSet = new Set(missingFileIds)

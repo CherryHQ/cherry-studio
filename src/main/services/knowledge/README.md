@@ -4,6 +4,21 @@ This document records product-level semantics for knowledge runtime operations.
 Use it when reviewing code in this directory so implementation concerns do not
 override the intended user-facing behavior.
 
+## Terms
+
+A directory root is the user-selected directory source. It is a Knowledge
+container source, not a FileManager entry. It keeps its source path so future
+prepare/reindex work can rescan the directory.
+
+A file leaf is an indexable file source. It is the only Knowledge filesystem
+source that FileManager owns. File leaves store a `fileEntryId`; runtime readers
+resolve content through FileManager instead of storing or reusing raw paths.
+
+A file source reference is the `file_ref` row that links one file leaf item to
+its FileManager entry. Knowledge creates and deletes those rows in the same
+SQLite transaction as the owning `knowledge_item` so item/ref state rolls back
+together.
+
 ## `createBase`
 
 `createBase` is treated as a single user-facing creation operation: the SQLite
@@ -73,6 +88,12 @@ Example: a user adds `/docs/guide.md`.
   runtime.
 - Runtime creates the knowledge item and indexes the referenced file.
 
+If FileManager creates an external entry but later Knowledge acceptance fails,
+the unreferenced external entry is not rolled back by Knowledge. FileManager's
+orphan sweep owns that cleanup path. This keeps FileManager's external entry
+semantics as a path-level upsert and keeps Knowledge responsible only for
+accepted items and their refs.
+
 If input normalization fails, the add request was not accepted.
 
 Example: a user adds `/docs/cache.sqlite`.
@@ -111,9 +132,33 @@ Example: a user adds `/docs`.
 
 - Create the directory root.
 - Mark it `processing` with phase `preparing`.
-- Scan the directory and create child items.
-- Enqueue child indexing.
+- Scan the directory outside the base write lock.
+- Commit accepted child items and enqueue child indexing under the base write
+  lock.
 - Move the root out of `preparing` once expansion has been accepted.
+
+Preparation has two product stages. The discovery stage reads the outside world:
+directory scanning, sitemap fetching, and FileManager external-entry upserts for
+file leaves. This stage must not hold the Knowledge base write lock. The commit
+stage mutates Knowledge state: remove stale descendants, create child items and
+file source references, update container status, and enqueue child jobs. That
+stage is serialized under the base write lock so delete/reindex cannot
+interleave with a half-accepted expansion.
+
+The commit stage is lock-serialized but it is not one SQLite transaction for the
+whole prepared tree plus job enqueue. Each created file item still owns its
+`knowledge_item`/`file_ref` transaction. If a later child create or enqueue
+fails, JobManager retry should rerun preparation; stale leaf descendants are
+removed at the start of the next commit attempt.
+
+If the base or root item is deleted after discovery but before commit, the
+preparation task should complete without writing children or enqueueing child
+jobs. User deletion wins.
+
+When a file leaf is indexed, runtime checks FileManager's dangling state before
+reading. If the file is missing, indexing fails with a stable missing-source
+error and follows the normal retry/failure lifecycle. A retry may still succeed
+if the external file comes back before retry attempts are exhausted.
 
 ## `deleteBase`
 

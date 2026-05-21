@@ -2,12 +2,14 @@ import { describe, expect, it, vi } from 'vitest'
 
 const loadDataMock = vi.hoisted(() => vi.fn())
 const fileManagerGetByIdMock = vi.hoisted(() => vi.fn())
+const fileManagerGetDanglingStateMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     FileManager: {
-      getById: fileManagerGetByIdMock
+      getById: fileManagerGetByIdMock,
+      getDanglingState: fileManagerGetDanglingStateMock
     }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
@@ -59,6 +61,7 @@ const { loadUrlDocuments } = await import('../KnowledgeUrlReader')
 
 describe('knowledge reader metadata', () => {
   it('normalizes file source metadata', async () => {
+    fileManagerGetDanglingStateMock.mockResolvedValueOnce('present')
     fileManagerGetByIdMock.mockResolvedValueOnce({
       id: '019606a0-0000-7000-8000-000000000001',
       origin: 'external',

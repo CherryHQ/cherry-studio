@@ -1,4 +1,5 @@
 import type { JobContext } from '@main/core/job/types'
+import { DataApiErrorFactory } from '@shared/data/api'
 import type { KnowledgeItem, KnowledgeItemOf } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,7 +11,8 @@ const {
   knowledgeItemGetByIdMock,
   knowledgeItemUpdateStatusMock,
   listMock,
-  prepareKnowledgeItemMock,
+  commitPreparedKnowledgeItemMock,
+  expandKnowledgeItemForRuntimeMock,
   runWithBaseWriteLockForBaseMock
 } = vi.hoisted(() => ({
   cancelMock: vi.fn(),
@@ -20,7 +22,8 @@ const {
   knowledgeItemGetByIdMock: vi.fn(),
   knowledgeItemUpdateStatusMock: vi.fn(),
   listMock: vi.fn(),
-  prepareKnowledgeItemMock: vi.fn(),
+  commitPreparedKnowledgeItemMock: vi.fn(),
+  expandKnowledgeItemForRuntimeMock: vi.fn(),
   runWithBaseWriteLockForBaseMock: vi.fn()
 }))
 
@@ -64,7 +67,8 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
 }))
 
 vi.mock('../../runtime/utils/prepare', () => ({
-  prepareKnowledgeItem: prepareKnowledgeItemMock
+  commitPreparedKnowledgeItem: commitPreparedKnowledgeItemMock,
+  expandKnowledgeItemForRuntime: expandKnowledgeItemForRuntimeMock
 }))
 
 const { prepareRootJobHandler } = await import('../prepareRootJobHandler')
@@ -132,6 +136,8 @@ describe('prepareRootJobHandler', () => {
     listMock.mockResolvedValue([])
     cancelMock.mockResolvedValue(undefined)
     enqueueMock.mockResolvedValue({ id: 'leaf-job', snapshot: {}, finished: Promise.resolve({}) })
+    expandKnowledgeItemForRuntimeMock.mockResolvedValue({ kind: 'directory', children: [] })
+    commitPreparedKnowledgeItemMock.mockResolvedValue([])
     runWithBaseWriteLockForBaseMock.mockImplementation(async (_baseId: string, task: () => Promise<unknown>) => task())
   })
 
@@ -150,10 +156,24 @@ describe('prepareRootJobHandler', () => {
 
   it('expands the container and enqueues one knowledge.index-leaf job per leaf', async () => {
     const leaves = [createLeafItem('leaf-a'), createLeafItem('leaf-b')]
-    prepareKnowledgeItemMock.mockResolvedValueOnce(leaves)
+    const prepared = { kind: 'directory', children: [{ type: 'file', data: leaves[0].data }] }
+    expandKnowledgeItemForRuntimeMock.mockResolvedValueOnce(prepared)
+    commitPreparedKnowledgeItemMock.mockResolvedValueOnce(leaves)
 
     await prepareRootJobHandler.execute(createCtx())
 
+    expect(expandKnowledgeItemForRuntimeMock).toHaveBeenCalledWith({
+      item: createDirectoryItem(),
+      signal: expect.any(AbortSignal)
+    })
+    expect(commitPreparedKnowledgeItemMock).toHaveBeenCalledWith({
+      baseId: 'kb-1',
+      item: createDirectoryItem(),
+      prepared,
+      onCreatedItem: expect.any(Function),
+      runMutation: expect.any(Function),
+      signal: expect.any(AbortSignal)
+    })
     expect(enqueueMock).toHaveBeenCalledTimes(2)
     expect(enqueueMock).toHaveBeenNthCalledWith(
       1,
@@ -170,7 +190,6 @@ describe('prepareRootJobHandler', () => {
   })
 
   it('cancels only orphan child jobs that match parentJobId === ctx.jobId on retry', async () => {
-    prepareKnowledgeItemMock.mockResolvedValueOnce([])
     listMock.mockResolvedValueOnce([
       // Child of THIS prepare-root from a previous attempt — must be cancelled.
       { id: 'orphan-of-mine', input: { parentJobId: 'job-prepare-root-1' } },
@@ -189,24 +208,36 @@ describe('prepareRootJobHandler', () => {
     expect(cancelMock).toHaveBeenCalledWith('orphan-of-mine', 'prepare-root-retry')
   })
 
-  it('clears prior leaf rows via deleteLeafDescendantItems before re-expanding', async () => {
-    prepareKnowledgeItemMock.mockResolvedValueOnce([])
+  it('expands outside the base lock and commits prepared children inside it', async () => {
+    const leaves = [createLeafItem('leaf-a')]
+    expandKnowledgeItemForRuntimeMock.mockResolvedValueOnce({ kind: 'directory', children: [] })
+    commitPreparedKnowledgeItemMock.mockResolvedValueOnce(leaves)
 
     await prepareRootJobHandler.execute(createCtx())
 
     expect(deleteLeafDescendantItemsMock).toHaveBeenCalledWith('kb-1', ['dir-1'])
-    expect(deleteLeafDescendantItemsMock.mock.invocationCallOrder[0]).toBeLessThan(
-      prepareKnowledgeItemMock.mock.invocationCallOrder[0]
+    expect(expandKnowledgeItemForRuntimeMock.mock.invocationCallOrder[0]).toBeLessThan(
+      runWithBaseWriteLockForBaseMock.mock.invocationCallOrder[0]
+    )
+    expect(deleteLeafDescendantItemsMock.mock.invocationCallOrder[0]).toBeGreaterThan(
+      runWithBaseWriteLockForBaseMock.mock.invocationCallOrder[0]
+    )
+    expect(commitPreparedKnowledgeItemMock.mock.invocationCallOrder[0]).toBeGreaterThan(
+      deleteLeafDescendantItemsMock.mock.invocationCallOrder[0]
+    )
+    expect(enqueueMock.mock.invocationCallOrder[0]).toBeGreaterThan(
+      commitPreparedKnowledgeItemMock.mock.invocationCallOrder[0]
     )
   })
 
   it('treats expansion that yields zero leaves as success', async () => {
-    prepareKnowledgeItemMock.mockResolvedValueOnce([])
+    commitPreparedKnowledgeItemMock.mockResolvedValueOnce([])
     const reportProgress = vi.fn()
 
     await prepareRootJobHandler.execute(createCtx({ reportProgress }))
 
     expect(enqueueMock).not.toHaveBeenCalled()
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
     expect(reportProgress).toHaveBeenLastCalledWith(100, {
       stage: 'done',
       currentFile: 0,
@@ -221,6 +252,30 @@ describe('prepareRootJobHandler', () => {
     await expect(prepareRootJobHandler.execute(createCtx({ signal: controller.signal }))).rejects.toThrow(
       'aborted by test'
     )
+    expect(enqueueMock).not.toHaveBeenCalled()
+  })
+
+  it('skips commit when the base is deleted after expansion', async () => {
+    const notFoundError = DataApiErrorFactory.notFound('KnowledgeBase', 'kb-1')
+    knowledgeBaseGetByIdMock.mockResolvedValueOnce({ id: 'kb-1' }).mockRejectedValueOnce(notFoundError)
+
+    await prepareRootJobHandler.execute(createCtx())
+
+    expect(expandKnowledgeItemForRuntimeMock).toHaveBeenCalledOnce()
+    expect(deleteLeafDescendantItemsMock).not.toHaveBeenCalled()
+    expect(commitPreparedKnowledgeItemMock).not.toHaveBeenCalled()
+    expect(enqueueMock).not.toHaveBeenCalled()
+  })
+
+  it('skips commit when the root item is deleted after expansion', async () => {
+    const notFoundError = DataApiErrorFactory.notFound('KnowledgeItem', 'dir-1')
+    knowledgeItemGetByIdMock.mockResolvedValueOnce(createDirectoryItem()).mockRejectedValueOnce(notFoundError)
+
+    await prepareRootJobHandler.execute(createCtx())
+
+    expect(expandKnowledgeItemForRuntimeMock).toHaveBeenCalledOnce()
+    expect(deleteLeafDescendantItemsMock).not.toHaveBeenCalled()
+    expect(commitPreparedKnowledgeItemMock).not.toHaveBeenCalled()
     expect(enqueueMock).not.toHaveBeenCalled()
   })
 })

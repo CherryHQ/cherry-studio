@@ -31,7 +31,6 @@ const {
   listMock,
   loadKnowledgeItemDocumentsMock,
   loggerWarnMock,
-  prepareKnowledgeItemMock,
   rerankKnowledgeSearchResultsMock,
   registerHandlerMock
 } = vi.hoisted(() => ({
@@ -55,7 +54,6 @@ const {
   listMock: vi.fn(),
   loadKnowledgeItemDocumentsMock: vi.fn(),
   loggerWarnMock: vi.fn(),
-  prepareKnowledgeItemMock: vi.fn(),
   rerankKnowledgeSearchResultsMock: vi.fn(),
   registerHandlerMock: vi.fn()
 }))
@@ -141,10 +139,6 @@ vi.mock('../../utils/embed', () => ({
 
 vi.mock('../../utils/model', () => ({
   getEmbedModel: getEmbedModelMock
-}))
-
-vi.mock('../utils/prepare', () => ({
-  prepareKnowledgeItem: prepareKnowledgeItemMock
 }))
 
 vi.mock('../utils/cleanup', () => ({

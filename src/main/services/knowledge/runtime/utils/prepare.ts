@@ -24,36 +24,92 @@ export interface PrepareKnowledgeItemOptions {
   signal: AbortSignal
 }
 
-export async function prepareKnowledgeItem({
-  baseId,
+export type PreparedKnowledgeItem =
+  | {
+      kind: 'leaf'
+      item: IndexableKnowledgeItem
+    }
+  | {
+      kind: 'directory'
+      children: ExpandedDirectoryNode[]
+    }
+  | {
+      kind: 'sitemap'
+      children: Extract<CreateKnowledgeItemDto, { type: 'url' }>[]
+    }
+
+export interface ExpandKnowledgeItemOptions {
+  item: KnowledgeItem
+  signal: AbortSignal
+}
+
+export interface CommitPreparedKnowledgeItemOptions extends PrepareKnowledgeItemOptions {
+  prepared: PreparedKnowledgeItem
+}
+
+export async function expandKnowledgeItemForRuntime({
   item,
-  onCreatedItem,
-  runMutation,
   signal
-}: PrepareKnowledgeItemOptions): Promise<IndexableKnowledgeItem[]> {
+}: ExpandKnowledgeItemOptions): Promise<PreparedKnowledgeItem> {
   signal.throwIfAborted()
 
   if (isIndexableKnowledgeItem(item)) {
-    return [item]
+    return { kind: 'leaf', item }
   }
 
   if (item.type === 'directory') {
-    return await prepareDirectoryForRuntime(baseId, item, onCreatedItem, runMutation, signal)
+    const children = await expandDirectoryOwnerToTree(item, signal)
+    signal.throwIfAborted()
+    return { kind: 'directory', children }
   }
 
-  return await prepareSitemapForRuntime(baseId, item, onCreatedItem, runMutation, signal)
+  const children = await expandSitemapOwnerToCreateItems(item, signal)
+  signal.throwIfAborted()
+  return { kind: 'sitemap', children }
 }
 
-async function prepareDirectoryForRuntime(
+export async function commitPreparedKnowledgeItem({
+  baseId,
+  item,
+  prepared,
+  onCreatedItem,
+  runMutation,
+  signal
+}: CommitPreparedKnowledgeItemOptions): Promise<IndexableKnowledgeItem[]> {
+  signal.throwIfAborted()
+
+  if (prepared.kind === 'leaf') {
+    return [prepared.item]
+  }
+
+  if (prepared.kind === 'directory') {
+    if (item.type !== 'directory') {
+      throw new Error(`Prepared directory result cannot be committed to knowledge item type '${item.type}'`)
+    }
+
+    return await commitPreparedDirectory(baseId, item, prepared.children, onCreatedItem, runMutation, signal)
+  }
+
+  if (item.type !== 'sitemap') {
+    throw new Error(`Prepared sitemap result cannot be committed to knowledge item type '${item.type}'`)
+  }
+
+  return await commitPreparedSitemap(baseId, item, prepared.children, onCreatedItem, runMutation, signal)
+}
+
+export async function prepareKnowledgeItem(options: PrepareKnowledgeItemOptions): Promise<IndexableKnowledgeItem[]> {
+  const prepared = await expandKnowledgeItemForRuntime({ item: options.item, signal: options.signal })
+  return await commitPreparedKnowledgeItem({ ...options, prepared })
+}
+
+async function commitPreparedDirectory(
   baseId: string,
   item: KnowledgeItemOf<'directory'>,
+  expandedChildren: ExpandedDirectoryNode[],
   onCreatedItem: (item: KnowledgeItem) => void,
   runMutation: <T>(task: () => Promise<T>) => Promise<T>,
   signal: AbortSignal
 ): Promise<IndexableKnowledgeItem[]> {
-  const expandedChildren = await expandDirectoryOwnerToTree(item, signal)
-  signal.throwIfAborted()
-
   if (expandedChildren.length === 0) {
     logger.warn('Directory expansion produced no indexable files', {
       baseId,
@@ -122,16 +178,14 @@ async function createDirectoryChildren(
   return leafItems
 }
 
-async function prepareSitemapForRuntime(
+async function commitPreparedSitemap(
   baseId: string,
   item: KnowledgeItemOf<'sitemap'>,
+  expandedItems: Extract<CreateKnowledgeItemDto, { type: 'url' }>[],
   onCreatedItem: (item: KnowledgeItem) => void,
   runMutation: <T>(task: () => Promise<T>) => Promise<T>,
   signal: AbortSignal
 ): Promise<IndexableKnowledgeItem[]> {
-  const expandedItems = await expandSitemapOwnerToCreateItems(item, signal)
-  signal.throwIfAborted()
-
   if (expandedItems.length === 0) {
     logger.warn('Sitemap expansion produced no indexable URLs', {
       baseId,

@@ -14,6 +14,7 @@ import { MarkdownReader } from '@vectorstores/readers/markdown'
 import { PDFReader } from '@vectorstores/readers/pdf'
 import { TextFileReader } from '@vectorstores/readers/text'
 
+import { SOURCE_FILE_MISSING_ERROR } from '../utils/errors'
 import { DraftsExportReader } from './files/DraftsExportReader'
 import { EpubReader } from './files/EpubReader'
 
@@ -48,10 +49,21 @@ export function createSupportedFileReader(file: Pick<FileEntry, 'ext'>): VectorS
 export async function loadFileDocuments(item: KnowledgeItemOf<'file'>): Promise<Document[]> {
   const fileManager = application.get('FileManager')
   const entry = await fileManager.getById(item.data.fileEntryId)
-  const fileInfo = await toFileInfo(entry)
-  const reader = createSupportedFileReader(entry)
-  const documents = await reader.loadData(fileInfo.path)
-  return mapDocumentsToKnowledgeSource(item, documents)
+  const danglingState = await fileManager.getDanglingState({ id: item.data.fileEntryId })
+  if (danglingState === 'missing') {
+    throw new Error(SOURCE_FILE_MISSING_ERROR)
+  }
+  try {
+    const fileInfo = await toFileInfo(entry)
+    const reader = createSupportedFileReader(entry)
+    const documents = await reader.loadData(fileInfo.path)
+    return mapDocumentsToKnowledgeSource(item, documents)
+  } catch (error) {
+    if (isSourceFileMissingError(error)) {
+      throw new Error(SOURCE_FILE_MISSING_ERROR)
+    }
+    throw error
+  }
 }
 
 function mapDocumentsToKnowledgeSource(item: KnowledgeItemOf<'file'>, documents: Document[]): Document[] {
@@ -66,4 +78,10 @@ function mapDocumentsToKnowledgeSource(item: KnowledgeItemOf<'file'>, documents:
         metadata: { ...sourceMetadata }
       })
   )
+}
+
+function isSourceFileMissingError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false
+  const code = (error as NodeJS.ErrnoException).code
+  return code === 'ENOENT' || code === 'ENOTDIR'
 }
