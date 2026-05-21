@@ -264,6 +264,42 @@ describe('AgentSessionMessageService', () => {
     expect(result.items.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d103'])
   })
 
+  it('filters session message search by createdAtFrom', async () => {
+    await dbh.db.insert(agentSessionTable).values({
+      id: 'session-created-filter',
+      name: 'Session Created Filter',
+      orderKey: 'sc0'
+    })
+    await dbh.db.insert(agentSessionMessageTable).values([
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d108',
+        sessionId: 'session-created-filter',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'older session needle' }] },
+        status: 'success',
+        createdAt: 100,
+        updatedAt: 500
+      },
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d109',
+        sessionId: 'session-created-filter',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'newer session needle' }] },
+        status: 'success',
+        createdAt: 300,
+        updatedAt: 300
+      }
+    ])
+
+    const result = await agentSessionMessageService.search({
+      q: 'needle',
+      matchMode: 'substring',
+      createdAtFrom: '1970-01-01T00:00:00.250Z'
+    })
+
+    expect(result.items.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d109'])
+  })
+
   it('paginates search with message ids as row-id cursors', async () => {
     await dbh.db.insert(agentSessionTable).values({
       id: 'session-page',

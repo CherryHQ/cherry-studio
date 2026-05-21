@@ -26,14 +26,16 @@ describe('messageHandlers', () => {
         query: {
           q: '  needle  ',
           matchMode: 'substring',
-          limit: '10'
+          limit: '10',
+          createdAtFrom: '2026-05-01T00:00:00.000Z'
         }
       } as never)
 
       expect(searchMock).toHaveBeenCalledWith({
         q: 'needle',
         matchMode: 'substring',
-        limit: 10
+        limit: 10,
+        createdAtFrom: '2026-05-01T00:00:00.000Z'
       })
       expect(result).toBe(response)
     })

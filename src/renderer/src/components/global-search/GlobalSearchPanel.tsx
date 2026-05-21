@@ -115,6 +115,10 @@ function getTimeFilterLabelKey(filter: GlobalSearchTimeFilter) {
   return TIME_FILTER_LABEL_KEYS[filter]
 }
 
+function getTimeFilterAriaLabelKey(mode: GlobalSearchPanelMode) {
+  return mode === 'message-search' ? 'globalSearch.timeFilters.messageLabel' : 'globalSearch.timeFilters.label'
+}
+
 function getMessageSourceFilterLabelKey(filter: GlobalMessageSearchSourceFilter) {
   return MESSAGE_SOURCE_FILTER_LABEL_KEYS[filter]
 }
@@ -247,9 +251,10 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
     () => ({
       q: deferredQuery,
       matchMode: messageMatchMode,
-      limit: 50
+      limit: 50,
+      ...(updatedAtFrom ? { createdAtFrom: updatedAtFrom } : {})
     }),
-    [deferredQuery, messageMatchMode]
+    [deferredQuery, messageMatchMode, updatedAtFrom]
   )
   const searchQuery = useMemo(
     () => ({
@@ -374,7 +379,7 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
 
   useEffect(() => {
     setExpandedMessageParentIds(new Set())
-  }, [deferredQuery, messageSourceFilter])
+  }, [deferredQuery, messageSourceFilter, updatedAtFrom])
 
   useEffect(() => {
     if (keyboardItems.length === 0) {
@@ -516,10 +521,10 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
       cacheService.set('agent.active_session_id', result.sessionId)
       openTab('/app/agents')
       window.setTimeout(() => {
-        void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE, {
-          sessionId: result.sessionId,
-          messageId: result.messageId
-        })
+        void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION, result.sessionId)
+        window.setTimeout(() => {
+          void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + result.messageId, true)
+        }, 300)
       }, 0)
       onClose()
     },
@@ -808,6 +813,32 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-7 gap-1.5 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground"
+                    aria-label={t(getTimeFilterAriaLabelKey(panelMode))}>
+                    <Clock3 className="size-3.5" />
+                    <span>{t(getTimeFilterLabelKey(timeFilter))}</span>
+                    <ChevronDown className="size-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="z-[90] min-w-[132px] rounded-[10px] p-1">
+                  {TIME_FILTERS.map((filterOption) => (
+                    <DropdownMenuItem
+                      key={filterOption}
+                      onSelect={() => handleTimeFilterSelect(filterOption)}
+                      className={cn(
+                        'h-8 rounded-[7px] font-medium text-xs',
+                        timeFilter === filterOption && 'bg-accent text-accent-foreground'
+                      )}>
+                      {t(getTimeFilterLabelKey(filterOption))}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           ) : (
             <>
@@ -832,7 +863,7 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
                     type="button"
                     variant="ghost"
                     className="h-7 gap-1.5 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground"
-                    aria-label={t('globalSearch.timeFilters.label')}>
+                    aria-label={t(getTimeFilterAriaLabelKey(panelMode))}>
                     <Clock3 className="size-3.5" />
                     <span>{t(getTimeFilterLabelKey(timeFilter))}</span>
                     <ChevronDown className="size-3.5" />

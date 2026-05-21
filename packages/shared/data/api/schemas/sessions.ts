@@ -35,7 +35,8 @@ export const SearchSessionMessagesQuerySchema = z.strictObject({
   sessionId: z.string().min(1).optional(),
   matchMode: z.enum(['whole-word', 'substring']).optional(),
   cursor: z.string().optional(),
-  limit: z.coerce.number().int().positive().max(1000).optional()
+  limit: z.coerce.number().int().positive().max(1000).optional(),
+  createdAtFrom: z.iso.datetime().optional()
 })
 export type SearchSessionMessagesQueryParams = {
   q: string
@@ -43,6 +44,7 @@ export type SearchSessionMessagesQueryParams = {
   matchMode?: 'whole-word' | 'substring'
   cursor?: string
   limit?: number
+  createdAtFrom?: string
 }
 
 export interface SessionSearchMessageResult {

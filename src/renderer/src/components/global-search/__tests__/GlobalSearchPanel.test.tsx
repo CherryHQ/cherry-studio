@@ -11,6 +11,8 @@ import userEvent from '@testing-library/user-event'
 import * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+type ReactModule = typeof React
+
 const mocks = vi.hoisted(() => ({
   openTab: vi.fn(),
   onClose: vi.fn(),
@@ -40,87 +42,123 @@ const mocks = vi.hoisted(() => ({
   updateTab: vi.fn()
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({
-    children,
-    type = 'button',
-    variant: _variant,
-    ...props
-  }: React.ComponentProps<'button'> & { variant?: string }) => {
-    void _variant
-    return (
-      <button type={type} {...props}>
-        {children}
-      </button>
-    )
-  },
-  DropdownMenu: ({ children }: React.ComponentProps<'div'>) => <div>{children}</div>,
-  DropdownMenuTrigger: ({ children, asChild: _asChild }: React.ComponentProps<'div'> & { asChild?: boolean }) => {
-    void _asChild
-    return <>{children}</>
-  },
-  DropdownMenuContent: ({ children, align: _align, ...props }: React.ComponentProps<'div'> & { align?: string }) => {
-    void _align
-    return <div {...props}>{children}</div>
-  },
-  DropdownMenuItem: ({
-    children,
-    onSelect,
-    ...props
-  }: React.ComponentProps<'button'> & {
-    onSelect?: () => void
-  }) => (
-    <button type="button" role="menuitem" onClick={onSelect} {...props}>
-      {children}
-    </button>
-  ),
-  Input: (props: React.ComponentProps<'input'>) => <input {...props} />,
-  Kbd: ({ children }: React.ComponentProps<'kbd'>) => <kbd>{children}</kbd>,
-  KbdGroup: ({ children }: React.ComponentProps<'div'>) => <div>{children}</div>,
-  SegmentedControl: ({
-    options,
-    value,
-    onValueChange,
-    ...props
-  }: React.ComponentProps<'div'> & {
-    options: Array<{ label: React.ReactNode; value: string }>
-    value?: string
-    onValueChange?: (value: string) => void
-  }) => (
-    <div role="radiogroup" {...props}>
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          role="radio"
-          aria-checked={value === option.value}
-          onClick={() => onValueChange?.(option.value)}>
-          {option.label}
+vi.mock('@cherrystudio/ui', async () => {
+  const React = await vi.importActual<ReactModule>('react')
+  const DropdownMenuContext = React.createContext<{
+    open: boolean
+    setOpen: React.Dispatch<React.SetStateAction<boolean>>
+  } | null>(null)
+
+  return {
+    Button: ({
+      children,
+      type = 'button',
+      variant: _variant,
+      ...props
+    }: React.ComponentProps<'button'> & { variant?: string }) => {
+      void _variant
+      return (
+        <button type={type} {...props}>
+          {children}
         </button>
-      ))}
-    </div>
-  ),
-  Sortable: ({
-    items,
-    itemKey,
-    onSortEnd,
-    renderItem
-  }: {
-    items: Array<Record<string, unknown>>
-    itemKey: string
-    onSortEnd: (event: { oldIndex: number; newIndex: number }) => void
-    renderItem: (item: Record<string, unknown>, state: { dragging: boolean }) => React.ReactNode
-  }) => {
-    mocks.sortableOnSortEnd = onSortEnd
-    return (
-      <div data-testid="mock-sortable" data-item-key={itemKey}>
-        {items.map((item) => (
-          <div key={String(item[itemKey])}>{renderItem(item, { dragging: false })}</div>
+      )
+    },
+    DropdownMenu: ({ children }: React.ComponentProps<'div'>) => {
+      const [open, setOpen] = React.useState(false)
+      return (
+        <DropdownMenuContext value={{ open, setOpen }}>
+          <div>{children}</div>
+        </DropdownMenuContext>
+      )
+    },
+    DropdownMenuTrigger: ({ children, asChild: _asChild }: React.ComponentProps<'div'> & { asChild?: boolean }) => {
+      void _asChild
+      const context = React.use(DropdownMenuContext)
+      if (!React.isValidElement<{ onClick?: React.MouseEventHandler }>(children)) return <>{children}</>
+
+      const child = children as React.ReactElement<{ onClick?: React.MouseEventHandler }>
+      return React.cloneElement(child, {
+        onClick: (event: React.MouseEvent) => {
+          child.props.onClick?.(event)
+          context?.setOpen((open) => !open)
+        }
+      })
+    },
+    DropdownMenuContent: ({ children, align: _align, ...props }: React.ComponentProps<'div'> & { align?: string }) => {
+      void _align
+      const context = React.use(DropdownMenuContext)
+      if (!context?.open) return null
+      return <div {...props}>{children}</div>
+    },
+    DropdownMenuItem: ({
+      children,
+      onSelect,
+      ...props
+    }: React.ComponentProps<'button'> & {
+      onSelect?: () => void
+    }) => {
+      const context = React.use(DropdownMenuContext)
+      return (
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => {
+            onSelect?.()
+            context?.setOpen(false)
+          }}
+          {...props}>
+          {children}
+        </button>
+      )
+    },
+    Input: (props: React.ComponentProps<'input'>) => <input {...props} />,
+    Kbd: ({ children }: React.ComponentProps<'kbd'>) => <kbd>{children}</kbd>,
+    KbdGroup: ({ children }: React.ComponentProps<'div'>) => <div>{children}</div>,
+    SegmentedControl: ({
+      options,
+      value,
+      onValueChange,
+      ...props
+    }: React.ComponentProps<'div'> & {
+      options: Array<{ label: React.ReactNode; value: string }>
+      value?: string
+      onValueChange?: (value: string) => void
+    }) => (
+      <div role="radiogroup" {...props}>
+        {options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={value === option.value}
+            onClick={() => onValueChange?.(option.value)}>
+            {option.label}
+          </button>
         ))}
       </div>
-    )
+    ),
+    Sortable: ({
+      items,
+      itemKey,
+      onSortEnd,
+      renderItem
+    }: {
+      items: Array<Record<string, unknown>>
+      itemKey: string
+      onSortEnd: (event: { oldIndex: number; newIndex: number }) => void
+      renderItem: (item: Record<string, unknown>, state: { dragging: boolean }) => React.ReactNode
+    }) => {
+      mocks.sortableOnSortEnd = onSortEnd
+      return (
+        <div data-testid="mock-sortable" data-item-key={itemKey}>
+          {items.map((item) => (
+            <div key={String(item[itemKey])}>{renderItem(item, { dragging: false })}</div>
+          ))}
+        </div>
+      )
+    }
   }
-}))
+})
 
 vi.mock('@renderer/components/Icons/SVGIcon', () => ({
   OpenClawSidebarIcon: (props: React.ComponentProps<'svg'>) => <svg aria-hidden="true" {...props} />
@@ -272,6 +310,7 @@ vi.mock('react-i18next', () => ({
           'globalSearch.resultTypes.assistant': 'Assistant',
           'globalSearch.timeFilters.any': 'Any time',
           'globalSearch.timeFilters.label': 'Updated time',
+          'globalSearch.timeFilters.messageLabel': 'Created time',
           'globalSearch.timeFilters.month': 'Last month',
           'globalSearch.timeFilters.quarter': 'Last 3 months',
           'globalSearch.timeFilters.today': 'Today',
@@ -711,6 +750,7 @@ describe('GlobalSearchPanel', () => {
       )
     ).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(screen.getByRole('button', { name: 'Match mode' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Created time' })).toBeInTheDocument()
 
     await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
 
@@ -730,6 +770,40 @@ describe('GlobalSearchPanel', () => {
           enabled: true,
           query: expect.objectContaining({
             q: 'needle'
+          })
+        })
+      )
+    })
+  })
+
+  it('passes selected time filter to message search queries', async () => {
+    const user = userEvent.setup()
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.click(screen.getByRole('radio', { name: 'Messages' }))
+    await user.click(screen.getByRole('button', { name: 'Created time' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Last 7 days' }))
+    await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
+
+    await waitFor(() => {
+      expect(mocks.useQuery).toHaveBeenCalledWith(
+        '/messages/search',
+        expect.objectContaining({
+          enabled: true,
+          query: expect.objectContaining({
+            q: 'needle',
+            createdAtFrom: expect.any(String)
+          })
+        })
+      )
+      expect(mocks.useQuery).toHaveBeenCalledWith(
+        '/sessions/messages/search',
+        expect.objectContaining({
+          enabled: true,
+          query: expect.objectContaining({
+            q: 'needle',
+            createdAtFrom: expect.any(String)
           })
         })
       )
@@ -933,6 +1007,10 @@ describe('GlobalSearchPanel', () => {
       )
     })
     await waitFor(() => {
+      expect(mocks.eventEmit).toHaveBeenCalledWith(
+        'GLOBAL_SEARCH_SELECT_TOPIC',
+        expect.objectContaining({ activeNodeId: 'message-1', id: 'topic-1' })
+      )
       expect(mocks.eventEmit).toHaveBeenCalledWith('LOCATE_MESSAGE:message-1', true)
     })
     expect(mocks.dataApiPut.mock.invocationCallOrder[0]).toBeLessThan(mocks.invalidateCache.mock.invocationCallOrder[0])
@@ -969,10 +1047,8 @@ describe('GlobalSearchPanel', () => {
     await waitFor(() => {
       expect(mocks.cacheSet).toHaveBeenCalledWith('agent.active_session_id', 'session-1')
       expect(mocks.openTab).toHaveBeenCalledWith('/app/agents')
-      expect(mocks.eventEmit).toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE', {
-        sessionId: 'session-1',
-        messageId: 'session-message-1'
-      })
+      expect(mocks.eventEmit).toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_AGENT_SESSION', 'session-1')
+      expect(mocks.eventEmit).toHaveBeenCalledWith('LOCATE_MESSAGE:session-message-1', true)
     })
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
   })
@@ -1000,10 +1076,8 @@ describe('GlobalSearchPanel', () => {
     await user.keyboard('{Enter}')
 
     await waitFor(() => {
-      expect(mocks.eventEmit).toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE', {
-        sessionId: 'session-1',
-        messageId: 'session-message-1'
-      })
+      expect(mocks.eventEmit).toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_AGENT_SESSION', 'session-1')
+      expect(mocks.eventEmit).toHaveBeenCalledWith('LOCATE_MESSAGE:session-message-1', true)
     })
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
   })

@@ -348,6 +348,82 @@ describe('MessageService', () => {
       expect(result.items.map((item) => item.messageId)).toEqual(['m-fts-filter-target'])
     })
 
+    it('filters substring search by createdAtFrom', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'topic-created-substring', activeNodeId: 'm-created-new', orderKey: 'cf0' })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'm-created-old',
+          parentId: null,
+          topicId: 'topic-created-substring',
+          role: 'assistant',
+          data: partsText('needle in an older answer'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 500
+        },
+        {
+          id: 'm-created-new',
+          parentId: null,
+          topicId: 'topic-created-substring',
+          role: 'assistant',
+          data: partsText('needle in a newer answer'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 300,
+          updatedAt: 300
+        }
+      ])
+
+      const result = await messageService.search({
+        q: 'needle',
+        matchMode: 'substring',
+        createdAtFrom: '1970-01-01T00:00:00.250Z'
+      })
+
+      expect(result.items.map((item) => item.messageId)).toEqual(['m-created-new'])
+    })
+
+    it('filters whole-word FTS search by createdAtFrom', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'topic-created-fts', activeNodeId: 'm-created-fts-new', orderKey: 'cf1' })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'm-created-fts-old',
+          parentId: null,
+          topicId: 'topic-created-fts',
+          role: 'assistant',
+          data: partsText('needle in an older answer'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 500
+        },
+        {
+          id: 'm-created-fts-new',
+          parentId: null,
+          topicId: 'topic-created-fts',
+          role: 'assistant',
+          data: partsText('needle in a newer answer'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 300,
+          updatedAt: 300
+        }
+      ])
+
+      const result = await messageService.search({
+        q: 'needle',
+        matchMode: 'whole-word',
+        createdAtFrom: '1970-01-01T00:00:00.250Z'
+      })
+
+      expect(result.items.map((item) => item.messageId)).toEqual(['m-created-fts-new'])
+    })
+
     it('orders matches by newest message before applying limit', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-order', activeNodeId: 'm-order-new', orderKey: 's2' })
       await dbh.db.insert(messageTable).values([

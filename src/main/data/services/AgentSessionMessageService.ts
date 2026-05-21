@@ -64,6 +64,12 @@ function decodeMessageCursor(raw: string): { createdAt: number; id: string } | n
   return { createdAt, id }
 }
 
+function getCreatedAtFromMs(createdAtFrom: string | undefined): number | undefined {
+  if (!createdAtFrom) return undefined
+  const value = Date.parse(createdAtFrom)
+  return Number.isFinite(value) ? value : undefined
+}
+
 function escapeLikeTerm(term: string): string {
   return term.replace(/[\\%_]/g, '\\$&')
 }
@@ -91,6 +97,7 @@ export class AgentSessionMessageService {
     const fetchLimit = limit + 1
     const regexes = buildKeywordRegexes(terms, { matchMode, flags: 'i' })
     const cursor = query.cursor ? decodeMessageCursor(query.cursor) : null
+    const createdAtFromMs = getCreatedAtFromMs(query.createdAtFrom)
     const results: InternalSessionSearchMessageResult[] = []
     const useFts = matchMode === 'whole-word' && canUseFts(terms)
     const ftsQuery = terms.map(quoteFtsTerm).join(' AND ')
@@ -103,6 +110,7 @@ export class AgentSessionMessageService {
     let offset = 0
 
     while (results.length < fetchLimit) {
+      const createdAtCondition = createdAtFromMs !== undefined ? sql`sm.created_at >= ${createdAtFromMs}` : sql`1 = 1`
       const rows = useFts
         ? await db.all<SessionMessageSearchRow>(sql`
             SELECT
@@ -121,6 +129,7 @@ export class AgentSessionMessageService {
             WHERE agent_session_message_fts MATCH ${ftsQuery}
               AND sm.searchable_text != ''
               AND ${sessionCondition}
+              AND ${createdAtCondition}
               AND ${
                 cursor
                   ? sql`(sm.created_at < ${cursor.createdAt} OR (sm.created_at = ${cursor.createdAt} AND sm.id < ${cursor.id}))`
@@ -145,6 +154,7 @@ export class AgentSessionMessageService {
             LEFT JOIN agent a ON a.id = s.agent_id
             WHERE sm.searchable_text != ''
               AND ${messageSessionCondition}
+              AND ${createdAtCondition}
               AND ${sql.join(likeConditions, sql` AND `)}
               AND ${
                 cursor

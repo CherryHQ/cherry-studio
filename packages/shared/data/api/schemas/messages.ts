@@ -162,7 +162,8 @@ export const SearchMessagesQuerySchema = z.strictObject({
   topicId: z.string().min(1).optional(),
   matchMode: z.enum(['whole-word', 'substring']).optional(),
   cursor: z.string().optional(),
-  limit: z.coerce.number().int().positive().max(1000).optional()
+  limit: z.coerce.number().int().positive().max(1000).optional(),
+  createdAtFrom: z.iso.datetime().optional()
 })
 export type SearchMessagesQueryParams = {
   q: string
@@ -170,6 +171,7 @@ export type SearchMessagesQueryParams = {
   matchMode?: 'whole-word' | 'substring'
   cursor?: string
   limit?: number
+  createdAtFrom?: string
 } & CursorPaginationParams
 
 export interface SearchMessageResult {

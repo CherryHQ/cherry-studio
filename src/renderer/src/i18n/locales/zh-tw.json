@@ -2257,6 +2257,7 @@
     "timeFilters": {
       "any": "不限時間",
       "label": "更新時間",
+      "messageLabel": "建立時間",
       "month": "最近 1 個月",
       "quarter": "最近 3 個月",
       "today": "今天",

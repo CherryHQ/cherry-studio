@@ -233,6 +233,12 @@ function decodeSearchCursor(raw: string | undefined): MessageSearchCursorRow | u
   return { createdAt, id: decoded.id }
 }
 
+function getCreatedAtFromMs(createdAtFrom: string | undefined): number | undefined {
+  if (!createdAtFrom) return undefined
+  const value = Date.parse(createdAtFrom)
+  return Number.isFinite(value) ? value : undefined
+}
+
 type MessageSearchRow = {
   id: string
   topicId: string
@@ -681,8 +687,12 @@ export class MessageService {
     })
     const results: InternalSearchMessageResult[] = []
     const cursor = decodeSearchCursor(query.cursor)
+    const createdAtFromMs = getCreatedAtFromMs(query.createdAtFrom)
     const topicCondition = query.topicId ? sql`m.topic_id = ${query.topicId}` : sql`1 = 1`
     const topicConditionForMessageAlias = query.topicId ? sql`message.topic_id = ${query.topicId}` : sql`1 = 1`
+    const createdAtCondition = createdAtFromMs !== undefined ? sql`m.created_at >= ${createdAtFromMs}` : sql`1 = 1`
+    const createdAtConditionForMessageAlias =
+      createdAtFromMs !== undefined ? sql`message.created_at >= ${createdAtFromMs}` : sql`1 = 1`
     let offset = 0
 
     while (results.length < fetchLimit) {
@@ -706,6 +716,7 @@ export class MessageService {
               AND t.deleted_at IS NULL
               AND m.searchable_text != ''
               AND ${topicCondition}
+              AND ${createdAtCondition}
               AND ${
                 cursor
                   ? sql`(m.created_at < ${cursor.createdAt} OR (m.created_at = ${cursor.createdAt} AND m.id < ${cursor.id}))`
@@ -732,6 +743,7 @@ export class MessageService {
               AND t.deleted_at IS NULL
               AND message.searchable_text != ''
               AND ${topicConditionForMessageAlias}
+              AND ${createdAtConditionForMessageAlias}
               AND ${sql.join(likeConditions, sql` AND `)}
               AND ${
                 cursor
