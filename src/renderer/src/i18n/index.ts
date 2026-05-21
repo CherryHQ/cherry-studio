@@ -12,6 +12,7 @@ import 'dayjs/locale/zh-tw'
 
 import { loggerService } from '@logger'
 import { defaultLanguage } from '@shared/config/constant'
+import { IpcChannel } from '@shared/IpcChannel'
 import dayjs from 'dayjs'
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
@@ -91,5 +92,26 @@ void i18n.use(initReactI18next).init({
     logger.error(`Missing key: ${key}`)
   }
 })
+
+// Listen for main-process-initiated language changes (e.g. when Cherry
+// Assistant flips the language via mcp__assistant__apply_setting). Without
+// this, the persisted config and the live UI would drift apart until the
+// next app restart. Dynamic import of the store keeps this module free of a
+// load-time cycle through Redux setup.
+if (typeof window !== 'undefined' && window.electron?.ipcRenderer) {
+  window.electron.ipcRenderer.on(IpcChannel.LanguageUpdated, async (_event, lang: string) => {
+    try {
+      localStorage.setItem('language', lang)
+      await i18n.changeLanguage(lang)
+      setDayjsLocale(lang)
+      const { default: store } = await import('@renderer/store')
+      const { setLanguage } = await import('@renderer/store/settings')
+      store.dispatch(setLanguage(lang as never))
+      logger.info(`Language refreshed from main process: ${lang}`)
+    } catch (err) {
+      logger.error('Failed to apply language update from main', err as Error)
+    }
+  })
+}
 
 export default i18n
