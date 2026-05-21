@@ -31,8 +31,6 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { GlobalSearchItem } from '@shared/data/api/schemas/globalSearch'
-import type { SearchMessageResult } from '@shared/data/api/schemas/messages'
-import type { SessionSearchMessageResult } from '@shared/data/api/schemas/sessions'
 import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
 import type { KeywordMatchMode } from '@shared/utils/keywordSearch'
 import dayjs from 'dayjs'
@@ -52,6 +50,10 @@ import {
   type GlobalSearchPanelGroup,
   type GlobalSearchPanelItem
 } from './globalSearchGroups'
+import {
+  GlobalSearchMessagePreviewPanel,
+  type GlobalSearchMessagePreviewTarget
+} from './GlobalSearchMessagePreviewPanel'
 import { GlobalSearchQuickAppManager, GlobalSearchQuickAppsBar } from './GlobalSearchQuickApps'
 import {
   GlobalMessageSearchGroupHeader,
@@ -235,6 +237,7 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
   const [messageSourceFilter, setMessageSourceFilter] = useState<GlobalMessageSearchSourceFilter>('all')
   const [messageMatchMode, setMessageMatchMode] = useState<GlobalMessageSearchMatchMode>('whole-word')
   const [expandedMessageParentIds, setExpandedMessageParentIds] = useState<ReadonlySet<string>>(() => new Set())
+  const [messagePreviewTarget, setMessagePreviewTarget] = useState<GlobalSearchMessagePreviewTarget | null>(null)
   const [activeItemId, setActiveItemId] = useState<string | undefined>()
   const [recentItems] = usePersistCache('ui.global_search.recent_items')
   const [userName] = usePreference('app.user.name')
@@ -378,6 +381,7 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
 
   useEffect(() => {
     setExpandedMessageParentIds(new Set())
+    setMessagePreviewTarget(null)
   }, [deferredQuery, messageSourceFilter, updatedAtFrom])
 
   useEffect(() => {
@@ -464,6 +468,7 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
 
   const handleSearchScopeChange = useCallback((nextScope: GlobalSearchScope) => {
     setPanelMode(nextScope === 'messages' ? 'message-search' : 'search')
+    setMessagePreviewTarget(null)
   }, [])
 
   const openTopic = useCallback(
@@ -472,9 +477,9 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
       const topic = mapApiTopicToRendererTopic(apiTopic)
       cacheService.set('topic.active', topic)
       openTab('/app/chat')
-      window.setTimeout(() => {
+      window.requestAnimationFrame(() => {
         void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC, topic)
-      }, 0)
+      })
       onClose()
     },
     [onClose, openTab]
@@ -484,47 +489,41 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
     (sessionId: string) => {
       cacheService.set('agent.active_session_id', sessionId)
       openTab('/app/agents')
-      window.setTimeout(() => {
+      window.requestAnimationFrame(() => {
         void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION, sessionId)
-      }, 0)
+      })
       onClose()
     },
     [onClose, openTab]
   )
 
-  const openTopicMessage = useCallback(
-    async (result: SearchMessageResult) => {
-      const apiTopic = await dataApiService.get(`/topics/${result.topicId}`)
+  const openTopicMessageById = useCallback(
+    async (topicId: string, messageId: string) => {
+      const apiTopic = await dataApiService.get(`/topics/${topicId}`)
       const topic = {
         ...mapApiTopicToRendererTopic(apiTopic),
-        activeNodeId: result.messageId
+        activeNodeId: messageId
       }
 
-      await dataApiService.put(`/topics/${result.topicId}/active-node`, { body: { nodeId: result.messageId } })
-      await invalidateCache(`/topics/${result.topicId}/messages`)
+      await dataApiService.put(`/topics/${topicId}/active-node`, { body: { nodeId: messageId } })
+      await invalidateCache(`/topics/${topicId}/messages`)
       cacheService.set('topic.active', topic)
       openTab('/app/chat')
-      window.setTimeout(() => {
-        void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC, topic)
-        window.setTimeout(() => {
-          void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + result.messageId, true)
-        }, 300)
-      }, 0)
+      window.requestAnimationFrame(() => {
+        void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE, { topic, messageId })
+      })
       onClose()
     },
     [invalidateCache, onClose, openTab]
   )
 
-  const openSessionMessage = useCallback(
-    (result: SessionSearchMessageResult) => {
-      cacheService.set('agent.active_session_id', result.sessionId)
+  const openSessionMessageById = useCallback(
+    (sessionId: string, messageId: string) => {
+      cacheService.set('agent.active_session_id', sessionId)
       openTab('/app/agents')
-      window.setTimeout(() => {
-        void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION, result.sessionId)
-        window.setTimeout(() => {
-          void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + result.messageId, true)
-        }, 300)
-      }, 0)
+      window.requestAnimationFrame(() => {
+        void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE, { sessionId, messageId })
+      })
       onClose()
     },
     [onClose, openTab]
@@ -533,37 +532,65 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
   const openKnowledgeBase = useCallback(
     (knowledgeBaseId: string) => {
       openTab('/app/knowledge')
-      window.setTimeout(() => {
+      window.requestAnimationFrame(() => {
         void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE, knowledgeBaseId)
-      }, 0)
+      })
       onClose()
     },
     [onClose, openTab]
   )
 
-  const openMessagePanelItem = useCallback(
-    async (item: GlobalMessageSearchPanelItem) => {
-      if (item.kind === 'more') {
-        setExpandedMessageParentIds((current) => {
-          const next = new Set(current)
-          next.add(item.parentId)
-          return next
+  const openMessagePanelItem = useCallback((item: GlobalMessageSearchPanelItem) => {
+    if (item.kind === 'more') {
+      setExpandedMessageParentIds((current) => {
+        const next = new Set(current)
+        next.add(item.parentId)
+        return next
+      })
+      return
+    }
+
+    if (item.result.sourceType === 'topic') {
+      setMessagePreviewTarget({
+        sourceType: 'topic',
+        topicId: item.result.topicId,
+        title: item.result.topicName,
+        messageId: item.result.messageId,
+        assistantId: item.result.topicAssistantId,
+        createdAt: item.result.topicCreatedAt,
+        updatedAt: item.result.topicUpdatedAt
+      })
+      return
+    }
+
+    setMessagePreviewTarget({
+      sourceType: 'session',
+      sessionId: item.result.sessionId,
+      title: item.result.sessionName,
+      messageId: item.result.messageId,
+      agentId: item.result.agentId,
+      createdAt: item.result.createdAt
+    })
+  }, [])
+
+  const openMessagePreviewMessage = useCallback(
+    (messageId: string) => {
+      if (!messagePreviewTarget) return
+
+      if (messagePreviewTarget.sourceType === 'topic') {
+        void openTopicMessageById(messagePreviewTarget.topicId, messageId).catch(() => {
+          window.toast?.error(t('globalSearch.open_failed'))
         })
         return
       }
 
       try {
-        if (item.result.sourceType === 'topic') {
-          await openTopicMessage(item.result)
-          return
-        }
-
-        openSessionMessage(item.result)
+        openSessionMessageById(messagePreviewTarget.sessionId, messageId)
       } catch {
         window.toast?.error(t('globalSearch.open_failed'))
       }
     },
-    [openSessionMessage, openTopicMessage, t]
+    [messagePreviewTarget, openSessionMessageById, openTopicMessageById, t]
   )
 
   const openPanelItem = useCallback(
@@ -676,7 +703,7 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
         if (!item) return
         event.preventDefault()
         if (isMessageSearchMode) {
-          void openMessagePanelItem(item as GlobalMessageSearchPanelItem)
+          openMessagePanelItem(item as GlobalMessageSearchPanelItem)
           return
         }
         void openPanelItem(item as GlobalSearchPanelItem)
@@ -700,19 +727,54 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
 
   const handleTimeFilterSelect = useCallback((nextFilter: GlobalSearchTimeFilter) => {
     setTimeFilter(nextFilter)
+    setMessagePreviewTarget(null)
   }, [])
 
   const handleMessageSourceFilterSelect = useCallback((nextFilter: Exclude<GlobalMessageSearchSourceFilter, 'all'>) => {
     setMessageSourceFilter((current) => (current === nextFilter ? 'all' : nextFilter))
+    setMessagePreviewTarget(null)
   }, [])
 
   const handleMessageMatchModeSelect = useCallback((nextMatchMode: GlobalMessageSearchMatchMode) => {
     setMessageMatchMode(nextMatchMode)
+    setMessagePreviewTarget(null)
   }, [])
 
   const showEmptyState = !isLoading && !error && selectableItems.length === 0
   const showMessageEmptyState =
     !isMessageLoading && !messageError && (hasQuery ? messageSelectableItems.length === 0 : true)
+
+  const messageResultsContent =
+    isMessageLoading && hasQuery ? (
+      <GlobalSearchState label={t('common.loading')} />
+    ) : messageError ? (
+      <GlobalSearchState label={t('globalSearch.error')} />
+    ) : showMessageEmptyState ? (
+      <GlobalSearchState label={hasQuery ? t('common.no_results') : t('globalSearch.messageSearch.hint')} />
+    ) : (
+      <GroupedVirtualList
+        role="listbox"
+        groups={messageVirtualGroups}
+        estimateGroupHeaderSize={() => 32}
+        estimateItemSize={(item) => {
+          if (item.kind === 'more') return 36
+          return 44
+        }}
+        className="pt-2 pb-2"
+        renderGroupHeader={(group) => <GlobalMessageSearchGroupHeader group={group} />}
+        renderItem={(item) => (
+          <GlobalMessageSearchRow
+            item={item}
+            active={item.id === activeItemId}
+            language={i18n.language}
+            query={deferredQuery}
+            userName={userName}
+            onMouseEnter={() => setActiveItemId(item.id)}
+            onOpen={() => openMessagePanelItem(item)}
+          />
+        )}
+      />
+    )
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
@@ -725,6 +787,7 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
             onChange={(event) => {
               setQuery(event.target.value.trimStart())
               setPanelMode((current) => (current === 'menu-manager' ? 'search' : current))
+              setMessagePreviewTarget(null)
             }}
             onKeyDown={handleInputKeyDown}
             placeholder={t('globalSearch.placeholder')}
@@ -739,6 +802,7 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
               onClick={() => {
                 setQuery('')
                 setPanelMode((current) => (current === 'menu-manager' ? 'search' : current))
+                setMessagePreviewTarget(null)
               }}
               className="-translate-y-1/2 absolute top-1/2 right-3 flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
               <X className="size-4" />
@@ -897,35 +961,17 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
             onVisibilityChange={handleSidebarManagerVisibilityChange}
           />
         ) : isMessageSearchMode ? (
-          isMessageLoading && hasQuery ? (
-            <GlobalSearchState label={t('common.loading')} />
-          ) : messageError ? (
-            <GlobalSearchState label={t('globalSearch.error')} />
-          ) : showMessageEmptyState ? (
-            <GlobalSearchState label={hasQuery ? t('common.no_results') : t('globalSearch.messageSearch.hint')} />
-          ) : (
-            <GroupedVirtualList
-              role="listbox"
-              groups={messageVirtualGroups}
-              estimateGroupHeaderSize={() => 32}
-              estimateItemSize={(item) => {
-                if (item.kind === 'more') return 36
-                return 44
-              }}
-              className="pt-2 pb-2"
-              renderGroupHeader={(group) => <GlobalMessageSearchGroupHeader group={group} />}
-              renderItem={(item) => (
-                <GlobalMessageSearchRow
-                  item={item}
-                  active={item.id === activeItemId}
-                  language={i18n.language}
-                  query={deferredQuery}
-                  userName={userName}
-                  onMouseEnter={() => setActiveItemId(item.id)}
-                  onOpen={() => void openMessagePanelItem(item)}
-                />
-              )}
+          messagePreviewTarget ? (
+            <GlobalSearchMessagePreviewPanel
+              className="h-full min-w-0"
+              matchMode={messageMatchMode}
+              searchQuery={deferredQuery}
+              target={messagePreviewTarget}
+              onClose={() => setMessagePreviewTarget(null)}
+              onOpenMessage={openMessagePreviewMessage}
             />
+          ) : (
+            messageResultsContent
           )
         ) : isLoading && hasQuery ? (
           <GlobalSearchState label={t('common.loading')} />

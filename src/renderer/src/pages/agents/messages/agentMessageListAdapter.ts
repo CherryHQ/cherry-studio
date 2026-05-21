@@ -31,8 +31,6 @@ import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useMemo } from 'react'
 
-const LOCATE_MESSAGE_HIGHLIGHT_DELAY_MS = 100
-
 const agentMessageListRuntimes = new Map<string, MessageListRuntime>()
 
 export function locateAgentMessageInList(topicId: string, messageId: string, highlight?: boolean): boolean {
@@ -43,9 +41,9 @@ export function locateAgentMessageInList(topicId: string, messageId: string, hig
   }
 
   runtime.locateMessage(messageId)
-  window.setTimeout(() => {
+  window.requestAnimationFrame(() => {
     void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, highlight)
-  }, LOCATE_MESSAGE_HIGHLIGHT_DELAY_MS)
+  })
   return true
 }
 

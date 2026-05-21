@@ -1,5 +1,5 @@
 import type { Topic } from '@renderer/types'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -129,10 +129,13 @@ vi.mock('@renderer/pages/history/HistoryRecordsPage', () => ({
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
     SHOW_ASSISTANTS: 'SHOW_ASSISTANTS',
-    SHOW_TOPIC_SIDEBAR: 'SHOW_TOPIC_SIDEBAR'
+    SHOW_TOPIC_SIDEBAR: 'SHOW_TOPIC_SIDEBAR',
+    GLOBAL_SEARCH_SELECT_TOPIC: 'GLOBAL_SEARCH_SELECT_TOPIC',
+    GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE: 'GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE'
   },
   EventEmitter: {
-    emit: vi.fn()
+    emit: vi.fn(),
+    on: vi.fn(() => vi.fn())
   }
 }))
 
@@ -155,14 +158,18 @@ vi.mock('../Chat', () => ({
     pane,
     hideNavbar,
     paneOpen,
+    locateMessageId,
     onNewTopic,
+    onLocateMessageHandled,
     onTemporaryAssistantChange
   }: {
     activeTopic: Topic
     pane?: ReactNode
     hideNavbar?: boolean
     paneOpen?: boolean
+    locateMessageId?: string
     onNewTopic?: () => void | Promise<void>
+    onLocateMessageHandled?: () => void
     onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
   }) => (
     <section>
@@ -170,9 +177,15 @@ vi.mock('../Chat', () => ({
       <output data-testid="active-topic-assistant">{activeTopic.assistantId ?? ''}</output>
       <output data-testid="hide-navbar">{String(hideNavbar)}</output>
       <output data-testid="pane-open">{String(paneOpen)}</output>
+      <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
       {onNewTopic && (
         <button type="button" onClick={() => onNewTopic()}>
           New topic
+        </button>
+      )}
+      {onLocateMessageHandled && (
+        <button type="button" onClick={() => onLocateMessageHandled()}>
+          Locate handled
         </button>
       )}
       {onTemporaryAssistantChange && (
@@ -263,6 +276,26 @@ describe('HomePage', () => {
       itemId: 'topic-history',
       requestId: 1
     })
+  })
+
+  it('keeps a pending locate message when selecting a global-search topic message', async () => {
+    render(<HomePage />)
+
+    const topicMessageHandler = vi
+      .mocked(EventEmitter.on)
+      .mock.calls.find(([eventName]) => eventName === EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE)?.[1] as
+      | ((payload: unknown) => void)
+      | undefined
+
+    act(() => {
+      topicMessageHandler?.({ topic: historyTopic, messageId: 'message-target' })
+    })
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-history'))
+    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-target')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Locate handled' }))
+    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
   })
 
   it('keeps the current topic visible while the active topic is reloading', async () => {

@@ -413,9 +413,9 @@ const AgentChatSessionFrame = ({
 
     if (uiMessages.some((message) => message.id === locateMessageId)) {
       locateLoadRequestRef.current = undefined
-      window.setTimeout(() => {
+      window.requestAnimationFrame(() => {
         locateAgentMessageInList(sessionTopicId, locateMessageId, true)
-      }, 100)
+      })
       onLocateMessageHandled?.()
       return
     }

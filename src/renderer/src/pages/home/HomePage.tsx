@@ -64,6 +64,7 @@ const HomePage: FC = () => {
   const lastUsedAssistantIdRef = useRef<string | undefined>(lastUsedAssistantId ?? undefined)
   const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
+  const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
 
   const location = useLocation()
   const state = location.state as { topic?: Topic } | undefined
@@ -309,13 +310,26 @@ const HomePage: FC = () => {
 
   useEffect(() => {
     const unsubscribe = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC, (topic) => {
+      setPendingLocateMessageId(undefined)
       handleHistoryTopicSelect(topic as Topic)
+    })
+    const unsubscribeMessage = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE, (payload) => {
+      const { messageId, topic } = payload as { messageId?: string; topic?: Topic }
+      if (!topic || !messageId) return
+
+      setPendingLocateMessageId(messageId)
+      handleHistoryTopicSelect(topic)
     })
 
     return () => {
       unsubscribe()
+      unsubscribeMessage()
     }
   }, [handleHistoryTopicSelect])
+
+  const handleLocateMessageHandled = useCallback(() => {
+    setPendingLocateMessageId(undefined)
+  }, [])
 
   const historyOverlay = (
     <HistoryRecordsPage
@@ -372,6 +386,8 @@ const HomePage: FC = () => {
           // the next send won't accidentally persist an empty lease.
           onPersistTemporaryTopic={isTemporaryTopicActive ? persistTemporaryTopicAndRefresh : undefined}
           onTemporaryAssistantChange={isTemporaryTopicActive ? updateTemporaryTopicAssistant : undefined}
+          locateMessageId={pendingLocateMessageId}
+          onLocateMessageHandled={handleLocateMessageHandled}
         />
       </ContentContainer>
       {historyOverlay}

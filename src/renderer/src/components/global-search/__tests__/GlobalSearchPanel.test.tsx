@@ -74,15 +74,7 @@ vi.mock('@cherrystudio/ui', async () => {
     DropdownMenuTrigger: ({ children, asChild: _asChild }: React.ComponentProps<'div'> & { asChild?: boolean }) => {
       void _asChild
       const context = React.use(DropdownMenuContext)
-      if (!React.isValidElement<{ onClick?: React.MouseEventHandler }>(children)) return <>{children}</>
-
-      const child = children as React.ReactElement<{ onClick?: React.MouseEventHandler }>
-      return React.cloneElement(child, {
-        onClick: (event: React.MouseEvent) => {
-          child.props.onClick?.(event)
-          context?.setOpen((open) => !open)
-        }
-      })
+      return <div onClick={() => context?.setOpen((open) => !open)}>{children}</div>
     },
     DropdownMenuContent: ({ children, align: _align, ...props }: React.ComponentProps<'div'> & { align?: string }) => {
       void _align
@@ -229,6 +221,7 @@ vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
     LOCATE_MESSAGE: 'LOCATE_MESSAGE',
     GLOBAL_SEARCH_SELECT_TOPIC: 'GLOBAL_SEARCH_SELECT_TOPIC',
+    GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE: 'GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE',
     GLOBAL_SEARCH_SELECT_AGENT_SESSION: 'GLOBAL_SEARCH_SELECT_AGENT_SESSION',
     GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE: 'GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE',
     GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE: 'GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE'
@@ -238,6 +231,23 @@ vi.mock('@renderer/services/EventService', () => ({
 
 vi.mock('@renderer/utils', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
+}))
+
+vi.mock('../GlobalSearchMessagePreviewPanel', () => ({
+  GlobalSearchMessagePreviewPanel: ({ target, onClose, onOpenMessage }: any) => (
+    <aside aria-label="Message preview">
+      <div>{target.title}</div>
+      <button type="button" onClick={() => onOpenMessage(target.messageId)}>
+        Open preview target
+      </button>
+      <button type="button" onClick={() => onOpenMessage('preview-message-other')}>
+        Open preview other message
+      </button>
+      <button type="button" onClick={onClose}>
+        Close preview
+      </button>
+    </aside>
+  )
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
@@ -967,7 +977,7 @@ describe('GlobalSearchPanel', () => {
     expect(screen.getByRole('option', { name: /needle message four/ })).toBeInTheDocument()
   })
 
-  it('invalidates the topic message cache before locating a topic message result', async () => {
+  it('opens a topic message preview before locating the selected message', async () => {
     const user = userEvent.setup()
     const topic = {
       id: 'topic-1',
@@ -998,6 +1008,14 @@ describe('GlobalSearchPanel', () => {
     await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
     await user.click(await screen.findByRole('option', { name: /needle topic reply/ }))
 
+    const preview = screen.getByRole('complementary', { name: 'Message preview' })
+    expect(preview).toBeInTheDocument()
+    expect(within(preview).getByText('Topic A')).toBeInTheDocument()
+    expect(mocks.dataApiPut).not.toHaveBeenCalled()
+    expect(mocks.openTab).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Open preview target' }))
+
     await waitFor(() => {
       expect(mocks.dataApiPut).toHaveBeenCalledWith('/topics/topic-1/active-node', { body: { nodeId: 'message-1' } })
       expect(mocks.invalidateCache).toHaveBeenCalledWith('/topics/topic-1/messages')
@@ -1008,10 +1026,12 @@ describe('GlobalSearchPanel', () => {
     })
     await waitFor(() => {
       expect(mocks.eventEmit).toHaveBeenCalledWith(
-        'GLOBAL_SEARCH_SELECT_TOPIC',
-        expect.objectContaining({ activeNodeId: 'message-1', id: 'topic-1' })
+        'GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE',
+        expect.objectContaining({
+          messageId: 'message-1',
+          topic: expect.objectContaining({ activeNodeId: 'message-1', id: 'topic-1' })
+        })
       )
-      expect(mocks.eventEmit).toHaveBeenCalledWith('LOCATE_MESSAGE:message-1', true)
     })
     expect(mocks.dataApiPut.mock.invocationCallOrder[0]).toBeLessThan(mocks.invalidateCache.mock.invocationCallOrder[0])
     expect(mocks.invalidateCache.mock.invocationCallOrder[0]).toBeLessThan(
@@ -1020,7 +1040,54 @@ describe('GlobalSearchPanel', () => {
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('opens session message search results through the agent route and locate event', async () => {
+  it('locates the clicked preview message instead of the original search hit', async () => {
+    const user = userEvent.setup()
+    const topic = {
+      id: 'topic-1',
+      name: 'Topic A',
+      assistantId: 'assistant-1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    }
+    mocks.dataApiGet.mockResolvedValue(topic)
+    mocks.messageQueryResult = {
+      items: [
+        {
+          messageId: 'message-1',
+          topicId: 'topic-1',
+          topicName: 'Topic A',
+          topicCreatedAt: '2026-01-01T00:00:00.000Z',
+          topicUpdatedAt: '2026-01-01T00:00:00.000Z',
+          snippet: 'needle topic reply',
+          createdAt: new Date().toISOString()
+        }
+      ]
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.click(screen.getByRole('radio', { name: 'Messages' }))
+    await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
+    await user.click(await screen.findByRole('option', { name: /needle topic reply/ }))
+    await user.click(screen.getByRole('button', { name: 'Open preview other message' }))
+
+    await waitFor(() => {
+      expect(mocks.dataApiPut).toHaveBeenCalledWith('/topics/topic-1/active-node', {
+        body: { nodeId: 'preview-message-other' }
+      })
+      expect(mocks.eventEmit).toHaveBeenCalledWith(
+        'GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE',
+        expect.objectContaining({ messageId: 'preview-message-other' })
+      )
+    })
+    expect(mocks.eventEmit).not.toHaveBeenCalledWith(
+      'GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE',
+      expect.objectContaining({ messageId: 'message-1' })
+    )
+  })
+
+  it('opens a session message preview before routing to the agent message', async () => {
     const user = userEvent.setup()
     mocks.sessionMessageQueryResult = {
       items: [
@@ -1044,16 +1111,57 @@ describe('GlobalSearchPanel', () => {
     expect(await screen.findByText('Assistant role')).toBeInTheDocument()
     await user.click(await screen.findByRole('option', { name: /needle session reply/ }))
 
+    const preview = screen.getByRole('complementary', { name: 'Message preview' })
+    expect(preview).toBeInTheDocument()
+    expect(within(preview).getByText('Session A')).toBeInTheDocument()
+    expect(mocks.openTab).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Open preview target' }))
+
     await waitFor(() => {
       expect(mocks.cacheSet).toHaveBeenCalledWith('agent.active_session_id', 'session-1')
       expect(mocks.openTab).toHaveBeenCalledWith('/app/agents')
-      expect(mocks.eventEmit).toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_AGENT_SESSION', 'session-1')
-      expect(mocks.eventEmit).toHaveBeenCalledWith('LOCATE_MESSAGE:session-message-1', true)
+      expect(mocks.eventEmit).toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE', {
+        sessionId: 'session-1',
+        messageId: 'session-message-1'
+      })
     })
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('opens the active message search result with Enter', async () => {
+  it('closes the message preview from the panel and when clearing search', async () => {
+    const user = userEvent.setup()
+    mocks.sessionMessageQueryResult = {
+      items: [
+        {
+          messageId: 'session-message-1',
+          sessionId: 'session-1',
+          sessionName: 'Session A',
+          snippet: 'needle session reply',
+          createdAt: new Date().toISOString()
+        }
+      ]
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.click(screen.getByRole('radio', { name: 'Messages' }))
+    await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
+    await user.click(await screen.findByRole('option', { name: /needle session reply/ }))
+
+    expect(screen.getByRole('complementary', { name: 'Message preview' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Close preview' }))
+    expect(screen.queryByRole('complementary', { name: 'Message preview' })).not.toBeInTheDocument()
+
+    await user.click(await screen.findByRole('option', { name: /needle session reply/ }))
+    expect(screen.getByRole('complementary', { name: 'Message preview' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Clear search' }))
+    expect(screen.queryByRole('complementary', { name: 'Message preview' })).not.toBeInTheDocument()
+  })
+
+  it('opens the active message preview with Enter', async () => {
     const user = userEvent.setup()
     mocks.sessionMessageQueryResult = {
       items: [
@@ -1075,9 +1183,16 @@ describe('GlobalSearchPanel', () => {
     await screen.findByRole('option', { name: /needle session reply/ })
     await user.keyboard('{Enter}')
 
+    expect(screen.getByRole('complementary', { name: 'Message preview' })).toBeInTheDocument()
+    expect(mocks.eventEmit).not.toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_AGENT_SESSION', 'session-1')
+
+    await user.click(screen.getByRole('button', { name: 'Open preview target' }))
+
     await waitFor(() => {
-      expect(mocks.eventEmit).toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_AGENT_SESSION', 'session-1')
-      expect(mocks.eventEmit).toHaveBeenCalledWith('LOCATE_MESSAGE:session-message-1', true)
+      expect(mocks.eventEmit).toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE', {
+        sessionId: 'session-1',
+        messageId: 'session-message-1'
+      })
     })
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
   })
@@ -1233,7 +1348,9 @@ describe('GlobalSearchPanel', () => {
     await user.keyboard('{Enter}')
 
     expect(mocks.openTab).toHaveBeenCalledWith('/app/knowledge')
-    expect(mocks.eventEmit).toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE', 'knowledge-1')
+    await waitFor(() => {
+      expect(mocks.eventEmit).toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE', 'knowledge-1')
+    })
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
   })
 
