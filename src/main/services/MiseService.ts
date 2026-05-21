@@ -142,7 +142,8 @@ export class MiseService extends BaseService {
   private extractBundledBinary(): void {
     const platformKey = `${process.platform}-${process.arch}`
     const binaryName = isWin ? 'mise.exe' : 'mise'
-    const bundled = path.join(application.getPath('app.root.resources.binaries'), platformKey, binaryName)
+    const bundledDir = path.join(application.getPath('app.root.resources.binaries'), platformKey)
+    const bundled = path.join(bundledDir, binaryName)
 
     if (!fs.existsSync(bundled)) {
       return
@@ -151,8 +152,12 @@ export class MiseService extends BaseService {
     const binDir = application.getPath('cherry.bin')
     fs.mkdirSync(binDir, { recursive: true })
     const dest = path.join(binDir, binaryName)
+    const versionMarker = path.join(binDir, '.mise-version')
 
-    if (fs.existsSync(dest)) {
+    const bundledVersion = this.readVersionMarker(path.join(bundledDir, '.mise-version'))
+    const installedVersion = this.readVersionMarker(versionMarker)
+
+    if (fs.existsSync(dest) && bundledVersion && bundledVersion === installedVersion) {
       return
     }
 
@@ -160,7 +165,18 @@ export class MiseService extends BaseService {
     if (!isWin) {
       fs.chmodSync(dest, 0o755)
     }
-    logger.info('Extracted bundled mise binary', { dest })
+    if (bundledVersion) {
+      fs.writeFileSync(versionMarker, bundledVersion)
+    }
+    logger.info('Extracted bundled mise binary', { dest, version: bundledVersion })
+  }
+
+  private readVersionMarker(filePath: string): string | null {
+    try {
+      return fs.readFileSync(filePath, 'utf-8').trim() || null
+    } catch {
+      return null
+    }
   }
 
   private findMiseBin(): string | null {
@@ -356,9 +372,8 @@ export class MiseService extends BaseService {
       throw new Error('mise binary not available')
     }
 
-    const version = await this.installBinary(tool)
-
     return this.withStateLock(async () => {
+      const version = await this.installBinary(tool)
       const state = this.loadState()
       state.tools[tool.name] = {
         name: tool.name,
