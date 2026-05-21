@@ -81,9 +81,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
   const refreshState = useCallback(async () => {
     try {
-      const state = await window.api.mise.getState()
+      const [state, { dir }] = await Promise.all([window.api.mise.getState(), window.api.mcp.getInstallInfo()])
       setMiseState(state)
-      const { dir } = await window.api.mcp.getInstallInfo()
       setBinariesDir(dir)
     } catch (error) {
       logger.error('Failed to refresh mise state', error as Error)
@@ -92,6 +91,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
   useEffect(() => {
     void refreshState()
+    return window.api.mise.onStateChanged((state) => setMiseState(state))
   }, [refreshState])
 
   const installTool = async (tool: MiseTool) => {

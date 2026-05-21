@@ -54,6 +54,10 @@ vi.mock('node:child_process', () => ({
   })
 }))
 
+vi.mock('electron', () => ({
+  BrowserWindow: { getAllWindows: vi.fn(() => []) }
+}))
+
 vi.mock('node:util', async (importOriginal) => {
   const actual = await importOriginal()
   return { ...(actual as object), promisify: () => mockExecFileAsync }
@@ -104,7 +108,7 @@ describe('MiseService', () => {
       expect(result.failed).toHaveLength(0)
     })
 
-    it('does not skip tools with no pinned version (latest)', async () => {
+    it('skips unpinned tools that are already installed', async () => {
       const service = new MiseService()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
@@ -118,16 +122,10 @@ describe('MiseService', () => {
         })
       )
 
-      mockExecFileAsync
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // trust
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // install
-        .mockResolvedValueOnce({ stdout: '10.1.0\n', stderr: '' }) // which --version
-        .mockResolvedValueOnce({ stdout: '/path/to/fd\n', stderr: '' }) // which (path)
-
       const result = await service.reconcile([{ name: 'fd', tool: 'github:sharkdp/fd' }])
 
-      expect(result.installed).toEqual(['fd'])
-      expect(result.skipped).toHaveLength(0)
+      expect(result.skipped).toEqual(['fd'])
+      expect(result.installed).toHaveLength(0)
     })
 
     it('handles install failure gracefully', async () => {
@@ -279,9 +277,9 @@ describe('MiseService', () => {
   })
 
   describe('IPC input validation', () => {
-    it('registers IPC handlers on init', () => {
+    it('registers IPC handlers on init', async () => {
       const service = new MiseService()
-      ;(service as any).onInit()
+      await (service as any).onInit()
 
       const channels = (service as any).ipcHandle.mock.calls.map((c: any[]) => c[0])
       expect(channels).toContain('mise:install-tool')

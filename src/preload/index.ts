@@ -541,7 +541,14 @@ const api = {
     removeTool: (toolName: string) => ipcRenderer.invoke(IpcChannel.Mise_RemoveTool, toolName),
     getState: () => ipcRenderer.invoke(IpcChannel.Mise_GetState),
     searchRegistry: (query: string): Promise<Array<{ name: string; tool: string }>> =>
-      ipcRenderer.invoke(IpcChannel.Mise_SearchRegistry, query)
+      ipcRenderer.invoke(IpcChannel.Mise_SearchRegistry, query),
+    onStateChanged: (callback: (state: any) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, state: any) => callback(state)
+      ipcRenderer.on(IpcChannel.Mise_StateChanged, listener)
+      return () => {
+        ipcRenderer.off(IpcChannel.Mise_StateChanged, listener)
+      }
+    }
   },
   protocol: {
     onReceiveData: (callback: (data: { url: string; params: any }) => void) => {

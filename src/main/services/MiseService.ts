@@ -11,6 +11,7 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import predefinedTools from '@shared/data/predefined-tools.json'
 import type { MiseTool } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
+import { BrowserWindow } from 'electron'
 
 const logger = loggerService.withContext('MiseService')
 
@@ -64,6 +65,8 @@ const TOOL_KEY_RE = /^(?!.*\.\.)(?!.*\/\/)[a-zA-Z0-9@:/_.-]+$/
 
 const WRAPPER_BACKENDS = new Set(['npm', 'pipx'])
 
+const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000
+
 export function validateMiseTool(tool: MiseTool): void {
   if (!tool.name || !TOOL_NAME_RE.test(tool.name)) {
     throw new Error(`Invalid tool name: ${tool.name}`)
@@ -82,6 +85,7 @@ export class MiseService extends BaseService {
   private miseBin: string | null = null
   private isolatedEnv: Record<string, string> | null = null
   private registryCache: Array<{ name: string; tool: string }> | null = null
+  private registryCacheTime = 0
   private stateLock: Promise<unknown> = Promise.resolve()
 
   protected async onInit() {
@@ -323,6 +327,15 @@ export class MiseService extends BaseService {
     const tmp = statePath + '.tmp'
     fs.writeFileSync(tmp, JSON.stringify(state, null, 2))
     fs.renameSync(tmp, statePath)
+    this.broadcastState(state)
+  }
+
+  private broadcastState(state: MiseState) {
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) {
+        win.webContents.send(IpcChannel.Mise_StateChanged, state)
+      }
+    }
   }
 
   async reconcile(tools: MiseTool[]): Promise<ReconcileResult> {
@@ -337,7 +350,10 @@ export class MiseService extends BaseService {
       for (const tool of tools) {
         const existing = state.tools[tool.name]
         if (existing && tool.version && existing.version === tool.version) {
-          logger.info('Tool already at target version, skipping', { name: tool.name, version: tool.version })
+          result.skipped.push(tool.name)
+          continue
+        }
+        if (existing && !tool.version) {
           result.skipped.push(tool.name)
           continue
         }
@@ -389,7 +405,7 @@ export class MiseService extends BaseService {
   }
 
   private async loadRegistry(): Promise<Array<{ name: string; tool: string }>> {
-    if (this.registryCache) {
+    if (this.registryCache && Date.now() - this.registryCacheTime < REGISTRY_CACHE_TTL_MS) {
       return this.registryCache
     }
 
@@ -406,6 +422,7 @@ export class MiseService extends BaseService {
     }
 
     this.registryCache = entries
+    this.registryCacheTime = Date.now()
     return entries
   }
 
@@ -414,14 +431,9 @@ export class MiseService extends BaseService {
       return []
     }
 
-    try {
-      const registry = await this.loadRegistry()
-      const q = query.toLowerCase()
-      return registry.filter((entry) => entry.name.toLowerCase().includes(q)).slice(0, 50)
-    } catch (err) {
-      logger.error('Registry search failed', err instanceof Error ? err : new Error(String(err)))
-      return []
-    }
+    const registry = await this.loadRegistry()
+    const q = query.toLowerCase()
+    return registry.filter((entry) => entry.name.toLowerCase().includes(q)).slice(0, 50)
   }
 
   async removeTool(toolName: string): Promise<void> {
