@@ -330,6 +330,7 @@ Database service providing access to the mock SQLite database.
 | Method | Signature |
 |--------|-----------|
 | `getDb` | `() => MockDb` |
+| `withWriteTx` | `<T>(fn: (tx) => Promise<T>) => Promise<T>` (passthrough — calls `fn(db)`) |
 | `isReady` | `boolean` (getter) |
 
 ```typescript
@@ -343,6 +344,8 @@ MockMainDbServiceUtils.getDefaultMockDb()
 // Replace with custom db
 MockMainDbServiceUtils.setDb(customMockDb)
 ```
+
+> **`withWriteTx`**: passthrough (`async (fn) => fn(this.db)`) — no mutex / BUSY retry. Use `vi.spyOn(dbServiceInstance, 'withWriteTx')` to inject custom behavior. Hand-rolled DbService mocks MUST include this method or production code throws `TypeError: dbService.withWriteTx is not a function`.
 
 ---
 
