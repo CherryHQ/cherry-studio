@@ -422,6 +422,7 @@
       "id": "ollama",
       "name": "Ollama",
       "description": "Ollama - AI model provider",
+      "defaultChatEndpoint": "ollama-chat",
       "endpointConfigs": {
         "ollama-chat": {
           "baseUrl": "http://localhost:11434"

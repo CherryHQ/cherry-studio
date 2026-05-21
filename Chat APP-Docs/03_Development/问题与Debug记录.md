@@ -7,18 +7,22 @@
 
 | ID | 标题 | 复现 | 严重度 | 关联任务 | 诊断文档 |
 |---|---|---|---|---|---|
-| D-003 | Ollama 自动模型同步失败（Provider 显示 0/0 Enabled，日志 Invalid JSON response；Chat 弹窗仍搜不到 Ollama） | 启动 dev，前提是本地 ollama 正常（`ollama list` 有内容，`curl /v1/models` 正常 JSON）—— 进入 Ollama Provider 设置 / Chat Select Model 弹窗 | 🟡 non-blocking | 🩺 [T-007 D-003A](./tasks/T-007_OllamaProviderFix/) 诊断 ✅ + [D-003B](./tasks/T-007_OllamaProviderFix/) 修复 ✅（Provider 设置页通了）；🩺 [T-008 D-003C](./tasks/T-008_ChatPickerV1V2Gap/) 诊断 ✅；[T-008B 方案 B 可行性](./tasks/T-008_ChatPickerV1V2Gap/方案B评估.md) ✅ —— **~50 行 src 单文件改动，推荐直接实施，跳过 A** | [tasks/T-008_ChatPickerV1V2Gap/方案B评估.md](./tasks/T-008_ChatPickerV1V2Gap/方案B评估.md) |
+| D-004 | Ask about this / Open as branch 在 assistant 回复文本上仍 disabled | 发消息让 Ollama 回复 → 选中 assistant 文本右键 → Copy/Quote 可点；Ask/Open 灰 | 🟡 阻塞 T-006 Text Anchor 端到端测试 | 🩺 [T-009](./tasks/T-009_StreamingNotDispatchedToRedux/) 诊断完成（与 D-005 同源）；🔧 方案 A/B/C 待用户选 | [tasks/T-009_StreamingNotDispatchedToRedux/诊断.md](./tasks/T-009_StreamingNotDispatchedToRedux/诊断.md) |
+| D-005 | assistant 回复结束后底部 3 个点（BeatLoader）一直转 | 发消息让 Ollama 回复完成 → assistant 文本可见、后端 PATCH success；UI 底部仍 BeatLoader 不消失 | 🟡 影响交互（操作栏不出来 → 不能复制 / 重生 / 翻译 / 笔记 / 删除） | 🩺 [T-009](./tasks/T-009_StreamingNotDispatchedToRedux/) 诊断完成（与 D-004 同源） | [tasks/T-009_StreamingNotDispatchedToRedux/诊断.md](./tasks/T-009_StreamingNotDispatchedToRedux/诊断.md) |
+| D-006 | fresh install 默认模型仍是 CherryAI Qwen，不自动选 Ollama | `rm -rf ~/Library/Application\ Support/CherryStudioDev && pnpm dev` → 新建 topic 默认 model 是 Qwen \| CherryAI | 🟢 小毛刺，可手动切；非 baseline 阻塞 | 暂未建任务；等 v2 用户偏好 / 默认模型策略迁移时一起处理 | （无） |
+| D-007 | Regenerate 切到 Ollama 后点旧回复 refresh 无明显反应 | 切到 Ollama 模型 → 在历史 assistant 消息上点 refresh / regenerate | 🟢 候选 issue；怀疑与 D-005 的 streaming/loading 状态残留耦合 | 等 D-004/D-005 修完再复测，可能自动消失 | （无） |
 
-## 待终态确认（自动化已修，手动验证 pending）
-
-| ID | 标题 | 复现 | 关联任务 | 诊断文档 | 状态 |
-|---|---|---|---|---|---|
-| D-001 | v2 fresh install 创建 Topic 立即 FK 失败 | 删 `~/Library/Application Support/CherryStudioDev` → `pnpm dev` → 新建 topic | [T-003](./tasks/T-003_BaselineDebug/) 诊断；[T-004](./tasks/T-004_修复DefaultAssistantSentinel/) 修复 | [tasks/T-003_BaselineDebug/诊断.md](./tasks/T-003_BaselineDebug/诊断.md) | ⏳ 待 `rm + pnpm dev` 手动验证 |
-| D-002 | assistant message 写入 SQLite FK 失败（model_id='qwen' 非 UniqueModelId） | T-004 后发送任意消息 → AI 回复瞬间报 FK | [T-005A](./tasks/T-005A_AssistantMessageFK/) 诊断；[T-005B](./tasks/T-005B_修复ModelIdFK/) 修复 | [tasks/T-005A_AssistantMessageFK/诊断.md](./tasks/T-005A_AssistantMessageFK/诊断.md) | ⏳ 待 `rm + pnpm dev + 发消息` 手动验证 |
+> 注：D-006 / D-007 标 🟢 是用户明确要求**先记录、不优先修**。如 D-004/D-005 修完发现 D-007 仍存在，再单独开 task。
 
 ## 已 closed 问题
 
-（暂无）
+> 关闭判定：自动化修复 + 用户 fresh install 端到端手测确认现象消失。
+
+| ID | 标题 | 关联任务 / 修复 | 关闭日期 | 关闭依据 |
+|---|---|---|---|---|
+| D-001 | v2 fresh install 创建 Topic 立即 FK 失败 | [T-003](./tasks/T-003_BaselineDebug/) 诊断；[T-004](./tasks/T-004_修复DefaultAssistantSentinel/) 修复 — commit `15ad2eb08` | 2026-05-21 | 用户 2026-05-21 同轮 fresh install 实测 baseline FK 未复现 |
+| D-002 | assistant message 写入 SQLite FK 失败（`model_id='qwen'` 非 UniqueModelId） | [T-005A](./tasks/T-005A_AssistantMessageFK/) 诊断；[T-005B](./tasks/T-005B_修复ModelIdFK/) 修复 — commit `15ad2eb08` | 2026-05-21 | 用户 2026-05-21 同轮 fresh install 实测 gemma4:e4b 正常流式回复，无 FK 报错 |
+| D-003 | Ollama 自动模型同步失败（Provider 0/0 Enabled + Chat picker 看不到 Ollama） | D-003A 诊断 [T-007](./tasks/T-007_OllamaProviderFix/) + D-003B 修复（`providers.json` 加 `defaultChatEndpoint: "ollama-chat"`）；D-003C 诊断 [T-008](./tasks/T-008_ChatPickerV1V2Gap/) + 评估 [T-008B](./tasks/T-008_ChatPickerV1V2Gap/方案B评估.md) + 实施 [T-008C](./tasks/T-008C_ChatPickerV2Migration/)（chat-model-popup 切 v2 + CHERRYAI fallback） | 2026-05-21 | 用户 2026-05-21 fresh install 实测：Ollama Provider 同步模型 ✅、Chat picker 可选 Ollama ✅、gemma4:e4b 正常生成 assistant 回复 ✅ |
 
 ## 命名约定
 
@@ -40,10 +44,12 @@
 > **D-003A 诊断完成**：2026-05-21（T-007）
 > **D-003B 修复实施**：2026-05-21（T-007）—— `providers.json:425` 加 `"defaultChatEndpoint": "ollama-chat"`，自动化校验过，用户 fresh install 验证 Provider 设置页 ✅
 > **D-003C 诊断完成**：2026-05-21（T-008）—— Chat 弹窗仍读 v1 Redux，与 v2 DataApi 无桥接；CherryAI 显示是 selector 硬编码
-> **T-008B 方案 B 可行性确认**：2026-05-21 —— 重新评估后只需改 **1 个文件 ~50 行**（chat-model-popup.tsx）+ 重写测试，复用现成 `toV1ProviderShim`/`toV1ModelShim`，下游 0 改动。**比方案 A（双写桥）更干净，推荐直接走 B**
-> **状态**：🩺 D-003A/C 诊断 ✅；🔧 D-003B 修复 ✅（部分）；⏳ D-003C 待用户拍板实施 B
-> **完整诊断**：[T-007 D-003A/B](./tasks/T-007_OllamaProviderFix/诊断.md) + [T-008 D-003C](./tasks/T-008_ChatPickerV1V2Gap/诊断.md) + [T-008B 方案 B 评估](./tasks/T-008_ChatPickerV1V2Gap/方案B评估.md)
-> **手测步骤**：[T-007 验证](./tasks/T-007_OllamaProviderFix/验证.md)
+> **T-008B 方案 B 可行性确认**：2026-05-21 —— 实际只需改 1 文件 ~50 行
+> **T-008C 方案 B 实施完成**：2026-05-21 —— `chat-model-popup.tsx` 数据源切 v2 + CHERRYAI fallback 保留；下游 0 改动；自动化 98/98 ✅
+> **D-003 端到端手测通过**：2026-05-21 —— Provider 同步 ✅、Chat picker 可选 Ollama ✅、gemma4:e4b 正常生成 assistant 回复 ✅；同轮顺带验过 D-001/D-002 baseline FK 不复现
+> **状态**：✅ **D-003 已 closed**（A/B/C 三段全部修复 + 手测通过）
+> **完整诊断/实施**：[T-007](./tasks/T-007_OllamaProviderFix/) + [T-008](./tasks/T-008_ChatPickerV1V2Gap/) + [T-008C](./tasks/T-008C_ChatPickerV2Migration/)
+> **手测步骤**（历史参考）：[T-007 验证](./tasks/T-007_OllamaProviderFix/验证.md) + [T-008C 验证](./tasks/T-008C_ChatPickerV2Migration/验证.md)
 
 ### 现象（用户观察，未代码验证）
 

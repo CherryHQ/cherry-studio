@@ -1,7 +1,7 @@
 # T-007 Ollama Provider 自动模型同步失败诊断（D-003A）+ 修复（D-003B）
 
-**关联 issue**：D-003
-**状态**：🩺 D-003A 诊断 ✅；🔧 D-003B 修复 ✅ + 自动化 ✅ + 用户 fresh install Provider 设置页验证 ✅；⚠️ **Chat 弹窗仍未通 → 已剥离为 [T-008 D-003C](../T-008_ChatPickerV1V2Gap/) 单独跟进**
+**关联 issue**：D-003（已 closed 2026-05-21）
+**状态**：✅ **已完成** —— D-003A 诊断 + D-003B `providers.json` 修复 + 自动化 + 用户 fresh install 端到端验证全部通过；Chat 弹窗剩余问题在 [T-008C](../T-008C_ChatPickerV2Migration/) 同日修复并一起验过
 **记录日期**：2026-05-21
 
 ## 文件
