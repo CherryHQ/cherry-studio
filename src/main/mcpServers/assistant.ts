@@ -3,10 +3,13 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import appService from '@main/services/AppService'
+import { configManager } from '@main/services/ConfigManager'
 import { themeService } from '@main/services/ThemeService'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
+import type { LanguageVarious } from '@types'
 import { ThemeMode } from '@types'
 import { app } from 'electron'
 
@@ -80,29 +83,124 @@ const DIAGNOSE_TOOL: Tool = {
   }
 }
 
-// Whitelist of settings Cherry Assistant can write directly. Each entry maps a
-// `setting` key to its allowed `value` enum. Settings not in this map are
-// rejected — adding a new one requires explicit code change so a destructive
-// or sensitive setting can never be flipped via prompt injection.
-const APPLY_SETTING_ALLOWED: Record<string, readonly string[]> = {
-  theme: [ThemeMode.light, ThemeMode.dark, ThemeMode.system]
+// Whitelist of settings Cherry Assistant can write directly. Each entry binds
+// a `setting` key to a value validator and an `apply` function that performs
+// the write. Settings not in this map are rejected — adding a new one
+// requires explicit code change so a destructive or sensitive setting can
+// never be flipped via prompt injection.
+//
+// All booleans are passed as the string 'true' / 'false' (MCP tool inputs
+// are JSON Schema strings); the handler parses them. Returns the message
+// shown back to the agent (and through it, the user).
+interface ApplySettingEntry {
+  allowed: readonly string[]
+  apply: (value: string) => Promise<string> | string
+  /** Human-readable hint shown in the tool description. */
+  hint: string
+}
+
+// Supported UI languages (must stay in sync with src/renderer/src/i18n/).
+const SUPPORTED_LANGUAGES: readonly string[] = [
+  'en-US',
+  'zh-CN',
+  'zh-TW',
+  'ja-JP',
+  'fr-FR',
+  'de-DE',
+  'es-ES',
+  'pt-PT',
+  'ru-RU',
+  'ro-RO',
+  'el-GR',
+  'vi-VN'
+]
+
+const BOOL_VALUES: readonly string[] = ['true', 'false']
+const parseBool = (v: string) => v === 'true'
+
+const APPLY_SETTING_REGISTRY: Record<string, ApplySettingEntry> = {
+  theme: {
+    allowed: [ThemeMode.light, ThemeMode.dark, ThemeMode.system],
+    hint: 'theme: light | dark | system',
+    apply: (value) => {
+      themeService.setTheme(value as ThemeMode)
+      return `Theme switched to ${value}.`
+    }
+  },
+  language: {
+    allowed: SUPPORTED_LANGUAGES,
+    hint: `language: ${SUPPORTED_LANGUAGES.join(' | ')}`,
+    apply: (value) => {
+      configManager.setLanguage(value as LanguageVarious)
+      return `UI language switched to ${value}. Already-open pages may need a refresh to fully re-render.`
+    }
+  },
+  tray: {
+    allowed: BOOL_VALUES,
+    hint: 'tray: true | false (show menu-bar / system-tray icon)',
+    apply: (value) => {
+      configManager.setTray(parseBool(value))
+      return `Tray icon ${parseBool(value) ? 'enabled' : 'disabled'}.`
+    }
+  },
+  launch_to_tray: {
+    allowed: BOOL_VALUES,
+    hint: 'launch_to_tray: true | false (start the app hidden in the tray)',
+    apply: (value) => {
+      configManager.setLaunchToTray(parseBool(value))
+      return `Launch-to-tray ${parseBool(value) ? 'enabled' : 'disabled'}.`
+    }
+  },
+  tray_on_close: {
+    allowed: BOOL_VALUES,
+    hint: 'tray_on_close: true | false (clicking close minimizes to tray instead of quitting)',
+    apply: (value) => {
+      configManager.setTrayOnClose(parseBool(value))
+      return `Tray-on-close ${parseBool(value) ? 'enabled' : 'disabled'}.`
+    }
+  },
+  auto_update: {
+    allowed: BOOL_VALUES,
+    hint: 'auto_update: true | false (download updates automatically in the background)',
+    apply: (value) => {
+      // Note: only persists the preference. The AppUpdater instance (created
+      // in ipc.ts) is not a shared singleton, so it won't re-evaluate its
+      // schedule until app restart. Acceptable trade-off — the next launch
+      // honors the new setting.
+      configManager.setAutoUpdate(parseBool(value))
+      return `Auto-update preference set to ${parseBool(value) ? 'on' : 'off'}. Takes effect on next app restart.`
+    }
+  },
+  launch_on_boot: {
+    allowed: BOOL_VALUES,
+    hint: 'launch_on_boot: true | false (start Cherry Studio when you log into the OS)',
+    apply: async (value) => {
+      await appService.setAppLaunchOnBoot(parseBool(value))
+      return `Launch-on-boot ${parseBool(value) ? 'enabled' : 'disabled'}.`
+    }
+  }
 }
 
 const APPLY_SETTING_TOOL: Tool = {
   name: 'apply_setting',
-  description:
-    'Apply a low-risk Cherry Studio setting change directly (e.g. switch theme). The change takes effect immediately — no further user click required. Only a small whitelist is allowed; destructive operations (clearing data, deleting providers, resetting config) are NEVER exposed here and must still be done by the user in the UI. Currently supported: theme (light|dark|system).',
+  description: `Apply a low-risk Cherry Studio setting change directly — takes effect immediately, no further user click. Only the whitelist below is supported; destructive operations (clearing data, deleting providers, resetting config) are NEVER exposed here and must still be done by the user in the UI.
+
+Supported settings:
+${Object.values(APPLY_SETTING_REGISTRY)
+  .map((e) => `- ${e.hint}`)
+  .join('\n')}`,
   inputSchema: {
     type: 'object',
     properties: {
       setting: {
         type: 'string',
-        enum: Object.keys(APPLY_SETTING_ALLOWED),
-        description: 'Which setting to change. Currently only "theme" is supported.'
+        enum: Object.keys(APPLY_SETTING_REGISTRY),
+        description: 'Which setting to change.'
       },
       value: {
         type: 'string',
-        description: 'New value. Must be valid for the chosen setting (theme → light/dark/system).'
+        description:
+          'New value. For booleans use the literal strings "true" or "false". See tool description for allowed values per setting.'
       }
     },
     required: ['setting', 'value']
@@ -202,30 +300,24 @@ class AssistantServer {
     if (!setting) throw new McpError(ErrorCode.InvalidParams, "'setting' is required for apply_setting")
     if (!value) throw new McpError(ErrorCode.InvalidParams, "'value' is required for apply_setting")
 
-    const allowedValues = APPLY_SETTING_ALLOWED[setting]
-    if (!allowedValues) {
+    const entry = APPLY_SETTING_REGISTRY[setting]
+    if (!entry) {
       throw new McpError(
         ErrorCode.InvalidParams,
-        `Setting '${setting}' is not on the apply_setting whitelist. Allowed: ${Object.keys(APPLY_SETTING_ALLOWED).join(', ')}`
+        `Setting '${setting}' is not on the apply_setting whitelist. Allowed: ${Object.keys(APPLY_SETTING_REGISTRY).join(', ')}`
       )
     }
-    if (!allowedValues.includes(value)) {
+    if (!entry.allowed.includes(value)) {
       throw new McpError(
         ErrorCode.InvalidParams,
-        `Value '${value}' is not valid for setting '${setting}'. Allowed: ${allowedValues.join(', ')}`
+        `Value '${value}' is not valid for setting '${setting}'. Allowed: ${entry.allowed.join(', ')}`
       )
     }
 
-    switch (setting) {
-      case 'theme':
-        themeService.setTheme(value as ThemeMode)
-        logger.info('apply_setting: theme applied', { value })
-        return {
-          content: [{ type: 'text' as const, text: `Theme switched to ${value}. Change applied immediately.` }]
-        }
-      default:
-        // Unreachable — covered by allowedValues check above
-        throw new McpError(ErrorCode.InvalidParams, `apply_setting handler missing for '${setting}'`)
+    const message = await entry.apply(value)
+    logger.info('apply_setting succeeded', { setting, value })
+    return {
+      content: [{ type: 'text' as const, text: message }]
     }
   }
 
