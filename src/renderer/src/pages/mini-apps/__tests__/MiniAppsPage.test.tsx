@@ -1,3 +1,4 @@
+import type * as CherryStudioUI from '@cherrystudio/ui'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
@@ -65,34 +66,26 @@ vi.mock('@renderer/hooks/useNavbar', () => ({
   })
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({
-    children,
-    disabled,
-    onClick,
-    ...props
-  }: React.PropsWithChildren<{ disabled?: boolean; onClick?: () => void }>) => (
-    <button {...props} disabled={disabled} type="button" onClick={onClick}>
-      {children}
-    </button>
-  ),
-  EmptyState: ({ title }: { title: string }) => <div>{title}</div>,
-  SearchInput: ({ value, onChange, placeholder }: React.ComponentProps<'input'>) => (
-    <input type="search" placeholder={placeholder} value={value} onChange={onChange} />
-  ),
-  ContextMenu: ({ children }: React.PropsWithChildren) => <div data-testid="context-menu">{children}</div>,
-  ContextMenuTrigger: ({ children }: React.PropsWithChildren<{ asChild?: boolean }>) => (
-    <div data-testid="context-menu-trigger">{children}</div>
-  ),
-  ContextMenuContent: ({ children }: React.PropsWithChildren) => (
-    <div data-testid="context-menu-content">{children}</div>
-  ),
-  ContextMenuItem: ({ children, onSelect }: React.PropsWithChildren<{ onSelect?: () => void }>) => (
-    <button data-testid="context-menu-item" type="button" onClick={onSelect}>
-      {children}
-    </button>
-  )
-}))
+vi.mock('@cherrystudio/ui', async () => {
+  const actual = await vi.importActual<typeof CherryStudioUI>('@cherrystudio/ui')
+
+  return {
+    ...actual,
+    EmptyState: ({ title }: { title: string }) => <div>{title}</div>,
+    ContextMenu: ({ children }: React.PropsWithChildren) => <div data-testid="context-menu">{children}</div>,
+    ContextMenuTrigger: ({ children }: React.PropsWithChildren<{ asChild?: boolean }>) => (
+      <div data-testid="context-menu-trigger">{children}</div>
+    ),
+    ContextMenuContent: ({ children }: React.PropsWithChildren) => (
+      <div data-testid="context-menu-content">{children}</div>
+    ),
+    ContextMenuItem: ({ children, onSelect }: React.PropsWithChildren<{ onSelect?: () => void }>) => (
+      <button data-testid="context-menu-item" type="button" onClick={onSelect}>
+        {children}
+      </button>
+    )
+  }
+})
 
 vi.mock('@renderer/components/app/Navbar', () => ({
   Navbar: ({ children }: React.PropsWithChildren) => <div data-testid="navbar">{children}</div>,

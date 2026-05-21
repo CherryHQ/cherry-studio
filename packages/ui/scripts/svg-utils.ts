@@ -48,11 +48,14 @@ export function toCamelCase(filename: string): string {
  * the rendered logo ends up only filling ~40% of the visible container.
  *
  * This helper unions the bounding boxes of every `<path d="...">` and `<rect>`
- * element in the file, then rewrites the root viewBox to that union (plus a
- * tiny 1-unit margin so strokes don't get clipped).
+ * element in the file. When `minimumFrameRatio` is provided, it expands that
+ * union to include a centered minimum frame before the coverage check, so
+ * icons keep intentional internal spacing instead of tightening purely to the
+ * visible content. It then rewrites the root viewBox to the final bounds (plus
+ * a tiny 1-unit margin so strokes don't get clipped).
  *
  * Returns the original code unchanged if it can't find a viewBox, has no
- * visible geometry, or the computed bbox is already a good fit (>95% coverage).
+ * visible geometry, or the final bounds are already a good fit (>95% coverage).
  */
 export function tightenSvgViewBox(svgCode: string, options: { minimumFrameRatio?: number } = {}): string {
   const vbMatch = svgCode.match(/<svg[^>]*\bviewBox="([^"]+)"/)
