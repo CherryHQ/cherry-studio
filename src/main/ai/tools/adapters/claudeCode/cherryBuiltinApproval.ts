@@ -61,11 +61,15 @@ export const CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES: readonly string[] = [
 ]
 
 /**
- * Assistant MCP tools safe to auto-approve for local Cherry Assistant sessions: `navigate` only,
- * which emits a clickable link the user must click themselves. `diagnose` reads local machine data
+ * Assistant MCP tools safe to auto-approve for local Cherry Assistant sessions: `navigate`, which
+ * emits a clickable link the user must click themselves, and `apply_setting`, whose implementation
+ * is limited to a hard-coded whitelist of low-risk reversible settings. `diagnose` reads local machine data
  * (logs, source files, config, host info) and MUST go through per-call approval — the Assistant
  * also reads untrusted web/KB content, and auto-approved web_fetch would complete a prompt-injection
  * exfiltration chain (untrusted page → diagnose → web_fetch). Never widen this to a
  * `mcp__assistant__` prefix or wildcard; a future assistant tool must opt in here explicitly.
  */
-export const ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES: readonly string[] = ['mcp__assistant__navigate']
+export const ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES: readonly string[] = [
+  'mcp__assistant__navigate',
+  'mcp__assistant__apply_setting'
+]

@@ -119,7 +119,12 @@ describe('adjustAllowedToolsForMcp', () => {
   it('additionally lists only the navigate assistant tool for the Cherry Assistant', () => {
     const allowed = adjustAllowedToolsForMcp(true)
     expect(allowed).toEqual(
-      expect.arrayContaining(['mcp__cherry-tools__kb_search', 'mcp__cherry-tools__kb_list', 'mcp__assistant__navigate'])
+      expect.arrayContaining([
+        'mcp__cherry-tools__kb_search',
+        'mcp__cherry-tools__kb_list',
+        'mcp__assistant__navigate',
+        'mcp__assistant__apply_setting'
+      ])
     )
     expect(allowed).not.toContain('mcp__cherry-tools__kb_manage')
     expect(allowed).not.toContain('mcp__cherry-tools__*')
