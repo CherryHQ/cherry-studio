@@ -74,12 +74,7 @@ No cross-migrator shared state is published: per migration-plan §2.9 the v1 fil
 
 ## Idempotency
 
-The migrator is safe to re-run. Two layers of protection:
-
-1. **Engine layer**: `MigrationEngine.verifyAndClearNewTables` clears `file_ref` and `file_entry` before each run, so retries start from a clean slate.
-2. **Migrator layer (belt-and-braces)**: `execute()` checks `file_entry.id` for each prepared row before insert and skips rows already present, so a partial migration that somehow left rows behind doesn't crash on the UNIQUE constraint.
-
-Because the v1 id is preserved verbatim, the engine-layer clear is the dominant invariant; the migrator-layer check is defence in depth.
+The migrator is safe to re-run. `MigrationEngine.verifyAndClearNewTables` clears `file_ref` and `file_entry` before each run, so `execute()` always starts from empty tables. The v1 id is preserved verbatim, so the engine-layer clear is the sole invariant — no `onConflict` guard or per-row pre-check is needed at the migrator layer.
 
 ## Validate Behavior
 
