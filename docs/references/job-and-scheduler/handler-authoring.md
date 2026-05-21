@@ -2,6 +2,31 @@
 
 Phase 1 ship guarantees this doc has five sections. Further worked examples (retry / singleton recovery, failure-rate breaker, business-level mutex) are backported during Phase 2-4 business migrations to avoid speculative code that bit-rots before a real consumer appears.
 
+## Registration timing
+
+Handlers MUST be registered in the owning service's `onInit`. JobManager's [Startup Recovery](./overview.md#startup-recovery) is scheduled inside JobManager's own `onAllReady` (a `setTimeout` whose 60 s "quiet window" then expires) and walks `this.handlers` when the timer fires. **What matters is not the 60 s — it's whether your registration happens before or after JobManager's `onAllReady` hook is invoked.**
+
+`onInit` runs during phase initialization, which the framework completes for every service *before* it starts invoking any `onAllReady` hook. So a registration inside `onInit` is guaranteed to be in `this.handlers` by the time JobManager schedules recovery, regardless of phase or service order.
+
+```typescript
+// ✅ Correct — onInit finishes for every service before any onAllReady fires.
+protected override async onInit(): Promise<void> {
+  this.registerIpcHandlers()
+  application.get('JobManager').registerHandler('agent.task', agentTaskJobHandler)
+}
+
+// ❌ Unsafe — your onAllReady fires in parallel with JobManager's. Whether
+//             your registerHandler lands before JobManager schedules its
+//             setTimeout is undefined order. Even if you "win" the race, no
+//             future code change can rely on it; reviewers will assume the
+//             registry was complete by the start of `allReady`.
+protected override onAllReady(): void {
+  application.get('JobManager').registerHandler('agent.task', agentTaskJobHandler)
+}
+```
+
+The race is not about the 60 s being "not enough" — by the time the timer fires, every service's `onAllReady` synchronous body has long since run. The race is about **the registration's position relative to JobManager's `onAllReady` scheduling the timer**. Registering in `onInit` puts you before `allReady` even starts; registering in `onAllReady` puts you in an unordered set of peer hooks. The framework cannot enforce this — registration in `onAllReady` will not throw, it will just leak non-terminal rows of unregistered types to `cancelled` whenever JobManager observes the registry first.
+
 ## 1. dummy.echo (minimal handler)
 
 ```typescript
@@ -92,6 +117,17 @@ Pass an explicit name on multi-instance types — relying on "exactly one row" a
 | **retry** | running → pending on startup; delayed kept as-is. Missed fires emit `onMissed` only. | Same as left, PLUS enqueue make-up after N min. |
 | **singleton** | Keep newest non-terminal, cancel the rest. Missed fires emit `onMissed` only. | Same as left, PLUS enqueue make-up after N min (joins the single-instance slot when free). |
 
+### Recovery internals
+
+A few invariants govern recovery decisions; the matrix above abstracts over them, but consumers occasionally need to debug startup behaviour and these knobs surface in logs and tests.
+
+- **`singleton` keeps the *newest* row, not the oldest.** Rows are ordered `createdAt DESC`; the head is kept (`running` rows are reset to `pending`), the tail is cancelled. Consequence: a long-running singleton interrupted by a crash will be resumed (after `recovery: 'retry'`/`'singleton'` reset) rather than restarted, while stragglers from earlier runs get cleaned up. There is no "oldest wins" tiebreaker.
+- **`cancelRequested=true` overrides every strategy.** A row with the cancel flag set is always cancelled at startup, regardless of `recovery`, `singleton`, or whether it was running / pending / delayed. This protects against process crashes that interrupted a cancellation in-flight — the user's intent persists across the restart.
+- **`isScheduleOverdue` has three branches** (relevant when picking `catchUpPolicy: 'after-startup'`):
+  - **`cron`** triggers compare `nextRun ≤ now()` from the persisted column.
+  - **`interval`** triggers compare `lastRun + intervalMs ≤ now()` (SchedulerService does not maintain `nextRun` for interval schedules — `lastRun` is the canonical anchor).
+  - **`once`** triggers are never considered overdue: the timer is either still pending (it will fire) or has already fired and the schedule has self-cleaned. Make-up enqueues for `once` would double-fire, so the branch returns `false` unconditionally.
+
 ## 5. Error codes (renderer maps via i18next)
 
 | Code | Origin | Retryable | Meaning |
@@ -109,6 +145,10 @@ Pass an explicit name on multi-instance types — relying on "exactly one row" a
 | `JOB_CANCELLED` | recovery / cancel | no | Job cancelled by user, recovery, or shutdown |
 
 Renderer: `t(\`errors.jobs.${code.toLowerCase()}\`, params)`.
+
+### Timeout sentinel
+
+`JOB_HANDLER_TIMEOUT` is dispatched by aborting the handler's `AbortController` with a `JobHandlerTimeoutError` sentinel (a dedicated `Error` subclass), not by matching the message string. This means a handler that throws a plain `new Error('request timeout')` is classified as `JOB_HANDLER_THREW`, not `JOB_HANDLER_TIMEOUT` — the dispatcher only trusts the abort reason, not text. Consumers therefore don't need to worry about accidentally triggering the "timeout" branch when their own error happens to mention the word.
 
 ## 6. Handler organization convention
 

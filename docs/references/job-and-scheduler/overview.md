@@ -47,6 +47,38 @@ Spawning happens *outside* the mutex — the handler executes for seconds/minute
 
 Terminal states (`completed` / `failed` / `cancelled`) are never reopened. Retry re-enters `delayed` then transitions back to `pending` when scheduledAt elapses.
 
+## Startup Recovery
+
+Startup recovery is JobManager's deferred sweep that reconciles the DB-driven state machine with the freshly booted process. It is service-level business work, **not** a bootstrap initialization side effect — see [onAllReady business work pattern](../lifecycle/lifecycle-usage.md#onallready-business-work-pattern) for the framework-level rationale.
+
+**Sequence**
+
+1. `JobManager.onAllReady()` schedules a `setTimeout` with a 60-second "quiet window" and returns synchronously. `LifecycleManager.allReady()` is fire-and-forget; bootstrap is not blocked.
+2. After 60 s, the timer callback assigns the recovery flow promise to `this._recoveryDone` (only if shutdown has not been requested) and the flow starts running.
+3. The flow runs four IO steps in order:
+   1. `runStartupRecovery(handlers)` — resets non-terminal rows per handler recovery strategy (`abandon` / `retry` / `singleton`); `cancelRequested=true` overrides every strategy.
+   2. **Resurrect queues** — walks distinct `(queue, type)` pairs over non-terminal rows and ensures a `DispatchQueue` exists for each. Without this step `dispatchAll` would iterate an empty `queues` map and pending rows would wait until the next `enqueue`.
+   3. **Catch-up THEN arm** — calls `detectAndDispatchOverdue(schedules)` *before* `armSchedule(schedule)` for every enabled schedule. The order is load-bearing: if we armed first, a cron with `protect: true` could fire its natural calendar concurrently with a catch-up enqueue (`protect` only blocks overlapping callbacks, not external callers). Sequencing catch-up first guarantees the make-up enqueue lands before croner's first natural fire.
+   4. `dispatchAll()` kicks every per-queue pump so pending rows reset by step 1 start running immediately rather than waiting on the next enqueue.
+
+**The 60 s quiet window**
+
+The delay (`JOB_MANAGER_STARTUP_DELAY_MS = 60_000`, hardcoded) gives cold-start IO — DB warm-up, window paints, client bootstrap — time to settle before scheduled work piles on. Tests bypass it via `vi.useFakeTimers + advanceTimersByTimeAsync(60_000)`, then await `_recoveryDone`.
+
+**Shutdown safety — three layers**
+
+The flow can be interrupted at any point by `onStop`. Three mechanisms cooperate:
+
+| Window | Defence |
+|---|---|
+| Quiet window (timer not yet fired) | `registerDisposable(() => clearTimeout(handle))` clears the timer during `_cleanupDisposables`; the callback also re-checks `_isShuttingDown` so a teardown that races with `clearTimeout` is still safe. |
+| Flow mid-flight | Every IO step re-checks `_isShuttingDown` before the next `await`, returning early on shutdown. |
+| Flow already started | `onStop` awaits `this._recoveryDone` before tearing down resources, so the current step finishes gracefully before queues, abort controllers, and disposables are released. |
+
+**Handler registration timing**
+
+Handlers must be registered in the owning service's `onInit` (see [handler-authoring.md — Registration Timing](./handler-authoring.md#registration-timing)). By the time the 60-second timer fires every consumer has finished `onInit` / `onReady`, so `runStartupRecovery` sees the full handler set. Registering a handler from another service's `onAllReady` is unsafe: that hook runs in parallel with JobManager's, and any non-terminal job for an unregistered type during recovery gets treated as an orphan and cancelled.
+
 ## Why DB-driven and not in-memory queue?
 
 We considered BullMQ / bee-queue / better-queue / agenda / graphile-worker / bree etc. and selected this design because:

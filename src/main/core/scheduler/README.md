@@ -44,6 +44,6 @@ disp.dispose()                    // or
 scheduler.unregister('my.cleanup')
 ```
 
-**No persistence** — SchedulerService re-arms nothing on startup. JobManager re-registers all `jobScheduleTable` rows on its own `onReady`. Direct consumers must re-register their schedules in their own service's `onReady`.
+**No persistence** — SchedulerService re-arms nothing on startup. JobManager re-registers all `jobScheduleTable` rows during its deferred [Startup Recovery](../../../../docs/references/job-and-scheduler/overview.md#startup-recovery), which is scheduled inside JobManager's `onAllReady` and runs ~60 s later. Direct consumers must re-register their schedules in their own service's `onReady`.
 
 See [Scheduler Usage](../../../../docs/references/job-and-scheduler/scheduler-usage.md) for the full decision tree.
