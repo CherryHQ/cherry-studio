@@ -62,6 +62,7 @@ import { buildNamespacedToolCallId } from './claude-stream-state'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
 import { with1mContextSuffix } from './utils'
+import { applyWorkspaceRoot } from './workspace'
 
 const require_ = createRequire(import.meta.url)
 const logger = loggerService.withContext('ClaudeCodeService')
@@ -266,6 +267,8 @@ class ClaudeCodeService implements AgentServiceInterface {
         }
       }
     }
+
+    applyWorkspaceRoot(env, cwd)
 
     const errorChunks: string[] = []
 
@@ -621,10 +624,10 @@ class ClaudeCodeService implements AgentServiceInterface {
       }
     }
 
-    if (soulEnabled && !isAssistant) {
-      // ClawServer brings cron + channel tools used by CherryClaw autonomous agents.
-      // Cherry Assistant enables Soul mode for persona memory only — it is not a
-      // CherryClaw runtime, so do not inject the claw MCP for it.
+    if (soulEnabled) {
+      // ClawServer brings cron + channel tools (CherryClaw autonomous runtime).
+      // Cherry Assistant runs as a general assistant with Soul memory AND those
+      // tools available, so it can drive scheduled tasks and IM channels too.
       // Find the channel that owns this session (if any) for context-aware cron defaults
       const sourceChannelId = await this.resolveSourceChannel(session.agent_id, session.id)
       const clawServer = new ClawServer(session.agent_id, sourceChannelId)
