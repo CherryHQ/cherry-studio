@@ -205,21 +205,23 @@ export function GlobalMessageSearchRow({
 
   if (item.kind === 'more') {
     return (
-      <button
-        type="button"
-        role="option"
-        aria-selected={active}
-        onMouseEnter={onMouseEnter}
-        onClick={onOpen}
-        className={cn(
-          'mx-5 mb-1 flex h-8 w-[calc(100%-2.5rem)] items-center gap-1 rounded-[8px] py-0 pr-3 pl-8 text-left font-medium text-xs transition-colors',
-          active
-            ? 'bg-muted/60 text-accent-foreground'
-            : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
-        )}>
-        <span>{t('globalSearch.messageSearch.more', { count: item.remainingCount })}</span>
-        <ChevronDown className="size-4" />
-      </button>
+      <div className="h-9 pt-1">
+        <button
+          type="button"
+          role="option"
+          aria-selected={active}
+          onMouseEnter={onMouseEnter}
+          onClick={onOpen}
+          className={cn(
+            'mx-5 flex h-8 w-[calc(100%-2.5rem)] items-center gap-1 rounded-lg py-0 pr-3 pl-8 text-left font-medium text-xs transition-colors',
+            active
+              ? 'bg-muted/60 text-accent-foreground'
+              : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
+          )}>
+          <span>{t('globalSearch.messageSearch.more', { count: item.remainingCount })}</span>
+          <ChevronDown className="size-4" />
+        </button>
+      </div>
     )
   }
 

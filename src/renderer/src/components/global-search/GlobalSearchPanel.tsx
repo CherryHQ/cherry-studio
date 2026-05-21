@@ -260,7 +260,6 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
     () => ({
       q: deferredQuery,
       types: searchTypes,
-      limitPerType: 10,
       ...(updatedAtFrom ? { updatedAtFrom } : {})
     }),
     [deferredQuery, searchTypes, updatedAtFrom]
@@ -909,8 +908,11 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
               role="listbox"
               groups={messageVirtualGroups}
               estimateGroupHeaderSize={() => 32}
-              estimateItemSize={() => 44}
-              className="pt-1 pb-2"
+              estimateItemSize={(item) => {
+                if (item.kind === 'more') return 36
+                return 44
+              }}
+              className="pt-2 pb-2"
               renderGroupHeader={(group) => <GlobalMessageSearchGroupHeader group={group} />}
               renderItem={(item) => (
                 <GlobalMessageSearchRow

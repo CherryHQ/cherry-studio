@@ -8,9 +8,6 @@
 
 import * as z from 'zod'
 
-export const GLOBAL_SEARCH_DEFAULT_LIMIT_PER_TYPE = 5
-export const GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE = 20
-
 export const GlobalSearchTypeSchema = z.enum(['assistant', 'agent', 'topic', 'session', 'knowledge-base'])
 export type GlobalSearchType = z.infer<typeof GlobalSearchTypeSchema>
 
@@ -18,12 +15,7 @@ export const GlobalSearchQuerySchema = z.strictObject({
   q: z.string().trim().min(1),
   types: z.array(GlobalSearchTypeSchema).min(1).optional(),
   updatedAtFrom: z.iso.datetime().optional(),
-  limitPerType: z.coerce
-    .number()
-    .int()
-    .positive()
-    .max(GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE)
-    .default(GLOBAL_SEARCH_DEFAULT_LIMIT_PER_TYPE)
+  limitPerType: z.coerce.number().int().positive().optional()
 })
 export type GlobalSearchQueryParams = z.input<typeof GlobalSearchQuerySchema>
 export type GlobalSearchQuery = z.output<typeof GlobalSearchQuerySchema>

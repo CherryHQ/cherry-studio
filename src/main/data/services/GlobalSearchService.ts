@@ -12,6 +12,7 @@ import type {
 } from '@shared/data/api/schemas/globalSearch'
 
 const GLOBAL_SEARCH_TYPES: GlobalSearchType[] = ['assistant', 'agent', 'topic', 'session', 'knowledge-base']
+const GLOBAL_SEARCH_DEFAULT_LIMIT_PER_TYPE = 50
 
 function getUpdatedAtFromMs(updatedAtFrom: string | undefined): number | undefined {
   if (!updatedAtFrom) return undefined
@@ -30,12 +31,13 @@ export class GlobalSearchService {
     const requestedTypes = new Set(query.types ?? GLOBAL_SEARCH_TYPES)
     const types = GLOBAL_SEARCH_TYPES.filter((type) => requestedTypes.has(type))
     const updatedAtFromMs = getUpdatedAtFromMs(query.updatedAtFrom)
+    const limit = query.limitPerType ?? GLOBAL_SEARCH_DEFAULT_LIMIT_PER_TYPE
 
     const groups = await Promise.all(
       types.map(
         async (type): Promise<GlobalSearchGroup> => ({
           type,
-          items: await this.searchType(type, query.q, query.limitPerType, updatedAtFromMs)
+          items: await this.searchType(type, query.q, limit, updatedAtFromMs)
         })
       )
     )
