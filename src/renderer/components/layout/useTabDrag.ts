@@ -3,9 +3,11 @@ import type { Tab } from '@renderer/hooks/useTabs'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { applyHorizontalRubberBandTranslateX } from './tabDragRubberBand'
 const DRAG_THRESHOLD = 5
 const DETACH_THRESHOLD = 30
 const TAB_GAP = 6
+const TAB_DRAG_SAFE_INSET = 16
 
 type DragMode = 'pending' | 'reorder' | 'detach'
 
@@ -27,6 +29,8 @@ interface UseTabDragOptions {
 
 export interface UseTabDragReturn {
   tabBarRef: React.RefObject<HTMLDivElement | null>
+  tabListRef: React.RefObject<HTMLDivElement | null>
+  addTabButtonRef: React.RefObject<HTMLButtonElement | null>
   tabRefs: React.MutableRefObject<Map<string, HTMLButtonElement>>
   noTransition: boolean
   getTranslateX: (tabId: string, tabType: 'pinned' | 'normal') => number
@@ -60,7 +64,7 @@ export function useTabDrag({
     tabType: 'normal' as 'pinned' | 'normal',
     detachedCreated: false,
     tabClosed: false,
-    originalRects: new Map<string, { left: number; width: number }>(),
+    originalRects: new Map<string, DOMRectReadOnly>(),
     grabOffsetX: 0,
     grabOffsetY: 0
   })
@@ -69,6 +73,8 @@ export function useTabDrag({
   const didDragRef = useRef(false)
 
   const tabBarRef = useRef<HTMLDivElement>(null)
+  const tabListRef = useRef<HTMLDivElement>(null)
+  const addTabButtonRef = useRef<HTMLButtonElement>(null)
   const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
   const rafId = useRef<number | null>(null)
 
@@ -110,7 +116,21 @@ export function useTabDrag({
       const { insertIndex } = dragState
 
       if (tabId === dragState.tabId) {
-        return dragRef.current.currentX - dragRef.current.startX
+        const translateX = dragRef.current.currentX - dragRef.current.startX
+        const draggedRect = dragRef.current.originalRects.get(tabId)
+        const boundaryRect = tabListRef.current?.getBoundingClientRect()
+
+        if (!draggedRect || !boundaryRect) {
+          return translateX
+        }
+
+        const addTabButtonWidth = addTabButtonRef.current?.getBoundingClientRect().width ?? 0
+        const addTabButtonInset = addTabButtonWidth > 0 ? addTabButtonWidth + TAB_GAP : 0
+
+        return applyHorizontalRubberBandTranslateX(translateX, draggedRect, boundaryRect, {
+          leftInset: TAB_DRAG_SAFE_INSET,
+          rightInset: TAB_DRAG_SAFE_INSET + addTabButtonInset
+        })
       }
 
       const draggedRect = dragRef.current.originalRects.get(dragState.tabId)
@@ -141,12 +161,11 @@ export function useTabDrag({
       target.setPointerCapture(e.pointerId)
 
       // Store original positions of all tabs
-      const originalRects = new Map<string, { left: number; width: number }>()
+      const originalRects = new Map<string, DOMRectReadOnly>()
       for (const t of list) {
         const el = tabRefs.current.get(t.id)
         if (el) {
-          const rect = el.getBoundingClientRect()
-          originalRects.set(t.id, { left: rect.left, width: rect.width })
+          originalRects.set(t.id, el.getBoundingClientRect())
         }
       }
 
@@ -313,6 +332,8 @@ export function useTabDrag({
 
   return {
     tabBarRef,
+    tabListRef,
+    addTabButtonRef,
     tabRefs,
     noTransition: settling,
     getTranslateX,
