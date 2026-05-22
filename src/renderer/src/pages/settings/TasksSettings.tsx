@@ -1029,7 +1029,7 @@ const TasksSettings: FC = () => {
         style={{ height: 'calc(100vh - var(--navbar-height) - 6px)' }}>
         {/* Left panel: task list */}
         <Scrollbar
-          className="flex flex-col border-(--color-border) border-r-[0.5px] pb-12"
+          className="flex flex-col border-border border-r-[0.5px] pb-12"
           style={{ width: 'var(--settings-width)', height: 'calc(100vh - var(--navbar-height))' }}>
           <PageHeader title={t('settings.scheduledTasks.title')} />
           <div className="px-2.5 pb-2">
