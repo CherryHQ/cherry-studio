@@ -740,15 +740,18 @@ export class FileManager extends BaseService implements IFileManager {
       fileManagerLogger.error('Startup file sweep failed', err)
     })
 
-    // Skip DB sweep once when migration marker mismatches current completedAt.
-    // This provides a grace window after first-boot post-migration and after a
-    // v2 backup restore (see file-manager-architecture §10.10 Post-Migration / Backup-Restore Skip).
+    // Skip DB sweep once when migration marker mismatches current completedAt —
+    // this suppresses one round of misleadingly-high orphan-entry report counts
+    // during the post-migration window (see file-manager-architecture §10.10).
     const completedAt = await this.getMigrationCompletedAt()
     const marker = bootConfigService.get('file.lastProcessedMigrationCompletedAt')
 
     if (completedAt !== null && completedAt !== marker) {
       bootConfigService.set('file.lastProcessedMigrationCompletedAt', completedAt)
-      fileManagerLogger.info('runStartupSweeps: skipping DB sweep once (post-migration grace window)', {
+      // Marker advances before `await fsSweepPromise` — intentional: skip-once gates
+      // only the DB branch, so an FS-sweep failure on this boot must not re-trigger
+      // the DB skip on next boot.
+      fileManagerLogger.info('runStartupSweeps: skipping DB sweep once (post-migration window)', {
         previousMarker: marker,
         currentCompletedAt: completedAt
       })
