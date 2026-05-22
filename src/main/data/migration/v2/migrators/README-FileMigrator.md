@@ -66,7 +66,7 @@ No cross-migrator shared state is published: per migration-plan §2.9 the v1 fil
 | `ext` | `ext` | Leading dot stripped; empty/whitespace-only → null |
 | `size` | `size` | Non-null for internal; null for external |
 | `path` (external only) | `externalPath` | null for internal |
-| (always null) | `trashedAt` | No v1 trash state |
+| (always null) | `deletedAt` | No v1 soft-delete state |
 | `created_at` | `createdAt` | ISO → ms epoch; fallback Date.now() + warning on parse failure |
 | `created_at` | `updatedAt` | Same as createdAt |
 

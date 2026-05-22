@@ -55,7 +55,7 @@ interface PreparedEntryBase {
   id: string
   name: string
   ext: string | null
-  trashedAt: null
+  deletedAt: null
   createdAt: number
   updatedAt: number
 }
@@ -140,7 +140,7 @@ function toFileEntry(
       ext,
       size: row.size,
       externalPath: null,
-      trashedAt: null,
+      deletedAt: null,
       createdAt,
       updatedAt: createdAt
     }
@@ -154,7 +154,7 @@ function toFileEntry(
     ext,
     size: null,
     externalPath: row.path,
-    trashedAt: null,
+    deletedAt: null,
     createdAt,
     updatedAt: createdAt
   }
