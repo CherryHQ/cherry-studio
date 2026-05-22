@@ -1411,17 +1411,17 @@ describe('Gemini Models', () => {
       ).toBe(false)
     })
 
-    it('should return true for hosted gemma 4 models on Gemini provider', () => {
+    it('should return true for hosted gemma 4 models on Gemini provider and other providers', () => {
       expect(isSupportedThinkingTokenGeminiModel(createModel({ id: 'gemma-4-31b-it', provider: 'gemini' }))).toBe(true)
       expect(
         isSupportedThinkingTokenGeminiModel(createModel({ id: 'google/gemma-4-e2b-it', provider: 'gemini' }))
       ).toBe(true)
+      expect(isSupportedThinkingTokenGeminiModel(createModel({ id: 'gemma-4-31b-it', provider: 'openrouter' }))).toBe(
+        true
+      )
     })
 
-    it('should keep non-Gemini Gemma 4 ids out of Gemini thinking token detection', () => {
-      expect(isSupportedThinkingTokenGeminiModel(createModel({ id: 'gemma-4-31b-it', provider: 'openrouter' }))).toBe(
-        false
-      )
+    it('should keep non-Gemma 4 formatted ids out of Gemini thinking token detection', () => {
       expect(isSupportedThinkingTokenGeminiModel(createModel({ id: 'gemma4:31b' }))).toBe(false)
       expect(isSupportedThinkingTokenGeminiModel(createModel({ id: 'gemma4:e2b' }))).toBe(false)
     })
@@ -2237,6 +2237,12 @@ describe('getModelSupportedReasoningEffortOptions', () => {
       expect(
         getModelSupportedReasoningEffortOptions(createModel({ id: 'gemma-4-31b-it', provider: 'gemini' }))
       ).toEqual(['default', 'minimal', 'high'])
+    })
+
+    it('should return low/medium/high options for hosted Gemma 4 on OpenRouter provider', () => {
+      expect(
+        getModelSupportedReasoningEffortOptions(createModel({ id: 'gemma-4-31b-it', provider: 'openrouter' }))
+      ).toEqual(['default', 'none', 'low', 'medium', 'high'])
     })
   })
 

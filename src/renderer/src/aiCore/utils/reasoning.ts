@@ -421,18 +421,6 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     }
   }
 
-  // OpenRouter models, use reasoning
-  // FIXME: duplicated openrouter handling. remove one
-  if (model.provider === SystemProviderIds.openrouter) {
-    if (isSupportedReasoningEffortModel(model) || isSupportedThinkingTokenModel(model)) {
-      return {
-        reasoning: {
-          effort: reasoningEffort === 'auto' ? 'medium' : reasoningEffort
-        }
-      }
-    }
-  }
-
   // https://help.aliyun.com/zh/model-studio/deep-thinking
   if (provider.id === SystemProviderIds.dashscope) {
     // For dashscope: Qwen, DeepSeek, and GLM models use enable_thinking to control thinking

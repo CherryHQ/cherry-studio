@@ -188,6 +188,8 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
   } else if (isSupportedThinkingTokenGeminiModel(model)) {
     if (isHostedGemma4ThinkingModel(model)) {
       thinkingModelType = 'gemma4_hosted'
+    } else if (model.provider?.toLowerCase() !== 'gemini' && modelId.startsWith('gemma-4-')) {
+      thinkingModelType = 'default'
     } else if (isGemini3FlashModel(model) || isGemini31FlashLiteModel(model)) {
       thinkingModelType = 'gemini3_flash'
     } else if (isGemini3ProModel(model)) {
@@ -457,7 +459,7 @@ export const isHostedGemma4ThinkingModel = (model?: Model): boolean => {
 
 export const isSupportedThinkingTokenGeminiModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
-  if (isHostedGemma4ThinkingModel(model)) {
+  if (modelId.startsWith('gemma-4-') || isHostedGemma4ThinkingModel(model)) {
     return true
   }
 
