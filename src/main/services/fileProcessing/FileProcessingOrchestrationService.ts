@@ -53,7 +53,9 @@ export class FileProcessingOrchestrationService extends BaseService {
    *
    * Idempotency invariant: `input.path` is first registered through FileManager
    * as an external entry. The job payload stores that `fileEntryId`, so
-   * restart/retry re-resolves the current file metadata from FileManager.
+   * first-run execution and pre-remote retries re-resolve current file metadata
+   * from FileManager. Once a remote-poll provider task is persisted, resume uses
+   * that remote state without requiring the original local file.
    *
    * The handler.mode field on the capability handler determines the JobRegistry
    * type to enqueue under (background vs remote-poll). This is a synchronous

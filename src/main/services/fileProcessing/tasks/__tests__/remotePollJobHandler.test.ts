@@ -20,25 +20,31 @@ const {
   toFileInfoMock,
   commitOutputMock,
   capabilityHandlerMock,
+  prepareRemoteResumeMock,
   startRemoteMock,
   pollRemoteMock,
   toPersistableMock,
   rehydrateMock
-} = vi.hoisted(() => ({
-  resolveProcessorConfigByFeatureMock: vi.fn(),
-  processorRegistryMock: {} as Record<string, unknown>,
-  fileManagerGetByIdMock: vi.fn(),
-  toFileInfoMock: vi.fn(),
-  commitOutputMock: vi.fn(),
-  capabilityHandlerMock: {
-    mode: 'remote-poll' as const,
-    prepare: vi.fn()
-  },
-  startRemoteMock: vi.fn(),
-  pollRemoteMock: vi.fn(),
-  toPersistableMock: vi.fn(),
-  rehydrateMock: vi.fn()
-}))
+} = vi.hoisted(() => {
+  const prepareRemoteResumeMock = vi.fn()
+  return {
+    resolveProcessorConfigByFeatureMock: vi.fn(),
+    processorRegistryMock: {} as Record<string, unknown>,
+    fileManagerGetByIdMock: vi.fn(),
+    toFileInfoMock: vi.fn(),
+    commitOutputMock: vi.fn(),
+    capabilityHandlerMock: {
+      mode: 'remote-poll' as const,
+      prepare: vi.fn(),
+      prepareRemoteResume: prepareRemoteResumeMock
+    },
+    prepareRemoteResumeMock,
+    startRemoteMock: vi.fn(),
+    pollRemoteMock: vi.fn(),
+    toPersistableMock: vi.fn(),
+    rehydrateMock: vi.fn()
+  }
+})
 
 vi.mock('../../config/resolveProcessorConfig', () => ({
   resolveProcessorConfigByFeature: resolveProcessorConfigByFeatureMock
@@ -92,7 +98,14 @@ function setupCapability() {
     toPersistable: toPersistableMock,
     rehydrate: rehydrateMock
   }
+  const resume = {
+    mode: 'remote-poll' as const,
+    pollRemote: pollRemoteMock,
+    toPersistable: toPersistableMock,
+    rehydrate: rehydrateMock
+  }
   capabilityHandlerMock.prepare.mockResolvedValue(prepared)
+  prepareRemoteResumeMock.mockResolvedValue(resume)
   processorRegistryMock.doc2x = {
     capabilities: { document_to_markdown: capabilityHandlerMock },
     isAvailable: () => true
@@ -210,10 +223,42 @@ describe('remotePollJobHandler.execute', () => {
     await remotePollJobHandler.execute(ctx)
 
     expect(startRemoteMock).not.toHaveBeenCalled()
+    expect(capabilityHandlerMock.prepare).not.toHaveBeenCalled()
+    expect(prepareRemoteResumeMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'doc2x' }), ctx.signal)
     expect(rehydrateMock).toHaveBeenCalledWith(
       { providerTaskId: 'recovered-task', stage: 'exporting', apiHost: restoredCtx.apiHost },
       expect.objectContaining({ id: 'doc2x' })
     )
+    expect(pollRemoteMock).toHaveBeenCalledWith(
+      { providerTaskId: 'recovered-task', remoteContext: restoredCtx },
+      ctx.signal
+    )
+  })
+
+  it('resume from metadata does not touch the original local file before polling', async () => {
+    setupCapability()
+    const restoredCtx = { apiHost: 'https://doc2x.example.com', apiKey: 're-read-key', stage: 'exporting' }
+    fileManagerGetByIdMock.mockRejectedValue(new Error('source entry should not be read'))
+    toFileInfoMock.mockRejectedValue(new Error('source file should not be statted'))
+    rehydrateMock.mockReturnValue({ providerTaskId: 'recovered-task', remoteContext: restoredCtx })
+    pollRemoteMock.mockResolvedValue({
+      status: 'completed',
+      output: { kind: 'remote-zip-url', downloadUrl: 'https://x.zip', configuredApiHost: restoredCtx.apiHost }
+    })
+    commitOutputMock.mockResolvedValue([{ kind: 'file', format: 'markdown', fileEntryId: ARTIFACT_ENTRY_ID }])
+
+    const ctx = createCtx({
+      metadata: { remoteState: { providerTaskId: 'recovered-task', stage: 'exporting', apiHost: restoredCtx.apiHost } }
+    })
+
+    await expect(remotePollJobHandler.execute(ctx)).resolves.toEqual({
+      artifacts: [{ kind: 'file', format: 'markdown', fileEntryId: ARTIFACT_ENTRY_ID }]
+    })
+
+    expect(fileManagerGetByIdMock).not.toHaveBeenCalled()
+    expect(toFileInfoMock).not.toHaveBeenCalled()
+    expect(capabilityHandlerMock.prepare).not.toHaveBeenCalled()
+    expect(prepareRemoteResumeMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'doc2x' }), ctx.signal)
     expect(pollRemoteMock).toHaveBeenCalledWith(
       { providerTaskId: 'recovered-task', remoteContext: restoredCtx },
       ctx.signal

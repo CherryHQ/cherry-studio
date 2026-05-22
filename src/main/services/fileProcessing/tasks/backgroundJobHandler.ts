@@ -3,7 +3,6 @@ import type { JobHandler } from '@main/core/job/types'
 import { toFileInfo } from '@main/services/file'
 
 import { resolveProcessorConfigByFeature } from '../config/resolveProcessorConfig'
-import type { PreparedBackgroundTask } from '../processors/types'
 import {
   assertFileTypeSupported,
   assertModeMatches,
@@ -45,7 +44,7 @@ export const backgroundJobHandler: JobHandler<FileProcessingJobPayload> = {
 
     const prepared = await handler.prepare(file, config, ctx.signal)
     assertModeMatches(prepared, 'background')
-    const background = prepared as PreparedBackgroundTask
+    const background = prepared
 
     const output = await background.execute({
       signal: ctx.signal,

@@ -2,7 +2,11 @@ import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type { FileInfo } from '@shared/file/types'
 
 import { getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../../utils/provider'
-import type { FileProcessingCapabilityHandler, FileProcessingRemotePollResult } from '../../types'
+import type {
+  FileProcessingCapabilityHandler,
+  FileProcessingRemotePollResult,
+  PreparedRemoteResumeTask
+} from '../../types'
 import type { PaddleJobResultData, PreparedPaddleQueryContext, PreparedPaddleStartContext } from '../types'
 import { createJob, getJobResult, mapProgress, resolveJsonlResult } from '../utils'
 
@@ -16,9 +20,10 @@ export const paddleDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
   prepare(file, config, signal) {
     signal?.throwIfAborted()
     const startContext = prepareStartContext(file, config, signal)
+    const remoteOperations = createRemoteOperations(signal)
 
     return {
-      mode: 'remote-poll',
+      ...remoteOperations,
       async startRemote(startSignal) {
         const job = await createJob({
           ...startContext,
@@ -34,33 +39,46 @@ export const paddleDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
             apiKey: startContext.apiKey
           }
         }
-      },
-      async pollRemote(task, pollSignal) {
-        const context: PreparedPaddleQueryContext = {
-          apiHost: task.remoteContext.apiHost,
-          apiKey: task.remoteContext.apiKey,
-          signal: pollSignal
-        }
-        const jobResult = await getJobResult(task.providerTaskId, context)
+      }
+    }
+  },
+  prepareRemoteResume(_config, signal) {
+    return createRemoteOperations(signal)
+  }
+}
 
-        return buildPollResult(task.providerTaskId, jobResult, context.apiHost, context.signal)
-      },
-      toPersistable(remoteContext, providerTaskId) {
-        return {
-          providerTaskId,
-          apiHost: remoteContext.apiHost
-        }
-      },
-      rehydrate(persisted, restoredConfig) {
-        if (!persisted.apiHost) {
-          throw new Error('paddleocr rehydrate: missing apiHost in persisted remote state')
-        }
-        return {
-          providerTaskId: persisted.providerTaskId,
-          remoteContext: {
-            apiHost: persisted.apiHost,
-            apiKey: getRequiredApiKey(restoredConfig, 'paddleocr')
-          }
+function createRemoteOperations(
+  signal?: AbortSignal
+): PreparedRemoteResumeTask<'document_to_markdown', PaddleQueryContext> {
+  signal?.throwIfAborted()
+
+  return {
+    mode: 'remote-poll',
+    async pollRemote(task, pollSignal) {
+      const context: PreparedPaddleQueryContext = {
+        apiHost: task.remoteContext.apiHost,
+        apiKey: task.remoteContext.apiKey,
+        signal: pollSignal
+      }
+      const jobResult = await getJobResult(task.providerTaskId, context)
+
+      return buildPollResult(task.providerTaskId, jobResult, context.apiHost, context.signal)
+    },
+    toPersistable(remoteContext, providerTaskId) {
+      return {
+        providerTaskId,
+        apiHost: remoteContext.apiHost
+      }
+    },
+    rehydrate(persisted, restoredConfig) {
+      if (!persisted.apiHost) {
+        throw new Error('paddleocr rehydrate: missing apiHost in persisted remote state')
+      }
+      return {
+        providerTaskId: persisted.providerTaskId,
+        remoteContext: {
+          apiHost: persisted.apiHost,
+          apiKey: getRequiredApiKey(restoredConfig, 'paddleocr')
         }
       }
     }

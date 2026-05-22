@@ -120,12 +120,34 @@ export interface PreparedRemoteTask<
   ): { providerTaskId: string; remoteContext: RemoteContext }
 }
 
+export type PreparedRemoteResumeTask<
+  Feature extends FileProcessorFeature = FileProcessorFeature,
+  RemoteContext extends FileProcessingRemoteContext = FileProcessingRemoteContext
+> = Omit<PreparedRemoteTask<Feature, RemoteContext>, 'startRemote'>
+
 export type PreparedFileProcessingTask<
   Feature extends FileProcessorFeature = FileProcessorFeature,
   RemoteContext extends FileProcessingRemoteContext = FileProcessingRemoteContext
 > = PreparedBackgroundTask<Feature> | PreparedRemoteTask<Feature, RemoteContext>
 
-export interface FileProcessingCapabilityHandler<
+export interface FileProcessingBackgroundCapabilityHandler<
+  Feature extends FileProcessorFeature = FileProcessorFeature
+> {
+  /**
+   * Execution model declared statically on the handler. Mirrors the `mode`
+   * field on PreparedTask but is available without awaiting prepare(), so the
+   * orchestrator can route to the correct JobHandler synchronously at enqueue
+   * time. Runtime assertion: prepared.mode must equal this value.
+   */
+  readonly mode: 'background'
+  prepare(
+    file: FileInfo,
+    config: FileProcessorMerged,
+    signal?: AbortSignal
+  ): Promise<PreparedBackgroundTask<Feature>> | PreparedBackgroundTask<Feature>
+}
+
+export interface FileProcessingRemotePollCapabilityHandler<
   Feature extends FileProcessorFeature = FileProcessorFeature,
   RemoteContext extends FileProcessingRemoteContext = FileProcessingRemoteContext
 > {
@@ -135,13 +157,24 @@ export interface FileProcessingCapabilityHandler<
    * orchestrator can route to the correct JobHandler synchronously at enqueue
    * time. Runtime assertion: prepared.mode must equal this value.
    */
-  readonly mode: 'background' | 'remote-poll'
+  readonly mode: 'remote-poll'
   prepare(
     file: FileInfo,
     config: FileProcessorMerged,
     signal?: AbortSignal
-  ): Promise<PreparedFileProcessingTask<Feature, RemoteContext>> | PreparedFileProcessingTask<Feature, RemoteContext>
+  ): Promise<PreparedRemoteTask<Feature, RemoteContext>> | PreparedRemoteTask<Feature, RemoteContext>
+  prepareRemoteResume(
+    config: FileProcessorMerged,
+    signal?: AbortSignal
+  ): Promise<PreparedRemoteResumeTask<Feature, RemoteContext>> | PreparedRemoteResumeTask<Feature, RemoteContext>
 }
+
+export type FileProcessingCapabilityHandler<
+  Feature extends FileProcessorFeature = FileProcessorFeature,
+  RemoteContext extends FileProcessingRemoteContext = FileProcessingRemoteContext
+> =
+  | FileProcessingBackgroundCapabilityHandler<Feature>
+  | FileProcessingRemotePollCapabilityHandler<Feature, RemoteContext>
 
 export type FileProcessingProcessorCapabilities = {
   [feature in FileProcessorFeature]?: FileProcessingCapabilityHandler<feature>

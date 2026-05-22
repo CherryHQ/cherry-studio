@@ -74,7 +74,7 @@ vi.mock('@main/services/file', () => ({
 
 // Pre-populate the mocked processorRegistry before SUT import.
 const tesseractHandler = { mode: 'background', prepare: vi.fn() }
-const doc2xHandler = { mode: 'remote-poll', prepare: vi.fn() }
+const doc2xHandler = { mode: 'remote-poll', prepare: vi.fn(), prepareRemoteResume: vi.fn() }
 processorRegistryMock.tesseract = {
   capabilities: { image_to_text: tesseractHandler },
   isAvailable: isAvailableTesseractMock

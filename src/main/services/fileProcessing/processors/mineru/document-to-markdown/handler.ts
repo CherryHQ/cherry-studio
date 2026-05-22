@@ -2,7 +2,11 @@ import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type { FileInfo } from '@shared/file/types'
 
 import { getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../../utils/provider'
-import type { FileProcessingCapabilityHandler, FileProcessingRemotePollResult } from '../../types'
+import type {
+  FileProcessingCapabilityHandler,
+  FileProcessingRemotePollResult,
+  PreparedRemoteResumeTask
+} from '../../types'
 import type { MineruExtractFileResult, PreparedMineruQueryContext, PreparedMineruStartContext } from '../types'
 import { createUploadTask, getBatchResult, mapProgress, uploadFile } from '../utils'
 
@@ -16,9 +20,10 @@ export const mineruDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
   prepare(file, config, signal) {
     signal?.throwIfAborted()
     const startContext = prepareStartContext(file, config, signal)
+    const remoteOperations = createRemoteOperations(signal)
 
     return {
-      mode: 'remote-poll',
+      ...remoteOperations,
       async startRemote(startSignal) {
         const uploadTask = await createUploadTask({
           ...startContext,
@@ -42,36 +47,49 @@ export const mineruDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
             apiKey: startContext.apiKey
           }
         }
-      },
-      async pollRemote(
-        task,
-        pollSignal
-      ): Promise<FileProcessingRemotePollResult<'document_to_markdown', MineruQueryContext>> {
-        const context: PreparedMineruQueryContext = {
-          apiHost: task.remoteContext.apiHost,
-          apiKey: task.remoteContext.apiKey,
-          signal: pollSignal
-        }
-        const batchResult = await getBatchResult(task.providerTaskId, context)
+      }
+    }
+  },
+  prepareRemoteResume(_config, signal) {
+    return createRemoteOperations(signal)
+  }
+}
 
-        return buildPollResult(batchResult.extract_result[0], context.apiHost)
-      },
-      toPersistable(remoteContext, providerTaskId) {
-        return {
-          providerTaskId,
-          apiHost: remoteContext.apiHost
-        }
-      },
-      rehydrate(persisted, restoredConfig) {
-        if (!persisted.apiHost) {
-          throw new Error('mineru rehydrate: missing apiHost in persisted remote state')
-        }
-        return {
-          providerTaskId: persisted.providerTaskId,
-          remoteContext: {
-            apiHost: persisted.apiHost,
-            apiKey: getRequiredApiKey(restoredConfig, 'mineru')
-          }
+function createRemoteOperations(
+  signal?: AbortSignal
+): PreparedRemoteResumeTask<'document_to_markdown', MineruQueryContext> {
+  signal?.throwIfAborted()
+
+  return {
+    mode: 'remote-poll',
+    async pollRemote(
+      task,
+      pollSignal
+    ): Promise<FileProcessingRemotePollResult<'document_to_markdown', MineruQueryContext>> {
+      const context: PreparedMineruQueryContext = {
+        apiHost: task.remoteContext.apiHost,
+        apiKey: task.remoteContext.apiKey,
+        signal: pollSignal
+      }
+      const batchResult = await getBatchResult(task.providerTaskId, context)
+
+      return buildPollResult(batchResult.extract_result[0], context.apiHost)
+    },
+    toPersistable(remoteContext, providerTaskId) {
+      return {
+        providerTaskId,
+        apiHost: remoteContext.apiHost
+      }
+    },
+    rehydrate(persisted, restoredConfig) {
+      if (!persisted.apiHost) {
+        throw new Error('mineru rehydrate: missing apiHost in persisted remote state')
+      }
+      return {
+        providerTaskId: persisted.providerTaskId,
+        remoteContext: {
+          apiHost: persisted.apiHost,
+          apiKey: getRequiredApiKey(restoredConfig, 'mineru')
         }
       }
     }

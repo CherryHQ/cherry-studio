@@ -2,7 +2,11 @@ import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type { FileInfo } from '@shared/file/types'
 
 import { getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../../utils/provider'
-import type { FileProcessingCapabilityHandler, FileProcessingRemotePollResult } from '../../types'
+import type {
+  FileProcessingCapabilityHandler,
+  FileProcessingRemotePollResult,
+  PreparedRemoteResumeTask
+} from '../../types'
 import type { Doc2xTaskStage, PreparedDoc2xQueryContext, PreparedDoc2xStartContext } from '../types'
 import { createUploadTask, getExportResult, getParseStatus, triggerExportTask, uploadFile } from '../utils'
 
@@ -18,9 +22,10 @@ export const doc2xDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
   prepare(file, config, signal) {
     signal?.throwIfAborted()
     const startContext = prepareStartContext(file, config, signal)
+    const remoteOperations = createRemoteOperations(signal)
 
     return {
-      mode: 'remote-poll',
+      ...remoteOperations,
       async startRemote(startSignal) {
         const uploadTask = await createUploadTask({
           ...startContext,
@@ -39,41 +44,54 @@ export const doc2xDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
             stage: 'parsing'
           }
         }
-      },
-      async pollRemote(
-        task,
-        pollSignal
-      ): Promise<FileProcessingRemotePollResult<'document_to_markdown', Doc2xQueryContext>> {
-        const context: PreparedDoc2xQueryContext = {
-          apiHost: task.remoteContext.apiHost,
-          apiKey: task.remoteContext.apiKey,
-          signal: pollSignal
-        }
+      }
+    }
+  },
+  prepareRemoteResume(_config, signal) {
+    return createRemoteOperations(signal)
+  }
+}
 
-        if (task.remoteContext.stage === 'parsing') {
-          return handleParseStage(task.providerTaskId, task.remoteContext, context)
-        }
+function createRemoteOperations(
+  signal?: AbortSignal
+): PreparedRemoteResumeTask<'document_to_markdown', Doc2xQueryContext> {
+  signal?.throwIfAborted()
 
-        return handleExportStage(task.providerTaskId, context)
-      },
-      toPersistable(remoteContext, providerTaskId) {
-        return {
-          providerTaskId,
-          stage: remoteContext.stage,
-          apiHost: remoteContext.apiHost
-        }
-      },
-      rehydrate(persisted, restoredConfig) {
-        if (!persisted.apiHost) {
-          throw new Error('doc2x rehydrate: missing apiHost in persisted remote state')
-        }
-        return {
-          providerTaskId: persisted.providerTaskId,
-          remoteContext: {
-            apiHost: persisted.apiHost,
-            apiKey: getRequiredApiKey(restoredConfig, 'doc2x'),
-            stage: (persisted.stage ?? 'parsing') as Doc2xTaskStage
-          }
+  return {
+    mode: 'remote-poll',
+    async pollRemote(
+      task,
+      pollSignal
+    ): Promise<FileProcessingRemotePollResult<'document_to_markdown', Doc2xQueryContext>> {
+      const context: PreparedDoc2xQueryContext = {
+        apiHost: task.remoteContext.apiHost,
+        apiKey: task.remoteContext.apiKey,
+        signal: pollSignal
+      }
+
+      if (task.remoteContext.stage === 'parsing') {
+        return handleParseStage(task.providerTaskId, task.remoteContext, context)
+      }
+
+      return handleExportStage(task.providerTaskId, context)
+    },
+    toPersistable(remoteContext, providerTaskId) {
+      return {
+        providerTaskId,
+        stage: remoteContext.stage,
+        apiHost: remoteContext.apiHost
+      }
+    },
+    rehydrate(persisted, restoredConfig) {
+      if (!persisted.apiHost) {
+        throw new Error('doc2x rehydrate: missing apiHost in persisted remote state')
+      }
+      return {
+        providerTaskId: persisted.providerTaskId,
+        remoteContext: {
+          apiHost: persisted.apiHost,
+          apiKey: getRequiredApiKey(restoredConfig, 'doc2x'),
+          stage: (persisted.stage ?? 'parsing') as Doc2xTaskStage
         }
       }
     }

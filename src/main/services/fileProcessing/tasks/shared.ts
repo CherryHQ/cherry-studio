@@ -75,10 +75,12 @@ export function getCapabilityHandler<Feature extends FileProcessorFeature>(
  * by handler.mode at enqueue time; any divergence at execute time means a
  * capability handler was implemented incorrectly.
  */
-export function assertModeMatches(
-  handler: { mode: 'background' | 'remote-poll' },
-  expected: 'background' | 'remote-poll'
-): void {
+type FileProcessingMode = 'background' | 'remote-poll'
+
+export function assertModeMatches<THandler extends { mode: FileProcessingMode }, TExpected extends FileProcessingMode>(
+  handler: THandler,
+  expected: TExpected
+): asserts handler is Extract<THandler, { mode: TExpected }> {
   if (handler.mode !== expected) {
     throw new Error(
       `Internal error - Capability handler mode mismatch: handler.mode='${handler.mode}' but job type expects '${expected}'`

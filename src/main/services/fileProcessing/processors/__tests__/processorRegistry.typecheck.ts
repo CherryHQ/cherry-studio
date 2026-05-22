@@ -63,6 +63,18 @@ const validRegistry = {
           }),
           toPersistable: (_remoteContext, providerTaskId) => ({ providerTaskId }),
           rehydrate: (persisted) => ({ providerTaskId: persisted.providerTaskId, remoteContext: {} })
+        }),
+        prepareRemoteResume: () => ({
+          mode: 'remote-poll',
+          pollRemote: async () => ({
+            status: 'completed',
+            output: {
+              kind: 'markdown',
+              markdownContent: '# done'
+            }
+          }),
+          toPersistable: (_remoteContext, providerTaskId) => ({ providerTaskId }),
+          rehydrate: (persisted) => ({ providerTaskId: persisted.providerTaskId, remoteContext: {} })
         })
       }
     }
@@ -103,6 +115,21 @@ const validTypedRemoteContextHandler: FileProcessingCapabilityHandler<'document_
         stage: 'parsing'
       }
     }),
+    pollRemote: async (task) => ({
+      status: 'processing',
+      progress: 50,
+      remoteContext: {
+        stage: task.remoteContext.stage === 'parsing' ? 'exporting' : task.remoteContext.stage
+      }
+    }),
+    toPersistable: (remoteContext, providerTaskId) => ({ providerTaskId, stage: remoteContext.stage }),
+    rehydrate: (persisted) => ({
+      providerTaskId: persisted.providerTaskId,
+      remoteContext: { stage: (persisted.stage ?? 'parsing') as TypedRemoteContext['stage'] }
+    })
+  }),
+  prepareRemoteResume: () => ({
+    mode: 'remote-poll',
     pollRemote: async (task) => ({
       status: 'processing',
       progress: 50,

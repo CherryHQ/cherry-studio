@@ -6,24 +6,12 @@
  * remote-context fields) ever reaches `jobTable.metadata`.
  */
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
-import type { FileInfo } from '@shared/file/types'
 import { describe, expect, it } from 'vitest'
 
 import { doc2xDocumentToMarkdownHandler } from '../doc2x/document-to-markdown/handler'
 import { mineruDocumentToMarkdownHandler } from '../mineru/document-to-markdown/handler'
 import { paddleDocumentToMarkdownHandler } from '../paddleocr/document-to-markdown/handler'
-import type { PreparedRemoteTask } from '../types'
-
-const FAKE_PDF: FileInfo = {
-  name: 'paper',
-  path: '/tmp/paper.pdf' as FileInfo['path'],
-  size: 99_000,
-  ext: 'pdf',
-  mime: 'application/pdf',
-  type: 'document',
-  createdAt: 1775114958369,
-  modifiedAt: 1775114958369
-} as FileInfo
+import type { FileProcessingRemotePollCapabilityHandler, PreparedRemoteResumeTask } from '../types'
 
 function buildConfig(id: 'doc2x' | 'mineru' | 'paddleocr', apiHost: string): FileProcessorMerged {
   return {
@@ -43,16 +31,20 @@ function buildConfig(id: 'doc2x' | 'mineru' | 'paddleocr', apiHost: string): Fil
 
 async function prepareRemote(
   handler:
+    | FileProcessingRemotePollCapabilityHandler<'document_to_markdown'>
     | typeof doc2xDocumentToMarkdownHandler
     | typeof mineruDocumentToMarkdownHandler
     | typeof paddleDocumentToMarkdownHandler,
   config: FileProcessorMerged
-): Promise<PreparedRemoteTask<'document_to_markdown'>> {
-  const prepared = await handler.prepare(FAKE_PDF, config)
+): Promise<PreparedRemoteResumeTask<'document_to_markdown'>> {
+  if (handler.mode !== 'remote-poll') {
+    throw new Error('Expected remote-poll capability handler')
+  }
+  const prepared = await handler.prepareRemoteResume(config)
   if (prepared.mode !== 'remote-poll') {
     throw new Error('Expected remote-poll prepared task')
   }
-  return prepared as PreparedRemoteTask<'document_to_markdown'>
+  return prepared as PreparedRemoteResumeTask<'document_to_markdown'>
 }
 
 describe('A1 whitelist invariant: real toPersistable() never emits apiKey', () => {

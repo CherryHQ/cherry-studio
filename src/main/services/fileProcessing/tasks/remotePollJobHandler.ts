@@ -8,7 +8,7 @@ import type {
   FileProcessingRemoteContext,
   FileProcessingRemotePollResult,
   PersistableRemoteState,
-  PreparedRemoteTask
+  PreparedRemoteResumeTask
 } from '../processors/types'
 import {
   assertModeMatches,
@@ -48,20 +48,17 @@ export const remotePollJobHandler: JobHandler<FileProcessingJobPayload> = {
   async execute(ctx) {
     const { feature, fileEntryId, processorId } = ctx.input
     const config = resolveProcessorConfigByFeature(feature, processorId)
-    const entry = await application.get('FileManager').getById(fileEntryId)
-    const file = await toFileInfo(entry)
     const capability = getCapabilityHandler(config.id, feature)
     assertModeMatches(capability, 'remote-poll')
 
-    const prepared = await capability.prepare(file, config, ctx.signal)
-    assertModeMatches(prepared, 'remote-poll')
-    const remote = prepared as PreparedRemoteTask<typeof feature, FileProcessingRemoteContext>
-
     let providerTaskId: string
     let remoteContext: FileProcessingRemoteContext
+    let remote: PreparedRemoteResumeTask<typeof feature, FileProcessingRemoteContext>
 
     const persisted = ctx.metadata.remoteState as PersistableRemoteState | undefined
     if (persisted?.providerTaskId) {
+      remote = await capability.prepareRemoteResume(config, ctx.signal)
+      assertModeMatches(remote, 'remote-poll')
       const rehydrated = remote.rehydrate(persisted, config)
       providerTaskId = rehydrated.providerTaskId
       remoteContext = rehydrated.remoteContext
@@ -71,7 +68,13 @@ export const remotePollJobHandler: JobHandler<FileProcessingJobPayload> = {
         stage: persisted.stage
       })
     } else {
-      const start = await remote.startRemote(ctx.signal)
+      const entry = await application.get('FileManager').getById(fileEntryId)
+      const file = await toFileInfo(entry)
+      const prepared = await capability.prepare(file, config, ctx.signal)
+      assertModeMatches(prepared, 'remote-poll')
+      const startedRemote = prepared
+      remote = startedRemote
+      const start = await startedRemote.startRemote(ctx.signal)
       providerTaskId = start.providerTaskId
       remoteContext = start.remoteContext
       await ctx.patchMetadata({ remoteState: remote.toPersistable(remoteContext, providerTaskId) })
