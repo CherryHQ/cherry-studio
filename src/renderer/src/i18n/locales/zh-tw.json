@@ -1798,6 +1798,7 @@
     "reset": "重設",
     "retry": "重試",
     "save": "儲存",
+    "save_failed": "儲存失敗",
     "saved": "已儲存",
     "search": "搜尋",
     "select": "選擇",
@@ -7062,7 +7063,8 @@
         "too_large": "檔案過大",
         "unknown": "讀取檔案內容失敗"
       },
-      "reading": "讀取檔案內容中..."
+      "reading": "讀取檔案內容中...",
+      "upload": "拖入或點擊上傳圖片/文件"
     },
     "history": {
       "back": "返回列表",
@@ -7100,7 +7102,7 @@
       "aborted": "翻譯中止"
     },
     "input": {
-      "placeholder": "可貼上或拖曳文字、文字檔案、圖片（支援 OCR）"
+      "placeholder": "請輸入文字..."
     },
     "language": {
       "not_pair": "來源語言與設定的語言不同",
