@@ -373,14 +373,15 @@ describe('ClawServer', () => {
         expect(parsed.model).toBe('claude-sonnet-4-20250514')
         expect(parsed.channels).toHaveLength(1)
         expect(parsed.channels[0].type).toBe('telegram')
-        expect(parsed.supported_channel_types).toHaveLength(6)
+        expect(parsed.supported_channel_types).toHaveLength(7)
         expect(parsed.supported_channel_types.map((t: any) => t.type)).toEqual([
           'telegram',
           'feishu',
           'qq',
           'wechat',
           'discord',
-          'slack'
+          'slack',
+          'wecom'
         ])
         expect(parsed.soul_enabled).toBe(true)
       })

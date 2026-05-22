@@ -157,6 +157,18 @@ const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: str
       '6. Invite the bot to channels by typing /invite @YourBotName in the desired Slack channel.',
       '7. allowed_channel_ids is optional — leave empty to allow all channels the bot is in.'
     ].join(' ')
+  },
+  wecom: {
+    required: ['bot_id', 'bot_secret'],
+    optional: ['allowed_chat_ids'],
+    description: [
+      'WeCom (企业微信 / WeChat Work) smart bot via the official Bot Open API. Uses 30s polling — no webhook needed.',
+      'Setup steps:',
+      '1. In WeCom admin console, create or open a smart bot (智能机器人) and obtain its Bot ID and Secret. Docs: https://open.work.weixin.qq.com/help2/pc/cat?doc_id=21677',
+      '2. Pass bot_id and bot_secret in config.',
+      '3. allowed_chat_ids is required for receiving messages — each entry uses the format "<chat_type>:<chatid>" where chat_type is 1 (single-user DM, chatid = userid) or 2 (group, chatid = group id). Example: ["1:zhangsan", "2:wrxxxxxx"].',
+      '4. WeCom enforces a 7-day history window on get_message; the adapter clamps queries accordingly and only delivers messages newer than the connect time on first poll.'
+    ].join(' ')
   }
 }
 
@@ -183,7 +195,7 @@ const CONFIG_TOOL: Tool = {
       },
       type: {
         type: 'string',
-        enum: ['telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack'],
+        enum: ['telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack', 'wecom'],
         description: "Channel adapter type (required for 'add_channel')"
       },
       name: {
