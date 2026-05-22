@@ -274,7 +274,7 @@ export interface FileIpcApi {
    * Idempotent by design — callers holding an `externalPath` can invoke this
    * freely without pre-checking. The global unique index
    * `UNIQUE(externalPath)` (internal rows are `null` and exempt) enforces the
-   * invariant; `fe_external_no_trash` forbids trashed external rows so no
+   * invariant; `fe_external_no_delete` forbids trashed external rows so no
    * "restore" branch exists.
    *
    * @phase 2 — not yet wired
@@ -398,9 +398,9 @@ export interface FileIpcApi {
   // Section status: all `@phase 2`.
 
   /**
-   * Move entry to Trash (soft delete via trashedAt). Internal-origin entries only.
+   * Move entry to Trash (soft delete via deletedAt). Internal-origin entries only.
    * Passing an external-origin entry id throws: external entries cannot be trashed
-   * (`fe_external_no_trash` CHECK).
+   * (`fe_external_no_delete` CHECK).
    *
    * @phase 2 — not yet wired
    */

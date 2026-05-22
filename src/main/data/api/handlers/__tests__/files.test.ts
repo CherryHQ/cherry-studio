@@ -29,7 +29,7 @@ describe('fileHandlers (DataApi)', () => {
       ext: 'txt',
       size: 1,
       externalPath: null,
-      trashedAt: null,
+      deletedAt: null,
       createdAt: now,
       updatedAt: now,
       ...overrides
@@ -41,7 +41,7 @@ describe('fileHandlers (DataApi)', () => {
       await Promise.all([
         seedEntry('019606a0-0000-7000-8000-000000000a01'),
         seedEntry('019606a0-0000-7000-8000-000000000a02'),
-        seedEntry('019606a0-0000-7000-8000-000000000a03', { trashedAt: Date.now() })
+        seedEntry('019606a0-0000-7000-8000-000000000a03', { deletedAt: Date.now() })
       ])
 
       const result = (await fileHandlers['/files/entries'].GET({ query: {} } as never)) as {

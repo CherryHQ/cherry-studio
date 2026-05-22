@@ -182,6 +182,13 @@
       "when": 1779183817228,
       "tag": "0025_left_black_tarantula",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1779373185863,
+      "tag": "0026_sturdy_aqueduct",
+      "breakpoints": true
     }
   ],
   "version": "7"

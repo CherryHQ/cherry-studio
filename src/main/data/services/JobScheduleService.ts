@@ -120,19 +120,16 @@ export class JobScheduleService {
 
   // ---------------- Write ----------------
 
-  async create(dto: CreateJobScheduleDto): Promise<JobScheduleSnapshot> {
-    if (dto.name) {
-      const parsed = JobScheduleNameAtomSchema.safeParse(dto.name)
-      if (!parsed.success) {
-        throw DataApiErrorFactory.invalidOperation(
-          `${JOB_ERROR_CODES.SCHEDULE_NAME_INVALID}: Invalid schedule name: ${parsed.error.issues.map((i) => i.message).join('; ')}`
-        )
-      }
-    }
-    return this.insertSchedule(dto)
-  }
+  /**
+   * All write methods in this section follow the two-form DAO pattern:
+   *   - `*Tx(tx, ...)` — pure DB operation against a provided transaction.
+   *     Use for composing multiple writes into one transaction.
+   *   - non-Tx public methods — thin wrappers routing through
+   *     `DbService.withWriteTx` to serialize against other writes (avoids
+   *     libsql issue #288 SQLITE_BUSY). Input validation lives here.
+   */
 
-  private async insertSchedule(dto: CreateJobScheduleDto): Promise<JobScheduleSnapshot> {
+  async createTx(tx: DbOrTx, dto: CreateJobScheduleDto): Promise<JobScheduleSnapshot> {
     // Drizzle's `text({ mode: 'json' })` columns accept JS values directly —
     // no manual JSON.stringify needed. The ORM serializes on write and parses
     // on read.
@@ -146,7 +143,7 @@ export class JobScheduleService {
       metadata: dto.metadata ?? {}
     }
 
-    const result = await withSqliteErrors(() => this.getDb().insert(jobScheduleTable).values(insertData).returning(), {
+    const result = await withSqliteErrors(() => tx.insert(jobScheduleTable).values(insertData).returning(), {
       ...defaultHandlersFor('JobSchedule', '<auto>'),
       unique: () =>
         DataApiErrorFactory.conflict(
@@ -162,16 +159,20 @@ export class JobScheduleService {
     return this.rowToSnapshot(row)
   }
 
-  async update(id: string, patch: UpdateJobScheduleDto): Promise<JobScheduleSnapshot | null> {
-    if (patch.name) {
-      const parsed = JobScheduleNameAtomSchema.safeParse(patch.name)
+  async create(dto: CreateJobScheduleDto): Promise<JobScheduleSnapshot> {
+    if (dto.name) {
+      const parsed = JobScheduleNameAtomSchema.safeParse(dto.name)
       if (!parsed.success) {
         throw DataApiErrorFactory.invalidOperation(
           `${JOB_ERROR_CODES.SCHEDULE_NAME_INVALID}: Invalid schedule name: ${parsed.error.issues.map((i) => i.message).join('; ')}`
         )
       }
     }
+    const dbService = application.get('DbService')
+    return dbService.withWriteTx((tx) => this.createTx(tx, dto))
+  }
 
+  async updateTx(tx: DbOrTx, id: string, patch: UpdateJobScheduleDto): Promise<JobScheduleSnapshot | null> {
     const updateData: Partial<InsertJobScheduleRow> = { updatedAt: Date.now() }
     if (patch.name !== undefined) updateData.name = patch.name ?? ''
     if (patch.trigger !== undefined) updateData.trigger = patch.trigger
@@ -181,7 +182,7 @@ export class JobScheduleService {
     if (patch.metadata !== undefined) updateData.metadata = patch.metadata
 
     const result = await withSqliteErrors(
-      () => this.getDb().update(jobScheduleTable).set(updateData).where(eq(jobScheduleTable.id, id)).returning(),
+      () => tx.update(jobScheduleTable).set(updateData).where(eq(jobScheduleTable.id, id)).returning(),
       {
         ...defaultHandlersFor('JobSchedule', id),
         unique: () =>
@@ -197,18 +198,41 @@ export class JobScheduleService {
     return this.rowToSnapshot(row)
   }
 
-  async setEnabled(id: string, enabled: boolean): Promise<boolean> {
-    const result = await this.getDb()
+  async update(id: string, patch: UpdateJobScheduleDto): Promise<JobScheduleSnapshot | null> {
+    if (patch.name) {
+      const parsed = JobScheduleNameAtomSchema.safeParse(patch.name)
+      if (!parsed.success) {
+        throw DataApiErrorFactory.invalidOperation(
+          `${JOB_ERROR_CODES.SCHEDULE_NAME_INVALID}: Invalid schedule name: ${parsed.error.issues.map((i) => i.message).join('; ')}`
+        )
+      }
+    }
+    const dbService = application.get('DbService')
+    return dbService.withWriteTx((tx) => this.updateTx(tx, id, patch))
+  }
+
+  async setEnabledTx(tx: DbOrTx, id: string, enabled: boolean): Promise<boolean> {
+    const result = await tx
       .update(jobScheduleTable)
       .set({ enabled, updatedAt: Date.now() })
       .where(eq(jobScheduleTable.id, id))
     return result.rowsAffected > 0
   }
 
-  async delete(id: string): Promise<boolean> {
-    const result = await this.getDb().delete(jobScheduleTable).where(eq(jobScheduleTable.id, id))
+  async setEnabled(id: string, enabled: boolean): Promise<boolean> {
+    const dbService = application.get('DbService')
+    return dbService.withWriteTx((tx) => this.setEnabledTx(tx, id, enabled))
+  }
+
+  async deleteTx(tx: DbOrTx, id: string): Promise<boolean> {
+    const result = await tx.delete(jobScheduleTable).where(eq(jobScheduleTable.id, id))
     logger.info('JobSchedule deleted', { id, deleted: result.rowsAffected > 0 })
     return result.rowsAffected > 0
+  }
+
+  async delete(id: string): Promise<boolean> {
+    const dbService = application.get('DbService')
+    return dbService.withWriteTx((tx) => this.deleteTx(tx, id))
   }
 
   /**
@@ -216,11 +240,16 @@ export class JobScheduleService {
    * to the next expected fire (or null for terminal one-shot / no-more-runs).
    * Called from the SchedulerService callback after each fire.
    */
-  async markFired(id: string, lastRun: number, nextRun: number | null): Promise<void> {
-    await this.getDb()
+  async markFiredTx(tx: DbOrTx, id: string, lastRun: number, nextRun: number | null): Promise<void> {
+    await tx
       .update(jobScheduleTable)
       .set({ lastRun, nextRun, updatedAt: Date.now() })
       .where(eq(jobScheduleTable.id, id))
+  }
+
+  async markFired(id: string, lastRun: number, nextRun: number | null): Promise<void> {
+    const dbService = application.get('DbService')
+    await dbService.withWriteTx((tx) => this.markFiredTx(tx, id, lastRun, nextRun))
   }
 
   // ---------------- Row → Entity ----------------

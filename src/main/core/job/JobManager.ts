@@ -7,7 +7,6 @@ import { Application } from '@main/core/application/Application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { Disposable } from '@main/core/lifecycle/event'
 import { type JobError, type JobSnapshot } from '@shared/data/api/schemas/jobs'
-import { Mutex } from 'async-mutex'
 
 import { JOB_ERROR_CODES } from './errorCodes'
 import type { JobPayloadOf, JobType } from './jobRegistry'
@@ -97,7 +96,6 @@ interface FinishedResolver {
 export class JobManager extends BaseService {
   private readonly handlers = new Map<string, JobHandler>()
   private readonly queues = new Map<string, DispatchQueue>()
-  private readonly globalDispatchMutex = new Mutex()
   private readonly abortControllers = new Map<string, AbortController>()
   private readonly finishedResolvers = new Map<string, FinishedResolver>()
   /**
@@ -502,10 +500,8 @@ export class JobManager extends BaseService {
       })
     }
 
-    const db = application.get('DbService').getDb()
-    await db.transaction(async (tx) => {
-      await jobService.setCancelRequestedTx(tx, jobId)
-    })
+    const dbService = application.get('DbService')
+    await dbService.withWriteTx((tx) => jobService.setCancelRequestedTx(tx, jobId))
 
     const controller = this.abortControllers.get(jobId)
     if (controller) {
@@ -573,8 +569,8 @@ export class JobManager extends BaseService {
         length: reason.length
       })
     }
-    const db = application.get('DbService').getDb()
-    const result = await db.transaction(async (tx) =>
+    const dbService = application.get('DbService')
+    const result = await dbService.withWriteTx((tx) =>
       jobService.cancelManyTx(tx, filter, {
         code: JOB_ERROR_CODES.CANCELLED,
         message: reason ?? 'Cancelled by cancelMany',
@@ -928,15 +924,17 @@ export class JobManager extends BaseService {
     const queue = this.queues.get(queueName)
     if (!queue) return
 
-    // Layer 1 first (per-queue), then Layer 0 (global libsql tx serializer).
-    // Release happens in reverse order in the finally block below.
+    // Layer 1 first (per-queue) serializes ticks against the same queue and
+    // avoids wasted writeMutex traffic. Layer 0 (the global write mutex inside
+    // DbService.withWriteTx) serializes all writes across the app to dodge
+    // libsql issue #288. Lock acquisition order is fixed: Layer 1 outside,
+    // Layer 0 inside (via withWriteTx).
     const releaseQueue = await queue.mutex.acquire()
-    const releaseGlobal = await this.globalDispatchMutex.acquire()
     let claimed: JobRow | null = null
 
     try {
-      const db = application.get('DbService').getDb()
-      claimed = await db.transaction(async (tx) => {
+      const dbService = application.get('DbService')
+      claimed = await dbService.withWriteTx(async (tx) => {
         const queueActive = await jobService.countActiveByQueueTx(tx, queueName)
         if (queueActive >= queue.concurrency) return null
         const globalActive = await jobService.countActiveGlobalTx(tx)
@@ -946,7 +944,6 @@ export class JobManager extends BaseService {
     } catch (err) {
       logger.error('dispatch transaction failed', { queue: queueName, error: err })
     } finally {
-      releaseGlobal()
       releaseQueue()
     }
 
@@ -1023,10 +1020,8 @@ export class JobManager extends BaseService {
         // The DB write happens FIRST — if it throws, row.metadata stays in
         // sync with the durable state and the handler observes the failure.
         const merged = { ...row.metadata, ...patch }
-        const db = application.get('DbService').getDb()
-        await db.transaction(async (tx) => {
-          await jobService.setMetadataTx(tx, row.id, merged)
-        })
+        const dbService = application.get('DbService')
+        await dbService.withWriteTx((tx) => jobService.setMetadataTx(tx, row.id, merged))
         row.metadata = merged
       },
       reportProgress: (progress, detail) => {
@@ -1035,7 +1030,7 @@ export class JobManager extends BaseService {
       logger: loggerService.withContext('JobExec', { jobId: row.id, type: row.type })
     }
 
-    void (async () => {
+    const task = (async () => {
       try {
         const output = await handler.execute(ctx)
         if (timeoutHandle) clearTimeout(timeoutHandle)
@@ -1082,6 +1077,43 @@ export class JobManager extends BaseService {
         resolveExecuted()
       }
     })()
+
+    // Outer safety net: the inner try/catch already handles handler errors and
+    // retry/finalize paths, but a leak can still happen if scheduleRetry's
+    // fallback finalizeJob throws or any other unexpected exception escapes.
+    // We wrap the recovery in its own try/catch so logger errors cannot become
+    // a new unhandled rejection, and chain a terminal `.catch(() => {})` to
+    // swallow anything that still slips through — this is the hard guarantee
+    // that no path produces UnhandledPromiseRejection.
+    void task
+      .catch(async (outerErr) => {
+        try {
+          logger.error('spawnExecute leaked exception — forcing terminal state', {
+            jobId: row.id,
+            err: outerErr
+          })
+          try {
+            await this.finalizeJob(row.id, 'failed', undefined, {
+              code: JOB_ERROR_CODES.HANDLER_THREW,
+              message: `Internal leaked: ${(outerErr as Error)?.message ?? String(outerErr)}`,
+              retryable: false
+            })
+          } catch (settleErr) {
+            logger.error('spawnExecute fallback finalize also failed', {
+              jobId: row.id,
+              err: settleErr
+            })
+            // Stranded `running` row will be reclaimed by startup recovery on
+            // the next process start.
+          }
+        } catch {
+          // logger itself threw — last-resort silent swallow.
+        }
+      })
+      .catch(() => {
+        // Belt-and-suspenders terminal swallow. Should never be reachable, but
+        // guarantees `task` cannot produce an unhandled rejection.
+      })
   }
 
   /**
@@ -1102,12 +1134,10 @@ export class JobManager extends BaseService {
     output: unknown | undefined,
     error: JobError | null
   ): Promise<void> {
-    const db = application.get('DbService').getDb()
+    const dbService = application.get('DbService')
     let txFailed: Error | undefined
     try {
-      await db.transaction(async (tx) => {
-        await jobService.setTerminalTx(tx, jobId, status, output, error)
-      })
+      await dbService.withWriteTx((tx) => jobService.setTerminalTx(tx, jobId, status, output, error))
     } catch (err) {
       txFailed = err as Error
       logger.error('finalizeJob: tx failed — synthesizing failed snapshot to release slot', { jobId, status, err })
@@ -1211,10 +1241,29 @@ export class JobManager extends BaseService {
     error: JobError,
     queue: string
   ): Promise<void> {
-    const db = application.get('DbService').getDb()
-    await db.transaction(async (tx) => {
-      await jobService.setDelayedRetryTx(tx, jobId, nextAttempt, scheduledAt, error)
-    })
+    const dbService = application.get('DbService')
+    try {
+      await dbService.withWriteTx((tx) => jobService.setDelayedRetryTx(tx, jobId, nextAttempt, scheduledAt, error))
+    } catch (retryWriteErr) {
+      // mutex + libsql default IMMEDIATE + 50ms BUSY retry cover transient
+      // SQLITE_BUSY; this fallback defends against persistent non-BUSY
+      // failures (SQLITE_CORRUPT / FULL / CONSTRAINT, driver bugs, etc.)
+      // that would otherwise leave the row stuck in `running` until
+      // restart. Degrading to a terminal `failed` with retryable=true
+      // surfaces the failure to UI/monitoring while finalizeJob's
+      // synthesizeFailedSnapshot guarantees the in-memory slot frees up.
+      logger.error('scheduleRetry: persist failed — degrading to finalizeJob(failed)', {
+        jobId,
+        nextAttempt,
+        err: retryWriteErr
+      })
+      await this.finalizeJob(jobId, 'failed', undefined, {
+        code: JOB_ERROR_CODES.HANDLER_THREW,
+        message: `Retry persist failed: ${(retryWriteErr as Error).message}; original: ${error.message}`,
+        retryable: true
+      })
+      return
+    }
 
     const scheduler = application.get('SchedulerService')
     const retryId = `retry:${jobId}:${nextAttempt}`
