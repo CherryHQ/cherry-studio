@@ -28,7 +28,7 @@ describe('FileRefService', () => {
       ext: 'txt',
       size: 1,
       externalPath: null,
-      trashedAt: null,
+      deletedAt: null,
       createdAt: now,
       updatedAt: now
     })

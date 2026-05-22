@@ -80,7 +80,7 @@ describe('createDirectoryWatcher', () => {
         name: 'note',
         ext: 'txt',
         size: null,
-        trashedAt: null,
+        deletedAt: null,
         createdAt: 0,
         updatedAt: 0
       } as never)
@@ -107,7 +107,7 @@ describe('createDirectoryWatcher', () => {
         name: 'gone',
         ext: 'txt',
         size: null,
-        trashedAt: null,
+        deletedAt: null,
         createdAt: 0,
         updatedAt: 0
       } as never)
@@ -196,7 +196,7 @@ describe('createDirectoryWatcher', () => {
           name: 'qué',
           ext: 'txt',
           size: null,
-          trashedAt: null,
+          deletedAt: null,
           createdAt: 0,
           updatedAt: 0
         } as never)

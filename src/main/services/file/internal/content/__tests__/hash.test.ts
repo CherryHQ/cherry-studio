@@ -72,7 +72,7 @@ describe('internal/content/hash', () => {
       ext: 'txt',
       size: null,
       externalPath: file,
-      trashedAt: null,
+      deletedAt: null,
       createdAt: now,
       updatedAt: now
     })
@@ -99,7 +99,7 @@ describe('internal/content/hash', () => {
         ext: 'txt',
         size: null,
         externalPath: fileA,
-        trashedAt: null,
+        deletedAt: null,
         createdAt: now,
         updatedAt: now
       },
@@ -110,7 +110,7 @@ describe('internal/content/hash', () => {
         ext: 'txt',
         size: null,
         externalPath: fileB,
-        trashedAt: null,
+        deletedAt: null,
         createdAt: now,
         updatedAt: now
       }
@@ -130,7 +130,7 @@ describe('internal/content/hash', () => {
       ext: 'txt',
       size: null,
       externalPath: file,
-      trashedAt: null,
+      deletedAt: null,
       createdAt: now,
       updatedAt: now
     })

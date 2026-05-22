@@ -37,7 +37,7 @@ describe('OrphanRefScanner', () => {
       ext: 'txt',
       size: 1,
       externalPath: null,
-      trashedAt: null,
+      deletedAt: null,
       createdAt: now,
       updatedAt: now
     })
@@ -501,7 +501,7 @@ describe('runStartupFileSweep (FS-level)', () => {
       ext: 'txt',
       size: 4,
       externalPath: null,
-      trashedAt: null,
+      deletedAt: null,
       createdAt: now,
       updatedAt: now
     })
@@ -774,7 +774,7 @@ describe('runStartupFileSweep (FS-level)', () => {
   it('preserves trashed entries’ physical files through the sweep (listAllIds returns active + trashed)', async () => {
     // Regression: `FileEntryService.listAllIds` unit test verifies it returns
     // active + trashed ids, but no end-to-end test wired it through
-    // runStartupFileSweep. A regression that filtered `WHERE trashedAt IS
+    // runStartupFileSweep. A regression that filtered `WHERE deletedAt IS
     // NULL` would silently nuke every trashed file's physical blob on next
     // boot — data loss the user did not consent to. Pin the contract here.
     const trashedId = '019606a0-0000-7000-8000-0000000fa2ed' as FileEntryId
@@ -789,8 +789,8 @@ describe('runStartupFileSweep (FS-level)', () => {
       externalPath: null
     })
     await writeFile(trashedPath, 'x')
-    // 2) Move to trash via the service (sets trashedAt; row stays in DB).
-    await fileEntryService.update(trashedId, { trashedAt: Date.now() })
+    // 2) Move to trash via the service (sets deletedAt; row stays in DB).
+    await fileEntryService.update(trashedId, { deletedAt: Date.now() })
 
     const report = await runStartupFileSweep({ fileEntryService })
     expect(report.outcome).toBe('completed')

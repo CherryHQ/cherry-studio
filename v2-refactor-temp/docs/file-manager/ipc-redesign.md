@@ -5,7 +5,7 @@
 > 本文档捕获的是早期设计，关键术语/决策已被后续评审推翻：
 >
 > - `FileManager.createEntry({origin})` 已拆分为 `createInternalEntry` + `ensureExternalEntry`（A-7）
-> - External entry 不再进入 trash 生命周期（`fe_external_no_trash` CHECK）
+> - External entry 不再进入 trash 生命周期（`fe_external_no_delete` CHECK）
 > - `externalPath` 唯一性由 partial unique 升级为 global unique
 > - `permanentDelete` 对 external 只删 DB 行，不触碰物理文件
 >

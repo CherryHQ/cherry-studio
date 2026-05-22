@@ -72,7 +72,7 @@ describe('internal/content/read', () => {
       ext: 'txt',
       size: null,
       externalPath: file,
-      trashedAt: null,
+      deletedAt: null,
       createdAt: now,
       updatedAt: now
     })
@@ -96,7 +96,7 @@ describe('internal/content/read', () => {
       ext: 'png',
       size: null,
       externalPath: file,
-      trashedAt: null,
+      deletedAt: null,
       createdAt: now,
       updatedAt: now
     })
@@ -119,7 +119,7 @@ describe('internal/content/read', () => {
       ext: 'pdf',
       size: null,
       externalPath: file,
-      trashedAt: null,
+      deletedAt: null,
       createdAt: now,
       updatedAt: now
     })
@@ -144,7 +144,7 @@ describe('internal/content/read', () => {
       ext: 'txt',
       size: null,
       externalPath: file,
-      trashedAt: null,
+      deletedAt: null,
       createdAt: now,
       updatedAt: now
     })
