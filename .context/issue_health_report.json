@@ -1,103 +1,108 @@
 {
-  "meta": {
-    "generated_at": "2026-05-21",
-    "data_source": "GitHub Search API",
-    "methodology": "Health buckets based on issue updatedAt field relative to 2026-05-21"
-  },
+  "generated_at": "2026-05-22",
   "summary": {
-    "total_open_issues": 878,
-    "health_buckets": {
-      "active_and_aging": {
-        "count": 564,
-        "pct": 64.2,
-        "description": "Updated within last 30 days (2026-04-21 to 2026-05-21)"
-      },
-      "stale": {
-        "count": 310,
-        "pct": 35.3,
-        "description": "Not updated for 30-90 days (2026-02-21 to 2026-04-21)",
-        "note": "Computed as: 314 (not updated since Apr 21) minus 4 zombie"
-      },
-      "zombie": {
-        "count": 4,
-        "pct": 0.5,
-        "description": "Not updated for >90 days (before 2026-02-21)",
-        "examples": [
-          "#11578 - Upgrade to MCP protocol 2025-11-25 spec (by DeJeune, MCP label, created 2025-11-30)"
-        ]
-      }
-    }
+    "total_open": 882,
+    "total_closed_30d": 371,
+    "closure_rate_30d": "~12.4 issues closed per day",
+    "avg_close_time_hours": 980.46,
+    "avg_close_time_days": 40.85,
+    "new_issues_7d": 55,
+    "new_issues_30d": 63,
+    "unlabeled_open": 9,
+    "unlabeled_pct": 9.0,
+    "health_score_note": "Based on 100-item sample (most recently updated issues)"
+  },
+  "age_health": {
+    "note": "All 100 sampled issues are in 'Active' bucket because the API returns most-recently-updated first. True distribution across all 882 issues would show more aging/stale/zombie issues.",
+    "sample_buckets": {
+      "Active_updated_lt7d": {"count": 100, "pct": 100.0},
+      "Aging_updated_7_30d": {"count": 0, "pct": 0.0},
+      "Stale_updated_30_90d": {"count": 0, "pct": 0.0},
+      "Zombie_updated_gt90d": {"count": 0, "pct": 0.0}
+    },
+    "evidence_of_old_issues": [
+      {"number": 7455, "title": "[功能]: 自动更新完成后清理下载文件？", "created": "2025-06-22", "comments": 6}
+    ]
+  },
+  "label_health": {
+    "open_issues_label_dist": {
+      "inactive": 32,
+      "UI/UX": 30,
+      "Models": 17,
+      "Assistant": 16,
+      "MCP": 11,
+      "discussion": 9,
+      "help wanted": 7,
+      "Data": 7,
+      "feature": 5,
+      "BUG": 4,
+      "needs-repro": 4,
+      "Connectivity": 3,
+      "Dev Team": 2,
+      "needs-more-info": 2,
+      "RAG": 1,
+      "v2": 1,
+      "prd": 1,
+      "ready-for-dev": 1
+    },
+    "closed_issues_label_dist_30d": {
+      "inactive": 81,
+      "Models": 18,
+      "UI/UX": 17,
+      "BUG": 10,
+      "MCP": 9,
+      "needs-repro": 9,
+      "help wanted": 9,
+      "discussion": 9,
+      "Assistant": 8,
+      "RAG": 6,
+      "needs-more-info": 5,
+      "closed:no-response": 5,
+      "Connectivity": 4,
+      "Performance": 4,
+      "OpenClaw": 3,
+      "Data": 3,
+      "P2": 2,
+      "fixed": 1,
+      "feature": 1,
+      "Agent": 1,
+      "ClaudeCode": 1
+    },
+    "concerns": [
+      "21.8% of closed issues labeled 'inactive' — high auto-closure rate from inactivity bot",
+      "No P0/P1 priority labels found; only 'P2' exists (2 closed issues) — priority taxonomy incomplete",
+      "9% of open issues have no labels — triage backlog"
+    ]
+  },
+  "priority_issues": {
+    "p0_critical": [],
+    "p1_urgent": [],
+    "p2_normal": [
+      {"note": "2 issues found in closed-30d with P2 label — no P2 open issues in current sample"}
+    ],
+    "high_engagement": [
+      {"number": 9943, "title": "[错误]: MCPB（原DXT）文件导入MCP服务器", "comments": 15, "area": "MCP"},
+      {"number": 7455, "title": "[功能]: 自动更新完成后清理下载文件", "comments": 6, "area": "Update"},
+      {"number": 14644, "title": "[Feature]: Create Agent duplicates", "comments": 5, "area": "Agent"}
+    ]
   },
   "triage_backlog": {
-    "no_label": 74,
-    "no_label_pct": 8.4,
-    "needs_repro": 7,
-    "needs_more_info": 2,
-    "inactive_tagged": 31,
-    "total_needing_triage": 114,
-    "note": "Many issues tagged 'inactive' are effectively closed-pending; they inflate the open count"
+    "unlabeled_open_count": 9,
+    "unlabeled_pct": 9.0,
+    "needs_repro_open": 4,
+    "needs_more_info_open": 2,
+    "help_wanted_open": 7
   },
-  "bug_breakdown": {
-    "total_bug_issues": 109,
-    "sample_health_of_50_bugs": {
-      "active_lt_7d": 8,
-      "aging_7_to_30d": 5,
-      "stale_30_to_90d": 37,
-      "zombie_gt_90d": 0
-    },
-    "note": "74% of sampled bug issues are stale — not updated in 30-90 days"
+  "trending_categories": {
+    "most_active_open": ["UI/UX", "Models", "Assistant", "MCP", "Data"],
+    "most_closed_30d": ["inactive (auto-close)", "Models", "UI/UX", "BUG", "MCP"],
+    "emerging_concerns": ["MCP integration issues (DXT/MCPB)", "Agent mode failures", "Image generation errors"]
   },
-  "critical_unresolved": [
-    {
-      "number": 9943,
-      "title": "[错误]: MCPB（原DXT）文件导入MCP服务器的相关问题",
-      "age_days": 257,
-      "comments": 15,
-      "labels": ["BUG", "MCP"],
-      "health": "Stale",
-      "action": "Needs owner assignment and resolution"
-    },
-    {
-      "number": 11765,
-      "title": "[Bug]: Provider Support overwrite 'User-Agent' in Headers",
-      "age_days": 163,
-      "comments": 6,
-      "labels": ["BUG", "Models"],
-      "health": "Stale",
-      "action": "Long-standing regression, needs investigation"
-    },
-    {
-      "number": 14248,
-      "title": "[Bug]: App crashes on long response generation",
-      "age_days": 45,
-      "comments": 4,
-      "labels": ["Planned", "Performance", "inactive", "v2"],
-      "health": "Aging",
-      "action": "Planned for v2 — ensure tracked in v2 roadmap"
-    },
-    {
-      "number": 14996,
-      "title": "[Bug]: Agent API 400 errors with Qwen/Gemma local models",
-      "age_days": 9,
-      "comments": 8,
-      "labels": ["needs-repro", "Assistant", "Models"],
-      "health": "Active",
-      "action": "High engagement, needs repro verification soon"
-    },
-    {
-      "number": 15193,
-      "title": "[Bug] API Server crashes after switching model — port conflict",
-      "age_days": 1,
-      "comments": 3,
-      "labels": ["Connectivity"],
-      "health": "Active",
-      "action": "New crash report, high severity — triage immediately"
-    }
-  ],
   "recommendations": [
-    "Run a batch triage on 310 stale issues — close 'inactive'-tagged ones that have no further activity",
-    "74 no-label issues need classification within 48h of creation",
-    "Bug area stale rate (74%) is too high — consider a bug-bash sprint",
-    "Issue #9943 (MCP import, 257 days, 15 comments) needs a definitive resolution or close-with-explanation"
+    "Establish P0/P1 label taxonomy to track critical issues formally",
+    "Reduce unlabeled rate — 9% needs triage",
+    "Review inactive-bot threshold; 81/100 closed issues in 30d were auto-closed — may be masking real backlog",
+    "Avg time-to-close of 40.85 days suggests slow response time; aim for 7 days on BUG/MCP category",
+    "Issue #9943 (MCPB import, 15 comments) needs resolution or escalation"
   ]
 }

@@ -1,85 +1,67 @@
 {
-  "meta": {
-    "generated_at": "2026-05-21",
-    "data_source": "GitHub Discussions GraphQL API — not available in this execution environment",
-    "status": "unavailable",
-    "note": "GitHub Discussions GraphQL requires a separate tool not available via the MCP server used in this session. Data below is from the Issues API as a proxy for community engagement."
+  "generated_at": "2026-05-22",
+  "data_source_note": "GitHub Discussions API not available via MCP tools; analysis derived from Issues labeled 'discussion' as proxy",
+  "discussion_proxy_from_issues": {
+    "open_discussions_labeled": 9,
+    "closed_discussions_30d": 9,
+    "top_discussion_topics_open": [
+      "UI/UX improvements",
+      "Model integration requests",
+      "MCP configuration questions",
+      "Agent behavior customization",
+      "Performance optimization"
+    ]
   },
-  "community_engagement_proxy": {
-    "note": "Derived from Issues API data as a proxy for discussion health",
-    "top_engaged_issues": [
+  "community_signals": {
+    "high_engagement_issues": [
       {
         "number": 9943,
         "title": "[错误]: MCPB（原DXT）文件导入MCP服务器的相关问题",
         "comments": 15,
-        "labels": ["BUG", "MCP"],
-        "age_days": 257,
-        "engagement": "high",
-        "language": "zh"
-      },
-      {
-        "number": 14996,
-        "title": "[Bug]: Using Qwen or Gemma local models to create agents — API 400 errors",
-        "comments": 8,
-        "labels": ["needs-repro", "Assistant", "Models"],
-        "age_days": 9,
-        "engagement": "high",
-        "language": "en"
-      },
-      {
-        "number": 11765,
-        "title": "[Bug]: Provider Support overwrite 'User-Agent' in Headers",
-        "comments": 6,
-        "labels": ["BUG", "Models"],
-        "age_days": 163,
-        "engagement": "medium",
-        "language": "en"
+        "category": "MCP / Bug",
+        "signal": "High community interest in MCPB/DXT support"
       },
       {
         "number": 7455,
-        "title": "[功能]: 自动更新完成后能否将下载的新版本文件清理掉？",
+        "title": "[功能]: 自动更新完成后清理下载文件",
         "comments": 6,
-        "labels": ["feature", "inactive"],
-        "age_days": 332,
-        "engagement": "medium",
-        "language": "zh"
+        "category": "Feature Request",
+        "signal": "Long-standing UX improvement request (created Jun 2025)"
       },
       {
-        "number": 13082,
-        "title": "[Bug]: Frequent lag during normal operations",
+        "number": 14644,
+        "title": "[Feature]: Add functionality to create Agent duplicates (copies)",
         "comments": 5,
-        "labels": ["BUG", "Planned", "Performance", "v2"],
-        "age_days": 80,
-        "engagement": "medium",
-        "language": "en"
+        "category": "Agent Feature",
+        "signal": "Popular agent management UX request"
       }
     ],
-    "language_distribution_estimate": {
-      "chinese_zh": "~45%",
-      "english_en": "~55%",
-      "note": "Rough estimate based on sampled issue titles"
-    },
-    "hot_feature_requests": [
-      {
-        "number": 15244,
-        "title": "[Feature]: Cherry CLI — Terminal Tool with Full GUI Feature Parity (V2)",
-        "author": "SiinXu",
-        "created_at": "2026-05-21",
-        "reactions_plus1": 2,
-        "note": "Proposed by team member — major feature for v2"
-      }
-    ],
-    "hot_areas_by_label": {
-      "Models": "Most active — 19 open + 21 closed in 30d",
-      "MCP": "Sustained engagement — 10 open, #9943 is oldest high-engagement issue",
-      "Assistant": "Growing — 19 open issues, agent-related bugs increasing",
-      "UI/UX": "High volume — 25 open, mostly cosmetic/UX improvements",
-      "inactive": "Backlog concern — 31 issues tagged inactive still open"
-    }
+    "emerging_themes": [
+      "MCPB/DXT file format support — multiple related issues",
+      "Agent mode reliability (ECONNRESET, /clear command failures)",
+      "Image generation improvements (gpt-image-2, parameter parsing)",
+      "Model capability flags and reasoning effort configuration",
+      "Windows-specific UX issues (scrollbar width, emoji rendering)"
+    ]
   },
-  "action_items": [
-    "Enable Discussions GraphQL access in future sessions for richer analysis",
-    "Close/resolve #9943 (MCP import, 257 days old) — community keeps returning to it",
-    "Address agent API 400 errors (#14996) — 8 comments in 9 days shows user impact"
+  "answered_rate_estimate": {
+    "note": "Cannot compute precisely without Discussions API; estimating from issues with assignees or label changes",
+    "issues_with_assignees": "Low — most issues lack assignees in sample",
+    "needs_repro_open": 4,
+    "closed_no_response": 5,
+    "help_wanted_open": 7
+  },
+  "top_contributors_in_discussions": {
+    "note": "Based on PR and issue activity as proxy for discussion engagement",
+    "most_active": [
+      "LWWZH", "DeJeune", "404-Page-Found", "GeorgeDong32", "mturac",
+      "kangfenmao", "eeee0717", "zhangjiadi225", "Cherry-Yiran", "EurFelux"
+    ]
+  },
+  "recommendations": [
+    "Enable GitHub Discussions API access to get direct discussion metrics",
+    "Create FAQ pinned discussion for MCPB/DXT import issues (high traffic)",
+    "Add 'good first issue' labels to help wanted issues to attract contributors",
+    "Consider monthly community call to address trending themes"
   ]
 }
