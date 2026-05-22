@@ -160,7 +160,6 @@ export type PathThroughQueryParams = z.infer<typeof PathThroughQuerySchema>
 export const SearchMessagesQuerySchema = z.strictObject({
   q: z.string().trim().min(1),
   topicId: z.string().min(1).optional(),
-  matchMode: z.enum(['whole-word', 'substring']).optional(),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().positive().max(1000).optional(),
   createdAtFrom: z.iso.datetime().optional()
@@ -168,7 +167,6 @@ export const SearchMessagesQuerySchema = z.strictObject({
 export type SearchMessagesQueryParams = {
   q: string
   topicId?: string
-  matchMode?: 'whole-word' | 'substring'
   cursor?: string
   limit?: number
   createdAtFrom?: string

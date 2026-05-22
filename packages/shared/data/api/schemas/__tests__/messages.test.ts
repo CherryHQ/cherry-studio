@@ -14,14 +14,12 @@ describe('SearchMessagesQuerySchema', () => {
       SearchMessagesQuerySchema.parse({
         q: 'plan',
         topicId: 'topic-1',
-        matchMode: 'substring',
         limit: '20',
         createdAtFrom: '2026-05-01T00:00:00.000Z'
       })
     ).toEqual({
       q: 'plan',
       topicId: 'topic-1',
-      matchMode: 'substring',
       limit: 20,
       createdAtFrom: '2026-05-01T00:00:00.000Z'
     })

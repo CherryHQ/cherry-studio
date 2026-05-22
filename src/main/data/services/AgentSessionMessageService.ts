@@ -27,7 +27,6 @@ import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
 const logger = loggerService.withContext('SessionMessageService')
 const SEARCH_CHUNK_SIZE = 200
-const MIN_FTS_TERM_LENGTH = 3
 
 type SessionMessageSearchRow = {
   rowId: string
@@ -78,93 +77,54 @@ function encodeMessageCursor(createdAt: number | string, id: string): string {
   return `${createdAt}:${id}`
 }
 
-function quoteFtsTerm(term: string): string {
-  return `"${term.replace(/"/g, '""')}"`
-}
-
-function canUseFts(terms: string[]): boolean {
-  return terms.every((term) => term.length >= MIN_FTS_TERM_LENGTH)
-}
-
 export class AgentSessionMessageService {
   async search(query: SearchSessionMessagesQueryParams): Promise<SearchSessionMessagesResponse> {
     const terms = splitKeywordsToTerms(query.q)
     if (terms.length === 0) return { items: [] }
 
     const db = application.get('DbService').getDb()
-    const matchMode = query.matchMode ?? 'substring'
+    const matchMode = 'substring'
     const limit = query.limit ?? 500
     const fetchLimit = limit + 1
     const regexes = buildKeywordRegexes(terms, { matchMode, flags: 'i' })
     const cursor = query.cursor ? decodeMessageCursor(query.cursor) : null
     const createdAtFromMs = getCreatedAtFromMs(query.createdAtFrom)
     const results: InternalSessionSearchMessageResult[] = []
-    const useFts = matchMode === 'whole-word' && canUseFts(terms)
-    const ftsQuery = terms.map(quoteFtsTerm).join(' AND ')
     const likeConditions = terms.map((term) => {
       const pattern = `%${escapeLikeTerm(term.toLowerCase())}%`
       return sql`lower(sm.searchable_text) LIKE ${pattern} ESCAPE '\\'`
     })
-    const sessionCondition = query.sessionId ? sql`s.id = ${query.sessionId}` : sql`1 = 1`
     const messageSessionCondition = query.sessionId ? sql`sm.session_id = ${query.sessionId}` : sql`1 = 1`
     let offset = 0
 
     while (results.length < fetchLimit) {
       const createdAtCondition = createdAtFromMs !== undefined ? sql`sm.created_at >= ${createdAtFromMs}` : sql`1 = 1`
-      const rows = useFts
-        ? await db.all<SessionMessageSearchRow>(sql`
-            SELECT
-              sm.id AS "rowId",
-              sm.searchable_text AS "searchableText",
-              sm.session_id AS "sessionId",
-              s.name AS "sessionName",
-              s.agent_id AS "agentId",
-              a.name AS "agentName",
-              sm.role,
-              sm.created_at AS "createdAt"
-            FROM agent_session_message_fts
-            JOIN agent_session_message sm ON sm.rowid = agent_session_message_fts.rowid
-            JOIN agent_session s ON s.id = sm.session_id
-            LEFT JOIN agent a ON a.id = s.agent_id
-            WHERE agent_session_message_fts MATCH ${ftsQuery}
-              AND sm.searchable_text != ''
-              AND ${sessionCondition}
-              AND ${createdAtCondition}
-              AND ${
-                cursor
-                  ? sql`(sm.created_at < ${cursor.createdAt} OR (sm.created_at = ${cursor.createdAt} AND sm.id < ${cursor.id}))`
-                  : sql`1 = 1`
-              }
-            ORDER BY sm.created_at DESC, sm.id DESC
-            LIMIT ${SEARCH_CHUNK_SIZE}
-            OFFSET ${offset}
-          `)
-        : await db.all<SessionMessageSearchRow>(sql`
-            SELECT
-              sm.id AS "rowId",
-              sm.searchable_text AS "searchableText",
-              sm.session_id AS "sessionId",
-              s.name AS "sessionName",
-              s.agent_id AS "agentId",
-              a.name AS "agentName",
-              sm.role,
-              sm.created_at AS "createdAt"
-            FROM agent_session_message sm
-            JOIN agent_session s ON s.id = sm.session_id
-            LEFT JOIN agent a ON a.id = s.agent_id
-            WHERE sm.searchable_text != ''
-              AND ${messageSessionCondition}
-              AND ${createdAtCondition}
-              AND ${sql.join(likeConditions, sql` AND `)}
-              AND ${
-                cursor
-                  ? sql`(sm.created_at < ${cursor.createdAt} OR (sm.created_at = ${cursor.createdAt} AND sm.id < ${cursor.id}))`
-                  : sql`1 = 1`
-              }
-            ORDER BY sm.created_at DESC, sm.id DESC
-            LIMIT ${SEARCH_CHUNK_SIZE}
-            OFFSET ${offset}
-          `)
+      const rows = await db.all<SessionMessageSearchRow>(sql`
+        SELECT
+          sm.id AS "rowId",
+          sm.searchable_text AS "searchableText",
+          sm.session_id AS "sessionId",
+          s.name AS "sessionName",
+          s.agent_id AS "agentId",
+          a.name AS "agentName",
+          sm.role,
+          sm.created_at AS "createdAt"
+        FROM agent_session_message sm
+        JOIN agent_session s ON s.id = sm.session_id
+        LEFT JOIN agent a ON a.id = s.agent_id
+        WHERE sm.searchable_text != ''
+          AND ${messageSessionCondition}
+          AND ${createdAtCondition}
+          AND ${sql.join(likeConditions, sql` AND `)}
+          AND ${
+            cursor
+              ? sql`(sm.created_at < ${cursor.createdAt} OR (sm.created_at = ${cursor.createdAt} AND sm.id < ${cursor.id}))`
+              : sql`1 = 1`
+          }
+        ORDER BY sm.created_at DESC, sm.id DESC
+        LIMIT ${SEARCH_CHUNK_SIZE}
+        OFFSET ${offset}
+      `)
 
       if (rows.length === 0) break
       offset += rows.length
@@ -202,7 +162,16 @@ export class AgentSessionMessageService {
     const itemsWithCursor = results.slice(0, limit)
     const nextCursorBoundary = results.length > limit ? itemsWithCursor.at(-1) : undefined
     return {
-      items: itemsWithCursor.map(({ cursorCreatedAt: _cursorCreatedAt, cursorId: _cursorId, ...item }) => item),
+      items: itemsWithCursor.map((item) => ({
+        messageId: item.messageId,
+        sessionId: item.sessionId,
+        sessionName: item.sessionName,
+        agentId: item.agentId,
+        agentName: item.agentName,
+        role: item.role,
+        snippet: item.snippet,
+        createdAt: item.createdAt
+      })),
       nextCursor: nextCursorBoundary
         ? encodeMessageCursor(nextCursorBoundary.cursorCreatedAt, nextCursorBoundary.cursorId)
         : undefined

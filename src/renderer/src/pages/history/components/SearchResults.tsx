@@ -10,7 +10,7 @@ import type {
   SearchMessagesQueryParams,
   SearchMessagesResponse
 } from '@shared/data/api/schemas/messages'
-import { buildKeywordUnionRegex, type KeywordMatchMode, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
+import { buildKeywordUnionRegex, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
 import type { FC } from 'react'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -79,7 +79,6 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
   const lastScrollTopRef = useRef(0)
   const isVisible = props.style?.display !== 'none'
 
-  const [matchMode, setMatchMode] = useState<KeywordMatchMode>('whole-word')
   const [sortOrder, setSortOrder] = useState<ResultSortOrder>('newest')
   const [searchTerms, setSearchTerms] = useState<string[]>(splitKeywordsToTerms(keywords))
 
@@ -116,11 +115,9 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
     const startTime = performance.now()
     const newSearchTerms = splitKeywordsToTerms(keywords)
     try {
-      const apiResults = await loadAllMessageSearchResults(
-        { q: keywords, matchMode },
-        fetchMessageSearchPage,
-        () => requestId === searchRequestRef.current
-      )
+      const apiResults = await loadAllMessageSearchResults({ q: keywords }, fetchMessageSearchPage, () => {
+        return requestId === searchRequestRef.current
+      })
       const results = apiResults.map((result) => ({ ...result, topic: searchResultToTopic(result) }))
 
       if (requestId !== searchRequestRef.current) return
@@ -143,7 +140,7 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
     } finally {
       if (requestId === searchRequestRef.current) setIsLoading(false)
     }
-  }, [keywords, matchMode, scrollToTop])
+  }, [keywords, scrollToTop])
 
   const sortedSearchResults = useMemo(() => {
     const results = [...searchResults]
@@ -168,7 +165,7 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
     const escapeHtml = (s: string) =>
       s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
     const safeText = escapeHtml(text)
-    const highlightRegex = buildKeywordUnionRegex(searchTerms, { matchMode, flags: 'gi' })
+    const highlightRegex = buildKeywordUnionRegex(searchTerms, { matchMode: 'substring', flags: 'gi' })
     if (!highlightRegex) {
       return <span dangerouslySetInnerHTML={{ __html: safeText }} />
     }
@@ -207,18 +204,6 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
           options={[
             { label: t('history.search.sort.newest'), value: 'newest' },
             { label: t('history.search.sort.oldest'), value: 'oldest' }
-          ]}
-        />
-        <SegmentedControl<KeywordMatchMode>
-          size="sm"
-          value={matchMode}
-          onValueChange={(value) => {
-            setMatchMode(value)
-            scrollToTop()
-          }}
-          options={[
-            { label: t('history.search.match.whole_word'), value: 'whole-word' },
-            { label: t('history.search.match.substring'), value: 'substring' }
           ]}
         />
       </div>

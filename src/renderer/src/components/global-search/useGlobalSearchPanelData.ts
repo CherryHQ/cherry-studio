@@ -1,7 +1,6 @@
 import { useQuery } from '@data/hooks/useDataApi'
 import type { GroupedVirtualListGroup } from '@renderer/components/VirtualList'
 import type { GlobalSearchRecentEntry } from '@shared/data/cache/cacheValueTypes'
-import type { KeywordMatchMode } from '@shared/utils/keywordSearch'
 import dayjs from 'dayjs'
 import { useMemo } from 'react'
 
@@ -22,8 +21,6 @@ import {
 
 export type GlobalSearchPanelMode = 'search' | 'menu-manager' | 'message-search'
 export type GlobalSearchTimeFilter = 'any' | 'today' | 'week' | 'month' | 'quarter'
-
-export const DEFAULT_MESSAGE_SEARCH_MATCH_MODE: KeywordMatchMode = 'substring'
 
 function getUpdatedAtFromForTimeFilter(filter: GlobalSearchTimeFilter): string | undefined {
   if (filter === 'any') return undefined
@@ -73,7 +70,6 @@ export function useGlobalSearchPanelData({
   const messageSearchQuery = useMemo(
     () => ({
       q: deferredQuery,
-      matchMode: DEFAULT_MESSAGE_SEARCH_MATCH_MODE,
       limit: messageSearchLimit,
       ...(updatedAtFrom ? { createdAtFrom: updatedAtFrom } : {})
     }),

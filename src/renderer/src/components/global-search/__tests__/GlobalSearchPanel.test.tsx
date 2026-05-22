@@ -823,8 +823,7 @@ describe('GlobalSearchPanel', () => {
           enabled: true,
           query: expect.objectContaining({
             limit: GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT,
-            q: 'needle',
-            matchMode: 'substring'
+            q: 'needle'
           })
         })
       )
@@ -899,8 +898,7 @@ describe('GlobalSearchPanel', () => {
           enabled: true,
           query: expect.objectContaining({
             limit: 50,
-            q: 'needle',
-            matchMode: 'substring'
+            q: 'needle'
           })
         })
       )
@@ -910,8 +908,7 @@ describe('GlobalSearchPanel', () => {
           enabled: true,
           query: expect.objectContaining({
             limit: 50,
-            q: 'needle',
-            matchMode: 'substring'
+            q: 'needle'
           })
         })
       )

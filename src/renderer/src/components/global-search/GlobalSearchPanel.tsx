@@ -64,7 +64,6 @@ import {
   useGlobalSearchKeyboard
 } from './useGlobalSearchKeyboard'
 import {
-  DEFAULT_MESSAGE_SEARCH_MATCH_MODE,
   type GlobalSearchPanelMode,
   type GlobalSearchTimeFilter,
   useGlobalSearchPanelData
@@ -896,7 +895,6 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
           messagePreviewTarget ? (
             <GlobalSearchMessagePreviewPanel
               className="h-full min-w-0"
-              matchMode={DEFAULT_MESSAGE_SEARCH_MATCH_MODE}
               searchQuery={deferredQuery}
               target={messagePreviewTarget}
               onClose={() => setMessagePreviewTarget(null)}

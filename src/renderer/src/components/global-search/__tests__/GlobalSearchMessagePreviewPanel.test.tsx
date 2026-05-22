@@ -153,7 +153,6 @@ describe('GlobalSearchMessagePreviewPanel', () => {
 
     render(
       <GlobalSearchMessagePreviewPanel
-        matchMode="substring"
         searchQuery="needle"
         target={{
           sourceType: 'topic',
@@ -222,7 +221,6 @@ describe('GlobalSearchMessagePreviewPanel', () => {
 
     render(
       <GlobalSearchMessagePreviewPanel
-        matchMode="substring"
         searchQuery="needle"
         target={{
           sourceType: 'session',

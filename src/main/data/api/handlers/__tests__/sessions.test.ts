@@ -92,7 +92,6 @@ describe('sessionHandlers', () => {
         query: {
           q: '  needle  ',
           sessionId: 'session-1',
-          matchMode: 'substring',
           limit: '10',
           createdAtFrom: '2026-05-01T00:00:00.000Z'
         }
@@ -101,7 +100,6 @@ describe('sessionHandlers', () => {
       expect(searchSessionMessagesMock).toHaveBeenCalledWith({
         q: 'needle',
         sessionId: 'session-1',
-        matchMode: 'substring',
         limit: 10,
         createdAtFrom: '2026-05-01T00:00:00.000Z'
       })

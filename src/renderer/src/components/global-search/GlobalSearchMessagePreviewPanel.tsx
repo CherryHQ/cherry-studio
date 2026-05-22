@@ -9,7 +9,7 @@ import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { sharedMessageToUIMessage, uiMessagesToPartsMap } from '@renderer/utils/messageUtils/messageProjection'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import { buildKeywordUnionRegex, type KeywordMatchMode, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
+import { buildKeywordUnionRegex, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
 import { ExternalLink, MessageSquare, MousePointerClick, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -35,7 +35,6 @@ export type GlobalSearchMessagePreviewTarget =
 
 interface GlobalSearchMessagePreviewPanelProps {
   className?: string
-  matchMode: KeywordMatchMode
   searchQuery: string
   target: GlobalSearchMessagePreviewTarget
   onClose: () => void
@@ -43,6 +42,7 @@ interface GlobalSearchMessagePreviewPanelProps {
 }
 
 const PREVIEW_PAGE_SIZE = 200
+const PREVIEW_MATCH_MODE = 'substring'
 const HIGHLIGHT_MARK_SELECTOR = 'mark[data-global-search-preview-highlight="true"]'
 const MESSAGE_BODY_SELECTOR = '[data-global-search-preview-message-body="true"]'
 const TEXT_NODE_PARENT_SKIP_SELECTOR = 'script, style, svg, mark'
@@ -150,7 +150,6 @@ function highlightPreviewMatches(root: HTMLElement, regex: RegExp) {
 
 export function GlobalSearchMessagePreviewPanel({
   className,
-  matchMode,
   searchQuery,
   target,
   onClose,
@@ -249,11 +248,14 @@ export function GlobalSearchMessagePreviewPanel({
 
     unwrapPreviewHighlights(content)
 
-    const regex = buildKeywordUnionRegex(splitKeywordsToTerms(searchQuery), { matchMode, flags: 'gi' })
+    const regex = buildKeywordUnionRegex(splitKeywordsToTerms(searchQuery), {
+      matchMode: PREVIEW_MATCH_MODE,
+      flags: 'gi'
+    })
     if (!regex) return
 
     highlightPreviewMatches(content, regex)
-  }, [matchMode, messageItems, searchQuery])
+  }, [messageItems, searchQuery])
 
   useEffect(() => {
     if (!messages.some((message) => message.id === activeMessageId)) return
@@ -266,7 +268,7 @@ export function GlobalSearchMessagePreviewPanel({
 
       scrollTarget.scrollIntoView({ block: 'center' })
     })
-  }, [activeMessageId, matchMode, messages, searchQuery])
+  }, [activeMessageId, messages, searchQuery])
 
   return (
     <aside className={cn('relative flex min-h-0 flex-col bg-background', className)}>

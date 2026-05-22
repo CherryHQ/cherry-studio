@@ -182,7 +182,7 @@ describe('AgentSessionMessageService', () => {
       updatedAt: 300
     })
 
-    const result = await agentSessionMessageService.search({ q: 'needle', matchMode: 'substring' })
+    const result = await agentSessionMessageService.search({ q: 'needle' })
 
     expect(result.items).toEqual([
       expect.objectContaining({
@@ -214,8 +214,7 @@ describe('AgentSessionMessageService', () => {
     })
 
     const result = await agentSessionMessageService.search({
-      q: '"line one\nline two"',
-      matchMode: 'substring'
+      q: '"line one\nline two"'
     })
 
     expect(result.items.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d102'])
@@ -278,7 +277,6 @@ describe('AgentSessionMessageService', () => {
 
     const result = await agentSessionMessageService.search({
       q: 'needle',
-      matchMode: 'substring',
       sessionId: 'session-source-filter'
     })
 
@@ -314,7 +312,6 @@ describe('AgentSessionMessageService', () => {
 
     const result = await agentSessionMessageService.search({
       q: 'needle',
-      matchMode: 'substring',
       createdAtFrom: '1970-01-01T00:00:00.250Z'
     })
 
@@ -359,13 +356,11 @@ describe('AgentSessionMessageService', () => {
 
     const firstPage = await agentSessionMessageService.search({
       q: 'needle',
-      matchMode: 'substring',
       sessionId: 'session-page',
       limit: 2
     })
     const secondPage = await agentSessionMessageService.search({
       q: 'needle',
-      matchMode: 'substring',
       sessionId: 'session-page',
       limit: 2,
       cursor: firstPage.nextCursor

@@ -25,7 +25,6 @@ describe('messageHandlers', () => {
       const result = await messageHandlers['/messages/search'].GET({
         query: {
           q: '  needle  ',
-          matchMode: 'substring',
           limit: '10',
           createdAtFrom: '2026-05-01T00:00:00.000Z'
         }
@@ -33,7 +32,6 @@ describe('messageHandlers', () => {
 
       expect(searchMock).toHaveBeenCalledWith({
         q: 'needle',
-        matchMode: 'substring',
         limit: 10,
         createdAtFrom: '2026-05-01T00:00:00.000Z'
       })
