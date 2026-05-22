@@ -8,6 +8,7 @@ import ChatContent from '../ChatContent'
 const mockUseChatWithHistory = vi.fn()
 const mockUseTopicMessages = vi.fn()
 const mockMessageListValue = vi.hoisted(() => ({ current: null as any }))
+const mockEventEmit = vi.hoisted(() => vi.fn())
 const mockRespondToolApproval = vi.hoisted(() => vi.fn())
 let capturedOnSend:
   | ((text: string, options?: { userMessageParts?: CherryMessagePart[] }) => Promise<void> | void)
@@ -27,6 +28,15 @@ vi.mock('@renderer/hooks/useTopicMessages', () => ({
 
 vi.mock('@renderer/hooks/useToolApprovalBridge', () => ({
   useToolApprovalBridge: () => mockRespondToolApproval
+}))
+
+vi.mock('@renderer/services/EventService', () => ({
+  EVENT_NAMES: {
+    LOCATE_MESSAGE: 'LOCATE_MESSAGE'
+  },
+  EventEmitter: {
+    emit: mockEventEmit
+  }
 }))
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
@@ -220,6 +230,7 @@ describe('ChatContent', () => {
     capturedOnSend = undefined
     mockMessageListValue.current = null
     mockRespondToolApproval.mockReset()
+    mockEventEmit.mockReset()
   })
 
   it('opens a stream against the active branch node', async () => {
@@ -507,6 +518,85 @@ describe('ChatContent', () => {
         toolCallId: 'call-1'
       }),
       approved: true
+    })
+  })
+
+  it('keeps pending locate requests while target history is still loading', () => {
+    const loadOlder = vi.fn()
+    const onLocateMessageHandled = vi.fn()
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [createUiMessage('history-user', 'user')],
+      siblingsMap: {},
+      isLoading: true,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: 'branch-a',
+      loadOlder,
+      hasOlder: true,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+
+    render(
+      <ChatContent
+        topic={topic}
+        mainHeight="100px"
+        locateMessageId="target-message"
+        onLocateMessageHandled={onLocateMessageHandled}
+      />
+    )
+
+    expect(loadOlder).not.toHaveBeenCalled()
+    expect(onLocateMessageHandled).not.toHaveBeenCalled()
+    expect(mockEventEmit).not.toHaveBeenCalled()
+  })
+
+  it('loads older history for pending locate and clears it only after the target appears', async () => {
+    const loadOlder = vi.fn()
+    const onLocateMessageHandled = vi.fn()
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [createUiMessage('history-user', 'user')],
+      siblingsMap: {},
+      isLoading: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: 'branch-a',
+      loadOlder,
+      hasOlder: true,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+
+    const { rerender } = render(
+      <ChatContent
+        topic={topic}
+        mainHeight="100px"
+        locateMessageId="target-message"
+        onLocateMessageHandled={onLocateMessageHandled}
+      />
+    )
+
+    await waitFor(() => expect(loadOlder).toHaveBeenCalledTimes(1))
+    expect(onLocateMessageHandled).not.toHaveBeenCalled()
+
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [createUiMessage('history-user', 'user'), createUiMessage('target-message', 'assistant')],
+      siblingsMap: {},
+      isLoading: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: 'target-message',
+      loadOlder,
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+    rerender(
+      <ChatContent
+        topic={topic}
+        mainHeight="100px"
+        locateMessageId="target-message"
+        onLocateMessageHandled={onLocateMessageHandled}
+      />
+    )
+
+    await waitFor(() => {
+      expect(mockEventEmit).toHaveBeenCalledWith('LOCATE_MESSAGE:target-message', true)
+      expect(onLocateMessageHandled).toHaveBeenCalledTimes(1)
     })
   })
 })

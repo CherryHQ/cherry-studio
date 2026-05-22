@@ -432,12 +432,14 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
   const openTopicMessageById = useCallback(
     async (topicId: string, messageId: string) => {
       const apiTopic = await dataApiService.get(`/topics/${topicId}`)
+      const messagePath = await dataApiService.get(`/topics/${topicId}/path`, { query: { nodeId: messageId } })
+      const activeNodeId = messagePath.at(-1)?.id ?? messageId
       const topic = {
         ...mapApiTopicToRendererTopic(apiTopic),
-        activeNodeId: messageId
+        activeNodeId
       }
 
-      await dataApiService.put(`/topics/${topicId}/active-node`, { body: { nodeId: messageId } })
+      await dataApiService.put(`/topics/${topicId}/active-node`, { body: { nodeId: activeNodeId } })
       await invalidateCache(`/topics/${topicId}/messages`)
       cacheService.set('topic.active', topic)
       openTab('/app/chat')

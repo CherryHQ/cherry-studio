@@ -194,7 +194,7 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('anchors session preview at the target message without auto-loading the full history', async () => {
+  it('anchors session preview at the target message and continues loading available context', async () => {
     vi.mocked(mocks.sessionLoadNext).mockClear()
     mocks.topicPages = []
     mocks.sessionHasNext = true
@@ -239,7 +239,7 @@ describe('GlobalSearchMessagePreviewPanel', () => {
 
     expect(screen.getByText('Session A')).toBeInTheDocument()
     expect(screen.getByText('Work messages')).toBeInTheDocument()
-    await waitFor(() => expect(mocks.sessionLoadNext).not.toHaveBeenCalled())
+    await waitFor(() => expect(mocks.sessionLoadNext).toHaveBeenCalledTimes(1))
     expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
       '/sessions/:sessionId/messages',
       expect.objectContaining({

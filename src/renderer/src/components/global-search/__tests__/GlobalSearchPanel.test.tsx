@@ -1170,7 +1170,12 @@ describe('GlobalSearchPanel', () => {
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
     }
-    mocks.dataApiGet.mockResolvedValue(topic)
+    mocks.dataApiGet.mockImplementation((path: string) => {
+      if (path === '/topics/topic-1/path') {
+        return Promise.resolve([{ id: 'message-1' }, { id: 'message-leaf' }])
+      }
+      return Promise.resolve(topic)
+    })
     mocks.messageQueryResult = {
       items: [
         {
@@ -1200,11 +1205,14 @@ describe('GlobalSearchPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Open preview target' }))
 
     await waitFor(() => {
-      expect(mocks.dataApiPut).toHaveBeenCalledWith('/topics/topic-1/active-node', { body: { nodeId: 'message-1' } })
+      expect(mocks.dataApiGet).toHaveBeenCalledWith('/topics/topic-1/path', { query: { nodeId: 'message-1' } })
+      expect(mocks.dataApiPut).toHaveBeenCalledWith('/topics/topic-1/active-node', {
+        body: { nodeId: 'message-leaf' }
+      })
       expect(mocks.invalidateCache).toHaveBeenCalledWith('/topics/topic-1/messages')
       expect(mocks.cacheSet).toHaveBeenCalledWith(
         'topic.active',
-        expect.objectContaining({ activeNodeId: 'message-1' })
+        expect.objectContaining({ activeNodeId: 'message-leaf' })
       )
     })
     await waitFor(() => {
@@ -1212,7 +1220,7 @@ describe('GlobalSearchPanel', () => {
         'GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE',
         expect.objectContaining({
           messageId: 'message-1',
-          topic: expect.objectContaining({ activeNodeId: 'message-1', id: 'topic-1' })
+          topic: expect.objectContaining({ activeNodeId: 'message-leaf', id: 'topic-1' })
         })
       )
     })
@@ -1233,7 +1241,12 @@ describe('GlobalSearchPanel', () => {
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
     }
-    mocks.dataApiGet.mockResolvedValue(topic)
+    mocks.dataApiGet.mockImplementation((path: string) => {
+      if (path === '/topics/topic-1/path') {
+        return Promise.resolve([{ id: 'message-1' }, { id: 'message-leaf' }])
+      }
+      return Promise.resolve(topic)
+    })
     mocks.messageQueryResult = {
       items: [
         {
@@ -1256,12 +1269,15 @@ describe('GlobalSearchPanel', () => {
 
     expect(screen.queryByRole('complementary', { name: 'Message preview' })).not.toBeInTheDocument()
     await waitFor(() => {
-      expect(mocks.dataApiPut).toHaveBeenCalledWith('/topics/topic-1/active-node', { body: { nodeId: 'message-1' } })
+      expect(mocks.dataApiGet).toHaveBeenCalledWith('/topics/topic-1/path', { query: { nodeId: 'message-1' } })
+      expect(mocks.dataApiPut).toHaveBeenCalledWith('/topics/topic-1/active-node', {
+        body: { nodeId: 'message-leaf' }
+      })
       expect(mocks.eventEmit).toHaveBeenCalledWith(
         'GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE',
         expect.objectContaining({
           messageId: 'message-1',
-          topic: expect.objectContaining({ activeNodeId: 'message-1', id: 'topic-1' })
+          topic: expect.objectContaining({ activeNodeId: 'message-leaf', id: 'topic-1' })
         })
       )
     })
@@ -1278,7 +1294,12 @@ describe('GlobalSearchPanel', () => {
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
     }
-    mocks.dataApiGet.mockResolvedValue(topic)
+    mocks.dataApiGet.mockImplementation((path: string) => {
+      if (path === '/topics/topic-1/path') {
+        return Promise.resolve([{ id: 'preview-message-other' }, { id: 'preview-message-leaf' }])
+      }
+      return Promise.resolve(topic)
+    })
     mocks.messageQueryResult = {
       items: [
         {
@@ -1302,7 +1323,7 @@ describe('GlobalSearchPanel', () => {
 
     await waitFor(() => {
       expect(mocks.dataApiPut).toHaveBeenCalledWith('/topics/topic-1/active-node', {
-        body: { nodeId: 'preview-message-other' }
+        body: { nodeId: 'preview-message-leaf' }
       })
       expect(mocks.eventEmit).toHaveBeenCalledWith(
         'GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE',
