@@ -30,7 +30,7 @@ function baseInternal(overrides: Record<string, unknown> = {}) {
     ext: 'md',
     size: 100,
     externalPath: null,
-    trashedAt: null,
+    deletedAt: null,
     createdAt: TS,
     updatedAt: TS,
     ...overrides
@@ -45,7 +45,7 @@ function baseExternal(path: string, overrides: Record<string, unknown> = {}) {
     ext: 'pdf',
     size: null,
     externalPath: path,
-    trashedAt: null,
+    deletedAt: null,
     createdAt: TS,
     updatedAt: TS,
     ...overrides
@@ -104,17 +104,17 @@ describe('fileEntryTable — functional unique index on lower(externalPath)', ()
   })
 })
 
-describe('fileEntryTable — fe_external_no_trash check', () => {
+describe('fileEntryTable — fe_external_no_delete check', () => {
   const dbh = setupTestDatabase()
 
-  it('rejects an external entry with non-null trashedAt', async () => {
+  it('rejects an external entry with non-null deletedAt', async () => {
     await expect(
-      dbh.db.insert(fileEntryTable).values(baseExternal('/Users/me/will-not-trash.pdf', { trashedAt: TS }))
+      dbh.db.insert(fileEntryTable).values(baseExternal('/Users/me/will-not-trash.pdf', { deletedAt: TS }))
     ).rejects.toThrow()
   })
 
   it('allows internal entries to be trashed', async () => {
-    await expect(dbh.db.insert(fileEntryTable).values(baseInternal({ trashedAt: TS }))).resolves.not.toThrow()
+    await expect(dbh.db.insert(fileEntryTable).values(baseInternal({ deletedAt: TS }))).resolves.not.toThrow()
   })
 })
 

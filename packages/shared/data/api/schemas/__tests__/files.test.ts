@@ -21,7 +21,7 @@ describe('ListFilesQuerySchema', () => {
   })
 
   it('rejects the impossible combo inTrash=true && origin=external (S6 refine)', () => {
-    // DB CHECK fe_external_no_trash makes this combo always return zero
+    // DB CHECK fe_external_no_delete makes this combo always return zero
     // rows; the refine surfaces the contradiction at the parse boundary
     // instead of silently returning empty results to callers.
     const result = ListFilesQuerySchema.safeParse({ inTrash: true, origin: 'external' })

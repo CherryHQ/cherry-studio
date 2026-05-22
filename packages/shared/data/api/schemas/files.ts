@@ -89,7 +89,7 @@ export const ListFilesQuerySchema = z
   })
   .refine(
     (q) => !(q.inTrash === true && q.origin === 'external'),
-    'inTrash=true is incompatible with origin=external — external entries cannot be trashed (DB CHECK fe_external_no_trash)'
+    'inTrash=true is incompatible with origin=external — external entries cannot be trashed (DB CHECK fe_external_no_delete)'
   )
 export type ListFilesQueryParams = z.input<typeof ListFilesQuerySchema>
 export type ListFilesQuery = z.output<typeof ListFilesQuerySchema>
@@ -127,7 +127,7 @@ export type FileSchemas = {
    * Trash + origin caveat: the combination `inTrash=true & origin='external'`
    * is rejected by the schema (`ListFilesQuerySchema` `.refine` rule),
    * because external rows are constrained by the DB CHECK
-   * `fe_external_no_trash` to always have `trashedAt = NULL` and would
+   * `fe_external_no_delete` to always have `deletedAt = NULL` and would
    * otherwise return an empty result with no error signal. Modelling the
    * query as a discriminated union (`{ origin: 'external'; inTrash?: false } |
    * { origin?: 'internal'; inTrash?: boolean }`) is a follow-up worth doing
