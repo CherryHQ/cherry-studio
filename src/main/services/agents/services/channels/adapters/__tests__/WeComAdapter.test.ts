@@ -12,10 +12,16 @@ vi.mock('../../ChannelManager', () => ({
 
 vi.mock('electron', () => ({
   app: {
-    getVersion: () => '0.0.0-test'
+    getVersion: () => '0.0.0-test',
+    getPath: () => '/mock/userData'
   },
-  net: {
-    fetch: vi.fn()
+  nativeTheme: { themeSource: '', shouldUseDarkColors: false },
+  net: { fetch: vi.fn() }
+}))
+
+vi.mock('../../../../../WindowService', () => ({
+  windowService: {
+    getMainWindow: () => null
   }
 }))
 

@@ -61,8 +61,11 @@ export type SlackChannelConfig = z.infer<typeof SlackChannelConfigSchema>
 
 export const WeComChannelConfigSchema = z.object({
   type: z.literal('wecom'),
-  bot_id: z.string(),
-  bot_secret: z.string(),
+  // Empty bot_id / bot_secret means "not yet bound" — the adapter will start the
+  // QR registration flow on connect, and persist credentials via the
+  // 'credentials' event once the user scans.
+  bot_id: z.string().default(''),
+  bot_secret: z.string().default(''),
   // Each entry is "chat_type:chatid", e.g. "1:zhangsan" (DM) or "2:wrxxxx" (group).
   // chat_type is required because WeCom does not return it from get_msg_chat_list.
   allowed_chat_ids: z.array(z.string()).default([])

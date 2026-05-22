@@ -137,13 +137,19 @@
         },
         "wecom": {
           "botId": "Bot ID",
-          "botIdPlaceholder": "企业微信智能机器人 Bot ID",
+          "botIdPlaceholder": "企业微信智能机器人 Bot ID（扫码后自动填入）",
           "botSecret": "Bot Secret",
-          "botSecretPlaceholder": "企业微信智能机器人 Secret",
+          "botSecretPlaceholder": "企业微信智能机器人 Secret（扫码后自动填入）",
           "chatIds": "允许的会话",
           "chatIdsHint": "格式 \"1:userid\"（单聊）或 \"2:groupid\"（群聊），用逗号分隔。企业微信需显式指定会话才能轮询消息。",
           "chatIdsPlaceholder": "1:zhangsan, 2:wrxxxxxx",
+          "connected": "已连接",
           "description": "通过企业微信智能机器人接收和回复消息（30 秒轮询）。",
+          "loginHint": "留空 Bot ID / Secret 并启用频道，即可使用企业微信扫码绑定。",
+          "qrExpired": "二维码已过期，请关闭后重新启用频道再试。",
+          "qrHint": "请使用企业微信扫描二维码完成绑定。",
+          "qrScanHint": "请打开手机企业微信并扫描以授权智能机器人。",
+          "qrTitle": "企业微信扫码绑定",
           "title": "企业微信"
         }
       },

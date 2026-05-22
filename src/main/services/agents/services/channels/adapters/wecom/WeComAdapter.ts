@@ -1,3 +1,5 @@
+import { windowService } from '@main/services/WindowService'
+import { IpcChannel } from '@shared/IpcChannel'
 import { app } from 'electron'
 
 import {
@@ -12,6 +14,7 @@ import { registerAdapterFactory } from '../../ChannelManager'
 import { isSlashCommand } from '../../constants'
 import { FILE_EXTENSION_MIME_MAP, splitMessage } from '../../utils'
 import { WeComClient } from './WeComClient'
+import { registrationBegin, registrationPoll } from './WeComQrRegistration'
 import type {
   GetMessageResponse,
   GetMsgMediaResponse,
@@ -66,6 +69,7 @@ class WeComAdapter extends ChannelAdapter {
 
   private pollTimer: ReturnType<typeof setInterval> | null = null
   private polling = false
+  private qrAbort: AbortController | null = null
 
   /** Per-encoded-chat: last-seen `send_time` (epoch ms). Messages at or before this are dropped. */
   private lastSeen = new Map<string, number>()
@@ -89,7 +93,11 @@ class WeComAdapter extends ChannelAdapter {
 
   protected override async performConnect(signal: AbortSignal): Promise<void> {
     if (!this.botId || !this.botSecret) {
-      throw new Error('Missing bot_id or bot_secret')
+      // No credentials yet — kick off QR registration in the background.
+      // ChannelManager's 'credentials' handler will persist them and re-sync,
+      // which creates a fresh adapter that takes the credentialed path below.
+      this.startRegistrationInBackground()
+      return
     }
 
     const client = new WeComClient({
@@ -129,9 +137,65 @@ class WeComAdapter extends ChannelAdapter {
       clearInterval(this.pollTimer)
       this.pollTimer = null
     }
+    if (this.qrAbort) {
+      this.qrAbort.abort()
+      this.qrAbort = null
+    }
     this.client = null
     this.outgoingEchoes.clear()
+    this.sendQrToRenderer('', 'disconnected')
     this.log.info('WeCom bot disconnected')
+  }
+
+  /**
+   * Start the WeCom QR-based bot registration in the background.
+   * Emits the QR URL immediately and polls the server until the user scans.
+   * On success, emits 'credentials' so ChannelManager can persist + reconnect.
+   */
+  private startRegistrationInBackground(): void {
+    this.log.info('Starting WeCom QR registration (background)')
+    this.sendQrToRenderer('', 'pending')
+
+    registrationBegin()
+      .then(({ scode, authUrl }) => {
+        this.emit('qr', authUrl)
+        this.sendQrToRenderer(authUrl, 'pending')
+
+        this.qrAbort = new AbortController()
+        return registrationPoll(scode, this.qrAbort.signal)
+      })
+      .then((result) => {
+        this.qrAbort = null
+        this.sendQrToRenderer('', 'confirmed', result.botId, result.botSecret)
+        // ChannelManager listens for 'credentials' and calls saveCredentialsAndReconnect,
+        // which writes the values into channel.config and recreates this adapter.
+        this.emit('credentials', { appId: result.botId, appSecret: result.botSecret })
+        this.log.info('WeCom QR registration completed')
+      })
+      .catch((err) => {
+        this.qrAbort = null
+        const msg = err instanceof Error ? err.message : String(err)
+        this.sendQrToRenderer('', 'expired')
+        this.log.warn(`WeCom QR registration failed: ${msg}`)
+      })
+  }
+
+  private sendQrToRenderer(
+    url: string,
+    status: 'pending' | 'confirmed' | 'expired' | 'disconnected',
+    botId?: string,
+    botSecret?: string
+  ): void {
+    const mainWindow = windowService.getMainWindow()
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(IpcChannel.WeCom_QrLogin, {
+        channelId: this.channelId,
+        url,
+        status,
+        botId,
+        botSecret
+      })
+    }
   }
 
   // oxlint-disable-next-line no-unused-vars -- abstract method signature

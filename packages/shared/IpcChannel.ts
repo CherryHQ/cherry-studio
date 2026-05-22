@@ -123,6 +123,9 @@ export enum IpcChannel {
   // Feishu channel
   Feishu_QrLogin = 'feishu:qr-login',
 
+  // WeCom channel
+  WeCom_QrLogin = 'wecom:qr-login',
+
   // Channel status & logs
   Channel_StatusChange = 'channel:status-change',
   Channel_Log = 'channel:log',

@@ -642,6 +642,27 @@ const api = {
       return () => ipcRenderer.off(IpcChannel.Feishu_QrLogin, listener)
     }
   },
+  wecom: {
+    onQrLogin: (
+      callback: (data: {
+        channelId: string
+        agentId: string
+        url: string
+        status: string
+        botId?: string
+        botSecret?: string
+      }) => void
+    ): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        data: { channelId: string; agentId: string; url: string; status: string; botId?: string; botSecret?: string }
+      ) => {
+        callback(data)
+      }
+      ipcRenderer.on(IpcChannel.WeCom_QrLogin, listener)
+      return () => ipcRenderer.off(IpcChannel.WeCom_QrLogin, listener)
+    }
+  },
   channel: {
     onLog: (
       callback: (log: { timestamp: number; level: string; message: string; channelId: string }) => void

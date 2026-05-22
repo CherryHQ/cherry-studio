@@ -137,13 +137,19 @@
         },
         "wecom": {
           "botId": "Bot ID",
-          "botIdPlaceholder": "企業微信智能機器人 Bot ID",
+          "botIdPlaceholder": "企業微信智能機器人 Bot ID（掃碼後自動填入）",
           "botSecret": "Bot Secret",
-          "botSecretPlaceholder": "企業微信智能機器人 Secret",
+          "botSecretPlaceholder": "企業微信智能機器人 Secret（掃碼後自動填入）",
           "chatIds": "允許的會話",
           "chatIdsHint": "格式 \"1:userid\"（單聊）或 \"2:groupid\"（群聊），用逗號分隔。企業微信需顯式指定會話才能輪詢消息。",
           "chatIdsPlaceholder": "1:zhangsan, 2:wrxxxxxx",
+          "connected": "已連線",
           "description": "透過企業微信智能機器人接收和回覆消息（30 秒輪詢）。",
+          "loginHint": "留空 Bot ID / Secret 並啟用頻道，即可使用企業微信掃碼綁定。",
+          "qrExpired": "QR 碼已過期，請關閉後重新啟用頻道再試。",
+          "qrHint": "請使用企業微信掃描 QR 碼完成綁定。",
+          "qrScanHint": "請打開手機企業微信並掃描以授權智能機器人。",
+          "qrTitle": "企業微信掃碼綁定",
           "title": "企業微信"
         }
       },

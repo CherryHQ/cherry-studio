@@ -137,13 +137,19 @@
         },
         "wecom": {
           "botId": "Bot ID",
-          "botIdPlaceholder": "WeCom smart bot ID",
+          "botIdPlaceholder": "WeCom smart bot ID (auto-filled after QR scan)",
           "botSecret": "Bot Secret",
-          "botSecretPlaceholder": "WeCom smart bot secret",
+          "botSecretPlaceholder": "WeCom smart bot secret (auto-filled after QR scan)",
           "chatIds": "Allowed Chats",
           "chatIdsHint": "Format \"1:userid\" (DM) or \"2:groupid\" (group), comma-separated. WeCom requires explicit chats for polling.",
           "chatIdsPlaceholder": "1:zhangsan, 2:wrxxxxxx",
+          "connected": "Connected",
           "description": "Receive and respond to messages via a WeCom smart bot (30 s polling).",
+          "loginHint": "Leave Bot ID / Secret blank and enable the channel to bind via QR code with WeCom.",
+          "qrExpired": "QR code expired. Disable and re-enable the channel to retry.",
+          "qrHint": "Scan with WeCom to bind the smart bot.",
+          "qrScanHint": "Open WeCom on your phone and scan to authorize the smart bot.",
+          "qrTitle": "WeCom QR Login",
           "title": "WeCom"
         }
       },
