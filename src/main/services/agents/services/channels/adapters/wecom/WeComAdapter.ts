@@ -158,6 +158,7 @@ class WeComAdapter extends ChannelAdapter {
     }
   }
 
+  // oxlint-disable-next-line no-unused-vars -- abstract method signature
   async sendTypingIndicator(_chatId: string): Promise<void> {
     // WeCom has no typing API — no-op.
   }
