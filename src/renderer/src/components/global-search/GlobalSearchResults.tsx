@@ -22,6 +22,7 @@ import type {
   GlobalMessageSearchPanelItem,
   GlobalSearchGroupId,
   GlobalSearchPanelGroup,
+  GlobalSearchPanelGroupFooter,
   GlobalSearchPanelItem
 } from './globalSearchGroups'
 
@@ -43,6 +44,7 @@ const GROUP_LABEL_KEYS: Record<GlobalSearchGroupId, string> = {
   recent: 'globalSearch.groups.recent',
   topic: 'globalSearch.groups.topic',
   session: 'globalSearch.groups.session',
+  message: 'globalSearch.groups.message',
   assistant: 'globalSearch.groups.assistant',
   agent: 'globalSearch.groups.agent',
   'knowledge-base': 'globalSearch.groups.knowledge-base'
@@ -102,7 +104,46 @@ export function GlobalSearchGroupHeader({ group }: { group: GlobalSearchPanelGro
     <div className="flex h-7 items-center gap-1.5 px-5 pt-1 font-medium text-muted-foreground text-sm">
       <span>{t(getGroupLabelKey(group.id))}</span>
       <span>·</span>
-      <span>{group.items.length}</span>
+      <span>{group.total ?? group.items.length}</span>
+    </div>
+  )
+}
+
+export function GlobalSearchGroupFooter({
+  active,
+  footer,
+  onMouseEnter,
+  onOpen
+}: {
+  active: boolean
+  footer: GlobalSearchPanelGroupFooter
+  onMouseEnter: () => void
+  onOpen: () => void
+}) {
+  const { t } = useTranslation()
+  const label =
+    footer.kind === 'expand-results'
+      ? t('globalSearch.showMore', { count: footer.remainingCount })
+      : t('globalSearch.messageSearch.viewMore')
+  const Icon = footer.kind === 'expand-results' ? ChevronDown : ArrowRight
+
+  return (
+    <div className="h-9 pt-1">
+      <button
+        type="button"
+        role="option"
+        aria-selected={active}
+        onMouseEnter={onMouseEnter}
+        onClick={onOpen}
+        className={cn(
+          'mx-5 flex h-8 w-[calc(100%-2.5rem)] items-center gap-1 rounded-lg py-0 pr-3 pl-8 text-left font-medium text-xs transition-colors',
+          active
+            ? 'bg-muted/60 text-accent-foreground'
+            : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
+        )}>
+        <span>{label}</span>
+        <Icon className="size-4" />
+      </button>
     </div>
   )
 }
@@ -115,7 +156,7 @@ export function GlobalSearchRow({
   onMouseEnter,
   onOpen
 }: {
-  item: GlobalSearchPanelItem
+  item: Exclude<GlobalSearchPanelItem, { kind: 'message' } | { kind: 'message-parent' }>
   active: boolean
   language: string
   query: string
@@ -169,7 +210,15 @@ export function GlobalSearchRow({
   )
 }
 
-export function GlobalMessageSearchGroupHeader({ group }: { group: GlobalMessageSearchPanelGroup }) {
+type GlobalMessageSearchInset = 'default' | 'nested'
+
+export function GlobalMessageSearchGroupHeader({
+  group,
+  inset = 'default'
+}: {
+  group: GlobalMessageSearchPanelGroup
+  inset?: GlobalMessageSearchInset
+}) {
   const { t } = useTranslation()
   const Icon = group.sourceType === 'topic' ? MessageSquare : MousePointerClick
   const sourceLabelKey =
@@ -178,7 +227,7 @@ export function GlobalMessageSearchGroupHeader({ group }: { group: GlobalMessage
       : 'globalSearch.messageSearch.sources.session'
 
   return (
-    <div className="flex h-8 items-center gap-2 px-5 text-sm">
+    <div className={cn('flex h-8 items-center gap-2 text-sm', inset === 'nested' ? 'px-8' : 'px-5')}>
       <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted/50">
         <Icon className="size-3.5" />
       </span>
@@ -197,6 +246,7 @@ export function GlobalMessageSearchGroupHeader({ group }: { group: GlobalMessage
 export function GlobalMessageSearchRow({
   active,
   item,
+  inset = 'default',
   language,
   query,
   userName,
@@ -206,6 +256,7 @@ export function GlobalMessageSearchRow({
 }: {
   active: boolean
   item: GlobalMessageSearchPanelItem
+  inset?: GlobalMessageSearchInset
   language: string
   query: string
   userName?: string
@@ -225,7 +276,8 @@ export function GlobalMessageSearchRow({
           onMouseEnter={onMouseEnter}
           onClick={onOpen}
           className={cn(
-            'mx-5 flex h-8 w-[calc(100%-2.5rem)] items-center gap-1 rounded-lg py-0 pr-3 pl-8 text-left font-medium text-xs transition-colors',
+            'flex h-8 items-center gap-1 rounded-lg py-0 pr-3 pl-8 text-left font-medium text-xs transition-colors',
+            inset === 'nested' ? 'mx-8 w-[calc(100%-4rem)]' : 'mx-5 w-[calc(100%-2.5rem)]',
             active
               ? 'bg-muted/60 text-accent-foreground'
               : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
@@ -253,7 +305,8 @@ export function GlobalMessageSearchRow({
       onMouseEnter={onMouseEnter}
       onClick={onOpen}
       className={cn(
-        'group mx-5 flex h-11 w-[calc(100%-2.5rem)] cursor-pointer items-center gap-2 rounded-[10px] pr-3 pl-8 text-left transition-colors',
+        'group flex h-11 cursor-pointer items-center gap-2 rounded-[10px] pr-3 pl-8 text-left transition-colors',
+        inset === 'nested' ? 'mx-8 w-[calc(100%-4rem)]' : 'mx-5 w-[calc(100%-2.5rem)]',
         active ? 'bg-muted/60 text-accent-foreground' : 'hover:bg-muted/40'
       )}>
       <span className="min-w-0 flex-1 truncate text-foreground/90 text-sm leading-5">

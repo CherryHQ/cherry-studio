@@ -8,6 +8,8 @@ import dayjs from 'dayjs'
 export const GLOBAL_SEARCH_RECENT_ITEM_LIMIT = 20
 export const GLOBAL_SEARCH_DISPLAY_RECENT_LIMIT = 6
 export const GLOBAL_MESSAGE_SEARCH_GROUP_COLLAPSED_LIMIT = 3
+export const GLOBAL_SEARCH_ENTITY_GROUP_COLLAPSED_LIMIT = 5
+export const GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT = 5
 
 export type GlobalSearchFilter = 'all' | 'topic' | 'session' | 'assistant' | 'agent' | 'knowledge'
 export type GlobalMessageSearchSourceFilter = 'all' | 'topic' | 'session'
@@ -16,24 +18,7 @@ export type GlobalSessionMessageSearchResult = SessionSearchMessageResult & { so
 export type GlobalMessageSearchResult = GlobalTopicMessageSearchResult | GlobalSessionMessageSearchResult
 type GlobalMessageSearchSource = GlobalMessageSearchResult['sourceType']
 
-export type GlobalSearchGroupId = 'recent' | 'topic' | 'session' | 'assistant' | 'agent' | 'knowledge-base'
-
-export type GlobalSearchPanelItem =
-  | {
-      kind: 'recent'
-      id: string
-      recent: GlobalSearchRecentEntry
-    }
-  | {
-      kind: 'result'
-      id: string
-      result: GlobalSearchItem
-    }
-
-export type GlobalSearchPanelGroup = {
-  id: GlobalSearchGroupId
-  items: GlobalSearchPanelItem[]
-}
+export type GlobalSearchGroupId = 'recent' | 'topic' | 'session' | 'message' | 'assistant' | 'agent' | 'knowledge-base'
 
 export type GlobalMessageSearchPanelItem =
   | {
@@ -55,6 +40,46 @@ export type GlobalMessageSearchPanelGroup = {
   title: string
   total: number
   items: GlobalMessageSearchPanelItem[]
+}
+
+export type GlobalSearchPanelItem =
+  | {
+      kind: 'recent'
+      id: string
+      recent: GlobalSearchRecentEntry
+    }
+  | {
+      kind: 'message-parent'
+      id: string
+      group: GlobalMessageSearchPanelGroup
+    }
+  | {
+      kind: 'message'
+      id: string
+      parentId: string
+      result: GlobalMessageSearchResult
+    }
+  | {
+      kind: 'result'
+      id: string
+      result: GlobalSearchItem
+    }
+
+export type GlobalSearchPanelGroupFooter =
+  | {
+      kind: 'expand-results'
+      groupId: GlobalSearchGroupId
+      remainingCount: number
+    }
+  | {
+      kind: 'open-message-search'
+    }
+
+export type GlobalSearchPanelGroup = {
+  id: GlobalSearchGroupId
+  items: GlobalSearchPanelItem[]
+  total?: number
+  footer?: GlobalSearchPanelGroupFooter
 }
 
 const FILTER_TYPES: Record<GlobalSearchFilter, GlobalSearchType[]> = {
@@ -173,12 +198,59 @@ export function createRecentSessionEntryFromSession(
   }
 }
 
+function getMessageResultParentId(result: GlobalMessageSearchResult) {
+  return result.sourceType === 'topic' ? `topic:${result.topicId}` : `session:${result.sessionId}`
+}
+
+function buildGlobalMessagePreviewItems(items: readonly GlobalMessageSearchResult[]): GlobalSearchPanelItem[] {
+  const totalByParentId = new Map<string, number>()
+  for (const item of items) {
+    const parentId = getMessageResultParentId(item)
+    totalByParentId.set(parentId, (totalByParentId.get(parentId) ?? 0) + 1)
+  }
+
+  const visibleItems = items.slice(0, GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT)
+  const expandedParentIds = new Set(visibleItems.map(getMessageResultParentId))
+  const groups = buildGlobalMessageSearchGroups({ expandedParentIds, items: visibleItems })
+  const previewItems: GlobalSearchPanelItem[] = []
+  let remainingCount = GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT
+
+  for (const group of groups) {
+    const messageItems = group.items.filter((item) => item.kind === 'message').slice(0, remainingCount)
+    if (messageItems.length === 0) continue
+
+    previewItems.push({
+      kind: 'message-parent',
+      id: `message-parent:${group.id}`,
+      group: {
+        ...group,
+        total: totalByParentId.get(group.id) ?? group.total
+      }
+    })
+    previewItems.push(
+      ...messageItems.map((item) => ({
+        ...item,
+        id: `message-preview:${item.id}`
+      }))
+    )
+    remainingCount -= messageItems.length
+
+    if (remainingCount <= 0) break
+  }
+
+  return previewItems
+}
+
 export function buildGlobalSearchGroups({
+  expandedGroupIds = new Set(),
+  messageItems = [],
   query,
   filter,
   recentItems,
   response
 }: {
+  expandedGroupIds?: ReadonlySet<GlobalSearchGroupId>
+  messageItems?: readonly GlobalMessageSearchResult[]
   query: string
   filter: GlobalSearchFilter
   recentItems: readonly GlobalSearchRecentEntry[]
@@ -205,6 +277,24 @@ export function buildGlobalSearchGroups({
   const includeAssistant = filter === 'all' || filter === 'assistant'
   const includeAgent = filter === 'all' || filter === 'agent'
   const includeKnowledge = filter === 'all' || filter === 'knowledge'
+  const shouldCollapseEntityGroup = (groupId: GlobalSearchGroupId) =>
+    filter === 'all' && (groupId === 'topic' || groupId === 'session') && !expandedGroupIds.has(groupId)
+  const toPanelGroup = (groupId: GlobalSearchGroupId, items: GlobalSearchPanelItem[]): GlobalSearchPanelGroup => {
+    if (!shouldCollapseEntityGroup(groupId) || items.length <= GLOBAL_SEARCH_ENTITY_GROUP_COLLAPSED_LIMIT) {
+      return { id: groupId, items, total: items.length }
+    }
+
+    return {
+      id: groupId,
+      items: items.slice(0, GLOBAL_SEARCH_ENTITY_GROUP_COLLAPSED_LIMIT),
+      total: items.length,
+      footer: {
+        kind: 'expand-results',
+        groupId,
+        remainingCount: items.length - GLOBAL_SEARCH_ENTITY_GROUP_COLLAPSED_LIMIT
+      }
+    }
+  }
 
   if (includeTopic) {
     const topicItems = (itemsByType.get('topic') ?? []).map((result) => ({
@@ -212,7 +302,7 @@ export function buildGlobalSearchGroups({
       id: `${result.type}:${result.id}`,
       result
     }))
-    if (topicItems.length > 0) groups.push({ id: 'topic', items: topicItems })
+    if (topicItems.length > 0) groups.push(toPanelGroup('topic', topicItems))
   }
 
   if (includeSession) {
@@ -221,7 +311,18 @@ export function buildGlobalSearchGroups({
       id: `${result.type}:${result.id}`,
       result
     }))
-    if (sessionItems.length > 0) groups.push({ id: 'session', items: sessionItems })
+    if (sessionItems.length > 0) groups.push(toPanelGroup('session', sessionItems))
+  }
+
+  if (filter === 'all' && messageItems.length > 0) {
+    groups.push({
+      id: 'message',
+      items: buildGlobalMessagePreviewItems(messageItems),
+      total: messageItems.length,
+      footer: {
+        kind: 'open-message-search'
+      }
+    })
   }
 
   if (includeAssistant) {

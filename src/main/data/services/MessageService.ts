@@ -675,7 +675,7 @@ export class MessageService {
     if (terms.length === 0) return { items: [] }
 
     const db = application.get('DbService').getDb()
-    const matchMode = query.matchMode ?? 'whole-word'
+    const matchMode = query.matchMode ?? 'substring'
     const limit = query.limit ?? 500
     const fetchLimit = limit + 1
     const regexes = buildKeywordRegexes(terms, { matchMode, flags: 'i' })

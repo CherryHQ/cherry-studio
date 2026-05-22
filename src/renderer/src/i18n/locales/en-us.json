@@ -2202,6 +2202,7 @@
       "assistant": "Assistant",
       "conversation": "Work",
       "knowledge-base": "Knowledge",
+      "message": "Messages",
       "recent": "Recent",
       "session": "Work",
       "topic": "Topic"
@@ -2213,11 +2214,6 @@
       "entry": "Messages",
       "hint": "Type to search message content",
       "jumpToMessage": "Jump to message",
-      "matchModeLabel": "Match mode",
-      "matchModes": {
-        "substring": "Substring",
-        "wholeWord": "Whole word"
-      },
       "more": "Show {{count}} more results",
       "open": "Search messages",
       "roles": {
@@ -2231,7 +2227,8 @@
         "all": "All messages",
         "session": "Work messages",
         "topic": "Topic messages"
-      }
+      },
+      "viewMore": "View more in Messages"
     },
     "no_recent": "No recent routes",
     "open": "Open global search",
@@ -2255,6 +2252,7 @@
       "session": "Work",
       "topic": "Topic"
     },
+    "showMore": "Show {{count}} more",
     "timeFilters": {
       "any": "Any time",
       "label": "Updated time",

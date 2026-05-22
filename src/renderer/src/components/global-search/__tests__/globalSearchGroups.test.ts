@@ -11,6 +11,8 @@ import {
   getMessageSearchSources,
   GLOBAL_MESSAGE_SEARCH_GROUP_COLLAPSED_LIMIT,
   GLOBAL_SEARCH_DISPLAY_RECENT_LIMIT,
+  GLOBAL_SEARCH_ENTITY_GROUP_COLLAPSED_LIMIT,
+  GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT,
   GLOBAL_SEARCH_RECENT_ITEM_LIMIT,
   upsertGlobalSearchRecentEntry
 } from '../globalSearchGroups'
@@ -238,6 +240,104 @@ describe('globalSearchGroups', () => {
         response
       }).map((group) => group.id)
     ).toEqual(['topic', 'session'])
+  })
+
+  it('collapses topic and session groups only in all search', () => {
+    const response: GlobalSearchResponse = {
+      query: 'plan',
+      groups: [
+        {
+          type: 'topic',
+          items: Array.from({ length: GLOBAL_SEARCH_ENTITY_GROUP_COLLAPSED_LIMIT + 1 }, (_, index) => ({
+            type: 'topic',
+            id: `topic-${index}`,
+            title: `Topic ${index}`,
+            target: { topicId: `topic-${index}` }
+          }))
+        },
+        {
+          type: 'session',
+          items: Array.from({ length: GLOBAL_SEARCH_ENTITY_GROUP_COLLAPSED_LIMIT + 1 }, (_, index) => ({
+            type: 'session',
+            id: `session-${index}`,
+            title: `Session ${index}`,
+            target: { sessionId: `session-${index}`, agentId: 'agent-1' }
+          }))
+        }
+      ]
+    }
+
+    const collapsedGroups = buildGlobalSearchGroups({
+      query: 'plan',
+      filter: 'all',
+      recentItems: [],
+      response
+    })
+
+    expect(collapsedGroups[0]).toEqual(
+      expect.objectContaining({
+        id: 'topic',
+        total: GLOBAL_SEARCH_ENTITY_GROUP_COLLAPSED_LIMIT + 1,
+        items: expect.arrayContaining([expect.objectContaining({ id: 'topic:topic-0' })]),
+        footer: expect.objectContaining({ kind: 'expand-results', remainingCount: 1 })
+      })
+    )
+    expect(collapsedGroups[0]?.items).toHaveLength(GLOBAL_SEARCH_ENTITY_GROUP_COLLAPSED_LIMIT)
+    expect(collapsedGroups[1]?.items).toHaveLength(GLOBAL_SEARCH_ENTITY_GROUP_COLLAPSED_LIMIT)
+
+    const expandedGroups = buildGlobalSearchGroups({
+      expandedGroupIds: new Set(['topic']),
+      query: 'plan',
+      filter: 'all',
+      recentItems: [],
+      response
+    })
+    expect(expandedGroups[0]?.items).toHaveLength(GLOBAL_SEARCH_ENTITY_GROUP_COLLAPSED_LIMIT + 1)
+    expect(expandedGroups[0]?.footer).toBeUndefined()
+
+    const filteredGroups = buildGlobalSearchGroups({
+      query: 'plan',
+      filter: 'topic',
+      recentItems: [],
+      response
+    })
+    expect(filteredGroups[0]?.items).toHaveLength(GLOBAL_SEARCH_ENTITY_GROUP_COLLAPSED_LIMIT + 1)
+    expect(filteredGroups[0]?.footer).toBeUndefined()
+  })
+
+  it('adds a capped message preview group in all search', () => {
+    const groups = buildGlobalSearchGroups({
+      query: 'needle',
+      filter: 'all',
+      recentItems: [],
+      response: { query: 'needle', groups: [] },
+      messageItems: Array.from({ length: GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT + 1 }, (_, index) => ({
+        sourceType: 'topic' as const,
+        messageId: `message-${index}`,
+        topicId: 'topic-1',
+        topicName: 'Topic',
+        topicCreatedAt: '2026-01-01T00:00:00.000Z',
+        topicUpdatedAt: '2026-01-01T00:00:00.000Z',
+        snippet: `Snippet ${index}`,
+        createdAt: `2026-01-01T00:00:0${index}.000Z`
+      }))
+    })
+
+    expect(groups).toEqual([
+      expect.objectContaining({
+        id: 'message',
+        total: GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT + 1,
+        items: expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'message-parent',
+            group: expect.objectContaining({ title: 'Topic', total: GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT + 1 })
+          }),
+          expect.objectContaining({ id: 'message-preview:topic:topic-1:message-0' })
+        ]),
+        footer: { kind: 'open-message-search' }
+      })
+    ])
+    expect(groups[0]?.items.filter((item) => item.kind === 'message')).toHaveLength(GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT)
   })
 
   it('maps message search source filters and groups message results by parent', () => {

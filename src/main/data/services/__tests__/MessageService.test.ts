@@ -270,6 +270,27 @@ describe('MessageService', () => {
       expect(result.items.map((item) => item.messageId)).toEqual(['m-substring-2', 'm-substring-1'])
     })
 
+    it('defaults message search to substring matching', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'topic-substring-default', activeNodeId: 'm-substring-default', orderKey: 'sd0' })
+      await dbh.db.insert(messageTable).values({
+        id: 'm-substring-default',
+        parentId: null,
+        topicId: 'topic-substring-default',
+        role: 'assistant',
+        data: partsText('abcneedledef is embedded in a larger token.'),
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 100,
+        updatedAt: 100
+      })
+
+      const result = await messageService.search({ q: 'needle' })
+
+      expect(result.items.map((item) => item.messageId)).toEqual(['m-substring-default'])
+    })
+
     it('filters substring search by topic id', async () => {
       await dbh.db.insert(topicTable).values([
         { id: 'topic-substring-filter', activeNodeId: 'm-substring-filter-target', orderKey: 'sf0' },

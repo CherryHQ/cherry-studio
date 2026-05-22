@@ -11,6 +11,8 @@ import userEvent from '@testing-library/user-event'
 import * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT } from '../globalSearchGroups'
+
 type ReactModule = typeof React
 
 const mocks = vi.hoisted(() => ({
@@ -157,7 +159,7 @@ vi.mock('@renderer/components/Icons/SVGIcon', () => ({
 }))
 
 vi.mock('@renderer/components/VirtualList', () => ({
-  GroupedVirtualList: ({ groups, renderGroupHeader, renderItem }: any) => (
+  GroupedVirtualList: ({ groups, renderGroupHeader, renderItem, renderGroupFooter }: any) => (
     <div role="listbox">
       {groups.map((entry: any, groupIndex: number) => {
         const group = entry.group ?? entry
@@ -167,6 +169,7 @@ vi.mock('@renderer/components/VirtualList', () => ({
             {entry.items.map((item: any, itemIndex: number) => (
               <div key={item.id}>{renderItem(item, itemIndex, group, groupIndex, itemIndex)}</div>
             ))}
+            {entry.footer ? renderGroupFooter?.(entry.footer, group, groupIndex) : null}
           </div>
         )
       })}
@@ -285,6 +288,7 @@ vi.mock('react-i18next', () => ({
           'globalSearch.groups.recent': 'Recent',
           'globalSearch.groups.assistant': 'Assistant',
           'globalSearch.groups.conversation': 'Work',
+          'globalSearch.groups.message': 'Messages',
           'globalSearch.groups.topic': 'Topic',
           'globalSearch.groups.session': 'Work',
           'globalSearch.groups.agent': 'Agent',
@@ -292,9 +296,6 @@ vi.mock('react-i18next', () => ({
           'globalSearch.keyboard.select': 'Select',
           'globalSearch.messageSearch.entry': 'Messages',
           'globalSearch.messageSearch.hint': 'Type to search message content',
-          'globalSearch.messageSearch.matchModeLabel': 'Match mode',
-          'globalSearch.messageSearch.matchModes.substring': 'Substring',
-          'globalSearch.messageSearch.matchModes.wholeWord': 'Whole word',
           'globalSearch.messageSearch.jumpToMessage': 'Jump to message',
           'globalSearch.messageSearch.more': 'Show {{count}} more results',
           'globalSearch.messageSearch.open': 'Search messages',
@@ -306,6 +307,7 @@ vi.mock('react-i18next', () => ({
           'globalSearch.messageSearch.sources.all': 'All messages',
           'globalSearch.messageSearch.sources.session': 'Work messages',
           'globalSearch.messageSearch.sources.topic': 'Topic messages',
+          'globalSearch.messageSearch.viewMore': 'View more in Messages',
           'globalSearch.quickApps.hide': 'Hide {{name}}',
           'globalSearch.quickApps.manage': 'Manage',
           'globalSearch.quickApps.manager_description': 'Drag to reorder, click the eye to hide or show',
@@ -319,6 +321,7 @@ vi.mock('react-i18next', () => ({
           'globalSearch.error': 'Search failed',
           'globalSearch.open_failed': 'Failed to open search result',
           'globalSearch.resultTypes.assistant': 'Assistant',
+          'globalSearch.showMore': 'Show {{count}} more',
           'globalSearch.timeFilters.any': 'Any time',
           'globalSearch.timeFilters.label': 'Updated time',
           'globalSearch.timeFilters.messageLabel': 'Created time',
@@ -742,6 +745,130 @@ describe('GlobalSearchPanel', () => {
     })
   })
 
+  it('caps topic and work groups in all search and expands them on demand', async () => {
+    const user = userEvent.setup()
+    mocks.queryResult = {
+      query: 'plan',
+      groups: [
+        {
+          type: 'topic',
+          items: Array.from({ length: 6 }, (_, index) => ({
+            type: 'topic',
+            id: `topic-${index}`,
+            title: `Topic ${index}`,
+            target: { topicId: `topic-${index}` }
+          }))
+        },
+        {
+          type: 'session',
+          items: Array.from({ length: 6 }, (_, index) => ({
+            type: 'session',
+            id: `session-${index}`,
+            title: `Work ${index}`,
+            target: { sessionId: `session-${index}`, agentId: 'agent-1' }
+          }))
+        }
+      ]
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.type(screen.getByLabelText('Start typing to search...'), 'plan')
+
+    expect(await screen.findByRole('option', { name: /Topic 0/ })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Topic 4/ })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Topic 5/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Work 4/ })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Work 5/ })).not.toBeInTheDocument()
+
+    await user.click(screen.getAllByRole('option', { name: 'Show 1 more' })[0])
+
+    expect(screen.getByRole('option', { name: /Topic 5/ })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Work 5/ })).not.toBeInTheDocument()
+  })
+
+  it('shows a capped message preview group in all search and switches to message search from its footer', async () => {
+    const user = userEvent.setup()
+    mocks.queryResult = {
+      query: 'needle',
+      groups: []
+    }
+    mocks.messageQueryResult = {
+      items: Array.from({ length: 6 }, (_, index) => ({
+        messageId: `message-${index}`,
+        topicId: 'topic-1',
+        topicName: 'Topic A',
+        topicCreatedAt: '2026-01-01T00:00:00.000Z',
+        topicUpdatedAt: '2026-01-01T00:00:00.000Z',
+        role: 'user' as const,
+        snippet: `needle message ${index}`,
+        createdAt: `2026-01-01T00:00:0${index}.000Z`
+      }))
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
+
+    expect(await screen.findByText('Topic A')).toBeInTheDocument()
+    expect(screen.getByText('Topic messages')).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /needle message 5/ })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /needle message 1/ })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /needle message 0/ })).not.toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(mocks.useQuery).toHaveBeenCalledWith(
+        '/messages/search',
+        expect.objectContaining({
+          enabled: true,
+          query: expect.objectContaining({
+            limit: GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT,
+            q: 'needle',
+            matchMode: 'substring'
+          })
+        })
+      )
+    })
+
+    await user.click(screen.getByRole('option', { name: 'View more in Messages' }))
+
+    expect(screen.getByRole('radio', { name: 'Messages' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('button', { name: 'Message source: Topic messages' })).toBeInTheDocument()
+  })
+
+  it('opens a global message preview after source filters were changed in message search', async () => {
+    const user = userEvent.setup()
+    mocks.queryResult = {
+      query: 'needle',
+      groups: []
+    }
+    mocks.messageQueryResult = {
+      items: [
+        {
+          messageId: 'message-preview-target',
+          topicId: 'topic-1',
+          topicName: 'Topic A',
+          topicCreatedAt: '2026-01-01T00:00:00.000Z',
+          topicUpdatedAt: '2026-01-01T00:00:00.000Z',
+          role: 'user' as const,
+          snippet: 'needle target message',
+          createdAt: '2026-01-01T00:00:00.000Z'
+        }
+      ]
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.click(screen.getByRole('radio', { name: 'Messages' }))
+    await user.click(screen.getByRole('button', { name: 'Message source: Topic messages' }))
+    await user.click(screen.getByRole('radio', { name: 'All' }))
+    await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
+    await user.click(await screen.findByRole('option', { name: /needle target message/ }))
+
+    expect(await screen.findByLabelText('Message preview')).toBeInTheDocument()
+    expect(screen.getByText('Topic A')).toBeInTheDocument()
+  })
+
   it('switches to message search mode and keeps quick apps visible', async () => {
     const user = userEvent.setup()
 
@@ -760,7 +887,7 @@ describe('GlobalSearchPanel', () => {
         screen.getByRole('button', { name: 'Message source: Topic messages' })
       )
     ).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(screen.getByRole('button', { name: 'Match mode' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Match mode' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Created time' })).toBeInTheDocument()
 
     await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
@@ -771,7 +898,9 @@ describe('GlobalSearchPanel', () => {
         expect.objectContaining({
           enabled: true,
           query: expect.objectContaining({
-            q: 'needle'
+            limit: 50,
+            q: 'needle',
+            matchMode: 'substring'
           })
         })
       )
@@ -780,7 +909,9 @@ describe('GlobalSearchPanel', () => {
         expect.objectContaining({
           enabled: true,
           query: expect.objectContaining({
-            q: 'needle'
+            limit: 50,
+            q: 'needle',
+            matchMode: 'substring'
           })
         })
       )

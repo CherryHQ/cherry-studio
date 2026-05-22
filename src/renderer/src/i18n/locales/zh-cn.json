@@ -2202,6 +2202,7 @@
       "assistant": "助手",
       "conversation": "工作",
       "knowledge-base": "知识库",
+      "message": "消息",
       "recent": "最近",
       "session": "工作",
       "topic": "话题"
@@ -2213,11 +2214,6 @@
       "entry": "消息",
       "hint": "输入关键词搜索消息正文",
       "jumpToMessage": "跳转到消息",
-      "matchModeLabel": "匹配方式",
-      "matchModes": {
-        "substring": "子串匹配",
-        "wholeWord": "整词匹配"
-      },
       "more": "查看更多 {{count}} 条结果",
       "open": "搜索消息",
       "roles": {
@@ -2231,7 +2227,8 @@
         "all": "全部消息",
         "session": "工作消息",
         "topic": "话题消息"
-      }
+      },
+      "viewMore": "去消息查看更多"
     },
     "no_recent": "暂无最近访问",
     "open": "打开全局搜索",
@@ -2255,6 +2252,7 @@
       "session": "工作",
       "topic": "话题"
     },
+    "showMore": "查看更多 {{count}} 条",
     "timeFilters": {
       "any": "不限时间",
       "label": "更新时间",

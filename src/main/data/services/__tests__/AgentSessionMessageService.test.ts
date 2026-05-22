@@ -221,6 +221,27 @@ describe('AgentSessionMessageService', () => {
     expect(result.items.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d102'])
   })
 
+  it('defaults session message search to substring matching', async () => {
+    await dbh.db.insert(agentSessionTable).values({
+      id: 'session-substring-default',
+      name: 'Session Substring Default',
+      orderKey: 'ssd0'
+    })
+    await dbh.db.insert(agentSessionMessageTable).values({
+      id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1aa',
+      sessionId: 'session-substring-default',
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: 'abcneedledef is embedded in a larger token.' }] },
+      status: 'success',
+      createdAt: 300,
+      updatedAt: 300
+    })
+
+    const result = await agentSessionMessageService.search({ q: 'needle' })
+
+    expect(result.items.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1aa'])
+  })
+
   it('filters session message search by session id', async () => {
     await dbh.db.insert(agentSessionTable).values([
       {
