@@ -272,12 +272,16 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
   const {
     error,
     groups,
+    hasMoreMessageResults,
     hasQuery,
     isLoading,
+    isLoadingMoreMessageResults,
     isMessageLoading,
     isMessageSearchMode,
+    loadMoreMessageResults,
     messageError,
     messageGroups,
+    messageLoadMoreCount,
     messageVirtualGroups,
     updatedAtFrom,
     virtualGroups
@@ -708,29 +712,47 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
     ) : showMessageEmptyState ? (
       <GlobalSearchState label={hasQuery ? t('common.no_results') : t('globalSearch.messageSearch.hint')} />
     ) : (
-      <GroupedVirtualList
-        role="listbox"
-        groups={messageVirtualGroups}
-        estimateGroupHeaderSize={() => 32}
-        estimateItemSize={(item) => {
-          if (item.kind === 'more') return 36
-          return 44
-        }}
-        className="pt-2 pb-2"
-        renderGroupHeader={(group) => <GlobalMessageSearchGroupHeader group={group} />}
-        renderItem={(item) => (
-          <GlobalMessageSearchRow
-            item={item}
-            active={item.id === activeItemId}
-            language={i18n.language}
-            query={deferredQuery}
-            userName={userName}
-            onMouseEnter={() => setActiveItemId(item.id)}
-            onOpen={() => openMessagePanelItem(item)}
-            onJump={() => jumpMessagePanelItem(item)}
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="min-h-0 flex-1">
+          <GroupedVirtualList
+            role="listbox"
+            groups={messageVirtualGroups}
+            estimateGroupHeaderSize={() => 32}
+            estimateItemSize={(item) => {
+              if (item.kind === 'more') return 36
+              return 44
+            }}
+            className="pt-2 pb-2"
+            renderGroupHeader={(group) => <GlobalMessageSearchGroupHeader group={group} />}
+            renderItem={(item) => (
+              <GlobalMessageSearchRow
+                item={item}
+                active={item.id === activeItemId}
+                language={i18n.language}
+                query={deferredQuery}
+                userName={userName}
+                onMouseEnter={() => setActiveItemId(item.id)}
+                onOpen={() => openMessagePanelItem(item)}
+                onJump={() => jumpMessagePanelItem(item)}
+              />
+            )}
           />
+        </div>
+        {hasMoreMessageResults && (
+          <div className="shrink-0 border-border-subtle border-t bg-background/95 px-5 py-2">
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={isLoadingMoreMessageResults}
+              onClick={loadMoreMessageResults}
+              className="h-8 w-full rounded-[8px] font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground">
+              {isLoadingMoreMessageResults
+                ? t('common.loading')
+                : t('globalSearch.showMore', { count: messageLoadMoreCount })}
+            </Button>
+          </div>
         )}
-      />
+      </div>
     )
 
   return (

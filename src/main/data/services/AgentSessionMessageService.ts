@@ -22,7 +22,7 @@ import type {
 import { SESSION_MESSAGES_DEFAULT_LIMIT, SESSION_MESSAGES_MAX_LIMIT } from '@shared/data/api/schemas/sessions'
 import { buildKeywordRegexes, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
 import { buildSearchSnippet, stripMarkdownFormatting } from '@shared/utils/messageSearch'
-import { and, desc, eq, isNotNull, lt, or, sql } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
 const logger = loggerService.withContext('SessionMessageService')
@@ -197,7 +197,7 @@ export class AgentSessionMessageService {
    */
   async listSessionMessages(
     sessionId: string,
-    options: { cursor?: string; limit?: number } = {}
+    options: { cursor?: string; messageId?: string; limit?: number } = {}
   ): Promise<CursorPaginationResponse<AgentSessionMessageEntity>> {
     const database = application.get('DbService').getDb()
 
@@ -218,6 +218,24 @@ export class AgentSessionMessageService {
         or(
           lt(sessionMessagesTable.createdAt, cursor.createdAt),
           and(eq(sessionMessagesTable.createdAt, cursor.createdAt), lt(sessionMessagesTable.id, cursor.id))
+        )!
+      )
+    } else if (options.messageId) {
+      const [targetMessage] = await database
+        .select({ id: sessionMessagesTable.id, createdAt: sessionMessagesTable.createdAt })
+        .from(sessionMessagesTable)
+        .where(and(eq(sessionMessagesTable.id, options.messageId), eq(sessionMessagesTable.sessionId, sessionId)))
+        .limit(1)
+
+      if (!targetMessage) throw DataApiErrorFactory.notFound('Session message', options.messageId)
+
+      filters.push(
+        or(
+          lt(sessionMessagesTable.createdAt, targetMessage.createdAt),
+          and(
+            eq(sessionMessagesTable.createdAt, targetMessage.createdAt),
+            lte(sessionMessagesTable.id, targetMessage.id)
+          )
         )!
       )
     }

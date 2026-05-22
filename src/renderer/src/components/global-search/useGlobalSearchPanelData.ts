@@ -1,8 +1,8 @@
-import { useQuery } from '@data/hooks/useDataApi'
+import { useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@data/hooks/useDataApi'
 import type { GroupedVirtualListGroup } from '@renderer/components/VirtualList'
 import type { GlobalSearchRecentEntry } from '@shared/data/cache/cacheValueTypes'
 import dayjs from 'dayjs'
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 
 import {
   buildGlobalMessageSearchGroups,
@@ -70,10 +70,9 @@ export function useGlobalSearchPanelData({
   const messageSearchQuery = useMemo(
     () => ({
       q: deferredQuery,
-      limit: messageSearchLimit,
       ...(updatedAtFrom ? { createdAtFrom: updatedAtFrom } : {})
     }),
-    [deferredQuery, messageSearchLimit, updatedAtFrom]
+    [deferredQuery, updatedAtFrom]
   )
   const searchQuery = useMemo(
     () => ({
@@ -85,25 +84,61 @@ export function useGlobalSearchPanelData({
   )
 
   const {
-    data: topicMessageData,
+    pages: topicMessagePages,
     isLoading: isTopicMessageLoading,
-    error: topicMessageError
-  } = useQuery('/messages/search', {
+    isRefreshing: isTopicMessageRefreshing,
+    error: topicMessageError,
+    hasNext: hasNextTopicMessagePage,
+    loadNext: loadNextTopicMessagePage
+  } = useInfiniteQuery('/messages/search', {
     enabled: hasQuery && shouldSearchTopicMessages,
-    query: messageSearchQuery
+    query: messageSearchQuery,
+    limit: messageSearchLimit
   })
   const {
-    data: sessionMessageData,
+    pages: sessionMessagePages,
     isLoading: isSessionMessageLoading,
-    error: sessionMessageError
-  } = useQuery('/sessions/messages/search', {
+    isRefreshing: isSessionMessageRefreshing,
+    error: sessionMessageError,
+    hasNext: hasNextSessionMessagePage,
+    loadNext: loadNextSessionMessagePage
+  } = useInfiniteQuery('/sessions/messages/search', {
     enabled: hasQuery && shouldSearchSessionMessages,
-    query: messageSearchQuery
+    query: messageSearchQuery,
+    limit: messageSearchLimit
   })
+  const topicMessageItems = useInfiniteFlatItems(topicMessagePages)
+  const sessionMessageItems = useInfiniteFlatItems(sessionMessagePages)
   const isMessageLoading =
     isMessageSearchMode &&
     ((shouldSearchTopicMessages && isTopicMessageLoading) || (shouldSearchSessionMessages && isSessionMessageLoading))
   const messageError = topicMessageError ?? sessionMessageError
+  const hasMoreMessageResults =
+    isMessageSearchMode &&
+    ((shouldSearchTopicMessages && hasNextTopicMessagePage) ||
+      (shouldSearchSessionMessages && hasNextSessionMessagePage))
+  const isLoadingMoreMessageResults =
+    isMessageSearchMode &&
+    ((shouldSearchTopicMessages && isTopicMessageRefreshing && topicMessagePages.length > 0) ||
+      (shouldSearchSessionMessages && isSessionMessageRefreshing && sessionMessagePages.length > 0))
+  const messageLoadMoreCount =
+    (shouldSearchTopicMessages && hasNextTopicMessagePage ? messageSearchLimit : 0) +
+    (shouldSearchSessionMessages && hasNextSessionMessagePage ? messageSearchLimit : 0)
+  const loadMoreMessageResults = useCallback(() => {
+    if (shouldSearchTopicMessages && hasNextTopicMessagePage) {
+      loadNextTopicMessagePage()
+    }
+    if (shouldSearchSessionMessages && hasNextSessionMessagePage) {
+      loadNextSessionMessagePage()
+    }
+  }, [
+    hasNextSessionMessagePage,
+    hasNextTopicMessagePage,
+    loadNextSessionMessagePage,
+    loadNextTopicMessagePage,
+    shouldSearchSessionMessages,
+    shouldSearchTopicMessages
+  ])
 
   const { data, isLoading, error } = useQuery('/global-search', {
     enabled: hasQuery && panelMode === 'search',
@@ -114,10 +149,10 @@ export function useGlobalSearchPanelData({
     () =>
       [
         ...(shouldSearchTopicMessages
-          ? (topicMessageData?.items ?? []).map((item) => ({ ...item, sourceType: 'topic' as const }))
+          ? topicMessageItems.map((item) => ({ ...item, sourceType: 'topic' as const }))
           : []),
         ...(shouldSearchSessionMessages
-          ? (sessionMessageData?.items ?? []).map((item) => ({ ...item, sourceType: 'session' as const }))
+          ? sessionMessageItems.map((item) => ({ ...item, sourceType: 'session' as const }))
           : [])
       ].sort((a, b) => {
         const timeA = dayjs(a.createdAt).valueOf() || 0
@@ -126,7 +161,7 @@ export function useGlobalSearchPanelData({
         if (a.sourceType !== b.sourceType) return a.sourceType === 'topic' ? -1 : 1
         return b.messageId.localeCompare(a.messageId)
       }),
-    [sessionMessageData?.items, shouldSearchSessionMessages, shouldSearchTopicMessages, topicMessageData?.items]
+    [sessionMessageItems, shouldSearchSessionMessages, shouldSearchTopicMessages, topicMessageItems]
   )
 
   const groups = useMemo(
@@ -195,11 +230,15 @@ export function useGlobalSearchPanelData({
     error,
     groups,
     hasQuery,
+    hasMoreMessageResults,
     isLoading,
+    isLoadingMoreMessageResults,
     isMessageLoading,
     isMessageSearchMode,
+    loadMoreMessageResults,
     messageError,
     messageGroups,
+    messageLoadMoreCount,
     messageVirtualGroups,
     updatedAtFrom,
     virtualGroups

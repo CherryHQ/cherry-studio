@@ -20,12 +20,15 @@ import { WorkspaceEntitySchema } from './workspaces'
  *  newest-first; an absent `cursor` returns the most recent page, then each
  *  `nextCursor` walks one page older. Limit caps at 200 — the renderer
  *  flattens with `useInfiniteFlatItems` and the virtualizer scrolls older
- *  pages in on demand, so per-page size never has to cover a whole session. */
+ *  pages in on demand, so per-page size never has to cover a whole session.
+ *  `messageId` anchors the first page at a known message for previews; cursor
+ *  takes precedence for subsequent older pages. */
 export const SESSION_MESSAGES_MAX_LIMIT = 200
 export const SESSION_MESSAGES_DEFAULT_LIMIT = 50
 
 export const SessionMessagesListQuerySchema = z.strictObject({
   cursor: z.string().optional(),
+  messageId: z.string().min(1).optional(),
   limit: z.coerce.number().int().positive().max(SESSION_MESSAGES_MAX_LIMIT).optional()
 })
 export type SessionMessagesListQuery = z.infer<typeof SessionMessagesListQuerySchema>

@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   sessionHasNext: false,
   topicLoadNext: vi.fn(),
   sessionLoadNext: vi.fn(),
+  useInfiniteQuery: vi.fn(),
   onClose: vi.fn(),
   onOpenMessage: vi.fn()
 }))
@@ -29,32 +30,34 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
-  useInfiniteQuery: (path: string) => {
-    if (path === '/topics/:topicId/messages') {
-      return {
-        pages: mocks.topicPages,
-        isLoading: false,
-        isRefreshing: false,
-        error: undefined,
-        hasNext: mocks.topicHasNext,
-        loadNext: mocks.topicLoadNext
-      }
-    }
-
-    return {
-      pages: mocks.sessionPages,
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: mocks.sessionHasNext,
-      loadNext: mocks.sessionLoadNext
-    }
-  },
+  useInfiniteQuery: (...args: unknown[]) => mocks.useInfiniteQuery(...args),
   useInfiniteFlatItems: (pages: any[] = [], options?: { reversePages?: boolean; reverseItems?: boolean }) => {
     const orderedPages = options?.reversePages ? [...pages].reverse() : pages
     return orderedPages.flatMap((page) => (options?.reverseItems ? [...page.items].reverse() : page.items))
   }
 }))
+
+function mockPreviewInfiniteQuery(path: string) {
+  if (path === '/topics/:topicId/messages') {
+    return {
+      pages: mocks.topicPages,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: mocks.topicHasNext,
+      loadNext: mocks.topicLoadNext
+    }
+  }
+
+  return {
+    pages: mocks.sessionPages,
+    isLoading: false,
+    isRefreshing: false,
+    error: undefined,
+    hasNext: mocks.sessionHasNext,
+    loadNext: mocks.sessionLoadNext
+  }
+}
 
 vi.mock('@renderer/components/chat/messages/MessageContentProvider', () => ({
   MessageContentProvider: ({ children }: { children: ReactNode }) => <div>{children}</div>
@@ -137,6 +140,7 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     mocks.sessionPages = []
     mocks.topicHasNext = false
     mocks.sessionHasNext = false
+    mocks.useInfiniteQuery.mockImplementation(mockPreviewInfiniteQuery)
   })
 
   afterEach(() => {
@@ -190,7 +194,7 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('loads additional session pages until the full history is available', async () => {
+  it('anchors session preview at the target message without auto-loading the full history', async () => {
     vi.mocked(mocks.sessionLoadNext).mockClear()
     mocks.topicPages = []
     mocks.sessionHasNext = true
@@ -235,6 +239,15 @@ describe('GlobalSearchMessagePreviewPanel', () => {
 
     expect(screen.getByText('Session A')).toBeInTheDocument()
     expect(screen.getByText('Work messages')).toBeInTheDocument()
-    await waitFor(() => expect(mocks.sessionLoadNext).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(mocks.sessionLoadNext).not.toHaveBeenCalled())
+    expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
+      '/sessions/:sessionId/messages',
+      expect.objectContaining({
+        params: { sessionId: 'session-1' },
+        query: { messageId: 'session-message-1' },
+        limit: expect.any(Number),
+        enabled: true
+      })
+    )
   })
 })

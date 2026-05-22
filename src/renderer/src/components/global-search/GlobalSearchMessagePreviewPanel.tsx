@@ -41,7 +41,7 @@ interface GlobalSearchMessagePreviewPanelProps {
   onOpenMessage: (messageId: string) => void
 }
 
-const PREVIEW_PAGE_SIZE = 200
+const PREVIEW_PAGE_SIZE = 50
 const PREVIEW_MATCH_MODE = 'substring'
 const HIGHLIGHT_MARK_SELECTOR = 'mark[data-global-search-preview-highlight="true"]'
 const MESSAGE_BODY_SELECTOR = '[data-global-search-preview-message-body="true"]'
@@ -163,10 +163,7 @@ export function GlobalSearchMessagePreviewPanel({
   const {
     pages: topicPages,
     isLoading: isTopicLoading,
-    isRefreshing: isTopicRefreshing,
-    error: topicError,
-    hasNext: hasNextTopicPage,
-    loadNext: loadNextTopicPage
+    error: topicError
   } = useInfiniteQuery('/topics/:topicId/messages', {
     params: { topicId },
     query: { includeSiblings: false, nodeId: target.sourceType === 'topic' ? target.messageId : undefined },
@@ -176,29 +173,13 @@ export function GlobalSearchMessagePreviewPanel({
   const {
     pages: sessionPages,
     isLoading: isSessionLoading,
-    isRefreshing: isSessionRefreshing,
-    error: sessionError,
-    hasNext: hasNextSessionPage,
-    loadNext: loadNextSessionPage
+    error: sessionError
   } = useInfiniteQuery('/sessions/:sessionId/messages', {
     params: { sessionId },
+    query: { messageId: target.sourceType === 'session' ? target.messageId : undefined },
     limit: PREVIEW_PAGE_SIZE,
     enabled: target.sourceType === 'session'
   })
-
-  useEffect(() => {
-    if (target.sourceType !== 'topic') return
-    if (hasNextTopicPage && !isTopicLoading && !isTopicRefreshing) {
-      loadNextTopicPage()
-    }
-  }, [hasNextTopicPage, isTopicLoading, isTopicRefreshing, loadNextTopicPage, target.sourceType])
-
-  useEffect(() => {
-    if (target.sourceType !== 'session') return
-    if (hasNextSessionPage && !isSessionLoading && !isSessionRefreshing) {
-      loadNextSessionPage()
-    }
-  }, [hasNextSessionPage, isSessionLoading, isSessionRefreshing, loadNextSessionPage, target.sourceType])
 
   const topicBranchItems = useInfiniteFlatItems(topicPages, { reversePages: true })
   const sessionRows = useInfiniteFlatItems(sessionPages, { reversePages: true, reverseItems: true })
@@ -222,10 +203,6 @@ export function GlobalSearchMessagePreviewPanel({
     [messages, previewTopic.id, target]
   )
   const isLoading = target.sourceType === 'topic' ? isTopicLoading : isSessionLoading
-  const isLoadingMore =
-    target.sourceType === 'topic'
-      ? isTopicRefreshing && messages.length > 0
-      : isSessionRefreshing && messages.length > 0
   const error = target.sourceType === 'topic' ? topicError : sessionError
 
   useEffect(() => {
@@ -338,9 +315,6 @@ export function GlobalSearchMessagePreviewPanel({
                   </div>
                 </div>
               ))}
-              {isLoadingMore && (
-                <div className="py-2 text-center text-muted-foreground text-xs">{t('common.loading')}</div>
-              )}
             </div>
           </MessageContentProvider>
         )}

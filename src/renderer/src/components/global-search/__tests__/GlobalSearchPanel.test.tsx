@@ -19,9 +19,12 @@ const mocks = vi.hoisted(() => ({
   openTab: vi.fn(),
   onClose: vi.fn(),
   useQuery: vi.fn(),
+  useInfiniteQuery: vi.fn(),
   queryResult: undefined as GlobalSearchResponse | undefined,
   messageQueryResult: undefined as SearchMessagesResponse | undefined,
   sessionMessageQueryResult: undefined as SearchSessionMessagesResponse | undefined,
+  messageLoadNext: vi.fn(),
+  sessionMessageLoadNext: vi.fn(),
   recentItems: [] as GlobalSearchRecentEntry[],
   preferenceValues: {
     'app.user.name': 'JD',
@@ -183,6 +186,8 @@ vi.mock('@data/hooks/useCache', () => ({
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useInvalidateCache: () => mocks.invalidateCache,
+  useInfiniteQuery: (...args: unknown[]) => mocks.useInfiniteQuery(...args),
+  useInfiniteFlatItems: (pages: any[] = []) => pages.flatMap((page) => page.items),
   useQuery: (...args: unknown[]) => mocks.useQuery(...args)
 }))
 
@@ -384,6 +389,23 @@ describe('GlobalSearchPanel', () => {
       isLoading: false,
       error: undefined
     }))
+    mocks.useInfiniteQuery.mockImplementation((path: string) => {
+      const page =
+        path === '/messages/search'
+          ? mocks.messageQueryResult
+          : path === '/sessions/messages/search'
+            ? mocks.sessionMessageQueryResult
+            : undefined
+
+      return {
+        pages: page ? [page] : [],
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        hasNext: !!page?.nextCursor,
+        loadNext: path === '/messages/search' ? mocks.messageLoadNext : mocks.sessionMessageLoadNext
+      }
+    })
   })
 
   it('renders recent items before search and hides them after typing', async () => {
@@ -817,12 +839,12 @@ describe('GlobalSearchPanel', () => {
     expect(screen.queryByRole('option', { name: /needle message 0/ })).not.toBeInTheDocument()
 
     await waitFor(() => {
-      expect(mocks.useQuery).toHaveBeenCalledWith(
+      expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
         '/messages/search',
         expect.objectContaining({
           enabled: true,
+          limit: GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT,
           query: expect.objectContaining({
-            limit: GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT,
             q: 'needle'
           })
         })
@@ -892,27 +914,59 @@ describe('GlobalSearchPanel', () => {
     await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
 
     await waitFor(() => {
-      expect(mocks.useQuery).toHaveBeenCalledWith(
+      expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
         '/messages/search',
         expect.objectContaining({
           enabled: true,
+          limit: 50,
           query: expect.objectContaining({
-            limit: 50,
             q: 'needle'
           })
         })
       )
-      expect(mocks.useQuery).toHaveBeenCalledWith(
+      expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
         '/sessions/messages/search',
         expect.objectContaining({
           enabled: true,
+          limit: 50,
           query: expect.objectContaining({
-            limit: 50,
             q: 'needle'
           })
         })
       )
     })
+  })
+
+  it('loads the next cursor page in message search mode', async () => {
+    const user = userEvent.setup()
+    mocks.messageQueryResult = {
+      items: [
+        {
+          messageId: 'message-page-1',
+          topicId: 'topic-1',
+          topicName: 'Topic A',
+          topicCreatedAt: '2026-01-01T00:00:00.000Z',
+          topicUpdatedAt: '2026-01-01T00:00:00.000Z',
+          role: 'user',
+          snippet: 'needle first page',
+          createdAt: '2026-01-01T00:00:01.000Z'
+        }
+      ],
+      nextCursor: 'cursor-1'
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.click(screen.getByRole('radio', { name: 'Messages' }))
+    await user.click(screen.getByRole('button', { name: 'Message source: Topic messages' }))
+    await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
+
+    expect(await screen.findByRole('option', { name: /needle first page/ })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Show 50 more' }))
+
+    expect(mocks.messageLoadNext).toHaveBeenCalledTimes(1)
+    expect(mocks.sessionMessageLoadNext).not.toHaveBeenCalled()
   })
 
   it('passes selected time filter to message search queries', async () => {
@@ -926,7 +980,7 @@ describe('GlobalSearchPanel', () => {
     await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
 
     await waitFor(() => {
-      expect(mocks.useQuery).toHaveBeenCalledWith(
+      expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
         '/messages/search',
         expect.objectContaining({
           enabled: true,
@@ -936,7 +990,7 @@ describe('GlobalSearchPanel', () => {
           })
         })
       )
-      expect(mocks.useQuery).toHaveBeenCalledWith(
+      expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
         '/sessions/messages/search',
         expect.objectContaining({
           enabled: true,
@@ -989,13 +1043,13 @@ describe('GlobalSearchPanel', () => {
     await user.type(screen.getByLabelText('Start typing to search...'), 'report')
 
     await waitFor(() => {
-      expect(mocks.useQuery).toHaveBeenCalledWith(
+      expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
         '/messages/search',
         expect.objectContaining({
           enabled: false
         })
       )
-      expect(mocks.useQuery).toHaveBeenCalledWith(
+      expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
         '/sessions/messages/search',
         expect.objectContaining({
           enabled: true,
@@ -1024,7 +1078,7 @@ describe('GlobalSearchPanel', () => {
     await user.type(screen.getByLabelText('Start typing to search...'), 'report')
 
     await waitFor(() => {
-      expect(mocks.useQuery).toHaveBeenCalledWith(
+      expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
         '/messages/search',
         expect.objectContaining({
           enabled: true,
@@ -1033,7 +1087,7 @@ describe('GlobalSearchPanel', () => {
           })
         })
       )
-      expect(mocks.useQuery).toHaveBeenCalledWith(
+      expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
         '/sessions/messages/search',
         expect.objectContaining({
           enabled: true,

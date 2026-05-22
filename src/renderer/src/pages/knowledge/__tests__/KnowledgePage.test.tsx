@@ -1,6 +1,7 @@
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -569,6 +570,42 @@ describe('KnowledgePage', () => {
     expect(screen.getByTestId('detail-header-item-count')).toHaveTextContent('2')
     expect(screen.getByTestId('detail-tabs')).toHaveTextContent('2')
     expect(screen.getByTestId('data-source-panel')).toHaveTextContent('2:idle')
+  })
+
+  it('keeps a global search knowledge selection until cold-start bases load', async () => {
+    let bases: KnowledgeBase[] = []
+
+    mockUseKnowledgeBases.mockImplementation(() => ({
+      bases,
+      isLoading: bases.length === 0,
+      error: undefined,
+      refetch: vi.fn()
+    }))
+    mockUseKnowledgeItems.mockImplementation((baseId: string) => ({
+      items: baseId === 'base-2' ? [createKnowledgeItem({ id: 'item-2' })] : [],
+      total: baseId === 'base-2' ? 1 : 0,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    }))
+
+    const { rerender } = render(<KnowledgePage />)
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE, 'base-2')
+    })
+
+    bases = [
+      createKnowledgeBase({ id: 'base-1', name: 'Base 1' }),
+      createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
+    ]
+    rerender(<KnowledgePage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 2')
+    })
+    expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-2')
+    expect(screen.getByTestId('detail-header-item-count')).toHaveTextContent('1')
   })
 
   it('switches tabs and renders the matching detail panel', async () => {
