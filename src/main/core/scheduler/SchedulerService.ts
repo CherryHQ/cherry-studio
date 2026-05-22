@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
+import type { Trigger } from '@main/core/job/scheduleTypes'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { Disposable } from '@main/core/lifecycle/event'
-import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { Cron } from 'croner'
 
 const logger = loggerService.withContext('SchedulerService')

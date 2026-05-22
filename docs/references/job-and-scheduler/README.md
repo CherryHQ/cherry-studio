@@ -16,3 +16,5 @@ Cherry Studio unified background job + time-scheduling system. Phase 1 (basic in
 - Need to schedule a callback (cron / interval / one-shot)? → see [scheduler-usage.md](./scheduler-usage.md)
 - Migrating from a custom queue? → see [migration-checklist.md](./migration-checklist.md)
 - Handler tripping over concurrent base writes? → see [concurrency-and-locks.md](./concurrency-and-locks.md)
+- How does startup recovery work (60 s quiet window, mid-flight shutdown)? → see [overview.md / Startup Recovery](./overview.md#startup-recovery)
+- Where do handlers get registered, and why does `onAllReady` registration fail silently? → see [handler-authoring.md / Registration timing](./handler-authoring.md#registration-timing)

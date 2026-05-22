@@ -17,6 +17,7 @@ export const mineruDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
   'document_to_markdown',
   MineruQueryContext
 > = {
+  mode: 'remote-poll',
   prepare(file, config, signal) {
     signal?.throwIfAborted()
     const startContext = prepareStartContext(file, config, signal)
@@ -59,6 +60,24 @@ export const mineruDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
         const batchResult = await getBatchResult(task.providerTaskId, context)
 
         return buildPollResult(batchResult.extract_result[0], context.apiHost)
+      },
+      toPersistable(remoteContext, providerTaskId) {
+        return {
+          providerTaskId,
+          apiHost: remoteContext.apiHost
+        }
+      },
+      rehydrate(persisted, restoredConfig) {
+        if (!persisted.apiHost) {
+          throw new Error('mineru rehydrate: missing apiHost in persisted remote state')
+        }
+        return {
+          providerTaskId: persisted.providerTaskId,
+          remoteContext: {
+            apiHost: persisted.apiHost,
+            apiKey: getRequiredApiKey(restoredConfig, 'mineru')
+          }
+        }
       }
     }
   }

@@ -1,5 +1,5 @@
 /**
- * Schedule-control unit tests (F15 + updateJobSchedule branch coverage).
+ * Schedule-control unit tests (by-id / by-name APIs + updateJobSchedule branch coverage).
  *
  * Covers the public schedule APIs that the agent.task migration depends on:
  *   - by-id and by-name pause / resume / triggerNow / unregister
@@ -13,12 +13,13 @@
 
 import { application } from '@application'
 import { jobScheduleService } from '@data/services/JobScheduleService'
+import { JOB_ERROR_CODES } from '@main/core/job/errorCodes'
 import { JobManager } from '@main/core/job/JobManager'
+import type { Trigger } from '@main/core/job/scheduleTypes'
 import type { JobHandler } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import type { Disposable } from '@main/core/lifecycle/event'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
-import { JOB_ERROR_CODES, type Trigger } from '@shared/data/api/schemas/jobs'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
@@ -83,13 +84,14 @@ describe('JobManager schedule control APIs', () => {
     await scheduler._doInit()
     await jobManager._doInit()
 
-    // Skip the 60s startup delay so `onAllReady` resolves promptly. `toFake`
-    // must pair setTimeout with clearTimeout — leaving clearTimeout real would
-    // leak the fake-timer entry created by the delay's setTimeout.
+    // `onAllReady` schedules startup recovery via setTimeout and returns
+    // synchronously. Skip the 60s quiet window via fake timers, then await
+    // `_recoveryDone` (set inside the timer callback) for the deferred flow.
+    // `toFake` must pair setTimeout with clearTimeout.
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-    const allReady = jobManager._doAllReady()
+    void jobManager._doAllReady()
     await vi.advanceTimersByTimeAsync(60_000)
-    await allReady
+    await (jobManager as unknown as { _recoveryDone?: Promise<void> })._recoveryDone
     vi.useRealTimers()
   })
 

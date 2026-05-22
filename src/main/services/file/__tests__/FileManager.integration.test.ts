@@ -57,7 +57,7 @@ describe('FileManager (integration)', () => {
       ext: 'txt',
       size: 'internal-payload'.length,
       externalPath: null,
-      trashedAt: null,
+      deletedAt: null,
       createdAt: now,
       updatedAt: now
     })
@@ -93,7 +93,7 @@ describe('FileManager (integration)', () => {
       ext: 'pdf',
       size: null,
       externalPath: file,
-      trashedAt: null,
+      deletedAt: null,
       createdAt: now,
       updatedAt: now
     })
@@ -124,7 +124,7 @@ describe('FileManager (integration)', () => {
       ext: 'txt',
       size: null,
       externalPath: file,
-      trashedAt: null,
+      deletedAt: null,
       createdAt: now,
       updatedAt: now
     })
@@ -150,7 +150,7 @@ describe('FileManager (integration)', () => {
       ext: 'txt',
       size: null,
       externalPath: file,
-      trashedAt: null,
+      deletedAt: null,
       createdAt: now,
       updatedAt: now
     })
@@ -235,30 +235,30 @@ describe('FileManager (integration)', () => {
     await fm.trash(created.id)
     const trashed = await fm.getById(created.id)
     if (trashed.origin === 'internal') {
-      expect(typeof trashed.trashedAt).toBe('number')
+      expect(typeof trashed.deletedAt).toBe('number')
     }
 
     const restored = await fm.restore(created.id)
     if (restored.origin === 'internal') {
-      expect(restored.trashedAt).toBeUndefined()
+      expect(restored.deletedAt).toBeUndefined()
     }
 
     await fm.permanentDelete(created.id)
     await expect(fm.getById(created.id)).rejects.toThrow(/not found/i)
   })
 
-  it('INT-5: trash on external entry is blocked by DB CHECK fe_external_no_trash', async () => {
+  it('INT-5: trash on external entry is blocked by DB CHECK fe_external_no_delete', async () => {
     const file = path.join(tmp, 'ext.txt')
     await writeFile(file, 'x')
     const e = await fm.ensureExternalEntry({ externalPath: file as never })
     await expect(fm.trash(e.id)).rejects.toThrow()
-    // External BO has no `trashedAt` field by construction; if the trash
-    // attempt had slipped through, the DB CHECK fe_external_no_trash would
+    // External BO has no `deletedAt` field by construction; if the trash
+    // attempt had slipped through, the DB CHECK fe_external_no_delete would
     // have rejected it, so reading the row back must still surface as
-    // origin='external' with no trashedAt projection.
+    // origin='external' with no deletedAt projection.
     const refreshed = await fm.getById(e.id)
     expect(refreshed.origin).toBe('external')
-    expect(refreshed).not.toHaveProperty('trashedAt')
+    expect(refreshed).not.toHaveProperty('deletedAt')
   })
 
   it('INT-6: permanentDelete on external leaves user file untouched', async () => {
@@ -283,7 +283,7 @@ describe('FileManager (integration)', () => {
       ext: 'txt',
       size: 5,
       externalPath: null,
-      trashedAt: null,
+      deletedAt: null,
       createdAt: now,
       updatedAt: now
     })
@@ -312,7 +312,7 @@ describe('FileManager (integration)', () => {
       ext: 'txt',
       size: null,
       externalPath: file,
-      trashedAt: null,
+      deletedAt: null,
       createdAt: 0,
       updatedAt: 0
     })
@@ -368,7 +368,7 @@ describe('FileManager (integration)', () => {
       ext: 'txt',
       size: 1,
       externalPath: null,
-      trashedAt: null,
+      deletedAt: null,
       createdAt: now,
       updatedAt: now
     })
@@ -508,7 +508,7 @@ describe('FileManager (integration)', () => {
       ext: 'txt',
       size: 1,
       externalPath: null,
-      trashedAt: null,
+      deletedAt: null,
       createdAt: 0,
       updatedAt: 0
     })

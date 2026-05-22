@@ -44,7 +44,7 @@ describe('toFileInfo', () => {
       ext: 'txt',
       size: null,
       externalPath: file,
-      trashedAt: null,
+      deletedAt: null,
       createdAt: 1000,
       updatedAt: 1000
     } as unknown as FileEntry
@@ -72,7 +72,7 @@ describe('toFileInfo', () => {
       ext: 'png',
       size: bytes.length,
       externalPath: null,
-      trashedAt: null,
+      deletedAt: null,
       createdAt: 1000,
       updatedAt: 1000
     } as unknown as FileEntry
@@ -92,7 +92,7 @@ describe('toFileInfo', () => {
       ext: 'txt',
       size: null,
       externalPath: path.join(tmp, 'gone.txt'),
-      trashedAt: null,
+      deletedAt: null,
       createdAt: 1000,
       updatedAt: 1000
     } as unknown as FileEntry
@@ -111,7 +111,7 @@ describe('toFileInfo', () => {
       ext: null,
       size: null,
       externalPath: file,
-      trashedAt: null,
+      deletedAt: null,
       createdAt: 1000,
       updatedAt: 1000
     } as unknown as FileEntry

@@ -294,7 +294,7 @@ describe('internal/entry/create.createInternal', () => {
           ext: 'txt',
           size: null,
           externalPath: phantomCaseDifferent,
-          trashedAt: null,
+          deletedAt: null,
           createdAt: Date.now(),
           updatedAt: Date.now()
         })

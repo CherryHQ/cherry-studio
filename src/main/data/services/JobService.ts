@@ -67,6 +67,30 @@ export class JobService {
     return rows.map((r) => this.rowToSnapshot(r))
   }
 
+  /**
+   * Total count of jobs matching the same filter shape as `list()`. WHERE
+   * composition mirrors `list()` so `count(f) === list(f).length` when no
+   * pagination is applied.
+   */
+  async count(filter: Omit<JobListFilter, 'limit' | 'offset'> = {}): Promise<number> {
+    const db = this.getDb()
+    const conditions: SQL[] = []
+    if (filter.status?.length) conditions.push(inArray(jobTable.status, filter.status))
+    if (filter.queue) conditions.push(eq(jobTable.queue, filter.queue))
+    if (filter.type) conditions.push(eq(jobTable.type, filter.type))
+    if (filter.scheduleId) conditions.push(eq(jobTable.scheduleId, filter.scheduleId))
+
+    const query = conditions.length
+      ? db
+          .select({ count: count() })
+          .from(jobTable)
+          .where(and(...conditions))
+      : db.select({ count: count() }).from(jobTable)
+
+    const [r] = await query
+    return r?.count ?? 0
+  }
+
   async getById(id: string): Promise<JobSnapshot | null> {
     const [row] = await this.getDb().select().from(jobTable).where(eq(jobTable.id, id)).limit(1)
     return row ? this.rowToSnapshot(row) : null
@@ -101,12 +125,21 @@ export class JobService {
     return rows.map((r) => this.rowToSnapshot(r))
   }
 
-  // ---------------- Write (non-tx) ----------------
+  // ---------------- Write (non-tx thin wrappers over Tx versions) ----------------
+
+  /**
+   * Non-tx write methods in this section are thin wrappers over their `*Tx`
+   * counterparts, routing through `DbService.withWriteTx` to serialize against
+   * other JobManager writes (avoids libsql issue #288 SQLITE_BUSY).
+   *
+   * Use the `*Tx` versions directly when composing multiple writes into one
+   * transaction (recovery, batch operations).
+   */
 
   async create(dto: InsertJobRow): Promise<JobSnapshot> {
-    const result = await withSqliteErrors(
-      () => this.getDb().insert(jobTable).values(dto).returning(),
-      defaultHandlersFor('Job', dto.id ?? '<auto>')
+    const dbService = application.get('DbService')
+    const result = await dbService.withWriteTx((tx) =>
+      withSqliteErrors(() => tx.insert(jobTable).values(dto).returning(), defaultHandlersFor('Job', dto.id ?? '<auto>'))
     )
     const row = result[0]
     if (!row) throw new Error('jobService.create returned no row')
@@ -267,19 +300,51 @@ export class JobService {
       .orderBy(desc(jobTable.createdAt), desc(jobTable.id))
   }
 
-  async resetToPendingByIds(jobIds: string[]): Promise<void> {
+  /**
+   * Distinct (queue, type) pairs across all non-terminal jobs (pending /
+   * delayed / running). JobManager.onAllReady uses this after startup recovery
+   * to ensure a DispatchQueue exists for each queue that owns recoverable
+   * rows — without this, dispatchAll iterates an empty this.queues Map on
+   * cold start and recovered pending rows wait until the next enqueue arrives.
+   *
+   * `delayed` rows are included so the queue is in place ahead of the next
+   * promoteDelayedDue tick. `running` is included for cheap insurance —
+   * recovery should have transitioned all running rows to pending or cancelled
+   * by the time this runs, but keeping them in the result set is harmless.
+   *
+   * Returned shape: Array<{ queue, type }>. If multiple types share a queue
+   * name (legal — enqueue accepts any string), distinct returns one row per
+   * (queue, type). The caller's ensureQueue(queueName, concurrency) keeps the
+   * FIRST inserted concurrency value (first-writer-wins). All currently
+   * shipped callers use type as queue, so this is a forward-compat note.
+   */
+  async getDistinctActiveQueues(): Promise<Array<{ queue: string; type: string }>> {
+    return this.getDb()
+      .select({ queue: jobTable.queue, type: jobTable.type })
+      .from(jobTable)
+      .where(inArray(jobTable.status, NON_TERMINAL_STATUSES))
+      .groupBy(jobTable.queue, jobTable.type)
+  }
+
+  async resetToPendingByIdsTx(tx: DbOrTx, jobIds: string[]): Promise<void> {
     if (jobIds.length === 0) return
     const now = Date.now()
-    await this.getDb()
+    await tx
       .update(jobTable)
       .set({ status: 'pending', startedAt: null, updatedAt: now })
       .where(inArray(jobTable.id, jobIds))
   }
 
-  async cancelByIds(jobIds: string[], error: JobError | null): Promise<void> {
+  async resetToPendingByIds(jobIds: string[]): Promise<void> {
+    if (jobIds.length === 0) return
+    const dbService = application.get('DbService')
+    await dbService.withWriteTx((tx) => this.resetToPendingByIdsTx(tx, jobIds))
+  }
+
+  async cancelByIdsTx(tx: DbOrTx, jobIds: string[], error: JobError | null): Promise<void> {
     if (jobIds.length === 0) return
     const now = Date.now()
-    await this.getDb()
+    await tx
       .update(jobTable)
       .set({
         status: 'cancelled',
@@ -288,6 +353,12 @@ export class JobService {
         error
       })
       .where(inArray(jobTable.id, jobIds))
+  }
+
+  async cancelByIds(jobIds: string[], error: JobError | null): Promise<void> {
+    if (jobIds.length === 0) return
+    const dbService = application.get('DbService')
+    await dbService.withWriteTx((tx) => this.cancelByIdsTx(tx, jobIds, error))
   }
 
   /**
@@ -343,23 +414,36 @@ export class JobService {
   /**
    * Promote delayed jobs whose `scheduledAt` has passed into `pending` so the
    * dispatch loop picks them up. Returns the count of rows promoted.
+   *
+   * The `WHERE status='delayed'` guard is intrinsic — only delayed rows are
+   * promotion candidates — so the operation is naturally idempotent.
    */
-  async promoteDelayedDue(now: number): Promise<number> {
-    const result = await this.getDb()
+  async promoteDelayedDueTx(tx: DbOrTx, now: number): Promise<number> {
+    const result = await tx
       .update(jobTable)
       .set({ status: 'pending', updatedAt: now })
       .where(and(eq(jobTable.status, 'delayed'), lte(jobTable.scheduledAt, now)))
     return result.rowsAffected
   }
 
+  async promoteDelayedDue(now: number): Promise<number> {
+    const dbService = application.get('DbService')
+    return dbService.withWriteTx((tx) => this.promoteDelayedDueTx(tx, now))
+  }
+
   // ---------------- GC ----------------
 
   /** Delete terminal jobs whose finishedAt is older than the cutoff. */
-  async pruneTerminalOlderThan(cutoffMs: number): Promise<number> {
-    const result = await this.getDb()
+  async pruneTerminalOlderThanTx(tx: DbOrTx, cutoffMs: number): Promise<number> {
+    const result = await tx
       .delete(jobTable)
       .where(and(inArray(jobTable.status, TERMINAL_JOB_STATUSES), lte(jobTable.finishedAt, cutoffMs)))
     return result.rowsAffected
+  }
+
+  async pruneTerminalOlderThan(cutoffMs: number): Promise<number> {
+    const dbService = application.get('DbService')
+    return dbService.withWriteTx((tx) => this.pruneTerminalOlderThanTx(tx, cutoffMs))
   }
 
   /**
@@ -367,8 +451,8 @@ export class JobService {
    * At Phase 1 scale (thousands of terminal rows total) this in-memory pass is
    * cheaper than a window-function SQL and portable across SQLite versions.
    */
-  async pruneTerminalKeepLatestPerType(keepPerType: number): Promise<number> {
-    const allTerminal = await this.getDb()
+  async pruneTerminalKeepLatestPerTypeTx(tx: DbOrTx, keepPerType: number): Promise<number> {
+    const allTerminal = await tx
       .select({ id: jobTable.id, type: jobTable.type })
       .from(jobTable)
       .where(inArray(jobTable.status, TERMINAL_JOB_STATUSES))
@@ -382,8 +466,13 @@ export class JobService {
       if (c > keepPerType) toDelete.push(row.id)
     }
     if (toDelete.length === 0) return 0
-    const result = await this.getDb().delete(jobTable).where(inArray(jobTable.id, toDelete))
+    const result = await tx.delete(jobTable).where(inArray(jobTable.id, toDelete))
     return result.rowsAffected
+  }
+
+  async pruneTerminalKeepLatestPerType(keepPerType: number): Promise<number> {
+    const dbService = application.get('DbService')
+    return dbService.withWriteTx((tx) => this.pruneTerminalKeepLatestPerTypeTx(tx, keepPerType))
   }
 
   // ---------------- Row → Entity ----------------

@@ -5,8 +5,8 @@
  */
 
 import { computeCatchUpAction } from '@main/core/job/runtime/catchUp'
+import type { JobScheduleSnapshot } from '@main/core/job/scheduleTypes'
 import type { JobHandler } from '@main/core/job/types'
-import type { JobScheduleSnapshot } from '@shared/data/api/schemas/jobs'
 import { describe, expect, it } from 'vitest'
 
 const NOW = 1_700_000_000_000 // 2023-11-14T22:13:20Z

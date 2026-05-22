@@ -23,11 +23,10 @@ Services are initialized in three phases:
                           |--WhenReady--|  |
                                         isBootstrapped = true
                                         |--await Background--|
-                                                             |--allReady--|
-                                                                          ALL_SERVICES_READY
+                                                             allReady (fire-and-forget) → ALL_SERVICES_READY
 ```
 
-After all three phases complete (including Background), `LifecycleManager.allReady()` calls `onAllReady()` on every initialized service in parallel, then emits `ALL_SERVICES_READY`.
+After all three phases complete (including Background), `LifecycleManager.allReady()` invokes `onAllReady()` on every initialized service in parallel and **immediately** emits `ALL_SERVICES_READY` — it does **not** await the hooks. `onAllReady` is a post-bootstrap supplement (see [Hook Descriptions](#hook-descriptions)), so bootstrap does not block on services running deferred work inside it.
 
 ### Phase Selection Guide
 
@@ -190,10 +189,24 @@ class BackgroundReporterService extends BaseService {
 ```
 
 **Key behaviors:**
-- All `onAllReady` hooks run in parallel
-- No state transition — the service stays in `Ready` state
-- Called at most once per service instance — `restart()` does **not** re-trigger it
-- Errors are logged and emitted as `SERVICE_ERROR` but never propagate
+- `onAllReady` is a **post-bootstrap supplement**, not part of initialization. It does not change `LifecycleState` — the service stays in `Ready` throughout.
+- `LifecycleManager.allReady()` invokes every service's hook in parallel and **does not await completion** (fire-and-forget). Bootstrap proceeds as soon as every hook has been invoked.
+- `ALL_SERVICES_READY` is emitted **immediately after all hooks have been invoked**, not after they finish. Listeners MUST NOT assume `onAllReady` side effects have completed when this event fires.
+- Called at most once per service instance — `restart()` does **not** re-trigger it (guarded by `_allReadyCalled`).
+- Errors thrown synchronously or via the returned Promise are caught by an async `.catch` in the framework, logged, and emitted as `SERVICE_ERROR` (in a microtask) — they never propagate to bootstrap.
+- **Do not `await` long-running business work directly in `onAllReady`.** Because the framework no longer awaits the hook, in-hook `await`s become silent background work. If a service needs deferred business work (e.g. a quiet window then recovery), schedule it via `setTimeout`, track the resulting Promise on the instance, and join it from `onStop`. See [Lifecycle Usage — onAllReady patterns](./lifecycle-usage.md#onallready-business-work-pattern).
+
+### `onAllReady` Hook vs `ALL_SERVICES_READY` Event
+
+Same readiness moment, two delivery channels. Both fire from one synchronous `LifecycleManager.allReady()` call — the framework first invokes every service's `onAllReady`, then emits `ALL_SERVICES_READY`. They are microseconds apart on the same JS tick.
+
+| | `onAllReady` hook | `ALL_SERVICES_READY` event |
+|---|---|---|
+| Mechanism | Push — framework calls every service once | Pub/sub — only `.on(...)` subscribers receive |
+| Audience | The service itself, via method override | Anyone with a `LifecycleManager` reference |
+| Failure handling | Caught by framework, re-emitted as `SERVICE_ERROR` | Standard `EventEmitter` behaviour |
+
+**Rule of thumb**: a service reacts via its own `onAllReady`; non-service code (diagnostics, telemetry, ad-hoc listeners) subscribes to the event. Neither signals when a *specific service's* deferred work finishes — for that, expose a per-service `Signal`.
 
 ## Service States
 
@@ -211,7 +224,7 @@ class BackgroundReporterService extends BaseService {
 
 ## Lifecycle Events (Internal API)
 
-> For most use cases, prefer the `onAllReady()` hook or `application.get()` over raw event listening. These events are primarily for infrastructure code (e.g., diagnostics, logging).
+> For most use cases, prefer the `onAllReady()` hook or `application.get()` over raw event listening. These events are primarily for infrastructure code (e.g., diagnostics, logging). For the hook vs event tradeoff, see [`onAllReady` Hook vs `ALL_SERVICES_READY` Event](#onallready-hook-vs-all_services_ready-event).
 
 Listen to lifecycle events via the `LifecycleManager` (extends `EventEmitter`):
 
@@ -241,7 +254,7 @@ manager.on(LifecycleEvents.ALL_SERVICES_READY, () => {
 | `SERVICE_STOPPED`      | `{ name, state }`        | Service is stopped                    |
 | `SERVICE_DESTROYED`    | `{ name, state }`        | Service is destroyed                  |
 | `SERVICE_ERROR`        | `{ name, state, error }` | Service encountered an error          |
-| `ALL_SERVICES_READY`   | (none)                   | All services completed initialization |
+| `ALL_SERVICES_READY`   | (none)                   | All `onAllReady` hooks have been invoked (NOT necessarily completed — see [onAllReady](#onallready-system-wide-readiness)) |
 
 ## Inter-Service Communication
 

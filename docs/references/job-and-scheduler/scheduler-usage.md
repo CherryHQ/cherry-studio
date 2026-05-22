@@ -48,6 +48,39 @@ This is a **conscious design boundary**, not a deficiency. The rationale: Schedu
 - **Building your own persistent schedule table.** The project has exactly one: `jobScheduleTable`, owned by JobManager. Need persistence? Build a JobHandler. **Hard constraint**: SchedulerService is the project's single general-purpose scheduler — every recurring task should reach time via JobManager (persistent) or SchedulerService (transient), never via a private parallel scheduler.
 - **Forgetting that SchedulerService is stateless.** It does not survive restart. Re-register in `onReady` if you call it directly.
 
+## Trigger lifetime semantics
+
+The three triggers (`cron` / `interval` / `once`) differ in how their entry survives across a callback. Both subtleties are observable from inside the callback.
+
+### `once`: self-clean *before* invoke
+
+When a `once` timer fires, SchedulerService removes its schedule entry from the internal map **before** invoking the callback. The motivating consequence: a callback may re-register a schedule with the same id without conflict.
+
+```typescript
+scheduler.registerSchedule('reminder.foo', { kind: 'once', at: Date.now() + 1000 }, () => {
+  // Safe: the previous entry was removed before we got here.
+  scheduler.registerSchedule('reminder.foo', { kind: 'once', at: Date.now() + 5000 }, () => { /* ... */ })
+})
+```
+
+If you need "fire once, then maybe fire again later" semantics this is the path. Note that the schedule id is *also* removed if the callback throws — `once` is always one-shot from SchedulerService's perspective.
+
+### `interval`: re-arm safety check
+
+After each tick, SchedulerService re-checks that the schedule entry is still in its map *before* re-arming the next interval. Consequence: a callback can synchronously call `scheduler.unregisterSchedule(id)` and the loop will stop cleanly, without a final stray tick.
+
+```typescript
+scheduler.registerSchedule('healthcheck.foo', { kind: 'interval', ms: 30_000 }, async () => {
+  if (await everythingIsTerminal()) {
+    scheduler.unregisterSchedule('healthcheck.foo')
+    return // No further tick.
+  }
+  // ...
+})
+```
+
+The check is on `map.has(id)`, not a flag — if you re-register the same id during the callback you re-arm the loop with the new trigger.
+
 ## SchedulerService internal ID conventions
 
 JobManager owns these prefixes — third-party callers should avoid them to prevent collisions:

@@ -41,7 +41,7 @@ export interface CreateFileEntryRow {
   readonly size: number | null
   /** Non-null iff `origin === 'external'`; must be pre-canonicalized. */
   readonly externalPath: string | null
-  readonly trashedAt?: number | null
+  readonly deletedAt?: number | null
 }
 
 /**
@@ -50,7 +50,7 @@ export interface CreateFileEntryRow {
  * byte count atomically; on external rows it must remain `null`.
  */
 export type UpdateFileEntryRow = Partial<Pick<CreateFileEntryRow, 'name' | 'ext' | 'size'>> & {
-  readonly trashedAt?: number | null
+  readonly deletedAt?: number | null
 }
 
 export interface FindEntriesQuery {
@@ -200,11 +200,11 @@ function rowToFileEntry(row: FileEntryRow): FileEntry {
       name: row.name,
       ext: row.ext,
       size: row.size,
-      // trashedAt is `optional` on the BO — present iff the DB column is
+      // deletedAt is `optional` on the BO — present iff the DB column is
       // non-null. Bypass `nullsToUndefined` so we don't pull in a helper
       // whose project-wide meaning is "every null becomes undefined";
       // here only this specific column flips.
-      ...(row.trashedAt !== null ? { trashedAt: row.trashedAt } : {}),
+      ...(row.deletedAt !== null ? { deletedAt: row.deletedAt } : {}),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt
     })
@@ -271,9 +271,9 @@ class FileEntryServiceImpl implements FileEntryService {
       conditions.push(eq(fileEntryTable.origin, query.origin))
     }
     if (query.inTrash === true) {
-      conditions.push(isNotNull(fileEntryTable.trashedAt))
+      conditions.push(isNotNull(fileEntryTable.deletedAt))
     } else {
-      conditions.push(isNull(fileEntryTable.trashedAt))
+      conditions.push(isNull(fileEntryTable.deletedAt))
     }
 
     let queryBuilder = this.getDb()
@@ -300,9 +300,9 @@ class FileEntryServiceImpl implements FileEntryService {
       conditions.push(eq(fileEntryTable.origin, query.origin))
     }
     if (query.inTrash === true) {
-      conditions.push(isNotNull(fileEntryTable.trashedAt))
+      conditions.push(isNotNull(fileEntryTable.deletedAt))
     } else {
-      conditions.push(isNull(fileEntryTable.trashedAt))
+      conditions.push(isNull(fileEntryTable.deletedAt))
     }
     const where = and(...conditions)
 
@@ -343,7 +343,7 @@ class FileEntryServiceImpl implements FileEntryService {
   }
 
   async findUnreferenced(query: { origin?: FileEntryOrigin } = {}): Promise<FileEntry[]> {
-    const conditions: SQL[] = [isNull(fileEntryTable.trashedAt), isNull(fileRefTable.id)]
+    const conditions: SQL[] = [isNull(fileEntryTable.deletedAt), isNull(fileRefTable.id)]
     if (query.origin) conditions.push(eq(fileEntryTable.origin, query.origin))
     const rows = await this.getDb()
       .select({ entry: fileEntryTable })
@@ -371,7 +371,7 @@ class FileEntryServiceImpl implements FileEntryService {
         ext: values.ext,
         size: values.size,
         externalPath: values.externalPath,
-        trashedAt: values.trashedAt ?? null,
+        deletedAt: values.deletedAt ?? null,
         createdAt: now,
         updatedAt: now
       })
@@ -392,7 +392,7 @@ class FileEntryServiceImpl implements FileEntryService {
     if (values.name !== undefined) updates.name = values.name
     if (values.ext !== undefined) updates.ext = values.ext
     if (values.size !== undefined) updates.size = values.size
-    if (values.trashedAt !== undefined) updates.trashedAt = values.trashedAt
+    if (values.deletedAt !== undefined) updates.deletedAt = values.deletedAt
     const rows = await this.getDb().update(fileEntryTable).set(updates).where(eq(fileEntryTable.id, id)).returning()
     if (rows.length === 0) {
       throw DataApiErrorFactory.notFound('FileEntry', id)

@@ -17,6 +17,7 @@ export const paddleDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
   'document_to_markdown',
   PaddleQueryContext
 > = {
+  mode: 'remote-poll',
   prepare(file, config, signal) {
     signal?.throwIfAborted()
     const startContext = prepareStartContext(file, config, signal)
@@ -48,6 +49,24 @@ export const paddleDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
         const jobResult = await getJobResult(task.providerTaskId, context)
 
         return buildPollResult(task.providerTaskId, jobResult, context.apiHost, context.signal)
+      },
+      toPersistable(remoteContext, providerTaskId) {
+        return {
+          providerTaskId,
+          apiHost: remoteContext.apiHost
+        }
+      },
+      rehydrate(persisted, restoredConfig) {
+        if (!persisted.apiHost) {
+          throw new Error('paddleocr rehydrate: missing apiHost in persisted remote state')
+        }
+        return {
+          providerTaskId: persisted.providerTaskId,
+          remoteContext: {
+            apiHost: persisted.apiHost,
+            apiKey: getRequiredApiKey(restoredConfig, 'paddleocr')
+          }
+        }
       }
     }
   }
