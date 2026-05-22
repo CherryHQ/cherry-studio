@@ -68,7 +68,14 @@ const SelectAgentBaseModelButton = ({
     }
   }
 
-  const providerName = model?.provider ? getProviderNameById(model.provider) : model?.provider_name
+  const providerName = agent?.model?.startsWith('omlx:')
+    ? 'Local oMLX'
+    : model?.provider
+      ? getProviderNameById(model.provider)
+      : model?.provider_name
+
+  const displayModelName =
+    model?.name ?? (agent?.model?.startsWith('omlx:') ? agent.model.replace(/^omlx:/, '') : undefined)
 
   // Merge default styles with custom styles
   const mergedStyle: CSSProperties = {
@@ -90,7 +97,7 @@ const SelectAgentBaseModelButton = ({
         <div className="flex flex-1 items-center gap-1.5 overflow-x-hidden">
           <ModelAvatar model={model ? apiModelAdapter(model) : undefined} size={avatarSize} />
           <span className="truncate text-(--color-text)">
-            {model ? model.name : t('button.select_model')} {providerName ? ' | ' + providerName : ''}
+            {displayModelName ?? t('button.select_model')} {providerName ? ' | ' + providerName : ''}
           </span>
         </div>
         <ChevronsUpDown size={iconSize} color="var(--color-icon)" />

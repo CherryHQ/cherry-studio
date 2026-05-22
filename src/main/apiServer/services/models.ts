@@ -1,6 +1,7 @@
 import { isEmpty } from 'lodash'
 
 import type { ApiModel, ApiModelsFilter, ApiModelsResponse } from '../../../renderer/src/types/apiModels'
+import { listLocalOmlxModels } from '../../services/agents/services/localomlx/config'
 import { loggerService } from '../../services/LoggerService'
 import {
   getAvailableProviders,
@@ -14,6 +15,23 @@ const logger = loggerService.withContext('ModelsService')
 // Re-export for backward compatibility
 
 export type ModelsFilter = ApiModelsFilter
+
+const LOCAL_OMLX_PROVIDER_ID = 'omlx'
+const LOCAL_OMLX_PROVIDER_NAME = 'Local oMLX'
+
+function toLocalOmlxApiModel(modelId: string): ApiModel {
+  return {
+    id: `${LOCAL_OMLX_PROVIDER_ID}:${modelId}`,
+    object: 'model',
+    created: 0,
+    name: modelId,
+    owned_by: LOCAL_OMLX_PROVIDER_ID,
+    provider: LOCAL_OMLX_PROVIDER_ID,
+    provider_name: LOCAL_OMLX_PROVIDER_NAME,
+    provider_type: 'openai',
+    provider_model_id: modelId
+  }
+}
 
 export class ModelsService {
   async getModels(filter: ModelsFilter): Promise<ApiModelsResponse> {
@@ -54,6 +72,21 @@ export class ModelsService {
           uniqueModels.set(fullModelId, openAIModel)
         } else {
           logger.debug(`Skipping duplicate model: ${fullModelId}`)
+        }
+      }
+
+      if (!filter.providerType || filter.providerType === 'openai') {
+        try {
+          const localOmlxModels = await listLocalOmlxModels()
+
+          for (const modelId of localOmlxModels) {
+            const apiModel = toLocalOmlxApiModel(modelId)
+            if (!uniqueModels.has(apiModel.id)) {
+              uniqueModels.set(apiModel.id, apiModel)
+            }
+          }
+        } catch (error) {
+          logger.warn('Failed to list Local oMLX models', { error })
         }
       }
 

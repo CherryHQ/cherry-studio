@@ -299,6 +299,27 @@ export abstract class BaseService {
       return
     }
 
+    if (agentType === 'local-omlx') {
+      for (const [field, rawValue] of entries) {
+        if (rawValue === undefined || rawValue === null) {
+          continue
+        }
+
+        if (!rawValue.startsWith('omlx:')) {
+          throw new AgentModelValidationError(
+            { agentType, field, model: rawValue },
+            {
+              type: 'invalid_format',
+              message: "Local oMLX agent model must start with 'omlx:'",
+              code: 'invalid_local_omlx_model'
+            }
+          )
+        }
+      }
+
+      return
+    }
+
     // Local providers that don't require a real API key (use placeholder).
     // Note: lmstudio doesn't support Anthropic API format, only ollama does.
     const localProvidersWithoutApiKey: readonly string[] = ['ollama', 'lmstudio'] satisfies SystemProviderId[]

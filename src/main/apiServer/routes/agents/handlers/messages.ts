@@ -63,9 +63,25 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
     // Track stream lifecycle so we keep the SSE connection open until persistence finishes
     let responseEnded = false
     let streamFinished = false
+    let completionFinished = false
 
     const cleanup = () => {
       dispose()
+    }
+
+    const safeWriteSSE = (payload: string): boolean => {
+      if (responseEnded || res.writableEnded || res.destroyed) {
+        return false
+      }
+
+      try {
+        res.write(payload)
+        return true
+      } catch (writeError) {
+        responseEnded = true
+        logger.error('Error writing SSE payload', { error: writeError as Error })
+        return false
+      }
     }
 
     const finalizeResponse = () => {
@@ -73,19 +89,17 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
         return
       }
 
-      if (!streamFinished) {
+      if (!streamFinished || !completionFinished) {
         return
       }
 
       responseEnded = true
       cleanup()
-      try {
-        // res.write('data: {"type":"finish"}\n\n')
-        res.write('data: [DONE]\n\n')
-      } catch (writeError) {
-        logger.error('Error writing final sentinel to SSE stream', { error: writeError as Error })
+
+      if (!res.writableEnded && !res.destroyed) {
+        safeWriteSSE('data: [DONE]\n\n')
+        res.end()
       }
-      res.end()
     }
 
     /**
@@ -117,7 +131,7 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
       if (abortReason === STREAM_TIMEOUT_REASON) {
         logger.error('Streaming message timeout', { agentId, sessionId })
         try {
-          res.write(
+          safeWriteSSE(
             `data: ${JSON.stringify({
               type: 'error',
               error: {
@@ -166,7 +180,9 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
             break
           }
 
-          res.write(`data: ${JSON.stringify(value)}\n\n`)
+          if (!safeWriteSSE(`data: ${JSON.stringify(value)}\n\n`)) {
+            break
+          }
         }
 
         streamFinished = true
@@ -175,7 +191,7 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
         if (responseEnded) return
         logger.error('Error reading agent stream', { error })
         try {
-          res.write(
+          safeWriteSSE(
             `data: ${JSON.stringify({
               type: 'error',
               error: {
@@ -200,14 +216,14 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
 
     completion
       .then(() => {
-        streamFinished = true
+        completionFinished = true
         finalizeResponse()
       })
       .catch((error) => {
         if (responseEnded) return
         logger.error('Streaming message error', { agentId, sessionId, error })
         try {
-          res.write(
+          safeWriteSSE(
             `data: ${JSON.stringify({
               type: 'error',
               error: {
@@ -252,7 +268,9 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
         }
       }
 
-      res.write(`data: ${JSON.stringify(errorResponse)}\n\n`)
+      if (!res.writableEnded && !res.destroyed) {
+        res.write(`data: ${JSON.stringify(errorResponse)}\n\n`)
+      }
     } catch (writeError) {
       logger.error('Error writing initial error to SSE stream', { error: writeError })
     }

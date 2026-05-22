@@ -12,10 +12,11 @@ import type { TextStreamPart } from 'ai'
 import { and, desc, eq, not } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
-import { sessionMessagesTable } from '../database/schema'
+import { agentsTable, sessionMessagesTable } from '../database/schema'
 import { agentMessageRepository } from '../database/sessionMessageRepository'
 import type { AgentStreamEvent } from '../interfaces/AgentStreamInterface'
 import ClaudeCodeService from './claudecode'
+import { runLocalOmlxAgent } from './localomlx'
 
 const claudeCodeService = new ClaudeCodeService()
 
@@ -112,6 +113,53 @@ class TextStreamAccumulator {
   }
 }
 
+function createLocalOmlxTextStream(text: string): ReadableStream<TextStreamPart<Record<string, any>>> {
+  return new ReadableStream<TextStreamPart<Record<string, any>>>({
+    start(controller) {
+      const id = 'local-omlx-text'
+
+      controller.enqueue({ type: 'text-start', id } as TextStreamPart<Record<string, any>>)
+      controller.enqueue({ type: 'text-delta', id, text } as TextStreamPart<Record<string, any>>)
+      controller.enqueue({ type: 'text-end', id } as TextStreamPart<Record<string, any>>)
+
+      // The renderer expects a finish-like terminal event.
+      // Without it, the text may render but the UI can keep showing the loading dots.
+      controller.enqueue({
+        type: 'finish',
+        finishReason: 'stop',
+        rawFinishReason: 'stop',
+        usage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0
+        },
+        totalUsage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          inputTokenDetails: {},
+          outputTokenDetails: {}
+        },
+        providerMetadata: {
+          localOmlx: {
+            completed: true,
+            textChars: text.length
+          }
+        }
+      } as unknown as TextStreamPart<Record<string, any>>)
+
+      controller.close()
+    }
+  })
+}
+
+function createResolvedCompletion(): Promise<{
+  userMessage?: AgentSessionMessageEntity
+  assistantMessage?: AgentSessionMessageEntity
+}> {
+  return Promise.resolve({})
+}
+
 export class SessionMessageService extends BaseService {
   private static instance: SessionMessageService | null = null
 
@@ -175,14 +223,65 @@ export class SessionMessageService extends BaseService {
     return await this.startSessionMessageStream(session, messageData, abortController, options)
   }
 
+  private async getAgentRuntimeInfo(agentId: string): Promise<{ type?: string; model?: string }> {
+    const database = await this.getDatabase()
+    const rows = await database
+      .select({
+        type: agentsTable.type,
+        model: agentsTable.model
+      })
+      .from(agentsTable)
+      .where(eq(agentsTable.id, agentId))
+      .limit(1)
+
+    return rows[0] ?? {}
+  }
+
   private async startSessionMessageStream(
     session: GetAgentSessionResponse,
     req: CreateSessionMessageRequest,
     abortController: AbortController,
     options?: CreateMessageOptions
   ): Promise<SessionStreamResult> {
+    const agentRuntime = await this.getAgentRuntimeInfo(session.agent_id)
+
+    logger.debug('Session Message stream message data:', {
+      message: req,
+      session_id: agentRuntime.type === 'local-omlx' ? 'local-omlx' : undefined,
+      agentType: agentRuntime.type
+    })
+
+    if (agentRuntime.type === 'local-omlx') {
+      logger.info('Routing agent message to Local oMLX backend', {
+        sessionId: session.id,
+        agentId: session.agent_id,
+        agentType: agentRuntime.type,
+        model: agentRuntime.model,
+        claudeCodeInvoked: false
+      })
+
+      const text = await runLocalOmlxAgent({
+        agentId: session.agent_id,
+        userMessage: req.content,
+        model: agentRuntime.model
+      })
+
+      return {
+        stream: createLocalOmlxTextStream(text),
+        completion: createResolvedCompletion()
+      }
+    }
+
     const agentSessionId = await this.getLastAgentSessionId(session.id)
-    logger.debug('Session Message stream message data:', { message: req, session_id: agentSessionId })
+
+    logger.info('Routing agent message to Claude Code backend', {
+      sessionId: session.id,
+      agentId: session.agent_id,
+      agentSessionId,
+      agentType: agentRuntime.type,
+      model: agentRuntime.model,
+      claudeCodeInvoked: true
+    })
 
     const claudeStream = await claudeCodeService.invoke(
       req.content,

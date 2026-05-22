@@ -41,6 +41,8 @@ export const getModelFilterByAgentType = (type: AgentType): ApiModelsFilter => {
       return {
         providerType: 'anthropic'
       }
+    case 'local-omlx':
+      return {}
     default:
       return {}
   }
