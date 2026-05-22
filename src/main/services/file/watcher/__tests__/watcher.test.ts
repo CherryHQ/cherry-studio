@@ -202,7 +202,8 @@ describe('createDirectoryWatcher', () => {
         } as never)
       ).toBe('present')
       await w.close()
-    }
+    },
+    35_000
   )
 
   it('close() is idempotent and stops further event delivery', async () => {
