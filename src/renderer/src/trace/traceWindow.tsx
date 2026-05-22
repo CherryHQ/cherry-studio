@@ -1,4 +1,3 @@
-import { installLoupe } from '@renderer/dev/installLoupe'
 import i18n from '@renderer/i18n'
 import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -62,8 +61,6 @@ const App = () => {
     </>
   )
 }
-
-void installLoupe('trace')
 
 const root = createRoot(document.getElementById('root')!)
 root.render(<App />)

@@ -9,14 +9,11 @@ import '@ant-design/v5-patch-for-react-19'
 import { loggerService } from '@logger'
 import { createRoot } from 'react-dom/client'
 
-import { installLoupe } from '../../dev/installLoupe'
 import { initI18n } from './i18n'
 import MigrationApp from './MigrationApp'
 
 // Initialize logger for this window
 loggerService.initWindowSource('MigrationV2')
-
-void installLoupe('migration-v2')
 
 const root = createRoot(document.getElementById('root') as HTMLElement)
 

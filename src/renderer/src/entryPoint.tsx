@@ -5,9 +5,6 @@ import '@ant-design/v5-patch-for-react-19'
 import { createRoot } from 'react-dom/client'
 
 import App from './App'
-import { installLoupe } from './dev/installLoupe'
-
-void installLoupe('main')
 
 const root = createRoot(document.getElementById('root') as HTMLElement)
 root.render(<App />)

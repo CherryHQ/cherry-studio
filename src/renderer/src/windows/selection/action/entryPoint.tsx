@@ -15,7 +15,6 @@ import { createRoot } from 'react-dom/client'
 import { Provider } from 'react-redux'
 import { PersistGate } from 'redux-persist/integration/react'
 
-import { installLoupe } from '../../../dev/installLoupe'
 import SelectionActionApp from './SelectionActionApp'
 
 loggerService.initWindowSource('SelectionActionWindow')
@@ -57,8 +56,6 @@ const App: FC = () => {
     </Provider>
   )
 }
-
-void installLoupe('selection-action')
 
 const root = createRoot(document.getElementById('root') as HTMLElement)
 root.render(<App />)
