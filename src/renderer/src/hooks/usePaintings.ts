@@ -17,6 +17,7 @@ export function usePaintings() {
   const ovms_paintings = useAppSelector((state) => state.paintings.ovms_paintings)
   const ppio_draw = useAppSelector((state) => state.paintings.ppio_draw)
   const ppio_edit = useAppSelector((state) => state.paintings.ppio_edit)
+  const vercel_gateway_paintings = useAppSelector((state) => state.paintings.vercel_gateway_paintings)
   const dispatch = useAppDispatch()
 
   return {
@@ -33,6 +34,7 @@ export function usePaintings() {
     ovms_paintings,
     ppio_draw,
     ppio_edit,
+    vercel_gateway_paintings,
     addPainting: (namespace: keyof PaintingsState, painting: PaintingAction) => {
       dispatch(addPainting({ namespace, painting }))
       return painting
