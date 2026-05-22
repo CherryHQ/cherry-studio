@@ -33,6 +33,7 @@ const visionAllowedModels = [
   'internvl2',
   'grok-vision-beta',
   'grok-4(?:-[\\w-]+)?',
+  'grok-build(?:-[\\w-]+)?',
   'pixtral',
   'gpt-4(?:-[\\w-]+)',
   'gpt-4.1(?:-[\\w-]+)?',
