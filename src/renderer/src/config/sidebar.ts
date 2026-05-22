@@ -116,6 +116,20 @@ export function getRequiredSidebarIconsVisible(icons: readonly SidebarIcon[] | u
   return SIDEBAR_ICON_ORDER.filter((icon) => visible.has(icon))
 }
 
+export function getOrderedVisibleSidebarIcons(icons: readonly SidebarIcon[] | undefined): SidebarIcon[] {
+  const visible = sanitizeSidebarIcons(icons)
+
+  for (const icon of REQUIRED_SIDEBAR_ICONS) {
+    if (visible.includes(icon)) continue
+
+    const iconOrder = SIDEBAR_ICON_ORDER.indexOf(icon)
+    const insertIndex = visible.findIndex((visibleIcon) => SIDEBAR_ICON_ORDER.indexOf(visibleIcon) > iconOrder)
+    visible.splice(insertIndex === -1 ? visible.length : insertIndex, 0, icon)
+  }
+
+  return visible
+}
+
 export function buildSidebarIconManagerItems(): SidebarIcon[] {
   return [...SIDEBAR_ICON_ORDER]
 }

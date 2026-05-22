@@ -9,7 +9,8 @@ const mocks = vi.hoisted(() => ({
   openTab: vi.fn(),
   setSidebarWidth: vi.fn(),
   showSearchPopup: vi.fn(),
-  updateTab: vi.fn()
+  updateTab: vi.fn(),
+  visibleSidebarIcons: ['assistants']
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
@@ -19,7 +20,7 @@ vi.mock('@data/hooks/useCache', () => ({
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
     if (key === 'app.user.name') return ['JD']
-    if (key === 'ui.sidebar.icons.visible') return [['assistants']]
+    if (key === 'ui.sidebar.icons.visible') return [mocks.visibleSidebarIcons]
     return [undefined]
   }
 }))
@@ -29,11 +30,13 @@ vi.mock('@renderer/config/env', () => ({
 }))
 
 vi.mock('@renderer/config/sidebar', () => ({
-  getRequiredSidebarIconsVisible: (icons: string[]) => icons,
-  getSidebarMenuPath: () => '/app/chat',
+  getOrderedVisibleSidebarIcons: (icons: string[]) => icons,
+  getSidebarMenuPath: (icon: string) => `/app/${icon}`,
   resolveSidebarActiveItem: () => 'assistants',
   SIDEBAR_ICON_COMPONENTS: {
-    assistants: () => <span data-testid="assistants-icon" />
+    agents: () => <span data-testid="agents-icon" />,
+    assistants: () => <span data-testid="assistants-icon" />,
+    translate: () => <span data-testid="translate-icon" />
   }
 }))
 
@@ -46,7 +49,12 @@ vi.mock('@renderer/hooks/useSettings', () => ({
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
-  getSidebarIconLabel: () => 'Chat'
+  getSidebarIconLabel: (icon: string) =>
+    ({
+      agents: 'Agent',
+      assistants: 'Chat',
+      translate: 'Translate'
+    })[icon]
 }))
 
 vi.mock('@renderer/utils/routeTitle', () => ({
@@ -88,11 +96,13 @@ vi.mock('../../Sidebar', () => ({
     isFloatingClosing,
     onDismiss,
     onHoverChange,
+    items,
     onSearchClick,
     searchLabel
   }: {
     isFloating?: boolean
     isFloatingClosing?: boolean
+    items?: Array<{ id: string; label: string }>
     onDismiss?: () => void
     onHoverChange?: (hovering: boolean) => void
     onSearchClick?: () => void
@@ -114,6 +124,11 @@ vi.mock('../../Sidebar', () => ({
         <button type="button" onClick={onSearchClick}>
           {searchLabel}
         </button>
+        <div data-testid="sidebar-items">
+          {items?.map((item) => (
+            <span key={item.id}>{item.label}</span>
+          ))}
+        </div>
       </>
     )
 }))
@@ -132,6 +147,7 @@ import Sidebar from '../Sidebar'
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  mocks.visibleSidebarIcons = ['assistants']
   vi.useRealTimers()
 })
 
@@ -165,5 +181,16 @@ describe('app Sidebar', () => {
     await user.click(screen.getByRole('button', { name: 'Search' }))
 
     expect(mocks.showSearchPopup).toHaveBeenCalledWith({ hideQuickApps: true })
+  })
+
+  it('renders sidebar menu items in visible preference order', () => {
+    mocks.visibleSidebarIcons = ['translate', 'assistants', 'agents']
+
+    render(<Sidebar />)
+
+    const labels = Array.from(screen.getByTestId('sidebar-items').querySelectorAll('span')).map(
+      (element) => element.textContent
+    )
+    expect(labels).toEqual(['Translate', 'Chat', 'Agent'])
   })
 })

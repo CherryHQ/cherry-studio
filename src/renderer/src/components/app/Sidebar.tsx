@@ -2,7 +2,7 @@ import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { AppLogo } from '@renderer/config/env'
 import {
-  getRequiredSidebarIconsVisible,
+  getOrderedVisibleSidebarIcons,
   getSidebarMenuPath,
   resolveSidebarActiveItem,
   SIDEBAR_ICON_COMPONENTS
@@ -97,7 +97,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const items = useMemo<SidebarMenuItem[]>(
     () =>
-      getRequiredSidebarIconsVisible(visibleSidebarIcons).flatMap((icon) => {
+      getOrderedVisibleSidebarIcons(visibleSidebarIcons).flatMap((icon) => {
         const path = getSidebarMenuPath(icon, defaultPaintingProvider)
         const Icon = SIDEBAR_ICON_COMPONENTS[icon]
         if (!path || !Icon) {
