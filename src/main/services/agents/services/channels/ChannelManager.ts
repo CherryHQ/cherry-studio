@@ -30,7 +30,8 @@ const adapterImportMap: Record<string, () => Promise<unknown>> = {
   qq: () => import('./adapters/qq/QQAdapter'),
   slack: () => import('./adapters/slack/SlackAdapter'),
   telegram: () => import('./adapters/telegram/TelegramAdapter'),
-  wechat: () => import('./adapters/wechat/WeChatAdapter')
+  wechat: () => import('./adapters/wechat/WeChatAdapter'),
+  wecom: () => import('./adapters/wecom/WeComAdapter')
 }
 
 /** Ensure the adapter factory for the given type is loaded (idempotent). */

@@ -16,7 +16,8 @@ import {
   type QQChannelConfig,
   type SlackChannelConfig,
   type TelegramChannelConfig,
-  type WeChatChannelConfig
+  type WeChatChannelConfig,
+  type WeComChannelConfig
 } from './channelConfig'
 import { sessionsTable } from './sessions.schema'
 import { scheduledTasksTable } from './tasks.schema'
@@ -29,7 +30,8 @@ export type {
   QQChannelConfig,
   SlackChannelConfig,
   TelegramChannelConfig,
-  WeChatChannelConfig
+  WeChatChannelConfig,
+  WeComChannelConfig
 }
 export { ChannelConfigSchema }
 
@@ -58,7 +60,7 @@ export const channelsTable = sqliteTable(
     index('channels_agent_id_idx').on(t.agentId),
     index('channels_type_idx').on(t.type),
     index('channels_session_id_idx').on(t.sessionId),
-    check('channels_type_check', sql`${t.type} IN ('telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack')`),
+    check('channels_type_check', sql`${t.type} IN ('telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack', 'wecom')`),
     check(
       'channels_permission_mode_check',
       sql`${t.permissionMode} IS NULL OR ${t.permissionMode} IN ('default', 'acceptEdits', 'bypassPermissions', 'plan')`

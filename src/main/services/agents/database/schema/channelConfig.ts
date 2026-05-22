@@ -59,6 +59,17 @@ export const SlackChannelConfigSchema = z.object({
 
 export type SlackChannelConfig = z.infer<typeof SlackChannelConfigSchema>
 
+export const WeComChannelConfigSchema = z.object({
+  type: z.literal('wecom'),
+  bot_id: z.string(),
+  bot_secret: z.string(),
+  // Each entry is "chat_type:chatid", e.g. "1:zhangsan" (DM) or "2:wrxxxx" (group).
+  // chat_type is required because WeCom does not return it from get_msg_chat_list.
+  allowed_chat_ids: z.array(z.string()).default([])
+})
+
+export type WeComChannelConfig = z.infer<typeof WeComChannelConfigSchema>
+
 // ---- Discriminated union ----
 
 export const ChannelConfigSchema = z.discriminatedUnion('type', [
@@ -67,10 +78,11 @@ export const ChannelConfigSchema = z.discriminatedUnion('type', [
   QQChannelConfigSchema,
   WeChatChannelConfigSchema,
   DiscordChannelConfigSchema,
-  SlackChannelConfigSchema
+  SlackChannelConfigSchema,
+  WeComChannelConfigSchema
 ])
 
 export type ChannelConfig = z.infer<typeof ChannelConfigSchema>
 
-export const CHANNEL_TYPES = ['telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack'] as const
+export const CHANNEL_TYPES = ['telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack', 'wecom'] as const
 export type ChannelType = (typeof CHANNEL_TYPES)[number]

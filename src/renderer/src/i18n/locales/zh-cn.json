@@ -134,6 +134,17 @@
           "qrTitle": "微信扫码登录",
           "title": "微信",
           "whoamiTip": "提示：在微信中发送 /whoami 可获取用户 ID。"
+        },
+        "wecom": {
+          "botId": "Bot ID",
+          "botIdPlaceholder": "企业微信智能机器人 Bot ID",
+          "botSecret": "Bot Secret",
+          "botSecretPlaceholder": "企业微信智能机器人 Secret",
+          "chatIds": "允许的会话",
+          "chatIdsHint": "格式 \"1:userid\"（单聊）或 \"2:groupid\"（群聊），用逗号分隔。企业微信需显式指定会话才能轮询消息。",
+          "chatIdsPlaceholder": "1:zhangsan, 2:wrxxxxxx",
+          "description": "通过企业微信智能机器人接收和回复消息（30 秒轮询）。",
+          "title": "企业微信"
         }
       },
       "heartbeat": {

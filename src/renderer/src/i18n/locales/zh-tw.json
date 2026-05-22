@@ -134,6 +134,17 @@
           "qrTitle": "微信 QR 碼登入",
           "title": "微信",
           "whoamiTip": "提示：在微信中發送 /whoami 可取得使用者的 ID。"
+        },
+        "wecom": {
+          "botId": "Bot ID",
+          "botIdPlaceholder": "企業微信智能機器人 Bot ID",
+          "botSecret": "Bot Secret",
+          "botSecretPlaceholder": "企業微信智能機器人 Secret",
+          "chatIds": "允許的會話",
+          "chatIdsHint": "格式 \"1:userid\"（單聊）或 \"2:groupid\"（群聊），用逗號分隔。企業微信需顯式指定會話才能輪詢消息。",
+          "chatIdsPlaceholder": "1:zhangsan, 2:wrxxxxxx",
+          "description": "透過企業微信智能機器人接收和回覆消息（30 秒輪詢）。",
+          "title": "企業微信"
         }
       },
       "heartbeat": {

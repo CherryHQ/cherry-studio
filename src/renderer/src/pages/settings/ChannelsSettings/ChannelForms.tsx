@@ -493,6 +493,35 @@ export const SlackForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => 
   )
 }
 
+export const WeComForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
+  const { t } = useTranslation()
+  return (
+    <ChannelFieldsForm
+      channel={channel}
+      onConfigChange={onConfigChange}
+      fields={[
+        {
+          key: 'bot_id',
+          label: t('agent.cherryClaw.channels.wecom.botId'),
+          placeholder: t('agent.cherryClaw.channels.wecom.botIdPlaceholder')
+        },
+        {
+          key: 'bot_secret',
+          label: t('agent.cherryClaw.channels.wecom.botSecret'),
+          placeholder: t('agent.cherryClaw.channels.wecom.botSecretPlaceholder'),
+          secret: true
+        }
+      ]}
+      chatIds={{
+        label: t('agent.cherryClaw.channels.wecom.chatIds'),
+        placeholder: t('agent.cherryClaw.channels.wecom.chatIdsPlaceholder'),
+        hint: t('agent.cherryClaw.channels.wecom.chatIdsHint'),
+        fullWidth: true
+      }}
+    />
+  )
+}
+
 export const getFormForType = (type: string) => {
   switch (type) {
     case 'telegram':
@@ -507,6 +536,8 @@ export const getFormForType = (type: string) => {
       return SlackForm
     case 'wechat':
       return WeChatForm
+    case 'wecom':
+      return WeComForm
     default:
       return null
   }
