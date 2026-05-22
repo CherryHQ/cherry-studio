@@ -402,7 +402,7 @@ describe('KnowledgeBaseService', () => {
         ext: 'md',
         size: 1,
         externalPath: null,
-        trashedAt: null
+        deletedAt: null
       })
       await dbh.db.insert(knowledgeItemTable).values({
         id: itemId,

@@ -413,7 +413,7 @@ export class KnowledgeMigrator extends BaseMigrator {
       ext,
       size: null,
       externalPath: canonicalPath,
-      trashedAt: null,
+      deletedAt: null,
       createdAt: now,
       updatedAt: now
     })

@@ -14,7 +14,6 @@ import { MarkdownReader } from '@vectorstores/readers/markdown'
 import { PDFReader } from '@vectorstores/readers/pdf'
 import { TextFileReader } from '@vectorstores/readers/text'
 
-import { SOURCE_FILE_MISSING_ERROR } from '../utils/errors'
 import { DraftsExportReader } from './files/DraftsExportReader'
 import { EpubReader } from './files/EpubReader'
 
@@ -51,7 +50,7 @@ export async function loadFileDocuments(item: KnowledgeItemOf<'file'>): Promise<
   const entry = await fileManager.getById(item.data.fileEntryId)
   const danglingState = await fileManager.getDanglingState({ id: item.data.fileEntryId })
   if (danglingState === 'missing') {
-    throw new Error(SOURCE_FILE_MISSING_ERROR)
+    throw new Error('Source file is missing')
   }
   try {
     const fileInfo = await toFileInfo(entry)
@@ -60,7 +59,7 @@ export async function loadFileDocuments(item: KnowledgeItemOf<'file'>): Promise<
     return mapDocumentsToKnowledgeSource(item, documents)
   } catch (error) {
     if (isSourceFileMissingError(error)) {
-      throw new Error(SOURCE_FILE_MISSING_ERROR)
+      throw new Error('Source file is missing')
     }
     throw error
   }

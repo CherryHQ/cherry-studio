@@ -28,7 +28,6 @@ import {
   KnowledgeRuntimeRestoreBasePayloadSchema,
   KnowledgeRuntimeSearchPayloadSchema
 } from './types/ipc'
-import { SOURCE_FILE_MISSING_ERROR } from './utils/errors'
 import { normalizeKnowledgeFileData } from './utils/file'
 
 const logger = loggerService.withContext('KnowledgeOrchestrationService')
@@ -325,7 +324,7 @@ export class KnowledgeOrchestrationService extends BaseService {
     ).then((ids) => ids.filter((id): id is string => id !== null))
 
     if (missingFileIds.length > 0) {
-      await failItems(missingFileIds, SOURCE_FILE_MISSING_ERROR)
+      await failItems(missingFileIds, 'Source file is missing')
     }
 
     const missingFileIdSet = new Set(missingFileIds)

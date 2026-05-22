@@ -181,3 +181,4 @@ src/main/services/knowledge/tasks/IndexLeafJobHandler.ts
 | All new handlers added later | ✅ Yes |
 | Experimental handlers (not in `JobRegistry`) | ⚠ Recommended, not blocking |
 | Pre-existing handlers, if any | Migrate opportunistically when touching nearby code |
+

@@ -87,7 +87,7 @@ describe('KnowledgeItemService', () => {
       ext: 'md',
       size: 1,
       externalPath: null,
-      trashedAt: null
+      deletedAt: null
     })
   }
 
