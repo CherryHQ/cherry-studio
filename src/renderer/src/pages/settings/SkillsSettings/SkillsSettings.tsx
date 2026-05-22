@@ -945,7 +945,7 @@ const FileTreeItem = ({
 )
 const FileTreeName = spanWithClass('flex-1 truncate')
 const MarkdownContainer = divWithClass(
-  'h-full overflow-y-auto px-4 pt-4 pb-0 [&_.drag-handle]:hidden! [&_.plus-button]:hidden! [&>div]:rounded-none [&>div]:border-none'
+  'h-full overflow-y-auto px-4 pt-4 pb-0 [&_.drag-handle]:hidden! [&_.plusButton]:hidden! [&>div]:rounded-none [&>div]:border-none'
 )
 const CodeViewerContainer = divWithClass('h-full select-text overflow-y-auto px-4 pt-4 pb-0')
 const DropZoneContainer = divWithClass(

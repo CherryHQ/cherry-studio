@@ -5,7 +5,7 @@ import 'remark-github-blockquote-alert/alert.css'
 
 import { usePreference } from '@data/hooks/usePreference'
 import ImageViewer from '@renderer/components/ImageViewer'
-import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
+import MarkdownShadowDomRenderer from '@renderer/components/MarkdownShadowDomRenderer'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import type {
   CompactMessageBlock,
@@ -146,7 +146,7 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
   }, [block.id])
 
   if (/<style\b[^>]*>/i.test(messageContent)) {
-    components.style = MarkdownShadowDOMRenderer as any
+    components.style = MarkdownShadowDomRenderer as any
   }
 
   const urlTransform = useCallback((value: string) => {

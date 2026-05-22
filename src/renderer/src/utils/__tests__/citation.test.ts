@@ -10,7 +10,7 @@ import {
   normalizeCitationMarks,
   withCitationTags
 } from '../citation'
-import { buildContent, groundingChunks, groundingSupports } from './fixtures/gemini-citation-8880'
+import { buildContent, groundingChunks, groundingSupports } from './fixtures/geminiCitation8880'
 
 // Mock dependencies
 vi.mock('@renderer/utils/formats', () => ({

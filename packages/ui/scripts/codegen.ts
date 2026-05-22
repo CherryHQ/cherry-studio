@@ -295,7 +295,7 @@ export function generateCatalog(opts: {
   // Use raw text to emit `as const satisfies` (ts-morph doesn't support this syntax natively)
   const objectBody = entries
     .map(({ dirName, colorName }) => {
-      const key = /^\d/.test(dirName) ? `'${dirName}'` : dirName
+      const key = /^\d/.test(dirName) || dirName.includes('-') ? `'${dirName}'` : dirName
       return `  ${key}: ${colorName}Icon`
     })
     .join(',\n')

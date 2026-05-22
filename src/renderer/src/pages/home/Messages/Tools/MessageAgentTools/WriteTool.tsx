@@ -1,5 +1,5 @@
 import CodeViewer from '@renderer/components/CodeViewer'
-import { getLanguageByFilePath } from '@renderer/utils/code-language'
+import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 import type { CollapseProps } from 'antd'
 
 import { ClickableFilePath } from './ClickableFilePath'

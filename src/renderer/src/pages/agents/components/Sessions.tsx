@@ -1,5 +1,5 @@
 import AddButton from '@renderer/components/AddButton'
-import DraggableVirtualList, { type DraggableVirtualListRef } from '@renderer/components/DraggableList/virtual-list'
+import DraggableVirtualList, { type DraggableVirtualListRef } from '@renderer/components/DraggableList/VirtualList'
 import { cacheService } from '@renderer/data/CacheService'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useCache } from '@renderer/data/hooks/useCache'

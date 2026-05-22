@@ -16,12 +16,12 @@ import { and, asc, eq, type SQL, sql } from 'drizzle-orm'
 
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
-const logger = loggerService.withContext('DataApi:MCPServerService')
+const logger = loggerService.withContext('DataApi:McpServerService')
 
 /**
  * Convert database row to MCPServer entity
  */
-function rowToMCPServer(row: typeof mcpServerTable.$inferSelect): MCPServer {
+function rowToMcpServer(row: typeof mcpServerTable.$inferSelect): MCPServer {
   const clean = nullsToUndefined(row)
   return {
     ...clean,
@@ -32,7 +32,7 @@ function rowToMCPServer(row: typeof mcpServerTable.$inferSelect): MCPServer {
   }
 }
 
-export class MCPServerService {
+export class McpServerService {
   private get db() {
     return application.get('DbService').getDb()
   }
@@ -47,7 +47,7 @@ export class MCPServerService {
       throw DataApiErrorFactory.notFound('MCPServer', id)
     }
 
-    return rowToMCPServer(row)
+    return rowToMcpServer(row)
   }
 
   /**
@@ -73,7 +73,7 @@ export class MCPServerService {
     ])
 
     return {
-      items: rows.map(rowToMCPServer),
+      items: rows.map(rowToMcpServer),
       total: count,
       page: 1
     }
@@ -98,7 +98,7 @@ export class MCPServerService {
 
     logger.info('Created MCP server', { id: row.id, name: row.name })
 
-    return rowToMCPServer(row)
+    return rowToMcpServer(row)
   }
 
   /**
@@ -119,7 +119,7 @@ export class MCPServerService {
 
     logger.info('Updated MCP server', { id, changes: Object.keys(dto) })
 
-    return rowToMCPServer(row)
+    return rowToMcpServer(row)
   }
 
   /**
@@ -128,11 +128,11 @@ export class MCPServerService {
   async findByIdOrName(idOrName: string): Promise<MCPServer | undefined> {
     const [row] = await this.db.select().from(mcpServerTable).where(eq(mcpServerTable.id, idOrName)).limit(1)
 
-    if (row) return rowToMCPServer(row)
+    if (row) return rowToMcpServer(row)
 
     const [byName] = await this.db.select().from(mcpServerTable).where(eq(mcpServerTable.name, idOrName)).limit(1)
 
-    return byName ? rowToMCPServer(byName) : undefined
+    return byName ? rowToMcpServer(byName) : undefined
   }
 
   /**
@@ -166,4 +166,4 @@ export class MCPServerService {
   }
 }
 
-export const mcpServerService = new MCPServerService()
+export const mcpServerService = new McpServerService()

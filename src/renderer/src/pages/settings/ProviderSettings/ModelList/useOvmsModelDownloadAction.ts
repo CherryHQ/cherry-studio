@@ -2,7 +2,7 @@ import { useProvider } from '@renderer/hooks/useProviders'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import DownloadOVMSModelPopup from './DownloadOVMSModelPopup'
+import DownloadOvmsModelPopup from './DownloadOvmsModelPopup'
 
 export function useOvmsModelDownloadAction(providerId: string) {
   const { t } = useTranslation()
@@ -10,7 +10,7 @@ export function useOvmsModelDownloadAction(providerId: string) {
 
   const openOvmsModelDownload = useCallback(() => {
     if (provider) {
-      void DownloadOVMSModelPopup.show({ title: t('ovms.download.title'), provider })
+      void DownloadOvmsModelPopup.show({ title: t('ovms.download.title'), provider })
     }
   }, [provider, t])
 

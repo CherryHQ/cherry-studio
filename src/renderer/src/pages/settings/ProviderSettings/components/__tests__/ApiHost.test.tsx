@@ -25,7 +25,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
-vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/CherryINSettings', () => ({
+vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/CherryInSettings', () => ({
   default: () => <div>cherry-in-settings</div>
 }))
 

@@ -96,7 +96,7 @@ vi.mock('../MarkdownSvgRenderer', () => ({
   default: ({ children }: any) => <div data-testid="svg-renderer">{children}</div>
 }))
 
-vi.mock('@renderer/components/MarkdownShadowDOMRenderer', () => ({
+vi.mock('@renderer/components/MarkdownShadowDomRenderer', () => ({
   __esModule: true,
   default: ({ children }: any) => <div data-testid="shadow-dom">{children}</div>
 }))

@@ -6,7 +6,7 @@ import Selector from '@renderer/components/Selector'
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useNutstoreSSO } from '@renderer/hooks/useNutstoreSSO'
+import { useNutstoreSso } from '@renderer/hooks/useNutstoreSso'
 import { useTimer } from '@renderer/hooks/useTimer'
 import {
   backupToNutstore,
@@ -50,16 +50,16 @@ const NutstoreSettings: FC = () => {
 
   const [backupManagerVisible, setBackupManagerVisible] = useState(false)
 
-  const nutstoreSSOHandler = useNutstoreSSO()
+  const nutstoreSsoHandler = useNutstoreSso()
   const { setTimeoutTimer } = useTimer()
 
   const handleClickNutstoreSSO = useCallback(async () => {
     const ssoUrl = await window.api.nutstore.getSSOUrl()
     window.open(ssoUrl, '_blank')
-    const nutstoreToken = await nutstoreSSOHandler()
+    const nutstoreToken = await nutstoreSsoHandler()
 
     void setNutstoreToken(nutstoreToken)
-  }, [nutstoreSSOHandler, setNutstoreToken])
+  }, [nutstoreSsoHandler, setNutstoreToken])
 
   useEffect(() => {
     async function decryptTokenEffect() {

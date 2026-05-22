@@ -1,7 +1,7 @@
 import { Button, Flex, Tooltip } from '@cherrystudio/ui'
 import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
 import { EditIcon } from '@renderer/components/Icons'
-import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
+import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SvgIcon'
 import type { ApiKeyWithStatus } from '@renderer/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
 import type { InputRef } from 'antd'

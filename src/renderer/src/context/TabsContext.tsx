@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
-import { TabLRUManager } from '@renderer/services/TabLRUManager'
+import { TabLruManager } from '@renderer/services/TabLruManager'
 import { uuid } from '@renderer/utils'
 import { getDefaultRouteTitle, isTopLevelRoute } from '@renderer/utils/routeTitle'
 import type { Tab, TabSavedState, TabType } from '@shared/data/cache/cacheValueTypes'
@@ -111,9 +111,9 @@ export function TabsProvider({ children }: { children: ReactNode }) {
   const [activeTabId, setActiveTabIdState] = useState<string>(DEFAULT_TAB.id)
 
   // LRU manager (singleton)
-  const lruManagerRef = useRef<TabLRUManager | null>(null)
+  const lruManagerRef = useRef<TabLruManager | null>(null)
   if (!lruManagerRef.current) {
-    lruManagerRef.current = new TabLRUManager()
+    lruManagerRef.current = new TabLruManager()
   }
 
   // LRU auto-hibernation: check normalTabs and hibernate excess tabs

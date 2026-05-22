@@ -1,6 +1,6 @@
 import type { MCPTool, MCPToolResponse, NormalToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
-import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
+import { isToolAutoApproved } from '@renderer/utils/mcpTools'
 import { Flex, Tooltip } from 'antd'
 import {
   Bot,

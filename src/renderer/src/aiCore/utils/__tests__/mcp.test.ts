@@ -21,7 +21,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@renderer/utils/mcp-tools', () => ({
+vi.mock('@renderer/utils/mcpTools', () => ({
   getMcpServerByTool: vi.fn(() => ({ id: 'test-server', autoApprove: false })),
   isToolAutoApproved: vi.fn(() => false),
   callMCPTool: vi.fn(async () => ({
@@ -423,7 +423,7 @@ describe('mcp utils', () => {
 
   describe('tool execution', () => {
     it('should execute tool with user confirmation', async () => {
-      const { callMCPTool } = await import('@renderer/utils/mcp-tools')
+      const { callMCPTool } = await import('@renderer/utils/mcpTools')
       const { requestToolConfirmation } = await import('@renderer/utils/userConfirmation')
 
       vi.mocked(requestToolConfirmation).mockResolvedValue(true)
@@ -461,7 +461,7 @@ describe('mcp utils', () => {
 
     it('should handle user cancellation', async () => {
       const { requestToolConfirmation } = await import('@renderer/utils/userConfirmation')
-      const { callMCPTool } = await import('@renderer/utils/mcp-tools')
+      const { callMCPTool } = await import('@renderer/utils/mcpTools')
 
       vi.mocked(requestToolConfirmation).mockResolvedValue(false)
 
@@ -498,7 +498,7 @@ describe('mcp utils', () => {
     })
 
     it('should handle tool execution error', async () => {
-      const { callMCPTool } = await import('@renderer/utils/mcp-tools')
+      const { callMCPTool } = await import('@renderer/utils/mcpTools')
       const { requestToolConfirmation } = await import('@renderer/utils/userConfirmation')
 
       vi.mocked(requestToolConfirmation).mockResolvedValue(true)
@@ -534,7 +534,7 @@ describe('mcp utils', () => {
     })
 
     it('should auto-approve when enabled', async () => {
-      const { callMCPTool, isToolAutoApproved } = await import('@renderer/utils/mcp-tools')
+      const { callMCPTool, isToolAutoApproved } = await import('@renderer/utils/mcpTools')
       const { requestToolConfirmation } = await import('@renderer/utils/userConfirmation')
 
       vi.mocked(isToolAutoApproved).mockReturnValue(true)
