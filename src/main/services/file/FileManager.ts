@@ -802,6 +802,14 @@ export class FileManager extends BaseService implements IFileManager {
    * The error path treats failure as "no migration record" so callers fall
    * through to running the orphan sweep normally — a sweep is always more
    * useful than silently no-op'ing on a transient DB hiccup.
+   *
+   * TODO(#15271): cross-domain bare read of `app_state.migration_v2_status`.
+   * The invariant "only MigrationEngine writes this key during preboot" is
+   * informal — no schema or type-level guardrail enforces it. Once
+   * `AppStateService` lands (see issue #15271 for design), migrate this site
+   * to go through the service so the invariant is encoded centrally and the
+   * value shape gains a typed schema. Until then, this site is registered
+   * in the issue's "Direct consumers" table.
    */
   private async getMigrationCompletedAt(): Promise<number | null> {
     try {
