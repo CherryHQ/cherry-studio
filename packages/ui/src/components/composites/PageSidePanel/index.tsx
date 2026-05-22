@@ -21,6 +21,7 @@ interface PageSidePanelProps {
   open: boolean
   onClose: () => void
   children?: React.ReactNode
+  title?: React.ReactNode
   header?: React.ReactNode
   footer?: React.ReactNode
   side?: PageSidePanelPlacement
@@ -38,6 +39,7 @@ function PageSidePanel({
   open,
   onClose,
   children,
+  title,
   header,
   footer,
   side = 'right',
@@ -50,7 +52,9 @@ function PageSidePanel({
   footerClassName,
   closeButtonClassName
 }: PageSidePanelProps) {
-  const hasHeader = !!header || showCloseButton
+  const standardTitle = title ? <span className="font-semibold text-base text-foreground">{title}</span> : null
+  const headerContent = header ?? standardTitle
+  const hasHeader = !!headerContent || showCloseButton
   const headerId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLElement | null>(null)
@@ -97,7 +101,7 @@ function PageSidePanel({
             key="panel"
             role="dialog"
             aria-modal="true"
-            aria-labelledby={header ? headerId : undefined}
+            aria-labelledby={headerContent ? headerId : undefined}
             tabIndex={-1}
             onKeyDown={(e) => {
               if (e.key === 'Escape') handleClose(e)
@@ -108,16 +112,16 @@ function PageSidePanel({
             transition={{ type: 'spring', damping: 30, stiffness: 350 }}
             data-slot="page-side-panel"
             className={cn(
-              'absolute top-2 bottom-2 z-[70] flex w-100 flex-col overflow-hidden rounded-3xl bg-card text-card-foreground shadow-xl outline-none',
-              side === 'right' ? 'right-2' : 'left-2',
+              'absolute top-3 bottom-3 z-[70] flex w-100 flex-col overflow-hidden rounded-3xl bg-card text-card-foreground shadow-xl outline-none',
+              side === 'right' ? 'right-3' : 'left-3',
               contentClassName
             )}>
             {hasHeader && (
               <div
                 data-slot="page-side-panel-header"
                 className={cn('flex shrink-0 items-center justify-between px-6 pt-6 pb-3', headerClassName)}>
-                <div id={header ? headerId : undefined} className="min-w-0 flex flex-1 items-center">
-                  {header}
+                <div id={headerContent ? headerId : undefined} className="min-w-0 flex flex-1 items-center">
+                  {headerContent}
                 </div>
                 {showCloseButton && (
                   <Button
@@ -167,4 +171,52 @@ function PageSidePanel({
   )
 }
 
-export { PageSidePanel, type PageSidePanelPlacement, type PageSidePanelProps }
+interface PageSidePanelSectionProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> {
+  title: React.ReactNode
+  actions?: React.ReactNode
+  children: React.ReactNode
+}
+
+function PageSidePanelSection({ title, actions, children, className, ...props }: PageSidePanelSectionProps) {
+  return (
+    <div className={cn('flex flex-col gap-3', className)} {...props}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-semibold text-foreground text-sm">{title}</span>
+        {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+interface PageSidePanelItemProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> {
+  title: React.ReactNode
+  description?: React.ReactNode
+  action?: React.ReactNode
+  children?: React.ReactNode
+}
+
+function PageSidePanelItem({ title, description, action, children, className, ...props }: PageSidePanelItemProps) {
+  return (
+    <div className={cn('flex flex-col gap-2', className)} {...props}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-foreground text-sm">{title}</span>
+          {description && <span className="text-muted-foreground text-xs">{description}</span>}
+        </div>
+        {action && <div className="shrink-0">{action}</div>}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+export {
+  PageSidePanel,
+  PageSidePanelItem,
+  type PageSidePanelItemProps,
+  type PageSidePanelPlacement,
+  type PageSidePanelProps,
+  PageSidePanelSection,
+  type PageSidePanelSectionProps
+}

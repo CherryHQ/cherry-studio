@@ -7030,6 +7030,9 @@
     },
     "detected_source": "偵測到",
     "detecting": "偵測中...",
+    "domain": {
+      "general": "通用領域"
+    },
     "empty": "翻譯內容為空",
     "error": {
       "auto_copy_failed": "自動複製翻譯結果失敗",
@@ -7062,7 +7065,8 @@
         "too_large": "檔案過大",
         "unknown": "讀取檔案內容失敗"
       },
-      "reading": "讀取檔案內容中..."
+      "reading": "讀取檔案內容中...",
+      "upload": "拖入或點擊上傳圖片/文件"
     },
     "history": {
       "back": "返回列表",
@@ -7100,7 +7104,7 @@
       "aborted": "翻譯中止"
     },
     "input": {
-      "placeholder": "可貼上或拖曳文字、文字檔案、圖片（支援 OCR）"
+      "placeholder": "請輸入文字..."
     },
     "language": {
       "not_pair": "來源語言與設定的語言不同",
@@ -7110,10 +7114,14 @@
     "menu": {
       "description": "對目前輸入框內容進行翻譯"
     },
+    "mode": {
+      "machine": "機翻"
+    },
     "not": {
       "found": "未找到翻譯內容"
     },
     "output": {
+      "model_result_hint": "以上為模型翻譯結果",
       "placeholder": "翻譯"
     },
     "preferred_target": "首選目標",

@@ -1,4 +1,4 @@
-import { Button, PageSidePanel } from '@cherrystudio/ui'
+import { Button, PageSidePanel, PageSidePanelItem, PageSidePanelSection, Switch } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { useState } from 'react'
 
@@ -34,7 +34,7 @@ const Scene = ({ side }: { side: 'left' | 'right' }) => {
         open={open}
         onClose={() => setOpen(false)}
         side={side}
-        header={<span className="text-sm font-medium">Panel title</span>}
+        title="Panel title"
         footer={
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setOpen(false)}>
@@ -76,6 +76,47 @@ export const WithoutCloseButton: Story = {
             <Button variant="outline" onClick={() => setOpen(false)}>
               Close from body
             </Button>
+          </div>
+        </PageSidePanel>
+      </div>
+    )
+  }
+}
+
+export const SettingsPanel: Story = {
+  render: function SettingsPanelExample() {
+    const [open, setOpen] = useState(false)
+    const [enabled, setEnabled] = useState(false)
+    return (
+      <div className="relative h-[520px] w-full overflow-hidden rounded-md border bg-card">
+        <div className="p-6">
+          <Button onClick={() => setOpen(true)}>Open settings panel</Button>
+        </div>
+        <PageSidePanel open={open} onClose={() => setOpen(false)} title="Display settings">
+          <div className="flex flex-col gap-8">
+            <PageSidePanelSection
+              title="Display management"
+              actions={
+                <>
+                  <Button variant="secondary" size="sm">
+                    Swap
+                  </Button>
+                  <Button variant="secondary" size="sm">
+                    Reset
+                  </Button>
+                </>
+              }>
+              <div className="h-36 rounded-lg bg-muted/40 p-3 text-muted-foreground text-sm">Management content</div>
+            </PageSidePanelSection>
+            <PageSidePanelSection title="Preferences">
+              <div className="flex flex-col gap-5">
+                <PageSidePanelItem
+                  title="Open links externally"
+                  description="New-window links open in the default browser"
+                  action={<Switch checked={enabled} onCheckedChange={setEnabled} />}
+                />
+              </div>
+            </PageSidePanelSection>
           </div>
         </PageSidePanel>
       </div>

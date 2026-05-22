@@ -58,13 +58,73 @@ vi.mock('@cherrystudio/ui', () => ({
       {title}
     </button>
   ),
+  Field: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  FieldDescription: ({ children, ...props }: React.ComponentProps<'p'>) => <p {...props}>{children}</p>,
+  FieldLabel: ({ children, ...props }: React.ComponentProps<'label'>) => <label {...props}>{children}</label>,
   HelpTooltip: () => null,
+  Input: ({ ...props }: React.ComponentProps<'input'>) => <input {...props} />,
+  InputGroup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  InputGroupAddon: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  InputGroupButton: ({ children, ...props }: React.ComponentProps<'button'>) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
+  InputGroupInput: ({ ...props }: React.ComponentProps<'input'>) => <input {...props} />,
   NormalTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   PageSidePanel: ({ children, open }: { children: React.ReactNode; open?: boolean }) =>
     open ? <div>{children}</div> : null,
+  PageSidePanelItem: ({
+    title,
+    description,
+    action,
+    children
+  }: {
+    title: React.ReactNode
+    description?: React.ReactNode
+    action?: React.ReactNode
+    children?: React.ReactNode
+  }) => (
+    <div>
+      <div>{title}</div>
+      {description && <div>{description}</div>}
+      {action}
+      {children}
+    </div>
+  ),
+  PageSidePanelSection: ({
+    title,
+    actions,
+    children
+  }: {
+    title: React.ReactNode
+    actions?: React.ReactNode
+    children: React.ReactNode
+  }) => (
+    <section>
+      <div>{title}</div>
+      {actions}
+      {children}
+    </section>
+  ),
   Popover: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   PopoverContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   PopoverTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  SegmentedControl: <TValue extends string>({
+    options,
+    onValueChange
+  }: {
+    options: { value: TValue; label: React.ReactNode }[]
+    onValueChange?: (value: TValue) => void
+  }) => (
+    <div role="radiogroup">
+      {options.map((opt) => (
+        <button key={opt.value} type="button" onClick={() => onValueChange?.(opt.value)}>
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  ),
   Switch: ({ checked, onCheckedChange }: { checked: boolean; onCheckedChange: (value: boolean) => void }) => (
     <button type="button" aria-pressed={checked} onClick={() => onCheckedChange(!checked)} />
   ),
@@ -249,7 +309,7 @@ describe('TranslateSettingsPanelContent', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'common.add' }))
 
-    expect((window as any).toast.error).toHaveBeenCalledWith('settings.translate.custom.error.value.empty')
+    expect(screen.getByText('settings.translate.custom.error.value.empty')).toBeInTheDocument()
     expect(translateLanguageMutationsMock.add).not.toHaveBeenCalled()
   })
 
@@ -262,7 +322,7 @@ describe('TranslateSettingsPanelContent', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'common.add' }))
 
-    expect((window as any).toast.error).toHaveBeenCalledWith('settings.translate.custom.error.langCode.empty')
+    expect(screen.getByText('settings.translate.custom.error.langCode.empty')).toBeInTheDocument()
     expect(translateLanguageMutationsMock.add).not.toHaveBeenCalled()
   })
 
@@ -278,7 +338,7 @@ describe('TranslateSettingsPanelContent', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'common.add' }))
 
-    expect((window as any).toast.error).toHaveBeenCalledWith('settings.translate.custom.error.langCode.invalid')
+    expect(screen.getByText('settings.translate.custom.error.langCode.invalid')).toBeInTheDocument()
     expect(translateLanguageMutationsMock.add).not.toHaveBeenCalled()
   })
 
@@ -294,7 +354,7 @@ describe('TranslateSettingsPanelContent', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'common.add' }))
 
-    expect((window as any).toast.error).toHaveBeenCalledWith('settings.translate.custom.error.langCode.builtin')
+    expect(screen.getByText('settings.translate.custom.error.langCode.builtin')).toBeInTheDocument()
     expect(translateLanguageMutationsMock.add).not.toHaveBeenCalled()
   })
 
@@ -311,7 +371,7 @@ describe('TranslateSettingsPanelContent', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'common.add' }))
 
-    expect((window as any).toast.error).toHaveBeenCalledWith('settings.translate.custom.error.langCode.exists')
+    expect(screen.getByText('settings.translate.custom.error.langCode.exists')).toBeInTheDocument()
     expect(translateLanguageMutationsMock.add).not.toHaveBeenCalled()
   })
 

@@ -52,7 +52,7 @@ const LanguagePicker: FC<Props> = ({ value, onChange, disabled, className }) => 
           aria-haspopup="listbox"
           aria-expanded={open}
           className={cn(
-            'flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border/40 bg-transparent px-2.5 text-sm transition-colors hover:bg-muted/30 disabled:cursor-not-allowed disabled:opacity-60',
+            'flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border-muted bg-transparent px-2.5 text-sm transition-colors hover:bg-muted/30 disabled:cursor-not-allowed disabled:opacity-60',
             open && 'border-primary/40 ring-1 ring-primary/15',
             className
           )}>

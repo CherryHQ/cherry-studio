@@ -7030,6 +7030,9 @@
     },
     "detected_source": "Detected",
     "detecting": "Detecting...",
+    "domain": {
+      "general": "General Domain"
+    },
     "empty": "Translation content is empty",
     "error": {
       "auto_copy_failed": "Failed to auto-copy translation result",
@@ -7062,7 +7065,8 @@
         "too_large": "File too large",
         "unknown": "Failed to read file content"
       },
-      "reading": "Reading file content..."
+      "reading": "Reading file content...",
+      "upload": "Drop or click to upload image/document"
     },
     "history": {
       "back": "Back to list",
@@ -7100,7 +7104,7 @@
       "aborted": "Translation aborted"
     },
     "input": {
-      "placeholder": "Text, text files, or images (with OCR support) can be pasted or dragged in"
+      "placeholder": "Enter text..."
     },
     "language": {
       "not_pair": "Source language is different from the set language",
@@ -7110,10 +7114,14 @@
     "menu": {
       "description": "Translate the content of the current input box"
     },
+    "mode": {
+      "machine": "Machine Translation"
+    },
     "not": {
       "found": "Translation content not found"
     },
     "output": {
+      "model_result_hint": "Above is the model translation result",
       "placeholder": "Translation"
     },
     "preferred_target": "Preferred Target",

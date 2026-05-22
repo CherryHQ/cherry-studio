@@ -132,15 +132,12 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@renderer/services/TokenService', () => ({
-  estimateTextTokens: (text: string) => text.length
-}))
-
 vi.mock('@renderer/services/TranslateService', () => ({
   translateText: translateCoreMock.translateText
 }))
 
 vi.mock('@renderer/utils', () => ({
+  cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' '),
   getFileExtension: () => 'txt',
   isTextFile: fileMock.isTextFile,
   uuid: () => 'abort-key'
@@ -190,15 +187,13 @@ vi.mock('../components/TranslateInputPane', () => ({
     onTextChange,
     onKeyDown,
     onSelectFile,
-    onDrop,
-    tokenCount
+    onDrop
   }: {
     text: string
     onTextChange: (value: string) => void
     onKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void
     onSelectFile: () => void
     onDrop: (event: React.DragEvent<HTMLDivElement>) => void
-    tokenCount: number
   }) => (
     <div data-testid="translate-input-pane" onDrop={onDrop}>
       <textarea
@@ -207,8 +202,7 @@ vi.mock('../components/TranslateInputPane', () => ({
         onChange={(event) => onTextChange(event.target.value)}
         onKeyDown={onKeyDown}
       />
-      <button type="button" aria-label="common.upload_files" onClick={onSelectFile} />
-      <span data-testid="token-count">{tokenCount}</span>
+      <button type="button" aria-label="translate.files.upload" onClick={onSelectFile} />
     </div>
   )
 }))
@@ -218,24 +212,7 @@ vi.mock('../components/TranslateLanguageBar', () => ({
 }))
 
 vi.mock('../components/TranslateOutputPane', () => ({
-  default: ({
-    translating,
-    onTranslate,
-    onAbort
-  }: {
-    translating: boolean
-    onTranslate: () => Promise<void> | void
-    onAbort: () => void
-  }) =>
-    translating ? (
-      <button type="button" aria-label="common.stop" onClick={onAbort}>
-        common.stop
-      </button>
-    ) : (
-      <button type="button" onClick={() => void onTranslate()}>
-        translate.button.translate
-      </button>
-    )
+  default: () => <div data-testid="translate-output-pane" />
 }))
 
 vi.mock('../TranslateSettings', () => ({
@@ -325,7 +302,7 @@ describe('TranslatePage', () => {
 
     const { rerender } = render(<TranslatePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.upload_files' }))
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
     await waitFor(() => expect(fileMock.readText).toHaveBeenCalledWith('/tmp/input.txt'))
 
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), {
@@ -353,21 +330,6 @@ describe('TranslatePage', () => {
 
     await waitFor(() => expect(dropMock.getTextFromDropEvent).toHaveBeenCalled())
     expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('')
-  })
-
-  it('shows token count as 0 when input is empty and non-zero after typing', async () => {
-    const { rerender } = render(<TranslatePage />)
-
-    expect(screen.getByTestId('token-count')).toHaveTextContent('0')
-
-    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), {
-      target: { value: 'abc' }
-    })
-    rerender(<TranslatePage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
-
-    await waitFor(() => expect(screen.getByTestId('token-count')).toHaveTextContent('3'))
   })
 
   it('keeps translating enabled for plain-text paste without entering file-processing state', async () => {

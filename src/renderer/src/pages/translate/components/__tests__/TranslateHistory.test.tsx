@@ -265,6 +265,44 @@ describe('TranslateHistory', () => {
     expect(clearMock).toHaveBeenCalledTimes(1)
   })
 
+  it('hides history actions when there are no histories to filter or clear', () => {
+    translateHistoryMock.useTranslateHistories.mockReturnValueOnce({
+      items: [],
+      total: 0,
+      hasMore: false,
+      isLoadingMore: false,
+      loadMore: loadMoreMock,
+      status: 'ready'
+    })
+
+    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+
+    expect(screen.getByText('translate.history.empty')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'translate.history.filter.starred' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'translate.history.clear' })).not.toBeInTheDocument()
+  })
+
+  it('centers the empty history state within the available body area', () => {
+    translateHistoryMock.useTranslateHistories.mockReturnValueOnce({
+      items: [],
+      total: 0,
+      hasMore: false,
+      isLoadingMore: false,
+      loadMore: loadMoreMock,
+      status: 'ready'
+    })
+
+    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+
+    expect(screen.getByText('translate.history.empty').parentElement).toHaveClass(
+      'flex',
+      'min-h-0',
+      'flex-1',
+      'items-center',
+      'justify-center'
+    )
+  })
+
   it('loads more when scrolled near bottom in virtual list', async () => {
     translateHistoryMock.useTranslateHistories.mockReturnValueOnce({
       items: histories,

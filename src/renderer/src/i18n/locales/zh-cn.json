@@ -7030,6 +7030,9 @@
     },
     "detected_source": "检测到",
     "detecting": "检测中...",
+    "domain": {
+      "general": "通用领域"
+    },
     "empty": "翻译内容为空",
     "error": {
       "auto_copy_failed": "自动复制翻译结果失败",
@@ -7062,7 +7065,8 @@
         "too_large": "文件过大",
         "unknown": "读取文件内容失败"
       },
-      "reading": "读取文件内容中..."
+      "reading": "读取文件内容中...",
+      "upload": "拖入或点击上传图片/文档"
     },
     "history": {
       "back": "返回列表",
@@ -7100,7 +7104,7 @@
       "aborted": "翻译中止"
     },
     "input": {
-      "placeholder": "可粘贴或拖入文本、文本文件、图片（支持OCR）"
+      "placeholder": "请输入文本..."
     },
     "language": {
       "not_pair": "源语言与设置的语言不同",
@@ -7110,10 +7114,14 @@
     "menu": {
       "description": "对当前输入框内容进行翻译"
     },
+    "mode": {
+      "machine": "机翻"
+    },
     "not": {
       "found": "未找到翻译内容"
     },
     "output": {
+      "model_result_hint": "以上为模型翻译结果",
       "placeholder": "翻译"
     },
     "preferred_target": "首选目标",
