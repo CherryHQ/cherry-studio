@@ -241,6 +241,42 @@ describe('AgentSessionMessageService', () => {
     expect(result.items.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1aa'])
   })
 
+  it('uses the session message FTS index as the search candidate source', async () => {
+    await dbh.db.insert(agentSessionTable).values({
+      id: 'session-fts-candidate',
+      name: 'Session FTS Candidate',
+      orderKey: 'sfc0'
+    })
+    await dbh.db.insert(agentSessionMessageTable).values({
+      id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ab',
+      sessionId: 'session-fts-candidate',
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: 'needle exists in the base session message text.' }] },
+      status: 'success',
+      createdAt: 300,
+      updatedAt: 300
+    })
+
+    const ftsRow = await dbh.client.execute({
+      sql: 'SELECT rowid, searchable_text FROM agent_session_message WHERE id = ?',
+      args: ['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ab']
+    })
+    await dbh.client.execute({
+      sql: `INSERT INTO agent_session_message_fts(agent_session_message_fts, rowid, searchable_text)
+            VALUES ('delete', ?, ?)`,
+      args: [ftsRow.rows[0][0], ftsRow.rows[0][1]]
+    })
+
+    let result: Awaited<ReturnType<typeof agentSessionMessageService.search>>
+    try {
+      result = await agentSessionMessageService.search({ q: 'needle' })
+    } finally {
+      await dbh.client.execute(`INSERT INTO agent_session_message_fts(agent_session_message_fts) VALUES ('rebuild')`)
+    }
+
+    expect(result.items).toEqual([])
+  })
+
   it('filters session message search by session id', async () => {
     await dbh.db.insert(agentSessionTable).values([
       {

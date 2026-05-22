@@ -205,8 +205,10 @@ function messageToTreeNode(message: Message, hasChildren: boolean): TreeNode {
   }
 }
 
-function escapeLikeTerm(term: string): string {
-  return term.replace(/[\\%_]/g, '\\$&')
+function buildFtsLikePattern(term: string): string {
+  // Keep LIKE free of ESCAPE so SQLite can use the trigram FTS LIKE index;
+  // regex validation below preserves literal substring semantics.
+  return `%${term}%`
 }
 
 function decodeSearchCursor(raw: string | undefined): MessageSearchCursorRow | undefined {
@@ -670,10 +672,7 @@ export class MessageService {
     const limit = query.limit ?? 500
     const fetchLimit = limit + 1
     const regexes = buildKeywordRegexes(terms, { matchMode, flags: 'i' })
-    const likeConditions = terms.map((term) => {
-      const pattern = `%${escapeLikeTerm(term.toLowerCase())}%`
-      return sql`lower(searchable_text) LIKE ${pattern} ESCAPE '\\'`
-    })
+    const ftsConditions = terms.map((term) => sql`fts.searchable_text LIKE ${buildFtsLikePattern(term)}`)
     const results: InternalSearchMessageResult[] = []
     const cursor = decodeSearchCursor(query.cursor)
     const createdAtFromMs = getCreatedAtFromMs(query.createdAtFrom)
@@ -695,13 +694,14 @@ export class MessageService {
           message.searchable_text AS "searchableText",
           message.created_at AS "createdAt"
         FROM message
+        JOIN message_fts fts ON message.rowid = fts.rowid
         JOIN topic t ON t.id = message.topic_id
         WHERE message.deleted_at IS NULL
           AND t.deleted_at IS NULL
           AND message.searchable_text != ''
           AND ${topicConditionForMessageAlias}
           AND ${createdAtConditionForMessageAlias}
-          AND ${sql.join(likeConditions, sql` AND `)}
+          AND ${sql.join(ftsConditions, sql` AND `)}
           AND ${
             cursor
               ? sql`(message.created_at < ${cursor.createdAt} OR (message.created_at = ${cursor.createdAt} AND message.id < ${cursor.id}))`

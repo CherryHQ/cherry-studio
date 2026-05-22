@@ -69,8 +69,10 @@ function getCreatedAtFromMs(createdAtFrom: string | undefined): number | undefin
   return Number.isFinite(value) ? value : undefined
 }
 
-function escapeLikeTerm(term: string): string {
-  return term.replace(/[\\%_]/g, '\\$&')
+function buildFtsLikePattern(term: string): string {
+  // Keep LIKE free of ESCAPE so SQLite can use the trigram FTS LIKE index;
+  // regex validation below preserves literal substring semantics.
+  return `%${term}%`
 }
 
 function encodeMessageCursor(createdAt: number | string, id: string): string {
@@ -90,10 +92,7 @@ export class AgentSessionMessageService {
     const cursor = query.cursor ? decodeMessageCursor(query.cursor) : null
     const createdAtFromMs = getCreatedAtFromMs(query.createdAtFrom)
     const results: InternalSessionSearchMessageResult[] = []
-    const likeConditions = terms.map((term) => {
-      const pattern = `%${escapeLikeTerm(term.toLowerCase())}%`
-      return sql`lower(sm.searchable_text) LIKE ${pattern} ESCAPE '\\'`
-    })
+    const ftsConditions = terms.map((term) => sql`fts.searchable_text LIKE ${buildFtsLikePattern(term)}`)
     const messageSessionCondition = query.sessionId ? sql`sm.session_id = ${query.sessionId}` : sql`1 = 1`
     let offset = 0
 
@@ -110,12 +109,13 @@ export class AgentSessionMessageService {
           sm.role,
           sm.created_at AS "createdAt"
         FROM agent_session_message sm
+        JOIN agent_session_message_fts fts ON sm.rowid = fts.rowid
         JOIN agent_session s ON s.id = sm.session_id
         LEFT JOIN agent a ON a.id = s.agent_id
         WHERE sm.searchable_text != ''
           AND ${messageSessionCondition}
           AND ${createdAtCondition}
-          AND ${sql.join(likeConditions, sql` AND `)}
+          AND ${sql.join(ftsConditions, sql` AND `)}
           AND ${
             cursor
               ? sql`(sm.created_at < ${cursor.createdAt} OR (sm.created_at = ${cursor.createdAt} AND sm.id < ${cursor.id}))`

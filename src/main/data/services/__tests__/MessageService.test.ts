@@ -238,6 +238,42 @@ describe('MessageService', () => {
       expect(result.items.map((item) => item.messageId)).toEqual(['m-substring-2', 'm-substring-1'])
     })
 
+    it('uses the message FTS index as the search candidate source', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'topic-fts-candidate', activeNodeId: 'm-fts-candidate', orderKey: 'sf0' })
+      await dbh.db.insert(messageTable).values({
+        id: 'm-fts-candidate',
+        parentId: null,
+        topicId: 'topic-fts-candidate',
+        role: 'assistant',
+        data: partsText('needle exists in the base message text.'),
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 100,
+        updatedAt: 100
+      })
+
+      const ftsRow = await dbh.client.execute({
+        sql: 'SELECT rowid, searchable_text FROM message WHERE id = ?',
+        args: ['m-fts-candidate']
+      })
+      await dbh.client.execute({
+        sql: `INSERT INTO message_fts(message_fts, rowid, searchable_text)
+              VALUES ('delete', ?, ?)`,
+        args: [ftsRow.rows[0][0], ftsRow.rows[0][1]]
+      })
+
+      let result: Awaited<ReturnType<typeof messageService.search>>
+      try {
+        result = await messageService.search({ q: 'needle' })
+      } finally {
+        await dbh.client.execute(`INSERT INTO message_fts(message_fts) VALUES ('rebuild')`)
+      }
+
+      expect(result.items).toEqual([])
+    })
+
     it('defaults message search to substring matching', async () => {
       await dbh.db
         .insert(topicTable)
