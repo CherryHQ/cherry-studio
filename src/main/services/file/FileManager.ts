@@ -713,9 +713,15 @@ export class FileManager extends BaseService implements IFileManager {
    * the DB-level orphan-ref/entry sweep (file-manager-architecture §7
    * Layer 3), returning once they settle. The DB sweep is skipped
    * exactly once (and only the FS sweep runs) when the migration
-   * marker mismatches `migration_v2_status.completedAt` — this gives a
-   * grace window after first-boot post-migration and after a v2 backup
-   * restore (see file-manager-architecture §10.10 Post-Migration / Backup-Restore Skip).
+   * marker mismatches `migration_v2_status.completedAt` — this
+   * suppresses one round of misleadingly-high orphan-entry report
+   * counts during the post-migration window (every unwired file_entry
+   * would otherwise be reported as an orphan until consumer migrators
+   * Batch A-E land their file_ref rows). Deletion is preserved by
+   * default per §7.1; the narrow auto-cleanup path in §7.2 is itself
+   * deferred, so this is reporting-only today — the mechanism also
+   * structurally pre-empts over-delete once §7.2 auto-cleanup ships.
+   * See file-manager-architecture §10.10 Post-Migration / Backup-Restore Skip.
    *
    * The fire-and-forget call site in `onInit` (line above) is what
    * keeps the ready signal unblocked — this method itself awaits the

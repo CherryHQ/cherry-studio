@@ -1158,14 +1158,16 @@ The DB sweep (§7 Layer 3) is **skipped exactly once** on startup when the BootC
 
 #### Why skip the DB sweep in these windows
 
-DB sweep treats any `file_entry` with no incoming `file_ref` as a no-reference orphan and deletes it. This is correct in steady state but produces false positives in two transitional windows:
+DB sweep scans for any `file_entry` with no incoming `file_ref` and **reports** it as a no-reference orphan. Per §7.1 the default policy is *preserve*; the narrow `(external, missing, 0)` auto-cleanup path described in §7.2 is itself deferred, so DB sweep is reporting-only in current code. The report is meaningful in steady state but produces misleadingly high counts in two transitional windows:
 
-| Window | DB state | Why DB sweep would over-delete |
+| Window | DB state | Why the orphan-entry report would be misleading |
 |---|---|---|
-| First boot after v1→v2 migration | FileMigrator has imported every v1 file into `file_entry`. KnowledgeMigrator has populated `file_ref` for knowledge-item files only. All other domains (messages, painting, translate, paste, ...) still need their consumer migrators (Batches A-E) to wire up the `file_ref` rows. | The unwired `file_entry` rows look like orphans even though their consumer migration just hasn't landed yet. |
-| First boot after a v2 backup restore | `app_state` is the backup-time snapshot. Physical Files directory may have drifted (user-initiated changes between backup and restore points, partial restore). | DB sweep would judge the snapshot's reference graph against post-restore physical reality. |
+| First boot after v1→v2 migration | FileMigrator has imported every v1 file into `file_entry`. KnowledgeMigrator has populated `file_ref` for knowledge-item files only. All other domains (messages, painting, translate, paste, ...) still need their consumer migrators (Batches A-E) to wire up the `file_ref` rows. | Every unwired `file_entry` row shows up as an orphan even though its consumer migration just hasn't landed yet. |
+| First boot after a v2 backup restore | `app_state` is the backup-time snapshot. Physical Files directory may have drifted (user-initiated changes between backup and restore points, partial restore). | The report judges the snapshot's reference graph against post-restore physical reality. |
 
-The marker is advanced to the current `completedAt` after the skip, so this is a one-time grace window per transition — steady-state startups run both sweeps as usual.
+The marker is advanced to the current `completedAt` after the skip, so this is a one-time suppression per transition — steady-state startups run both sweeps as usual.
+
+Once §7.2 auto-cleanup ships and DB sweep gains a deletion path, the same skip-once mechanism structurally pre-empts what would otherwise become over-delete in these windows. No code change to `runStartupSweeps` is required at that point — the gate already covers both the report-only and report-plus-delete shapes.
 
 #### Why this works without explicit coordination
 
