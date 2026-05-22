@@ -15,6 +15,7 @@ import { isSlashCommand } from '../../constants'
 import { FILE_EXTENSION_MIME_MAP, splitMessage } from '../../utils'
 import { DingTalkClient } from './DingTalkClient'
 import { registrationBegin, registrationPoll } from './DingTalkDeviceRegistration'
+import { DingTalkInboundMessageSchema, JsonStringSchema } from './DingTalkSchemas'
 
 /** DingTalk text message limit — conservative chunking to stay under the documented 5000-char cap. */
 const DINGTALK_MAX_LENGTH = 4000
@@ -100,24 +101,28 @@ class DingTalkAdapter extends ChannelAdapter {
 
     dw.registerCallbackListener(TOPIC_ROBOT, (downstream) => {
       const messageId = downstream.headers?.messageId
-      try {
-        const msg = JSON.parse(downstream.data) as DingTalkInboundMessage
-        // Ack first so DingTalk doesn't retry while we're processing.
-        if (messageId) {
-          try {
-            dw.socketCallBackResponse(messageId, { success: true })
-          } catch (err) {
-            this.log.warn(`Failed to ack message ${messageId}`, {
-              error: err instanceof Error ? err.message : String(err)
-            })
-          }
-        }
-        this.handleInbound(msg).catch((err) => {
-          this.log.warn(`Inbound handler error: ${err instanceof Error ? err.message : String(err)}`)
-        })
-      } catch (err) {
-        this.log.warn(`Failed to parse DingTalk inbound: ${err instanceof Error ? err.message : String(err)}`)
+      // `downstream.data` is a JSON-encoded string. Pipe JsonStringSchema into
+      // the inbound message schema so a single safeParse handles both "invalid
+      // JSON" and "schema mismatch".
+      const parsed = JsonStringSchema.pipe(DingTalkInboundMessageSchema).safeParse(downstream.data)
+      if (!parsed.success) {
+        this.log.warn(`DingTalk inbound parse failed: ${parsed.error.message}`)
+        return
       }
+      const msg = parsed.data as DingTalkInboundMessage
+      // Ack first so DingTalk doesn't retry while we're processing.
+      if (messageId) {
+        try {
+          dw.socketCallBackResponse(messageId, { success: true })
+        } catch (err) {
+          this.log.warn(`Failed to ack message ${messageId}`, {
+            error: err instanceof Error ? err.message : String(err)
+          })
+        }
+      }
+      this.handleInbound(msg).catch((err) => {
+        this.log.warn(`Inbound handler error: ${err instanceof Error ? err.message : String(err)}`)
+      })
     })
 
     try {

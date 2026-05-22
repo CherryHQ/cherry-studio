@@ -2,14 +2,8 @@ import { createHash, randomBytes } from 'node:crypto'
 
 import { net } from 'electron'
 
-import type {
-  BizResponse,
-  GetMcpConfigRequest,
-  GetMcpConfigResponse,
-  JsonRpcRequest,
-  JsonRpcResponse,
-  McpConfigItem
-} from './WeComTypes'
+import { BizResponseSchema, GetMcpConfigResponseSchema, JsonRpcResponseSchema, JsonStringSchema } from './WeComSchemas'
+import type { BizResponse, GetMcpConfigRequest, JsonRpcRequest, McpConfigItem } from './WeComTypes'
 
 /** WeCom MCP config bootstrap endpoint. */
 const DEFAULT_MCP_CONFIG_ENDPOINT = 'https://qyapi.weixin.qq.com/cgi-bin/aibot/cli/get_mcp_config'
@@ -86,7 +80,11 @@ export class WeComClient {
       throw new Error(`Bootstrap HTTP ${response.status}: ${await safeReadText(response)}`)
     }
 
-    const data = (await response.json()) as GetMcpConfigResponse
+    const parsed = GetMcpConfigResponseSchema.safeParse(await response.json())
+    if (!parsed.success) {
+      throw new Error(`Bootstrap response schema mismatch: ${parsed.error.message}`)
+    }
+    const data = parsed.data
     if (data.errcode !== 0) {
       throw new WeComBusinessError(
         data.errcode,
@@ -95,7 +93,7 @@ export class WeComClient {
       )
     }
 
-    const list = data.list ?? []
+    const list = (data.list ?? []) as McpConfigItem[]
     this.categoryUrls.clear()
     for (const item of list) {
       if (item.biz_type && item.url) this.categoryUrls.set(item.biz_type, item.url)
@@ -147,13 +145,19 @@ export class WeComClient {
       throw new Error(`WeCom RPC HTTP ${response.status} (${category}.${method}): ${await safeReadText(response)}`)
     }
 
-    const json = (await response.json()) as JsonRpcResponse
+    const envelopeParsed = JsonRpcResponseSchema.safeParse(await response.json())
+    if (!envelopeParsed.success) {
+      throw new Error(`WeCom RPC envelope schema mismatch (${category}.${method}): ${envelopeParsed.error.message}`)
+    }
+    const envelope = envelopeParsed.data
 
-    if (json.error && json.error.code !== undefined && json.error.code !== 0) {
-      throw new Error(`WeCom RPC error code=${json.error.code} (${category}.${method}): ${json.error.message ?? ''}`)
+    if (envelope.error && envelope.error.code !== undefined && envelope.error.code !== 0) {
+      throw new Error(
+        `WeCom RPC error code=${envelope.error.code} (${category}.${method}): ${envelope.error.message ?? ''}`
+      )
     }
 
-    const result = json.result
+    const result = envelope.result
     if (!result) {
       throw new Error(`WeCom RPC malformed response (${category}.${method}): missing result`)
     }
@@ -166,12 +170,14 @@ export class WeComClient {
       throw new Error(`WeCom RPC malformed content (${category}.${method})`)
     }
 
-    let parsed: TResult
-    try {
-      parsed = JSON.parse(content[0].text) as TResult
-    } catch {
-      throw new Error(`WeCom RPC content is not JSON (${category}.${method})`)
+    // `content[0].text` is a JSON-encoded business payload. Pipe through
+    // JsonStringSchema so a single safeParse covers both "not JSON" and
+    // "wrong shape" failures.
+    const bizParsed = JsonStringSchema.pipe(BizResponseSchema).safeParse(content[0].text)
+    if (!bizParsed.success) {
+      throw new Error(`WeCom RPC business payload schema mismatch (${category}.${method}): ${bizParsed.error.message}`)
     }
+    const parsed = bizParsed.data as TResult
 
     const errcode = parsed.errcode
     if (typeof errcode === 'number' && errcode !== 0) {

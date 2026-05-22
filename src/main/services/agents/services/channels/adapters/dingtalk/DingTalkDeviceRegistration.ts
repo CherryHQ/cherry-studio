@@ -9,6 +9,13 @@
  */
 import { loggerService } from '@logger'
 import { net } from 'electron'
+import type * as z from 'zod'
+
+import {
+  DingTalkRegistrationBeginResponseSchema,
+  DingTalkRegistrationInitResponseSchema,
+  DingTalkRegistrationPollResponseSchema
+} from './DingTalkSchemas'
 
 const logger = loggerService.withContext('DingTalkDeviceRegistration')
 
@@ -33,7 +40,11 @@ export interface DingTalkRegistrationResult {
 
 type PollStatus = 'WAITING' | 'SUCCESS' | 'FAIL' | 'EXPIRED'
 
-async function apiPost(path: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+async function apiPost<S extends z.ZodTypeAny>(
+  path: string,
+  payload: Record<string, unknown>,
+  schema: S
+): Promise<z.infer<S>> {
   const url = `${REGISTRATION_BASE_URL}${path}`
   const res = await net.fetch(url, {
     method: 'POST',
@@ -43,32 +54,36 @@ async function apiPost(path: string, payload: Record<string, unknown>): Promise<
   if (!res.ok) {
     throw new Error(`DingTalk registration HTTP ${res.status} for ${path}`)
   }
-  const data = (await res.json()) as Record<string, unknown>
-  const errcode = data.errcode
-  if (errcode !== undefined && errcode !== 0) {
-    const errmsg = typeof data.errmsg === 'string' ? data.errmsg : 'unknown error'
-    throw new Error(`DingTalk registration error [${path}]: ${errmsg} (errcode=${String(errcode)})`)
+  const parsed = schema.safeParse(await res.json())
+  if (!parsed.success) {
+    throw new Error(`DingTalk registration response schema mismatch [${path}]: ${parsed.error.message}`)
   }
-  return data
-}
-
-function asString(value: unknown): string {
-  return typeof value === 'string' ? value : ''
+  const data = parsed.data as { errcode?: number | string; errmsg?: string }
+  if (data.errcode !== undefined && data.errcode !== 0 && data.errcode !== '0') {
+    throw new Error(
+      `DingTalk registration error [${path}]: ${data.errmsg ?? 'unknown error'} (errcode=${String(data.errcode)})`
+    )
+  }
+  return parsed.data
 }
 
 export async function registrationBegin(): Promise<DingTalkBeginResult> {
-  const initData = await apiPost('/app/registration/init', { source: REGISTRATION_SOURCE })
-  const nonce = asString(initData.nonce).trim()
+  const initData = await apiPost(
+    '/app/registration/init',
+    { source: REGISTRATION_SOURCE },
+    DingTalkRegistrationInitResponseSchema
+  )
+  const nonce = (initData.nonce ?? '').trim()
   if (!nonce) throw new Error('DingTalk registration init: missing nonce')
 
-  const beginData = await apiPost('/app/registration/begin', { nonce })
-  const deviceCode = asString(beginData.device_code).trim()
-  const verificationUrl = asString(beginData.verification_uri_complete).trim()
+  const beginData = await apiPost('/app/registration/begin', { nonce }, DingTalkRegistrationBeginResponseSchema)
+  const deviceCode = (beginData.device_code ?? '').trim()
+  const verificationUrl = (beginData.verification_uri_complete ?? '').trim()
   if (!deviceCode) throw new Error('DingTalk registration begin: missing device_code')
   if (!verificationUrl) throw new Error('DingTalk registration begin: missing verification_uri_complete')
 
-  const expiresIn = Number(beginData.expires_in ?? 7200) || 7200
-  const interval = Math.max(Number(beginData.interval ?? 3) || 3, 2)
+  const expiresIn = beginData.expires_in ?? 7200
+  const interval = Math.max(beginData.interval ?? 3, 2)
 
   logger.info('DingTalk QR generated', { expiresIn, interval })
   return { deviceCode, verificationUrl, expiresIn, interval }
@@ -89,9 +104,13 @@ export async function registrationPoll(
     await sleep(intervalMs, signal)
     if (signal?.aborted) throw new Error('DingTalk registration cancelled')
 
-    let data: Record<string, unknown>
+    let data: z.infer<typeof DingTalkRegistrationPollResponseSchema>
     try {
-      data = await apiPost('/app/registration/poll', { device_code: begin.deviceCode })
+      data = await apiPost(
+        '/app/registration/poll',
+        { device_code: begin.deviceCode },
+        DingTalkRegistrationPollResponseSchema
+      )
     } catch (err) {
       if (!networkRetryStart) networkRetryStart = Date.now()
       if (Date.now() - networkRetryStart < RETRY_WINDOW_MS) {
@@ -104,15 +123,15 @@ export async function registrationPoll(
     }
     networkRetryStart = 0
 
-    const status = asString(data.status).trim().toUpperCase() as PollStatus
+    const status = (data.status ?? '').trim().toUpperCase() as PollStatus
 
     if (status === 'WAITING') {
       statusRetryStart = 0
       continue
     }
     if (status === 'SUCCESS') {
-      const clientId = asString(data.client_id).trim()
-      const clientSecret = asString(data.client_secret).trim()
+      const clientId = (data.client_id ?? '').trim()
+      const clientSecret = (data.client_secret ?? '').trim()
       if (!clientId || !clientSecret) {
         throw new Error('DingTalk authorization succeeded but credentials missing')
       }
@@ -125,7 +144,7 @@ export async function registrationPoll(
     // FAIL — retry within window
     if (!statusRetryStart) statusRetryStart = Date.now()
     if (Date.now() - statusRetryStart < RETRY_WINDOW_MS) continue
-    throw new Error(`DingTalk authorization failed: ${asString(data.fail_reason) || status}`)
+    throw new Error(`DingTalk authorization failed: ${data.fail_reason ?? status}`)
   }
 
   throw new Error('DingTalk authorization timed out')

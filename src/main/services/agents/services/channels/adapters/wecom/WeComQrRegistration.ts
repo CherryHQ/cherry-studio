@@ -11,6 +11,8 @@
 import { loggerService } from '@logger'
 import { net } from 'electron'
 
+import { QrGenerateResponseSchema, QrQueryResponseSchema } from './WeComSchemas'
+
 const logger = loggerService.withContext('WeComQrRegistration')
 
 const SOURCE = 'wecom_cli_external'
@@ -51,11 +53,14 @@ export async function registrationBegin(): Promise<WeComQrBeginResult> {
   if (!res.ok) {
     throw new Error(`WeCom QR generate HTTP ${res.status}`)
   }
-  const payload = (await res.json()) as { data?: { scode?: string; auth_url?: string } }
-  const scode = payload.data?.scode
-  const authUrl = payload.data?.auth_url
+  const parsed = QrGenerateResponseSchema.safeParse(await res.json())
+  if (!parsed.success) {
+    throw new Error(`WeCom QR generate schema mismatch: ${parsed.error.message}`)
+  }
+  const scode = parsed.data.data?.scode
+  const authUrl = parsed.data.data?.auth_url
   if (!scode || !authUrl) {
-    throw new Error(`WeCom QR generate malformed response: ${JSON.stringify(payload).slice(0, 200)}`)
+    throw new Error('WeCom QR generate response missing scode or auth_url')
   }
   logger.info('WeCom QR generated', { scode })
   return { scode, authUrl }
@@ -76,13 +81,15 @@ export async function registrationPoll(scode: string, signal?: AbortSignal): Pro
       logger.warn('WeCom QR poll non-OK status', { status: res.status })
       continue
     }
-    const payload = (await res.json()) as {
-      data?: { status?: string; bot_info?: { botid?: string; secret?: string } }
+    const parsed = QrQueryResponseSchema.safeParse(await res.json())
+    if (!parsed.success) {
+      logger.warn('WeCom QR poll schema mismatch', { error: parsed.error.message })
+      continue
     }
-    const status = payload.data?.status
-    if (status === 'success') {
-      const botId = payload.data?.bot_info?.botid
-      const botSecret = payload.data?.bot_info?.secret
+    const data = parsed.data.data
+    if (data?.status === 'success') {
+      const botId = data.bot_info?.botid
+      const botSecret = data.bot_info?.secret
       if (!botId || !botSecret) {
         throw new Error('WeCom QR success but bot credentials missing in response')
       }

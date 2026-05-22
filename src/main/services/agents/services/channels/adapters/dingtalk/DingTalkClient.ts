@@ -12,6 +12,12 @@
  */
 import { net } from 'electron'
 
+import {
+  DingTalkMediaDownloadResponseSchema,
+  DingTalkSessionAckSchema,
+  DingTalkTokenResponseSchema
+} from './DingTalkSchemas'
+
 const TOKEN_URL = 'https://api.dingtalk.com/v1.0/oauth2/accessToken'
 const GROUP_SEND_URL = 'https://api.dingtalk.com/v1.0/robot/groupMessages/send'
 const P2P_SEND_URL = 'https://api.dingtalk.com/v1.0/robot/oToMessages/batchSend'
@@ -76,7 +82,11 @@ export class DingTalkClient {
     if (!res.ok) {
       throw new DingTalkApiError(`Token request failed (HTTP ${res.status})`, res.status)
     }
-    const data = (await res.json()) as { accessToken?: string; expireIn?: number; code?: string; message?: string }
+    const parsed = DingTalkTokenResponseSchema.safeParse(await res.json())
+    if (!parsed.success) {
+      throw new DingTalkApiError(`Token response schema mismatch: ${parsed.error.message}`)
+    }
+    const data = parsed.data
     if (!data.accessToken) {
       throw new DingTalkApiError(`Token response missing accessToken: ${data.message ?? data.code ?? 'unknown'}`)
     }
@@ -101,22 +111,21 @@ export class DingTalkClient {
     if (!res.ok) {
       throw new DingTalkApiError(`Session webhook send failed (HTTP ${res.status})`, res.status)
     }
-    // Some DingTalk endpoints return a JSON body with errcode != 0 even with 200.
-    const text = await res.text()
-    if (text) {
-      try {
-        const json = JSON.parse(text) as { errcode?: number; errmsg?: string }
-        if (json.errcode !== undefined && json.errcode !== 0) {
-          throw new DingTalkApiError(
-            `Session webhook send errcode=${json.errcode}: ${json.errmsg ?? ''}`,
-            res.status,
-            json.errcode
-          )
-        }
-      } catch (err) {
-        if (err instanceof DingTalkApiError) throw err
-        // Non-JSON body — webhook accepted, ignore.
-      }
+    // Some DingTalk endpoints return a JSON body with errcode != 0 even with
+    // a 200 status. Treat non-JSON or schema-mismatched bodies as accepted.
+    let body: unknown
+    try {
+      body = await res.json()
+    } catch {
+      return
+    }
+    const parsed = DingTalkSessionAckSchema.safeParse(body)
+    if (parsed.success && parsed.data.errcode !== undefined && parsed.data.errcode !== 0) {
+      throw new DingTalkApiError(
+        `Session webhook send errcode=${parsed.data.errcode}: ${parsed.data.errmsg ?? ''}`,
+        res.status,
+        parsed.data.errcode
+      )
     }
   }
 
@@ -169,10 +178,10 @@ export class DingTalkClient {
       body: JSON.stringify({ downloadCode, robotCode: this.clientId })
     })
     if (!res.ok) return null
-    const data = (await res.json()) as { downloadUrl?: string }
-    if (!data.downloadUrl) return null
+    const parsed = DingTalkMediaDownloadResponseSchema.safeParse(await res.json())
+    if (!parsed.success || !parsed.data.downloadUrl) return null
 
-    const fileRes = await net.fetch(data.downloadUrl, { method: 'GET' })
+    const fileRes = await net.fetch(parsed.data.downloadUrl, { method: 'GET' })
     if (!fileRes.ok) return null
     const contentType = (fileRes.headers.get('content-type') || 'application/octet-stream').split(';')[0].trim()
     const buffer = Buffer.from(await fileRes.arrayBuffer())

@@ -15,6 +15,7 @@ import { isSlashCommand } from '../../constants'
 import { FILE_EXTENSION_MIME_MAP, splitMessage } from '../../utils'
 import { WeComClient } from './WeComClient'
 import { registrationBegin, registrationPoll } from './WeComQrRegistration'
+import { GetMessageResponseSchema, GetMsgMediaResponseSchema } from './WeComSchemas'
 import type {
   GetMessageResponse,
   GetMsgMediaResponse,
@@ -258,13 +259,18 @@ class WeComAdapter extends ChannelAdapter {
     const endMs = Date.now()
     if (beginMs >= endMs) return
 
-    const res = await this.client.callTool<unknown, GetMessageResponse>('msg', 'get_message', {
+    const raw = await this.client.callTool<unknown, GetMessageResponse>('msg', 'get_message', {
       chat_type: chatType,
       chatid,
       begin_time: toWeComTime(new Date(beginMs)),
       end_time: toWeComTime(new Date(endMs))
     })
-
+    const parsed = GetMessageResponseSchema.safeParse(raw)
+    if (!parsed.success) {
+      this.log.warn(`get_message schema mismatch: ${parsed.error.message}`)
+      return
+    }
+    const res = parsed.data as GetMessageResponse
     const messages = res.messages ?? []
     if (messages.length === 0) {
       this.lastSeen.set(encoded, endMs)
@@ -360,8 +366,13 @@ class WeComAdapter extends ChannelAdapter {
     mediaId: string
   ): Promise<{ base64: string; contentType: string; size: number; name: string } | null> {
     if (!this.client) return null
-    const res = await this.client.callTool<unknown, GetMsgMediaResponse>('msg', 'get_msg_media', { media_id: mediaId })
-    const item = res.media_item
+    const raw = await this.client.callTool<unknown, GetMsgMediaResponse>('msg', 'get_msg_media', { media_id: mediaId })
+    const parsed = GetMsgMediaResponseSchema.safeParse(raw)
+    if (!parsed.success) {
+      this.log.warn(`get_msg_media schema mismatch: ${parsed.error.message}`)
+      return null
+    }
+    const item = parsed.data.media_item
     if (!item || !item.base64_data) return null
 
     // Enforce size cap before decoding (base64 is ~4/3 of raw).
