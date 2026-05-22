@@ -392,8 +392,18 @@ export const AppShellTabBar = ({
 
   // ─── Drag logic (extracted to useTabDrag) ──────────────────────────────────
 
-  const { tabBarRef, tabRefs, noTransition, getTranslateX, handlePointerDown, handleTabClick, isDragging, isGhost } =
-    useTabDrag({ pinnedTabs, normalTabs, isDetached, reorderTabs, closeTab, setActiveTab })
+  const {
+    tabBarRef,
+    tabListRef,
+    addTabButtonRef,
+    tabRefs,
+    noTransition,
+    getTranslateX,
+    handlePointerDown,
+    handleTabClick,
+    isDragging,
+    isGhost
+  } = useTabDrag({ pinnedTabs, normalTabs, isDetached, reorderTabs, closeTab, setActiveTab })
 
   // ─── Action handlers ────────────────────────────────────────────────────────
 
@@ -443,7 +453,9 @@ export const AppShellTabBar = ({
         {!isDetached && (pinnedTabs.length > 0 || normalTabs.length > 0) && <Separator />}
 
         {/* Tabs scrollable area — empty space stays draggable; only interactive elements override */}
-        <div className="flex flex-1 items-center gap-1 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden">
+        <div
+          ref={tabListRef}
+          className="flex flex-1 items-center gap-1 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden">
           {/* Pinned tabs */}
           {pinnedTabs.length > 0 && (
             <div className="flex shrink-0 items-center gap-0 rounded-full bg-sidebar-accent/50 p-0 [-webkit-app-region:no-drag]">
@@ -518,6 +530,7 @@ export const AppShellTabBar = ({
           {/* New tab button — sticky so it hugs the last tab but never scrolls away */}
           {!isDetached && (
             <button
+              ref={addTabButtonRef}
               type="button"
               onClick={handleAddTab}
               className={cn(
