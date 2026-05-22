@@ -25,6 +25,7 @@ export function registerAdapterFactory(type: string, factory: AdapterFactory): v
  * This avoids eagerly importing all 6 heavy adapter modules at startup.
  */
 const adapterImportMap: Record<string, () => Promise<unknown>> = {
+  dingtalk: () => import('./adapters/dingtalk/DingTalkAdapter'),
   discord: () => import('./adapters/discord/DiscordAdapter'),
   feishu: () => import('./adapters/feishu/FeishuAdapter'),
   qq: () => import('./adapters/qq/QQAdapter'),
@@ -232,12 +233,15 @@ class ChannelManager {
     if (!channel) return
 
     // Different channel types persist QR-obtained credentials under different
-    // field names. Feishu uses app_id/app_secret; WeCom uses bot_id/bot_secret.
+    // field names. Feishu uses app_id/app_secret; WeCom uses bot_id/bot_secret;
+    // DingTalk uses client_id/client_secret.
     const config = channel.config as ChannelConfig & Record<string, unknown>
     const credentialUpdate =
       channel.type === 'wecom'
         ? { bot_id: creds.appId, bot_secret: creds.appSecret }
-        : { app_id: creds.appId, app_secret: creds.appSecret }
+        : channel.type === 'dingtalk'
+          ? { client_id: creds.appId, client_secret: creds.appSecret }
+          : { app_id: creds.appId, app_secret: creds.appSecret }
     await channelService.updateChannel(channelId, {
       config: { ...config, ...credentialUpdate } as ChannelConfig
     })

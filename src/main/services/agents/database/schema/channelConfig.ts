@@ -73,6 +73,21 @@ export const WeComChannelConfigSchema = z.object({
 
 export type WeComChannelConfig = z.infer<typeof WeComChannelConfigSchema>
 
+export const DingTalkChannelConfigSchema = z.object({
+  type: z.literal('dingtalk'),
+  // Empty client_id / client_secret means "not yet bound" — the adapter will
+  // start the Device Flow registration on connect and persist credentials via
+  // the 'credentials' event once the user authorizes.
+  client_id: z.string().default(''),
+  client_secret: z.string().default(''),
+  // Each entry is "<conversation_type>:<id>" — "p2p:<staffId>" (DM) or
+  // "group:<openConversationId>" (group). Empty allows any chat (auto-tracked
+  // into activeChatIds the first time a message arrives, mirroring Telegram).
+  allowed_chat_ids: z.array(z.string()).default([])
+})
+
+export type DingTalkChannelConfig = z.infer<typeof DingTalkChannelConfigSchema>
+
 // ---- Discriminated union ----
 
 export const ChannelConfigSchema = z.discriminatedUnion('type', [
@@ -82,10 +97,11 @@ export const ChannelConfigSchema = z.discriminatedUnion('type', [
   WeChatChannelConfigSchema,
   DiscordChannelConfigSchema,
   SlackChannelConfigSchema,
-  WeComChannelConfigSchema
+  WeComChannelConfigSchema,
+  DingTalkChannelConfigSchema
 ])
 
 export type ChannelConfig = z.infer<typeof ChannelConfigSchema>
 
-export const CHANNEL_TYPES = ['telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack', 'wecom'] as const
+export const CHANNEL_TYPES = ['telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack', 'wecom', 'dingtalk'] as const
 export type ChannelType = (typeof CHANNEL_TYPES)[number]

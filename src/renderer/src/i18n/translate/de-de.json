@@ -38,6 +38,23 @@
         "connecting": "Verbinden",
         "deleteConfirm": "Kanal „{{name}}“ löschen?",
         "description": "Verbinden Sie Ihren Agenten mit Messaging-Plattformen.",
+        "dingtalk": {
+          "chatIds": "[to be translated]:Allowed Chats",
+          "chatIdsHint": "[to be translated]:Format \"p2p:<staffId>\" (DM) or \"group:<openConversationId>\" (group), comma-separated. Empty allows any chat the bot receives.",
+          "chatIdsPlaceholder": "[to be translated]:p2p:0123456789, group:cidXXXXXX==",
+          "clientId": "[to be translated]:App Key",
+          "clientIdPlaceholder": "[to be translated]:DingTalk inner-app Client ID / App Key (auto-filled after QR scan)",
+          "clientSecret": "[to be translated]:App Secret",
+          "clientSecretPlaceholder": "[to be translated]:DingTalk inner-app Client Secret / App Secret (auto-filled after QR scan)",
+          "connected": "[to be translated]:Connected",
+          "description": "[to be translated]:Receive and respond to messages via a DingTalk enterprise inner-app bot using Stream mode (no public IP needed).",
+          "loginHint": "[to be translated]:Leave App Key / App Secret blank and enable the channel to bind via QR code with DingTalk.",
+          "qrExpired": "[to be translated]:QR code expired. Disable and re-enable the channel to retry.",
+          "qrHint": "[to be translated]:Scan with DingTalk to authorize the bot.",
+          "qrScanHint": "[to be translated]:Open DingTalk on your phone and scan to authorize the inner-app bot.",
+          "qrTitle": "[to be translated]:DingTalk QR Login",
+          "title": "[to be translated]:DingTalk"
+        },
         "disconnected": "Getrennt",
         "discord": {
           "botToken": "Bot-Token",
@@ -134,6 +151,23 @@
           "qrTitle": "WeChat-QR-Login",
           "title": "WeChat",
           "whoamiTip": "Tipp: Sende /whoami in WeChat, um die ID eines Benutzers zu erhalten."
+        },
+        "wecom": {
+          "botId": "[to be translated]:Bot ID",
+          "botIdPlaceholder": "[to be translated]:WeCom smart bot ID (auto-filled after QR scan)",
+          "botSecret": "[to be translated]:Bot Secret",
+          "botSecretPlaceholder": "[to be translated]:WeCom smart bot secret (auto-filled after QR scan)",
+          "chatIds": "[to be translated]:Allowed Chats",
+          "chatIdsHint": "[to be translated]:Format \"1:userid\" (DM) or \"2:groupid\" (group), comma-separated. WeCom requires explicit chats for polling.",
+          "chatIdsPlaceholder": "[to be translated]:1:zhangsan, 2:wrxxxxxx",
+          "connected": "[to be translated]:Connected",
+          "description": "[to be translated]:Receive and respond to messages via a WeCom smart bot (30 s polling).",
+          "loginHint": "[to be translated]:Leave Bot ID / Secret blank and enable the channel to bind via QR code with WeCom.",
+          "qrExpired": "[to be translated]:QR code expired. Disable and re-enable the channel to retry.",
+          "qrHint": "[to be translated]:Scan with WeCom to bind the smart bot.",
+          "qrScanHint": "[to be translated]:Open WeCom on your phone and scan to authorize the smart bot.",
+          "qrTitle": "[to be translated]:WeCom QR Login",
+          "title": "[to be translated]:WeCom"
         }
       },
       "heartbeat": {

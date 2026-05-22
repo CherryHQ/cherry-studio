@@ -10,6 +10,7 @@ import { agentsTable } from './agents.schema'
 import {
   type ChannelConfig,
   ChannelConfigSchema,
+  type DingTalkChannelConfig,
   type DiscordChannelConfig,
   type FeishuChannelConfig,
   type FeishuDomain,
@@ -24,6 +25,7 @@ import { scheduledTasksTable } from './tasks.schema'
 
 export type {
   ChannelConfig,
+  DingTalkChannelConfig,
   DiscordChannelConfig,
   FeishuChannelConfig,
   FeishuDomain,
@@ -60,7 +62,10 @@ export const channelsTable = sqliteTable(
     index('channels_agent_id_idx').on(t.agentId),
     index('channels_type_idx').on(t.type),
     index('channels_session_id_idx').on(t.sessionId),
-    check('channels_type_check', sql`${t.type} IN ('telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack', 'wecom')`),
+    check(
+      'channels_type_check',
+      sql`${t.type} IN ('telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack', 'wecom', 'dingtalk')`
+    ),
     check(
       'channels_permission_mode_check',
       sql`${t.permissionMode} IS NULL OR ${t.permissionMode} IN ('default', 'acceptEdits', 'bypassPermissions', 'plan')`

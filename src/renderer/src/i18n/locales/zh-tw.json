@@ -38,6 +38,23 @@
         "connecting": "連接",
         "deleteConfirm": "確定刪除頻道「{{name}}」？",
         "description": "將您的 Agent 連接到訊息平台。",
+        "dingtalk": {
+          "chatIds": "允許的會話",
+          "chatIdsHint": "格式 \"p2p:<staffId>\"（單聊）或 \"group:<openConversationId>\"（群聊），用逗號分隔。留空則自動追蹤所有有訊息的會話。",
+          "chatIdsPlaceholder": "p2p:0123456789, group:cidXXXXXX==",
+          "clientId": "App Key",
+          "clientIdPlaceholder": "釘釘企業內部應用 Client ID / App Key（掃碼後自動填入）",
+          "clientSecret": "App Secret",
+          "clientSecretPlaceholder": "釘釘企業內部應用 Client Secret / App Secret（掃碼後自動填入）",
+          "connected": "已連線",
+          "description": "透過釘釘企業內部機器人接收和回覆訊息（Stream 模式，無需公網 IP）。",
+          "loginHint": "留空 App Key / App Secret 並啟用頻道，即可使用釘釘掃碼授權。",
+          "qrExpired": "QR 碼已過期，請關閉後重新啟用頻道再試。",
+          "qrHint": "請使用釘釘掃描 QR 碼完成授權。",
+          "qrScanHint": "請打開手機釘釘並掃描以授權企業內部應用機器人。",
+          "qrTitle": "釘釘掃碼授權",
+          "title": "釘釘"
+        },
         "disconnected": "已中斷連線",
         "discord": {
           "botToken": "Bot Token",

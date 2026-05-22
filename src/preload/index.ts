@@ -663,6 +663,34 @@ const api = {
       return () => ipcRenderer.off(IpcChannel.WeCom_QrLogin, listener)
     }
   },
+  dingtalk: {
+    onQrLogin: (
+      callback: (data: {
+        channelId: string
+        agentId: string
+        url: string
+        status: string
+        clientId?: string
+        clientSecret?: string
+      }) => void
+    ): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        data: {
+          channelId: string
+          agentId: string
+          url: string
+          status: string
+          clientId?: string
+          clientSecret?: string
+        }
+      ) => {
+        callback(data)
+      }
+      ipcRenderer.on(IpcChannel.DingTalk_QrLogin, listener)
+      return () => ipcRenderer.off(IpcChannel.DingTalk_QrLogin, listener)
+    }
+  },
   channel: {
     onLog: (
       callback: (log: { timestamp: number; level: string; message: string; channelId: string }) => void
