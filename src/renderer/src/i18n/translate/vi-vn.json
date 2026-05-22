@@ -5568,9 +5568,6 @@
       }
     },
     "integrations": {
-      "groups": {
-        "notes": "Ghi chú"
-      },
       "title": "Tích hợp"
     },
     "launch": {
@@ -5618,6 +5615,7 @@
       },
       "addSuccess": "Servidor añadido con éxito",
       "advancedSettings": "Cài đặt nâng cao",
+      "allServers": "[to be translated]:MCP Servers",
       "args": "Lập luận",
       "argsTooltip": "Mỗi lập luận trên một dòng mới",
       "baseUrlTooltip": "URL cơ sở máy chủ từ xa",

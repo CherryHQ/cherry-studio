@@ -157,9 +157,11 @@ describe('SettingsWindowService', () => {
     )
   })
 
-  it('opens the standalone settings window over the current main window bounds', () => {
+  it('sizes the settings window to 80% of the main window and centers it', () => {
     const mainWindow = createMockWindow()
     const settingsWindow = createMockWindow()
+    // 1440 * 0.8 = 1152, 900 * 0.8 = 720
+    // centered: x = 20 + (1440-1152)/2 = 164, y = 40 + (900-720)/2 = 130
     mainWindow.getBounds.mockReturnValue({ x: 20, y: 40, width: 1440, height: 900 })
     mockManagedWindows({ mainWindow, settingsWindow })
 
@@ -169,14 +171,38 @@ describe('SettingsWindowService', () => {
       WindowType.Settings,
       expect.objectContaining({
         options: expect.objectContaining({
-          x: 20,
-          y: 40,
-          width: 1440,
-          height: 900
+          x: 164,
+          y: 130,
+          width: 1152,
+          height: 720
         })
       })
     )
-    expect(settingsWindow.setBounds).toHaveBeenCalledWith({ x: 20, y: 40, width: 1440, height: 900 })
+    expect(settingsWindow.setBounds).toHaveBeenCalledWith({ x: 164, y: 130, width: 1152, height: 720 })
+  })
+
+  it('clamps small main-window cases to the 760x560 floor and recenters', () => {
+    const mainWindow = createMockWindow()
+    const settingsWindow = createMockWindow()
+    // 900 * 0.8 = 720 < 760 floor → width clamped to 760
+    // 600 * 0.8 = 480 < 560 floor → height clamped to 560
+    // centered: x = 0 + (900-760)/2 = 70, y = 0 + (600-560)/2 = 20
+    mainWindow.getBounds.mockReturnValue({ x: 0, y: 0, width: 900, height: 600 })
+    mockManagedWindows({ mainWindow, settingsWindow })
+
+    service.open('/settings/about')
+
+    expect(windowManagerMock.open).toHaveBeenCalledWith(
+      WindowType.Settings,
+      expect.objectContaining({
+        options: expect.objectContaining({
+          x: 70,
+          y: 20,
+          width: 760,
+          height: 560
+        })
+      })
+    )
   })
 
   it('keeps the native title empty even when the page title changes', () => {

@@ -5568,9 +5568,6 @@
       }
     },
     "integrations": {
-      "groups": {
-        "notes": "Note"
-      },
       "title": "Integrări"
     },
     "launch": {
@@ -5618,6 +5615,7 @@
       },
       "addSuccess": "Server adăugat cu succes",
       "advancedSettings": "Setări avansate",
+      "allServers": "[to be translated]:MCP Servers",
       "args": "Argumente",
       "argsTooltip": "Fiecare argument pe o linie nouă",
       "baseUrlTooltip": "URL de bază server la distanță",

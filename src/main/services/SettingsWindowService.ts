@@ -8,6 +8,12 @@ import { IpcChannel } from '@shared/IpcChannel'
 import type { BrowserWindow } from 'electron'
 import { nativeTheme } from 'electron'
 
+// Settings window sizing — 80% of the main window, with a hard floor so the
+// sidebar nav (~220px) and content stay usable when the main window is small.
+const SETTINGS_WINDOW_SIZE_RATIO = 0.8
+const SETTINGS_WINDOW_MIN_WIDTH = 760
+const SETTINGS_WINDOW_MIN_HEIGHT = 560
+
 export function createSettingsWindowOptions(isMacPlatform: boolean, dark: boolean): Partial<WindowOptions> {
   return {
     darkTheme: dark,
@@ -83,11 +89,14 @@ export class SettingsWindowService extends BaseService {
   private getWindowOptions(): Partial<WindowOptions> {
     return {
       ...createSettingsWindowOptions(isMac, nativeTheme.shouldUseDarkColors),
-      ...this.getMainWindowBoundsOptions()
+      ...this.getCenteredBoundsOptions()
     }
   }
 
-  private getMainWindowBoundsOptions(): Pick<WindowOptions, 'x' | 'y' | 'width' | 'height'> | undefined {
+  // Settings window is sized to 80% of the main window and centered on it, so
+  // the main window remains visible around the edges. Falls back to MIN_WIDTH /
+  // MIN_HEIGHT for small main-window cases.
+  private getCenteredBoundsOptions(): Pick<WindowOptions, 'x' | 'y' | 'width' | 'height'> | undefined {
     const wm = application.get('WindowManager')
     const mainWindowInfo = wm.getWindowsByType(WindowType.Main)[0]
     if (!mainWindowInfo) return undefined
@@ -95,10 +104,18 @@ export class SettingsWindowService extends BaseService {
     const mainWindow = wm.getWindow(mainWindowInfo.id)
     if (!mainWindow || mainWindow.isDestroyed()) return undefined
 
-    const { x, y, width, height } = mainWindow.getBounds()
-    if (width <= 0 || height <= 0) return undefined
+    const { x, y, width: mainWidth, height: mainHeight } = mainWindow.getBounds()
+    if (mainWidth <= 0 || mainHeight <= 0) return undefined
 
-    return { x, y, width, height }
+    const width = Math.max(Math.round(mainWidth * SETTINGS_WINDOW_SIZE_RATIO), SETTINGS_WINDOW_MIN_WIDTH)
+    const height = Math.max(Math.round(mainHeight * SETTINGS_WINDOW_SIZE_RATIO), SETTINGS_WINDOW_MIN_HEIGHT)
+
+    return {
+      x: Math.round(x + (mainWidth - width) / 2),
+      y: Math.round(y + (mainHeight - height) / 2),
+      width,
+      height
+    }
   }
 
   private syncSettingsWindowBounds(windowId: string, options: Partial<WindowOptions>): void {

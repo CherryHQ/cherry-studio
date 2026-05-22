@@ -6,6 +6,7 @@ import { ThemeProvider } from '@renderer/context/ThemeProvider'
 import type { FC } from 'react'
 import { createRoot } from 'react-dom/client'
 
+import { installLoupe } from '../../../dev/installLoupe'
 import SelectionToolbar from './SelectionToolbar'
 
 loggerService.initWindowSource('SelectionToolbar')
@@ -25,6 +26,8 @@ const App: FC = () => {
     </ThemeProvider>
   )
 }
+
+void installLoupe('selection-toolbar')
 
 const root = createRoot(document.getElementById('root') as HTMLElement)
 root.render(<App />)

@@ -5568,9 +5568,6 @@
       }
     },
     "integrations": {
-      "groups": {
-        "notes": "Σημειώσεις"
-      },
       "title": "Ενσωματώσεις"
     },
     "launch": {
@@ -5618,6 +5615,7 @@
       },
       "addSuccess": "Ο διακομιστής προστέθηκε επιτυχώς",
       "advancedSettings": "Προχωρημένες Ρυθμίσεις",
+      "allServers": "[to be translated]:MCP Servers",
       "args": "Παράμετροι",
       "argsTooltip": "Κάθε παράμετρος σε μια γραμμή",
       "baseUrlTooltip": "Σύνδεσμος Απομακρυσμένης διεύθυνσης URL",

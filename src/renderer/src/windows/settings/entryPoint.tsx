@@ -13,6 +13,7 @@ import { NotificationProvider } from '@renderer/context/NotificationProvider'
 import StyleSheetManager from '@renderer/context/StyleSheetManager'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
 import { useWindowInitData } from '@renderer/core/hooks/useWindowInitData'
+import { installLoupe } from '@renderer/dev/installLoupe'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import i18n from '@renderer/i18n'
 import { routeTree } from '@renderer/routeTree.gen'
@@ -112,7 +113,7 @@ function SettingsWindowRouter({ initialPath }: { initialPath: string }) {
 }
 
 function SettingsWindowApp({ initialPath }: { initialPath: string }): React.ReactElement {
-  const shellStyle = { '--navbar-height': '0px' } as CSSProperties
+  const shellStyle = { '--navbar-height': '0px', '--settings-width': '200px' } as CSSProperties
   const isMacTransparentWindow = useMacTransparentWindow()
 
   return (
@@ -144,6 +145,8 @@ function SettingsWindowApp({ initialPath }: { initialPath: string }): React.Reac
     </Provider>
   )
 }
+
+void installLoupe('settings')
 
 const root = createRoot(document.getElementById('root') as HTMLElement)
 const preloadError = await preloadSettingsPreferences()

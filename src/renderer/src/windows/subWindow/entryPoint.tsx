@@ -19,6 +19,7 @@ import { NotificationProvider } from '../../context/NotificationProvider'
 import StyleSheetManager from '../../context/StyleSheetManager'
 import { TabsProvider } from '../../context/TabsContext'
 import { ThemeProvider } from '../../context/ThemeProvider'
+import { installLoupe } from '../../dev/installLoupe'
 
 // Initialize logger for this window
 loggerService.initWindowSource('SubWindow')
@@ -60,6 +61,8 @@ function SubWindowApp(): React.ReactElement {
     </Provider>
   )
 }
+
+void installLoupe('sub-window')
 
 const root = createRoot(document.getElementById('root') as HTMLElement)
 root.render(<SubWindowApp />)

@@ -12,6 +12,7 @@ import {
   DialogTitle,
   EmptyState,
   Input as UIInput,
+  PageHeader,
   Select,
   SelectContent,
   SelectItem,
@@ -1028,15 +1029,20 @@ const TasksSettings: FC = () => {
         style={{ height: 'calc(100vh - var(--navbar-height) - 6px)' }}>
         {/* Left panel: task list */}
         <Scrollbar
-          className="flex flex-col gap-1.25 border-(--color-border) border-r-[0.5px] p-3 pb-12"
+          className="flex flex-col border-(--color-border) border-r-[0.5px] pb-12"
           style={{ width: 'var(--settings-width)', height: 'calc(100vh - var(--navbar-height))' }}>
-          <div className="flex items-center justify-between">
-            <SettingTitle>{t('settings.scheduledTasks.title')}</SettingTitle>
-            <Button variant="ghost" size="icon-sm" disabled={agents.length === 0} onClick={handleStartCreate}>
-              <Plus size={14} />
+          <PageHeader title={t('settings.scheduledTasks.title')} />
+          <div className="px-2.5 pb-2">
+            <Button
+              variant="secondary"
+              className="h-8 w-full justify-start rounded-lg px-2.5 text-xs shadow-none"
+              disabled={agents.length === 0}
+              onClick={handleStartCreate}>
+              <Plus size={15} />
+              {t('common.add')}
             </Button>
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 px-2.5 pb-2.5">
             {tasks.length === 0 && !creating ? (
               <EmptyState
                 compact

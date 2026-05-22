@@ -5,18 +5,12 @@ import { getProcessorLogo } from '../utils/fileProcessingMeta'
 
 type ProcessorAvatarProps = {
   processorId: FileProcessorId
-  size?: 'sm' | 'lg'
+  size?: number
+  className?: string
 }
 
-export function ProcessorAvatar({ processorId, size = 'sm' }: ProcessorAvatarProps) {
+export function ProcessorAvatar({ processorId, size = 16, className }: ProcessorAvatarProps) {
   const Logo = getProcessorLogo(processorId)
-  const isLarge = size === 'lg'
 
-  return (
-    <Logo.Avatar
-      size={isLarge ? 36 : 16}
-      shape="rounded"
-      className={cn(isLarge ? 'h-9 w-9 rounded-xl' : 'h-4 w-4 rounded')}
-    />
-  )
+  return <Logo.Avatar size={size} shape="rounded" className={cn('rounded', className)} />
 }

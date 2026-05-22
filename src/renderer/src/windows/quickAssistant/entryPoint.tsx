@@ -5,9 +5,12 @@ import '@ant-design/v5-patch-for-react-19'
 import { loggerService } from '@logger'
 import { createRoot } from 'react-dom/client'
 
+import { installLoupe } from '../../dev/installLoupe'
 import QuickAssistantApp from './QuickAssistantApp'
 
 loggerService.initWindowSource('QuickAssistant')
+
+void installLoupe('quick-assistant')
 
 const root = createRoot(document.getElementById('root') as HTMLElement)
 root.render(<QuickAssistantApp />)

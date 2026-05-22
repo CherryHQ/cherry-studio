@@ -1,3 +1,4 @@
+import { PageHeader } from '@cherrystudio/ui'
 import { useReorder } from '@data/hooks/useReorder'
 import { useModels } from '@renderer/hooks/useModels'
 import { useProviders } from '@renderer/hooks/useProviders'
@@ -18,7 +19,6 @@ import ProviderEditorDrawer from './ProviderEditorDrawer'
 import type { ProviderFilterMode } from './providerFilterMode'
 import { getGroupedPresetIds } from './providerGrouping'
 import ProviderListContent, { type ProviderListContentItemState } from './ProviderListContent'
-import ProviderListHeaderBar from './ProviderListHeaderBar'
 import ProviderListHeaderFilterMenu from './ProviderListHeaderFilterMenu'
 import ProviderListItemWithContextMenu from './ProviderListItemWithContextMenu'
 import ProviderListSearchField from './ProviderListSearchField'
@@ -258,16 +258,10 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
 
   return (
     <aside className={`provider-settings-default-scope ${providerListClasses.shell}`}>
-      <ProviderListHeaderBar
+      <PageHeader
+        title={t('settings.provider.title')}
         action={
-          <button
-            type="button"
-            aria-label={t('settings.provider.add.title')}
-            disabled={dragging}
-            onClick={startAdd}
-            className={providerListClasses.addIconButton}>
-            <Plus size={14} />
-          </button>
+          <ProviderListHeaderFilterMenu filterMode={filterMode} disabled={dragging} onFilterChange={setFilterMode} />
         }
       />
       <ProviderListSearchField
@@ -275,7 +269,14 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
         disabled={dragging}
         onValueChange={setSearchText}
         trailing={
-          <ProviderListHeaderFilterMenu filterMode={filterMode} disabled={dragging} onFilterChange={setFilterMode} />
+          <button
+            type="button"
+            aria-label={t('settings.provider.add.title')}
+            disabled={dragging}
+            onClick={startAdd}
+            className={providerListClasses.searchInlineAddButton}>
+            <Plus size={14} />
+          </button>
         }
       />
       <ProviderListContent

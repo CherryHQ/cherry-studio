@@ -5568,9 +5568,6 @@
       }
     },
     "integrations": {
-      "groups": {
-        "notes": "Notas"
-      },
       "title": "Integraciones"
     },
     "launch": {
@@ -5618,6 +5615,7 @@
       },
       "addSuccess": "Servidor agregado exitosamente",
       "advancedSettings": "Configuración avanzada",
+      "allServers": "[to be translated]:MCP Servers",
       "args": "Argumentos",
       "argsTooltip": "Cada argumento en una línea",
       "baseUrlTooltip": "Dirección URL remota",
