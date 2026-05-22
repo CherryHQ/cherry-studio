@@ -8,7 +8,7 @@ import type { AISDKWebSearchResult, MCPTool, WebSearchResults, WebSearchSource }
 import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { Chunk, ProviderMetadata } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
-import { ProviderSpecificError } from '@renderer/types/provider-specific-error'
+import { ProviderSpecificError } from '@renderer/types/providerSpecificError'
 import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
 import type { IdleTimeoutHandle } from '@renderer/utils/IdleTimeoutController'
 import { convertLinks, flushLinkConverterBuffer } from '@renderer/utils/linkConverter'

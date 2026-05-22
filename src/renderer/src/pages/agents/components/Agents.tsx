@@ -1,5 +1,5 @@
 import AddButton from '@renderer/components/AddButton'
-import DraggableVirtualList from '@renderer/components/DraggableList/virtual-list'
+import DraggableVirtualList from '@renderer/components/DraggableList/VirtualList'
 import AgentModalPopup from '@renderer/components/Popups/agent/AgentModal'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'

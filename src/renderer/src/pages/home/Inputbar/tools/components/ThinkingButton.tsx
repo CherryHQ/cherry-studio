@@ -9,7 +9,7 @@ import {
   MdiLightbulbOn80,
   MdiLightbulbOn90,
   MdiLightbulbQuestion
-} from '@renderer/components/Icons/SVGIcon'
+} from '@renderer/components/Icons/SvgIcon'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import {
   getThinkModelType,

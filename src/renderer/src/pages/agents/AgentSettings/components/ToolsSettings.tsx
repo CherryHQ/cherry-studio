@@ -2,7 +2,7 @@ import { Switch } from '@cherrystudio/ui'
 import { Tooltip } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { permissionModeCards } from '@renderer/config/agent'
-import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import { useMcpServers } from '@renderer/hooks/useMcpServers'
 import type { UpdateAgentBaseForm } from '@renderer/types'
 import { GLOBALLY_DISALLOWED_TOOLS, SOUL_MODE_DISALLOWED_TOOLS } from '@shared/agents/claudecode/constants'
 import type { CardProps } from 'antd'
@@ -63,7 +63,7 @@ const useBuiltinToolDescription = () => {
 export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }) => {
   const { t } = useTranslation()
   const getBuiltinToolDescription = useBuiltinToolDescription()
-  const { mcpServers: allServers } = useMCPServers()
+  const { mcpServers: allServers } = useMcpServers()
   const [searchTerm, setSearchTerm] = useState('')
   const [isUpdatingTools, setIsUpdatingTools] = useState(false)
   const [isUpdatingMcp, setIsUpdatingMcp] = useState(false)

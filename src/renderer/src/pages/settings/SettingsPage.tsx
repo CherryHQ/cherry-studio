@@ -156,15 +156,15 @@ const SettingsPage: FC = () => {
                 className={menuItemClassName}
                 icon={<PictureInPicture2 />}
                 label={t('settings.quickAssistant.title')}
-                active={isActive('/settings/quickAssistant')}
-                onClick={() => go('/settings/quickAssistant')}
+                active={isActive('/settings/quick-assistant')}
+                onClick={() => go('/settings/quick-assistant')}
               />
               <MenuItem
                 className={menuItemClassName}
                 icon={<TextCursorInput />}
                 label={t('selection.name')}
-                active={isActive('/settings/selectionAssistant')}
-                onClick={() => go('/settings/selectionAssistant')}
+                active={isActive('/settings/selection-assistant')}
+                onClick={() => go('/settings/selection-assistant')}
               />
               <MenuDivider className={sectionDividerClassName} />
               <div className={sectionTitleClassName}>{t('settings.menuGroups.system')}</div>

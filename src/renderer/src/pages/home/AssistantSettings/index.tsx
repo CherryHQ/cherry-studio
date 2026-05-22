@@ -9,7 +9,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AssistantKnowledgeBaseSettings from './AssistantKnowledgeBaseSettings'
-import AssistantMCPSettings from './AssistantMCPSettings'
+import AssistantMcpSettings from './AssistantMcpSettings'
 import AssistantModelSettings from './AssistantModelSettings'
 import AssistantPromptSettings from './AssistantPromptSettings'
 
@@ -132,7 +132,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
               updateAssistantSettings={updateAssistantSettings}
             />
           )}
-          {menu === 'mcp' && <AssistantMCPSettings assistant={assistant} updateAssistant={updateAssistant} />}
+          {menu === 'mcp' && <AssistantMcpSettings assistant={assistant} updateAssistant={updateAssistant} />}
         </div>
       </RowFlex>
     </Modal>

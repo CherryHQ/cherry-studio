@@ -7,7 +7,7 @@ import {
   getAwsBedrockRegion,
   getAwsBedrockSecretAccessKey
 } from '@renderer/hooks/useAwsBedrock'
-import { createVertexProvider, isVertexAIConfigured } from '@renderer/hooks/useVertexAI'
+import { createVertexProvider, isVertexAiConfigured } from '@renderer/hooks/useVertexAi'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { getProviderById } from '@renderer/services/ProviderService'
 import store from '@renderer/store'
@@ -232,7 +232,7 @@ function buildBedrockConfig(ctx: BuilderContext): ProviderConfig<'bedrock'> {
 function buildVertexConfig(
   ctx: BuilderContext
 ): ProviderConfig<'google-vertex'> | ProviderConfig<'google-vertex-anthropic'> {
-  if (!isVertexAIConfigured()) {
+  if (!isVertexAiConfigured()) {
     throw new Error('VertexAI is not configured. Please configure project, location and service account credentials.')
   }
 

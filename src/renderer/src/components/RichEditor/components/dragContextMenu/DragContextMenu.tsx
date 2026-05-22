@@ -212,7 +212,7 @@ const DragContextMenu: React.FC<DragContextMenuProps> = ({
       }}
       onKeyDown={handleKeyDown}
       tabIndex={-1}
-      data-testid="drag-context-menu">
+      data-testid="dragContextMenu">
       {GROUP_ORDER.map((group, index) => {
         const actions = finalActionsByGroup[group]
         const groupElement = renderMenuGroup(group, actions)

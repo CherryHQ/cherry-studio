@@ -1,17 +1,30 @@
 /**
- * Curated exports for general icons
- * Total icons: 12
+ * Auto-generated icon exports
+ * Do not edit manually
+ *
+ * Generated at: 2026-05-22T11:33:31.538Z
+ * Total icons: 22
  */
 
-export { AddCategory } from './addCategory'
-export { AiPrompt } from './aiPrompt'
-export { ClaudeCode } from './claudeCode'
-export { CodeAi } from './codeAi'
-export { GeminiCli } from './geminiCli'
-export { GithubCopilotCli } from './githubCopilotCli'
-export { IflowCli } from './iflowCli'
-export { KimiCli } from './kimiCli'
-export { MessageAi1 } from './messageAi1'
-export { OpenaiCodex } from './openaiCodex'
-export { OpenCode } from './openCode'
-export { QwenCode } from './qwenCode'
+export { AddCategory } from './add-category'
+export { AiChat } from './ai-chat'
+export { AiEssentialsIconSet } from './ai-essentials-icon-set'
+export { AiPrompt } from './ai-prompt'
+export { Aicon27 } from './aicon-27'
+export { Brain } from './brain'
+export { BrainCircuit } from './brain-circuit'
+export { BrainCog } from './brain-cog'
+export { ClaudeCode } from './claude-code'
+export { CodeAi } from './code-ai'
+export { Emoji } from './emoji'
+export { GeminiCli } from './gemini-cli'
+export { GithubCopilotCli } from './github-copilot-cli'
+export { Group } from './group'
+export { IflowCli } from './iflow-cli'
+export { KimiCli } from './kimi-cli'
+export { MessageAi1 } from './message-ai-1'
+export { MessageBalloonAi1 } from './message-balloon-ai-1'
+export { OpenCode } from './open-code'
+export { OpenaiCodex } from './openai-codex'
+export { QwenCode } from './qwen-code'
+export { Vector } from './vector'

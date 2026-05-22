@@ -103,12 +103,12 @@ export class ProtocolService extends BaseService {
           handleNavigateProtocolUrl(urlObj)
           return
         case 'oauth':
-          // CherryIN OAuth callback. CherryINOAuthService delivers the result
+          // CherryIN OAuth callback. CherryInOauthService delivers the result
           // point-to-point to the renderer that started the flow, so the `code`
           // never reaches unrelated windows. PPIO/Nutstore deep links use
           // different hosts and still go through the broadcast fallback below.
           application
-            .get('CherryINOAuthService')
+            .get('CherryInOauthService')
             .handleOAuthCallback(urlObj)
             .catch((error) => logger.error('Failed to handle CherryIN OAuth callback', error as Error))
           return
@@ -116,7 +116,7 @@ export class ProtocolService extends BaseService {
 
       // Default branch: deep link with no main-process handler. Fan out to every
       // managed renderer (Main / Settings / SubWindow / pooled tool surfaces);
-      // consumers (oauth.ts, useNutstoreSSO, ...) filter by urlObj.hostname/pathname.
+      // consumers (oauth.ts, useNutstoreSso, ...) filter by urlObj.hostname/pathname.
       // broadcast() — not broadcastToType(Main) — because the flow-initiating
       // window is not necessarily Main: the Settings window owns CherryIN OAuth
       // in v2. Trade-off: the payload reaches renderers that don't need it; if

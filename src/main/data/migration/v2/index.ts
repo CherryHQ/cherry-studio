@@ -21,7 +21,7 @@ export { BaseMigrator } from './migrators/BaseMigrator'
 
 // Utils
 export { DexieFileReader } from './utils/DexieFileReader'
-export { JSONStreamReader } from './utils/JSONStreamReader'
+export { JsonStreamReader } from './utils/JsonStreamReader'
 export { ReduxStateReader } from './utils/ReduxStateReader'
 
 // Window management

@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import store from '@renderer/store'
 import type { MCPCallToolResponse, MCPTool, MCPToolResponse } from '@renderer/types'
-import { callMCPTool, getMcpServerByTool, isToolAutoApproved } from '@renderer/utils/mcp-tools'
+import { callMCPTool, getMcpServerByTool, isToolAutoApproved } from '@renderer/utils/mcpTools'
 import {
   confirmSameNameTools,
   requestToolConfirmation,

@@ -1,6 +1,6 @@
 import { Button, Flex, Tooltip } from '@cherrystudio/ui'
 import { DeleteIcon } from '@renderer/components/Icons'
-import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
+import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SvgIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
 import { useProvider } from '@renderer/hooks/useProvider'
