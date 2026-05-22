@@ -9,8 +9,8 @@ const EssentialAi = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <EssentialAiDark {...props} className={className} />
   return (
     <>
-      <EssentialAiLight className={cn('dark:hidden', className)} {...props} />
-      <EssentialAiDark className={cn('hidden dark:block', className)} {...props} />
+      <EssentialAiLight className={cn(className, 'dark:hidden')} {...props} />
+      <EssentialAiDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

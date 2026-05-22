@@ -9,8 +9,8 @@ const Voyage = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <VoyageDark {...props} className={className} />
   return (
     <>
-      <VoyageLight className={cn('dark:hidden', className)} {...props} />
-      <VoyageDark className={cn('hidden dark:block', className)} {...props} />
+      <VoyageLight className={cn(className, 'dark:hidden')} {...props} />
+      <VoyageDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

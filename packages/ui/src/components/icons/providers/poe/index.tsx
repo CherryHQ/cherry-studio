@@ -9,8 +9,8 @@ const Poe = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <PoeDark {...props} className={className} />
   return (
     <>
-      <PoeLight className={cn('dark:hidden', className)} {...props} />
-      <PoeDark className={cn('hidden dark:block', className)} {...props} />
+      <PoeLight className={cn(className, 'dark:hidden')} {...props} />
+      <PoeDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

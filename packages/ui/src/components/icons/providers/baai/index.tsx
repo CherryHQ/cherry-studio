@@ -9,8 +9,8 @@ const Baai = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <BaaiDark {...props} className={className} />
   return (
     <>
-      <BaaiLight className={cn('dark:hidden', className)} {...props} />
-      <BaaiDark className={cn('hidden dark:block', className)} {...props} />
+      <BaaiLight className={cn(className, 'dark:hidden')} {...props} />
+      <BaaiDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

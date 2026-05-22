@@ -9,8 +9,8 @@ const Moonshot = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <MoonshotDark {...props} className={className} />
   return (
     <>
-      <MoonshotLight className={cn('dark:hidden', className)} {...props} />
-      <MoonshotDark className={cn('hidden dark:block', className)} {...props} />
+      <MoonshotLight className={cn(className, 'dark:hidden')} {...props} />
+      <MoonshotDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

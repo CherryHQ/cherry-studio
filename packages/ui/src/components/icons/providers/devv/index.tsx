@@ -9,8 +9,8 @@ const Devv = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <DevvDark {...props} className={className} />
   return (
     <>
-      <DevvLight className={cn('dark:hidden', className)} {...props} />
-      <DevvDark className={cn('hidden dark:block', className)} {...props} />
+      <DevvLight className={cn(className, 'dark:hidden')} {...props} />
+      <DevvDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

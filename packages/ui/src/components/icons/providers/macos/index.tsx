@@ -9,8 +9,8 @@ const Macos = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <MacosDark {...props} className={className} />
   return (
     <>
-      <MacosLight className={cn('dark:hidden', className)} {...props} />
-      <MacosDark className={cn('hidden dark:block', className)} {...props} />
+      <MacosLight className={cn(className, 'dark:hidden')} {...props} />
+      <MacosDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

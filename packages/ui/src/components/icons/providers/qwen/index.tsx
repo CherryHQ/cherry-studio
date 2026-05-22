@@ -9,8 +9,8 @@ const Qwen = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <QwenDark {...props} className={className} />
   return (
     <>
-      <QwenLight className={cn('dark:hidden', className)} {...props} />
-      <QwenDark className={cn('hidden dark:block', className)} {...props} />
+      <QwenLight className={cn(className, 'dark:hidden')} {...props} />
+      <QwenDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

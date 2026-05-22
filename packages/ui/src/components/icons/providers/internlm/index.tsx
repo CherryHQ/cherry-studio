@@ -9,8 +9,8 @@ const Internlm = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <InternlmDark {...props} className={className} />
   return (
     <>
-      <InternlmLight className={cn('dark:hidden', className)} {...props} />
-      <InternlmDark className={cn('hidden dark:block', className)} {...props} />
+      <InternlmLight className={cn(className, 'dark:hidden')} {...props} />
+      <InternlmDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

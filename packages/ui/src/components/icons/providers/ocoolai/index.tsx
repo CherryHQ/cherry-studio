@@ -9,8 +9,8 @@ const Ocoolai = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <OcoolaiDark {...props} className={className} />
   return (
     <>
-      <OcoolaiLight className={cn('dark:hidden', className)} {...props} />
-      <OcoolaiDark className={cn('hidden dark:block', className)} {...props} />
+      <OcoolaiLight className={cn(className, 'dark:hidden')} {...props} />
+      <OcoolaiDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

@@ -43,12 +43,15 @@ export function generateIconIndex(opts: {
   const darkImport = hasDark ? `import { ${darkName} } from './dark'\n` : ''
   const lightClassName = usesCurrentColor ? `cn('text-foreground', className)` : 'className'
   const darkClassName = usesCurrentColor ? `cn('text-foreground', className)` : 'className'
+  // Visibility classes (`dark:hidden` / `hidden dark:block`) must come AFTER
+  // `className` so a caller-supplied display utility (e.g. `block`) cannot
+  // clobber them via tailwind-merge — otherwise both light/dark icons render.
   const autoLightClassName = usesCurrentColor
-    ? `cn('text-foreground dark:hidden', className)`
-    : `cn('dark:hidden', className)`
+    ? `cn('text-foreground', className, 'dark:hidden')`
+    : `cn(className, 'dark:hidden')`
   const autoDarkClassName = usesCurrentColor
-    ? `cn('text-foreground hidden dark:block', className)`
-    : `cn('hidden dark:block', className)`
+    ? `cn('text-foreground', className, 'hidden dark:block')`
+    : `cn(className, 'hidden dark:block')`
   const autoRender = hasDark
     ? `return (
     <>

@@ -9,8 +9,8 @@ const MinimaxAgent = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <MinimaxAgentDark {...props} className={className} />
   return (
     <>
-      <MinimaxAgentLight className={cn('dark:hidden', className)} {...props} />
-      <MinimaxAgentDark className={cn('hidden dark:block', className)} {...props} />
+      <MinimaxAgentLight className={cn(className, 'dark:hidden')} {...props} />
+      <MinimaxAgentDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

@@ -9,8 +9,8 @@ const Cephalon = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <CephalonDark {...props} className={className} />
   return (
     <>
-      <CephalonLight className={cn('dark:hidden', className)} {...props} />
-      <CephalonDark className={cn('hidden dark:block', className)} {...props} />
+      <CephalonLight className={cn(className, 'dark:hidden')} {...props} />
+      <CephalonDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

@@ -9,8 +9,8 @@ const Github = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <GithubDark {...props} className={className} />
   return (
     <>
-      <GithubLight className={cn('dark:hidden', className)} {...props} />
-      <GithubDark className={cn('hidden dark:block', className)} {...props} />
+      <GithubLight className={cn(className, 'dark:hidden')} {...props} />
+      <GithubDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

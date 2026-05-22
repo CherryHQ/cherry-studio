@@ -9,8 +9,8 @@ const Mimo = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <MimoDark {...props} className={cn('text-foreground', className)} />
   return (
     <>
-      <MimoLight className={cn('text-foreground dark:hidden', className)} {...props} />
-      <MimoDark className={cn('text-foreground hidden dark:block', className)} {...props} />
+      <MimoLight className={cn('text-foreground', className, 'dark:hidden')} {...props} />
+      <MimoDark className={cn('text-foreground', className, 'hidden dark:block')} {...props} />
     </>
   )
 }

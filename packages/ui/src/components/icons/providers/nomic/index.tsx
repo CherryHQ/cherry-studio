@@ -9,8 +9,8 @@ const Nomic = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <NomicDark {...props} className={className} />
   return (
     <>
-      <NomicLight className={cn('dark:hidden', className)} {...props} />
-      <NomicDark className={cn('hidden dark:block', className)} {...props} />
+      <NomicLight className={cn(className, 'dark:hidden')} {...props} />
+      <NomicDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

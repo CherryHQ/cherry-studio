@@ -9,8 +9,8 @@ const GiteeAi = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <GiteeAiDark {...props} className={className} />
   return (
     <>
-      <GiteeAiLight className={cn('dark:hidden', className)} {...props} />
-      <GiteeAiDark className={cn('hidden dark:block', className)} {...props} />
+      <GiteeAiLight className={cn(className, 'dark:hidden')} {...props} />
+      <GiteeAiDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

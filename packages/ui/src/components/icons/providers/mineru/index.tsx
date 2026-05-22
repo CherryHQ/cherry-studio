@@ -9,8 +9,8 @@ const Mineru = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <MineruDark {...props} className={className} />
   return (
     <>
-      <MineruLight className={cn('dark:hidden', className)} {...props} />
-      <MineruDark className={cn('hidden dark:block', className)} {...props} />
+      <MineruLight className={cn(className, 'dark:hidden')} {...props} />
+      <MineruDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

@@ -9,8 +9,8 @@ const Hyperbolic = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <HyperbolicDark {...props} className={className} />
   return (
     <>
-      <HyperbolicLight className={cn('dark:hidden', className)} {...props} />
-      <HyperbolicDark className={cn('hidden dark:block', className)} {...props} />
+      <HyperbolicLight className={cn(className, 'dark:hidden')} {...props} />
+      <HyperbolicDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

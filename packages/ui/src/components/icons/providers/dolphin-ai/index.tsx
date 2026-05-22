@@ -9,8 +9,8 @@ const DolphinAi = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <DolphinAiDark {...props} className={className} />
   return (
     <>
-      <DolphinAiLight className={cn('dark:hidden', className)} {...props} />
-      <DolphinAiDark className={cn('hidden dark:block', className)} {...props} />
+      <DolphinAiLight className={cn(className, 'dark:hidden')} {...props} />
+      <DolphinAiDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }
