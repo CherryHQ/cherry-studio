@@ -1,6 +1,9 @@
 import { execFileSync } from 'node:child_process'
 import { normalize, resolve } from 'node:path'
 
+// Windows path comparison requires case-insensitive matching
+const isWindows: boolean = process.platform === 'win32'
+
 /**
  * Prepare script for git hook installation.
  *
@@ -29,7 +32,9 @@ function isLinkedWorktree(): boolean {
   const gitDir = git('rev-parse', '--absolute-git-dir')
   const commonDir = git('rev-parse', '--git-common-dir')
   if (!gitDir || !commonDir) return false
-  return normalize(resolve(gitDir)) !== normalize(resolve(commonDir))
+  const a = normalize(resolve(gitDir))
+  const b = normalize(resolve(commonDir))
+  return isWindows ? a.toLowerCase() !== b.toLowerCase() : a !== b
 }
 
 // Set blame.ignoreRevsFile (best-effort, non-fatal)
@@ -56,7 +61,8 @@ function getDefaultHooksDir(): string | null {
 function isClaudeCodeHooksPath(hooksPath: string): boolean {
   const defaultDir = getDefaultHooksDir()
   if (!defaultDir) return false
-  return normalize(resolve(hooksPath)) === defaultDir
+  const resolved = normalize(resolve(hooksPath))
+  return isWindows ? resolved.toLowerCase() === defaultDir.toLowerCase() : resolved === defaultDir
 }
 
 // Unset local core.hooksPath
@@ -76,7 +82,7 @@ function runPrekInstall(): boolean {
         stdio: 'inherit'
       })
     } else {
-      execFileSync('pnpm', args, { stdio: 'inherit' })
+      execFileSync('pnpm', args, { stdio: 'inherit', shell: isWindows })
     }
     return true
   } catch {
