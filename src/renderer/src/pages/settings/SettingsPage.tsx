@@ -56,6 +56,8 @@ const SettingsPage: FC = () => {
             'flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col',
             isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
           )}>
+          {/* Empty header slot — keeps the menu list aligned with the right column's PageHeader baseline. See DESIGN.md › Settings Panel Layout. */}
+          <div aria-hidden className="mt-3.5 mb-2 h-8 shrink-0" />
           <Scrollbar className="min-h-0 flex-1 select-none">
             <MenuList className={settingsSubmenuListClassName}>
               <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.integrations')}</div>
