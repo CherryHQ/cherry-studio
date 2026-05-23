@@ -27,6 +27,17 @@ What makes Cherry Studio distinctive is its commitment to a calm UI foundation. 
 
 > Token values are defined in `packages/ui/src/styles/tokens/colors/{primitive,semantic,status}.css`. This section names what each token is for; refer to the source files for resolved values.
 
+### Palette Philosophy — Neutrals via Alpha, Colors via Steps
+
+The color system follows one consistent rule:
+
+- **Neutral tokens** (text, borders, secondary fills, hover backgrounds, ghost states) are composed as **black/white + an alpha channel**. Light mode layers `oklch(0 0 0 / x)` on top of the surface; dark mode layers `oklch(1 0 0 / x)` instead. This makes neutrals automatically harmonise with whatever surface they sit on (cards, glass, sidebars) and means light/dark inversion only flips the base ink, not every step of a gray scale.
+- **Chromatic tokens** (`--color-primary`, `--color-destructive`, status colors, brand/lime, primitive scales) use **solid `oklch` color steps** — never alpha — because their identity must stay constant on any background.
+
+When you reach for a value:
+1. If the role is "tint of the surface" (text, divider, soft fill, hover), use the existing semantic neutral token (`--color-foreground*`, `--color-border*`, `--color-secondary`, `--color-accent`, `--color-ghost-*`). Do not invent `oklch(0 0 0 / 0.x)` literals — the token already encodes the intent.
+2. If the role is "this exact color regardless of surface" (brand, error, success), use the corresponding solid token from the `--color-{primary,destructive,success,warning,info,*-base,*-text,*-bg}` set or a primitive scale.
+
 ### Primary
 - **Primary**: `var(--color-primary)` — exported primary accent for true page actions, selected states, links, and component accents. Shared Button `default` / `emphasis` currently define their own neutral strong fills.
 - **Primary Foreground**: `var(--color-primary-foreground)` — contrast text on `bg-primary` surfaces
@@ -52,8 +63,7 @@ What makes Cherry Studio distinctive is its commitment to a calm UI foundation. 
 ### Sidebar (Distinct Spatial Zone)
 - **Sidebar**: `var(--color-sidebar)` — sidebar surface
 - **Sidebar Foreground**: `var(--color-sidebar-foreground)` — text on sidebar
-- **Sidebar Primary / Sidebar Primary Foreground**: `var(--color-sidebar-primary)` / `var(--color-sidebar-primary-foreground)` — active sidebar item
-- **Sidebar Accent / Sidebar Accent Foreground**: `var(--color-sidebar-accent)` / `var(--color-sidebar-accent-foreground)` — hover state in sidebar
+- **Sidebar Accent / Sidebar Accent Foreground**: `var(--color-sidebar-accent)` / `var(--color-sidebar-accent-foreground)` — hover/active state in sidebar (same neutral tint as `--color-secondary`; either token works, but stay consistent within a page)
 - **Sidebar Border**: `var(--color-sidebar-border)` — sidebar dividers
 - **Sidebar Ring**: `var(--color-sidebar-ring)` — focus ring inside sidebar
 
@@ -489,8 +499,8 @@ The page owns the outer wrapper (width / Scrollbar / padding). Reusable sidebar 
 - Background: `var(--color-sidebar)`
 - Text: `var(--color-sidebar-foreground)` for body; `var(--color-foreground-muted)` for SectionTitle
 - Border-right (when divider needed): `0.5px solid var(--color-border)`
-- Active item: `var(--color-secondary)` background, `var(--color-foreground)` text — **icon color stays `var(--color-foreground)` on active (no color change)**
-- Hover item: `var(--color-secondary)` background
+- Active item: `var(--color-sidebar-accent)` background, `var(--color-sidebar-accent-foreground)` text — **icon color stays `var(--color-sidebar-accent-foreground)` on active (no color change)**
+- Hover item: `var(--color-sidebar-accent)` background
 - Focus ring: `var(--color-sidebar-ring)`
 
 **Type:**
@@ -527,14 +537,14 @@ Source: `PageHeader` from `@cherrystudio/ui`. The single component for any page 
 - `action` (optional) — right-aligned slot for icon-buttons (filter, add, etc.).
 
 **Type:**
-- Title: `var(--font-size-body-sm)` (14px) · `var(--font-weight-semibold)` · `leading-[1.3]` · `text-foreground`
+- Title: `var(--font-size-body-sm)` (14px) · `var(--font-weight-semibold)` · `leading-4` · `text-foreground`
 
 **Spacing & sizing (baked in — must not be overridden per-page):**
 
 | Relationship | Value | Token |
 |---|---|---|
 | Bar height | 32px | `h-8` |
-| Margin top (gap above) | 14px | `mt-3.5` |
+| Margin top (gap above) | 12px | `mt-3` |
 | Margin bottom (gap below) | 8px | `mb-2` |
 | Left padding (title aligns with menu item icon column) | 20px | `pl-5` |
 | Right padding (action sits 12px from the column edge) | 12px | `pr-3` |
@@ -544,7 +554,7 @@ Source: `PageHeader` from `@cherrystudio/ui`. The single component for any page 
 - Action buttons should be 24×24 (`size-6`); they sit centered inside the 32px bar.
 - Title text comes from i18next; do not hard-code strings.
 - The asymmetric padding is intentional: `pl-5` (20px) aligns the title's left edge with the icon column of menu items below — wrapper `px-2.5` (10px) + item `px-2.5` (10px) = 20px. Do not change to symmetric padding.
-- Two adjacent `PageHeader` instances (left nav + right panel) are guaranteed to be vertically aligned because spacing tokens are identical.
+- Two adjacent `PageHeader` instances (left nav + right panel) are guaranteed to be vertically aligned because spacing tokens are identical; the title line box starts 20px from the column top.
 
 ### Switch
 
@@ -600,7 +610,7 @@ Settings pages (both the in-app `/settings` route and the standalone settings wi
 Submenu composition rules:
 
 - Use `PageHeader` from `@cherrystudio/ui` at the top — do not hand-roll a header.
-- **Section-title-as-page-title exception**: when the page-level label is itself a *group name* that should match the in-list group labels (e.g. the root `/settings` route, whose page label "Models" sits next to in-list labels "Plugins / App Settings / Productivity / System"), keep using `PageHeader` but pass `titleClassName="font-normal text-foreground-muted text-xs"` so the heading swaps to section-title typography. The PageHeader's `mt-3.5 + h-8 + mb-2` outer geometry is preserved, so the label baseline still aligns perfectly with the right column's PageHeader heading. See `PageHeader.stories.tsx` › `SectionTitleStyle`.
+- **Section-title-as-page-title exception**: when the page-level label is itself a *group name* that should match the in-list group labels (e.g. the root `/settings` route, whose page label "Models" sits next to in-list labels "Plugins / App Settings / Productivity / System"), keep using `PageHeader` but pass `titleClassName="font-normal text-foreground-muted text-xs leading-4"` so the heading swaps to section-title typography while preserving the same 16px line box. The PageHeader's `mt-3 + h-8 + mb-2` outer geometry is preserved, so the label baseline still aligns perfectly with the right column's PageHeader heading. See `PageHeader.stories.tsx` › `SectionTitleStyle`.
 - Wrap menu rows in `MenuList` with `gap-1`; group with `MenuDivider` + a section title `<div>` carrying `settingsSubmenuSectionTitleClassName`.
 - Each row is a `MenuItem` styled by the canonical settings token pair: `settingsSubmenuItemClassName` on `className` (height / hover / active surface) and `settingsSubmenuItemLabelClassName` on `labelClassName` (`group-data-[active=true]:font-medium` for the bold-on-active label). Both tokens live in `src/renderer/src/pages/settings/index.tsx`.
 - Provider-style nested lists (`ProviderList`) follow the same shape: `PageHeader` + search field with trailing action + scroll body. They use their own scoped tokens in `ProviderSettings/primitives/classNames.ts` but keep the 200px column convention.

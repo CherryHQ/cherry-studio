@@ -56,16 +56,10 @@ const SettingsPage: FC = () => {
             'flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col',
             isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
           )}>
-          {/* Page-level label is itself a group name ("Models") and should match the in-list
-              group labels (Plugins / App Settings / …). Use PageHeader with `titleClassName`
-              so the heading typography becomes section-title style while the outer geometry
-              still aligns perfectly with the right column's PageHeader. See DESIGN.md. */}
-          <PageHeader
-            title={t('settings.menuGroups.integrations')}
-            titleClassName="font-normal text-foreground-muted text-xs"
-          />
+          <PageHeader title={t('settings.menuGroups.appSettings')} />
           <Scrollbar className="min-h-0 flex-1 select-none">
             <MenuList className={settingsSubmenuListClassName}>
+              <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.integrations')}</div>
               <MenuItem
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
