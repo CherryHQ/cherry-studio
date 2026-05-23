@@ -1,5 +1,3 @@
-import { loggerService } from '@logger'
-
 /**
  * T-006D-2B S6' (precise range) — source-passage highlight.
  *
@@ -27,8 +25,6 @@ import { loggerService } from '@logger'
  * DOM and leaves the injected spans alone. The wrap is idempotent (always
  * `clear` first, then `wrap`) so re-firing the effect can't double-wrap.
  */
-
-const logger = loggerService.withContext('branchSourceHighlight')
 
 const WRAP_CLASS = 'branch-anchor-highlight'
 const STYLE_ELEMENT_ID = 'branch-anchor-highlight-style'
@@ -257,12 +253,5 @@ export function paintSourceHighlight(blockEl: Element, start: number, end: numbe
   if (!range) return
 
   ensureHighlightStyle()
-  const spans = wrapRangeWithSpans(blockEl, range)
-
-  // [S6 trace] confirm the wrap landed in the DOM. One log line; remove
-  // once visual verification confirms the amber appears + clears cleanly.
-  logger.debug('[S6 trace] span wrap injected', {
-    spanCount: spans.length,
-    firstSpanText: spans[0]?.textContent?.slice(0, 60) ?? null
-  })
+  wrapRangeWithSpans(blockEl, range)
 }

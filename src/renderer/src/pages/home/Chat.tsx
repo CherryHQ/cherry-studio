@@ -24,7 +24,7 @@ import { Flex } from 'antd'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -93,37 +93,14 @@ const Chat: FC<Props> = (props) => {
   // T-006D-2B S6': source-passage highlight. branchAnchor stays alive for the
   // whole branch lifetime (onCreated does not clear it), so the exact
   // selected passage is highlighted from branch-open through branch-close.
-  const branchAnchorHighlight = useMemo<BranchAnchorHighlight>(() => {
-    const value: BranchAnchorHighlight = {
+  const branchAnchorHighlight = useMemo<BranchAnchorHighlight>(
+    () => ({
       highlightedBlockId: branchAnchor?.blockId ?? null,
       selectionStart: branchAnchor?.selectionStart ?? 0,
       selectionEnd: branchAnchor?.selectionEnd ?? 0
-    }
-    // [S6 trace] Stage 0 — the single place that sets highlightedBlockId on
-    // BranchAnchorContext. Shows the branchAnchor it is derived from + the
-    // value written. Pairs with MainTextBlock's "[S6 trace] effect fired"
-    // (the reader): setter writes non-null but reader sees null → Provider
-    // scope; setter itself writes null → branchAnchor data problem.
-    logger.debug('[S6 trace] branchAnchorHighlight set', {
-      branchAnchorIsNull: branchAnchor === null,
-      branchAnchorKeys: branchAnchor ? Object.keys(branchAnchor) : null,
-      anchorBlockId: branchAnchor?.blockId ?? '(missing)',
-      writtenHighlightedBlockId: value.highlightedBlockId,
-      writtenSelectionStart: value.selectionStart,
-      writtenSelectionEnd: value.selectionEnd
-    })
-    return value
-  }, [branchAnchor])
-
-  useEffect(() => {
-    if (branchAnchor || branchTopic) {
-      logger.debug('T-006D-2B branch panel state', {
-        anchorMessageId: branchAnchor?.messageId,
-        branchTopicId: branchTopic?.id,
-        forkStatus: branchFork.status
-      })
-    }
-  }, [branchAnchor, branchTopic, branchFork.status])
+    }),
+    [branchAnchor]
+  )
 
   const { setTimeoutTimer } = useTimer()
 

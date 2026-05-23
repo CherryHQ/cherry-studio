@@ -8,7 +8,8 @@ import { createContext, use } from 'react'
  * A whole assistant reply is a single MAIN_TEXT block, so block-level tinting
  * would wash the entire reply. Instead this carries the source `blockId` plus
  * the selection's char offsets within that block; `MainTextBlock` paints the
- * precise range via the CSS Custom Highlight API (see `sourceHighlight.ts`).
+ * precise range by wrapping the resolved Range's text nodes in
+ * `<span class="branch-anchor-highlight">` (see `sourceHighlight.ts`).
  */
 export interface BranchAnchorHighlight {
   /** blockId of the source block the open branch panel is anchored to, or null. */
@@ -20,26 +21,24 @@ export interface BranchAnchorHighlight {
 }
 
 /**
- * D-013 ROOT-CAUSE FIX — survive HMR / module re-execution.
+ * HMR-safe context singleton — DO NOT remove the globalThis cache.
  *
- * This module exports a `createContext` result + a hook + a default object
- * (NO React component), so `@vitejs/plugin-react`'s Fast Refresh classifies
- * it as a non-FR-eligible module. When the file is edited mid-session, Vite
- * propagates HMR up to its importers, which re-fetch & re-execute this
- * module. Each re-execution calls `createContext(...)` again → a BRAND NEW
- * context object. Any React subtree still mounted under the previous
- * provider object would then read the new context's default (because the
- * new `use(BranchAnchorContext)` consults the new object, which has no
- * provider in the live fiber tree). Symptom: every `MainTextBlock` reads
- * `BRANCH_ANCHOR_DEFAULT` even though `<BranchAnchorContext value>` is
- * statically wrapping its subtree.
+ * This module exports a `createContext` result + a hook (NO React component),
+ * so `@vitejs/plugin-react`'s Fast Refresh classifies it as a non-FR-eligible
+ * module. When the file is edited mid-session, Vite propagates HMR up to its
+ * importers and re-executes this module. Each re-execution would otherwise
+ * call `createContext(...)` again, producing a BRAND NEW context object —
+ * `<BranchAnchorContext value>` in Chat.tsx and `use(BranchAnchorContext)` in
+ * MainTextBlock would then resolve to *different* objects, so consumers read
+ * the new context's default while the provider's value silently lands in
+ * orphan storage. Symptom: every `MainTextBlock` reads the default null even
+ * though the Provider statically wraps its subtree.
  *
- * Fix: stash the singleton on `globalThis` so all module re-executions
- * return the SAME context object and default. This is the React-community
+ * Stashing the context on `globalThis` guarantees that module re-executions
+ * reuse the same object across HMR cycles. This is the React-community
  * pattern for HMR-safe contexts that don't co-locate with a component.
  */
 type BranchAnchorCtxCache = {
-  default: BranchAnchorHighlight
   context: React.Context<BranchAnchorHighlight>
 }
 
@@ -48,23 +47,16 @@ declare global {
 }
 
 function createBranchAnchorCtxCache(): BranchAnchorCtxCache {
-  const def: BranchAnchorHighlight = {
-    highlightedBlockId: null,
-    selectionStart: 0,
-    selectionEnd: 0
+  return {
+    context: createContext<BranchAnchorHighlight>({
+      highlightedBlockId: null,
+      selectionStart: 0,
+      selectionEnd: 0
+    })
   }
-  return { default: def, context: createContext<BranchAnchorHighlight>(def) }
 }
 
 const cache: BranchAnchorCtxCache = (globalThis.__BRANCH_ANCHOR_CTX_CACHE__ ??= createBranchAnchorCtxCache())
-
-/**
- * The context default value — and the EXACT object `use(BranchAnchorContext)`
- * returns by reference when no Provider sits above the reader. Pulled from
- * the globalThis cache so the `received === BRANCH_ANCHOR_DEFAULT`
- * discriminator stays stable across HMR cycles.
- */
-export const BRANCH_ANCHOR_DEFAULT: BranchAnchorHighlight = cache.default
 
 export const BranchAnchorContext: React.Context<BranchAnchorHighlight> = cache.context
 

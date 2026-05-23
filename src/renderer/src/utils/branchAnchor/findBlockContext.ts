@@ -11,12 +11,6 @@
  * branch-related menu items in those cases.
  */
 
-import { loggerService } from '@logger'
-
-// T-006D-2B S6' D-013: temporary trace instrumentation. Remove once the
-// source-passage highlight is confirmed working in `pnpm dev`.
-const logger = loggerService.withContext('findBlockContext')
-
 export interface BlockContext {
   messageId: string
   blockId: string
@@ -61,28 +55,6 @@ export function findBlockContext(range: Range | null | undefined): BlockContext 
   const startBlock = findAncestorWithAttr(range.startContainer, BLOCK_ID_ATTR)
   const endBlock = findAncestorWithAttr(range.endContainer, BLOCK_ID_ATTR)
 
-  // [S6 trace] D-013 — diagnostic: what the DOM walk actually resolved.
-  // Read-only; does not change the control flow below. Shows the attribute
-  // NAME the code queries (`queriedBlockAttr`) so it can be compared against
-  // what MainTextBlock actually renders, plus the resolved element + the raw
-  // attribute value — to catch a missing attr, a name mismatch, or a <div>
-  // reparented out of a <p> by the browser.
-  const anchorNode = range.startContainer
-  const selectionAnchorTag =
-    anchorNode.nodeType === Node.ELEMENT_NODE
-      ? (anchorNode as Element).tagName
-      : `#text(parent:${anchorNode.parentElement?.tagName ?? 'null'})`
-  const traceMessageEl = startBlock?.closest(`[${MESSAGE_ID_ATTR}]`) ?? null
-  logger.debug('[S6 trace] findBlockContext', {
-    queriedBlockAttr: BLOCK_ID_ATTR,
-    queriedMessageAttr: MESSAGE_ID_ATTR,
-    selectionAnchorTag,
-    foundBlockEl: startBlock ? startBlock.tagName : null,
-    foundEndBlockEl: endBlock ? endBlock.tagName : null,
-    dataBlockIdRaw: startBlock?.getAttribute(BLOCK_ID_ATTR) ?? null,
-    dataMessageIdRaw: traceMessageEl?.getAttribute(MESSAGE_ID_ATTR) ?? null
-  })
-
   if (!startBlock || !endBlock) return null
 
   const blockId = startBlock.getAttribute(BLOCK_ID_ATTR)
@@ -93,13 +65,6 @@ export function findBlockContext(range: Range | null | undefined): BlockContext 
   if (!messageId) return null
 
   const role = parseRole(startBlock.getAttribute(MESSAGE_ROLE_ATTR))
-
-  // [S6 trace] D-013 — diagnostic: the value actually returned to buildAnchor.
-  logger.debug('[S6 trace] findBlockContext returning', {
-    returnedBlockId: blockId,
-    returnedMessageId: messageId,
-    role
-  })
 
   return { messageId, blockId, role }
 }
