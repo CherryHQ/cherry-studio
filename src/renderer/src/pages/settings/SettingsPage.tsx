@@ -56,15 +56,13 @@ const SettingsPage: FC = () => {
             'flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col',
             isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
           )}>
-          {/* Header slot — keeps the outer geometry (mt-3.5 mb-2 h-8) aligned with the right
-              column's PageHeader, renders the page-level group label in section-title style,
-              and uses items-end + leading-none so the gap below "Models" matches the gap below
-              the in-list group labels (插件 / 应用设置 / …): mb-2 (8px) on both. See DESIGN.md. */}
-          <div className="mt-3.5 mb-2 flex h-8 shrink-0 items-end pl-5">
-            <span className="text-foreground-muted text-xs leading-none">{t('settings.menuGroups.integrations')}</span>
-          </div>
+          {/* No PageHeader on this column — its title role is played by the first MenuList
+              section title ("Models"). MenuList `pt-6` pushes that first label down so its
+              baseline lines up with the right column's PageHeader heading (~35px from top).
+              See DESIGN.md › Settings Panel Layout. */}
           <Scrollbar className="min-h-0 flex-1 select-none">
-            <MenuList className={settingsSubmenuListClassName}>
+            <MenuList className={cn(settingsSubmenuListClassName, 'pt-6')}>
+              <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.integrations')}</div>
               <MenuItem
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
