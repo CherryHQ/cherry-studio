@@ -8,7 +8,6 @@ import { visualizer } from 'rollup-plugin-visualizer'
 // assert not supported by biome
 // import pkg from './package.json' assert { type: 'json' }
 import pkg from './package.json'
-import { buildProxyBootstrapPlugin } from './scripts/buildProxyBootstrapPlugin'
 
 const visualizerPlugin = (type: 'renderer' | 'main') => {
   return process.env[`VISUALIZER_${type.toUpperCase()}`] ? [visualizer({ open: true })] : []
@@ -23,14 +22,7 @@ const mainExternalDependencies = Object.keys(pkg.dependencies).filter(
 
 export default defineConfig({
   main: {
-    plugins: [
-      ...visualizerPlugin('main'),
-      buildProxyBootstrapPlugin({
-        dependencies: Object.keys(pkg.dependencies),
-        isProd,
-        rootDir: __dirname
-      })
-    ],
+    plugins: [...visualizerPlugin('main')],
     resolve: {
       alias: {
         '@main': resolve('src/main'),
