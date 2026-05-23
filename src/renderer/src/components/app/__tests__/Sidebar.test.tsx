@@ -2,13 +2,11 @@
 import '@testing-library/jest-dom/vitest'
 
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   openTab: vi.fn(),
   setSidebarWidth: vi.fn(),
-  showSearchPopup: vi.fn(),
   updateTab: vi.fn(),
   visibleSidebarIcons: ['assistants']
 }))
@@ -74,12 +72,6 @@ vi.mock('../../../hooks/useTabs', () => ({
   })
 }))
 
-vi.mock('../../Popups/SearchPopup', () => ({
-  default: {
-    show: mocks.showSearchPopup
-  }
-}))
-
 vi.mock('../../Popups/UserPopup', () => ({
   default: {
     show: vi.fn()
@@ -96,17 +88,13 @@ vi.mock('../../Sidebar', () => ({
     isFloatingClosing,
     onDismiss,
     onHoverChange,
-    items,
-    onSearchClick,
-    searchLabel
+    items
   }: {
     isFloating?: boolean
     isFloatingClosing?: boolean
     items?: Array<{ id: string; label: string }>
     onDismiss?: () => void
     onHoverChange?: (hovering: boolean) => void
-    onSearchClick?: () => void
-    searchLabel?: string
   }) =>
     isFloating ? (
       <div
@@ -120,9 +108,6 @@ vi.mock('../../Sidebar', () => ({
       <>
         <button type="button" onClick={() => onHoverChange?.(true)}>
           reveal
-        </button>
-        <button type="button" onClick={onSearchClick}>
-          {searchLabel}
         </button>
         <div data-testid="sidebar-items">
           {items?.map((item) => (
@@ -171,16 +156,6 @@ describe('app Sidebar', () => {
       vi.advanceTimersByTime(1)
     })
     expect(screen.queryByTestId('floating-sidebar')).not.toBeInTheDocument()
-  })
-
-  it('opens global search from the sidebar search entry', async () => {
-    const user = userEvent.setup()
-
-    render(<Sidebar />)
-
-    await user.click(screen.getByRole('button', { name: 'Search' }))
-
-    expect(mocks.showSearchPopup).toHaveBeenCalledWith()
   })
 
   it('renders sidebar menu items in visible preference order', () => {

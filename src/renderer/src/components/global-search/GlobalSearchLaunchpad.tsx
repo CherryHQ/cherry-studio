@@ -1,20 +1,9 @@
-import { Button } from '@cherrystudio/ui'
 import { OpenClawIcon } from '@renderer/components/Icons/SVGIcon'
 import App from '@renderer/components/MiniApp/MiniApp'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTabs } from '@renderer/hooks/useTabs'
-import {
-  BookMarked,
-  Code,
-  FileSearch,
-  Folder,
-  Languages,
-  LayoutGrid,
-  NotepadText,
-  Palette,
-  Settings
-} from 'lucide-react'
+import { BookMarked, Code, FileSearch, Folder, Languages, LayoutGrid, NotepadText, Palette } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,13 +12,11 @@ import styled from 'styled-components'
 type GlobalSearchLaunchpadProps = {
   defaultPaintingProvider?: string
   onClose?: () => void
-  onManageQuickApps?: () => void
 }
 
 export const GlobalSearchLaunchpad: FC<GlobalSearchLaunchpadProps> = ({
   defaultPaintingProvider: defaultPaintingProviderProp,
-  onClose,
-  onManageQuickApps
+  onClose
 }) => {
   const { t } = useTranslation()
   const { defaultPaintingProvider } = useSettings()
@@ -117,20 +104,7 @@ export const GlobalSearchLaunchpad: FC<GlobalSearchLaunchpadProps> = ({
     <Container>
       <Content>
         <Section>
-          <SectionHeader>
-            <SectionTitle>{t('launchpad.apps')}</SectionTitle>
-            {onManageQuickApps && (
-              <Button
-                type="button"
-                variant="ghost"
-                aria-label={t('globalSearch.quickApps.manage')}
-                onClick={onManageQuickApps}
-                className="h-7 gap-1.5 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground">
-                <Settings className="size-3.5" />
-                <span>{t('globalSearch.quickApps.manage')}</span>
-              </Button>
-            )}
-          </SectionHeader>
+          <SectionTitle>{t('launchpad.apps')}</SectionTitle>
           <Grid>
             {appMenuItems.map((item) => (
               <AppIcon key={item.path} onClick={() => openLaunchpadItem(item.path, item.text)}>
@@ -182,14 +156,6 @@ const Section = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
-`
-
-const SectionHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0;
 `
 
 const SectionTitle = styled.h2`

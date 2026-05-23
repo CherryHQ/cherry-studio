@@ -518,13 +518,13 @@ describe('GlobalSearchPanel', () => {
     expect(screen.getByRole('button', { name: 'Search type: Topic' })).toBeInTheDocument()
   })
 
-  it('keeps the launchpad manage button in the default panel', async () => {
+  it('keeps sidebar quick app management out of the default panel', async () => {
     const user = userEvent.setup()
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
     expect(screen.queryByRole('button', { name: 'Chat' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Manage' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Manage' })).not.toBeInTheDocument()
     expect(screen.queryByRole('radio', { name: 'Messages' })).not.toBeInTheDocument()
 
     await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'query')
@@ -537,145 +537,6 @@ describe('GlobalSearchPanel', () => {
     expect(screen.getByRole('button', { name: 'Search type: Topic' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Search type: Work' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Updated time' })).toBeInTheDocument()
-  })
-
-  it('switches the launchpad body to quick app management', async () => {
-    const user = userEvent.setup()
-
-    render(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    const manageButton = screen.getByRole('button', { name: 'Manage' })
-    await user.click(manageButton)
-
-    expect(screen.getByText('Manage quick apps')).toBeInTheDocument()
-    expect(screen.getByText('Drag to reorder, click the eye to hide or show')).toBeInTheDocument()
-    expect(screen.getByTestId('quick-app-manager-list')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Search type: Topic' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Back' }))
-
-    expect(screen.queryByText('Manage quick apps')).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Apps' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Manage' })).toBeInTheDocument()
-  })
-
-  it('updates sidebar icon preferences when hiding a quick app', async () => {
-    const user = userEvent.setup()
-
-    render(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    await user.click(screen.getByRole('button', { name: 'Manage' }))
-    await user.click(screen.getByRole('button', { name: 'Hide Agent' }))
-
-    expect(mocks.setPreferences).toHaveBeenCalledWith({
-      visible: expect.not.arrayContaining(['agents']),
-      invisible: expect.arrayContaining(['agents'])
-    })
-  })
-
-  it('does not hide the required assistant quick app', async () => {
-    const user = userEvent.setup()
-
-    render(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    await user.click(screen.getByRole('button', { name: 'Manage' }))
-    await user.click(screen.getByRole('button', { name: 'Hide Chat' }))
-
-    expect(mocks.setPreferences).not.toHaveBeenCalled()
-  })
-
-  it('keeps the manager list order when toggling visibility in the open panel', async () => {
-    const user = userEvent.setup()
-    const { rerender } = render(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    await user.click(screen.getByRole('button', { name: 'Manage' }))
-    const getManagerLabels = () =>
-      within(screen.getByTestId('quick-app-manager-list'))
-        .getAllByText(/Chat|Agent|Translate|Knowledge/)
-        .map((element) => element.textContent)
-
-    expect(getManagerLabels()).toEqual(['Chat', 'Agent', 'Translate', 'Knowledge'])
-
-    await user.click(screen.getByRole('button', { name: 'Hide Agent' }))
-    mocks.preferenceValues = {
-      'ui.sidebar.icons.visible': ['assistants', 'translate'],
-      'ui.sidebar.icons.invisible': ['agents', 'knowledge']
-    }
-    rerender(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    expect(getManagerLabels()).toEqual(['Chat', 'Translate', 'Agent', 'Knowledge'])
-  })
-
-  it('uses the persisted preference order in the manager', async () => {
-    const user = userEvent.setup()
-    mocks.preferenceValues = {
-      'ui.sidebar.icons.visible': ['translate', 'assistants'],
-      'ui.sidebar.icons.invisible': ['knowledge', 'agents']
-    }
-
-    render(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    await user.click(screen.getByRole('button', { name: 'Manage' }))
-    const labels = within(screen.getByTestId('quick-app-manager-list'))
-      .getAllByText(/Chat|Agent|Translate|Knowledge/)
-      .map((element) => element.textContent)
-
-    expect(labels).toEqual(['Translate', 'Chat', 'Knowledge', 'Agent'])
-  })
-
-  it('saves dragged quick app order back to preference arrays', async () => {
-    const user = userEvent.setup()
-
-    render(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    await user.click(screen.getByRole('button', { name: 'Manage' }))
-    mocks.sortableOnSortEnd?.({ oldIndex: 2, newIndex: 0 })
-
-    expect(mocks.setPreferences).toHaveBeenCalledWith({
-      visible: ['translate', 'assistants', 'agents'],
-      invisible: expect.arrayContaining(['knowledge'])
-    })
-  })
-
-  it('resets quick app management to default visible sidebar icons', async () => {
-    const user = userEvent.setup()
-
-    render(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    await user.click(screen.getByRole('button', { name: 'Manage' }))
-    await user.click(screen.getByRole('button', { name: 'Reset' }))
-
-    expect(mocks.setPreferences).toHaveBeenCalledWith({
-      visible: [
-        'assistants',
-        'agents',
-        'store',
-        'paintings',
-        'translate',
-        'mini_app',
-        'knowledge',
-        'files',
-        'code_tools',
-        'notes'
-      ],
-      invisible: []
-    })
-  })
-
-  it('does not open hidden search results with Enter while quick app management is active', async () => {
-    const user = userEvent.setup()
-
-    render(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    await user.click(screen.getByRole('button', { name: 'Manage' }))
-    await user.click(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'))
-    await user.keyboard('{Enter}')
-
-    expect(mocks.cacheSet).not.toHaveBeenCalled()
-    expect(mocks.openTab).not.toHaveBeenCalled()
-    expect(mocks.updateTab).not.toHaveBeenCalled()
-    expect(mocks.onClose).not.toHaveBeenCalled()
   })
 
   it('updates query types when the topic filter is selected', async () => {

@@ -13,15 +13,8 @@ import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { usePersistCache } from '@data/hooks/useCache'
 import { useInvalidateCache } from '@data/hooks/useDataApi'
-import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
+import { usePreference } from '@data/hooks/usePreference'
 import { GroupedVirtualList } from '@renderer/components/VirtualList'
-import {
-  getDefaultSidebarIconPreferences,
-  getRequiredSidebarIconsVisible,
-  REQUIRED_SIDEBAR_ICONS,
-  sanitizeSidebarIcons,
-  SIDEBAR_ICON_ORDER
-} from '@renderer/config/sidebar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { mapApiTopicToRendererTopic } from '@renderer/hooks/useTopic'
@@ -29,9 +22,9 @@ import { buildLibraryEditSearch, buildLibraryRouteUrl } from '@renderer/pages/li
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
 import type { GlobalSearchItem } from '@shared/data/api/schemas/globalSearch'
-import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
+import type { Message as DbMessage } from '@shared/data/types/message'
 import { ChevronDown, Clock3, CornerDownLeft, Search, X } from 'lucide-react'
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -47,7 +40,6 @@ import {
   GlobalSearchMessagePreviewPanel,
   type GlobalSearchMessagePreviewTarget
 } from './GlobalSearchMessagePreviewPanel'
-import { GlobalSearchQuickAppManager } from './GlobalSearchQuickApps'
 import {
   GlobalMessageSearchGroupHeader,
   GlobalMessageSearchRow,
@@ -99,10 +91,6 @@ const TIME_FILTER_LABEL_KEYS: Record<GlobalSearchTimeFilter, string> = {
   month: 'globalSearch.timeFilters.month',
   quarter: 'globalSearch.timeFilters.quarter'
 }
-const SIDEBAR_ICON_PREFERENCE_KEYS = {
-  visible: 'ui.sidebar.icons.visible',
-  invisible: 'ui.sidebar.icons.invisible'
-} as const
 
 function getFilterLabelKey(filter: GlobalSearchFilter) {
   return FILTER_LABEL_KEYS[filter]
@@ -118,57 +106,6 @@ function getTimeFilterAriaLabelKey(mode: GlobalSearchPanelMode) {
 
 function getMessageSourceFilterLabelKey(filter: GlobalMessageSearchSourceFilter) {
   return MESSAGE_SOURCE_FILTER_LABEL_KEYS[filter]
-}
-
-function getPreferenceOrderedSidebarIcons(
-  visibleIcons: readonly SidebarIcon[] | undefined,
-  invisibleIcons: readonly SidebarIcon[] | undefined
-) {
-  const orderedIcons: SidebarIcon[] = []
-  const seen = new Set<SidebarIcon>()
-
-  const addIcons = (icons: readonly SidebarIcon[] | undefined) => {
-    for (const icon of sanitizeSidebarIcons(icons)) {
-      if (seen.has(icon)) continue
-      orderedIcons.push(icon)
-      seen.add(icon)
-    }
-  }
-
-  addIcons(visibleIcons)
-  addIcons(invisibleIcons)
-  addIcons(SIDEBAR_ICON_ORDER)
-
-  return orderedIcons
-}
-
-function getSidebarIconPreferencesFromOrderedIcons({
-  orderedIcons,
-  visibleIcons
-}: {
-  orderedIcons: readonly SidebarIcon[]
-  visibleIcons: ReadonlySet<SidebarIcon>
-}) {
-  const requiredIcons = new Set(REQUIRED_SIDEBAR_ICONS)
-  const normalizedOrder = getPreferenceOrderedSidebarIcons(orderedIcons, undefined)
-
-  return {
-    visible: normalizedOrder.filter((icon) => visibleIcons.has(icon) || requiredIcons.has(icon)),
-    invisible: normalizedOrder.filter((icon) => !visibleIcons.has(icon) && !requiredIcons.has(icon))
-  }
-}
-
-function moveSidebarIcon(icons: readonly SidebarIcon[], oldIndex: number, newIndex: number) {
-  if (oldIndex === newIndex || oldIndex < 0 || newIndex < 0 || oldIndex >= icons.length || newIndex >= icons.length) {
-    return icons
-  }
-
-  const nextIcons = [...icons]
-  const [movedIcon] = nextIcons.splice(oldIndex, 1)
-  if (!movedIcon) return icons
-
-  nextIcons.splice(newIndex, 0, movedIcon)
-  return nextIcons
 }
 
 function getAssistantTargetId(target: GlobalSearchItem['target']) {
@@ -257,8 +194,6 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const [messagePreviewTarget, setMessagePreviewTarget] = useState<GlobalSearchMessagePreviewTarget | null>(null)
   const [recentItems] = usePersistCache('ui.global_search.recent_items')
   const [userName] = usePreference('app.user.name')
-  const [sidebarIconPreferences, setSidebarIconPreferences] = useMultiplePreferences(SIDEBAR_ICON_PREFERENCE_KEYS)
-  const visibleSidebarIcons = sidebarIconPreferences.visible
   const {
     error,
     groups,
@@ -295,79 +230,11 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     })
   const shouldShowRecentHint =
     !hasQuery && !isLoading && !error && selectableItems.length > 0 && selectableItems.length < 3
-  const sidebarPreferenceManagerIcons = useMemo(
-    () => getPreferenceOrderedSidebarIcons(visibleSidebarIcons, sidebarIconPreferences.invisible),
-    [sidebarIconPreferences.invisible, visibleSidebarIcons]
-  )
-  const visibleSidebarIconSet = useMemo(
-    () => new Set<SidebarIcon>(getRequiredSidebarIconsVisible(visibleSidebarIcons)),
-    [visibleSidebarIcons]
-  )
-
   useEffect(() => {
     setExpandedSearchGroupIds(new Set())
     setExpandedMessageParentIds(new Set())
     setMessagePreviewTarget(null)
   }, [deferredQuery, filter, updatedAtFrom])
-
-  const persistSidebarIconPreferences = useCallback(
-    async ({ visible, invisible }: { visible: SidebarIcon[]; invisible: SidebarIcon[] }) => {
-      try {
-        await setSidebarIconPreferences({ visible, invisible })
-      } catch {
-        window.toast?.error(t('globalSearch.quickApps.save_failed'))
-      }
-    },
-    [setSidebarIconPreferences, t]
-  )
-
-  const handleSidebarManagerVisibilityChange = useCallback(
-    (icon: SidebarIcon, nextVisible: boolean) => {
-      const nextVisibleIcons = new Set(visibleSidebarIconSet)
-
-      if (nextVisible) {
-        nextVisibleIcons.add(icon)
-      } else if (!REQUIRED_SIDEBAR_ICONS.includes(icon)) {
-        nextVisibleIcons.delete(icon)
-      }
-
-      const preferences = getSidebarIconPreferencesFromOrderedIcons({
-        orderedIcons: sidebarPreferenceManagerIcons,
-        visibleIcons: nextVisibleIcons
-      })
-
-      void persistSidebarIconPreferences(preferences)
-    },
-    [persistSidebarIconPreferences, sidebarPreferenceManagerIcons, visibleSidebarIconSet]
-  )
-
-  const handleSidebarManagerReorder = useCallback(
-    ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
-      const orderedIcons = moveSidebarIcon(sidebarPreferenceManagerIcons, oldIndex, newIndex)
-      if (orderedIcons === sidebarPreferenceManagerIcons) return
-
-      const preferences = getSidebarIconPreferencesFromOrderedIcons({
-        orderedIcons,
-        visibleIcons: visibleSidebarIconSet
-      })
-
-      void persistSidebarIconPreferences(preferences)
-    },
-    [persistSidebarIconPreferences, sidebarPreferenceManagerIcons, visibleSidebarIconSet]
-  )
-
-  const handleSidebarManagerReset = useCallback(() => {
-    const preferences = getDefaultSidebarIconPreferences()
-    void persistSidebarIconPreferences(preferences)
-  }, [persistSidebarIconPreferences])
-
-  const handleQuickAppsManage = useCallback(() => {
-    setPanelMode('menu-manager')
-  }, [])
-
-  const handleQuickAppsManagerBack = useCallback(() => {
-    setPanelMode('search')
-  }, [])
 
   const handleSearchScopeChange = useCallback((nextScope: GlobalSearchScope) => {
     setPanelMode(nextScope === 'messages' ? 'message-search' : 'search')
@@ -403,8 +270,10 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const openTopicMessageById = useCallback(
     async (topicId: string, messageId: string) => {
       const apiTopic = await dataApiService.get(`/topics/${topicId}`)
-      const messagePath = await dataApiService.get(`/topics/${topicId}/path`, { query: { nodeId: messageId } })
-      const activeNodeId = messagePath.at(-1)?.id ?? messageId
+      const messagePath = (await dataApiService.get(`/topics/${topicId}/path`, {
+        query: { nodeId: messageId }
+      })) as DbMessage[]
+      const activeNodeId = messagePath[messagePath.length - 1]?.id ?? messageId
       const topic = {
         ...mapApiTopicToRendererTopic(apiTopic),
         activeNodeId
@@ -619,10 +488,6 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         return
       }
 
-      if (panelMode === 'menu-manager') {
-        return
-      }
-
       if (event.key === 'ArrowDown') {
         event.preventDefault()
         moveActiveItem(1)
@@ -646,16 +511,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         void openPanelItem(item as GlobalSearchKeyboardItem)
       }
     },
-    [
-      activeItemId,
-      isMessageSearchMode,
-      keyboardItems,
-      moveActiveItem,
-      onClose,
-      openMessagePanelItem,
-      openPanelItem,
-      panelMode
-    ]
+    [activeItemId, isMessageSearchMode, keyboardItems, moveActiveItem, onClose, openMessagePanelItem, openPanelItem]
   )
 
   const handleFilterSelect = useCallback((nextFilter: Exclude<GlobalSearchFilter, 'all'>) => {
@@ -739,7 +595,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
             onChange={(event) => {
               const nextQuery = event.target.value.trimStart()
               setQuery(nextQuery)
-              setPanelMode((current) => (current === 'menu-manager' || !nextQuery ? 'search' : current))
+              setPanelMode((current) => (!nextQuery ? 'search' : current))
               setMessagePreviewTarget(null)
             }}
             onKeyDown={handleInputKeyDown}
@@ -763,7 +619,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
           )}
         </div>
 
-        {!showLaunchpad && panelMode !== 'menu-manager' && (
+        {!showLaunchpad && (
           <div className="mt-3 flex h-7 items-center gap-2">
             <SegmentedControl<GlobalSearchScope>
               size="sm"
@@ -872,16 +728,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       </div>
 
       <div className={cn('min-h-0 flex-1', !showLaunchpad && 'border-border-subtle border-t')}>
-        {panelMode === 'menu-manager' ? (
-          <GlobalSearchQuickAppManager
-            icons={sidebarPreferenceManagerIcons}
-            visibleIcons={visibleSidebarIconSet}
-            onBack={handleQuickAppsManagerBack}
-            onReorder={handleSidebarManagerReorder}
-            onReset={handleSidebarManagerReset}
-            onVisibilityChange={handleSidebarManagerVisibilityChange}
-          />
-        ) : isMessageSearchMode ? (
+        {isMessageSearchMode ? (
           messagePreviewTarget ? (
             <GlobalSearchMessagePreviewPanel
               className="h-full min-w-0"
@@ -894,11 +741,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
             messageResultsContent
           )
         ) : showLaunchpad ? (
-          <GlobalSearchLaunchpad
-            defaultPaintingProvider={defaultPaintingProvider}
-            onClose={onClose}
-            onManageQuickApps={handleQuickAppsManage}
-          />
+          <GlobalSearchLaunchpad defaultPaintingProvider={defaultPaintingProvider} onClose={onClose} />
         ) : isLoading && hasQuery ? (
           <GlobalSearchState label={t('common.loading')} />
         ) : error ? (

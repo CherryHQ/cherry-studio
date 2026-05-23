@@ -1,7 +1,6 @@
 import { isMac } from '@renderer/config/constant'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { cn } from '@renderer/utils'
-import { Search } from 'lucide-react'
 import React, { useCallback, useEffect, useRef } from 'react'
 
 import { getSidebarLayout, SIDEBAR_ICON_WIDTH, SIDEBAR_VERTICAL_CARD_WIDTH } from './constants'
@@ -9,7 +8,6 @@ import { DefaultLogo } from './primitives'
 import { SidebarDocked } from './SidebarDocked'
 import { SidebarFooter } from './SidebarFooter'
 import { SidebarMenu } from './SidebarMenu'
-import { SidebarTooltip } from './Tooltip'
 import type { SidebarMenuItem, SidebarTab, SidebarUser } from './types'
 import { useSidebarResize } from './useSidebarResize'
 
@@ -25,12 +23,10 @@ export interface SidebarProps {
   user?: SidebarUser
   isFloating?: boolean
   isFloatingClosing?: boolean
-  searchLabel?: string
   extensionsLabel?: string
   actions?: React.ReactNode
   onItemClick: (id: string) => void
   onHoverChange?: (visible: boolean) => void
-  onSearchClick?: () => void
   onExtensionsClick?: () => void
   onMiniAppTabClick?: (tabId: string) => void
   onStartSidebarDrag?: (e: React.MouseEvent, tabId: string) => void
@@ -50,12 +46,10 @@ export function Sidebar({
   user,
   isFloating = false,
   isFloatingClosing = false,
-  searchLabel = '',
   extensionsLabel = '',
   actions,
   onItemClick,
   onHoverChange,
-  onSearchClick,
   onExtensionsClick,
   onMiniAppTabClick,
   onStartSidebarDrag,
@@ -67,7 +61,6 @@ export function Sidebar({
   const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const layout = getSidebarLayout(width)
   const showFooter = Boolean(extensionsLabel || user || onExtensionsClick || actions)
-  const showSearch = Boolean(onSearchClick)
   const logoNode = logo ?? <DefaultLogo title={title} />
 
   const renderLogo = (size: 'sm' | 'default' = 'default') => (
@@ -133,22 +126,6 @@ export function Sidebar({
             <span className="truncate text-sidebar-foreground text-sm">{title}</span>
           </div>
 
-          {showSearch && (
-            <div className="px-3 py-2">
-              <button
-                type="button"
-                aria-label={searchLabel}
-                onClick={() => {
-                  onSearchClick?.()
-                  handleDismiss()
-                }}
-                className="flex h-9 w-full cursor-pointer items-center gap-2 rounded-xl px-2.5 text-left font-medium text-muted-foreground text-sm transition-colors [-webkit-app-region:no-drag] hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring">
-                <Search size={16} strokeWidth={1.6} />
-                <span>{searchLabel}</span>
-              </button>
-            </div>
-          )}
-
           <div className="flex-1 overflow-y-auto py-1 [&::-webkit-scrollbar]:hidden">
             <SidebarMenu
               layout="full"
@@ -213,43 +190,6 @@ export function Sidebar({
         {renderLogo(layout === 'icon' ? 'sm' : 'default')}
         {layout === 'full' && <span className="truncate text-sidebar-foreground text-sm">{title}</span>}
       </div>
-
-      {/* Search */}
-      {showSearch &&
-        (layout === 'full' ? (
-          <div className="px-2 py-2">
-            <button
-              type="button"
-              aria-label={searchLabel}
-              onClick={onSearchClick}
-              className="flex h-9 w-full cursor-pointer items-center gap-2 rounded-xl px-2.5 text-left font-medium text-muted-foreground text-sm transition-colors [-webkit-app-region:no-drag] hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring">
-              <Search size={16} strokeWidth={1.6} />
-              <span>{searchLabel}</span>
-            </button>
-          </div>
-        ) : layout === 'vertical-card' ? (
-          <div className="px-1.5 py-1.5 [-webkit-app-region:no-drag]">
-            <button
-              type="button"
-              aria-label={searchLabel}
-              onClick={onSearchClick}
-              className="relative flex w-full flex-col items-center gap-0.5 rounded-lg py-2.5 text-muted-foreground transition-all duration-150 hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring">
-              <Search size={18} strokeWidth={1.6} />
-              <span className="text-[9px] leading-tight">{searchLabel}</span>
-            </button>
-          </div>
-        ) : (
-          <div className="flex justify-center py-1.5 [-webkit-app-region:no-drag]">
-            <SidebarTooltip content={searchLabel}>
-              <button
-                type="button"
-                onClick={onSearchClick}
-                className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-all duration-150 hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring">
-                <Search size={18} strokeWidth={1.6} />
-              </button>
-            </SidebarTooltip>
-          </div>
-        ))}
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto py-1 [&::-webkit-scrollbar]:hidden">

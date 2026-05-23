@@ -19,7 +19,7 @@ import {
   type GlobalSearchPanelItem
 } from './globalSearchGroups'
 
-export type GlobalSearchPanelMode = 'search' | 'menu-manager' | 'message-search'
+export type GlobalSearchPanelMode = 'search' | 'message-search'
 export type GlobalSearchTimeFilter = 'any' | 'today' | 'week' | 'month' | 'quarter'
 
 function getUpdatedAtFromForTimeFilter(filter: GlobalSearchTimeFilter): string | undefined {
