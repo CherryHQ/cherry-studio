@@ -1,93 +1,220 @@
-# T-006E 高亮标注
+# T-006E 源段落高亮
 
-**状态**：⏳ 待启动
-**依赖**：T-006C（菜单触发）+ T-006D（anchor 数据）
-**预估**：1 天
+**状态**：✅ 已完成（2026-05-23 视觉验证 + cleanup 计数验证全通过；尚未 commit，用户自管）
+**依赖**：T-006D-2B S6'（branch anchor 携带 `blockId` + `selectionStart/End`）
+**实际工作量**：远超 1 天 —— D-010 → D-011 → D-012 → D-013 四轮失败 + 切换实现层后又修一轮 cleanup 泄漏。**完整决策链见 [[问题与Debug记录]] D-010~D-013-CLOSED 与 [[开发日志]] 同日条目**。
 
-## 目标
+---
 
-在选区位置注入临时 `<mark class="branch-anchor-hl">` 高亮；切 topic 清空；点击重开 Panel。
+## 这份文档以前写错了什么
 
-## 实施要点（详见 [../设计.md §4](../设计.md)）
+旧版 README 描述的方案 **全部已被推翻、不再适用**，包括：
 
-### 1. 注入函数 `highlightSelection(range, anchorId)`
+| 旧 README 写的 | 现实 |
+|---|---|
+| `range.surroundContents(<mark class="branch-anchor-hl">)` | ❌ `surroundContents` 跨元素边界（穿过 markdown 的 `<strong>`/`<em>`/`<code>`）会抛 `INVALID_STATE_ERR` |
+| "跨段落不支持" 是 v1.0 接受的限制 | ❌ 实际选区**经常**跨节点（一段加粗 + 普通 + 链接），不支持就等于不可用 |
+| "v1.1 升级到 CSS Custom Highlight API" | ❌ 实测在本 Electron/Chromium + markdown DOM 环境下**完全不出像素**（Range/Highlight 注册都正确，零渲染），已弃 |
+
+**不要再按旧 README 重试这两条路。** 见下方「决策史」。
+
+---
+
+## 实际实现（v1.0 / 当前生产）
+
+### 数据流
+
+```
+SelectionContextMenu (右键 "Open as branch")
+  ↓
+captureSelectionOffsets(range) → { start, end }      （字符偏移，相对 block 文本）
+  +
+findBlockContext(range) → { messageId, blockId, role }
+  ↓
+buildAnchor() → BranchAnchor { messageId, blockId, selectedText, selectionStart, selectionEnd }
+  ↓
+onOpenBranchPanel → onOpenBranchAnchor → setBranchAnchor(anchor)   (Chat.tsx)
+  ↓
+useMemo branchAnchorHighlight: { highlightedBlockId, selectionStart, selectionEnd }
+  ↓
+<BranchAnchorContext value={...}>  包  <Messages>
+  ↓
+MainTextBlock 内 use(BranchAnchorContext) 读出 highlightedBlockId 对比 block.id
+  ↓
+isBranchAnchored=true  → useEffect 调用 paintSourceHighlight(el, start, end)
+  ↓
+resolveBranchHighlightRange(blockEl, start, end) → Range
+  ↓
+wrapRangeWithSpans(blockEl, range) → 跨节点 <span class="branch-anchor-highlight"> 包裹
+```
+
+### 关键文件
+
+| 文件 | 角色 |
+|---|---|
+| `src/renderer/src/context/BranchAnchorContext.tsx` | Context 单例（`globalThis.__BRANCH_ANCHOR_CTX_CACHE__ ??= ...`，HMR-safe）+ `useBranchAnchorHighlight()` hook |
+| `src/renderer/src/utils/branchAnchor/sourceHighlight.ts` | `captureSelectionOffsets` / `resolveBranchHighlightRange` / `paintSourceHighlight` / `clearSourceHighlight` —— 共享 `flattenTextNodes` 坐标系 |
+| `src/renderer/src/utils/branchAnchor/findBlockContext.ts` | 从 Selection Range 找到带 `data-block-id` 的祖先元素 |
+| `src/renderer/src/components/SelectionContextMenu.tsx` | 捕获 selectedText + offsets，build anchor，触发 host callback |
+| `src/renderer/src/pages/home/Messages/Blocks/MainTextBlock.tsx` | Provider consumer + `useEffect` 调 paint/clear；DOM 上 `data-block-id={block.id}` |
+| `src/renderer/src/pages/home/Chat.tsx` | 顶级 state holder；包 `<BranchAnchorContext>` provider；`onComposeCancel` 关闭路径调 `clearSourceHighlight()` |
+
+### 跨节点 wrap 算法
+
+`wrapRangeWithSpans(blockEl, range)`：
+
+1. `flattenTextNodes(blockEl)` 取 block 内所有 Text 节点（doc order）
+2. 用 `range.startContainer/endContainer` 的 indexOf 在数组里定位 in-range 切片
+3. 对切片每个 Text 节点：
+   - 算这个节点内的 `[s, e)` 子区间：`s = (tn===startNode ? range.startOffset : 0)`，`e = (tn===endNode ? range.endOffset : tn.length)`
+   - 如果 `s > 0`：`target = tn.splitText(s)` 剥出后半段，更新 `e -= s`
+   - 如果 `e < target.length`：`target.splitText(e)` 切掉尾段（被丢弃，留在 DOM 但作为独立 Text 节点）
+   - `parent.insertBefore(<span>, target) + span.appendChild(target)` —— span 包裹 in-range 子串
+4. 返回所有创建的 span 数组
+
+**为什么不用 `range.surroundContents`**：跨 markdown 元素边界（典型如选区从普通文本进入 `<strong>`）会抛 `INVALID_STATE_ERR`。我们的算法专门处理这种情况 —— 每个 Text 节点单独 wrap，保留原父级标签结构（`<strong>` 内的高亮文字仍在 `<strong>` 里）。
+
+### 清除 (`clearSourceHighlight`)
+
+**字节级 DOM 复原 + idempotent + 全局**：
 
 ```ts
-function highlightSelection(range: Range, anchorId: string): boolean {
-  try {
-    const mark = document.createElement('mark')
-    mark.className = 'branch-anchor-hl'
-    mark.dataset.anchorId = anchorId
-    range.surroundContents(mark)
-    return true
-  } catch (e) {
-    // 跨段落选区会抛 INVALID_STATE_ERR
-    logger.warn('Selection crosses block boundary; highlight skipped', { anchorId })
-    return false
-  }
-}
+const spans = document.querySelectorAll(`span.${WRAP_CLASS}`)
+if (spans.length === 0) return
+const parents = new Set<Element>()
+spans.forEach((span) => {
+  const parent = span.parentNode
+  if (parent === null) return
+  const children = Array.from(span.childNodes)
+  span.replaceWith(...children)
+  if (parent instanceof Element) parents.add(parent)
+})
+parents.forEach((p) => p.normalize())
 ```
 
-### 2. CSS
+要点：
+- `document.querySelectorAll` 全文搜，**永不**依赖存储的 span 引用（React reconciliation 会让旧引用失效，这就是 leak 的根因）
+- `Element.replaceWith(...children)` 单原子 DOM 原语 —— 同时移除 span 元素与插入其子节点；空 span 走 `replaceWith()`（零参）= 单纯移除。**不会**有「孩子搬走但 shell 残留」的中间状态
+- `parent.normalize()` 合并 `splitText` 创建的相邻 Text 节点，DOM 字节级复原
 
-放 `src/renderer/src/pages/home/Messages/Blocks/branchAnchor.css`（或 Tailwind utility class —— 实施时确定）：
+**调用点**：
+1. `paintSourceHighlight` 体内**首行**调一次 —— 切换 anchor 时新 paint 必先清旧 → 任意时刻只有当前 anchor 的 span（idempotent，不累积）
+2. `Chat.tsx` 的 `onComposeCancel` 关闭路径**显式调一次** —— 关闭 Branch Panel 同步清干净（同时 setBranchAnchor(null) + setBranchTopic(null) + branchFork.reset()）
+
+### 样式
 
 ```css
-mark.branch-anchor-hl {
-  background-color: hsl(48 100% 88%);
-  border-bottom: 1.5px dashed hsl(43 80% 50%);
-  padding: 0 1px;
-  cursor: pointer;
-  transition: background-color 150ms;
-}
-mark.branch-anchor-hl:hover {
-  background-color: hsl(48 100% 78%);
-}
-@media (prefers-color-scheme: dark) {
-  mark.branch-anchor-hl {
-    background-color: hsl(48 70% 25%);
-    color: inherit;
-  }
+span.branch-anchor-highlight {
+  background-color: rgb(251 191 36 / 0.45);  /* amber-400 @ 45%，concrete 值不用 CSS var */
 }
 ```
 
-### 3. 点击 `<mark>` 重开 Panel
+color 不用 `var(--color-warning-bg)` —— 那是 amber-50 ≈ 3% 黑叠加在白底文字上几乎不可见（D-010 教训）；同时 `var()` 在某些 CSS pseudo 上下文里解析不稳（CSS Custom Highlight API 上踩过）。直接写 concrete 值。
 
-事件委托：在 `MessageContentContainer` 上挂 `onClick`，event.target.closest('mark.branch-anchor-hl') → 取 `data-anchor-id` → 调用 `useBranchAnchors().openPanel(anchorId)`。
+### 坐标系不变量
 
-### 4. 流式块禁用
+`captureSelectionOffsets`（用户选中时算偏移）与 `resolveBranchHighlightRange`（paint 时重建 Range）**共用同一个 `flattenTextNodes` 函数**作为「block 内字符索引」的定义。这是 D-012 那一轮被怀疑过的 capture vs paint 漂移 —— 强行用同一段代码定义坐标系是结构性消除漂移的办法。**任何修改 capture 或 resolve 必须同步审查另一侧。**
 
-T-006C 已做：`block.status !== 'success'` 时菜单 disabled。本任务不需要额外措施 —— 高亮自然不会被注入。
+---
 
-### 5. block.id 变化时清 anchor
+## 决策史（D-010 → D-013-CLOSED）
 
-`useEffect` 在 MainTextBlock 里监听 `block.id` 变化（新 block 取代旧 block），调 `useBranchAnchors().removeByBlockId(blockId)` 清理对应 anchor。
+每一步的真实原因 + 推翻原因。**这一段的目的是阻止后人重试已被推翻的方案。**
 
-### 6. 切 topic 自动清
+### D-010：第一次「颜色不对」
+- **方案**：`block.id === highlightedBlockId` 时，给 MainTextBlock 的 wrapper div 加 `bg-accent/60` className
+- **现象**：选中后看不见任何颜色变化
+- **根因**：`accent` 是 DESIGN.md 的中性近透明 token（≈3% 黑叠加），白底上肉眼几乎不可见
+- **修**：换 `warning` 色族（暖琥珀）—— 颜色解决了
 
-`useCache` 的 key 含 `topicId`，切 topic 后旧 key 不会被读到；不需要显式清空。**但**：已注入 DOM 的 `<mark>` 标签是切 topic 时 React 自动卸载消息组件 → DOM 一起销毁。✅ 自然清。
+### D-011：「不是颜色对错，是范围错了」
+- **现象**：颜色换暖琥珀后，**整条助手回复**被高亮，而不是只高亮选中的那一段
+- **根因**：本项目里一整条助手回复 = **单一 MAIN_TEXT block**（`Blocks/index.tsx:193-194` 把 MAIN_TEXT/CODE/UNKNOWN 都路由到 MainTextBlock）。block 级别高亮等于整段亮
+- **修**：放弃 block 级 className，改实现精确字符范围高亮。引入 `BranchAnchor.selectionStart/End` 字段，写 `captureSelectionOffsets` + `resolveBranchHighlightRange` + 基于 **CSS Custom Highlight API**（`CSS.highlights` + `Highlight` + `::highlight()`）的画法
 
-## 验收
+### D-012：「精确高亮也不显示」
+- **现象**：CSS Highlight API 注册成功（`CSS.highlights.has(name) === true`），但页面零渲染
+- **怀疑（A）**：offsets 漂移（capture 用 `Range.toString().length`，rebuild 用 text-node 累加 length —— 两条遍历可能在跨节点 markdown DOM 上不等）
+- **怀疑（B）**：颜色不可见（`::highlight()` 用 `var(--color-warning-bg)` —— amber-50 太淡 + `var()` 在 highlight pseudo 内解析不可靠）
+- **加固**：①两侧统一改用 `flattenTextNodes`（消除 A）；②颜色换 concrete `rgb(251 191 36 / 0.45)`（消除 B）；③加 rAF 兜底重绘
+- **结果**：仍不显示。进入 D-013 instrumentation 阶段
 
-- [ ] 选中文字 → 右键 → "展开分支" → 选区获得黄底 `<mark>` 高亮
-- [ ] hover 高亮：颜色加深
-- [ ] 点击高亮 → 重开 Branch Panel
-- [ ] 切到别的 topic → 高亮消失（DOM 卸载）
-- [ ] 切回原 topic → 高亮**不**恢复（v1.0 接受这一限制；持久化是 v1.1+）
-- [ ] 跨段落选区时 `surroundContents` 抛错，T-006C 已 disable 入口 + 这里 try/catch fallback log warn
-- [ ] dark mode 颜色正确
+### D-013：盲修循环 → 全路径 trace
+- 三轮 blind-fix 全部失败后，用户停下，要求**只加 instrumentation 不再猜**
+- 5 阶段 reader 端日志（`[S6 trace] effect fired / block element / range resolve / paint called / CSS.highlights state`）
+- trace 回报：`effect fired` 全部 `highlightedBlockId: null, matched: false`
+- 一系列误诊（双 source / Provider 错位 / id 漂移 / HMR context 分裂）逐个被自身后续 trace 推翻 —— 见 [[问题与Debug记录]] D-013 / D-013-FIX-DISPROVEN
+- 关键节点 `D-013-PIPELINE-OK`：用户加上 `insideProvider` 判别器 + 定向比对后实测：**选中块** `insideProvider:true / matched:true / earlyReturn:null / highlightedBlockId 一致 / start:1440 / end:1550`。整条 wiring 走通
+- 残留唯一失效点：`paintSourceHighlight` 体内 `paint detail` trace 显示 `rangeResolved:true / rangeText 与选中段精确一致 / startContainer endContainer 都是 #text / afterSet.has:true / size:1` —— **Range 完美、Highlight 已注册，却零像素**
+- **结论**：CSS Custom Highlight API 在本 Electron/Chromium + markdown DOM 环境下不出像。**不再调试这条 API**，触发既定 stop-loss
+
+### D-013-FIX-FINAL：切换到 `<span>` wrap
+- 保留 capture / resolve / context wiring（trace 已证全部正确）
+- 只换最终 paint：`new Highlight(range)` + `CSS.highlights.set()` → `wrapRangeWithSpans(blockEl, range)` 跨节点 `<span>` 包裹
+- 视觉验证通过：`spanCount:2`、暖琥珀位置正确
+
+### D-013-HARDEN：cleanup 泄漏修
+- 切换后 `spanCount` 在 anchor 切换时**不**累积 ✓（paint 体内首行 `clearSourceHighlight()`）
+- 但 DOM 里看到两类残留：
+  - `<strong><span class="branch-anchor-highlight">深度学习框架，构建AI模型。</span></strong>` —— **完整未被清的旧 span**
+  - `<span class="branch-anchor-highlight"></span>` —— **空 shell**（子节点搬走但 span 元素留了）
+- 根因：旧 `clearSourceHighlight` 走 `while (span.firstChild) parent.insertBefore + parent.removeChild(span)` 两步操作 —— React reconciliation 在两步之间动 DOM 时 `removeChild` 可能 fall through / `parent.parentNode` 错位，结果 shell 残留；某些情况下 cleanup 根本没跑（cleanup 时点 + React commit 时点错开）
+- **修**：`clearSourceHighlight` 改用单原子原语 `span.replaceWith(...Array.from(span.childNodes))`，无中间状态；全文 `document.querySelectorAll` 全局擦不依赖存储引用
+- 验证：baseline 0 → 开 A → 5 → 切 B → 3（不是 8，没累积）→ 关闭 Branch Panel → 0 → 空 span 也 0 → 反复 open/switch/close 5-6 轮 → 永远在 close 时回 0
+
+### 不要再走的弯路（red list）
+
+| 方案 | 推翻原因 |
+|---|---|
+| `range.surroundContents(<mark>)` | 跨元素边界抛 INVALID_STATE_ERR；markdown 选区**几乎总是**跨边界 |
+| block 级 className 高亮 | 整段亮，不是精确范围 —— 因为 1 reply = 1 MAIN_TEXT block |
+| `accent` / `bg-accent/*` token | DESIGN.md `accent` 是近透明中性色，白底不可见 |
+| `var(--color-warning-bg)` （amber-50）@ `::highlight()` pseudo | amber-50 太淡 + `var()` 在 highlight pseudo 上不稳 |
+| CSS Custom Highlight API (`CSS.highlights` + `Highlight`) | 本 Electron/Chromium + markdown DOM 环境零渲染（trace 确认 Range/Highlight 都注册成功） |
+| 把 `BranchAnchorContext` 当作普通模块导出 | 非 React 组件、不 Fast-Refresh-eligible，多次编辑致 Vite 重新执行 → 新 createContext 对象 → Provider/consumer 分裂；现已 globalThis 单例化 |
+| 旧 `clearSourceHighlight`（insertBefore loop + removeChild 两步）| 两步操作 race；改 `Element.replaceWith` 单原子原语 |
+
+---
 
 ## 已知限制（v1.0 接受）
 
-- 切 topic 回来高亮丢（不持久化）
-- 跨段落不支持
-- 流式中高亮不可建（菜单 disabled）
-- Markdown 重渲染（如用户编辑消息后重新渲染）会丢高亮
+- **切 topic 离开再回来高亮不恢复** —— anchor 不持久化（只活在 Chat.tsx 的 useState 里）。`<style id="branch-anchor-highlight-style">` 标签会留在 `<head>`，但无 span 可作用。**这是 anchor 持久化的范畴**，要做需要新设计：见 [[设计.md]] §4 + [[T-006D_BranchPanel/T-006D-2_RealFork|D-2]] 的 anchor 持久化 backlog
+- **关闭 Branch Panel 不删 SQLite topic 行** —— 关闭只清前端 state（`setBranchAnchor(null) + setBranchTopic(null) + branchFork.reset() + clearSourceHighlight()`），不调 `DELETE /topics/:id`。已创建的 branch topic 留在 SQLite 表里。归 **path Y / delete-on-close** 子任务（[[T-006D_BranchPanel/T-006D-2_RealFork/preflight.md]] T-006D-2C-5 cleanup 一并处理）
+- **流式中不能开分支** —— `block.status !== 'success'` 时 SelectionContextMenu 的 "Open as branch" 已 disabled。本任务不变
+- **Markdown 重渲会丢高亮**（理论风险）—— 实测下源助手消息完成态、`block.content` 稳定 → ReactMarkdown 对账同 vnode → React 不动 DOM，span 留存；effect deps 含 `block.content` —— 若 content 真变 effect 重跑、自动重 wrap。**未实测必须加 `MutationObserver` 兜底的场景**
 
-## v1.1 升级路径
+---
 
-迁移到 **CSS Custom Highlight API**（`CSS.highlights`）：
-- 用 Range 对象 + `new Highlight(...)` 注册到 `CSS.highlights`
-- 不污染 DOM（不需要插 `<mark>` 标签）
-- React 重渲染时 Range 仍然有效（除非节点被替换）
-- Chromium ≥ 105 支持，Electron 较新版本 OK
+## 验收（已通过 2026-05-23）
+
+- [x] 选中文字 → 右键 → "Open as branch" → 选区获得 amber 高亮（concrete `rgb(251 191 36 / 0.45)`）
+- [x] 选区跨 `<strong>` / `<em>` / `<a>` / `<code>` 边界时正常高亮，多 span 包裹工作；父级 markdown 样式（粗体、链接 href、代码字体）继承不变
+- [x] copy 高亮文字 → 粘贴出 = 选中原文，无多余空格 / 无缺字
+- [x] 切 anchor A → B（不关 panel 直接选另一段开新分支）：A 的 span 全清，仅 B 的 span 存在；DOM 里 `span.branch-anchor-highlight` count 不累积
+- [x] 关闭 Branch Panel（X 按钮，compose 与 conversation 两态都能点）→ span count 回 0；DOM 字节级复原
+- [x] **空 shell 残留检查**：`[...document.querySelectorAll('span.branch-anchor-highlight')].filter(s => !s.textContent).length === 0` 在每个状态下都为 0
+- [x] 反复 open/switch/close 5-6 轮 —— count 在 close 时永远回 0、永无 shell
+
+---
+
+## 不要做（future-you red flags）
+
+- ❌ **不要重新尝试 CSS Custom Highlight API**。Trace 已证明在本 env 下注册成功但零渲染。如果未来 Chromium 修了，可以再试，但**先在隔离 demo 上验证**，不要直接换回来
+- ❌ **不要用 `range.surroundContents`**。markdown 选区跨边界是常态、不是边界条件
+- ❌ **不要把 `clearSourceHighlight` 改回 `while/insertBefore/removeChild` 两步**。`replaceWith` 是 atomic、不会留 shell
+- ❌ **不要从 `BranchAnchorContext.tsx` 里删掉 globalThis singleton wrap**。删了之后 dev HMR 编辑这个文件就会导致 Provider/consumer context 对象分裂、`insideProvider:false`、高亮失效（D-013-FIX 现象的真实根因之一）
+- ❌ **不要把 `clearSourceHighlight()` 从 Chat.tsx `onComposeCancel` 里删掉**。MainTextBlock effect cleanup 也会调 clear（兜底），但显式 sync 调用保证 DOM 在 panel collapse 动画前已干净、无视觉闪烁
+
+---
+
+## 未做（v1.1+）
+
+- **anchor 持久化**：切 topic 回来高亮恢复 / 重启 app 高亮恢复
+- **多个并存高亮**：当前只支持 1 个 anchor / 1 个分支；多分支同开时要扩展为 `Map<branchTopicId, BranchAnchor>` + 多色或编号
+- **点击 span 重开 panel**（旧 README §3）—— 当前 span 无 `data-anchor-id`，且未挂事件委托。要做需配合持久化（否则点了也找不到对应 branchTopic）
+- **键盘可达性**：tab 到高亮文字、screen reader 读出 "branch source passage"
+
+——
+
+最后更新：2026-05-23
+负责人：Sammier + Claude（Opus 4.7 1M）

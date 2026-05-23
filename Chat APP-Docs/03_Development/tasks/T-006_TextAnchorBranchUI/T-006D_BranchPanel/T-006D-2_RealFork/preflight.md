@@ -334,7 +334,7 @@ export function buildBranchSystemPrompt(args: {
 | T-006D-2C-4 | 服务端 branch kind 字段（让 GET /topics 默认过滤）|
 | T-006D-2C-5 | **分支侧 `db.topics.update(branchTopicId, ...)` silently 0-rows**：`resendMessageThunk:1340` 和 `regenerateAssistantResponseThunk:1461` 在分支 topic 上写 Dexie，分支 topic 仅 v2 SQLite 不存在于 Dexie，update 0 rows 不抛错也不写入；产生静默状态不一致（不影响功能 gate）。最小修：thunks 内部 skip-Dexie when topic is a branch（需要识别机制）；或长期 = 分支 thunks 走纯 v2 路径 |
 | T-006D-2D | 主目标注入开关（W2 第 ② 段；先做 ①③④ 验证后再加）|
-| T-006D-2E | 精确子串 `<mark>` 高亮（替代整块 tint）|
+| ~~T-006D-2E~~ | ~~精确子串 `<mark>` 高亮~~ — **2026-05-22 并入 S6' 完成**：D-011 修复时直接用 CSS Custom Highlight API 画选区精确 char range（`sourceHighlight.ts`），无需 `<mark>` DOM mutation |
 
 streaming-disable Ask/Open（之前的 D-2B 含义）→ 改为 **T-006D-2C-0**（与本 D-2B 完全正交，可平行）。
 

@@ -1,4 +1,5 @@
 import { configureStore } from '@reduxjs/toolkit'
+import { BranchAnchorContext } from '@renderer/context/BranchAnchorContext'
 import type { Model } from '@renderer/types'
 import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { MainTextMessageBlock } from '@renderer/types/newMessage'
@@ -467,6 +468,70 @@ describe('MainTextBlock', () => {
       // Verify Redux integration
       expect(mockUseSelector).toHaveBeenCalled()
       expect(getRenderedMarkdown()).toBeInTheDocument()
+    })
+  })
+
+  // T-006D-2B S6' (precise range): when a branch is anchored to a block,
+  // MainTextBlock marks its wrapper with `data-branch-anchored` and paints
+  // the exact selected char range via the CSS Custom Highlight API. jsdom
+  // has neither layout nor `CSS.highlights`, so these tests verify the
+  // context-match → `data-branch-anchored` wiring only; the capture↔rebuild
+  // range algorithm is covered by sourceHighlight.test.ts.
+  describe('branch-anchor highlight (S6)', () => {
+    const getBlockScope = (blockId: string) => document.querySelector(`[data-block-id="${blockId}"]`)
+    const highlight = (blockId: string | null, start = 0, end = 0) => ({
+      highlightedBlockId: blockId,
+      selectionStart: start,
+      selectionEnd: end
+    })
+
+    it('is NOT anchored when no BranchAnchorContext Provider is present (main chat default)', () => {
+      const block = createMainTextBlock({ id: 'blk-A', content: 'plain' })
+      renderMainTextBlock({ block, role: 'assistant' })
+
+      expect(getBlockScope('blk-A')).not.toHaveAttribute('data-branch-anchored')
+    })
+
+    it('marks the wrapper data-branch-anchored when the highlighted blockId matches', () => {
+      const block = createMainTextBlock({ id: 'blk-A', content: 'anchored' })
+      render(
+        <Provider store={mockStore}>
+          <BranchAnchorContext value={highlight('blk-A', 0, 8)}>
+            <MainTextBlock block={block} role="assistant" messageId="msg-A" />
+          </BranchAnchorContext>
+        </Provider>
+      )
+
+      expect(getBlockScope('blk-A')).toHaveAttribute('data-branch-anchored', 'true')
+    })
+
+    it('does NOT anchor a different block when the highlighted blockId does not match', () => {
+      const block = createMainTextBlock({ id: 'blk-B', content: 'other' })
+      render(
+        <Provider store={mockStore}>
+          <BranchAnchorContext value={highlight('blk-A', 0, 5)}>
+            <MainTextBlock block={block} role="assistant" messageId="msg-A" />
+          </BranchAnchorContext>
+        </Provider>
+      )
+
+      expect(getBlockScope('blk-B')).not.toHaveAttribute('data-branch-anchored')
+    })
+
+    it('anchors only the matched block when a message has multiple blocks', () => {
+      const anchored = createMainTextBlock({ id: 'blk-A', content: 'anchored block' })
+      const sibling = createMainTextBlock({ id: 'blk-B', content: 'sibling block' })
+      render(
+        <Provider store={mockStore}>
+          <BranchAnchorContext value={highlight('blk-A', 0, 8)}>
+            <MainTextBlock block={anchored} role="assistant" messageId="msg-A" />
+            <MainTextBlock block={sibling} role="assistant" messageId="msg-A" />
+          </BranchAnchorContext>
+        </Provider>
+      )
+
+      expect(getBlockScope('blk-A')).toHaveAttribute('data-branch-anchored', 'true')
+      expect(getBlockScope('blk-B')).not.toHaveAttribute('data-branch-anchored')
     })
   })
 })

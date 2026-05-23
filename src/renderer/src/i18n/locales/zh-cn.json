@@ -1320,6 +1320,7 @@
           "follow_up_placeholder": "针对选中的内容提问…",
           "from": "选中内容",
           "from_message": "选自消息 #{{id}}",
+          "resize_handle": "调整分支面板宽度",
           "title": "从选区创建分支"
         }
       },

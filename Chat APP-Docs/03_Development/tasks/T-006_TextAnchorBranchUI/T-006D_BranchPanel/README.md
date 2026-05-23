@@ -12,8 +12,9 @@
 | T-006D-2A | 真实 fork MVP（POST /topics + setActiveTopic 跳转） | ❌ 废弃；产品方向不对（跳转 ≠ side-by-side），代码不 commit | [T-006D-2_RealFork/](./T-006D-2_RealFork/) |
 | **T-006D-2B** Side-by-side | Chat.tsx 持 branchTopic 本地 state + 复用 MessageGroup 渲染流 + `topic.prompt` 注入选区系统提示 | ✅ **S1'–S4' commits `c278f5c0a` + `e49d1cc0f` + `3e2ecec41` 入库；S4' 产品闸门 2026-05-22 通过** | [T-006D-2_RealFork/](./T-006D-2_RealFork/) |
 | D-008 scroll fix | 分支 panel 内消息流无法滚动（高度链断裂） | ✅ closed 2026-05-22；RowFlex h-full + BranchPane motion.div h-full + BranchMessageStream 自滚 | [问题与Debug记录.md](../../../问题与Debug记录.md) |
-| D-009 regenerate Option 1 | 分支内 regenerate/edit/delete 模型瞎；修 = BranchAssistantContext 边界注入 | 🟡 代码已实施 + 4 用例回归测试 + 撤 watch 调试日志；待视觉验证 | [问题与Debug记录.md](../../../问题与Debug记录.md) |
-| Task 3 (queued) | MAIN \| BRANCH resizable divider | ⏳ 用户排队下一步 | — |
+| D-009 regenerate Option 1 | 分支内 regenerate/edit/delete 模型瞎；修 = BranchAssistantContext 边界注入 | ✅ closed 2026-05-22；代码未 commit（用户自管 git） | [问题与Debug记录.md](../../../问题与Debug记录.md) |
+| Task 3 resizable divider | MAIN \| BRANCH 拖动调整宽度（镜像 `useSidebarResize` 右锚版 + framer-motion drag/animate 解耦 + in-session state） | ✅ closed 2026-05-22；代码未 commit | [T-006D-2_RealFork/](./T-006D-2_RealFork/) |
+| S6' source-passage highlight | `BranchAnchorContext` 携 highlightedMessageId + `MainTextBlock` block-level `bg-accent/60 + ring-accent` tint；ephemeral；不做精确子串 `<mark>`（→ D-2E） | 🟡 代码完成；未 commit 待视觉验证 | [T-006D-2_RealFork/](./T-006D-2_RealFork/) |
 | T-006D-2C-0 | 流式中 disable Ask/Open 菜单项（与 D-2B 正交） | ⏳ | — |
 | T-006D-2C-1..5 | cleanup（DELETE retry / abort-during-stream / Graduate / 服务端 branch kind / **分支侧 Dexie 0-row 静默写**） | ⏳ 仅 preflight 登记 | [T-006D-2_RealFork/preflight.md](./T-006D-2_RealFork/preflight.md) |
 | T-006D-2D | 主目标注入开关（W2 第 ② 段） | ⏳ 看 S4' 实测决定 | — |

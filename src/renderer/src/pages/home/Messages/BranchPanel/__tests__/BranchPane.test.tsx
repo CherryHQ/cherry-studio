@@ -18,7 +18,9 @@ vi.mock('react-i18next', () => ({
 const anchor: BranchAnchor = {
   messageId: 'msg-source-12345678',
   blockId: 'blk-1',
-  selectedText: 'student model is a smaller distilled model'
+  selectedText: 'student model is a smaller distilled model',
+  selectionStart: 0,
+  selectionEnd: 42
 }
 
 const branchTopic: Topic = {
@@ -103,7 +105,12 @@ describe('BranchPane (T-006D-2B container + state routing)', () => {
     expect(onComposeCancel).toHaveBeenCalledTimes(1)
   })
 
-  it('close button is DISABLED in conversation state (close cleanup ships in S5 — path Y)', () => {
+  it('close button is enabled in conversation state and calls onComposeCancel', () => {
+    // D-013 close wiring: the X is now universal — works in compose AND
+    // conversation state. Host wires the same handler to clear the anchor,
+    // clear branchTopic, reset fork status, and call clearSourceHighlight.
+    // The SQLite orphan-topic row (path Y / delete-on-close) is still deferred
+    // to T-006D-2C-5 cleanup; UI side of close is complete.
     const onComposeCancel = vi.fn()
     render(
       <BranchPane
@@ -116,7 +123,9 @@ describe('BranchPane (T-006D-2B container + state routing)', () => {
     )
 
     const closeBtn = screen.getByTestId('branch-pane-close')
-    expect(closeBtn).toBeDisabled()
+    expect(closeBtn).not.toBeDisabled()
+    fireEvent.click(closeBtn)
+    expect(onComposeCancel).toHaveBeenCalledTimes(1)
   })
 
   it('header shows source message id in compose state', () => {
@@ -162,5 +171,20 @@ describe('BranchPane (T-006D-2B container + state routing)', () => {
     fireEvent.click(screen.getByRole('button', { name: /chat\.message\.anchor\.panel\.create_branch/ }))
 
     expect(onCreate).toHaveBeenCalledWith('q')
+  })
+
+  // T-006D-2B Task 3 — drag-resize handle render coverage. jsdom has no
+  // layout / pointer behaviour worth verifying (the false-green scroll test
+  // taught us this), so we only assert handle presence/absence here. The
+  // actual pointer-drag logic is reviewed by reading useBranchPaneResize.ts
+  // and visually confirmed in `pnpm dev`.
+  it('renders the resize handle when the pane is visible', () => {
+    render(<BranchPane anchor={anchor} branchTopic={null} status="idle" onCreate={vi.fn()} onComposeCancel={vi.fn()} />)
+    expect(screen.getByTestId('branch-pane-resize-handle')).toBeInTheDocument()
+  })
+
+  it('omits the resize handle when the pane is collapsed (anchor=null && branchTopic=null)', () => {
+    render(<BranchPane anchor={null} branchTopic={null} status="idle" onCreate={vi.fn()} onComposeCancel={vi.fn()} />)
+    expect(screen.queryByTestId('branch-pane-resize-handle')).toBeNull()
   })
 })

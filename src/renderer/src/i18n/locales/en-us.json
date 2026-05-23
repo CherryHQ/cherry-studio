@@ -1320,6 +1320,7 @@
           "follow_up_placeholder": "Ask about the selected text…",
           "from": "Selected passage",
           "from_message": "From message #{{id}}",
+          "resize_handle": "Resize branch panel",
           "title": "Branch from selection"
         }
       },

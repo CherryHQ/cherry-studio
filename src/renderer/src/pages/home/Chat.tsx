@@ -8,6 +8,7 @@ import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { SelectChatModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { isEmbeddingModel, isRerankModel, isWebSearchModel } from '@renderer/config/models'
+import { BranchAnchorContext, type BranchAnchorHighlight } from '@renderer/context/BranchAnchorContext'
 import { BranchAssistantContext, type BranchAssistantOverride } from '@renderer/context/BranchAssistantContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useBranchFork } from '@renderer/hooks/useBranchFork'
@@ -18,6 +19,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Assistant, Model, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
+import { clearSourceHighlight } from '@renderer/utils/branchAnchor/sourceHighlight'
 import { Flex } from 'antd'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
@@ -87,6 +89,31 @@ const Chat: FC<Props> = (props) => {
       assistant: { ...assistant, topics: [...assistant.topics, branchTopic] }
     }
   }, [assistant, branchTopic])
+
+  // T-006D-2B S6': source-passage highlight. branchAnchor stays alive for the
+  // whole branch lifetime (onCreated does not clear it), so the exact
+  // selected passage is highlighted from branch-open through branch-close.
+  const branchAnchorHighlight = useMemo<BranchAnchorHighlight>(() => {
+    const value: BranchAnchorHighlight = {
+      highlightedBlockId: branchAnchor?.blockId ?? null,
+      selectionStart: branchAnchor?.selectionStart ?? 0,
+      selectionEnd: branchAnchor?.selectionEnd ?? 0
+    }
+    // [S6 trace] Stage 0 — the single place that sets highlightedBlockId on
+    // BranchAnchorContext. Shows the branchAnchor it is derived from + the
+    // value written. Pairs with MainTextBlock's "[S6 trace] effect fired"
+    // (the reader): setter writes non-null but reader sees null → Provider
+    // scope; setter itself writes null → branchAnchor data problem.
+    logger.debug('[S6 trace] branchAnchorHighlight set', {
+      branchAnchorIsNull: branchAnchor === null,
+      branchAnchorKeys: branchAnchor ? Object.keys(branchAnchor) : null,
+      anchorBlockId: branchAnchor?.blockId ?? '(missing)',
+      writtenHighlightedBlockId: value.highlightedBlockId,
+      writtenSelectionStart: value.selectionStart,
+      writtenSelectionEnd: value.selectionEnd
+    })
+    return value
+  }, [branchAnchor])
 
   useEffect(() => {
     if (branchAnchor || branchTopic) {
@@ -233,15 +260,22 @@ const Chat: FC<Props> = (props) => {
               <div
                 className="flex flex-1 flex-col justify-between"
                 style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
-                <Messages
-                  key={props.activeTopic.id}
-                  assistant={assistant}
-                  topic={props.activeTopic}
-                  setActiveTopic={props.setActiveTopic}
-                  onOpenBranchAnchor={setBranchAnchor}
-                  onComponentUpdate={messagesComponentUpdateHandler}
-                  onFirstUpdate={messagesComponentFirstUpdateHandler}
-                />
+                {/*
+                  S6': BranchAnchorContext tints the source message block in
+                  the main conversation while a branch is open. Provider scope
+                  is just <Messages> — MainTextBlock is the only reader.
+                */}
+                <BranchAnchorContext value={branchAnchorHighlight}>
+                  <Messages
+                    key={props.activeTopic.id}
+                    assistant={assistant}
+                    topic={props.activeTopic}
+                    setActiveTopic={props.setActiveTopic}
+                    onOpenBranchAnchor={setBranchAnchor}
+                    onComponentUpdate={messagesComponentUpdateHandler}
+                    onFirstUpdate={messagesComponentFirstUpdateHandler}
+                  />
+                </BranchAnchorContext>
                 <ContentSearch
                   ref={contentSearchRef}
                   searchTarget={mainRef as React.RefObject<HTMLElement>}
@@ -297,7 +331,21 @@ const Chat: FC<Props> = (props) => {
               if (branchAnchor) void branchFork.fork(branchAnchor, followUp)
             }}
             onComposeCancel={() => {
+              // Universal close path — works in compose state AND conversation
+              // state. Order: (1) clearSourceHighlight removes injected spans
+              // synchronously (defense in depth — the MainTextBlock effect
+              // cleanup will also run when isBranchAnchored flips to false on
+              // the next render, but doing it here makes the DOM clean BEFORE
+              // React commits the panel-collapse, so there is no flash).
+              // (2) setBranchAnchor(null) + setBranchTopic(null) drives
+              // `BranchPane`'s `isVisible` to false (motion.div animates
+              // width → 0). (3) branchFork.reset() returns the fork status to
+              // idle so the next open starts clean. NOTE: this does NOT delete
+              // the forked topic from SQLite — the row remains as an orphan
+              // until T-006D-2C-5 cleanup ships path Y (delete-on-close).
+              clearSourceHighlight()
               setBranchAnchor(null)
+              setBranchTopic(null)
               branchFork.reset()
             }}
           />

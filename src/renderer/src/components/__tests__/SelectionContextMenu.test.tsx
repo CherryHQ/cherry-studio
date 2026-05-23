@@ -306,11 +306,13 @@ describe('SelectionContextMenu', () => {
       fireEvent.contextMenu(screen.getByTestId('scroll'))
       fireEvent.click(branchItem())
 
-      expect(onOpenBranchPanel).toHaveBeenCalledWith({
-        messageId: 'msg-h',
-        blockId: 'blk-h',
-        selectedText: 'Host receives this'
-      })
+      expect(onOpenBranchPanel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          messageId: 'msg-h',
+          blockId: 'blk-h',
+          selectedText: 'Host receives this'
+        })
+      )
       // Logger fallback path is bypassed when a host callback is present.
       expect(debugSpy).not.toHaveBeenCalledWith('branch-anchor: open as branch', expect.anything())
     })

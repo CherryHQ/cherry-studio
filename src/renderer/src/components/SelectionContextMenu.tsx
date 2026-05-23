@@ -2,6 +2,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } 
 import { loggerService } from '@logger'
 import type { BranchAnchor } from '@renderer/pages/home/Messages/BranchPanel'
 import { type BlockContext, findBlockContext } from '@renderer/utils/branchAnchor/findBlockContext'
+import { captureSelectionOffsets } from '@renderer/utils/branchAnchor/sourceHighlight'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -90,6 +91,9 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
   const { t } = useTranslation()
   const [selectedText, setSelectedText] = useState('')
   const [blockContext, setBlockContext] = useState<BlockContext | null>(null)
+  // S6': char offsets of the selection within its source block, captured
+  // from the SAME range as blockContext so they stay consistent.
+  const [selectionOffsets, setSelectionOffsets] = useState<{ start: number; end: number } | null>(null)
 
   const handleOpenChange = (open: boolean) => {
     if (!open) return
@@ -97,10 +101,13 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
       setSelectedText('')
       setBlockContext(null)
+      setSelectionOffsets(null)
       return
     }
+    const range = selection.getRangeAt(0)
     setSelectedText(extractSelectedText(selection))
-    setBlockContext(findBlockContext(selection.getRangeAt(0)))
+    setBlockContext(findBlockContext(range))
+    setSelectionOffsets(captureSelectionOffsets(range))
   }
 
   const handleCopy = () => {
@@ -117,37 +124,39 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
     void window.api.quoteToMainWindow(selectedText)
   }
 
-  // T-006D-1: hand the captured anchor to the host (e.g. Messages.tsx) so
-  // it can open its BranchPanel. Without a host callback, fall back to the
-  // T-006C diagnostic log — useful for any SelectionContextMenu instance
-  // mounted outside the chat scroll (CitationsList, etc.). T-006D-2 will
-  // wire `POST /topics { sourceNodeId }`; T-006E paints the highlight.
-  const handleAskHere = () => {
-    if (!blockContext) return
-    const anchor: BranchAnchor = {
+  // Hand the captured anchor to the host (e.g. Messages.tsx → Chat.tsx) so it
+  // can open its BranchPane. Without a host callback, fall back to a
+  // diagnostic log — useful for any SelectionContextMenu instance mounted
+  // outside the chat scroll (CitationsList, etc.).
+  const buildAnchor = (): BranchAnchor | null => {
+    if (!blockContext) return null
+    return {
       messageId: blockContext.messageId,
       blockId: blockContext.blockId,
-      selectedText
-    }
-    if (onOpenBranchPanel) {
-      onOpenBranchPanel(anchor)
-    } else {
-      logger.debug('branch-anchor: ask here', anchor)
+      selectedText,
+      // 0/0 when offsets weren't resolvable → S6' highlight resolves to
+      // nothing rather than tinting the whole block.
+      selectionStart: selectionOffsets?.start ?? 0,
+      selectionEnd: selectionOffsets?.end ?? 0
     }
   }
 
-  const handleOpenAsBranch = () => {
-    if (!blockContext) return
-    const anchor: BranchAnchor = {
-      messageId: blockContext.messageId,
-      blockId: blockContext.blockId,
-      selectedText
-    }
+  const emitAnchor = (anchor: BranchAnchor, logLabel: string) => {
     if (onOpenBranchPanel) {
       onOpenBranchPanel(anchor)
     } else {
-      logger.debug('branch-anchor: open as branch', anchor)
+      logger.debug(logLabel, anchor)
     }
+  }
+
+  const handleAskHere = () => {
+    const anchor = buildAnchor()
+    if (anchor) emitAnchor(anchor, 'branch-anchor: ask here')
+  }
+
+  const handleOpenAsBranch = () => {
+    const anchor = buildAnchor()
+    if (anchor) emitAnchor(anchor, 'branch-anchor: open as branch')
   }
 
   const hasSelection = selectedText.length > 0

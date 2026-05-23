@@ -11,7 +11,9 @@ vi.mock('react-i18next', () => ({
 const anchor: BranchAnchor = {
   messageId: 'msg-42',
   blockId: 'blk-13',
-  selectedText: 'Distillation transfers behaviour from a larger teacher model to a smaller student.'
+  selectedText: 'Distillation transfers behaviour from a larger teacher model to a smaller student.',
+  selectionStart: 0,
+  selectionEnd: 82
 }
 
 afterEach(() => {

@@ -1,4 +1,4 @@
-# T-006D-2 Branch Panel — Side-by-Side Branch
+# T-006D-2 Branch Panel — Side-by-Side Branch（+ resizable divider）
 
 **日期**：2026-05-21 起 → 2026-05-22 主体实施
 **阶段**：T-006 / T-006D
@@ -6,11 +6,13 @@
 - D-2A（首版：fork → 跳转新 topic）：✅ 代码 + 自动化通过；❌ **手动验证产品方向不对** — 废弃不 commit
 - **D-2B Side-by-side（重设计）**：✅ S1'–S4' 全部入库（commits `c278f5c0a` + `e49d1cc0f` + `3e2ecec41`），**S4' 产品 go/no-go 闸门 2026-05-22 视觉验证通过**
 - **D-008 scroll bug**：✅ closed 2026-05-22（高度链断裂修在 RowFlex 层）
-- **D-009 regenerate/edit/delete 模型瞎**：🟡 Option 1 (BranchAssistantContext) 代码已实施，未 commit，**待视觉验证**
+- **D-009 regenerate/edit/delete 模型瞎**：✅ closed 2026-05-22（Option 1 BranchAssistantContext + 视觉验证通过）— **代码未 commit，用户自管 git**
+- **Task 3 MAIN | BRANCH resizable divider**：✅ closed 2026-05-22（镜像 useSidebarResize 写右锚 `useBranchPaneResize` + framer-motion drag/animate 解耦 + 视觉验证通过）— **未 commit**
+- **S6' source-passage 精确选区高亮**：🔬 **D-013 二分 instrumentation 阶段** — 三轮 blind-fix（D-010/011/012）仍不显示。reader 端 5 阶段 trace 回报 `highlightedBlockId` 恒 null（选中 block id 没到 `BranchAnchorContext`）；静态审查 wiring 全对找不到 break；本轮加 Stage 0 setter 端日志（`Chat.tsx` `branchAnchorHighlight` useMemo）与 reader 配对二分，待用户跑 dev 贴 Stage 0+1 定位。CSS Custom Highlight API 实现（`sourceHighlight.ts`）；D-2E 并入。**未 commit**
 
 ## 一句话
 
-D-2A 技术跑通但产品形态错（跳转 ≠ side-by-side）。**D-2B 实施完 S1'–S4'，用户视觉验证通过 — 模型回复围绕 selectedText、prompt 通过 `topic.prompt` 隐藏、侧边栏不污染**。后续两个发现的硬伤：scroll 修在 RowFlex 高度链层（D-008 closed）；regenerate/edit/delete 根因 = Redux 全局 useAssistant 取不到带 prompt 的 branch topic，Option 1 (BranchAssistantContext) 边界注入已实施待视觉验证（D-009）。
+D-2A 技术跑通但产品形态错（跳转 ≠ side-by-side）。**D-2B 实施完 S1'–S4'，用户视觉验证通过 — 模型回复围绕 selectedText、prompt 通过 `topic.prompt` 隐藏、侧边栏不污染**。后续硬伤全部解决：scroll D-008 closed（RowFlex 高度链）；regenerate/edit/delete D-009 closed（Option 1 BranchAssistantContext 边界注入）；Task 3 resizable divider closed（镜像 `useSidebarResize` 右锚版）。**S6' source-passage highlight（`BranchAnchorContext` + `MainTextBlock` block-level tint）代码完成等视觉验证**。D-009 + Task 3 + S6' 代码用户自管 git 入库。
 
 ## 文件（按当前权威级别）
 
@@ -30,7 +32,9 @@ D-2A 技术跑通但产品形态错（跳转 ≠ side-by-side）。**D-2B 实施
 | D-2A | POST /topics fork + setActiveTopic 跳转 + 既有 sendMessage | ❌ **产品方向不对，废弃；代码不 commit** |
 | **D-2B Side-by-side** | Chat.tsx 持 branchTopic 本地 state；BranchPane 复用 MessageGroup 渲染流；topic.prompt 注入 selectedText 系统提示 | ✅ **S1'–S4' commits `c278f5c0a` + `e49d1cc0f` + `3e2ecec41` 入库；S4' 闸门通** |
 | D-008 | 分支 panel 滚动失效 | ✅ closed 2026-05-22（RowFlex h-full 修高度链；详见 [问题与Debug记录.md D-008](../../../问题与Debug记录.md)） |
-| D-009 | 分支内 regenerate/edit/delete 模型瞎 | 🟡 Option 1 (BranchAssistantContext) 实施完，未 commit 待视觉验证（详见 [问题与Debug记录.md D-009](../../../问题与Debug记录.md)） |
+| D-009 | 分支内 regenerate/edit/delete 模型瞎 | ✅ closed 2026-05-22（Option 1 BranchAssistantContext + 视觉验证通过；代码未 commit）（详见 [问题与Debug记录.md D-009](../../../问题与Debug记录.md)） |
+| Task 3 | MAIN \| BRANCH resizable divider — `useBranchPaneResize` 镜像 `useSidebarResize` 右锚版 + framer-motion drag/animate 解耦 + width clamp [280, 700] in-session | ✅ closed 2026-05-22；代码未 commit |
+| S6' | source-passage **精确选区**高亮 — `sourceHighlight.ts` + CSS Custom Highlight API。D-010/011/012 三轮 blind-fix 仍不显示 → **D-013 二分**：reader trace 回报 `highlightedBlockId` 恒 null；静态 wiring 全对；加 Stage 0 setter 日志配对二分，待用户 dev 贴 Stage 0+1；D-2E 精确子串并入 | 🔬 D-013 二分；未 commit 待 trace |
 | D-2C-0 | 流式中 disable Ask/Open（独立小任务，与 D-2B 正交） | ⏳ |
 | D-2C-1..5 | preflight 登记的 cleanup（DELETE retry / abort-during-stream / Graduate / 服务端 branch kind / **分支侧 Dexie 0-row 静默写**） | ⏳ 仅记录 |
 | D-2D | 主目标注入（W2 第 ② 段；看模板效果决定要不要做） | ⏳ |

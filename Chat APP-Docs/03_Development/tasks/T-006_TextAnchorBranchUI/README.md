@@ -21,7 +21,7 @@
 | T-006A | 测试数据准备（mock 数据 / fixture） | ⏳ | [T-006A_TestData/](./T-006A_TestData/) |
 | T-006B | 文本选中捕获（block/message 上下文） | ✅ 已 commit `d579fdcf2` | [T-006B_TextSelection/](./T-006B_TextSelection/) |
 | T-006C | 扩展 SelectionContextMenu（加分支菜单项 + role 收口） | ✅ 代码完成 + 自动化校验过；⏳ staged 未 commit | [T-006C_Menu/](./T-006C_Menu/) |
-| T-006D | Branch Panel（D-1 / D-2A 废 / **D-2B Side-by-side 入库** / D-3） | ✅ D-1 commit `76ee326a0`；❌ D-2A 废弃；**D-2B S1'–S4' commits `c278f5c0a` + `e49d1cc0f` + `3e2ecec41` 入库且 S4' 产品闸门 2026-05-22 通**；D-008 scroll closed；D-009 regenerate Option 1 待视觉验证；D-3 ⏳ | [T-006D_BranchPanel/](./T-006D_BranchPanel/) |
+| T-006D | Branch Panel（D-1 / D-2A 废 / **D-2B Side-by-side 入库** / D-3） | ✅ D-1 commit `76ee326a0`；❌ D-2A 废弃；**D-2B S1'–S4' commits `c278f5c0a` + `e49d1cc0f` + `3e2ecec41` 入库**；D-008 + D-009 + Task 3 resizable divider 均 closed；S6' source-passage highlight 代码完成等视觉验证；D-3 ⏳ | [T-006D_BranchPanel/](./T-006D_BranchPanel/) |
 | T-006E | 高亮标注（临时 UI，DOM 注入 `<mark>`） | ⏳ | [T-006E_Highlight/](./T-006E_Highlight/) |
 | T-006F | 折叠/展开交互（scope 未承诺，可能 v1.1） | ⏳ | [T-006F_FoldExpand/](./T-006F_FoldExpand/) |
 

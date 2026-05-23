@@ -59,7 +59,9 @@ const sourceTopic: Topic = assistant.topics[0]
 const anchor: BranchAnchor = {
   messageId: 'msg-source-1',
   blockId: 'blk-1',
-  selectedText: 'distillation transfers knowledge from a teacher to a student'
+  selectedText: 'distillation transfers knowledge from a teacher to a student',
+  selectionStart: 0,
+  selectionEnd: 60
 }
 
 const serverTopicShape = {
