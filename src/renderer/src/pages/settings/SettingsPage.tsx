@@ -1,4 +1,4 @@
-import { MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
+import { MenuDivider, MenuItem, MenuList } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isDev } from '@renderer/config/constant'
@@ -56,7 +56,6 @@ const SettingsPage: FC = () => {
             'flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col',
             isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
           )}>
-          <PageHeader title={t('settings.title')} />
           <Scrollbar className="min-h-0 flex-1 select-none">
             <MenuList className={settingsSubmenuListClassName}>
               <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.integrations')}</div>
