@@ -1,4 +1,4 @@
-import { MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
+import { MenuDivider, MenuItem, MenuList } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isDev } from '@renderer/config/constant'
@@ -56,7 +56,12 @@ const SettingsPage: FC = () => {
             'flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col',
             isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
           )}>
-          <PageHeader title={t('settings.menuGroups.integrations')} />
+          {/* Header slot — keeps the menu list aligned with the right column's PageHeader baseline,
+              while rendering the page-level group label in section-title style to stay visually
+              consistent with the in-list group labels (插件 / 应用设置 / …). See DESIGN.md. */}
+          <div className="mt-3.5 mb-2 flex h-8 shrink-0 items-center pl-5">
+            <span className="text-foreground-muted text-xs">{t('settings.menuGroups.integrations')}</span>
+          </div>
           <Scrollbar className="min-h-0 flex-1 select-none">
             <MenuList className={settingsSubmenuListClassName}>
               <MenuItem
