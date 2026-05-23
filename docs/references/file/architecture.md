@@ -902,21 +902,20 @@ WhenReady (after app.whenReady(), Electron API available)
        pipeline in Phase 2)
       onInit(): awaits DanglingCache.initFromDb(), calls
                 this.registerIpcHandlers() (the dedicated helper wires
-                File_GetDanglingState + File_BatchGetDanglingStates),
-                fires void runStartupSweeps() (FS-level + DB-level
-                orphan passes; runs async; does NOT block ready)
+                File_GetDanglingState + File_BatchGetDanglingStates +
+                File_RunSweep). No startup auto-sweep — the cleanup UI
+                triggers `runSweep` via IPC on demand.
 
-Background (fire-and-forget, non-blocking)
-+-- FileManager.runStartupSweeps -- started fire-and-forget from onInit,
-                                    runs two concurrent passes:
-                                    • runStartupFileSweep:  cleans orphan UUID
-                                                            files + *.tmp-<uuid>
-                                                            residues
-                                    • runDbSweep (uses an internal
-                                      OrphanRefScanner class — NOT a separate
-                                      lifecycle service, NOT delayed 30s):
-                                      DB-level orphan-ref + orphan-entry scan
-                                      per §7 Layer 3
+On-Demand (user-triggered via File_RunSweep IPC)
++-- FileManager.runSweep -- runs two concurrent passes and returns one
+                            OrphanReport when both settle:
+                            • runFileSweep:       cleans orphan UUID files +
+                                                  *.tmp-<uuid> residues
+                            • runDbSweep (uses an internal
+                              OrphanRefScanner class — NOT a separate
+                              lifecycle service, NOT scheduled):
+                              DB-level orphan-ref + orphan-entry scan
+                              per §7 Layer 3
 
 Singletons / Primitives (no lifecycle):
 +-- @main/utils/file/*            -- sole FS owner, stateless pure functions
@@ -949,26 +948,26 @@ Data Repositories (not lifecycle, managed by DataApiService):
                            — external rows are never trashed by invariant)
                        2. this.registerIpcHandlers()
                           (wires File_GetDanglingState +
-                           File_BatchGetDanglingStates;
+                           File_BatchGetDanglingStates + File_RunSweep;
                            other File_* channels land in Phase 2)
-                       3. fire void this.runStartupSweeps()  ◄── not awaited
                           (version cache constructs at field-init time;
                            §3.6 broadcast wiring is deferred to Phase 2)
                                    │
-                          (ready signal emitted immediately; ready not blocked)
-                          │                            │
-                          ▼                            ▼
-                      onAllReady()                 (background in parallel)
-                          │                   orphan sweep:
-                          ▼                     UUID files not in DB → unlink
-                 runDbSweep (in-process,         *.tmp-<uuid> → unlink
-                 fired from runStartupSweeps;     (uuid here is v4 from
-                 no separate scheduling)          node:crypto.randomUUID;
-                                                  orphan sweep regex is
-                                                  version-agnostic)
+                          (ready signal emitted immediately)
+                          │
+                          ▼
+                      onAllReady()
+                          │
+                          ▼ (on-demand, when cleanup UI calls File_RunSweep)
+                 FileManager.runSweep — runs concurrently:
+                   • FS-level: UUID files not in DB → unlink,
+                     *.tmp-<uuid> → unlink
+                   • DB-level: orphan-ref deletion + orphan-entry report
+                 (uuid here is v4 from node:crypto.randomUUID;
+                  orphan sweep regex is version-agnostic)
 ```
 
-**Key**: `runOrphanSweep()` starts with `void` rather than `await`, so `onInit` returns immediately and the service becomes ready immediately. DanglingCache reverse index initialization is a **synchronous DB query** that should be fast (external entries are usually <10000 rows), so no additional signal mechanism is introduced.
+**Key**: `onInit` is non-blocking — only the DanglingCache reverse-index init is awaited (a synchronous DB query, fast for typical <10k external-entry counts). No sweep runs at startup; the cleanup UI is the sole trigger for `runSweep` via the `File_RunSweep` IPC channel.
 
 ### 6.3 Dependency Declarations for Business Services
 

@@ -340,7 +340,7 @@ describe('FileManager (integration)', () => {
     expect(seen).toEqual(['missing']) // unsubscribed
   })
 
-  it('INT-11: onInit fires runStartupFileSweep — orphan UUID files are unlinked', async () => {
+  it('INT-11: runSweep removes orphan UUID files (FS sweep branch)', async () => {
     const orphanId = '019606a0-0000-7000-8000-00000000ff30'
     const orphanPath = path.join(internalRoot, `${orphanId}.txt`)
     await writeFile(orphanPath, 'o')
@@ -349,15 +349,13 @@ describe('FileManager (integration)', () => {
     await utimes(orphanPath, ancient, ancient)
 
     await fm._doInit()
-    // The public method itself awaits both sweeps — used here for deterministic
-    // observation of side effects without sleep-based timing.
-    await fm.runStartupSweeps()
+    await fm.runSweep()
 
     const { stat } = await import('node:fs/promises')
     await expect(stat(orphanPath)).rejects.toThrow(/ENOENT/)
   })
 
-  it('INT-12: onInit fires runDbSweep — orphan refs deleted, orphan-entry report exposed', async () => {
+  it('INT-12: runSweep removes orphan refs and reports orphan entries (DB sweep branch)', async () => {
     // Seed an orphan temp_session ref pointing at a real file_entry.
     const id = '019606a0-0000-7000-8000-00000000ff31' as FileEntryId
     const now = Date.now()
@@ -383,74 +381,36 @@ describe('FileManager (integration)', () => {
       updatedAt: now
     })
 
-    // Call runStartupSweeps directly so we observe the orphan deletion in
-    // the same instance whose lastDbSweepReport we then read. (onInit's
-    // fire-and-forget invocation is covered by INT-11.)
-    await fm.runStartupSweeps()
+    const report = await fm.runSweep()
 
     // The orphan ref has been cleaned by runDbSweep (temp_session checker → empty Set).
     const remaining = await dbh.db.select().from(fileRefTable)
     expect(remaining.length).toBe(0)
 
-    // The entry — now without any ref — appears in getOrphanReport().
-    const report = fm.getOrphanReport()
+    // The entry — now without any ref — surfaces in the report counts.
     expect(report.outcome).toBe('completed')
     expect(report.orphanRefsByType.temp_session).toBe(1)
     expect(report.orphanEntriesByOrigin.internal ?? 0).toBeGreaterThanOrEqual(1)
-    // lastRunAt should reflect the actual sweep completion, not the read time.
-    expect(report.lastRunAt).not.toBeNull()
+    // lastRunAt is the sweep start time captured server-side.
     expect(typeof report.lastRunAt).toBe('number')
   })
 
-  it('INT-13: getOrphanReport returns outcome="unknown" before any sweep settles', () => {
-    // The fresh fm built in beforeEach has not run a sweep yet — verify
-    // the empty-default shape carries an explicit `'unknown'` outcome so
-    // the renderer can distinguish "no data yet" from "all clean", which
-    // would otherwise look identical (counts all zero).
-    const report = fm.getOrphanReport()
-    expect(report).toEqual({
-      outcome: 'unknown',
-      orphanRefsByType: {},
-      orphanRefsTotal: 0,
-      orphanEntriesByOrigin: {},
-      orphanEntriesTotal: 0,
-      lastRunAt: null
-    })
-  })
-
-  it('INT-14: getOrphanReport().lastRunAt does NOT advance between calls (sweep-time, not read-time)', async () => {
-    await fm.runStartupSweeps()
-    const first = fm.getOrphanReport().lastRunAt
-    expect(first).not.toBeNull()
-    // Wait a beat then re-read; lastRunAt must NOT change.
-    await new Promise((r) => setTimeout(r, 5))
-    const second = fm.getOrphanReport().lastRunAt
-    expect(second).toBe(first)
-  })
-
-  it('INT-14a: a runDbSweep collapse propagates through to getOrphanReport.outcome="failed"', async () => {
-    // Regression: previously, if runDbSweep ended up in a `'failed'` outcome
-    // (or its outer Promise rejected for a future wiring-time reason), the
-    // FileManager-side wrapping in `runStartupSweeps` only logged the error
-    // and left `lastDbSweepReport` null, so `getOrphanReport()` surfaced
-    // `outcome: 'unknown'` — indistinguishable from "haven't scanned yet".
-    //
+  it('INT-14a: a runDbSweep collapse propagates through to runSweep outcome="failed"', async () => {
     // Drive `runDbSweep` into its inner `'failed'` branch by spying on
     // `scanOrphanEntries`'s downstream `findUnreferenced` call to throw.
     // Verifies the end-to-end propagation: runDbSweep → `'failed'` report
-    // → `lastDbSweepReport` set → `getOrphanReport` returns the variant.
+    // → `runSweep` returns the `'failed'` variant.
     const spy = vi
       .spyOn(fm['deps'].fileEntryService, 'findUnreferenced')
       .mockRejectedValueOnce(new Error('db conn lost mid-sweep'))
 
-    await fm.runStartupSweeps()
+    const report = await fm.runSweep()
 
-    const report = fm.getOrphanReport()
     expect(report.outcome).toBe('failed')
     if (report.outcome === 'failed') {
       expect(report.errorMessage).toMatch(/db conn lost mid-sweep/)
     }
-    expect(report.lastRunAt).not.toBeNull()
+    expect(typeof report.lastRunAt).toBe('number')
     spy.mockRestore()
   })
 

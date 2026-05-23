@@ -178,7 +178,7 @@ import {
 } from './internal/entry/lifecycle'
 import { rename as internalRename } from './internal/entry/rename'
 import { observeExternalAccess } from './internal/observe'
-import { type DbSweepReport, type OrphanReport, runDbSweep, runStartupFileSweep } from './internal/orphanSweep'
+import { type DbSweepReport, type OrphanReport, runDbSweep, runFileSweep } from './internal/orphanSweep'
 import { open as internalShellOpen, showInFolder as internalShellShowInFolder } from './internal/system/shell'
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
 import { canonicalizeExternalPath, resolvePhysicalPath } from './utils/pathResolver'
@@ -351,7 +351,7 @@ export class StaleVersionError extends Error {
  *   - Metadata / version / hash / URL / physical path resolution
  *   - DanglingCache surface (`getDanglingState` /
  *     `batchGetDanglingStates` / `subscribeDangling`)
- *   - Orphan report (`getOrphanReport`)
+ *   - On-demand orphan sweep (`runSweep`)
  *   - 3rd-party escape hatch (`withTempCopy`), `open` / `showInFolder`
  *
  * **Out** — kept on the class but **not** in the interface:
@@ -360,8 +360,6 @@ export class StaleVersionError extends Error {
  *     authoritative read surface is `fileEntryService` directly. Adding them
  *     to the interface would expose persistence concerns business code
  *     should not depend on.
- *   - Lifecycle internals (`runStartupSweeps`). Public on the class so tests
- *     can `await` it, but not a binding consumer-facing contract.
  *
  * If a new "consumer-facing" method lands on the class, add it to this
  * interface in the same PR; the `implements` clause will fail the build
@@ -576,14 +574,19 @@ export interface IFileManager {
    */
   subscribeDangling(params: { id: FileEntryId }, listener: (state: 'present' | 'missing') => void): () => void
 
-  // ─── Orphan report (cleanup UI) ───
+  // ─── Orphan sweep (cleanup UI) ───
 
   /**
-   * Snapshot of the last DB-level orphan sweep. `outcome` discriminator
-   * distinguishes `'unknown'` (no sweep yet), `'completed'`, `'partial'`,
-   * and `'failed'` so the renderer cannot read a failed run as healthy zero.
+   * Run both the FS-level orphan sweep (architecture §10) and the DB-level
+   * orphan-ref / entry sweep (§7 Layer 3) concurrently, returning a single
+   * `OrphanReport` once both settle. The `outcome` discriminator on the
+   * report distinguishes `'completed'` / `'partial'` / `'failed'` so the
+   * renderer cannot read a failed run as a healthy zero.
+   *
+   * User-triggered via IPC (`File_RunSweep`); no startup auto-run. See
+   * architecture §10 for the sweep mechanics.
    */
-  getOrphanReport(): OrphanReport
+  runSweep(): Promise<OrphanReport>
 
   // ─── 3rd-party Library Escape Hatch ───
 
@@ -634,25 +637,9 @@ export class FileManager extends BaseService implements IFileManager {
     orphanRegistry: orphanCheckerRegistry
   }
 
-  /**
-   * Most recent DbSweepReport produced by `runStartupSweeps`. Captured with
-   * its completion timestamp into `lastDbSweepRanAt` so `getOrphanReport()`
-   * can answer "when did the last scan run" — not "when did the renderer
-   * last poll".
-   */
-  private lastDbSweepReport: DbSweepReport | null = null
-  private lastDbSweepRanAt: number | null = null
-
   protected override async onInit(): Promise<void> {
     await this.deps.danglingCache.initFromDb()
     this.registerIpcHandlers()
-    // Fire-and-forget: both branches catch their own errors, but a synchronous
-    // throw in dep wiring (e.g. registry access racing with shutdown, or
-    // `application.get(...)` before a dep is registered) would otherwise become
-    // an unhandled rejection at this `void` site.
-    void this.runStartupSweeps().catch((err) => {
-      fileManagerLogger.error('runStartupSweeps unhandled rejection', err)
-    })
   }
 
   /**
@@ -702,112 +689,60 @@ export class FileManager extends BaseService implements IFileManager {
         (path) => fsRemove(path)
       )
     })
+    this.ipcHandle(IpcChannel.File_RunSweep, async () => this.runSweep())
   }
 
   /**
    * Run the FS-level orphan sweep (file-manager-architecture §10) and
-   * the DB-level orphan-ref/entry sweep (file-manager-architecture §7
-   * Layer 3) concurrently, returning once both settle.
+   * the DB-level orphan-ref / entry sweep (file-manager-architecture §7
+   * Layer 3) concurrently, returning a single `OrphanReport` once both
+   * settle. User-triggered via the `File_RunSweep` IPC channel; there is
+   * no startup auto-run.
    *
-   * The fire-and-forget call site in `onInit` (line above) is what
-   * keeps the ready signal unblocked — this method itself awaits the
-   * sweeps before returning so tests and explicit callers can
-   * deterministically observe the side effects (e.g.
-   * `await fm.runStartupSweeps()`).
-   *
-   * Both branches absorb their own errors via inner try/catch (returning a
-   * `'failed'` report); the outer `.catch()` here is a belt-and-suspenders
-   * fallback for synchronous throws in dep wiring (e.g. registry property
-   * access racing with service shutdown).
+   * Each branch absorbs its own errors via inner try/catch and surfaces
+   * them through the report (`outcome: 'partial'` for per-sourceType
+   * checker throws, `'failed'` if the DB sweep itself collapsed). The FS
+   * sweep's outcome is logged but does not bleed into the returned report
+   * — DB-only state is what the cleanup UI consumes.
    */
-  async runStartupSweeps(): Promise<void> {
-    const fsSweepPromise = runStartupFileSweep({ fileEntryService: this.deps.fileEntryService }).catch((err) => {
-      fileManagerLogger.error('Startup file sweep failed', err)
+  async runSweep(): Promise<OrphanReport> {
+    const startedAt = Date.now()
+    const fsSweepPromise = runFileSweep({ fileEntryService: this.deps.fileEntryService }).catch((err) => {
+      fileManagerLogger.error('File sweep failed', err)
     })
 
-    await Promise.all([
-      fsSweepPromise,
-      runDbSweep({
-        fileEntryService: this.deps.fileEntryService,
-        fileRefService: this.deps.fileRefService,
-        registry: this.deps.orphanRegistry
-      })
-        .then((report) => {
-          this.lastDbSweepReport = report
-          this.lastDbSweepRanAt = Date.now()
-        })
-        .catch((err) => {
-          fileManagerLogger.error('DB orphan sweep failed', err)
-          // Surface the outer-catch path through `lastDbSweepReport` so
-          // `getOrphanReport()` can distinguish "sweep collapsed" from
-          // "no sweep yet". Without this assignment a synchronous wiring
-          // throw (e.g. registry property access racing with shutdown)
-          // would leave the report null forever, and the renderer-side
-          // cleanup UI would see `outcome: 'unknown'` indistinguishable
-          // from the pre-first-sweep state. Counts stay zero because
-          // nothing was actually scanned.
-          this.lastDbSweepReport = {
-            outcome: 'failed',
-            errorMessage: err instanceof Error ? err.message : String(err),
-            orphanRefsByType: {},
-            orphanRefsTotal: 0,
-            orphanEntriesByOrigin: {},
-            orphanEntriesTotal: 0,
-            scanDurationMs: 0
-          }
-          this.lastDbSweepRanAt = Date.now()
-        })
-    ])
-  }
-
-  /**
-   * The most recent DbSweepReport projection, or an empty default before
-   * the first sweep completes. Cleanup UI consumes this to surface orphan
-   * refs (already deleted by the sweep) and orphan entries (preserved per
-   * architecture §7.1; user decides).
-   *
-   * `lastRunAt` is the **sweep completion** timestamp, not the call time —
-   * UI surfaces like "last scanned at HH:MM" can render this directly.
-   * Null until the first sweep settles.
-   */
-  getOrphanReport(): OrphanReport {
-    if (!this.lastDbSweepReport) {
+    const dbSweepPromise = runDbSweep({
+      fileEntryService: this.deps.fileEntryService,
+      fileRefService: this.deps.fileRefService,
+      registry: this.deps.orphanRegistry
+    }).catch((err): DbSweepReport => {
+      fileManagerLogger.error('DB orphan sweep failed', err)
       return {
-        outcome: 'unknown',
+        outcome: 'failed',
+        errorMessage: err instanceof Error ? err.message : String(err),
         orphanRefsByType: {},
         orphanRefsTotal: 0,
         orphanEntriesByOrigin: {},
         orphanEntriesTotal: 0,
-        lastRunAt: null
+        scanDurationMs: 0
       }
-    }
+    })
+
+    const [, dbReport] = await Promise.all([fsSweepPromise, dbSweepPromise])
+    const lastRunAt = startedAt
     const counts = {
-      orphanRefsByType: this.lastDbSweepReport.orphanRefsByType,
-      orphanRefsTotal: this.lastDbSweepReport.orphanRefsTotal,
-      orphanEntriesByOrigin: this.lastDbSweepReport.orphanEntriesByOrigin,
-      orphanEntriesTotal: this.lastDbSweepReport.orphanEntriesTotal
+      orphanRefsByType: dbReport.orphanRefsByType,
+      orphanRefsTotal: dbReport.orphanRefsTotal,
+      orphanEntriesByOrigin: dbReport.orphanEntriesByOrigin,
+      orphanEntriesTotal: dbReport.orphanEntriesTotal
     }
-    // lastDbSweepRanAt is non-null once lastDbSweepReport is populated
-    // (set in lockstep in runStartupSweeps); narrow for the non-'unknown'
-    // variants which require number.
-    const lastRunAt = this.lastDbSweepRanAt ?? Date.now()
-    switch (this.lastDbSweepReport.outcome) {
+    switch (dbReport.outcome) {
       case 'completed':
         return { ...counts, outcome: 'completed', lastRunAt }
       case 'partial':
-        return {
-          ...counts,
-          outcome: 'partial',
-          errorsByType: this.lastDbSweepReport.errorsByType,
-          lastRunAt
-        }
+        return { ...counts, outcome: 'partial', errorsByType: dbReport.errorsByType, lastRunAt }
       case 'failed':
-        return {
-          ...counts,
-          outcome: 'failed',
-          errorMessage: this.lastDbSweepReport.errorMessage,
-          lastRunAt
-        }
+        return { ...counts, outcome: 'failed', errorMessage: dbReport.errorMessage, lastRunAt }
     }
   }
 

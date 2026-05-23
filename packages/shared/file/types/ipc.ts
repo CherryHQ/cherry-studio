@@ -30,6 +30,7 @@ import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/f
 
 import type { Base64String, DirectoryListOptions, FilePath, PhysicalFileMetadata, URLString } from './common'
 import type { FileHandle } from './handle'
+import type { OrphanReport } from './sweep'
 
 export type { DirectoryListOptions, FilePath } from './common'
 
@@ -611,6 +612,25 @@ export interface FileIpcApi {
    * @phase 2 — not yet wired
    */
   batchGetPhysicalPaths(params: { ids: FileEntryId[] }): Promise<Record<FileEntryId, FilePath>>
+
+  // ─── K. Orphan Sweep ───
+  //
+  // User-triggered cleanup pass. There is no startup auto-run; the cleanup UI
+  // is the only consumer.
+
+  /**
+   * Run both the FS-level orphan sweep (architecture §10) and the DB-level
+   * orphan-ref / entry sweep (§7 Layer 3) concurrently. Returns once both
+   * settle, with the DB sweep's discriminated outcome surfaced through the
+   * report's `outcome` field (`'completed'` / `'partial'` / `'failed'`).
+   *
+   * The FS sweep's outcome is logged but does not bleed into the returned
+   * report — DB-only state is what the cleanup UI consumes.
+   *
+   * @phase 2 — wired in Batch 0 (`IpcChannel.File_RunSweep` →
+   * `FileManager.registerIpcHandlers`)
+   */
+  runSweep(): Promise<OrphanReport>
 }
 
 // ─── Electron Types ───
