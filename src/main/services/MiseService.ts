@@ -64,6 +64,7 @@ const TOOL_NAME_RE = /^[a-zA-Z][a-zA-Z0-9_-]*$/
 const TOOL_KEY_RE = /^(?!.*\.\.)(?!.*\/\/)[a-zA-Z0-9@:/_.-]+$/
 
 const WRAPPER_BACKENDS = new Set(['npm', 'pipx'])
+const WRAPPER_RUNTIME_DEPS: Record<string, string> = { npm: 'node', pipx: 'python' }
 
 const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000
 
@@ -263,7 +264,12 @@ export class MiseService extends BaseService {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cherry-mise-'))
     try {
       const version = tool.version || 'latest'
-      const tomlContent = `[tools]\n"${tool.tool}" = "${version}"\n`
+      const backend = tool.tool.split(':')[0]
+      const runtime = WRAPPER_RUNTIME_DEPS[backend]
+      let tomlContent = `[tools]\n"${tool.tool}" = "${version}"\n`
+      if (runtime) {
+        tomlContent += `${runtime} = "latest"\n`
+      }
       fs.writeFileSync(path.join(tmpDir, 'mise.toml'), tomlContent)
 
       await this.runMise(['trust', tmpDir], tmpDir)
@@ -275,7 +281,6 @@ export class MiseService extends BaseService {
       const binDir = application.getPath('cherry.bin')
       fs.mkdirSync(binDir, { recursive: true })
 
-      const backend = tool.tool.split(':')[0]
       if (WRAPPER_BACKENDS.has(backend)) {
         const dstPath = path.join(binDir, isWin ? `${tool.name}.cmd` : tool.name)
         this.writeToolWrapper(dstPath, tool, installedVersion)
@@ -301,11 +306,15 @@ export class MiseService extends BaseService {
   private writeToolWrapper(dstPath: string, tool: MiseTool, version: string): void {
     const dataDir = application.getPath('feature.mise.data')
     const miseBin = this.miseBin!
+    const backend = tool.tool.split(':')[0]
+    const runtime = WRAPPER_RUNTIME_DEPS[backend]
+    const runtimeArg = runtime ? `"${runtime}" ` : ''
     if (isWin) {
-      const script = `@echo off\r\nset "MISE_DATA_DIR=${dataDir}"\r\nset "MISE_YES=1"\r\n"${miseBin}" x "${tool.tool}@${version}" -- "${tool.name}" %*\r\n`
+      const script = `@echo off\r\nset "MISE_DATA_DIR=${dataDir}"\r\nset "MISE_YES=1"\r\n"${miseBin}" x ${runtimeArg}"${tool.tool}@${version}" -- "${tool.name}" %*\r\n`
       fs.writeFileSync(dstPath, script)
     } else {
-      const script = `#!/bin/sh\nMISE_DATA_DIR='${dataDir}' MISE_YES=1 exec '${miseBin}' x '${tool.tool}@${version}' -- '${tool.name}' "$@"\n`
+      const safeMiseBin = miseBin.replace(/'/g, "'\\''")
+      const script = `#!/bin/sh\nMISE_DATA_DIR='${dataDir}' MISE_YES=1 exec '${safeMiseBin}' x ${runtime ? `${runtime} ` : ''}'${tool.tool}@${version}' -- '${tool.name}' "$@"\n`
       fs.writeFileSync(dstPath, script, { mode: 0o755 })
     }
   }
@@ -319,8 +328,12 @@ export class MiseService extends BaseService {
         return { updatedAt: '', tools: {} }
       }
       return { updatedAt: String(parsed.updatedAt ?? ''), tools: parsed.tools }
-    } catch {
-      return { updatedAt: '', tools: {} }
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        return { updatedAt: '', tools: {} }
+      }
+      logger.error('Failed to load mise state', err as Error)
+      throw err
     }
   }
 
@@ -352,6 +365,15 @@ export class MiseService extends BaseService {
       const result: ReconcileResult = { installed: [], failed: [], skipped: [] }
 
       for (const tool of tools) {
+        try {
+          validateMiseTool(tool)
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          logger.warn('Skipping invalid tool from preferences', { name: tool.name, error: msg })
+          result.failed.push({ name: tool.name, error: msg })
+          continue
+        }
+
         const existing = state.tools[tool.name]
         if (existing && tool.version && existing.version === tool.version) {
           result.skipped.push(tool.name)
@@ -380,8 +402,12 @@ export class MiseService extends BaseService {
         }
       }
 
-      state.updatedAt = new Date().toISOString()
-      this.saveState(state)
+      try {
+        state.updatedAt = new Date().toISOString()
+        this.saveState(state)
+      } catch (err) {
+        logger.error('Failed to persist reconcile state', err as Error)
+      }
       this.broadcastReconcileFailures(result.failed)
 
       return result
@@ -452,15 +478,15 @@ export class MiseService extends BaseService {
   }
 
   async removeTool(toolName: string): Promise<void> {
-    const binDir = application.getPath('cherry.bin')
-    for (const ext of isWin ? ['.exe', '.cmd'] : ['']) {
-      const binPath = path.join(binDir, `${toolName}${ext}`)
-      if (fs.existsSync(binPath)) {
-        fs.unlinkSync(binPath)
-      }
-    }
-
     return this.withStateLock(async () => {
+      const binDir = application.getPath('cherry.bin')
+      for (const ext of isWin ? ['.exe', '.cmd'] : ['']) {
+        const binPath = path.join(binDir, `${toolName}${ext}`)
+        if (fs.existsSync(binPath)) {
+          fs.unlinkSync(binPath)
+        }
+      }
+
       const state = this.loadState()
       if (!state.tools[toolName]) return
       delete state.tools[toolName]

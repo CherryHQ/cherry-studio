@@ -134,7 +134,7 @@ describe('MiseService', () => {
       ;(service as any).isolatedEnv = {}
 
       mockFs.readFileSync.mockImplementation(() => {
-        throw new Error('ENOENT')
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
       })
 
       mockExecFileAsync.mockRejectedValueOnce(new Error('mise trust failed'))
@@ -153,7 +153,7 @@ describe('MiseService', () => {
       ;(service as any).isolatedEnv = {}
 
       mockFs.readFileSync.mockImplementation(() => {
-        throw new Error('ENOENT')
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
       })
 
       mockExecFileAsync
@@ -210,7 +210,7 @@ describe('MiseService', () => {
 
       mockFs.existsSync.mockReturnValue(false)
       mockFs.readFileSync.mockImplementation(() => {
-        throw new Error('ENOENT')
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
       })
 
       await service.removeTool('nonexistent')
@@ -235,7 +235,7 @@ describe('MiseService', () => {
       ;(service as any).isolatedEnv = {}
 
       mockFs.readFileSync.mockImplementation(() => {
-        throw new Error('ENOENT')
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
       })
 
       mockExecFileAsync
@@ -371,7 +371,7 @@ describe('MiseService', () => {
       ;(service as any).isolatedEnv = {}
 
       mockFs.readFileSync.mockImplementation(() => {
-        throw new Error('ENOENT')
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
       })
 
       mockExecFileAsync
