@@ -405,7 +405,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
                     <DocsLinkItem
                       onClick={(e) => {
                         e.stopPropagation()
-                        window.api.openWebsite('https://docs.cherry-ai.com/advanced-basic/agent')
+                        void window.api.openWebsite('https://docs.cherry-ai.com/advanced-basic/agent')
                       }}>
                       <DocsIconWrapper>
                         <BookOpenText size={14} />

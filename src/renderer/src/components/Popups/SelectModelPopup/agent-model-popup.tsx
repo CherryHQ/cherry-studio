@@ -97,7 +97,7 @@ const PopupContainer: React.FC<Props> = ({ model, apiFilter, modelFilter, showTa
             onClick={(e) => {
               e.preventDefault()
               e.stopPropagation()
-              window.api.openWebsite('https://docs.cherry-ai.com/advanced-basic/agent')
+              void window.api.openWebsite('https://docs.cherry-ai.com/advanced-basic/agent')
             }}>
             {t('agent.add.model.empty_docs', 'View setup guide')}
           </a>
