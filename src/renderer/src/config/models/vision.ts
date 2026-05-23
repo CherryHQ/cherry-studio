@@ -81,6 +81,8 @@ const VISION_REGEX = new RegExp(
   'i'
 )
 
+const STEPFUN_VISION_MODELS = new Set(['step-3.7-flash'])
+
 // All dedicated image generation models (only generate images, no text chat capability)
 // These models need:
 // 1. Route to dedicated image generation API
@@ -262,6 +264,10 @@ export function isVisionModel(model: Model): boolean {
   }
 
   const modelId = getLowerBaseModelName(model.id)
+  if (model.provider === 'stepfun' && STEPFUN_VISION_MODELS.has(modelId)) {
+    return true
+  }
+
   if (model.provider === 'doubao' || modelId.includes('doubao')) {
     return VISION_REGEX.test(model.name) || VISION_REGEX.test(modelId) || false
   }
