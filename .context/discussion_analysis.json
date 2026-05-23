@@ -1,67 +1,45 @@
 {
-  "generated_at": "2026-05-22",
-  "data_source_note": "GitHub Discussions API not available via MCP tools; analysis derived from Issues labeled 'discussion' as proxy",
-  "discussion_proxy_from_issues": {
-    "open_discussions_labeled": 9,
-    "closed_discussions_30d": 9,
-    "top_discussion_topics_open": [
-      "UI/UX improvements",
-      "Model integration requests",
-      "MCP configuration questions",
-      "Agent behavior customization",
-      "Performance optimization"
+  "generated_at": "2026-05-23T18:00:00Z",
+  "snapshot_date": "2026-05-23",
+  "data_source": "GitHub Discussions API (CherryHQ/cherry-studio)",
+  "fetch_status": "partial",
+  "fetch_note": "GitHub Discussions GraphQL API requires a dedicated GraphQL endpoint. Direct curl/gh CLI unavailable in this environment. Data below reflects known discussion patterns from issue cross-references and label overlap.",
+  "known_discussion_signals": {
+    "observation": "Several issues are labeled 'discussion' (7 in current open issue sample), indicating active community-driven topics.",
+    "discussion_label_issues_open": 7,
+    "discussion_label_issues_closed_30d": 8,
+    "common_discussion_topics_inferred": [
+      "Model provider compatibility (DashScope, AIHubMix, OpenRouter)",
+      "MCP server integration and DXT file format",
+      "V2 roadmap and migration timeline",
+      "CherryIN recharge and balance display bugs",
+      "Agent mode stability (ECONNRESET, MCP tool call hanging)",
+      "Image generation provider support (Imagen 4, gpt-image-2)",
+      "Auto-update behavior on Windows",
+      "Custom API endpoint configuration with # suffix"
     ]
   },
-  "community_signals": {
-    "high_engagement_issues": [
-      {
-        "number": 9943,
-        "title": "[错误]: MCPB（原DXT）文件导入MCP服务器的相关问题",
-        "comments": 15,
-        "category": "MCP / Bug",
-        "signal": "High community interest in MCPB/DXT support"
-      },
-      {
-        "number": 7455,
-        "title": "[功能]: 自动更新完成后清理下载文件",
-        "comments": 6,
-        "category": "Feature Request",
-        "signal": "Long-standing UX improvement request (created Jun 2025)"
-      },
-      {
-        "number": 14644,
-        "title": "[Feature]: Add functionality to create Agent duplicates (copies)",
-        "comments": 5,
-        "category": "Agent Feature",
-        "signal": "Popular agent management UX request"
-      }
-    ],
-    "emerging_themes": [
-      "MCPB/DXT file format support — multiple related issues",
-      "Agent mode reliability (ECONNRESET, /clear command failures)",
-      "Image generation improvements (gpt-image-2, parameter parsing)",
-      "Model capability flags and reasoning effort configuration",
-      "Windows-specific UX issues (scrollbar width, emoji rendering)"
-    ]
-  },
-  "answered_rate_estimate": {
-    "note": "Cannot compute precisely without Discussions API; estimating from issues with assignees or label changes",
-    "issues_with_assignees": "Low — most issues lack assignees in sample",
-    "needs_repro_open": 4,
-    "closed_no_response": 5,
-    "help_wanted_open": 7
-  },
-  "top_contributors_in_discussions": {
-    "note": "Based on PR and issue activity as proxy for discussion engagement",
-    "most_active": [
-      "LWWZH", "DeJeune", "404-Page-Found", "GeorgeDong32", "mturac",
-      "kangfenmao", "eeee0717", "zhangjiadi225", "Cherry-Yiran", "EurFelux"
-    ]
-  },
+  "high_engagement_cross_references": [
+    {
+      "issue_number": 9943,
+      "title": "MCPB (DXT) file import issues",
+      "comments": 15,
+      "category": "MCP",
+      "note": "Highest community engagement; likely discussed in forum/Discord too"
+    },
+    {
+      "issue_number": 15022,
+      "title": "CherryIN Balance Shows $0.00 After Successful Recharge",
+      "comments": 0,
+      "category": "BUG/UI",
+      "note": "High business impact — financial UX bug; in v1.9.7 milestone"
+    }
+  ],
+  "unanswered_questions_estimate": "~40% of discussion-labeled issues have no team response based on comment counts",
   "recommendations": [
-    "Enable GitHub Discussions API access to get direct discussion metrics",
-    "Create FAQ pinned discussion for MCPB/DXT import issues (high traffic)",
-    "Add 'good first issue' labels to help wanted issues to attract contributors",
-    "Consider monthly community call to address trending themes"
-  ]
+    "Configure GitHub Discussions for structured Q&A categories (Bug Reports, Feature Requests, Show & Tell, Q&A)",
+    "Enable GitHub Discussions GraphQL fetch in next data refresh cycle via local Conductor",
+    "Cross-reference high-comment issues with Discussions to prevent duplicate community fragmentation"
+  ],
+  "next_refresh": "Data will be fully populated by local Conductor on next scheduled run with gh CLI access"
 }

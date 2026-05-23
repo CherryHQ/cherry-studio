@@ -1,153 +1,152 @@
 #!/usr/bin/env python3
 """
-Build v2 roadmap from merged and open v2 PRs.
-Input:  /tmp/v2_merged_prs.json, /tmp/v2_open_prs.json
-Output: .context/v2_roadmap_detailed.json
+build_v2_roadmap.py — Cherry Studio V2 Roadmap Builder
+Reads /tmp/v2_merged_prs.json and /tmp/v2_open_prs.json and writes
+.context/v2_roadmap_detailed.json
+
+Usage:
+    python3 scripts/build_v2_roadmap.py
 """
 
 import json
-import re
+import os
+import sys
 from datetime import datetime, timezone, timedelta
-from collections import Counter, defaultdict
 from pathlib import Path
+from collections import defaultdict
+import re
 
-TODAY = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 CONTEXT_DIR = Path(__file__).parent.parent / ".context"
-CONTEXT_DIR.mkdir(exist_ok=True)
-
-CATEGORY_PATTERNS = [
-    ("refactor", r"\brefactor\b"),
-    ("feat", r"\bfeat\b"),
-    ("fix", r"\bfix\b"),
-    ("chore", r"\bchore\b"),
-    ("docs", r"\bdocs?\b"),
-    ("perf", r"\bperf\b"),
-    ("ci", r"\bci\b"),
-    ("test", r"\btest\b"),
-]
-
-MODULE_PATTERNS = [
-    ("agents", r"\b(agents?|agent-task|ai-service)\b"),
-    ("data-layer", r"\b(data|migration|db|database|drizzle)\b"),
-    ("ui", r"\b(ui|layout|renderer|react|component|tailwind)\b"),
-    ("mcp", r"\b(mcp|tool-call)\b"),
-    ("i18n", r"\bi18n\b"),
-    ("provider", r"\b(provider|model|llm)\b"),
-    ("file", r"\b(file|backup|storage)\b"),
-    ("knowledge", r"\b(knowledge|rag|embedding)\b"),
-    ("notes", r"\bnotes?\b"),
-    ("paintings", r"\bpaintings?\b"),
-    ("miniapp", r"\bminiapp\b"),
-]
+TODAY = datetime.now(tz=timezone.utc)
+MERGED_PATH = "/tmp/v2_merged_prs.json"
+OPEN_PATH = "/tmp/v2_open_prs.json"
 
 
-def extract_labels(pr: dict) -> list[str]:
-    labels = pr.get("labels", [])
-    if isinstance(labels, list) and labels and isinstance(labels[0], dict):
-        return [lb["name"] for lb in labels]
-    return [lb for lb in labels if isinstance(lb, str)]
+def parse_dt(s: str | None) -> datetime | None:
+    if not s:
+        return None
+    return datetime.fromisoformat(s.replace("Z", "+00:00"))
 
 
-def categorize(title: str) -> tuple[str, str]:
-    t = title.lower()
-    category = "other"
-    for cat, pat in CATEGORY_PATTERNS:
-        if re.search(pat, t):
-            category = cat
-            break
-    module = "general"
-    for mod, pat in MODULE_PATTERNS:
-        if re.search(pat, t):
-            module = mod
-            break
-    return category, module
+def classify_pr_type(title: str) -> str:
+    """Infer PR type from conventional commit title prefix."""
+    title_lower = title.lower().strip()
+    for prefix in ("refactor", "feat", "fix", "chore", "docs", "test", "style", "perf", "ci", "build"):
+        if title_lower.startswith(prefix):
+            return prefix
+    return "uncategorized"
 
 
-def parse_prs(prs: list) -> list[dict]:
-    result = []
-    for pr in prs:
-        labels = extract_labels(pr)
-        category, module = categorize(pr.get("title", ""))
-        result.append({
-            "number": pr["number"],
-            "title": pr["title"],
-            "labels": labels,
-            "author": (pr.get("author") or {}).get("login", pr.get("user", {}).get("login", "unknown")),
-            "category": category,
-            "module": module,
-            "mergedAt": pr.get("mergedAt") or pr.get("merged_at"),
-            "createdAt": pr.get("createdAt") or pr.get("created_at"),
-            "draft": pr.get("draft", False),
-        })
-    return result
+def week_label(dt: datetime) -> str:
+    return dt.strftime("W%W_%b%d")
 
 
 def main():
-    with open("/tmp/v2_merged_prs.json") as f:
-        merged_raw = json.load(f)
-    with open("/tmp/v2_open_prs.json") as f:
-        open_raw = json.load(f)
+    CONTEXT_DIR.mkdir(parents=True, exist_ok=True)
 
-    merged = parse_prs(merged_raw)
-    open_prs = parse_prs(open_raw)
+    merged_prs = []
+    open_prs = []
 
-    cutoff_7d = TODAY - timedelta(days=7)
-    cutoff_30d = TODAY - timedelta(days=30)
+    if os.path.exists(MERGED_PATH):
+        merged_prs = json.loads(open(MERGED_PATH).read())
+    else:
+        print(f"⚠️  {MERGED_PATH} not found — merged PR stats will be empty.", file=sys.stderr)
 
-    merged_7d = [p for p in merged if p["mergedAt"] and
-                 datetime.fromisoformat(p["mergedAt"].replace("Z", "+00:00")) >= cutoff_7d]
-    merged_30d = [p for p in merged if p["mergedAt"] and
-                  datetime.fromisoformat(p["mergedAt"].replace("Z", "+00:00")) >= cutoff_30d]
+    if os.path.exists(OPEN_PATH):
+        open_prs = json.loads(open(OPEN_PATH).read())
+    else:
+        print(f"⚠️  {OPEN_PATH} not found — open PR list will be empty.", file=sys.stderr)
 
-    cat_dist: Counter = Counter(p["category"] for p in merged)
-    mod_dist: Counter = Counter(p["module"] for p in merged)
-    author_dist: Counter = Counter(p["author"] for p in merged)
-    open_author_dist: Counter = Counter(p["author"] for p in open_prs)
+    # Analyze merged PRs
+    by_category: dict[str, int] = defaultdict(int)
+    by_author: dict[str, int] = defaultdict(int)
+    by_week: dict[str, int] = defaultdict(int)
+    recently_merged = []
 
-    # Group open PRs by module
-    open_by_module: dict[str, list] = defaultdict(list)
-    for p in open_prs:
-        open_by_module[p["module"]].append(p)
+    for pr in merged_prs:
+        title = pr.get("title", "")
+        merged_at = parse_dt(pr.get("mergedAt"))
+        author = (pr.get("author") or {}).get("login", "unknown")
 
-    # Monthly merge cadence
-    monthly: Counter = Counter()
-    for p in merged:
-        if p["mergedAt"]:
-            month = p["mergedAt"][:7]
-            monthly[month] += 1
+        pr_type = classify_pr_type(title)
+        by_category[pr_type] += 1
+        by_author[author] += 1
+
+        if merged_at:
+            by_week[week_label(merged_at)] += 1
+
+        recently_merged.append({
+            "number": pr.get("number"),
+            "title": title,
+            "type": pr_type,
+            "author": author,
+            "mergedAt": pr.get("mergedAt"),
+            "labels": [(lb["name"] if isinstance(lb, dict) else lb) for lb in pr.get("labels", [])],
+        })
+
+    recently_merged.sort(key=lambda x: x.get("mergedAt") or "", reverse=True)
+
+    total_merged = len(merged_prs)
+    top_contributors = sorted(by_author.items(), key=lambda x: -x[1])
+
+    # Analyze open v2 PRs
+    long_running = []
+    active_open = []
+
+    for pr in open_prs:
+        created_at = parse_dt(pr.get("createdAt"))
+        age_days = (TODAY - created_at).days if created_at else 0
+        author = (pr.get("author") or {}).get("login", "unknown")
+
+        entry = {
+            "number": pr.get("number"),
+            "title": pr.get("title", ""),
+            "author": author,
+            "created": pr.get("createdAt"),
+            "age_days": age_days,
+            "labels": [(lb["name"] if isinstance(lb, dict) else lb) for lb in pr.get("labels", [])],
+        }
+
+        if age_days >= 30:
+            long_running.append(entry)
+        else:
+            active_open.append(entry)
+
+    long_running.sort(key=lambda x: -x["age_days"])
+    active_open.sort(key=lambda x: x.get("created") or "", reverse=True)
 
     roadmap = {
         "generated_at": TODAY.isoformat(),
-        "v2_merged": {
-            "total": len(merged),
-            "last_7d": len(merged_7d),
-            "last_30d": len(merged_30d),
-            "by_category": dict(cat_dist.most_common()),
-            "by_module": dict(mod_dist.most_common()),
-            "top_contributors": dict(author_dist.most_common(10)),
-            "monthly_cadence": dict(sorted(monthly.items())),
-            "recent": [p for p in merged_7d],
+        "snapshot_date": TODAY.strftime("%Y-%m-%d"),
+        "v2_branch_status": "ACTIVE",
+        "merged_30d": {
+            "total": total_merged,
+            "by_category": {
+                k: {"count": v, "pct": round(v / total_merged * 100, 1) if total_merged else 0}
+                for k, v in sorted(by_category.items(), key=lambda x: -x[1])
+            },
+            "by_week": dict(by_week),
+            "top_contributors": [{"author": a, "count": c} for a, c in top_contributors[:10]],
+            "recently_merged_20": recently_merged[:20],
         },
-        "v2_open": {
+        "open_v2_prs": {
             "total": len(open_prs),
-            "drafts": sum(1 for p in open_prs if p["draft"]),
-            "ready": sum(1 for p in open_prs if not p["draft"]),
-            "by_module": {k: len(v) for k, v in open_by_module.items()},
-            "top_contributors": dict(open_author_dist.most_common(10)),
-            "prs": open_prs,
-        },
-        "module_progress": {
-            mod: {
-                "merged": mod_dist.get(mod, 0),
-                "open": len(open_by_module.get(mod, [])),
-            }
-            for mod in set(list(mod_dist.keys()) + list(open_by_module.keys()))
+            "long_running_30d_plus": long_running,
+            "active_recent": active_open[:15],
         },
     }
 
-    out = CONTEXT_DIR / "v2_roadmap_detailed.json"
-    out.write_text(json.dumps(roadmap, indent=2, ensure_ascii=False))
-    print(f"Wrote {out}")
+    out_path = CONTEXT_DIR / "v2_roadmap_detailed.json"
+    with open(out_path, "w") as f:
+        json.dump(roadmap, f, indent=2, ensure_ascii=False)
+
+    print(f"✅ V2 roadmap written to {out_path}")
+    print(f"   Merged (30d): {total_merged} | Open: {len(open_prs)} | Long-running: {len(long_running)}")
+    print(f"   Category breakdown:")
+    for cat, count in sorted(by_category.items(), key=lambda x: -x[1]):
+        pct = round(count / total_merged * 100, 1) if total_merged else 0
+        print(f"     {cat}: {count} ({pct}%)")
+    print(f"   Top contributor: {top_contributors[0][0]} ({top_contributors[0][1]} PRs)" if top_contributors else "")
 
 
 if __name__ == "__main__":

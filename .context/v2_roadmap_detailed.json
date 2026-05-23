@@ -1,153 +1,135 @@
 {
-  "generated_at": "2026-05-22",
-  "branch_strategy": {
-    "main": "Code freeze — only hotfix/* accepted. Minimal scope, no refactoring.",
-    "v2": "Active development — new features, refactoring, optimizations"
+  "generated_at": "2026-05-23T18:00:00Z",
+  "snapshot_date": "2026-05-23",
+  "v2_branch_status": "ACTIVE — accepting new feature submissions once current refactors complete",
+  "branch_policy": {
+    "main": "Code freeze. Only critical hotfixes via hotfix/* branches. Minimal scope, no refactoring.",
+    "v2": "All new features, refactoring, and optimizations. New features accepted after full refactor completion."
   },
-  "v2_velocity": {
-    "open_prs": 79,
-    "merged_prs_30d": 41,
-    "merged_prs_7d": 8,
-    "avg_merges_per_day_30d": 1.37,
-    "avg_merges_per_day_7d": 1.14
+  "v2_merge_velocity_30d": {
+    "total_merged": 42,
+    "avg_per_week": 10.5,
+    "peak_week": {"week": "2026-W19 (May 5-11)", "count": 12},
+    "trend": "stable — 9-12 PRs/week consistently"
   },
-  "top_contributors_30d": {
-    "DeJeune": 7,
-    "eeee0717": 7,
-    "zhangjiadi225": 7,
-    "Cherry-Yiran": 5,
-    "kangfenmao": 5,
-    "EurFelux": 3,
-    "vaayne": 3,
-    "0xfullex": 2,
-    "jidan745le": 1,
-    "chengcheng84": 1
+  "v2_category_breakdown_30d": {
+    "refactor": {
+      "count": 18,
+      "pct": 42.9,
+      "description": "Migrating existing modules to v2 data layer and new UI patterns",
+      "examples": [
+        "#14351 refactor(translate): rebuild translate page on @cherrystudio/ui",
+        "#14993 refactor(web-search-settings): migrate settings to v2 data path",
+        "#14991 refactor(file-processing-settings): migrate settings to v2",
+        "#14734 refactor(knowledge): knowledge ui migration",
+        "#13451 feat(file): Add schema and foundation for new file module",
+        "#15213 refactor(knowledge): migrate to JobManager",
+        "#15214 refactor(file-processing): migrate to JobManager",
+        "#15246 refactor(file-entry): rename trashedAt to deletedAt"
+      ]
+    },
+    "feat": {
+      "count": 14,
+      "pct": 33.3,
+      "description": "New v2 features being developed",
+      "examples": [
+        "#15238 fix(sidebar): align resize thresholds with layouts",
+        "#15205 feat(mini-apps): refresh mini app page and icons",
+        "#15088 feat(provider-settings): grouping + mode-based editor",
+        "#15087 feat(icons): light/dark dual-source architecture",
+        "#12060 feat: context menu",
+        "#14631 refactor(provider-settings): migrate to v2 data layer"
+      ]
+    },
+    "fix": {
+      "count": 5,
+      "pct": 11.9,
+      "description": "Bug fixes landing on v2"
+    },
+    "chore": {"count": 2, "pct": 4.8},
+    "docs": {
+      "count": 2,
+      "pct": 4.8,
+      "examples": [
+        "#14995 docs(design-system): update design token guide",
+        "#14982 docs(gh-pr-review): add Cherry-specific review guidance"
+      ]
+    }
   },
-  "open_pr_authors_v2": {
-    "DeJeune": 14,
-    "LWWZH": 12,
-    "EurFelux": 11,
-    "kovsu": 6,
-    "404-Page-Found": 6,
-    "kangfenmao": 4,
-    "Cherry-Yiran": 2,
-    "vaayne": 2,
-    "others": "30 authors with 1 PR each"
-  },
-  "recently_merged_7d": [
-    {"number": 15246, "title": "refactor(file-entry): rename trashedAt to deletedAt", "author": "EurFelux", "mergedAt": "2026-05-21", "theme": "File System"},
-    {"number": 15205, "title": "feat(mini-apps): refresh mini app page and icons", "author": "Cherry-Yiran", "mergedAt": "2026-05-21", "theme": "UI Refresh"},
-    {"number": 15213, "title": "refactor(knowledge): migrate to JobManager", "author": "0xfullex", "mergedAt": "2026-05-21", "theme": "Architecture"},
-    {"number": 15214, "title": "refactor(file-processing): migrate to JobManager", "author": "0xfullex", "mergedAt": "2026-05-21", "theme": "Architecture"},
-    {"number": 15216, "title": "chore(lint): suppress legacy css var warnings", "author": "kangfenmao", "mergedAt": "2026-05-20", "theme": "DX"},
-    {"number": 15088, "title": "feat(provider-settings): grouping + mode-based editor follow-up", "author": "DeJeune", "mergedAt": "2026-05-18", "theme": "Provider UX"},
-    {"number": 15087, "title": "feat(icons): light/dark dual-source architecture", "author": "Cherry-Yiran", "mergedAt": "2026-05-18", "theme": "UI Refresh"},
-    {"number": 15091, "title": "refactor(ui): refresh shared dialog styling", "author": "Cherry-Yiran", "mergedAt": "2026-05-18", "theme": "UI Refresh"}
+  "top_contributors_30d": [
+    {"author": "DeJeune",       "merged": 7, "focus": "AI service architecture, commands, build"},
+    {"author": "eeee0717",      "merged": 7, "focus": "Settings migration, knowledge, file processing"},
+    {"author": "zhangjiadi225", "merged": 7, "focus": "UI components, translate, refactoring"},
+    {"author": "Cherry-Yiran",  "merged": 5, "focus": "Icons, UI refresh, mini-apps, code-tools"},
+    {"author": "kangfenmao",    "merged": 5, "focus": "Paintings, notes, i18n, lint"},
+    {"author": "EurFelux",      "merged": 3, "focus": "File management system"},
+    {"author": "vaayne",        "merged": 3, "focus": "Mise tool manager, agents"},
+    {"author": "0xfullex",      "merged": 2, "focus": "JobManager migration"}
   ],
-  "open_prs_by_theme": {
-    "Architecture_JobManager_DataApi": [
-      {"number": 15215, "title": "refactor(agent-task): migrate to JobManager", "author": "0xfullex"},
-      {"number": 14911, "title": "refactor(ai-service): consolidate AI runtime to main process", "author": "DeJeune"},
-      {"number": 14160, "title": "feat: migrate agents data access to data api", "author": "vaayne"},
-      {"number": 14096, "title": "perf: move AgentBootstrapService to Phase.Background", "author": "DeJeune"}
+  "open_v2_prs": {
+    "total": 32,
+    "active_recent": [
+      {"number": 15289, "title": "fix(build): drop dead proxy/bootstrap build plugin", "author": "DeJeune", "created": "2026-05-23"},
+      {"number": 15282, "title": "feat(commands): unify shortcuts, menus, and tools behind shared command", "author": "DeJeune", "created": "2026-05-23"},
+      {"number": 15273, "title": "fix(ui-icons): stop compound icons rendering both light and dark", "author": "DeJeune", "created": "2026-05-22"},
+      {"number": 15265, "title": "feat(translate): refresh translate page and shared drawer composition", "author": "Cherry-Yiran", "created": "2026-05-22"},
+      {"number": 15263, "title": "feat(settings): redesign settings navigation", "author": "Cherry-Yiran", "created": "2026-05-22"},
+      {"number": 15255, "title": "fix: keep dragged tabs within safe bounds", "author": "kovsu", "created": "2026-05-22"},
+      {"number": 15252, "title": "refactor(knowledge&file-processing): integrate file manager", "author": "eeee0717", "created": "2026-05-22"},
+      {"number": 15247, "title": "chore(deps): bump Vercel AI SDK packages to latest", "author": "PhoenixCPH", "created": "2026-05-21"},
+      {"number": 15234, "title": "fix: add missing key prop to SendMessageButton in InputbarCore (v2)", "author": "LGiki", "created": "2026-05-21"},
+      {"number": 15232, "title": "feat: add provider filter to model selector", "author": "xiaoxiaolexlh", "created": "2026-05-21"}
     ],
-    "File_System": [
-      {"number": 15067, "title": "feat(file): Phase 2 Batch 0 — FileMigrator + cross-module coordination", "author": "EurFelux"},
-      {"number": 15252, "title": "refactor(knowledge&file-processing): integrate file manager", "author": "eeee0717"},
-      {"number": 12150, "title": "refactor(files): File Management System Architecture", "author": "EurFelux"},
-      {"number": 10699, "title": "feat: video generation", "author": "EurFelux"}
-    ],
-    "UI_Refresh": [
-      {"number": 15263, "title": "feat(settings): redesign settings navigation", "author": "Cherry-Yiran"},
-      {"number": 15265, "title": "feat(translate): refresh translate page and shared drawer composition", "author": "Cherry-Yiran"},
-      {"number": 13173, "title": "refactor(renderer): migrate from ReactMarkdown to Streamdown", "author": "DeJeune"},
-      {"number": 12519, "title": "refactor: replace antd Input/TextArea with Shadcn UI components", "author": "SherlockShemol"},
-      {"number": 13547, "title": "refactor: redesign v2 migration window UI with shadcn components", "author": "kovsu"}
-    ],
-    "Data_Layer_Migration": [
-      {"number": 15154, "title": "refactor(paintings): migrate to v2 data layer and UI", "author": "kangfenmao"},
-      {"number": 15186, "title": "refactor(notes): migrate notes UI and data to v2", "author": "kangfenmao"},
-      {"number": 14968, "title": "refactor(miniapp): migrate from antd/styled-components to Tailwind + @cherrystudio/ui", "author": "chengcheng84"},
-      {"number": 13589, "title": "feat(v2): migrate proxy api server into v2 api gateway", "author": "FactrueSolin"},
-      {"number": 13451, "title": "feat(file): Add schema and foundation for new file module (MERGED 2026-05-13)", "note": "already merged"}
-    ],
-    "Provider_Catalog": [
-      {"number": 11420, "title": "feat: Model & Provider Catalog", "author": "DeJeune"},
-      {"number": 13238, "title": "feat(data): add provider/model data API and catalog core", "author": "DeJeune"},
-      {"number": 13312, "title": "feat(data): add note metadata DataApi and cache schemas", "author": "DeJeune"}
-    ],
-    "Chat_UI": [
-      {"number": 15255, "title": "fix: keep dragged tabs within safe bounds", "author": "kovsu"},
-      {"number": 15238, "title": "fix(sidebar): align resize thresholds with layouts", "author": "kovsu"},
-      {"number": 14760, "title": "fix(chat-layout): restore chat composer sizing and anchor messages to bottom", "author": "ousugo"},
-      {"number": 14146, "title": "feat(layout): add split-view infrastructure for multi-pane tabs", "author": "DeJeune"},
-      {"number": 14739, "title": "feat(message-service): add getPathThrough for branch-aware path queries", "author": "DeJeune"}
-    ],
-    "Agents_Features": [
-      {"number": 15184, "title": "feat(mise): add mise-based tool manager service", "author": "vaayne"},
-      {"number": 15177, "title": "feat(agents): add Claude OpenAI proxy for OpenAI-compatible providers", "author": "hhy5562877"},
-      {"number": 14970, "title": "feat(agents): add optional PowerShell tool for Windows agent sessions", "author": "AloneAtWar"},
-      {"number": 14357, "title": "feat(memory): pluggable memory provider system with Hindsight integration", "author": "kwisser"}
-    ],
-    "Knowledge_Search": [
-      {"number": 14135, "title": "feat(websearch): add toggle to disable prefilling search keywords", "author": "karuboniru"}
-    ],
-    "Performance": [
-      {"number": 14456, "title": "feat: add session-based prompt cache expiration reminder", "author": "LWWZH"},
-      {"number": 14261, "title": "feat(anthropic): improve prompt caching with incremental strategy", "author": "TakotsuboChen"},
-      {"number": 13687, "title": "chore: migrate to vite 8 (Pending)", "author": "EurFelux"}
-    ],
-    "DX_Tooling": [
-      {"number": 14858, "title": "feat(i18n): add unused key cleaner", "author": "kangfenmao"},
-      {"number": 10912, "title": "refactor: i18n (Blocked: v2)", "author": "EurFelux"}
-    ],
-    "Long_Running_WIP": [
-      {"number": 10090, "title": "[WIP] feat: terminal", "author": "EurFelux", "created": "2025-09-10", "age_days": 254},
-      {"number": 10162, "title": "🍒 CherryStudio P0: Data & UI Refactoring (targeting main)", "author": "0xfullex", "created": "2025-09-14"},
-      {"number": 12150, "title": "refactor(files): File Management System Architecture", "author": "EurFelux", "created": "2025-12-26", "age_days": 147},
-      {"number": 10929, "title": "refactor: Migrate to tiptap markdown", "author": "Copilot", "created": "2025-10-23"},
-      {"number": 11420, "title": "feat: Model & Provider Catalog", "author": "DeJeune", "created": "2025-11-23"}
+    "long_running": [
+      {"number": 10090, "title": "[WIP] feat: terminal", "author": "EurFelux", "age_days": 254, "status": "WIP"},
+      {"number": 12150, "title": "refactor(files): File Management System Architecture", "author": "EurFelux", "age_days": 147, "status": "Large design PR"},
+      {"number": 12659, "title": "feat(backup): add v2 backup system refactor plan document", "author": "GeorgeDong32", "age_days": 112, "status": "Design doc"},
+      {"number": 14562, "title": "fix(code-tools): improve dark mode visibility", "author": "Raymond8196", "age_days": 29, "status": "Stale"}
     ]
   },
-  "migration_progress": {
-    "completed_migrations_30d": [
-      "provider-settings → v2 data layer (jidan745le, 2026-05-14)",
-      "knowledge → JobManager (0xfullex, 2026-05-21)",
-      "file-processing → JobManager (0xfullex, 2026-05-21)",
-      "OpenClaw page → v2 storage (kangfenmao, 2026-05-08)",
-      "miniapp → v2 data layer (chengcheng84, 2026-05-07)",
-      "web-search → v2 data path (eeee0717, 2026-05-12)",
-      "file-processing-settings → v2 data (eeee0717, 2026-05-11)",
-      "agents renderer hooks → HTTP to DataApi (vaayne, 2026-05-01)",
-      "translate page → @cherrystudio/ui (zhangjiadi225, 2026-05-11)",
-      "knowledge UI → v2 (eeee0717, 2026-05-11)",
-      "renderer translate module → v2 data APIs (EurFelux, 2026-05-10)",
-      "prompt-management simplification (zhangjiadi225, 2026-05-07)",
-      "agents-data-api → DataApi (vaayne, 2026-04-24)",
-      "agent/session/task IDs → UUID v4 (vaayne, 2026-05-01)",
-      "topics ordering → fractional-indexing (DeJeune, 2026-04-30)"
+  "refactoring_modules_tracked": {
+    "completed": [
+      "translate page (@cherrystudio/ui)",
+      "web-search-settings (v2 data)",
+      "file-processing-settings (v2 data)",
+      "knowledge UI",
+      "provider-settings (v2 data + UI)",
+      "file entry schema (trashedAt→deletedAt)",
+      "knowledge + file-processing JobManager",
+      "mini-apps page + icons",
+      "provider icons (light/dark dual-source)",
+      "context menu",
+      "design system token docs",
+      "code-tools launch experience"
     ],
     "in_progress": [
-      "paintings → v2 data layer (kangfenmao, PR #15154)",
-      "notes → v2 data layer (kangfenmao, PR #15186)",
-      "miniapp → Tailwind + @cherrystudio/ui (chengcheng84, PR #14968)",
-      "file system Phase 2 (EurFelux, PR #15067)",
-      "knowledge + file-processing: integrate file manager (eeee0717, PR #15252)",
-      "ai-service → main process (DeJeune, PR #14911)"
+      "settings navigation redesign (#15263)",
+      "knowledge+file-processing file manager integration (#15252)",
+      "ai-service consolidation to main process (#14911)",
+      "notes UI and data migration (#15186)",
+      "paintings migration (#15154)",
+      "miniapp Tailwind migration (#14968)",
+      "file management Phase 2 (#15067)",
+      "translate drawer composition (#15265)"
+    ],
+    "planned": [
+      "terminal feature (#10090 — WIP since Sep 2025)",
+      "file management architecture refactor (#12150)",
+      "backup system v2 (#12659)",
+      "agent runtime (DeJeune/ai-service branch: #14997, #15045)",
+      "commands unification (#15282)",
+      "provider filter for model selector (#15232)"
     ]
   },
   "blocked_prs": [
-    {"number": 10912, "title": "refactor: i18n", "label": "Blocked: v2", "author": "EurFelux"}
+    {"count": 3, "label": "Blocked: v2", "description": "PRs blocked pending v2 data layer readiness"}
   ],
-  "ready_to_merge": [
-    {"number": 13173, "title": "refactor(renderer): migrate from ReactMarkdown to Streamdown", "label": "ready-to-merge", "author": "DeJeune"}
-  ],
-  "insights": [
-    "v2 is actively merging ~1.4 PRs/day; pace is healthy",
-    "DeJeune, LWWZH, EurFelux are the top 3 open-PR authors for v2 (14, 12, 11 each)",
-    "Data layer migration is ~60% complete based on in-progress PRs vs completed",
-    "PR #10090 ([WIP] terminal) has been open 254+ days — needs status review",
-    "PR #13173 (Streamdown migration) is marked ready-to-merge and should be prioritized",
-    "17 new v2 PRs opened in last 7 days — high contributor momentum"
-  ]
+  "ai_sdk_upgrade": {
+    "pr": 15247,
+    "title": "chore(deps): bump Vercel AI SDK packages to latest",
+    "author": "PhoenixCPH",
+    "status": "open",
+    "note": "Important infrastructure upgrade for @cherrystudio/ai-core"
+  },
+  "summary_narrative": "The v2 branch is in active development with a healthy merge velocity of ~10.5 PRs/week. The current focus is module-by-module migration to the new v2 data layer (refactor: 43%) alongside new feature development (feat: 33%). 11 unique contributors merged 42 PRs in the last 30 days. Key WIP areas include settings navigation redesign, AI service consolidation, and the file management system Phase 2. Three long-running PRs (terminal, files architecture, backup) represent large design-scope work still in progress."
 }

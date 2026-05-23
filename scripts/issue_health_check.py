@@ -1,134 +1,193 @@
 #!/usr/bin/env python3
 """
-Issue health check: classify open issues by activity and label completeness.
-Input:  /tmp/gh_open_issues.json
-Output: .context/issue_health_report.json
+issue_health_check.py — Cherry Studio Issue Health Report Generator
+Reads /tmp/gh_open_issues.json and writes .context/issue_health_report.json
+
+Usage:
+    python3 scripts/issue_health_check.py
 """
 
 import json
+import os
+import sys
 from datetime import datetime, timezone, timedelta
-from collections import Counter, defaultdict
 from pathlib import Path
+from collections import defaultdict
 
-TODAY = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 CONTEXT_DIR = Path(__file__).parent.parent / ".context"
-CONTEXT_DIR.mkdir(exist_ok=True)
+TODAY = datetime.now(tz=timezone.utc)
+ISSUES_PATH = "/tmp/gh_open_issues.json"
 
-HEALTH_THRESHOLDS = {
-    "active": 7,
-    "aging": 30,
-    "stale": 90,
-}
+CUTOFF_7D = TODAY - timedelta(days=7)
+CUTOFF_30D = TODAY - timedelta(days=30)
+CUTOFF_90D = TODAY - timedelta(days=90)
 
-PRIORITY_LABELS = {"P1", "P2", "critical", "high-priority", "urgent"}
-BUG_LABELS = {"BUG", "bug", "Bug"}
-NEEDS_INFO_LABELS = {"needs-repro", "needs-more-info", "needs-triage"}
+P1_LABELS = {"p1", "critical", "urgent", "high-priority", "severity: critical"}
+BUG_LABELS = {"bug", "BUG", "type: bug"}
+FEATURE_LABELS = {"feature", "enhancement", "type: feature", "type: enhancement"}
+ACTION_LABELS = {"needs-repro", "needs-more-info", "help wanted"}
 
 
-def extract_labels(issue: dict) -> list[str]:
+def parse_dt(s: str | None) -> datetime | None:
+    if not s:
+        return None
+    return datetime.fromisoformat(s.replace("Z", "+00:00"))
+
+
+def get_labels(issue: dict) -> list[str]:
     labels = issue.get("labels", [])
-    if isinstance(labels, list) and labels and isinstance(labels[0], dict):
-        return [lb["name"] for lb in labels]
-    return [lb for lb in labels if isinstance(lb, str)]
+    return [(lb["name"] if isinstance(lb, dict) else lb) for lb in labels]
 
 
-def classify_health(issue: dict) -> str:
-    updated = issue.get("updatedAt") or issue.get("updated_at", "")
-    if not updated:
-        return "zombie"
-    dt = datetime.fromisoformat(updated.replace("Z", "+00:00"))
-    days = (TODAY - dt).days
-    if days < HEALTH_THRESHOLDS["active"]:
-        return "active"
-    elif days < HEALTH_THRESHOLDS["aging"]:
-        return "aging"
-    elif days < HEALTH_THRESHOLDS["stale"]:
-        return "stale"
-    return "zombie"
+def classify_age(updated_at: str | None) -> str:
+    dt = parse_dt(updated_at)
+    if dt is None:
+        return "unknown"
+    if dt >= CUTOFF_7D:
+        return "Active"
+    if dt >= CUTOFF_30D:
+        return "Aging"
+    if dt >= CUTOFF_90D:
+        return "Stale"
+    return "Zombie"
+
+
+def health_score(stats: dict) -> int:
+    """Compute a 0-100 health score based on issue metrics."""
+    score = 100
+
+    # Penalize for high unlabeled ratio
+    unlabeled_pct = stats.get("unlabeled_pct", 0)
+    if unlabeled_pct > 20:
+        score -= 20
+    elif unlabeled_pct > 10:
+        score -= 10
+    elif unlabeled_pct > 5:
+        score -= 5
+
+    # Penalize for zombie issues
+    zombie_count = stats.get("zombie_count", 0)
+    total = stats.get("total", 1)
+    zombie_pct = zombie_count / total * 100
+    if zombie_pct > 30:
+        score -= 20
+    elif zombie_pct > 15:
+        score -= 10
+    elif zombie_pct > 5:
+        score -= 5
+
+    # Penalize for large backlog
+    if total > 1000:
+        score -= 15
+    elif total > 500:
+        score -= 8
+    elif total > 200:
+        score -= 3
+
+    return max(0, min(100, score))
 
 
 def main():
-    with open("/tmp/gh_open_issues.json") as f:
-        issues = json.load(f)
+    CONTEXT_DIR.mkdir(parents=True, exist_ok=True)
 
-    health_buckets: dict[str, list] = defaultdict(list)
-    label_gaps = []
-    priority_issues = []
-    bug_issues = []
-    needs_info_issues = []
-    long_open = []
-    label_dist: Counter = Counter()
+    if not os.path.exists(ISSUES_PATH):
+        print(f"ERROR: {ISSUES_PATH} not found.", file=sys.stderr)
+        sys.exit(1)
 
-    cutoff_long = TODAY - timedelta(days=180)
+    issues = json.loads(open(ISSUES_PATH).read())
+
+    label_counts: dict[str, int] = defaultdict(int)
+    age_counts = {"Active": 0, "Aging": 0, "Stale": 0, "Zombie": 0}
+    unlabeled = []
+    p1_issues = []
+    inferred_high_priority = []
+    action_needed = []
+
+    comment_threshold = 3  # issues with >= 3 comments get priority consideration
 
     for issue in issues:
-        labels = extract_labels(issue)
-        number = issue["number"]
-        title = issue["title"]
-        created = issue.get("createdAt") or issue.get("created_at", "")
-        updated = issue.get("updatedAt") or issue.get("updated_at", "")
+        labels = get_labels(issue)
+        label_set = {lb.lower() for lb in labels}
+        num = issue.get("number")
+        title = issue.get("title", "")
+        updated = issue.get("updatedAt")
         comments = issue.get("comments", 0)
+        if isinstance(comments, dict):
+            comments = comments.get("totalCount", 0)
 
-        health = classify_health(issue)
-        health_buckets[health].append({
-            "number": number,
-            "title": title,
-            "labels": labels,
-            "updatedAt": updated,
-            "comments": comments,
-        })
-
-        for lb in labels:
-            label_dist[lb] += 1
+        for lbl in labels:
+            label_counts[lbl] += 1
 
         if not labels:
-            label_gaps.append({"number": number, "title": title, "createdAt": created})
+            unlabeled.append({"number": num, "title": title, "updatedAt": updated})
 
-        if any(lb in PRIORITY_LABELS for lb in labels):
-            priority_issues.append({"number": number, "title": title, "labels": labels})
+        # P1 detection
+        if label_set & P1_LABELS:
+            p1_issues.append({
+                "number": num,
+                "title": title,
+                "labels": labels,
+                "priority_signal": "explicit P1 label",
+            })
+        elif comments >= comment_threshold and (label_set & BUG_LABELS):
+            inferred_high_priority.append({
+                "number": num,
+                "title": title,
+                "labels": labels,
+                "comments": comments,
+                "priority_signal": f"BUG label + {comments} comments",
+            })
 
-        if any(lb in BUG_LABELS for lb in labels):
-            bug_issues.append({"number": number, "title": title, "labels": labels,
-                               "updatedAt": updated, "comments": comments})
+        # Action needed
+        if label_set & {lb.lower() for lb in ACTION_LABELS}:
+            action_needed.append({"number": num, "title": title, "labels": labels})
 
-        if any(lb in NEEDS_INFO_LABELS for lb in labels):
-            needs_info_issues.append({"number": number, "title": title, "labels": labels})
-
-        if created:
-            dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
-            if dt < cutoff_long:
-                long_open.append({"number": number, "title": title, "createdAt": created,
-                                  "labels": labels, "comments": comments})
+        age = classify_age(updated)
+        if age in age_counts:
+            age_counts[age] += 1
 
     total = len(issues)
-    unclassified = len(label_gaps)
+    stats = {
+        "total": total,
+        "unlabeled_pct": round(len(unlabeled) / total * 100, 1) if total else 0,
+        "zombie_count": age_counts["Zombie"],
+    }
+    score = health_score(stats)
+    grade = (
+        "A" if score >= 90 else
+        "B" if score >= 80 else
+        "C+" if score >= 70 else
+        "C" if score >= 60 else
+        "D" if score >= 50 else "F"
+    )
 
     report = {
         "generated_at": TODAY.isoformat(),
+        "snapshot_date": TODAY.strftime("%Y-%m-%d"),
+        "health_score": score,
+        "health_grade": grade,
         "total_open_issues": total,
-        "health_summary": {k: len(v) for k, v in health_buckets.items()},
-        "health_pct": {
-            k: f"{len(v) / max(total, 1) * 100:.1f}%"
-            for k, v in health_buckets.items()
+        "age_distribution": age_counts,
+        "label_health": {
+            "unlabeled_count": len(unlabeled),
+            "unlabeled_pct": stats["unlabeled_pct"],
+            "top_labels": dict(sorted(label_counts.items(), key=lambda x: -x[1])[:20]),
         },
-        "unclassified": {
-            "count": unclassified,
-            "pct": f"{unclassified / max(total, 1) * 100:.1f}%",
-            "issues": label_gaps[:20],
-        },
-        "priority_issues": priority_issues[:20],
-        "bug_issues": sorted(bug_issues, key=lambda x: x["comments"], reverse=True)[:20],
-        "needs_info_issues": needs_info_issues[:20],
-        "long_open_issues": sorted(long_open, key=lambda x: x["createdAt"])[:20],
-        "top_labels": dict(label_dist.most_common(20)),
-        "health_buckets": {
-            k: v[:10] for k, v in health_buckets.items()
-        },
+        "p1_critical_issues": p1_issues,
+        "inferred_high_priority": sorted(inferred_high_priority, key=lambda x: -x["comments"])[:10],
+        "action_needed_issues": action_needed[:20],
+        "unlabeled_sample": unlabeled[:20],
     }
 
-    out = CONTEXT_DIR / "issue_health_report.json"
-    out.write_text(json.dumps(report, indent=2, ensure_ascii=False))
-    print(f"Wrote {out}")
+    out_path = CONTEXT_DIR / "issue_health_report.json"
+    with open(out_path, "w") as f:
+        json.dump(report, f, indent=2, ensure_ascii=False)
+
+    print(f"✅ Health report written to {out_path}")
+    print(f"   Health Score: {score}/100 ({grade})")
+    print(f"   Active: {age_counts['Active']} | Aging: {age_counts['Aging']} | Stale: {age_counts['Stale']} | Zombie: {age_counts['Zombie']}")
+    print(f"   P1 Issues: {len(p1_issues)} | Inferred High Priority: {len(inferred_high_priority)}")
+    print(f"   Unlabeled: {len(unlabeled)} ({stats['unlabeled_pct']}%)")
 
 
 if __name__ == "__main__":

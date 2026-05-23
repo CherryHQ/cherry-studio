@@ -1,150 +1,160 @@
 {
-  "generated_at": "2026-05-22",
-  "data_note": "API returns paginated results (max 100/page). Total counts from API totalCount field where available.",
+  "generated_at": "2026-05-23T18:00:00Z",
+  "snapshot_date": "2026-05-23",
+  "data_source": "GitHub MCP API (CherryHQ/cherry-studio)",
   "open_issues": {
-    "total": 882,
-    "sample_size": 100,
-    "new_7d": 55,
-    "new_30d": 63,
-    "unlabeled_count": 9,
-    "unlabeled_pct": 9.0,
-    "label_distribution": {
-      "inactive": 32,
-      "UI/UX": 30,
-      "Models": 17,
-      "Assistant": 16,
-      "MCP": 11,
-      "discussion": 9,
-      "help wanted": 7,
-      "Data": 7,
-      "feature": 5,
-      "BUG": 4,
-      "needs-repro": 4,
-      "Connectivity": 3,
-      "Dev Team": 2,
-      "needs-more-info": 2,
+    "total": 884,
+    "sample_size_analyzed": 100,
+    "sample_note": "Top 100 most-recently-updated open issues analyzed in detail",
+    "by_label_full_repo": {
+      "inactive": 122,
+      "BUG": 108,
+      "UI_UX": 34,
+      "Models": 19,
+      "Assistant": 14,
+      "MCP": 7,
+      "discussion": 7,
+      "needs_repro": 7,
+      "feature": 6,
+      "Connectivity": 5,
+      "help_wanted": 5,
+      "needs_more_info": 3,
+      "P2": 3,
       "RAG": 1,
-      "v2": 1,
-      "prd": 1,
-      "ready-for-dev": 1
+      "v2": 1
     },
-    "p1_issues": [],
-    "p1_note": "No P1/critical priority labels found in current label taxonomy",
-    "age_buckets_sample": {
-      "note": "Computed on 100 most-recently-updated issues; all fall in Active bucket by definition",
-      "Active_within_7d": 100,
-      "Aging_7_30d": 0,
-      "Stale_30_90d": 0,
-      "Zombie_gt90d": 0
+    "unlabeled": {
+      "count": 75,
+      "percentage": 8.5
     },
-    "top_commented": [
-      {"number": 9943, "title": "[错误]: MCPB（原DXT）文件导入MCP服务器的相关问题", "comment_count": 15},
-      {"number": 7455, "title": "[功能]: 自动更新或手动检查更新完成后能否将下载的新版本文件清理掉？", "comment_count": 6},
-      {"number": 14644, "title": "[Feature]: Add functionality to create Agent duplicates (copies)", "comment_count": 5},
-      {"number": 14176, "title": "[Bug]: Windows client update check error", "comment_count": 3},
-      {"number": 14418, "title": "[Bug]: Agent mode fails on all CherryIN models with ECONNRESET", "comment_count": 3},
-      {"number": 14720, "title": "[Bug]: Gpt-image-2 encountered an error parsing image generation interface", "comment_count": 3},
-      {"number": 15189, "title": "[Bug]: 生成图片时会报错Unexpected token", "comment_count": 3},
-      {"number": 13624, "title": "[Bug]: Image input persists after model switch", "comment_count": 3},
-      {"number": 14298, "title": "[Feature]: Add Hermes agent support in addition to OpenClaw", "comment_count": 3},
-      {"number": 15079, "title": "[Bug]: new agent mode cannot use /clear", "comment_count": 3}
+    "p1_critical_issues": [],
+    "priority_label_note": "No P1/critical/urgent labels. Project uses categorical labels (BUG, UI/UX, Models, etc.) instead of severity tiers.",
+    "inferred_high_priority_issues": [
+      {
+        "number": 9943,
+        "title": "MCPB (DXT) file import issues",
+        "signals": "15 comments, MCP label, long-standing community issue"
+      },
+      {
+        "number": 15022,
+        "title": "CherryIN Balance Shows $0.00 After Successful Recharge",
+        "signals": "BUG+UI/UX labels, milestone v1.9.7, assigned to DeJeune, direct user financial impact"
+      },
+      {
+        "number": 14418,
+        "title": "Agent mode fails on CherryIN models (ECONNRESET)",
+        "signals": "3 comments, BUG label, Connectivity issue blocking agent workflows"
+      },
+      {
+        "number": 14720,
+        "title": "gpt-image-2 parameter parsing error",
+        "signals": "3 comments, Models label, image generation broken"
+      }
+    ],
+    "top_commented_issues": [
+      {"number": 9943, "title": "MCPB (DXT) file import issues", "comments": 15, "labels": ["MCP"]},
+      {"number": 7455, "title": "Auto-update cleanup of downloaded installer", "comments": 6, "labels": ["feature"]},
+      {"number": 14644, "title": "Add Agent duplicate/copy functionality", "comments": 5, "labels": ["Assistant"]},
+      {"number": 14436, "title": "Copilot + Claude model ban inquiry", "comments": 3, "labels": []},
+      {"number": 14176, "title": "Windows client update check error", "comments": 3, "labels": []},
+      {"number": 14418, "title": "Agent mode fails on CherryIN models (ECONNRESET)", "comments": 3, "labels": ["BUG"]},
+      {"number": 14720, "title": "gpt-image-2 parameter parsing error", "comments": 3, "labels": ["Models"]},
+      {"number": 15189, "title": "Image generation error (Unexpected token)", "comments": 3, "labels": ["UI/UX"]}
     ]
   },
   "closed_issues_30d": {
-    "total": 371,
-    "sample_size": 100,
-    "closed_7d": 86,
-    "avg_close_hours": 980.46,
-    "avg_close_days": 40.85,
-    "top_labels": {
-      "inactive": 81,
-      "Models": 18,
-      "UI/UX": 17,
+    "total": 360,
+    "average_close_time_days": 40.6,
+    "median_close_time_days": 40.7,
+    "bot_driven_closure_pct": 78,
+    "label_distribution_sample_100": {
+      "inactive": 80,
+      "Models": 20,
+      "UI/UX": 14,
       "BUG": 10,
       "MCP": 9,
-      "needs-repro": 9,
-      "help wanted": 9,
-      "discussion": 9,
+      "needs_repro": 9,
       "Assistant": 8,
+      "help_wanted": 8,
+      "discussion": 8,
       "RAG": 6,
-      "needs-more-info": 5,
-      "closed:no-response": 5,
-      "Connectivity": 4,
-      "Performance": 4,
-      "OpenClaw": 3,
-      "Data": 3,
-      "P2": 2,
-      "fixed": 1,
-      "feature": 1,
-      "Agent": 1,
-      "ClaudeCode": 1
-    }
+      "P2": 3,
+      "closed_no_response": 5
+    },
+    "closed_per_week": {
+      "2026-W21_May17-23": 68,
+      "2026-W20_May10-16": 31,
+      "2026-W19_May03-09": 1,
+      "2026-W18_Apr26-May02": 0
+    },
+    "recently_closed_top5": [
+      {"number": 15268, "title": "[Bug]: Reasoning effort config not working for AIHubMix", "closedAt": "2026-05-23T17:20:57Z"},
+      {"number": 13961, "title": "[Bug]: Assistant silently hangs after MCP tool call", "closedAt": "2026-05-23T01:04:24Z"},
+      {"number": 14208, "title": "[Feature]: Unable to use Imagen 4 Generate models", "closedAt": "2026-05-23T01:04:21Z"},
+      {"number": 14211, "title": "[Bug]: Code Agent works in AppImage but not Flatpak", "closedAt": "2026-05-23T01:04:19Z"},
+      {"number": 12379, "title": "[Bug]: Cherry Studio does not support latest MCP protocol", "closedAt": "2026-05-22T01:08:31Z"}
+    ]
   },
   "open_prs": {
-    "total_sample": 100,
-    "new_7d": 55,
-    "new_30d": 91,
-    "base_branch_distribution": {
+    "total": 100,
+    "by_base_branch": {
       "main": 66,
-      "v2": 31,
-      "other": 3
+      "v2": 32,
+      "other": 2
     },
-    "label_distribution": {
-      "v2": 24,
-      "Blocked: v2": 3,
-      "dependencies": 2,
-      "github_actions": 2,
-      "Dev Team": 1,
-      "WIP": 1
+    "age_distribution_by_last_update": {
+      "active_0_7d": 66,
+      "aging_8_14d": 21,
+      "stale_15_30d": 13,
+      "zombie_30d_plus": 0
     },
-    "age_buckets": {
-      "Fresh_within_7d": 73,
-      "Aging_7_30d": 27,
-      "Stale_gt30d": 0
+    "stale_prs_count": 13,
+    "policy_concern": "main branch has 66 open PRs despite code freeze — many appear to be feature PRs, not hotfixes",
+    "oldest_prs": [
+      {"number": 10090, "title": "[WIP] feat: terminal", "age_days": 254, "base": "v2", "author": "EurFelux"},
+      {"number": 10162, "title": "CherryStudio v2: Data & UI Refactoring", "age_days": 250, "base": "main", "author": "0xfullex"},
+      {"number": 12150, "title": "refactor(files): File Management System Architecture", "age_days": 147, "base": "v2", "author": "EurFelux"},
+      {"number": 12345, "title": "fix: custom API suffix bug", "age_days": 135, "base": "main", "author": "haczen"},
+      {"number": 12659, "title": "feat(backup): add v2 backup system refactor plan document", "age_days": 112, "base": "v2", "author": "GeorgeDong32"}
+    ],
+    "blocked_prs": 3,
+    "no_labels_prs": 69
+  },
+  "v2_merged_prs_30d": {
+    "total": 42,
+    "date_range": {"from": "2026-04-24", "to": "2026-05-23"},
+    "by_category": {
+      "refactor": {"count": 18, "pct": 42.9},
+      "feat": {"count": 14, "pct": 33.3},
+      "fix": {"count": 5, "pct": 11.9},
+      "chore": {"count": 2, "pct": 4.8},
+      "docs": {"count": 2, "pct": 4.8},
+      "uncategorized": {"count": 1, "pct": 2.4}
     },
-    "top_authors": {
-      "LWWZH": 11,
-      "DeJeune": 7,
-      "404-Page-Found": 7,
-      "GeorgeDong32": 6,
-      "mturac": 6
+    "merged_per_week": {
+      "2026-W17_Apr21-27": 1,
+      "2026-W18_Apr28-May04": 9,
+      "2026-W19_May05-11": 12,
+      "2026-W20_May12-18": 11,
+      "2026-W21_May19-23": 9
     },
-    "prs_targeting_main_notable": [
-      {"number": 15269, "title": "hotfix(models): Reasoning Effort config for AIHubMix", "author": "Aulddays"},
-      {"number": 15262, "title": "hotfix(channels): integrate WeCom (企业微信) channel adapter", "author": "DeJeune"},
-      {"number": 15257, "title": "hotfix(model): enable standard reasoning effort levels for gemma-4", "author": "ousugo"},
-      {"number": 15256, "title": "hotfix(models): support capabilities for grok-build-0.1", "author": "ousugo"},
-      {"number": 15251, "title": "fix(cherry-assistant): enhance general-purpose capabilities", "author": "SiinXu"},
-      {"number": 15241, "title": "hotfix(ai-diagnosis): correct misclassifications and surface provider error JSON", "author": "SiinXu"},
-      {"number": 15239, "title": "Feature/expand branch chat v2", "author": "ssgzy"},
-      {"number": 10162, "title": "🍒 CherryStudio P0: Data & UI Refactoring", "author": "0xfullex"}
+    "top_contributors": [
+      {"author": "DeJeune", "count": 7},
+      {"author": "eeee0717", "count": 7},
+      {"author": "zhangjiadi225", "count": 7},
+      {"author": "Cherry-Yiran", "count": 5},
+      {"author": "kangfenmao", "count": 5},
+      {"author": "EurFelux", "count": 3},
+      {"author": "vaayne", "count": 3},
+      {"author": "0xfullex", "count": 2}
     ]
   },
-  "v2_branch": {
-    "open_prs": 79,
-    "merged_prs_30d": 41,
-    "merged_prs_7d": 8,
-    "top_contributors_30d": {
-      "DeJeune": 7,
-      "eeee0717": 7,
-      "zhangjiadi225": 7,
-      "Cherry-Yiran": 5,
-      "kangfenmao": 5,
-      "EurFelux": 3,
-      "vaayne": 3,
-      "0xfullex": 2,
-      "jidan745le": 1,
-      "chengcheng84": 1
-    },
-    "recent_merges": [
-      {"number": 15246, "title": "refactor(file-entry): rename trashedAt to deletedAt", "mergedAt": "2026-05-21", "author": "EurFelux"},
-      {"number": 15205, "title": "feat(mini-apps): refresh mini app page and icons", "mergedAt": "2026-05-21", "author": "Cherry-Yiran"},
-      {"number": 15213, "title": "refactor(knowledge): migrate to JobManager", "mergedAt": "2026-05-21", "author": "0xfullex"},
-      {"number": 15214, "title": "refactor(file-processing): migrate to JobManager", "mergedAt": "2026-05-21", "author": "0xfullex"},
-      {"number": 15216, "title": "chore(lint): suppress legacy css var warnings in lint scripts", "mergedAt": "2026-05-20", "author": "kangfenmao"},
-      {"number": 15088, "title": "feat(provider-settings): grouping + mode-based editor follow-up", "mergedAt": "2026-05-18", "author": "DeJeune"},
-      {"number": 15087, "title": "feat(icons): light/dark dual-source architecture for provider/model logos", "mergedAt": "2026-05-18", "author": "Cherry-Yiran"},
-      {"number": 15091, "title": "refactor(ui): refresh shared dialog styling", "mergedAt": "2026-05-18", "author": "Cherry-Yiran"}
-    ]
+  "milestones": {
+    "v1_9_7": {
+      "state": "open",
+      "open_issues": 11,
+      "closed_issues": 0,
+      "example_blocker": "#15022 - CherryIN Balance Shows $0.00 After Recharge (assigned: DeJeune)"
+    }
   }
 }

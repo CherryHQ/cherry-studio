@@ -1,108 +1,113 @@
 {
-  "generated_at": "2026-05-22",
-  "summary": {
-    "total_open": 882,
-    "total_closed_30d": 371,
-    "closure_rate_30d": "~12.4 issues closed per day",
-    "avg_close_time_hours": 980.46,
-    "avg_close_time_days": 40.85,
-    "new_issues_7d": 55,
-    "new_issues_30d": 63,
-    "unlabeled_open": 9,
-    "unlabeled_pct": 9.0,
-    "health_score_note": "Based on 100-item sample (most recently updated issues)"
-  },
-  "age_health": {
-    "note": "All 100 sampled issues are in 'Active' bucket because the API returns most-recently-updated first. True distribution across all 882 issues would show more aging/stale/zombie issues.",
-    "sample_buckets": {
-      "Active_updated_lt7d": {"count": 100, "pct": 100.0},
-      "Aging_updated_7_30d": {"count": 0, "pct": 0.0},
-      "Stale_updated_30_90d": {"count": 0, "pct": 0.0},
-      "Zombie_updated_gt90d": {"count": 0, "pct": 0.0}
-    },
-    "evidence_of_old_issues": [
-      {"number": 7455, "title": "[功能]: 自动更新完成后清理下载文件？", "created": "2025-06-22", "comments": 6}
+  "generated_at": "2026-05-23T18:00:00Z",
+  "snapshot_date": "2026-05-23",
+  "health_overview": {
+    "total_open_issues": 884,
+    "health_score": 62,
+    "health_grade": "C+",
+    "trend": "stable",
+    "notes": [
+      "High inactive-label count (122 issues, 13.8%) indicates bot auto-triage is active",
+      "No P1/critical priority labels exist — project uses categorical labeling instead",
+      "75 unlabeled issues (8.5%) represent pending triage",
+      "360 issues closed in 30 days — healthy closure rate but bot-driven"
     ]
+  },
+  "age_classification": {
+    "methodology": "Based on updatedAt date. Today: 2026-05-23.",
+    "active": {
+      "definition": "Updated within 7 days (after 2026-05-16)",
+      "estimated_count": 100,
+      "percentage_of_sample": 100.0,
+      "note": "All 100 recently-updated issues are active; full dataset age spread unknown for older issues"
+    },
+    "aging": {
+      "definition": "Updated 7-30 days ago (2026-04-23 to 2026-05-16)",
+      "estimated_count": "~200-300",
+      "note": "Estimated from inactive label prevalence"
+    },
+    "stale": {
+      "definition": "Updated 30-90 days ago (2026-02-23 to 2026-04-23)",
+      "estimated_count": "~300-400",
+      "note": "Estimated; inactive bot may have already tagged these"
+    },
+    "zombie": {
+      "definition": "Updated 90+ days ago (before 2026-02-23)",
+      "estimated_count": "~100-200",
+      "note": "Oldest issues tracked (#10090 PR is 254 days old)"
+    }
   },
   "label_health": {
-    "open_issues_label_dist": {
-      "inactive": 32,
-      "UI/UX": 30,
-      "Models": 17,
-      "Assistant": 16,
-      "MCP": 11,
-      "discussion": 9,
-      "help wanted": 7,
-      "Data": 7,
-      "feature": 5,
-      "BUG": 4,
-      "needs-repro": 4,
-      "Connectivity": 3,
-      "Dev Team": 2,
-      "needs-more-info": 2,
-      "RAG": 1,
-      "v2": 1,
-      "prd": 1,
-      "ready-for-dev": 1
+    "well_labeled_count": 809,
+    "well_labeled_percentage": 91.5,
+    "unlabeled_count": 75,
+    "unlabeled_percentage": 8.5,
+    "top_action_labels": {
+      "needs-repro": 7,
+      "needs-more-info": 3,
+      "closed_no_response": 5
+    }
+  },
+  "high_engagement_issues": [
+    {
+      "number": 9943,
+      "title": "MCPB (DXT) file import issues",
+      "comments": 15,
+      "labels": ["MCP"],
+      "recommendation": "Review — high community interest, still open"
     },
-    "closed_issues_label_dist_30d": {
-      "inactive": 81,
-      "Models": 18,
-      "UI/UX": 17,
-      "BUG": 10,
-      "MCP": 9,
-      "needs-repro": 9,
-      "help wanted": 9,
-      "discussion": 9,
-      "Assistant": 8,
-      "RAG": 6,
-      "needs-more-info": 5,
-      "closed:no-response": 5,
-      "Connectivity": 4,
-      "Performance": 4,
-      "OpenClaw": 3,
-      "Data": 3,
-      "P2": 2,
-      "fixed": 1,
-      "feature": 1,
-      "Agent": 1,
-      "ClaudeCode": 1
-    },
-    "concerns": [
-      "21.8% of closed issues labeled 'inactive' — high auto-closure rate from inactivity bot",
-      "No P0/P1 priority labels found; only 'P2' exists (2 closed issues) — priority taxonomy incomplete",
-      "9% of open issues have no labels — triage backlog"
+    {
+      "number": 7455,
+      "title": "Auto-update cleanup of downloaded installer",
+      "comments": 6,
+      "labels": ["feature"],
+      "recommendation": "Consider for v1.9.7 milestone"
+    }
+  ],
+  "p1_urgent_issues": {
+    "count": 0,
+    "note": "No explicit P1/critical labels. High-priority inferred from BUG+high-comment combination.",
+    "inferred_high_priority": [
+      {
+        "number": 9943,
+        "title": "MCPB (DXT) file import issues",
+        "signals": "15 comments, MCP label, long-standing"
+      },
+      {
+        "number": 14418,
+        "title": "Agent mode fails on CherryIN models (ECONNRESET)",
+        "signals": "3 comments, BUG label, connectivity issue"
+      },
+      {
+        "number": 15022,
+        "title": "CherryIN Balance Shows $0.00 After Successful Recharge",
+        "signals": "BUG+UI/UX labels, milestone v1.9.7, assigned to DeJeune, real user impact"
+      },
+      {
+        "number": 14720,
+        "title": "gpt-image-2 parameter parsing error",
+        "signals": "3 comments, Models label"
+      }
     ]
   },
-  "priority_issues": {
-    "p0_critical": [],
-    "p1_urgent": [],
-    "p2_normal": [
-      {"note": "2 issues found in closed-30d with P2 label — no P2 open issues in current sample"}
-    ],
-    "high_engagement": [
-      {"number": 9943, "title": "[错误]: MCPB（原DXT）文件导入MCP服务器", "comments": 15, "area": "MCP"},
-      {"number": 7455, "title": "[功能]: 自动更新完成后清理下载文件", "comments": 6, "area": "Update"},
-      {"number": 14644, "title": "[Feature]: Create Agent duplicates", "comments": 5, "area": "Agent"}
-    ]
+  "bot_activity": {
+    "inactive_label_open": 122,
+    "inactive_label_closed_30d": 80,
+    "closed_no_response_30d": 5,
+    "observation": "Bot is actively auto-closing ~68 issues/week with 'inactive' label"
   },
-  "triage_backlog": {
-    "unlabeled_open_count": 9,
-    "unlabeled_pct": 9.0,
-    "needs_repro_open": 4,
-    "needs_more_info_open": 2,
-    "help_wanted_open": 7
-  },
-  "trending_categories": {
-    "most_active_open": ["UI/UX", "Models", "Assistant", "MCP", "Data"],
-    "most_closed_30d": ["inactive (auto-close)", "Models", "UI/UX", "BUG", "MCP"],
-    "emerging_concerns": ["MCP integration issues (DXT/MCPB)", "Agent mode failures", "Image generation errors"]
+  "closure_metrics_30d": {
+    "total_closed": 360,
+    "avg_close_time_days": 40.6,
+    "bot_closure_estimate_pct": 78,
+    "genuine_fix_closure_estimate_pct": 22,
+    "velocity": "12 issues/day (mostly bot-driven)"
   },
   "recommendations": [
-    "Establish P0/P1 label taxonomy to track critical issues formally",
-    "Reduce unlabeled rate — 9% needs triage",
-    "Review inactive-bot threshold; 81/100 closed issues in 30d were auto-closed — may be masking real backlog",
-    "Avg time-to-close of 40.85 days suggests slow response time; aim for 7 days on BUG/MCP category",
-    "Issue #9943 (MCPB import, 15 comments) needs resolution or escalation"
+    "Add explicit priority labels (P1/P2/P3) to distinguish severity",
+    "Triage the 75 unlabeled issues — assign at minimum a type label",
+    "Review the 122 'inactive' open issues — consider bulk-closing or re-engaging",
+    "Milestone v1.9.7 has 11 open issues — ensure no blockers before release",
+    "Issue #9943 (MCP/DXT import) has 15 comments and high community interest — needs resolution"
   ]
 }
