@@ -129,14 +129,11 @@ import { createReadStream as nodeCreateReadStream } from 'node:fs'
 import type { Readable, Writable } from 'node:stream'
 import { pathToFileURL } from 'node:url'
 
-import { application } from '@application'
-import { appStateTable } from '@data/db/schemas/appState'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { orphanCheckerRegistry } from '@data/services/orphan/FileRefCheckerRegistry'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { bootConfigService } from '@main/data/bootConfig'
 import { remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
@@ -153,7 +150,6 @@ import type {
 import type { FileHandle } from '@shared/file/types/handle'
 import { FileHandleSchema } from '@shared/file/types/handle'
 import { IpcChannel } from '@shared/IpcChannel'
-import { eq } from 'drizzle-orm'
 import mime from 'mime'
 import * as z from 'zod'
 
@@ -711,21 +707,11 @@ export class FileManager extends BaseService implements IFileManager {
   /**
    * Run the FS-level orphan sweep (file-manager-architecture §10) and
    * the DB-level orphan-ref/entry sweep (file-manager-architecture §7
-   * Layer 3), returning once they settle. The DB sweep is skipped
-   * exactly once (and only the FS sweep runs) when the migration
-   * marker mismatches `migration_v2_status.completedAt` — this
-   * suppresses one round of misleadingly-high orphan-entry report
-   * counts during the post-migration window (every unwired file_entry
-   * would otherwise be reported as an orphan until consumer migrators
-   * Batch A-E land their file_ref rows). Deletion is preserved by
-   * default per §7.1; the narrow auto-cleanup path in §7.2 is itself
-   * deferred, so this is reporting-only today — the mechanism also
-   * structurally pre-empts over-delete once §7.2 auto-cleanup ships.
-   * See file-manager-architecture §10.10 Post-Migration / Backup-Restore Skip.
+   * Layer 3) concurrently, returning once both settle.
    *
    * The fire-and-forget call site in `onInit` (line above) is what
    * keeps the ready signal unblocked — this method itself awaits the
-   * sweep(s) before returning so tests and explicit callers can
+   * sweeps before returning so tests and explicit callers can
    * deterministically observe the side effects (e.g.
    * `await fm.runStartupSweeps()`).
    *
@@ -735,29 +721,9 @@ export class FileManager extends BaseService implements IFileManager {
    * access racing with service shutdown).
    */
   async runStartupSweeps(): Promise<void> {
-    // FS sweep is independent of migration state — always run it.
     const fsSweepPromise = runStartupFileSweep({ fileEntryService: this.deps.fileEntryService }).catch((err) => {
       fileManagerLogger.error('Startup file sweep failed', err)
     })
-
-    // Skip DB sweep once when migration marker mismatches current completedAt —
-    // this suppresses one round of misleadingly-high orphan-entry report counts
-    // during the post-migration window (see file-manager-architecture §10.10).
-    const completedAt = await this.getMigrationCompletedAt()
-    const marker = bootConfigService.get('file.lastProcessedMigrationCompletedAt')
-
-    if (completedAt !== null && completedAt !== marker) {
-      bootConfigService.set('file.lastProcessedMigrationCompletedAt', completedAt)
-      // Marker advances before `await fsSweepPromise` — intentional: skip-once gates
-      // only the DB branch, so an FS-sweep failure on this boot must not re-trigger
-      // the DB skip on next boot.
-      fileManagerLogger.info('runStartupSweeps: skipping DB sweep once (post-migration window)', {
-        previousMarker: marker,
-        currentCompletedAt: completedAt
-      })
-      await fsSweepPromise
-      return
-    }
 
     await Promise.all([
       fsSweepPromise,
@@ -792,36 +758,6 @@ export class FileManager extends BaseService implements IFileManager {
           this.lastDbSweepRanAt = Date.now()
         })
     ])
-  }
-
-  /**
-   * Read the `completedAt` ms-epoch from `app_state.migration_v2_status`.
-   * Returns null if the row is absent, if `completedAt` is not a number
-   * (fresh install, in-progress, failed run), or if the DB read throws.
-   *
-   * The error path treats failure as "no migration record" so callers fall
-   * through to running the orphan sweep normally — a sweep is always more
-   * useful than silently no-op'ing on a transient DB hiccup.
-   *
-   * TODO(#15271): cross-domain bare read of `app_state.migration_v2_status`.
-   * The invariant "only MigrationEngine writes this key during preboot" is
-   * informal — no schema or type-level guardrail enforces it. Once
-   * `AppStateService` lands (see issue #15271 for design), migrate this site
-   * to go through the service so the invariant is encoded centrally and the
-   * value shape gains a typed schema. Until then, this site is registered
-   * in the issue's "Direct consumers" table.
-   */
-  private async getMigrationCompletedAt(): Promise<number | null> {
-    try {
-      const db = application.get('DbService').getDb()
-      const row = await db.select().from(appStateTable).where(eq(appStateTable.key, 'migration_v2_status')).get()
-      if (!row) return null
-      const value = row.value as { completedAt?: unknown }
-      return typeof value.completedAt === 'number' ? value.completedAt : null
-    } catch (error) {
-      fileManagerLogger.error('Failed to read migration_v2_status; treating as no migration', error as Error)
-      return null
-    }
   }
 
   /**
