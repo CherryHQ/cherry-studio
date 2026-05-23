@@ -13,6 +13,7 @@ import {
   SettingContainer,
   settingsSubmenuDividerClassName,
   settingsSubmenuItemClassName,
+  settingsSubmenuItemLabelClassName,
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
@@ -75,6 +76,7 @@ const DataSettings: FC = () => {
                 onClick={() => setMenu(item.key)}
                 icon={item.icon}
                 className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
               />
             )
           )}

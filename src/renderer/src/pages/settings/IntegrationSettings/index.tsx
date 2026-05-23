@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next'
 import {
   SettingContainer,
   settingsSubmenuItemClassName,
+  settingsSubmenuItemLabelClassName,
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName
 } from '..'
@@ -54,6 +55,7 @@ const IntegrationSettings: FC = () => {
                 onClick={() => setMenu(item.key)}
                 icon={item.icon}
                 className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
               />
             ))}
           </MenuList>

@@ -95,7 +95,7 @@ const SettingsPage: FC = () => {
               <MenuItem
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<McpLogo width={16} height={16} className="text-foreground/70" />}
+                icon={<McpLogo width={16} height={16} className="text-foreground" />}
                 label={t('agent.settings.toolsMcp.mcp.tab')}
                 active={isActive('/settings/mcp')}
                 onClick={() => go('/settings/mcp')}

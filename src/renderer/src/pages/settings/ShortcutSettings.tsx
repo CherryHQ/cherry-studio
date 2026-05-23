@@ -27,6 +27,7 @@ import {
   settingsContentHeaderTitleClassName,
   settingsContentScrollClassName,
   settingsSubmenuItemClassName,
+  settingsSubmenuItemLabelClassName,
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName
 } from '.'
@@ -456,6 +457,7 @@ const ShortcutSettings: FC = () => {
                   <MenuItem
                     key={category.key}
                     className={settingsSubmenuItemClassName}
+                    labelClassName={settingsSubmenuItemLabelClassName}
                     icon={categoryIconMap[category.key]}
                     active={isActive}
                     label={category.label}

@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next'
 import {
   settingsSubmenuDividerClassName,
   settingsSubmenuItemClassName,
+  settingsSubmenuItemLabelClassName,
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
@@ -52,8 +53,9 @@ const McpSettings: FC = () => {
                 label={t('settings.mcp.title')}
                 active={activeView === 'servers'}
                 onClick={() => navigate({ to: '/settings/mcp/servers' })}
-                icon={<McpLogo width={18} height={18} style={{ opacity: 0.8 }} />}
+                icon={<McpLogo width={18} height={18} className="text-foreground" />}
                 className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
               />
               <MenuDivider className={settingsSubmenuDividerClassName} />
               <div className={settingsSubmenuSectionTitleClassName}>{t('settings.mcp.discover', 'Discover')}</div>
@@ -63,6 +65,7 @@ const McpSettings: FC = () => {
                 onClick={() => navigate({ to: '/settings/mcp/builtin' })}
                 icon={<Package size={18} />}
                 className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
               />
               <MenuItem
                 label={t('settings.mcp.marketplaces', 'Marketplaces')}
@@ -70,6 +73,7 @@ const McpSettings: FC = () => {
                 onClick={() => navigate({ to: '/settings/mcp/marketplaces' })}
                 icon={<ShoppingBag size={18} />}
                 className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
               />
               <MenuDivider className={settingsSubmenuDividerClassName} />
               <div className={settingsSubmenuSectionTitleClassName}>{t('settings.mcp.providers', 'Providers')}</div>
@@ -84,6 +88,7 @@ const McpSettings: FC = () => {
                     return logo ? <logo.Avatar size={24} shape="circle" /> : <FolderCog size={16} />
                   })()}
                   className={settingsSubmenuItemClassName}
+                  labelClassName={settingsSubmenuItemLabelClassName}
                 />
               ))}
             </MenuList>

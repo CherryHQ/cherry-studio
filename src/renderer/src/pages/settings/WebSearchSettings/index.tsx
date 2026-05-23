@@ -9,6 +9,7 @@ import {
   settingsContentScrollClassName,
   settingsSubmenuDividerClassName,
   settingsSubmenuItemClassName,
+  settingsSubmenuItemLabelClassName,
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
@@ -58,6 +59,7 @@ const WebSearchSettings: FC = () => {
                 onClick={() => setActiveKey('general')}
                 icon={<Globe />}
                 className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
               />
               <MenuDivider className={settingsSubmenuDividerClassName} />
               {featureSections.map((section, index) => (
@@ -87,6 +89,7 @@ const WebSearchSettings: FC = () => {
                           />
                         }
                         className={settingsSubmenuItemClassName}
+                        labelClassName={settingsSubmenuItemLabelClassName}
                         suffix={
                           isDefault ? (
                             <Badge className="mr-0 ml-auto rounded-full border border-green-500/30 bg-green-500/10 px-2.5 py-0.5 font-medium text-green-600 text-xs dark:text-green-400">

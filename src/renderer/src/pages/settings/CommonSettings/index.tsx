@@ -48,6 +48,7 @@ import {
   settingsContentBodyClassName,
   settingsContentScrollClassName,
   settingsSubmenuItemClassName,
+  settingsSubmenuItemLabelClassName,
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName,
   SettingTitle
@@ -819,6 +820,7 @@ const CommonSettings: FC = () => {
                   active={activeSection === item.key}
                   onClick={() => setActiveSection(item.key)}
                   className={settingsSubmenuItemClassName}
+                  labelClassName={settingsSubmenuItemLabelClassName}
                 />
               ))}
             </MenuList>

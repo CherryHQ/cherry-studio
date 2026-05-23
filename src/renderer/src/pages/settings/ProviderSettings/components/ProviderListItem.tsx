@@ -58,7 +58,7 @@ export default function ProviderListItem({
         <span
           className={cn(
             providerListClasses.itemLabel,
-            selected ? 'font-medium text-foreground' : 'font-normal text-foreground/85'
+            selected ? 'font-medium text-foreground' : 'font-normal text-foreground'
           )}>
           {provider.name}
         </span>

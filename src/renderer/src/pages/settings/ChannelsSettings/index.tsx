@@ -5,7 +5,12 @@ import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { settingsSubmenuItemClassName, settingsSubmenuListClassName, settingsSubmenuScrollClassName } from '..'
+import {
+  settingsSubmenuItemClassName,
+  settingsSubmenuItemLabelClassName,
+  settingsSubmenuListClassName,
+  settingsSubmenuScrollClassName
+} from '..'
 import ChannelDetail from './ChannelDetail'
 import { AVAILABLE_CHANNELS, type AvailableChannel } from './channelTypes'
 
@@ -31,6 +36,7 @@ const ChannelsSettings: FC = () => {
                     iconSrc ? <img src={iconSrc} alt={ch.name} className="h-4 w-4 rounded object-contain" /> : undefined
                   }
                   className={settingsSubmenuItemClassName}
+                  labelClassName={settingsSubmenuItemLabelClassName}
                 />
               )
             })}

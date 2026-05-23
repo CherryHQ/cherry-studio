@@ -9,6 +9,7 @@ import {
   settingsContentBodyClassName,
   settingsContentScrollClassName,
   settingsSubmenuItemClassName,
+  settingsSubmenuItemLabelClassName,
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName
 } from '..'
@@ -79,6 +80,7 @@ const FileProcessingSettings: FC = () => {
                     />
                   }
                   className={settingsSubmenuItemClassName}
+                  labelClassName={settingsSubmenuItemLabelClassName}
                   suffix={
                     isDefaultEntry(entry) ? (
                       <Badge className="rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 font-medium text-green-600 text-xs dark:text-green-400">
