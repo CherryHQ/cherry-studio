@@ -54,10 +54,19 @@ const EnvironmentDependencies: FC = () => {
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const { t } = useTranslation()
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   const refreshState = useCallback(async () => {
     try {
       const [state, { dir }] = await Promise.all([window.api.mise.getState(), window.api.mcp.getInstallInfo()])
+      if (!mountedRef.current) return
       setMiseState(state)
       setBinariesDir(dir)
     } catch (error) {
@@ -408,6 +417,7 @@ function AddToolDialog({
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Array<{ name: string; tool: string }>>([])
   const [searching, setSearching] = useState(false)
+  const [searchError, setSearchError] = useState(false)
   const [selectedName, setSelectedName] = useState('')
   const [selectedTool, setSelectedTool] = useState('')
   const [version, setVersion] = useState('')
@@ -427,17 +437,22 @@ function AddToolDialog({
   useEffect(() => {
     if (!query.trim()) {
       setResults([])
+      setSearchError(false)
       return
     }
 
     const id = ++searchIdRef.current
     const timer = setTimeout(async () => {
       setSearching(true)
+      setSearchError(false)
       try {
         const res = await window.api.mise.searchRegistry(query.trim())
         if (id === searchIdRef.current) setResults(res)
       } catch {
-        if (id === searchIdRef.current) setResults([])
+        if (id === searchIdRef.current) {
+          setResults([])
+          setSearchError(true)
+        }
       } finally {
         if (id === searchIdRef.current) setSearching(false)
       }
@@ -503,6 +518,7 @@ function AddToolDialog({
                 ))}
               </div>
             )}
+            {searchError && <p className="mt-1 text-destructive text-xs">{t('settings.plugins.searchFailed')}</p>}
           </div>
 
           {selectedName && (

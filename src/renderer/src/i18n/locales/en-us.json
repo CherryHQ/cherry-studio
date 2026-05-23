@@ -6241,6 +6241,7 @@
       "remove": "Remove tool",
       "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
       "removeConfirmTitle": "Remove Tool",
+      "searchFailed": "Search failed, check logs",
       "searchRegistry": "Search mise registry...",
       "title": "Dependencies",
       "tools": {

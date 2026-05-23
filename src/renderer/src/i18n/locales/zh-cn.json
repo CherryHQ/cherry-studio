@@ -6241,6 +6241,7 @@
       "remove": "移除工具",
       "removeConfirmMessage": "确定要移除 \"{{name}}\" 吗？二进制文件将被删除。",
       "removeConfirmTitle": "移除工具",
+      "searchFailed": "搜索失败，请查看日志",
       "searchRegistry": "搜索 mise 工具仓库...",
       "title": "环境依赖",
       "tools": {
