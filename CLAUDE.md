@@ -101,11 +101,9 @@ Use the `gh-create-issue` skill. Fallback: read `.agents/skills/gh-create-issue/
 
 - Place shared type definitions in `src/renderer/src/types/` or `packages/shared/`.
 
-### File Naming
+### Naming Conventions
 
-- React components: `PascalCase.tsx`
-- Services, hooks, utilities: `camelCase.ts`
-- Test files: `*.test.ts` or `*.spec.ts` alongside source or in `__tests__/` subdirectory
+**MUST READ**: [docs/references/naming-conventions.md](docs/references/naming-conventions.md) — files, directories, identifiers, and singular/plural rules.
 
 ### Logging
 

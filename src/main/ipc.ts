@@ -38,7 +38,7 @@ import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { fileServiceManager } from './services/remotefile/FileServiceManager'
-import { vertexAIService } from './services/VertexAIService'
+import { vertexAiService } from './services/VertexAiService'
 import { calculateDirectorySize } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import { isSafeExternalUrl } from './utils/externalUrlSafety'
@@ -504,15 +504,15 @@ export async function registerIpc() {
   // memory
   // VertexAI
   ipcMain.handle(IpcChannel.VertexAI_GetAuthHeaders, async (_, params) => {
-    return vertexAIService.getAuthHeaders(params)
+    return vertexAiService.getAuthHeaders(params)
   })
 
   ipcMain.handle(IpcChannel.VertexAI_GetAccessToken, async (_, params) => {
-    return vertexAIService.getAccessToken(params)
+    return vertexAiService.getAccessToken(params)
   })
 
   ipcMain.handle(IpcChannel.VertexAI_ClearAuthCache, async (_, projectId: string, clientEmail?: string) => {
-    vertexAIService.clearAuthCache(projectId, clientEmail)
+    vertexAiService.clearAuthCache(projectId, clientEmail)
   })
 
   // aes

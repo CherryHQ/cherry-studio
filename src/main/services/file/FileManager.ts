@@ -91,7 +91,7 @@
  * **External entries cannot be trashed.** Their lifecycle is monotonic:
  * created by `ensureExternalEntry` (pure upsert keyed by path — see below),
  * updated in place via `write` / `rename`, and removed only by an explicit
- * (non-UI) `permanentDelete`. The `fe_external_no_trash` CHECK constraint
+ * (non-UI) `permanentDelete`. The `fe_external_no_delete` CHECK constraint
  * enforces this at the DB level; `trash` / `restore` on an external entry id
  * will throw.
  *
@@ -375,7 +375,7 @@ export interface IFileManager {
    * The global unique index `UNIQUE(externalPath)` (internal rows have
    * `externalPath = null` and are exempt — SQLite treats NULLs as distinct)
    * guarantees at most one row per path. External entries cannot be trashed
-   * (`fe_external_no_trash` CHECK), so no "restore" branch is possible.
+   * (`fe_external_no_delete` CHECK), so no "restore" branch is possible.
    * Repeated calls with the same path are safe and idempotent.
    */
   ensureExternalEntry(params: EnsureExternalEntryParams): Promise<FileEntry>
@@ -471,17 +471,17 @@ export interface IFileManager {
   // ─── Trash / Delete ───
 
   /**
-   * Move entry to Trash (soft delete via `trashedAt`). Internal-only.
+   * Move entry to Trash (soft delete via `deletedAt`). Internal-only.
    *
    * Passing an external entry id throws: external entries cannot be trashed
-   * (enforced by the `fe_external_no_trash` CHECK constraint). Business layers
+   * (enforced by the `fe_external_no_delete` CHECK constraint). Business layers
    * should call `permanentDelete` on external entries if the user really wants
    * the reference gone.
    */
   trash(id: FileEntryId): Promise<void>
 
   /**
-   * Restore entry from Trash (`trashedAt = null`). Internal-only — external
+   * Restore entry from Trash (`deletedAt = null`). Internal-only — external
    * entries are never trashed, so passing one throws (the entry is already
    * active by definition).
    */

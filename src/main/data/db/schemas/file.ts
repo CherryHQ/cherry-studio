@@ -1,7 +1,12 @@
 import { sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps, uuidPrimaryKey, uuidPrimaryKeyOrdered } from './_columnHelpers'
+import {
+  createUpdateDeleteTimestamps,
+  createUpdateTimestamps,
+  uuidPrimaryKey,
+  uuidPrimaryKeyOrdered
+} from './_columnHelpers'
 
 /**
  * NOTE: `file_upload` (AI provider upload cache) is intentionally NOT included
@@ -46,23 +51,18 @@ export const fileEntryTable = sqliteTable(
     /** Absolute path to the user-provided file. Non-null iff origin='external' */
     externalPath: text(),
 
-    // ─── Trash ───
-    /**
-     * Non-null = trashed (ms epoch). Internal-only.
-     *
-     * External entries cannot be trashed (enforced by `fe_external_no_trash`
-     * check constraint). Their lifecycle is monotonic: create via
-     * `ensureExternalEntry`, update in place, or remove immediately via
-     * `permanentDelete` (DB-only — the physical file is left untouched;
-     * path-level deletion is a separate, explicit unmanaged `@main/utils/file/fs.remove(path)`).
-     */
-    trashedAt: integer(),
-
     // ─── Timestamps ───
-    ...createUpdateTimestamps
+    // `deletedAt` is soft-delete (NULL = not deleted). Internal-only —
+    // external entries cannot be soft-deleted (enforced by
+    // `fe_external_no_delete`); their lifecycle is monotonic: create via
+    // `ensureExternalEntry`, update in place, or remove immediately via
+    // `permanentDelete` (DB-only — the physical file is left untouched;
+    // path-level deletion is a separate, explicit unmanaged
+    // `@main/utils/file/fs.remove(path)`).
+    ...createUpdateDeleteTimestamps
   },
   (t) => [
-    index('fe_trashed_at_idx').on(t.trashedAt),
+    index('fe_deleted_at_idx').on(t.deletedAt),
     index('fe_created_at_idx').on(t.createdAt),
     // Case-insensitive uniqueness for `externalPath`. SQLite indexes
     // expressions verbatim, so this index covers both the uniqueness
@@ -99,7 +99,7 @@ export const fileEntryTable = sqliteTable(
     // External entries cannot be trashed — trash/restore is internal-only.
     // External removal is always immediate via permanentDelete (DB-only; the
     // physical file is left untouched, path-level @main/utils/file/fs.remove is a separate call).
-    check('fe_external_no_trash', sql`${t.origin} != 'external' OR ${t.trashedAt} IS NULL`),
+    check('fe_external_no_delete', sql`${t.origin} != 'external' OR ${t.deletedAt} IS NULL`),
     // Size semantics are origin-dependent: internal rows carry an authoritative
     // byte count (non-null, ≥ 0); external rows must leave size NULL and read
     // live values from File IPC `getMetadata`. The Zod layer rejects the same

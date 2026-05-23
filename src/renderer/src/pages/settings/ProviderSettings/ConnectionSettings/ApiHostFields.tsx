@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import ProviderField from '../primitives/ProviderField'
 import ProviderSection from '../primitives/ProviderSection'
 import { fieldClasses } from '../primitives/ProviderSettingsPrimitives'
-import CherryINSettings from '../ProviderSpecific/CherryINSettings'
+import CherryInSettings from '../ProviderSpecific/CherryInSettings'
 import { copyApiKeyToClipboard } from './copyApiKeyToClipboard'
 
 interface AzureApiVersionFieldProps {
@@ -86,7 +86,7 @@ export function ApiHostField({
         </div>
       }>
       {isCherryIN && isChineseUser ? (
-        <CherryINSettings providerId={providerIdForSettings} />
+        <CherryInSettings providerId={providerIdForSettings} />
       ) : (
         <div className={cn(fieldClasses.inputRow, 'group')}>
           <InputGroup className={`${fieldClasses.inputGroup} min-w-0 flex-1`}>

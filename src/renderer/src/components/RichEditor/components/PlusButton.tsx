@@ -3,7 +3,7 @@ import type { Editor } from '@tiptap/react'
 import React from 'react'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 
-import { defaultComputePositionConfig } from '../extensions/plus-button'
+import { defaultComputePositionConfig } from '../extensions/plusButton'
 import type { PlusButtonPluginOptions } from '../plugins/plusButtonPlugin'
 import { PlusButtonPlugin, plusButtonPluginDefaultKey } from '../plugins/plusButtonPlugin'
 
@@ -17,7 +17,7 @@ export type PlusButtonProps = Omit<Optional<PlusButtonPluginOptions, 'pluginKey'
 
 export const PlusButton: React.FC<PlusButtonProps> = (props: PlusButtonProps) => {
   const {
-    className = 'plus-button',
+    className = 'plusButton',
     children,
     editor,
     pluginKey = plusButtonPluginDefaultKey,

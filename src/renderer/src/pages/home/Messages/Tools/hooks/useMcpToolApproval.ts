@@ -1,9 +1,9 @@
 import { dataApiService } from '@data/DataApiService'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
-import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import { useMcpServers } from '@renderer/hooks/useMcpServers'
 import type { MCPToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
-import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
+import { isToolAutoApproved } from '@renderer/utils/mcpTools'
 import {
   cancelToolAction,
   confirmToolAction,
@@ -49,7 +49,7 @@ async function resolveHubToolServer(
  */
 export function useMcpToolApproval(block: ToolMessageBlock): ToolApprovalState & ToolApprovalActions {
   const { t } = useTranslation()
-  const { mcpServers } = useMCPServers()
+  const { mcpServers } = useMcpServers()
   const { agent } = useActiveAgent()
 
   const toolResponse = block.metadata?.rawMcpToolResponse as MCPToolResponse | undefined

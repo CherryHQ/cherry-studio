@@ -1,4 +1,4 @@
-import { CursorIcon, VSCodeIcon, ZedIcon } from '@renderer/components/Icons/SVGIcon'
+import { CursorIcon, VSCodeIcon, ZedIcon } from '@renderer/components/Icons/SvgIcon'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 
 export const getEditorIcon = (app: ExternalAppInfo, className = 'size-4') => {

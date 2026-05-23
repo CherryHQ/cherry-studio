@@ -42,7 +42,7 @@ export const assistantAdapter: ResourceAdapter<Assistant> = {
 }
 
 /**
- * Write-side hook for assistant resources — mirrors `useMCPServerMutations` pattern.
+ * Write-side hook for assistant resources — mirrors `useMcpServerMutations` pattern.
  * Every mutation triggers refresh of `/assistants` so the library list picks up
  * new/updated/deleted rows automatically.
  */

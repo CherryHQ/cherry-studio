@@ -4,10 +4,10 @@ import store from '@renderer/store'
 import type { Provider } from '@renderer/types'
 import { withoutTrailingSlash } from '@renderer/utils'
 import {
-  getMissingVertexAIConfigFields,
+  getMissingVertexAiConfigFields,
   VERTEX_AI_CONFIG_FIELD_LABEL_KEYS,
-  type VertexAIConfigField
-} from '@renderer/utils/vertexAI'
+  type VertexAiConfigField
+} from '@renderer/utils/vertexAi'
 import { defaultAppHeaders } from '@shared/utils'
 
 const logger = loggerService.withContext('ModelListService')
@@ -62,7 +62,7 @@ const SUPPORTED_VERTEX_PUBLISHER_MODEL_PATTERNS = [
   /^qwen[\w.@-]*$/i
 ] as const
 
-function buildVertexAIIncompleteConfigMessage(missingFields: VertexAIConfigField[]): string {
+function buildVertexAiIncompleteConfigMessage(missingFields: VertexAiConfigField[]): string {
   const missingFieldLabels = missingFields.map((field) => i18n.t(VERTEX_AI_CONFIG_FIELD_LABEL_KEYS[field])).join(', ')
   const locationHint = missingFields.includes('location')
     ? ` ${i18n.t('settings.provider.vertex_ai.location_help')}`
@@ -81,7 +81,7 @@ export async function createVertexModelListRequest(
     serviceAccount: { privateKey, clientEmail }
   } = store.getState().llm.settings.vertexai
 
-  const missingFields = getMissingVertexAIConfigFields({
+  const missingFields = getMissingVertexAiConfigFields({
     projectId,
     location,
     serviceAccount: {
@@ -91,7 +91,7 @@ export async function createVertexModelListRequest(
   })
 
   if (missingFields.length > 0) {
-    const errorMessage = buildVertexAIIncompleteConfigMessage(missingFields)
+    const errorMessage = buildVertexAiIncompleteConfigMessage(missingFields)
 
     if (options?.throwOnError) {
       throw new Error(errorMessage)

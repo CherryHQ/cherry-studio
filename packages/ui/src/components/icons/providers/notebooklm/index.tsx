@@ -9,7 +9,7 @@ const Notebooklm = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const NotebooklmIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Notebooklm, {
   Avatar: NotebooklmAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#EAEAEA'
 })
 
 export default NotebooklmIcon

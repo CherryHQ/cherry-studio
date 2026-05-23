@@ -31,7 +31,7 @@ describe('FileEntryService', () => {
         ext: 'txt',
         size: 11,
         externalPath: null,
-        trashedAt: null,
+        deletedAt: null,
         createdAt: now,
         updatedAt: now
       })
@@ -74,14 +74,14 @@ describe('FileEntryService', () => {
         ext: 'md',
         size: 0,
         externalPath: null,
-        trashedAt: now,
+        deletedAt: now,
         createdAt: now,
         updatedAt: now
       })
 
       const entry = await fileEntryService.findById(id)
       if (entry?.origin === 'internal') {
-        expect(entry.trashedAt).toBe(now)
+        expect(entry.deletedAt).toBe(now)
       } else {
         throw new Error('expected internal entry')
       }
@@ -99,7 +99,7 @@ describe('FileEntryService', () => {
         ext: 'pdf',
         size: null,
         externalPath: '/Users/me/doc.pdf',
-        trashedAt: null,
+        deletedAt: null,
         createdAt: now,
         updatedAt: now
       })
@@ -124,7 +124,7 @@ describe('FileEntryService', () => {
         ext: 'txt',
         size: null,
         externalPath: '/Users/me/a.txt',
-        trashedAt: null,
+        deletedAt: null,
         createdAt: now,
         updatedAt: now
       })
@@ -149,7 +149,7 @@ describe('FileEntryService', () => {
         ext: 'txt',
         size: null,
         externalPath: '/Users/me/A.TXT',
-        trashedAt: null,
+        deletedAt: null,
         createdAt: now,
         updatedAt: now
       })
@@ -173,7 +173,7 @@ describe('FileEntryService', () => {
         ext: 'txt',
         size: null,
         externalPath: '/Users/me/A.TXT',
-        trashedAt: null,
+        deletedAt: null,
         createdAt: now,
         updatedAt: now
       })
@@ -190,7 +190,7 @@ describe('FileEntryService', () => {
           ext: 'txt',
           size: null,
           externalPath: '/Users/me/a.txt',
-          trashedAt: null,
+          deletedAt: null,
           createdAt: now,
           updatedAt: now
         })
@@ -215,7 +215,7 @@ describe('FileEntryService', () => {
           ext: 'txt',
           size: 1,
           externalPath: null,
-          trashedAt: null,
+          deletedAt: null,
           createdAt: now,
           updatedAt: now
         },
@@ -226,7 +226,7 @@ describe('FileEntryService', () => {
           ext: 'md',
           size: 2,
           externalPath: null,
-          trashedAt: now,
+          deletedAt: now,
           createdAt: now,
           updatedAt: now
         }
@@ -247,7 +247,7 @@ describe('FileEntryService', () => {
           ext: 'txt',
           size: 1,
           externalPath: null,
-          trashedAt: null,
+          deletedAt: null,
           createdAt: now,
           updatedAt: now
         },
@@ -258,7 +258,7 @@ describe('FileEntryService', () => {
           ext: 'pdf',
           size: null,
           externalPath: '/foo/e.pdf',
-          trashedAt: null,
+          deletedAt: null,
           createdAt: now,
           updatedAt: now
         }
@@ -279,7 +279,7 @@ describe('FileEntryService', () => {
           ext: 'txt',
           size: 1,
           externalPath: null,
-          trashedAt: null,
+          deletedAt: null,
           createdAt: now,
           updatedAt: now
         },
@@ -290,7 +290,7 @@ describe('FileEntryService', () => {
           ext: 'txt',
           size: 1,
           externalPath: null,
-          trashedAt: now,
+          deletedAt: now,
           createdAt: now,
           updatedAt: now
         }
@@ -310,7 +310,7 @@ describe('FileEntryService', () => {
         ext: 'txt',
         size: i,
         externalPath: null,
-        trashedAt: null,
+        deletedAt: null,
         createdAt: now + i,
         updatedAt: now + i
       }))
@@ -331,7 +331,7 @@ describe('FileEntryService', () => {
         ext: 'txt',
         size: i + 1,
         externalPath: null,
-        trashedAt: null,
+        deletedAt: null,
         createdAt: now + i,
         updatedAt: now + i
       }))
@@ -348,7 +348,7 @@ describe('FileEntryService', () => {
           ext: 'txt',
           size: 1,
           externalPath: null,
-          trashedAt: null,
+          deletedAt: null,
           createdAt: now,
           updatedAt: now
         },
@@ -359,7 +359,7 @@ describe('FileEntryService', () => {
           ext: 'txt',
           size: 2,
           externalPath: null,
-          trashedAt: now,
+          deletedAt: now,
           createdAt: now,
           updatedAt: now
         }
@@ -409,7 +409,7 @@ describe('FileEntryService', () => {
           ext: 'txt',
           size: 1,
           externalPath: null,
-          trashedAt: null,
+          deletedAt: null,
           createdAt: now + 2,
           updatedAt: now + 2
         },
@@ -420,7 +420,7 @@ describe('FileEntryService', () => {
           ext: 'txt',
           size: 1,
           externalPath: null,
-          trashedAt: null,
+          deletedAt: null,
           createdAt: now,
           updatedAt: now
         },
@@ -431,7 +431,7 @@ describe('FileEntryService', () => {
           ext: 'txt',
           size: 1,
           externalPath: null,
-          trashedAt: null,
+          deletedAt: null,
           createdAt: now + 1,
           updatedAt: now + 1
         }
@@ -473,7 +473,7 @@ describe('FileEntryService', () => {
             ext: 'txt',
             size: 1,
             externalPath: null,
-            trashedAt: null,
+            deletedAt: null,
             createdAt: sharedTs,
             updatedAt: sharedTs
           }))
@@ -513,7 +513,7 @@ describe('FileEntryService', () => {
             ext: 'txt',
             size: 1,
             externalPath: null,
-            trashedAt: null,
+            deletedAt: null,
             createdAt: sharedTs,
             updatedAt: sharedTs
           }))
@@ -628,16 +628,16 @@ describe('FileEntryService', () => {
       })
     })
 
-    it('updates trashedAt for soft delete', async () => {
+    it('updates deletedAt for soft delete', async () => {
       const id = '019606a0-0000-7000-8000-000000000b02' as FileEntryId
       await fileEntryService.create({ id, origin: 'internal', name: 'tmp', ext: 'txt', size: 1, externalPath: null })
-      const trashedAt = Date.now()
-      const updated = await fileEntryService.update(id, { trashedAt })
+      const deletedAt = Date.now()
+      const updated = await fileEntryService.update(id, { deletedAt })
       if (updated.origin !== 'internal') throw new Error('expected internal entry')
-      expect(updated.trashedAt).toBe(trashedAt)
+      expect(updated.deletedAt).toBe(deletedAt)
     })
 
-    it('throws when setting trashedAt on an external row (CHECK fe_external_no_trash)', async () => {
+    it('throws when setting deletedAt on an external row (CHECK fe_external_no_delete)', async () => {
       const id = '019606a0-0000-7000-8000-000000000b03' as FileEntryId
       await fileEntryService.create({
         id,
@@ -647,7 +647,7 @@ describe('FileEntryService', () => {
         size: null,
         externalPath: '/x/y.txt'
       })
-      await expect(fileEntryService.update(id, { trashedAt: Date.now() })).rejects.toThrow()
+      await expect(fileEntryService.update(id, { deletedAt: Date.now() })).rejects.toThrow()
     })
 
     it('rejects unsafe name BEFORE the SQL UPDATE commits', async () => {
@@ -671,7 +671,7 @@ describe('FileEntryService', () => {
     // listAllIds backs the Phase 1b.4 startup disk scan, which decides which
     // on-disk UUID files are orphaned (no DB row, regardless of trashed
     // state). The implementation is one query — the regressions worth
-    // catching are misclassifying trashed rows as deleted (trashedAt filter
+    // catching are misclassifying trashed rows as deleted (deletedAt filter
     // creeping in) or returning an array shape.
 
     it('returns an empty Set on an empty table', async () => {
@@ -698,7 +698,7 @@ describe('FileEntryService', () => {
         ext: 'txt',
         size: 1,
         externalPath: null,
-        trashedAt: Date.now()
+        deletedAt: Date.now()
       })
 
       const ids = await fileEntryService.listAllIds()
@@ -944,7 +944,7 @@ describe('FileEntryService', () => {
         ext: 'txt',
         size: 1,
         externalPath: null,
-        trashedAt: Date.now()
+        deletedAt: Date.now()
       })
 
       const result = await fileEntryService.findUnreferenced()

@@ -1,4 +1,4 @@
-import { OGCard } from '@renderer/components/OGCard'
+import { OgCard } from '@renderer/components/OgCard'
 import { Popover } from 'antd'
 import React, { memo, useMemo, useState } from 'react'
 
@@ -25,7 +25,7 @@ const Hyperlink: React.FC<HyperLinkProps> = ({ children, href }) => {
       arrow={false}
       open={open}
       onOpenChange={setOpen}
-      content={<OGCard link={link} show={open} />}
+      content={<OgCard link={link} show={open} />}
       styles={{
         body: {
           padding: 0,

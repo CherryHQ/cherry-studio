@@ -226,6 +226,17 @@ stories/                # Storybook stories and sandbox usage
 icons/                  # Raw icon assets for code generation
 ```
 
+## Naming Conventions
+
+All file and directory names under `packages/ui/` follow **kebab-case** (per shadcn CLI convention and project-wide rule §4.5 in [`../../docs/references/naming-conventions.md`](../../docs/references/naming-conventions.md)). This covers `primitives/`, `composites/`, `icons/`, `hooks/`, and `stories/` alike. Exported identifiers inside files remain `PascalCase` for components and `camelCase` for utilities and hooks.
+
+Examples:
+
+- `button.tsx` exports `Button`
+- `data-table.tsx` exports `DataTable`
+- `error-boundary/index.tsx` exports `ErrorBoundary`
+- `use-dnd-reorder.ts` exports `useDndReorder`
+
 ## Components
 
 ### Button

@@ -64,8 +64,8 @@ vi.mock('@shared/utils', () => ({
 
 // openClawParsers: not mocked — tested directly below
 
-vi.mock('../VertexAIService', () => ({
-  vertexAIService: { getAccessToken: vi.fn(() => Promise.resolve('mock-token')) }
+vi.mock('../VertexAiService', () => ({
+  vertexAiService: { getAccessToken: vi.fn(() => Promise.resolve('mock-token')) }
 }))
 
 // --- Import service after mocks are set up ---

@@ -2,7 +2,7 @@
  * Entry lifecycle — trash / restore / permanentDelete + batch variants.
  *
  * `trash` / `restore` are internal-only; passing an external id throws (the
- * `fe_external_no_trash` CHECK enforces this at the DB level for `trash`, and
+ * `fe_external_no_delete` CHECK enforces this at the DB level for `trash`, and
  * `restore` uses an explicit early-throw because trashed external rows cannot
  * exist by definition).
  *
@@ -26,7 +26,7 @@ import type { FileManagerDeps } from '../deps'
 const logger = loggerService.withContext('internal/entry/lifecycle')
 
 export async function trash(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
-  await deps.fileEntryService.update(id, { trashedAt: Date.now() })
+  await deps.fileEntryService.update(id, { deletedAt: Date.now() })
 }
 
 export async function restore(deps: FileManagerDeps, id: FileEntryId): Promise<FileEntry> {
@@ -34,7 +34,7 @@ export async function restore(deps: FileManagerDeps, id: FileEntryId): Promise<F
   if (entry.origin === 'external') {
     throw new Error(`restore: external entry ${id} cannot be trashed by definition; nothing to restore`)
   }
-  return deps.fileEntryService.update(id, { trashedAt: null })
+  return deps.fileEntryService.update(id, { deletedAt: null })
 }
 
 export async function permanentDelete(deps: FileManagerDeps, id: FileEntryId): Promise<void> {

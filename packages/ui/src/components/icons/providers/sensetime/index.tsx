@@ -9,7 +9,7 @@ const Sensetime = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const SensetimeIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Sensetime, {
   Avatar: SensetimeAvatar,
-  colorPrimary: '#7680F8'
+  colorPrimary: '#B8DFFE'
 })
 
 export default SensetimeIcon

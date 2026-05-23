@@ -23,7 +23,7 @@ import {
   isSupportedThinkingTokenModel,
   isWebSearchModel
 } from '@renderer/config/models'
-import { getHubModeSystemPrompt } from '@renderer/config/prompts-code-mode'
+import { getHubModeSystemPrompt } from '@renderer/config/promptsCodeMode'
 import { DEFAULT_ASSISTANT_SETTINGS, getDefaultModel } from '@renderer/services/AssistantService'
 import type { Model } from '@renderer/types'
 import type { WebSearchState } from '@renderer/types'

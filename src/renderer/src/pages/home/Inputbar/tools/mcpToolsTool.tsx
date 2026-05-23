@@ -1,7 +1,7 @@
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/assistant'
 
-import MCPToolsButton from './components/MCPToolsButton'
+import McpToolsButton from './components/McpToolsButton'
 
 const mcpToolsTool = defineTool({
   key: 'mcp_tools',
@@ -12,7 +12,7 @@ const mcpToolsTool = defineTool({
     actions: ['onTextChange', 'resizeTextArea'] as const
   },
   render: ({ assistant, actions, quickPanel }) => (
-    <MCPToolsButton
+    <McpToolsButton
       assistantId={assistant.id}
       quickPanel={quickPanel}
       setInputValue={actions.onTextChange}

@@ -29,7 +29,7 @@ export function registerAdapterFactory(type: string, factory: AdapterFactory): v
 const adapterImportMap: Record<string, () => Promise<unknown>> = {
   discord: () => import('./adapters/discord/DiscordAdapter'),
   feishu: () => import('./adapters/feishu/FeishuAdapter'),
-  qq: () => import('./adapters/qq/QQAdapter'),
+  qq: () => import('./adapters/qq/QqAdapter'),
   slack: () => import('./adapters/slack/SlackAdapter'),
   telegram: () => import('./adapters/telegram/TelegramAdapter'),
   wechat: () => import('./adapters/wechat/WeChatAdapter')

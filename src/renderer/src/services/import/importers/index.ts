@@ -1,12 +1,12 @@
-import { ChatGPTImporter } from './ChatGPTImporter'
+import { ChatgptImporter } from './ChatgptImporter'
 
 /**
  * Export all available importers
  */
-export { ChatGPTImporter }
+export { ChatgptImporter }
 
 /**
  * Registry of all available importers
  * Add new importers here as they are implemented
  */
-export const availableImporters = [new ChatGPTImporter()] as const
+export const availableImporters = [new ChatgptImporter()] as const
