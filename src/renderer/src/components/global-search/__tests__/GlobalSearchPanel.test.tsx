@@ -26,6 +26,8 @@ const mocks = vi.hoisted(() => ({
   messageLoadNext: vi.fn(),
   sessionMessageLoadNext: vi.fn(),
   recentItems: [] as GlobalSearchRecentEntry[],
+  pinnedMiniApps: [] as any[],
+  openedMiniApps: [] as any[],
   preferenceValues: {
     'app.user.name': 'JD',
     'ui.sidebar.icons.visible': ['assistants', 'agents', 'translate'] as SidebarIcon[],
@@ -158,7 +160,12 @@ vi.mock('@cherrystudio/ui', async () => {
 })
 
 vi.mock('@renderer/components/Icons/SVGIcon', () => ({
+  OpenClawIcon: (props: React.ComponentProps<'svg'>) => <svg aria-hidden="true" {...props} />,
   OpenClawSidebarIcon: (props: React.ComponentProps<'svg'>) => <svg aria-hidden="true" {...props} />
+}))
+
+vi.mock('@renderer/components/Icons/MiniAppIcon', () => ({
+  default: ({ app }: any) => <span aria-hidden="true">{app.logo ?? 'mini-app-icon'}</span>
 }))
 
 vi.mock('@renderer/components/VirtualList', () => ({
@@ -209,8 +216,26 @@ vi.mock('@renderer/hooks/useSettings', () => ({
   useSettings: () => ({ defaultPaintingProvider: 'zhipu' })
 }))
 
+vi.mock('@renderer/hooks/useMiniApps', () => ({
+  useMiniApps: () => ({
+    openedKeepAliveMiniApps: mocks.openedMiniApps,
+    pinned: mocks.pinnedMiniApps
+  })
+}))
+
 vi.mock('@renderer/utils/routeTitle', () => ({
-  getDefaultRouteTitle: (path: string) => path
+  getDefaultRouteTitle: (path: string) =>
+    ({
+      '/app/mini-app': 'Apps',
+      '/app/knowledge': 'Knowledge',
+      '/app/paintings/zhipu': 'Paintings',
+      '/app/translate': 'Translate',
+      '/app/files': 'Files',
+      '/app/code': 'Code',
+      '/app/openclaw': 'OpenClaw',
+      '/app/notes': 'Notes',
+      '/app/library': 'Library'
+    })[path] ?? path
 }))
 
 vi.mock('@data/CacheService', () => ({
@@ -280,7 +305,7 @@ vi.mock('react-i18next', () => ({
     t: (key: string, options?: Record<string, string>) => {
       const label =
         {
-          'globalSearch.placeholder': 'Start typing to search...',
+          'globalSearch.placeholder': 'Search topics, work, assistants, agents, and knowledge...',
           'globalSearch.clear': 'Clear search',
           'globalSearch.filters.label': 'Search type',
           'globalSearch.filters.all': 'All',
@@ -299,6 +324,17 @@ vi.mock('react-i18next', () => ({
           'globalSearch.groups.agent': 'Agent',
           'globalSearch.groups.knowledge-base': 'Knowledge',
           'globalSearch.keyboard.select': 'Select',
+          'launchpad.apps': 'Apps',
+          'launchpad.miniApps': 'Mini Apps',
+          'library.title': 'Library',
+          'title.apps': 'Apps',
+          'title.code': 'Code',
+          'title.files': 'Files',
+          'title.knowledge': 'Knowledge',
+          'title.notes': 'Notes',
+          'title.openclaw': 'OpenClaw',
+          'title.paintings': 'Paintings',
+          'title.translate': 'Translate',
           'globalSearch.messageSearch.entry': 'Messages',
           'globalSearch.messageSearch.hint': 'Type to search message content',
           'globalSearch.messageSearch.jumpToMessage': 'Jump to message',
@@ -338,6 +374,7 @@ vi.mock('react-i18next', () => ({
           'common.no_results': 'No results',
           'common.open': 'Open',
           'common.close': 'Close',
+          'common.back': 'Back',
           'common.unnamed': 'Unnamed'
         }[key] ?? key
 
@@ -364,6 +401,8 @@ describe('GlobalSearchPanel', () => {
         lastAccessTime: 20
       }
     ]
+    mocks.pinnedMiniApps = []
+    mocks.openedMiniApps = []
     mocks.queryResult = undefined
     mocks.messageQueryResult = undefined
     mocks.sessionMessageQueryResult = undefined
@@ -408,7 +447,13 @@ describe('GlobalSearchPanel', () => {
     })
   })
 
-  it('renders recent items before search and hides them after typing', async () => {
+  it('does not autofocus the search input when opened', () => {
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    expect(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...')).not.toHaveFocus()
+  })
+
+  it('renders launchpad before search and hides it after typing', async () => {
     const user = userEvent.setup()
     const updatedAt = new Date(Date.now() - 2 * 60 * 1000).toISOString()
     mocks.queryResult = {
@@ -432,12 +477,16 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
-    expect(screen.getByText('Topic recent')).toBeInTheDocument()
-    expect(screen.getByText('Type to search conversations, assistants, agents, and knowledge')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Apps' })).toBeInTheDocument()
+    expect(screen.getByText('Knowledge')).toBeInTheDocument()
+    expect(screen.queryByText('Topic recent')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Search type: Topic' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Select')).not.toBeInTheDocument()
 
-    await user.type(screen.getByLabelText('Start typing to search...'), 'assistant')
+    await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'assistant')
 
     await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Apps' })).not.toBeInTheDocument()
       expect(screen.queryByText('Topic recent')).not.toBeInTheDocument()
       expect(screen.getByRole('option', { name: /Writing Assistant/ })).toBeInTheDocument()
       expect(screen.getByText('2 minutes ago')).toBeInTheDocument()
@@ -456,34 +505,29 @@ describe('GlobalSearchPanel', () => {
     )
   })
 
-  it('renders visible sidebar shortcuts and opens navigation in a new tab', async () => {
+  it('does not render quick app shortcuts after typing', async () => {
+    const user = userEvent.setup()
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+    await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'query')
+
+    expect(screen.queryByText('Quick apps')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Chat' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Agent' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Manage' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Search type: Topic' })).toBeInTheDocument()
+  })
+
+  it('keeps the launchpad manage button in the default panel', async () => {
     const user = userEvent.setup()
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
-    const chatButton = screen.getByRole('button', { name: 'Chat' })
-    const filterButton = screen.getByRole('button', { name: 'Search type: Topic' })
+    expect(screen.queryByRole('button', { name: 'Chat' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Manage' })).toBeInTheDocument()
+    expect(screen.queryByRole('radio', { name: 'Messages' })).not.toBeInTheDocument()
 
-    expect(screen.queryByText('Quick apps')).not.toBeInTheDocument()
-    expect(chatButton.compareDocumentPosition(filterButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(chatButton).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Agent' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Translate' })).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Agent' }))
-
-    expect(mocks.openTab).toHaveBeenCalledWith(
-      '/app/agents',
-      expect.objectContaining({
-        forceNew: true
-      })
-    )
-    expect(mocks.updateTab).not.toHaveBeenCalled()
-    expect(mocks.onClose).toHaveBeenCalledTimes(1)
-  })
-
-  it('hides the quick app button area when requested', () => {
-    render(<GlobalSearchPanel hideQuickApps onClose={mocks.onClose} />)
+    await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'query')
 
     expect(screen.queryByRole('button', { name: 'Chat' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Translate' })).not.toBeInTheDocument()
@@ -495,31 +539,7 @@ describe('GlobalSearchPanel', () => {
     expect(screen.getByRole('button', { name: 'Updated time' })).toBeInTheDocument()
   })
 
-  it('opens shortcut navigation in a new tab when the active tab is pinned', async () => {
-    const user = userEvent.setup()
-    mocks.activeTab = {
-      id: 'chat',
-      type: 'route',
-      url: '/app/chat',
-      title: 'Chat',
-      isPinned: true
-    }
-
-    render(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    await user.click(screen.getByRole('button', { name: 'Translate' }))
-
-    expect(mocks.openTab).toHaveBeenCalledWith(
-      '/app/translate',
-      expect.objectContaining({
-        forceNew: true
-      })
-    )
-    expect(mocks.updateTab).not.toHaveBeenCalled()
-    expect(mocks.onClose).toHaveBeenCalledTimes(1)
-  })
-
-  it('switches the results area to quick app management', async () => {
+  it('switches the launchpad body to quick app management', async () => {
     const user = userEvent.setup()
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
@@ -530,12 +550,14 @@ describe('GlobalSearchPanel', () => {
     expect(screen.getByText('Manage quick apps')).toBeInTheDocument()
     expect(screen.getByText('Drag to reorder, click the eye to hide or show')).toBeInTheDocument()
     expect(screen.getByTestId('quick-app-manager-list')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Search type: Topic' })).not.toBeInTheDocument()
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
 
-    await user.click(manageButton)
+    await user.click(screen.getByRole('button', { name: 'Back' }))
 
     expect(screen.queryByText('Manage quick apps')).not.toBeInTheDocument()
-    expect(screen.getByRole('listbox')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Apps' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Manage' })).toBeInTheDocument()
   })
 
   it('updates sidebar icon preferences when hiding a quick app', async () => {
@@ -602,23 +624,6 @@ describe('GlobalSearchPanel', () => {
     expect(labels).toEqual(['Translate', 'Chat', 'Knowledge', 'Agent'])
   })
 
-  it('renders visible quick app shortcuts in persisted preference order', () => {
-    mocks.preferenceValues = {
-      'ui.sidebar.icons.visible': ['translate', 'agents', 'assistants'],
-      'ui.sidebar.icons.invisible': ['knowledge']
-    }
-
-    render(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    const chatButton = screen.getByRole('button', { name: 'Chat' })
-    const agentButton = screen.getByRole('button', { name: 'Agent' })
-    const translateButton = screen.getByRole('button', { name: 'Translate' })
-
-    expect(translateButton.compareDocumentPosition(agentButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(agentButton.compareDocumentPosition(chatButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(mocks.setPreferences).not.toHaveBeenCalled()
-  })
-
   it('saves dragged quick app order back to preference arrays', async () => {
     const user = userEvent.setup()
 
@@ -664,7 +669,7 @@ describe('GlobalSearchPanel', () => {
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
     await user.click(screen.getByRole('button', { name: 'Manage' }))
-    await user.click(screen.getByLabelText('Start typing to search...'))
+    await user.click(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'))
     await user.keyboard('{Enter}')
 
     expect(mocks.cacheSet).not.toHaveBeenCalled()
@@ -678,8 +683,8 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
+    await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'plan')
     await user.click(screen.getByRole('button', { name: 'Search type: Topic' }))
-    await user.type(screen.getByLabelText('Start typing to search...'), 'plan')
 
     await waitFor(() => {
       expect(mocks.useQuery).toHaveBeenLastCalledWith(
@@ -700,8 +705,8 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
+    await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'plan')
     await user.click(screen.getByRole('button', { name: 'Search type: Work' }))
-    await user.type(screen.getByLabelText('Start typing to search...'), 'plan')
 
     await waitFor(() => {
       expect(mocks.useQuery).toHaveBeenLastCalledWith(
@@ -722,14 +727,13 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
+    await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'plan')
     const topicFilter = screen.getByRole('button', { name: 'Search type: Topic' })
     await user.click(topicFilter)
     expect(topicFilter).toHaveAttribute('aria-pressed', 'true')
 
     await user.click(topicFilter)
     expect(topicFilter).toHaveAttribute('aria-pressed', 'false')
-
-    await user.type(screen.getByLabelText('Start typing to search...'), 'plan')
 
     await waitFor(() => {
       expect(mocks.useQuery).toHaveBeenLastCalledWith(
@@ -750,8 +754,8 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
+    await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'docs')
     await user.click(screen.getByRole('button', { name: 'Search type: Knowledge' }))
-    await user.type(screen.getByLabelText('Start typing to search...'), 'docs')
 
     await waitFor(() => {
       expect(mocks.useQuery).toHaveBeenLastCalledWith(
@@ -795,7 +799,7 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
-    await user.type(screen.getByLabelText('Start typing to search...'), 'plan')
+    await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'plan')
 
     expect(await screen.findByRole('option', { name: /Topic 0/ })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /Topic 4/ })).toBeInTheDocument()
@@ -830,7 +834,7 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
-    await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
+    await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'needle')
 
     expect(await screen.findByText('Topic A')).toBeInTheDocument()
     expect(screen.getByText('Topic messages')).toBeInTheDocument()
@@ -880,20 +884,21 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
+    await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'needle')
     await user.click(screen.getByRole('radio', { name: 'Messages' }))
     await user.click(screen.getByRole('button', { name: 'Message source: Topic messages' }))
     await user.click(screen.getByRole('radio', { name: 'All' }))
-    await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
     await user.click(await screen.findByRole('option', { name: /needle target message/ }))
 
     expect(await screen.findByLabelText('Message preview')).toBeInTheDocument()
     expect(screen.getByText('Topic A')).toBeInTheDocument()
   })
 
-  it('switches to message search mode and keeps quick apps visible', async () => {
+  it('switches to message search mode without showing quick app shortcuts', async () => {
     const user = userEvent.setup()
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
+    await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'needle')
 
     const messageSearchButton = screen.getByRole('radio', { name: 'Messages' })
     const filterButton = screen.getByRole('button', { name: 'Search type: Topic' })
@@ -901,7 +906,8 @@ describe('GlobalSearchPanel', () => {
     expect(messageSearchButton.compareDocumentPosition(filterButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
 
     await user.click(messageSearchButton)
-    expect(screen.getByRole('button', { name: 'Chat' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Chat' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Manage' })).not.toBeInTheDocument()
     expect(messageSearchButton).toHaveAttribute('aria-checked', 'true')
     expect(
       messageSearchButton.compareDocumentPosition(
@@ -910,8 +916,6 @@ describe('GlobalSearchPanel', () => {
     ).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(screen.queryByRole('button', { name: 'Match mode' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Created time' })).toBeInTheDocument()
-
-    await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
 
     await waitFor(() => {
       expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
@@ -957,9 +961,9 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
+    await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'needle')
     await user.click(screen.getByRole('radio', { name: 'Messages' }))
     await user.click(screen.getByRole('button', { name: 'Message source: Topic messages' }))
-    await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
 
     expect(await screen.findByRole('option', { name: /needle first page/ })).toBeInTheDocument()
 
@@ -974,10 +978,10 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
+    await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'needle')
     await user.click(screen.getByRole('radio', { name: 'Messages' }))
     await user.click(screen.getByRole('button', { name: 'Created time' }))
     await user.click(screen.getByRole('menuitem', { name: 'Last 7 days' }))
-    await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
 
     await waitFor(() => {
       expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
@@ -1008,6 +1012,7 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
+    await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'assistant')
     await user.click(screen.getByRole('radio', { name: 'Messages' }))
     expect(screen.getByRole('button', { name: 'Message source: Topic messages' })).toBeInTheDocument()
 
@@ -1017,8 +1022,6 @@ describe('GlobalSearchPanel', () => {
     expect(screen.queryByRole('button', { name: 'Search type: All' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Search type: Topic' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Search type: Work' })).toBeInTheDocument()
-
-    await user.type(screen.getByLabelText('Start typing to search...'), 'assistant')
 
     await waitFor(() => {
       expect(mocks.useQuery).toHaveBeenCalledWith(
@@ -1038,9 +1041,9 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
+    await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'report')
     await user.click(screen.getByRole('radio', { name: 'Messages' }))
     await user.click(screen.getByRole('button', { name: 'Message source: Work messages' }))
-    await user.type(screen.getByLabelText('Start typing to search...'), 'report')
 
     await waitFor(() => {
       expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
@@ -1066,6 +1069,7 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
+    await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'report')
     await user.click(screen.getByRole('radio', { name: 'Messages' }))
     const sessionSourceFilter = screen.getByRole('button', { name: 'Message source: Work messages' })
 
@@ -1074,8 +1078,6 @@ describe('GlobalSearchPanel', () => {
 
     await user.click(sessionSourceFilter)
     expect(sessionSourceFilter).toHaveAttribute('aria-pressed', 'false')
-
-    await user.type(screen.getByLabelText('Start typing to search...'), 'report')
 
     await waitFor(() => {
       expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
@@ -1145,17 +1147,14 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
+    await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'needle')
     await user.click(screen.getByRole('radio', { name: 'Messages' }))
-    await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
 
     expect(await screen.findByText('Topic A')).toBeInTheDocument()
     expect(screen.getAllByText('JD')).not.toHaveLength(0)
-    expect(screen.getByRole('option', { name: /needle message four/ })).toHaveAttribute('aria-selected', 'true')
     expect(screen.queryByRole('option', { name: /needle message one/ })).not.toBeInTheDocument()
 
-    await user.keyboard('{ArrowUp}')
-    expect(screen.getByRole('option', { name: 'Show 1 more results' })).toHaveAttribute('aria-selected', 'true')
-    await user.keyboard('{Enter}')
+    await user.click(screen.getByRole('option', { name: 'Show 1 more results' }))
 
     expect(screen.getByRole('option', { name: /needle message one/ })).toBeInTheDocument()
   })
@@ -1192,8 +1191,8 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
+    await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'needle')
     await user.click(screen.getByRole('radio', { name: 'Messages' }))
-    await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
     await user.click(await screen.findByRole('option', { name: /needle topic reply/ }))
 
     const preview = screen.getByRole('complementary', { name: 'Message preview' })
@@ -1263,8 +1262,8 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
+    await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'needle')
     await user.click(screen.getByRole('radio', { name: 'Messages' }))
-    await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
     await user.click(await screen.findByRole('button', { name: 'Jump to message' }))
 
     expect(screen.queryByRole('complementary', { name: 'Message preview' })).not.toBeInTheDocument()
@@ -1316,8 +1315,8 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
+    await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'needle')
     await user.click(screen.getByRole('radio', { name: 'Messages' }))
-    await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
     await user.click(await screen.findByRole('option', { name: /needle topic reply/ }))
     await user.click(screen.getByRole('button', { name: 'Open preview other message' }))
 
@@ -1355,8 +1354,8 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
+    await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'needle')
     await user.click(screen.getByRole('radio', { name: 'Messages' }))
-    await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
     expect(await screen.findByText('Assistant role')).toBeInTheDocument()
     await user.click(await screen.findByRole('option', { name: /needle session reply/ }))
 
@@ -1407,8 +1406,8 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
+    await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'needle')
     await user.click(screen.getByRole('radio', { name: 'Messages' }))
-    await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
     await user.click(await screen.findByRole('button', { name: 'Jump to message' }))
 
     expect(screen.queryByRole('complementary', { name: 'Message preview' })).not.toBeInTheDocument()
@@ -1445,8 +1444,8 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
+    await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'needle')
     await user.click(screen.getByRole('radio', { name: 'Messages' }))
-    await user.type(screen.getByLabelText('Start typing to search...'), 'needle')
     await user.click(await screen.findByRole('option', { name: /needle session reply/ }))
 
     expect(screen.getByRole('complementary', { name: 'Message preview' })).toBeInTheDocument()
@@ -1477,10 +1476,11 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
-    const input = screen.getByLabelText('Start typing to search...')
-    await user.click(screen.getByRole('radio', { name: 'Messages' }))
+    const input = screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...')
     await user.type(input, 'needle')
+    await user.click(screen.getByRole('radio', { name: 'Messages' }))
     await screen.findByRole('option', { name: /needle session reply/ })
+    await user.click(input)
     await user.keyboard('{Enter}')
 
     expect(screen.getByRole('complementary', { name: 'Message preview' })).toBeInTheDocument()
@@ -1502,10 +1502,10 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
+    await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'plan')
     await user.click(screen.getByRole('button', { name: 'Updated time' }))
     expect(screen.getByRole('menuitem', { name: 'Last 7 days' }).parentElement).toHaveClass('z-[90]')
     await user.click(screen.getByRole('menuitem', { name: 'Last 7 days' }))
-    await user.type(screen.getByLabelText('Start typing to search...'), 'plan')
 
     await waitFor(() => {
       const lastCall = mocks.useQuery.mock.calls.at(-1)
@@ -1549,7 +1549,7 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
-    await user.type(screen.getByLabelText('Start typing to search...'), 'assistant')
+    await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'assistant')
 
     const highlights = await screen.findAllByText('Assistant', { selector: 'mark' })
     expect(highlights).toHaveLength(2)
@@ -1576,7 +1576,7 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
-    const input = screen.getByLabelText('Start typing to search...')
+    const input = screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...')
     await user.type(input, 'assistant')
     await screen.findByRole('option', { name: /Writing Assistant/ })
     await user.keyboard('{Enter}')
@@ -1608,7 +1608,7 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
-    const input = screen.getByLabelText('Start typing to search...')
+    const input = screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...')
     await user.type(input, 'assistant')
     await screen.findByRole('option', { name: /Writing Assistant/ })
 
@@ -1641,7 +1641,7 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
-    const input = screen.getByLabelText('Start typing to search...')
+    const input = screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...')
     await user.type(input, 'docs')
     await screen.findByText('Docs')
     expect(screen.getAllByText('📚')).not.toHaveLength(0)
@@ -1654,27 +1654,17 @@ describe('GlobalSearchPanel', () => {
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('opens a recent topic through the chat route', async () => {
+  it('opens an app route from the default panel', async () => {
     const user = userEvent.setup()
-    const topic = {
-      id: 'topic-1',
-      name: 'Topic recent',
-      assistantId: 'assistant-1',
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-01T00:00:00.000Z',
-      messages: []
-    }
-    mocks.dataApiGet.mockResolvedValue(topic)
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
-    await user.click(screen.getByText('Topic recent'))
+    await user.click(screen.getByText('Knowledge'))
 
-    await waitFor(() => {
-      expect(mocks.dataApiGet).toHaveBeenCalledWith('/topics/topic-1')
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/knowledge', {
+      forceNew: true,
+      title: 'Knowledge'
     })
-    expect(mocks.cacheSet).toHaveBeenCalledWith('topic.active', topic)
-    expect(mocks.openTab).toHaveBeenCalledWith('/app/chat')
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
   })
 })

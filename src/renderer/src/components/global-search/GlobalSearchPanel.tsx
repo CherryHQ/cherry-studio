@@ -18,7 +18,6 @@ import { GroupedVirtualList } from '@renderer/components/VirtualList'
 import {
   getDefaultSidebarIconPreferences,
   getRequiredSidebarIconsVisible,
-  getSidebarMenuPath,
   REQUIRED_SIDEBAR_ICONS,
   sanitizeSidebarIcons,
   SIDEBAR_ICON_ORDER
@@ -29,7 +28,6 @@ import { mapApiTopicToRendererTopic } from '@renderer/hooks/useTopic'
 import { buildLibraryEditSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
-import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { GlobalSearchItem } from '@shared/data/api/schemas/globalSearch'
 import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
 import { ChevronDown, Clock3, CornerDownLeft, Search, X } from 'lucide-react'
@@ -44,11 +42,12 @@ import {
   type GlobalSearchPanelGroup,
   type GlobalSearchPanelGroupFooter
 } from './globalSearchGroups'
+import { GlobalSearchLaunchpad } from './GlobalSearchLaunchpad'
 import {
   GlobalSearchMessagePreviewPanel,
   type GlobalSearchMessagePreviewTarget
 } from './GlobalSearchMessagePreviewPanel'
-import { GlobalSearchQuickAppManager, GlobalSearchQuickAppsBar } from './GlobalSearchQuickApps'
+import { GlobalSearchQuickAppManager } from './GlobalSearchQuickApps'
 import {
   GlobalMessageSearchGroupHeader,
   GlobalMessageSearchRow,
@@ -70,7 +69,6 @@ import {
 } from './useGlobalSearchPanelData'
 
 type GlobalSearchPanelProps = {
-  hideQuickApps?: boolean
   onClose: () => void
 }
 
@@ -120,14 +118,6 @@ function getTimeFilterAriaLabelKey(mode: GlobalSearchPanelMode) {
 
 function getMessageSourceFilterLabelKey(filter: GlobalMessageSearchSourceFilter) {
   return MESSAGE_SOURCE_FILTER_LABEL_KEYS[filter]
-}
-
-function getSortedShortcutSidebarIcons(
-  orderedIcons: readonly SidebarIcon[],
-  visibleIcons: readonly SidebarIcon[] | undefined
-) {
-  const visibleIconSet = new Set<SidebarIcon>(getRequiredSidebarIconsVisible(visibleIcons))
-  return orderedIcons.filter((icon) => visibleIconSet.has(icon))
 }
 
 function getPreferenceOrderedSidebarIcons(
@@ -248,7 +238,7 @@ function getPreviewMessageJumpTarget(
   }
 }
 
-export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSearchPanelProps) {
+export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const { t, i18n } = useTranslation()
   const { openTab } = useTabs()
   const { defaultPaintingProvider } = useSettings()
@@ -295,9 +285,10 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
     recentItems,
     timeFilter
   })
+  const showLaunchpad = !hasQuery && panelMode === 'search'
   const { activeItemId, keyboardItems, messageSelectableItems, moveActiveItem, selectableItems, setActiveItemId } =
     useGlobalSearchKeyboard({
-      groups,
+      groups: showLaunchpad ? [] : groups,
       isMessageSearchMode,
       messageGroups,
       panelMode
@@ -312,14 +303,6 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
     () => new Set<SidebarIcon>(getRequiredSidebarIconsVisible(visibleSidebarIcons)),
     [visibleSidebarIcons]
   )
-  const shortcutSidebarIcons = useMemo(
-    () => getSortedShortcutSidebarIcons(sidebarPreferenceManagerIcons, visibleSidebarIcons),
-    [sidebarPreferenceManagerIcons, visibleSidebarIcons]
-  )
-
-  useEffect(() => {
-    inputRef.current?.focus()
-  }, [])
 
   useEffect(() => {
     setExpandedSearchGroupIds(new Set())
@@ -336,17 +319,6 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
       }
     },
     [setSidebarIconPreferences, t]
-  )
-
-  const handleSidebarShortcutOpen = useCallback(
-    (icon: SidebarIcon) => {
-      const path = getSidebarMenuPath(icon, defaultPaintingProvider)
-      if (!path) return
-
-      openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
-      onClose()
-    },
-    [defaultPaintingProvider, onClose, openTab]
   )
 
   const handleSidebarManagerVisibilityChange = useCallback(
@@ -390,13 +362,12 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
   }, [persistSidebarIconPreferences])
 
   const handleQuickAppsManage = useCallback(() => {
-    if (panelMode === 'menu-manager') {
-      setPanelMode('search')
-      return
-    }
-
     setPanelMode('menu-manager')
-  }, [panelMode])
+  }, [])
+
+  const handleQuickAppsManagerBack = useCallback(() => {
+    setPanelMode('search')
+  }, [])
 
   const handleSearchScopeChange = useCallback((nextScope: GlobalSearchScope) => {
     setPanelMode(nextScope === 'messages' ? 'message-search' : 'search')
@@ -766,8 +737,9 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
             ref={inputRef}
             value={query}
             onChange={(event) => {
-              setQuery(event.target.value.trimStart())
-              setPanelMode((current) => (current === 'menu-manager' ? 'search' : current))
+              const nextQuery = event.target.value.trimStart()
+              setQuery(nextQuery)
+              setPanelMode((current) => (current === 'menu-manager' || !nextQuery ? 'search' : current))
               setMessagePreviewTarget(null)
             }}
             onKeyDown={handleInputKeyDown}
@@ -782,7 +754,7 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
               aria-label={t('globalSearch.clear')}
               onClick={() => {
                 setQuery('')
-                setPanelMode((current) => (current === 'menu-manager' ? 'search' : current))
+                setPanelMode('search')
                 setMessagePreviewTarget(null)
               }}
               className="-translate-y-1/2 absolute top-1/2 right-3 flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
@@ -791,126 +763,120 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
           )}
         </div>
 
-        {!hideQuickApps && (
-          <GlobalSearchQuickAppsBar
-            active={panelMode === 'menu-manager'}
-            icons={shortcutSidebarIcons}
-            onManage={handleQuickAppsManage}
-            onOpen={handleSidebarShortcutOpen}
-          />
+        {!showLaunchpad && panelMode !== 'menu-manager' && (
+          <div className="mt-3 flex h-7 items-center gap-2">
+            <SegmentedControl<GlobalSearchScope>
+              size="sm"
+              aria-label={t('globalSearch.filters.label')}
+              value={isMessageSearchMode ? 'messages' : 'all'}
+              onValueChange={handleSearchScopeChange}
+              className={SEARCH_SCOPE_CONTROL_CLASS_NAME}
+              options={[
+                { value: 'all', label: t('globalSearch.filters.all') },
+                { value: 'messages', label: t('globalSearch.messageSearch.entry') }
+              ]}
+            />
+            {isMessageSearchMode ? (
+              <>
+                {MESSAGE_SOURCE_FILTER_BUTTONS.map((filterOption) => (
+                  <Button
+                    key={filterOption}
+                    type="button"
+                    variant="ghost"
+                    aria-label={`${t('globalSearch.messageSearch.sourceLabel')}: ${t(
+                      getMessageSourceFilterLabelKey(filterOption)
+                    )}`}
+                    aria-pressed={messageSourceFilter === filterOption}
+                    onClick={() => handleMessageSourceFilterSelect(filterOption)}
+                    className={cn(
+                      'h-7 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground',
+                      messageSourceFilter === filterOption && 'bg-muted text-foreground hover:bg-muted'
+                    )}>
+                    {t(getMessageSourceFilterLabelKey(filterOption))}
+                  </Button>
+                ))}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-7 gap-1.5 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground"
+                      aria-label={t(getTimeFilterAriaLabelKey(panelMode))}>
+                      <Clock3 className="size-3.5" />
+                      <span>{t(getTimeFilterLabelKey(timeFilter))}</span>
+                      <ChevronDown className="size-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="z-[90] min-w-[132px] rounded-[10px] p-1">
+                    {TIME_FILTERS.map((filterOption) => (
+                      <DropdownMenuItem
+                        key={filterOption}
+                        onSelect={() => handleTimeFilterSelect(filterOption)}
+                        className={cn(
+                          'h-8 rounded-[7px] font-medium text-xs',
+                          timeFilter === filterOption && 'bg-accent text-accent-foreground'
+                        )}>
+                        {t(getTimeFilterLabelKey(filterOption))}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            ) : (
+              <>
+                {SEARCH_FILTERS.map((filterOption) => (
+                  <Button
+                    key={filterOption}
+                    type="button"
+                    variant="ghost"
+                    aria-label={`${t('globalSearch.filters.label')}: ${t(getFilterLabelKey(filterOption))}`}
+                    aria-pressed={filter === filterOption}
+                    onClick={() => handleFilterSelect(filterOption)}
+                    className={cn(
+                      'h-7 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground',
+                      filter === filterOption && 'bg-muted text-foreground hover:bg-muted'
+                    )}>
+                    {t(getFilterLabelKey(filterOption))}
+                  </Button>
+                ))}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-7 gap-1.5 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground"
+                      aria-label={t(getTimeFilterAriaLabelKey(panelMode))}>
+                      <Clock3 className="size-3.5" />
+                      <span>{t(getTimeFilterLabelKey(timeFilter))}</span>
+                      <ChevronDown className="size-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="z-[90] min-w-[132px] rounded-[10px] p-1">
+                    {TIME_FILTERS.map((filterOption) => (
+                      <DropdownMenuItem
+                        key={filterOption}
+                        onSelect={() => handleTimeFilterSelect(filterOption)}
+                        className={cn(
+                          'h-8 rounded-[7px] font-medium text-xs',
+                          timeFilter === filterOption && 'bg-accent text-accent-foreground'
+                        )}>
+                        {t(getTimeFilterLabelKey(filterOption))}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            )}
+          </div>
         )}
-
-        <div className={cn('flex h-7 items-center gap-2', hideQuickApps && 'mt-3')}>
-          <SegmentedControl<GlobalSearchScope>
-            size="sm"
-            aria-label={t('globalSearch.filters.label')}
-            value={isMessageSearchMode ? 'messages' : 'all'}
-            onValueChange={handleSearchScopeChange}
-            className={SEARCH_SCOPE_CONTROL_CLASS_NAME}
-            options={[
-              { value: 'all', label: t('globalSearch.filters.all') },
-              { value: 'messages', label: t('globalSearch.messageSearch.entry') }
-            ]}
-          />
-          {isMessageSearchMode ? (
-            <>
-              {MESSAGE_SOURCE_FILTER_BUTTONS.map((filterOption) => (
-                <Button
-                  key={filterOption}
-                  type="button"
-                  variant="ghost"
-                  aria-label={`${t('globalSearch.messageSearch.sourceLabel')}: ${t(
-                    getMessageSourceFilterLabelKey(filterOption)
-                  )}`}
-                  aria-pressed={messageSourceFilter === filterOption}
-                  onClick={() => handleMessageSourceFilterSelect(filterOption)}
-                  className={cn(
-                    'h-7 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground',
-                    messageSourceFilter === filterOption && 'bg-muted text-foreground hover:bg-muted'
-                  )}>
-                  {t(getMessageSourceFilterLabelKey(filterOption))}
-                </Button>
-              ))}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="h-7 gap-1.5 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground"
-                    aria-label={t(getTimeFilterAriaLabelKey(panelMode))}>
-                    <Clock3 className="size-3.5" />
-                    <span>{t(getTimeFilterLabelKey(timeFilter))}</span>
-                    <ChevronDown className="size-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="z-[90] min-w-[132px] rounded-[10px] p-1">
-                  {TIME_FILTERS.map((filterOption) => (
-                    <DropdownMenuItem
-                      key={filterOption}
-                      onSelect={() => handleTimeFilterSelect(filterOption)}
-                      className={cn(
-                        'h-8 rounded-[7px] font-medium text-xs',
-                        timeFilter === filterOption && 'bg-accent text-accent-foreground'
-                      )}>
-                      {t(getTimeFilterLabelKey(filterOption))}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </>
-          ) : (
-            <>
-              {SEARCH_FILTERS.map((filterOption) => (
-                <Button
-                  key={filterOption}
-                  type="button"
-                  variant="ghost"
-                  aria-label={`${t('globalSearch.filters.label')}: ${t(getFilterLabelKey(filterOption))}`}
-                  aria-pressed={filter === filterOption}
-                  onClick={() => handleFilterSelect(filterOption)}
-                  className={cn(
-                    'h-7 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground',
-                    filter === filterOption && 'bg-muted text-foreground hover:bg-muted'
-                  )}>
-                  {t(getFilterLabelKey(filterOption))}
-                </Button>
-              ))}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="h-7 gap-1.5 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground"
-                    aria-label={t(getTimeFilterAriaLabelKey(panelMode))}>
-                    <Clock3 className="size-3.5" />
-                    <span>{t(getTimeFilterLabelKey(timeFilter))}</span>
-                    <ChevronDown className="size-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="z-[90] min-w-[132px] rounded-[10px] p-1">
-                  {TIME_FILTERS.map((filterOption) => (
-                    <DropdownMenuItem
-                      key={filterOption}
-                      onSelect={() => handleTimeFilterSelect(filterOption)}
-                      className={cn(
-                        'h-8 rounded-[7px] font-medium text-xs',
-                        timeFilter === filterOption && 'bg-accent text-accent-foreground'
-                      )}>
-                      {t(getTimeFilterLabelKey(filterOption))}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </>
-          )}
-        </div>
       </div>
 
-      <div className="min-h-0 flex-1 border-border-subtle border-t">
+      <div className={cn('min-h-0 flex-1', !showLaunchpad && 'border-border-subtle border-t')}>
         {panelMode === 'menu-manager' ? (
           <GlobalSearchQuickAppManager
             icons={sidebarPreferenceManagerIcons}
             visibleIcons={visibleSidebarIconSet}
+            onBack={handleQuickAppsManagerBack}
             onReorder={handleSidebarManagerReorder}
             onReset={handleSidebarManagerReset}
             onVisibilityChange={handleSidebarManagerVisibilityChange}
@@ -927,6 +893,12 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
           ) : (
             messageResultsContent
           )
+        ) : showLaunchpad ? (
+          <GlobalSearchLaunchpad
+            defaultPaintingProvider={defaultPaintingProvider}
+            onClose={onClose}
+            onManageQuickApps={handleQuickAppsManage}
+          />
         ) : isLoading && hasQuery ? (
           <GlobalSearchState label={t('common.loading')} />
         ) : error ? (
@@ -995,22 +967,24 @@ export function GlobalSearchPanel({ hideQuickApps = false, onClose }: GlobalSear
         )}
       </div>
 
-      <div className="flex h-10 shrink-0 items-center gap-4 border-border-subtle border-t bg-background/95 px-5 text-muted-foreground text-xs">
-        <KbdGroup>
-          <Kbd className="bg-muted text-muted-foreground shadow-none">↑↓</Kbd>
-          <span>{t('globalSearch.keyboard.select')}</span>
-        </KbdGroup>
-        <KbdGroup>
-          <Kbd className="bg-muted text-muted-foreground shadow-none">
-            <CornerDownLeft className="size-3" />
-          </Kbd>
-          <span>{t('common.open')}</span>
-        </KbdGroup>
-        <KbdGroup>
-          <Kbd className="bg-muted text-muted-foreground shadow-none">ESC</Kbd>
-          <span>{t('common.close')}</span>
-        </KbdGroup>
-      </div>
+      {!showLaunchpad && (
+        <div className="flex h-10 shrink-0 items-center gap-4 border-border-subtle border-t bg-background/95 px-5 text-muted-foreground text-xs">
+          <KbdGroup>
+            <Kbd className="bg-muted text-muted-foreground shadow-none">↑↓</Kbd>
+            <span>{t('globalSearch.keyboard.select')}</span>
+          </KbdGroup>
+          <KbdGroup>
+            <Kbd className="bg-muted text-muted-foreground shadow-none">
+              <CornerDownLeft className="size-3" />
+            </Kbd>
+            <span>{t('common.open')}</span>
+          </KbdGroup>
+          <KbdGroup>
+            <Kbd className="bg-muted text-muted-foreground shadow-none">ESC</Kbd>
+            <span>{t('common.close')}</span>
+          </KbdGroup>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,19 +1,45 @@
+import { Button } from '@cherrystudio/ui'
 import { OpenClawIcon } from '@renderer/components/Icons/SVGIcon'
 import App from '@renderer/components/MiniApp/MiniApp'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { useNavigate } from '@tanstack/react-router'
-import { BookMarked, Code, FileSearch, Folder, Languages, LayoutGrid, NotepadText, Palette } from 'lucide-react'
+import { useTabs } from '@renderer/hooks/useTabs'
+import {
+  BookMarked,
+  Code,
+  FileSearch,
+  Folder,
+  Languages,
+  LayoutGrid,
+  NotepadText,
+  Palette,
+  Settings
+} from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-const LaunchpadPage: FC = () => {
-  const navigate = useNavigate()
+type GlobalSearchLaunchpadProps = {
+  defaultPaintingProvider?: string
+  onClose?: () => void
+  onManageQuickApps?: () => void
+}
+
+export const GlobalSearchLaunchpad: FC<GlobalSearchLaunchpadProps> = ({
+  defaultPaintingProvider: defaultPaintingProviderProp,
+  onClose,
+  onManageQuickApps
+}) => {
   const { t } = useTranslation()
   const { defaultPaintingProvider } = useSettings()
+  const { openTab } = useTabs()
   const { pinned, openedKeepAliveMiniApps } = useMiniApps()
+  const paintingProvider = defaultPaintingProviderProp ?? defaultPaintingProvider
+  const openLaunchpadItem = (path: string, title: string) => {
+    openTab(path, { forceNew: true, title })
+    onClose?.()
+  }
 
   const appMenuItems = [
     {
@@ -31,7 +57,7 @@ const LaunchpadPage: FC = () => {
     {
       icon: <Palette size={32} className="icon" />,
       text: t('title.paintings'),
-      path: `/app/paintings/${defaultPaintingProvider}`,
+      path: `/app/paintings/${paintingProvider}`,
       bgColor: 'linear-gradient(135deg, #EC4899, #F472B6)' // 绘画：活力粉色，代表创造力和艺术
     },
     {
@@ -91,12 +117,25 @@ const LaunchpadPage: FC = () => {
     <Container>
       <Content>
         <Section>
-          <SectionTitle>{t('launchpad.apps')}</SectionTitle>
+          <SectionHeader>
+            <SectionTitle>{t('launchpad.apps')}</SectionTitle>
+            {onManageQuickApps && (
+              <Button
+                type="button"
+                variant="ghost"
+                aria-label={t('globalSearch.quickApps.manage')}
+                onClick={onManageQuickApps}
+                className="h-7 gap-1.5 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground">
+                <Settings className="size-3.5" />
+                <span>{t('globalSearch.quickApps.manage')}</span>
+              </Button>
+            )}
+          </SectionHeader>
           <Grid>
             {appMenuItems.map((item) => (
-              <AppIcon key={item.path} onClick={() => navigate({ to: item.path })}>
+              <AppIcon key={item.path} onClick={() => openLaunchpadItem(item.path, item.text)}>
                 <IconContainer>
-                  <IconWrapper bgColor={item.bgColor}>{item.icon}</IconWrapper>
+                  <IconWrapper $bgColor={item.bgColor}>{item.icon}</IconWrapper>
                 </IconContainer>
                 <AppName>{item.text}</AppName>
               </AppIcon>
@@ -110,7 +149,7 @@ const LaunchpadPage: FC = () => {
             <Grid>
               {sortedMiniApps.map((app) => (
                 <AppWrapper key={app.appId}>
-                  <App app={app} size={56} />
+                  <App app={app} size={56} onClick={onClose} />
                 </AppWrapper>
               ))}
             </Grid>
@@ -129,11 +168,10 @@ const Container = styled.div`
   align-items: flex-start;
   background-color: var(--color-background);
   overflow-y: auto;
-  padding: 50px 0;
+  padding: 8px 20px 20px;
 `
 
 const Content = styled.div`
-  max-width: 720px;
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -146,13 +184,21 @@ const Section = styled.div`
   gap: 8px;
 `
 
+const SectionHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0;
+`
+
 const SectionTitle = styled.h2`
   font-size: 14px;
   font-weight: 600;
-  color: var(--color-text);
+  color: var(--color-foreground);
   opacity: 0.8;
   margin: 0;
-  padding: 0 36px;
+  padding: 0;
 `
 
 const Grid = styled.div`
@@ -190,11 +236,11 @@ const IconContainer = styled.div`
   height: 56px;
 `
 
-const IconWrapper = styled.div<{ bgColor: string }>`
+const IconWrapper = styled.div<{ $bgColor: string }>`
   width: 56px;
   height: 56px;
   border-radius: 16px;
-  background: ${(props) => props.bgColor};
+  background: ${(props) => props.$bgColor};
   display: flex;
   justify-content: center;
   align-items: center;
@@ -209,7 +255,7 @@ const IconWrapper = styled.div<{ bgColor: string }>`
 
 const AppName = styled.div`
   font-size: 12px;
-  color: var(--color-text);
+  color: var(--color-foreground);
   text-align: center;
   width: 100%;
   overflow: hidden;
@@ -231,4 +277,4 @@ const AppWrapper = styled.div`
   }
 `
 
-export default LaunchpadPage
+export default GlobalSearchLaunchpad

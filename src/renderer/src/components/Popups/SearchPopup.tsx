@@ -8,15 +8,10 @@ import { TopView } from '../TopView'
 const CLOSE_ANIMATION_MS = 200
 
 interface Props {
-  options?: SearchPopupOptions
   resolve: (data: any) => void
 }
 
-type SearchPopupOptions = {
-  hideQuickApps?: boolean
-}
-
-const PopupContainer: React.FC<Props> = ({ options, resolve }) => {
+const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
   const resolvedRef = useRef(false)
   const { t } = useTranslation()
@@ -46,12 +41,13 @@ const PopupContainer: React.FC<Props> = ({ options, resolve }) => {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
+        onOpenAutoFocus={(event) => event.preventDefault()}
         overlayClassName="bg-black/50 backdrop-blur-[8px]"
         className="flex h-[80vh] max-h-[80vh] w-[60vw] max-w-[60vw] flex-col gap-0 overflow-hidden rounded-[32px] border border-border-subtle bg-background p-0 shadow-2xl sm:max-w-[60vw]">
         <DialogHeader className="sr-only">
           <DialogTitle>{t('globalSearch.open')}</DialogTitle>
         </DialogHeader>
-        <GlobalSearchPanel hideQuickApps={options?.hideQuickApps} onClose={closePopup} />
+        <GlobalSearchPanel onClose={closePopup} />
       </DialogContent>
     </Dialog>
   )
@@ -62,11 +58,10 @@ export default class SearchPopup {
   static hide() {
     TopView.hide('SearchPopup')
   }
-  static show(options?: SearchPopupOptions) {
+  static show() {
     return new Promise<any>((resolve) => {
       TopView.show(
         <PopupContainer
-          options={options}
           resolve={(v) => {
             resolve(v)
             TopView.hide('SearchPopup')

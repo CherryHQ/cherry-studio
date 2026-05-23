@@ -2233,7 +2233,7 @@
     "no_recent": "No recent routes",
     "open": "Open global search",
     "open_failed": "Failed to open search result",
-    "placeholder": "Start typing to search...",
+    "placeholder": "Search topics, work, assistants, agents, and knowledge...",
     "quickApps": {
       "hide": "Hide {{name}}",
       "manage": "Manage",

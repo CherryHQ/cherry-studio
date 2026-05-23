@@ -142,7 +142,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   )
 
   const handleOpenGlobalSearch = useCallback(() => {
-    void SearchPopup.show({ hideQuickApps: true })
+    void SearchPopup.show()
   }, [])
 
   // Common props shared between normal and floating sidebar

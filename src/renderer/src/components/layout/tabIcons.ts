@@ -6,7 +6,6 @@ import {
   FileText,
   Globe,
   Languages,
-  LayoutGrid,
   MessageCircle,
   Palette,
   Settings,
@@ -21,7 +20,6 @@ export type IconComponent = React.FC<{ size?: number; strokeWidth?: number; clas
 
 export const ROUTE_ICONS: Record<string, IconComponent> = {
   '/app/chat': MessageCircle,
-  '/app/launchpad': LayoutGrid,
   '/app/agents': Bot,
   '/app/library': Sparkles,
   '/app/paintings': Palette,

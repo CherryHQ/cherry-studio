@@ -1,10 +1,9 @@
 import { Button, Sortable } from '@cherrystudio/ui'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { REQUIRED_SIDEBAR_ICONS, SIDEBAR_ICON_COMPONENTS } from '@renderer/config/sidebar'
 import { getSidebarIconLabel } from '@renderer/i18n/label'
 import { cn } from '@renderer/utils'
 import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
-import { Eye, EyeOff, GripVertical, RotateCcw, Settings } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, GripVertical, RotateCcw } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -14,68 +13,9 @@ type GlobalSearchQuickAppManagerItem = {
   visible: boolean
 }
 
-export function GlobalSearchQuickAppsBar({
-  active,
-  icons,
-  onManage,
-  onOpen
-}: {
-  active: boolean
-  icons: SidebarIcon[]
-  onManage: () => void
-  onOpen: (icon: SidebarIcon) => void
-}) {
-  const { t } = useTranslation()
-
-  return (
-    <div className="mt-3 pb-2">
-      <Scrollbar className="flex gap-6 overflow-x-auto overflow-y-hidden pb-1 [scrollbar-gutter:auto] hover:[&::-webkit-scrollbar-thumb]:bg-[var(--color-scrollbar-thumb)]">
-        {icons.map((icon) => {
-          const Icon = SIDEBAR_ICON_COMPONENTS[icon]
-          const label = getSidebarIconLabel(icon)
-
-          return (
-            <div key={icon} className="flex shrink-0 flex-col items-center gap-1.5">
-              <Button
-                type="button"
-                variant="ghost"
-                aria-label={label}
-                onClick={() => onOpen(icon)}
-                className="size-9 rounded-[10px] bg-muted/60 p-0 text-muted-foreground hover:bg-muted hover:text-foreground">
-                <Icon className="size-5" />
-              </Button>
-              <span className="max-w-14 truncate text-center font-medium text-muted-foreground text-xs">{label}</span>
-            </div>
-          )
-        })}
-        <div className="flex shrink-0 flex-col items-center gap-1.5">
-          <Button
-            type="button"
-            variant="ghost"
-            aria-label={t('globalSearch.quickApps.manage')}
-            aria-pressed={active}
-            onClick={onManage}
-            className={cn(
-              'size-9 rounded-[10px] bg-muted/60 p-0 text-muted-foreground hover:bg-muted hover:text-foreground',
-              active && 'bg-muted text-foreground'
-            )}>
-            <Settings className="size-5" />
-          </Button>
-          <span
-            className={cn(
-              'max-w-14 truncate text-center font-medium text-muted-foreground text-xs',
-              active && 'text-foreground'
-            )}>
-            {t('globalSearch.quickApps.manage')}
-          </span>
-        </div>
-      </Scrollbar>
-    </div>
-  )
-}
-
 export function GlobalSearchQuickAppManager({
   icons,
+  onBack,
   onReorder,
   onReset,
   onVisibilityChange,
@@ -83,6 +23,7 @@ export function GlobalSearchQuickAppManager({
 }: {
   icons: SidebarIcon[]
   visibleIcons: ReadonlySet<SidebarIcon>
+  onBack: () => void
   onReorder: (event: { oldIndex: number; newIndex: number }) => void
   onReset: () => void
   onVisibilityChange: (icon: SidebarIcon, visible: boolean) => void
@@ -101,10 +42,20 @@ export function GlobalSearchQuickAppManager({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 items-center justify-between gap-3 px-5 py-3">
-        <div className="min-w-0">
-          <div className="font-medium text-foreground text-sm">{t('globalSearch.quickApps.manager_title')}</div>
-          <div className="truncate text-muted-foreground text-xs">
-            {t('globalSearch.quickApps.manager_description')}
+        <div className="flex min-w-0 items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            aria-label={t('common.back')}
+            onClick={onBack}
+            className="size-8 shrink-0 rounded-[8px] p-0 text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+            <ArrowLeft className="size-4" />
+          </Button>
+          <div className="min-w-0">
+            <div className="font-medium text-foreground text-sm">{t('globalSearch.quickApps.manager_title')}</div>
+            <div className="truncate text-muted-foreground text-xs">
+              {t('globalSearch.quickApps.manager_description')}
+            </div>
           </div>
         </div>
         <Button

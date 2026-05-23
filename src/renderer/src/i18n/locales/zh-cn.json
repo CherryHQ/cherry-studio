@@ -2233,7 +2233,7 @@
     "no_recent": "暂无最近访问",
     "open": "打开全局搜索",
     "open_failed": "打开搜索结果失败",
-    "placeholder": "开始输入搜索...",
+    "placeholder": "搜索话题、工作、助手、智能体、知识库...",
     "quickApps": {
       "hide": "隐藏 {{name}}",
       "manage": "管理",

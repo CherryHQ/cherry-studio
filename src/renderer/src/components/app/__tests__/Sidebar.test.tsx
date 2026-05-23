@@ -180,7 +180,7 @@ describe('app Sidebar', () => {
 
     await user.click(screen.getByRole('button', { name: 'Search' }))
 
-    expect(mocks.showSearchPopup).toHaveBeenCalledWith({ hideQuickApps: true })
+    expect(mocks.showSearchPopup).toHaveBeenCalledWith()
   })
 
   it('renders sidebar menu items in visible preference order', () => {

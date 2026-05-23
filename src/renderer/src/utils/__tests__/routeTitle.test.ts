@@ -6,7 +6,6 @@ vi.mock('@renderer/i18n', () => ({
     t: vi.fn((key: string) => {
       const translations: Record<string, string> = {
         'common.chat': '聊天',
-        'title.launchpad': '启动台',
         'agent.sidebar_title': '工作',
         'title.store': '助手库',
         'title.paintings': '绘画',
@@ -35,7 +34,6 @@ describe('routeTitle', () => {
     describe('exact route matches', () => {
       it.each([
         ['/app/chat', '聊天'],
-        ['/app/launchpad', '启动台'],
         ['/app/agents', '工作'],
         ['/app/paintings', '绘画'],
         ['/app/translate', '翻译'],
@@ -54,7 +52,6 @@ describe('routeTitle', () => {
     describe('nested route matches', () => {
       it('should match base path for nested routes', () => {
         expect(getDefaultRouteTitle('/app/chat/topic-123')).toBe('聊天')
-        expect(getDefaultRouteTitle('/app/launchpad/pinned')).toBe('启动台')
         expect(getDefaultRouteTitle('/app/agents/session-123')).toBe('工作')
         expect(getDefaultRouteTitle('/settings/provider')).toBe('设置')
         expect(getDefaultRouteTitle('/settings/mcp/servers')).toBe('设置')
@@ -112,7 +109,6 @@ describe('routeTitle', () => {
     describe('exact matches', () => {
       it.each([
         ['/app/chat', 'common.chat'],
-        ['/app/launchpad', 'title.launchpad'],
         ['/app/agents', 'agent.sidebar_title'],
         ['/app/openclaw', 'title.openclaw'],
         ['/settings', 'title.settings']
@@ -124,7 +120,6 @@ describe('routeTitle', () => {
     describe('base path matches', () => {
       it('should return base path key for nested routes', () => {
         expect(getRouteTitleKey('/app/chat/topic-123')).toBe('common.chat')
-        expect(getRouteTitleKey('/app/launchpad/pinned')).toBe('title.launchpad')
         expect(getRouteTitleKey('/app/agents/session-123')).toBe('agent.sidebar_title')
         expect(getRouteTitleKey('/settings/provider')).toBe('title.settings')
       })
