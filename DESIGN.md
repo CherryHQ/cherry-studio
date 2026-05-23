@@ -600,7 +600,6 @@ Settings pages (both the in-app `/settings` route and the standalone settings wi
 Submenu composition rules:
 
 - Use `PageHeader` from `@cherrystudio/ui` at the top — do not hand-roll a header.
-- **Title-hidden exception**: when the submenu intentionally hides its own title to defer to the right column's `PageHeader` (e.g. the root `/settings` route, whose right column shows the active subpage's title), render an `aria-hidden` placeholder `<div className="mt-3.5 mb-2 h-8 shrink-0" />` in the PageHeader slot. The placeholder uses the same `mt-3.5 + h-8 + mb-2` tokens as `PageHeader` itself, so both columns share an aligned content baseline without duplicating the page title.
 - Wrap menu rows in `MenuList` with `gap-1`; group with `MenuDivider` + a section title `<div>` carrying `settingsSubmenuSectionTitleClassName`.
 - Each row is a `MenuItem` styled by the canonical settings token pair: `settingsSubmenuItemClassName` on `className` (height / hover / active surface) and `settingsSubmenuItemLabelClassName` on `labelClassName` (`group-data-[active=true]:font-medium` for the bold-on-active label). Both tokens live in `src/renderer/src/pages/settings/index.tsx`.
 - Provider-style nested lists (`ProviderList`) follow the same shape: `PageHeader` + search field with trailing action + scroll body. They use their own scoped tokens in `ProviderSettings/primitives/classNames.ts` but keep the 200px column convention.
