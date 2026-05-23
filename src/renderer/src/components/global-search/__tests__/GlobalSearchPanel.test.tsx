@@ -478,7 +478,21 @@ describe('GlobalSearchPanel', () => {
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
     expect(screen.getByRole('heading', { name: 'Apps' })).toBeInTheDocument()
-    expect(screen.getByText('Knowledge')).toBeInTheDocument()
+    for (const label of [
+      'Chat',
+      'Agent',
+      'Library',
+      'Paintings',
+      'Translate',
+      'Mini Apps',
+      'Knowledge',
+      'Files',
+      'Code',
+      'Notes',
+      'OpenClaw'
+    ]) {
+      expect(screen.getByText(label)).toBeInTheDocument()
+    }
     expect(screen.queryByText('Topic recent')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Search type: Topic' })).not.toBeInTheDocument()
     expect(screen.queryByText('Select')).not.toBeInTheDocument()
