@@ -1,9 +1,9 @@
 import { usePreference } from '@data/hooks/usePreference'
+import { CommandTooltip, useCommandHandler } from '@renderer/commands'
 import { Navbar, NavbarCenter, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { modelGenerating } from '@renderer/hooks/useModel'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
@@ -20,7 +20,7 @@ const AgentNavbar = () => {
   const [narrowMode, setNarrowMode] = usePreference('chat.narrow_mode')
   const [topicPosition] = usePreference('topic.position')
 
-  useShortcut('general.search', () => {
+  useCommandHandler('app.search', () => {
     void SearchPopup.show()
   })
 
@@ -40,11 +40,11 @@ const AgentNavbar = () => {
             transition={{ duration: 0.3, ease: 'easeInOut' }}
             style={{ overflow: 'hidden', display: 'flex', flexDirection: 'row' }}>
             <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
-              <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
+              <CommandTooltip command="app.sidebar.toggle" label={t('navbar.hide_sidebar')} delay={800}>
                 <NavbarIcon onClick={toggleShowAssistants}>
                   <PanelLeftClose size={18} />
                 </NavbarIcon>
-              </Tooltip>
+              </CommandTooltip>
             </NavbarLeft>
           </motion.div>
         )}
@@ -58,11 +58,11 @@ const AgentNavbar = () => {
             paddingRight: 0,
             minWidth: 'auto'
           }}>
-          <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8} placement="right">
+          <CommandTooltip command="app.sidebar.toggle" label={t('navbar.show_sidebar')} placement="right" delay={800}>
             <NavbarIcon onClick={() => toggleShowAssistants()}>
               <PanelRightClose size={18} />
             </NavbarIcon>
-          </Tooltip>
+          </CommandTooltip>
           <NavbarIcon onClick={() => AgentSidePanelDrawer.show()} style={{ marginRight: 5 }}>
             <Menu size={18} />
           </NavbarIcon>
@@ -80,29 +80,29 @@ const AgentNavbar = () => {
         className="agent-navbar-right">
         <div className="flex items-center gap-1.5">
           <UpdateAppButton />
-          <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
+          <CommandTooltip command="app.search" label={t('chat.assistant.search.placeholder')} delay={800}>
             <NarrowIcon onClick={() => SearchPopup.show()}>
               <Search size={18} />
             </NarrowIcon>
-          </Tooltip>
+          </CommandTooltip>
           <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
             <NarrowIcon onClick={handleNarrowModeToggle}>
               <i className="iconfont icon-icon-adaptive-width"></i>
             </NarrowIcon>
           </Tooltip>
           {topicPosition === 'right' && !showTopics && (
-            <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
+            <CommandTooltip command="topic.sidebar.toggle" label={t('navbar.show_sidebar')} delay={2000}>
               <NavbarIcon onClick={toggleShowTopics}>
                 <PanelLeftClose size={18} />
               </NavbarIcon>
-            </Tooltip>
+            </CommandTooltip>
           )}
           {topicPosition === 'right' && showTopics && (
-            <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={2}>
+            <CommandTooltip command="topic.sidebar.toggle" label={t('navbar.hide_sidebar')} delay={2000}>
               <NavbarIcon onClick={toggleShowTopics}>
                 <PanelRightClose size={18} />
               </NavbarIcon>
-            </Tooltip>
+            </CommandTooltip>
           )}
         </div>
       </NavbarRight>

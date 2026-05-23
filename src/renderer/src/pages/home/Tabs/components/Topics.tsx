@@ -1,17 +1,7 @@
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuItemContent,
-  ContextMenuSeparator,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
-  ContextMenuTrigger
-} from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { CommandContextMenu, type CommandContextMenuExtraItem, CommandTooltip } from '@renderer/commands'
 import AddButton from '@renderer/components/AddButton'
 import AssistantAvatar from '@renderer/components/Avatar/AssistantAvatar'
 import type { DraggableVirtualListRef } from '@renderer/components/DraggableList'
@@ -350,193 +340,268 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
     [t]
   )
 
-  const renderTopicMenuItems = (topic: Topic) => {
+  const getTopicMenuItems = (topic: Topic): CommandContextMenuExtraItem[] => {
     const moveCandidates = assistants.filter((a) => a.id !== assistant.id)
     const showMove = assistants.length > 1 && assistant.topics.length > 1
     const showDelete = assistant.topics.length > 1 && !topic.pinned
-    return (
-      <>
-        <ContextMenuItem disabled={isRenaming(topic.id)} onSelect={() => void handleAutoRenameTopic(topic)}>
-          <ContextMenuItemContent icon={<Sparkles size={14} />}>{t('chat.topics.auto_rename')}</ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuItem disabled={isRenaming(topic.id)} onSelect={() => void handleRenameTopic(topic)}>
-          <ContextMenuItemContent icon={<EditIcon size={14} />}>{t('chat.topics.edit.title')}</ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={() => void handleEditPrompt(topic)}>
-          <ContextMenuItemContent
-            icon={<PackagePlus size={14} />}
-            badge={<HelpCircle size={14} aria-label={t('chat.topics.prompt.tips')} />}>
-            {t('chat.topics.prompt.label')}
-          </ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={() => onPinTopic(topic)}>
-          <ContextMenuItemContent icon={topic.pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />}>
-            {topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
-          </ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={() => void runExport(() => exportTopicToNotes(topic, notesPath))}>
-          <ContextMenuItemContent icon={<NotebookPen size={14} />}>{t('notes.save')}</ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={() => onClearMessages(topic)}>
-          <ContextMenuItemContent icon={<BrushCleaning size={14} />}>
-            {t('chat.topics.clear.title')}
-          </ContextMenuItemContent>
-        </ContextMenuItem>
+    const isActiveTopic = topic.id === activeTopic.id
 
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <MenuIcon size={14} />
-            {t('settings.topic.position.label')}
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent>
-            <ContextMenuItem onSelect={() => setTopicPosition('left')}>
-              {t('settings.topic.position.left')}
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={() => setTopicPosition('right')}>
-              {t('settings.topic.position.right')}
-            </ContextMenuItem>
-          </ContextMenuSubContent>
-        </ContextMenuSub>
+    const items: CommandContextMenuExtraItem[] = [
+      {
+        type: 'item',
+        id: `topic:${topic.id}:auto-rename`,
+        label: t('chat.topics.auto_rename'),
+        enabled: !isRenaming(topic.id),
+        icon: <Sparkles size={14} />,
+        onSelect: () => void handleAutoRenameTopic(topic)
+      },
+      {
+        type: 'item',
+        id: `topic:${topic.id}:rename`,
+        label: t('chat.topics.edit.title'),
+        enabled: !isRenaming(topic.id),
+        icon: <EditIcon size={14} />,
+        shortcutCommand: isActiveTopic ? 'topic.rename' : undefined,
+        onSelect: () => void handleRenameTopic(topic)
+      },
+      {
+        type: 'item',
+        id: `topic:${topic.id}:prompt`,
+        label: t('chat.topics.prompt.label'),
+        icon: <PackagePlus size={14} />,
+        badge: <HelpCircle size={14} aria-label={t('chat.topics.prompt.tips')} />,
+        onSelect: () => void handleEditPrompt(topic)
+      },
+      {
+        type: 'item',
+        id: `topic:${topic.id}:pin`,
+        label: topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin'),
+        icon: topic.pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />,
+        onSelect: () => onPinTopic(topic)
+      },
+      {
+        type: 'item',
+        id: `topic:${topic.id}:notes`,
+        label: t('notes.save'),
+        icon: <NotebookPen size={14} />,
+        onSelect: () => void runExport(() => exportTopicToNotes(topic, notesPath))
+      },
+      {
+        type: 'item',
+        id: `topic:${topic.id}:clear`,
+        label: t('chat.topics.clear.title'),
+        icon: <BrushCleaning size={14} />,
+        shortcutCommand: isActiveTopic ? 'chat.topic.clear' : undefined,
+        onSelect: () => onClearMessages(topic)
+      },
+      {
+        type: 'submenu',
+        id: `topic:${topic.id}:position`,
+        label: t('settings.topic.position.label'),
+        icon: <MenuIcon size={14} />,
+        children: [
+          {
+            type: 'item',
+            id: `topic:${topic.id}:position:left`,
+            label: t('settings.topic.position.left'),
+            onSelect: () => setTopicPosition('left')
+          },
+          {
+            type: 'item',
+            id: `topic:${topic.id}:position:right`,
+            label: t('settings.topic.position.right'),
+            onSelect: () => setTopicPosition('right')
+          }
+        ]
+      },
+      {
+        type: 'submenu',
+        id: `topic:${topic.id}:copy`,
+        label: t('chat.topics.copy.title'),
+        icon: <CopyIcon size={14} />,
+        children: [
+          {
+            type: 'item',
+            id: `topic:${topic.id}:copy:image`,
+            label: t('chat.topics.copy.image'),
+            onSelect: () => EventEmitter.emit(EVENT_NAMES.COPY_TOPIC_IMAGE, topic)
+          },
+          {
+            type: 'item',
+            id: `topic:${topic.id}:copy:markdown`,
+            label: t('chat.topics.copy.md'),
+            onSelect: () => copyTopicAsMarkdown(topic)
+          },
+          {
+            type: 'item',
+            id: `topic:${topic.id}:copy:plain-text`,
+            label: t('chat.topics.copy.plain_text'),
+            onSelect: () => copyTopicAsPlainText(topic)
+          }
+        ]
+      },
+      {
+        type: 'submenu',
+        id: `topic:${topic.id}:save`,
+        label: t('chat.save.label'),
+        icon: <Save size={14} />,
+        children: [
+          {
+            type: 'item',
+            id: `topic:${topic.id}:save:knowledge`,
+            label: t('chat.save.topic.knowledge.title'),
+            onSelect: () => void handleSaveToKnowledge(topic)
+          }
+        ]
+      },
+      {
+        type: 'submenu',
+        id: `topic:${topic.id}:export`,
+        label: t('chat.topics.export.title'),
+        icon: <UploadIcon size={14} />,
+        children: [
+          ...(exportMenuOptions.image
+            ? [
+                {
+                  type: 'item' as const,
+                  id: `topic:${topic.id}:export:image`,
+                  label: t('chat.topics.export.image'),
+                  onSelect: () => EventEmitter.emit(EVENT_NAMES.EXPORT_TOPIC_IMAGE, topic)
+                }
+              ]
+            : []),
+          ...(exportMenuOptions.markdown
+            ? [
+                {
+                  type: 'item' as const,
+                  id: `topic:${topic.id}:export:markdown`,
+                  label: t('chat.topics.export.md.label'),
+                  onSelect: () => void runExport(() => exportTopicAsMarkdown(topic))
+                }
+              ]
+            : []),
+          ...(exportMenuOptions.markdown_reason
+            ? [
+                {
+                  type: 'item' as const,
+                  id: `topic:${topic.id}:export:markdown-reason`,
+                  label: t('chat.topics.export.md.reason'),
+                  onSelect: () => void runExport(() => exportTopicAsMarkdown(topic, true))
+                }
+              ]
+            : []),
+          ...(exportMenuOptions.docx
+            ? [
+                {
+                  type: 'item' as const,
+                  id: `topic:${topic.id}:export:word`,
+                  label: t('chat.topics.export.word'),
+                  onSelect: () =>
+                    void runExport(async () => {
+                      const markdown = await topicToMarkdown(topic)
+                      await window.api.export.toWord(markdown, removeSpecialCharactersForFileName(topic.name))
+                    })
+                }
+              ]
+            : []),
+          ...(exportMenuOptions.notion
+            ? [
+                {
+                  type: 'item' as const,
+                  id: `topic:${topic.id}:export:notion`,
+                  label: t('chat.topics.export.notion'),
+                  onSelect: () => void runExport(() => exportTopicToNotion(topic))
+                }
+              ]
+            : []),
+          ...(exportMenuOptions.yuque
+            ? [
+                {
+                  type: 'item' as const,
+                  id: `topic:${topic.id}:export:yuque`,
+                  label: t('chat.topics.export.yuque'),
+                  onSelect: () =>
+                    void runExport(async () => {
+                      const markdown = await topicToMarkdown(topic)
+                      await exportMarkdownToYuque(topic.name, markdown)
+                    })
+                }
+              ]
+            : []),
+          ...(exportMenuOptions.obsidian
+            ? [
+                {
+                  type: 'item' as const,
+                  id: `topic:${topic.id}:export:obsidian`,
+                  label: t('chat.topics.export.obsidian'),
+                  onSelect: () =>
+                    void runExport(() => ObsidianExportPopup.show({ title: topic.name, topic, processingMethod: '3' }))
+                }
+              ]
+            : []),
+          ...(exportMenuOptions.joplin
+            ? [
+                {
+                  type: 'item' as const,
+                  id: `topic:${topic.id}:export:joplin`,
+                  label: t('chat.topics.export.joplin'),
+                  onSelect: () =>
+                    void runExport(async () => {
+                      const topicMessages = await TopicManager.getTopicMessages(topic.id)
+                      await exportMarkdownToJoplin(topic.name, topicMessages)
+                    })
+                }
+              ]
+            : []),
+          ...(exportMenuOptions.siyuan
+            ? [
+                {
+                  type: 'item' as const,
+                  id: `topic:${topic.id}:export:siyuan`,
+                  label: t('chat.topics.export.siyuan'),
+                  onSelect: () =>
+                    void runExport(async () => {
+                      const markdown = await topicToMarkdown(topic)
+                      await exportMarkdownToSiyuan(topic.name, markdown)
+                    })
+                }
+              ]
+            : [])
+        ]
+      }
+    ]
 
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <CopyIcon size={14} />
-            {t('chat.topics.copy.title')}
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent>
-            <ContextMenuItem onSelect={() => EventEmitter.emit(EVENT_NAMES.COPY_TOPIC_IMAGE, topic)}>
-              {t('chat.topics.copy.image')}
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={() => copyTopicAsMarkdown(topic)}>{t('chat.topics.copy.md')}</ContextMenuItem>
-            <ContextMenuItem onSelect={() => copyTopicAsPlainText(topic)}>
-              {t('chat.topics.copy.plain_text')}
-            </ContextMenuItem>
-          </ContextMenuSubContent>
-        </ContextMenuSub>
+    if (showMove) {
+      items.push({
+        type: 'submenu',
+        id: `topic:${topic.id}:move`,
+        label: t('chat.topics.move_to'),
+        icon: <FolderOpen size={14} />,
+        children: moveCandidates.map((a) => ({
+          type: 'item',
+          id: `topic:${topic.id}:move:${a.id}`,
+          label: a.name,
+          icon: <AssistantAvatar assistant={a} size={18} />,
+          onSelect: () => void onMoveTopic(topic, a)
+        }))
+      })
+    }
 
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <Save size={14} />
-            {t('chat.save.label')}
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent>
-            <ContextMenuItem onSelect={() => void handleSaveToKnowledge(topic)}>
-              {t('chat.save.topic.knowledge.title')}
-            </ContextMenuItem>
-          </ContextMenuSubContent>
-        </ContextMenuSub>
+    if (showDelete) {
+      items.push(
+        { type: 'separator' },
+        {
+          type: 'item',
+          id: `topic:${topic.id}:delete`,
+          label: t('common.delete'),
+          destructive: true,
+          icon: <DeleteIcon size={14} className="lucide-custom" />,
+          onSelect: () => void onDeleteTopic(topic)
+        }
+      )
+    }
 
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <UploadIcon size={14} />
-            {t('chat.topics.export.title')}
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent>
-            {exportMenuOptions.image && (
-              <ContextMenuItem onSelect={() => EventEmitter.emit(EVENT_NAMES.EXPORT_TOPIC_IMAGE, topic)}>
-                {t('chat.topics.export.image')}
-              </ContextMenuItem>
-            )}
-            {exportMenuOptions.markdown && (
-              <ContextMenuItem onSelect={() => void runExport(() => exportTopicAsMarkdown(topic))}>
-                {t('chat.topics.export.md.label')}
-              </ContextMenuItem>
-            )}
-            {exportMenuOptions.markdown_reason && (
-              <ContextMenuItem onSelect={() => void runExport(() => exportTopicAsMarkdown(topic, true))}>
-                {t('chat.topics.export.md.reason')}
-              </ContextMenuItem>
-            )}
-            {exportMenuOptions.docx && (
-              <ContextMenuItem
-                onSelect={() =>
-                  void runExport(async () => {
-                    const markdown = await topicToMarkdown(topic)
-                    await window.api.export.toWord(markdown, removeSpecialCharactersForFileName(topic.name))
-                  })
-                }>
-                {t('chat.topics.export.word')}
-              </ContextMenuItem>
-            )}
-            {exportMenuOptions.notion && (
-              <ContextMenuItem onSelect={() => void runExport(() => exportTopicToNotion(topic))}>
-                {t('chat.topics.export.notion')}
-              </ContextMenuItem>
-            )}
-            {exportMenuOptions.yuque && (
-              <ContextMenuItem
-                onSelect={() =>
-                  void runExport(async () => {
-                    const markdown = await topicToMarkdown(topic)
-                    await exportMarkdownToYuque(topic.name, markdown)
-                  })
-                }>
-                {t('chat.topics.export.yuque')}
-              </ContextMenuItem>
-            )}
-            {exportMenuOptions.obsidian && (
-              <ContextMenuItem
-                onSelect={() =>
-                  void runExport(() => ObsidianExportPopup.show({ title: topic.name, topic, processingMethod: '3' }))
-                }>
-                {t('chat.topics.export.obsidian')}
-              </ContextMenuItem>
-            )}
-            {exportMenuOptions.joplin && (
-              <ContextMenuItem
-                onSelect={() =>
-                  void runExport(async () => {
-                    const topicMessages = await TopicManager.getTopicMessages(topic.id)
-                    await exportMarkdownToJoplin(topic.name, topicMessages)
-                  })
-                }>
-                {t('chat.topics.export.joplin')}
-              </ContextMenuItem>
-            )}
-            {exportMenuOptions.siyuan && (
-              <ContextMenuItem
-                onSelect={() =>
-                  void runExport(async () => {
-                    const markdown = await topicToMarkdown(topic)
-                    await exportMarkdownToSiyuan(topic.name, markdown)
-                  })
-                }>
-                {t('chat.topics.export.siyuan')}
-              </ContextMenuItem>
-            )}
-          </ContextMenuSubContent>
-        </ContextMenuSub>
-
-        {showMove && (
-          <ContextMenuSub>
-            <ContextMenuSubTrigger>
-              <FolderOpen size={14} />
-              {t('chat.topics.move_to')}
-            </ContextMenuSubTrigger>
-            <ContextMenuSubContent>
-              {moveCandidates.map((a) => (
-                <ContextMenuItem key={a.id} onSelect={() => onMoveTopic(topic, a)}>
-                  <ContextMenuItemContent icon={<AssistantAvatar assistant={a} size={18} />}>
-                    {a.name}
-                  </ContextMenuItemContent>
-                </ContextMenuItem>
-              ))}
-            </ContextMenuSubContent>
-          </ContextMenuSub>
-        )}
-
-        {showDelete && (
-          <>
-            <ContextMenuSeparator />
-            <ContextMenuItem variant="destructive" onSelect={() => onDeleteTopic(topic)}>
-              <ContextMenuItemContent icon={<DeleteIcon size={14} className="lucide-custom" />}>
-                {t('common.delete')}
-              </ContextMenuItemContent>
-            </ContextMenuItem>
-          </>
-        )}
-      </>
-    )
+    return items
   }
 
   // Sort topics based on pinned status if pinTopicsToTop is enabled
@@ -586,9 +651,11 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
         itemContainerStyle={{ paddingBottom: '8px' }}
         header={
           <HeaderRow>
-            <AddButton onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)} className="">
-              {t('chat.add.topic.title')}
-            </AddButton>
+            <CommandTooltip command="topic.create" label={t('chat.add.topic.title')}>
+              <AddButton onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)} className="">
+                {t('chat.add.topic.title')}
+              </AddButton>
+            </CommandTooltip>
             <Tooltip title={t('chat.topics.manage.title')} mouseEnterDelay={0.5}>
               <HeaderIconButton
                 onClick={isManageMode ? exitManageMode : enterManageMode}
@@ -624,101 +691,102 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
           }
 
           return (
-            <ContextMenu key={topic.id}>
-              <ContextMenuTrigger asChild disabled={isManageMode}>
-                <TopicListItem
-                  className={classNames(
-                    isActive && !isManageMode ? 'active' : '',
-                    singlealone ? 'singlealone' : '',
-                    isManageMode && isSelected ? 'selected' : '',
-                    isManageMode && !canSelect ? 'disabled' : ''
+            <CommandContextMenu
+              key={topic.id}
+              location="topic.context"
+              disabled={isManageMode}
+              extraItems={getTopicMenuItems(topic)}>
+              <TopicListItem
+                className={classNames(
+                  isActive && !isManageMode ? 'active' : '',
+                  singlealone ? 'singlealone' : '',
+                  isManageMode && isSelected ? 'selected' : '',
+                  isManageMode && !canSelect ? 'disabled' : ''
+                )}
+                onClick={editingTopicId === topic.id && isEditing ? undefined : handleItemClick}
+                style={{
+                  borderRadius,
+                  cursor:
+                    editingTopicId === topic.id && isEditing
+                      ? 'default'
+                      : isManageMode && !canSelect
+                        ? 'not-allowed'
+                        : 'pointer'
+                }}>
+                {isPending(topic.id) && !isActive && <PendingIndicator />}
+                {isFulfilled(topic.id) && !isActive && <FulfilledIndicator />}
+                <TopicNameContainer>
+                  {isManageMode && (
+                    <SelectIcon className={!canSelect ? 'disabled' : ''}>
+                      {isSelected ? (
+                        <CheckSquare size={16} color="var(--color-primary)" />
+                      ) : (
+                        <Square size={16} className="text-foreground-muted" />
+                      )}
+                    </SelectIcon>
                   )}
-                  onClick={editingTopicId === topic.id && isEditing ? undefined : handleItemClick}
-                  style={{
-                    borderRadius,
-                    cursor:
-                      editingTopicId === topic.id && isEditing
-                        ? 'default'
-                        : isManageMode && !canSelect
-                          ? 'not-allowed'
-                          : 'pointer'
-                  }}>
-                  {isPending(topic.id) && !isActive && <PendingIndicator />}
-                  {isFulfilled(topic.id) && !isActive && <FulfilledIndicator />}
-                  <TopicNameContainer>
-                    {isManageMode && (
-                      <SelectIcon className={!canSelect ? 'disabled' : ''}>
-                        {isSelected ? (
-                          <CheckSquare size={16} color="var(--color-primary)" />
-                        ) : (
-                          <Square size={16} className="text-foreground-muted" />
-                        )}
-                      </SelectIcon>
-                    )}
-                    {editingTopicId === topic.id && isEditing ? (
-                      <TopicEditInput {...inputProps} onClick={(e) => e.stopPropagation()} />
-                    ) : (
-                      <TopicName
-                        className={getTopicNameClassName()}
-                        title={topicName}
-                        onDoubleClick={
-                          isManageMode
-                            ? undefined
-                            : () => {
-                                setEditingTopicId(topic.id)
-                                startEdit(topic.name)
-                              }
-                        }>
-                        {topicName}
-                      </TopicName>
-                    )}
-                    {!topic.pinned && (
-                      <Tooltip
-                        placement="bottom"
-                        mouseEnterDelay={0.7}
-                        mouseLeaveDelay={0}
-                        title={
-                          <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
-                            {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
-                          </div>
-                        }>
-                        <MenuButton
-                          className="menu"
-                          onClick={(e) => {
-                            if (e.ctrlKey || e.metaKey) {
-                              void handleConfirmDelete(topic, e)
-                            } else if (deletingTopicId === topic.id) {
-                              void handleConfirmDelete(topic, e)
-                            } else {
-                              handleDeleteClick(topic.id, e)
+                  {editingTopicId === topic.id && isEditing ? (
+                    <TopicEditInput {...inputProps} onClick={(e) => e.stopPropagation()} />
+                  ) : (
+                    <TopicName
+                      className={getTopicNameClassName()}
+                      title={topicName}
+                      onDoubleClick={
+                        isManageMode
+                          ? undefined
+                          : () => {
+                              setEditingTopicId(topic.id)
+                              startEdit(topic.name)
                             }
-                          }}>
-                          {deletingTopicId === topic.id ? (
-                            <DeleteIcon size={14} className="pointer-events-none text-destructive" />
-                          ) : (
-                            <XIcon size={14} className="pointer-events-none text-foreground-muted" />
-                          )}
-                        </MenuButton>
-                      </Tooltip>
-                    )}
-                    {topic.pinned && (
-                      <MenuButton className="pin">
-                        <PinIcon size={14} className="text-foreground-muted" />
+                      }>
+                      {topicName}
+                    </TopicName>
+                  )}
+                  {!topic.pinned && (
+                    <Tooltip
+                      placement="bottom"
+                      mouseEnterDelay={0.7}
+                      mouseLeaveDelay={0}
+                      title={
+                        <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
+                          {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
+                        </div>
+                      }>
+                      <MenuButton
+                        className="menu"
+                        onClick={(e) => {
+                          if (e.ctrlKey || e.metaKey) {
+                            void handleConfirmDelete(topic, e)
+                          } else if (deletingTopicId === topic.id) {
+                            void handleConfirmDelete(topic, e)
+                          } else {
+                            handleDeleteClick(topic.id, e)
+                          }
+                        }}>
+                        {deletingTopicId === topic.id ? (
+                          <DeleteIcon size={14} className="pointer-events-none text-destructive" />
+                        ) : (
+                          <XIcon size={14} className="pointer-events-none text-foreground-muted" />
+                        )}
                       </MenuButton>
-                    )}
-                  </TopicNameContainer>
-                  {topicPrompt && (
-                    <TopicPromptText className="prompt" title={fullTopicPrompt}>
-                      {fullTopicPrompt}
-                    </TopicPromptText>
+                    </Tooltip>
                   )}
-                  {showTopicTime && (
-                    <TopicTime className="time">{dayjs(topic.createdAt).format('YYYY/MM/DD HH:mm')}</TopicTime>
+                  {topic.pinned && (
+                    <MenuButton className="pin">
+                      <PinIcon size={14} className="text-foreground-muted" />
+                    </MenuButton>
                   )}
-                </TopicListItem>
-              </ContextMenuTrigger>
-              <ContextMenuContent>{renderTopicMenuItems(topic)}</ContextMenuContent>
-            </ContextMenu>
+                </TopicNameContainer>
+                {topicPrompt && (
+                  <TopicPromptText className="prompt" title={fullTopicPrompt}>
+                    {fullTopicPrompt}
+                  </TopicPromptText>
+                )}
+                {showTopicTime && (
+                  <TopicTime className="time">{dayjs(topic.createdAt).format('YYYY/MM/DD HH:mm')}</TopicTime>
+                )}
+              </TopicListItem>
+            </CommandContextMenu>
           )
         }}
       </DraggableVirtualList>

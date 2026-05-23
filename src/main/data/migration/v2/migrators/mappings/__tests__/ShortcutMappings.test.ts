@@ -34,15 +34,15 @@ describe('transformShortcuts', () => {
     })
 
     expect(result).toEqual({
-      'shortcut.feature.quick_assistant.toggle_window': {
+      'shortcut.quick_assistant.toggle': {
         binding: ['CommandOrControl', 'E'],
         enabled: false
       },
-      'shortcut.general.show_settings': {
+      'shortcut.app.settings.open': {
         binding: ['CommandOrControl', ','],
         enabled: true
       },
-      'shortcut.feature.selection.toggle_enabled': {
+      'shortcut.selection.toggle': {
         binding: [],
         enabled: false
       }
@@ -65,7 +65,7 @@ describe('transformShortcuts', () => {
       ]
     })
 
-    expect(result['shortcut.general.toggle_sidebar']).toEqual({
+    expect(result['shortcut.app.sidebar.toggle']).toEqual({
       binding: ['CommandOrControl', 'Shift', '['],
       enabled: false
     })
@@ -87,7 +87,29 @@ describe('transformShortcuts', () => {
       ]
     })
 
-    expect(result['shortcut.general.show_settings']).toEqual({
+    expect(result['shortcut.app.settings.open']).toEqual({
+      binding: ['CommandOrControl', ','],
+      enabled: true
+    })
+  })
+
+  it('skips legacy bindings with unknown key tokens', () => {
+    const result = transformShortcuts({
+      shortcuts: [
+        {
+          key: 'show_settings',
+          shortcut: ['CommandOrControl', ','],
+          enabled: true
+        },
+        {
+          key: 'show_settings',
+          shortcut: ['CommandOrControl', 'UnknownKey'],
+          enabled: false
+        }
+      ]
+    })
+
+    expect(result['shortcut.app.settings.open']).toEqual({
       binding: ['CommandOrControl', ','],
       enabled: true
     })

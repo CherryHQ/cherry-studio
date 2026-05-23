@@ -1,3 +1,4 @@
+import { useCommandHandler } from '@renderer/commands'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useCache } from '@renderer/data/hooks/useCache'
@@ -6,7 +7,6 @@ import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
@@ -33,7 +33,7 @@ const AgentPage = () => {
   const { t } = useTranslation()
 
   // TODO: Replace with sidebar toggle logic once the new sidebar UI is implemented
-  useShortcut('general.toggle_sidebar', () => {
+  useCommandHandler('app.sidebar.toggle', () => {
     if (topicPosition === 'left') {
       void toggleShowAssistants()
       return
@@ -42,7 +42,7 @@ const AgentPage = () => {
     void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
   })
 
-  useShortcut('topic.toggle_show_topics', () => {
+  useCommandHandler('topic.sidebar.toggle', () => {
     if (topicPosition === 'right') {
       void toggleShowTopics()
     } else {

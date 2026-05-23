@@ -1,6 +1,7 @@
 import { RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { useCommandContextKey, useCommandHandler } from '@renderer/commands'
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
@@ -10,7 +11,6 @@ import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { isEmbeddingModel, isRerankModel, isWebSearchModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -55,12 +55,14 @@ const Chat: FC<Props> = (props) => {
   const [filterIncludeUser, setFilterIncludeUser] = useState(false)
 
   const { setTimeoutTimer } = useTimer()
+  useCommandContextKey('chat.active', true)
+  useCommandContextKey('topic.exists', Boolean(props.activeTopic?.id))
 
   useHotkeys('esc', () => {
     contentSearchRef.current?.disable()
   })
 
-  useShortcut('chat.search_message', () => {
+  useCommandHandler('chat.message.search', () => {
     try {
       const selectedText = window.getSelection()?.toString().trim()
       contentSearchRef.current?.enable(selectedText)
@@ -69,7 +71,7 @@ const Chat: FC<Props> = (props) => {
     }
   })
 
-  useShortcut('topic.rename', async () => {
+  useCommandHandler('topic.rename', async () => {
     const topic = props.activeTopic
     if (!topic) return
 
@@ -87,7 +89,7 @@ const Chat: FC<Props> = (props) => {
     }
   })
 
-  useShortcut('chat.select_model', async () => {
+  useCommandHandler('chat.model.select', async () => {
     const modelFilter = (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m)
     const selectedModel = await SelectChatModelPopup.show({
       model: assistant?.model,

@@ -1,6 +1,6 @@
 // import { loggerService } from '@logger'
 import { Box } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
+import { useCommandHandler } from '@renderer/commands'
 import AppModalProvider from '@renderer/components/AppModal'
 import { useAppInit } from '@renderer/hooks/useAppInit'
 import type { PropsWithChildren } from 'react'
@@ -34,9 +34,6 @@ const TopViewContent: React.FC<Props> = ({ children }) => {
   const [elements, setElements] = useState<ElementItem[]>([])
   const elementsRef = useRef<ElementItem[]>([])
   elementsRef.current = elements
-
-  const [exitFullscreenPref] = usePreference('shortcut.general.exit_fullscreen')
-  const enableQuitFullScreen = exitFullscreenPref?.enabled !== false
 
   useAppInit()
 
@@ -79,19 +76,8 @@ const TopViewContent: React.FC<Props> = ({ children }) => {
     )
   }, [])
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // logger.debug('keydown', e)
-      if (!enableQuitFullScreen) return
-
-      if (e.key === 'Escape' && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-        void window.api.windowManager.setFullScreen(false)
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-    }
+  useCommandHandler('app.fullscreen.exit', () => {
+    void window.api.windowManager.setFullScreen(false)
   })
 
   return (

@@ -5483,6 +5483,18 @@
         "title": "数据备份与恢复"
       },
       "common": {
+        "menu": {
+          "presentation_mode": {
+            "cherry": "Cherry 自绘",
+            "native": "系统原生",
+            "restart": {
+              "content": "更改右键菜单样式需要重启应用才能完全生效。是否现在重启？",
+              "title": "需要重启应用"
+            },
+            "title": "右键菜单样式"
+          },
+          "title": "菜单"
+        },
         "sections": {
           "custom_css": "自定义 CSS",
           "display_language": "显示与语言",

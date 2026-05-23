@@ -1,19 +1,6 @@
-import {
-  Badge,
-  Checkbox,
-  ConfirmDialog,
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-  EmptyState,
-  MenuItem,
-  MenuList,
-  Spinner,
-  Tooltip
-} from '@cherrystudio/ui'
+import { Badge, Checkbox, ConfirmDialog, EmptyState, MenuItem, MenuList, Spinner, Tooltip } from '@cherrystudio/ui'
 import { Icon } from '@iconify/react'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/commands'
 import CodeViewer from '@renderer/components/CodeViewer'
 import RichEditor from '@renderer/components/RichEditor'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -586,34 +573,40 @@ const SkillsSettings: FC = () => {
                         </CheckboxItem>
                       )
                     }
+                    const contextMenuItems: CommandContextMenuExtraItem[] = [
+                      {
+                        type: 'item',
+                        id: `skill:${skill.id}:multi-select`,
+                        label: t('settings.skills.multiSelect'),
+                        onSelect: () => setMultiSelectMode(true)
+                      },
+                      ...(!isBuiltin
+                        ? ([
+                            { type: 'separator' },
+                            {
+                              type: 'item',
+                              id: `skill:${skill.id}:uninstall`,
+                              label: t('settings.skills.uninstall'),
+                              icon: <Trash2 size={14} />,
+                              destructive: true,
+                              onSelect: () => handleContextMenuUninstall(skill)
+                            }
+                          ] satisfies CommandContextMenuExtraItem[])
+                        : [])
+                    ]
+
                     return (
-                      <ContextMenu key={skill.id}>
-                        <ContextMenuTrigger asChild>
-                          <MenuItem
-                            label={skill.name}
-                            description={skill.description ?? undefined}
-                            descriptionLines={2}
-                            active={selectedSkillId === skill.id}
-                            onClick={() => setSelectedSkill(skill)}
-                            icon={<Puzzle size={16} />}
-                            className="rounded-lg font-medium"
-                          />
-                        </ContextMenuTrigger>
-                        <ContextMenuContent>
-                          <ContextMenuItem onSelect={() => setMultiSelectMode(true)}>
-                            {t('settings.skills.multiSelect')}
-                          </ContextMenuItem>
-                          {!isBuiltin ? (
-                            <>
-                              <ContextMenuSeparator />
-                              <ContextMenuItem variant="destructive" onSelect={() => handleContextMenuUninstall(skill)}>
-                                <Trash2 size={14} />
-                                {t('settings.skills.uninstall')}
-                              </ContextMenuItem>
-                            </>
-                          ) : null}
-                        </ContextMenuContent>
-                      </ContextMenu>
+                      <CommandContextMenu key={skill.id} location="webcontents.context" extraItems={contextMenuItems}>
+                        <MenuItem
+                          label={skill.name}
+                          description={skill.description ?? undefined}
+                          descriptionLines={2}
+                          active={selectedSkillId === skill.id}
+                          onClick={() => setSelectedSkill(skill)}
+                          icon={<Puzzle size={16} />}
+                          className="rounded-lg font-medium"
+                        />
+                      </CommandContextMenu>
                     )
                   })
                 )}

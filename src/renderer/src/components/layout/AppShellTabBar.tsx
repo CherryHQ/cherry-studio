@@ -1,11 +1,5 @@
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuItemContent,
-  ContextMenuTrigger,
-  Tooltip
-} from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/commands'
 import { isMac } from '@renderer/config/constant'
 import { getMiniAppsLogo } from '@renderer/config/miniApps'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
@@ -294,23 +288,34 @@ const TabRightClickMenu = ({
   children: React.ReactNode
 }) => {
   const { t } = useTranslation()
+  const contextMenuItems: CommandContextMenuExtraItem[] = [
+    {
+      type: 'item',
+      id: 'tab.move-to-first',
+      label: t('tab.move_to_first'),
+      icon: <ChevronsLeft size={14} />,
+      onSelect: onMoveToFirst
+    },
+    {
+      type: 'item',
+      id: 'tab.toggle-pin',
+      label: isPinned ? t('tab.unpin') : t('tab.pin'),
+      icon: isPinned ? <PinOff size={14} /> : <Pin size={14} />,
+      onSelect: onPin
+    },
+    {
+      type: 'item',
+      id: 'tab.close',
+      label: t('tab.close'),
+      icon: <X size={14} />,
+      onSelect: onClose
+    }
+  ]
+
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent className="min-w-[130px]">
-        <ContextMenuItem onSelect={onMoveToFirst}>
-          <ContextMenuItemContent icon={<ChevronsLeft size={14} />}>{t('tab.move_to_first')}</ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={onPin}>
-          <ContextMenuItemContent icon={isPinned ? <PinOff size={14} /> : <Pin size={14} />}>
-            {isPinned ? t('tab.unpin') : t('tab.pin')}
-          </ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={onClose}>
-          <ContextMenuItemContent icon={<X size={14} />}>{t('tab.close')}</ContextMenuItemContent>
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+    <CommandContextMenu location="webcontents.context" contentClassName="min-w-[130px]" extraItems={contextMenuItems}>
+      {children}
+    </CommandContextMenu>
   )
 }
 

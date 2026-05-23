@@ -1,10 +1,4 @@
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuItemContent,
-  ContextMenuTrigger
-} from '@cherrystudio/ui'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/commands'
 import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { makeSvgSizeAdaptive } from '@renderer/utils/image'
 import { Eye } from 'lucide-react'
@@ -62,16 +56,21 @@ const MarkdownSvgRenderer: FC<SvgProps> = (props) => {
   }
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
-        <svg ref={svgRef} {...finalProps} />
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem onSelect={onPreview}>
-          <ContextMenuItemContent icon={<Eye size="1rem" />}>{t('common.preview')}</ContextMenuItemContent>
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+    <CommandContextMenu
+      location="webcontents.context"
+      extraItems={
+        [
+          {
+            type: 'item',
+            id: 'markdown-svg.preview',
+            label: t('common.preview'),
+            icon: <Eye size="1rem" />,
+            onSelect: onPreview
+          }
+        ] satisfies CommandContextMenuExtraItem[]
+      }>
+      <svg ref={svgRef} {...finalProps} />
+    </CommandContextMenu>
   )
 }
 

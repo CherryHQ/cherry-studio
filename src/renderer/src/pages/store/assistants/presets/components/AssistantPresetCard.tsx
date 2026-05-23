@@ -1,11 +1,5 @@
-import {
-  Button,
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuItemContent,
-  ContextMenuTrigger
-} from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/commands'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
@@ -120,6 +114,45 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
     }
   ]
 
+  const contextMenuItems: CommandContextMenuExtraItem[] = [
+    {
+      type: 'item',
+      id: `assistant-preset:${preset.id}:edit`,
+      label: t('assistants.presets.edit.title'),
+      icon: <EditIcon size={14} />,
+      onSelect: handleEdit
+    },
+    {
+      type: 'item',
+      id: `assistant-preset:${preset.id}:create`,
+      label: t('assistants.presets.add.button'),
+      icon: <PlusIcon size={14} />,
+      onSelect: handleCreate
+    },
+    {
+      type: 'item',
+      id: `assistant-preset:${preset.id}:manage`,
+      label: t('assistants.presets.manage.title'),
+      icon: <Settings2 size={14} />,
+      onSelect: handleManage
+    },
+    {
+      type: 'item',
+      id: `assistant-preset:${preset.id}:export`,
+      label: t('assistants.presets.export.agent'),
+      icon: <SquareArrowOutUpRight size={14} />,
+      onSelect: handleExport
+    },
+    {
+      type: 'item',
+      id: `assistant-preset:${preset.id}:delete`,
+      label: t('common.delete'),
+      icon: <DeleteIcon size={14} className="lucide-custom" />,
+      destructive: true,
+      onSelect: handleDeletePreset
+    }
+  ]
+
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -193,36 +226,9 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
 
   if (activegroup === '我的') {
     return (
-      <ContextMenu>
-        <ContextMenuTrigger asChild>{content}</ContextMenuTrigger>
-        <ContextMenuContent>
-          <ContextMenuItem onSelect={handleEdit}>
-            <ContextMenuItemContent icon={<EditIcon size={14} />}>
-              {t('assistants.presets.edit.title')}
-            </ContextMenuItemContent>
-          </ContextMenuItem>
-          <ContextMenuItem onSelect={handleCreate}>
-            <ContextMenuItemContent icon={<PlusIcon size={14} />}>
-              {t('assistants.presets.add.button')}
-            </ContextMenuItemContent>
-          </ContextMenuItem>
-          <ContextMenuItem onSelect={handleManage}>
-            <ContextMenuItemContent icon={<Settings2 size={14} />}>
-              {t('assistants.presets.manage.title')}
-            </ContextMenuItemContent>
-          </ContextMenuItem>
-          <ContextMenuItem onSelect={handleExport}>
-            <ContextMenuItemContent icon={<SquareArrowOutUpRight size={14} />}>
-              {t('assistants.presets.export.agent')}
-            </ContextMenuItemContent>
-          </ContextMenuItem>
-          <ContextMenuItem variant="destructive" onSelect={handleDeletePreset}>
-            <ContextMenuItemContent icon={<DeleteIcon size={14} className="lucide-custom" />}>
-              {t('common.delete')}
-            </ContextMenuItemContent>
-          </ContextMenuItem>
-        </ContextMenuContent>
-      </ContextMenu>
+      <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems}>
+        {content}
+      </CommandContextMenu>
     )
   }
 

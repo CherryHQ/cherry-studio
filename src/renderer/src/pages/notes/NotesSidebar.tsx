@@ -1,11 +1,4 @@
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuItemContent,
-  ContextMenuSeparator,
-  ContextMenuTrigger
-} from '@cherrystudio/ui'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/commands'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
@@ -93,7 +86,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     setIsDragOverSidebar
   })
 
-  const { renderMenuItems } = useNotesMenu({
+  const { getMenuItems } = useNotesMenu({
     renamingNodeIds,
     onCreateNote,
     onCreateFolder,
@@ -169,23 +162,39 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     [onSortNodes]
   )
 
-  const renderEmptyAreaMenuItems = () => (
-    <>
-      <ContextMenuItem onSelect={handleCreateNote}>
-        <ContextMenuItemContent icon={<FilePlus size={14} />}>{t('notes.new_note')}</ContextMenuItemContent>
-      </ContextMenuItem>
-      <ContextMenuItem onSelect={handleCreateFolder}>
-        <ContextMenuItemContent icon={<Folder size={14} />}>{t('notes.new_folder')}</ContextMenuItemContent>
-      </ContextMenuItem>
-      <ContextMenuSeparator />
-      <ContextMenuItem onSelect={handleSelectFiles}>
-        <ContextMenuItemContent icon={<Upload size={14} />}>{t('notes.upload_files')}</ContextMenuItemContent>
-      </ContextMenuItem>
-      <ContextMenuItem onSelect={handleSelectFolder}>
-        <ContextMenuItemContent icon={<FolderUp size={14} />}>{t('notes.upload_folder')}</ContextMenuItemContent>
-      </ContextMenuItem>
-    </>
-  )
+  const emptyAreaMenuItems = useMemo<CommandContextMenuExtraItem[]>(() => {
+    return [
+      {
+        type: 'item',
+        id: 'notes.empty.new-note',
+        label: t('notes.new_note'),
+        icon: <FilePlus size={14} />,
+        onSelect: handleCreateNote
+      },
+      {
+        type: 'item',
+        id: 'notes.empty.new-folder',
+        label: t('notes.new_folder'),
+        icon: <Folder size={14} />,
+        onSelect: handleCreateFolder
+      },
+      { type: 'separator' },
+      {
+        type: 'item',
+        id: 'notes.empty.upload-files',
+        label: t('notes.upload_files'),
+        icon: <Upload size={14} />,
+        onSelect: handleSelectFiles
+      },
+      {
+        type: 'item',
+        id: 'notes.empty.upload-folder',
+        label: t('notes.upload_folder'),
+        icon: <FolderUp size={14} />,
+        onSelect: handleSelectFolder
+      }
+    ]
+  }, [handleCreateFolder, handleCreateNote, handleSelectFiles, handleSelectFolder, t])
 
   // Flatten tree nodes for virtualization and filtering
   const flattenedNodes = useMemo(() => {
@@ -275,11 +284,11 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
   const actionsValue = useMemo(
     () => ({
-      renderMenuItems,
+      getMenuItems,
       onSelectNode,
       onToggleExpanded
     }),
-    [renderMenuItems, onSelectNode, onToggleExpanded]
+    [getMenuItems, onSelectNode, onToggleExpanded]
   )
 
   const selectionValue = useMemo(
@@ -384,21 +393,18 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                       </span>
                     </SearchStatusBar>
                   )}
-                  <ContextMenu>
-                    <ContextMenuTrigger asChild>
-                      <DynamicVirtualList
-                        ref={virtualListRef}
-                        list={flattenedNodes}
-                        estimateSize={() => 28}
-                        itemContainerStyle={{ padding: '8px 8px 0 8px' }}
-                        overscan={10}
-                        isSticky={isSticky}
-                        getItemDepth={getItemDepth}>
-                        {({ node, depth }) => <TreeNode node={node} depth={depth} renderChildren={false} />}
-                      </DynamicVirtualList>
-                    </ContextMenuTrigger>
-                    <ContextMenuContent>{renderEmptyAreaMenuItems()}</ContextMenuContent>
-                  </ContextMenu>
+                  <CommandContextMenu location="webcontents.context" extraItems={emptyAreaMenuItems}>
+                    <DynamicVirtualList
+                      ref={virtualListRef}
+                      list={flattenedNodes}
+                      estimateSize={() => 28}
+                      itemContainerStyle={{ padding: '8px 8px 0 8px' }}
+                      overscan={10}
+                      isSticky={isSticky}
+                      getItemDepth={getItemDepth}>
+                      {({ node, depth }) => <TreeNode node={node} depth={depth} renderChildren={false} />}
+                    </DynamicVirtualList>
+                  </CommandContextMenu>
                   {!isShowStarred && !isShowSearch && (
                     <div style={{ padding: '0 8px', marginTop: '6px', marginBottom: '12px' }}>
                       <TreeNode

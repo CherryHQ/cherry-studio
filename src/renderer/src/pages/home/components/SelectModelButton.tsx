@@ -1,4 +1,5 @@
 import { Button } from '@cherrystudio/ui'
+import { CommandTooltip } from '@renderer/commands'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { SelectChatModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import { isLocalAi } from '@renderer/config/env'
@@ -53,20 +54,22 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
   const providerName = getProviderName(model)
 
   return (
-    <Button
-      size="sm"
-      variant="ghost"
-      onClick={onSelectModel}
-      className="h-7 max-w-[min(360px,45vw)] rounded-md border border-transparent border-solid bg-transparent px-2 py-0 text-xs shadow-none">
-      <div className="flex min-w-0 items-center gap-1.5">
-        <ModelAvatar model={model} size={18} />
-        <span className="min-w-0 truncate font-medium text-xs leading-none">
-          {model ? model.name : t('button.select_model')} {providerName ? ' | ' + providerName : ''}
-        </span>
-      </div>
-      <ChevronsUpDown size={13} className="text-muted-foreground" />
-      {!provider && <Tag color="error">{t('models.invalid_model')}</Tag>}
-    </Button>
+    <CommandTooltip command="chat.model.select" label={t('button.select_model')}>
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={onSelectModel}
+        className="h-7 max-w-[min(360px,45vw)] rounded-md border border-transparent border-solid bg-transparent px-2 py-0 text-xs shadow-none">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <ModelAvatar model={model} size={18} />
+          <span className="min-w-0 truncate font-medium text-xs leading-none">
+            {model ? model.name : t('button.select_model')} {providerName ? ' | ' + providerName : ''}
+          </span>
+        </div>
+        <ChevronsUpDown size={13} className="text-muted-foreground" />
+        {!provider && <Tag color="error">{t('models.invalid_model')}</Tag>}
+      </Button>
+    </CommandTooltip>
   )
 }
 

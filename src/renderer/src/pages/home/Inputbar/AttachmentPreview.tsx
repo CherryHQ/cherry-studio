@@ -1,12 +1,6 @@
-import {
-  ColFlex,
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-  Tooltip
-} from '@cherrystudio/ui'
+import { ColFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/commands'
 import ImageViewer from '@renderer/components/ImageViewer'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAttachment } from '@renderer/hooks/useAttachment'
@@ -29,7 +23,7 @@ import {
   Presentation
 } from 'lucide-react'
 import type { FC } from 'react'
-import { useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('AttachmentPreview')
@@ -42,6 +36,7 @@ interface Props {
 
 const MAX_FILENAME_DISPLAY_LENGTH = 20
 const FILE_ICON_SIZE = 12
+const EMPTY_CONTEXT_MENU_ITEMS: readonly CommandContextMenuExtraItem[] = []
 
 const fileIcon = (Icon: LucideIcon) => <Icon size={FILE_ICON_SIZE} />
 
@@ -155,19 +150,6 @@ const AttachmentItem: FC<{
 }> = ({ file, onRemove, onPasteAsText }) => {
   const { t } = useTranslation()
   const [isTextFile, setIsTextFile] = useState<boolean | null>(null)
-  const probedRef = useRef(false)
-
-  const handleOpenChange = (open: boolean) => {
-    if (!open || probedRef.current) return
-    probedRef.current = true
-    void window.api.file
-      .isTextFile(file.path)
-      .then(setIsTextFile)
-      .catch((error) => {
-        logger.warn('isTextFile probe failed; treating attachment as binary', error as Error)
-        setIsTextFile(false)
-      })
-  }
 
   const tag = (
     <CustomTag icon={getFileIcon(file.ext)} color="#37a5aa" closable onClose={onRemove}>
@@ -175,19 +157,45 @@ const AttachmentItem: FC<{
     </CustomTag>
   )
 
+  const pasteAsTextLabel = t('chat.input.paste_text_file')
+  const createPasteAsTextItem = useCallback(
+    (enabled: boolean): CommandContextMenuExtraItem => ({
+      type: 'item',
+      id: `attachment:${file.id}:paste-as-text`,
+      label: pasteAsTextLabel,
+      enabled,
+      onSelect: () => onPasteAsText?.(file)
+    }),
+    [file, onPasteAsText, pasteAsTextLabel]
+  )
+  const pendingExtraItems = useMemo(() => [createPasteAsTextItem(false)], [createPasteAsTextItem])
+  const getExtraItems = useCallback(async (): Promise<readonly CommandContextMenuExtraItem[]> => {
+    if (isTextFile !== null) {
+      return isTextFile ? [createPasteAsTextItem(true)] : EMPTY_CONTEXT_MENU_ITEMS
+    }
+
+    try {
+      const textFile = await window.api.file.isTextFile(file.path)
+      setIsTextFile(textFile)
+      return textFile ? [createPasteAsTextItem(true)] : EMPTY_CONTEXT_MENU_ITEMS
+    } catch (error) {
+      logger.warn('isTextFile probe failed; treating attachment as binary', error as Error)
+      setIsTextFile(false)
+      return EMPTY_CONTEXT_MENU_ITEMS
+    }
+  }, [createPasteAsTextItem, file.path, isTextFile])
+
   if (!onPasteAsText) {
     return tag
   }
 
   return (
-    <ContextMenu onOpenChange={handleOpenChange}>
-      <ContextMenuTrigger asChild>{tag}</ContextMenuTrigger>
-      {isTextFile && (
-        <ContextMenuContent>
-          <ContextMenuItem onSelect={() => onPasteAsText(file)}>{t('chat.input.paste_text_file')}</ContextMenuItem>
-        </ContextMenuContent>
-      )}
-    </ContextMenu>
+    <CommandContextMenu
+      location="webcontents.context"
+      pendingExtraItems={pendingExtraItems}
+      getExtraItems={getExtraItems}>
+      {tag}
+    </CommandContextMenu>
   )
 }
 

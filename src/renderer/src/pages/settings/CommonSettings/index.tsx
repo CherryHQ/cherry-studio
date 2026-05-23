@@ -30,7 +30,7 @@ import { isValidProxyUrl } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import { defaultByPassRules, defaultLanguage } from '@shared/config/constant'
-import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
+import type { LanguageVarious, MenuPresentationMode } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { Code, Minus, Monitor, Moon, Palette, Plus, Shield, Sun } from 'lucide-react'
 import type React from 'react'
@@ -98,6 +98,7 @@ const CommonSettings: FC = () => {
   const [spellCheckLanguages, setSpellCheckLanguages] = usePreference('app.spell_check.languages')
   const [windowStyle, setWindowStyle] = usePreference('ui.window_style')
   const [customCss, setCustomCss] = usePreference('ui.custom_css')
+  const [menuPresentationMode, setMenuPresentationMode] = usePreference('menu.presentation_mode')
   const [topicPosition, setTopicPosition] = usePreference('topic.position')
   const [clickAssistantToShowTopic, setClickAssistantToShowTopic] = usePreference('assistant.click_to_show_topic')
   const [pinTopicsToTop, setPinTopicsToTop] = usePreference('topic.tab.pin_to_top')
@@ -161,6 +162,14 @@ const CommonSettings: FC = () => {
     { value: 'custom', label: t('settings.proxy.mode.custom') },
     { value: 'none', label: t('settings.proxy.mode.none') }
   ]
+
+  const menuPresentationModeOptions = useMemo(
+    () => [
+      { value: 'cherry' as const, label: t('settings.general.common.menu.presentation_mode.cherry') },
+      { value: 'native' as const, label: t('settings.general.common.menu.presentation_mode.native') }
+    ],
+    [t]
+  )
 
   const themeOptions = useMemo(
     () => [
@@ -278,6 +287,39 @@ const CommonSettings: FC = () => {
       }
     })
   }
+
+  const handleMenuPresentationModeChange = useCallback(
+    (mode: MenuPresentationMode) => {
+      if (mode === menuPresentationMode) {
+        return
+      }
+
+      void window.modal.confirm({
+        title: t('settings.general.common.menu.presentation_mode.restart.title'),
+        content: t('settings.general.common.menu.presentation_mode.restart.content'),
+        okText: t('common.confirm'),
+        cancelText: t('common.cancel'),
+        centered: true,
+        async onOk() {
+          try {
+            await setMenuPresentationMode(mode)
+          } catch (error) {
+            window.toast.error(formatErrorMessage(error))
+            throw error
+          }
+
+          setTimeoutTimer(
+            'handleMenuPresentationModeChange',
+            () => {
+              void window.api.application.relaunch()
+            },
+            500
+          )
+        }
+      })
+    },
+    [menuPresentationMode, setMenuPresentationMode, setTimeoutTimer, t]
+  )
 
   const handleHardwareAccelerationChange = (checked: boolean) => {
     void window.modal.confirm({
@@ -488,6 +530,20 @@ const CommonSettings: FC = () => {
               <ResetIcon size="14" />
             </Button>
           </ZoomButtonGroup>
+        </SettingRow>
+      </SettingGroup>
+
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.general.common.menu.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.general.common.menu.presentation_mode.title')}</SettingRowTitle>
+          <SegmentedControl<MenuPresentationMode>
+            value={menuPresentationMode}
+            onValueChange={handleMenuPresentationModeChange}
+            options={menuPresentationModeOptions}
+            size="sm"
+          />
         </SettingRow>
       </SettingGroup>
 

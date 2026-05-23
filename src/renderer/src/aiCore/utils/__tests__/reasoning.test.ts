@@ -54,7 +54,9 @@ vi.mock('@renderer/store/llm', () => ({
 vi.mock('@renderer/config/constant', () => ({
   DEFAULT_MAX_TOKENS: 4096,
   isMac: false,
+  isLinux: true,
   isWin: false,
+  platform: 'linux',
   TOKENFLUX_HOST: 'mock-host'
 }))
 

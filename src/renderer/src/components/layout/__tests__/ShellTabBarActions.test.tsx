@@ -24,6 +24,10 @@ vi.mock('@cherrystudio/ui', () => ({
   Tooltip: ({ children }: { children: React.ReactNode }) => children
 }))
 
+vi.mock('@renderer/commands', () => ({
+  CommandTooltip: ({ children }: { children: React.ReactNode }) => children
+}))
+
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
     if (key === 'app.use_system_title_bar') return [false]

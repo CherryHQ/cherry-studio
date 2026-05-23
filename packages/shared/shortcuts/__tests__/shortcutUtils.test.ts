@@ -1,23 +1,25 @@
 import { describe, expect, it } from 'vitest'
 
-import { findShortcutDefinition, SHORTCUT_DEFINITIONS } from '../definitions'
-import type { ShortcutDefinition } from '../types'
-import {
-  convertAcceleratorToHotkey,
-  convertKeyToAccelerator,
-  formatShortcutDisplay,
-  getDefaultShortcut,
-  isShortcutDefinitionEnabled,
-  isValidShortcut,
-  resolveShortcutPreference
-} from '../utils'
+import { isShortcutBinding, normalizeShortcutBinding, normalizeShortcutToken } from '../tokens'
+import { convertAcceleratorToHotkey, convertKeyToAccelerator, formatShortcutDisplay, isValidShortcut } from '../utils'
 
-const makeDefinition = (overrides: Partial<ShortcutDefinition> = {}): ShortcutDefinition => ({
-  key: 'shortcut.chat.clear',
-  scope: 'renderer',
-  category: 'chat',
-  labelKey: 'clear_topic',
-  ...overrides
+describe('shortcut tokens', () => {
+  it('normalizes letters, digits, function keys, and DOM key codes', () => {
+    expect(normalizeShortcutToken('a')).toBe('A')
+    expect(normalizeShortcutToken('KeyZ')).toBe('Z')
+    expect(normalizeShortcutToken('Digit7')).toBe('7')
+    expect(normalizeShortcutToken('Numpad7')).toBe('7')
+    expect(normalizeShortcutToken('f12')).toBe('F12')
+    expect(normalizeShortcutToken('ArrowLeft')).toBe('Left')
+    expect(normalizeShortcutToken('NumpadAdd')).toBe('numadd')
+  })
+
+  it('rejects unknown tokens instead of preserving arbitrary strings', () => {
+    expect(normalizeShortcutToken('Nope')).toBeUndefined()
+    expect(normalizeShortcutBinding(['CommandOrControl', 'Nope'])).toEqual([])
+    expect(isShortcutBinding(['CommandOrControl', 'Nope'])).toBe(false)
+    expect(isShortcutBinding(['CommandOrControl', 'N'])).toBe(true)
+  })
 })
 
 describe('convertKeyToAccelerator', () => {
@@ -31,9 +33,13 @@ describe('convertKeyToAccelerator', () => {
     expect(convertKeyToAccelerator('BracketLeft')).toBe('[')
   })
 
-  it('returns the key unchanged if not in the map', () => {
+  it('normalizes valid keys that do not need mapping', () => {
     expect(convertKeyToAccelerator('A')).toBe('A')
     expect(convertKeyToAccelerator('Shift')).toBe('Shift')
+  })
+
+  it('rejects unknown keys', () => {
+    expect(convertKeyToAccelerator('UnknownKey')).toBeUndefined()
   })
 })
 
@@ -68,7 +74,7 @@ describe('formatShortcutDisplay', () => {
 
   it('capitalizes non-modifier keys', () => {
     expect(formatShortcutDisplay(['Escape'], true)).toBe('Escape')
-    expect(formatShortcutDisplay(['f1'], false)).toBe('F1')
+    expect(formatShortcutDisplay(normalizeShortcutBinding(['f1']), false)).toBe('F1')
   })
 })
 
@@ -98,116 +104,5 @@ describe('isValidShortcut', () => {
   it('returns false for non-modifier non-special single key', () => {
     expect(isValidShortcut(['A'])).toBe(false)
     expect(isValidShortcut(['L'])).toBe(false)
-  })
-})
-
-describe('getDefaultShortcut', () => {
-  it('returns default preference from schema defaults', () => {
-    const def = makeDefinition()
-    const result = getDefaultShortcut(def)
-
-    expect(result.binding).toEqual(['CommandOrControl', 'L'])
-    expect(result.enabled).toBe(true)
-  })
-})
-
-describe('resolveShortcutPreference', () => {
-  it('returns fallback when value is undefined', () => {
-    const def = makeDefinition()
-    const result = resolveShortcutPreference(def, undefined)
-
-    expect(result.binding).toEqual(['CommandOrControl', 'L'])
-    expect(result.enabled).toBe(true)
-  })
-
-  it('returns fallback when value is null', () => {
-    const def = makeDefinition()
-    const result = resolveShortcutPreference(def, null)
-
-    expect(result.binding).toEqual(['CommandOrControl', 'L'])
-  })
-
-  it('uses custom binding when provided', () => {
-    const def = makeDefinition()
-    const result = resolveShortcutPreference(def, {
-      binding: ['Alt', 'L'],
-      enabled: true
-    })
-
-    expect(result.binding).toEqual(['Alt', 'L'])
-  })
-
-  it('returns empty binding when binding is explicitly cleared (empty array)', () => {
-    const def = makeDefinition()
-    const result = resolveShortcutPreference(def, {
-      binding: [],
-      enabled: true
-    })
-
-    expect(result.binding).toEqual([])
-  })
-
-  it('respects enabled: false from preference', () => {
-    const def = makeDefinition()
-    const result = resolveShortcutPreference(def, {
-      binding: ['CommandOrControl', 'L'],
-      enabled: false
-    })
-
-    expect(result.enabled).toBe(false)
-  })
-})
-
-describe('isShortcutDefinitionEnabled', () => {
-  it('returns true when no dependency is declared', () => {
-    expect(isShortcutDefinitionEnabled(makeDefinition(), () => false)).toBe(true)
-  })
-
-  it('returns true when the required preference is enabled', () => {
-    const def = makeDefinition({ enabledWhen: 'feature.quick_assistant.enabled' })
-    expect(isShortcutDefinitionEnabled(def, () => true)).toBe(true)
-  })
-
-  it('returns false when the required preference is disabled', () => {
-    const def = makeDefinition({ enabledWhen: 'feature.quick_assistant.enabled' })
-    expect(isShortcutDefinitionEnabled(def, () => false)).toBe(false)
-  })
-})
-
-describe('SHORTCUT_DEFINITIONS', () => {
-  it('has unique preference keys', () => {
-    const keys = SHORTCUT_DEFINITIONS.map((d) => d.key)
-    const unique = new Set(keys)
-    expect(unique.size).toBe(keys.length)
-  })
-
-  it('has non-empty labelKey for every entry', () => {
-    for (const def of SHORTCUT_DEFINITIONS) {
-      expect(def.labelKey, `missing labelKey for ${def.key}`).toBeTruthy()
-    }
-  })
-
-  it('uses `shortcut.` prefix for every preference key', () => {
-    for (const def of SHORTCUT_DEFINITIONS) {
-      expect(def.key.startsWith('shortcut.')).toBe(true)
-    }
-  })
-
-  it('has schema defaults for every definition', () => {
-    for (const def of SHORTCUT_DEFINITIONS) {
-      const resolved = getDefaultShortcut(def)
-      expect(Array.isArray(resolved.binding), `missing default binding for ${def.key}`).toBe(true)
-      expect(typeof resolved.enabled, `missing default enabled flag for ${def.key}`).toBe('boolean')
-    }
-  })
-
-  it('is resolvable via findShortcutDefinition', () => {
-    for (const def of SHORTCUT_DEFINITIONS) {
-      expect(findShortcutDefinition(def.key)).toBe(def)
-    }
-  })
-
-  it('returns undefined for unknown keys', () => {
-    expect(findShortcutDefinition('shortcut.unknown.nope' as never)).toBeUndefined()
   })
 })

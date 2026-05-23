@@ -1,11 +1,11 @@
+import type { CommandContextMenuExtraItem } from '@renderer/commands'
 import type { UseInPlaceEditReturn } from '@renderer/hooks/useInPlaceEdit'
 import type { NotesTreeNode } from '@renderer/types/note'
-import type { ReactNode } from 'react'
 import { createContext, use } from 'react'
 
 // ==================== 1. Actions Context (Static, rarely changes) ====================
 export interface NotesActionsContextType {
-  renderMenuItems: (node: NotesTreeNode) => ReactNode
+  getMenuItems: (node: NotesTreeNode) => readonly CommandContextMenuExtraItem[]
   onSelectNode: (node: NotesTreeNode) => void
   onToggleExpanded: (nodeId: string) => void
 }

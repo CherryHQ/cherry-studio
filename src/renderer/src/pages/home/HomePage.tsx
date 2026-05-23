@@ -1,8 +1,8 @@
 import { usePreference } from '@data/hooks/usePreference'
+import { useCommandHandler } from '@renderer/commands'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -46,7 +46,7 @@ const HomePage: FC = () => {
   _activeAssistant = activeAssistant
 
   // TODO: Replace with sidebar toggle logic once the new sidebar UI is implemented
-  useShortcut('general.toggle_sidebar', () => {
+  useCommandHandler('app.sidebar.toggle', () => {
     if (topicPosition === 'right') {
       void toggleShowAssistants()
       return
@@ -63,7 +63,7 @@ const HomePage: FC = () => {
     void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
   })
 
-  useShortcut('topic.toggle_show_topics', () => {
+  useCommandHandler('topic.sidebar.toggle', () => {
     if (topicPosition === 'right') {
       void toggleShowTopics()
       return

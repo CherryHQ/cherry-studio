@@ -1,4 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
+import { CommandTooltip } from '@renderer/commands'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { modelGenerating } from '@renderer/hooks/useModel'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
@@ -34,18 +35,18 @@ const Tools = () => {
       )}
       {/* TODO: Add search button back when global search supports agent messages */}
       {isTopNavbar && topicPosition === 'right' && !showTopics && (
-        <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
+        <CommandTooltip command="topic.sidebar.toggle" label={t('navbar.show_sidebar')} delay={2000}>
           <NavbarIcon onClick={toggleShowTopics}>
             <PanelLeftClose size={18} />
           </NavbarIcon>
-        </Tooltip>
+        </CommandTooltip>
       )}
       {isTopNavbar && topicPosition === 'right' && showTopics && (
-        <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={2}>
+        <CommandTooltip command="topic.sidebar.toggle" label={t('navbar.hide_sidebar')} delay={2000}>
           <NavbarIcon onClick={toggleShowTopics}>
             <PanelRightClose size={18} />
           </NavbarIcon>
-        </Tooltip>
+        </CommandTooltip>
       )}
     </div>
   )

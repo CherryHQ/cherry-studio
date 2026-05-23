@@ -39,6 +39,33 @@ const mocks = vi.hoisted(() => ({
   }))
 }))
 
+type MockCommandContextMenuItem = {
+  type: 'item' | 'separator'
+  id?: string
+  label?: string
+  onSelect?: () => void
+}
+
+vi.mock('@renderer/commands', () => ({
+  CommandContextMenu: ({
+    children,
+    extraItems
+  }: React.PropsWithChildren<{ extraItems?: readonly MockCommandContextMenuItem[] }>) => (
+    <div data-testid="command-context-menu">
+      {children}
+      {extraItems?.map((item, index) =>
+        item.type === 'item' ? (
+          <button data-testid="command-context-menu-item" key={item.id} type="button" onClick={item.onSelect}>
+            {item.label}
+          </button>
+        ) : (
+          <hr key={`separator-${index}`} />
+        )
+      )}
+    </div>
+  )
+}))
+
 vi.mock('@renderer/hooks/useMiniApps', () => ({
   useMiniApps: () => ({
     miniApps: mocks.apps,
@@ -71,19 +98,7 @@ vi.mock('@cherrystudio/ui', async () => {
 
   return {
     ...actual,
-    EmptyState: ({ title }: { title: string }) => <div>{title}</div>,
-    ContextMenu: ({ children }: React.PropsWithChildren) => <div data-testid="context-menu">{children}</div>,
-    ContextMenuTrigger: ({ children }: React.PropsWithChildren<{ asChild?: boolean }>) => (
-      <div data-testid="context-menu-trigger">{children}</div>
-    ),
-    ContextMenuContent: ({ children }: React.PropsWithChildren) => (
-      <div data-testid="context-menu-content">{children}</div>
-    ),
-    ContextMenuItem: ({ children, onSelect }: React.PropsWithChildren<{ onSelect?: () => void }>) => (
-      <button data-testid="context-menu-item" type="button" onClick={onSelect}>
-        {children}
-      </button>
-    )
+    EmptyState: ({ title }: { title: string }) => <div>{title}</div>
   }
 })
 

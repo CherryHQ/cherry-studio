@@ -2,6 +2,7 @@ import { HolderOutlined } from '@ant-design/icons'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { useCommandContextKey } from '@renderer/commands'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
@@ -140,6 +141,8 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
 
   const { t } = useTranslation()
   const [isTranslating, setIsTranslating] = useState(false)
+  const [isComposing, setIsComposing] = useState(false)
+  useCommandContextKey('input.composing', isComposing)
 
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const spaceClickTimer = useRef<NodeJS.Timeout | null>(null)
@@ -640,8 +643,11 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
             value={text}
             onChange={handleTextareaChange}
             onKeyDown={handleKeyDown}
+            onCompositionStart={() => setIsComposing(true)}
+            onCompositionEnd={() => setIsComposing(false)}
             onPaste={(e) => handlePaste(e.nativeEvent)}
             onFocus={handleFocus}
+            onBlur={() => setIsComposing(false)}
             placeholder={isTranslating ? t('chat.input.translating') : placeholder}
             autoFocus
             variant="borderless"

@@ -1,7 +1,6 @@
+import { CommandTooltip } from '@renderer/commands'
 import { ActionIconButton } from '@renderer/components/Buttons'
-import { useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
-import { Tooltip } from 'antd'
 import { MessageSquareDiff } from 'lucide-react'
 
 const newTopicTool = defineTool({
@@ -16,16 +15,12 @@ const newTopicTool = defineTool({
 
   render: function NewTopicRender(context) {
     const { actions, t } = context
-    const newTopicShortcut = useShortcutDisplay('topic.new')
+    const label = t('chat.input.new_topic', { Command: '' }).trim()
 
     return (
-      <Tooltip
-        placement="top"
-        title={t('chat.input.new_topic', { Command: newTopicShortcut })}
-        mouseLeaveDelay={0}
-        arrow>
+      <CommandTooltip command="topic.create" label={label}>
         <ActionIconButton onClick={actions.addNewTopic} icon={<MessageSquareDiff size={19} />}></ActionIconButton>
-      </Tooltip>
+      </CommandTooltip>
     )
   }
 })

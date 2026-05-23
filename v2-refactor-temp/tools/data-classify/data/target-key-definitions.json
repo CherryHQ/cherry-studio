@@ -193,6 +193,153 @@
       "defaultValue": "zh-cn",
       "status": "classified",
       "description": "Translate page target language (from complex migration)"
+    },
+    {
+      "targetKey": "menu.presentation_mode",
+      "type": "PreferenceTypes.MenuPresentationMode",
+      "defaultValue": "cherry",
+      "status": "classified",
+      "description": "Global menu presentation mode: native system menus or Cherry custom menus"
+    },
+    {
+      "targetKey": "shortcut.app.fullscreen.exit",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": { "binding": ["Escape"], "enabled": true },
+      "status": "classified",
+      "description": "Command-centric shortcut for exiting fullscreen"
+    },
+    {
+      "targetKey": "shortcut.app.search",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": { "binding": ["CommandOrControl", "Shift", "F"], "enabled": true },
+      "status": "classified",
+      "description": "Command-centric shortcut for global search"
+    },
+    {
+      "targetKey": "shortcut.app.sidebar.toggle",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": { "binding": ["CommandOrControl", "["], "enabled": true },
+      "status": "classified",
+      "description": "Command-centric shortcut for toggling the app sidebar"
+    },
+    {
+      "targetKey": "shortcut.app.settings.open",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": { "binding": ["CommandOrControl", ","], "enabled": true },
+      "status": "classified",
+      "description": "Command-centric shortcut for opening settings"
+    },
+    {
+      "targetKey": "shortcut.app.window.show",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": { "binding": [], "enabled": false },
+      "status": "classified",
+      "description": "Command-centric shortcut for showing the main window"
+    },
+    {
+      "targetKey": "shortcut.app.zoom.in",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": { "binding": ["CommandOrControl", "="], "enabled": true },
+      "status": "classified",
+      "description": "Command-centric shortcut for zooming in"
+    },
+    {
+      "targetKey": "shortcut.app.zoom.out",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": { "binding": ["CommandOrControl", "-"], "enabled": true },
+      "status": "classified",
+      "description": "Command-centric shortcut for zooming out"
+    },
+    {
+      "targetKey": "shortcut.app.zoom.reset",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": { "binding": ["CommandOrControl", "0"], "enabled": true },
+      "status": "classified",
+      "description": "Command-centric shortcut for resetting zoom"
+    },
+    {
+      "targetKey": "shortcut.chat.context.toggle_new",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": { "binding": ["CommandOrControl", "K"], "enabled": true },
+      "status": "classified",
+      "description": "Command-centric shortcut for toggling new context"
+    },
+    {
+      "targetKey": "shortcut.chat.message.copy_last",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": { "binding": ["CommandOrControl", "Shift", "C"], "enabled": false },
+      "status": "classified",
+      "description": "Command-centric shortcut for copying the last message"
+    },
+    {
+      "targetKey": "shortcut.chat.message.edit_last_user",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": { "binding": ["CommandOrControl", "Shift", "E"], "enabled": false },
+      "status": "classified",
+      "description": "Command-centric shortcut for editing the last user message"
+    },
+    {
+      "targetKey": "shortcut.chat.message.search",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": { "binding": ["CommandOrControl", "F"], "enabled": true },
+      "status": "classified",
+      "description": "Command-centric shortcut for searching messages"
+    },
+    {
+      "targetKey": "shortcut.chat.model.select",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": { "binding": ["CommandOrControl", "Shift", "M"], "enabled": true },
+      "status": "classified",
+      "description": "Command-centric shortcut for selecting the chat model"
+    },
+    {
+      "targetKey": "shortcut.chat.topic.clear",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": { "binding": ["CommandOrControl", "L"], "enabled": true },
+      "status": "classified",
+      "description": "Command-centric shortcut for clearing the current topic"
+    },
+    {
+      "targetKey": "shortcut.quick_assistant.toggle",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": { "binding": ["CommandOrControl", "E"], "enabled": false },
+      "status": "classified",
+      "description": "Command-centric shortcut for toggling quick assistant"
+    },
+    {
+      "targetKey": "shortcut.selection.capture_text",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": { "binding": [], "enabled": false },
+      "status": "classified",
+      "description": "Command-centric shortcut for capturing selected text"
+    },
+    {
+      "targetKey": "shortcut.selection.toggle",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": { "binding": [], "enabled": false },
+      "status": "classified",
+      "description": "Command-centric shortcut for toggling selection assistant"
+    },
+    {
+      "targetKey": "shortcut.topic.create",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": { "binding": ["CommandOrControl", "N"], "enabled": true },
+      "status": "classified",
+      "description": "Command-centric shortcut for creating a topic"
+    },
+    {
+      "targetKey": "shortcut.topic.rename",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": { "binding": ["CommandOrControl", "T"], "enabled": false },
+      "status": "classified",
+      "description": "Command-centric shortcut for renaming a topic"
+    },
+    {
+      "targetKey": "shortcut.topic.sidebar.toggle",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": { "binding": ["CommandOrControl", "]"], "enabled": true },
+      "status": "classified",
+      "description": "Command-centric shortcut for toggling the topic sidebar"
     }
   ]
 }

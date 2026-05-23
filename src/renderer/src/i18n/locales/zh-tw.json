@@ -5483,6 +5483,18 @@
         "title": "資料備份與復原"
       },
       "common": {
+        "menu": {
+          "presentation_mode": {
+            "cherry": "Cherry 自繪",
+            "native": "系統原生",
+            "restart": {
+              "content": "更改右鍵選單樣式需要重新啟動應用程式才能完全生效。要立即重新啟動嗎？",
+              "title": "需要重新啟動"
+            },
+            "title": "右鍵選單樣式"
+          },
+          "title": "選單"
+        },
         "sections": {
           "custom_css": "自訂 CSS",
           "display_language": "顯示與語言",

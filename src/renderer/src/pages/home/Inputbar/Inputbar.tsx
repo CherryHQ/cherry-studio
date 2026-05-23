@@ -13,7 +13,6 @@ import { useCache } from '@renderer/data/hooks/useCache'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useInputText } from '@renderer/hooks/useInputText'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
 import {
@@ -368,31 +367,22 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
     [focusTextarea, setExpanded, textareaIsExpanded]
   )
 
+  const handleCreateTopicCommand = useCallback(() => {
+    void addNewTopic()
+    void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+    focusTextarea()
+  }, [addNewTopic, focusTextarea])
+
   useEffect(() => {
     actionsRef.current = {
       resizeTextArea,
-      addNewTopic,
+      addNewTopic: handleCreateTopicCommand,
       clearTopic,
       onNewContext,
       onTextChange: setText,
       toggleExpanded: handleToggleExpanded
     }
-  }, [resizeTextArea, addNewTopic, clearTopic, onNewContext, setText, handleToggleExpanded, actionsRef])
-
-  useShortcut(
-    'topic.new',
-    () => {
-      void addNewTopic()
-      void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
-      focusTextarea()
-    },
-    { preventDefault: true, enableOnFormTags: true }
-  )
-
-  useShortcut('chat.clear', clearTopic, {
-    preventDefault: true,
-    enableOnFormTags: true
-  })
+  }, [resizeTextArea, handleCreateTopicCommand, clearTopic, onNewContext, setText, handleToggleExpanded, actionsRef])
 
   useEffect(() => {
     const _setEstimateTokenCount = debounce(setEstimateTokenCount, 100, { leading: false, trailing: true })

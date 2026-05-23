@@ -3,6 +3,7 @@ import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import type { SpanContext } from '@opentelemetry/api'
+import type { CommandId, MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/commands'
 import type { GitBashPathInfo, TerminalConfig } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type {
@@ -998,6 +999,20 @@ const api = {
   },
   analytics: {
     trackTokenUsage: (data: TokenUsageData) => ipcRenderer.invoke(IpcChannel.Analytics_TrackTokenUsage, data)
+  },
+  command: {
+    showNativePopupMenu: (
+      model: NativePopupMenuModel<CommandId>,
+      anchor?: MenuAnchor
+    ): Promise<NativePopupMenuResult<CommandId> | undefined> =>
+      ipcRenderer.invoke(IpcChannel.NativeCommandPopupMenu_Show, model, anchor),
+    onExecuteFromNativeMenu: (callback: (command: CommandId) => void): (() => void) => {
+      const listener = (_: Electron.IpcRendererEvent, command: CommandId) => callback(command)
+      ipcRenderer.on(IpcChannel.NativeCommandPopupMenu_ExecuteCommand, listener)
+      return () => {
+        ipcRenderer.removeListener(IpcChannel.NativeCommandPopupMenu_ExecuteCommand, listener)
+      }
+    }
   },
   agent: {
     runTask: (agentId: string, taskId: string) => ipcRenderer.invoke(IpcChannel.Agent_RunTask, agentId, taskId),

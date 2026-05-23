@@ -12,6 +12,7 @@ import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { CherryINOAuthService } from '@main/services/CherryINOAuthService'
 import { CodeCliService } from '@main/services/CodeCliService'
+import { CommandService } from '@main/services/CommandService'
 import { FileManager } from '@main/services/file/FileManager'
 import { FileProcessingOrchestrationService, TesseractRuntimeService } from '@main/services/fileProcessing'
 import { KnowledgeOrchestrationService, KnowledgeRuntimeService } from '@main/services/knowledge'
@@ -19,6 +20,7 @@ import { KnowledgeVectorStoreService } from '@main/services/knowledge/vectorstor
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MainWindowService } from '@main/services/MainWindowService'
 import { McpService } from '@main/services/mcp/McpService'
+import { NativeCommandPopupMenuService } from '@main/services/NativeCommandPopupMenuService'
 import { NodeTraceService } from '@main/services/NodeTraceService'
 import { OcrService } from '@main/services/ocr/OcrService'
 import { OpenClawService } from '@main/services/OpenClawService'
@@ -81,6 +83,8 @@ export const services = {
   PowerMonitorService,
   SelectionService,
   SettingsWindowService,
+  CommandService,
+  NativeCommandPopupMenuService,
   ShortcutService,
   ThemeService,
   SpanCacheService,

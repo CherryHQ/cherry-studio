@@ -1,11 +1,5 @@
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuItemContent,
-  ContextMenuTrigger
-} from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/commands'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import MarqueeText from '@renderer/components/MarqueeText'
 import AgentSettingsPopup from '@renderer/pages/agents/AgentSettings/AgentSettingsPopup'
@@ -80,43 +74,52 @@ const AgentItem = ({ agent, isActive, onDelete, onPress }: AgentItemProps) => {
     [t, handleEdit, handleDelete]
   )
 
+  const contextMenuItems = useMemo<CommandContextMenuExtraItem[]>(
+    () => [
+      {
+        type: 'item',
+        id: `agent:${agent.id}:edit`,
+        label: t('common.edit'),
+        icon: <EditIcon size={14} />,
+        onSelect: handleEdit
+      },
+      {
+        type: 'item',
+        id: `agent:${agent.id}:delete`,
+        label: t('common.delete'),
+        icon: <DeleteIcon size={14} className="lucide-custom" />,
+        destructive: true,
+        onSelect: handleDelete
+      }
+    ],
+    [agent.id, t, handleEdit, handleDelete]
+  )
+
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
-        <Container
-          onClick={handlePress}
-          isActive={isActive}
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}>
-          <AssistantNameRow className="name" title={agent.name ?? agent.id}>
-            <MarqueeText className="flex min-w-0 flex-1">
-              <AgentLabel agent={agent} hideIcon={assistantIconType === 'none'} />
-            </MarqueeText>
-            {(isActive || isHovered) && (
-              <Dropdown
-                menu={{ items: dropdownMenuItems }}
-                trigger={['click']}
-                popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
-                <MenuButton onClick={handleMenuButtonClick}>
-                  <MoreVertical size={14} className="text-foreground-secondary" />
-                </MenuButton>
-              </Dropdown>
-            )}
-            {!isActive && !isHovered && assistantIconType !== 'none' && <BotIcon />}
-          </AssistantNameRow>
-        </Container>
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem onSelect={handleEdit}>
-          <ContextMenuItemContent icon={<EditIcon size={14} />}>{t('common.edit')}</ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuItem variant="destructive" onSelect={handleDelete}>
-          <ContextMenuItemContent icon={<DeleteIcon size={14} className="lucide-custom" />}>
-            {t('common.delete')}
-          </ContextMenuItemContent>
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+    <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems}>
+      <Container
+        onClick={handlePress}
+        isActive={isActive}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}>
+        <AssistantNameRow className="name" title={agent.name ?? agent.id}>
+          <MarqueeText className="flex min-w-0 flex-1">
+            <AgentLabel agent={agent} hideIcon={assistantIconType === 'none'} />
+          </MarqueeText>
+          {(isActive || isHovered) && (
+            <Dropdown
+              menu={{ items: dropdownMenuItems }}
+              trigger={['click']}
+              popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
+              <MenuButton onClick={handleMenuButtonClick}>
+                <MoreVertical size={14} className="text-foreground-secondary" />
+              </MenuButton>
+            </Dropdown>
+          )}
+          {!isActive && !isHovered && assistantIconType !== 'none' && <BotIcon />}
+        </AssistantNameRow>
+      </Container>
+    </CommandContextMenu>
   )
 }
 

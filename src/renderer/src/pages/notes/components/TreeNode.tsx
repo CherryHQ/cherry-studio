@@ -1,4 +1,4 @@
-import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from '@cherrystudio/ui'
+import { CommandContextMenu } from '@renderer/commands'
 import HighlightText from '@renderer/components/HighlightText'
 import {
   useNotesActions,
@@ -31,7 +31,7 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
   const { draggedNodeId, dragOverNodeId, dragPosition, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd } =
     useNotesDrag()
   const { searchKeyword, showMatches } = useNotesSearch()
-  const { renderMenuItems, onSelectNode, onToggleExpanded } = useNotesActions()
+  const { getMenuItems, onSelectNode, onToggleExpanded } = useNotesActions()
 
   const [showAllMatches, setShowAllMatches] = useState(false)
   const { isEditing: isInputEditing, inputProps } = inPlaceEdit
@@ -122,70 +122,65 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
 
   return (
     <div key={node.id}>
-      <ContextMenu>
-        <ContextMenuTrigger asChild>
-          <div onContextMenu={(e) => e.stopPropagation()}>
-            <TreeNodeContainer
-              active={isActive}
-              depth={depth}
-              isDragging={isDragging}
-              isDragOver={isDragOver}
-              isDragBefore={isDragBefore}
-              isDragInside={isDragInside}
-              isDragAfter={isDragAfter}
-              draggable={!isEditing}
-              data-node-id={node.id}
-              onDragStart={(e) => onDragStart(e, node as NotesTreeNode)}
-              onDragOver={(e) => onDragOver(e, node as NotesTreeNode)}
-              onDragLeave={onDragLeave}
-              onDrop={(e) => onDrop(e, node as NotesTreeNode)}
-              onDragEnd={onDragEnd}>
-              <TreeNodeContent onClick={() => onSelectNode(node as NotesTreeNode)}>
-                <NodeIndent depth={depth} />
+      <CommandContextMenu location="webcontents.context" extraItems={getMenuItems(node as NotesTreeNode)}>
+        <TreeNodeContainer
+          active={isActive}
+          depth={depth}
+          isDragging={isDragging}
+          isDragOver={isDragOver}
+          isDragBefore={isDragBefore}
+          isDragInside={isDragInside}
+          isDragAfter={isDragAfter}
+          draggable={!isEditing}
+          data-node-id={node.id}
+          onDragStart={(e) => onDragStart(e, node as NotesTreeNode)}
+          onDragOver={(e) => onDragOver(e, node as NotesTreeNode)}
+          onDragLeave={onDragLeave}
+          onDrop={(e) => onDrop(e, node as NotesTreeNode)}
+          onDragEnd={onDragEnd}>
+          <TreeNodeContent onClick={() => onSelectNode(node as NotesTreeNode)}>
+            <NodeIndent depth={depth} />
 
-                {node.type === 'folder' && (
-                  <ExpandIcon
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onToggleExpanded(node.id)
-                    }}
-                    title={node.expanded ? t('notes.collapse') : t('notes.expand')}>
-                    {node.expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                  </ExpandIcon>
-                )}
+            {node.type === 'folder' && (
+              <ExpandIcon
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onToggleExpanded(node.id)
+                }}
+                title={node.expanded ? t('notes.collapse') : t('notes.expand')}>
+                {node.expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              </ExpandIcon>
+            )}
 
-                <NodeIcon>
-                  {node.type === 'folder' ? (
-                    node.expanded ? (
-                      <FolderOpen size={16} />
-                    ) : (
-                      <Folder size={16} />
-                    )
-                  ) : (
-                    <File size={16} />
-                  )}
-                </NodeIcon>
-
-                {isEditing ? (
-                  <EditInput {...inputProps} onClick={(e) => e.stopPropagation()} autoFocus />
+            <NodeIcon>
+              {node.type === 'folder' ? (
+                node.expanded ? (
+                  <FolderOpen size={16} />
                 ) : (
-                  <NodeNameContainer>
-                    <NodeName className={getNodeNameClassName()}>
-                      {searchKeyword ? <HighlightText text={displayName} keyword={searchKeyword} /> : node.name}
-                    </NodeName>
-                    {searchResult && searchResult.matchType && searchResult.matchType !== 'filename' && (
-                      <MatchBadge matchType={searchResult.matchType}>
-                        {searchResult.matchType === 'both' ? t('notes.search.both') : t('notes.search.content')}
-                      </MatchBadge>
-                    )}
-                  </NodeNameContainer>
+                  <Folder size={16} />
+                )
+              ) : (
+                <File size={16} />
+              )}
+            </NodeIcon>
+
+            {isEditing ? (
+              <EditInput {...inputProps} onClick={(e) => e.stopPropagation()} autoFocus />
+            ) : (
+              <NodeNameContainer>
+                <NodeName className={getNodeNameClassName()}>
+                  {searchKeyword ? <HighlightText text={displayName} keyword={searchKeyword} /> : node.name}
+                </NodeName>
+                {searchResult && searchResult.matchType && searchResult.matchType !== 'filename' && (
+                  <MatchBadge matchType={searchResult.matchType}>
+                    {searchResult.matchType === 'both' ? t('notes.search.both') : t('notes.search.content')}
+                  </MatchBadge>
                 )}
-              </TreeNodeContent>
-            </TreeNodeContainer>
-          </div>
-        </ContextMenuTrigger>
-        <ContextMenuContent>{renderMenuItems(node as NotesTreeNode)}</ContextMenuContent>
-      </ContextMenu>
+              </NodeNameContainer>
+            )}
+          </TreeNodeContent>
+        </TreeNodeContainer>
+      </CommandContextMenu>
 
       {showMatches && hasMatches && (
         <SearchMatchesContainer depth={depth}>

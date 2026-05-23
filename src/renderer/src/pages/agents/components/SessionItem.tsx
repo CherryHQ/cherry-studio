@@ -1,16 +1,7 @@
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuItemContent,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
-  ContextMenuTrigger,
-  Tooltip
-} from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/commands'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import MarqueeText from '@renderer/components/MarqueeText'
 import { isMac } from '@renderer/config/constant'
@@ -145,65 +136,81 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
     }
   }
 
+  const contextMenuItems: CommandContextMenuExtraItem[] = [
+    {
+      type: 'item',
+      id: `agent-session:${session.id}:edit`,
+      label: t('common.edit'),
+      icon: <EditIcon size={14} />,
+      onSelect: handleEdit
+    },
+    {
+      type: 'item',
+      id: `agent-session:${session.id}:auto-rename`,
+      label: t('chat.topics.auto_rename'),
+      icon: <Sparkles size={14} />,
+      onSelect: () => void handleAutoRename()
+    },
+    {
+      type: 'submenu',
+      id: `agent-session:${session.id}:position`,
+      label: t('settings.topic.position.label'),
+      icon: <MenuIcon size={14} />,
+      children: [
+        {
+          type: 'item',
+          id: `agent-session:${session.id}:position:left`,
+          label: t('settings.topic.position.left'),
+          onSelect: () => setTopicPosition('left')
+        },
+        {
+          type: 'item',
+          id: `agent-session:${session.id}:position:right`,
+          label: t('settings.topic.position.right'),
+          onSelect: () => setTopicPosition('right')
+        }
+      ]
+    },
+    {
+      type: 'item',
+      id: `agent-session:${session.id}:delete`,
+      label: t('common.delete'),
+      icon: <DeleteIcon size={14} className="lucide-custom" />,
+      destructive: true,
+      onSelect: onDelete
+    }
+  ]
+
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
-        <SessionListItem
-          className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
-          onClick={isEditing ? undefined : onPress}
-          onDoubleClick={() => startEdit(session.name ?? '')}
-          title={session.name ?? session.id}
-          style={{ cursor: isEditing ? 'default' : 'pointer' }}>
-          {isPending && !isActive && <PendingIndicator />}
-          {isFulfilled && !isActive && <FulfilledIndicator />}
-          <SessionNameContainer>
-            {isEditing ? (
-              <SessionEditInput {...inputProps} style={{ opacity: isSaving ? 0.5 : 1 }} />
-            ) : (
-              <>
-                <SessionName>
-                  {channelIcon && <ChannelIconImg src={channelIcon} />}
-                  <MarqueeText className="flex min-w-0 flex-1">
-                    <SessionLabel
-                      session={session}
-                      className={isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''}
-                    />
-                  </MarqueeText>
-                </SessionName>
-                <DeleteButton />
-              </>
-            )}
-          </SessionNameContainer>
-        </SessionListItem>
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem onSelect={handleEdit}>
-          <ContextMenuItemContent icon={<EditIcon size={14} />}>{t('common.edit')}</ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={handleAutoRename}>
-          <ContextMenuItemContent icon={<Sparkles size={14} />}>{t('chat.topics.auto_rename')}</ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <MenuIcon size={14} />
-            {t('settings.topic.position.label')}
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent>
-            <ContextMenuItem onSelect={() => setTopicPosition('left')}>
-              {t('settings.topic.position.left')}
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={() => setTopicPosition('right')}>
-              {t('settings.topic.position.right')}
-            </ContextMenuItem>
-          </ContextMenuSubContent>
-        </ContextMenuSub>
-        <ContextMenuItem variant="destructive" onSelect={() => onDelete()}>
-          <ContextMenuItemContent icon={<DeleteIcon size={14} className="lucide-custom" />}>
-            {t('common.delete')}
-          </ContextMenuItemContent>
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+    <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems}>
+      <SessionListItem
+        className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
+        onClick={isEditing ? undefined : onPress}
+        onDoubleClick={() => startEdit(session.name ?? '')}
+        title={session.name ?? session.id}
+        style={{ cursor: isEditing ? 'default' : 'pointer' }}>
+        {isPending && !isActive && <PendingIndicator />}
+        {isFulfilled && !isActive && <FulfilledIndicator />}
+        <SessionNameContainer>
+          {isEditing ? (
+            <SessionEditInput {...inputProps} style={{ opacity: isSaving ? 0.5 : 1 }} />
+          ) : (
+            <>
+              <SessionName>
+                {channelIcon && <ChannelIconImg src={channelIcon} />}
+                <MarqueeText className="flex min-w-0 flex-1">
+                  <SessionLabel
+                    session={session}
+                    className={isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''}
+                  />
+                </MarqueeText>
+              </SessionName>
+              <DeleteButton />
+            </>
+          )}
+        </SessionNameContainer>
+      </SessionListItem>
+    </CommandContextMenu>
   )
 }
 

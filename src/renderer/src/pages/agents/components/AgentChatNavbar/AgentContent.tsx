@@ -1,3 +1,4 @@
+import { CommandTooltip } from '@renderer/commands'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
@@ -7,7 +8,6 @@ import { useShowAssistants } from '@renderer/hooks/useStore'
 import { AgentSettingsPopup, SessionSettingsPopup } from '@renderer/pages/agents/AgentSettings'
 import { AgentLabel, SessionLabel } from '@renderer/pages/agents/AgentSettings/shared'
 import type { AgentEntity, ApiModel } from '@renderer/types'
-import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { ChevronRight } from 'lucide-react'
 import { Menu, PanelLeftClose, PanelRightClose } from 'lucide-react'
@@ -42,18 +42,18 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
     <div className="flex w-full justify-between pr-2">
       <div className="flex min-w-0 shrink items-center">
         {isTopNavbar && showAssistants && (
-          <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
+          <CommandTooltip command="app.sidebar.toggle" label={t('navbar.hide_sidebar')} delay={800}>
             <NavbarIcon onClick={toggleShowAssistants}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
-          </Tooltip>
+          </CommandTooltip>
         )}
         {isTopNavbar && !showAssistants && (
-          <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8} placement="right">
+          <CommandTooltip command="app.sidebar.toggle" label={t('navbar.show_sidebar')} placement="right" delay={800}>
             <NavbarIcon onClick={() => toggleShowAssistants()} style={{ marginRight: 8 }}>
               <PanelRightClose size={18} />
             </NavbarIcon>
-          </Tooltip>
+          </CommandTooltip>
         )}
         <AnimatePresence initial={false}>
           {!showAssistants && isTopNavbar && (

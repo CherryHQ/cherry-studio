@@ -1,5 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { CommandTooltip } from '@renderer/commands'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { modelGenerating } from '@renderer/hooks/useModel'
@@ -39,25 +40,25 @@ const Tools = ({ assistant }: ToolsProps) => {
         </Tooltip>
       )}
       {isTopNavbar && (
-        <Tooltip content={t('chat.assistant.search.placeholder')} delay={800}>
+        <CommandTooltip command="app.search" label={t('chat.assistant.search.placeholder')} delay={800}>
           <NavbarIcon onClick={() => SearchPopup.show()}>
             <Search size={18} />
           </NavbarIcon>
-        </Tooltip>
+        </CommandTooltip>
       )}
       {isTopNavbar && topicPosition === 'right' && !showTopics && (
-        <Tooltip content={t('navbar.show_sidebar')} delay={2000}>
+        <CommandTooltip command="topic.sidebar.toggle" label={t('navbar.show_sidebar')} delay={2000}>
           <NavbarIcon onClick={toggleShowTopics}>
             <PanelLeftClose size={18} />
           </NavbarIcon>
-        </Tooltip>
+        </CommandTooltip>
       )}
       {isTopNavbar && topicPosition === 'right' && showTopics && (
-        <Tooltip content={t('navbar.hide_sidebar')} delay={2000}>
+        <CommandTooltip command="topic.sidebar.toggle" label={t('navbar.hide_sidebar')} delay={2000}>
           <NavbarIcon onClick={toggleShowTopics}>
             <PanelRightClose size={18} />
           </NavbarIcon>
-        </Tooltip>
+        </CommandTooltip>
       )}
     </div>
   )

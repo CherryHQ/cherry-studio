@@ -1,5 +1,6 @@
 import { FormOutlined } from '@ant-design/icons'
 import { Button } from '@cherrystudio/ui'
+import { CommandTooltip } from '@renderer/commands'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { EventEmitter } from '@renderer/services/EventService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
@@ -18,24 +19,26 @@ const NewTopicButton: FC = () => {
 
   return (
     <div className="-mt-2.5 mb-2.5 flex min-h-auto items-center justify-center p-0">
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={addNewTopic}
-        className={cn(
-          'h-[34px]! rounded-full px-3 text-xs opacity-80 transition-all duration-300',
-          'hover:border-[var(--color-border-mute)] hover:text-[var(--color-text-1)]! hover:opacity-90',
-          theme === ThemeMode.dark
-            ? 'bg-[var(--color-background-soft)] hover:bg-[var(--color-background-mute)]!'
-            : undefined
-        )}
-        style={{
-          backgroundColor: theme === ThemeMode.dark ? '' : undefined,
-          color: 'var(--color-text-2)'
-        }}>
-        <FormOutlined />
-        {t('chat.topics.new')}
-      </Button>
+      <CommandTooltip command="topic.create" label={t('chat.topics.new')}>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={addNewTopic}
+          className={cn(
+            'h-[34px]! rounded-full px-3 text-xs opacity-80 transition-all duration-300',
+            'hover:border-[var(--color-border-mute)] hover:text-[var(--color-text-1)]! hover:opacity-90',
+            theme === ThemeMode.dark
+              ? 'bg-[var(--color-background-soft)] hover:bg-[var(--color-background-mute)]!'
+              : undefined
+          )}
+          style={{
+            backgroundColor: theme === ThemeMode.dark ? '' : undefined,
+            color: 'var(--color-text-2)'
+          }}>
+          <FormOutlined />
+          {t('chat.topics.new')}
+        </Button>
+      </CommandTooltip>
     </div>
   )
 }

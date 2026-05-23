@@ -1,9 +1,8 @@
-import { Tooltip } from '@cherrystudio/ui'
+import { CommandTooltip, useCommandHandler } from '@renderer/commands'
 import { NavbarHeader } from '@renderer/components/app/Navbar'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants } from '@renderer/hooks/useStore'
 import type { Assistant, Topic } from '@renderer/types'
 import { t } from 'i18next'
@@ -29,7 +28,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
 
   const { isTopNavbar } = useNavbarPosition()
 
-  useShortcut('general.search', () => {
+  useCommandHandler('app.search', () => {
     void SearchPopup.show()
   })
 
@@ -46,18 +45,18 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
     <NavbarHeader className="home-navbar" style={{ height: 'var(--navbar-height)' }}>
       <div className="flex h-full min-w-0 flex-1 shrink items-center overflow-x-auto overflow-y-hidden">
         {isTopNavbar && showAssistants && (
-          <Tooltip placement="bottom" content={t('navbar.hide_sidebar')} delay={800}>
+          <CommandTooltip command="app.sidebar.toggle" label={t('navbar.hide_sidebar')} placement="bottom" delay={800}>
             <NavbarIcon onClick={toggleShowAssistants}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
-          </Tooltip>
+          </CommandTooltip>
         )}
         {isTopNavbar && !showAssistants && (
-          <Tooltip placement="bottom" content={t('navbar.show_sidebar')} delay={800}>
+          <CommandTooltip command="app.sidebar.toggle" label={t('navbar.show_sidebar')} placement="bottom" delay={800}>
             <NavbarIcon onClick={() => toggleShowAssistants()} style={{ marginRight: 8 }}>
               <PanelRightClose size={18} />
             </NavbarIcon>
-          </Tooltip>
+          </CommandTooltip>
         )}
         <AnimatePresence initial={false}>
           {!showAssistants && isTopNavbar && (

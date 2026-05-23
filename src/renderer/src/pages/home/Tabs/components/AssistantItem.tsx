@@ -1,15 +1,5 @@
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuItemContent,
-  ContextMenuSeparator,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
-  ContextMenuTrigger
-} from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/commands'
 import AssistantAvatar from '@renderer/components/Avatar/AssistantAvatar'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -214,116 +204,178 @@ const AssistantItem: FC<AssistantItemProps> = ({
     void AssistantTagsPopup.show({ title: t('assistants.tags.manage') })
   }, [t])
 
+  const contextMenuItems = useMemo<CommandContextMenuExtraItem[]>(
+    () => [
+      {
+        type: 'item',
+        id: `assistant:${assistant.id}:edit`,
+        label: t('assistants.edit.title'),
+        icon: <EditIcon size={14} />,
+        onSelect: handleEdit
+      },
+      {
+        type: 'item',
+        id: `assistant:${assistant.id}:duplicate`,
+        label: t('assistants.copy.title'),
+        icon: <CopyIcon size={14} />,
+        onSelect: () => void handleDuplicate()
+      },
+      {
+        type: 'item',
+        id: `assistant:${assistant.id}:clear`,
+        label: t('assistants.clear.title'),
+        icon: <BrushCleaning size={14} />,
+        onSelect: handleClear
+      },
+      {
+        type: 'item',
+        id: `assistant:${assistant.id}:save-to-agent`,
+        label: t('assistants.save.title'),
+        icon: <Save size={14} />,
+        onSelect: handleSaveToAgent
+      },
+      {
+        type: 'submenu',
+        id: `assistant:${assistant.id}:icon-type`,
+        label: t('assistants.icon.type'),
+        icon: <Smile size={14} />,
+        children: [
+          {
+            type: 'item',
+            id: `assistant:${assistant.id}:icon-type:model`,
+            label: t('settings.assistant.icon.type.model'),
+            onSelect: () => setAssistantIconType('model')
+          },
+          {
+            type: 'item',
+            id: `assistant:${assistant.id}:icon-type:emoji`,
+            label: t('settings.assistant.icon.type.emoji'),
+            onSelect: () => setAssistantIconType('emoji')
+          },
+          {
+            type: 'item',
+            id: `assistant:${assistant.id}:icon-type:none`,
+            label: t('settings.assistant.icon.type.none'),
+            onSelect: () => setAssistantIconType('none')
+          }
+        ]
+      },
+      { type: 'separator' },
+      {
+        type: 'submenu',
+        id: `assistant:${assistant.id}:tags`,
+        label: t('assistants.tags.manage'),
+        icon: <Plus size={14} />,
+        children: [
+          ...allTags.map(
+            (tag): CommandContextMenuExtraItem => ({
+              type: 'item',
+              id: `assistant:${assistant.id}:tag:${tag}`,
+              label: tag,
+              icon: assistant.tags?.includes(tag) ? <Check size={14} /> : <Tag size={14} />,
+              onSelect: () => handleTagOperation(tag, assistant, assistants, updateAssistants)
+            })
+          ),
+          ...(allTags.length > 0 ? ([{ type: 'separator' }] satisfies CommandContextMenuExtraItem[]) : []),
+          {
+            type: 'item',
+            id: `assistant:${assistant.id}:tags:add`,
+            label: t('assistants.tags.add'),
+            icon: <Plus size={14} />,
+            onSelect: () => void handleAddTag()
+          },
+          ...(allTags.length > 0
+            ? ([
+                {
+                  type: 'item',
+                  id: `assistant:${assistant.id}:tags:manage`,
+                  label: t('assistants.tags.manage'),
+                  icon: <Settings2 size={14} />,
+                  onSelect: handleManageTags
+                }
+              ] satisfies CommandContextMenuExtraItem[])
+            : [])
+        ]
+      },
+      {
+        type: 'item',
+        id: `assistant:${assistant.id}:switch-view`,
+        label: sortBy === 'list' ? t('assistants.list.showByTags') : t('assistants.list.showByList'),
+        icon: sortBy === 'list' ? <Tags size={14} /> : <AlignJustify size={14} />,
+        onSelect: handleSwitchView
+      },
+      {
+        type: 'item',
+        id: `assistant:${assistant.id}:sort:pinyin-asc`,
+        label: t('common.sort.pinyin.asc'),
+        icon: <ArrowDownAZ size={14} />,
+        onSelect: sortByPinyinAsc
+      },
+      {
+        type: 'item',
+        id: `assistant:${assistant.id}:sort:pinyin-desc`,
+        label: t('common.sort.pinyin.desc'),
+        icon: <ArrowUpAZ size={14} />,
+        onSelect: sortByPinyinDesc
+      },
+      { type: 'separator' },
+      {
+        type: 'item',
+        id: `assistant:${assistant.id}:delete`,
+        label: t('common.delete'),
+        icon: <DeleteIcon size={14} className="lucide-custom" />,
+        destructive: true,
+        onSelect: handleDelete
+      }
+    ],
+    [
+      assistant,
+      t,
+      handleEdit,
+      handleDuplicate,
+      handleClear,
+      handleSaveToAgent,
+      setAssistantIconType,
+      allTags,
+      assistants,
+      updateAssistants,
+      handleAddTag,
+      handleManageTags,
+      sortBy,
+      handleSwitchView,
+      sortByPinyinAsc,
+      sortByPinyinDesc,
+      handleDelete
+    ]
+  )
+
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
-        <Container
-          onClick={handleSwitch}
-          isActive={isActive}
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}>
-          <AssistantNameRow className="name" title={fullAssistantName}>
-            <AssistantAvatar
-              assistant={assistant}
-              size={24}
-              className={isPending && !isActive ? 'animation-pulse' : ''}
-            />
-            <AssistantName className="text-nowrap">{assistantName}</AssistantName>
-          </AssistantNameRow>
-          {(isActive || isHovered) && (
-            <Dropdown
-              menu={{ items: menuItems }}
-              trigger={['click']}
-              popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
-              <MenuButton onClick={handleMenuButtonClick}>
-                <MoreVertical size={14} className="text-foreground-secondary" />
-              </MenuButton>
-            </Dropdown>
-          )}
-        </Container>
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem onSelect={handleEdit}>
-          <ContextMenuItemContent icon={<EditIcon size={14} />}>{t('assistants.edit.title')}</ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={handleDuplicate}>
-          <ContextMenuItemContent icon={<CopyIcon size={14} />}>{t('assistants.copy.title')}</ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={handleClear}>
-          <ContextMenuItemContent icon={<BrushCleaning size={14} />}>
-            {t('assistants.clear.title')}
-          </ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={handleSaveToAgent}>
-          <ContextMenuItemContent icon={<Save size={14} />}>{t('assistants.save.title')}</ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <Smile size={14} />
-            {t('assistants.icon.type')}
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent>
-            <ContextMenuItem onSelect={() => setAssistantIconType('model')}>
-              {t('settings.assistant.icon.type.model')}
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={() => setAssistantIconType('emoji')}>
-              {t('settings.assistant.icon.type.emoji')}
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={() => setAssistantIconType('none')}>
-              {t('settings.assistant.icon.type.none')}
-            </ContextMenuItem>
-          </ContextMenuSubContent>
-        </ContextMenuSub>
-        <ContextMenuSeparator />
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <Plus size={14} />
-            {t('assistants.tags.manage')}
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent>
-            {allTags.map((tag) => (
-              <ContextMenuItem
-                key={`all-tag-${tag}`}
-                onSelect={() => handleTagOperation(tag, assistant, assistants, updateAssistants)}>
-                <ContextMenuItemContent icon={assistant.tags?.includes(tag) ? <Check size={14} /> : <Tag size={14} />}>
-                  {tag}
-                </ContextMenuItemContent>
-              </ContextMenuItem>
-            ))}
-            {allTags.length > 0 && <ContextMenuSeparator />}
-            <ContextMenuItem onSelect={handleAddTag}>
-              <ContextMenuItemContent icon={<Plus size={14} />}>{t('assistants.tags.add')}</ContextMenuItemContent>
-            </ContextMenuItem>
-            {allTags.length > 0 && (
-              <ContextMenuItem onSelect={handleManageTags}>
-                <ContextMenuItemContent icon={<Settings2 size={14} />}>
-                  {t('assistants.tags.manage')}
-                </ContextMenuItemContent>
-              </ContextMenuItem>
-            )}
-          </ContextMenuSubContent>
-        </ContextMenuSub>
-        <ContextMenuItem onSelect={handleSwitchView}>
-          <ContextMenuItemContent icon={sortBy === 'list' ? <Tags size={14} /> : <AlignJustify size={14} />}>
-            {sortBy === 'list' ? t('assistants.list.showByTags') : t('assistants.list.showByList')}
-          </ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={sortByPinyinAsc}>
-          <ContextMenuItemContent icon={<ArrowDownAZ size={14} />}>
-            {t('common.sort.pinyin.asc')}
-          </ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={sortByPinyinDesc}>
-          <ContextMenuItemContent icon={<ArrowUpAZ size={14} />}>{t('common.sort.pinyin.desc')}</ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem variant="destructive" onSelect={handleDelete}>
-          <ContextMenuItemContent icon={<DeleteIcon size={14} className="lucide-custom" />}>
-            {t('common.delete')}
-          </ContextMenuItemContent>
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+    <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems}>
+      <Container
+        onClick={handleSwitch}
+        isActive={isActive}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}>
+        <AssistantNameRow className="name" title={fullAssistantName}>
+          <AssistantAvatar
+            assistant={assistant}
+            size={24}
+            className={isPending && !isActive ? 'animation-pulse' : ''}
+          />
+          <AssistantName className="text-nowrap">{assistantName}</AssistantName>
+        </AssistantNameRow>
+        {(isActive || isHovered) && (
+          <Dropdown
+            menu={{ items: menuItems }}
+            trigger={['click']}
+            popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
+            <MenuButton onClick={handleMenuButtonClick}>
+              <MoreVertical size={14} className="text-foreground-secondary" />
+            </MenuButton>
+          </Dropdown>
+        )}
+      </Container>
+    </CommandContextMenu>
   )
 }
 

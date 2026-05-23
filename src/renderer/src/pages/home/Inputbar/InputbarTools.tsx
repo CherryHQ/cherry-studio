@@ -1,16 +1,9 @@
 import '@renderer/pages/home/Inputbar/tools'
 
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuItemContent,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-  Tooltip
-} from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import type { DropResult } from '@hello-pangea/dnd'
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/commands'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import type { QuickPanelListItem, QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
@@ -299,123 +292,154 @@ const InputbarTools = ({ scope, assistant, model, session }: InputbarToolsNewPro
       .filter((element): element is React.ReactElement => element !== null)
   }, [availableTools, buildRenderContext])
 
-  const checkIcon = (visible: boolean) => (
-    <div style={{ width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      {visible ? <Check size={16} /> : null}
-    </div>
+  const checkIcon = useCallback(
+    (visible: boolean) => (
+      <div style={{ width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {visible ? <Check size={16} /> : null}
+      </div>
+    ),
+    []
+  )
+
+  const buildContextMenuItems = useCallback(
+    (currentTargetTool: ToolConfig | null): CommandContextMenuExtraItem[] => {
+      const items: CommandContextMenuExtraItem[] = [...visibleTools, ...hiddenTools].map((tool) => ({
+        type: 'item',
+        id: `tool:${tool.key}`,
+        label: tool.label,
+        checked: tool.visible,
+        icon: checkIcon(tool.visible),
+        onSelect: () => toggleToolVisibility(tool.key, tool.visible)
+      }))
+
+      if (currentTargetTool) {
+        items.push(
+          { type: 'separator' },
+          {
+            type: 'item',
+            id: `target-tool:${currentTargetTool.key}`,
+            label: `${currentTargetTool.visible ? t('chat.input.tools.collapse_in') : t('chat.input.tools.collapse_out')} "${currentTargetTool.label}"`,
+            icon: checkIcon(false),
+            onSelect: () => toggleToolVisibility(currentTargetTool.key, currentTargetTool.visible)
+          }
+        )
+      }
+
+      return items
+    },
+    [checkIcon, hiddenTools, t, toggleToolVisibility, visibleTools]
+  )
+
+  const contextMenuItems = useMemo(() => buildContextMenuItems(targetTool), [buildContextMenuItems, targetTool])
+
+  const getContextMenuItems = useCallback(
+    (event: React.MouseEvent): readonly CommandContextMenuExtraItem[] => {
+      const target = event.target as HTMLElement
+      const toolKey = target.closest<HTMLElement>('[data-key]')?.dataset.key
+      const currentTargetTool = toolKey
+        ? [...visibleTools, ...hiddenTools].find((tool) => tool.key === toolKey) || null
+        : null
+
+      return buildContextMenuItems(currentTargetTool)
+    },
+    [buildContextMenuItems, hiddenTools, visibleTools]
   )
 
   return (
     <>
-      <ContextMenu>
-        <ContextMenuTrigger asChild>
-          <ToolsContainer
-            onContextMenu={(e) => {
-              const target = e.target as HTMLElement
-              const isToolButton = target.closest('[data-key]')
-              if (!isToolButton) {
-                setTargetTool(null)
-              }
-            }}>
-            <DragDropContext onDragEnd={handleDragEnd}>
-              <Droppable droppableId="inputbar-tools-visible" direction="horizontal">
-                {(provided) => (
-                  <VisibleTools ref={provided.innerRef} {...provided.droppableProps}>
-                    {visibleTools.map((toolConfig, index) => {
-                      const context = buildRenderContext(toolConfig.tool)
-                      return (
-                        <Draggable key={toolConfig.key} draggableId={toolConfig.key} index={index}>
-                          {(provided, snapshot) => (
-                            <DraggablePortal isDragging={snapshot.isDragging}>
-                              <ToolWrapper
-                                data-key={toolConfig.key}
-                                onContextMenu={() => setTargetTool(toolConfig)}
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                {...provided.dragHandleProps}
-                                style={provided.draggableProps.style}>
-                                {toolConfig.tool.render?.(context)}
-                              </ToolWrapper>
-                            </DraggablePortal>
-                          )}
-                        </Draggable>
-                      )
-                    })}
-                    {provided.placeholder}
-                  </VisibleTools>
-                )}
-              </Droppable>
+      <CommandContextMenu
+        location="chat.input.tools.context"
+        extraItems={contextMenuItems}
+        getExtraItems={getContextMenuItems}>
+        <ToolsContainer
+          onContextMenu={(e) => {
+            const target = e.target as HTMLElement
+            const isToolButton = target.closest('[data-key]')
+            if (!isToolButton) {
+              setTargetTool(null)
+            }
+          }}>
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <Droppable droppableId="inputbar-tools-visible" direction="horizontal">
+              {(provided) => (
+                <VisibleTools ref={provided.innerRef} {...provided.droppableProps}>
+                  {visibleTools.map((toolConfig, index) => {
+                    const context = buildRenderContext(toolConfig.tool)
+                    return (
+                      <Draggable key={toolConfig.key} draggableId={toolConfig.key} index={index}>
+                        {(provided, snapshot) => (
+                          <DraggablePortal isDragging={snapshot.isDragging}>
+                            <ToolWrapper
+                              data-key={toolConfig.key}
+                              onContextMenu={() => setTargetTool(toolConfig)}
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              {...provided.dragHandleProps}
+                              style={provided.draggableProps.style}>
+                              {toolConfig.tool.render?.(context)}
+                            </ToolWrapper>
+                          </DraggablePortal>
+                        )}
+                      </Draggable>
+                    )
+                  })}
+                  {provided.placeholder}
+                </VisibleTools>
+              )}
+            </Droppable>
 
-              {showDivider && <Divider type="vertical" style={{ margin: '0 4px' }} />}
+            {showDivider && <Divider type="vertical" style={{ margin: '0 4px' }} />}
 
-              <Droppable droppableId="inputbar-tools-hidden" direction="horizontal">
-                {(provided) => (
-                  <HiddenTools ref={provided.innerRef} {...provided.droppableProps}>
-                    {hiddenTools.map((toolConfig, index) => {
-                      const context = buildRenderContext(toolConfig.tool)
-                      return (
-                        <Draggable key={toolConfig.key} draggableId={toolConfig.key} index={index}>
-                          {(provided, snapshot) => (
-                            <DraggablePortal isDragging={snapshot.isDragging}>
-                              <ToolWrapper
-                                data-key={toolConfig.key}
-                                className={classNames({ 'is-collapsed': isCollapse })}
-                                onContextMenu={() => setTargetTool(toolConfig)}
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                {...provided.dragHandleProps}
-                                style={{
-                                  ...provided.draggableProps.style,
-                                  transitionDelay: `${index * 0.02}s`
-                                }}>
-                                {toolConfig.tool.render?.(context)}
-                              </ToolWrapper>
-                            </DraggablePortal>
-                          )}
-                        </Draggable>
-                      )
-                    })}
-                    {provided.placeholder}
-                  </HiddenTools>
-                )}
-              </Droppable>
-            </DragDropContext>
+            <Droppable droppableId="inputbar-tools-hidden" direction="horizontal">
+              {(provided) => (
+                <HiddenTools ref={provided.innerRef} {...provided.droppableProps}>
+                  {hiddenTools.map((toolConfig, index) => {
+                    const context = buildRenderContext(toolConfig.tool)
+                    return (
+                      <Draggable key={toolConfig.key} draggableId={toolConfig.key} index={index}>
+                        {(provided, snapshot) => (
+                          <DraggablePortal isDragging={snapshot.isDragging}>
+                            <ToolWrapper
+                              data-key={toolConfig.key}
+                              className={classNames({ 'is-collapsed': isCollapse })}
+                              onContextMenu={() => setTargetTool(toolConfig)}
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              {...provided.dragHandleProps}
+                              style={{
+                                ...provided.draggableProps.style,
+                                transitionDelay: `${index * 0.02}s`
+                              }}>
+                              {toolConfig.tool.render?.(context)}
+                            </ToolWrapper>
+                          </DraggablePortal>
+                        )}
+                      </Draggable>
+                    )
+                  })}
+                  {provided.placeholder}
+                </HiddenTools>
+              )}
+            </Droppable>
+          </DragDropContext>
 
-            {showCollapseButton && (
-              <Tooltip content={isCollapse ? t('chat.input.tools.expand') : t('chat.input.tools.collapse')} showArrow>
-                <ActionIconButton
-                  onClick={() => dispatch(setIsCollapsed(!isCollapse))}
-                  icon={
-                    <CircleChevronRight
-                      size={18}
-                      style={{
-                        transform: isCollapse ? 'scaleX(1)' : 'scaleX(-1)'
-                      }}
-                    />
-                  }
-                />
-              </Tooltip>
-            )}
-          </ToolsContainer>
-        </ContextMenuTrigger>
-        <ContextMenuContent>
-          {[...visibleTools, ...hiddenTools].map((tool) => (
-            <ContextMenuItem key={tool.key} onSelect={() => toggleToolVisibility(tool.key, tool.visible)}>
-              <ContextMenuItemContent icon={checkIcon(tool.visible)}>{tool.label}</ContextMenuItemContent>
-            </ContextMenuItem>
-          ))}
-          {targetTool && (
-            <>
-              <ContextMenuSeparator />
-              <ContextMenuItem onSelect={() => toggleToolVisibility(targetTool.key, targetTool.visible)}>
-                <ContextMenuItemContent icon={checkIcon(false)}>
-                  {`${targetTool.visible ? t('chat.input.tools.collapse_in') : t('chat.input.tools.collapse_out')} "${targetTool.label}"`}
-                </ContextMenuItemContent>
-              </ContextMenuItem>
-            </>
+          {showCollapseButton && (
+            <Tooltip content={isCollapse ? t('chat.input.tools.expand') : t('chat.input.tools.collapse')} showArrow>
+              <ActionIconButton
+                onClick={() => dispatch(setIsCollapsed(!isCollapse))}
+                icon={
+                  <CircleChevronRight
+                    size={18}
+                    style={{
+                      transform: isCollapse ? 'scaleX(1)' : 'scaleX(-1)'
+                    }}
+                  />
+                }
+              />
+            </Tooltip>
           )}
-        </ContextMenuContent>
-      </ContextMenu>
+        </ToolsContainer>
+      </CommandContextMenu>
       {managerElements}
     </>
   )

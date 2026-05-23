@@ -1,3 +1,4 @@
+import { useCommandHandler } from '@renderer/commands'
 import type { QuickPanelListItem, QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import type { FileMetadata, KnowledgeBase, Model } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
@@ -241,6 +242,10 @@ export const InputbarToolsProvider: React.FC<InputbarToolsProviderProps> = ({ ch
     }),
     []
   )
+
+  useCommandHandler('topic.create', stableActions.addNewTopic)
+  useCommandHandler('chat.topic.clear', stableActions.clearTopic)
+  useCommandHandler('chat.context.toggle_new', stableActions.onNewContext)
 
   // State Context Value (updates when state changes)
   const stateValue = useMemo<InputbarToolsState>(

@@ -1,3 +1,7 @@
+import { loggerService } from '@logger'
+import { useCommandContextKey, useCommandHandler } from '@renderer/commands'
+import type { ContentSearchRef } from '@renderer/components/ContentSearch'
+import { ContentSearch } from '@renderer/components/ContentSearch'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
@@ -5,13 +9,13 @@ import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Alert, Spin } from 'antd'
 import { AnimatePresence, motion } from 'motion/react'
-import type { PropsWithChildren } from 'react'
+import type { PropsWithChildren, RefObject } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
@@ -21,6 +25,8 @@ import AgentChatNavbar from './components/AgentChatNavbar'
 import AgentSessionInputbar from './components/AgentSessionInputbar'
 import AgentSessionMessages from './components/AgentSessionMessages'
 import Sessions from './components/Sessions'
+
+const logger = loggerService.withContext('AgentChat')
 
 const AgentChat = () => {
   const { t } = useTranslation()
@@ -36,6 +42,9 @@ const AgentChat = () => {
   const { agent: activeAgent, isLoading: isAgentLoading } = useActiveAgent()
   const { isLoading: isAgentsLoading, agents } = useAgents()
   const { createDefaultSession } = useCreateDefaultSession(activeAgentId)
+  const mainRef = useRef<HTMLDivElement>(null)
+  const contentSearchRef = useRef<ContentSearchRef>(null)
+  const [filterIncludeUser, setFilterIncludeUser] = useState(false)
 
   // Don't show select/create alerts while data is still loading
   // apiServerRunning is guaranteed by AgentPage guard
@@ -44,17 +53,43 @@ const AgentChat = () => {
 
   const showRightSessions = topicPosition === 'right' && showTopics && !!activeAgentId
 
-  useShortcut(
-    'topic.new',
+  useCommandContextKey('chat.active', true)
+  useCommandContextKey('topic.exists', Boolean(activeSessionId))
+
+  useCommandHandler('topic.create', () => {
+    void createDefaultSession()
+  })
+
+  useCommandHandler(
+    'chat.message.search',
     () => {
-      void createDefaultSession()
+      try {
+        const selectedText = window.getSelection()?.toString().trim()
+        contentSearchRef.current?.enable(selectedText)
+      } catch (error) {
+        logger.error('Error enabling content search:', error as Error)
+      }
     },
-    {
-      enabled: true,
-      preventDefault: true,
-      enableOnFormTags: true
-    }
+    { enabled: Boolean(activeSessionId) }
   )
+
+  const contentSearchFilter: NodeFilter = {
+    acceptNode(node) {
+      const container = node.parentElement?.closest('.message-content-container')
+      if (!container) return NodeFilter.FILTER_REJECT
+
+      const message = container.closest('.message')
+      if (!message) return NodeFilter.FILTER_REJECT
+
+      if (filterIncludeUser) {
+        return NodeFilter.FILTER_ACCEPT
+      }
+      if (message.classList.contains('message-assistant')) {
+        return NodeFilter.FILTER_ACCEPT
+      }
+      return NodeFilter.FILTER_REJECT
+    }
+  }
 
   if (isInitializing) {
     return (
@@ -92,7 +127,7 @@ const AgentChat = () => {
       className={cn(messageStyle, { 'multi-select-mode': isMultiSelectMode })}>
       <QuickPanelProvider>
         {/* Main Chat */}
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div ref={mainRef} className="flex min-w-0 flex-1 flex-col">
           {/* Header */}
           <div className="flex h-fit w-full min-w-0">
             {activeAgent && <AgentChatNavbar className="min-w-0" activeAgent={activeAgent} />}
@@ -101,6 +136,13 @@ const AgentChat = () => {
           {/* Messages */}
           <div className="translate-z-0 relative flex w-full flex-1 flex-col justify-between overflow-y-auto overflow-x-hidden">
             <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
+            <ContentSearch
+              ref={contentSearchRef}
+              searchTarget={mainRef as RefObject<HTMLElement>}
+              filter={contentSearchFilter}
+              includeUser={filterIncludeUser}
+              onIncludeUserChange={setFilterIncludeUser}
+            />
             <div className="mt-auto px-4.5 pb-2">
               <NarrowLayout>
                 <PinnedTodoPanel topicId={buildAgentSessionTopicId(activeSessionId)} />

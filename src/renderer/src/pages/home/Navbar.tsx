@@ -1,9 +1,9 @@
 import { RowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { CommandTooltip, useCommandHandler } from '@renderer/commands'
 import { Navbar, NavbarCenter, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { modelGenerating } from '@renderer/hooks/useModel'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import type { Assistant, Topic } from '@renderer/types'
 import { t } from 'i18next'
@@ -31,7 +31,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
   const { showTopics, toggleShowTopics } = useShowTopics()
 
-  useShortcut('general.search', () => {
+  useCommandHandler('app.search', () => {
     void SearchPopup.show()
   })
 
@@ -60,11 +60,15 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
             transition={{ duration: 0.3, ease: 'easeInOut' }}
             style={{ overflow: 'hidden', display: 'flex', flexDirection: 'row' }}>
             <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
-              <Tooltip placement="bottom" content={t('navbar.hide_sidebar')} delay={800}>
+              <CommandTooltip
+                command="app.sidebar.toggle"
+                label={t('navbar.hide_sidebar')}
+                placement="bottom"
+                delay={800}>
                 <NavbarIcon onClick={toggleShowAssistants}>
                   <PanelLeftClose size={18} />
                 </NavbarIcon>
-              </Tooltip>
+              </CommandTooltip>
             </NavbarLeft>
           </motion.div>
         )}
@@ -78,11 +82,11 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
             paddingRight: 0,
             minWidth: 'auto'
           }}>
-          <Tooltip placement="bottom" content={t('navbar.show_sidebar')} delay={800}>
+          <CommandTooltip command="app.sidebar.toggle" label={t('navbar.show_sidebar')} placement="bottom" delay={800}>
             <NavbarIcon onClick={() => toggleShowAssistants()}>
               <PanelRightClose size={18} />
             </NavbarIcon>
-          </Tooltip>
+          </CommandTooltip>
           <AnimatePresence initial={false}>
             <motion.div
               initial={{ width: 0, opacity: 0 }}
@@ -108,29 +112,41 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
         className="home-navbar-right">
         <RowFlex className="items-center gap-1.5">
           <UpdateAppButton />
-          <Tooltip placement="bottom" content={t('chat.assistant.search.placeholder')} delay={800}>
+          <CommandTooltip
+            command="app.search"
+            label={t('chat.assistant.search.placeholder')}
+            placement="bottom"
+            delay={800}>
             <NarrowIcon onClick={() => SearchPopup.show()}>
               <Search size={18} />
             </NarrowIcon>
-          </Tooltip>
+          </CommandTooltip>
           <Tooltip placement="bottom" content={t('navbar.expand')} delay={800}>
             <NarrowIcon onClick={handleNarrowModeToggle}>
               <i className="iconfont icon-icon-adaptive-width"></i>
             </NarrowIcon>
           </Tooltip>
           {topicPosition === 'right' && !showTopics && (
-            <Tooltip placement="bottom" content={t('navbar.show_sidebar')} delay={2000}>
+            <CommandTooltip
+              command="topic.sidebar.toggle"
+              label={t('navbar.show_sidebar')}
+              placement="bottom"
+              delay={2000}>
               <NavbarIcon onClick={toggleShowTopics}>
                 <PanelLeftClose size={18} />
               </NavbarIcon>
-            </Tooltip>
+            </CommandTooltip>
           )}
           {topicPosition === 'right' && showTopics && (
-            <Tooltip placement="bottom" content={t('navbar.hide_sidebar')} delay={2000}>
+            <CommandTooltip
+              command="topic.sidebar.toggle"
+              label={t('navbar.hide_sidebar')}
+              placement="bottom"
+              delay={2000}>
               <NavbarIcon onClick={toggleShowTopics}>
                 <PanelRightClose size={18} />
               </NavbarIcon>
-            </Tooltip>
+            </CommandTooltip>
           )}
         </RowFlex>
       </NavbarRight>

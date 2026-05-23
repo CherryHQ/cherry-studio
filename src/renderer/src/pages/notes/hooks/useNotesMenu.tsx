@@ -1,12 +1,5 @@
-import {
-  ContextMenuItem,
-  ContextMenuItemContent,
-  ContextMenuSeparator,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger
-} from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import type { CommandContextMenuExtraItem } from '@renderer/commands'
 import { DeleteIcon } from '@renderer/components/Icons'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBases'
@@ -118,114 +111,172 @@ export const useNotesMenu = ({
     [onDeleteNode, t]
   )
 
-  const renderMenuItems = useCallback(
+  const getMenuItems = useCallback(
     (node: NotesTreeNode) => {
       const isFolder = node.type === 'folder'
-      return (
-        <>
-          {!isFolder && (
-            <ContextMenuItem disabled={renamingNodeIds.has(node.id)} onSelect={() => handleAutoRename(node)}>
-              <ContextMenuItemContent icon={<Sparkles size={14} />}>
-                {t('notes.auto_rename.label')}
-              </ContextMenuItemContent>
-            </ContextMenuItem>
-          )}
+      const items: CommandContextMenuExtraItem[] = []
 
-          {isFolder && (
-            <>
-              <ContextMenuItem onSelect={() => onCreateNote(t('notes.untitled_note'), node.id)}>
-                <ContextMenuItemContent icon={<FilePlus size={14} />}>{t('notes.new_note')}</ContextMenuItemContent>
-              </ContextMenuItem>
-              <ContextMenuItem onSelect={() => onCreateFolder(t('notes.untitled_folder'), node.id)}>
-                <ContextMenuItemContent icon={<Folder size={14} />}>{t('notes.new_folder')}</ContextMenuItemContent>
-              </ContextMenuItem>
-              <ContextMenuSeparator />
-            </>
-          )}
+      if (!isFolder) {
+        items.push({
+          type: 'item',
+          id: `note:${node.id}:auto-rename`,
+          label: t('notes.auto_rename.label'),
+          enabled: !renamingNodeIds.has(node.id),
+          icon: <Sparkles size={14} />,
+          onSelect: () => handleAutoRename(node)
+        })
+      }
 
-          <ContextMenuItem onSelect={() => handleStartEdit(node)}>
-            <ContextMenuItemContent icon={<Edit3 size={14} />}>{t('notes.rename')}</ContextMenuItemContent>
-          </ContextMenuItem>
-          <ContextMenuItem onSelect={() => void window.api.openPath(node.externalPath)}>
-            <ContextMenuItemContent icon={<FolderOpen size={14} />}>{t('notes.open_outside')}</ContextMenuItemContent>
-          </ContextMenuItem>
+      if (isFolder) {
+        items.push(
+          {
+            type: 'item',
+            id: `note:${node.id}:new-note`,
+            label: t('notes.new_note'),
+            icon: <FilePlus size={14} />,
+            onSelect: () => onCreateNote(t('notes.untitled_note'), node.id)
+          },
+          {
+            type: 'item',
+            id: `note:${node.id}:new-folder`,
+            label: t('notes.new_folder'),
+            icon: <Folder size={14} />,
+            onSelect: () => onCreateFolder(t('notes.untitled_folder'), node.id)
+          },
+          { type: 'separator' }
+        )
+      }
 
-          {!isFolder && (
-            <>
-              <ContextMenuItem onSelect={() => onToggleStar(node.id)}>
-                <ContextMenuItemContent icon={node.isStarred ? <StarOff size={14} /> : <Star size={14} />}>
-                  {node.isStarred ? t('notes.unstar') : t('notes.star')}
-                </ContextMenuItemContent>
-              </ContextMenuItem>
-              <ContextMenuItem onSelect={() => void handleExportKnowledge(node)}>
-                <ContextMenuItemContent icon={<FileSearch size={14} />}>
-                  {t('notes.export_knowledge')}
-                </ContextMenuItemContent>
-              </ContextMenuItem>
-              <ContextMenuSub>
-                <ContextMenuSubTrigger>
-                  <UploadIcon size={14} />
-                  {t('chat.topics.export.title')}
-                </ContextMenuSubTrigger>
-                <ContextMenuSubContent>
-                  {exportMenuOptions.image && (
-                    <>
-                      <ContextMenuItem onSelect={() => handleImageAction(node, 'copyImage')}>
-                        {t('chat.topics.copy.image')}
-                      </ContextMenuItem>
-                      <ContextMenuItem onSelect={() => handleImageAction(node, 'exportImage')}>
-                        {t('chat.topics.export.image')}
-                      </ContextMenuItem>
-                    </>
-                  )}
-                  {exportMenuOptions.markdown && (
-                    <ContextMenuItem onSelect={() => void runExport(() => exportNote({ node, platform: 'markdown' }))}>
-                      {t('chat.topics.export.md.label')}
-                    </ContextMenuItem>
-                  )}
-                  {exportMenuOptions.docx && (
-                    <ContextMenuItem onSelect={() => void runExport(() => exportNote({ node, platform: 'docx' }))}>
-                      {t('chat.topics.export.word')}
-                    </ContextMenuItem>
-                  )}
-                  {exportMenuOptions.notion && (
-                    <ContextMenuItem onSelect={() => void runExport(() => exportNote({ node, platform: 'notion' }))}>
-                      {t('chat.topics.export.notion')}
-                    </ContextMenuItem>
-                  )}
-                  {exportMenuOptions.yuque && (
-                    <ContextMenuItem onSelect={() => void runExport(() => exportNote({ node, platform: 'yuque' }))}>
-                      {t('chat.topics.export.yuque')}
-                    </ContextMenuItem>
-                  )}
-                  {exportMenuOptions.obsidian && (
-                    <ContextMenuItem onSelect={() => void runExport(() => exportNote({ node, platform: 'obsidian' }))}>
-                      {t('chat.topics.export.obsidian')}
-                    </ContextMenuItem>
-                  )}
-                  {exportMenuOptions.joplin && (
-                    <ContextMenuItem onSelect={() => void runExport(() => exportNote({ node, platform: 'joplin' }))}>
-                      {t('chat.topics.export.joplin')}
-                    </ContextMenuItem>
-                  )}
-                  {exportMenuOptions.siyuan && (
-                    <ContextMenuItem onSelect={() => void runExport(() => exportNote({ node, platform: 'siyuan' }))}>
-                      {t('chat.topics.export.siyuan')}
-                    </ContextMenuItem>
-                  )}
-                </ContextMenuSubContent>
-              </ContextMenuSub>
-            </>
-          )}
-
-          <ContextMenuSeparator />
-          <ContextMenuItem variant="destructive" onSelect={() => handleDeleteNodeWrapper(node)}>
-            <ContextMenuItemContent icon={<DeleteIcon size={14} className="lucide-custom" />}>
-              {t('notes.delete')}
-            </ContextMenuItemContent>
-          </ContextMenuItem>
-        </>
+      items.push(
+        {
+          type: 'item',
+          id: `note:${node.id}:rename`,
+          label: t('notes.rename'),
+          icon: <Edit3 size={14} />,
+          onSelect: () => handleStartEdit(node)
+        },
+        {
+          type: 'item',
+          id: `note:${node.id}:open-outside`,
+          label: t('notes.open_outside'),
+          icon: <FolderOpen size={14} />,
+          onSelect: () => void window.api.openPath(node.externalPath)
+        }
       )
+
+      if (!isFolder) {
+        const exportItems: CommandContextMenuExtraItem[] = []
+        if (exportMenuOptions.image) {
+          exportItems.push(
+            {
+              type: 'item',
+              id: `note:${node.id}:copy-image`,
+              label: t('chat.topics.copy.image'),
+              onSelect: () => void handleImageAction(node, 'copyImage')
+            },
+            {
+              type: 'item',
+              id: `note:${node.id}:export-image`,
+              label: t('chat.topics.export.image'),
+              onSelect: () => void handleImageAction(node, 'exportImage')
+            }
+          )
+        }
+        if (exportMenuOptions.markdown) {
+          exportItems.push({
+            type: 'item',
+            id: `note:${node.id}:export-markdown`,
+            label: t('chat.topics.export.md.label'),
+            onSelect: () => void runExport(() => exportNote({ node, platform: 'markdown' }))
+          })
+        }
+        if (exportMenuOptions.docx) {
+          exportItems.push({
+            type: 'item',
+            id: `note:${node.id}:export-docx`,
+            label: t('chat.topics.export.word'),
+            onSelect: () => void runExport(() => exportNote({ node, platform: 'docx' }))
+          })
+        }
+        if (exportMenuOptions.notion) {
+          exportItems.push({
+            type: 'item',
+            id: `note:${node.id}:export-notion`,
+            label: t('chat.topics.export.notion'),
+            onSelect: () => void runExport(() => exportNote({ node, platform: 'notion' }))
+          })
+        }
+        if (exportMenuOptions.yuque) {
+          exportItems.push({
+            type: 'item',
+            id: `note:${node.id}:export-yuque`,
+            label: t('chat.topics.export.yuque'),
+            onSelect: () => void runExport(() => exportNote({ node, platform: 'yuque' }))
+          })
+        }
+        if (exportMenuOptions.obsidian) {
+          exportItems.push({
+            type: 'item',
+            id: `note:${node.id}:export-obsidian`,
+            label: t('chat.topics.export.obsidian'),
+            onSelect: () => void runExport(() => exportNote({ node, platform: 'obsidian' }))
+          })
+        }
+        if (exportMenuOptions.joplin) {
+          exportItems.push({
+            type: 'item',
+            id: `note:${node.id}:export-joplin`,
+            label: t('chat.topics.export.joplin'),
+            onSelect: () => void runExport(() => exportNote({ node, platform: 'joplin' }))
+          })
+        }
+        if (exportMenuOptions.siyuan) {
+          exportItems.push({
+            type: 'item',
+            id: `note:${node.id}:export-siyuan`,
+            label: t('chat.topics.export.siyuan'),
+            onSelect: () => void runExport(() => exportNote({ node, platform: 'siyuan' }))
+          })
+        }
+
+        items.push(
+          {
+            type: 'item',
+            id: `note:${node.id}:toggle-star`,
+            label: node.isStarred ? t('notes.unstar') : t('notes.star'),
+            icon: node.isStarred ? <StarOff size={14} /> : <Star size={14} />,
+            onSelect: () => onToggleStar(node.id)
+          },
+          {
+            type: 'item',
+            id: `note:${node.id}:export-knowledge`,
+            label: t('notes.export_knowledge'),
+            icon: <FileSearch size={14} />,
+            onSelect: () => void handleExportKnowledge(node)
+          },
+          {
+            type: 'submenu',
+            id: `note:${node.id}:export`,
+            label: t('chat.topics.export.title'),
+            icon: <UploadIcon size={14} />,
+            children: exportItems
+          }
+        )
+      }
+
+      items.push(
+        { type: 'separator' },
+        {
+          type: 'item',
+          id: `note:${node.id}:delete`,
+          label: t('notes.delete'),
+          icon: <DeleteIcon size={14} className="lucide-custom" />,
+          destructive: true,
+          onSelect: () => handleDeleteNodeWrapper(node)
+        }
+      )
+
+      return items
     },
     [
       t,
@@ -243,5 +294,5 @@ export const useNotesMenu = ({
     ]
   )
 
-  return { renderMenuItems }
+  return { getMenuItems }
 }
