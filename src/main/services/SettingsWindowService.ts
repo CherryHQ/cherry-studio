@@ -9,7 +9,7 @@ import type { BrowserWindow } from 'electron'
 import { nativeTheme } from 'electron'
 
 // Settings window sizing — 80% of the main window, with a hard floor so the
-// sidebar nav (~220px) and content stay usable when the main window is small.
+// sidebar nav (~200px) and content stay usable when the main window is small.
 const SETTINGS_WINDOW_SIZE_RATIO = 0.8
 const SETTINGS_WINDOW_MIN_WIDTH = 760
 const SETTINGS_WINDOW_MIN_HEIGHT = 560

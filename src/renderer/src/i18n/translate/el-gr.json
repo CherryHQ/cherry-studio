@@ -5765,6 +5765,7 @@
       "serverPlural": "Διακομιστές",
       "serverSingular": "Διακομιστής",
       "servers": "Διακομιστές MCP",
+      "shortTitle": "[to be translated]:MCP",
       "sse": "Συμβάντα Αποστολής από τον Διακομιστή (sse)",
       "startError": "Εκκίνηση Απέτυχε",
       "stdio": "Πρότυπη Είσοδος/Έξοδος (stdio)",

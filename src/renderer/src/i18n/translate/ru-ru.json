@@ -5765,6 +5765,7 @@
       "serverPlural": "серверы",
       "serverSingular": "сервер",
       "servers": "Серверы MCP",
+      "shortTitle": "[to be translated]:MCP",
       "sse": "События, отправляемые сервером (sse)",
       "startError": "Запуск не удалось",
       "stdio": "Стандартный ввод/вывод (stdio)",

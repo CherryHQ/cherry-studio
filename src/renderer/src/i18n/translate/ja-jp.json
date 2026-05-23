@@ -5765,6 +5765,7 @@
       "serverPlural": "サーバー",
       "serverSingular": "サーバー",
       "servers": "MCPサーバー",
+      "shortTitle": "[to be translated]:MCP",
       "sse": "サーバー送信イベント (sse)",
       "startError": "起動に失敗しました",
       "stdio": "標準入力/出力 (stdio)",

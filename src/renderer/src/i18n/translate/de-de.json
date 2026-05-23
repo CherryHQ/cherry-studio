@@ -5765,6 +5765,7 @@
       "serverPlural": "Server",
       "serverSingular": "Server",
       "servers": "MCP-Server",
+      "shortTitle": "[to be translated]:MCP",
       "sse": "Server-Sende-Ereignisse (sse)",
       "startError": "Start fehlgeschlagen",
       "stdio": "Standard-Eingabe / -Ausgabe (stdio)",

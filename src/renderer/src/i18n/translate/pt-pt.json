@@ -5765,6 +5765,7 @@
       "serverPlural": "Servidores",
       "serverSingular": "Servidor",
       "servers": "Servidores MCP",
+      "shortTitle": "[to be translated]:MCP",
       "sse": "Eventos do Servidor (sse)",
       "startError": "Falha ao Iniciar",
       "stdio": "Entrada/Saída Padrão (stdio)",

@@ -59,29 +59,32 @@ const DataSettings: FC = () => {
 
   return (
     <RowFlex className="flex-1">
-      <Scrollbar className={`${settingsSubmenuScrollClassName} [&_.iconfont]:text-current [&_.iconfont]:leading-4`}>
+      <div
+        className={`flex flex-col ${settingsSubmenuScrollClassName} [&_.iconfont]:text-current [&_.iconfont]:leading-4`}>
         <PageHeader title={t('settings.data.title')} />
-        <MenuList className={settingsSubmenuListClassName}>
-          {menuItems.map((item, index) =>
-            item.isDivider ? (
-              <div key={item.key}>
-                {index > 0 && <MenuDivider className={settingsSubmenuDividerClassName} />}
-                <div className={settingsSubmenuSectionTitleClassName}>{item.text || ''}</div>
-              </div>
-            ) : (
-              <MenuItem
-                key={item.key}
-                label={item.title || ''}
-                active={menu === item.key}
-                onClick={() => setMenu(item.key)}
-                icon={item.icon}
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-              />
-            )
-          )}
-        </MenuList>
-      </Scrollbar>
+        <Scrollbar className="min-h-0 flex-1">
+          <MenuList className={settingsSubmenuListClassName}>
+            {menuItems.map((item, index) =>
+              item.isDivider ? (
+                <div key={item.key}>
+                  {index > 0 && <MenuDivider className={settingsSubmenuDividerClassName} />}
+                  <div className={settingsSubmenuSectionTitleClassName}>{item.text || ''}</div>
+                </div>
+              ) : (
+                <MenuItem
+                  key={item.key}
+                  label={item.title || ''}
+                  active={menu === item.key}
+                  onClick={() => setMenu(item.key)}
+                  icon={item.icon}
+                  className={settingsSubmenuItemClassName}
+                  labelClassName={settingsSubmenuItemLabelClassName}
+                />
+              )
+            )}
+          </MenuList>
+        </Scrollbar>
+      </div>
       <SettingContainer theme={theme} style={{ display: 'flex', flex: 1, height: '100%' }}>
         {menu === 'data' && <BasicDataSettings />}
         {menu === 'webdav' && <WebDavSettings />}
