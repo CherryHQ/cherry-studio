@@ -80,6 +80,10 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
       el.style.overflow = 'visible'
       el.style.position = 'static'
 
+      // Wait for browser to reflow and repaint after style changes
+      // This ensures the element is fully expanded before capturing
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+
       // calculate the size of the element
       const totalWidth = el.scrollWidth
       const totalHeight = el.scrollHeight
