@@ -42,6 +42,7 @@ The 90% case. See later sections for full rules and edge cases.
 | Bucket directory (categorical container) | lowercase **plural** noun | `services/`, `utils/`, `hooks/` |
 | Business / domain module directory | `camelCase` | `apiServer/`, `fileProcessing/` |
 | `packages/ui/` directory | `kebab-case` | `primitives/`, `button-group/` |
+| TanStack route file under `src/renderer/src/routes/` | `kebab-case.tsx` | `api-server.tsx`, `quick-assistant.tsx` |
 
 ---
 
@@ -86,6 +87,8 @@ Choose based on **what the file's default / primary export is**:
 | Class (especially services) | `PascalCase.ts` (matches class name) | `KnowledgeService.ts`, `IpcChannel.ts`, `IdleTimeoutController.ts` |
 | Constants / enums only | `camelCase.ts` | `errorCodes.ts` |
 | Re-export barrel | `index.ts` | — |
+
+**Note:** Files under `packages/ui/` use `kebab-case.ts` regardless of export type (e.g. `use-dnd-reorder.ts`, `reorder-visible-subset.ts`), per §4.5 — that scope-specific rule overrides this section. The exported identifier (e.g. `useDndReorder`) remains `camelCase`.
 
 ### 3.3 Test Files
 
@@ -263,6 +266,19 @@ Forbidden. `Button.tsx` and `button.tsx` in the same directory will break on cas
 
 In `packages/*`, the directory name and `package.json#name` (after stripping scope) must match exactly. Renaming one requires renaming the other.
 
+### 6.6 TanStack Router File-Based Routes
+
+Files under `src/renderer/src/routes/` are **kebab-case** — TanStack Router maps filename directly to URL (per §2.3).
+
+Reserved tokens (TanStack-defined):
+
+| Token | Meaning |
+|---|---|
+| `__root.tsx` | Root layout |
+| `index.tsx` | Index route |
+| `$<param>.tsx` | Dynamic segment (e.g. `$appId.tsx`) |
+| `$.tsx` | Catch-all |
+
 ---
 
 ## 7. Decision Tree
@@ -270,8 +286,9 @@ In `packages/*`, the directory name and `package.json#name` (after stripping sco
 ```
 Naming a new FILE
 ├─ React component (.tsx)?
-│  ├─ Under packages/ui/?         → kebab-case.tsx  (button.tsx)
-│  └─ Under src/renderer/src/?    → PascalCase.tsx  (Sidebar.tsx)
+│  ├─ Under src/renderer/src/routes/?  → kebab-case.tsx  (api-server.tsx)
+│  ├─ Under packages/ui/?              → kebab-case.tsx  (button.tsx)
+│  └─ Under src/renderer/src/?         → PascalCase.tsx  (Sidebar.tsx)
 ├─ React hook?                    → useXxx.ts       (useShortcuts.ts)
 ├─ Primary export is a class?     → PascalCase.ts   (KnowledgeService.ts)
 ├─ Primary export is function(s)? → camelCase.ts    (markdownConverter.ts)

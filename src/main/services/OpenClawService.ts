@@ -18,7 +18,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { formatApiHost, hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
 import type { Model, Provider, ProviderType, VertexProvider } from '@types'
 
-import { vertexAIService } from './VertexAIService'
+import { vertexAiService } from './VertexAiService'
 
 const logger = loggerService.withContext('OpenClawService')
 
@@ -821,13 +821,13 @@ export class OpenClawService extends BaseService {
       const apiType = this.determineApiType(provider, primaryModel)
       const baseUrl = this.getBaseUrlForApiType(provider, apiType)
 
-      // Get API key - for vertexai, get access token from VertexAIService
+      // Get API key - for vertexai, get access token from VertexAiService
       // If multiple API keys are configured (comma-separated), use the first one
       // Some providers like Ollama and LM Studio don't require API keys
       let apiKey = provider.apiKey ? provider.apiKey.split(',')[0].trim() : ''
       if (isVertexProvider(provider)) {
         try {
-          const vertexService = vertexAIService
+          const vertexService = vertexAiService
           apiKey = await vertexService.getAccessToken({
             projectId: provider.project,
             serviceAccount: {

@@ -24,7 +24,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useTabs } from '../../hooks/useTabs'
-import { OpenClawSidebarIcon } from '../Icons/SVGIcon'
+import { OpenClawSidebarIcon } from '../Icons/SvgIcon'
 import UserPopup from '../Popups/UserPopup'
 import { Sidebar as UISidebar } from '../Sidebar'
 import { getSidebarLayout } from '../Sidebar/constants'

@@ -202,7 +202,7 @@ export interface NewApiOAuthConfig {
  * CherryIN OAuth flow using Authorization Code with PKCE.
  *
  * PKCE, token exchange and API-key fetch all happen in the main process
- * (`CherryINOAuthService`); the deep-link callback is routed by `ProtocolService`
+ * (`CherryInOauthService`); the deep-link callback is routed by `ProtocolService`
  * directly to this renderer's webContents (captured at `startOAuthFlow` time),
  * so we just await a single point-to-point IPC event keyed by `state`.
  */

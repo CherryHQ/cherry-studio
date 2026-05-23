@@ -1,6 +1,6 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { SettingContainer } from '@renderer/pages/settings'
-import NpxSearch from '@renderer/pages/settings/MCPSettings/NpxSearch'
+import NpxSearch from '@renderer/pages/settings/McpSettings/NpxSearch'
 import { createFileRoute } from '@tanstack/react-router'
 
 const NpxSearchWrapper = () => {

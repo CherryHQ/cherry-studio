@@ -15,7 +15,7 @@ import fs from 'fs/promises'
 import path from 'path'
 
 import { generateMeta } from './codegen'
-import { buildLightDarkSvgMap, ensureViewBox, type LightDarkSvgPair, tightenSvgViewBox, toCamelCase } from './svg-utils'
+import { buildLightDarkSvgMap, ensureViewBox, type LightDarkSvgPair, tightenSvgViewBox } from './svg-utils'
 
 type IconType = 'icons' | 'providers' | 'models'
 
@@ -81,7 +81,7 @@ function matchesOnly(only: Set<string> | null, dirName: string, filename: string
   if (!only) return true
 
   const basename = filename.replace(/\.svg$/, '')
-  return only.has(dirName) || only.has(basename) || only.has(toCamelCase(filename))
+  return only.has(dirName) || only.has(basename)
 }
 
 async function ensureOutputDir(type: IconType): Promise<string> {
@@ -288,7 +288,8 @@ async function generateFlatIcon(
   outputFilename: string
 ): Promise<void> {
   const svgCode = await fs.readFile(svgPath, 'utf-8')
-  const jsCode = await svgrTransform(svgCode, componentName)
+  let jsCode = await svgrTransform(svgCode, componentName)
+  jsCode = jsCode.replace(`from '../../types'`, `from '../types'`)
   await fs.writeFile(path.join(outputDir, outputFilename), jsCode, 'utf-8')
 }
 
@@ -475,7 +476,7 @@ async function main() {
   for (const svgFile of svgFiles) {
     const svgPath = path.join(inputDir, svgFile)
     const componentName = toPascalCase(svgFile)
-    const baseName = toCamelCase(svgFile)
+    const baseName = svgFile.replace(/\.svg$/, '')
     const outputFilename = baseName + '.tsx'
 
     try {

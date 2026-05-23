@@ -434,7 +434,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
 
   return (
     <NodeViewWrapper
-      className="yaml-front-matter-wrapper"
+      className="yamlFrontMatter-wrapper"
       onContextMenu={(e) => {
         // Only prevent if the context menu is triggered on the wrapper itself
         if (e.target === e.currentTarget) {

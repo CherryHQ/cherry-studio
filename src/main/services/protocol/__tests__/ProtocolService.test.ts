@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appMock, loggerMock, handlersMock, windowManagerMock, mainWindowServiceMock, cherryINOAuthServiceMock } =
+const { appMock, loggerMock, handlersMock, windowManagerMock, mainWindowServiceMock, cherryInOauthServiceMock } =
   vi.hoisted(() => {
     const appMock = {
       on: vi.fn(),
@@ -25,10 +25,10 @@ const { appMock, loggerMock, handlersMock, windowManagerMock, mainWindowServiceM
     const mainWindowServiceMock = {
       showMainWindow: vi.fn()
     }
-    const cherryINOAuthServiceMock = {
+    const cherryInOauthServiceMock = {
       handleOAuthCallback: vi.fn()
     }
-    return { appMock, loggerMock, handlersMock, windowManagerMock, mainWindowServiceMock, cherryINOAuthServiceMock }
+    return { appMock, loggerMock, handlersMock, windowManagerMock, mainWindowServiceMock, cherryInOauthServiceMock }
   })
 
 vi.mock('electron', () => ({ app: appMock }))
@@ -44,7 +44,7 @@ vi.mock('@application', () => ({
     get: (name: string) => {
       if (name === 'WindowManager') return windowManagerMock
       if (name === 'MainWindowService') return mainWindowServiceMock
-      if (name === 'CherryINOAuthService') return cherryINOAuthServiceMock
+      if (name === 'CherryInOauthService') return cherryInOauthServiceMock
       throw new Error(`unexpected service: ${name}`)
     },
     getPath: (key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`)
@@ -96,7 +96,7 @@ describe('ProtocolService', () => {
     originalArgv = process.argv
     originalDefaultApp = (process as NodeJS.Process & { defaultApp?: boolean }).defaultApp
     vi.clearAllMocks()
-    cherryINOAuthServiceMock.handleOAuthCallback.mockResolvedValue(undefined)
+    cherryInOauthServiceMock.handleOAuthCallback.mockResolvedValue(undefined)
     service = new ProtocolService()
   })
 
@@ -167,8 +167,8 @@ describe('ProtocolService', () => {
       handler({}, ['/path/to/electron', '.', 'cherrystudio://oauth/callback?code=abc'])
 
       expect(mainWindowServiceMock.showMainWindow).not.toHaveBeenCalled()
-      expect(cherryINOAuthServiceMock.handleOAuthCallback).toHaveBeenCalledTimes(1)
-      const url = cherryINOAuthServiceMock.handleOAuthCallback.mock.calls[0][0] as URL
+      expect(cherryInOauthServiceMock.handleOAuthCallback).toHaveBeenCalledTimes(1)
+      const url = cherryInOauthServiceMock.handleOAuthCallback.mock.calls[0][0] as URL
       expect(url.href).toBe('cherrystudio://oauth/callback?code=abc')
       expect(windowManagerMock.broadcast).not.toHaveBeenCalled()
     })

@@ -27,19 +27,6 @@ export function parseLogoTypeArg(): LogoType {
   throw new Error(`Invalid --type value: ${value}. Use "providers" or "models".`)
 }
 
-export function toCamelCase(filename: string): string {
-  const name = filename.replace(/\.svg$/, '')
-  const parts = name.split('-')
-  if (parts.length === 1) return parts[0]
-  return (
-    parts[0] +
-    parts
-      .slice(1)
-      .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
-      .join('')
-  )
-}
-
 /**
  * Tighten the SVG root viewBox to the bounding box of its visible content.
  *
@@ -155,7 +142,7 @@ export function buildSvgMap(type: LogoType): Map<string, string> {
 
   for (const file of fs.readdirSync(sourceDir)) {
     if (!file.endsWith('.svg')) continue
-    map.set(toCamelCase(file), path.join(sourceDir, file))
+    map.set(file.replace(/\.svg$/, ''), path.join(sourceDir, file))
   }
   return map
 }
@@ -168,7 +155,7 @@ export interface LightDarkSvgPair {
 
 /**
  * Scan a logo source directory with light/ and (optional) dark/ subdirectories,
- * returning a map keyed by camelCase dirName → { light, dark } SVG paths.
+ * returning a map keyed by kebab-case dirName → { light, dark } SVG paths.
  *
  * The light variant is required. The dark variant is optional — if dark/{name}.svg
  * is missing, the entry has dark=null and the public CompoundIcon API falls back
@@ -186,7 +173,7 @@ export function buildLightDarkSvgMap(type: LogoType): Map<string, LightDarkSvgPa
     if (!file.endsWith('.svg')) continue
     const darkPath = path.join(darkDir, file)
     const hasDark = fs.existsSync(darkPath)
-    map.set(toCamelCase(file), {
+    map.set(file.replace(/\.svg$/, ''), {
       light: path.join(lightDir, file),
       dark: hasDark ? darkPath : null
     })

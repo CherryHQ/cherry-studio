@@ -23,31 +23,31 @@ vi.mock('@renderer/pages/settings/ProviderSettings/utils/provider', () => ({
     provider?.id === presetId || provider?.presetProviderId === presetId
 }))
 
-vi.mock('../OpenAIAlert', () => ({
+vi.mock('../OpenaiAlert', () => ({
   default: () => <div>openai-alert</div>
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/ProviderOAuth', () => ({
+vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/ProviderOauth', () => ({
   default: ({ providerId }: any) => <div>{`provider-oauth-${providerId}`}</div>
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/CherryINOAuth', () => ({
+vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/CherryInOauth', () => ({
   default: ({ providerId }: any) => <div>{`cherryin-oauth-${providerId}`}</div>
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/DMXAPISettings', () => ({
+vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/DmxapiSettings', () => ({
   default: ({ providerId }: any) => <div>{`dmxapi-settings-${providerId}`}</div>
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/OVMSSettings', () => ({
+vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/OvmsSettings', () => ({
   default: () => <div>ovms-settings</div>
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/LMStudioSettings', () => ({
+vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/LmStudioSettings', () => ({
   default: ({ providerId }: any) => <div>{`lmstudio-settings-${providerId}`}</div>
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/GPUStackSettings', () => ({
+vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/GpuStackSettings', () => ({
   default: ({ providerId }: any) => <div>{`gpustack-settings-${providerId}`}</div>
 }))
 
@@ -59,7 +59,7 @@ vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/AwsBedrockSe
   default: ({ providerId }: any) => <div>{`aws-bedrock-settings-${providerId}`}</div>
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/VertexAISettings', () => ({
+vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/VertexAiSettings', () => ({
   default: ({ providerId }: any) => <div>{`vertexai-settings-${providerId}`}</div>
 }))
 
