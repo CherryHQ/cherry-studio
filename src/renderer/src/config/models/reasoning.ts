@@ -185,6 +185,9 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
     thinkingModelType = 'grok_4_3'
   } else if (isGrok4FastReasoningModel(model)) {
     thinkingModelType = 'grok4_fast'
+  } else if (isOpenRouterGemma4ThinkingModel(model)) {
+    // OpenRouter Gemma 4 models use the same reasoning effort config as hosted Gemma 4
+    thinkingModelType = 'gemma4_hosted'
   } else if (isSupportedThinkingTokenGeminiModel(model)) {
     if (isHostedGemma4ThinkingModel(model)) {
       thinkingModelType = 'gemma4_hosted'
@@ -453,6 +456,15 @@ export const isHostedGemma4ThinkingModel = (model?: Model): boolean => {
 
   const modelId = getLowerBaseModelName(model.id, '/')
   return model.provider?.toLowerCase() === 'gemini' && modelId.startsWith('gemma-4-')
+}
+
+export const isOpenRouterGemma4ThinkingModel = (model?: Model): boolean => {
+  if (!model) {
+    return false
+  }
+
+  const modelId = getLowerBaseModelName(model.id, '/')
+  return model.provider?.toLowerCase() === 'openrouter' && modelId.startsWith('gemma-4-')
 }
 
 export const isSupportedThinkingTokenGeminiModel = (model: Model): boolean => {
