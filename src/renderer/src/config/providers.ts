@@ -6,6 +6,7 @@ import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.web
 import AiOnlyProviderLogo from '@renderer/assets/images/providers/aiOnly.webp'
 import AlayaNewProviderLogo from '@renderer/assets/images/providers/alayanew.webp'
 import AnthropicProviderLogo from '@renderer/assets/images/providers/anthropic.png'
+import AtomicChatProviderLogo from '@renderer/assets/images/providers/atomic-chat.png'
 import AwsProviderLogo from '@renderer/assets/images/providers/aws-bedrock.webp'
 import BaichuanProviderLogo from '@renderer/assets/images/providers/baichuan.png'
 import BaiduCloudProviderLogo from '@renderer/assets/images/providers/baidu-cloud.svg'
@@ -376,6 +377,17 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiHost: 'http://localhost:1234',
     anthropicApiHost: 'http://localhost:1234',
     models: SYSTEM_MODELS.lmstudio,
+    isSystem: true,
+    enabled: false
+  },
+  'atomic-chat': {
+    id: 'atomic-chat',
+    name: 'Atomic Chat',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'http://127.0.0.1:1337',
+    anthropicApiHost: 'http://127.0.0.1:1337',
+    models: SYSTEM_MODELS['atomic-chat'],
     isSystem: true,
     enabled: false
   },
@@ -756,6 +768,7 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   ovms: IntelOvmsLogo,
   ollama: OllamaProviderLogo,
   lmstudio: LMStudioProviderLogo,
+  'atomic-chat': AtomicChatProviderLogo,
   moonshot: MoonshotProviderLogo,
   openrouter: OpenRouterProviderLogo,
   baichuan: BaichuanProviderLogo,
@@ -815,7 +828,11 @@ export function getProviderLogo(providerId: string) {
 }
 
 // export const SUPPORTED_REANK_PROVIDERS = ['silicon', 'jina', 'voyageai', 'dashscope', 'aihubmix']
-export const NOT_SUPPORTED_RERANK_PROVIDERS = ['ollama', 'lmstudio'] as const satisfies SystemProviderId[]
+export const NOT_SUPPORTED_RERANK_PROVIDERS = [
+  'ollama',
+  'lmstudio',
+  'atomic-chat'
+] as const satisfies SystemProviderId[]
 export const ONLY_SUPPORTED_DIMENSION_PROVIDERS = ['ollama', 'infini'] as const satisfies SystemProviderId[]
 
 type ProviderUrls = {
@@ -1206,6 +1223,16 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       official: 'https://lmstudio.ai/',
       docs: 'https://lmstudio.ai/docs',
       models: 'https://lmstudio.ai/models'
+    }
+  },
+  'atomic-chat': {
+    api: {
+      url: 'http://127.0.0.1:1337'
+    },
+    websites: {
+      official: 'https://atomic.chat/',
+      docs: 'https://atomic.chat/',
+      models: 'https://atomic.chat/'
     }
   },
   anthropic: {
