@@ -1,4 +1,4 @@
-import { MenuDivider, MenuItem, MenuList } from '@cherrystudio/ui'
+import { MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isDev } from '@renderer/config/constant'
@@ -56,13 +56,16 @@ const SettingsPage: FC = () => {
             'flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col',
             isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
           )}>
-          {/* No PageHeader on this column — its title role is played by the first MenuList
-              section title ("Models"). MenuList `pt-6` pushes that first label down so its
-              baseline lines up with the right column's PageHeader heading (~35px from top).
-              See DESIGN.md › Settings Panel Layout. */}
+          {/* Page-level label is itself a group name ("Models") and should match the in-list
+              group labels (Plugins / App Settings / …). Use PageHeader with `titleClassName`
+              so the heading typography becomes section-title style while the outer geometry
+              still aligns perfectly with the right column's PageHeader. See DESIGN.md. */}
+          <PageHeader
+            title={t('settings.menuGroups.integrations')}
+            titleClassName="font-normal text-foreground-muted text-xs"
+          />
           <Scrollbar className="min-h-0 flex-1 select-none">
-            <MenuList className={cn(settingsSubmenuListClassName, 'pt-6')}>
-              <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.integrations')}</div>
+            <MenuList className={settingsSubmenuListClassName}>
               <MenuItem
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}

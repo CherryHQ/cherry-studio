@@ -97,3 +97,31 @@ export const SideBySide: Story = {
     </div>
   )
 }
+
+// ---------------------------------------------------------------------------
+// SectionTitleStyle — page-level label as a group name (e.g. "Models" sitting
+// next to in-list group labels). Use `titleClassName` to swap PageHeader's
+// default heading typography for section-title typography while keeping the
+// exact same outer geometry so two adjacent columns stay vertically aligned.
+// ---------------------------------------------------------------------------
+
+export const SectionTitleStyle: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "When the page label itself is a group name that should match in-list group labels, pass `titleClassName` to render the heading in section-title typography (`text-xs text-foreground-muted font-normal`). The PageHeader's `mt-3.5 + h-8 + mb-2` outer geometry is preserved so the baseline stays aligned with a normal PageHeader in an adjacent column."
+      }
+    }
+  },
+  render: () => (
+    <div className="flex gap-0 rounded-xl border border-border bg-background">
+      <div className="w-[220px] border-border border-r">
+        <PageHeader title="模型" titleClassName="font-normal text-foreground-muted text-xs" />
+      </div>
+      <div className="w-[260px]">
+        <PageHeader title="模型服务" />
+      </div>
+    </div>
+  )
+}
