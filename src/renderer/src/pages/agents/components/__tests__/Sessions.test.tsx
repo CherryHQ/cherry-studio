@@ -417,6 +417,7 @@ vi.mock('react-i18next', () => ({
         'common.more': 'More',
         'common.name': 'Name',
         'common.open_in': `Open in ${options?.name ?? ''}`,
+        'common.open_in_new_tab': 'Open in new tab',
         'common.rename': 'Rename',
         'common.required_field': 'Required field',
         'common.retry': 'Retry',
@@ -1073,6 +1074,32 @@ describe('Sessions', () => {
     )
   })
 
+  it('opens a session message page in a new app tab from the context menu', () => {
+    render(<Sessions />)
+
+    const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    const animationFrameCallbacks: FrameRequestCallback[] = []
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      animationFrameCallbacks.push(callback)
+      return animationFrameCallbacks.length
+    })
+
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('menuitem', { name: 'Open in new tab' }))
+
+    expect(tabsContextMocks.openTab).not.toHaveBeenCalled()
+    act(() => {
+      for (const callback of animationFrameCallbacks.splice(0)) {
+        callback(0)
+      }
+    })
+    expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/agents?sessionId=session-a&view=message', {
+      forceNew: true,
+      title: 'Alpha session'
+    })
+    requestAnimationFrameSpy.mockRestore()
+  })
+
   it('clears pending delete confirmation timers on unmount', () => {
     vi.useFakeTimers()
     const clearTimeoutSpy = vi.spyOn(window, 'clearTimeout')
@@ -1332,7 +1359,7 @@ describe('Sessions', () => {
 
     fireEvent.pointerDown(within(workdirGroup as HTMLElement).getByRole('button', { name: 'More' }))
     expect(workdirGroupButton).toHaveAttribute('aria-expanded', 'true')
-    fireEvent.click(await screen.findByRole('menuitem', { name: /Open in/ }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Open in Files' }))
 
     await vi.waitFor(() => expect(window.api.file.openPath).toHaveBeenCalledWith('/Users/jd/project-a'))
   })
@@ -1348,7 +1375,7 @@ describe('Sessions', () => {
 
     expect(
       screen
-        .getAllByRole('menuitem', { name: /Open in/ })
+        .getAllByRole('menuitem', { name: 'Open in Files' })
         .some((item) => item.getAttribute('data-slot') !== 'dropdown-menu-item')
     ).toBe(true)
     expect(workdirGroupButton).toHaveAttribute('aria-expanded', 'true')

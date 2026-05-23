@@ -7,6 +7,7 @@ import {
   Copy,
   Database,
   Edit3,
+  ExternalLink,
   FileText,
   Image,
   NotebookPen,
@@ -53,6 +54,7 @@ export interface TopicActionContext {
   onExportSiyuan: TopicMenuHandler
   onExportWord: TopicMenuHandler
   onExportYuque: TopicMenuHandler
+  onOpenInNewTab?: TopicMenuHandler
   onPinTopic: TopicMenuHandler
   onSaveToKnowledge: TopicMenuHandler
   onSaveToNotes: TopicMenuHandler
@@ -94,6 +96,12 @@ topicActionRegistry.registerCommand({
 topicActionRegistry.registerCommand({
   id: 'topic.pin',
   run: ({ onPinTopic, topic }) => onPinTopic(topic)
+})
+
+topicActionRegistry.registerCommand({
+  id: 'topic.open-in-new-tab',
+  availability: ({ onOpenInNewTab }) => ({ visible: !!onOpenInNewTab, enabled: !!onOpenInNewTab }),
+  run: ({ onOpenInNewTab, topic }) => onOpenInNewTab?.(topic)
 })
 
 topicActionRegistry.registerCommand({
@@ -211,6 +219,15 @@ topicActionRegistry.registerAction({
   label: ({ t, topic }) => (topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')),
   icon: ({ topic }) => (topic.pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />),
   order: 30,
+  surface: 'menu'
+})
+
+topicActionRegistry.registerAction({
+  id: 'topic.open-in-new-tab',
+  commandId: 'topic.open-in-new-tab',
+  label: ({ t }) => t('common.open_in_new_tab'),
+  icon: () => <ExternalLink size={14} />,
+  order: 35,
   surface: 'menu'
 })
 

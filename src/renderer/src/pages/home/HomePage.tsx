@@ -1,5 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { ChatAppShell, EmptyState, LoadingState } from '@renderer/components/chat'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import {
   createRecentTopicEntryFromTopic,
@@ -8,19 +9,21 @@ import {
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { type TemporaryConversation, useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
-import { useActiveTopic, useTopicMutations } from '@renderer/hooks/useTopic'
+import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
 import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
 import type { Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
-import { useLocation, useNavigate } from '@tanstack/react-router'
+import { useLocation, useNavigate, useSearch } from '@tanstack/react-router'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import Chat from './Chat'
 import HomeSidePanelDrawer from './components/HomeSidePanelDrawer'
+import { parseChatRouteSearch } from './routeSearch'
 import HomeTabs from './Tabs'
 import type { AddNewTopicPayload } from './types'
 
@@ -51,6 +54,7 @@ function getTopicAssistantId(topic?: Pick<Topic, 'assistantId'> | null): string 
 }
 
 const HomePage: FC = () => {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyOrigin, setHistoryOrigin] = useState<DOMRectReadOnly>()
@@ -65,11 +69,23 @@ const HomePage: FC = () => {
   const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
+  const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
 
   const location = useLocation()
+  const routeSearch = parseChatRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
   const state = location.state as { topic?: Topic } | undefined
+  const routeTopicId = routeSearch.topicId
+  const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
+  const effectiveShowSidebar = !isMessageOnlyView && showSidebar
+  const { topic: routeApiTopic, isLoading: isRouteTopicLoading } = useTopicById(
+    isMessageOnlyView ? routeTopicId : undefined
+  )
+  const routeTopic = useMemo(
+    () => (routeApiTopic ? mapApiTopicToRendererTopic(routeApiTopic) : undefined),
+    [routeApiTopic]
+  )
 
-  const shouldUseTemporary = !state?.topic
+  const shouldUseTemporary = !state?.topic && !isMessageOnlyView
 
   const temporaryConversation = useTemporaryConversation({ type: 'assistant' })
   const {
@@ -90,12 +106,13 @@ const HomePage: FC = () => {
   }, [temporaryTopicConversation])
 
   const initialTopic = useMemo<Topic | undefined>(() => {
+    if (isMessageOnlyView) return undefined
     if (state?.topic) return state.topic
     if (temporaryTopicConversation?.type === 'assistant') {
       return buildPendingTemporaryTopic(temporaryTopicConversation.topicId, temporaryTopicConversation.assistantId)
     }
     return undefined
-  }, [state?.topic, temporaryTopicConversation])
+  }, [isMessageOnlyView, state?.topic, temporaryTopicConversation])
 
   const {
     activeTopic,
@@ -105,10 +122,13 @@ const HomePage: FC = () => {
     // While we're waiting for the temporary topic to lease, suppress the
     // auto-pick-first-topic effect so the UI doesn't flash a stale topic
     // before our blank one shows up.
-    autoPickFirst: !shouldUseTemporary
+    autoPickFirst: !shouldUseTemporary && !isMessageOnlyView,
+    syncActiveCache: !isMessageOnlyView
   })
   const lastVisibleTopicRef = useRef<Topic | null>(null)
-  const visibleTopic = activeTopic ?? (isActiveTopicLoading ? lastVisibleTopicRef.current : undefined)
+  const visibleTopic = isMessageOnlyView
+    ? routeTopic
+    : (activeTopic ?? (isActiveTopicLoading ? lastVisibleTopicRef.current : undefined))
 
   useEffect(() => {
     lastUsedAssistantIdRef.current = lastUsedAssistantId ?? undefined
@@ -127,6 +147,7 @@ const HomePage: FC = () => {
   }, [activeTopic])
 
   useEffect(() => {
+    if (isMessageOnlyView) return
     if (!activeTopic) return
     if (temporaryTopicConversation?.type === 'assistant' && activeTopic.id === temporaryTopicConversation.topicId)
       return
@@ -134,12 +155,13 @@ const HomePage: FC = () => {
     const signature = `${activeTopic.id}:${activeTopic.name}:${activeTopic.assistantId ?? ''}`
     if (lastRecordedRecentTopicRef.current === signature) return
 
-    const nextItems = upsertGlobalSearchRecentEntry(recentItems, createRecentTopicEntryFromTopic(activeTopic))
+    const currentRecentItems = recentItems ?? []
+    const nextItems = upsertGlobalSearchRecentEntry(currentRecentItems, createRecentTopicEntryFromTopic(activeTopic))
     lastRecordedRecentTopicRef.current = signature
-    if (nextItems !== recentItems) {
+    if (nextItems !== currentRecentItems) {
       setRecentItems(nextItems)
     }
-  }, [activeTopic, recentItems, setRecentItems, temporaryTopicConversation])
+  }, [activeTopic, isMessageOnlyView, recentItems, setRecentItems, temporaryTopicConversation])
 
   const persistTemporaryTopicAndRefresh = useCallback(
     async (initialName?: string): Promise<TemporaryConversation | null> => {
@@ -154,9 +176,9 @@ const HomePage: FC = () => {
     },
     [persistTemporaryConversation, refreshTopics]
   )
-  const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
-
   useShortcut('general.toggle_sidebar', () => {
+    if (isMessageOnlyView) return
+
     if (!showSidebar) {
       void setShowSidebar(true)
       requestAnimationFrame(() => {
@@ -169,6 +191,8 @@ const HomePage: FC = () => {
   })
 
   useShortcut('topic.toggle_show_topics', () => {
+    if (isMessageOnlyView) return
+
     if (!showSidebar) {
       void setShowSidebar(true)
       requestAnimationFrame(() => {
@@ -185,10 +209,11 @@ const HomePage: FC = () => {
   }, [navigate])
 
   useEffect(() => {
+    if (isMessageOnlyView) return
     if (!state?.topic) return
     setActiveTopic(state.topic)
     void discardTemporaryConversation()
-  }, [discardTemporaryConversation, setActiveTopic, state?.topic])
+  }, [discardTemporaryConversation, isMessageOnlyView, setActiveTopic, state?.topic])
 
   const startTemporaryTopic = useCallback(
     async (payload?: AddNewTopicPayload) => {
@@ -281,12 +306,15 @@ const HomePage: FC = () => {
   )
 
   useEffect(() => {
-    void window.api.window.setMinimumSize(showSidebar ? MIN_WINDOW_WIDTH : SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+    void window.api.window.setMinimumSize(
+      effectiveShowSidebar ? MIN_WINDOW_WIDTH : SECOND_MIN_WINDOW_WIDTH,
+      MIN_WINDOW_HEIGHT
+    )
 
     return () => {
       void window.api.window.resetMinimumSize()
     }
-  }, [showSidebar])
+  }, [effectiveShowSidebar])
 
   const openHistory = useCallback((origin?: DOMRectReadOnly) => {
     setHistoryOrigin(origin)
@@ -354,12 +382,29 @@ const HomePage: FC = () => {
   }, [openHistory, setActiveTopicAndDiscardTemporary, startTemporaryTopic, visibleTopic])
 
   if (!visibleTopic) {
+    if (isMessageOnlyView) {
+      return (
+        <Container id="home-page">
+          <ContentContainer>
+            <MessageOnlyStatus
+              loading={isRouteTopicLoading}
+              loadingLabel={t('common.loading')}
+              missingTitle={t('history.error.topic_not_found')}
+            />
+          </ContentContainer>
+          {historyOverlay}
+        </Container>
+      )
+    }
+
     return <Container id="home-page">{historyOverlay}</Container>
   }
 
   const panePosition = 'left'
   const isTemporaryTopicActive =
-    temporaryTopicConversation?.type === 'assistant' && visibleTopic.id === temporaryTopicConversation.topicId
+    !isMessageOnlyView &&
+    temporaryTopicConversation?.type === 'assistant' &&
+    visibleTopic.id === temporaryTopicConversation.topicId
 
   return (
     <Container id="home-page">
@@ -371,15 +416,16 @@ const HomePage: FC = () => {
               activeTopic={visibleTopic}
               setActiveTopic={setActiveTopicAndDiscardTemporary}
               onOpenHistory={openHistory}
-              onNewTopic={startTemporaryTopic}
+              onNewTopic={isMessageOnlyView ? undefined : startTemporaryTopic}
               revealRequest={topicRevealRequest}
             />
           }
-          paneOpen={showSidebar}
+          paneOpen={effectiveShowSidebar}
           panePosition={panePosition}
-          onNewTopic={startTemporaryTopic}
+          onNewTopic={isMessageOnlyView ? undefined : startTemporaryTopic}
           hideNavbar={isTemporaryTopicActive}
-          onOpenSidePanelDrawer={openSidePanelDrawer}
+          onOpenSidePanelDrawer={isMessageOnlyView ? undefined : openSidePanelDrawer}
+          showResourceListControls={!isMessageOnlyView}
           // Wire the persist callback only while the temp lease is the
           // currently-active topic. If the user clicks a sidebar topic
           // before sending, the active id no longer matches the lease and
@@ -392,6 +438,26 @@ const HomePage: FC = () => {
       </ContentContainer>
       {historyOverlay}
     </Container>
+  )
+}
+
+type MessageOnlyStatusProps = {
+  loading: boolean
+  loadingLabel: string
+  missingTitle: string
+}
+
+function MessageOnlyStatus({ loading, loadingLabel, missingTitle }: MessageOnlyStatusProps) {
+  return (
+    <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] flex-1 overflow-hidden rounded-tl-[10px] rounded-bl-[10px] bg-background">
+      <ChatAppShell
+        centerContent={
+          <div className="flex h-full min-h-0 flex-1 items-center justify-center px-6">
+            {loading ? <LoadingState label={loadingLabel} /> : <EmptyState compact title={missingTitle} />}
+          </div>
+        }
+      />
+    </div>
   )
 }
 

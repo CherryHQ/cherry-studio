@@ -23,7 +23,7 @@ vi.mock('@renderer/i18n', () => ({
   }
 }))
 
-import { getDefaultRouteTitle, getRouteTitleKey } from '../routeTitle'
+import { getDefaultRouteTitle, getRouteTitleKey, isTopLevelRoute } from '../routeTitle'
 
 describe('routeTitle', () => {
   beforeEach(() => {
@@ -130,6 +130,16 @@ describe('routeTitle', () => {
         expect(getRouteTitleKey('/unknown')).toBeUndefined()
         expect(getRouteTitleKey('/foo/bar')).toBeUndefined()
       })
+    })
+  })
+
+  describe('isTopLevelRoute', () => {
+    it('returns true only for bare top-level route tabs', () => {
+      expect(isTopLevelRoute('/app/chat')).toBe(true)
+      expect(isTopLevelRoute('/app/agents')).toBe(true)
+      expect(isTopLevelRoute('/app/chat?topicId=123&view=message')).toBe(false)
+      expect(isTopLevelRoute('/app/agents#session')).toBe(false)
+      expect(isTopLevelRoute('/app/chat/topic-123')).toBe(false)
     })
   })
 })

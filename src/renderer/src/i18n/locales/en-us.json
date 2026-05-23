@@ -452,6 +452,7 @@
       "get": {
         "error": {
           "failed": "Failed to get the session",
+          "not_found": "Session not found",
           "null_id": "Session ID is null"
         }
       },
@@ -1938,6 +1939,7 @@
     "on": "On",
     "open": "Open",
     "open_in": "Open in {{name}}",
+    "open_in_new_tab": "Open in new tab",
     "paste": "Paste",
     "placeholders": {
       "select": {

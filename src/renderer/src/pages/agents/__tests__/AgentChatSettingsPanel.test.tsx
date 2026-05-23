@@ -39,6 +39,7 @@ vi.mock('@renderer/components/chat', () => ({
       <div>{overlay}</div>
     </div>
   ),
+  EmptyState: ({ title }: { title?: string }) => <div data-testid="empty-state">{title}</div>,
   LoadingState: () => <div data-testid="loading-state" />,
   RightPaneHost: ({ children, open }: PropsWithChildren<{ open?: boolean }>) => (
     <div data-testid="right-pane-host" data-open={String(Boolean(open))}>
@@ -218,6 +219,14 @@ describe('AgentChat settings panel', () => {
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
   })
 
+  it('shows a not-found state when a locked session is missing', () => {
+    render(<AgentChat lockedSession={null} />)
+
+    expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.session.get.error.not_found')
+    expect(screen.queryByTestId('agent-messages')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('agent-composer')).not.toBeInTheDocument()
+  })
+
   it('replaces the agent inputbar with AskUserQuestionComposer for pending requests', () => {
     partsByMessageIdMock.value = {
       'message-1': [
@@ -317,8 +326,8 @@ describe('AgentChat settings panel', () => {
 
     render(<AgentChat />)
 
-    expect(screen.getAllByText('CustomTool')).toHaveLength(2)
-    expect(screen.queryByText('agent.toolPermission.confirmation')).not.toBeInTheDocument()
+    expect(screen.getAllByText('CustomTool')).toHaveLength(1)
+    expect(screen.getByText('agent.toolPermission.confirmation')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.toolPermission.button.allow' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.toolPermission.button.deny' })).toBeInTheDocument()
     expect(screen.queryByTestId('agent-inputbar')).not.toBeInTheDocument()

@@ -2,11 +2,12 @@ import { createActionRegistry } from '@renderer/components/chat/actions/actionRe
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import type { TFunction } from 'i18next'
-import { PinIcon, PinOffIcon } from 'lucide-react'
+import { ExternalLink, PinIcon, PinOffIcon } from 'lucide-react'
 
 export interface SessionActionContext {
   onDelete: () => void
   onEditAgent?: () => void
+  onOpenInNewTab?: () => void
   onTogglePin?: () => void
   pinned?: boolean
   sessionName: string
@@ -31,6 +32,12 @@ sessionActionRegistry.registerCommand({
   id: 'session.toggle-pin',
   availability: ({ onTogglePin }) => ({ visible: !!onTogglePin, enabled: !!onTogglePin }),
   run: ({ onTogglePin }) => onTogglePin?.()
+})
+
+sessionActionRegistry.registerCommand({
+  id: 'session.open-in-new-tab',
+  availability: ({ onOpenInNewTab }) => ({ visible: !!onOpenInNewTab, enabled: !!onOpenInNewTab }),
+  run: ({ onOpenInNewTab }) => onOpenInNewTab?.()
 })
 
 sessionActionRegistry.registerCommand({
@@ -62,6 +69,15 @@ sessionActionRegistry.registerAction({
   label: ({ pinned, t }) => (pinned ? t('chat.topics.unpin') : t('chat.topics.pin')),
   icon: ({ pinned }) => (pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />),
   order: 20,
+  surface: 'menu'
+})
+
+sessionActionRegistry.registerAction({
+  id: 'session.open-in-new-tab',
+  commandId: 'session.open-in-new-tab',
+  label: ({ t }) => t('common.open_in_new_tab'),
+  icon: () => <ExternalLink size={14} />,
+  order: 30,
   surface: 'menu'
 })
 

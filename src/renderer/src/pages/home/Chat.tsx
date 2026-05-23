@@ -33,6 +33,7 @@ interface Props {
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   hideNavbar?: boolean
   onOpenSidePanelDrawer?: () => void | Promise<void>
+  showResourceListControls?: boolean
   onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
   locateMessageId?: string
   onLocateMessageHandled?: () => void
@@ -145,6 +146,7 @@ const Chat: FC<Props> = (props) => {
               <ChatNavbar
                 onOpenSidePanelDrawer={props.onOpenSidePanelDrawer}
                 onOpenTopicFlow={handleOpenTopicFlowPanel}
+                showSidebarControls={props.showResourceListControls}
               />
             )
           }

@@ -353,8 +353,12 @@ export function useTopicSync() {
 
 // ─── Tier 3: composed hook ────────────────────────────────────────────────
 
-export function useActiveTopic(topic?: RendererTopic, options: { autoPickFirst?: boolean } = {}) {
+export function useActiveTopic(
+  topic?: RendererTopic,
+  options: { autoPickFirst?: boolean; syncActiveCache?: boolean } = {}
+) {
   const { autoPickFirst = true } = options
+  const { syncActiveCache = true } = options
   const { topics: apiTopics, isLoading } = useTopics({ loadAll: true })
   const topics = useMemo(() => apiTopics.map(mapApiTopicToRendererTopic), [apiTopics])
   const [activeTopicId, setActiveTopicId] = useCache('topic.active_id', topic?.id ?? null)
@@ -364,28 +368,34 @@ export function useActiveTopic(topic?: RendererTopic, options: { autoPickFirst?:
   const hasAppliedInitialTopicRef = useRef(false)
 
   useEffect(() => {
+    if (!syncActiveCache) return
     if (!topic) return
     setPendingTopic((prev) => prev ?? topic)
     if (hasAppliedInitialTopicRef.current) return
 
     hasAppliedInitialTopicRef.current = true
     if (activeTopicId !== topic.id) setActiveTopicId(topic.id)
-  }, [activeTopicId, setActiveTopicId, topic])
+  }, [activeTopicId, setActiveTopicId, syncActiveCache, topic])
 
   const activeTopic = useMemo<RendererTopic | undefined>(() => {
+    if (!syncActiveCache) return undefined
     if (!activeTopicId) return pendingTopic ?? (autoPickFirst ? topics[0] : undefined)
     const fromList = topics.find((t) => t.id === activeTopicId)
     if (fromList) return fromList
     if (pendingTopic?.id === activeTopicId) return pendingTopic
     return undefined
-  }, [activeTopicId, topics, pendingTopic, autoPickFirst])
+  }, [activeTopicId, autoPickFirst, pendingTopic, syncActiveCache, topics])
 
   const setActiveTopic = useCallback(
     (next: RendererTopic) => {
+      if (!syncActiveCache) {
+        setPendingTopic(next)
+        return
+      }
       setActiveTopicId(next.id)
       setPendingTopic(next)
     },
-    [setActiveTopicId]
+    [setActiveTopicId, syncActiveCache]
   )
 
   // Reconcile activeTopicId against the loaded list in a single effect:
@@ -396,6 +406,7 @@ export function useActiveTopic(topic?: RendererTopic, options: { autoPickFirst?:
   // for the same id from different conditions in the same commit, then
   // the downstream `EVENT_NAMES.CHANGE_TOPIC` emit would fire twice.
   useEffect(() => {
+    if (!syncActiveCache) return
     if (topics.length === 0) return
 
     if (!activeTopicId) {
@@ -409,13 +420,14 @@ export function useActiveTopic(topic?: RendererTopic, options: { autoPickFirst?:
       setActiveTopicId(topics[0].id)
       setPendingTopic(topics[0])
     }
-  }, [activeTopicId, topics, pendingTopic, autoPickFirst, setActiveTopicId])
+  }, [activeTopicId, autoPickFirst, pendingTopic, setActiveTopicId, syncActiveCache, topics])
 
   useEffect(() => {
+    if (!syncActiveCache) return
     if (activeTopic) {
       void EventEmitter.emit(EVENT_NAMES.CHANGE_TOPIC, activeTopic)
     }
-  }, [activeTopic])
+  }, [activeTopic, syncActiveCache])
 
   return { activeTopic, setActiveTopic, isLoading }
 }

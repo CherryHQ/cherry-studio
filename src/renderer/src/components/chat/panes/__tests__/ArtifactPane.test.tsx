@@ -812,6 +812,47 @@ describe('ArtifactPane', () => {
     expect(container.querySelector('iframe')).not.toHaveAttribute('sandbox')
   })
 
+  it('recreates the selected PDF iframe when the PDF layout refresh key changes', async () => {
+    mocks.listDirectory.mockResolvedValueOnce(['paper.pdf'])
+
+    const { container, rerender } = render(<ArtifactPane workspacePath="/tmp/workspace" pdfLayoutRefreshKey={0} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-paper.pdf')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-paper.pdf'))
+
+    await waitFor(() => expect(container.querySelector('iframe[title="paper.pdf"]')).not.toBeNull())
+    const firstIframe = container.querySelector('iframe[title="paper.pdf"]')
+
+    rerender(<ArtifactPane workspacePath="/tmp/workspace" pdfLayoutRefreshKey={1} />)
+
+    const refreshedIframe = container.querySelector('iframe[title="paper.pdf"]')
+    expect(refreshedIframe).not.toBe(firstIframe)
+    expect(refreshedIframe?.getAttribute('src')).toBe('file:///tmp/workspace/paper.pdf#toolbar=0')
+    expect(mocks.createObjectURL).not.toHaveBeenCalled()
+    expect(refreshedIframe).not.toHaveAttribute('sandbox')
+  })
+
+  it('shows loading instead of mounting the selected PDF while PDF layout is pending', async () => {
+    mocks.listDirectory.mockResolvedValueOnce(['paper.pdf'])
+
+    const { container, rerender } = render(<ArtifactPane workspacePath="/tmp/workspace" pdfLayoutPending />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-paper.pdf')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-paper.pdf'))
+
+    expect(screen.getByTestId('loading-state')).toBeInTheDocument()
+    expect(container.querySelector('iframe[title="paper.pdf"]')).toBeNull()
+
+    rerender(<ArtifactPane workspacePath="/tmp/workspace" pdfLayoutRefreshKey={1} />)
+
+    await waitFor(() => expect(container.querySelector('iframe[title="paper.pdf"]')).not.toBeNull())
+    expect(screen.queryByTestId('loading-state')).not.toBeInTheDocument()
+  })
+
   it('disables source mode switching for PDF files', async () => {
     mocks.listDirectory.mockResolvedValueOnce(['paper.pdf'])
 

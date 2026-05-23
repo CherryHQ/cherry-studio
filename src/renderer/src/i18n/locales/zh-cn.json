@@ -452,6 +452,7 @@
       "get": {
         "error": {
           "failed": "获取会话失败",
+          "not_found": "会话不存在",
           "null_id": "会话 ID 为空"
         }
       },
@@ -1938,6 +1939,7 @@
     "on": "启用",
     "open": "打开",
     "open_in": "在 {{name}} 中打开",
+    "open_in_new_tab": "在新标签页打开",
     "paste": "粘贴",
     "placeholders": {
       "select": {

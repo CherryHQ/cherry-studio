@@ -243,6 +243,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.export.siyuan') return 'Export to Siyuan'
       if (key === 'common.delete') return 'Delete'
       if (key === 'common.more') return 'More'
+      if (key === 'common.open_in_new_tab') return 'Open in new tab'
       if (key === 'common.cancel') return 'Cancel'
       if (key === 'common.name') return 'Name'
       if (key === 'common.required_field') return 'Required field'
@@ -695,6 +696,7 @@ describe('Topics', () => {
       'Edit topic name',
       'Edit Assistant',
       'Pin Topic',
+      'Open in new tab',
       'Clear messages',
       '',
       'Save to notes',
@@ -708,6 +710,32 @@ describe('Topics', () => {
       'variant',
       'destructive'
     )
+  })
+
+  it('opens a topic message page in a new app tab from the context menu', () => {
+    const { getByText } = renderTopicList()
+
+    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    const animationFrameCallbacks: FrameRequestCallback[] = []
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      animationFrameCallbacks.push(callback)
+      return animationFrameCallbacks.length
+    })
+
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Open in new tab' }))
+
+    expect(tabsContextMocks.openTab).not.toHaveBeenCalled()
+    act(() => {
+      for (const callback of animationFrameCallbacks.splice(0)) {
+        callback(0)
+      }
+    })
+    expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/chat?topicId=topic-a&view=message', {
+      forceNew: true,
+      title: 'Alpha topic'
+    })
+    requestAnimationFrameSpy.mockRestore()
   })
 
   it('renames a topic from the shared context menu dialog', async () => {

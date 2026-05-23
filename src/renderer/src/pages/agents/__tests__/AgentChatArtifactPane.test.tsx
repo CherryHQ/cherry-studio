@@ -80,7 +80,8 @@ vi.mock('@renderer/components/chat', () => ({
     defaultWidth,
     maxWidth,
     cacheKey,
-    className
+    className,
+    onOpenAnimationComplete
   }: PropsWithChildren<{
     open?: boolean
     width?: string | number
@@ -90,6 +91,7 @@ vi.mock('@renderer/components/chat', () => ({
     maxWidth?: number
     cacheKey?: string
     className?: string
+    onOpenAnimationComplete?: () => void
   }>) => (
     <section
       data-testid="artifact-right-pane"
@@ -101,6 +103,7 @@ vi.mock('@renderer/components/chat', () => ({
       data-max-width={String(maxWidth)}
       data-cache-key={cacheKey}
       data-class-name={className ?? ''}>
+      <button type="button" aria-label="complete artifact pane animation" onClick={onOpenAnimationComplete} />
       {open ? children : null}
     </section>
   )
@@ -110,17 +113,41 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
   ARTIFACT_PANE_WIDTH: 460,
   default: ({
     workspacePath,
+    pdfLayoutPending,
     selectedFile,
-    onSelectedFileChange
+    viewMode,
+    onSelectedFileChange,
+    onViewModeChange,
+    onToggleMaximized,
+    pdfLayoutRefreshKey
   }: {
     workspacePath?: string
+    pdfLayoutPending?: boolean
     selectedFile?: string | null
+    viewMode?: 'preview' | 'code'
     onSelectedFileChange?: (file: string | null) => void
+    onViewModeChange?: (mode: 'preview' | 'code') => void
+    onToggleMaximized?: () => void
+    pdfLayoutRefreshKey?: number
   }) => (
-    <div data-testid="artifact-pane" data-workspace-path={workspacePath ?? ''} data-selected-file={selectedFile ?? ''}>
+    <div
+      data-testid="artifact-pane"
+      data-workspace-path={workspacePath ?? ''}
+      data-selected-file={selectedFile ?? ''}
+      data-view-mode={viewMode ?? ''}
+      data-pdf-layout-pending={String(Boolean(pdfLayoutPending))}
+      data-pdf-layout-refresh-key={String(pdfLayoutRefreshKey ?? 0)}>
       <button type="button" onClick={() => onSelectedFileChange?.('README.md')}>
         select artifact file
       </button>
+      <button type="button" onClick={() => onViewModeChange?.(viewMode === 'code' ? 'preview' : 'code')}>
+        toggle artifact view mode
+      </button>
+      {onToggleMaximized && (
+        <button type="button" onClick={onToggleMaximized}>
+          maximize artifact pane
+        </button>
+      )}
     </div>
   )
 }))
@@ -434,25 +461,46 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'README.md')
   })
 
+  it('refreshes PDF layout state after the docked artifact pane finishes opening', () => {
+    render(<AgentChat pane={<aside data-testid="session-pane" />} paneOpen={true} panePosition="left" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.files_toggle' }))
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-pdf-layout-pending', 'true')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-pdf-layout-refresh-key', '0')
+
+    fireEvent.click(screen.getByRole('button', { name: 'complete artifact pane animation' }))
+
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-pdf-layout-pending', 'false')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-pdf-layout-refresh-key', '1')
+  })
+
+  it('does not render a second maximize control inside the artifact files panel', () => {
+    render(<AgentChat pane={<aside data-testid="session-pane" />} paneOpen={true} panePosition="left" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.files_toggle' }))
+
+    expect(screen.getByRole('button', { name: 'common.maximize' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'maximize artifact pane' })).not.toBeInTheDocument()
+  })
+
   it('keeps the artifact view mode when maximizing and restoring the pane', () => {
     render(<AgentChat pane={<aside data-testid="session-pane" />} paneOpen={true} panePosition="left" />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'toggle artifact pane' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.files_toggle' }))
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'preview')
 
     fireEvent.click(screen.getByRole('button', { name: 'toggle artifact view mode' }))
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
 
-    fireEvent.click(screen.getByRole('button', { name: 'maximize artifact pane' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
 
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
-    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-maximized', 'true')
+    expect(screen.queryByTestId('artifact-right-pane')).toBeNull()
+    expect(screen.getByTestId('chat-center-overlay')).toContainElement(screen.getByTestId('artifact-pane'))
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
 
-    fireEvent.click(screen.getByRole('button', { name: 'minimize artifact pane' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
 
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-maximized', 'false')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
   })
 
@@ -461,12 +509,13 @@ describe('AgentChat artifact pane', () => {
       <AgentChat pane={<aside data-testid="session-pane" />} paneOpen={true} panePosition="left" />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'toggle artifact pane' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.files_toggle' }))
     fireEvent.click(screen.getByRole('button', { name: 'toggle artifact view mode' }))
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
 
     activeSessionMocks.result = {
       ...activeSessionMocks.result,
+      activeSessionId: 'session-2',
       session: { id: 'session-2', agentId: 'agent-1', workspace: { path: '/tmp/other-workspace' } }
     }
     rerender(<AgentChat pane={<aside data-testid="session-pane" />} paneOpen={true} panePosition="left" />)

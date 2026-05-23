@@ -35,6 +35,7 @@ export interface TopicMenuActionOptions {
   onClearMessages: TopicMenuHandler
   onDelete: TopicMenuHandler
   onEditAssistant?: TopicMenuHandler
+  onOpenInNewTab?: TopicMenuHandler
   onPinTopic: TopicMenuHandler
   onStartRename: TopicMenuHandler
   t: TFunction
@@ -50,6 +51,7 @@ export function createTopicActionContext({
   onClearMessages,
   onDelete,
   onEditAssistant,
+  onOpenInNewTab,
   onPinTopic,
   onStartRename,
   t,
@@ -91,6 +93,7 @@ export function createTopicActionContext({
       const markdown = await topicToMarkdown(topic)
       void exportMarkdownToYuque(topic.name, markdown)
     },
+    onOpenInNewTab,
     onPinTopic,
     onSaveToKnowledge: async (topic) => {
       try {
@@ -171,6 +174,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     onClearMessages,
     onDelete,
     onEditAssistant,
+    onOpenInNewTab,
     onPinTopic,
     onStartRename,
     t,
@@ -187,6 +191,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
         onClearMessages,
         onDelete,
         onEditAssistant,
+        onOpenInNewTab,
         onPinTopic,
         onStartRename,
         t,
@@ -201,6 +206,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       onClearMessages,
       onDelete,
       onEditAssistant,
+      onOpenInNewTab,
       onPinTopic,
       onStartRename,
       t,

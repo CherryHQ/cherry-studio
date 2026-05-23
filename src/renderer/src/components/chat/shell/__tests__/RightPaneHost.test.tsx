@@ -36,20 +36,25 @@ type MotionDivProps = HTMLAttributes<HTMLDivElement> & {
   animate?: unknown
   exit?: unknown
   initial?: unknown
+  onAnimationComplete?: () => void
   transition?: unknown
 }
 
 vi.mock('motion/react', () => ({
   AnimatePresence: ({ children }: { children: ReactNode }) => children,
   motion: {
-    div: ({ children, ...props }: MotionDivProps) => {
+    div: ({ children, onAnimationComplete, ...props }: MotionDivProps) => {
       const domProps = { ...props }
       delete domProps.animate
       delete domProps.exit
       delete domProps.initial
       delete domProps.transition
 
-      return <div {...domProps}>{children}</div>
+      return (
+        <div {...domProps} onAnimationEnd={onAnimationComplete}>
+          {children}
+        </div>
+      )
     }
   }
 }))
@@ -98,9 +103,30 @@ describe('RightPaneHost', () => {
     expect(handle).toHaveClass('left-0', 'cursor-col-resize')
   })
 
+  it('notifies when the open animation completes', () => {
+    const onOpenAnimationComplete = vi.fn()
+
+    render(
+      <RightPaneHost open width={460} onOpenAnimationComplete={onOpenAnimationComplete}>
+        <div>artifact pane</div>
+      </RightPaneHost>
+    )
+
+    const pane = screen.getByText('artifact pane').parentElement
+
+    if (!pane) {
+      throw new Error('Expected right pane')
+    }
+
+    fireEvent.animationEnd(pane)
+
+    expect(onOpenAnimationComplete).toHaveBeenCalledTimes(1)
+  })
+
   it('clamps drag width from the right edge and cleans document resize styles', () => {
+    const onOpenAnimationComplete = vi.fn()
     const { container } = render(
-      <RightPaneHost open resizable width={460}>
+      <RightPaneHost open resizable width={460} onOpenAnimationComplete={onOpenAnimationComplete}>
         <div>artifact pane</div>
       </RightPaneHost>
     )
@@ -117,6 +143,9 @@ describe('RightPaneHost', () => {
     expect(document.body.style.cursor).toBe('col-resize')
     expect(document.body.style.userSelect).toBe('none')
     expect(pane).toHaveAttribute('data-resizing', 'true')
+
+    fireEvent.animationEnd(pane)
+    expect(onOpenAnimationComplete).not.toHaveBeenCalled()
 
     fireEvent.mouseMove(document, { clientX: 300 })
     fireEvent.mouseMove(document, { clientX: 500 })

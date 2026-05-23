@@ -82,6 +82,6 @@ export function getRouteTitleKey(url: string): string | undefined {
  * segments). Used to decide whether a tab title should be auto-localized.
  */
 export function isTopLevelRoute(url: string): boolean {
-  const pathname = new URL(url, BASE_URL).pathname
-  return routeTitleKeys[pathname] !== undefined
+  const parsedUrl = new URL(url, BASE_URL)
+  return !parsedUrl.search && !parsedUrl.hash && routeTitleKeys[parsedUrl.pathname] !== undefined
 }

@@ -44,6 +44,7 @@ import { Bot, FolderOpen, ListFilter, MoreHorizontal, Pin, PinOff, SquarePen, Tr
 import { Fragment, memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { buildAgentSessionMessageRouteUrl } from '../routeSearch'
 import SessionItem from './SessionItem'
 import {
   type AgentSessionDisplayMode,
@@ -840,6 +841,15 @@ const Sessions = ({
     },
     [tabs]
   )
+  const openSessionInNewTab = useCallback(
+    (session: AgentSessionEntity) => {
+      tabs?.openTab(buildAgentSessionMessageRouteUrl(session.id), {
+        forceNew: true,
+        title: session.name || t('common.unnamed')
+      })
+    },
+    [tabs, t]
+  )
 
   const handleToggleAgentPin = useCallback(
     async (agentId: string) => {
@@ -1231,7 +1241,7 @@ const Sessions = ({
               return
             }
             if (action.id === 'workdir-group.rename') {
-              void handleStartRenameWorkdirGroup(group)
+              handleStartRenameWorkdirGroup(group)
               return
             }
             if (action.id === 'workdir-group.delete') {
@@ -1329,6 +1339,7 @@ const Sessions = ({
         listRef={listRef}
         onDeleteSession={handleDeleteSession}
         onEditAgent={openAgentEditor}
+        onOpenInNewTab={tabs ? openSessionInNewTab : undefined}
         onRetry={handleRetry}
         onSelectItem={onSelectItem}
         onTogglePin={togglePin}
@@ -1358,6 +1369,7 @@ interface SessionListBodyProps {
   listRef: RefObject<HTMLDivElement | null>
   onDeleteSession: (id: string) => Promise<void>
   onEditAgent: (agentId: string) => void
+  onOpenInNewTab?: (session: AgentSessionEntity) => void
   onRetry: () => Promise<unknown>
   onSelectItem?: () => void
   onTogglePin: (id: string) => Promise<void>
@@ -1372,6 +1384,7 @@ function SessionListBody({
   listRef,
   onDeleteSession,
   onEditAgent,
+  onOpenInNewTab,
   onRetry,
   onSelectItem,
   onTogglePin,
@@ -1388,6 +1401,7 @@ function SessionListBody({
       onTogglePin={onTogglePin}
       onDelete={onDeleteSession}
       onEditAgent={onEditAgent}
+      onOpenInNewTab={onOpenInNewTab}
       onPress={setActiveSessionId}
       onSelectItem={onSelectItem}
     />

@@ -2,7 +2,7 @@ import { Badge } from '@cherrystudio/ui'
 import { EmptyState } from '@renderer/components/chat'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
-import ArtifactPane from '@renderer/components/chat/panes/ArtifactPane'
+import ArtifactPane, { type ArtifactPaneViewMode } from '@renderer/components/chat/panes/ArtifactPane'
 import { Shell, useShellActions, useShellState } from '@renderer/components/chat/panes/Shell'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentMessageListProviderValue } from '@renderer/pages/agents/messages/agentMessageListAdapter'
@@ -67,6 +67,7 @@ interface AgentRightPaneState {
   flow: ReturnType<typeof buildAgentToolFlowProjection>
   status: AgentRightPaneStatus
   selectedFile: string | null
+  viewMode: ArtifactPaneViewMode
   workspacePath?: string
 }
 
@@ -74,6 +75,7 @@ interface AgentRightPaneActions {
   openAgentToolFlow: (input: AgentToolFlowOpenInput) => void
   closeFlowTab: (toolCallId: string) => void
   setSelectedFile: (file: string | null) => void
+  setViewMode: (mode: ArtifactPaneViewMode) => void
 }
 
 interface AgentRightPaneContextValue {
@@ -117,6 +119,7 @@ function AgentRightPaneStateProvider({
   const { openTab } = useShellActions()
   const [flowTabs, setFlowTabs] = useState<AgentFlowTab[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<ArtifactPaneViewMode>('preview')
 
   const activeFlowToolCallId = getFlowToolCallId(activeTab)
   const activeFlowTab = activeFlowToolCallId
@@ -131,6 +134,7 @@ function AgentRightPaneStateProvider({
 
   useEffect(() => {
     setSelectedFile(null)
+    setViewMode('preview')
   }, [workspacePath])
 
   const openAgentToolFlow = useCallback(
@@ -159,8 +163,8 @@ function AgentRightPaneStateProvider({
 
   const value = useMemo<AgentRightPaneContextValue>(
     () => ({
-      state: { flowTabs, activeFlowTab, flow, status, selectedFile, workspacePath },
-      actions: { openAgentToolFlow, closeFlowTab, setSelectedFile },
+      state: { flowTabs, activeFlowTab, flow, status, selectedFile, viewMode, workspacePath },
+      actions: { openAgentToolFlow, closeFlowTab, setSelectedFile, setViewMode },
       meta: { sessionId, sessionName, agentId, agentName, agentAvatar, modelFallback }
     }),
     [
@@ -177,6 +181,7 @@ function AgentRightPaneStateProvider({
       sessionId,
       sessionName,
       status,
+      viewMode,
       workspacePath
     ]
   )
@@ -195,11 +200,16 @@ function AgentRightPaneProvider(props: AgentRightPaneProviderProps) {
 
 function AgentRightPaneFilesPanel() {
   const { state, actions } = useAgentRightPane()
+  const shellState = useShellState()
   return (
     <ArtifactPane
       workspacePath={state.workspacePath}
+      pdfLayoutPending={shellState.pdfLayoutPending}
       selectedFile={state.selectedFile}
+      viewMode={state.viewMode}
       onSelectedFileChange={actions.setSelectedFile}
+      onViewModeChange={actions.setViewMode}
+      pdfLayoutRefreshKey={shellState.pdfLayoutRefreshKey}
     />
   )
 }

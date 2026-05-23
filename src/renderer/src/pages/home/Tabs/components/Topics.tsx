@@ -74,6 +74,7 @@ import type { MouseEvent, RefObject } from 'react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { buildChatMessageRouteUrl } from '../../routeSearch'
 import type { AddNewTopicPayload } from '../../types'
 import type { TopicExportMenuOptions } from './topicContextMenuActions'
 import { TopicManagePanel, useTopicManageMode } from './TopicManageMode'
@@ -692,6 +693,15 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     },
     [tabs]
   )
+  const openTopicInNewTab = useCallback(
+    (topic: Topic) => {
+      tabs?.openTab(buildChatMessageRouteUrl(topic.id), {
+        forceNew: true,
+        title: topic.name || t('common.unnamed')
+      })
+    },
+    [tabs, t]
+  )
 
   const handleToggleAssistantPin = useCallback(
     async (assistantId: string) => {
@@ -1163,6 +1173,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
           onDeleteClick={handleDeleteClick}
           onDeleteFromMenu={handleDeleteTopicFromMenu}
           onEditAssistant={openAssistantEditor}
+          onOpenInNewTab={tabs ? openTopicInNewTab : undefined}
           onPinTopic={handlePinTopic}
           onSwitchTopic={setActiveTopic}
           rowLayout="grouped"
@@ -1302,6 +1313,7 @@ interface TopicListBodyProps {
   onDeleteClick: (topicId: string, event: MouseEvent) => void
   onDeleteFromMenu: (topic: Topic) => Promise<void>
   onEditAssistant: (assistantId: string) => void
+  onOpenInNewTab?: (topic: Topic) => void
   onPinTopic: (topic: Topic) => Promise<void>
   onSwitchTopic: (topic: Topic) => void
   rowLayout: TopicRowLayout
@@ -1369,6 +1381,7 @@ function TopicRow({
   onDeleteClick,
   onDeleteFromMenu,
   onEditAssistant,
+  onOpenInNewTab,
   onPinTopic,
   onSwitchTopic,
   selectedIds,
@@ -1410,6 +1423,7 @@ function TopicRow({
         onEditAssistant(topic.assistantId)
       }
     },
+    onOpenInNewTab,
     onPinTopic,
     onStartRename: startMenuRename,
     t,

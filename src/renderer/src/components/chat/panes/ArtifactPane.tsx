@@ -38,6 +38,8 @@ const ARTIFACT_FILE_TREE_MAX_WIDTH_OFFSET = 140
 export interface ArtifactPaneProps {
   workspacePath?: string
   maximized?: boolean
+  pdfLayoutPending?: boolean
+  pdfLayoutRefreshKey?: number
   selectedFile?: string | null
   viewMode?: ArtifactPaneViewMode
   onSelectedFileChange?: (file: string | null) => void
@@ -405,6 +407,8 @@ const useWorkspaceFileTree = (path: string | undefined): WorkspaceFileTreeResult
 const ArtifactPane = ({
   workspacePath,
   maximized = false,
+  pdfLayoutPending = false,
+  pdfLayoutRefreshKey = 0,
   selectedFile: selectedFileProp,
   viewMode: viewModeProp,
   onSelectedFileChange,
@@ -604,12 +608,20 @@ const ArtifactPane = ({
     }
 
     if (isPdfFile(name)) {
+      if (pdfLayoutPending) {
+        return (
+          <div className="flex h-full w-full items-center justify-center">
+            <LoadingState label={t('common.loading')} />
+          </div>
+        )
+      }
+
       const pdfUrl = `${toFileUrl(joinPath(workspacePath, name) as FilePath)}#toolbar=0`
       return (
         // Chromium's PDF viewer needs an unsandboxed iframe for local file rendering.
         // eslint-disable-next-line @eslint-react/dom/no-missing-iframe-sandbox
         <iframe
-          key={`pdf-${name}-${contentRefreshToken}`}
+          key={`pdf-${name}-${contentRefreshToken}-${pdfLayoutRefreshKey}`}
           src={pdfUrl}
           title={name}
           className="h-full w-full border-0"

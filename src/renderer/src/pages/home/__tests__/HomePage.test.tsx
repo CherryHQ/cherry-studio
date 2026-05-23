@@ -1,6 +1,7 @@
 import type { Topic } from '@renderer/types'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
+import type * as ReactI18nextModule from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const initialTopic: Topic = {
@@ -26,6 +27,7 @@ const historyTopic: Topic = {
 }
 
 const homeMocks = vi.hoisted(() => ({
+  activeTopicOptions: undefined as { autoPickFirst?: boolean; syncActiveCache?: boolean } | undefined,
   cacheSetPersist: vi.fn(),
   discardTemporaryConversation: vi.fn(),
   activeTopicLoading: false,
@@ -37,6 +39,9 @@ const homeMocks = vi.hoisted(() => ({
   preferenceValues: new Map<string, unknown>(),
   refreshTopics: vi.fn(),
   replaceTemporaryConversation: vi.fn(),
+  routeSearch: {} as Record<string, unknown>,
+  routeTopic: undefined as Topic | undefined,
+  routeTopicLoading: false,
   setShowSidebar: vi.fn(),
   startTemporaryConversation: vi.fn(),
   temporaryConversation: null as any,
@@ -83,6 +88,14 @@ vi.mock('@renderer/hooks/useShortcuts', () => ({
   useShortcut: vi.fn()
 }))
 
+vi.mock('@renderer/components/chat', () => ({
+  ChatAppShell: ({ centerContent }: { centerContent?: ReactNode }) => (
+    <div data-testid="message-only-shell">{centerContent}</div>
+  ),
+  EmptyState: ({ title }: { title?: string }) => <div data-testid="empty-state">{title}</div>,
+  LoadingState: ({ label }: { label?: string }) => <div role="status">{label}</div>
+}))
+
 vi.mock('@renderer/hooks/useTemporaryConversation', () => ({
   useTemporaryConversation: () => ({
     conversation: homeMocks.temporaryConversation,
@@ -98,58 +111,44 @@ vi.mock('@renderer/hooks/useTopic', async () => {
   const React = await import('react')
 
   return {
+    mapApiTopicToRendererTopic: (topic: Topic) => topic,
     useTopicMutations: () => ({
       refreshTopics: homeMocks.refreshTopics
     }),
-    useActiveTopic: (topic?: Topic) => {
+    useActiveTopic: (topic?: Topic, options?: { autoPickFirst?: boolean; syncActiveCache?: boolean }) => {
+      homeMocks.activeTopicOptions = options
       const [activeTopic, setActiveTopic] = React.useState<Topic | undefined>(topic)
       return {
         activeTopic: homeMocks.forceActiveTopicUndefined ? undefined : activeTopic,
         setActiveTopic,
         isLoading: homeMocks.activeTopicLoading
       }
-    }
+    },
+    useTopicById: (topicId?: string) => ({
+      topic: topicId ? homeMocks.routeTopic : undefined,
+      isLoading: homeMocks.routeTopicLoading,
+      error: undefined
+    })
   }
 })
-
-vi.mock('@renderer/pages/history/HistoryRecordsPage', () => ({
-  default: ({ onClose, onRecordSelect, open }: any) =>
-    open ? (
-      <button
-        type="button"
-        onClick={() => {
-          onRecordSelect?.(homeMocks.historyTopic)
-          onClose?.()
-        }}>
-        Select history topic
-      </button>
-    ) : null
-}))
-
-vi.mock('@renderer/services/EventService', () => ({
-  EVENT_NAMES: {
-    SHOW_ASSISTANTS: 'SHOW_ASSISTANTS',
-    SHOW_TOPIC_SIDEBAR: 'SHOW_TOPIC_SIDEBAR',
-    GLOBAL_SEARCH_SELECT_TOPIC: 'GLOBAL_SEARCH_SELECT_TOPIC',
-    GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE: 'GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE'
-  },
-  EventEmitter: {
-    emit: vi.fn(),
-    on: vi.fn(() => vi.fn())
-  }
-}))
-
-vi.mock('@renderer/services/NavigationService', () => ({
-  default: {
-    setNavigate: vi.fn()
-  }
-}))
 
 vi.mock('@tanstack/react-router', () => ({
   useLocation: () => ({
     state: homeMocks.locationState
   }),
-  useNavigate: () => vi.fn()
+  useNavigate: () => vi.fn(),
+  useSearch: () => homeMocks.routeSearch
+}))
+
+vi.mock('react-i18next', async (importOriginal) => ({
+  ...(await importOriginal<typeof ReactI18nextModule>()),
+  useTranslation: () => ({
+    t: (key: string) =>
+      ({
+        'common.loading': 'Loading...',
+        'history.error.topic_not_found': 'Topic not found'
+      })[key] ?? key
+  })
 }))
 
 vi.mock('../Chat', () => ({
@@ -158,6 +157,7 @@ vi.mock('../Chat', () => ({
     pane,
     hideNavbar,
     paneOpen,
+    showResourceListControls,
     locateMessageId,
     onNewTopic,
     onLocateMessageHandled,
@@ -167,6 +167,7 @@ vi.mock('../Chat', () => ({
     pane?: ReactNode
     hideNavbar?: boolean
     paneOpen?: boolean
+    showResourceListControls?: boolean
     locateMessageId?: string
     onNewTopic?: () => void | Promise<void>
     onLocateMessageHandled?: () => void
@@ -177,6 +178,7 @@ vi.mock('../Chat', () => ({
       <output data-testid="active-topic-assistant">{activeTopic.assistantId ?? ''}</output>
       <output data-testid="hide-navbar">{String(hideNavbar)}</output>
       <output data-testid="pane-open">{String(paneOpen)}</output>
+      <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
       <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
       {onNewTopic && (
         <button type="button" onClick={() => onNewTopic()}>
@@ -212,6 +214,39 @@ vi.mock('../Tabs', () => ({
   )
 }))
 
+vi.mock('@renderer/pages/history/HistoryRecordsPage', () => ({
+  default: ({ onClose, onRecordSelect, open }: any) =>
+    open ? (
+      <button
+        type="button"
+        onClick={() => {
+          onRecordSelect?.(homeMocks.historyTopic)
+          onClose?.()
+        }}>
+        Select history topic
+      </button>
+    ) : null
+}))
+
+vi.mock('@renderer/services/EventService', () => ({
+  EVENT_NAMES: {
+    SHOW_ASSISTANTS: 'SHOW_ASSISTANTS',
+    SHOW_TOPIC_SIDEBAR: 'SHOW_TOPIC_SIDEBAR',
+    GLOBAL_SEARCH_SELECT_TOPIC: 'GLOBAL_SEARCH_SELECT_TOPIC',
+    GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE: 'GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE'
+  },
+  EventEmitter: {
+    emit: vi.fn(),
+    on: vi.fn(() => vi.fn())
+  }
+}))
+
+vi.mock('@renderer/services/NavigationService', () => ({
+  default: {
+    setNavigate: vi.fn()
+  }
+}))
+
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 
 import HomePage from '../HomePage'
@@ -221,6 +256,10 @@ describe('HomePage', () => {
     vi.clearAllMocks()
     homeMocks.historyTopic = historyTopic
     homeMocks.locationState = { topic: initialTopic }
+    homeMocks.routeSearch = {}
+    homeMocks.routeTopic = undefined
+    homeMocks.routeTopicLoading = false
+    homeMocks.activeTopicOptions = undefined
     homeMocks.persistCacheValues.clear()
     homeMocks.persistTemporaryConversation.mockResolvedValue(null)
     homeMocks.replaceTemporaryConversation.mockResolvedValue({
@@ -308,6 +347,73 @@ describe('HomePage', () => {
     rerender(<HomePage />)
 
     expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-initial')
+  })
+
+  it('renders a message-only route topic without updating global chat state', () => {
+    homeMocks.locationState = undefined
+    homeMocks.preferenceValues.set('topic.tab.show', true)
+    homeMocks.routeSearch = { topicId: 'topic-message', view: 'message' }
+    homeMocks.routeTopic = {
+      ...initialTopic,
+      id: 'topic-message',
+      name: 'Message topic'
+    }
+
+    render(<HomePage />)
+
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-message')
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
+    expect(screen.getByTestId('show-resource-list-controls')).toHaveTextContent('false')
+    expect(screen.queryByRole('button', { name: 'New topic' })).not.toBeInTheDocument()
+    expect(homeMocks.activeTopicOptions).toEqual({ autoPickFirst: false, syncActiveCache: false })
+    expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
+    expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
+    expect(homeMocks.cacheSetPersist).not.toHaveBeenCalled()
+  })
+
+  it('shows a loading state for a message-only route topic while it is loading', () => {
+    homeMocks.locationState = undefined
+    homeMocks.routeSearch = { topicId: 'topic-message', view: 'message' }
+    homeMocks.routeTopicLoading = true
+
+    render(<HomePage />)
+
+    expect(screen.getByTestId('message-only-shell')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Loading...')
+    expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
+    expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
+    expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
+  })
+
+  it('shows a not-found state for a missing message-only route topic', () => {
+    homeMocks.locationState = undefined
+    homeMocks.routeSearch = { topicId: 'topic-message', view: 'message' }
+
+    render(<HomePage />)
+
+    expect(screen.getByTestId('message-only-shell')).toBeInTheDocument()
+    expect(screen.getByTestId('empty-state')).toHaveTextContent('Topic not found')
+    expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
+    expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
+    expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
+  })
+
+  it('treats topicId without message view as a normal chat route', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.routeSearch = { topicId: 'topic-message' }
+    homeMocks.routeTopic = {
+      ...initialTopic,
+      id: 'topic-message',
+      name: 'Message topic'
+    }
+
+    render(<HomePage />)
+
+    expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
+    expect(homeMocks.activeTopicOptions).toEqual({ autoPickFirst: false, syncActiveCache: true })
+    await waitFor(() => {
+      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: undefined })
+    })
   })
 
   it('starts generic temporary topics with the active topic assistant', async () => {

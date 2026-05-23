@@ -1,4 +1,5 @@
-import { ChatAppShell, type ChatPanePosition } from '@renderer/components/chat'
+import type { ChatPanePosition } from '@renderer/components/chat'
+import { ChatAppShell, EmptyState } from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import { ComposerContextProvider } from '@renderer/components/chat/composer/ComposerContext'
 import ComposerCore from '@renderer/components/chat/composer/ComposerCore'
@@ -56,6 +57,9 @@ interface AgentChatProps {
   paneOpen?: boolean
   panePosition?: ChatPanePosition
   pendingSession?: AgentSessionEntity | null
+  lockedSession?: AgentSessionEntity | null
+  lockedSessionLoading?: boolean
+  showResourceListControls?: boolean
   temporaryConversation?: TemporaryConversation | null
   onStartTemporarySession?: (defaults: TemporaryConversationDefaults) => void | Promise<void>
   onPersistTemporarySession?: (initialName?: string) => Promise<TemporaryConversation | null>
@@ -74,6 +78,9 @@ const AgentChat = ({
   paneOpen,
   panePosition,
   pendingSession,
+  lockedSession,
+  lockedSessionLoading = false,
+  showResourceListControls = true,
   temporaryConversation,
   onStartTemporarySession,
   onPersistTemporarySession,
@@ -97,9 +104,12 @@ const AgentChat = ({
   const temporarySeedSessionIdRef = useRef<string | null>(null)
 
   const temporaryAgentConversation = temporaryConversation?.type === 'agent' ? temporaryConversation : null
-  const { session: visibleSession, isLoading: isSessionLoading } = useActiveSession({
+  const { session: activeSession, isLoading: isActiveSessionLoading } = useActiveSession({
     pendingSession
   })
+  const hasLockedSession = lockedSession !== undefined
+  const visibleSession = hasLockedSession ? (lockedSession ?? undefined) : activeSession
+  const isSessionLoading = lockedSessionLoading || (!hasLockedSession && isActiveSessionLoading)
   const visibleAgentId = visibleSession?.agentId ?? temporaryAgentConversation?.agentId ?? null
   const visibleWorkspaceId = visibleSession?.workspaceId ?? temporaryAgentConversation?.session.workspaceId ?? null
   const { agent: activeAgent, isLoading: isAgentLoading } = useAgent(
@@ -157,7 +167,8 @@ const AgentChat = ({
     setCitationPanelCitations(citations)
   }, [])
 
-  const isInitializing = !visibleSession && (temporaryAgentConversation ? isAgentLoading : isSessionLoading)
+  const isInitializing =
+    !visibleSession && (lockedSessionLoading || (temporaryAgentConversation ? isAgentLoading : isSessionLoading))
   const citationsPanelOpen = citationPanelCitations !== null
 
   if (isInitializing) {
@@ -179,6 +190,18 @@ const AgentChat = ({
   }
 
   if (!visibleSession) {
+    if (hasLockedSession) {
+      return (
+        <AgentChatFrame
+          className={messageStyle}
+          pane={pane}
+          paneOpen={paneOpen}
+          panePosition={panePosition}
+          main={<EmptyState compact className="h-full" title={t('agent.session.get.error.not_found')} />}
+        />
+      )
+    }
+
     if (!temporaryAgentConversation) {
       return (
         <AgentChatFrame
@@ -236,6 +259,7 @@ const AgentChat = ({
                 className="min-w-0"
                 activeAgent={activeAgent ?? null}
                 tools={<AgentRightPane.FilesToggle />}
+                showSidebarControls={showResourceListControls}
               />
             </div>
           }
@@ -269,6 +293,7 @@ const AgentChat = ({
       pane={pane}
       paneOpen={paneOpen}
       panePosition={panePosition}
+      showResourceListControls={showResourceListControls}
       visibleSession={visibleSession}
       agentId={sendableAgentId}
       activeAgent={activeAgent}
@@ -280,9 +305,9 @@ const AgentChat = ({
       locateMessageId={locateMessageId}
       onLocateMessageHandled={onLocateMessageHandled}
       onNewSessionDraft={
-        sendableAgentId
+        sendableAgentId && onStartTemporarySession
           ? () =>
-              onStartTemporarySession?.({
+              onStartTemporarySession({
                 agentId: sendableAgentId,
                 workspaceId: visibleSession.workspaceId ?? undefined,
                 name: t('common.unnamed')
@@ -309,6 +334,7 @@ interface AgentChatSessionFrameProps {
   pane?: ReactNode
   paneOpen?: boolean
   panePosition?: ChatPanePosition
+  showResourceListControls?: boolean
   sidePanel?: ReactNode
   visibleSession: VisibleAgentSession
   agentId?: string
@@ -326,6 +352,7 @@ const AgentChatSessionFrame = ({
   pane,
   paneOpen,
   panePosition,
+  showResourceListControls = true,
   sidePanel,
   visibleSession,
   agentId,
@@ -538,6 +565,7 @@ const AgentChatSessionFrame = ({
               className="min-w-0"
               activeAgent={activeAgent ?? null}
               tools={<AgentRightPane.FilesToggle />}
+              showSidebarControls={showResourceListControls}
             />
           </div>
         }

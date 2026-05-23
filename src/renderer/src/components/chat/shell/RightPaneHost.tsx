@@ -25,6 +25,7 @@ export interface RightPaneHostProps {
   defaultWidth?: number
   maxWidth?: number
   cacheKey?: RightPaneResizeCacheKey
+  onOpenAnimationComplete?: () => void
 }
 
 function clampRightPaneWidth(width: number, minWidth: number, maxWidth: number): number {
@@ -109,7 +110,8 @@ export function RightPaneHost({
   minWidth = ARTIFACT_RIGHT_PANE_MIN_WIDTH,
   defaultWidth,
   maxWidth = ARTIFACT_RIGHT_PANE_MAX_WIDTH,
-  cacheKey = ARTIFACT_RIGHT_PANE_CACHE_KEY
+  cacheKey = ARTIFACT_RIGHT_PANE_CACHE_KEY,
+  onOpenAnimationComplete
 }: RightPaneHostProps) {
   const resolvedDefaultWidth = defaultWidth ?? (typeof width === 'number' ? width : ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH)
   const { isResizing, paneRef, paneWidth, startResizing } = useRightPaneResize({
@@ -130,6 +132,9 @@ export function RightPaneHost({
           animate={{ width: resolvedWidth, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
           transition={isResizing ? { duration: 0 } : CHAT_SHELL_TRANSITION}
+          onAnimationComplete={() => {
+            if (!isResizing) onOpenAnimationComplete?.()
+          }}
           data-right-pane
           data-resizing={isResizing || undefined}
           className={cn(

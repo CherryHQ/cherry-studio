@@ -20,6 +20,7 @@ interface SessionItemProps {
   channelType?: string
   onDelete: (id: string) => void | Promise<void>
   onEditAgent: (agentId: string) => void
+  onOpenInNewTab?: (session: AgentSessionEntity) => void
   onPress: (id: string) => void
   onSelectItem?: () => void
   onTogglePin?: (id: string) => void | Promise<void>
@@ -33,6 +34,7 @@ const SessionItem = ({
   channelType,
   onDelete,
   onEditAgent,
+  onOpenInNewTab,
   onPress,
   onSelectItem,
   onTogglePin,
@@ -57,7 +59,7 @@ const SessionItem = ({
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
 
   const startInlineEdit = useCallback(() => context.actions.startRename(session.id), [context.actions, session.id])
-  const startMenuEdit = useCallback((_: string) => setRenameDialogOpen(true), [])
+  const startMenuEdit = useCallback(() => setRenameDialogOpen(true), [])
   const submitRenameDialog = useCallback(
     (name: string) => context.actions.commitRename(session.id, name),
     [context.actions, session.id]
@@ -73,11 +75,15 @@ const SessionItem = ({
       onEditAgent(session.agentId)
     }
   }, [onEditAgent, session.agentId])
+  const handleOpenInNewTab = useCallback(() => {
+    onOpenInNewTab?.(session)
+  }, [onOpenInNewTab, session])
 
   const actionContext = useMemo<SessionActionContext>(
     () => ({
       onDelete: handleDelete,
       onEditAgent: session.agentId ? handleEditAgent : undefined,
+      onOpenInNewTab: onOpenInNewTab ? handleOpenInNewTab : undefined,
       onTogglePin: onTogglePin ? handleTogglePin : undefined,
       pinned,
       sessionName: session.name ?? '',
@@ -87,7 +93,9 @@ const SessionItem = ({
     [
       handleDelete,
       handleEditAgent,
+      handleOpenInNewTab,
       handleTogglePin,
+      onOpenInNewTab,
       onTogglePin,
       pinned,
       session.agentId,

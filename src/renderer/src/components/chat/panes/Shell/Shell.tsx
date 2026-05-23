@@ -23,12 +23,15 @@ interface ShellState {
   open: boolean
   maximized: boolean
   activeTab: string
+  pdfLayoutPending: boolean
+  pdfLayoutRefreshKey: number
 }
 
 interface ShellActions {
   openTab: (tab: string) => void
   toggleTab: (tab: string) => void
   toggleMaximized: () => void
+  refreshPdfLayout: () => void
 }
 
 interface ShellContextValue {
@@ -56,34 +59,56 @@ function ShellProvider({ children, defaultTab }: { children: ReactNode; defaultT
   const [open, setOpen] = useState(false)
   const [maximized, setMaximized] = useState(false)
   const [activeTab, setActiveTab] = useState(defaultTab)
+  const [pdfLayoutPending, setPdfLayoutPending] = useState(false)
+  const [pdfLayoutRefreshKey, setPdfLayoutRefreshKey] = useState(0)
 
   const openTab = useCallback((tab: string) => {
     setActiveTab(tab)
-    setOpen(true)
+    setOpen((currentOpen) => {
+      if (!currentOpen) setPdfLayoutPending(true)
+      return true
+    })
   }, [])
   const toggleTab = useCallback(
     (tab: string) => {
       setOpen((currentOpen) => {
         if (currentOpen && activeTab === tab) {
           setMaximized(false)
+          setPdfLayoutPending(false)
           return false
         }
         setActiveTab(tab)
+        if (!currentOpen) setPdfLayoutPending(true)
         return true
       })
     },
     [activeTab]
   )
   const toggleMaximized = useCallback(() => {
+    setPdfLayoutPending(false)
     setMaximized((currentMaximized) => !currentMaximized)
+  }, [])
+  const refreshPdfLayout = useCallback(() => {
+    setPdfLayoutPending(false)
+    setPdfLayoutRefreshKey((key) => key + 1)
   }, [])
 
   const value = useMemo<ShellContextValue>(
     () => ({
-      state: { open, maximized, activeTab },
-      actions: { openTab, toggleTab, toggleMaximized }
+      state: { open, maximized, activeTab, pdfLayoutPending, pdfLayoutRefreshKey },
+      actions: { openTab, toggleTab, toggleMaximized, refreshPdfLayout }
     }),
-    [activeTab, maximized, open, openTab, toggleMaximized, toggleTab]
+    [
+      activeTab,
+      maximized,
+      open,
+      openTab,
+      pdfLayoutPending,
+      pdfLayoutRefreshKey,
+      refreshPdfLayout,
+      toggleMaximized,
+      toggleTab
+    ]
   )
 
   return <ShellContext value={value}>{children}</ShellContext>
@@ -94,7 +119,7 @@ function ShellProvider({ children, defaultTab }: { children: ReactNode; defaultT
 // inside RightPaneHost's `AnimatePresence initial={false}`, so the dock snaps
 // back in a single reflow rather than animating width frame by frame.
 function ShellHost({ children }: { children: ReactNode }) {
-  const { state } = useShell()
+  const { state, actions } = useShell()
   if (state.maximized) return null
 
   return (
@@ -105,7 +130,8 @@ function ShellHost({ children }: { children: ReactNode }) {
       minWidth={ARTIFACT_RIGHT_PANE_MIN_WIDTH}
       defaultWidth={ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH}
       maxWidth={ARTIFACT_RIGHT_PANE_MAX_WIDTH}
-      cacheKey={ARTIFACT_RIGHT_PANE_CACHE_KEY}>
+      cacheKey={ARTIFACT_RIGHT_PANE_CACHE_KEY}
+      onOpenAnimationComplete={actions.refreshPdfLayout}>
       {children}
     </RightPaneHost>
   )
