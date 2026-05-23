@@ -7,6 +7,9 @@
         "invalid_agent": "Agent invalid"
       },
       "model": {
+        "docs_link": "[to be translated]:Custom provider",
+        "empty": "[to be translated]:No compatible models found for this Agent type.",
+        "empty_docs": "[to be translated]:View setup guide",
         "supported_providers": "Furnizori acceptați",
         "tooltip": "Momentan, doar modelele care acceptă endpoint-uri Anthropic sunt disponibile pentru funcția Agent.",
         "view_providers": "Vizualizați furnizorii acceptați"
@@ -5167,6 +5170,7 @@
         "remove_model": "Elimină modelul",
         "remove_whole_group": "Elimină întregul grup"
       },
+      "possibly_removed": "[to be translated]:This model may no longer be available from the provider",
       "provider_id": "ID furnizor",
       "provider_key_add_confirm": "Vrei să adaugi cheia API pentru {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Adăugarea cheii API a furnizorului a eșuat, datele sunt goale",

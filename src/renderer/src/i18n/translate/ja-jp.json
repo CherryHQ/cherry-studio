@@ -7,6 +7,9 @@
         "invalid_agent": "無効なエージェント"
       },
       "model": {
+        "docs_link": "[to be translated]:Custom provider",
+        "empty": "[to be translated]:No compatible models found for this Agent type.",
+        "empty_docs": "[to be translated]:View setup guide",
         "supported_providers": "サポートされているプロバイダー",
         "tooltip": "現在、エージェント機能では、Anthropicエンドポイントをサポートするモデルのみが利用可能です。",
         "view_providers": "サポートされているプロバイダーを表示"
@@ -5167,6 +5170,7 @@
         "remove_model": "モデルを削除",
         "remove_whole_group": "グループ全体を削除"
       },
+      "possibly_removed": "[to be translated]:This model may no longer be available from the provider",
       "provider_id": "プロバイダー ID",
       "provider_key_add_confirm": "{{provider}} の API キーを追加しますか？",
       "provider_key_add_failed_by_empty_data": "{{provider}} の API キーを追加できませんでした。データが空です。",

@@ -7,12 +7,12 @@
         "invalid_agent": "Invalid Agent"
       },
       "model": {
-        "supported_providers": "Supported Providers",
-        "tooltip": "Currently, only models that support Anthropic endpoints are available for the Agent feature.",
-        "view_providers": "View supported providers",
         "docs_link": "Custom provider",
         "empty": "No compatible models found for this Agent type.",
-        "empty_docs": "View setup guide"
+        "empty_docs": "View setup guide",
+        "supported_providers": "Supported Providers",
+        "tooltip": "Currently, only models that support Anthropic endpoints are available for the Agent feature.",
+        "view_providers": "View supported providers"
       },
       "title": "Add Agent",
       "type": {
@@ -5180,6 +5180,7 @@
         "remove_model": "Remove model",
         "remove_whole_group": "Remove the whole group"
       },
+      "possibly_removed": "This model may no longer be available from the provider",
       "provider_id": "Provider ID",
       "provider_key_add_confirm": "Do you want to add the API key for {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Failed to add provider API key, data is empty",

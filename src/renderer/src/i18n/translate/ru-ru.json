@@ -7,6 +7,9 @@
         "invalid_agent": "Недействительный агент"
       },
       "model": {
+        "docs_link": "[to be translated]:Custom provider",
+        "empty": "[to be translated]:No compatible models found for this Agent type.",
+        "empty_docs": "[to be translated]:View setup guide",
         "supported_providers": "Поддерживаемые поставщики",
         "tooltip": "В настоящее время для функции агента доступны только модели, поддерживающие конечные точки Anthropic.",
         "view_providers": "Просмотреть поддерживаемых поставщиков"
@@ -5167,6 +5170,7 @@
         "remove_model": "Удалить модель",
         "remove_whole_group": "Удалить всю группу"
       },
+      "possibly_removed": "[to be translated]:This model may no longer be available from the provider",
       "provider_id": "ID провайдера",
       "provider_key_add_confirm": "Добавить API ключ для {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Не удалось добавить API ключ для {{provider}}, данные пусты",

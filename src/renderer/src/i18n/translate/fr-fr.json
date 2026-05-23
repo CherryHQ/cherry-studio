@@ -7,6 +7,9 @@
         "invalid_agent": "Agent invalide"
       },
       "model": {
+        "docs_link": "[to be translated]:Custom provider",
+        "empty": "[to be translated]:No compatible models found for this Agent type.",
+        "empty_docs": "[to be translated]:View setup guide",
         "supported_providers": "Fournisseurs pris en charge",
         "tooltip": "Actuellement, seuls les modèles qui prennent en charge les points de terminaison Anthropic sont disponibles pour la fonctionnalité Agent.",
         "view_providers": "Afficher les fournisseurs pris en charge"
@@ -5167,6 +5170,7 @@
         "remove_model": "Supprimer le modèle",
         "remove_whole_group": "Supprimer tout le groupe"
       },
+      "possibly_removed": "[to be translated]:This model may no longer be available from the provider",
       "provider_id": "Identifiant du fournisseur",
       "provider_key_add_confirm": "Voulez-vous ajouter une clé API pour {{provider}} ?",
       "provider_key_add_failed_by_empty_data": "Échec de l'ajout de la clé API du fournisseur, les données sont vides",

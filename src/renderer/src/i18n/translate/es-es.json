@@ -7,6 +7,9 @@
         "invalid_agent": "Agent inválido"
       },
       "model": {
+        "docs_link": "[to be translated]:Custom provider",
+        "empty": "[to be translated]:No compatible models found for this Agent type.",
+        "empty_docs": "[to be translated]:View setup guide",
         "supported_providers": "Proveedores Admitidos",
         "tooltip": "Actualmente, solo los modelos que admiten puntos finales de Anthropic están disponibles para la función Agente.",
         "view_providers": "Ver proveedores compatibles"
@@ -5167,6 +5170,7 @@
         "remove_model": "Eliminar modelo",
         "remove_whole_group": "Eliminar todo el grupo"
       },
+      "possibly_removed": "[to be translated]:This model may no longer be available from the provider",
       "provider_id": "ID del proveedor",
       "provider_key_add_confirm": "¿Desea agregar una clave API para {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Error al agregar la clave API del proveedor: los datos están vacíos",
