@@ -73,7 +73,8 @@ describe('install-hooks: Windows path comparison', () => {
     })
 
     it('passes shell: true on win32 platform', () => {
-      const isWindows = 'win32' === 'win32'
+      const platform = 'win32'
+      const isWindows = platform === 'win32'
       const opts = { stdio: 'inherit' as const, shell: isWindows }
       mockExecFileSync('pnpm', ['exec', 'prek', 'install'], opts)
       expect(mockExecFileSync).toHaveBeenCalledWith('pnpm', ['exec', 'prek', 'install'], {
@@ -83,7 +84,8 @@ describe('install-hooks: Windows path comparison', () => {
     })
 
     it('passes shell: false on darwin platform', () => {
-      const isWindows = 'darwin' === 'win32'
+      const platform: string = 'darwin'
+      const isWindows = platform === 'win32'
       const opts = { stdio: 'inherit' as const, shell: isWindows }
       mockExecFileSync('pnpm', ['exec', 'prek', 'install'], opts)
       expect(mockExecFileSync).toHaveBeenCalledWith('pnpm', ['exec', 'prek', 'install'], {
@@ -93,7 +95,8 @@ describe('install-hooks: Windows path comparison', () => {
     })
 
     it('passes shell: false on linux platform', () => {
-      const isWindows = 'linux' === 'win32'
+      const platform: string = 'linux'
+      const isWindows = platform === 'win32'
       const opts = { stdio: 'inherit' as const, shell: isWindows }
       mockExecFileSync('pnpm', ['exec', 'prek', 'install'], opts)
       expect(mockExecFileSync).toHaveBeenCalledWith('pnpm', ['exec', 'prek', 'install'], {
