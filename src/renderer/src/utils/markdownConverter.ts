@@ -355,7 +355,7 @@ function yamlFrontMatterPlugin(md: MarkdownIt) {
   md.renderer.rules.yaml_front_matter = (tokens: Array<{ content?: string }>, idx: number): string => {
     const token = tokens[idx]
     const content = token?.content ?? ''
-    let html = `<div data-type="yaml-front-matter" data-content="${he.encode(content)}">${content}</div>`
+    let html = `<div data-type="yamlFrontMatter" data-content="${he.encode(content)}">${content}</div>`
     html = injectLineNumber(token, html)
     return html
   }
@@ -577,7 +577,7 @@ turndownService.addRule('br', {
 // Custom rule to preserve YAML front matter
 turndownService.addRule('yamlFrontMatter', {
   filter: (node: Element) => {
-    return node.nodeName === 'DIV' && node.getAttribute?.('data-type') === 'yaml-front-matter'
+    return node.nodeName === 'DIV' && node.getAttribute?.('data-type') === 'yamlFrontMatter'
   },
   replacement: (_content: string, node: Node) => {
     const element = node as Element

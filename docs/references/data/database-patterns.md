@@ -353,3 +353,67 @@ Drizzle cannot manage triggers and virtual tables (e.g., FTS5). These are define
 ## Seeding
 
 For initial data population (default preferences, builtin languages, preset providers), see [Database Seeding Guide](./database-seeding-guide.md).
+
+## Write Serialization (`DbService.withWriteTx`)
+
+Concurrent write paths MUST go through `application.get('DbService').withWriteTx(fn)`. libsql client-ts upstream issue [#288](https://github.com/tursodatabase/libsql-client-ts/issues/288) makes `PRAGMA busy_timeout` ineffective for async transactions, so concurrent `db.transaction()` calls reliably surface `SQLITE_BUSY`.
+
+### Signature
+
+```ts
+withWriteTx<T>(fn: (tx: DbOrTx) => Promise<T>): Promise<T>
+```
+
+Internals: process-wide FIFO mutex + libsql's default `BEGIN IMMEDIATE` + single 50 ms `SQLITE_BUSY` retry. Callers never see BUSY (unless the retry also fails — extremely rare).
+
+### Usage
+
+```ts
+const dbService = application.get('DbService')
+
+// Single write
+await dbService.withWriteTx((tx) =>
+  jobService.setMetadataTx(tx, jobId, merged)
+)
+
+// Compose multiple writes into one transaction
+await dbService.withWriteTx(async (tx) => {
+  await jobService.cancelByIdsTx(tx, ids, error)
+  await jobService.resetToPendingByIdsTx(tx, otherIds)
+})
+```
+
+### Two-form DAO pattern
+
+Each write method has a composable `*Tx` form and a thin non-Tx wrapper. Simple callers use the wrapper and never see `withWriteTx`; batch/recovery paths compose `*Tx` calls inside a single `withWriteTx`. See `JobService` / `JobScheduleService` for canonical examples.
+
+```ts
+async cancelByIdsTx(tx: DbOrTx, ids: string[], error: JobError): Promise<void> { /* SQL via tx */ }
+
+async cancelByIds(ids: string[], error: JobError): Promise<void> {
+  const dbService = application.get('DbService')
+  return dbService.withWriteTx((tx) => this.cancelByIdsTx(tx, ids, error))
+}
+```
+
+### Rules
+
+| Rule | Rationale |
+| --- | --- |
+| `fn` must only do DB ops — no `await` on network / file IO / handler execution | Holds the global write mutex; long awaits starve the queue |
+| Do not call `writeMutex.cancel()` | Mutex is non-cancellable; shutdown coordinates via service lifecycle |
+| Do not wrap reads | WAL mode gives readers snapshot isolation; wrapping adds needless serialization |
+| Wrap tight loops in one `withWriteTx`, not per-iteration | One acquire/release vs N |
+
+### When to migrate existing callsites
+
+| Path | Action |
+| --- | --- |
+| Concurrent write paths in hot code | Migrate |
+| Low-frequency writes (user settings, occasional CRUD) | Migrate when touching the code |
+| Boot-only writes (migrations, seeders) | Leave |
+| Pure reads | Leave |
+
+### Reference
+
+[Concurrency & Locks — Layer 0](../job-and-scheduler/concurrency-and-locks.md).

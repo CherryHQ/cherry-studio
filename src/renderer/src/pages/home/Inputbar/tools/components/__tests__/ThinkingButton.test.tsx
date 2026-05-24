@@ -60,7 +60,7 @@ vi.mock('@renderer/config/models', () => ({
 }))
 
 // Mock icon components
-vi.mock('@renderer/components/Icons/SVGIcon', () => ({
+vi.mock('@renderer/components/Icons/SvgIcon', () => ({
   MdiLightbulbAutoOutline: ({ className }: any) => (
     <div data-testid="mdi-lightbulb-auto-outline" className={className}>
       AutoOutline

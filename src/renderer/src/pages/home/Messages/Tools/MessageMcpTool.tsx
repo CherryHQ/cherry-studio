@@ -8,7 +8,7 @@ import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { MCPToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
-import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
+import { isToolAutoApproved } from '@renderer/utils/mcpTools'
 import type { MCPProgressEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Collapse, ConfigProvider, Progress } from 'antd'
@@ -80,16 +80,16 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
     }
   }, [id])
 
-  // Auto-expand when streaming, auto-collapse when done
+  // Auto-expand when pending (waiting for approval) or streaming, auto-collapse when done
   useEffect(() => {
-    if (isStreaming) {
-      // Expand when streaming starts
+    if (isStreaming || isPending) {
+      // Expand when streaming starts or waiting for approval
       setActiveKeys((prev) => (prev.includes(id) ? prev : [...prev, id]))
     } else if (isDone || isError) {
       // Collapse when streaming ends
       setActiveKeys((prev) => prev.filter((key) => key !== id))
     }
-  }, [isStreaming, isDone, isError, id])
+  }, [isStreaming, isDone, isError, id, isPending])
 
   if (!toolResponse) {
     return null

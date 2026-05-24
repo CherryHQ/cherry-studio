@@ -2,6 +2,8 @@ import { CacheService } from '@data/CacheService'
 import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
+import { JobManager } from '@main/core/job/JobManager'
+import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { WindowManager } from '@main/core/window/WindowManager'
 import { AgentBootstrapService } from '@main/services/AgentBootstrapService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
@@ -9,12 +11,10 @@ import { ApiServerService } from '@main/services/ApiServerService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { BackupService } from '@main/services/backup/BackupService'
+import { CherryInOauthService } from '@main/services/CherryInOauthService'
 import { CodeCliService } from '@main/services/CodeCliService'
-import {
-  FileProcessingOrchestrationService,
-  FileProcessingTaskService,
-  TesseractRuntimeService
-} from '@main/services/fileProcessing'
+import { FileManager } from '@main/services/file/FileManager'
+import { FileProcessingOrchestrationService, TesseractRuntimeService } from '@main/services/fileProcessing'
 import { KnowledgeOrchestrationService, KnowledgeRuntimeService } from '@main/services/knowledge'
 import { KnowledgeVectorStoreService } from '@main/services/knowledge/vectorstore/KnowledgeVectorStoreService'
 import { LanTransferService } from '@main/services/lanTransfer'
@@ -73,11 +73,11 @@ export const services = {
   SubWindowService,
   PreferenceService,
   TesseractRuntimeService,
-  FileProcessingTaskService,
   AnalyticsService,
   AppMenuService,
   CodeCliService,
   LanTransferService,
+  FileManager,
   FileProcessingOrchestrationService,
   PowerMonitorService,
   SelectionService,
@@ -94,6 +94,7 @@ export const services = {
   TrayService,
   WebSearchService,
   WebviewService,
+  CherryInOauthService,
   MainWindowService,
   QuickAssistantService,
   McpService,
@@ -105,7 +106,9 @@ export const services = {
   AgentBootstrapService,
   ApiServerService,
   AppUpdaterService,
-  BackupService
+  BackupService,
+  SchedulerService,
+  JobManager
 } as const
 
 /** Auto-derived service name to instance type mapping */

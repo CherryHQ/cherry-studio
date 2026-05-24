@@ -1,33 +1,16 @@
 /**
  * Tests for ProviderRegistryService.
- * Uses the unified mock system per CLAUDE.md testing guidelines.
+ * Uses setupTestDatabase() per CLAUDE.md testing guidelines.
  */
 
-import { DataApiErrorFactory } from '@shared/data/api'
+import { userProviderTable } from '@data/db/schemas/userProvider'
+import { providerService } from '@data/services/ProviderService'
+import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
+import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Chainable DB mock (Drizzle queries are thenable)
-// ─────────────────────────────────────────────────────────────────────────────
-
-function createChainableMockDb() {
-  const emptyResult: unknown[] = []
-
-  const makeChainable = (): unknown => {
-    const obj: Record<string, unknown> = {}
-    for (const method of ['select', 'from', 'where', 'limit', 'insert', 'values', 'onConflictDoUpdate', 'all', 'get']) {
-      obj[method] = vi.fn(() => makeChainable())
-    }
-    obj.transaction = vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(makeChainable()))
-    obj.then = (resolve: (v: unknown) => void) => resolve(emptyResult)
-    return obj
-  }
-
-  return makeChainable()
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mocks
@@ -123,14 +106,6 @@ vi.mock('../ModelService', () => ({
   modelService: { batchUpsert: vi.fn() }
 }))
 
-const mockGetByProviderId = vi.fn()
-
-vi.mock('../ProviderService', () => ({
-  providerService: {
-    getByProviderId: mockGetByProviderId
-  }
-}))
-
 import {
   readModelRegistry,
   readProviderModelRegistry,
@@ -189,66 +164,46 @@ function setupRegistryData() {
 }
 
 function clearServiceCache() {
-  const svc = providerRegistryService as unknown as Record<string, unknown>
-  svc['loader'] = null
+  providerRegistryService.clearCache()
 }
 
 describe('ProviderRegistryService', () => {
+  const dbh = setupTestDatabase()
+
   beforeEach(() => {
     vi.clearAllMocks()
     clearServiceCache()
-    MockMainDbServiceUtils.setDb(createChainableMockDb())
-    mockGetByProviderId.mockRejectedValue(DataApiErrorFactory.notFound('Provider', 'openai'))
+    MockMainDbServiceUtils.setDb(dbh.db)
   })
 
   describe('registry load failure', () => {
-    it('should throw when models.json cannot be read', () => {
+    it('should throw when models.json cannot be read', async () => {
       setupRegistryData()
       mockReadModels.mockImplementation(() => {
         throw new Error('ENOENT: no such file')
       })
 
-      expect(() => providerRegistryService.getRegistryModelsByProvider('openai')).toThrow('ENOENT')
+      await expect(providerRegistryService.lookupModel('openai', 'gpt-4o')).rejects.toThrow('ENOENT')
     })
 
-    it('should throw when providers.json cannot be read', () => {
+    it('should throw when providers.json cannot be read', async () => {
       setupRegistryData()
       mockReadProviders.mockImplementation(() => {
         throw new Error('ENOENT: no such file')
       })
 
-      expect(() => providerRegistryService.getRegistryModelsByProvider('openai')).toThrow('ENOENT')
+      await expect(providerRegistryService.lookupModel('openai', 'gpt-4o')).rejects.toThrow('ENOENT')
     })
   })
 
   describe('cache reuse', () => {
-    it('should only read models.json once across multiple calls', () => {
+    it('should only read models.json once across multiple calls', async () => {
       setupRegistryData()
 
-      providerRegistryService.getRegistryModelsByProvider('openai')
-      providerRegistryService.getRegistryModelsByProvider('openai')
+      await providerRegistryService.resolveModels('openai', ['gpt-4o'])
+      await providerRegistryService.resolveModels('openai', ['gpt-4o'])
 
       expect(mockReadModels).toHaveBeenCalledTimes(1)
-    })
-  })
-
-  describe('getRegistryModelsByProvider', () => {
-    it('should return merged models for a known provider', () => {
-      setupRegistryData()
-
-      const models = providerRegistryService.getRegistryModelsByProvider('openai')
-
-      expect(models).toHaveLength(1)
-      expect(models[0].id).toContain('gpt-4o')
-      expect(models[0].name).toBe('GPT-4o')
-    })
-
-    it('should return empty array for unknown provider', () => {
-      setupRegistryData()
-
-      const models = providerRegistryService.getRegistryModelsByProvider('unknown-provider')
-
-      expect(models).toHaveLength(0)
     })
   })
 
@@ -285,7 +240,6 @@ describe('ProviderRegistryService', () => {
 
     it('should fall back to registry defaults when provider is not found in the DB', async () => {
       setupRegistryData()
-      mockGetByProviderId.mockRejectedValueOnce(DataApiErrorFactory.notFound('Provider', 'openai'))
 
       const result = await providerRegistryService.lookupModel('openai', 'gpt-4o')
 
@@ -297,11 +251,53 @@ describe('ProviderRegistryService', () => {
       setupRegistryData()
       const error = new Error('database offline')
       const loggerSpy = vi.spyOn(mockMainLoggerService, 'error').mockImplementation(() => {})
-      mockGetByProviderId.mockRejectedValueOnce(error)
+      const providerSpy = vi.spyOn(providerService, 'getByProviderId').mockRejectedValueOnce(error)
 
       await expect(providerRegistryService.resolveModels('openai', ['gpt-4o'])).rejects.toThrow('database offline')
 
       expect(loggerSpy).toHaveBeenCalledWith('Failed to fetch provider for reasoning config', error)
+      providerSpy.mockRestore()
+    })
+
+    it('should reject when a single registry model merge fails instead of returning an incomplete array', async () => {
+      setupRegistryData()
+      mockReadModels.mockReturnValueOnce({
+        version: '1.0',
+        models: [
+          {
+            id: 'broken-model',
+            name: 'Broken',
+            capabilities: ['function-call'],
+            reasoning: {}
+          }
+        ]
+      } as ReturnType<typeof readModelRegistry>)
+      mockReadProviderModels.mockReturnValueOnce({
+        version: '1.0',
+        overrides: [
+          {
+            providerId: 'openai',
+            modelId: 'broken-model',
+            replaceWith: Symbol('invalid-replacement') as unknown as string
+          }
+        ]
+      } as ReturnType<typeof readProviderModelRegistry>)
+      mockReadProviders.mockReturnValueOnce({
+        version: '1.0',
+        providers: [
+          {
+            id: 'openai',
+            name: 'OpenAI',
+            metadata: {},
+            endpointConfigs: {
+              'openai-chat-completions': { reasoningFormatType: 'openai-chat' }
+            },
+            defaultChatEndpoint: 'openai-chat-completions'
+          }
+        ]
+      } as unknown as ReturnType<typeof readProviderRegistry>)
+
+      await expect(providerRegistryService.resolveModels('openai', ['broken-model'])).rejects.toThrow()
     })
 
     // ── Regression: normalize fallback ────────────────────────────────────────
@@ -330,6 +326,30 @@ describe('ProviderRegistryService', () => {
 
       expect(models).toHaveLength(1)
       expect(models[0].name).toBe('GPT-4o')
+    })
+
+    it('should prefer persisted provider endpoint config over registry reasoning defaults', async () => {
+      setupRegistryData()
+      await dbh.db.insert(userProviderTable).values({
+        providerId: 'openai',
+        presetProviderId: 'openai',
+        name: 'OpenAI',
+        defaultChatEndpoint: 'openai-chat-completions',
+        endpointConfigs: {
+          'openai-chat-completions': {
+            baseUrl: 'https://proxy.example/v1',
+            reasoningFormatType: 'openai-responses'
+          }
+        },
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+
+      const result = await providerRegistryService.lookupModel('openai', 'gpt-4o')
+
+      expect(result.defaultChatEndpoint).toBe('openai-chat-completions')
+      expect(result.reasoningFormatTypes).toMatchObject({
+        'openai-chat-completions': 'openai-responses'
+      })
     })
   })
 })

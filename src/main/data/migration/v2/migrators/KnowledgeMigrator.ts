@@ -10,7 +10,7 @@ import { createClient, type Value as LibsqlValue } from '@libsql/client'
 import { loggerService } from '@logger'
 import { sanitizeFilename } from '@main/utils/file'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
-import type { FileMetadata } from '@shared/data/types/file'
+import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
 import { sql } from 'drizzle-orm'
 

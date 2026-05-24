@@ -206,10 +206,7 @@ User Input (UI)
 │    ├─ Set providerId ('openai', 'anthropic', etc.)           │
 │    └─ Set providerSettings (apiKey, baseURL, etc.)           │
 │                                                               │
-│    Step 4.2: Claude Code OAuth special handling              │
-│    └─ Inject Claude Code system message (if OAuth)           │
-│                                                               │
-│    Step 4.3: Routing selection                               │
+│    Step 4.2: Routing selection                               │
 │    ├─ If trace enabled → _completionsForTrace()              │
 │    └─ Otherwise → _completionsOrImageGeneration()            │
 └─────────────────────────┬───────────────────────────────────┘
@@ -612,17 +609,7 @@ public async completions(
     )
   }
 
-  // 2. Claude Code OAuth special handling
-  if (this.actualProvider.id === 'anthropic' &&
-      this.actualProvider.authType === 'oauth') {
-    const claudeCodeSystemMessage = buildClaudeCodeSystemModelMessage(
-      params.system
-    )
-    params.system = undefined
-    params.messages = [...claudeCodeSystemMessage, ...(params.messages || [])]
-  }
-
-  // 3. Routing selection
+  // 2. Routing selection
   if (providerConfig.topicId && getEnableDeveloperMode()) {
     return await this._completionsForTrace(modelId, params, {
       ...providerConfig,

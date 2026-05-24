@@ -28,12 +28,12 @@ import { t } from 'i18next'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { commandSuggestion } from './command'
-import { CodeBlockShiki } from './extensions/code-block-shiki/code-block-shiki'
-import { EnhancedImage } from './extensions/enhanced-image'
-import { EnhancedLink } from './extensions/enhanced-link'
-import { EnhancedMath } from './extensions/enhanced-math'
+import { CodeBlockShiki } from './extensions/codeBlockShiki/codeBlockShiki'
+import { EnhancedImage } from './extensions/enhancedImage'
+import { EnhancedLink } from './extensions/enhancedLink'
+import { EnhancedMath } from './extensions/enhancedMath'
 import { Placeholder } from './extensions/placeholder'
-import { YamlFrontMatter } from './extensions/yaml-front-matter'
+import { YamlFrontMatter } from './extensions/yamlFrontMatter'
 import { blobToArrayBuffer, compressImage, shouldCompressImage } from './helpers/imageUtils'
 
 const logger = loggerService.withContext('useRichEditor')

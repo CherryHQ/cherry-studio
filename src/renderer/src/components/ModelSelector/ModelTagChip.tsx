@@ -1,5 +1,4 @@
-import { CustomTag } from '@cherrystudio/ui'
-import type { CustomTagProps } from '@cherrystudio/ui/components/primitives/customTag'
+import { CustomTag, type CustomTagProps } from '@cherrystudio/ui'
 import { Brain, Eye, Globe, Wrench } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'

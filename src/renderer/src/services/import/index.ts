@@ -1,3 +1,3 @@
-export { ChatGPTImporter } from './importers/ChatGPTImporter'
+export { ChatgptImporter } from './importers/ChatgptImporter'
 export { importChatGPTConversations, ImportService } from './ImportService'
 export type { ConversationImporter, ImportResponse, ImportResult } from './types'

@@ -34,6 +34,15 @@ export class MockMainDbService {
 
   public getDb = vi.fn(() => this.db)
 
+  /**
+   * Serialized write transaction mock. Mirrors `DbService.withWriteTx`:
+   * passes the current db (or whatever was set via `setDb`) to `fn` so tests
+   * exercising the write path do not need to know about the production mutex
+   * + BUSY retry machinery. Tests can replace this mock with `vi.spyOn(...)`
+   * to assert call order, simulate BUSY, etc.
+   */
+  public withWriteTx = vi.fn(async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => fn(this.db))
+
   public get isReady() {
     return this._isReady
   }
@@ -59,6 +68,7 @@ export const MockMainDbServiceUtils = {
    */
   resetMocks: () => {
     mockInstance.getDb.mockClear()
+    mockInstance.withWriteTx.mockClear()
 
     // Reset default db mocks
     Object.values(defaultMockDb).forEach((method) => {
@@ -95,6 +105,7 @@ export const MockMainDbServiceUtils = {
    * Get mock call counts for debugging
    */
   getMockCallCounts: () => ({
-    getDb: mockInstance.getDb.mock.calls.length
+    getDb: mockInstance.getDb.mock.calls.length,
+    withWriteTx: mockInstance.withWriteTx.mock.calls.length
   })
 }

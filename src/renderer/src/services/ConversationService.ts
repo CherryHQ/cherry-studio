@@ -66,7 +66,7 @@ export class ConversationService {
   }
 
   static needsWebSearch(assistant: Assistant): boolean {
-    return !!assistant.webSearchProviderId
+    return !!assistant.enableWebSearch
   }
 
   static needsKnowledgeSearch(assistant: Assistant): boolean {

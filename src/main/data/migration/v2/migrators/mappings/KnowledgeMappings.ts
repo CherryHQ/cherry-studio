@@ -1,5 +1,5 @@
 import type { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
-import type { FileMetadata } from '@shared/data/types/file'
+import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,

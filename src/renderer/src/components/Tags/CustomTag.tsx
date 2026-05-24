@@ -1,5 +1,4 @@
-import { CustomTag } from '@cherrystudio/ui'
-import type { CustomTagProps } from '@cherrystudio/ui/components/primitives/customTag'
+import { CustomTag, type CustomTagProps } from '@cherrystudio/ui'
 
 export type { CustomTagProps }
 export default CustomTag

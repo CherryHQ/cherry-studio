@@ -37,7 +37,7 @@ import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import Scrollbar from '../Scrollbar'
-import AIDiagnosisSectionWithStatus from './AIDiagnosisSection'
+import AiDiagnosisSectionWithStatus from './AiDiagnosisSection'
 
 interface ErrorDetailContentProps {
   error?: SerializedError
@@ -572,7 +572,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
       <ErrorDetailContainer ref={containerRef}>
         {renderErrorDetails(error)}
         {diagStatus !== 'idle' && (
-          <AIDiagnosisSectionWithStatus
+          <AiDiagnosisSectionWithStatus
             key={blockId ?? error?.message}
             ref={diagSectionRef}
             error={error}

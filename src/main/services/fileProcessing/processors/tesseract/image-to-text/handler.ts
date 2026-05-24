@@ -5,6 +5,7 @@ import type { PreparedTesseractContext } from '../types'
 import { prepareContext } from './prepare'
 
 export const tesseractImageToTextHandler: FileProcessingCapabilityHandler<'image_to_text'> = {
+  mode: 'background',
   prepare(file, config, signal) {
     const context: PreparedTesseractContext = prepareContext(file, config, signal)
 

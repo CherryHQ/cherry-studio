@@ -11,7 +11,9 @@ import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { pinService } from '@data/services/PinService'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
+import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { Pin } from '@shared/data/types/pin'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -29,7 +31,8 @@ describe('ProviderService.delete — preset protection boundary', () => {
     await dbh.db.insert(userProviderTable).values({
       providerId: 'openai',
       presetProviderId: 'openai',
-      name: 'OpenAI'
+      name: 'OpenAI',
+      orderKey: generateOrderKeyBetween(null, null)
     })
 
     await expect(providerService.delete('openai')).rejects.toThrow(/Cannot delete preset provider/)
@@ -43,7 +46,8 @@ describe('ProviderService.delete — preset protection boundary', () => {
     await dbh.db.insert(userProviderTable).values({
       providerId: 'openai-work',
       presetProviderId: 'openai',
-      name: 'OpenAI Work'
+      name: 'OpenAI Work',
+      orderKey: generateOrderKeyBetween(null, null)
     })
 
     await expect(providerService.delete('openai-work')).resolves.toBeUndefined()
@@ -52,11 +56,45 @@ describe('ProviderService.delete — preset protection boundary', () => {
     expect(rows).toHaveLength(0)
   })
 
+  it('should throw when deleting a canonical preset that groups under another preset (zai → zhipu)', async () => {
+    // zai is a registry row whose presetProviderId is 'zhipu' (grouping),
+    // so the providerId === presetProviderId guard alone would let it be
+    // deleted. The registry check must still protect it.
+    vi.spyOn(providerRegistryService, 'isRegistryProvider').mockImplementation((id) => id === 'zai')
+
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'zai',
+      presetProviderId: 'zhipu',
+      name: 'Z.ai',
+      orderKey: generateOrderKeyBetween(null, null)
+    })
+
+    await expect(providerService.delete('zai')).rejects.toThrow(/Cannot delete preset provider/)
+    const rows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'zai'))
+    expect(rows).toHaveLength(1)
+  })
+
+  it('should NOT throw when deleting a user clone whose presetProviderId points at a grouped preset', async () => {
+    vi.spyOn(providerRegistryService, 'isRegistryProvider').mockImplementation((id) => id === 'zai')
+
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'zai-personal',
+      presetProviderId: 'zhipu',
+      name: 'Z.ai Personal',
+      orderKey: generateOrderKeyBetween(null, null)
+    })
+
+    await expect(providerService.delete('zai-personal')).resolves.toBeUndefined()
+    const rows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'zai-personal'))
+    expect(rows).toHaveLength(0)
+  })
+
   it('should NOT throw when deleting a fully custom provider with no presetProviderId', async () => {
     await dbh.db.insert(userProviderTable).values({
       providerId: 'my-local-llm',
       presetProviderId: null,
-      name: 'My Local LLM'
+      name: 'My Local LLM',
+      orderKey: generateOrderKeyBetween(null, null)
     })
 
     await expect(providerService.delete('my-local-llm')).resolves.toBeUndefined()
@@ -66,16 +104,21 @@ describe('ProviderService.delete — preset protection boundary', () => {
   })
 
   it('should bulk purge pins for models owned by the deleted provider', async () => {
+    const [openaiWorkOrderKey, anthropicWorkOrderKey, gpt4oOrderKey, o3OrderKey, claudeOrderKey] =
+      generateOrderKeySequence(5)
+
     await dbh.db.insert(userProviderTable).values([
       {
         providerId: 'openai-work',
         presetProviderId: 'openai',
-        name: 'OpenAI Work'
+        name: 'OpenAI Work',
+        orderKey: openaiWorkOrderKey
       },
       {
         providerId: 'anthropic-work',
         presetProviderId: 'anthropic',
-        name: 'Anthropic Work'
+        name: 'Anthropic Work',
+        orderKey: anthropicWorkOrderKey
       }
     ])
     const targetModelIds = [createUniqueModelId('openai-work', 'gpt-4o'), createUniqueModelId('openai-work', 'o3')]
@@ -85,19 +128,22 @@ describe('ProviderService.delete — preset protection boundary', () => {
         id: targetModelIds[0],
         providerId: 'openai-work',
         modelId: 'gpt-4o',
-        name: 'GPT-4o'
+        name: 'GPT-4o',
+        orderKey: gpt4oOrderKey
       },
       {
         id: targetModelIds[1],
         providerId: 'openai-work',
         modelId: 'o3',
-        name: 'o3'
+        name: 'o3',
+        orderKey: o3OrderKey
       },
       {
         id: siblingModelId,
         providerId: 'anthropic-work',
         modelId: 'claude-3',
-        name: 'Claude 3'
+        name: 'Claude 3',
+        orderKey: claudeOrderKey
       }
     ])
     const targetPins: Pin[] = []
@@ -121,15 +167,28 @@ describe('ProviderService.delete — preset protection boundary', () => {
     const gpt4 = createUniqueModelId('openai-work', 'gpt-4')
     const gpt35 = createUniqueModelId('openai-work', 'gpt-3.5')
     const claude = createUniqueModelId('anthropic', 'claude-3')
+    const openaiWorkOrderKey = generateOrderKeyBetween(null, null)
+    const anthropicOrderKey = generateOrderKeyBetween(openaiWorkOrderKey, null)
+    const [gpt4OrderKey, gpt35OrderKey, claudeOrderKey] = generateOrderKeySequence(3)
 
     await dbh.db.insert(userProviderTable).values([
-      { providerId: 'openai-work', presetProviderId: 'openai', name: 'OpenAI Work' },
-      { providerId: 'anthropic', presetProviderId: null, name: 'Anthropic' }
+      {
+        providerId: 'openai-work',
+        presetProviderId: 'openai',
+        name: 'OpenAI Work',
+        orderKey: openaiWorkOrderKey
+      },
+      {
+        providerId: 'anthropic',
+        presetProviderId: null,
+        name: 'Anthropic',
+        orderKey: anthropicOrderKey
+      }
     ])
     await dbh.db.insert(userModelTable).values([
-      { id: gpt4, providerId: 'openai-work', modelId: 'gpt-4', name: 'GPT-4' },
-      { id: gpt35, providerId: 'openai-work', modelId: 'gpt-3.5', name: 'GPT-3.5' },
-      { id: claude, providerId: 'anthropic', modelId: 'claude-3', name: 'Claude 3' }
+      { id: gpt4, providerId: 'openai-work', modelId: 'gpt-4', name: 'GPT-4', orderKey: gpt4OrderKey },
+      { id: gpt35, providerId: 'openai-work', modelId: 'gpt-3.5', name: 'GPT-3.5', orderKey: gpt35OrderKey },
+      { id: claude, providerId: 'anthropic', modelId: 'claude-3', name: 'Claude 3', orderKey: claudeOrderKey }
     ])
     await dbh.db.insert(pinTable).values([
       { entityType: 'model', entityId: gpt4, orderKey: 'a0' },

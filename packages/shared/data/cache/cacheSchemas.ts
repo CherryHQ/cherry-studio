@@ -1,3 +1,4 @@
+import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { MiniAppRegion } from '@shared/data/types/miniApp'
 
 import type * as CacheValueTypes from './cacheValueTypes'
@@ -248,13 +249,24 @@ export type SharedCacheSchema = {
   // API key rotation state (cross-window, tracks last used key per provider)
   'web_search.provider.last_used_key.${providerId}': string
   'ocr.provider.last_used_key.${providerId}': string
+  // Job system: state snapshot + progress, broadcast main → all windows. TTL 60s
+  // (JobManager sets ttl when calling setShared, so cache miss after a job
+  // terminates is acceptable — useJob falls back to dataApi.get).
+  // Value is nullable: template default is `null`, replaced by JobSnapshot when
+  // a concrete job exists. Renderer treats null as cache miss.
+  'jobs.state.${jobId}': JobSnapshot | null
+  'jobs.progress.${jobId}': JobProgress
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
   'chat.web_search.active_searches': {},
   'feature.openclaw.gateway_status': 'stopped',
   'web_search.provider.last_used_key.${providerId}': '',
-  'ocr.provider.last_used_key.${providerId}': ''
+  'ocr.provider.last_used_key.${providerId}': '',
+  // Template defaults are placeholders never consumed at runtime — concrete
+  // keys are populated by JobManager when actual jobs exist.
+  'jobs.state.${jobId}': null,
+  'jobs.progress.${jobId}': { progress: 0 }
 }
 
 /**
@@ -265,6 +277,8 @@ export type RendererPersistCacheSchema = {
   'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
   'ui.sidebar.docked_tabs': CacheValueTypes.Tab[]
   'ui.sidebar.width': number
+  'settings.provider.last_selected_provider_id': string | null
+  'settings.provider.openai.alert.dismissed': boolean
   'feature.mcp.is_uv_installed': boolean
   'feature.mcp.is_bun_installed': boolean
   // Multi-model list for @mention parallel answering, keyed by assistantId
@@ -276,6 +290,8 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.tab.pinned_tabs': [],
   'ui.sidebar.docked_tabs': [],
   'ui.sidebar.width': 65,
+  'settings.provider.last_selected_provider_id': null,
+  'settings.provider.openai.alert.dismissed': false,
   'feature.mcp.is_uv_installed': false,
   'feature.mcp.is_bun_installed': false,
   'ui.assistant.multi_model_ids': {}

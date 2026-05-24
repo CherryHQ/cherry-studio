@@ -8,7 +8,6 @@ const preferenceValues: Record<string, unknown> = {
   'chat.web_search.exclude_domains': ['example.com'],
   'chat.web_search.compression.method': 'none',
   'chat.web_search.compression.cutoff_limit': null,
-  'chat.web_search.compression.cutoff_unit': 'char',
   'chat.web_search.default_search_keywords_provider': 'tavily',
   'chat.web_search.default_fetch_urls_provider': 'fetch',
   'chat.web_search.provider_overrides': {
@@ -98,7 +97,13 @@ describe('webSearch config utils', () => {
     })
   })
 
-  it('preserves basic auth password whitespace when resolving providers', async () => {
+  it('throws a clear error for unknown provider ids', async () => {
+    await expect(getProviderById('unknown' as any, mockPreferenceReader)).rejects.toThrow(
+      'Unknown web search provider: unknown'
+    )
+  })
+
+  it('trims basic auth password whitespace when resolving providers', async () => {
     const provider = await getProviderById('searxng', {
       async get<K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> {
         if (key === 'chat.web_search.provider_overrides') {
@@ -113,7 +118,7 @@ describe('webSearch config utils', () => {
       }
     })
 
-    expect(provider.basicAuthPassword).toBe(' pass ')
+    expect(provider.basicAuthPassword).toBe('pass')
   })
 
   it('resolves URL fetch provider presets', async () => {
@@ -122,13 +127,12 @@ describe('webSearch config utils', () => {
 
     expect(fetchProvider).toMatchObject({
       id: 'fetch',
-      name: 'Fetch',
+      name: 'fetch',
       type: 'api',
       apiKeys: [],
       capabilities: [
         {
-          feature: 'fetchUrls',
-          apiHost: ''
+          feature: 'fetchUrls'
         }
       ]
     })
@@ -170,5 +174,31 @@ describe('webSearch config utils', () => {
         }
       })
     ).rejects.toThrow('Default web search provider is not configured for capability searchKeywords')
+  })
+
+  it('throws when a configured default provider does not support the requested capability', async () => {
+    await expect(
+      getProviderForCapability(undefined, 'fetchUrls', {
+        async get<K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> {
+          if (key === 'chat.web_search.default_fetch_urls_provider') {
+            return 'tavily' as PreferenceDefaultScopeType[K]
+          }
+
+          return preferenceValues[key] as PreferenceDefaultScopeType[K]
+        }
+      })
+    ).rejects.toThrow('Web search provider tavily does not support capability fetchUrls')
+  })
+
+  it('throws when an explicit provider does not support the requested capability', async () => {
+    await expect(getProviderForCapability('fetch', 'searchKeywords', mockPreferenceReader)).rejects.toThrow(
+      'Web search provider fetch does not support capability searchKeywords'
+    )
+  })
+
+  it('throws a clear error when an explicit provider id is unknown', async () => {
+    await expect(getProviderForCapability('unknown' as any, 'searchKeywords', mockPreferenceReader)).rejects.toThrow(
+      'Unknown web search provider: unknown'
+    )
   })
 })

@@ -183,7 +183,8 @@ function AppModalItem({
       <DialogContent
         data-app-modal="true"
         showCloseButton={props.closable === true}
-        className={cn('app-modal gap-5 sm:max-w-lg', props.rootClassName, props.className)}
+        overlayClassName="z-[90]"
+        className={cn('app-modal z-[90] gap-5 sm:max-w-lg', props.rootClassName, props.className)}
         style={getContentStyle(props)}
         onInteractOutside={(event) => {
           if (props.maskClosable === false) {

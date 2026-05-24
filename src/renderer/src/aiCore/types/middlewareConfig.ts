@@ -2,6 +2,7 @@ import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugi
 import type { MCPTool } from '@renderer/types'
 import type { Assistant, Message } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
+import type { IdleTimeoutHandle } from '@renderer/utils/IdleTimeoutController'
 
 /**
  * AI SDK 中间件配置项（用于插件构建）
@@ -18,6 +19,7 @@ export interface AiSdkMiddlewareConfig {
   isPromptToolUse: boolean
   isSupportedToolUse: boolean
   enableWebSearch: boolean
+  enableWebSearchTools?: boolean
   enableGenerateImage: boolean
   enableUrlContext: boolean
   mcpTools?: MCPTool[]
@@ -26,4 +28,6 @@ export interface AiSdkMiddlewareConfig {
   urlContextConfig?: Record<string, any>
   knowledgeRecognition?: 'off' | 'on'
   mcpMode?: string
+  /** Resettable idle timeout handle — reset() on each chunk, cleanup() on stream end */
+  idleTimeout?: IdleTimeoutHandle
 }

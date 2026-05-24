@@ -49,17 +49,10 @@ function applyCutoff(results: WebSearchResult[], config: WebSearchCompressionCon
   const perResultLimit = Math.max(1, Math.floor(config.cutoffLimit / results.length))
 
   return results.map((result) => {
-    if (config.cutoffUnit === 'token') {
-      const sliced = sliceByTokens(result.content, 0, perResultLimit)
-      return {
-        ...result,
-        content: sliced.length < result.content.length ? `${sliced}...` : sliced
-      }
-    }
-
+    const sliced = sliceByTokens(result.content, 0, perResultLimit)
     return {
       ...result,
-      content: result.content.length > perResultLimit ? `${result.content.slice(0, perResultLimit)}...` : result.content
+      content: sliced.length < result.content.length ? `${sliced}...` : sliced
     }
   })
 }

@@ -1,8 +1,3 @@
-import { Querit } from '@cherrystudio/ui/icons'
-import { loggerService } from '@logger'
-import { BochaLogo, ExaLogo, SearXNGLogo, TavilyLogo, ZhipuLogo } from '@renderer/components/Icons'
-import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
-import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import {
   isGemini3Model,
   isGeminiModel,
@@ -10,96 +5,74 @@ import {
   isOpenAIWebSearchModel,
   isWebSearchModel
 } from '@renderer/config/models'
-import { webSearchProviderRequiresApiKey } from '@renderer/config/webSearchProviders'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useTimer } from '@renderer/hooks/useTimer'
-import { useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
-import type { ToolQuickPanelController, ToolRenderContext } from '@renderer/pages/home/Inputbar/types'
+import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { getProviderByModel } from '@renderer/services/AssistantService'
-import { webSearchService } from '@renderer/services/WebSearchService'
-import { getEffectiveMcpMode, type WebSearchProvider, type WebSearchProviderId } from '@renderer/types'
+import type { Model } from '@renderer/types'
+import { getEffectiveMcpMode } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { isGeminiWebSearchProvider } from '@renderer/utils/provider'
+import { useNavigate } from '@tanstack/react-router'
 import { Globe } from 'lucide-react'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const logger = loggerService.withContext('WebSearchQuickPanel')
-
-export const WebSearchProviderIcon = ({
-  pid,
-  size = 18,
-  color
-}: {
-  pid?: WebSearchProviderId
-  size?: number
-  color?: string
-}) => {
-  switch (pid) {
-    case 'bocha':
-      return <BochaLogo className="icon" width={size} height={size} color={color} />
-    case 'exa':
-      return <ExaLogo className="icon" width={size - 2} height={size} color={color} />
-    case 'tavily':
-      return <TavilyLogo className="icon" width={size} height={size} color={color} />
-    case 'zhipu':
-      return <ZhipuLogo className="icon" width={size} height={size} color={color} />
-    case 'searxng':
-      return <SearXNGLogo className="icon" width={size} height={size} color={color} />
-    case 'querit':
-      return <Querit.Mono className="icon" width={size} height={size} color={color} />
-    default:
-      return <Globe className="icon" size={size} style={{ color, fontSize: size }} />
-  }
+export const WebSearchProviderIcon = ({ size = 18, color }: { size?: number; color?: string }) => {
+  return <Globe className="icon" size={size} style={{ color, fontSize: size }} />
 }
 
-export const useWebSearchPanelController = (assistantId: string, quickPanelController: ToolQuickPanelController) => {
+export const useWebSearchPanelController = (assistantId: string) => {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const { assistant, updateAssistant } = useAssistant(assistantId)
-  const { providers } = useWebSearchProviders()
-  const { setTimeoutTimer } = useTimer()
+  const { defaultSearchKeywordsProvider: defaultWebSearchProvider, defaultFetchUrlsProvider } = useWebSearchProviders()
+  const enableWebSearch = !!assistant.enableWebSearch
 
-  const enableWebSearch = assistant?.webSearchProviderId || assistant.enableWebSearch
-
-  const updateWebSearchProvider = useCallback(
-    async (providerId?: WebSearchProvider['id']) => {
-      setTimeoutTimer('updateWebSearchProvider', () => {
-        updateAssistant({
-          ...assistant,
-          webSearchProviderId: providerId,
-          enableWebSearch: false
-        })
-      })
-    },
-    [assistant, setTimeoutTimer, updateAssistant]
-  )
-
-  const updateQuickPanelItem = useCallback(
-    async (providerId?: WebSearchProvider['id']) => {
-      if (providerId === assistant.webSearchProviderId) {
-        void updateWebSearchProvider(undefined)
-      } else {
-        void updateWebSearchProvider(providerId)
+  const openWebSearchSettings = useCallback(() => {
+    window.modal.confirm({
+      title: t('settings.tool.websearch.search_provider'),
+      content: t('settings.tool.websearch.search_provider_placeholder'),
+      okText: t('settings.tool.websearch.api_key_required.ok'),
+      cancelText: t('common.cancel'),
+      centered: true,
+      onOk: () => {
+        void navigate({ to: '/settings/websearch' })
       }
-    },
-    [assistant.webSearchProviderId, updateWebSearchProvider]
-  )
+    })
+  }, [navigate, t])
 
-  const updateToModelBuiltinWebSearch = useCallback(async () => {
-    const update = {
-      ...assistant,
-      webSearchProviderId: undefined,
-      enableWebSearch: !assistant.enableWebSearch
+  const canEnableExternalWebSearch = useCallback(() => {
+    for (const provider of [defaultWebSearchProvider, defaultFetchUrlsProvider]) {
+      if (!provider) {
+        openWebSearchSettings()
+        return false
+      }
     }
-    const model = assistant.model
-    const provider = getProviderByModel(model)
+
+    return true
+  }, [defaultFetchUrlsProvider, defaultWebSearchProvider, openWebSearchSettings])
+
+  const updateToModelBuiltinWebSearch = useCallback(() => {
+    const model = assistant.model as Model | undefined
     if (!model) {
-      logger.error('Model does not exist.')
       window.toast.error(t('error.model.not_exists'))
       return
     }
-    // Gemini 3+ supports combining built-in tools with function calling
+
+    const nextEnableWebSearch = !assistant.enableWebSearch
+    if (nextEnableWebSearch && !isWebSearchModel(model) && !canEnableExternalWebSearch()) {
+      return
+    }
+
+    const update = {
+      ...assistant,
+      enableWebSearch: nextEnableWebSearch
+    }
+    const provider = getProviderByModel(model)
+
+    // Older Gemini models cannot combine built-in web search with function tool use while MCP is active.
     if (
+      provider &&
       isGeminiWebSearchProvider(provider) &&
       isGeminiModel(model) &&
       !isGemini3Model(model) &&
@@ -110,6 +83,7 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
       update.enableWebSearch = false
       window.toast.warning(t('chat.mcp.warning.gemini_web_search'))
     }
+
     if (
       isOpenAIWebSearchModel(model) &&
       isGPT5SeriesReasoningModel(model) &&
@@ -119,119 +93,18 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
       update.enableWebSearch = false
       window.toast.warning(t('chat.web_search.warning.openai'))
     }
-    setTimeoutTimer('updateSelectedWebSearchBuiltin', () => updateAssistant(update), 200)
-  }, [assistant, setTimeoutTimer, t, updateAssistant])
 
-  const providerItems = useMemo<QuickPanelListItem[]>(() => {
-    const isWebSearchModelEnabled = assistant.model && isWebSearchModel(assistant.model)
-    const items: QuickPanelListItem[] = []
-    items.push(
-      ...providers
-        .map((p) => {
-          const availability = webSearchService.isWebSearchEnabled(p.id)
-          return {
-            availability,
-            item: {
-              label: p.name,
-              description:
-                availability === 'unknown'
-                  ? t('common.loading')
-                  : availability
-                    ? webSearchProviderRequiresApiKey(p.id)
-                      ? t('settings.tool.websearch.apikey')
-                      : t('settings.tool.websearch.free')
-                    : t('chat.input.web_search.enable_content'),
-              icon: <WebSearchProviderIcon size={13} pid={p.id} />,
-              isSelected: p.id === assistant?.webSearchProviderId,
-              disabled: availability === 'unknown',
-              action: () => updateQuickPanelItem(p.id)
-            }
-          }
-        })
-        .filter(({ availability }) => availability !== false)
-        .map(({ item }) => item)
-    )
-
-    if (isWebSearchModelEnabled) {
-      items.unshift({
-        label: t('chat.input.web_search.builtin.label'),
-        description: isWebSearchModelEnabled
-          ? t('chat.input.web_search.builtin.enabled_content')
-          : t('chat.input.web_search.builtin.disabled_content'),
-        icon: <Globe />,
-        isSelected: assistant.enableWebSearch,
-        disabled: !isWebSearchModelEnabled,
-        action: () => updateToModelBuiltinWebSearch()
-      })
-    }
-
-    return items
-  }, [assistant, providers, t, updateQuickPanelItem, updateToModelBuiltinWebSearch])
-
-  const openQuickPanel = useCallback(() => {
-    quickPanelController.open({
-      title: t('chat.input.web_search.label'),
-      list: providerItems,
-      symbol: QuickPanelReservedSymbol.WebSearch,
-      pageSize: 9
-    })
-  }, [providerItems, quickPanelController, t])
-
-  const toggleQuickPanel = useCallback(() => {
-    if (quickPanelController.isVisible && quickPanelController.symbol === QuickPanelReservedSymbol.WebSearch) {
-      quickPanelController.close()
-    } else {
-      openQuickPanel()
-    }
-  }, [openQuickPanel, quickPanelController])
+    updateAssistant(update)
+  }, [assistant, canEnableExternalWebSearch, t, updateAssistant])
 
   return {
     enableWebSearch,
-    providerItems,
-    openQuickPanel,
-    toggleQuickPanel,
-    updateWebSearchProvider,
-    updateToModelBuiltinWebSearch,
-    selectedProviderId: assistant.webSearchProviderId
+    toggleQuickPanel: updateToModelBuiltinWebSearch,
+    updateToModelBuiltinWebSearch
   }
 }
 
-interface ManagerProps {
-  context: ToolRenderContext<any, any>
-}
-
-const WebSearchQuickPanelManager = ({ context }: ManagerProps) => {
-  const { assistant, quickPanel, quickPanelController, t } = context
-  const { providerItems, openQuickPanel } = useWebSearchPanelController(assistant.id, quickPanelController)
-  const { registerRootMenu, registerTrigger } = quickPanel
-  const { updateList, isVisible, symbol } = quickPanelController
-
-  useEffect(() => {
-    if (isVisible && symbol === QuickPanelReservedSymbol.WebSearch) {
-      updateList(providerItems)
-    }
-  }, [isVisible, providerItems, symbol, updateList])
-
-  useEffect(() => {
-    const disposeMenu = registerRootMenu([
-      {
-        label: t('chat.input.web_search.label'),
-        description: '',
-        icon: <Globe size={18} />,
-        isMenu: true,
-        action: () => openQuickPanel()
-      }
-    ])
-
-    const disposeTrigger = registerTrigger(QuickPanelReservedSymbol.WebSearch, () => openQuickPanel())
-
-    return () => {
-      disposeMenu()
-      disposeTrigger()
-    }
-  }, [openQuickPanel, registerRootMenu, registerTrigger, t])
-
+export default function WebSearchQuickPanelManager() {
+  // Inputbar tools require a quickPanelManager export even when this tool has no panel UI.
   return null
 }
-
-export default WebSearchQuickPanelManager

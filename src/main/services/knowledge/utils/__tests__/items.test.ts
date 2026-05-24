@@ -1,4 +1,4 @@
-import type { FileMetadata } from '@shared/data/types/file'
+import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { describe, expect, it } from 'vitest'
 

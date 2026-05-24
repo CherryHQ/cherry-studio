@@ -7,7 +7,7 @@ import {
   getAwsBedrockRegion,
   getAwsBedrockSecretAccessKey
 } from '@renderer/hooks/useAwsBedrock'
-import { createVertexProvider, isVertexAIConfigured } from '@renderer/hooks/useVertexAI'
+import { createVertexProvider, isVertexAiConfigured } from '@renderer/hooks/useVertexAi'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { getProviderById } from '@renderer/services/ProviderService'
 import store from '@renderer/store'
@@ -123,7 +123,6 @@ export function providerToAiSdkConfig(
   const builders: ConfigBuilderEntry[] = [
     { match: (p) => p.id === SystemProviderIds.copilot, build: buildCopilotConfig },
     { match: (p) => p.id === 'cherryai', build: buildCherryAIConfig },
-    { match: (p) => p.id === 'anthropic' && p.authType === 'oauth', build: buildAnthropicConfig },
     { match: (p) => isOllamaProvider(p), build: buildOllamaConfig },
     { match: (p) => isAzureOpenAIProvider(p), build: buildAzureConfig },
     { match: (_, id) => id === 'bedrock', build: buildBedrockConfig },
@@ -233,7 +232,7 @@ function buildBedrockConfig(ctx: BuilderContext): ProviderConfig<'bedrock'> {
 function buildVertexConfig(
   ctx: BuilderContext
 ): ProviderConfig<'google-vertex'> | ProviderConfig<'google-vertex-anthropic'> {
-  if (!isVertexAIConfigured()) {
+  if (!isVertexAiConfigured()) {
     throw new Error('VertexAI is not configured. Please configure project, location and service account credentials.')
   }
 
@@ -331,24 +330,6 @@ function buildAzureConfig(
     endpoint: ctx.endpoint,
     providerSettings
   } as ProviderConfig<'azure'> | ProviderConfig<'azure-responses'>
-}
-
-async function buildAnthropicConfig(ctx: BuilderContext): Promise<ProviderConfig<'anthropic'>> {
-  const oauthToken: string = await window.api.anthropic_oauth.getAccessToken()
-
-  return {
-    providerId: 'anthropic',
-    endpoint: ctx.endpoint,
-    providerSettings: {
-      baseURL: 'https://api.anthropic.com/v1',
-      apiKey: '',
-      headers: {
-        'Content-Type': 'application/json',
-        'anthropic-version': '2023-06-01',
-        Authorization: `Bearer ${oauthToken}`
-      }
-    }
-  }
 }
 
 function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'openai-compatible'> {

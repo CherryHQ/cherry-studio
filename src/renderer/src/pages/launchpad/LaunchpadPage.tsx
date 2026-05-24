@@ -1,4 +1,4 @@
-import { OpenClawIcon } from '@renderer/components/Icons/SVGIcon'
+import { OpenClawIcon } from '@renderer/components/Icons/SvgIcon'
 import App from '@renderer/components/MiniApp/MiniApp'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSettings } from '@renderer/hooks/useSettings'

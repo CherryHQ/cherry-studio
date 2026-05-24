@@ -16,13 +16,17 @@ interface Props {
 const LogoAvatar: FC<Props> = ({ logo, size = 32, shape = 'rounded', className }) => {
   if (!logo) return null
 
+  const borderClass = 'border border-border'
+
   if (typeof logo !== 'string') {
     const Icon = logo as CompoundIcon
-    return <Icon.Avatar size={size} shape={shape} className={className} />
+    return <Icon.Avatar size={size} shape={shape} className={`${borderClass} ${className ?? ''}`.trim()} />
   }
 
   return (
-    <Avatar className={className} style={{ width: size, height: size }}>
+    <Avatar
+      className={`${borderClass} ${shape === 'circle' ? 'rounded-full' : 'rounded-[20%]'} ${className ?? ''}`.trim()}
+      style={{ width: size, height: size }}>
       <AvatarImage src={logo} />
     </Avatar>
   )

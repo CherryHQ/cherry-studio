@@ -7,7 +7,6 @@ import { agentSessionMessageService as sessionMessageService } from '@data/servi
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/constant'
 import { generateSignature } from '@main/integration/cherryai'
-import { anthropicService } from '@main/services/AnthropicService'
 import { getIpCountry } from '@main/utils/ipService'
 import {
   autoDiscoverGitBash,
@@ -28,7 +27,6 @@ import fontList from 'font-list'
 import { skillService } from './services/agents/skills/SkillService'
 import { appService } from './services/AppService'
 import BackupManager from './services/BackupManager'
-import { cherryINOAuthService } from './services/CherryINOAuthService'
 import { ConfigKeys, configManager } from './services/ConfigManager'
 import { copilotService } from './services/CopilotService'
 import { ExportService } from './services/ExportService'
@@ -40,7 +38,7 @@ import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { fileServiceManager } from './services/remotefile/FileServiceManager'
-import { vertexAIService } from './services/VertexAIService'
+import { vertexAiService } from './services/VertexAiService'
 import { calculateDirectorySize } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import { isSafeExternalUrl } from './utils/externalUrlSafety'
@@ -506,15 +504,15 @@ export async function registerIpc() {
   // memory
   // VertexAI
   ipcMain.handle(IpcChannel.VertexAI_GetAuthHeaders, async (_, params) => {
-    return vertexAIService.getAuthHeaders(params)
+    return vertexAiService.getAuthHeaders(params)
   })
 
   ipcMain.handle(IpcChannel.VertexAI_GetAccessToken, async (_, params) => {
-    return vertexAIService.getAccessToken(params)
+    return vertexAiService.getAccessToken(params)
   })
 
   ipcMain.handle(IpcChannel.VertexAI_ClearAuthCache, async (_, projectId: string, clientEmail?: string) => {
-    vertexAIService.clearAuthCache(projectId, clientEmail)
+    vertexAiService.clearAuthCache(projectId, clientEmail)
   })
 
   // aes
@@ -549,14 +547,6 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.Copilot_GetToken, copilotService.getToken.bind(copilotService))
   ipcMain.handle(IpcChannel.Copilot_Logout, copilotService.logout.bind(copilotService))
   ipcMain.handle(IpcChannel.Copilot_GetUser, copilotService.getUser.bind(copilotService))
-
-  // CherryIN OAuth
-  ipcMain.handle(IpcChannel.CherryIN_SaveToken, cherryINOAuthService.saveToken.bind(cherryINOAuthService))
-  ipcMain.handle(IpcChannel.CherryIN_HasToken, cherryINOAuthService.hasToken.bind(cherryINOAuthService))
-  ipcMain.handle(IpcChannel.CherryIN_GetBalance, cherryINOAuthService.getBalance.bind(cherryINOAuthService))
-  ipcMain.handle(IpcChannel.CherryIN_Logout, cherryINOAuthService.logout.bind(cherryINOAuthService))
-  ipcMain.handle(IpcChannel.CherryIN_StartOAuthFlow, cherryINOAuthService.startOAuthFlow.bind(cherryINOAuthService))
-  ipcMain.handle(IpcChannel.CherryIN_ExchangeToken, cherryINOAuthService.exchangeToken.bind(cherryINOAuthService))
 
   // Obsidian service
   ipcMain.handle(IpcChannel.Obsidian_GetVaults, () => {
@@ -594,15 +584,6 @@ export async function registerIpc() {
       return null
     }
   })
-  // Anthropic OAuth
-  ipcMain.handle(IpcChannel.Anthropic_StartOAuthFlow, () => anthropicService.startOAuthFlow())
-  ipcMain.handle(IpcChannel.Anthropic_CompleteOAuthWithCode, (_, code: string) =>
-    anthropicService.completeOAuthWithCode(code)
-  )
-  ipcMain.handle(IpcChannel.Anthropic_CancelOAuthFlow, () => anthropicService.cancelOAuthFlow())
-  ipcMain.handle(IpcChannel.Anthropic_GetAccessToken, () => anthropicService.getValidAccessToken())
-  ipcMain.handle(IpcChannel.Anthropic_HasCredentials, () => anthropicService.hasCredentials())
-  ipcMain.handle(IpcChannel.Anthropic_ClearCredentials, () => anthropicService.clearCredentials())
 
   // ExternalApps
   ipcMain.handle(IpcChannel.ExternalApps_DetectInstalled, () => externalAppsService.detectInstalledApps())

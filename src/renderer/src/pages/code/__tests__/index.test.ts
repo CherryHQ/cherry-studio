@@ -2,7 +2,7 @@ import type { Model, Provider } from '@renderer/types'
 import { codeCLI } from '@shared/config/constant'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { generateToolEnvironment } from '../index'
+import { CLI_TOOLS, generateToolEnvironment } from '../index'
 
 // Mock CodeCliPage which is default export
 vi.mock('../CodeCliPage', () => ({ default: () => null }))
@@ -179,7 +179,7 @@ describe('generateToolEnvironment', () => {
       baseUrl: 'https://api.openai.com'
     })
 
-    expect(env.OPENAI_BASE_URL).toBe('https://api.openai.com/v1')
+    expect(env.CHERRY_CODEX_BASE_URL).toBe('https://api.openai.com/v1')
   })
 
   it('should format baseUrl with /v1 for iFlowCli when missing', () => {
@@ -225,5 +225,18 @@ describe('generateToolEnvironment', () => {
     })
 
     expect(env.OPENAI_BASE_URL).toBe('https://dashscope.aliyuncs.com/v2beta')
+  })
+})
+
+describe('CLI_TOOLS', () => {
+  it('exposes every codeCLI enum value with a renderable icon component', () => {
+    const expectedValues = Object.values(codeCLI)
+    const actualValues = CLI_TOOLS.map((tool) => tool.value)
+
+    expect(actualValues.sort()).toEqual([...expectedValues].sort())
+
+    for (const tool of CLI_TOOLS) {
+      expect(typeof tool.icon).toBe('function')
+    }
   })
 })

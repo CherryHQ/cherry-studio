@@ -9,7 +9,7 @@ export const RERANKER_PROVIDERS = {
 
 export type RerankProvider = (typeof RERANKER_PROVIDERS)[keyof typeof RERANKER_PROVIDERS]
 
-export function isTEIProvider(provider?: string): boolean {
+export function isTeiProvider(provider?: string): boolean {
   return provider?.includes(RERANKER_PROVIDERS.TEI) ?? false
 }
 

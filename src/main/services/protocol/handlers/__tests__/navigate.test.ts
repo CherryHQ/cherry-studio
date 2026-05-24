@@ -88,4 +88,51 @@ describe('navigate protocol handler', () => {
 
     expect(mainWindowServiceMock.getMainWindow).toHaveBeenCalledTimes(2)
   })
+
+  it('drops the navigation after MAX_NAVIGATE_RETRY_ATTEMPTS retries when the main window never appears', async () => {
+    // T7: pin the retry cap. Initial call + 30 retries = 31 getMainWindow
+    // calls, then the cap fires the warn-drop. A regression that lost the
+    // cap (infinite retry) would never trigger the dropping warn.
+    vi.useFakeTimers()
+    mainWindowServiceMock.getMainWindow.mockReturnValue(null)
+
+    handleNavigateProtocolUrl(new URL('cherrystudio://navigate/agents'))
+    expect(mainWindowServiceMock.getMainWindow).toHaveBeenCalledTimes(1)
+
+    for (let attempt = 0; attempt < 30; attempt++) {
+      await vi.advanceTimersByTimeAsync(1000)
+    }
+
+    expect(mainWindowServiceMock.getMainWindow).toHaveBeenCalledTimes(31)
+
+    // One more tick beyond the cap must NOT schedule another retry.
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(mainWindowServiceMock.getMainWindow).toHaveBeenCalledTimes(31)
+
+    expect(loggerMock.warn).toHaveBeenCalledWith(
+      'Main window not available, dropping navigation URL after retry limit',
+      expect.objectContaining({ path: '/agents' })
+    )
+  })
+
+  it('retries when window.navigate is not yet loaded and stops at the cap', async () => {
+    // T7: the hasNavigate=false path has its own retry leg. Same cap applies.
+    vi.useFakeTimers()
+    const executeJavaScript = vi.fn().mockResolvedValue(false)
+    mainWindowServiceMock.getMainWindow.mockReturnValue({
+      isDestroyed: () => false,
+      webContents: { executeJavaScript }
+    })
+
+    handleNavigateProtocolUrl(new URL('cherrystudio://navigate/agents'))
+
+    for (let attempt = 0; attempt < 31; attempt++) {
+      await vi.advanceTimersByTimeAsync(1000)
+    }
+
+    expect(loggerMock.warn).toHaveBeenCalledWith(
+      'window.navigate not available, dropping navigation URL after retry limit',
+      expect.objectContaining({ path: '/agents' })
+    )
+  })
 })

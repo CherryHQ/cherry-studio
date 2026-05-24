@@ -33,7 +33,7 @@ const SettingsPage: FC = () => {
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
 
-  const isActive = (path: string) => pathname.startsWith(path)
+  const isActive = (path: string) => pathname === path || pathname.startsWith(`${path}/`)
   const go = (path: string) => navigate({ to: path })
   const menuItemClassName =
     'h-8 rounded-lg border-transparent px-2.5 font-semibold text-foreground/85 text-sm hover:!bg-muted data-[active=true]:!border-transparent data-[active=true]:!bg-muted data-[active=true]:!text-foreground [&_svg]:size-4 [&_svg]:text-foreground/70'
@@ -156,15 +156,15 @@ const SettingsPage: FC = () => {
                 className={menuItemClassName}
                 icon={<PictureInPicture2 />}
                 label={t('settings.quickAssistant.title')}
-                active={isActive('/settings/quickAssistant')}
-                onClick={() => go('/settings/quickAssistant')}
+                active={isActive('/settings/quick-assistant')}
+                onClick={() => go('/settings/quick-assistant')}
               />
               <MenuItem
                 className={menuItemClassName}
                 icon={<TextCursorInput />}
                 label={t('selection.name')}
-                active={isActive('/settings/selectionAssistant')}
-                onClick={() => go('/settings/selectionAssistant')}
+                active={isActive('/settings/selection-assistant')}
+                onClick={() => go('/settings/selection-assistant')}
               />
               <MenuDivider className={sectionDividerClassName} />
               <div className={sectionTitleClassName}>{t('settings.menuGroups.system')}</div>

@@ -4,10 +4,10 @@ import store from '@renderer/store'
 import type { Provider } from '@renderer/types'
 import { withoutTrailingSlash } from '@renderer/utils'
 import {
-  getMissingVertexAIConfigFields,
+  getMissingVertexAiConfigFields,
   VERTEX_AI_CONFIG_FIELD_LABEL_KEYS,
-  type VertexAIConfigField
-} from '@renderer/utils/vertexAI'
+  type VertexAiConfigField
+} from '@renderer/utils/vertexAi'
 import { defaultAppHeaders } from '@shared/utils'
 
 const logger = loggerService.withContext('ModelListService')
@@ -62,7 +62,7 @@ const SUPPORTED_VERTEX_PUBLISHER_MODEL_PATTERNS = [
   /^qwen[\w.@-]*$/i
 ] as const
 
-function buildVertexAIIncompleteConfigMessage(missingFields: VertexAIConfigField[]): string {
+function buildVertexAiIncompleteConfigMessage(missingFields: VertexAiConfigField[]): string {
   const missingFieldLabels = missingFields.map((field) => i18n.t(VERTEX_AI_CONFIG_FIELD_LABEL_KEYS[field])).join(', ')
   const locationHint = missingFields.includes('location')
     ? ` ${i18n.t('settings.provider.vertex_ai.location_help')}`
@@ -71,14 +71,17 @@ function buildVertexAIIncompleteConfigMessage(missingFields: VertexAIConfigField
   return `${i18n.t('settings.provider.vertex_ai.service_account.incomplete_config')}: ${missingFieldLabels}.${locationHint}`
 }
 
-export async function createVertexModelListRequest(provider: Provider): Promise<VertexModelListRequest | undefined> {
+export async function createVertexModelListRequest(
+  provider: Provider,
+  options?: { throwOnError?: boolean }
+): Promise<VertexModelListRequest | undefined> {
   const {
     location,
     projectId,
     serviceAccount: { privateKey, clientEmail }
   } = store.getState().llm.settings.vertexai
 
-  const missingFields = getMissingVertexAIConfigFields({
+  const missingFields = getMissingVertexAiConfigFields({
     projectId,
     location,
     serviceAccount: {
@@ -88,8 +91,11 @@ export async function createVertexModelListRequest(provider: Provider): Promise<
   })
 
   if (missingFields.length > 0) {
-    const errorMessage = buildVertexAIIncompleteConfigMessage(missingFields)
+    const errorMessage = buildVertexAiIncompleteConfigMessage(missingFields)
 
+    if (options?.throwOnError) {
+      throw new Error(errorMessage)
+    }
     window.toast?.error(errorMessage)
     logger.warn('Vertex AI model listing skipped because service account settings are incomplete', {
       providerId: provider.id,
@@ -111,6 +117,9 @@ export async function createVertexModelListRequest(provider: Provider): Promise<
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
 
+    if (options?.throwOnError) {
+      throw error instanceof Error ? error : new Error(errorMessage)
+    }
     window.toast?.error(errorMessage)
     logger.warn('Vertex AI model listing skipped because authentication failed', {
       providerId: provider.id,

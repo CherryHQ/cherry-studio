@@ -37,6 +37,21 @@ export interface FileProcessingExecutionContext {
 
 export type FileProcessingRemoteContext = object
 
+/**
+ * Minimal cross-restart state persisted to jobTable.metadata for remote-poll
+ * handlers. Whitelist semantics: only publishable identifiers go here — never
+ * apiKey, signed URLs, tokens, or any other sensitive material. Sensitive
+ * fields are re-read from FileProcessorMerged config on every execute() via
+ * rehydrate().
+ */
+export interface PersistableRemoteState {
+  providerTaskId: string
+  /** Processor-specific phase tag (e.g. doc2x: 'parsing' | 'exporting'). */
+  stage?: string
+  /** Public endpoint URL. */
+  apiHost?: string
+}
+
 export type FileProcessingRemotePollResult<
   Feature extends FileProcessorFeature = FileProcessorFeature,
   RemoteContext extends FileProcessingRemoteContext = FileProcessingRemoteContext
@@ -44,6 +59,12 @@ export type FileProcessingRemotePollResult<
   | {
       status: 'pending' | 'processing'
       progress: number
+      /**
+       * Return a new reference when the remote context has changed since the
+       * last poll; the dispatcher uses identity comparison (`!==`) to detect
+       * state mutation and persist it. Returning the same reference will be
+       * treated as 'no change' and skip metadata persistence.
+       */
       remoteContext?: RemoteContext
     }
   | {
@@ -82,6 +103,21 @@ export interface PreparedRemoteTask<
     task: FileProcessingRemoteTaskRef<RemoteContext>,
     signal?: AbortSignal
   ): Promise<FileProcessingRemotePollResult<Feature, RemoteContext>>
+  /**
+   * Project the in-memory remoteContext + providerTaskId down to the publishable
+   * subset that gets written to jobTable.metadata. MUST NOT include apiKey or
+   * any other sensitive material.
+   */
+  toPersistable(remoteContext: RemoteContext, providerTaskId: string): PersistableRemoteState
+  /**
+   * Restore in-memory remoteContext + providerTaskId after a cross-process
+   * restart. Sensitive fields (apiKey, etc.) are re-read from `config`, not
+   * recovered from `persisted`.
+   */
+  rehydrate(
+    persisted: PersistableRemoteState,
+    config: FileProcessorMerged
+  ): { providerTaskId: string; remoteContext: RemoteContext }
 }
 
 export type PreparedFileProcessingTask<
@@ -93,6 +129,13 @@ export interface FileProcessingCapabilityHandler<
   Feature extends FileProcessorFeature = FileProcessorFeature,
   RemoteContext extends FileProcessingRemoteContext = FileProcessingRemoteContext
 > {
+  /**
+   * Execution model declared statically on the handler. Mirrors the `mode`
+   * field on PreparedTask but is available without awaiting prepare(), so the
+   * orchestrator can route to the correct JobHandler synchronously at enqueue
+   * time. Runtime assertion: prepared.mode must equal this value.
+   */
+  readonly mode: 'background' | 'remote-poll'
   prepare(
     file: FileMetadata,
     config: FileProcessorMerged,

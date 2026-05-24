@@ -1,5 +1,5 @@
 import type { MultiModalDocument, RerankStrategy } from './RerankStrategy'
-export class TEIStrategy implements RerankStrategy {
+export class TeiStrategy implements RerankStrategy {
   buildUrl(baseURL?: string): string {
     if (baseURL && baseURL.endsWith('/')) {
       return `${baseURL}rerank`

@@ -1,5 +1,5 @@
 import { getFileExt } from '@main/utils/file'
-import type { FileMetadata } from '@shared/data/types/file'
+import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import type { KnowledgeItemOf, KnowledgeSourceMetadata } from '@shared/data/types/knowledge'
 import { Document, type FileReader as VectorStoreFileReader } from '@vectorstores/core'
 import { CSVReader } from '@vectorstores/readers/csv'

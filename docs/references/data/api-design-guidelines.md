@@ -2,6 +2,8 @@
 
 Guidelines for designing RESTful APIs in the Cherry Studio Data API system.
 
+> **File organization is separate from path design.** For which `schemas/*.ts` file a route belongs in, see [Schema File Organization](./api-types.md#schema-file-organization). This guide covers the *shape* of paths only.
+
 ## Path Naming
 
 | Rule | Example | Notes |
@@ -437,6 +439,7 @@ If any condition is not met, use an IPC handler in `src/main/ipc.ts` or a lifecy
 | `POST /backup/start` | Complex workflow orchestration, not CRUD | IPC: `IpcChannel.Backup_Backup` |
 | `POST /auth/login` | OAuth flow, external service integration | IPC: dedicated auth handler |
 | `GET /mcp/tools` | Runtime service query, not persisted data | IPC: `IpcChannel.Mcp_ListTools` |
+| `POST /jobs` (enqueue) / `DELETE /jobs/:id` (cancel) | Workflow command on `JobManager` infrastructure, not CRUD | Business service in main calls `application.get('JobManager').enqueue(...)` / `.cancel(...)`. For renderer-initiated triggering, use a dedicated IPC channel (e.g. `IpcChannel.Knowledge_IndexFile`). Job DataApi is GET-only. |
 
 ### Why Misuse is Harmful
 

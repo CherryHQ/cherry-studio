@@ -1,8 +1,5 @@
-import type {
-  ResolvedWebSearchProvider,
-  WebSearchExecutionConfig,
-  WebSearchResponse
-} from '@shared/data/types/webSearch'
+import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
+import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
 
 import type { ApiKeyRotationState } from '../utils/provider'
 import type { BaseWebSearchProvider } from './base/BaseWebSearchProvider'
@@ -18,7 +15,7 @@ export type WebSearchProviderDriver = BaseWebSearchProvider & {
 }
 
 export function createWebSearchProvider(
-  provider: ResolvedWebSearchProvider,
+  provider: WebSearchProvider,
   apiKeyRotationState: ApiKeyRotationState
 ): WebSearchProviderDriver {
   const Provider = WEB_SEARCH_PROVIDER_REGISTRY[provider.id]

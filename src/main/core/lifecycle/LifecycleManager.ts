@@ -384,30 +384,33 @@ export class LifecycleManager extends EventEmitter {
 
   /**
    * Notify all initialized services that the entire system is ready.
-   * Calls _doAllReady() on every service in initializationOrder in parallel.
-   * Errors are logged and emitted as SERVICE_ERROR but never propagate —
-   * onAllReady is a post-bootstrap supplement, not a critical initialization gate.
-   * Emits ALL_SERVICES_READY after all hooks complete.
+   *
+   * `onAllReady` is a post-bootstrap supplement (per `BaseService.onAllReady` JSDoc) —
+   * it is NOT part of service initialization and does NOT change `LifecycleState`.
+   * The framework therefore fires `_doAllReady()` for every service in parallel but
+   * does NOT await their completion. Bootstrap proceeds as soon as every hook has
+   * been invoked.
+   *
+   * Errors from `onAllReady` are still surfaced asynchronously: each `_doAllReady()`
+   * promise has a `.catch` that logs and emits `SERVICE_ERROR`, so unhandled rejections
+   * cannot be silently lost. Because `.catch` runs in a microtask, listeners observing
+   * `SERVICE_ERROR` after a synchronous `onAllReady` throw must drain microtasks first.
+   *
+   * Emits `ALL_SERVICES_READY` immediately after all hooks have been invoked (NOT after
+   * they complete). Listeners MUST NOT assume all `onAllReady` side effects have
+   * finished — services running deferred work inside `onAllReady` (e.g. a `setTimeout`)
+   * own their own lifecycle and must be joined via `onStop` if shutdown coordination
+   * is required.
    */
-  public async allReady(): Promise<void> {
-    const results = await Promise.allSettled(
-      this.initializationOrder.map(async (serviceName) => {
-        const instance = this.container.getInstance(serviceName)
-        if (!instance) return
-        await instance._doAllReady()
-      })
-    )
-
-    for (let i = 0; i < results.length; i++) {
-      const result = results[i]
-      if (result.status === 'rejected') {
-        const serviceName = this.initializationOrder[i]
-        const error = result.reason as Error
+  public allReady(): void {
+    for (const serviceName of this.initializationOrder) {
+      const instance = this.container.getInstance(serviceName)
+      if (!instance) continue
+      void instance._doAllReady().catch((error: Error) => {
         logger.error(`Service '${serviceName}' onAllReady failed:`, error)
         this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, serviceName, LifecycleState.Ready, error)
-      }
+      })
     }
-
     this.emit(LifecycleEvents.ALL_SERVICES_READY)
   }
 
