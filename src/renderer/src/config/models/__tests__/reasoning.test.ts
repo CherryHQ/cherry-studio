@@ -751,6 +751,10 @@ describe('isReasoningModel', () => {
     expect(isReasoningModel(createModel({ id: 'mistral-small-2603' }))).toBe(true)
   })
 
+  it('should return true for grok-build-0.1', () => {
+    expect(isReasoningModel(createModel({ id: 'grok-build-0.1' }))).toBe(true)
+  })
+
   it('excludes non-fixed reasoning models from isFixedReasoningModel', () => {
     // Models that support thinking tokens or reasoning effort should NOT be fixed reasoning models
     const nonFixedModels = [

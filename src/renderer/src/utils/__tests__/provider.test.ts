@@ -1,3 +1,4 @@
+import { PROVIDER_URLS, SYSTEM_PROVIDERS_CONFIG } from '@renderer/config/providers'
 import { type AzureOpenAIProvider, type Provider, SystemProviderIds } from '@renderer/types'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -58,6 +59,16 @@ const createSystemProvider = (overrides: Partial<Provider> = {}): Provider =>
   })
 
 describe('provider utils', () => {
+  it('configures StepFun as Anthropic-compatible with current official documentation links', () => {
+    expect(SYSTEM_PROVIDERS_CONFIG.stepfun.anthropicApiHost).toBe('https://api.stepfun.com')
+    expect(isAnthropicSupportedProvider(SYSTEM_PROVIDERS_CONFIG.stepfun)).toBe(true)
+    expect(getClaudeSupportedProviders([createSystemProvider({ id: SystemProviderIds.stepfun })])).toHaveLength(1)
+    expect(PROVIDER_URLS.stepfun.websites?.docs).toBe(
+      'https://platform.stepfun.com/docs/api-reference/chat/chat-completion-create'
+    )
+    expect(PROVIDER_URLS.stepfun.websites?.models).toBe('https://platform.stepfun.com/docs/guides/models/overview')
+  })
+
   it('filters Claude supported providers', () => {
     const providers = [
       createProvider({ id: 'anthropic-official', type: 'anthropic' }),
