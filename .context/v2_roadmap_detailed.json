@@ -1,135 +1,150 @@
 {
-  "generated_at": "2026-05-23T18:00:00Z",
-  "snapshot_date": "2026-05-23",
-  "v2_branch_status": "ACTIVE — accepting new feature submissions once current refactors complete",
+  "generated_at": "2026-05-24T00:00:00Z",
+  "snapshot_date": "2026-05-24",
+  "v2_branch_status": "ACTIVE — full-speed refactoring + new features",
   "branch_policy": {
-    "main": "Code freeze. Only critical hotfixes via hotfix/* branches. Minimal scope, no refactoring.",
-    "v2": "All new features, refactoring, and optimizations. New features accepted after full refactor completion."
+    "main": "Code freeze since April 3, 2026. Only critical hotfixes via hotfix/* branches.",
+    "v2": "All new features, refactoring, and optimizations. New feature PRs accepted."
   },
-  "v2_merge_velocity_30d": {
-    "total_merged": 42,
-    "avg_per_week": 10.5,
-    "peak_week": {"week": "2026-W19 (May 5-11)", "count": 12},
-    "trend": "stable — 9-12 PRs/week consistently"
-  },
-  "v2_category_breakdown_30d": {
-    "refactor": {
-      "count": 18,
-      "pct": 42.9,
-      "description": "Migrating existing modules to v2 data layer and new UI patterns",
-      "examples": [
-        "#14351 refactor(translate): rebuild translate page on @cherrystudio/ui",
-        "#14993 refactor(web-search-settings): migrate settings to v2 data path",
-        "#14991 refactor(file-processing-settings): migrate settings to v2",
-        "#14734 refactor(knowledge): knowledge ui migration",
-        "#13451 feat(file): Add schema and foundation for new file module",
-        "#15213 refactor(knowledge): migrate to JobManager",
-        "#15214 refactor(file-processing): migrate to JobManager",
-        "#15246 refactor(file-entry): rename trashedAt to deletedAt"
-      ]
+  "open_prs": {
+    "total": 81,
+    "draft": 16,
+    "ready_to_merge": 1,
+    "by_age": {
+      "fresh_lte7d": 18,
+      "active_8_30d": 23,
+      "stale_gt30d": 40
     },
-    "feat": {
-      "count": 14,
-      "pct": 33.3,
-      "description": "New v2 features being developed",
-      "examples": [
-        "#15238 fix(sidebar): align resize thresholds with layouts",
-        "#15205 feat(mini-apps): refresh mini app page and icons",
-        "#15088 feat(provider-settings): grouping + mode-based editor",
-        "#15087 feat(icons): light/dark dual-source architecture",
-        "#12060 feat: context menu",
-        "#14631 refactor(provider-settings): migrate to v2 data layer"
-      ]
-    },
-    "fix": {
-      "count": 5,
-      "pct": 11.9,
-      "description": "Bug fixes landing on v2"
-    },
-    "chore": {"count": 2, "pct": 4.8},
-    "docs": {
-      "count": 2,
-      "pct": 4.8,
-      "examples": [
-        "#14995 docs(design-system): update design token guide",
-        "#14982 docs(gh-pr-review): add Cherry-specific review guidance"
-      ]
+    "stale_highlight": {
+      "oldest_pr": {
+        "number": 10090,
+        "title": "[WIP] feat: terminal",
+        "author": "EurFelux",
+        "age_days": 255
+      },
+      "longest_running_non_draft": {
+        "number": 10929,
+        "title": "refactor: Migrate to tiptap markdown",
+        "author": "Copilot",
+        "age_days": 212
+      },
+      "ready_to_merge": {
+        "number": 13173,
+        "title": "refactor(renderer): migrate from ReactMarkdown to Streamdown",
+        "author": "DeJeune",
+        "age_days": 81,
+        "reviewers": ["0xfullex", "MyPrototypeWhat", "EurFelux"]
+      }
     }
   },
-  "top_contributors_30d": [
-    {"author": "DeJeune",       "merged": 7, "focus": "AI service architecture, commands, build"},
-    {"author": "eeee0717",      "merged": 7, "focus": "Settings migration, knowledge, file processing"},
-    {"author": "zhangjiadi225", "merged": 7, "focus": "UI components, translate, refactoring"},
-    {"author": "Cherry-Yiran",  "merged": 5, "focus": "Icons, UI refresh, mini-apps, code-tools"},
-    {"author": "kangfenmao",    "merged": 5, "focus": "Paintings, notes, i18n, lint"},
-    {"author": "EurFelux",      "merged": 3, "focus": "File management system"},
-    {"author": "vaayne",        "merged": 3, "focus": "Mise tool manager, agents"},
-    {"author": "0xfullex",      "merged": 2, "focus": "JobManager migration"}
+  "open_pr_top_authors": [
+    {"login": "DeJeune", "open_count": 16},
+    {"login": "LWWZH", "open_count": 12},
+    {"login": "EurFelux", "open_count": 11},
+    {"login": "404-Page-Found", "open_count": 6},
+    {"login": "kovsu", "open_count": 5},
+    {"login": "kangfenmao", "open_count": 4},
+    {"login": "Cherry-Yiran", "open_count": 2},
+    {"login": "vaayne", "open_count": 2}
   ],
-  "open_v2_prs": {
-    "total": 32,
-    "active_recent": [
-      {"number": 15289, "title": "fix(build): drop dead proxy/bootstrap build plugin", "author": "DeJeune", "created": "2026-05-23"},
-      {"number": 15282, "title": "feat(commands): unify shortcuts, menus, and tools behind shared command", "author": "DeJeune", "created": "2026-05-23"},
-      {"number": 15273, "title": "fix(ui-icons): stop compound icons rendering both light and dark", "author": "DeJeune", "created": "2026-05-22"},
-      {"number": 15265, "title": "feat(translate): refresh translate page and shared drawer composition", "author": "Cherry-Yiran", "created": "2026-05-22"},
-      {"number": 15263, "title": "feat(settings): redesign settings navigation", "author": "Cherry-Yiran", "created": "2026-05-22"},
-      {"number": 15255, "title": "fix: keep dragged tabs within safe bounds", "author": "kovsu", "created": "2026-05-22"},
-      {"number": 15252, "title": "refactor(knowledge&file-processing): integrate file manager", "author": "eeee0717", "created": "2026-05-22"},
-      {"number": 15247, "title": "chore(deps): bump Vercel AI SDK packages to latest", "author": "PhoenixCPH", "created": "2026-05-21"},
-      {"number": 15234, "title": "fix: add missing key prop to SendMessageButton in InputbarCore (v2)", "author": "LGiki", "created": "2026-05-21"},
-      {"number": 15232, "title": "feat: add provider filter to model selector", "author": "xiaoxiaolexlh", "created": "2026-05-21"}
+  "open_pr_type_breakdown": {
+    "feature": 47,
+    "refactor": 16,
+    "bugfix": 15,
+    "perf": 1,
+    "other": 2
+  },
+  "merged_prs_sample": {
+    "total_merged_in_sample": 68,
+    "sample_date_range": "2026-04-10 to 2026-05-23",
+    "weeks_covered": 6.5,
+    "avg_merges_per_week": 9.4,
+    "peak_week": {"week": "2026-W18 (May 6-10)", "count": 12},
+    "by_week": {
+      "W14_Apr10-11": 10,
+      "W15_Apr13-18": 8,
+      "W16_Apr20-24": 7,
+      "W17_Apr27-May1": 9,
+      "W18_May6-10": 12,
+      "W19_May11-14": 11,
+      "W20_May18-23": 9
+    }
+  },
+  "top_contributors_alltime": [
+    {"login": "DeJeune", "merged": 15, "focus": "AI service architecture, commands, data API, migrations, UI"},
+    {"login": "eeee0717", "merged": 11, "focus": "Knowledge base, file processing, web search, agents panel"},
+    {"login": "kangfenmao", "merged": 9, "focus": "Settings UI, shortcuts, mini-apps, notes, paintings, i18n"},
+    {"login": "zhangjiadi225", "merged": 8, "focus": "Model selector, assistant selector, translate page, components"},
+    {"login": "vaayne", "merged": 7, "focus": "Agent SDK, IPC transport, agents storage, data API, MCP"},
+    {"login": "Cherry-Yiran", "merged": 5, "focus": "Icons, UI refresh, mini-apps, design tokens"},
+    {"login": "jidan745le", "merged": 5, "focus": "Sidebar, tab bar, data domain hooks, provider settings"},
+    {"login": "EurFelux", "merged": 3, "focus": "Translate module, file schema, refactors"},
+    {"login": "0xfullex", "merged": 2, "focus": "File processing, knowledge JobManager"}
+  ],
+  "feature_areas_coverage": {
+    "description": "Areas with merged v2 PRs since April 10, 2026",
+    "completed_or_in_progress": [
+      {"area": "Agents", "merged_prs": 10, "status": "in_progress", "notes": "Claude SDK, tool lists, data migration, task management"},
+      {"area": "Knowledge_Base", "merged_prs": 8, "status": "mostly_done", "notes": "Backend + UI migration to v2, JobManager integration"},
+      {"area": "UI_Design_System", "merged_prs": 8, "status": "in_progress", "notes": "Icons, dialogs, context menu, design tokens"},
+      {"area": "AI_Providers_Models", "merged_prs": 8, "status": "in_progress", "notes": "Provider settings, data API, icon system"},
+      {"area": "File_Processing", "merged_prs": 5, "status": "in_progress", "notes": "Backend, settings, JobManager, file entry schema"},
+      {"area": "Data_Migration", "merged_prs": 5, "status": "in_progress", "notes": "Assistant/topic, model prefs, tag system, fractional indexing"},
+      {"area": "UI_Sidebar_Tabs", "merged_prs": 5, "status": "in_progress", "notes": "Sidebar rewrite, tab system, resize handling"},
+      {"area": "Web_Search", "merged_prs": 4, "status": "mostly_done", "notes": "Settings migrated, provider capabilities split"},
+      {"area": "Settings_Preferences", "merged_prs": 3, "status": "in_progress", "notes": "Settings UI, settings window, Preference architecture"},
+      {"area": "Translation_i18n", "merged_prs": 2, "status": "in_progress", "notes": "Translate module, page rebuild"}
     ],
-    "long_running": [
-      {"number": 10090, "title": "[WIP] feat: terminal", "author": "EurFelux", "age_days": 254, "status": "WIP"},
-      {"number": 12150, "title": "refactor(files): File Management System Architecture", "author": "EurFelux", "age_days": 147, "status": "Large design PR"},
-      {"number": 12659, "title": "feat(backup): add v2 backup system refactor plan document", "author": "GeorgeDong32", "age_days": 112, "status": "Design doc"},
-      {"number": 14562, "title": "fix(code-tools): improve dark mode visibility", "author": "Raymond8196", "age_days": 29, "status": "Stale"}
+    "not_yet_started_or_blocked": [
+      {"area": "Notifications", "status": "planned", "tracking_issue": 14899, "milestone": "v2.4.0"},
+      {"area": "Terminal", "status": "WIP_draft", "pr": 10090, "age_days": 255},
+      {"area": "Markdown_Renderer", "status": "ready_to_merge", "pr": 13173},
+      {"area": "i18n_migration", "status": "draft_blocked", "pr": 10912, "label": "Blocked: v2"},
+      {"area": "Video_Generation", "status": "draft", "pr": 10699},
+      {"area": "Backup_System_v2", "status": "draft", "pr": 12659}
     ]
   },
-  "refactoring_modules_tracked": {
-    "completed": [
-      "translate page (@cherrystudio/ui)",
-      "web-search-settings (v2 data)",
-      "file-processing-settings (v2 data)",
-      "knowledge UI",
-      "provider-settings (v2 data + UI)",
-      "file entry schema (trashedAt→deletedAt)",
-      "knowledge + file-processing JobManager",
-      "mini-apps page + icons",
-      "provider icons (light/dark dual-source)",
-      "context menu",
-      "design system token docs",
-      "code-tools launch experience"
-    ],
-    "in_progress": [
-      "settings navigation redesign (#15263)",
-      "knowledge+file-processing file manager integration (#15252)",
-      "ai-service consolidation to main process (#14911)",
-      "notes UI and data migration (#15186)",
-      "paintings migration (#15154)",
-      "miniapp Tailwind migration (#14968)",
-      "file management Phase 2 (#15067)",
-      "translate drawer composition (#15265)"
-    ],
-    "planned": [
-      "terminal feature (#10090 — WIP since Sep 2025)",
-      "file management architecture refactor (#12150)",
-      "backup system v2 (#12659)",
-      "agent runtime (DeJeune/ai-service branch: #14997, #15045)",
-      "commands unification (#15282)",
-      "provider filter for model selector (#15232)"
-    ]
-  },
-  "blocked_prs": [
-    {"count": 3, "label": "Blocked: v2", "description": "PRs blocked pending v2 data layer readiness"}
+  "recent_merges_last7d": [
+    {"number": 15238, "title": "fix(sidebar): align resize thresholds with layouts", "author": "kovsu", "merged_at": "2026-05-23"},
+    {"number": 15246, "title": "refactor(file-entry): rename trashedAt to deletedAt", "author": "EurFelux", "merged_at": "2026-05-21"},
+    {"number": 15205, "title": "feat(mini-apps): refresh mini app page and icons", "author": "Cherry-Yiran", "merged_at": "2026-05-21"},
+    {"number": 15213, "title": "refactor(knowledge): migrate to JobManager", "author": "0xfullex", "merged_at": "2026-05-21"},
+    {"number": 15214, "title": "refactor(file-processing): migrate to JobManager", "author": "0xfullex", "merged_at": "2026-05-21"},
+    {"number": 15216, "title": "chore(lint): suppress legacy css var warnings in lint scripts", "author": "kangfenmao", "merged_at": "2026-05-20"},
+    {"number": 15088, "title": "feat(provider-settings): grouping + mode-based editor follow-up", "author": "DeJeune", "merged_at": "2026-05-18"},
+    {"number": 15087, "title": "feat(icons): light/dark dual-source architecture for provider/model logos", "author": "Cherry-Yiran", "merged_at": "2026-05-18"},
+    {"number": 15091, "title": "refactor(ui): refresh shared dialog styling", "author": "Cherry-Yiran", "merged_at": "2026-05-18"}
   ],
-  "ai_sdk_upgrade": {
-    "pr": 15247,
-    "title": "chore(deps): bump Vercel AI SDK packages to latest",
-    "author": "PhoenixCPH",
-    "status": "open",
-    "note": "Important infrastructure upgrade for @cherrystudio/ai-core"
-  },
-  "summary_narrative": "The v2 branch is in active development with a healthy merge velocity of ~10.5 PRs/week. The current focus is module-by-module migration to the new v2 data layer (refactor: 43%) alongside new feature development (feat: 33%). 11 unique contributors merged 42 PRs in the last 30 days. Key WIP areas include settings navigation redesign, AI service consolidation, and the file management system Phase 2. Three long-running PRs (terminal, files architecture, backup) represent large design-scope work still in progress."
+  "attention_needed": [
+    {
+      "pr": 13173,
+      "title": "refactor(renderer): migrate from ReactMarkdown to Streamdown",
+      "label": "ready-to-merge",
+      "age_days": 81,
+      "action": "Merge immediately — labeled ready-to-merge but sitting 81 days"
+    },
+    {
+      "pr": 14911,
+      "title": "refactor(ai-service): consolidate AI runtime to main process",
+      "author": "DeJeune",
+      "is_draft": true,
+      "age_days": 16,
+      "action": "Monitor — architectural PR, 4 reviewers assigned"
+    },
+    {
+      "pr": 14489,
+      "title": "feat(notify): support image and file attachments across channels",
+      "author": "DeJeune",
+      "age_days": 31,
+      "action": "Review needed — notification system foundational work"
+    },
+    {
+      "pr": 13687,
+      "title": "chore: migrate to vite 8",
+      "author": "EurFelux",
+      "label": "Pending",
+      "age_days": 63,
+      "action": "Unblock — build tooling upgrade sitting idle"
+    }
+  ]
 }

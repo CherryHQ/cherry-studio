@@ -1,160 +1,154 @@
 {
-  "generated_at": "2026-05-23T18:00:00Z",
-  "snapshot_date": "2026-05-23",
+  "generated_at": "2026-05-24T00:00:00Z",
+  "snapshot_date": "2026-05-24",
   "data_source": "GitHub MCP API (CherryHQ/cherry-studio)",
+  "sampling_note": "Open issues: 3-page sample (300/887 = 33.7%): newest-100, second-newest-100, oldest-100.",
   "open_issues": {
-    "total": 884,
-    "sample_size_analyzed": 100,
-    "sample_note": "Top 100 most-recently-updated open issues analyzed in detail",
-    "by_label_full_repo": {
-      "inactive": 122,
-      "BUG": 108,
-      "UI_UX": 34,
-      "Models": 19,
-      "Assistant": 14,
-      "MCP": 7,
-      "discussion": 7,
-      "needs_repro": 7,
-      "feature": 6,
-      "Connectivity": 5,
-      "help_wanted": 5,
-      "needs_more_info": 3,
-      "P2": 3,
-      "RAG": 1,
-      "v2": 1
+    "total": 887,
+    "prev_total": 884,
+    "delta": 3,
+    "health_distribution_estimated": {
+      "active_lte14d": 270,
+      "active_pct": 30.4,
+      "aging_15_30d": 130,
+      "aging_pct": 14.7,
+      "stale_31_90d": 480,
+      "stale_pct": 54.1,
+      "zombie_gt90d": 4,
+      "zombie_pct": 0.5,
+      "methodology": "200 confirmed Active from 2 newest pages (updated 2026-05-18 to 2026-05-24). 70 more Active estimated from middle 587 issues via uniform-density interpolation. Zombie count confirmed from oldest-100 page."
     },
-    "unlabeled": {
-      "count": 75,
-      "percentage": 8.5
-    },
-    "p1_critical_issues": [],
-    "priority_label_note": "No P1/critical/urgent labels. Project uses categorical labels (BUG, UI/UX, Models, etc.) instead of severity tiers.",
-    "inferred_high_priority_issues": [
+    "p1_critical_issues": [
       {
-        "number": 9943,
-        "title": "MCPB (DXT) file import issues",
-        "signals": "15 comments, MCP label, long-standing community issue"
+        "number": 14899,
+        "title": "[Feature]: Unified Notification Center",
+        "labels": ["Planned", "P1", "feature", "UI/UX"],
+        "milestone": "v2.4.0",
+        "author": "SiinXu",
+        "created_at": "2026-05-07",
+        "updated_at": "2026-05-07",
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/14899",
+        "comment_count": 0
       },
       {
-        "number": 15022,
-        "title": "CherryIN Balance Shows $0.00 After Successful Recharge",
-        "signals": "BUG+UI/UX labels, milestone v1.9.7, assigned to DeJeune, direct user financial impact"
+        "number": 13608,
+        "title": "[Bug]: xiaomi mimo response only displays the last line",
+        "labels": ["P1", "Models"],
+        "milestone": "v1.8.1 (closed)",
+        "author": "lsy08",
+        "created_at": "2026-03-18",
+        "updated_at": "2026-03-19",
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13608",
+        "comment_count": 8
       },
       {
-        "number": 14418,
-        "title": "Agent mode fails on CherryIN models (ECONNRESET)",
-        "signals": "3 comments, BUG label, Connectivity issue blocking agent workflows"
-      },
-      {
-        "number": 14720,
-        "title": "gpt-image-2 parameter parsing error",
-        "signals": "3 comments, Models label, image generation broken"
+        "number": 13193,
+        "title": "[Bug]: Azure OpenAI AI_APICallError Resource not found — wrong API endpoint",
+        "labels": ["P1", "Models"],
+        "assignee": "DeJeune",
+        "author": "simplezhao",
+        "created_at": "2026-03-04",
+        "updated_at": "2026-03-05",
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13193",
+        "comment_count": 1,
+        "note": "80+ days no update, assigned to DeJeune"
       }
     ],
-    "top_commented_issues": [
-      {"number": 9943, "title": "MCPB (DXT) file import issues", "comments": 15, "labels": ["MCP"]},
-      {"number": 7455, "title": "Auto-update cleanup of downloaded installer", "comments": 6, "labels": ["feature"]},
-      {"number": 14644, "title": "Add Agent duplicate/copy functionality", "comments": 5, "labels": ["Assistant"]},
-      {"number": 14436, "title": "Copilot + Claude model ban inquiry", "comments": 3, "labels": []},
-      {"number": 14176, "title": "Windows client update check error", "comments": 3, "labels": []},
-      {"number": 14418, "title": "Agent mode fails on CherryIN models (ECONNRESET)", "comments": 3, "labels": ["BUG"]},
-      {"number": 14720, "title": "gpt-image-2 parameter parsing error", "comments": 3, "labels": ["Models"]},
-      {"number": 15189, "title": "Image generation error (Unexpected token)", "comments": 3, "labels": ["UI/UX"]}
-    ]
-  },
-  "closed_issues_30d": {
-    "total": 360,
-    "average_close_time_days": 40.6,
-    "median_close_time_days": 40.7,
-    "bot_driven_closure_pct": 78,
-    "label_distribution_sample_100": {
-      "inactive": 80,
-      "Models": 20,
-      "UI/UX": 14,
-      "BUG": 10,
-      "MCP": 9,
-      "needs_repro": 9,
-      "Assistant": 8,
-      "help_wanted": 8,
+    "unlabeled": {
+      "count_estimated": 53,
+      "percentage_estimated": 6.0
+    },
+    "top_labels_aggregated_sample": {
+      "inactive": 88,
+      "BUG": 87,
+      "UI_UX": 59,
+      "Models": 57,
+      "Assistant": 25,
+      "MCP": 24,
+      "needs_repro": 15,
+      "feature": 10,
       "discussion": 8,
-      "RAG": 6,
-      "P2": 3,
-      "closed_no_response": 5
-    },
-    "closed_per_week": {
-      "2026-W21_May17-23": 68,
-      "2026-W20_May10-16": 31,
-      "2026-W19_May03-09": 1,
-      "2026-W18_Apr26-May02": 0
-    },
-    "recently_closed_top5": [
-      {"number": 15268, "title": "[Bug]: Reasoning effort config not working for AIHubMix", "closedAt": "2026-05-23T17:20:57Z"},
-      {"number": 13961, "title": "[Bug]: Assistant silently hangs after MCP tool call", "closedAt": "2026-05-23T01:04:24Z"},
-      {"number": 14208, "title": "[Feature]: Unable to use Imagen 4 Generate models", "closedAt": "2026-05-23T01:04:21Z"},
-      {"number": 14211, "title": "[Bug]: Code Agent works in AppImage but not Flatpak", "closedAt": "2026-05-23T01:04:19Z"},
-      {"number": 12379, "title": "[Bug]: Cherry Studio does not support latest MCP protocol", "closedAt": "2026-05-22T01:08:31Z"}
-    ]
+      "Data": 8,
+      "help_wanted": 6,
+      "Connectivity": 5,
+      "Performance": 5
+    }
   },
   "open_prs": {
-    "total": 100,
-    "by_base_branch": {
-      "main": 66,
-      "v2": 32,
-      "other": 2
+    "total": 339,
+    "targeting_v2": 81,
+    "targeting_main_approx": 257,
+    "sample_analyzed": 100,
+    "by_age_from_sample": {
+      "fresh_lte7d": 51,
+      "active_8_30d": 39,
+      "stale_gt30d": 10
     },
-    "age_distribution_by_last_update": {
-      "active_0_7d": 66,
-      "aging_8_14d": 21,
-      "stale_15_30d": 13,
-      "zombie_30d_plus": 0
-    },
-    "stale_prs_count": 13,
-    "policy_concern": "main branch has 66 open PRs despite code freeze — many appear to be feature PRs, not hotfixes",
-    "oldest_prs": [
-      {"number": 10090, "title": "[WIP] feat: terminal", "age_days": 254, "base": "v2", "author": "EurFelux"},
-      {"number": 10162, "title": "CherryStudio v2: Data & UI Refactoring", "age_days": 250, "base": "main", "author": "0xfullex"},
-      {"number": 12150, "title": "refactor(files): File Management System Architecture", "age_days": 147, "base": "v2", "author": "EurFelux"},
-      {"number": 12345, "title": "fix: custom API suffix bug", "age_days": 135, "base": "main", "author": "haczen"},
-      {"number": 12659, "title": "feat(backup): add v2 backup system refactor plan document", "age_days": 112, "base": "v2", "author": "GeorgeDong32"}
+    "top_authors_from_sample": [
+      {"login": "LWWZH", "count": 9},
+      {"login": "DeJeune", "count": 8},
+      {"login": "xxiaoxiong", "count": 7},
+      {"login": "404-Page-Found", "count": 7},
+      {"login": "GeorgeDong32", "count": 6},
+      {"login": "mturac", "count": 5},
+      {"login": "kangfenmao", "count": 5},
+      {"login": "Raymond8196", "count": 5},
+      {"login": "SiinXu", "count": 4}
     ],
-    "blocked_prs": 3,
-    "no_labels_prs": 69
+    "draft_prs_v2": 16,
+    "ready_to_merge_v2": 1
   },
-  "v2_merged_prs_30d": {
-    "total": 42,
-    "date_range": {"from": "2026-04-24", "to": "2026-05-23"},
-    "by_category": {
-      "refactor": {"count": 18, "pct": 42.9},
-      "feat": {"count": 14, "pct": 33.3},
-      "fix": {"count": 5, "pct": 11.9},
-      "chore": {"count": 2, "pct": 4.8},
-      "docs": {"count": 2, "pct": 4.8},
-      "uncategorized": {"count": 1, "pct": 2.4}
+  "closed_last_30d": {
+    "issues_closed": 351,
+    "genuine_fix_rate_pct": 19,
+    "inactive_bot_closure_pct": 81,
+    "closures_by_week": {
+      "2026-W19_May5-11": 1,
+      "2026-W20_May12-18": 38,
+      "2026-W21_May19-24": 61
+    }
+  },
+  "v2_branch": {
+    "open_prs": 81,
+    "open_draft_prs": 16,
+    "open_ready_to_merge": 1,
+    "merged_last_page": {
+      "count": 68,
+      "date_range": "2026-04-10 to 2026-05-23",
+      "weeks_covered": 6.5,
+      "avg_per_week": 9.4
     },
-    "merged_per_week": {
-      "2026-W17_Apr21-27": 1,
-      "2026-W18_Apr28-May04": 9,
-      "2026-W19_May05-11": 12,
-      "2026-W20_May12-18": 11,
-      "2026-W21_May19-23": 9
+    "weekly_merge_velocity": {
+      "W14_Apr10-11": 10,
+      "W15_Apr13-18": 8,
+      "W16_Apr20-24": 7,
+      "W17_Apr27-May1": 9,
+      "W18_May6-10": 12,
+      "W19_May11-14": 11,
+      "W20_May18-23": 9
     },
     "top_contributors": [
-      {"author": "DeJeune", "count": 7},
-      {"author": "eeee0717", "count": 7},
-      {"author": "zhangjiadi225", "count": 7},
-      {"author": "Cherry-Yiran", "count": 5},
-      {"author": "kangfenmao", "count": 5},
-      {"author": "EurFelux", "count": 3},
-      {"author": "vaayne", "count": 3},
-      {"author": "0xfullex", "count": 2}
-    ]
-  },
-  "milestones": {
-    "v1_9_7": {
-      "state": "open",
-      "open_issues": 11,
-      "closed_issues": 0,
-      "example_blocker": "#15022 - CherryIN Balance Shows $0.00 After Recharge (assigned: DeJeune)"
+      {"login": "DeJeune", "merged": 15},
+      {"login": "eeee0717", "merged": 11},
+      {"login": "kangfenmao", "merged": 9},
+      {"login": "zhangjiadi225", "merged": 8},
+      {"login": "vaayne", "merged": 7},
+      {"login": "Cherry-Yiran", "merged": 5},
+      {"login": "jidan745le", "merged": 5},
+      {"login": "EurFelux", "merged": 3},
+      {"login": "0xfullex", "merged": 2}
+    ],
+    "feature_areas_merged": {
+      "Agents": 10,
+      "Knowledge_Base": 8,
+      "UI_Design_System": 8,
+      "AI_Providers_Models": 8,
+      "File_Processing": 5,
+      "Data_Migration": 5,
+      "UI_Sidebar_Tabs_Layout": 5,
+      "Web_Search": 4,
+      "Settings_Preferences": 3,
+      "Translation_i18n": 2
     }
   }
 }

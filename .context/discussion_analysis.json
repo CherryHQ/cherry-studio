@@ -1,45 +1,65 @@
 {
-  "generated_at": "2026-05-23T18:00:00Z",
-  "snapshot_date": "2026-05-23",
+  "generated_at": "2026-05-24T00:00:00Z",
+  "snapshot_date": "2026-05-24",
   "data_source": "GitHub Discussions API (CherryHQ/cherry-studio)",
-  "fetch_status": "partial",
-  "fetch_note": "GitHub Discussions GraphQL API requires a dedicated GraphQL endpoint. Direct curl/gh CLI unavailable in this environment. Data below reflects known discussion patterns from issue cross-references and label overlap.",
+  "fetch_status": "unavailable",
+  "fetch_note": "GitHub Discussions GraphQL API not accessible via MCP tools in this environment. Figures below inferred from issue label cross-references and comment patterns.",
   "known_discussion_signals": {
-    "observation": "Several issues are labeled 'discussion' (7 in current open issue sample), indicating active community-driven topics.",
-    "discussion_label_issues_open": 7,
-    "discussion_label_issues_closed_30d": 8,
+    "discussion_label_issues_open": 8,
+    "discussion_label_issues_closed_30d": 9,
     "common_discussion_topics_inferred": [
-      "Model provider compatibility (DashScope, AIHubMix, OpenRouter)",
-      "MCP server integration and DXT file format",
-      "V2 roadmap and migration timeline",
-      "CherryIN recharge and balance display bugs",
-      "Agent mode stability (ECONNRESET, MCP tool call hanging)",
-      "Image generation provider support (Imagen 4, gpt-image-2)",
-      "Auto-update behavior on Windows",
-      "Custom API endpoint configuration with # suffix"
+      "Model provider compatibility (DashScope/Aliyun Bailian, AIHubMix, OpenRouter, Volcengine)",
+      "MCP server integration and DXT/MCPB file format imports",
+      "V2 roadmap, migration timeline, and feature parity",
+      "Azure OpenAI API routing regression (AI_APICallError, wrong endpoint)",
+      "Agent mode stability (ECONNRESET, MCP tool call hanging, task scheduling)",
+      "Image generation provider support (Imagen 4, gpt-image-2, SiliconFlow custom sizes)",
+      "Claude OpenAI proxy for OpenAI-compatible providers",
+      "Knowledge base embedding errors and file processing pipeline",
+      "ClaudeCode integration hooks and settings support"
     ]
   },
-  "high_engagement_cross_references": [
+  "high_engagement_issues_with_discussion_potential": [
     {
-      "issue_number": 9943,
-      "title": "MCPB (DXT) file import issues",
-      "comments": 15,
-      "category": "MCP",
-      "note": "Highest community engagement; likely discussed in forum/Discord too"
+      "issue_number": 14300,
+      "title": "[Bug]: Backup to WebDAV and S3 failed",
+      "comments": 8,
+      "labels": ["BUG"],
+      "category": "Data/Backup"
     },
     {
-      "issue_number": 15022,
-      "title": "CherryIN Balance Shows $0.00 After Successful Recharge",
-      "comments": 0,
-      "category": "BUG/UI",
-      "note": "High business impact — financial UX bug; in v1.9.7 milestone"
+      "issue_number": 13608,
+      "title": "[Bug]: xiaomi mimo response only displays the last line",
+      "comments": 8,
+      "labels": ["P1", "Models"],
+      "category": "Models"
+    },
+    {
+      "issue_number": 12890,
+      "title": "[Bug]: Image-based PDF file content cannot be properly read",
+      "comments": 5,
+      "labels": [],
+      "category": "RAG/Files"
+    },
+    {
+      "issue_number": 14449,
+      "title": "[Bug]: backup fail after update",
+      "comments": 5,
+      "labels": [],
+      "category": "Data/Backup"
+    },
+    {
+      "issue_number": 14644,
+      "title": "[Feature]: Add Agent duplicate/copy functionality",
+      "comments": 5,
+      "labels": ["Assistant"],
+      "category": "Agents"
     }
   ],
-  "unanswered_questions_estimate": "~40% of discussion-labeled issues have no team response based on comment counts",
   "recommendations": [
-    "Configure GitHub Discussions for structured Q&A categories (Bug Reports, Feature Requests, Show & Tell, Q&A)",
-    "Enable GitHub Discussions GraphQL fetch in next data refresh cycle via local Conductor",
-    "Cross-reference high-comment issues with Discussions to prevent duplicate community fragmentation"
+    "Configure GitHub Discussions Q&A categories: Bug Reports, Feature Requests, Show & Tell, v2 Feedback",
+    "Cross-reference high-comment issues with Discussions to consolidate duplicate threads",
+    "Enable full Discussion sync in next local Conductor run with gh CLI access"
   ],
-  "next_refresh": "Data will be fully populated by local Conductor on next scheduled run with gh CLI access"
+  "next_refresh": "Full discussion data will be populated when local Conductor runs with gh CLI (graphql access)"
 }
