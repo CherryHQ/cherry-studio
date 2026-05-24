@@ -35,7 +35,7 @@ import { isTextToImageModel } from './vision'
 
 // Reasoning models
 export const REASONING_REGEX =
-  /^(?!.*-non-reasoning\b)(o\d+(?:-[\w-]+)?|.*\b(?:reasoning|reasoner|thinking|think)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*|.*\bgrok-(?:3-mini|4|4-fast)(?:-[\w-]+)?\b.*)$/i
+  /^(?!.*-non-reasoning\b)(o\d+(?:-[\w-]+)?|.*\b(?:reasoning|reasoner|thinking|think)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*|.*\bgrok-(?:3-mini|4|4-fast|build)(?:-[\w-]+)?\b.*)$/i
 
 // 模型类型到支持的reasoning_effort的映射表
 // TODO: refactor this. too many identical options
@@ -417,7 +417,8 @@ export function isGrokReasoningModel(model?: Model): boolean {
   const modelId = getLowerBaseModelName(model.id)
   if (
     isSupportedReasoningEffortGrokModel(model) ||
-    (modelId.includes('grok-4') && !modelId.includes('non-reasoning'))
+    (modelId.includes('grok-4') && !modelId.includes('non-reasoning')) ||
+    modelId.includes('grok-build')
   ) {
     return true
   }
