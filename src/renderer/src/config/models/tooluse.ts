@@ -65,6 +65,8 @@ export const FUNCTION_CALLING_REGEX = new RegExp(
   'i'
 )
 
+const STEPFUN_FUNCTION_CALLING_MODELS = new Set(['step-3.7-flash'])
+
 export function isFunctionCallingModel(model?: Model): boolean {
   if (!model || isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
     return false
@@ -74,6 +76,10 @@ export function isFunctionCallingModel(model?: Model): boolean {
 
   if (isUserSelectedModelType(model, 'function_calling') !== undefined) {
     return isUserSelectedModelType(model, 'function_calling')!
+  }
+
+  if (model.provider === 'stepfun' && STEPFUN_FUNCTION_CALLING_MODELS.has(modelId)) {
+    return true
   }
 
   if (model.provider === 'doubao' || modelId.includes('doubao')) {
