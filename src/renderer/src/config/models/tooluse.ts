@@ -29,6 +29,7 @@ export const FUNCTION_CALLING_MODELS = [
   'gemma-?4(?:[-.\\w]+)?',
   'grok-3(?:-[\\w-]+)?',
   'grok-4(?:-[\\w-]+)?',
+  'grok-build(?:-[\\w-]+)?',
   'doubao-seed-1[.-][68](?:-[\\w-]+)?',
   'doubao-seed-2[.-]0(?:-[\\w-]+)?',
   'doubao-seed-code(?:-[\\w-]+)?',
