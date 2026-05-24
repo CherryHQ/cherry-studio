@@ -368,6 +368,18 @@ describe('isVisionModel', () => {
       expect(isVisionModel(createModel({ id: 'qwen3.5-plus-2026-02-15' }))).toBe(true)
       expect(isVisionModel(createModel({ id: 'qwen3.5-397b-a17b' }))).toBe(true)
     })
+
+    it('should return false for Qwen max series models (non-vision)', () => {
+      expect(isVisionModel(createModel({ id: 'qwen3.7-max' }))).toBe(false)
+      expect(isVisionModel(createModel({ id: 'qwen-max' }))).toBe(false)
+      expect(isVisionModel(createModel({ id: 'qwen3.5-max' }))).toBe(false)
+    })
+
+    it('should return true for Qwen VL series with max suffix', () => {
+      expect(isVisionModel(createModel({ id: 'qwen-vl-max' }))).toBe(true)
+      expect(isVisionModel(createModel({ id: 'qwen2-vl-max' }))).toBe(true)
+      expect(isVisionModel(createModel({ id: 'qwen3-vl-max' }))).toBe(true)
+    })
   })
 })
 
