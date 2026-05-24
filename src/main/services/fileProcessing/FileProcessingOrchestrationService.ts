@@ -66,26 +66,20 @@ export class FileProcessingOrchestrationService extends BaseService {
     const config = resolveProcessorConfigByFeature(feature, processorId)
     const fileManager = application.get('FileManager')
     const entry = await fileManager.ensureExternalEntry({ externalPath: path })
-    const version = await fileManager.getVersion(entry.id)
     const file = await toFileInfo(entry)
     const handler = getCapabilityHandler(config.id, feature)
     assertFileTypeSupported(file, feature, config)
 
     const type = handler.mode === 'background' ? 'file-processing.background' : 'file-processing.remote-poll'
     const jobManager = application.get('JobManager')
-    const { id, snapshot } = await jobManager.enqueue(
-      type,
-      { feature, fileEntryId: entry.id, processorId: config.id },
-      { idempotencyKey: `fp:${entry.id}:${config.id}:${feature}:${version.mtime}:${version.size}` }
-    )
+    const { id } = await jobManager.enqueue(type, { feature, fileEntryId: entry.id, processorId: config.id })
 
     logger.debug('Enqueued file processing job', {
       jobId: id,
       type,
       feature,
       processorId: config.id,
-      fileEntryId: entry.id,
-      reusedExisting: snapshot.status !== 'pending'
+      fileEntryId: entry.id
     })
 
     return {
