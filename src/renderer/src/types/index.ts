@@ -354,6 +354,8 @@ export interface Painting extends PaintingParams {
   prompt?: string
   negativePrompt?: string
   imageSize?: string
+  customWidth?: number
+  customHeight?: number
   numImages?: number
   seed?: string
   steps?: number

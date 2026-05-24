@@ -3163,7 +3163,10 @@
     "guidance_scale": "引導比例",
     "guidance_scale_tip": "無分類器指導。控制模型在尋找相關影像時對提示詞的遵循程度",
     "image": {
-      "size": "影像尺寸"
+      "size": "影像尺寸",
+      "size_custom": "自訂",
+      "size_width": "寬度",
+      "size_height": "高度"
     },
     "image_file_required": "請先上傳圖片",
     "image_file_retry": "請重新上傳圖片",

@@ -3163,7 +3163,10 @@
     "guidance_scale": "Guidance Scale",
     "guidance_scale_tip": "Classifier Free Guidance. How close you want the model to stick to your prompt when looking for a related image to show you",
     "image": {
-      "size": "Image Size"
+      "size": "Image Size",
+      "size_custom": "Custom",
+      "size_width": "Width",
+      "size_height": "Height"
     },
     "image_file_required": "Please upload an image first",
     "image_file_retry": "Please re-upload an image first",

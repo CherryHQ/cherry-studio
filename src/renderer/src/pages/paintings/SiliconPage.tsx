@@ -99,6 +99,8 @@ const DEFAULT_PAINTING: Painting = {
   prompt: '',
   negativePrompt: '',
   imageSize: '1024x1024',
+  customWidth: 1024,
+  customHeight: 1024,
   numImages: 1,
   seed: '',
   steps: 25,
@@ -196,11 +198,16 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     try {
+      const imageSize =
+        painting.imageSize === 'custom'
+          ? `${painting.customWidth || 1024}x${painting.customHeight || 1024}`
+          : painting.imageSize || '1024x1024'
+
       const urls = await AI.generateImage({
         model: painting.model,
         prompt,
         negativePrompt: painting.negativePrompt || '',
-        imageSize: painting.imageSize || '1024x1024',
+        imageSize,
         batchSize: painting.numImages || 1,
         seed: painting.seed || undefined,
         numInferenceSteps: painting.steps || 25,
@@ -257,8 +264,15 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onSelectImageSize = (v: string) => {
-    const size = IMAGE_SIZES.find((i) => i.value === v)
-    size && updatePaintingState({ imageSize: size.value })
+    if (v === 'custom') {
+      updatePaintingState({ imageSize: 'custom' })
+    } else {
+      const size = IMAGE_SIZES.find((i) => i.value === v)
+      if (size) {
+        const [width, height] = size.value.split('x').map(Number)
+        updatePaintingState({ imageSize: size.value, customWidth: width, customHeight: height })
+      }
+    }
   }
 
   const nextImage = () => {
@@ -390,7 +404,43 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
                 </VStack>
               </RadioButton>
             ))}
+            <RadioButton value="custom" key="custom">
+              <VStack alignItems="center" style={{ justifyContent: 'center', height: '100%' }}>
+                <span>{t('paintings.image.size_custom')}</span>
+              </VStack>
+            </RadioButton>
           </Radio.Group>
+
+          {painting.imageSize === 'custom' && (
+            <HStack style={{ marginTop: 10, gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ marginBottom: 5, fontSize: '12px', color: 'var(--color-text-2)' }}>
+                  {t('paintings.image.size_width')}
+                </div>
+                <InputNumber
+                  min={256}
+                  max={2048}
+                  step={64}
+                  value={painting.customWidth || 1024}
+                  onChange={(v) => updatePaintingState({ customWidth: v || 1024 })}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ marginBottom: 5, fontSize: '12px', color: 'var(--color-text-2)' }}>
+                  {t('paintings.image.size_height')}
+                </div>
+                <InputNumber
+                  min={256}
+                  max={2048}
+                  step={64}
+                  value={painting.customHeight || 1024}
+                  onChange={(v) => updatePaintingState({ customHeight: v || 1024 })}
+                  style={{ width: '100%' }}
+                />
+              </div>
+            </HStack>
+          )}
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.number_images')}
