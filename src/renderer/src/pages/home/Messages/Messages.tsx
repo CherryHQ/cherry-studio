@@ -61,6 +61,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isProcessingContext, setIsProcessingContext] = useState(false)
+  const [isAtBottom, setIsAtBottom] = useState(true)
 
   const { addTopic } = useAssistant(assistant.id)
   const { showPrompt, messageNavigation } = useSettings()
@@ -79,6 +80,11 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     messagesRef.current = messages
   }, [messages])
 
+  // Reset isAtBottom when topic changes
+  useEffect(() => {
+    setIsAtBottom(true)
+  }, [topic.id])
+
   const registerMessageElement = useCallback((id: string, element: HTMLElement | null) => {
     if (element) {
       messageElements.current.set(id, element)
@@ -93,8 +99,31 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     setHasMore(messages.length > displayCount)
   }, [messages, displayCount])
 
+  // Check if user is at bottom (within threshold)
+  const checkIsAtBottom = useCallback(() => {
+    if (!scrollContainerRef.current) return true
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current
+    // In column-reverse layout, scrollTop = 0 means at bottom
+    // Allow 100px threshold for "near bottom"
+    const threshold = 100
+    return Math.abs(scrollTop) <= threshold
+  }, [scrollContainerRef])
+
+  // Handle scroll event to detect user scroll position
+  const handleScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      handleScrollPosition(e)
+      const atBottom = checkIsAtBottom()
+      setIsAtBottom(atBottom)
+    },
+    [handleScrollPosition, checkIsAtBottom]
+  )
+
   // NOTE: 如果设置为平滑滚动会导致滚动条无法跟随生成的新消息保持在底部位置
   const scrollToBottom = useCallback(() => {
+    // Only auto-scroll if user is already at/near bottom
+    if (!isAtBottom) return
+
     if (scrollContainerRef.current) {
       requestAnimationFrame(() => {
         if (scrollContainerRef.current) {
@@ -102,7 +131,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
         }
       })
     }
-  }, [scrollContainerRef])
+  }, [scrollContainerRef, isAtBottom])
 
   const clearTopic = useCallback(
     async (data: Topic) => {
@@ -119,7 +148,11 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
   useEffect(() => {
     const unsubscribes = [
-      EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, scrollToBottom),
+      EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, () => {
+        // Reset isAtBottom when user sends a message
+        setIsAtBottom(true)
+        scrollToBottom()
+      }),
       EventEmitter.on(EVENT_NAMES.CLEAR_MESSAGES, async (data: Topic) => {
         window.modal.confirm({
           title: t('chat.input.clear.title'),
@@ -238,7 +271,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
     return () => unsubscribes.forEach((unsub) => unsub())
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assistant, dispatch, scrollToBottom, topic, isProcessingContext])
+  }, [assistant, dispatch, scrollToBottom, topic, isProcessingContext, isAtBottom])
 
   useEffect(() => {
     void runAsyncFunction(async () => {
@@ -306,7 +339,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
       className="messages-container"
       ref={scrollContainerRef}
       key={assistant.id}
-      onScroll={handleScrollPosition}>
+      onScroll={handleScroll}>
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
         <InfiniteScroll
           dataLength={displayMessages.length}
