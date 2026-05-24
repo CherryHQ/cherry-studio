@@ -66,6 +66,7 @@ export class FileProcessingOrchestrationService extends BaseService {
     const config = resolveProcessorConfigByFeature(feature, processorId)
     const fileManager = application.get('FileManager')
     const entry = await fileManager.ensureExternalEntry({ externalPath: path })
+    const version = await fileManager.getVersion(entry.id)
     const file = await toFileInfo(entry)
     const handler = getCapabilityHandler(config.id, feature)
     assertFileTypeSupported(file, feature, config)
@@ -75,7 +76,7 @@ export class FileProcessingOrchestrationService extends BaseService {
     const { id, snapshot } = await jobManager.enqueue(
       type,
       { feature, fileEntryId: entry.id, processorId: config.id },
-      { idempotencyKey: `fp:${entry.id}:${config.id}:${feature}` }
+      { idempotencyKey: `fp:${entry.id}:${config.id}:${feature}:${version.mtime}:${version.size}` }
     )
 
     logger.debug('Enqueued file processing job', {

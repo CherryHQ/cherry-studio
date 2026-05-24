@@ -15,6 +15,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   enqueueMock,
   ensureExternalEntryMock,
+  getVersionMock,
   toFileInfoMock,
   registerHandlerMock,
   processorRegistryMock,
@@ -25,6 +26,7 @@ const {
 } = vi.hoisted(() => ({
   enqueueMock: vi.fn(),
   ensureExternalEntryMock: vi.fn(),
+  getVersionMock: vi.fn(),
   toFileInfoMock: vi.fn(),
   registerHandlerMock: vi.fn(),
   processorRegistryMock: {} as Record<string, unknown>,
@@ -42,7 +44,8 @@ vi.mock('@application', async () => {
       registerHandler: registerHandlerMock
     },
     FileManager: {
-      ensureExternalEntry: ensureExternalEntryMock
+      ensureExternalEntry: ensureExternalEntryMock,
+      getVersion: getVersionMock
     }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
@@ -155,6 +158,15 @@ beforeEach(() => {
     }
     throw new Error(`Unexpected file entry ${entry.id}`)
   })
+  getVersionMock.mockImplementation(async (id: string) => {
+    if (id === FAKE_IMAGE_ENTRY.id) {
+      return { mtime: FAKE_IMAGE_INFO.modifiedAt, size: FAKE_IMAGE_INFO.size }
+    }
+    if (id === FAKE_PDF_ENTRY.id) {
+      return { mtime: FAKE_PDF_INFO.modifiedAt, size: FAKE_PDF_INFO.size }
+    }
+    throw new Error(`Unexpected file entry ${id}`)
+  })
   isAvailableTesseractMock.mockReturnValue(true)
   isAvailableDoc2xMock.mockReturnValue(true)
   isAvailableSystemMock.mockReturnValue(false)
@@ -215,7 +227,7 @@ describe('FileProcessingOrchestrationService.startTask — routing', () => {
     expect(enqueueMock).toHaveBeenCalledWith(
       'file-processing.background',
       { feature: 'image_to_text', fileEntryId: FAKE_IMAGE_ENTRY.id, processorId: 'tesseract' },
-      { idempotencyKey: `fp:${FAKE_IMAGE_ENTRY.id}:tesseract:image_to_text` }
+      { idempotencyKey: `fp:${FAKE_IMAGE_ENTRY.id}:tesseract:image_to_text:1775114958369:1024` }
     )
     expect(result).toEqual({
       taskId: 'job-test-1',
@@ -242,11 +254,11 @@ describe('FileProcessingOrchestrationService.startTask — routing', () => {
     expect(enqueueMock).toHaveBeenCalledWith(
       'file-processing.remote-poll',
       { feature: 'document_to_markdown', fileEntryId: FAKE_PDF_ENTRY.id, processorId: 'doc2x' },
-      { idempotencyKey: `fp:${FAKE_PDF_ENTRY.id}:doc2x:document_to_markdown` }
+      { idempotencyKey: `fp:${FAKE_PDF_ENTRY.id}:doc2x:document_to_markdown:1775114958369:9999` }
     )
   })
 
-  it('builds idempotencyKey deterministically from fileEntryId + processorId + feature', async () => {
+  it('builds idempotencyKey deterministically from fileEntryId + processorId + feature + file version', async () => {
     resolveProcessorConfigByFeatureMock.mockReturnValue({
       id: 'tesseract',
       capabilities: [{ feature: 'image_to_text', inputs: ['image'] }]
@@ -258,7 +270,53 @@ describe('FileProcessingOrchestrationService.startTask — routing', () => {
 
     const keys = enqueueMock.mock.calls.map((c) => c[2]?.idempotencyKey)
     expect(keys[0]).toBe(keys[1])
-    expect(keys[0]).toBe(`fp:${FAKE_IMAGE_ENTRY.id}:tesseract:image_to_text`)
+    expect(keys[0]).toBe(`fp:${FAKE_IMAGE_ENTRY.id}:tesseract:image_to_text:1775114958369:1024`)
+  })
+
+  it('builds a different idempotencyKey when file mtime changes', async () => {
+    resolveProcessorConfigByFeatureMock.mockReturnValue({
+      id: 'tesseract',
+      capabilities: [{ feature: 'image_to_text', inputs: ['image'] }]
+    })
+    getVersionMock
+      .mockResolvedValueOnce({ mtime: 1775114958369, size: 1024 })
+      .mockResolvedValueOnce({ mtime: 1775114959000, size: 1024 })
+    const svc = makeSvc()
+
+    await svc.startTask({ feature: 'image_to_text', path: FAKE_IMAGE_PATH, processorId: 'tesseract' })
+    await svc.startTask({ feature: 'image_to_text', path: FAKE_IMAGE_PATH, processorId: 'tesseract' })
+
+    const keys = enqueueMock.mock.calls.map((c) => c[2]?.idempotencyKey)
+    expect(keys[0]).toBe(`fp:${FAKE_IMAGE_ENTRY.id}:tesseract:image_to_text:1775114958369:1024`)
+    expect(keys[1]).toBe(`fp:${FAKE_IMAGE_ENTRY.id}:tesseract:image_to_text:1775114959000:1024`)
+  })
+
+  it('builds a different idempotencyKey when file size changes', async () => {
+    resolveProcessorConfigByFeatureMock.mockReturnValue({
+      id: 'tesseract',
+      capabilities: [{ feature: 'image_to_text', inputs: ['image'] }]
+    })
+    getVersionMock
+      .mockResolvedValueOnce({ mtime: 1775114958369, size: 1024 })
+      .mockResolvedValueOnce({ mtime: 1775114958369, size: 2048 })
+    const svc = makeSvc()
+
+    await svc.startTask({ feature: 'image_to_text', path: FAKE_IMAGE_PATH, processorId: 'tesseract' })
+    await svc.startTask({ feature: 'image_to_text', path: FAKE_IMAGE_PATH, processorId: 'tesseract' })
+
+    const keys = enqueueMock.mock.calls.map((c) => c[2]?.idempotencyKey)
+    expect(keys[0]).toBe(`fp:${FAKE_IMAGE_ENTRY.id}:tesseract:image_to_text:1775114958369:1024`)
+    expect(keys[1]).toBe(`fp:${FAKE_IMAGE_ENTRY.id}:tesseract:image_to_text:1775114958369:2048`)
+    expect(enqueueMock.mock.calls[0][1]).toEqual({
+      feature: 'image_to_text',
+      fileEntryId: FAKE_IMAGE_ENTRY.id,
+      processorId: 'tesseract'
+    })
+    expect(enqueueMock.mock.calls[1][1]).toEqual({
+      feature: 'image_to_text',
+      fileEntryId: FAKE_IMAGE_ENTRY.id,
+      processorId: 'tesseract'
+    })
   })
 
   it('rejects when file type is not in the processor capability inputs', async () => {
