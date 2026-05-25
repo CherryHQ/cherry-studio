@@ -411,11 +411,14 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.Backup_CreateLanTransferBackup, backupManager.createLanTransferBackup.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_DeleteLanTransferBackup, backupManager.deleteLanTransferBackup.bind(backupManager))
 
-  // [v2] v1 legacy file IPC — these 44 channels route to the FileStorage
-  // singleton (Dexie `db.files` + on-disk <userData>/Data/Files/<v1uuid>.<ext>).
-  // Kept live until Batch A-E migrates the renderer FileManager wrappers and
-  // other v1 callers off them. The v2 surface (createInternalEntry /
-  // ensureExternalEntry / getPhysicalPath / permanentDelete / runSweep) is
+  // [v2] v1 legacy file IPC — these 44 channels expose physical file IO
+  // (read/write/delete/move on <userData>/Data/Files/<v1uuid>.<ext>, plus
+  // notes/watcher/directory utilities) backed by the FileStorage singleton.
+  // The Dexie `db.files` metadata + refcount layer lives entirely in the
+  // renderer (`src/renderer/src/services/FileManager.ts`); main never
+  // touches IndexedDB. Both sides stay live until Batch A-E migrates the
+  // renderer callers to the v2 surface (createInternalEntry /
+  // ensureExternalEntry / getPhysicalPath / permanentDelete / runSweep)
   // registered by the v2 FileManager lifecycle service, not here.
   ipcMain.handle(IpcChannel.File_Open, fileManager.open.bind(fileManager))
   ipcMain.handle(IpcChannel.File_OpenPath, fileManager.openPath.bind(fileManager))
