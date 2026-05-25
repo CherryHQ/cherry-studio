@@ -1,14 +1,14 @@
 // Primitive Components
 export { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from './primitives/avatar'
 export { default as CircularProgress, type CircularProgressProps } from './primitives/circular-progress'
-export { default as CopyButton } from './primitives/copyButton'
-export { default as CustomTag } from './primitives/customTag'
+export { default as CopyButton } from './primitives/copy-button'
+export { default as CustomTag, type CustomTagProps } from './primitives/custom-tag'
 export { Divider, type DividerProps } from './primitives/divider'
-export { default as DividerWithText } from './primitives/dividerWithText'
-export { default as EmojiIcon } from './primitives/emojiIcon'
-export type { CustomFallbackProps, ErrorBoundaryCustomizedProps } from './primitives/ErrorBoundary'
-export { ErrorBoundary } from './primitives/ErrorBoundary'
-export { default as IndicatorLight } from './primitives/indicatorLight'
+export { default as DividerWithText } from './primitives/divider-with-text'
+export { default as EmojiIcon } from './primitives/emoji-icon'
+export type { CustomFallbackProps, ErrorBoundaryCustomizedProps } from './primitives/error-boundary'
+export { ErrorBoundary } from './primitives/error-boundary'
+export { default as IndicatorLight } from './primitives/indicator-light'
 export { default as Spinner } from './primitives/spinner'
 export { DescriptionSwitch, Switch } from './primitives/switch'
 export {
@@ -22,23 +22,23 @@ export {
 } from './primitives/tooltip'
 
 // Composite Components
-export { ConfirmDialog, type ConfirmDialogProps } from './composites/ConfirmDialog'
+export { ConfirmDialog, type ConfirmDialogProps } from './composites/confirm-dialog'
 export {
   type ColumnDef,
   DataTable,
   type DataTableColumnMeta,
   type DataTableProps,
   type DataTableSelection
-} from './composites/DataTable'
+} from './composites/data-table'
 export {
   type DateTimeGranularity,
   DateTimePicker,
   type DateTimePickerLabels,
   type DateTimePickerProps
-} from './composites/DateTimePicker'
-export { default as Ellipsis } from './composites/Ellipsis'
-export { default as EmojiAvatar } from './composites/EmojiAvatar'
-export { EmptyState, type EmptyStatePreset, type EmptyStateProps } from './composites/EmptyState'
+} from './composites/date-time-picker'
+export { default as Ellipsis } from './composites/ellipsis'
+export { default as EmojiAvatar } from './composites/emoji-avatar'
+export { EmptyState, type EmptyStatePreset, type EmptyStateProps } from './composites/empty-state'
 export {
   type EntityItemBase,
   EntitySelector,
@@ -49,13 +49,13 @@ export {
   type EntitySelectorRowContext,
   type EntitySelectorSearch,
   type EntitySelectorSection
-} from './composites/EntitySelector'
-export { Box, Center, ColFlex, Flex, RowFlex, SpaceBetweenRowFlex } from './composites/Flex'
-export { default as HorizontalScrollContainer } from './composites/HorizontalScrollContainer'
-export { PageSidePanel, type PageSidePanelPlacement, type PageSidePanelProps } from './composites/PageSidePanel'
-export { default as Scrollbar } from './composites/Scrollbar'
-export { SearchInput, type SearchInputProps } from './composites/SearchInput'
-export { SelectDropdown, type SelectDropdownProps } from './composites/SelectDropdown'
+} from './composites/entity-selector'
+export { Box, Center, ColFlex, Flex, RowFlex, SpaceBetweenRowFlex } from './composites/flex'
+export { default as HorizontalScrollContainer } from './composites/horizontal-scroll-container'
+export { PageSidePanel, type PageSidePanelPlacement, type PageSidePanelProps } from './composites/page-side-panel'
+export { default as Scrollbar } from './composites/scrollbar'
+export { SearchInput, type SearchInputProps } from './composites/search-input'
+export { SelectDropdown, type SelectDropdownProps } from './composites/select-dropdown'
 
 // Icon Components — import from '@cherrystudio/ui/icons' path
 export type { CompoundIcon, IconAvatarProps, IconComponent, IconMeta, IconProps } from './icons/types'
@@ -69,12 +69,12 @@ export {
   type CodeMirrorTheme,
   getCmThemeByName,
   getCmThemeNames
-} from './composites/CodeEditor'
+} from './composites/code-editor'
 // DraggableList
-export { DraggableList, useDraggableReorder } from './composites/DraggableList'
+export { DraggableList, useDraggableReorder } from './composites/draggable-list'
 // EditableNumber
-export type { EditableNumberProps } from './composites/EditableNumber'
-export { default as EditableNumber } from './composites/EditableNumber'
+export type { EditableNumberProps } from './composites/editable-number'
+export { default as EditableNumber } from './composites/editable-number'
 export {
   Form,
   FormControl,
@@ -84,11 +84,11 @@ export {
   FormLabel,
   FormMessage,
   useFormField
-} from './composites/Form'
+} from './composites/form'
 // Tooltip variants
-export { HelpTooltip, type IconTooltipProps, InfoTooltip, WarnTooltip } from './composites/IconTooltips'
+export { HelpTooltip, type IconTooltipProps, InfoTooltip, WarnTooltip } from './composites/icon-tooltips'
 // ImageToolButton
-export { default as ImageToolButton } from './composites/ImageToolButton'
+export { default as ImageToolButton } from './composites/image-tool-button'
 // ImagePreview
 export {
   DEFAULT_IMAGE_PREVIEW_LABELS,
@@ -110,20 +110,20 @@ export {
   ImagePreviewTrigger,
   type ImagePreviewTriggerProps,
   useImagePreviewTransform
-} from './composites/ImagePreview'
+} from './composites/image-preview'
 // MenuList
-export type { MenuDividerProps, MenuItemProps, MenuListProps } from './composites/MenuList'
-export { MenuDivider, MenuItem, menuItemVariants, MenuList } from './composites/MenuList'
+export type { MenuDividerProps, MenuItemProps, MenuListProps } from './composites/menu-list'
+export { MenuDivider, MenuItem, menuItemVariants, MenuList } from './composites/menu-list'
 // ReorderableList
-export { ReorderableList, type ReorderableListProps } from './composites/ReorderableList'
+export { ReorderableList, type ReorderableListProps } from './composites/reorderable-list'
 // Sortable
 export {
   CompositeInput,
   type CompositeInputProps,
   type SelectGroup as CompositeInputSelectGroup,
   type SelectItem as CompositeInputSelectItem
-} from './composites/Input'
-export { Sortable } from './composites/Sortable'
+} from './composites/composite-input'
+export { Sortable } from './composites/sortable'
 
 /* Shadcn Primitive Components */
 export * from './primitives/accordion'

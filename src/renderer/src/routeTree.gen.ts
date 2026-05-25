@@ -17,9 +17,9 @@ import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsWebsearchRouteImport } from './routes/settings/websearch'
 import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
 import { Route as SettingsShortcutRouteImport } from './routes/settings/shortcut'
-import { Route as SettingsSelectionAssistantRouteImport } from './routes/settings/selectionAssistant'
+import { Route as SettingsSelectionAssistantRouteImport } from './routes/settings/selection-assistant'
 import { Route as SettingsScheduledTasksRouteImport } from './routes/settings/scheduled-tasks'
-import { Route as SettingsQuickAssistantRouteImport } from './routes/settings/quickAssistant'
+import { Route as SettingsQuickAssistantRouteImport } from './routes/settings/quick-assistant'
 import { Route as SettingsProviderRouteImport } from './routes/settings/provider'
 import { Route as SettingsPromptsRouteImport } from './routes/settings/prompts'
 import { Route as SettingsPluginsRouteImport } from './routes/settings/plugins'
@@ -98,8 +98,8 @@ const SettingsShortcutRoute = SettingsShortcutRouteImport.update({
 } as any)
 const SettingsSelectionAssistantRoute =
   SettingsSelectionAssistantRouteImport.update({
-    id: '/selectionAssistant',
-    path: '/selectionAssistant',
+    id: '/selection-assistant',
+    path: '/selection-assistant',
     getParentRoute: () => SettingsRoute,
   } as any)
 const SettingsScheduledTasksRoute = SettingsScheduledTasksRouteImport.update({
@@ -108,8 +108,8 @@ const SettingsScheduledTasksRoute = SettingsScheduledTasksRouteImport.update({
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsQuickAssistantRoute = SettingsQuickAssistantRouteImport.update({
-  id: '/quickAssistant',
-  path: '/quickAssistant',
+  id: '/quick-assistant',
+  path: '/quick-assistant',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsProviderRoute = SettingsProviderRouteImport.update({
@@ -317,9 +317,9 @@ export interface FileRoutesByFullPath {
   '/settings/plugins': typeof SettingsPluginsRoute
   '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
-  '/settings/quickAssistant': typeof SettingsQuickAssistantRoute
+  '/settings/quick-assistant': typeof SettingsQuickAssistantRoute
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
-  '/settings/selectionAssistant': typeof SettingsSelectionAssistantRoute
+  '/settings/selection-assistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
@@ -363,9 +363,9 @@ export interface FileRoutesByTo {
   '/settings/plugins': typeof SettingsPluginsRoute
   '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
-  '/settings/quickAssistant': typeof SettingsQuickAssistantRoute
+  '/settings/quick-assistant': typeof SettingsQuickAssistantRoute
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
-  '/settings/selectionAssistant': typeof SettingsSelectionAssistantRoute
+  '/settings/selection-assistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
@@ -412,9 +412,9 @@ export interface FileRoutesById {
   '/settings/plugins': typeof SettingsPluginsRoute
   '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
-  '/settings/quickAssistant': typeof SettingsQuickAssistantRoute
+  '/settings/quick-assistant': typeof SettingsQuickAssistantRoute
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
-  '/settings/selectionAssistant': typeof SettingsSelectionAssistantRoute
+  '/settings/selection-assistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
@@ -462,9 +462,9 @@ export interface FileRouteTypes {
     | '/settings/plugins'
     | '/settings/prompts'
     | '/settings/provider'
-    | '/settings/quickAssistant'
+    | '/settings/quick-assistant'
     | '/settings/scheduled-tasks'
-    | '/settings/selectionAssistant'
+    | '/settings/selection-assistant'
     | '/settings/shortcut'
     | '/settings/skills'
     | '/settings/websearch'
@@ -508,9 +508,9 @@ export interface FileRouteTypes {
     | '/settings/plugins'
     | '/settings/prompts'
     | '/settings/provider'
-    | '/settings/quickAssistant'
+    | '/settings/quick-assistant'
     | '/settings/scheduled-tasks'
-    | '/settings/selectionAssistant'
+    | '/settings/selection-assistant'
     | '/settings/shortcut'
     | '/settings/skills'
     | '/settings/websearch'
@@ -556,9 +556,9 @@ export interface FileRouteTypes {
     | '/settings/plugins'
     | '/settings/prompts'
     | '/settings/provider'
-    | '/settings/quickAssistant'
+    | '/settings/quick-assistant'
     | '/settings/scheduled-tasks'
-    | '/settings/selectionAssistant'
+    | '/settings/selection-assistant'
     | '/settings/shortcut'
     | '/settings/skills'
     | '/settings/websearch'
@@ -642,10 +642,10 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsShortcutRouteImport
       parentRoute: typeof SettingsRoute
     }
-    '/settings/selectionAssistant': {
-      id: '/settings/selectionAssistant'
-      path: '/selectionAssistant'
-      fullPath: '/settings/selectionAssistant'
+    '/settings/selection-assistant': {
+      id: '/settings/selection-assistant'
+      path: '/selection-assistant'
+      fullPath: '/settings/selection-assistant'
       preLoaderRoute: typeof SettingsSelectionAssistantRouteImport
       parentRoute: typeof SettingsRoute
     }
@@ -656,10 +656,10 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsScheduledTasksRouteImport
       parentRoute: typeof SettingsRoute
     }
-    '/settings/quickAssistant': {
-      id: '/settings/quickAssistant'
-      path: '/quickAssistant'
-      fullPath: '/settings/quickAssistant'
+    '/settings/quick-assistant': {
+      id: '/settings/quick-assistant'
+      path: '/quick-assistant'
+      fullPath: '/settings/quick-assistant'
       preLoaderRoute: typeof SettingsQuickAssistantRouteImport
       parentRoute: typeof SettingsRoute
     }

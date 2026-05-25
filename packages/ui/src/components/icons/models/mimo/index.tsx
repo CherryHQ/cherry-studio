@@ -5,12 +5,12 @@ import { MimoDark } from './dark'
 import { MimoLight } from './light'
 
 const Mimo = ({ variant, className, ...props }: CompoundIconProps) => {
-  if (variant === 'light') return <MimoLight {...props} className={className} />
-  if (variant === 'dark') return <MimoDark {...props} className={className} />
+  if (variant === 'light') return <MimoLight {...props} className={cn('text-foreground', className)} />
+  if (variant === 'dark') return <MimoDark {...props} className={cn('text-foreground', className)} />
   return (
     <>
-      <MimoLight className={cn('dark:hidden', className)} {...props} />
-      <MimoDark className={cn('hidden dark:block', className)} {...props} />
+      <MimoLight className={cn('text-foreground dark:hidden', className)} {...props} />
+      <MimoDark className={cn('text-foreground hidden dark:block', className)} {...props} />
     </>
   )
 }

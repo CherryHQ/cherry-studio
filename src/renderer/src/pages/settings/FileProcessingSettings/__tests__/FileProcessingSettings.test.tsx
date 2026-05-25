@@ -6,7 +6,7 @@ import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import FileProcessingSettings from '..'
-import { PADDLEOCR_DEPLOYMENT_URL } from '../components/PaddleOCRDeploymentInfo'
+import { PADDLEOCR_DEPLOYMENT_URL } from '../components/PaddleOcrDeploymentInfo'
 
 const setPreferencesMock = vi.hoisted(() => vi.fn())
 const setOverridesMock = vi.hoisted(() => vi.fn())

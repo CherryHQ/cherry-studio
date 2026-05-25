@@ -15,7 +15,7 @@ import { and, asc, count, desc, eq, inArray, lte, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('JobService')
 
-const NON_TERMINAL_STATUSES = ['pending', 'delayed', 'running'] as const satisfies readonly JobStatus[]
+const ACTIVE_STATUSES = ['pending', 'delayed', 'running'] as const satisfies readonly JobStatus[]
 
 export interface JobListFilter {
   status?: JobStatus[]
@@ -105,7 +105,7 @@ export class JobService {
     const [row] = await this.getDb()
       .select()
       .from(jobTable)
-      .where(and(eq(jobTable.idempotencyKey, key), inArray(jobTable.status, NON_TERMINAL_STATUSES)))
+      .where(and(eq(jobTable.idempotencyKey, key), inArray(jobTable.status, ACTIVE_STATUSES)))
       .limit(1)
     return row ? this.rowToSnapshot(row) : null
   }
@@ -148,12 +148,17 @@ export class JobService {
 
   // ---------------- Tx-scoped (inside JobManager.dispatch transaction) ----------------
 
-  /** Count pending+delayed+running jobs for a queue — checks queue concurrency. */
-  async countActiveByQueueTx(tx: DbOrTx, queue: string): Promise<number> {
+  /**
+   * Count currently-running jobs for a queue — checks queue concurrency.
+   * Only `running` counts toward the cap: pending/delayed jobs are queued or
+   * waiting on backoff and occupy no worker slot (mirrors `countRunningGlobalTx`).
+   * Counting them would deadlock the queue once its backlog reaches concurrency.
+   */
+  async countRunningByQueueTx(tx: DbOrTx, queue: string): Promise<number> {
     const [r] = await tx
       .select({ count: count() })
       .from(jobTable)
-      .where(and(eq(jobTable.queue, queue), inArray(jobTable.status, NON_TERMINAL_STATUSES)))
+      .where(and(eq(jobTable.queue, queue), eq(jobTable.status, 'running')))
     return r?.count ?? 0
   }
 
@@ -162,7 +167,7 @@ export class JobService {
    * Only `running` counts toward the global cap: pending/delayed do not occupy
    * worker slots.
    */
-  async countActiveGlobalTx(tx: DbOrTx): Promise<number> {
+  async countRunningGlobalTx(tx: DbOrTx): Promise<number> {
     const [r] = await tx.select({ count: count() }).from(jobTable).where(eq(jobTable.status, 'running'))
     return r?.count ?? 0
   }
@@ -280,8 +285,8 @@ export class JobService {
    * delayed orphan would silently sit forever (no handler to ever run it,
    * no timer to surface it).
    */
-  async getStaleNonTerminal(): Promise<JobRow[]> {
-    return this.getDb().select().from(jobTable).where(inArray(jobTable.status, NON_TERMINAL_STATUSES))
+  async getStaleActive(): Promise<JobRow[]> {
+    return this.getDb().select().from(jobTable).where(inArray(jobTable.status, ACTIVE_STATUSES))
   }
 
   /**
@@ -292,11 +297,11 @@ export class JobService {
    * uuidv7 ids are lexicographically monotonic within a millisecond so this
    * gives a deterministic "newest" pick.
    */
-  async getNonTerminalByType(type: string): Promise<JobRow[]> {
+  async getActiveByType(type: string): Promise<JobRow[]> {
     return this.getDb()
       .select()
       .from(jobTable)
-      .where(and(eq(jobTable.type, type), inArray(jobTable.status, NON_TERMINAL_STATUSES)))
+      .where(and(eq(jobTable.type, type), inArray(jobTable.status, ACTIVE_STATUSES)))
       .orderBy(desc(jobTable.createdAt), desc(jobTable.id))
   }
 
@@ -322,7 +327,7 @@ export class JobService {
     return this.getDb()
       .select({ queue: jobTable.queue, type: jobTable.type })
       .from(jobTable)
-      .where(inArray(jobTable.status, NON_TERMINAL_STATUSES))
+      .where(inArray(jobTable.status, ACTIVE_STATUSES))
       .groupBy(jobTable.queue, jobTable.type)
   }
 
@@ -378,7 +383,7 @@ export class JobService {
     filter: { queue?: string; type?: string },
     error: JobError | null
   ): Promise<{ runningIds: string[]; transitioned: number }> {
-    const conditions: SQL[] = [inArray(jobTable.status, NON_TERMINAL_STATUSES)]
+    const conditions: SQL[] = [inArray(jobTable.status, ACTIVE_STATUSES)]
     if (filter.queue) conditions.push(eq(jobTable.queue, filter.queue))
     if (filter.type) conditions.push(eq(jobTable.type, filter.type))
 

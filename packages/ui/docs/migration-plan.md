@@ -64,20 +64,22 @@ function MyComponent() {
 
 When submitting PRs, please place components in the correct directory based on their function:
 
+> All file and directory names below are written in **kebab-case** per `packages/ui/`'s naming convention (see README "Naming Conventions"). The PascalCase identifiers in parentheses refer to the exported component names inside those files.
+
 - **primitives**: Basic and primitive UI elements, shadcn/ui components
-  - `Avatar`: Avatar components
-  - `ErrorBoundary`: Error boundary components
-  - `Selector`: Selection components
+  - `avatar/` (`Avatar`): Avatar components
+  - `error-boundary/` (`ErrorBoundary`): Error boundary components
+  - `selector/` (`Selector`): Selection components
   - `shadcn-io/`: Direct shadcn/ui components or adaptations
 - **icons**: All icon-related components
-  - `Icon`: Icon factory and basic icons
-  - `FileIcons`: File-specific icons
-  - Loading/spinner icons (SvgSpinners180Ring, ToolsCallingIcon, etc.)
+  - `icon/` (`Icon`): Icon factory and basic icons
+  - `file-icons/` (`FileIcons`): File-specific icons
+  - Loading/spinner icons (`SvgSpinners180Ring`, `ToolsCallingIcon`, etc.)
 - **composites**: Complex components made from multiple primitives
-  - `CodeEditor`: Code editing components
-  - `ListItem`: List item components
-  - `ThinkingEffect`: Animation components
-  - Form and interaction components (DraggableList, EditableNumber, etc.)
+  - `code-editor/` (`CodeEditor`): Code editing components
+  - `list-item/` (`ListItem`): List item components
+  - `thinking-effect/` (`ThinkingEffect`): Animation components
+  - Form and interaction components (`draggable-list/`, `editable-number/`, etc.)
 
 ## Component Extraction Criteria
 

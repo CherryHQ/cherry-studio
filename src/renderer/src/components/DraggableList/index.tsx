@@ -4,4 +4,4 @@ export {
   default as DraggableVirtualList,
   type DraggableVirtualListProps,
   type DraggableVirtualListRef
-} from './virtual-list'
+} from './VirtualList'

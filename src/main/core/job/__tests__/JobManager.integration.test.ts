@@ -457,6 +457,59 @@ describe('JobManager integration', () => {
     })
   })
 
+  describe('global cap cross-queue wakeup', () => {
+    // Regression: when a dispatch is blocked purely by the GLOBAL concurrency
+    // cap (the queue itself has free slots), a job finishing on a DIFFERENT
+    // queue must re-kick all queues — not just the finished job's own queue.
+    // Previously resolveAndDispatch only dispatched snapshot.queue, so a queue
+    // starved solely by the global cap stalled until the next 5-minute promotion
+    // tick or a fresh enqueue (a lost wakeup).
+    it('re-dispatches a globally-starved queue after a global slot frees', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['cap.task', makeSlowHandler('abandon') as JobHandler]]
+      })
+      // Force the global cap to bind with a single slot.
+      ;(jobManager as unknown as { globalMaxConcurrency: number }).globalMaxConcurrency = 1
+
+      // Queue qB occupies the only global slot with a slow job.
+      const occupant = await jobManager.enqueue(
+        'cap.task' as never,
+        { message: 'occupant', sleepMs: 150 } as never,
+        { queue: 'qB' } as never
+      )
+      await drainAllQueues(jobManager)
+
+      // Queue qA is enqueued while the global cap is saturated → blocked pending,
+      // even though qA's own per-queue slots are free.
+      const starved = await jobManager.enqueue(
+        'cap.task' as never,
+        { message: 'starved', sleepMs: 10 } as never,
+        { queue: 'qA' } as never
+      )
+
+      // Pin the regression deterministically: qA's dispatch must have observed
+      // the global cap saturated and set the flag. Drain first so qA's (fire-and-
+      // forget) dispatch tx has run — async-mutex is FIFO, so qA's earlier
+      // mutex.acquire() resolves before drain's, guaranteeing the flag is set by
+      // the time drain returns. Without this assertion the test could pass
+      // vacuously if timing left a global slot free at qA enqueue time.
+      await drainAllQueues(jobManager)
+      expect((jobManager as unknown as { globalCapReached: boolean }).globalCapReached).toBe(true)
+
+      // Occupant finishes → frees the global slot → must wake qA.
+      await occupant.finished
+      const settled = await Promise.race([
+        starved.finished,
+        new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), 2000))
+      ])
+      expect(settled).not.toBe('timeout')
+      expect((settled as { status: string }).status).toBe('completed')
+
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+  })
+
   describe('scheduleRetry persistence failure → fallback finalize', () => {
     it('degrades to failed(retryable=true) when retry tx persistently fails (non-BUSY)', async () => {
       // Handler always throws a retryable error so JobManager attempts retry.

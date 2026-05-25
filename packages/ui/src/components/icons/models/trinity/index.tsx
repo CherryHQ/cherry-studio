@@ -5,12 +5,12 @@ import { TrinityDark } from './dark'
 import { TrinityLight } from './light'
 
 const Trinity = ({ variant, className, ...props }: CompoundIconProps) => {
-  if (variant === 'light') return <TrinityLight {...props} className={className} />
-  if (variant === 'dark') return <TrinityDark {...props} className={className} />
+  if (variant === 'light') return <TrinityLight {...props} className={cn('text-foreground', className)} />
+  if (variant === 'dark') return <TrinityDark {...props} className={cn('text-foreground', className)} />
   return (
     <>
-      <TrinityLight className={cn('dark:hidden', className)} {...props} />
-      <TrinityDark className={cn('hidden dark:block', className)} {...props} />
+      <TrinityLight className={cn('text-foreground dark:hidden', className)} {...props} />
+      <TrinityDark className={cn('text-foreground hidden dark:block', className)} {...props} />
     </>
   )
 }
