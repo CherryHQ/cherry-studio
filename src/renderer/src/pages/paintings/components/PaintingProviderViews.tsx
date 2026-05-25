@@ -1,16 +1,11 @@
 import type { Model } from '@shared/data/types/model'
-import { useTranslation } from 'react-i18next'
 
-import { usePaintingProviderRuntime } from '../hooks/usePaintingProviderRuntime'
 import type { OpenApiCompatiblePaintingData, PaintingData, TokenFluxPaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
 import type { PaintingProviderRuntime } from '../model/types/paintingProviderRuntime'
-import { AihubmixHeaderActions } from '../providers/aihubmix'
-import { DmxapiHeaderActions, DmxapiSetting } from '../providers/dmxapi'
-import { NewApiHeaderActions, NewApiSetting } from '../providers/newapi'
-import { OvmsHeaderActions } from '../providers/ovms'
-import { TokenFluxCenterContent, TokenFluxHeaderActions, TokenFluxSetting } from '../providers/tokenflux'
-import { ZhipuHeaderActions } from '../providers/zhipu'
+import { DmxapiSetting } from '../providers/dmxapi'
+import { NewApiSetting } from '../providers/newapi'
+import { TokenFluxCenterContent, TokenFluxSetting } from '../providers/tokenflux'
 import Artboard from './Artboard'
 
 const NON_OPENAPI_PROVIDER_IDS = new Set(['aihubmix', 'dmxapi', 'ovms', 'ppio', 'silicon', 'tokenflux', 'zhipu'])
@@ -27,27 +22,6 @@ function isRegistryModel(value: unknown): value is Model {
 
 function isOpenApiCompatiblePainting(painting: PaintingData): painting is OpenApiCompatiblePaintingData {
   return !NON_OPENAPI_PROVIDER_IDS.has(painting.providerId)
-}
-
-/** Provider-specific links/actions in the settings header row (next to close). */
-export function PaintingProviderHeaderActions({ providerId }: { providerId: string }) {
-  const { t } = useTranslation()
-  const { provider } = usePaintingProviderRuntime(providerId)
-
-  if (provider.id === 'zhipu') return <ZhipuHeaderActions t={t} />
-  if (provider.id === 'aihubmix') return <AihubmixHeaderActions provider={provider} t={t} />
-  if (provider.id === 'ovms') return <OvmsHeaderActions t={t} />
-  if (provider.id === 'dmxapi') return <DmxapiHeaderActions t={t} />
-  if (provider.id === 'tokenflux') return <TokenFluxHeaderActions t={t} />
-  if (
-    provider.id === 'new-api' ||
-    provider.presetProviderId === 'new-api' ||
-    ['cherryin', 'aionly'].includes(provider.id)
-  ) {
-    return <NewApiHeaderActions provider={provider} t={t} />
-  }
-
-  return null
 }
 
 export function PaintingSettingsExtras({

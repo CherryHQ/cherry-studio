@@ -1,35 +1,17 @@
-import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { uuid } from '@renderer/utils'
 import type { Model } from '@shared/data/types/model'
-import type { TFunction } from 'i18next'
 
-import { SettingHelpLink } from '../../../settings'
 import type { DmxapiPaintingData as DmxapiPainting } from '../../model/types/paintingData'
 import { generationModeType } from '../../model/types/paintingData'
 import type { ModelOption } from '../../model/types/paintingModel'
 import { loadPaintingModelOptions } from '../../model/utils/paintingModelOptions'
 import type { PaintingProvider } from '../types'
-import { COURSE_URL, DEFAULT_PAINTING, MODEOPTIONS, TOP_UP_URL } from './config'
+import { DEFAULT_PAINTING, MODEOPTIONS } from './config'
 import { buildDmxapiConfigFields } from './fields'
 import { generateWithDmxapiUnified } from './generateUnified'
 import { clearDmxapiFileMap, type DmxapiModelMeta, setDmxapiModelMetaCache, toDmxapiDbMode } from './runtime'
 
 const generateRandomSeed = () => Math.floor(Math.random() * 1000000).toString()
-
-export function DmxapiHeaderActions({ t }: { t: TFunction }) {
-  const Icon = resolveProviderIcon('dmxapi')
-  return (
-    <>
-      <SettingHelpLink target="_blank" href={COURSE_URL}>
-        {t('paintings.paint_course')}
-      </SettingHelpLink>
-      <SettingHelpLink target="_blank" href={TOP_UP_URL}>
-        {t('paintings.top_up')}
-      </SettingHelpLink>
-      {Icon ? <Icon.Avatar size={16} className="ml-1" /> : null}
-    </>
-  )
-}
 
 /**
  * Map a painting-page tab value to the canonical `ImageGenerationMode`. dmxapi's

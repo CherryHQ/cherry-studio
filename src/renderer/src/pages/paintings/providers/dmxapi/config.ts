@@ -25,10 +25,6 @@ export type DMXApiModelGroups = {
   IMAGE_MERGE?: Record<string, DMXApiModelData[]>
 }
 
-export const COURSE_URL = 'http://seedream.dmxapi.cn/'
-
-export const TOP_UP_URL = 'https://www.dmxapi.cn/topup'
-
 export const DEFAULT_PAINTING: DmxapiPainting = {
   id: uuid(),
   providerId: 'dmxapi',

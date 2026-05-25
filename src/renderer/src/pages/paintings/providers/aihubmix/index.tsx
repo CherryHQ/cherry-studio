@@ -1,26 +1,12 @@
-import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import i18n from '@renderer/i18n'
-import type { TFunction } from 'i18next'
 
-import { SettingHelpLink } from '../../../settings'
 import type { AihubmixPaintingData as PaintingData } from '../../model/types/paintingData'
-import type { PaintingProviderRuntime } from '../../model/types/paintingProviderRuntime'
 import { loadPaintingModelOptions } from '../../model/utils/paintingModelOptions'
 import type { PaintingProvider } from '../types'
 import { createDefaultAihubmixPainting } from './defaults'
 import { generateWithAihubmixUnified } from './generateUnified'
 import { aihubmixImagePlaceholder, getAihubmixPreviewSrc, handleAihubmixImageUpload } from './imageUpload'
 import { getStaticModelsForAihubmixMode } from './models'
-
-export function AihubmixHeaderActions({ provider, t }: { provider: PaintingProviderRuntime; t: TFunction }) {
-  const Icon = resolveProviderIcon('aihubmix')
-  return (
-    <SettingHelpLink target="_blank" href={provider.apiHost}>
-      {t('paintings.learn_more')}
-      {Icon ? <Icon.Avatar size={16} className="shrink-0" /> : null}
-    </SettingHelpLink>
-  )
-}
 
 export const aihubmixProvider = {
   id: 'aihubmix',

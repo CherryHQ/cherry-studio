@@ -6,7 +6,7 @@ import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'reac
 import PaintingModelSelector from './components/PaintingModelSelector'
 import { PaintingModeTabs } from './components/PaintingModeTabs'
 import PaintingPromptBar from './components/PaintingPromptBar'
-import { PaintingArtboard, PaintingProviderHeaderActions } from './components/PaintingProviderViews'
+import { PaintingArtboard } from './components/PaintingProviderViews'
 import PaintingSettings from './components/PaintingSettings'
 import PaintingStrip from './components/PaintingStrip'
 import { usePaintingGenerationSubmit } from './hooks/usePaintingGenerationSubmit'
@@ -97,7 +97,6 @@ const PaintingPage: FC = () => {
                   <PaintingModelSelector
                     className={paintingClasses.panelModelSelectorTrigger}
                     painting={currentPainting}
-                    actions={<PaintingProviderHeaderActions providerId={currentProviderId} />}
                     onSelect={switchModel}
                   />
                 </div>

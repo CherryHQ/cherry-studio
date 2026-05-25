@@ -1,28 +1,9 @@
-import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import type { TFunction } from 'i18next'
-
-import { SettingHelpLink } from '../../../settings'
 import { canonicalGenerate } from '../../model/canonicalGenerate'
 import type { ZhipuPaintingData as PaintingData } from '../../model/types/paintingData'
 import { loadPaintingModelOptions } from '../../model/utils/paintingModelOptions'
 import { resolveCogviewSize } from '../../model/validators/cogviewSize'
 import { createSingleModeProvider, type PaintingProviderDefinition } from '../types'
-import { COURSE_URL, createDefaultZhipuPainting, TOP_UP_URL } from './config'
-
-export function ZhipuHeaderActions({ t }: { t: TFunction }) {
-  const Icon = resolveProviderIcon('zhipu')
-  return (
-    <>
-      <SettingHelpLink target="_blank" href={TOP_UP_URL}>
-        {t('paintings.top_up')}
-      </SettingHelpLink>
-      <SettingHelpLink target="_blank" href={COURSE_URL}>
-        {t('paintings.paint_course')}
-      </SettingHelpLink>
-      {Icon ? <Icon.Avatar size={16} className="ml-1.25" /> : null}
-    </>
-  )
-}
+import { createDefaultZhipuPainting } from './config'
 
 export const zhipuProvider: PaintingProviderDefinition = createSingleModeProvider<PaintingData>({
   id: 'zhipu',

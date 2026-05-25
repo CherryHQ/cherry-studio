@@ -1,9 +1,6 @@
-import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { uuid } from '@renderer/utils'
 import type { Model } from '@shared/data/types/model'
-import type { TFunction } from 'i18next'
 
-import { SettingHelpLink } from '../../../settings'
 import type { TokenFluxPaintingData as TokenFluxPainting } from '../../model/types/paintingData'
 import type { ModelOption } from '../../model/types/paintingModel'
 import { loadPaintingModelOptions } from '../../model/utils/paintingModelOptions'
@@ -11,16 +8,6 @@ import { createSingleModeProvider, type PaintingProviderDefinition } from '../ty
 import { DEFAULT_TOKENFLUX_PAINTING } from './config'
 import { tokenFluxFields } from './fields'
 import { generateWithTokenFluxUnified } from './generateUnified'
-
-export function TokenFluxHeaderActions({ t }: { t: TFunction }) {
-  const Icon = resolveProviderIcon('tokenflux')
-  return (
-    <SettingHelpLink target="_blank" href="https://tokenflux.ai">
-      {t('paintings.learn_more')}
-      {Icon ? <Icon.Avatar size={16} className="shrink-0" /> : null}
-    </SettingHelpLink>
-  )
-}
 
 export const tokenFluxProvider: PaintingProviderDefinition = createSingleModeProvider<TokenFluxPainting>({
   id: 'tokenflux',
