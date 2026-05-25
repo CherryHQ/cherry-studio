@@ -26,9 +26,32 @@ function flattenSqlChunks(obj: unknown): string {
 }
 
 describe('DomainImporter', () => {
-  const createMockBackupClient = (rows: Record<string, unknown>[] = []) => ({
-    execute: vi.fn().mockResolvedValue({ rows })
-  })
+  const createMockBackupClient = (
+    source: Record<string, unknown>[] | Record<string, Record<string, unknown>[]> = []
+  ) => {
+    const callCounts = new Map<string, number>()
+
+    return {
+      // Return one populated batch per table, then terminate with empty batches.
+      execute: vi.fn().mockImplementation(async ({ sql: query }: { sql: string }) => {
+        const tableName = /FROM "([^"]+)"/.exec(query)?.[1]
+        if (!tableName) return { rows: [] }
+
+        const callCount = callCounts.get(tableName) ?? 0
+        callCounts.set(tableName, callCount + 1)
+
+        if (callCount > 0) {
+          return { rows: [] }
+        }
+
+        if (Array.isArray(source)) {
+          return { rows: source }
+        }
+
+        return { rows: source[tableName] ?? [] }
+      })
+    }
+  }
 
   const createMockLiveDb = () => {
     const mockTx = {
@@ -150,8 +173,9 @@ describe('DomainImporter', () => {
     const oldAssistantId = 'old-assistant-uuid'
     const newAssistantId = 'new-assistant-uuid'
     const rows = [{ id: 'topic-1', group_id: null, active_node_id: null, assistant_id: oldAssistantId, name: 'test' }]
-    const backupClient = createMockBackupClient(rows)
-    backupClient.execute.mockResolvedValueOnce({ rows }).mockResolvedValueOnce({ rows: [] })
+    const backupClient = createMockBackupClient({
+      topic: rows
+    })
     const liveDb = createMockLiveDb()
     const remapper = createMockRemapper()
     remapper.remap.mockImplementation((id: string) => (id === oldAssistantId ? newAssistantId : id))
@@ -173,18 +197,9 @@ describe('DomainImporter', () => {
 
   it('strips autoincrement PK (id) column for agent_session_message in RENAME', async () => {
     const rows = [{ id: 1, session_id: 'sess-1', content: 'hello' }]
-    const backupClient = createMockBackupClient(rows)
-    backupClient.execute
-      .mockResolvedValueOnce({ rows })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
+    const backupClient = createMockBackupClient({
+      agent_session_message: rows
+    })
     const liveDb = createMockLiveDb()
 
     const importer = new DomainImporter(
@@ -210,8 +225,9 @@ describe('DomainImporter', () => {
 
   it('performs UNIQUE merge for tag with matching name under RENAME', async () => {
     const rows = [{ id: 'backup-tag-id', name: 'existing-tag' }]
-    const backupClient = createMockBackupClient(rows)
-    backupClient.execute.mockResolvedValueOnce({ rows }).mockResolvedValueOnce({ rows: [] })
+    const backupClient = createMockBackupClient({
+      tag: rows
+    })
     const liveDb = createMockLiveDb()
     liveDb._tx.all.mockResolvedValueOnce([{ id: 'live-tag-id' }])
     const remapper = createMockRemapper()
@@ -232,8 +248,9 @@ describe('DomainImporter', () => {
 
   it('UNIQUE merge uses original backup ID even when buildMap already remapped it', async () => {
     const rows = [{ id: 'backup-tag-id', name: 'existing-tag' }]
-    const backupClient = createMockBackupClient(rows)
-    backupClient.execute.mockResolvedValueOnce({ rows }).mockResolvedValueOnce({ rows: [] })
+    const backupClient = createMockBackupClient({
+      tag: rows
+    })
     const liveDb = createMockLiveDb()
     liveDb._tx.all.mockResolvedValueOnce([{ id: 'live-tag-id' }])
     const remapper = createMockRemapper()
@@ -255,8 +272,9 @@ describe('DomainImporter', () => {
 
   it('inserts tag normally when no UNIQUE conflict under RENAME', async () => {
     const rows = [{ id: 'new-tag-id', name: 'brand-new-tag' }]
-    const backupClient = createMockBackupClient(rows)
-    backupClient.execute.mockResolvedValueOnce({ rows }).mockResolvedValueOnce({ rows: [] })
+    const backupClient = createMockBackupClient({
+      tag: rows
+    })
     const liveDb = createMockLiveDb()
     liveDb._tx.all.mockResolvedValueOnce([])
     const remapper = createMockRemapper()
@@ -277,8 +295,9 @@ describe('DomainImporter', () => {
 
   it('tryUniqueMerge proceeds to insert when unique column value is null', async () => {
     const rows = [{ id: 'tag-null', name: null }]
-    const backupClient = createMockBackupClient(rows)
-    backupClient.execute.mockResolvedValueOnce({ rows }).mockResolvedValueOnce({ rows: [] })
+    const backupClient = createMockBackupClient({
+      tag: rows
+    })
     const liveDb = createMockLiveDb()
     const remapper = createMockRemapper()
 
@@ -299,8 +318,9 @@ describe('DomainImporter', () => {
 
   it('tryUniqueMerge does not add mapping when backupId equals liveId', async () => {
     const rows = [{ id: 'same-id', name: 'existing-tag' }]
-    const backupClient = createMockBackupClient(rows)
-    backupClient.execute.mockResolvedValueOnce({ rows }).mockResolvedValueOnce({ rows: [] })
+    const backupClient = createMockBackupClient({
+      tag: rows
+    })
     const liveDb = createMockLiveDb()
     liveDb._tx.all.mockResolvedValueOnce([{ id: 'same-id' }])
     const remapper = createMockRemapper()
@@ -367,12 +387,9 @@ describe('DomainImporter', () => {
     const oldMcpId = 'old-mcp-id'
     const newMcpId = 'new-mcp-id'
     const rows = [{ assistant_id: oldAssistantId, mcp_server_id: oldMcpId }]
-    const backupClient = createMockBackupClient(rows)
-    backupClient.execute
-      .mockResolvedValueOnce({ rows })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
+    const backupClient = createMockBackupClient({
+      assistant_mcp_server: rows
+    })
     const liveDb = createMockLiveDb()
     const remapper = createMockRemapper()
     remapper.remap.mockImplementation((id: string) => {
