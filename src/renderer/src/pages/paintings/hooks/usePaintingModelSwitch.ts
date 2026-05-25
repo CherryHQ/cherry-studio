@@ -2,7 +2,12 @@ import { useCallback } from 'react'
 
 import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
-import { resolvePaintingProviderDefinition, resolvePaintingTabForMode } from '../utils/paintingProviderMode'
+import { computeModelFieldReset } from '../utils/computeModelFieldReset'
+import {
+  resolvePaintingProviderDefinition,
+  resolvePaintingTabForMode,
+  tabToImageGenerationMode
+} from '../utils/paintingProviderMode'
 
 interface UsePaintingModelSwitchInput {
   painting: PaintingData
@@ -30,7 +35,23 @@ export function usePaintingModelSwitch({
           painting,
           modelOptions: currentModelOptions
         })
-        onPaintingChange({ model: modelId, ...modelUpdates } as Partial<PaintingData>)
+        // Reset stale fields the old model wrote but the new one doesn't
+        // accept — otherwise the flat `PaintingData` carries them through
+        // to the vendor's `generateUnified.ts` and they land in the wire
+        // body. The form already hides those fields (driven by the
+        // registry's per-model `imageGeneration` block); this brings the
+        // state into sync. Returns `{}` when either model is unknown to
+        // the registry, so custom-id paintings stay untouched.
+        const currentTab =
+          resolvePaintingTabForMode(currentDefinition, painting.mode) ?? currentDefinition.mode.defaultTab
+        const resetPatch = await computeModelFieldReset({
+          providerId: currentProviderId,
+          oldModelId: painting.model,
+          newModelId: modelId,
+          providerKeyMap: currentDefinition.registryKeyMap,
+          mode: tabToImageGenerationMode(currentDefinition.mode.tabToDbMode(currentTab))
+        })
+        onPaintingChange({ ...resetPatch, model: modelId, ...modelUpdates } as Partial<PaintingData>)
         return
       }
 
