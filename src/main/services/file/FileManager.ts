@@ -671,10 +671,9 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   /**
-   * Register the Phase 1 File_* IPC handlers. Kept as a dedicated helper so
-   * `onInit` stays a narrow three-step sequence (init → register → sweep) and
-   * Phase 2 channels land next to these two without bloating the lifecycle
-   * method.
+   * Register all File_* IPC handlers (Phase 1 dangling-state + Phase 2
+   * entry CRUD / sweep). Kept as a dedicated helper so `onInit` stays a
+   * narrow two-step sequence (init → register).
    *
    * Every handler Zod-parses its `params` before delegating, matching the
    * DataApi handler discipline (`b8709c964` / `2437c1104`). Without this the
