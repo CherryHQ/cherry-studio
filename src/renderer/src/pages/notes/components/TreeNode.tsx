@@ -73,7 +73,7 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
       ? 'border-primary bg-accent'
       : isActive
         ? 'border-border bg-muted'
-        : 'border-transparent bg-background',
+        : 'border-transparent bg-transparent',
     isDragging && 'opacity-50',
     'hover:bg-muted'
   )
@@ -119,7 +119,7 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
   if (isHintNode) {
     return (
       <div key={node.id}>
-        <div className="relative mb-0.5 flex cursor-pointer items-center justify-between rounded-sm border border-transparent bg-background px-1.5 py-1 transition-all duration-200 hover:bg-muted">
+        <div className="relative mb-0.5 flex cursor-pointer items-center justify-between rounded-sm border border-transparent bg-transparent px-1.5 py-1 transition-all duration-200 hover:bg-muted">
           <div className="flex min-w-0 flex-1 items-center">
             <div className="mr-2 flex shrink-0 items-center justify-center text-muted-foreground">
               <FilePlus size={16} />

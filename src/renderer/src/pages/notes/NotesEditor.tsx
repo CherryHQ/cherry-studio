@@ -110,7 +110,8 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               editable={tmpViewMode === 'preview'}
               showTableOfContents={settings.showTableOfContents}
               enableContentSearch
-              className="notes-rich-editor"
+              className="notes-rich-editor rounded-none! [&_.ToolbarWrapper]:rounded-none!"
+              wrapperStyle={{ border: 'none', borderRadius: 0, background: 'transparent' }}
               isFullWidth
               fontFamily={settings.fontFamily}
               fontSize={settings.fontSize}

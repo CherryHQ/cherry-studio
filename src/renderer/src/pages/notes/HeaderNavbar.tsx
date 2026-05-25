@@ -231,7 +231,7 @@ const HeaderNavbar = ({
   }, [activeNode, notesTree])
 
   return (
-    <NavbarHeader className="home-navbar shrink-0 justify-start [border-bottom:0.5px_solid_var(--color-border)]">
+    <NavbarHeader className="home-navbar shrink-0 justify-start [border-bottom:1px_solid_var(--color-border)]">
       <RowFlex className="flex-[0_0_auto] items-center">
         {showWorkspace && (
           <Tooltip title={t('navbar.hide_sidebar')} delay={800}>
@@ -267,7 +267,7 @@ const HeaderNavbar = ({
                             onChange={handleTitleChange}
                             onBlur={handleTitleBlur}
                             onKeyDown={handleTitleKeyDown}
-                            className="h-auto min-w-0 flex-1 border-none bg-transparent p-0 font-[inherit] text-inherit leading-[inherit] shadow-none outline-none focus-visible:ring-0"
+                            className="h-auto min-w-0 flex-1 border-0! bg-transparent! p-0 font-[inherit] text-inherit leading-[inherit] shadow-none outline-none focus-visible:border-transparent! focus-visible:ring-0! dark:bg-transparent!"
                           />
                         </div>
                       ) : (
