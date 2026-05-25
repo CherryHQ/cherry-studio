@@ -2,7 +2,7 @@ import type { BedrockProviderOptions } from '@ai-sdk/amazon-bedrock'
 import { type AnthropicProviderOptions } from '@ai-sdk/anthropic'
 import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
-import type { XaiProviderOptions } from '@ai-sdk/xai'
+import type { XaiResponsesProviderOptions } from '@ai-sdk/xai'
 import { loggerService } from '@logger'
 import {
   getModelSupportedVerbosity,
@@ -101,7 +101,8 @@ function getServiceTier<T extends Provider>(model: Model, provider: T): OpenAISe
 }
 
 function getVerbosity(model: Model): OpenAIVerbosity {
-  if (!isSupportVerbosityModel(model) || !isSupportVerbosityProvider(getProviderById(model.provider)!)) {
+  const provider = getProviderById(model.provider)
+  if (!provider || !isSupportVerbosityModel(model) || !isSupportVerbosityProvider(provider)) {
     return undefined
   }
   const openAI = getStoreSetting('openAI')
@@ -338,11 +339,7 @@ function buildOpenAIProviderOptions(
   }
   const provider = getProviderById(model.provider)
 
-  if (!provider) {
-    throw new Error(`Provider ${model.provider} not found`)
-  }
-
-  if (isSupportVerbosityModel(model) && isSupportVerbosityProvider(provider)) {
+  if (provider && isSupportVerbosityModel(model) && isSupportVerbosityProvider(provider)) {
     const openAI = getStoreSetting<'openAI'>('openAI')
     const userVerbosity = openAI?.verbosity
 
@@ -436,7 +433,7 @@ function buildXAIProviderOptions(
   assistant: Assistant,
   model: Model,
   capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
-): Record<string, XaiProviderOptions> {
+): Record<string, XaiResponsesProviderOptions> {
   const { enableReasoning } = capabilities
   let providerOptions: Record<string, any> = {}
 

@@ -35,7 +35,7 @@ import { isTextToImageModel } from './vision'
 
 // Reasoning models
 export const REASONING_REGEX =
-  /^(?!.*-non-reasoning\b)(o\d+(?:-[\w-]+)?|.*\b(?:reasoning|reasoner|thinking|think)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*|.*\bgrok-(?:3-mini|4|4-fast)(?:-[\w-]+)?\b.*)$/i
+  /^(?!.*-non-reasoning\b)(o\d+(?:-[\w-]+)?|.*\b(?:reasoning|reasoner|thinking|think)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*|.*\bgrok-(?:3-mini|4|4-fast|build)(?:-[\w-]+)?\b.*)$/i
 
 // 模型类型到支持的reasoning_effort的映射表
 // TODO: refactor this. too many identical options
@@ -64,6 +64,7 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   gpt_oss: ['low', 'medium', 'high'] as const,
   grok: ['low', 'high'] as const,
   grok4_fast: ['auto'] as const,
+  grok_4_3: ['none', 'low', 'medium', 'high'] as const,
   gemini2_flash: ['low', 'medium', 'high', 'auto'] as const,
   gemini2_pro: ['low', 'medium', 'high', 'auto'] as const,
   // Also Gemini 3.1 Flash(-lite)
@@ -110,6 +111,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   gpt_oss: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt_oss] as const,
   grok: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.grok] as const,
   grok4_fast: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.grok4_fast] as const,
+  grok_4_3: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.grok_4_3] as const,
   gemini2_flash: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini2_flash] as const,
   gemini2_pro: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini2_pro] as const,
   gemini3_flash: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini3_flash] as const,
@@ -179,6 +181,8 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
     thinkingModelType = 'gpt_oss'
   } else if (isSupportedReasoningEffortOpenAIModel(model)) {
     thinkingModelType = 'o'
+  } else if (isGrok43Model(model)) {
+    thinkingModelType = 'grok_4_3'
   } else if (isGrok4FastReasoningModel(model)) {
     thinkingModelType = 'grok4_fast'
   } else if (isSupportedThinkingTokenGeminiModel(model)) {
@@ -346,6 +350,10 @@ export function isSupportedReasoningEffortGrokModel(model?: Model): boolean {
     return false
   }
 
+  if (isGrok43Model(model)) {
+    return true
+  }
+
   const modelId = getLowerBaseModelName(model.id)
   const providerId = model?.provider?.toLowerCase()
   if (modelId.includes('grok-3-mini')) {
@@ -386,6 +394,22 @@ export function isGrok4FastReasoningModel(model?: Model): boolean {
   return modelId.includes('grok-4-fast') && !modelId.includes('non-reasoning')
 }
 
+/**
+ * Checks if the model is Grok 4.3
+ * Explicitly excludes non-reasoning variants (models with 'non-reasoning' in their ID)
+ *
+ * grok-4.3 is the first xAI model to natively support reasoning_effort with 4 levels:
+ * none, low, medium, high
+ */
+export function isGrok43Model(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('grok-4.3') && !modelId.includes('non-reasoning')
+}
+
 export function isGrokReasoningModel(model?: Model): boolean {
   if (!model) {
     return false
@@ -393,7 +417,8 @@ export function isGrokReasoningModel(model?: Model): boolean {
   const modelId = getLowerBaseModelName(model.id)
   if (
     isSupportedReasoningEffortGrokModel(model) ||
-    (modelId.includes('grok-4') && !modelId.includes('non-reasoning'))
+    (modelId.includes('grok-4') && !modelId.includes('non-reasoning')) ||
+    modelId.includes('grok-build')
   ) {
     return true
   }
