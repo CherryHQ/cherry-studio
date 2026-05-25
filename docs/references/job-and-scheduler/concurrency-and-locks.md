@@ -5,8 +5,8 @@ JobManager uses four orthogonal lock layers under concurrent dispatch.
 | Layer | Owner | Scope | Held for | Purpose |
 | --- | --- | --- | --- | --- |
 | **0** Global write mutex | `DbService.writeMutex` | All write transactions across the app (every `withWriteTx` callsite) | µs — one tx | Serializes writes around libsql client-ts issue [#288](https://github.com/tursodatabase/libsql-client-ts/issues/288) (`busy_timeout` ineffective for async tx). Reusable by any service. |
-| **1** Per-queue dispatch mutex | `DispatchQueue.mutex` | One queue's (count → claim) section | µs | Serializes ticks against the same queue to avoid wasted Layer 0 traffic. Concurrency cap is enforced by SQL `countActiveByQueueTx`, not by this mutex. |
-| **2** Queue concurrency limit | `DispatchQueue.concurrency` | How many handlers run per queue | full handler runtime | Per-queue parallelism throttle. Counts active rows (`pending`+`delayed`+`running`), so concurrency must be ≥ expected steady-state queue depth + 1 — `concurrency=1` starves dispatch. |
+| **1** Per-queue dispatch mutex | `DispatchQueue.mutex` | One queue's (count → claim) section | µs | Serializes ticks against the same queue to avoid wasted Layer 0 traffic. Concurrency cap is enforced by SQL `countRunningByQueueTx`, not by this mutex. |
+| **2** Queue concurrency limit | `DispatchQueue.concurrency` | How many handlers run per queue | full handler runtime | Per-queue parallelism throttle. Counts only `running` rows (`pending`/`delayed` occupy no worker slot), so the cap bounds concurrent handlers regardless of backlog depth — a queue can hold an unbounded pending backlog at any `concurrency`. |
 | **3** Business mutex | Handler-owned | Resource-specific (vector store write, file IO, …) | handler-decided | Serializes critical sections across process restarts (Layer 2 alone does not survive restart). |
 
 ## Acquisition order

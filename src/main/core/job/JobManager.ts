@@ -109,6 +109,14 @@ export class JobManager extends BaseService {
   private readonly scheduleDisposables = new Map<string, Disposable>()
   private readonly globalMaxConcurrency = DEFAULT_GLOBAL_MAX_CONCURRENCY
   /**
+   * Set when a dispatch is blocked solely by the global concurrency cap. On the
+   * next job completion (which frees a global slot) `resolveAndDispatch` fans
+   * out to every queue instead of only the finished job's queue, so a queue
+   * starved purely by the global cap — with its own per-queue slots free — wakes
+   * immediately rather than waiting for the next delayed-promotion tick.
+   */
+  private globalCapReached = false
+  /**
    * Flipped to `true` in `onStop` so the deferred startup recovery — whether still
    * pending inside the startup-delay timer or already mid-flight inside
    * `runStartupRecoveryFlow` — short-circuits before touching a tearing-down
@@ -935,10 +943,13 @@ export class JobManager extends BaseService {
     try {
       const dbService = application.get('DbService')
       claimed = await dbService.withWriteTx(async (tx) => {
-        const queueActive = await jobService.countActiveByQueueTx(tx, queueName)
-        if (queueActive >= queue.concurrency) return null
-        const globalActive = await jobService.countActiveGlobalTx(tx)
-        if (globalActive >= this.globalMaxConcurrency) return null
+        const queueRunning = await jobService.countRunningByQueueTx(tx, queueName)
+        if (queueRunning >= queue.concurrency) return null
+        const globalRunning = await jobService.countRunningGlobalTx(tx)
+        if (globalRunning >= this.globalMaxConcurrency) {
+          this.globalCapReached = true
+          return null
+        }
         return jobService.claimNextPendingTx(tx, queueName)
       })
     } catch (err) {
@@ -1187,7 +1198,17 @@ export class JobManager extends BaseService {
       resolver.resolve(snapshot)
       this.finishedResolvers.delete(jobId)
     }
-    void this.dispatch(snapshot.queue)
+    // A completed job frees a global slot. If a dispatch was previously blocked
+    // solely by the global cap, re-kick every queue so a queue starved by the
+    // cap (with its own slots free) wakes now instead of waiting for the next
+    // promotion tick. The flag self-corrects: if the cap is still binding, the
+    // follow-up dispatches re-set it. Otherwise just refill this job's queue.
+    if (this.globalCapReached) {
+      this.globalCapReached = false
+      this.dispatchAll()
+    } else {
+      void this.dispatch(snapshot.queue)
+    }
   }
 
   /**

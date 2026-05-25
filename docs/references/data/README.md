@@ -9,6 +9,7 @@ This is the main entry point for Cherry Studio's data management documentation. 
 - [Cache Overview](./cache-overview.md) - Three-tier caching architecture
 - [Preference Overview](./preference-overview.md) - User settings management
 - [DataApi Overview](./data-api-overview.md) - Business data API architecture
+- [App State Overview](./app-state-overview.md) - Internal continuity markers (main-process)
 
 ### Usage Guides (Code Examples)
 - [Cache Usage](./cache-usage.md) - useCache hooks, CacheService examples
@@ -44,6 +45,7 @@ This is the main entry point for Cherry Studio's data management documentation. 
 | **CacheService**      | Regenerable, temporary       | ≤ App process or survives restart | None to minimal            | API responses, computed results, UI state             |
 | **PreferenceService** | User settings, key-value     | Permanent until changed           | Low (can rebuild)          | Theme, language, font size, shortcuts                 |
 | **DataApiService**    | Business data, structured    | Permanent                         | **Severe** (irreplaceable) | Topics, messages, files, knowledge base               |
+| `app_state` (table)   | Internal continuity marker (main-process) | Until owner drops the key | Continuity break (re-runs a one-time flow) | Migration status, seeding journal |
 
 ### Decision Flowchart
 
@@ -65,6 +67,10 @@ Ask these questions in order:
 
 4. **Is this business data created/accumulated through user activity?**
    - Yes → **DataApiService**
+   - No → Continue to #5
+
+5. **Is this an internal marker the app writes for itself to stay consistent across restarts (migration / seeding / one-time setup state)?**
+   - Yes → **`app_state` table** (main-process; see [App State Overview](./app-state-overview.md))
    - No → Reconsider #2 (most data falls into one of these categories)
 
 ---
@@ -171,6 +177,19 @@ const { data: messages } = useQuery('/messages', { query: { topicId } })
 const { data: files } = useQuery('/files')
 ```
 
+### `app_state` Table - Internal Continuity Markers
+
+Use the `app_state` table when:
+- Data is an **internal marker the app writes for itself**, not a user-facing setting
+- It **must survive restarts**, and losing it would make the user **re-experience a one-time flow** (re-run migration, re-seed, repeat setup)
+- It is needed at **app startup** — current consumers run at or before the lifecycle's earliest phase
+
+**Key characteristics**:
+- Main-process only; **no dedicated service** — the owner reads/writes the table via its own DB handle
+- One owner per key; keys namespaced `<scope>:<name>`; **no cross-domain reads**
+
+See [App State Overview](./app-state-overview.md) for full rules and the key registry.
+
 ---
 
 ## Common Anti-patterns
@@ -188,6 +207,7 @@ const { data: files } = useQuery('/files')
 | Using DataApi for window/process control          | No database backing, pure side effects, retry is harmful | **IPC handler**          |
 | Using DataApi for external service calls          | Side effects, no CRUD semantics, timeout mismatch | **IPC handler**                |
 | Using DataApi to wrap existing IPC calls          | Adds indirection without value, confuses layering | **Keep as IPC**                |
+| Storing migration/seed state in Cache            | Lost on restart → user re-runs a one-time flow   | **`app_state` table**           |
 
 ## Edge Cases
 

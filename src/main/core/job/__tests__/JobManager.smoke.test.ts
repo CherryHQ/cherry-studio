@@ -220,4 +220,19 @@ describe('JobManager smoke (dummy.echo)', () => {
     const all = await jobService.list({ type: 'dummy.echo' })
     expect(all.some((r) => r.id === handle.id)).toBe(true)
   })
+
+  // Regression: the per-queue concurrency gate must count only `running` jobs,
+  // not pending+delayed+running. Enqueueing more jobs than the concurrency cap
+  // into a single queue previously deadlocked — once pending+running reached the
+  // cap, the gate blocked every claim and no further job was ever dispatched.
+  it('drains a single queue when jobs exceed concurrency (regression: pending-count deadlock)', async () => {
+    // makeEchoHandler caps concurrency at 2; 6 jobs share the default queue.
+    const handles = await Promise.all(
+      Array.from({ length: 6 }, (_, i) =>
+        jobManager.enqueue('dummy.echo' as never, { message: `m${i}`, sleepMs: 20 } as never)
+      )
+    )
+    const settled = await Promise.all(handles.map((h) => h.finished))
+    expect(settled.map((s) => s.status)).toEqual(Array(6).fill('completed'))
+  }, 10_000)
 })
