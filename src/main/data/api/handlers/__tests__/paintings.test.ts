@@ -30,11 +30,7 @@ vi.mock('@data/services/PaintingService', () => ({
   }
 }))
 
-import {
-  PAINTINGS_DEFAULT_LIMIT,
-  PAINTINGS_DEFAULT_OFFSET,
-  PAINTINGS_MAX_LIMIT
-} from '@shared/data/api/schemas/paintings'
+import { PAINTINGS_DEFAULT_LIMIT, PAINTINGS_MAX_LIMIT } from '@shared/data/api/schemas/paintings'
 
 import { paintingHandlers } from '../paintings'
 
@@ -45,19 +41,17 @@ describe('paintingHandlers', () => {
     vi.clearAllMocks()
   })
 
-  it('applies default list pagination when query is missing', async () => {
+  it('applies default cursor pagination when query is missing', async () => {
     listPaintingsMock.mockResolvedValueOnce({
       items: [],
       total: 0,
-      limit: PAINTINGS_DEFAULT_LIMIT,
-      offset: PAINTINGS_DEFAULT_OFFSET
+      nextCursor: undefined
     })
 
     await paintingHandlers['/paintings'].GET({})
 
     expect(listPaintingsMock).toHaveBeenCalledWith({
-      limit: PAINTINGS_DEFAULT_LIMIT,
-      offset: PAINTINGS_DEFAULT_OFFSET
+      limit: PAINTINGS_DEFAULT_LIMIT
     })
   })
 

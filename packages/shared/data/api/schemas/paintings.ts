@@ -7,11 +7,11 @@ import {
 } from '@shared/data/types/painting'
 import * as z from 'zod'
 
+import type { CursorPaginationParams, CursorPaginationResponse } from '../apiTypes'
 import type { OrderEndpoints } from './_endpointHelpers'
 
 export const PAINTINGS_DEFAULT_LIMIT = 20
 export const PAINTINGS_MAX_LIMIT = 100
-export const PAINTINGS_DEFAULT_OFFSET = 0
 
 const TrimmedStringSchema = z.string().trim().min(1)
 const OptionalNullableTrimmedStringSchema = TrimmedStringSchema.nullable()
@@ -21,12 +21,12 @@ export const ListPaintingsQuerySchema = z
     providerId: TrimmedStringSchema.optional(),
     mode: PaintingModeSchema.optional(),
     mediaType: PaintingMediaTypeSchema.optional(),
-    limit: z.int().positive().max(PAINTINGS_MAX_LIMIT).default(PAINTINGS_DEFAULT_LIMIT),
-    offset: z.int().min(PAINTINGS_DEFAULT_OFFSET).default(PAINTINGS_DEFAULT_OFFSET)
+    cursor: z.string().optional(),
+    limit: z.int().positive().max(PAINTINGS_MAX_LIMIT).default(PAINTINGS_DEFAULT_LIMIT)
   })
   .strict()
 export type ListPaintingsQueryParams = z.input<typeof ListPaintingsQuerySchema>
-export type ListPaintingsQuery = z.output<typeof ListPaintingsQuerySchema>
+export type ListPaintingsQuery = z.output<typeof ListPaintingsQuerySchema> & CursorPaginationParams
 
 export const CreatePaintingSchema = z
   .object({
@@ -55,11 +55,9 @@ export const UpdatePaintingSchema = z
   .strict()
 export type UpdatePaintingDto = z.infer<typeof UpdatePaintingSchema>
 
-export interface PaintingListResponse {
+export interface PaintingListResponse extends CursorPaginationResponse<Painting> {
   items: Painting[]
   total: number
-  limit: number
-  offset: number
 }
 
 export type PaintingsSchemas = {

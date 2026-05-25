@@ -18,16 +18,19 @@ import type {
   PaintingListResponse,
   UpdatePaintingDto
 } from '@shared/data/api/schemas/paintings'
+import { PAINTINGS_DEFAULT_LIMIT, PAINTINGS_MAX_LIMIT } from '@shared/data/api/schemas/paintings'
 import { createUniqueModelId, isUniqueModelId } from '@shared/data/types/model'
 import type { Painting } from '@shared/data/types/painting'
 import type { SQL } from 'drizzle-orm'
-import { and, asc, desc, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, sql } from 'drizzle-orm'
 
 import { fileRefService } from './FileRefService'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:PaintingService')
+
+type PaintingCursor = string | null
 
 /**
  * Mapping from UpdatePaintingDto field → DB column for the update path.
@@ -64,21 +67,45 @@ function normalizeModelId(providerId: string, modelId: string | null | undefined
   return isUniqueModelId(modelId) ? modelId : createUniqueModelId(providerId, modelId)
 }
 
+function decodeCursor(raw: string | undefined): PaintingCursor {
+  if (!raw) return null
+  return raw
+}
+
+function encodeCursor(row: PaintingRow): string {
+  return row.orderKey
+}
+
+function cursorPredicate(cursor: PaintingCursor): SQL | undefined {
+  if (!cursor) return undefined
+  return gt(paintingTable.orderKey, cursor)
+}
+
 class PaintingService {
   async list(query: ListPaintingsQuery): Promise<PaintingListResponse> {
     const db = application.get('DbService').getDb()
     const conditions: SQL[] = []
+    const filterConditions: SQL[] = []
+    const limit = Math.min(query.limit ?? PAINTINGS_DEFAULT_LIMIT, PAINTINGS_MAX_LIMIT)
+    const cursor = decodeCursor(query.cursor)
 
     if (query.providerId) {
-      conditions.push(eq(paintingTable.providerId, query.providerId))
+      filterConditions.push(eq(paintingTable.providerId, query.providerId))
     }
 
     if (query.mode) {
-      conditions.push(eq(paintingTable.mode, query.mode))
+      filterConditions.push(eq(paintingTable.mode, query.mode))
     }
 
     if (query.mediaType) {
-      conditions.push(eq(paintingTable.mediaType, query.mediaType))
+      filterConditions.push(eq(paintingTable.mediaType, query.mediaType))
+    }
+
+    conditions.push(...filterConditions)
+
+    const afterCursor = cursorPredicate(cursor)
+    if (afterCursor) {
+      conditions.push(afterCursor)
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
@@ -88,17 +115,19 @@ class PaintingService {
         .select()
         .from(paintingTable)
         .where(whereClause)
-        .orderBy(asc(paintingTable.orderKey), desc(paintingTable.createdAt), desc(paintingTable.id))
-        .limit(query.limit)
-        .offset(query.offset),
-      db.select({ count: sql<number>`count(*)` }).from(paintingTable).where(whereClause)
+        .orderBy(asc(paintingTable.orderKey))
+        .limit(limit + 1),
+      db
+        .select({ count: sql<number>`count(*)` })
+        .from(paintingTable)
+        .where(filterConditions.length > 0 ? and(...filterConditions) : undefined)
     ])
+    const pageRows = rows.slice(0, limit)
 
     return {
-      items: rows.map((row) => rowToPainting(row)),
+      items: pageRows.map((row) => rowToPainting(row)),
       total: countResult[0]?.count ?? 0,
-      limit: query.limit,
-      offset: query.offset
+      nextCursor: rows.length > limit ? encodeCursor(pageRows[pageRows.length - 1]) : undefined
     }
   }
 

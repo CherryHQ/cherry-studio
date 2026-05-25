@@ -76,12 +76,22 @@ describe('PaintingService', () => {
     const result = await paintingService.list({
       providerId: 'aihubmix',
       mode: 'generate',
-      limit: 20,
-      offset: 0
+      limit: 20
     })
 
     expect(result.items.map((item) => item.id)).toEqual([second.id, first.id])
     expect(result.total).toBe(2)
+  })
+
+  it('lists all paintings without filters', async () => {
+    const first = await paintingService.create(p({ providerId: 'aihubmix', mode: 'generate', prompt: 'first' }))
+    const second = await paintingService.create(p({ providerId: 'dmxapi', mode: 'edit', prompt: 'second' }))
+
+    const result = await paintingService.list({ limit: 20 })
+
+    expect(result.items.map((item) => item.id)).toEqual([second.id, first.id])
+    expect(result.total).toBe(2)
+    expect(result.nextCursor).toBeUndefined()
   })
 
   it('defaults new paintings to image media type', async () => {
@@ -122,8 +132,7 @@ describe('PaintingService', () => {
     const videos = await paintingService.list({
       providerId: 'aihubmix',
       mediaType: 'video',
-      limit: 20,
-      offset: 0
+      limit: 20
     })
 
     expect(videos.items.map((item) => item.id)).toEqual([video.id])
@@ -155,10 +164,28 @@ describe('PaintingService', () => {
     const result = await paintingService.list({
       providerId: 'aihubmix',
       mode: 'generate',
-      limit: 20,
-      offset: 0
+      limit: 20
     })
     expect(result.items.map((item) => item.id)).toEqual([first.id, third.id, second.id])
+  })
+
+  it('paginates painting history with cursors', async () => {
+    const first = await paintingService.create(p({ providerId: 'aihubmix', mode: 'generate', prompt: 'first' }))
+    const second = await paintingService.create(p({ providerId: 'aihubmix', mode: 'generate', prompt: 'second' }))
+    const third = await paintingService.create(p({ providerId: 'aihubmix', mode: 'generate', prompt: 'third' }))
+
+    const page1 = await paintingService.list({ providerId: 'aihubmix', mode: 'generate', limit: 2 })
+    const page2 = await paintingService.list({
+      providerId: 'aihubmix',
+      mode: 'generate',
+      limit: 2,
+      cursor: page1.nextCursor
+    })
+
+    expect(page1.items.map((item) => item.id)).toEqual([third.id, second.id])
+    expect(page1.nextCursor).toBe(second.orderKey)
+    expect(page2.items.map((item) => item.id)).toEqual([first.id])
+    expect(page2.nextCursor).toBeUndefined()
   })
 
   it('allows anchors across providers and modes', async () => {

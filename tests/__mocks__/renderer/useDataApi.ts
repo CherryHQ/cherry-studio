@@ -6,7 +6,7 @@ import type {
   ResponseForPath,
   TemplateApiPaths
 } from '@shared/data/api/apiPaths'
-import type { ConcreteApiPaths, PaginationResponse } from '@shared/data/api/apiTypes'
+import type { ConcreteApiPaths, CursorPaginationResponse, PaginationResponse } from '@shared/data/api/apiTypes'
 import type { KeyedMutator } from 'swr'
 import { vi } from 'vitest'
 
@@ -67,6 +67,14 @@ function createMockDataForPath(path: string): any {
         { id: 'msg2', content: 'Mock message 2', role: 'assistant' }
       ],
       total: 2
+    }
+  }
+
+  if (path.includes('/paintings')) {
+    return {
+      items: [],
+      total: 0,
+      nextCursor: undefined
     }
   }
 
@@ -230,6 +238,48 @@ export const mockUsePaginatedQuery = vi.fn(
 )
 
 /**
+ * Mock useInfiniteQuery hook
+ */
+export const mockUseInfiniteQuery = vi.fn(
+  <TPath extends ApiPath>(
+    path: TPath,
+    _options?: ParamsOption<TPath, 'GET'> & {
+      query?: Omit<QueryParamsForPath<TPath, 'GET'>, 'cursor' | 'limit'>
+      limit?: number
+      enabled?: boolean
+      swrOptions?: any
+    }
+  ): {
+    pages: ResponseForPath<TPath, 'GET'>[]
+    isLoading: boolean
+    isRefreshing: boolean
+    error?: Error
+    hasNext: boolean
+    loadNext: () => void
+    refresh: () => Promise<unknown>
+    reset: () => void
+    mutate: KeyedMutator<ResponseForPath<TPath, 'GET'>[]>
+  } => {
+    const page = createMockDataForPath(path as string) as ResponseForPath<TPath, 'GET'>
+    return {
+      pages: [page],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn().mockResolvedValue([page]),
+      reset: vi.fn(),
+      mutate: vi.fn().mockResolvedValue([page]) as unknown as KeyedMutator<ResponseForPath<TPath, 'GET'>[]>
+    }
+  }
+)
+
+export function useInfiniteFlatItems<P extends CursorPaginationResponse<any>>(pages: P[] | undefined): P['items'] {
+  return (pages?.flatMap((page) => page.items) ?? []) as P['items']
+}
+
+/**
  * Mock useInvalidateCache hook
  * Matches actual signature: useInvalidateCache() => (keys?) => Promise<any>
  */
@@ -316,6 +366,8 @@ export const mockUseWriteCache = vi.fn(() => {
 export const MockUseDataApi = {
   useQuery: mockUseQuery,
   useMutation: mockUseMutation,
+  useInfiniteQuery: mockUseInfiniteQuery,
+  useInfiniteFlatItems,
   usePaginatedQuery: mockUsePaginatedQuery,
   useInvalidateCache: mockUseInvalidateCache,
   useReadCache: mockUseReadCache,
@@ -333,6 +385,7 @@ export const MockUseDataApiUtils = {
   resetMocks: () => {
     mockUseQuery.mockClear()
     mockUseMutation.mockClear()
+    mockUseInfiniteQuery.mockClear()
     mockUsePaginatedQuery.mockClear()
     mockUseInvalidateCache.mockClear()
     mockUseReadCache.mockClear()

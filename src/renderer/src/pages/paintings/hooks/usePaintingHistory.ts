@@ -1,7 +1,6 @@
-import { useQuery } from '@data/hooks/useDataApi'
+import { useInfiniteFlatItems, useInfiniteQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import type { Painting } from '@shared/data/types/painting'
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { recordsToPaintingDataList } from '../model/mappers/recordToPaintingData'
 import type { PaintingData } from '../model/types/paintingData'
@@ -17,38 +16,14 @@ export function usePaintingHistory(): {
   hasMore: boolean
   loadMore: () => void
 } {
-  const [offset, setOffset] = useState(0)
-  const [loadedRecords, setLoadedRecords] = useState<Painting[]>([])
-
-  const { data, isLoading, isRefreshing } = useQuery('/paintings', {
-    query: { limit: PAGE_SIZE, offset }
-  })
-
-  const total = data?.total ?? 0
-
-  useEffect(() => {
-    const page = data?.items
-    if (!page) return
-    setLoadedRecords((prev) => {
-      if (offset === 0) return page
-      const pageIds = new Set(page.map((record) => record.id))
-      return [...prev.filter((record) => !pageIds.has(record.id)), ...page]
-    })
-  }, [data, offset])
-
-  const hasMore = loadedRecords.length < total
-
-  const loadMore = useCallback(() => {
-    if (!isLoading && !isRefreshing && hasMore) {
-      setOffset((current) => current + PAGE_SIZE)
-    }
-  }, [hasMore, isLoading, isRefreshing])
+  const { pages, isLoading, isRefreshing, hasNext, loadNext } = useInfiniteQuery('/paintings', { limit: PAGE_SIZE })
+  const records = useInfiniteFlatItems(pages)
 
   const [items, setItems] = useState<PaintingStripEntry[]>([])
 
   useEffect(() => {
     let cancelled = false
-    void recordsToPaintingDataList(loadedRecords)
+    void recordsToPaintingDataList(records)
       .then((mapped) => {
         if (!cancelled) setItems(mapped)
       })
@@ -58,12 +33,12 @@ export function usePaintingHistory(): {
     return () => {
       cancelled = true
     }
-  }, [loadedRecords])
+  }, [records])
 
   return {
     items,
     isLoading: isLoading || isRefreshing,
-    hasMore,
-    loadMore
+    hasMore: hasNext,
+    loadMore: loadNext
   }
 }

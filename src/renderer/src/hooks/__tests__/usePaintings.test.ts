@@ -36,9 +36,7 @@ describe('usePaintings', () => {
   it('returns raw painting records without hydration', () => {
     MockUseDataApiUtils.mockQueryData('/paintings', {
       items: [record],
-      total: 1,
-      limit: 100,
-      offset: 0
+      total: 1
     })
 
     const { result } = renderHook(() => usePaintings({ providerId: 'silicon', mode: 'generate' }))
@@ -95,9 +93,7 @@ describe('usePaintings', () => {
   it('passes only caller-provided query params to useQuery', async () => {
     MockUseDataApiUtils.mockQueryData('/paintings', {
       items: [],
-      total: 0,
-      limit: 20,
-      offset: 0
+      total: 0
     })
 
     renderHook(() => usePaintings({ providerId: 'silicon', mode: 'generate' }))
