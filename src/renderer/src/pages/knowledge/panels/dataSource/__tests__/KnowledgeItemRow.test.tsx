@@ -163,12 +163,7 @@ describe('KnowledgeItemRow', () => {
   })
 
   it('renders the processing status label for in-flight items', () => {
-    render(
-      <KnowledgeItemRow
-        item={createFileItem({ id: 'file-1', status: 'processing', phase: 'reading' })}
-        {...defaultHandlers}
-      />
-    )
+    render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'reading' })} {...defaultHandlers} />)
 
     expect(screen.getByText('文件处理')).toBeInTheDocument()
   })

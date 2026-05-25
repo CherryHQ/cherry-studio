@@ -107,7 +107,6 @@ describe('KnowledgeOrchestrationService integration', () => {
         type: 'note',
         data: { source: 'source-root', content: 'root content' },
         status: 'idle',
-        phase: null,
         error: null
       },
       {
@@ -117,7 +116,6 @@ describe('KnowledgeOrchestrationService integration', () => {
         type: 'note',
         data: { source: 'source-child', content: 'child content' },
         status: 'idle',
-        phase: null,
         error: null
       }
     ])

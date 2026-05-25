@@ -116,8 +116,19 @@ export const toTimestamp = (value: number | undefined): number => {
   return Date.now()
 }
 
-export const inferKnowledgeItemStatus = (item: Pick<LegacyKnowledgeItem, 'uniqueId'>): KnowledgeItemStatus =>
-  typeof item.uniqueId === 'string' && item.uniqueId.trim() !== '' ? 'completed' : 'idle'
+export const inferKnowledgeItemStatus = (
+  item: Pick<LegacyKnowledgeItem, 'processingStatus' | 'uniqueId'>
+): KnowledgeItemStatus => {
+  if (
+    item.processingStatus === 'failed' ||
+    item.processingStatus === 'processing' ||
+    item.processingStatus === 'pending'
+  ) {
+    return 'failed'
+  }
+
+  return typeof item.uniqueId === 'string' && item.uniqueId.trim() !== '' ? 'completed' : 'idle'
+}
 
 const normalizeKnowledgeItemError = (
   status: KnowledgeItemStatus,
@@ -334,7 +345,6 @@ export const transformKnowledgeItem = (
       type,
       data,
       status,
-      phase: null,
       error: normalizeKnowledgeItemError(status, item.processingError),
       createdAt: toTimestamp(item.created_at),
       updatedAt: toTimestamp(item.updated_at)

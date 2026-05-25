@@ -62,9 +62,7 @@ const getNoteTitle = (content: string) => {
   return firstLine || ''
 }
 
-export const resolveDataSourceStatusViewModel = (
-  item: Pick<KnowledgeItem, 'phase' | 'status'>
-): DataSourceStatusViewModel => {
+export const resolveDataSourceStatusViewModel = (item: Pick<KnowledgeItem, 'status'>): DataSourceStatusViewModel => {
   if (item.status === 'completed') {
     return {
       kind: 'completed',
@@ -83,7 +81,7 @@ export const resolveDataSourceStatusViewModel = (
     }
   }
 
-  if (item.status === 'processing' && item.phase === 'embedding') {
+  if (item.status === 'embedding') {
     return {
       kind: 'processing',
       labelKey: 'knowledge.data_source.status.embedding',
@@ -92,7 +90,7 @@ export const resolveDataSourceStatusViewModel = (
     }
   }
 
-  if (item.status === 'processing' && item.phase === 'reading') {
+  if (item.status === 'reading') {
     return {
       kind: 'processing',
       labelKey: 'knowledge.rag.file_processing',
@@ -101,7 +99,7 @@ export const resolveDataSourceStatusViewModel = (
     }
   }
 
-  if (item.status === 'processing' && item.phase === null) {
+  if (item.status === 'processing') {
     return {
       kind: 'processing',
       labelKey: 'knowledge.status.processing',
@@ -110,7 +108,7 @@ export const resolveDataSourceStatusViewModel = (
     }
   }
 
-  if (item.status === 'idle' || item.phase === 'preparing') {
+  if (item.status === 'idle' || item.status === 'preparing') {
     return {
       kind: 'processing',
       labelKey: 'knowledge.data_source.status.pending',

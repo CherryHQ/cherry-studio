@@ -747,8 +747,8 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(statusById.get('i-no-unique-id')).toBe('idle')
     expect(statusById.get('i-with-unique-id')).toBe('completed')
     expect(statusById.get('i-with-empty-unique-id')).toBe('idle')
-    expect(statusById.get('i-processing-but-no-unique-id')).toBe('idle')
-    expect(statusById.get('i-failed-with-unique-id')).toBe('completed')
+    expect(statusById.get('i-processing-but-no-unique-id')).toBe('failed')
+    expect(statusById.get('i-failed-with-unique-id')).toBe('failed')
   })
 
   it('prepare preserves failed missing-model bases with null dimensions when legacy dimensions are missing', async () => {
@@ -1133,7 +1133,6 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         type: 'note',
         data: { source: 'note', content: 'note' },
         status: 'idle',
-        phase: null,
         error: null,
         createdAt: 1775114958369,
         updatedAt: 1775114958369

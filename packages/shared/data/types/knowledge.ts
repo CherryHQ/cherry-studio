@@ -19,15 +19,18 @@ export const KNOWLEDGE_ITEM_TYPES = ['file', 'url', 'note', 'sitemap', 'director
 export const KnowledgeItemTypeSchema = z.enum(KNOWLEDGE_ITEM_TYPES)
 export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
 
-export const KNOWLEDGE_ITEM_STATUSES = ['idle', 'processing', 'completed', 'failed'] as const
+export const KNOWLEDGE_ITEM_STATUSES = [
+  'idle',
+  'preparing',
+  'processing',
+  'reading',
+  'embedding',
+  'completed',
+  'failed',
+  'deleting'
+] as const
 export const KnowledgeItemStatusSchema = z.enum(KNOWLEDGE_ITEM_STATUSES)
 export type KnowledgeItemStatus = z.infer<typeof KnowledgeItemStatusSchema>
-
-export const KNOWLEDGE_ITEM_PHASES = ['preparing', 'reading', 'embedding'] as const
-export const KnowledgeItemPhaseSchema = z.enum(KNOWLEDGE_ITEM_PHASES)
-export type KnowledgeItemPhase = z.infer<typeof KnowledgeItemPhaseSchema>
-export const KnowledgeLeafItemPhaseSchema = z.enum(['reading', 'embedding'])
-export const KnowledgeContainerItemPhaseSchema = z.literal('preparing')
 
 export const KNOWLEDGE_SEARCH_MODES = ['default', 'bm25', 'hybrid'] as const
 export const KnowledgeSearchModeSchema = z.enum(KNOWLEDGE_SEARCH_MODES)
@@ -229,60 +232,47 @@ const KnowledgeItemEntityBaseSchema = z.strictObject({
 
 const IdleKnowledgeItemLifecycleSchema = {
   status: z.literal('idle'),
-  phase: z.null(),
+  error: z.null()
+} as const
+
+const PreparingKnowledgeItemLifecycleSchema = {
+  status: z.literal('preparing'),
   error: z.null()
 } as const
 
 const ProcessingKnowledgeItemLifecycleSchema = {
   status: z.literal('processing'),
-  phase: KnowledgeItemPhaseSchema.nullable(),
   error: z.null()
 } as const
 
-const LeafProcessingKnowledgeItemLifecycleSchema = {
-  status: z.literal('processing'),
-  phase: KnowledgeLeafItemPhaseSchema.nullable(),
+const ReadingKnowledgeItemLifecycleSchema = {
+  status: z.literal('reading'),
   error: z.null()
 } as const
 
-const ContainerProcessingKnowledgeItemLifecycleSchema = {
-  status: z.literal('processing'),
-  phase: KnowledgeContainerItemPhaseSchema.nullable(),
+const EmbeddingKnowledgeItemLifecycleSchema = {
+  status: z.literal('embedding'),
   error: z.null()
 } as const
 
 const CompletedKnowledgeItemLifecycleSchema = {
   status: z.literal('completed'),
-  phase: z.null(),
+  error: z.null()
+} as const
+
+const DeletingKnowledgeItemLifecycleSchema = {
+  status: z.literal('deleting'),
   error: z.null()
 } as const
 
 const FailedKnowledgeItemLifecycleSchema = {
   status: z.literal('failed'),
-  phase: z.null(),
   error: z.string().trim().min(1)
 } as const
 
-const KnowledgeItemLifecycleSchemas = [
-  z.strictObject(IdleKnowledgeItemLifecycleSchema),
-  z.strictObject(ProcessingKnowledgeItemLifecycleSchema),
-  z.strictObject(CompletedKnowledgeItemLifecycleSchema),
-  z.strictObject(FailedKnowledgeItemLifecycleSchema)
-] as const
-
-export const KnowledgeItemLifecycleSchema = z.discriminatedUnion('status', KnowledgeItemLifecycleSchemas)
-export type KnowledgeItemLifecycle = z.infer<typeof KnowledgeItemLifecycleSchema>
-
-const createKnowledgeItemEntitySchemas = <
-  TType extends KnowledgeItemType,
-  TData extends z.ZodType,
-  TProcessingLifecycle extends
-    | typeof LeafProcessingKnowledgeItemLifecycleSchema
-    | typeof ContainerProcessingKnowledgeItemLifecycleSchema
->(
+const createLeafKnowledgeItemEntitySchemas = <TType extends KnowledgeItemType, TData extends z.ZodType>(
   type: TType,
-  data: TData,
-  processingLifecycle: TProcessingLifecycle
+  data: TData
 ) =>
   [
     KnowledgeItemEntityBaseSchema.extend({
@@ -293,12 +283,64 @@ const createKnowledgeItemEntitySchemas = <
     KnowledgeItemEntityBaseSchema.extend({
       type: z.literal(type),
       data,
-      ...processingLifecycle
+      ...ProcessingKnowledgeItemLifecycleSchema
+    }),
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...ReadingKnowledgeItemLifecycleSchema
+    }),
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...EmbeddingKnowledgeItemLifecycleSchema
     }),
     KnowledgeItemEntityBaseSchema.extend({
       type: z.literal(type),
       data,
       ...CompletedKnowledgeItemLifecycleSchema
+    }),
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...DeletingKnowledgeItemLifecycleSchema
+    }),
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...FailedKnowledgeItemLifecycleSchema
+    })
+  ] as const
+
+const createContainerKnowledgeItemEntitySchemas = <TType extends KnowledgeItemType, TData extends z.ZodType>(
+  type: TType,
+  data: TData
+) =>
+  [
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...IdleKnowledgeItemLifecycleSchema
+    }),
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...PreparingKnowledgeItemLifecycleSchema
+    }),
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...ProcessingKnowledgeItemLifecycleSchema
+    }),
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...CompletedKnowledgeItemLifecycleSchema
+    }),
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...DeletingKnowledgeItemLifecycleSchema
     }),
     KnowledgeItemEntityBaseSchema.extend({
       type: z.literal(type),
@@ -309,27 +351,23 @@ const createKnowledgeItemEntitySchemas = <
 
 const FileKnowledgeItemSchema = z.discriminatedUnion(
   'status',
-  createKnowledgeItemEntitySchemas('file', FileItemDataSchema, LeafProcessingKnowledgeItemLifecycleSchema)
+  createLeafKnowledgeItemEntitySchemas('file', FileItemDataSchema)
 )
 const UrlKnowledgeItemSchema = z.discriminatedUnion(
   'status',
-  createKnowledgeItemEntitySchemas('url', UrlItemDataSchema, LeafProcessingKnowledgeItemLifecycleSchema)
+  createLeafKnowledgeItemEntitySchemas('url', UrlItemDataSchema)
 )
 const NoteKnowledgeItemSchema = z.discriminatedUnion(
   'status',
-  createKnowledgeItemEntitySchemas('note', NoteItemDataSchema, LeafProcessingKnowledgeItemLifecycleSchema)
+  createLeafKnowledgeItemEntitySchemas('note', NoteItemDataSchema)
 )
 const SitemapKnowledgeItemSchema = z.discriminatedUnion(
   'status',
-  createKnowledgeItemEntitySchemas('sitemap', SitemapItemDataSchema, ContainerProcessingKnowledgeItemLifecycleSchema)
+  createContainerKnowledgeItemEntitySchemas('sitemap', SitemapItemDataSchema)
 )
 const DirectoryKnowledgeItemSchema = z.discriminatedUnion(
   'status',
-  createKnowledgeItemEntitySchemas(
-    'directory',
-    DirectoryItemDataSchema,
-    ContainerProcessingKnowledgeItemLifecycleSchema
-  )
+  createContainerKnowledgeItemEntitySchemas('directory', DirectoryItemDataSchema)
 )
 
 /**

@@ -45,7 +45,6 @@ describe('expandDirectoryOwnerToTree', () => {
           path: rootDir
         },
         status: 'idle',
-        phase: null,
         error: null,
         createdAt: '2026-04-08T00:00:00.000Z',
         updatedAt: '2026-04-08T00:00:00.000Z'
@@ -103,7 +102,6 @@ describe('expandDirectoryOwnerToTree', () => {
           path: rootDir
         },
         status: 'idle',
-        phase: null,
         error: null,
         createdAt: '2026-04-08T00:00:00.000Z',
         updatedAt: '2026-04-08T00:00:00.000Z'
@@ -160,7 +158,6 @@ describe('expandDirectoryOwnerToTree', () => {
             path: tempRoot
           },
           status: 'idle',
-          phase: null,
           error: null,
           createdAt: '2026-04-08T00:00:00.000Z',
           updatedAt: '2026-04-08T00:00:00.000Z'

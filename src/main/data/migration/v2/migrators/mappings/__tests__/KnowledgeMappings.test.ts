@@ -23,9 +23,12 @@ describe('KnowledgeMappings', () => {
     expect(legacyModelToUniqueId({ id: 'silicon::BAAI/bge-m3', provider: 'silicon' })).toBe('silicon::BAAI/bge-m3')
   })
 
-  it('inferKnowledgeItemStatus only trusts uniqueId', () => {
+  it('inferKnowledgeItemStatus maps legacy transient states to failed', () => {
     expect(inferKnowledgeItemStatus({ uniqueId: 'loader-1' } as any)).toBe('completed')
     expect(inferKnowledgeItemStatus({ uniqueId: '   ' } as any)).toBe('idle')
+    expect(inferKnowledgeItemStatus({ processingStatus: 'pending' } as any)).toBe('failed')
+    expect(inferKnowledgeItemStatus({ processingStatus: 'processing' } as any)).toBe('failed')
+    expect(inferKnowledgeItemStatus({ processingStatus: 'failed', uniqueId: 'loader-1' } as any)).toBe('failed')
     expect(inferKnowledgeItemStatus({} as any)).toBe('idle')
   })
 
@@ -218,7 +221,6 @@ describe('KnowledgeMappings', () => {
           sourceUrl: 'https://dexie.example.com'
         },
         status: 'idle',
-        phase: null,
         error: null,
         createdAt: expect.any(Number),
         updatedAt: expect.any(Number)
@@ -253,7 +255,6 @@ describe('KnowledgeMappings', () => {
           file: fileMetadata
         },
         status: 'completed',
-        phase: null,
         error: null,
         createdAt: expect.any(Number),
         updatedAt: expect.any(Number)
@@ -294,7 +295,6 @@ describe('KnowledgeMappings', () => {
       ok: true,
       value: expect.objectContaining({
         status: 'idle',
-        phase: null,
         error: null
       })
     })
@@ -302,7 +302,6 @@ describe('KnowledgeMappings', () => {
       ok: true,
       value: expect.objectContaining({
         status: 'completed',
-        phase: null,
         error: null
       })
     })
@@ -354,7 +353,6 @@ describe('KnowledgeMappings', () => {
           path: '/tmp/docs'
         },
         status: 'idle',
-        phase: null,
         error: null,
         createdAt: expect.any(Number),
         updatedAt: expect.any(Number)

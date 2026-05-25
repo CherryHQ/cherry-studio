@@ -166,7 +166,7 @@ async function createRuntimeItem<T extends KnowledgeItemType>(
 
   const processingItem = await runMutation(() =>
     isContainerKnowledgeItem(createdItem)
-      ? knowledgeItemService.updateStatus(createdItem.id, 'processing', { phase: 'preparing' })
+      ? knowledgeItemService.updateStatus(createdItem.id, 'preparing')
       : knowledgeItemService.updateStatus(createdItem.id, 'processing')
   )
   signal.throwIfAborted()

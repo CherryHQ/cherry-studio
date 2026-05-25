@@ -60,7 +60,6 @@ describe('knowledge reader metadata', () => {
         }
       },
       status: 'idle',
-      phase: null,
       error: null,
       createdAt: '2026-04-08T00:00:00.000Z',
       updatedAt: '2026-04-08T00:00:00.000Z'
@@ -79,7 +78,6 @@ describe('knowledge reader metadata', () => {
       type: 'url',
       data: { source: 'https://example.com', url: 'https://example.com' },
       status: 'idle',
-      phase: null,
       error: null,
       createdAt: '2026-04-08T00:00:00.000Z',
       updatedAt: '2026-04-08T00:00:00.000Z'
@@ -102,7 +100,6 @@ describe('knowledge reader metadata', () => {
         sourceUrl: 'https://example.com/note'
       },
       status: 'idle',
-      phase: null,
       error: null,
       createdAt: '2026-04-08T00:00:00.000Z',
       updatedAt: '2026-04-08T00:00:00.000Z'
@@ -121,7 +118,6 @@ describe('knowledge reader metadata', () => {
       type: 'note',
       data: { source: 'note-item-1', content: '   ' },
       status: 'idle',
-      phase: null,
       error: null,
       createdAt: '2026-04-08T00:00:00.000Z',
       updatedAt: '2026-04-08T00:00:00.000Z'

@@ -206,7 +206,7 @@ processed markdown artifact FileEntry
 - vector write 必须在 `KnowledgeMutationCoordinator` 的 per-base lock 内执行，并在写入前做 final stale guard。
 - 不做 incremental checkpoint、staging vectors 或 batch-level resume；retry 会重新 embed 已完成 batches。
 - 可以保留粗粒度 `reportProgress` 用于诊断，但第一版不做用户可见实时进度 UI，也不新增 workflow/run 聚合进度。
-- `knowledge_item.phase` 只保留 `reading` / `embedding` 等粗粒度阶段，不记录 batch 级进度。
+- `knowledge_item.status` 承载 `reading` / `embedding` 等粗粒度阶段，不记录 batch 级进度。
 
 final stale guard：
 
@@ -330,8 +330,8 @@ delete 是破坏性 workflow，但用户可见删除必须在 API resolve 前完
 规则：
 
 - 第一版只新增 `deleting` status，不新增 `deleted` status、`deletedAt` 或 tombstone table。
-- `deleting` 是用户不可见状态，不是 indexing phase。
-- 标记 `deleting` 时 `phase = null`、`error = null`。
+- `deleting` 是用户不可见状态。
+- 标记 `deleting` 时 `error = null`。
 - 默认 item list、search、RAG hydration 必须排除 `deleting` items。
 - `delete-subtree` 只负责物理 cleanup：cancel/drain、vectors、processed artifacts、ref-count cleanup、最终 hard-delete rows。
 - 如果 `delete-subtree` 失败，items 保持 `deleting`，不重新出现在 UI；通过 job retry / 恢复机制继续 cleanup。
@@ -430,18 +430,18 @@ needsFileProcessing
 
 ### item lifecycle helpers
 
-集中封装 `status/phase/error` 写入，避免 handler 裸写 `updateStatus`。
+集中封装 `status/error` 写入，避免 handler 裸写 `updateStatus`。
 
-保留 `status` 和 `phase`：
+只保留 `status` 和 `error`：
 
 ```text
-status = item 的持久生命周期事实；deleting 表示用户不可见、等待后台物理清理
-phase = processing 内的 Knowledge 粗粒度阶段
+status = item 的持久生命周期事实；reading/embedding/preparing 表示 Knowledge 粗粒度阶段；
+         deleting 表示用户不可见、等待后台物理清理
 JobManager state/progress = job 执行状态和实时进度
 ```
 
-`phase` 不是 JobManager progress 的替代品，也不由 JobManager state 反推。`deleting` 不使用
-`phase`，也不能被 container reconcile 改回 `processing` / `completed` / `failed`。
+`status` 不是 JobManager progress 的替代品，也不由 JobManager state 反推。`deleting` 不能被
+container reconcile 改回 `processing` / `completed` / `failed`。
 
 ### artifact helpers
 
@@ -617,7 +617,8 @@ job 重跑、idempotent cleanup 和 whole-store cleanup 收敛。
 保持不变：
 
 - `addItems` / `deleteItem` / `reindexItem` 都是异步 workflow 入口；调用方不能把 API resolve 当作 indexing / reindex / cleanup 全部完成。
-- `knowledge_item.status` 只扩展 `deleting`；`phase/error` 语义不变。
+- `knowledge_item.phase` 移除；`status` 扩展为 `idle` / `preparing` / `processing` / `reading` /
+  `embedding` / `completed` / `failed` / `deleting`。
 - Round 1 中 `base.fileProcessorId` 对 indexing 仍是 inert；Round 2 后只影响未来索引。
 - Knowledge 每次转换只消费本次 FileProcessing task result。
 - processed artifact cleanup 使用 ref-counted cleanup。

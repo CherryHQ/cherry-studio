@@ -387,37 +387,37 @@ preparation 被 interrupt 时：
 
 `fileProcessorId` 已保留在 schema/config 中，但 runtime 处理链路尚未接入该配置。
 
-## 8. `knowledge_item.status` / `phase` 的当前实现边界
+## 8. `knowledge_item.status` 的当前实现边界
 
-当前 `status` 表达总体状态：
+当前 `status` 表达业务生命周期和粗粒度运行进度：
 
 1. `idle`
-2. `processing`
-3. `completed`
-4. `failed`
-
-当前 `phase` 字段允许以下值：
-
-1. `null`
 2. `preparing`
-3. `reading`
-4. `embedding`
+3. `processing`
+4. `reading`
+5. `embedding`
+6. `completed`
+7. `failed`
+8. `deleting`
 
 `KnowledgeRuntimeService` 当前写入的 active 状态是：
 
-1. `processing, phase = preparing`：`directory` / `sitemap` root 或 nested directory 正在 expand / create children
-2. `processing, phase = reading`：leaf 正在读取 source documents
-3. `processing, phase = embedding`：leaf 正在 embedding / 写入 vector store
-4. `completed, phase = null`：leaf indexing 完成，或 container 没有 active children
-5. `failed, phase = null`：handler `onSettled` 在 retry 耗尽或 cancel 时写入，error 字段保留原因
+1. `preparing`：`directory` / `sitemap` root 或 nested directory 正在 expand / create children
+2. `reading`：leaf 正在读取 source documents
+3. `embedding`：leaf 正在 embedding / 写入 vector store
+4. `processing`：container 自身已完成 prepare，但 descendants 仍在处理
+5. `completed`：leaf indexing 完成，或 container 没有 active children
+6. `failed`：handler `onSettled` 在 retry 耗尽或 cancel 时写入，error 字段保留原因
+7. `deleting`：用户不可见，等待后台 cleanup
 
 也就是说：
 
-1. `status` 不再承载 `read` / `embed` 这类阶段语义
-2. `phase` 是 runtime 内部进度，不应由通用 Data API update DTO 对外暴露
-3. container 的最终状态由自身 phase 和 children 状态自下而上 reconcile
+1. 不再保留单独 `phase` 字段
+2. `status` 是持久业务状态，不由 JobManager progress 反推
+3. container 的最终状态由自身 status 和 children 状态自下而上 reconcile
 
-这个拆分解决的核心问题是：`processing/read/embed` 不再同时表达总体状态和运行阶段，directory/sitemap 的 preparation 与 children indexing 也不会混在同一个字段里。
+这个收敛解决的核心问题是：Knowledge item 不需要同时维护 `status` 和 `phase` 两套状态机，
+`preparing` / `reading` / `embedding` 直接作为持久 status 表达即可。
 
 ## 9. Lifecycle 行为
 

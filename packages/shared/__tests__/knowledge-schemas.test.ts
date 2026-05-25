@@ -389,7 +389,6 @@ describe('Knowledge base schemas', () => {
         type: 'note',
         data: { source: 'hello', content: 'hello' },
         status: 'idle',
-        phase: null,
         error: null,
         createdAt: '2026-04-10T00:00:00.000Z',
         updatedAt: '2026-04-10T00:00:00.000Z'
@@ -404,14 +403,13 @@ describe('Knowledge base schemas', () => {
         type: 'note',
         data: { source: 'hello', content: 'hello' },
         status: 'idle',
-        phase: null,
         createdAt: '2026-04-10T00:00:00.000Z',
         updatedAt: '2026-04-10T00:00:00.000Z'
       }).success
     ).toBe(false)
   })
 
-  it('separates knowledge item status from runtime phase', () => {
+  it('uses status for knowledge item runtime progress', () => {
     expect(
       KnowledgeItemSchema.safeParse({
         id: 'item-1',
@@ -419,8 +417,7 @@ describe('Knowledge base schemas', () => {
         groupId: null,
         type: 'note',
         data: { source: 'hello', content: 'hello' },
-        status: 'processing',
-        phase: 'reading',
+        status: 'reading',
         error: null,
         createdAt: '2026-04-10T00:00:00.000Z',
         updatedAt: '2026-04-10T00:00:00.000Z'
@@ -435,7 +432,6 @@ describe('Knowledge base schemas', () => {
         type: 'note',
         data: { source: 'hello', content: 'hello' },
         status: 'read',
-        phase: null,
         error: null,
         createdAt: '2026-04-10T00:00:00.000Z',
         updatedAt: '2026-04-10T00:00:00.000Z'
@@ -443,7 +439,7 @@ describe('Knowledge base schemas', () => {
     ).toBe(false)
   })
 
-  it('rejects invalid knowledge item status phase error combinations', () => {
+  it('rejects invalid knowledge item status error combinations', () => {
     const validItem = {
       id: 'item-1',
       baseId: 'kb-1',
@@ -454,38 +450,27 @@ describe('Knowledge base schemas', () => {
       updatedAt: '2026-04-10T00:00:00.000Z'
     }
 
-    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'idle', phase: null, error: null }).success).toBe(true)
-    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'completed', phase: null, error: null }).success).toBe(
-      true
-    )
-    expect(
-      KnowledgeItemSchema.safeParse({ ...validItem, status: 'processing', phase: null, error: null }).success
-    ).toBe(true)
-    expect(
-      KnowledgeItemSchema.safeParse({ ...validItem, status: 'processing', phase: 'reading', error: null }).success
-    ).toBe(true)
-    expect(
-      KnowledgeItemSchema.safeParse({ ...validItem, status: 'failed', phase: null, error: 'read failed' }).success
-    ).toBe(true)
+    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'idle', error: null }).success).toBe(true)
+    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'completed', error: null }).success).toBe(true)
+    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'processing', error: null }).success).toBe(true)
+    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'reading', error: null }).success).toBe(true)
+    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'embedding', error: null }).success).toBe(true)
+    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'failed', error: 'read failed' }).success).toBe(true)
+    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'deleting', error: null }).success).toBe(true)
 
     expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'idle', phase: 'reading', error: null }).success).toBe(
       false
     )
-    expect(
-      KnowledgeItemSchema.safeParse({ ...validItem, status: 'completed', phase: null, error: 'stale' }).success
-    ).toBe(false)
-    expect(
-      KnowledgeItemSchema.safeParse({ ...validItem, status: 'processing', phase: null, error: 'stale' }).success
-    ).toBe(false)
+    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'completed', error: 'stale' }).success).toBe(false)
+    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'processing', error: 'stale' }).success).toBe(false)
     expect(
       KnowledgeItemSchema.safeParse({ ...validItem, status: 'failed', phase: 'reading', error: 'read failed' }).success
     ).toBe(false)
-    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'failed', phase: null, error: '' }).success).toBe(
-      false
-    )
+    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'failed', error: '' }).success).toBe(false)
+    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'deleting', error: 'stale' }).success).toBe(false)
   })
 
-  it('restricts processing phase by knowledge item type', () => {
+  it('restricts progress statuses by knowledge item type', () => {
     const leafItem = {
       id: 'leaf-1',
       baseId: 'kb-1',
@@ -509,15 +494,15 @@ describe('Knowledge base schemas', () => {
       updatedAt: '2026-04-10T00:00:00.000Z'
     }
 
-    expect(KnowledgeItemSchema.safeParse({ ...leafItem, phase: null }).success).toBe(true)
-    expect(KnowledgeItemSchema.safeParse({ ...leafItem, phase: 'reading' }).success).toBe(true)
-    expect(KnowledgeItemSchema.safeParse({ ...leafItem, phase: 'embedding' }).success).toBe(true)
-    expect(KnowledgeItemSchema.safeParse({ ...leafItem, phase: 'preparing' }).success).toBe(false)
+    expect(KnowledgeItemSchema.safeParse({ ...leafItem }).success).toBe(true)
+    expect(KnowledgeItemSchema.safeParse({ ...leafItem, status: 'reading' }).success).toBe(true)
+    expect(KnowledgeItemSchema.safeParse({ ...leafItem, status: 'embedding' }).success).toBe(true)
+    expect(KnowledgeItemSchema.safeParse({ ...leafItem, status: 'preparing' }).success).toBe(false)
 
-    expect(KnowledgeItemSchema.safeParse({ ...containerItem, phase: null }).success).toBe(true)
-    expect(KnowledgeItemSchema.safeParse({ ...containerItem, phase: 'preparing' }).success).toBe(true)
-    expect(KnowledgeItemSchema.safeParse({ ...containerItem, phase: 'reading' }).success).toBe(false)
-    expect(KnowledgeItemSchema.safeParse({ ...containerItem, phase: 'embedding' }).success).toBe(false)
+    expect(KnowledgeItemSchema.safeParse({ ...containerItem }).success).toBe(true)
+    expect(KnowledgeItemSchema.safeParse({ ...containerItem, status: 'preparing' }).success).toBe(true)
+    expect(KnowledgeItemSchema.safeParse({ ...containerItem, status: 'reading' }).success).toBe(false)
+    expect(KnowledgeItemSchema.safeParse({ ...containerItem, status: 'embedding' }).success).toBe(false)
   })
 })
 

@@ -52,7 +52,6 @@ describe('KnowledgeItemService', () => {
       type: 'note',
       data: { source: 'seed-note', content: 'hello world' },
       status: 'idle',
-      phase: null,
       error: null,
       ...overrides
     }
@@ -114,6 +113,16 @@ describe('KnowledgeItemService', () => {
       expect(result.total).toBe(2)
       expect(result.items.map((item) => item.id).sort()).toEqual(['dir-a', 'note-root'])
     })
+
+    it('hides deleting items', async () => {
+      await seedItem({ id: 'visible-note', data: { source: 'visible', content: 'visible' } })
+      await seedItem({ id: 'deleting-note', data: { source: 'deleting', content: 'deleting' }, status: 'deleting' })
+
+      const result = await service.list('kb-1', { page: 1, limit: 20 })
+
+      expect(result.total).toBe(1)
+      expect(result.items.map((item) => item.id)).toEqual(['visible-note'])
+    })
   })
 
   describe('getItemsByBaseId', () => {
@@ -141,7 +150,6 @@ describe('KnowledgeItemService', () => {
         type: 'note',
         data: { source: 'item-1', content: 'item 1' },
         status: 'idle',
-        phase: null,
         error: null
       })
     })
@@ -182,6 +190,15 @@ describe('KnowledgeItemService', () => {
       expect(result.map((item) => item.id)).toEqual(['note-a'])
     })
 
+    it('hides deleting items', async () => {
+      await seedItem({ id: 'visible-note', data: { source: 'visible', content: 'visible' } })
+      await seedItem({ id: 'deleting-note', data: { source: 'deleting', content: 'deleting' }, status: 'deleting' })
+
+      const result = await service.getItemsByBaseId('kb-1')
+
+      expect(result.map((item) => item.id)).toEqual(['visible-note'])
+    })
+
     it('throws NotFound when listing items for a missing base', async () => {
       await expect(service.getItemsByBaseId('missing')).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND,
@@ -204,7 +221,6 @@ describe('KnowledgeItemService', () => {
         groupId: null,
         type: 'directory',
         status: 'idle',
-        phase: null,
         error: null,
         data: item.data
       })
@@ -306,7 +322,7 @@ describe('KnowledgeItemService', () => {
       })
     })
 
-    it('rejects invalid persisted status phase error combinations', async () => {
+    it('rejects invalid persisted status error combinations', async () => {
       await expect(
         dbh.db.insert(knowledgeItemTable).values({
           baseId: 'kb-1',
@@ -314,8 +330,7 @@ describe('KnowledgeItemService', () => {
           type: 'note',
           data: { source: 'invalid-note', content: 'invalid note' },
           status: 'completed',
-          phase: 'reading',
-          error: null
+          error: 'stale'
         })
       ).rejects.toThrow()
 
@@ -326,21 +341,19 @@ describe('KnowledgeItemService', () => {
           type: 'note',
           data: { source: 'invalid-failed-note', content: 'invalid failed note' },
           status: 'failed',
-          phase: null,
           error: ''
         })
       ).rejects.toThrow()
     })
 
-    it('rejects persisted processing phases that do not match the item type', async () => {
+    it('rejects persisted progress statuses that do not match the item type', async () => {
       await expect(
         dbh.db.insert(knowledgeItemTable).values({
           baseId: 'kb-1',
           groupId: null,
           type: 'note',
           data: { source: 'invalid-note-phase', content: 'invalid note phase' },
-          status: 'processing',
-          phase: 'preparing',
+          status: 'preparing',
           error: null
         })
       ).rejects.toThrow()
@@ -351,8 +364,7 @@ describe('KnowledgeItemService', () => {
           groupId: null,
           type: 'directory',
           data: { source: '/docs', path: '/docs' },
-          status: 'processing',
-          phase: 'reading',
+          status: 'reading',
           error: null
         })
       ).rejects.toThrow()
@@ -536,30 +548,25 @@ describe('KnowledgeItemService', () => {
       return row
     }
 
-    it('updates processing status and clears stale error fields', async () => {
+    it('updates progress status and clears stale error fields', async () => {
       const seeded = await seedItem()
 
-      const result = await service.updateStatus(seeded.id, 'processing', {
-        phase: 'reading'
-      })
+      const result = await service.updateStatus(seeded.id, 'reading')
 
       expect(result).toMatchObject({
         id: seeded.id,
-        status: 'processing',
-        phase: 'reading',
+        status: 'reading',
         error: null
       })
       await expect(getItemRow(seeded.id)).resolves.toMatchObject({
-        status: 'processing',
-        phase: 'reading',
+        status: 'reading',
         error: null
       })
     })
 
-    it('clears stale phase and error when only status is supplied', async () => {
+    it('clears stale error when only status is supplied', async () => {
       const seeded = await seedItem({
         status: 'failed',
-        phase: null,
         error: 'previous failure'
       })
 
@@ -568,12 +575,10 @@ describe('KnowledgeItemService', () => {
       expect(result).toMatchObject({
         id: seeded.id,
         status: 'processing',
-        phase: null,
         error: null
       })
       await expect(getItemRow(seeded.id)).resolves.toMatchObject({
         status: 'processing',
-        phase: null,
         error: null
       })
     })
@@ -590,15 +595,13 @@ describe('KnowledgeItemService', () => {
         groupId: 'dir-root',
         type: 'note',
         data: { source: 'note', content: 'note' },
-        status: 'processing',
-        phase: 'reading'
+        status: 'reading'
       })
 
       await service.updateStatus('note-child', 'completed')
 
       await expect(getItemRow('note-child')).resolves.toMatchObject({
         status: 'completed',
-        phase: null,
         error: null
       })
       await expect(getItemRow('dir-root')).resolves.toMatchObject({
@@ -614,10 +617,9 @@ describe('KnowledgeItemService', () => {
       })
     })
 
-    it('normalizes failed status to a terminal phase with a non-empty error', async () => {
+    it('normalizes failed status with a non-empty error', async () => {
       const seeded = await seedItem({
-        status: 'processing',
-        phase: 'reading',
+        status: 'reading',
         error: null
       })
 
@@ -625,12 +627,10 @@ describe('KnowledgeItemService', () => {
 
       expect(result).toMatchObject({
         status: 'failed',
-        phase: null,
         error: 'read failed'
       })
       await expect(getItemRow(seeded.id)).resolves.toMatchObject({
         status: 'failed',
-        phase: null,
         error: 'read failed'
       })
     })

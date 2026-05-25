@@ -5,7 +5,6 @@ import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
   type KnowledgeBase,
-  type KnowledgeItem,
   type KnowledgeItemOf
 } from '@shared/data/types/knowledge'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -175,11 +174,9 @@ function createBase(): KnowledgeBase {
   } as KnowledgeBase
 }
 
-function createNoteItem(id = 'note-1', status: KnowledgeItem['status'] = 'idle'): KnowledgeItemOf<'note'> {
+function createNoteItem(id = 'note-1', status: KnowledgeItemOf<'note'>['status'] = 'idle'): KnowledgeItemOf<'note'> {
   const lifecycle =
-    status === 'failed'
-      ? ({ status, phase: null, error: `failed ${id}` } as const)
-      : ({ status, phase: null, error: null } as const)
+    status === 'failed' ? ({ status, error: `failed ${id}` } as const) : ({ status, error: null } as const)
 
   return {
     id,
@@ -193,11 +190,12 @@ function createNoteItem(id = 'note-1', status: KnowledgeItem['status'] = 'idle')
   } as KnowledgeItemOf<'note'>
 }
 
-function createDirectoryItem(id = 'dir-1', status: KnowledgeItem['status'] = 'idle'): KnowledgeItemOf<'directory'> {
+function createDirectoryItem(
+  id = 'dir-1',
+  status: KnowledgeItemOf<'directory'>['status'] = 'idle'
+): KnowledgeItemOf<'directory'> {
   const lifecycle =
-    status === 'failed'
-      ? ({ status, phase: null, error: `failed ${id}` } as const)
-      : ({ status, phase: null, error: null } as const)
+    status === 'failed' ? ({ status, error: `failed ${id}` } as const) : ({ status, error: null } as const)
 
   return {
     id,

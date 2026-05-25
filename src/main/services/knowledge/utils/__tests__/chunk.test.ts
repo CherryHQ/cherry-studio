@@ -30,7 +30,6 @@ function createItem() {
     type: 'note' as const,
     data: { source: 'item-1', content: 'hello' },
     status: 'idle' as const,
-    phase: null,
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'

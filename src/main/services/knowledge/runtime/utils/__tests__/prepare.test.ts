@@ -64,7 +64,6 @@ function createDirectoryItem(id = 'dir-1', groupId: string | null = null): Knowl
     type: 'directory',
     data: { source: id, path: `/docs/${id}` },
     status: 'processing',
-    phase: null,
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
@@ -79,7 +78,6 @@ function createSitemapItem(): KnowledgeItem {
     type: 'sitemap',
     data: { source: 'sitemap', url: 'https://example.com/sitemap.xml' },
     status: 'processing',
-    phase: null,
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
@@ -94,7 +92,6 @@ function createNoteItem(id = 'note-1'): KnowledgeItem {
     type: 'note',
     data: { source: id, content: `hello ${id}` },
     status: 'processing',
-    phase: null,
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
@@ -122,7 +119,6 @@ function createFileItem(id = 'file-1', groupId: string | null = null): Knowledge
       }
     },
     status: 'processing',
-    phase: null,
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
@@ -142,24 +138,18 @@ describe('prepareKnowledgeItem', () => {
       type: item.type,
       data: item.data,
       status: 'idle',
-      phase: null,
       error: null,
       createdAt: '2026-04-08T00:00:00.000Z',
       updatedAt: '2026-04-08T00:00:00.000Z'
     }))
     knowledgeItemUpdateStatusMock.mockImplementation(
-      async (
-        id: string,
-        status: KnowledgeItem['status'],
-        update: { phase?: KnowledgeItem['phase']; error?: string | null } = {}
-      ) => ({
+      async (id: string, status: KnowledgeItem['status'], update: { error?: string | null } = {}) => ({
         id,
         baseId,
         groupId: null,
         type: id.startsWith('file') ? 'file' : 'note',
         data: { source: id, content: id },
         status,
-        phase: update.phase ?? null,
         error: update.error ?? null,
         createdAt: '2026-04-08T00:00:00.000Z',
         updatedAt: '2026-04-08T00:00:00.000Z'
@@ -209,7 +199,7 @@ describe('prepareKnowledgeItem', () => {
       type: 'file',
       data: childFile.data
     })
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(childDir.id, 'processing', { phase: 'preparing' })
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(childDir.id, 'preparing')
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(childDir.id, 'processing')
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(childFile.id, 'processing')
   })
@@ -257,7 +247,6 @@ describe('prepareKnowledgeItem', () => {
       type: 'url',
       data: { source: 'https://example.com/page-1', url: 'https://example.com/page-1' },
       status: 'processing',
-      phase: null,
       error: null,
       createdAt: '2026-04-08T00:00:00.000Z',
       updatedAt: '2026-04-08T00:00:00.000Z'
@@ -287,7 +276,6 @@ describe('prepareKnowledgeItem', () => {
       type: 'url',
       data: { source: 'https://example.com/page-1', url: 'https://example.com/page-1' },
       status: 'idle',
-      phase: null,
       error: null,
       createdAt: '2026-04-08T00:00:00.000Z',
       updatedAt: '2026-04-08T00:00:00.000Z'
