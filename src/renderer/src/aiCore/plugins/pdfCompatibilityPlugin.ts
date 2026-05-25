@@ -46,11 +46,11 @@ function supportsNativePdf(provider: Provider, model: Model): boolean {
     return false
   }
 
-  // We assume here that the OpenAI model using the responses API, 
-  // the Claude model using the messages API, 
+  // We assume here that the OpenAI model using the responses API,
+  // the Claude model using the messages API,
   // and the Gemini model using the Gemini generateContent API natively support PDF input.
   if (
-    model.endpoint_type === 'openai-response' && isOpenAILLMModel(model) ||
+    (model.endpoint_type === 'openai-response' && isOpenAILLMModel(model)) ||
     (model.endpoint_type === 'anthropic' && isAnthropicModel(model)) ||
     (model.endpoint_type === 'gemini' && isGeminiModel(model))
   ) {
