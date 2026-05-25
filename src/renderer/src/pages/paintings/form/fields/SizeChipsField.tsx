@@ -5,7 +5,6 @@ import type { PaintingFieldComponentProps } from '../fieldRegistry'
 
 const MAX_THUMB = 14
 const MIN_THUMB = 6
-const RATIO_MAX_TERM = 32
 const DEFAULT_COLUMNS = 3
 
 const chipClass = {
@@ -51,42 +50,43 @@ function formatDims({ w, h }: Dim): string {
   return `${w}×${h}`
 }
 
-function gcd(a: number, b: number): number {
-  while (b !== 0) {
-    const t = b
-    b = a % b
-    a = t
-  }
-  return a
-}
-
-function simplifyRatio({ w, h }: Dim): string | null {
-  const g = gcd(w, h)
-  const sw = w / g
-  const sh = h / g
-  if (sw > RATIO_MAX_TERM || sh > RATIO_MAX_TERM) return null
-  return `${sw}:${sh}`
-}
-
 function splitParens(label: string): { head: string; inner: string } {
   const m = label.match(/^(.*?)\s*[(（]([^)）]+)[)）]\s*$/)
   return m ? { head: m[1].trim(), inner: m[2].trim() } : { head: label.trim(), inner: '' }
 }
 
-function deriveLabelParts(label: string, value: string): { primary: string; secondary: string } {
-  const { head, inner } = splitParens(label)
-  const innerDims = parseDims(inner)
-  const headDims = parseDims(head)
-
-  if (innerDims && !headDims) {
-    return { primary: head, secondary: formatDims(innerDims) }
+/**
+ * Choose a single concise label for a chip. The visual `RatioThumb`
+ * already conveys the shape, so chips never need both ratio AND pixel
+ * dims at once. Selection logic:
+ *
+ *  - Pure aspect-ratio enum (`ASPECT_X_Y` from `supports.aspectRatio`,
+ *    or bare `X:Y` / `X_Y`) → `X:Y`. Prevents the raw enum from
+ *    leaking into the UI ("ASPECT_1_1") and keeps the chip width
+ *    bounded so the grid follows the parent container.
+ *  - Label with parenthesized pixel dims like `"1:1 (1024×1024)"` →
+ *    use the head (`"1:1"`).
+ *  - Pixel-size value `WxH` → `W×H` (formatted with U+00D7).
+ *  - Anything else (`"auto"` → `"自动"`, `"1K"`, etc.) → the label
+ *    verbatim.
+ */
+export function deriveChipLabel(label: string, value: string): string {
+  const aspectMatch = value.match(/^(?:ASPECT_)?(\d+)[_:](\d+)$/i)
+  if (aspectMatch) {
+    return `${Number(aspectMatch[1])}:${Number(aspectMatch[2])}`
   }
 
-  const dims = headDims ?? parseDims(value)
-  if (!dims) return { primary: label, secondary: '' }
+  const { head, inner } = splitParens(label)
+  if (parseDims(inner)) {
+    return head
+  }
 
-  const ratio = simplifyRatio(dims)
-  return ratio ? { primary: ratio, secondary: formatDims(dims) } : { primary: formatDims(dims), secondary: '' }
+  const dims = parseDims(value)
+  if (dims) {
+    return formatDims(dims)
+  }
+
+  return label
 }
 
 function RatioShape({ ratio, selected }: { ratio: Dim; selected: boolean }) {
@@ -130,7 +130,7 @@ export default function SizeChipsField({
         const optionValue = String(option.value)
         const label = option.label || optionValue
         const isSelected = value === optionValue
-        const { primary, secondary } = deriveLabelParts(label, optionValue)
+        const chipLabel = deriveChipLabel(label, optionValue)
 
         return (
           <button
@@ -145,10 +145,7 @@ export default function SizeChipsField({
             )}
             onClick={() => onChange({ [fieldKey]: optionValue })}>
             <RatioThumb value={optionValue} selected={isSelected} />
-            <span className="whitespace-nowrap font-medium tracking-tight">{primary}</span>
-            {secondary ? (
-              <span className="whitespace-nowrap text-[9px] tabular-nums tracking-tight opacity-70">{secondary}</span>
-            ) : null}
+            <span className="whitespace-nowrap font-medium tracking-tight">{chipLabel}</span>
           </button>
         )
       })}
