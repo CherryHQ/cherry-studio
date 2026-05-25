@@ -87,17 +87,38 @@ describe('pdfCompatibilityPlugin', () => {
     vi.mocked(isGeminiModel).mockReturnValue(false)
   })
 
-  it('should pass through for OpenAI model on any provider type', async () => {
+  it('should pass through for OpenAI model routed via openai-response endpoint', async () => {
     vi.mocked(isOpenAILLMModel).mockReturnValue(true)
     const provider = makeProvider('moonshot', 'openai')
+    const model = makeModel({ endpoint_type: 'openai-response' as const })
 
     const params = {
       prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), makePdfFilePart()] }]
     } as unknown as LanguageModelV3CallOptions
 
-    const result = await runMiddleware(provider, params)
+    const result = await runMiddleware(provider, params, model)
     expect(result).toEqual(params)
     expect(mockExtractPdfText).not.toHaveBeenCalled()
+  })
+
+  it('should convert PDF for OpenAI model on generic openai provider without endpoint_type', async () => {
+    vi.mocked(isOpenAILLMModel).mockReturnValue(true)
+    const provider = makeProvider('moonshot', 'openai')
+    mockExtractPdfText.mockResolvedValue('Extracted PDF content')
+
+    const params = {
+      prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), makePdfFilePart('report.pdf')] }]
+    } as unknown as LanguageModelV3CallOptions
+
+    const result = await runMiddleware(provider, params)
+    expect(mockExtractPdfText).toHaveBeenCalledWith('base64pdfdata')
+    expect(result.prompt[0]).toMatchObject({
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Hello' },
+        { type: 'text', text: 'report.pdf\nExtracted PDF content' }
+      ]
+    })
   })
 
   it('should pass through for Claude model routed via Anthropic endpoint (endpoint_type=anthropic)', async () => {
