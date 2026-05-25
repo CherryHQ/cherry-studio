@@ -19,7 +19,7 @@ vi.mock('@application', async () => {
 })
 
 const { OrphanRefScanner, runDbSweep, runFileSweep, scanOrphanEntries } = await import('../orphanSweep')
-const { tempSessionChecker } = await import('@data/services/orphan/FileRefCheckerRegistry')
+const { tempSessionChecker } = await import('@main/services/file/orphanCheckerRegistry')
 
 describe('OrphanRefScanner', () => {
   const dbh = setupTestDatabase()

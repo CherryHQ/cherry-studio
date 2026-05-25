@@ -41,8 +41,8 @@ import path from 'node:path'
 import { application } from '@application'
 import type { FileEntryService } from '@data/services/FileEntryService'
 import type { FileRefService } from '@data/services/FileRefService'
-import type { OrphanCheckerRegistry } from '@data/services/orphan/FileRefCheckerRegistry'
 import { loggerService } from '@logger'
+import type { OrphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry'
 import { allSourceTypes, type FileEntryId, type FileEntryOrigin, type FileRefSourceType } from '@shared/data/types/file'
 
 const logger = loggerService.withContext('FileManager:orphanSweep')

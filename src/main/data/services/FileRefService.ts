@@ -82,7 +82,7 @@ export interface FileRefService {
 /**
  * SQLite parameter cap is configurable but defaults to 999; keep batches well
  * under that for `inArray()` even with comparison overhead. Same constant lives
- * in `FileRefCheckerRegistry.knowledgeItemChecker` — kept lexically separate
+ * in `orphanCheckerRegistry.knowledgeItemChecker` — kept lexically separate
  * because the two callers can diverge as their query shapes evolve.
  */
 const SQLITE_INARRAY_CHUNK = 500
