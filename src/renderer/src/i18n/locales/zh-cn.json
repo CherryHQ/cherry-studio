@@ -1798,6 +1798,7 @@
     "reset": "重置",
     "retry": "重试",
     "save": "保存",
+    "save_failed": "保存失败",
     "saved": "已保存",
     "search": "搜索",
     "select": "选择",
@@ -7062,7 +7063,8 @@
         "too_large": "文件过大",
         "unknown": "读取文件内容失败"
       },
-      "reading": "读取文件内容中..."
+      "reading": "读取文件内容中...",
+      "upload": "拖入或点击上传图片/文档"
     },
     "history": {
       "back": "返回列表",
@@ -7100,7 +7102,7 @@
       "aborted": "翻译中止"
     },
     "input": {
-      "placeholder": "可粘贴或拖入文本、文本文件、图片（支持OCR）"
+      "placeholder": "请输入文本..."
     },
     "language": {
       "not_pair": "源语言与设置的语言不同",

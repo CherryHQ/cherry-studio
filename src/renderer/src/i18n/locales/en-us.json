@@ -1798,6 +1798,7 @@
     "reset": "Reset",
     "retry": "Retry",
     "save": "Save",
+    "save_failed": "Save failed",
     "saved": "Saved",
     "search": "Search",
     "select": "Select",
@@ -7062,7 +7063,8 @@
         "too_large": "File too large",
         "unknown": "Failed to read file content"
       },
-      "reading": "Reading file content..."
+      "reading": "Reading file content...",
+      "upload": "Drop or click to upload image/document"
     },
     "history": {
       "back": "Back to list",
@@ -7100,7 +7102,7 @@
       "aborted": "Translation aborted"
     },
     "input": {
-      "placeholder": "Text, text files, or images (with OCR support) can be pasted or dragged in"
+      "placeholder": "Enter text..."
     },
     "language": {
       "not_pair": "Source language is different from the set language",
