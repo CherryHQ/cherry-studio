@@ -188,6 +188,7 @@ const RichEditor = ({
   onBlur,
   editable = true,
   className = '',
+  wrapperStyle,
   showToolbar = true,
   minHeight,
   maxHeight,
@@ -566,6 +567,7 @@ const RichEditor = ({
       $isFullWidth={isFullWidth}
       $fontFamily={fontFamily}
       $fontSize={fontSize}
+      style={wrapperStyle}
       onKeyDown={onKeyDownEditor}>
       {showToolbar && (
         <Toolbar

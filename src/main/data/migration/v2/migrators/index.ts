@@ -14,6 +14,7 @@ import { KnowledgeMigrator } from './KnowledgeMigrator'
 import { KnowledgeVectorMigrator } from './KnowledgeVectorMigrator'
 import { McpServerMigrator } from './McpServerMigrator'
 import { MiniAppMigrator } from './MiniAppMigrator'
+import { NoteMigrator } from './NoteMigrator'
 import { PreferencesMigrator } from './PreferencesMigrator'
 import { PromptMigrator } from './PromptMigrator'
 import { ProviderModelMigrator } from './ProviderModelMigrator'
@@ -30,6 +31,7 @@ export {
   KnowledgeVectorMigrator,
   McpServerMigrator,
   MiniAppMigrator,
+  NoteMigrator,
   PreferencesMigrator,
   PromptMigrator,
   ProviderModelMigrator,
@@ -43,6 +45,7 @@ export function getAllMigrators() {
   return [
     new BootConfigMigrator(),
     new PreferencesMigrator(),
+    new NoteMigrator(),
     new MiniAppMigrator(),
     new McpServerMigrator(),
     new ProviderModelMigrator(),
