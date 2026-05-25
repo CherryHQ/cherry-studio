@@ -387,8 +387,8 @@ class FileStorage {
         return
       }
 
-      await fs.promises.rm(filePath, { force: true })
-      logger.debug(`External file deleted successfully: ${filePath}`)
+      await shell.trashItem(filePath)
+      logger.debug(`External file moved to trash successfully: ${filePath}`)
     } catch (error) {
       logger.error('Failed to delete external file:', error as Error)
       throw error
@@ -401,8 +401,8 @@ class FileStorage {
         return
       }
 
-      await fs.promises.rm(dirPath, { recursive: true, force: true })
-      logger.debug(`External directory deleted successfully: ${dirPath}`)
+      await shell.trashItem(dirPath)
+      logger.debug(`External directory moved to trash successfully: ${dirPath}`)
     } catch (error) {
       logger.error('Failed to delete external directory:', error as Error)
       throw error
@@ -1893,6 +1893,7 @@ class FileStorage {
     fileCount: number
     folderCount: number
     skippedFiles: number
+    failedFiles: number
   }> => {
     try {
       logger.info('Starting batch upload', { fileCount: filePaths.length, targetPath })
@@ -1909,12 +1910,13 @@ class FileStorage {
       const skippedFiles = filePaths.length - markdownFiles.length
 
       if (markdownFiles.length === 0) {
-        return { fileCount: 0, folderCount: 0, skippedFiles }
+        return { fileCount: 0, folderCount: 0, skippedFiles, failedFiles: 0 }
       }
 
       // Collect unique folders needed
       const foldersSet = new Set<string>()
       const fileOperations: Array<{ sourcePath: string; targetPath: string }> = []
+      let failedFiles = 0
 
       for (const filePath of markdownFiles) {
         try {
@@ -1953,6 +1955,7 @@ class FileStorage {
 
           fileOperations.push({ sourcePath: filePath, targetPath: finalPath })
         } catch (error) {
+          failedFiles += 1
           logger.error('Failed to prepare file operation:', error as Error, { filePath })
         }
       }
@@ -1989,6 +1992,7 @@ class FileStorage {
           if (result.status === 'fulfilled') {
             successCount++
           } else {
+            failedFiles += 1
             logger.error('Failed to upload file:', result.reason, {
               file: batch[index].sourcePath
             })
@@ -1999,13 +2003,15 @@ class FileStorage {
       logger.info('Batch upload completed', {
         successCount,
         folderCount: foldersSet.size,
-        skippedFiles
+        skippedFiles,
+        failedFiles
       })
 
       return {
         fileCount: successCount,
         folderCount: foldersSet.size,
-        skippedFiles
+        skippedFiles,
+        failedFiles
       }
     } catch (error) {
       logger.error('Batch upload failed:', error as Error)

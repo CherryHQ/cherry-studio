@@ -1,4 +1,5 @@
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import HighlightText from '@renderer/components/HighlightText'
 import {
   useNotesActions,
@@ -13,7 +14,6 @@ import type { NotesTreeNode } from '@renderer/types/note'
 import { ChevronDown, ChevronRight, File, FilePlus, Folder, FolderOpen } from 'lucide-react'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface TreeNodeProps {
   node: NotesTreeNode | SearchResult
@@ -67,6 +67,17 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
   const isDragInside = isDragOver && dragPosition === 'inside'
   const isDragAfter = isDragOver && dragPosition === 'after'
 
+  const nodeContainerClassName = cn(
+    'relative mb-0.5 flex cursor-pointer items-center justify-between rounded-sm border px-1.5 py-1 transition-all duration-200',
+    isDragInside
+      ? 'border-primary bg-accent'
+      : isActive
+        ? 'border-border bg-muted'
+        : 'border-transparent bg-transparent',
+    isDragging && 'opacity-50',
+    'hover:bg-muted'
+  )
+
   const getNodeNameClassName = () => {
     if (isRenaming) return 'animation-shimmer'
     if (isNewlyRenamed) return 'animation-reveal'
@@ -108,14 +119,16 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
   if (isHintNode) {
     return (
       <div key={node.id}>
-        <TreeNodeContainer active={false} depth={depth}>
-          <TreeNodeContent>
-            <NodeIcon>
+        <div className="relative mb-0.5 flex cursor-pointer items-center justify-between rounded-sm border border-transparent bg-transparent px-1.5 py-1 transition-all duration-200 hover:bg-muted">
+          <div className="flex min-w-0 flex-1 items-center">
+            <div className="mr-2 flex shrink-0 items-center justify-center text-muted-foreground">
               <FilePlus size={16} />
-            </NodeIcon>
-            <DropHintText onClick={onHintClick}>{t('notes.drop_markdown_hint')}</DropHintText>
-          </TreeNodeContent>
-        </TreeNodeContainer>
+            </div>
+            <div className="text-muted-foreground text-xs italic" onClick={onHintClick}>
+              {t('notes.drop_markdown_hint')}
+            </div>
+          </div>
+        </div>
       </div>
     )
   }
@@ -125,14 +138,8 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
       <ContextMenu>
         <ContextMenuTrigger asChild>
           <div onContextMenu={(e) => e.stopPropagation()}>
-            <TreeNodeContainer
-              active={isActive}
-              depth={depth}
-              isDragging={isDragging}
-              isDragOver={isDragOver}
-              isDragBefore={isDragBefore}
-              isDragInside={isDragInside}
-              isDragAfter={isDragAfter}
+            <div
+              className={nodeContainerClassName}
               draggable={!isEditing}
               data-node-id={node.id}
               onDragStart={(e) => onDragStart(e, node as NotesTreeNode)}
@@ -140,21 +147,24 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
               onDragLeave={onDragLeave}
               onDrop={(e) => onDrop(e, node as NotesTreeNode)}
               onDragEnd={onDragEnd}>
-              <TreeNodeContent onClick={() => onSelectNode(node as NotesTreeNode)}>
-                <NodeIndent depth={depth} />
+              {isDragBefore && <div className="-top-0.5 absolute right-0 left-0 h-0.5 rounded bg-primary" />}
+              {isDragAfter && <div className="-bottom-0.5 absolute right-0 left-0 h-0.5 rounded bg-primary" />}
+              <div className="flex min-w-0 flex-1 items-center" onClick={() => onSelectNode(node as NotesTreeNode)}>
+                <div className="shrink-0" style={{ width: depth * 16 }} />
 
                 {node.type === 'folder' && (
-                  <ExpandIcon
+                  <div
+                    className="mr-1 flex size-4 items-center justify-center text-muted-foreground hover:text-foreground"
                     onClick={(e) => {
                       e.stopPropagation()
                       onToggleExpanded(node.id)
                     }}
                     title={node.expanded ? t('notes.collapse') : t('notes.expand')}>
                     {node.expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                  </ExpandIcon>
+                  </div>
                 )}
 
-                <NodeIcon>
+                <div className="mr-2 flex shrink-0 items-center justify-center text-muted-foreground">
                   {node.type === 'folder' ? (
                     node.expanded ? (
                       <FolderOpen size={16} />
@@ -164,60 +174,75 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
                   ) : (
                     <File size={16} />
                   )}
-                </NodeIcon>
+                </div>
 
                 {isEditing ? (
-                  <EditInput {...inputProps} onClick={(e) => e.stopPropagation()} autoFocus />
+                  <input className="flex-1 text-sm" {...inputProps} onClick={(e) => e.stopPropagation()} autoFocus />
                 ) : (
-                  <NodeNameContainer>
-                    <NodeName className={getNodeNameClassName()}>
+                  <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                    <div
+                      className={cn(
+                        'relative flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-foreground text-sm will-change-[background-position,width]',
+                        getNodeNameClassName()
+                      )}>
                       {searchKeyword ? <HighlightText text={displayName} keyword={searchKeyword} /> : node.name}
-                    </NodeName>
+                    </div>
                     {searchResult && searchResult.matchType && searchResult.matchType !== 'filename' && (
-                      <MatchBadge matchType={searchResult.matchType}>
+                      <span
+                        className={cn(
+                          'inline-flex h-4 shrink-0 items-center rounded-xs px-1 font-medium text-xs leading-none',
+                          searchResult.matchType === 'both'
+                            ? 'bg-secondary text-secondary-foreground'
+                            : 'bg-muted text-muted-foreground'
+                        )}>
                         {searchResult.matchType === 'both' ? t('notes.search.both') : t('notes.search.content')}
-                      </MatchBadge>
+                      </span>
                     )}
-                  </NodeNameContainer>
+                  </div>
                 )}
-              </TreeNodeContent>
-            </TreeNodeContainer>
+              </div>
+            </div>
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent>{renderMenuItems(node as NotesTreeNode)}</ContextMenuContent>
       </ContextMenu>
 
       {showMatches && hasMatches && (
-        <SearchMatchesContainer depth={depth}>
+        <div
+          className="mt-1 mb-2 rounded-sm border-info-base border-l-2 bg-info-bg px-2 py-1.5"
+          style={{ marginLeft: depth * 16 + 40 }}>
           {(showAllMatches ? searchResult.matches! : searchResult.matches!.slice(0, 3)).map((match, idx) => (
-            <MatchItem key={idx} onClick={() => handleMatchClick(match)}>
-              <MatchLineNumber>{match.lineNumber}</MatchLineNumber>
-              <MatchContext>
+            <div
+              key={idx}
+              className="-mx-1.5 mb-1 flex cursor-pointer gap-2 rounded-sm px-1.5 py-1 text-xs transition-all duration-150 last:mb-0 hover:translate-x-0.5 hover:bg-background active:bg-accent"
+              onClick={() => handleMatchClick(match)}>
+              <span className="w-7.5 shrink-0 font-mono text-muted-foreground">{match.lineNumber}</span>
+              <div className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-muted-foreground">
                 <HighlightText text={match.context} keyword={searchKeyword} />
-              </MatchContext>
-            </MatchItem>
+              </div>
+            </div>
           ))}
           {searchResult.matches!.length > 3 && (
-            <MoreMatches
-              depth={depth}
+            <div
+              className="-mx-1.5 mt-1 flex cursor-pointer items-center rounded-sm px-1.5 py-1 text-muted-foreground text-xs transition-all duration-150 hover:bg-background hover:text-foreground"
               onClick={(e) => {
                 e.stopPropagation()
                 setShowAllMatches(!showAllMatches)
               }}>
               {showAllMatches ? (
                 <>
-                  <ChevronDown size={12} style={{ marginRight: 4 }} />
+                  <ChevronDown size={12} className="mr-1" />
                   {t('notes.search.show_less')}
                 </>
               ) : (
                 <>
-                  <ChevronRight size={12} style={{ marginRight: 4 }} />+{searchResult.matches!.length - 3}{' '}
+                  <ChevronRight size={12} className="mr-1" />+{searchResult.matches!.length - 3}{' '}
                   {t('notes.search.more_matches')}
                 </>
               )}
-            </MoreMatches>
+            </div>
           )}
-        </SearchMatchesContainer>
+        </div>
       )}
 
       {renderChildren && node.type === 'folder' && node.expanded && hasChildren && (
@@ -230,230 +255,5 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
     </div>
   )
 })
-
-export const TreeNodeContainer = styled.div<{
-  active: boolean
-  depth: number
-  isDragging?: boolean
-  isDragOver?: boolean
-  isDragBefore?: boolean
-  isDragInside?: boolean
-  isDragAfter?: boolean
-}>`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 4px 6px;
-  border-radius: 4px;
-  cursor: pointer;
-  margin-bottom: 2px;
-  /* CRITICAL: Must have fully opaque background for sticky to work properly */
-  /* Transparent/semi-transparent backgrounds will show content bleeding through when sticky */
-  background-color: ${(props) => {
-    if (props.isDragInside) return 'var(--color-primary-background)'
-    // Use hover color for active state - it's guaranteed to be opaque
-    if (props.active) return 'var(--color-hover, var(--color-background-mute))'
-    return 'var(--color-background)'
-  }};
-  border: 0.5px solid
-    ${(props) => {
-      if (props.isDragInside) return 'var(--color-primary)'
-      if (props.active) return 'var(--color-border)'
-      return 'transparent'
-    }};
-  opacity: ${(props) => (props.isDragging ? 0.5 : 1)};
-  transition: all 0.2s ease;
-  position: relative;
-
-  &:hover {
-    background-color: var(--color-background-soft);
-
-    .node-actions {
-      opacity: 1;
-    }
-  }
-
-  /* 添加拖拽指示线 */
-  ${(props) =>
-    props.isDragBefore &&
-    `
-    &::before {
-      content: '';
-      position: absolute;
-      top: -2px;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background-color: var(--color-primary);
-      border-radius: 1px;
-    }
-  `}
-
-  ${(props) =>
-    props.isDragAfter &&
-    `
-    &::after {
-      content: '';
-      position: absolute;
-      bottom: -2px;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background-color: var(--color-primary);
-      border-radius: 1px;
-    }
-  `}
-`
-
-export const TreeNodeContent = styled.div`
-  display: flex;
-  align-items: center;
-  flex: 1;
-  min-width: 0;
-`
-
-export const NodeIndent = styled.div<{ depth: number }>`
-  width: ${(props) => props.depth * 16}px;
-  flex-shrink: 0;
-`
-
-export const ExpandIcon = styled.div`
-  width: 16px;
-  height: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-2);
-  margin-right: 4px;
-
-  &:hover {
-    color: var(--color-text);
-  }
-`
-
-export const NodeIcon = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 8px;
-  color: var(--color-text-2);
-  flex-shrink: 0;
-`
-
-export const NodeName = styled.div`
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 13px;
-  color: var(--color-text);
-  position: relative;
-  will-change: background-position, width;
-`
-
-export const SearchMatchesContainer = styled.div<{ depth: number }>`
-  margin-left: ${(props) => props.depth * 16 + 40}px;
-  margin-top: 4px;
-  margin-bottom: 8px;
-  padding: 6px 8px;
-  background-color: var(--color-background-mute);
-  border-radius: 4px;
-  border-left: 2px solid var(--color-primary-soft);
-`
-
-export const NodeNameContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: 1;
-  min-width: 0;
-`
-
-export const MatchBadge = styled.span<{ matchType: string }>`
-  display: inline-flex;
-  align-items: center;
-  padding: 0 4px;
-  height: 16px;
-  font-size: 10px;
-  line-height: 1;
-  border-radius: 2px;
-  background-color: ${(props) =>
-    props.matchType === 'both' ? 'var(--color-primary-soft)' : 'var(--color-background-mute)'};
-  color: ${(props) => (props.matchType === 'both' ? 'var(--color-primary)' : 'var(--color-text-3)')};
-  font-weight: 500;
-  flex-shrink: 0;
-`
-
-export const MatchItem = styled.div`
-  display: flex;
-  gap: 8px;
-  margin-bottom: 4px;
-  font-size: 12px;
-  padding: 4px 6px;
-  margin-left: -6px;
-  margin-right: -6px;
-  border-radius: 3px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-
-  &:hover {
-    background-color: var(--color-background-soft);
-    transform: translateX(2px);
-  }
-
-  &:active {
-    background-color: var(--color-active);
-  }
-
-  &:last-child {
-    margin-bottom: 0;
-  }
-`
-
-export const MatchLineNumber = styled.span`
-  color: var(--color-text-3);
-  font-family: monospace;
-  flex-shrink: 0;
-  width: 30px;
-`
-
-export const MatchContext = styled.div`
-  color: var(--color-text-2);
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: monospace;
-`
-
-export const MoreMatches = styled.div<{ depth: number }>`
-  margin-top: 4px;
-  padding: 4px 6px;
-  margin-left: -6px;
-  margin-right: -6px;
-  font-size: 11px;
-  color: var(--color-text-3);
-  border-radius: 3px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  transition: all 0.15s ease;
-
-  &:hover {
-    color: var(--color-text-2);
-    background-color: var(--color-background-soft);
-  }
-`
-
-const EditInput = styled.input`
-  flex: 1;
-  font-size: 13px;
-`
-
-const DropHintText = styled.div`
-  color: var(--color-text-3);
-  font-size: 12px;
-  font-style: italic;
-`
 
 export default TreeNode

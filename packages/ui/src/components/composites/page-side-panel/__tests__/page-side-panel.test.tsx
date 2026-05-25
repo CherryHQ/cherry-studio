@@ -5,7 +5,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import * as React from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { PageSidePanel } from '../index'
+import { PageSidePanel, PageSidePanelItem, PageSidePanelSection } from '../index'
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {
@@ -87,6 +87,11 @@ describe('PageSidePanel', () => {
       expect(screen.getByRole('dialog', { name: 'Panel title' })).toBeInTheDocument()
     })
 
+    it('uses the standard title as the dialog accessible name', () => {
+      render(<PageSidePanel open={true} onClose={vi.fn()} title="Panel title" />)
+      expect(screen.getByRole('dialog', { name: 'Panel title' })).toBeInTheDocument()
+    })
+
     it('restores focus to the trigger when closed', () => {
       function TestPanel() {
         const [open, setOpen] = React.useState(false)
@@ -133,6 +138,11 @@ describe('PageSidePanel', () => {
       expect(screen.getByText('My Header')).toBeInTheDocument()
     })
 
+    it('renders a standard title with the shared title class', () => {
+      render(<PageSidePanel open={true} onClose={vi.fn()} title="My Title" />)
+      expect(screen.getByText('My Title')).toHaveClass('font-semibold', 'text-base', 'text-foreground')
+    })
+
     it('renders children in body', () => {
       render(
         <PageSidePanel open={true} onClose={vi.fn()}>
@@ -167,16 +177,71 @@ describe('PageSidePanel', () => {
   })
 
   describe('placement', () => {
-    it('applies right-2 class by default', () => {
-      render(<PageSidePanel open={true} onClose={vi.fn()} />)
+    it('uses the design shell classes by default', () => {
+      const { container } = render(
+        <PageSidePanel open={true} onClose={vi.fn()} header={<span>Panel title</span>}>
+          Body content
+        </PageSidePanel>
+      )
       const dialog = screen.getByRole('dialog')
-      expect(dialog.className).toContain('right-2')
+      expect(dialog.className).toContain('w-100')
+      expect(dialog.className).toContain('rounded-3xl')
+      expect(dialog.className).toContain('bg-card')
+      expect(dialog.className).toContain('text-card-foreground')
+      expect(dialog.className).toContain('shadow-xl')
+
+      const header = container.querySelector('[data-slot="page-side-panel-header"]')!
+      expect(header.className).toContain('px-6')
+      expect(header.className).toContain('pt-6')
+      expect(header.className).toContain('pb-3')
+
+      const body = container.querySelector('[data-slot="page-side-panel-body"]')!
+      expect(body.className).toContain('px-6')
+      expect(body.className).toContain('py-4')
     })
 
-    it('applies left-2 class when side=left', () => {
+    it('applies design inset classes by default', () => {
+      render(<PageSidePanel open={true} onClose={vi.fn()} />)
+      const dialog = screen.getByRole('dialog')
+      expect(dialog.className).toContain('top-3')
+      expect(dialog.className).toContain('bottom-3')
+      expect(dialog.className).toContain('right-3')
+    })
+
+    it('applies left-3 class when side=left', () => {
       render(<PageSidePanel open={true} onClose={vi.fn()} side="left" />)
       const dialog = screen.getByRole('dialog')
-      expect(dialog.className).toContain('left-2')
+      expect(dialog.className).toContain('left-3')
+    })
+  })
+
+  describe('settings content helpers', () => {
+    it('renders grouped sections with optional actions', () => {
+      render(
+        <PageSidePanelSection title="Display management" actions={<button type="button">Reset</button>}>
+          <div>Panel content</div>
+        </PageSidePanelSection>
+      )
+
+      expect(screen.getByText('Display management')).toHaveClass('font-semibold', 'text-sm')
+      expect(screen.getByRole('button', { name: 'Reset' })).toBeInTheDocument()
+      expect(screen.getByText('Panel content')).toBeInTheDocument()
+    })
+
+    it('renders preference rows with title, description, action, and body control', () => {
+      render(
+        <PageSidePanelItem
+          title="Open links externally"
+          description="Use the default browser"
+          action={<button type="button">Toggle</button>}>
+          <div>Extra control</div>
+        </PageSidePanelItem>
+      )
+
+      expect(screen.getByText('Open links externally')).toHaveClass('text-sm')
+      expect(screen.getByText('Use the default browser')).toHaveClass('text-xs')
+      expect(screen.getByRole('button', { name: 'Toggle' })).toBeInTheDocument()
+      expect(screen.getByText('Extra control')).toBeInTheDocument()
     })
   })
 })

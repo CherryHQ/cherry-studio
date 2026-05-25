@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "430c096a-b9a0-45e1-a125-877f044e3af0",
+  "id": "a224bd18-b735-4c84-bad5-5fb84c8b24b4",
   "prevId": "3693bd3e-7915-4bdd-bfe0-7cb58b5984d4",
   "tables": {
     "agent": {
@@ -1334,6 +1334,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -1346,13 +1353,6 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         }
       },
@@ -2091,6 +2091,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "phase": {
+          "name": "phase",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "error": {
           "name": "error",
           "type": "text",
@@ -2159,15 +2166,15 @@
         },
         "knowledge_item_status_check": {
           "name": "knowledge_item_status_check",
-          "value": "\"knowledge_item\".\"status\" IN ('idle', 'preparing', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting')"
+          "value": "\"knowledge_item\".\"status\" IN ('idle', 'processing', 'completed', 'failed')"
         },
-        "knowledge_item_type_status_check": {
-          "name": "knowledge_item_type_status_check",
-          "value": "\n        (\"knowledge_item\".\"type\" IN ('file', 'url', 'note') AND \"knowledge_item\".\"status\" != 'preparing')\n        OR (\"knowledge_item\".\"type\" IN ('directory', 'sitemap') AND \"knowledge_item\".\"status\" NOT IN ('reading', 'embedding'))\n      "
+        "knowledge_item_phase_check": {
+          "name": "knowledge_item_phase_check",
+          "value": "\n        \"knowledge_item\".\"phase\" IS NULL\n        OR (\"knowledge_item\".\"type\" IN ('file', 'url', 'note') AND \"knowledge_item\".\"phase\" IN ('reading', 'embedding'))\n        OR (\"knowledge_item\".\"type\" IN ('directory', 'sitemap') AND \"knowledge_item\".\"phase\" = 'preparing')\n      "
         },
-        "knowledge_item_status_error_check": {
-          "name": "knowledge_item_status_error_check",
-          "value": "\n        (\n          \"knowledge_item\".\"status\" IN ('idle', 'preparing', 'processing', 'reading', 'embedding', 'completed', 'deleting')\n          AND \"knowledge_item\".\"error\" IS NULL\n        )\n        OR (\n          \"knowledge_item\".\"status\" = 'failed'\n          AND \"knowledge_item\".\"error\" IS NOT NULL\n          AND length(trim(\"knowledge_item\".\"error\")) > 0\n        )\n      "
+        "knowledge_item_status_phase_error_check": {
+          "name": "knowledge_item_status_phase_error_check",
+          "value": "\n        (\n          \"knowledge_item\".\"status\" IN ('idle', 'completed')\n          AND \"knowledge_item\".\"phase\" IS NULL\n          AND \"knowledge_item\".\"error\" IS NULL\n        )\n        OR (\n          -- Containers may stay processing after their own prepare phase ends\n          -- while descendant leaf items continue reading/embedding.\n          \"knowledge_item\".\"status\" = 'processing'\n          AND \"knowledge_item\".\"error\" IS NULL\n        )\n        OR (\n          \"knowledge_item\".\"status\" = 'failed'\n          AND \"knowledge_item\".\"phase\" IS NULL\n          AND \"knowledge_item\".\"error\" IS NOT NULL\n          AND length(trim(\"knowledge_item\".\"error\")) > 0\n        )\n      "
         }
       }
     },
@@ -3633,6 +3640,78 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
+    },
+    "note": {
+      "name": "note",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "root_path": {
+          "name": "root_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "path": {
+          "name": "path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "is_starred": {
+          "name": "is_starred",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "is_expanded": {
+          "name": "is_expanded",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "note_root_path_path_unique_idx": {
+          "name": "note_root_path_path_unique_idx",
+          "columns": ["root_path", "path"],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "note_has_state_check": {
+          "name": "note_has_state_check",
+          "value": "\"note\".\"is_starred\" = 1 OR \"note\".\"is_expanded\" = 1"
+        }
+      }
     }
   },
   "views": {},
@@ -3640,7 +3719,9 @@
   "_meta": {
     "schemas": {},
     "tables": {},
-    "columns": {}
+    "columns": {
+      "\"file_entry\".\"trashed_at\"": "\"file_entry\".\"deleted_at\""
+    }
   },
   "internal": {
     "indexes": {

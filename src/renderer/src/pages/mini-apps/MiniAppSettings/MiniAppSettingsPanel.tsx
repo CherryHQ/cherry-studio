@@ -20,7 +20,7 @@ const MiniAppSettingsPanel: FC<Props> = ({ open, onClose, children }) => {
     <PageSidePanel
       open={open}
       onClose={onClose}
-      header={<span className="font-semibold text-base text-foreground">{t('settings.miniApps.display_title')}</span>}
+      title={t('settings.miniApps.display_title')}
       closeLabel={t('common.close')}>
       {children}
     </PageSidePanel>

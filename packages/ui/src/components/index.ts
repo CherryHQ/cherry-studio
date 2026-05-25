@@ -52,7 +52,15 @@ export {
 } from './composites/entity-selector'
 export { Box, Center, ColFlex, Flex, RowFlex, SpaceBetweenRowFlex } from './composites/flex'
 export { default as HorizontalScrollContainer } from './composites/horizontal-scroll-container'
-export { PageSidePanel, type PageSidePanelPlacement, type PageSidePanelProps } from './composites/page-side-panel'
+export {
+  PageSidePanel,
+  PageSidePanelItem,
+  type PageSidePanelItemProps,
+  type PageSidePanelPlacement,
+  type PageSidePanelProps,
+  PageSidePanelSection,
+  type PageSidePanelSectionProps
+} from './composites/page-side-panel'
 export { default as Scrollbar } from './composites/scrollbar'
 export { SearchInput, type SearchInputProps } from './composites/search-input'
 export { SelectDropdown, type SelectDropdownProps } from './composites/select-dropdown'

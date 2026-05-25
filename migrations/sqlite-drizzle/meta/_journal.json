@@ -193,8 +193,15 @@
     {
       "idx": 27,
       "version": "6",
+      "when": 1779373185864,
+      "tag": "0027_magical_agent_zero",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
       "when": 1779714716441,
-      "tag": "0027_keen_preak",
+      "tag": "0028_keen_preak",
       "breakpoints": true
     }
   ],

@@ -174,7 +174,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, formattingState, onCom
             data-testid={`toolbar-${command}`}
             aria-label={tooltipText}
             aria-pressed={isActive}>
-            <Icon color={isActive ? 'var(--color-primary)' : 'var(--color-text)'} />
+            <Icon color="currentColor" />
           </ToolbarButton>
         )
 
