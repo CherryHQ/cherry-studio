@@ -466,9 +466,11 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.File_ShowInFolder, fileManager.showInFolder.bind(fileManager))
 
   // pdf
+  // TODO: It should be handled by FileProcessingService
   ipcMain.handle(IpcChannel.Pdf_ExtractText, (_, data: Uint8Array | ArrayBuffer | string) => extractPdfText(data))
 
   // file service
+  // TODO: They should be handled by FileUploadService
   ipcMain.handle(IpcChannel.FileService_Upload, async (_, provider: Provider, file: FileMetadata) => {
     const service = fileServiceManager.getService(provider)
     return await service.uploadFile(file)
