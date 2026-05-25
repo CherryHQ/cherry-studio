@@ -119,7 +119,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
             />
           )}
         </div>
-        <div className="flex h-12 shrink-0 items-center border-border border-t bg-muted px-4 py-2">
+        <div className="flex h-12 shrink-0 items-center border-border border-t px-4 py-2">
           <SpaceBetweenRowFlex className="w-full items-center">
             <div className="select-none text-muted-foreground text-xs leading-none">
               {t('notes.characters')}: {tokenCount}
