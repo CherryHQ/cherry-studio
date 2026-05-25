@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { fileRefTable } from '@data/db/schemas/file'
+import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { createClient, type Value as LibsqlValue } from '@libsql/client'
@@ -14,7 +14,7 @@ import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } fr
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import { knowledgeItemSourceType } from '@shared/data/types/file/ref'
 import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
-import { sql } from 'drizzle-orm'
+import { inArray, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
@@ -155,6 +155,30 @@ export class KnowledgeMigrator extends BaseMigrator {
     }
 
     this.skippedWarnings.clear()
+  }
+
+  // Queries `file_entry` for the subset of legacyFileIds we plan to reference,
+  // so the `fileRefRows` loop can drop dangling refs *before* the engine's
+  // post-migration `PRAGMA foreign_key_check` runs and aborts the whole user.
+  private async loadMigratedFileEntryIds(ctx: MigrationContext): Promise<Set<string>> {
+    const legacyFileIds = new Set<string>()
+    for (const item of this.preparedItems) {
+      if (item.type !== 'file') continue
+      const fileData = item.data as { file?: { id?: string } } | undefined
+      const id = fileData?.file?.id
+      if (id) legacyFileIds.add(id)
+    }
+
+    if (legacyFileIds.size === 0) {
+      return new Set<string>()
+    }
+
+    const rows = await ctx.db
+      .select({ id: fileEntryTable.id })
+      .from(fileEntryTable)
+      .where(inArray(fileEntryTable.id, [...legacyFileIds]))
+
+    return new Set(rows.map((row) => row.id))
   }
 
   private getLegacyKnowledgeDbPath(baseId: string, knowledgeBaseDir: string): string | null {
@@ -585,10 +609,19 @@ export class KnowledgeMigrator extends BaseMigrator {
       // file_ref construction is folded into the per-base transaction so that
       // base + items + refs commit atomically. The v1 file id is preserved
       // verbatim by FileMigrator (per migration-plan §2.9), so each
-      // legacyFileId is already the v2 fileEntryId. Items without a fileId
-      // are bucketed via `recordSkippedWarning` so the user / postmortem sees
-      // the count + a few example item ids instead of a silent drop.
+      // legacyFileId is already the v2 fileEntryId. Items without a fileId,
+      // or whose fileId points at a v1 row FileMigrator dropped (invalid ext
+      // / size / required fields / duplicate id), are bucketed via
+      // `recordSkippedWarning`. Emitting a dangling `file_ref` would crash
+      // the whole user migration at `MigrationEngine.verifyForeignKeys()` —
+      // the engine runs with foreign_keys=OFF during migration, so the
+      // dangling insert lands silently, but the post-migration
+      // `PRAGMA foreign_key_check` then throws on it.
+      // (Pure orphan refs — items pointing at fileIds not in v1 db.files at
+      // all — are filtered earlier in `prepare()` via the `invalid_file`
+      // path, so they never reach this loop.)
       // Cross-run idempotency lives at the engine level (verifyAndClearNewTables) — no onConflict guard needed here.
+      const migratedFileEntryIds = await this.loadMigratedFileEntryIds(ctx)
       const now = Date.now()
 
       for (const base of this.preparedBases) {
@@ -608,6 +641,13 @@ export class KnowledgeMigrator extends BaseMigrator {
             this.recordSkippedWarning(
               'knowledge_item_missing_file_id',
               `Knowledge item id=${item.id} (type=file) has no data.file.id; file_ref row will not be created`
+            )
+            continue
+          }
+          if (!migratedFileEntryIds.has(legacyFileId)) {
+            this.recordSkippedWarning(
+              'knowledge_item_dangling_file_entry',
+              `Knowledge item id=${item.id} references file_entry id=${legacyFileId} which is absent from v2 file_entry (FileMigrator dropped the v1 row); file_ref row will not be created`
             )
             continue
           }

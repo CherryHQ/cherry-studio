@@ -1372,6 +1372,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
         status: 'idle'
       }
     ]
+    vi.spyOn(migrator, 'loadMigratedFileEntryIds').mockResolvedValue(new Set([legacyFileId]))
 
     const result = await migrator.execute({ db: ctx.db, sharedData: ctx.sharedData, logger: ctx.logger } as any)
 
@@ -1446,6 +1447,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
         status: 'idle'
       }
     ]
+    vi.spyOn(migrator, 'loadMigratedFileEntryIds').mockResolvedValue(new Set(['legacy-a', 'legacy-b']))
 
     const result = await migrator.execute({ db: ctx.db, sharedData: ctx.sharedData, logger: ctx.logger } as any)
 
@@ -1472,6 +1474,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
         status: 'idle'
       }
     ]
+    vi.spyOn(migrator, 'loadMigratedFileEntryIds').mockResolvedValue(new Set(['legacy-a']))
 
     await migrator.execute({ db: ctx.db, sharedData: ctx.sharedData, logger: ctx.logger } as any)
 
@@ -1480,5 +1483,59 @@ describe('KnowledgeMigrator file_ref creation', () => {
     // back and the next run retries everything cleanly).
     expect(ctx.fileRefInsertsInsideTx).toHaveLength(1)
     expect(ctx.insertedOutsideTx).toHaveLength(0)
+  })
+
+  it('skips file_ref creation when legacyFileId is absent from v2 file_entry (dangling guard)', async () => {
+    const ctx = makeExecCtx()
+    loggerWarnMock.mockClear()
+
+    const migrator = new KnowledgeMigrator() as any
+    migrator.preparedBases = [{ id: 'kb-1', name: 'KB 1', dimensions: 512, embeddingModelId: 'openai::emb' }]
+    migrator.preparedItems = [
+      {
+        id: 'item-survivor',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'file',
+        data: { source: '/tmp/ok.pdf', file: { id: 'legacy-survivor', name: 'ok.pdf' } },
+        status: 'idle'
+      },
+      {
+        id: 'item-skipped-by-filemigrator',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'file',
+        data: { source: '/tmp/bad.xyz', file: { id: 'legacy-skipped', name: 'bad.xyz' } },
+        status: 'idle'
+      },
+      {
+        id: 'item-orphan-ref',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'file',
+        data: { source: '/tmp/ghost.pdf', file: { id: 'legacy-ghost', name: 'ghost.pdf' } },
+        status: 'idle'
+      }
+    ]
+    // Only legacy-survivor exists in v2 file_entry; the other two are dangling
+    // (legacy-skipped was dropped by FileMigrator; legacy-ghost never existed).
+    vi.spyOn(migrator, 'loadMigratedFileEntryIds').mockResolvedValue(new Set(['legacy-survivor']))
+
+    const result = await migrator.execute({ db: ctx.db, sharedData: ctx.sharedData, logger: ctx.logger } as any)
+
+    expect(result.success).toBe(true)
+    expect(ctx.fileRefInserts).toHaveLength(1)
+    expect(ctx.fileRefInserts[0]).toMatchObject({
+      fileEntryId: 'legacy-survivor',
+      sourceId: 'item-survivor'
+    })
+    const summaryCall = loggerWarnMock.mock.calls.find(
+      ([msg]) => typeof msg === 'string' && msg.includes('knowledge_item_dangling_file_entry')
+    )
+    expect(summaryCall).toBeDefined()
+    expect(summaryCall![0]).toContain('count=2')
+    // Sample messages should mention both dangling item ids (limit=3 so both fit).
+    expect(summaryCall![0]).toContain('item-skipped-by-filemigrator')
+    expect(summaryCall![0]).toContain('item-orphan-ref')
   })
 })
