@@ -4,21 +4,56 @@ import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import type { FileMetadata } from '@renderer/types'
 import { getFileDirectory } from '@renderer/utils'
-import { toFileMetadata } from '@shared/file/legacy/toFileMetadata'
-import type { FilePath } from '@shared/file/types'
 import dayjs from 'dayjs'
 
 const logger = loggerService.withContext('FileManager')
 
+/**
+ * @deprecated Slated for v2 redesign — do not extend.
+ *
+ * This class predates the v2 file module and bundles three unrelated
+ * responsibilities that should be split apart:
+ *
+ *   1. **Dexie `db.files` CRUD + reference counting** — superseded by the
+ *      v2 `file_entry` + `file_ref` tables. Renderer never writes those
+ *      directly; it goes through File IPC (`createInternalEntry`,
+ *      `ensureExternalEntry`, `permanentDelete`, …).
+ *   2. **Thin IPC wrappers** (`selectFiles`, `readBinaryImage`, …) — should
+ *      either be inlined at call sites or moved into a focused IPC client.
+ *   3. **Pure utility helpers** (`getFilePath`, `getSafePath`, `getFileUrl`,
+ *      `isDangerFile`, `formatFileName`) — belong in `@renderer/utils/file`.
+ *
+ * Phase 2 Batch 0 attempted to migrate `addFile` / `uploadFile` / `deleteFile`
+ * to v2 IPC in place, but doing so broke the v1 contract: the v1 `addFile`
+ * was a Dexie-only reference-count operation that assumed the physical file
+ * was already on disk (written upstream by `saveBase64Image` / `download` /
+ * etc.), whereas the v2 path-based `createInternalEntry` re-copies the file
+ * and mints a new uuid. Production callers (`imageCallbacks`, paintings
+ * pages) discard the return value, leaving a duplicate physical copy plus
+ * an unreferenced `file_entry`, while the business object still points at
+ * the original (now entry-less) uuid.
+ *
+ * The cutover is being reverted here and the class re-marked as legacy
+ * pending its v2-shaped replacement. The replacement work is tracked
+ * separately; until it lands, **do not add new call sites** — write straight
+ * to File IPC (`window.api.file.createInternalEntry` etc.) from new code.
+ */
 class FileManager {
   static async selectFiles(options?: Electron.OpenDialogOptions): Promise<FileMetadata[] | null> {
     return await window.api.file.select(options)
   }
 
   static async addFile(file: FileMetadata): Promise<FileMetadata> {
-    const entry = await window.api.file.createInternalEntry({ source: 'path', path: file.path as FilePath })
-    const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })
-    return toFileMetadata(entry, physicalPath)
+    const fileRecord = await db.files.get(file.id)
+
+    if (fileRecord) {
+      await db.files.update(fileRecord.id, { ...fileRecord, count: fileRecord.count + 1 })
+      return fileRecord
+    }
+
+    await db.files.add(file)
+
+    return file
   }
 
   static async addFiles(files: FileMetadata[]): Promise<FileMetadata[]> {
@@ -39,21 +74,33 @@ class FileManager {
     logger.info(`Adding base64 file: ${JSON.stringify(file)}`)
 
     const base64File = await window.api.file.base64File(file.id + file.ext)
-    // Read from Dexie is still functional; write path is deferred to Batch A-E migration.
     const fileRecord = await db.files.get(base64File.id)
 
     if (fileRecord) {
+      await db.files.update(fileRecord.id, { ...fileRecord, count: fileRecord.count + 1 })
       return fileRecord
     }
+
+    await db.files.add(base64File)
 
     return base64File
   }
 
   static async uploadFile(file: FileMetadata): Promise<FileMetadata> {
     logger.info(`Uploading file: ${JSON.stringify(file)}`)
-    const entry = await window.api.file.createInternalEntry({ source: 'path', path: file.path as FilePath })
-    const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })
-    return toFileMetadata(entry, physicalPath)
+
+    const uploadFile = await window.api.file.upload(file)
+    logger.info('Uploaded file:', uploadFile)
+    const fileRecord = await db.files.get(uploadFile.id)
+
+    if (fileRecord) {
+      await db.files.update(fileRecord.id, { ...fileRecord, count: fileRecord.count + 1 })
+      return fileRecord
+    }
+
+    await db.files.add(uploadFile)
+
+    return uploadFile
   }
 
   static async uploadFiles(files: FileMetadata[]): Promise<FileMetadata[]> {
@@ -85,34 +132,31 @@ class FileManager {
       return
     }
 
-    if (!force && file.count > 1) {
-      // Reference count is still > 1: skip physical delete.
-      // Dexie write is frozen — count decrement deferred to Batch A-E migration.
-      return
+    if (!force) {
+      if (file.count > 1) {
+        await db.files.update(id, { ...file, count: file.count - 1 })
+        return
+      }
     }
 
-    // Delete the physical file via legacy IPC.
-    // Dexie row removal is deferred to Batch A-E migration (Dexie writes frozen).
+    await db.files.delete(id)
+
     try {
       await window.api.file.delete(id + file.ext)
     } catch (error) {
-      // Stable anchor `FM_DELETE_IPC_FAILED` so support / users grepping for
-      // orphaned files have a single string to filter on. We deliberately
-      // do not rethrow: this is v1-throwaway code (callers use `Promise.all`
-      // which would otherwise tear down batch deletes on the first failure);
-      // the physical file leak is visible via the diagnostic trail and the
-      // v2 sweep that runs at startup.
-      logger.error('FM_DELETE_IPC_FAILED', error as Error, {
-        fileId: id,
-        ext: file.ext,
-        physicalName: id + file.ext
-      })
+      logger.error('Failed to delete file:', error as Error)
     }
   }
 
   static async deleteFiles(files: FileMetadata[]): Promise<void> {
     if (!files || files.length === 0) return
-    await Promise.all(files.map((file) => this.deleteFile(file.id)))
+
+    const results = await Promise.allSettled(files.map((file) => this.deleteFile(file.id)))
+
+    const failed = results.filter((r) => r.status === 'rejected')
+    if (failed.length > 0) {
+      logger.warn(`File deletions completed with ${failed.length} files failed to delete:`, failed)
+    }
   }
 
   static async allFiles(): Promise<FileMetadata[]> {
@@ -135,16 +179,11 @@ class FileManager {
   }
 
   static async updateFile(file: FileMetadata) {
-    // Dexie writes are frozen. updateFile is a no-op until Batch A-E migrates
-    // this call site to the v2 File IPC rename channel. Callers see a
-    // "saved but didn't" outcome — on next refresh the original name reappears.
-    // Stable anchor `FM_UPDATE_NOT_IMPL` lets support / users grep for
-    // affected rename attempts during the migration window.
-    logger.warn('FM_UPDATE_NOT_IMPL', {
-      fileId: file.id,
-      originName: file.origin_name,
-      reason: 'Dexie writes are frozen; rename will not persist until v2 File IPC rename lands (Batch A-E)'
-    })
+    if (!file.origin_name.includes(file.ext)) {
+      file.origin_name = file.origin_name + file.ext
+    }
+
+    await db.files.update(file.id, file)
   }
 
   static formatFileName(file: FileMetadata) {
