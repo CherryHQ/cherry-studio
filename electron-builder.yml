@@ -142,40 +142,38 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.9.6 - Bug Fixes
+    Cherry Studio 1.9.7 - Model Enhancements
+
+    ✨ New Features
+    - [Models] Added support for grok-build-0.1 reasoning, tool use, and vision capabilities
 
     🐛 Bug Fixes
-    - [AI] Fixed crash when chat model's stored provider no longer exists
-    - [AI] Fixed streaming requests aborted after 30 minutes during active data transfer (affected models with extended thinking)
-    - [Agents] Fixed agent session creation failures when provider settings change
-    - [Agents] Fixed deepseek-r1 models incorrectly showing function_calling label causing errors in Agent mode
-    - [Agents] Use task name instead of agent name for cron task sessions
-    - [MCP] Fixed approval card not auto-expanding to show Run/Cancel buttons
-    - [MCP] Clean up OAuth tokens when deleting servers
-    - [Code Tools] Fixed Codex CLI launch failure when using OpenAI or other reserved providers
-    - [Claude Code] Fixed launch failures caused by auth conflicts with provider environment variables
-    - [Image] Fixed gpt-image-2 multi-turn editing crash
-    - [Knowledge] Fixed HTTP/HTTPS/FTP URLs being stripped from Markdown documents
-    - [OpenMinerU] Fixed preprocessing ENOENT errors due to ZIP structure change
-    - [Qiniu] Fixed PDF upload regression for GPT-5.4 models
-    - [Settings] Minor alignment fix for provider model list actions
+    - [Models] Fixed Qwen max series models incorrectly marked as supporting vision input
+    - [Provider] StepFun now works as a Claude Code/Anthropic-compatible provider
+    - [Provider] Fixed AIHubMix reasoning effort configuration not applying correctly
+    - [Models] Fixed Gemini 3.x family detection and removed deprecated sampling parameters
+    - [Code Tools] Fixed OpenCode launch failures after CLI updates
+    - [Agents] Fixed custom provider headers not being forwarded to Claude Code
+    - [Agents] DeepSeek V4 Flash and MiMo V2.5+ now correctly budget for 1M context
+    - [UI] Fixed code block syntax tokens disappearing in light theme
+    - [Models] Fixed Grok 4.3 reasoning effort support in xAI responses
+    - [UI] Clarified OpenClaw migration prompt when detecting external PATH installations
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.9.6 - 错误修复
+    Cherry Studio 1.9.7 - 模型增强
+
+    ✨ 新功能
+    - [模型] 新增对 grok-build-0.1 推理、工具调用和视觉功能的支持
 
     🐛 问题修复
-    - [AI] 修复聊天模型的存储提供商不存在时导致的崩溃
-    - [AI] 修复活跃数据传输期间流式请求在 30 分钟后被中断的问题（影响具有扩展思考的模型）
-    - [智能体] 修复提供商设置更改时智能体会话创建失败的问题
-    - [智能体] 修复 deepseek-r1 模型错误显示 function_calling 标签导致智能体模式出错
-    - [智能体] 定时任务会话现在使用任务名称而非智能体名称
-    - [MCP] 修复批准卡片未自动展开以显示运行/取消按钮的问题
-    - [MCP] 删除服务器时清理 OAuth 令牌
-    - [代码工具] 修复使用 OpenAI 或其他保留提供商时 Codex CLI 启动失败的问题
-    - [Claude Code] 修复提供商环境变量导致身份验证冲突从而无法启动的问题
-    - [图像] 修复 gpt-image-2 多轮编辑崩溃问题
-    - [知识库] 修复 Markdown 文档中的 HTTP/HTTPS/FTP URL 被移除的问题
-    - [OpenMinerU] 修复 ZIP 结构变更导致的预处理 ENOENT 错误
-    - [七牛云] 修复 GPT-5.4 模型的 PDF 上传回归问题
-    - [设置] 提供商模型列表操作的微小对齐修复
+    - [模型] 修复 Qwen max 系列模型被错误标记为支持视觉输入的问题
+    - [提供商] StepFun 现在可作为 Claude Code/Anthropic 兼容提供商使用
+    - [提供商] 修复 AIHubMix 推理强度配置未正确应用的问题
+    - [模型] 修复 Gemini 3.x 系列检测并移除已弃用的采样参数
+    - [代码工具] 修复 OpenCode 在 CLI 更新后无法启动的问题
+    - [智能体] 修复自定义提供商请求头未转发到 Claude Code 的问题
+    - [智能体] DeepSeek V4 Flash 和 MiMo V2.5+ 现在正确预算 1M 上下文
+    - [界面] 修复浅色主题代码块语法标记消失的问题
+    - [模型] 修复 Grok 4.3 在 xAI 响应中的推理强度支持
+    - [界面] 改进检测到外部 PATH 安装时的 OpenClaw 迁移提示
     <!--LANG:END-->
