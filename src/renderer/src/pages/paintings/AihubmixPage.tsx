@@ -35,13 +35,16 @@ import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
-import { type ConfigItem, createModeConfigs, DEFAULT_PAINTING } from './config/aihubmixConfig'
+import {
+  type ConfigItem,
+  createModeConfigs,
+  DEFAULT_PAINTING,
+  getAihubmixGenerateModels,
+  getAihubmixRemixModels
+} from './config/aihubmixConfig'
 import { checkProviderEnabled } from './utils'
 
 const logger = loggerService.withContext('AihubmixPage')
-
-// 使用函数创建配置项
-const modeConfigs = createModeConfigs()
 
 const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [mode, setMode] = useState<keyof PaintingsState>('aihubmix_image_generate')
@@ -83,6 +86,14 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { autoTranslateWithSpace } = useSettings()
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
   const aihubmixProvider = providers.find((p) => p.id === 'aihubmix')!
+
+  const [modeConfigs, setModeConfigs] = useState(createModeConfigs())
+
+  useEffect(() => {
+    const generateModels = getAihubmixGenerateModels(aihubmixProvider.models || [])
+    const remixModels = getAihubmixRemixModels(aihubmixProvider.models || [])
+    setModeConfigs(createModeConfigs(generateModels, remixModels))
+  }, [aihubmixProvider.models])
 
   const modeOptions = [
     { label: t('paintings.mode.generate'), value: 'aihubmix_image_generate' },
@@ -362,14 +373,14 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           }
         } else {
           let requestData: any = {}
-          if (painting.model === 'gpt-image-1' || painting.model === 'gpt-image-2') {
+          if (painting.model.startsWith('gpt-image-')) {
             requestData = {
               prompt,
               model: painting.model,
               size: painting.size === 'auto' ? undefined : painting.size,
               n: painting.n,
               quality: painting.quality,
-              ...(painting.model === 'gpt-image-1' ? { moderation: painting.moderation } : {})
+              ...(painting.model.startsWith('gpt-image-1') ? { moderation: painting.moderation } : {})
             }
             url = aihubmixProvider.apiHost + `/v1/images/generations`
             headers = {

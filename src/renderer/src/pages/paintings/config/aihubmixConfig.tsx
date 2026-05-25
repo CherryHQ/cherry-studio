@@ -1,4 +1,4 @@
-import type { PaintingAction } from '@renderer/types'
+import type { Model, PaintingAction } from '@renderer/types'
 
 import {
   ASPECT_RATIOS,
@@ -10,6 +10,134 @@ import {
   STYLE_TYPES,
   V3_STYLE_TYPES
 } from './constants'
+
+type ModelOption = {
+  labelKey?: string
+  label?: string
+  title?: string
+  value: string | number
+  icon?: string
+  onlyV2?: boolean
+  options?: ModelOption[]
+}
+
+type GenerateModelOption = {
+  labelKey?: string
+  label?: string
+  title?: string
+  value?: string | number
+  icon?: string
+  onlyV2?: boolean
+  options?: ModelOption[]
+}
+
+const FALLBACK_GENERATE_MODELS: GenerateModelOption[] = [
+  {
+    label: 'OpenAI',
+    title: 'OpenAI',
+    options: [
+      { label: 'gpt-image-2', value: 'gpt-image-2' },
+      { label: 'gpt-image-1', value: 'gpt-image-1' }
+    ]
+  },
+  {
+    label: 'Gemini',
+    title: 'Gemini',
+    options: [
+      { label: 'Nano Banana Pro', value: 'gemini-3-pro-image-preview' },
+      { label: 'imagen-4.0-preview', value: 'imagen-4.0-generate-preview-06-06' },
+      { label: 'imagen-4.0-ultra', value: 'imagen-4.0-ultra-generate-preview-06-06' }
+    ]
+  },
+  {
+    label: 'ideogram',
+    title: 'ideogram',
+    options: [
+      { label: 'ideogram_V_3', value: 'V_3' },
+      { label: 'ideogram_V_2', value: 'V_2' },
+      { label: 'ideogram_V_2_TURBO', value: 'V_2_TURBO' },
+      { label: 'ideogram_V_2A', value: 'V_2A' },
+      { label: 'ideogram_V_2A_TURBO', value: 'V_2A_TURBO' },
+      { label: 'ideogram_V_1', value: 'V_1' },
+      { label: 'ideogram_V_1_TURBO', value: 'V_1_TURBO' }
+    ]
+  },
+  {
+    label: 'Flux',
+    title: 'Flux',
+    options: [{ label: 'FLUX.1-Kontext-pro', value: 'FLUX.1-Kontext-pro' }]
+  }
+]
+
+const FALLBACK_REMIX_MODELS: ModelOption[] = [
+  { label: 'ideogram_V_3', value: 'V_3' },
+  { label: 'ideogram_V_2', value: 'V_2' },
+  { label: 'ideogram_V_2_TURBO', value: 'V_2_TURBO' },
+  { label: 'ideogram_V_2A', value: 'V_2A' },
+  { label: 'ideogram_V_2A_TURBO', value: 'V_2A_TURBO' },
+  { label: 'ideogram_V_1', value: 'V_1' },
+  { label: 'ideogram_V_1_TURBO', value: 'V_1_TURBO' }
+]
+
+const isImageModel = (model: Model): boolean => {
+  const name = (model.id || model.name || '').toLowerCase()
+  return (
+    name.startsWith('gpt-image-') ||
+    (name.startsWith('gemini-') && name.includes('image')) ||
+    name.startsWith('imagen-') ||
+    name.startsWith('v_') ||
+    name.startsWith('flux')
+  )
+}
+
+const isRemixModel = (model: Model): boolean => {
+  const name = (model.id || model.name || '').toLowerCase()
+  return name.startsWith('v_')
+}
+
+const GROUP_ORDER = ['OpenAI', 'Google', 'ideogram', 'Flux']
+
+const getGroupName = (model: Model): string => {
+  if (model.group) return model.group
+  const name = (model.id || model.name || '').toLowerCase()
+  if (name.startsWith('gpt-image-')) return 'OpenAI'
+  if (name.startsWith('gemini-') || name.startsWith('imagen-')) return 'Google'
+  if (name.startsWith('v_')) return 'ideogram'
+  if (name.startsWith('flux')) return 'Flux'
+  return model.group || 'Other'
+}
+
+export const getAihubmixGenerateModels = (providerModels: Model[]): GenerateModelOption[] => {
+  const imageModels = providerModels.filter(isImageModel)
+  if (imageModels.length === 0) return FALLBACK_GENERATE_MODELS
+
+  const grouped: Record<string, ModelOption[]> = {}
+  for (const model of imageModels) {
+    const group = getGroupName(model)
+    if (!grouped[group]) grouped[group] = []
+    grouped[group].push({ label: model.name || model.id, value: model.id })
+  }
+
+  const result: GenerateModelOption[] = []
+  for (const group of GROUP_ORDER) {
+    if (grouped[group]) {
+      result.push({ label: group, title: group, options: grouped[group] })
+    }
+  }
+  for (const [group, options] of Object.entries(grouped)) {
+    if (!GROUP_ORDER.includes(group)) {
+      result.push({ label: group, title: group, options })
+    }
+  }
+
+  return result.length > 0 ? result : FALLBACK_GENERATE_MODELS
+}
+
+export const getAihubmixRemixModels = (providerModels: Model[]): ModelOption[] => {
+  const remixModels = providerModels.filter(isRemixModel)
+  if (remixModels.length === 0) return FALLBACK_REMIX_MODELS
+  return remixModels.map((m) => ({ label: m.name || m.id, value: m.id }))
+}
 
 // 配置项类型定义
 export type ConfigItem = {
@@ -56,8 +184,10 @@ export type ConfigItem = {
 
 export type AihubmixMode = 'aihubmix_image_generate' | 'aihubmix_image_remix' | 'aihubmix_image_upscale'
 
-// 创建配置项函数
-export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
+export const createModeConfigs = (
+  generateModels?: GenerateModelOption[],
+  remixModels?: ModelOption[]
+): Record<AihubmixMode, ConfigItem[]> => {
   return {
     aihubmix_image_generate: [
       {
@@ -65,43 +195,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         key: 'model',
         title: 'paintings.model',
         tooltip: 'paintings.generate.model_tip',
-        options: [
-          {
-            label: 'OpenAI',
-            title: 'OpenAI',
-            options: [
-              { label: 'gpt-image-2', value: 'gpt-image-2' },
-              { label: 'gpt-image-1', value: 'gpt-image-1' }
-            ]
-          },
-          {
-            label: 'Gemini',
-            title: 'Gemini',
-            options: [
-              { label: 'Nano Banana Pro', value: 'gemini-3-pro-image-preview' },
-              { label: 'imagen-4.0-preview', value: 'imagen-4.0-generate-preview-06-06' },
-              { label: 'imagen-4.0-ultra', value: 'imagen-4.0-ultra-generate-preview-06-06' }
-            ]
-          },
-          {
-            label: 'ideogram',
-            title: 'ideogram',
-            options: [
-              { label: 'ideogram_V_3', value: 'V_3' },
-              { label: 'ideogram_V_2', value: 'V_2' },
-              { label: 'ideogram_V_2_TURBO', value: 'V_2_TURBO' },
-              { label: 'ideogram_V_2A', value: 'V_2A' },
-              { label: 'ideogram_V_2A_TURBO', value: 'V_2A_TURBO' },
-              { label: 'ideogram_V_1', value: 'V_1' },
-              { label: 'ideogram_V_1_TURBO', value: 'V_1_TURBO' }
-            ]
-          },
-          {
-            label: 'Flux',
-            title: 'Flux',
-            options: [{ label: 'FLUX.1-Kontext-pro', value: 'FLUX.1-Kontext-pro' }]
-          }
-        ]
+        options: generateModels || FALLBACK_GENERATE_MODELS
       },
       {
         type: 'select',
@@ -172,7 +266,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
           { label: '2:3', value: '1024x1536' }
         ],
         initialValue: '1024x1024',
-        condition: (painting) => painting.model === 'gpt-image-1' || painting.model === 'gpt-image-2'
+        condition: (painting) => Boolean(painting.model?.startsWith('gpt-image-'))
       },
       {
         type: 'slider',
@@ -182,7 +276,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         min: 1,
         max: 10,
         initialValue: 1,
-        condition: (painting) => painting.model === 'gpt-image-1' || painting.model === 'gpt-image-2'
+        condition: (painting) => Boolean(painting.model?.startsWith('gpt-image-'))
       },
       {
         type: 'select',
@@ -190,7 +284,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         title: 'paintings.quality',
         options: QUALITY_OPTIONS,
         initialValue: 'auto',
-        condition: (painting) => painting.model === 'gpt-image-1' || painting.model === 'gpt-image-2'
+        condition: (painting) => Boolean(painting.model?.startsWith('gpt-image-'))
       },
       {
         type: 'select',
@@ -198,18 +292,18 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         title: 'paintings.moderation',
         options: MODERATION_OPTIONS,
         initialValue: 'auto',
-        condition: (painting) => painting.model === 'gpt-image-1'
+        condition: (painting) => Boolean(painting.model?.startsWith('gpt-image-1'))
       },
       {
         type: 'select',
         key: 'background',
         title: 'paintings.background',
         options: (_config, painting) =>
-          painting?.model === 'gpt-image-2'
+          painting?.model?.startsWith('gpt-image-2')
             ? BACKGROUND_OPTIONS.filter((opt) => opt.value !== 'transparent')
             : BACKGROUND_OPTIONS,
         initialValue: 'auto',
-        condition: (painting) => painting.model === 'gpt-image-1' || painting.model === 'gpt-image-2'
+        condition: (painting) => Boolean(painting.model?.startsWith('gpt-image-'))
       },
       {
         type: 'slider',
@@ -300,15 +394,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         key: 'model',
         title: 'paintings.model',
         tooltip: 'paintings.remix.model_tip',
-        options: [
-          { label: 'ideogram_V_3', value: 'V_3' },
-          { label: 'ideogram_V_2', value: 'V_2' },
-          { label: 'ideogram_V_2_TURBO', value: 'V_2_TURBO' },
-          { label: 'ideogram_V_2A', value: 'V_2A' },
-          { label: 'ideogram_V_2A_TURBO', value: 'V_2A_TURBO' },
-          { label: 'ideogram_V_1', value: 'V_1' },
-          { label: 'ideogram_V_1_TURBO', value: 'V_1_TURBO' }
-        ]
+        options: remixModels || FALLBACK_REMIX_MODELS
       },
       {
         type: 'select',
