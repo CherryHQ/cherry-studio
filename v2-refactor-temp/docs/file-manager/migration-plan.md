@@ -189,6 +189,31 @@ See §4 for the shim function specifications.
 
 这样"同一文件用不同 purpose 上传到同一 provider"的场景能天然区分（甚至可以放宽 UNIQUE 约束改为 `UNIQUE(file_entry_id, provider, purpose)`），比旧模型单一字段准确得多。
 
+#### 两个消费方的 silent failure 模式
+
+`purpose` 字段一旦在 v1 ↔ v2 投影层被丢弃，影响是**双重静默**的，外部观察不到错误：
+
+1. **`OpenAIService.ts:35`** — `purpose: file.purpose || 'assistants'`
+   - `file.purpose` 为 undefined 时静默回退到 `'assistants'`
+   - 调用 qwen-long / qwen-doc 的文件被当成 assistant 文件上传，OpenAI API 不会报错
+   - 后果：远端解析方式与本地预期不一致，模型回答可能无声地降级
+
+2. **`fileProcessor.ts:141-143`** — `remoteFile.purpose !== file.purpose` 校验
+   - `file.purpose === undefined` ≠ 任何非空远端 purpose → 永远 mismatch → 抛 "File purpose mismatch" 重传
+   - 后果：OpenAI 文件 de-dup 缓存失效，每次对话都重新上传同一个文件，浪费配额 + 增加延迟
+
+两条路径都是 silent failure（前者 fallback、后者重传），生产环境只会以"模型答非所问"或"API quota 异常上涨"间接显现，CI 测试很难触发。结论：**在迁移步骤 #1–#6 全部落地之前，任何 v1 ↔ v2 投影层（shim、adapter、序列化器）都必须把 purpose 列入显式透传清单**，不能默认依赖 schema 不变。
+
+#### Phase 2 Batch 0 实施回顾（2026-05）
+
+Batch 0 早期引入过 `packages/shared/file/legacy/toFileMetadata` shim（`FileEntry → FileMetadata` 投影），按本节"迁移目标"假设 `purpose` 终态从 FileMetadata 剥离，直接丢弃了 `purpose` 与 `tokens` 字段。但当时 fileProcessor / OpenAIService 这些 v1 消费方尚未迁移，于是上面两条 silent failure 模式都被实际触发。
+
+后来 renderer 侧 FileManager 的 v2 IPC cutover 整体回滚（详见 PR #15067 / 1fe5d3d34），`toFileMetadata` 一并删除。当前路径恢复为 v1 metadata 全链路携带 `purpose`，silent failure 不再可触发。
+
+教训：
+- v2 终极目标"删 purpose"不等于"过渡期可丢 purpose" —— 迁移先后顺序很关键
+- 引入任何 `FileEntry → FileMetadata` 适配代码时，应该先核对 §2.2 现状调研里**所有**消费方都已迁移完毕；这次漏掉就是因为只看了一处（self-review audit 仅列 fileProcessor，漏了 OpenAIService —— 详见 PR #15067 thread `PRRT_kwDOL_2xws6EeQIz`）
+
 ### 2.3 `count` 字段
 
 **决策**：
