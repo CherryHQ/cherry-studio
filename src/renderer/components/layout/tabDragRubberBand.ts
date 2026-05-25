@@ -5,6 +5,8 @@ const DEFAULT_RUBBER_BAND_OPTIONS = {
   rightInset: 0
 }
 
+type RubberBandOptions = Partial<typeof DEFAULT_RUBBER_BAND_OPTIONS>
+
 const getRubberBandOffset = (overflow: number, boundaryWidth: number, resistance: number, maxOverdrag: number) => {
   if (overflow <= 0 || boundaryWidth <= 0 || resistance <= 0 || maxOverdrag <= 0) {
     return 0
@@ -18,22 +20,35 @@ export const applyHorizontalRubberBandTranslateX = (
   translateX: number,
   draggedRect: DOMRectReadOnly,
   boundaryRect: DOMRectReadOnly,
-  options: Partial<typeof DEFAULT_RUBBER_BAND_OPTIONS> = {}
+  options: RubberBandOptions = {}
 ) => {
-  const resistance = options.resistance ?? DEFAULT_RUBBER_BAND_OPTIONS.resistance
-  const maxOverdrag = options.maxOverdrag ?? DEFAULT_RUBBER_BAND_OPTIONS.maxOverdrag
-  const leftInset = options.leftInset ?? DEFAULT_RUBBER_BAND_OPTIONS.leftInset
-  const rightInset = options.rightInset ?? DEFAULT_RUBBER_BAND_OPTIONS.rightInset
+  const { resistance, maxOverdrag, leftInset, rightInset } = { ...DEFAULT_RUBBER_BAND_OPTIONS, ...options }
 
-  const minX = boundaryRect.left + leftInset - draggedRect.left
-  const maxX = boundaryRect.right - rightInset - draggedRect.left - draggedRect.width
+  const hardMinX = boundaryRect.left - draggedRect.left
+  const hardMaxX = boundaryRect.right - draggedRect.left - draggedRect.width
+  const rawMinX = boundaryRect.left + leftInset - draggedRect.left
+  const rawMaxX = boundaryRect.right - rightInset - draggedRect.left - draggedRect.width
+
+  if (rawMaxX < rawMinX) {
+    // Safe area collapsed (insets exceed available width). Fall back to a hard
+    // physical-bounds clamp so the tab cannot fly off-screen with no resistance.
+    if (hardMaxX < hardMinX) return translateX
+    if (translateX < hardMinX) return hardMinX
+    if (translateX > hardMaxX) return hardMaxX
+    return translateX
+  }
+
+  const minX = Math.min(rawMinX, 0)
+  const maxX = Math.max(rawMaxX, 0)
+  const leftMaxOverdrag = Math.min(maxOverdrag, Math.max(0, minX - hardMinX))
+  const rightMaxOverdrag = Math.min(maxOverdrag, Math.max(0, hardMaxX - maxX))
 
   if (translateX < minX) {
-    return minX - getRubberBandOffset(minX - translateX, boundaryRect.width, resistance, maxOverdrag)
+    return minX - getRubberBandOffset(minX - translateX, boundaryRect.width, resistance, leftMaxOverdrag)
   }
 
   if (translateX > maxX) {
-    return maxX + getRubberBandOffset(translateX - maxX, boundaryRect.width, resistance, maxOverdrag)
+    return maxX + getRubberBandOffset(translateX - maxX, boundaryRect.width, resistance, rightMaxOverdrag)
   }
 
   return translateX
