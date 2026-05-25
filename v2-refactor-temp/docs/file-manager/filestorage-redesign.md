@@ -5,7 +5,7 @@
 > 本文档描述的拆分目标（"🔀 FileManager.createEntry"）捕获的是早期设计，已被后续评审推翻：
 >
 > - `FileManager.createEntry({origin, content, ...})` → 拆分为 `createInternalEntry`（内容来源 discriminated union）+ `ensureExternalEntry`（纯 upsert by path）
-> - External entry 不进入 trash 生命周期（`fe_external_no_trash` CHECK）
+> - External entry 不进入 trash 生命周期（`fe_external_no_delete` CHECK）
 > - `permanentDelete` 对 external 只删 DB 行，物理文件不动
 >
 > **实现准绳**：[`docs/references/file/file-manager-architecture.md`](../../../docs/references/file/file-manager-architecture.md)、[`rfc-file-manager.md`](./rfc-file-manager.md)、[`file-arch-problems-response.md`](./file-arch-problems-response.md)。

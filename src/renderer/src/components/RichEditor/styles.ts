@@ -125,7 +125,7 @@ const STYLE_CONTENT = `
   position: relative;
 }
 
-.RichEditorContent .plus-button,
+.RichEditorContent .plusButton,
 .RichEditorContent .drag-handle {
   align-items: center;
   border-radius: 0.25rem;
@@ -137,19 +137,19 @@ const STYLE_CONTENT = `
   flex-shrink: 0;
 }
 
-.RichEditorContent .plus-button:hover,
+.RichEditorContent .plusButton:hover,
 .RichEditorContent .drag-handle:hover {
   background: var(--color-accent);
 }
 
-.RichEditorContent .plus-button svg,
+.RichEditorContent .plusButton svg,
 .RichEditorContent .drag-handle svg {
   width: 1.25rem;
   height: 1.25rem;
   color: var(--color-icon);
 }
 
-.RichEditorContent .plus-button {
+.RichEditorContent .plusButton {
   width: 1.5rem;
   cursor: pointer;
   transform: translateX(calc(-1 * 1.5rem));

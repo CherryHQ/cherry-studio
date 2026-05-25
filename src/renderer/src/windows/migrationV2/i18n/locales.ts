@@ -31,6 +31,7 @@ export const zhCN = {
       exit: '退出',
       close: '关闭应用',
       ignore_migration: '忽略并使用默认值',
+      skip_migration: '跳过迁移',
       backing_up: '正在备份...',
       migrating: '迁移中...'
     },
@@ -44,7 +45,8 @@ export const zhCN = {
       title: '将数据迁移到新的架构中',
       description_1: 'Cherry Studio对数据的存储和使用方式进行了重大重构，在新的架构下，效率和安全性将会得到极大提升。',
       description_2: '数据必须进行迁移，才能在新版本中使用。',
-      description_3: '我们会指导你完成迁移，迁移过程不会损坏原来的数据，你随时可以取消迁移，并继续使用旧版本。'
+      description_3: '我们会指导你完成迁移，迁移过程不会损坏原来的数据，你随时可以取消迁移，并继续使用旧版本。',
+      confirm_skip: '跳过迁移后，将以全新默认配置启动 Cherry Studio。原有数据将保留在磁盘，不会删除。确定继续吗？'
     },
     backup_required: {
       title: '创建数据备份',
@@ -125,6 +127,7 @@ export const enUS = {
       exit: 'Exit',
       close: 'Close App',
       ignore_migration: 'Ignore and Use Defaults',
+      skip_migration: 'Skip Migration',
       backing_up: 'Backing up...',
       migrating: 'Migrating...'
     },
@@ -140,7 +143,9 @@ export const enUS = {
         'Cherry Studio has undergone a major refactoring of data storage and usage. The new architecture will greatly improve efficiency and security.',
       description_2: 'Data migration is required to use the new version.',
       description_3:
-        'We will guide you through the migration process. The migration will not damage your original data, and you can cancel at any time and continue using the old version.'
+        'We will guide you through the migration process. The migration will not damage your original data, and you can cancel at any time and continue using the old version.',
+      confirm_skip:
+        "After skipping migration, Cherry Studio will start with default settings. Your existing data will remain on disk and won't be deleted. Continue?"
     },
     backup_required: {
       title: 'Create Data Backup',

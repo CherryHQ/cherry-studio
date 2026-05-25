@@ -161,7 +161,7 @@ Reference layer     FileEntryHandle                    FilePathHandle
                           ▼ FileManager.getEntry             ▼ fs.stat + projection
 Data-shape layer    FileEntry                          FileInfo
 (after resolution)  { id, origin, name, ext,           { path, name, ext, size,
-                      size, trashedAt, ... }             mime, type, modifiedAt, ... }
+                      size, deletedAt, ... }             mime, type, modifiedAt, ... }
 ```
 
 Picking a handle variant is a **call-site choice of reference form**, not a statement about the file itself. Crucially, **the two axes are orthogonal**:
@@ -192,7 +192,7 @@ Once a handle is dispatched, the handler works with either a `FileEntry` (the DB
 
 **Field overlap is inherent, not redundant**: `name`, `ext`, `type` (and `mime` / `size` on `FileInfo`) describe a file regardless of whether an entry row exists for it. What distinguishes the two types is the *surrounding* fields and the *liveness* of the shared ones:
 
-- **`FileEntry` has identity fields** `FileInfo` lacks: `id`, `origin`, `externalPath`, `trashedAt`.
+- **`FileEntry` has identity fields** `FileInfo` lacks: `id`, `origin`, `externalPath`, `deletedAt`.
 - **`FileInfo` has live fields** `FileEntry` lacks: `path` (derived, never stored on `FileEntry`), `modifiedAt`, and a live `size`.
 - **`FileEntry.size` is origin-gated**. For `origin='internal'` it is an authoritative byte count (kept in sync by atomic writes). For `origin='external'` it is **always `null`** — external files may change outside Cherry at any time, so no DB snapshot is stored. Consumers that need a live value for an external entry call File IPC `getMetadata(id)`, which runs `fs.stat` on demand. This eliminates the "is this snapshot current?" question at the type level rather than at call sites.
 - **`FileEntry.name` / `FileEntry.ext` never drift**. For internal they are user-editable SoT; for external they are pure projections of `externalPath` (basename / extname) and therefore stable as long as the entry itself exists.
@@ -272,7 +272,7 @@ All operations that can act on any file (FileEntry or arbitrary path) **accept a
 |---|---|
 | `createInternalEntry` / `batchCreateInternalEntries` | Create a new Cherry-owned FileEntry (writes to `{userData}/Data/Files/{id}.{ext}`; each call produces an independent new entry, no conflict possible) |
 | `ensureExternalEntry` / `batchEnsureExternalEntries` | Pure upsert by `externalPath`—the entry point first `canonicalizeExternalPath(raw)` normalizes it (see `pathResolver.ts`); reuses the existing entry with the same path or inserts a new one. Idempotent by design—callers may safely repeat calls. No "restore" branch: external entries cannot be trashed. External rows carry no stored `size` (always `null`); live values come from `getMetadata`. |
-| `trash` / `restore` | Soft delete based on trashedAt (DB only). **Internal-origin only** — external-origin entries cannot be trashed (`fe_external_no_trash` CHECK); passing an external id throws. |
+| `trash` / `restore` | Soft delete based on deletedAt (DB only). **Internal-origin only** — external-origin entries cannot be trashed (`fe_external_no_delete` CHECK); passing an external id throws. |
 | `batchTrash` / `batchRestore` | Batch versions of `trash` / `restore` — same internal-origin-only rule. |
 | `batchPermanentDelete` | Batch version of `permanentDelete`. |
 | `withTempCopy` | Copy isolation for calling third-party libraries |
@@ -299,7 +299,7 @@ All operations that can act on any file (FileEntry or arbitrary path) **accept a
 
 | User action | Physical external file |
 |---|---|
-| Trash from Cherry | **Not applicable** — external-origin entries cannot be trashed (`fe_external_no_trash` CHECK) |
+| Trash from Cherry | **Not applicable** — external-origin entries cannot be trashed (`fe_external_no_delete` CHECK) |
 | Restore from Cherry | **Not applicable** — external-origin entries are never trashed |
 | permanentDelete from Cherry (entry-level) | **Untouched** — only the DB row is deleted; the physical file remains on disk |
 | write / writeIfUnchanged from Cherry | **Overwritten** (atomic write) |
@@ -469,7 +469,7 @@ DataApi endpoints (read-only, SQL-only, fixed-shape):
 >
 > Rule of thumb: if a handler must call anything outside the Drizzle / `@db/*` surface to answer the request, it belongs in IPC. If two callers want the same data in different shapes, the answer is **two endpoints**, not one endpoint with a flag.
 
-**List queries for external entries**: DataApi returns the DB row directly — identity (`id`, `origin`, `externalPath`), stable projections (`name`, `ext`), timestamps, `trashedAt`. External rows carry `size: null` by design (no snapshot stored). Consumers needing **live `size` / `mtime`** call File IPC `getMetadata(id)`; those needing only **whether the file currently exists** (dangling) call File IPC `getDanglingState` / `batchGetDanglingStates`.
+**List queries for external entries**: DataApi returns the DB row directly — identity (`id`, `origin`, `externalPath`), stable projections (`name`, `ext`), timestamps, `deletedAt`. External rows carry `size: null` by design (no snapshot stored). Consumers needing **live `size` / `mtime`** call File IPC `getMetadata(id)`; those needing only **whether the file currently exists** (dangling) call File IPC `getDanglingState` / `batchGetDanglingStates`.
 
 ### 4.1.1 DataApi Boundary: SQL-Only, Fixed Shape
 
@@ -1028,7 +1028,7 @@ src/main/utils/file/                  -- pure FS primitives, sole FS owner, open
 
 - **External entry is a best-effort reference**: no guarantee the file remains stable, no guarantee content matches the reference-time content. Equivalent to "the user expressed intent to reference this path at some point" semantics in tools like codex
 - **External entry path is globally unique**: at most one row per `externalPath` at any time, regardless of any state (SQLite global unique index on `externalPath`; internal rows have `externalPath = null` and are exempt, since SQLite treats multiple NULLs as distinct). `ensureExternalEntry` is therefore a pure upsert by path — reuse if an entry exists, otherwise insert; no "restore" branch is possible because external entries cannot be trashed.
-- **External entries cannot be trashed**: enforced at the DB layer by `CHECK (origin != 'external' OR trashedAt IS NULL)` (`fe_external_no_trash`). External lifecycle is monotonic: create via `ensureExternalEntry` → update in place via `write` / `rename` → remove via `permanentDelete` (DB row only). There is no soft-delete / restore cycle for external entries. Calling `trash` / `restore` on an external id throws.
+- **External entries cannot be trashed**: enforced at the DB layer by `CHECK (origin != 'external' OR deletedAt IS NULL)` (`fe_external_no_delete`). External lifecycle is monotonic: create via `ensureExternalEntry` → update in place via `write` / `rename` → remove via `permanentDelete` (DB row only). There is no soft-delete / restore cycle for external entries. Calling `trash` / `restore` on an external id throws.
 - **External entries allow explicit user edits**: `write` / `writeIfUnchanged` / `createWriteStream` / `rename` take effect on external (delegated to ops' atomic write / fs.rename), triggered by explicit user action. Cherry does **not** perform automatic / watcher-driven external file modifications
 - **`permanentDelete` on external is entry-level, not file-level**: removes only the DB row + CASCADE-cleans `file_ref`; the physical file is left untouched. Path-level deletion remains available via `remove(path)` (from `@main/utils/file/fs`, reached through a `FilePathHandle`), which is a separate explicit call not bound to any entry id.
 - **Cherry does not track rename/move of external files**: an external rename turns the entry dangling; the user must re-@ to establish a new reference

@@ -32,8 +32,8 @@ const ROUTE_LABELS: Record<string, { icon: string; label: string }> = {
   '/settings/file-processing': { icon: '📄', label: 'File Processing' },
   '/settings/prompts': { icon: '⚡', label: 'Prompt Management' },
   '/settings/shortcut': { icon: '⌨️', label: 'Shortcuts' },
-  '/settings/quickAssistant': { icon: '🪟', label: 'Quick Assistant' },
-  '/settings/selectionAssistant': { icon: '✂️', label: 'Selection Assistant' },
+  '/settings/quick-assistant': { icon: '🪟', label: 'Quick Assistant' },
+  '/settings/selection-assistant': { icon: '✂️', label: 'Selection Assistant' },
   '/settings/about': { icon: 'ℹ️', label: 'About' },
 
   // MCP sub-pages

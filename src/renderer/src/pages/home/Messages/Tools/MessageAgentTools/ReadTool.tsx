@@ -1,5 +1,5 @@
 import CodeViewer from '@renderer/components/CodeViewer'
-import { getLanguageByFilePath } from '@renderer/utils/code-language'
+import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 import { formatFileSize } from '@renderer/utils/file'
 import type { CollapseProps } from 'antd'
 import { useTranslation } from 'react-i18next'

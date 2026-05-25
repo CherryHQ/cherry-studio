@@ -27,8 +27,8 @@ import {
   supportsLanguageConfig
 } from '../utils/fileProcessingMeta'
 import { FileProcessingApiKeyListPopup } from './FileProcessingApiKeyList'
-import { PaddleOCRDeploymentInfo } from './PaddleOCRDeploymentInfo'
-import { PaddleOCRModelSettings } from './PaddleOCRModelSettings'
+import { PaddleOcrDeploymentInfo } from './PaddleOcrDeploymentInfo'
+import { PaddleOcrModelSettings } from './PaddleOcrModelSettings'
 import { ProcessorAvatar } from './ProcessorAvatar'
 import { TesseractLanguagePacks } from './TesseractLanguagePacks'
 
@@ -255,10 +255,10 @@ export function ProcessorPanel({
       ) : null}
 
       {processor.id === 'paddleocr' && entry.capability.modelId !== undefined ? (
-        <PaddleOCRModelSettings value={modelIdInput} onChange={(value) => void setModelIdInputAndPersist(value)} />
+        <PaddleOcrModelSettings value={modelIdInput} onChange={(value) => void setModelIdInputAndPersist(value)} />
       ) : null}
 
-      {processor.id === 'paddleocr' ? <PaddleOCRDeploymentInfo /> : null}
+      {processor.id === 'paddleocr' ? <PaddleOcrDeploymentInfo /> : null}
 
       {processor.id === 'system' ? (
         <>

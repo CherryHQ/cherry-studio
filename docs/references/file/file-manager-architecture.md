@@ -33,7 +33,7 @@ FileEntry
 ├── ext: extension (without leading dot), nullable
 ├── size: bytes
 ├── externalPath: absolute path, non-null only when origin='external'
-├── trashedAt: ms epoch | null
+├── deletedAt: ms epoch | null
 ├── createdAt / updatedAt
 ```
 
@@ -650,17 +650,17 @@ The `atomicWriteFile` / `atomicWriteIfUnchanged` / `createAtomicWriteStream` pri
 
 ## 6. Deletion and Recycle Bin
 
-### 6.1 trashedAt Model
+### 6.1 deletedAt Model
 
-All soft deletes are implemented via the `trashedAt` timestamp, without physically moving files:
+All soft deletes are implemented via the `deletedAt` timestamp, without physically moving files:
 
 | Operation | Physical impact (internal) | Physical impact (external) |
 |---|---|---|
-| `trash(id)` | None | **N/A** (`fe_external_no_trash` CHECK rejects; external rows cannot be trashed) |
+| `trash(id)` | None | **N/A** (`fe_external_no_delete` CHECK rejects; external rows cannot be trashed) |
 | `restore(id)` | None | **N/A** (no trashed external rows to restore) |
 | `permanentDelete(id)` | DB delete + best-effort `remove(physicalPath)` (`@main/utils/file/fs`) | **DB delete only — user's file is never modified** (matches `architecture.md §3.4`) |
 
-**trash / restore are internal-only.** External entries cannot be trashed by definition (`fe_external_no_trash` CHECK enforces this); the trash semantics make sense only for files Cherry owns.
+**trash / restore are internal-only.** External entries cannot be trashed by definition (`fe_external_no_delete` CHECK enforces this); the trash semantics make sense only for files Cherry owns.
 
 **permanentDelete on internal**: DB row is removed first, then the physical file at `{userData}/Data/Files/{id}.{ext}` is best-effort unlinked. Unlink failures (ENOENT, insufficient permissions, etc.) are logged but do not block — the DB-row-gone outcome is what callers observe; any orphaned blob is later cleaned by the startup file sweep (§10).
 
@@ -669,7 +669,7 @@ All soft deletes are implemented via the `trashedAt` timestamp, without physical
 ### 6.2 Auto Expiry (deferred — lands in Phase 2)
 
 > **Status**: design only. Phase 1 ships no expiry timer service, no
-> Preferences key, and no `WHERE trashedAt < now() - retentionMs` query.
+> Preferences key, and no `WHERE deletedAt < now() - retentionMs` query.
 > Trashed entries persist until the user runs an explicit
 > `permanentDelete` (or the startup orphan sweep collects an
 > already-deleted entry's residual blob). The 30-day window below is
@@ -678,7 +678,7 @@ All soft deletes are implemented via the `trashedAt` timestamp, without physical
 
 By default trashed entries are cleaned up after 30 days (lifecycle service timer); the user may configure the days or disable it in Preferences.
 
-Query: `WHERE trashedAt < now() - retentionMs` → batch permanentDelete.
+Query: `WHERE deletedAt < now() - retentionMs` → batch permanentDelete.
 
 ### 6.3 Edge Cases
 
@@ -1114,7 +1114,7 @@ The reverse index of DanglingCache (`Map<path, Set<entryId>>`) is built via a si
 
 ```sql
 SELECT id, externalPath FROM file_entry
-WHERE origin = 'external' AND trashedAt IS NULL
+WHERE origin = 'external' AND deletedAt IS NULL
 ```
 
 **No stat performed**—the state field (`Map<entryId, DanglingState>`) is initially empty; lazy stat on query (see §11).
@@ -1291,13 +1291,13 @@ Timing for changes to `pathToEntryIds` (fully self-governed inside file_module, 
 
 | Event | Action |
 |---|---|
-| Startup `initFromDb()` | `SELECT id, externalPath FROM file_entry WHERE origin='external' AND trashedAt IS NULL` → batch add |
+| Startup `initFromDb()` | `SELECT id, externalPath FROM file_entry WHERE origin='external' AND deletedAt IS NULL` → batch add |
 | `ensureExternalEntry` creates new | addEntry(id, path) |
 | `ensureExternalEntry` reuses (upsert hit) | No change (path already indexed) |
 | `permanentDelete(external)` | removeEntry(id, path) |
 | `rename(external)` (explicit user action) | removeEntry(id, oldPath) + addEntry(id, newPath) |
 
-External entries cannot be trashed (`fe_external_no_trash` CHECK enforces this
+External entries cannot be trashed (`fe_external_no_delete` CHECK enforces this
 at the schema level; `trash` / `restore` throw at the entry layer before
 reaching the reverse-index update). Earlier drafts listed `restore(external)`
 and `trash(external)` rows here — they were dead branches and have been
@@ -1411,7 +1411,7 @@ These thresholds are heuristic starting points — tune based on real-world tele
 | **Content hash algorithm** | xxhash-h64 | Optimal cost-performance for non-cryptographic scenarios (~20GB/s). 64-bit collision space is sufficient for distinguishing successive versions within a single file's write history — the `xxhash-wasm` package shipped in this version exposes only h32 / h64, and h64 is the strongest variant available; revisit if a 128-bit variant becomes a dependency-cost tradeoff worth taking. |
 | **Does write carry version** | Split into write / writeIfUnchanged | Force the caller to explicitly choose; avoid silent degradation to blind write when version is forgotten |
 | **Atomic write fsync** | On by default | Correctness guarantee takes precedence over performance; Cherry is not a high-throughput scenario |
-| **Trash model** | trashedAt timestamp | parentId unchanged; naturally supports expiry; no system_trash entries |
+| **Trash model** | deletedAt timestamp | parentId unchanged; naturally supports expiry; no system_trash entries |
 | **pending_fs_ops** | Removed | After extreme simplification, orphan sweep suffices to cover crashes |
 | **Startup dangling probe** | Removed | Changed to lazy + Promise.all; stat only when an IPC caller explicitly requests dangling state |
 | **Is Watcher a lifecycle service** | No | DirectoryWatcher is a primitive; business modules `new` it via the factory; file_module doesn't actively watch |
@@ -1441,7 +1441,7 @@ This checklist is the canonical addition procedure. A PR introducing a new origi
 
 | Location | Change required |
 |---|---|
-| `src/main/data/db/schemas/file.ts` | Review every CHECK constraint naming `origin` — `fe_origin_consistency`, `fe_size_internal_only`, `fe_external_no_trash`, `fe_external_path_unique`, etc. — and decide whether the new variant honors / violates / is exempt from each |
+| `src/main/data/db/schemas/file.ts` | Review every CHECK constraint naming `origin` — `fe_origin_consistency`, `fe_size_internal_only`, `fe_external_no_delete`, `fe_external_path_unique`, etc. — and decide whether the new variant honors / violates / is exempt from each |
 | Drizzle migration | Ship the constraint updates in the same migration as the enum expansion. Partial unique indexes on `externalPath` may need a new branch |
 | Existing rows | No migration should run for existing rows unless the new variant has a natural subset mapping (unlikely) |
 
@@ -1458,7 +1458,7 @@ Every ad-hoc `if (entry.origin === 'internal')` / `=== 'external'` in the codeba
 
 | Policy | Location |
 |---|---|
-| Trash-ability (who can soft-delete) | `trash` / `restore` in FileManager; DB CHECK `fe_external_no_trash` |
+| Trash-ability (who can soft-delete) | `trash` / `restore` in FileManager; DB CHECK `fe_external_no_delete` |
 | Size snapshot storage | `write` / `writeIfUnchanged` internal-DB-update branch; `toFileInfo` projection |
 | Name / ext as SoT vs projection | `rename` mutation; `toFileInfo` projection; `FileEntrySchema` field docs |
 | DanglingCache participation | `DanglingCache.check` returns `'present'` for internal; consider where the new variant falls on the `present/missing/unknown` axis |
