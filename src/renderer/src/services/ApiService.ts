@@ -38,7 +38,6 @@ import {
   getQuickModel
 } from './AssistantService'
 import { ConversationService } from './ConversationService'
-import FileManager from './FileManager'
 import { injectUserMessageWithKnowledgeSearchPrompt } from './KnowledgeService'
 import type { BlockManager } from './messageStreaming'
 import type { StreamProcessorCallbacks } from './StreamProcessingService'
@@ -256,7 +255,8 @@ export async function fetchChatCompletion({
     params: aiSdkParams,
     modelId,
     capabilities,
-    webSearchPluginConfig
+    webSearchPluginConfig,
+    idleTimeout
   } = await buildStreamTextParams(messages, assistant, provider, {
     mcpTools: mcpTools,
     allowedTools,
@@ -282,7 +282,8 @@ export async function fetchChatCompletion({
     mcpMode,
     mcpTools,
     uiMessages,
-    knowledgeRecognition: assistant.knowledgeRecognition
+    knowledgeRecognition: assistant.knowledgeRecognition,
+    idleTimeout
   }
 
   // Wrap onChunkReceived to automatically track token usage on completion
@@ -312,12 +313,18 @@ async function collectImagesFromMessages(userMessage: Message, assistantMessage?
   const images: string[] = []
 
   // 收集用户消息中的图像
+  // NOTE: Use `block.file.name` (always the on-disk filename) rather than
+  // `block.file.id + block.file.ext` — some save paths (saveBase64Image,
+  // savePastedImage) store `ext` without the leading dot, so concatenation
+  // produces broken paths like `<uuid>jpg` → ENOENT.
+  // Also note: `block.file.type` is a FileType enum (e.g. "image"), NOT a MIME
+  // type. `base64Image` derives the real MIME from the extension internally
+  // (and normalizes jpg → image/jpeg).
   const userImageBlocks = findImageBlocks(userMessage)
   for (const block of userImageBlocks) {
     if (block.file) {
-      const base64 = await FileManager.readBase64File(block.file)
-      const mimeType = block.file.type || 'image/png'
-      images.push(`data:${mimeType};base64,${base64}`)
+      const { data } = await window.api.file.base64Image(block.file.name)
+      images.push(data)
     }
   }
 
@@ -325,7 +332,17 @@ async function collectImagesFromMessages(userMessage: Message, assistantMessage?
   if (assistantMessage) {
     const assistantImageBlocks = findImageBlocks(assistantMessage)
     for (const block of assistantImageBlocks) {
-      if (block.url) {
+      if (block.file) {
+        try {
+          const { data } = await window.api.file.base64Image(block.file.name)
+          images.push(data)
+        } catch (error) {
+          logger.error('Failed to load assistant image file, image will be excluded:', {
+            fileName: block.file.name,
+            error: error as Error
+          })
+        }
+      } else if (block.url) {
         images.push(block.url)
       }
     }
@@ -401,17 +418,20 @@ export async function fetchImageGeneration({
       image: { type: imageType, images }
     })
 
-    onChunkReceived({
-      type: ChunkType.LLM_RESPONSE_COMPLETE,
-      response: {
-        usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
-        metrics: {
-          completion_tokens: 0,
-          time_first_token_millsec: 0,
-          time_completion_millsec: Date.now() - startTime
-        }
+    // Emit BLOCK_COMPLETE so the stream processor's onComplete runs and the
+    // assistant message transitions out of "processing". Without this, the
+    // trailing PlaceholderBlock in Blocks/index.tsx stays visible next to the
+    // finished image because `isMessageProcessing(message)` remains true.
+    const imageResponse = {
+      usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+      metrics: {
+        completion_tokens: 0,
+        time_first_token_millsec: 0,
+        time_completion_millsec: Date.now() - startTime
       }
-    })
+    }
+    onChunkReceived({ type: ChunkType.BLOCK_COMPLETE, response: imageResponse })
+    onChunkReceived({ type: ChunkType.LLM_RESPONSE_COMPLETE, response: imageResponse })
   } catch (error) {
     onChunkReceived({ type: ChunkType.ERROR, error: error as Error })
     throw error
@@ -781,7 +801,7 @@ export async function fetchModels(provider: Provider): Promise<Model[]> {
     logger.error('Failed to fetch models from provider', {
       providerId: provider.id,
       providerName: provider.name,
-      error: error as Error
+      error: error instanceof Error ? error.message : String(error)
     })
     return []
   }

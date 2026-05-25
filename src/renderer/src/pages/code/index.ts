@@ -58,7 +58,7 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
   [codeTools.githubCopilotCli]: () => [],
   [codeTools.kimiCli]: (providers) => providers.filter((p) => p.type.includes('openai')),
   [codeTools.openCode]: (providers) =>
-    providers.filter((p) => ['openai', 'openai-response', 'anthropic'].includes(p.type))
+    providers.filter((p) => ['openai', 'openai-response', 'anthropic', 'new-api'].includes(p.type))
 }
 
 export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
@@ -154,6 +154,8 @@ export const generateToolEnvironment = ({
 
   switch (tool) {
     case codeTools.claudeCode: {
+      // https://code.claude.com/docs/en/env-vars
+      env.CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST = '1'
       env.ANTHROPIC_BASE_URL =
         getCodeToolsApiBaseUrl(model, 'anthropic') || modelProvider.anthropicApiHost || modelProvider.apiHost
       env.ANTHROPIC_MODEL = model.id
@@ -180,11 +182,10 @@ export const generateToolEnvironment = ({
       env.OPENAI_MODEL = model.id
       break
     case codeTools.openaiCodex:
-      env.OPENAI_API_KEY = apiKey
-      env.OPENAI_BASE_URL = formattedBaseUrl
-      env.OPENAI_MODEL = model.id
-      env.OPENAI_MODEL_PROVIDER = modelProvider.id
-      env.OPENAI_MODEL_PROVIDER_NAME = modelProvider.name
+      env.CHERRY_CODEX_API_KEY = apiKey
+      env.CHERRY_CODEX_BASE_URL = formattedBaseUrl
+      env.CHERRY_CODEX_PROVIDER_ID = modelProvider.id
+      env.CHERRY_CODEX_PROVIDER_NAME = sanitizeProviderName(getFancyProviderName(modelProvider))
       break
 
     case codeTools.iFlowCli:
@@ -206,8 +207,18 @@ export const generateToolEnvironment = ({
     case codeTools.openCode:
       // Set environment variable with provider-specific suffix for security
       {
-        env.OPENCODE_BASE_URL = formattedBaseUrl
+        // Determine base URL format based on model's endpoint type and provider type
+        // anthropic: use formatApiHost(url, false) to preserve existing /v1 from provider config
+        // @ai-sdk/anthropic appends /messages to the baseURL (not /v1/messages)
+        // others: append /v1 (standard OpenAI-compatible endpoint)
+        const endpointType = model.endpoint_type
+        const isAnthropicEndpoint =
+          endpointType === 'anthropic' || (!endpointType && modelProvider.type === 'anthropic')
+        const openCodeBaseUrl = isAnthropicEndpoint ? formatApiHost(baseUrl, false) : formattedBaseUrl
+
+        env.OPENCODE_BASE_URL = openCodeBaseUrl
         env.OPENCODE_MODEL_NAME = model.name
+        env.OPENCODE_MODEL_ENDPOINT_TYPE = endpointType || ''
         // Calculate OpenCode-specific config internally
         const isReasoning = isReasoningModel(model)
         const supportsReasoningEffort = isSupportedReasoningEffortModel(model)
@@ -225,6 +236,10 @@ export const generateToolEnvironment = ({
         env.OPENCODE_PROVIDER_NAME = providerName
         const envVarKey = `OPENCODE_API_KEY_${providerName.toUpperCase().replace(/[-.]/g, '_')}`
         env[envVarKey] = apiKey
+        // opencode's auto-update check can't detect Cherry Studio's bun install,
+        // causing a confusing "Update Available" dialog that always fails.
+        // Cherry Studio manages opencode updates via its own autoUpdateToLatest.
+        env.OPENCODE_DISABLE_AUTOUPDATE = 'true'
       }
       break
   }

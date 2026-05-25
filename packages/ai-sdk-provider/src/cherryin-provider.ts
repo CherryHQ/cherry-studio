@@ -137,7 +137,6 @@ const toBearerToken = (authorization?: string) => (authorization ? authorization
 const createJsonHeadersGetter = (options: CherryInProviderSettings): (() => Record<string, HeaderValue>) => {
   return () => ({
     Authorization: `Bearer ${resolveApiKey(options)}`,
-    'Content-Type': 'application/json',
     ...resolveConfiguredHeaders(options.headers)
   })
 }

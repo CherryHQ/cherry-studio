@@ -1,71 +1,105 @@
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
-import { render, screen } from '@testing-library/react'
+import { createEvent, fireEvent, render } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   editMessage: vi.fn(),
+  editMessageBlocks: vi.fn(),
+  resendUserMessageWithEdit: vi.fn(),
   scrollIntoView: vi.fn(),
   setTimeoutTimer: vi.fn(),
   useChatContext: vi.fn().mockReturnValue({ isMultiSelectMode: false }),
   useSettings: vi.fn().mockReturnValue({
     multiModelMessageStyle: 'horizontal',
     gridColumns: 2,
-    gridPopoverTrigger: 'click'
+    gridPopoverTrigger: 'click',
+    messageFont: 'system',
+    fontSize: 14,
+    messageStyle: 'plain',
+    showMessageOutline: false
   }),
   EventEmitter: {
-    on: vi.fn(),
-    off: vi.fn()
+    on: vi.fn(() => vi.fn()),
+    off: vi.fn(),
+    emit: vi.fn()
   },
   MessageEditingProvider: vi.fn(({ children }: { children: ReactNode }) => <>{children}</>),
+  useMessageEditing: vi.fn().mockReturnValue({
+    editingMessageId: null,
+    startEditing: vi.fn(),
+    stopEditing: vi.fn()
+  }),
   MessageGroupMenuBar: vi.fn(() => <div className="group-menu-bar">menu</div>),
-  MessageItem: vi.fn(({ message }: { message: Message }) => (
-    <div className="message">
-      <div className="message-content-container" data-testid={`content-${message.id}`}>
-        Long message content
-      </div>
-      <div className="MessageFooter">footer</div>
-    </div>
-  ))
+  HorizontalScrollContainer: vi.fn(({ children }: { children: ReactNode }) => <div>{children}</div>),
+  MessageContent: vi.fn(() => <div style={{ minHeight: 600 }}>Long message content</div>),
+  MessageEditor: vi.fn(() => <div>editor</div>),
+  MessageErrorBoundary: vi.fn(({ children }: { children: ReactNode }) => <>{children}</>),
+  MessageHeader: vi.fn(() => <div className="message-header">header</div>),
+  MessageMenubar: vi.fn(() => <div className="message-menubar">menubar</div>),
+  MessageOutline: vi.fn(() => null)
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      error: vi.fn(),
+      warn: vi.fn(),
+      info: vi.fn()
+    })
+  }
+}))
+
+vi.mock('@renderer/components/HorizontalScrollContainer', () => ({
+  default: mocks.HorizontalScrollContainer
 }))
 
 vi.mock('@renderer/context/MessageEditingContext', () => ({
-  MessageEditingProvider: mocks.MessageEditingProvider
+  MessageEditingProvider: mocks.MessageEditingProvider,
+  useMessageEditing: () => mocks.useMessageEditing()
 }))
 
-vi.mock('@renderer/utils', () => ({
-  classNames: (items: Array<Record<string, boolean> | string | undefined>) =>
-    items
-      .flatMap((item) => {
-        if (!item) return []
-        if (typeof item === 'string') return [item]
-        return Object.entries(item)
-          .filter(([, value]) => value)
-          .map(([key]) => key)
-      })
-      .join(' ')
-}))
+vi.mock('@renderer/utils', () => {
+  const flattenClassNames = (value: unknown): string[] => {
+    if (!value) return []
+    if (typeof value === 'string') return [value]
+    if (Array.isArray(value)) return value.flatMap(flattenClassNames)
+    if (typeof value === 'object') {
+      return Object.entries(value as Record<string, boolean>)
+        .filter(([, enabled]) => enabled)
+        .map(([className]) => className)
+    }
+    return []
+  }
 
-vi.mock('uuid', () => ({
-  default: () => 'test-uuid',
-  v4: () => 'test-uuid'
+  return {
+    classNames: (value: unknown) => flattenClassNames(value).join(' '),
+    cn: (...values: unknown[]) => flattenClassNames(values).join(' ')
+  }
+})
+
+vi.mock('@renderer/hooks/useAssistant', () => ({
+  useAssistant: () => ({
+    assistant: null,
+    setModel: vi.fn()
+  })
 }))
 
 vi.mock('@renderer/hooks/useChatContext', () => ({
   useChatContext: () => mocks.useChatContext()
 }))
 
-vi.mock('@renderer/hooks/useAssistant', () => ({
-  useAssistant: () => ({
-    assistant: null
+vi.mock('@renderer/hooks/useMessageOperations', () => ({
+  useMessageOperations: () => ({
+    editMessage: mocks.editMessage,
+    editMessageBlocks: mocks.editMessageBlocks,
+    resendUserMessageWithEdit: mocks.resendUserMessageWithEdit
   })
 }))
 
-vi.mock('@renderer/hooks/useMessageOperations', () => ({
-  useMessageOperations: () => ({
-    editMessage: mocks.editMessage
-  })
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModel: () => null
 }))
 
 vi.mock('@renderer/hooks/useSettings', () => ({
@@ -80,54 +114,193 @@ vi.mock('@renderer/hooks/useTimer', () => ({
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
-    LOCATE_MESSAGE: 'locate-message'
+    LOCATE_MESSAGE: 'locate-message',
+    EDIT_MESSAGE: 'edit-message',
+    NEW_CONTEXT: 'new-context'
   },
   EventEmitter: mocks.EventEmitter
+}))
+
+vi.mock('@renderer/services/MessagesService', () => ({
+  getMessageModelId: () => 'model-id'
+}))
+
+vi.mock('@renderer/services/ModelService', () => ({
+  getModelUniqId: () => 'model-uniq-id'
+}))
+
+vi.mock('@renderer/services/TokenService', () => ({
+  estimateMessageUsage: vi.fn().mockResolvedValue(0)
 }))
 
 vi.mock('@renderer/utils/dom', () => ({
   scrollIntoView: mocks.scrollIntoView
 }))
 
-vi.mock('../Message', () => ({
-  default: mocks.MessageItem
+vi.mock('@renderer/utils/messageUtils/is', () => ({
+  isMessageProcessing: () => false
+}))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => key
+  })
+}))
+
+vi.mock('../MessageContent', () => ({
+  default: mocks.MessageContent
+}))
+
+vi.mock('../MessageEditor', () => ({
+  default: mocks.MessageEditor
+}))
+
+vi.mock('../MessageErrorBoundary', () => ({
+  default: mocks.MessageErrorBoundary
 }))
 
 vi.mock('../MessageGroupMenuBar', () => ({
   default: mocks.MessageGroupMenuBar
 }))
 
+vi.mock('../MessageHeader', () => ({
+  default: mocks.MessageHeader
+}))
+
+vi.mock('../MessageMenubar', () => ({
+  default: mocks.MessageMenubar
+}))
+
+vi.mock('../MessageOutline', () => ({
+  default: mocks.MessageOutline
+}))
+
 const { default: MessageGroup } = await import('../MessageGroup')
 
-const createMessage = (id: string, index: number) =>
+const createMessage = (id: string, index: number, multiModelMessageStyle: Message['multiModelMessageStyle']) =>
   ({
     id,
     askId: 'ask-1',
     role: 'assistant',
     blocks: [],
-    multiModelMessageStyle: 'horizontal',
+    multiModelMessageStyle,
     index
   }) as unknown as Message & { index: number }
+
+const setElementSize = (
+  element: Element,
+  dimensions: Partial<{
+    clientHeight: number
+    clientWidth: number
+    scrollHeight: number
+    scrollLeft: number
+    scrollWidth: number
+  }>
+) => {
+  for (const [key, value] of Object.entries(dimensions)) {
+    Object.defineProperty(element, key, {
+      configurable: true,
+      value,
+      writable: true
+    })
+  }
+}
 
 describe('MessageGroup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('uses only the inner content container for vertical scrolling in horizontal layout', () => {
-    const messages = [createMessage('msg-1', 0), createMessage('msg-2', 1)]
+  it('keeps vertical scrolling inside the message content area for horizontal layout', () => {
+    const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
     const topic = { id: 'topic-1' } as Topic
 
-    render(<MessageGroup messages={messages} topic={topic} />)
+    const { container } = render(<MessageGroup messages={messages} topic={topic} />)
 
     const outerWrapper = document.getElementById('message-msg-1')
     expect(outerWrapper).not.toBeNull()
     expect(getComputedStyle(outerWrapper!).overflowY).toBe('visible')
 
-    const contentContainer = screen.getByTestId('content-msg-1')
-    expect(getComputedStyle(contentContainer).overflowY).toBe('auto')
+    const contentContainer = container.querySelector('#message-msg-1 .message-content-container')
+    expect(contentContainer).not.toBeNull()
+    expect(getComputedStyle(contentContainer as HTMLElement).overflowY).toBe('auto')
 
     const horizontalGroup = outerWrapper!.parentElement as HTMLElement
     expect(getComputedStyle(horizontalGroup).overflowX).toBe('auto')
+    expect(getComputedStyle(horizontalGroup).overflowY).toBe('hidden')
+  })
+
+  it('prevents vertical wheel on non-content areas from bubbling to the outer chat scroll in horizontal layout', () => {
+    const parentWheel = vi.fn()
+    const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
+    const topic = { id: 'topic-1' } as Topic
+
+    const { container } = render(
+      <div onWheel={parentWheel}>
+        <MessageGroup messages={messages} topic={topic} />
+      </div>
+    )
+
+    const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
+    const horizontalGroup = outerWrapper.parentElement as HTMLElement
+    const contentContainers = container.querySelectorAll('.message-content-container')
+
+    expect(horizontalGroup).not.toBeNull()
+    expect(contentContainers).toHaveLength(2)
+
+    contentContainers.forEach((contentContainer) => {
+      setElementSize(contentContainer, {
+        clientHeight: 300,
+        scrollHeight: 600
+      })
+    })
+
+    const wheelEvent = createEvent.wheel(horizontalGroup, { deltaY: 120 })
+    fireEvent(horizontalGroup, wheelEvent)
+
+    expect(parentWheel).not.toHaveBeenCalled()
+  })
+
+  it('supports horizontal wheel scrolling on non-content areas in horizontal layout', () => {
+    const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
+    const topic = { id: 'topic-1' } as Topic
+
+    const { container } = render(<MessageGroup messages={messages} topic={topic} />)
+
+    const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
+    const horizontalGroup = outerWrapper.parentElement as HTMLElement
+    expect(horizontalGroup).not.toBeNull()
+
+    setElementSize(horizontalGroup, {
+      clientWidth: 500,
+      scrollLeft: 0,
+      scrollWidth: 1000
+    })
+
+    const wheelEvent = createEvent.wheel(horizontalGroup, { deltaX: 160 })
+    fireEvent(horizontalGroup, wheelEvent)
+
+    expect(horizontalGroup.scrollLeft).toBe(160)
+  })
+
+  it('preserves visible content overflow for non-horizontal layouts', () => {
+    mocks.useSettings.mockReturnValue({
+      multiModelMessageStyle: 'vertical',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'plain',
+      showMessageOutline: false
+    })
+
+    const messages = [createMessage('msg-1', 0, 'vertical'), createMessage('msg-2', 1, 'vertical')]
+    const topic = { id: 'topic-1' } as Topic
+
+    const { container } = render(<MessageGroup messages={messages} topic={topic} />)
+
+    const contentContainer = container.querySelector('#message-msg-1 .message-content-container')
+    expect(contentContainer).not.toBeNull()
+    expect(getComputedStyle(contentContainer as HTMLElement).overflowY).toBe('visible')
   })
 })

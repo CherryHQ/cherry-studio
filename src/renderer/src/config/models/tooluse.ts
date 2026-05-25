@@ -29,6 +29,7 @@ export const FUNCTION_CALLING_MODELS = [
   'gemma-?4(?:[-.\\w]+)?',
   'grok-3(?:-[\\w-]+)?',
   'grok-4(?:-[\\w-]+)?',
+  'grok-build(?:-[\\w-]+)?',
   'doubao-seed-1[.-][68](?:-[\\w-]+)?',
   'doubao-seed-2[.-]0(?:-[\\w-]+)?',
   'doubao-seed-code(?:-[\\w-]+)?',
@@ -36,6 +37,7 @@ export const FUNCTION_CALLING_MODELS = [
   'ling-\\w+(?:-[\\w-]+)?',
   'ring-\\w+(?:-[\\w-]+)?',
   'minimax-m2(?:\\.\\d+)?(?:-[\\w-]+)?',
+  'mimo-v2\\.5(?:-pro)?(?!-)',
   'mimo-v2-flash',
   'mimo-v2-pro',
   'mimo-v2-omni',
@@ -55,13 +57,16 @@ const FUNCTION_CALLING_EXCLUDED_MODELS = [
   'gemini-2.5-flash-image(?:-[\\w-]+)?',
   'gemini-2.0-flash-preview-image-generation',
   'gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?',
-  'deepseek-v3.2-speciale'
+  'deepseek-v3.2-speciale',
+  'deepseek-r1(?:[-:][\\w.-]+)?'
 ]
 
 export const FUNCTION_CALLING_REGEX = new RegExp(
   `\\b(?!(?:${FUNCTION_CALLING_EXCLUDED_MODELS.join('|')})\\b)(?:${FUNCTION_CALLING_MODELS.join('|')})\\b`,
   'i'
 )
+
+const STEPFUN_FUNCTION_CALLING_MODELS = new Set(['step-3.7-flash'])
 
 export function isFunctionCallingModel(model?: Model): boolean {
   if (!model || isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
@@ -72,6 +77,10 @@ export function isFunctionCallingModel(model?: Model): boolean {
 
   if (isUserSelectedModelType(model, 'function_calling') !== undefined) {
     return isUserSelectedModelType(model, 'function_calling')!
+  }
+
+  if (model.provider === 'stepfun' && STEPFUN_FUNCTION_CALLING_MODELS.has(modelId)) {
+    return true
   }
 
   if (model.provider === 'doubao' || modelId.includes('doubao')) {

@@ -26,13 +26,14 @@ const visionAllowedModels = [
   'qwen2-vl',
   'qwen2.5-vl',
   'qwen3-vl',
-  'qwen3\\.[5-9](?:-[\\w-]+)?',
+  'qwen3\\.[5-9](?!-max)(?:-[\\w-]+)?',
   'qwen2.5-omni',
   'qwen3-omni(?:-[\\w-]+)?',
   'qvq',
   'internvl2',
   'grok-vision-beta',
   'grok-4(?:-[\\w-]+)?',
+  'grok-build(?:-[\\w-]+)?',
   'pixtral',
   'gpt-4(?:-[\\w-]+)',
   'gpt-4.1(?:-[\\w-]+)?',
@@ -44,7 +45,7 @@ const visionAllowedModels = [
   'o3(?:-[\\w-]+)?',
   'o4(?:-[\\w-]+)?',
   'deepseek-vl(?:[\\w-]+)?',
-  'kimi-k2.5',
+  'kimi-k2\\.[56](?:-[\\w-]+)?',
   'kimi-latest',
   'gemma-?[3-4](?:[-.\\w]+)?',
   'doubao-seed-1[.-][68](?:-[\\w-]+)?',
@@ -60,7 +61,8 @@ const visionAllowedModels = [
   'qwen-omni(?:-[\\w-]+)?',
   'mistral-large-(2512|latest)',
   'mistral-medium-(2508|latest)',
-  'mistral-small-(2506|latest)',
+  'mistral-small',
+  'mimo-v2\\.5$',
   'mimo-v2-omni(?:-[\\w-]+)?',
   'glm-5v-turbo'
 ]
@@ -79,6 +81,8 @@ const VISION_REGEX = new RegExp(
   `\\b(?!(?:${visionExcludedModels.join('|')})\\b)(${visionAllowedModels.join('|')})\\b`,
   'i'
 )
+
+const STEPFUN_VISION_MODELS = new Set(['step-3.7-flash'])
 
 // All dedicated image generation models (only generate images, no text chat capability)
 // These models need:
@@ -117,6 +121,7 @@ const IMAGE_ENHANCEMENT_MODELS = [
   'grok-2-image(?:-[\\w-]+)?',
   'qwen-image-edit',
   'gpt-image-1',
+  'gpt-image-2',
   'gemini-2.5-flash-image(?:-[\\w-]+)?',
   'gemini-2.0-flash-preview-image-generation',
   'gemini-3(?:\\.\\d+)?-(?:flash|pro)-image(?:-[\\w-]+)?'
@@ -260,6 +265,10 @@ export function isVisionModel(model: Model): boolean {
   }
 
   const modelId = getLowerBaseModelName(model.id)
+  if (model.provider === 'stepfun' && STEPFUN_VISION_MODELS.has(modelId)) {
+    return true
+  }
+
   if (model.provider === 'doubao' || modelId.includes('doubao')) {
     return VISION_REGEX.test(model.name) || VISION_REGEX.test(modelId) || false
   }
