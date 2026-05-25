@@ -38,8 +38,8 @@ export async function runStartupRecovery(handlers: ReadonlyMap<string, JobHandle
   }
 
   for (const [type, handler] of handlers) {
-    const nonTerminal = await jobService.getNonTerminalByType(type)
-    if (nonTerminal.length === 0) continue
+    const active = await jobService.getActiveByType(type)
+    if (active.length === 0) continue
 
     // 1. cancelRequested → cancelled, regardless of strategy. Includes pending
     //    so a row whose cancelRequested=true flag was flipped between the
@@ -47,7 +47,7 @@ export async function runStartupRecovery(handlers: ReadonlyMap<string, JobHandle
     //    next dispatch tick (the WHERE in claimNextPendingTx now excludes
     //    cancelRequested=true rows from being claimed, but a leftover row
     //    must still be reduced to a terminal state here).
-    const cancelRequestedIds = nonTerminal
+    const cancelRequestedIds = active
       .filter((r) => r.cancelRequested && (r.status === 'running' || r.status === 'delayed' || r.status === 'pending'))
       .map((r) => r.id)
     if (cancelRequestedIds.length) {
@@ -57,7 +57,7 @@ export async function runStartupRecovery(handlers: ReadonlyMap<string, JobHandle
     }
 
     const cancelRequestedSet = new Set(cancelRequestedIds)
-    const remaining = nonTerminal.filter((r) => !cancelRequestedSet.has(r.id))
+    const remaining = active.filter((r) => !cancelRequestedSet.has(r.id))
 
     // 2. Apply strategy to the rest.
     if (handler.recovery === 'abandon') {
@@ -105,8 +105,8 @@ export async function runStartupRecovery(handlers: ReadonlyMap<string, JobHandle
   // running (would block dispatch via active count), delayed (would be
   // promoted to pending but never run), and pending (would never be
   // claimed). All three should be cancelled so no row leaks indefinitely.
-  const allNonTerminal = await jobService.getStaleNonTerminal()
-  const orphans = allNonTerminal.filter((r) => !handlers.has(r.type))
+  const allActive = await jobService.getStaleActive()
+  const orphans = allActive.filter((r) => !handlers.has(r.type))
   const orphanIds = orphans.map((r) => r.id)
   if (orphanIds.length) {
     await jobService.cancelByIds(orphanIds, {
