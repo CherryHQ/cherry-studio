@@ -205,6 +205,30 @@ describe('SettingsWindowService', () => {
     )
   })
 
+  it('caps ultra-wide main-window cases to 1280px width and recenters', () => {
+    const mainWindow = createMockWindow()
+    const settingsWindow = createMockWindow()
+    // 2560 * 0.8 = 2048 > 1280 ceiling → width capped to 1280
+    // 1400 * 0.8 = 1120, centered at x = 100 + (2560-1280)/2 = 740
+    mainWindow.getBounds.mockReturnValue({ x: 100, y: 50, width: 2560, height: 1400 })
+    mockManagedWindows({ mainWindow, settingsWindow })
+
+    service.open('/settings/about')
+
+    expect(windowManagerMock.open).toHaveBeenCalledWith(
+      WindowType.Settings,
+      expect.objectContaining({
+        options: expect.objectContaining({
+          x: 740,
+          y: 190,
+          width: 1280,
+          height: 1120
+        })
+      })
+    )
+    expect(settingsWindow.setBounds).toHaveBeenCalledWith({ x: 740, y: 190, width: 1280, height: 1120 })
+  })
+
   it('keeps the native title empty even when the page title changes', () => {
     const window = createMockWindow()
     const event = { preventDefault: vi.fn() }
