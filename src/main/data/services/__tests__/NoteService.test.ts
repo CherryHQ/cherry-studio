@@ -3,7 +3,7 @@ import { NoteService, noteService } from '@data/services/NoteService'
 import type { DataApiError } from '@shared/data/api'
 import { ErrorCode } from '@shared/data/api'
 import { setupTestDatabase } from '@test-helpers/db'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 const ROOT_A = '/Users/test/Notes'
@@ -12,6 +12,9 @@ const FOLDER = '/Users/test/Notes/Folder'
 const SIBLING_FOLDER = '/Users/test/Notes/Folder2'
 const NOTE = '/Users/test/Notes/Folder/a.md'
 const RENAMED_FOLDER = '/Users/test/Notes/Renamed'
+const EMOJI_FOLDER = '/Users/test/Notes/📁'
+const EMOJI_NOTE = '/Users/test/Notes/📁/a.md'
+const RENAMED_EMOJI_FOLDER = '/Users/test/Notes/📦'
 
 describe('NoteService', () => {
   const dbh = setupTestDatabase()
@@ -83,7 +86,25 @@ describe('NoteService', () => {
         isExpanded: false
       })
     ).resolves.toBeNull()
+    await expect(
+      noteService.upsert({
+        rootPath: ROOT_A,
+        path: '/Users/test/Notes/other-missing.md',
+        isExpanded: false
+      })
+    ).resolves.toBeNull()
     expect(await noteService.listByRoot(ROOT_A)).toHaveLength(0)
+  })
+
+  it('should reject note rows where both persisted flags are false', async () => {
+    await expect(
+      dbh.db.insert(noteTable).values({
+        rootPath: ROOT_A,
+        path: '/Users/test/Notes/invalid.md',
+        isStarred: false,
+        isExpanded: false
+      })
+    ).rejects.toThrow()
   })
 
   it('should delete a path recursively when requested', async () => {
@@ -118,6 +139,7 @@ describe('NoteService', () => {
   it('should rewrite folder paths recursively', async () => {
     await noteService.upsert({ rootPath: ROOT_A, path: FOLDER, isExpanded: true })
     await noteService.upsert({ rootPath: ROOT_A, path: NOTE, isStarred: true })
+    await noteService.upsert({ rootPath: ROOT_A, path: SIBLING_FOLDER, isExpanded: true })
 
     const result = await noteService.rewritePath({
       rootPath: ROOT_A,
@@ -127,12 +149,25 @@ describe('NoteService', () => {
     })
 
     expect(result.updated).toBe(2)
-    const rows = await dbh.db
-      .select()
-      .from(noteTable)
-      .where(and(eq(noteTable.rootPath, ROOT_A), eq(noteTable.path, `${RENAMED_FOLDER}/a.md`)))
-    expect(rows).toHaveLength(1)
-    expect(rows[0].isStarred).toBe(true)
+    const rows = await dbh.db.select().from(noteTable).where(eq(noteTable.rootPath, ROOT_A))
+    expect(rows.find((row) => row.path === `${RENAMED_FOLDER}/a.md`)).toMatchObject({ isStarred: true })
+    expect(rows.find((row) => row.path === SIBLING_FOLDER)).toMatchObject({ isExpanded: true })
+  })
+
+  it('should rewrite emoji folder paths recursively', async () => {
+    await noteService.upsert({ rootPath: ROOT_A, path: EMOJI_FOLDER, isExpanded: true })
+    await noteService.upsert({ rootPath: ROOT_A, path: EMOJI_NOTE, isStarred: true })
+
+    const result = await noteService.rewritePath({
+      rootPath: ROOT_A,
+      fromPath: EMOJI_FOLDER,
+      toPath: RENAMED_EMOJI_FOLDER,
+      recursive: true
+    })
+
+    expect(result.updated).toBe(2)
+    const rows = await dbh.db.select().from(noteTable).where(eq(noteTable.rootPath, ROOT_A))
+    expect(rows.find((row) => row.path === `${RENAMED_EMOJI_FOLDER}/a.md`)).toMatchObject({ isStarred: true })
   })
 
   it('should rewrite paths when stale target note rows already exist', async () => {

@@ -17,7 +17,7 @@ export const findNodeByPath = (tree: NotesTreeNode[], targetPath: string): Notes
 }
 
 /**
- * 获取当前活动节点（基于useLiveQuery的树数据）
+ * 获取当前活动节点（基于当前笔记树和活动文件路径）
  */
 export function useActiveNode(notesTree: NotesTreeNode[], activeFilePath?: string) {
   const activeNode = useMemo(() => {

@@ -66,4 +66,15 @@ describe('note DTO schemas', () => {
       })
     ).toThrow('fromPath and toPath must differ')
   })
+
+  it('rejects recursive rewrite requests into the source descendant', () => {
+    expect(() =>
+      RewriteNotePathSchema.parse({
+        rootPath: '/notes',
+        fromPath: '/notes/folder',
+        toPath: '/notes/folder/child',
+        recursive: true
+      })
+    ).toThrow('Cannot rewrite a folder into its own descendant')
+  })
 })

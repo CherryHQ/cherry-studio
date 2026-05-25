@@ -44,6 +44,10 @@ export const RewriteNotePathSchema = z
     message: 'fromPath and toPath must differ',
     path: ['toPath']
   })
+  .refine((value) => !value.recursive || !value.toPath.startsWith(`${value.fromPath}/`), {
+    message: 'Cannot rewrite a folder into its own descendant',
+    path: ['toPath']
+  })
 export type RewriteNotePathDto = z.infer<typeof RewriteNotePathSchema>
 
 export type NoteSchemas = {

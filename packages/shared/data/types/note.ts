@@ -4,7 +4,7 @@ export const NoteIdSchema = z.uuidv4()
 
 /**
  * Invariant: at least one of `isStarred` or `isExpanded` is true.
- * Rows where both become false are auto-deleted by `NoteService.upsert`.
+ * Rows where both become false are auto-deleted by `NoteService.upsert`; the DB table also has a CHECK constraint.
  */
 export const NoteSchema = z.strictObject({
   id: NoteIdSchema,

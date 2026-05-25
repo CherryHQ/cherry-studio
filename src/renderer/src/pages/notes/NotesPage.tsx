@@ -39,6 +39,7 @@ import NotesEditor from './NotesEditor'
 import NotesSidebar from './NotesSidebar'
 
 const logger = loggerService.withContext('NotesPage')
+const SAVE_FAILURE_TOAST_INTERVAL_MS = 5000
 
 type NoteMetadataSnapshot = Pick<Note, 'path' | 'isStarred' | 'isExpanded'>
 
@@ -64,6 +65,7 @@ const NotesPage: FC = () => {
   const watcherRef = useRef<(() => void) | null>(null)
   const lastContentRef = useRef<string>('')
   const lastFilePathRef = useRef<string | undefined>(undefined)
+  const lastSaveFailureToastAtRef = useRef(0)
   const isRenamingRef = useRef(false)
   const isCreatingNoteRef = useRef(false)
   const pendingScrollRef = useRef<{ lineNumber: number; lineContent?: string } | null>(null)
@@ -144,6 +146,11 @@ const NotesPage: FC = () => {
         invalidateFileContent(targetPath)
       } catch (error) {
         logger.error('Failed to save note:', error as Error)
+        const now = Date.now()
+        if (now - lastSaveFailureToastAtRef.current > SAVE_FAILURE_TOAST_INTERVAL_MS) {
+          lastSaveFailureToastAtRef.current = now
+          window.toast.error(t('notes.save_failed'))
+        }
       }
     },
     [activeFilePath, currentContent, invalidateFileContent, t]
@@ -515,6 +522,7 @@ const NotesPage: FC = () => {
     async (operation: () => Promise<void>, rollback?: () => Promise<void>) => {
       try {
         await operation()
+        return true
       } catch (error) {
         logger.error('Failed to sync note metadata after file operation:', error as Error)
         if (rollback) {
@@ -526,7 +534,7 @@ const NotesPage: FC = () => {
         }
         window.toast.error(t('notes.metadata_sync_failed'))
         await refreshTree()
-        throw error
+        return false
       }
     },
     [refreshTree, t]
@@ -558,9 +566,10 @@ const NotesPage: FC = () => {
         await refreshTree()
       } catch (error) {
         logger.error('Failed to create folder:', error as Error)
+        window.toast.error(t('notes.create_folder_failed'))
       }
     },
-    [getTargetFolderPath, refreshTree, setFolderExpandedByPath]
+    [getTargetFolderPath, refreshTree, setFolderExpandedByPath, t]
   )
 
   // 创建笔记
@@ -581,6 +590,7 @@ const NotesPage: FC = () => {
         await refreshTree()
       } catch (error) {
         logger.error('Failed to create note:', error as Error)
+        window.toast.error(t('notes.create_note_failed'))
       } finally {
         // 延迟重置标志，给数据库同步一些时间
         setTimeout(() => {
@@ -588,7 +598,7 @@ const NotesPage: FC = () => {
         }, 500)
       }
     },
-    [getTargetFolderPath, refreshTree, setActiveFilePath, setFolderExpandedByPath]
+    [getTargetFolderPath, refreshTree, setActiveFilePath, setFolderExpandedByPath, t]
   )
 
   const handleToggleExpanded = useCallback(
@@ -713,10 +723,13 @@ const NotesPage: FC = () => {
           nextActivePath = `${renamed.path}${suffix}`
         }
 
-        await syncMetadataAfterFileOperation(
+        const metadataSynced = await syncMetadataAfterFileOperation(
           () => rewritePath(oldPath, renamed.path, node.type === 'folder'),
           () => rollbackFileMove(renamed.path, oldPath, node.type)
         )
+        if (!metadataSynced) {
+          return
+        }
 
         if (nextActivePath) {
           lastFilePathRef.current = nextActivePath
@@ -726,6 +739,11 @@ const NotesPage: FC = () => {
         await refreshTree()
       } catch (error) {
         logger.error('Failed to rename node:', error as Error)
+        window.toast.error(
+          error instanceof Error && error.message.startsWith('Target name already exists')
+            ? t('notes.target_name_exists')
+            : t('notes.rename_failed')
+        )
       } finally {
         setTimeout(() => {
           isRenamingRef.current = false
@@ -739,7 +757,8 @@ const NotesPage: FC = () => {
       rewritePath,
       rollbackFileMove,
       setActiveFilePath,
-      syncMetadataAfterFileOperation
+      syncMetadataAfterFileOperation,
+      t
     ]
   )
 
@@ -781,17 +800,26 @@ const NotesPage: FC = () => {
 
         // 检查上传结果
         if (result.fileCount === 0) {
+          if (result.failedFiles > 0) {
+            window.toast.error(t('notes.upload_all_failed', { failed: result.failedFiles }))
+            return
+          }
           window.toast.warning(t('notes.no_valid_files'))
           return
         }
 
-        // 排序并显示成功信息
+        // 排序并显示上传结果
         setFolderExpandedByPath(targetFolderPath, true)
         await refreshTree()
 
-        const successMessage = t('notes.upload_success')
+        if (result.failedFiles > 0) {
+          window.toast.warning(
+            t('notes.upload_partial_failed', { uploaded: result.fileCount, failed: result.failedFiles })
+          )
+          return
+        }
 
-        window.toast.success(successMessage)
+        window.toast.success(t('notes.upload_success'))
       } catch (error) {
         logger.error('Failed to handle file upload:', error as Error)
         window.toast.error(t('notes.upload_failed'))
@@ -861,10 +889,13 @@ const NotesPage: FC = () => {
           await window.api.file.moveDir(sourceNode.externalPath, destinationPath)
         }
 
-        await syncMetadataAfterFileOperation(
+        const metadataSynced = await syncMetadataAfterFileOperation(
           () => rewritePath(sourceNode.externalPath, destinationPath, sourceNode.type === 'folder'),
           () => rollbackFileMove(destinationPath, sourceNode.externalPath, sourceNode.type)
         )
+        if (!metadataSynced) {
+          return
+        }
         setFolderExpandedByPath(normalizedTargetParent, true)
 
         const normalizedActivePath = activeFilePath ? normalizePathValue(activeFilePath) : undefined
@@ -890,6 +921,7 @@ const NotesPage: FC = () => {
         await refreshTree()
       } catch (error) {
         logger.error('Failed to move nodes:', error as Error)
+        window.toast.error(t('notes.move_failed'))
       }
     },
     [
@@ -901,7 +933,8 @@ const NotesPage: FC = () => {
       rollbackFileMove,
       setActiveFilePath,
       setFolderExpandedByPath,
-      syncMetadataAfterFileOperation
+      syncMetadataAfterFileOperation,
+      t
     ]
   )
 

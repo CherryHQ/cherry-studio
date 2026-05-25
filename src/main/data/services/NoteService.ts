@@ -26,12 +26,16 @@ function pathCondition(path: string, recursive: boolean = false) {
   }
 
   const prefix = `${path}/`
-  return sql`(${noteTable.path} = ${path} OR substr(${noteTable.path}, 1, ${prefix.length}) = ${prefix})`
+  return sql`(${noteTable.path} = ${path} OR substr(${noteTable.path}, 1, length(${prefix})) = ${prefix})`
 }
 
 export class NoteService {
+  private get dbService() {
+    return application.get('DbService')
+  }
+
   private get db() {
-    return application.get('DbService').getDb()
+    return this.dbService.getDb()
   }
 
   async listByRoot(rootPath: string): Promise<Note[]> {
@@ -64,27 +68,43 @@ export class NoteService {
 
     const row = await withSqliteErrors(
       () =>
-        this.db.transaction(async (tx) => {
-          const [upserted] = await tx
+        this.dbService.withWriteTx(async (tx) => {
+          const [existing] = await tx
+            .select()
+            .from(noteTable)
+            .where(and(eq(noteTable.rootPath, dto.rootPath), eq(noteTable.path, dto.path)))
+            .limit(1)
+
+          const nextIsStarred = dto.isStarred ?? existing?.isStarred ?? false
+          const nextIsExpanded = dto.isExpanded ?? existing?.isExpanded ?? false
+
+          if (!nextIsStarred && !nextIsExpanded) {
+            if (existing) {
+              await tx.delete(noteTable).where(eq(noteTable.id, existing.id))
+            }
+            return null
+          }
+
+          if (existing) {
+            const [updated] = await tx
+              .update(noteTable)
+              .set(updateValues)
+              .where(eq(noteTable.id, existing.id))
+              .returning()
+            return updated
+          }
+
+          const [inserted] = await tx
             .insert(noteTable)
             .values({
               rootPath: dto.rootPath,
               path: dto.path,
-              ...updateValues
-            })
-            .onConflictDoUpdate({
-              target: [noteTable.rootPath, noteTable.path],
-              set: updateValues
+              isStarred: nextIsStarred,
+              isExpanded: nextIsExpanded
             })
             .returning()
 
-          if (!upserted.isStarred && !upserted.isExpanded) {
-            // `null` means the merged patch pruned the row after both persisted flags became false.
-            await tx.delete(noteTable).where(eq(noteTable.id, upserted.id))
-            return null
-          }
-
-          return upserted
+          return inserted
         }),
       defaultHandlersFor('Note', `${dto.rootPath}:${dto.path}`)
     )
@@ -95,9 +115,11 @@ export class NoteService {
   async deleteByPath(query: DeleteNoteQuery): Promise<void> {
     await withSqliteErrors(
       () =>
-        this.db
-          .delete(noteTable)
-          .where(and(eq(noteTable.rootPath, query.rootPath), pathCondition(query.path, query.recursive ?? false))),
+        this.dbService.withWriteTx((tx) =>
+          tx
+            .delete(noteTable)
+            .where(and(eq(noteTable.rootPath, query.rootPath), pathCondition(query.path, query.recursive ?? false)))
+        ),
       defaultHandlersFor('Note', `${query.rootPath}:${query.path}`)
     )
   }
@@ -105,7 +127,7 @@ export class NoteService {
   async rewritePath(dto: RewriteNotePathDto): Promise<{ updated: number }> {
     return withSqliteErrors(
       () =>
-        this.db.transaction(async (tx) => {
+        this.dbService.withWriteTx(async (tx) => {
           const rows = await tx
             .select()
             .from(noteTable)
@@ -122,8 +144,8 @@ export class NoteService {
           const sourceIds = rewrites.map((rewrite) => rewrite.id)
           const targetPaths = [...new Set(rewrites.map((rewrite) => rewrite.path))]
 
-          // Stale destination rows can exist after a failed prior rewrite; remove them before the CASE update
-          // so the unique (root_path, path) index does not reject the move.
+          // Destination rows can pre-exist for ordinary renames or retry recovery; remove them before the
+          // CASE update so the unique (root_path, path) index does not reject the move.
           await tx
             .delete(noteTable)
             .where(

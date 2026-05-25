@@ -3706,7 +3706,12 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "note_has_state_check": {
+          "name": "note_has_state_check",
+          "value": "\"note\".\"is_starred\" = 1 OR \"note\".\"is_expanded\" = 1"
+        }
+      }
     }
   },
   "views": {},

@@ -1,5 +1,6 @@
 import { EmptyState, SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import ActionIconButton from '@renderer/components/Buttons/ActionIconButton'
 import CodeEditor, { type CodeEditorHandles } from '@renderer/components/CodeEditor'
 import RichEditor from '@renderer/components/RichEditor'
@@ -11,6 +12,8 @@ import { SpellCheck } from 'lucide-react'
 import type { FC, RefObject } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('NotesEditor')
 
 interface NotesEditorProps {
   activeNodeId?: string
@@ -127,8 +130,14 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                     active={enableSpellCheck}
                     onClick={() => {
                       const newValue = !enableSpellCheck
-                      void setEnableSpellCheck(newValue)
-                      void window.api.setEnableSpellCheck(newValue)
+                      void setEnableSpellCheck(newValue).catch((error) => {
+                        logger.error('Failed to update spell check preference', error as Error)
+                        window.toast.error(t('notes.settings.save_failed'))
+                      })
+                      void window.api.setEnableSpellCheck(newValue).catch((error) => {
+                        logger.error('Failed to update spell check runtime state', error as Error)
+                        window.toast.error(t('notes.settings.save_failed'))
+                      })
                     }}
                     icon={<SpellCheck size={18} />}
                   />

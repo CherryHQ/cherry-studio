@@ -11,6 +11,7 @@ export interface UploadResult {
   uploadedNodes: NotesTreeNode[]
   totalFiles: number
   skippedFiles: number
+  failedFiles: number
   fileCount: number
   folderCount: number
 }
@@ -167,6 +168,7 @@ export async function uploadNotes(files: File[], targetPath: string): Promise<Up
       uploadedNodes: [],
       totalFiles: 0,
       skippedFiles: 0,
+      failedFiles: 0,
       fileCount: 0,
       folderCount: 0
     }
@@ -202,6 +204,7 @@ export async function uploadNotes(files: File[], targetPath: string): Promise<Up
         uploadedNodes: [],
         totalFiles,
         skippedFiles: result.skippedFiles,
+        failedFiles: result.failedFiles,
         fileCount: result.fileCount,
         folderCount: result.folderCount
       }
@@ -229,6 +232,7 @@ async function uploadNotesLegacy(files: File[], targetPath: string): Promise<Upl
       uploadedNodes: [],
       totalFiles: files.length,
       skippedFiles,
+      failedFiles: 0,
       fileCount: 0,
       folderCount: 0
     }
@@ -238,6 +242,7 @@ async function uploadNotesLegacy(files: File[], targetPath: string): Promise<Upl
   await createFolders(folders)
 
   let fileCount = 0
+  let failedFiles = 0
   const BATCH_SIZE = 5 // Process 5 files concurrently to balance performance and responsiveness
 
   // Process files in batches to avoid blocking the UI thread
@@ -262,6 +267,7 @@ async function uploadNotesLegacy(files: File[], targetPath: string): Promise<Upl
       if (result.status === 'fulfilled') {
         fileCount += 1
       } else {
+        failedFiles += 1
         logger.error('Failed to write uploaded file:', result.reason)
       }
     })
@@ -276,6 +282,7 @@ async function uploadNotesLegacy(files: File[], targetPath: string): Promise<Upl
     uploadedNodes: [],
     totalFiles: files.length,
     skippedFiles,
+    failedFiles,
     fileCount,
     folderCount: folders.size
   }
