@@ -5,13 +5,30 @@ export function escapeRegex(text: string): string {
 }
 
 export function splitKeywordsToTerms(keywords: string): string[] {
-  return (keywords || '')
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((term) => term.length > 0)
+  const input = (keywords || '').trim()
+  if (input.length === 0) return []
+
+  const terms: string[] = []
+  const pattern = /"([^"]*)"?|'([^']*)'?|(\S+)/g
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(input)) !== null) {
+    const term = (match[1] ?? match[2] ?? match[3]).trim()
+    if (term.length > 0) {
+      terms.push(term.toLowerCase())
+    }
+  }
+  return terms
+}
+
+function containsCJK(text: string): boolean {
+  return /[\u4e00-\u9fff\u3400-\u4dbf\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/.test(text)
 }
 
 function buildWholeWordPattern(escapedTerm: string): string {
+  // CJK text has no word boundaries — degrade to substring matching
+  if (containsCJK(escapedTerm)) {
+    return escapedTerm
+  }
   // "Whole word" here means: do not match inside a larger alphanumeric token.
   // This avoids false positives like:
   // - API keys: "IMr4WSMS5dwa52"

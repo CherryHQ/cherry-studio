@@ -164,6 +164,7 @@ export interface SkillInstallOptions {
 
 export interface SkillToggleOptions {
   skillId: string
+  agentId: string
   isEnabled: boolean
 }
 

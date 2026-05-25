@@ -1,4 +1,5 @@
 import crypto from 'node:crypto'
+import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -6,6 +7,7 @@ import { loggerService } from '@logger'
 import { getMCPServersFromRedux } from '@main/apiServer/utils/mcp'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists, removeEnvProxy } from '@main/utils'
+import { getConfigDir } from '@main/utils/file'
 import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
@@ -19,6 +21,7 @@ import {
   type StreamableHTTPClientTransportOptions
 } from '@modelcontextprotocol/sdk/client/streamableHttp'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
+import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js'
 import { McpError, type Tool as SDKTool } from '@modelcontextprotocol/sdk/types'
 // Import notification schemas from MCP SDK
 import {
@@ -68,8 +71,10 @@ type CallToolArgs = { server: MCPServer; name: string; args: any; callId?: strin
 
 const logger = loggerService.withContext('MCPService')
 
-/** Timeout for MCP server connection (transport init + client connect), in milliseconds. */
-const MCP_CONNECTION_TIMEOUT_MS = 60_000
+// Minimum timeout for the MCP `initialize` request. Connect runs once per activation,
+// so a generous floor avoids false positives on slow SSE/streamableHttp handshakes while
+// still letting users raise it further via `server.timeout`.
+const MCP_CONNECT_TIMEOUT_FLOOR_MS = 180_000
 
 // Redact potentially sensitive fields in objects (headers, tokens, api keys)
 function redactSensitive(input: any): any {
@@ -596,32 +601,28 @@ class McpService {
         }
 
         try {
-          const connectWithTimeout = async () => {
-            const transport = await initTransport()
-            try {
-              await client.connect(transport)
-            } catch (error: any) {
-              if (
-                error instanceof Error &&
-                (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
-              ) {
-                logger.debug(`Authentication required for server: ${server.name}`)
-                await handleAuth(client, transport as SSEClientTransport | StreamableHTTPClientTransport)
-              } else {
-                throw error
-              }
+          const transport = await initTransport()
+          // Bound the MCP `initialize` request so a non-responsive server fails fast via the
+          // SDK's own abort path instead of hanging. Use a 180s floor (activation runs once,
+          // generous headroom is cheap) while still honoring larger `server.timeout` values
+          // that the user explicitly configured. transport.start() latency remains bounded
+          // by the underlying fetch / child_process, matching v1.8.4 behavior.
+          const connectOptions: RequestOptions = {
+            timeout: Math.max((server.timeout ?? 0) * 1000, MCP_CONNECT_TIMEOUT_FLOOR_MS)
+          }
+          try {
+            await client.connect(transport, connectOptions)
+          } catch (error: any) {
+            if (
+              error instanceof Error &&
+              (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
+            ) {
+              logger.debug(`Authentication required for server: ${server.name}`)
+              await handleAuth(client, transport as SSEClientTransport | StreamableHTTPClientTransport)
+            } else {
+              throw error
             }
           }
-
-          await Promise.race([
-            connectWithTimeout(),
-            new Promise<never>((_, reject) =>
-              setTimeout(
-                () => reject(new Error(`Connection timed out after ${MCP_CONNECTION_TIMEOUT_MS / 1000}s`)),
-                MCP_CONNECTION_TIMEOUT_MS
-              )
-            )
-          ])
 
           this.emitServerLog(server, {
             timestamp: Date.now(),
@@ -782,6 +783,29 @@ class McpService {
     const existingClient = this.clients.get(serverKey)
     if (existingClient) {
       await this.closeClient(serverKey)
+    }
+
+    // Cleanup OAuth token file for this server, but only if no other server
+    // entry still points at the same baseUrl (shared OAuth storage key is
+    // md5(baseUrl), so unlinking prematurely would break the remaining entry).
+    if (server.baseUrl) {
+      try {
+        const remainingServers = await getMCPServersFromRedux()
+        const baseUrlStillInUse = remainingServers.some((s) => s.id !== server.id && s.baseUrl === server.baseUrl)
+        if (!baseUrlStillInUse) {
+          const serverUrlHash = crypto.createHash('md5').update(server.baseUrl).digest('hex')
+          const oauthFilePath = path.join(getConfigDir(), 'mcp', 'oauth', `${serverUrlHash}_oauth.json`)
+          await fs.unlink(oauthFilePath)
+          getServerLogger(server).debug(`Cleaned up OAuth token file`)
+        } else {
+          getServerLogger(server).debug(`Skipped OAuth token cleanup; baseUrl still in use by another server`)
+        }
+      } catch (error) {
+        // Ignore ENOENT - file may not exist if server never used OAuth
+        if (error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code !== 'ENOENT') {
+          getServerLogger(server).error(`Failed to cleanup OAuth token file`, error as Error)
+        }
+      }
     }
 
     // If this is a DXT server, cleanup its directory

@@ -37,8 +37,9 @@ export const useAgents = () => {
     if (!apiServerRunning) {
       throw new Error(t('agent.server.error.not_running'))
     }
+    // The /agents listing endpoint defaults to the schema max so a single fetch returns the full
+    // list. NOTE: useUpdateAgent depends on a flat array result.
     const result = await client.listAgents({ sortBy: 'sort_order', orderBy: 'asc' })
-    // NOTE: We only use the array for now. useUpdateAgent depends on this behavior.
     return result.data
   }, [apiServerConfig.enabled, apiServerRunning, client, t])
 

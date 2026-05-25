@@ -1055,9 +1055,9 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.Cherryai_GetSignature, (_, params) => generateSignature(params))
 
   // Global Skills
-  ipcMain.handle(IpcChannel.Skill_List, async () => {
+  ipcMain.handle(IpcChannel.Skill_List, async (_, agentId?: string) => {
     try {
-      const data = await skillService.list()
+      const data = await skillService.list(agentId)
       return { success: true, data }
     } catch (error) {
       logger.error('Failed to list skills', { error })
@@ -1087,6 +1087,16 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   ipcMain.handle(IpcChannel.Skill_Toggle, async (_, options) => {
     try {
+      if (
+        !options ||
+        typeof options.skillId !== 'string' ||
+        !options.skillId ||
+        typeof options.agentId !== 'string' ||
+        !options.agentId ||
+        typeof options.isEnabled !== 'boolean'
+      ) {
+        return { success: false, error: 'Invalid toggle options' }
+      }
       const data = await skillService.toggle(options)
       return { success: true, data }
     } catch (error) {
@@ -1137,6 +1147,9 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   ipcMain.handle(IpcChannel.Skill_ListLocal, async (_, workdir: string) => {
     try {
+      if (!workdir || typeof workdir !== 'string') {
+        return { success: false, error: 'Invalid workdir' }
+      }
       const data = await skillService.listLocal(workdir)
       return { success: true, data }
     } catch (error) {

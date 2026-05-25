@@ -87,7 +87,11 @@ vi.mock('@renderer/aiCore', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProvider: () => ({ provider: { id: 'test-provider', name: 'Test Provider' } })
+  useProvider: () => ({ provider: { id: 'test-provider', name: 'Test Provider', apiKey: 'test-key' } })
+}))
+
+vi.mock('@renderer/services/ApiService', () => ({
+  getRotatedApiKey: (provider: any) => provider.apiKey || ''
 }))
 
 // mock i18n

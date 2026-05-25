@@ -47,6 +47,16 @@ const DATA_MIGRATIONS: DataMigration[] = [
         logger.warn('Some messages failed to migrate', { errors: result.errors })
       }
     }
+  },
+  {
+    version: 10002,
+    tag: 'data_0002_skills_per_agent',
+    description: 'Seed agent_skills from legacy skills.is_enabled and create per-agent symlinks',
+    migrate: async (db) => {
+      const { runSkillsPerAgentMigration } = await import('./migrateSkillsPerAgent')
+      const result = await runSkillsPerAgentMigration(db)
+      logger.info('Skills per-agent migration result', result)
+    }
   }
 ]
 

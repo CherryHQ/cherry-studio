@@ -11,6 +11,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { TextBlockParam } from '@anthropic-ai/sdk/resources'
 import { loggerService } from '@logger'
+import { withoutTrailingApiVersion } from '@shared/utils/api'
 import type { Provider } from '@types'
 import type { ModelMessage } from 'ai'
 
@@ -88,10 +89,11 @@ export function getSdkClient(
       }
     })
   }
-  const baseURL =
+  const rawBaseURL =
     provider.type === 'anthropic'
       ? provider.apiHost
       : (provider.anthropicApiHost && provider.anthropicApiHost.trim()) || provider.apiHost
+  const baseURL = withoutTrailingApiVersion(rawBaseURL)
 
   logger.debug('Anthropic API baseURL', { baseURL, providerId: provider.id })
 

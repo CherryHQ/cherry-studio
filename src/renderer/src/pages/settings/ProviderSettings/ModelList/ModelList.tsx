@@ -162,10 +162,9 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
               </>
             )}
           </HStack>
-          {!hasNoModels && actionButtons}
+          {actionButtons}
         </HStack>
       </SettingSubtitle>
-      {hasNoModels && <div style={{ marginBottom: 12 }}>{actionButtons}</div>}
       <Spin spinning={isLoading} indicator={<LoadingIcon color="var(--color-text-2)" />}>
         {displayedModelGroups && !isEmpty(displayedModelGroups) && (
           <Flex gap={12} vertical>

@@ -142,8 +142,12 @@ async function getProviderConfig(providerId: string): Promise<{ apiKey: string; 
   baseURL = baseURL.replace(/\/+$/, '')
   baseURL = baseURL.replace(/#$/, '')
 
+  // If multiple API keys are configured (comma-separated), use the first one.
+  // Matches the main-process convention in OpenClawService.
+  const apiKey = provider.apiKey ? provider.apiKey.split(',')[0].trim() : ''
+
   return {
-    apiKey: provider.apiKey || '',
+    apiKey,
     baseURL
   }
 }

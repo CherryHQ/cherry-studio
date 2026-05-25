@@ -198,8 +198,9 @@ class DifyKnowledgeServer {
           retrieval_model: {
             top_k: topK,
             // will be error if not set
-            reranking_enable: null,
-            score_threshold_enabled: null
+            search_method: 'semantic_search',
+            reranking_enable: false,
+            score_threshold_enabled: false
           }
         })
       })

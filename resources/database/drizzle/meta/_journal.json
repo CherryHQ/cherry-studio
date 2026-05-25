@@ -42,6 +42,20 @@
       "tag": "0005_normal_doomsday",
       "version": "6",
       "when": 1775032005049
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1776154617146,
+      "tag": "0006_famous_fallen_one",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1776236285350,
+      "tag": "0007_strange_galactus",
+      "breakpoints": true
     }
   ],
   "version": "7"

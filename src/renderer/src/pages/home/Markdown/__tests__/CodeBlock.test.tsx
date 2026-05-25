@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   isOpenFenceBlock: vi.fn(),
   selectById: vi.fn(),
   useSettings: vi.fn().mockReturnValue({ codeFancyBlock: true }),
+  isWin: false,
   CodeBlockView: vi.fn(({ onSave, children }) => (
     <div>
       <code>{children}</code>
@@ -63,6 +64,12 @@ vi.mock('@renderer/components/CodeBlockView', () => ({
   HtmlArtifactsCard: mocks.HtmlArtifactsCard
 }))
 
+vi.mock('@renderer/config/constant', () => ({
+  get isWin() {
+    return mocks.isWin
+  }
+}))
+
 // Mock ClickableFilePath
 vi.mock('@renderer/pages/home/Messages/Tools/MessageAgentTools/ClickableFilePath', () => ({
   ClickableFilePath: ({ path }: { path: string }) => <span data-testid="clickable-file-path">{path}</span>
@@ -84,6 +91,7 @@ describe('CodeBlock', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.isWin = false
     // Default mock return values
     mocks.getCodeBlockId.mockReturnValue('test-code-block-id')
     mocks.isOpenFenceBlock.mockReturnValue(false)
@@ -136,6 +144,15 @@ describe('CodeBlock', () => {
       'should NOT detect %s as a file path',
       (text) => {
         render(<CodeBlock {...defaultProps} className={undefined} children={text} />)
+        expect(screen.queryByTestId('clickable-file-path')).not.toBeInTheDocument()
+      }
+    )
+
+    it.each(['/home/user/project/src/index.ts', '/tmp/test.log', '/var/log/app.log', '/etc/nginx/nginx.conf'])(
+      'should NOT detect %s as a file path on Windows',
+      (path) => {
+        mocks.isWin = true
+        render(<CodeBlock {...defaultProps} className={undefined} children={path} />)
         expect(screen.queryByTestId('clickable-file-path')).not.toBeInTheDocument()
       }
     )

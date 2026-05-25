@@ -209,17 +209,20 @@ function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {
 
 function buildBedrockConfig(ctx: BuilderContext): ProviderConfig<'bedrock'> {
   const authType = getAwsBedrockAuthType()
-  const region = getAwsBedrockRegion()
+  const region = getAwsBedrockRegion().trim() || undefined
 
   const base = { providerId: 'bedrock' as const, endpoint: ctx.endpoint }
 
+  const baseURL = ctx.baseConfig.baseURL || undefined
+
   if (authType === 'apiKey') {
-    return { ...base, providerSettings: { ...ctx.baseConfig, region, apiKey: getAwsBedrockApiKey() } }
+    return { ...base, providerSettings: { ...ctx.baseConfig, baseURL, region, apiKey: getAwsBedrockApiKey() } }
   }
   return {
     ...base,
     providerSettings: {
       ...ctx.baseConfig,
+      baseURL,
       region,
       accessKeyId: getAwsBedrockAccessKeyId(),
       secretAccessKey: getAwsBedrockSecretAccessKey()

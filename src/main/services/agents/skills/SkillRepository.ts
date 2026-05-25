@@ -67,6 +67,18 @@ export class SkillRepository extends BaseService {
     return this.rowToInstalledSkill(updated[0])
   }
 
+  async updateMetadata(
+    id: string,
+    data: { name: string; description: string | null; author: string | null; tags: string | null; content_hash: string }
+  ): Promise<void> {
+    const db = await this.getDatabase()
+    await db
+      .update(skillsTable)
+      .set({ ...data, updated_at: Date.now() })
+      .where(eq(skillsTable.id, id))
+    logger.info('Skill metadata updated', { id, name: data.name })
+  }
+
   async delete(id: string): Promise<boolean> {
     const db = await this.getDatabase()
     const result = await db.delete(skillsTable).where(eq(skillsTable.id, id))

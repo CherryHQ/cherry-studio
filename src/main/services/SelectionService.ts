@@ -1072,7 +1072,7 @@ export class SelectionService {
    */
   private handleKeyDownHide = (data: KeyboardEventData) => {
     //dont hide toolbar when ctrlkey is pressed
-    if (this.triggerMode === TriggerMode.Ctrlkey && this.isCtrlkey(data.vkCode)) {
+    if (this.triggerMode === TriggerMode.Ctrlkey && this.isCtrlkey(data)) {
       return
     }
     //dont hide toolbar when shiftkey or altkey is pressed, because it's used for selection
@@ -1089,7 +1089,7 @@ export class SelectionService {
    * @param data Keyboard event data
    */
   private handleKeyDownCtrlkeyMode = (data: KeyboardEventData) => {
-    if (!this.isCtrlkey(data.vkCode)) {
+    if (!this.isCtrlkey(data)) {
       // reset the lastCtrlkeyDownTime if any other key is pressed
       if (this.lastCtrlkeyDownTime > 0) {
         this.lastCtrlkeyDownTime = -1
@@ -1128,7 +1128,7 @@ export class SelectionService {
    * @param data Keyboard event data
    */
   private handleKeyUpCtrlkeyMode = (data: KeyboardEventData) => {
-    if (!this.isCtrlkey(data.vkCode)) return
+    if (!this.isCtrlkey(data)) return
     //remove the mouse-wheel&mouse-down listener
     this.selectionHook!.off('mouse-wheel', this.handleMouseWheelCtrlkeyMode)
     this.selectionHook!.off('mouse-down', this.handleMouseDownCtrlkeyMode)
@@ -1156,7 +1156,13 @@ export class SelectionService {
   // Check if the key is ctrl key
   // Windows: VK_LCONTROL(162), VK_RCONTROL(163)
   // macOS: kVK_Control(59), kVK_RightControl(62)
-  private isCtrlkey(vkCode: number) {
+  private isCtrlkey(data: KeyboardEventData) {
+    if (data.uniKey === 'Control') {
+      return true
+    }
+
+    const { vkCode } = data
+
     if (isMac) {
       return vkCode === 59 || vkCode === 62
     }
@@ -1481,57 +1487,6 @@ export class SelectionService {
   }
 
   /**
-   * [Windows only] Manual window resize handler
-   *
-   * ELECTRON BUG WORKAROUND:
-   * In Electron, when using `frame: false` + `transparent: true`, the native window
-   * resize functionality is broken on Windows. This is a known Electron bug.
-   * See: https://github.com/electron/electron/issues/48554
-   *
-   * This method can be removed once the Electron bug is fixed.
-   */
-  public resizeActionWindow(actionWindow: BrowserWindow, deltaX: number, deltaY: number, direction: string): void {
-    if (actionWindow.isDestroyed()) return
-    const bounds = actionWindow.getBounds()
-    const minWidth = 300
-    const minHeight = 200
-
-    let { x, y, width, height } = bounds
-
-    // Handle horizontal resize
-    if (direction.includes('e')) {
-      width = Math.max(minWidth, width + deltaX)
-    }
-    if (direction.includes('w')) {
-      const newWidth = Math.max(minWidth, width - deltaX)
-      if (newWidth !== width) {
-        x = x + (width - newWidth)
-        width = newWidth
-      }
-    }
-
-    // Handle vertical resize
-    if (direction.includes('s')) {
-      height = Math.max(minHeight, height + deltaY)
-    }
-    if (direction.includes('n')) {
-      const newHeight = Math.max(minHeight, height - deltaY)
-      if (newHeight !== height) {
-        y = y + (height - newHeight)
-        height = newHeight
-      }
-    }
-
-    actionWindow.setBounds({ x, y, width, height })
-
-    // [Windows only] Update remembered window size for custom resize
-    // setBounds() may not trigger the 'resized' event, so we need to update manually
-    if (this.isRemeberWinSize) {
-      this.lastActionWindowSize = { width, height }
-    }
-  }
-
-  /**
    * Update trigger mode behavior
    * Switches between selection-based and alt-key based triggering
    * Manages appropriate event listeners for each mode
@@ -1656,18 +1611,6 @@ export class SelectionService {
         selectionService?.pinActionWindow(actionWindow, isPinned)
       }
     })
-
-    // [Windows only] Electron bug workaround - can be removed once fixed
-    // See: https://github.com/electron/electron/issues/48554
-    ipcMain.handle(
-      IpcChannel.Selection_ActionWindowResize,
-      (event, deltaX: number, deltaY: number, direction: string) => {
-        const actionWindow = BrowserWindow.fromWebContents(event.sender)
-        if (actionWindow && !actionWindow.isDestroyed()) {
-          selectionService?.resizeActionWindow(actionWindow, deltaX, deltaY, direction)
-        }
-      }
-    )
 
     if (isLinux) {
       ipcMain.handle(IpcChannel.Selection_GetLinuxEnvInfo, () => {

@@ -11,5 +11,6 @@ export const languageEnglishNameMap: Record<LanguageVarious, string> = {
   'ro-RO': 'Romanian',
   'ru-RU': 'Russian',
   'zh-CN': 'Chinese (Simplified)',
+  'vi-VN': 'Vietnamese',
   'zh-TW': 'Chinese (Traditional)'
 }

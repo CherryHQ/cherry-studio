@@ -36,7 +36,11 @@ export const OllamaTagsResponseSchema = z.object({
           parent_model: z.string().optional(),
           format: z.string().optional(),
           family: z.string().optional(),
-          families: z.array(z.string()).optional(),
+          families: z
+            .array(z.string())
+            .nullable()
+            .optional()
+            .transform((v) => v ?? undefined),
           parameter_size: z.string().optional(),
           quantization_level: z.string().optional()
         })
@@ -60,6 +64,25 @@ export const GeminiModelsResponseSchema = z.object({
       supportedGenerationMethods: z.array(z.string()).optional()
     })
   ),
+  nextPageToken: z.string().optional()
+})
+
+// === Vertex AI Model Garden ===
+
+export const VertexPublisherModelsResponseSchema = z.object({
+  publisherModels: z
+    .array(
+      z.looseObject({
+        name: z.string(),
+        displayName: z.string().optional(),
+        description: z.string().optional(),
+        versionId: z.string().optional(),
+        launchStage: z.string().optional(),
+        versionState: z.string().optional()
+      })
+    )
+    .optional()
+    .default([]),
   nextPageToken: z.string().optional()
 })
 
@@ -133,6 +156,27 @@ export const OVMSConfigResponseSchema = z.record(
       .optional()
   })
 )
+
+// === Vercel AI Gateway (/v3/ai/config) ===
+
+export const VercelGatewayModelsResponseSchema = z.object({
+  models: z.array(
+    z.looseObject({
+      id: z.string(),
+      name: z.string().optional(),
+      description: z.string().optional(),
+      modelType: z.string().optional(),
+      specification: z
+        .looseObject({
+          specificationVersion: z.string().optional(),
+          provider: z.string().optional(),
+          modelId: z.string().optional(),
+          type: z.string().optional()
+        })
+        .optional()
+    })
+  )
+})
 
 // === AIHubMix ===
 

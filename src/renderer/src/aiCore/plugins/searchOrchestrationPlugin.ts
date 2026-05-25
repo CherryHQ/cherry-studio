@@ -20,20 +20,20 @@ import {
   SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY,
   SEARCH_SUMMARY_PROMPT_WEB_ONLY
 } from '@renderer/config/prompts'
+import { fetchGenerate } from '@renderer/services/ApiService'
 import { getDefaultModel, getProviderByModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import { selectCurrentUserId, selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
 import type { Assistant } from '@renderer/types'
 import type { ExtractResults } from '@renderer/utils/extract'
 import { extractInfoFromXML } from '@renderer/utils/extract'
-import type { LanguageModel, ModelMessage } from 'ai'
-import { generateText } from 'ai'
+import type { ModelMessage } from 'ai'
 import { isEmpty } from 'lodash'
 
 import { MemoryProcessor } from '../../services/MemoryProcessor'
 import { knowledgeSearchTool } from '../tools/KnowledgeSearchTool'
 import { memorySearchTool } from '../tools/MemorySearchTool'
-import { webSearchToolWithPreExtractedKeywords } from '../tools/WebSearchTool'
+import { BUILTIN_WEB_SEARCH_TOOL_NAME, webSearchToolWithPreExtractedKeywords } from '../tools/WebSearchTool'
 
 const logger = loggerService.withContext('SearchOrchestrationPlugin')
 
@@ -137,9 +137,10 @@ async function analyzeSearchIntent(
       hasKnowledgeSearch: needKnowledgeExtract
     })
 
-    const { text: result } = await generateText({
-      model: context.model as LanguageModel,
-      prompt: formattedPrompt
+    const result = await fetchGenerate({
+      model,
+      prompt: formattedPrompt,
+      content: ''
     }).finally(() => {
       logger.info('Intent analysis generateText call completed', {
         modelId: model.id,
@@ -147,6 +148,14 @@ async function analyzeSearchIntent(
         requestId: context.requestId
       })
     })
+
+    // fetchGenerate swallows errors and returns '' — treat that as a failure so
+    // search still runs against the original user question via the fallback.
+    if (!result.trim()) {
+      logger.warn('Intent analysis returned empty result, using fallback')
+      return getFallbackResult()
+    }
+
     const parsedResult = extractInfoFromXML(result)
     logger.debug('Intent analysis result', { parsedResult })
 
@@ -328,11 +337,29 @@ export const searchOrchestrationPlugin = (
           if (needsSearch) {
             // onChunk({ type: ChunkType.EXTERNEL_TOOL_IN_PROGRESS })
             // logger.info('🌐 Adding web search tool with pre-extracted keywords')
-            params.tools['builtin_web_search'] = webSearchToolWithPreExtractedKeywords(
+            params.tools[BUILTIN_WEB_SEARCH_TOOL_NAME] = webSearchToolWithPreExtractedKeywords(
               assistant.webSearchProviderId,
               analysisResult.websearch,
               context.requestId
             )
+
+            const prepareStep = params.prepareStep
+            params.prepareStep = async (options) => {
+              const stepConfig = await prepareStep?.(options)
+              const hasWebSearchCall = options.steps.some((step) =>
+                step.toolCalls.some((toolCall) => toolCall.toolName === BUILTIN_WEB_SEARCH_TOOL_NAME)
+              )
+
+              if (!hasWebSearchCall) return stepConfig
+              const filteredTools = (stepConfig?.activeTools ?? Object.keys(params.tools!)).filter(
+                (toolName) => toolName !== BUILTIN_WEB_SEARCH_TOOL_NAME
+              )
+              // When web search is the only tool, don't set activeTools to [] — Anthropic
+              // rejects empty tools arrays. The tool's internal cache (cachedSearchResultsPromise)
+              // already prevents actual re-searching.
+              if (filteredTools.length === 0) return stepConfig
+              return { ...stepConfig, activeTools: filteredTools }
+            }
           }
         }
 

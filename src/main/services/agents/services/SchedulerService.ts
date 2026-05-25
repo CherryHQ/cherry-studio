@@ -251,7 +251,7 @@ class SchedulerService {
         sessionId = session.id
         logger.debug('Reusing session from last run', { taskId: task.id, sessionId })
       } else {
-        const newSession = await sessionService.createSession(task.agent_id, {})
+        const newSession = await sessionService.createSession(task.agent_id, { name: task.name })
         sessionId = newSession!.id
         session = await sessionService.getSession(task.agent_id, sessionId)
         if (!session) {

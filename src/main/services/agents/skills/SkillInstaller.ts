@@ -1,4 +1,5 @@
 import * as crypto from 'node:crypto'
+import * as path from 'node:path'
 
 import { loggerService } from '@logger'
 import { pathExists } from '@main/utils/file'
@@ -17,8 +18,16 @@ const logger = loggerService.withContext('SkillInstaller')
 export class SkillInstaller {
   /**
    * Install a skill folder to the destination path with backup-restore safety.
+   *
+   * If sourceDir and destPath resolve to the same location, the files are
+   * already in place (in-place registration flow) and no copy is performed.
    */
   async install(sourceDir: string, destPath: string): Promise<void> {
+    if (path.resolve(sourceDir) === path.resolve(destPath)) {
+      logger.debug('Source equals destination, skipping copy', { destPath })
+      return
+    }
+
     const backupPath = `${destPath}.bak`
     let hasBackup = false
 

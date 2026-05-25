@@ -53,9 +53,13 @@ export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvid
   const resolveApiKey = () =>
     loadApiKey({ apiKey: options.apiKey, environmentVariableName: 'NEWAPI_API_KEY', description: 'NewAPI' })
 
+  // Note: Do not hard-code `Content-Type: application/json` here. `postJsonToApi`
+  // already defaults it for JSON endpoints, while `postFormDataToApi` (used by
+  // `OpenAICompatibleImageModel` for `/images/edits`) relies on fetch to set
+  // `multipart/form-data; boundary=...` automatically — forcing JSON here breaks
+  // image edits with "invalid character '-' in numeric literal" on the server.
   const authHeaders = (): Record<string, string> => ({
     Authorization: `Bearer ${resolveApiKey()}`,
-    'Content-Type': 'application/json',
     ...options.headers
   })
 
@@ -68,7 +72,13 @@ export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvid
       baseURL,
       headers: () => ({ ...headers, 'x-api-key': resolveApiKey() }),
       fetch: customFetch,
-      supportedUrls: () => ({ 'image/*': [/^https?:\/\/.*$/] })
+      supportedUrls: () => ({ 'image/*': [/^https?:\/\/.*$/] }),
+      // NewAPI may route Claude models to Vertex/Bedrock backends, which reject the
+      // `structured-outputs-2025-11-13` beta header added by @ai-sdk/anthropic for
+      // claude-opus-4-6 / claude-sonnet-4-6 / claude-*-4-5 / claude-opus-4-1. Falling
+      // back to function-tool-based structured outputs keeps tool use (incl. MCP) working
+      // across all downstream backends. See issue #14375.
+      supportsNativeStructuredOutput: false
     })
   }
 

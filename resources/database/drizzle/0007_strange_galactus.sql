@@ -1,0 +1,1 @@
+ALTER TABLE `agents` ADD `deleted_at` text;

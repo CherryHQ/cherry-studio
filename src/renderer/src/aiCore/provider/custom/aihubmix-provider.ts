@@ -45,9 +45,13 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
   const resolveApiKey = () =>
     loadApiKey({ apiKey: options.apiKey, environmentVariableName: 'AIHUBMIX_API_KEY', description: 'AiHubMix' })
 
+  // Note: Do not hard-code `Content-Type: application/json` here. `postJsonToApi`
+  // already defaults it for JSON endpoints, while `postFormDataToApi` (used by
+  // `OpenAICompatibleImageModel` for `/images/edits`) relies on fetch to set
+  // `multipart/form-data; boundary=...` automatically — forcing JSON here breaks
+  // image edits with "invalid character '-' in numeric literal" on the server.
   const authHeaders = (): Record<string, string> => ({
     Authorization: `Bearer ${resolveApiKey()}`,
-    'Content-Type': 'application/json',
     ...APP_CODE_HEADER,
     ...options.headers
   })
@@ -61,7 +65,13 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
       baseURL,
       headers: () => ({ ...headers, 'x-api-key': resolveApiKey() }),
       fetch: customFetch,
-      supportedUrls: () => ({ 'image/*': [/^https?:\/\/.*$/] })
+      supportedUrls: () => ({ 'image/*': [/^https?:\/\/.*$/] }),
+      // AiHubMix may route Claude models to Vertex/Bedrock backends, which reject the
+      // `structured-outputs-2025-11-13` beta header added by @ai-sdk/anthropic for
+      // claude-opus-4-6 / claude-sonnet-4-6 / claude-*-4-5 / claude-opus-4-1. Falling
+      // back to function-tool-based structured outputs keeps tool use (incl. MCP) working
+      // across all downstream backends. See issue #14375.
+      supportsNativeStructuredOutput: false
     })
   }
 
@@ -79,7 +89,7 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
 
   const createOpenAICompatibleChatModel = (modelId: string): LanguageModelV3 =>
     new OpenAICompatibleChatLanguageModel(modelId, {
-      provider: `${AIHUBMIX_PROVIDER_NAME}.openai-compatible-chat`,
+      provider: `openai-compatible.${AIHUBMIX_PROVIDER_NAME}`,
       url,
       headers: authHeaders,
       fetch: customFetch
@@ -87,7 +97,7 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
 
   const createOpenAIChatModel = (modelId: string): LanguageModelV3 =>
     new OpenAIChatLanguageModel(modelId, {
-      provider: `${AIHUBMIX_PROVIDER_NAME}.openai-compatible-chat`,
+      provider: `openai-compatible.${AIHUBMIX_PROVIDER_NAME}`,
       url,
       headers: authHeaders,
       fetch: customFetch
