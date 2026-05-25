@@ -100,17 +100,42 @@ describe('pdfCompatibilityPlugin', () => {
     expect(mockExtractPdfText).not.toHaveBeenCalled()
   })
 
-  it('should pass through for Claude model on any provider type', async () => {
+  it('should pass through for Claude model routed via Anthropic endpoint (endpoint_type=anthropic)', async () => {
     vi.mocked(isAnthropicModel).mockReturnValue(true)
     const provider = makeProvider('my-aggregator', 'new-api')
+    const claudeModel = { ...makeModel(), id: 'claude-opus-4-7', endpoint_type: 'anthropic' as const }
 
     const params = {
       prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), makePdfFilePart()] }]
     } as unknown as LanguageModelV3CallOptions
 
-    const result = await runMiddleware(provider, params)
+    const result = await runMiddleware(provider, params, claudeModel)
     expect(result).toEqual(params)
     expect(mockExtractPdfText).not.toHaveBeenCalled()
+  })
+
+  it('should convert PDF for Claude model routed via chat-completions endpoint (no endpoint_type)', async () => {
+    // An Anthropic-named model wired through an OpenAI-compatible aggregator (e.g. NewAPI
+    // without endpoint_type='anthropic') uses chat-completions, which does NOT accept the
+    // 'file' part type. Native PDF must be downgraded to text in this case.
+    vi.mocked(isAnthropicModel).mockReturnValue(true)
+    const provider = makeProvider('my-aggregator', 'new-api')
+    const claudeModel = { ...makeModel(), id: 'claude-opus-4-7' }
+    mockExtractPdfText.mockResolvedValue('Extracted PDF content')
+
+    const params = {
+      prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), makePdfFilePart('report.pdf')] }]
+    } as unknown as LanguageModelV3CallOptions
+
+    const result = await runMiddleware(provider, params, claudeModel)
+    expect(mockExtractPdfText).toHaveBeenCalledWith('base64pdfdata')
+    expect(result.prompt[0]).toMatchObject({
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Hello' },
+        { type: 'text', text: 'report.pdf\nExtracted PDF content' }
+      ]
+    })
   })
 
   it('should convert PDF for Gemini model accessed through non-Gemini provider (e.g., GitHub Copilot)', async () => {
@@ -137,6 +162,20 @@ describe('pdfCompatibilityPlugin', () => {
         { type: 'text', text: 'report.pdf\nExtracted PDF content' }
       ]
     })
+  })
+
+  it('should pass through for Gemini model routed via Gemini endpoint (endpoint_type=gemini)', async () => {
+    vi.mocked(isGeminiModel).mockReturnValue(true)
+    const provider = makeProvider('my-aggregator', 'new-api')
+    const geminiModel = { ...makeModel(), id: 'gemini-3.1-pro-preview', endpoint_type: 'gemini' as const }
+
+    const params = {
+      prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), makePdfFilePart()] }]
+    } as unknown as LanguageModelV3CallOptions
+
+    const result = await runMiddleware(provider, params, geminiModel)
+    expect(result).toEqual(params)
+    expect(mockExtractPdfText).not.toHaveBeenCalled()
   })
 
   it('should pass through for Gemini model on native Gemini provider', async () => {
