@@ -20,7 +20,6 @@ import type { Message as NewMessage, MessageBlock } from '@renderer/types/newMes
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { Dexie, type EntityTable } from 'dexie'
 
-import { DexieFilesFrozenError } from '../errors/DexieFilesFrozenError'
 import { upgradeToV5, upgradeToV7, upgradeToV8 } from './upgrades'
 
 // Local row shapes for the deprecated dexie schema. The legacy renderer-side
@@ -151,21 +150,6 @@ db.version(10).stores({
   translate_languages: '&id, langCode',
   quick_phrases: 'id',
   message_blocks: 'id, messageId, file.id'
-})
-
-// ─── Phase 2: freeze db.files writes ───
-// All write operations on the legacy `files` table must go through the v2
-// File IPC surface (`createInternalEntry` / `ensureExternalEntry`).
-// Read operations (`get`, `toArray`, etc.) are intentionally left functional
-// so Batch A-E consumers can migrate incrementally.
-db.files.hook('creating', () => {
-  throw new DexieFilesFrozenError('add')
-})
-db.files.hook('updating', () => {
-  throw new DexieFilesFrozenError('update')
-})
-db.files.hook('deleting', () => {
-  throw new DexieFilesFrozenError('delete')
 })
 
 export default db
