@@ -157,6 +157,8 @@ export class KnowledgeMigrator extends BaseMigrator {
     this.skippedWarnings.clear()
   }
 
+  private static readonly INARRAY_CHUNK = 500
+
   // Queries `file_entry` for the subset of legacyFileIds we plan to reference,
   // so the `fileRefRows` loop can drop dangling refs *before* the engine's
   // post-migration `PRAGMA foreign_key_check` runs and aborts the whole user.
@@ -173,12 +175,17 @@ export class KnowledgeMigrator extends BaseMigrator {
       return new Set<string>()
     }
 
-    const rows = await ctx.db
-      .select({ id: fileEntryTable.id })
-      .from(fileEntryTable)
-      .where(inArray(fileEntryTable.id, [...legacyFileIds]))
-
-    return new Set(rows.map((row) => row.id))
+    const allIds = [...legacyFileIds]
+    const result = new Set<string>()
+    for (let i = 0; i < allIds.length; i += KnowledgeMigrator.INARRAY_CHUNK) {
+      const chunk = allIds.slice(i, i + KnowledgeMigrator.INARRAY_CHUNK)
+      const rows = await ctx.db
+        .select({ id: fileEntryTable.id })
+        .from(fileEntryTable)
+        .where(inArray(fileEntryTable.id, chunk))
+      for (const row of rows) result.add(row.id)
+    }
+    return result
   }
 
   private getLegacyKnowledgeDbPath(baseId: string, knowledgeBaseDir: string): string | null {

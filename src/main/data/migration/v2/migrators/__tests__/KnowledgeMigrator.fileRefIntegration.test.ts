@@ -138,6 +138,46 @@ describe('KnowledgeMigrator dangling file_ref guard (integration)', () => {
     expect(fkCheck.rows).toHaveLength(0)
   })
 
+  it('chunks IN query for >999 legacy file IDs without hitting SQLite parameter limit', async () => {
+    const FILE_COUNT = 1200
+    const dexieFiles: FileMetadata[] = Array.from({ length: FILE_COUNT }, (_, i) =>
+      dexieFileRow({ id: `file-${String(i).padStart(4, '0')}` })
+    )
+    const items = dexieFiles.map((f) => ({
+      id: `item-${f.id}`,
+      type: 'file' as const,
+      content: f.id
+    }))
+    const reduxKnowledge = {
+      bases: [
+        {
+          id: 'kb-large',
+          name: 'Large KB',
+          dimensions: 1024,
+          model: { id: 'emb', name: 'emb', provider: 'openai' },
+          items
+        }
+      ]
+    }
+
+    const ctx = makeCtx(dbh, dexieFiles, reduxKnowledge)
+
+    const fileMigrator = new FileMigrator()
+    await fileMigrator.prepare(ctx)
+    await fileMigrator.execute(ctx)
+
+    const knowledgeMigrator = new KnowledgeMigrator()
+    await knowledgeMigrator.prepare(ctx)
+    const execute = await knowledgeMigrator.execute(ctx)
+    expect(execute.success).toBe(true)
+
+    const refRows = await dbh.db.select({ fileEntryId: fileRefTable.fileEntryId }).from(fileRefTable)
+    expect(refRows).toHaveLength(FILE_COUNT)
+
+    const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
+    expect(fkCheck.rows).toHaveLength(0)
+  })
+
   it('records a bucketed dangling-file-entry warning that names the offending item ids', async () => {
     const dexieFiles: FileMetadata[] = [
       dexieFileRow({ id: 'abc-survivor' }),
