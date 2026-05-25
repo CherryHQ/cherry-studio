@@ -1,10 +1,9 @@
-import { Button, Separator } from '@cherrystudio/ui'
+import { Button, PageSidePanelSection, Separator } from '@cherrystudio/ui'
 import { ArrowLeftRight, RotateCcw } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import MiniAppListColumn from './MiniAppListColumn'
-import MiniAppSettingsSection from './MiniAppSettingsSection'
 import type { MiniAppVisibility } from './useMiniAppVisibility'
 
 type Props = Pick<
@@ -21,7 +20,7 @@ type Props = Pick<
 const MiniAppListPair: FC<Props> = ({ visible, hidden, hide, show, reorderVisible, reorderHidden, swap, reset }) => {
   const { t } = useTranslation()
   return (
-    <MiniAppSettingsSection
+    <PageSidePanelSection
       title={t('settings.miniApps.group.display')}
       actions={
         <>
@@ -57,7 +56,7 @@ const MiniAppListPair: FC<Props> = ({ visible, hidden, hide, show, reorderVisibl
           emptyText={t('settings.miniApps.empty')}
         />
       </div>
-    </MiniAppSettingsSection>
+    </PageSidePanelSection>
   )
 }
 
