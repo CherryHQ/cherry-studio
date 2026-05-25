@@ -52,7 +52,7 @@ function supportsNativePdf(provider: Provider, model: Model): boolean {
   // 400 even if the model name matches (e.g., a Claude model wired through OpenAI-compatible
   // chat completions, or a Gemini-named model via GitHub Copilot).
   if (
-    isOpenAILLMModel(model) ||
+    model.endpoint_type === 'openai-response' && isOpenAILLMModel(model) ||
     (model.endpoint_type === 'anthropic' && isAnthropicModel(model)) ||
     (model.endpoint_type === 'gemini' && isGeminiModel(model))
   ) {
