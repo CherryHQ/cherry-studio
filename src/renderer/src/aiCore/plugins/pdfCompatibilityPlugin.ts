@@ -46,11 +46,9 @@ function supportsNativePdf(provider: Provider, model: Model): boolean {
     return false
   }
 
-  // First-party model + matching endpoint pairings support native PDF input.
-  // For Anthropic and Gemini, require the routed protocol (endpoint_type) to match the
-  // model family — chat-completions endpoints don't accept the 'file' part type and would
-  // 400 even if the model name matches (e.g., a Claude model wired through OpenAI-compatible
-  // chat completions, or a Gemini-named model via GitHub Copilot).
+  // We assume here that the OpenAI model using the responses API, 
+  // the Claude model using the messages API, 
+  // and the Gemini model using the Gemini generateContent API natively support PDF input.
   if (
     model.endpoint_type === 'openai-response' && isOpenAILLMModel(model) ||
     (model.endpoint_type === 'anthropic' && isAnthropicModel(model)) ||
