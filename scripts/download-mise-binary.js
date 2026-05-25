@@ -55,6 +55,19 @@ function downloadMise(platformKey, outputDir) {
 
   const url = `https://github.com/jdx/mise/releases/download/v${MISE_VERSION}/${pkg.file}`
   const destPath = path.join(outputDir, pkg.binary)
+  const versionPath = path.join(outputDir, '.mise-version')
+
+  if (fs.existsSync(destPath) && fs.existsSync(versionPath)) {
+    const installedVersion = fs.readFileSync(versionPath, 'utf8').trim()
+    const hash = crypto.createHash('sha256').update(fs.readFileSync(destPath)).digest('hex')
+    if (installedVersion === MISE_VERSION && hash === pkg.sha256) {
+      if (process.platform !== 'win32') {
+        fs.chmodSync(destPath, 0o755)
+      }
+      console.log(`[mise] ${pkg.binary} ${MISE_VERSION} already installed at ${destPath}`)
+      return
+    }
+  }
 
   console.log(`Downloading: ${url}`)
   execFileSync('curl', ['-fSL', '--retry', '3', '-o', destPath, url], { stdio: 'inherit' })
