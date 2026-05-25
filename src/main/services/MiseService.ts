@@ -17,7 +17,7 @@ const logger = loggerService.withContext('MiseService')
 
 const execFileAsync = promisify(execFile)
 
-interface BinaryInstallState {
+interface ToolInstallState {
   name: string
   tool: string
   version: string
@@ -26,7 +26,7 @@ interface BinaryInstallState {
 
 interface MiseState {
   updatedAt: string
-  tools: Record<string, BinaryInstallState>
+  tools: Record<string, ToolInstallState>
 }
 
 interface ReconcileResult {
@@ -63,8 +63,7 @@ const MISE_PASSTHROUGH_ENV = [
 const TOOL_NAME_RE = /^[a-zA-Z][a-zA-Z0-9_-]*$/
 const TOOL_KEY_RE = /^(?!.*\.\.)(?!.*\/\/)[a-zA-Z0-9@:/_.-]+$/
 
-const WRAPPER_BACKENDS = new Set(['npm', 'pipx'])
-const WRAPPER_RUNTIME_DEPS: Record<string, string> = { npm: 'node', pipx: 'python' }
+const RUNTIME_DEPS: Record<string, string> = { npm: 'node@22', pipx: 'python@3.12' }
 
 const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000
 
@@ -234,14 +233,33 @@ export class MiseService extends BaseService {
     env['MISE_NO_ANALYTICS'] = '1'
     env['MISE_EXPERIMENTAL'] = '1'
 
+    const pathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path') || (isWin ? 'Path' : 'PATH')
+    const pathSegments = [
+      env['MISE_SHIMS_DIR'],
+      this.miseBin ? path.dirname(this.miseBin) : '',
+      env[pathKey] || ''
+    ].filter(Boolean)
+    env[pathKey] = pathSegments.join(path.delimiter)
+    if (!isWin) {
+      env['PATH'] = env[pathKey]
+    }
+
     if (isWin) {
       env['USERPROFILE'] = env['HOME']
     }
 
-    for (const dir of Object.values(env)) {
-      if (dir.startsWith(dataDir)) {
-        fs.mkdirSync(dir, { recursive: true })
-      }
+    for (const key of [
+      'MISE_DATA_DIR',
+      'MISE_CONFIG_DIR',
+      'MISE_CACHE_DIR',
+      'MISE_STATE_DIR',
+      'MISE_SHIMS_DIR',
+      'HOME',
+      'XDG_CONFIG_HOME',
+      'XDG_CACHE_HOME',
+      'XDG_STATE_HOME'
+    ]) {
+      fs.mkdirSync(env[key], { recursive: true })
     }
 
     return env
@@ -260,63 +278,28 @@ export class MiseService extends BaseService {
     return next
   }
 
-  private async installBinary(tool: MiseTool): Promise<string> {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cherry-mise-'))
+  private async isMiseToolReady(toolName: string): Promise<boolean> {
     try {
-      const version = tool.version || 'latest'
-      const backend = tool.tool.split(':')[0]
-      const runtime = WRAPPER_RUNTIME_DEPS[backend]
-      let tomlContent = `[tools]\n"${tool.tool}" = "${version}"\n`
-      if (runtime) {
-        tomlContent += `${runtime} = "latest"\n`
-      }
-      fs.writeFileSync(path.join(tmpDir, 'mise.toml'), tomlContent)
-
-      await this.runMise(['trust', tmpDir], tmpDir)
-      await this.runMise(['install', tool.tool], tmpDir)
-
-      const { stdout: versionOut } = await this.runMise(['which', tool.name, '--version'], tmpDir)
-      const installedVersion = versionOut.trim()
-
-      const binDir = application.getPath('cherry.bin')
-      fs.mkdirSync(binDir, { recursive: true })
-
-      if (WRAPPER_BACKENDS.has(backend)) {
-        const dstPath = path.join(binDir, isWin ? `${tool.name}.cmd` : tool.name)
-        this.writeToolWrapper(dstPath, tool, installedVersion)
-      } else {
-        const { stdout: srcPath } = await this.runMise(['which', tool.name], tmpDir)
-        const trimmedPath = srcPath.trim()
-        if (!trimmedPath) {
-          throw new Error(`mise which ${tool.name} returned empty path`)
-        }
-        const dstPath = path.join(binDir, isWin ? `${tool.name}.exe` : tool.name)
-        fs.copyFileSync(trimmedPath, dstPath)
-        if (!isWin) {
-          fs.chmodSync(dstPath, 0o755)
-        }
-      }
-
-      return installedVersion
-    } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true })
+      await this.runMise(['which', toolName], os.tmpdir())
+      await this.runMise(['reshim'], os.tmpdir())
+      return true
+    } catch {
+      return false
     }
   }
 
-  private writeToolWrapper(dstPath: string, tool: MiseTool, version: string): void {
-    const dataDir = application.getPath('feature.mise.data')
-    const miseBin = this.miseBin!
+  private async installWithMise(tool: MiseTool): Promise<string> {
+    const version = tool.version || 'latest'
     const backend = tool.tool.split(':')[0]
-    const runtime = WRAPPER_RUNTIME_DEPS[backend]
-    const runtimeArg = runtime ? `"${runtime}" ` : ''
-    if (isWin) {
-      const script = `@echo off\r\nset "MISE_DATA_DIR=${dataDir}"\r\nset "MISE_YES=1"\r\n"${miseBin}" x ${runtimeArg}"${tool.tool}@${version}" -- "${tool.name}" %*\r\n`
-      fs.writeFileSync(dstPath, script)
-    } else {
-      const safeMiseBin = miseBin.replace(/'/g, "'\\''")
-      const script = `#!/bin/sh\nMISE_DATA_DIR='${dataDir}' MISE_YES=1 exec '${safeMiseBin}' x ${runtime ? `${runtime} ` : ''}'${tool.tool}@${version}' -- '${tool.name}' "$@"\n`
-      fs.writeFileSync(dstPath, script, { mode: 0o755 })
-    }
+    const runtime = RUNTIME_DEPS[backend]
+    const toolSpec = `${tool.tool}@${version}`
+    const args = ['use', '-g', ...(runtime ? [runtime] : []), toolSpec]
+
+    await this.runMise(args, os.tmpdir())
+    await this.runMise(['reshim'], os.tmpdir())
+
+    const { stdout: versionOut } = await this.runMise(['which', tool.name, '--version'], os.tmpdir())
+    return versionOut.trim()
   }
 
   private loadState(): MiseState {
@@ -375,18 +358,18 @@ export class MiseService extends BaseService {
         }
 
         const existing = state.tools[tool.name]
-        if (existing && tool.version && existing.version === tool.version) {
+        if (existing && tool.version && existing.version === tool.version && (await this.isMiseToolReady(tool.name))) {
           result.skipped.push(tool.name)
           continue
         }
-        if (existing && !tool.version) {
+        if (existing && !tool.version && (await this.isMiseToolReady(tool.name))) {
           result.skipped.push(tool.name)
           continue
         }
 
         try {
           logger.info('Installing tool', { name: tool.name, tool: tool.tool, version: tool.version || 'latest' })
-          const installedVersion = await this.installBinary(tool)
+          const installedVersion = await this.installWithMise(tool)
           state.tools[tool.name] = {
             name: tool.name,
             tool: tool.tool,
@@ -420,7 +403,7 @@ export class MiseService extends BaseService {
     }
 
     return this.withStateLock(async () => {
-      const version = await this.installBinary(tool)
+      const version = await this.installWithMise(tool)
       const state = this.loadState()
       state.tools[tool.name] = {
         name: tool.name,
@@ -479,16 +462,22 @@ export class MiseService extends BaseService {
 
   async removeTool(toolName: string): Promise<void> {
     return this.withStateLock(async () => {
-      const binDir = application.getPath('cherry.bin')
-      for (const ext of isWin ? ['.exe', '.cmd'] : ['']) {
-        const binPath = path.join(binDir, `${toolName}${ext}`)
-        if (fs.existsSync(binPath)) {
-          fs.unlinkSync(binPath)
+      const state = this.loadState()
+      const existing = state.tools[toolName]
+      if (!existing) return
+
+      if (this.miseBin) {
+        try {
+          await this.runMise(['unuse', '-g', existing.tool], os.tmpdir())
+          await this.runMise(['reshim'], os.tmpdir())
+        } catch (err) {
+          logger.warn('Failed to unuse mise tool', {
+            name: toolName,
+            error: err instanceof Error ? err.message : String(err)
+          })
         }
       }
 
-      const state = this.loadState()
-      if (!state.tools[toolName]) return
       delete state.tools[toolName]
       state.updatedAt = new Date().toISOString()
       this.saveState(state)

@@ -101,6 +101,10 @@ describe('MiseService', () => {
         })
       )
 
+      mockExecFileAsync
+        .mockResolvedValueOnce({ stdout: '/mock/mise/shims/fd\n', stderr: '' }) // which fd
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
+
       const result = await service.reconcile([{ name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' }])
 
       expect(result.skipped).toEqual(['fd'])
@@ -122,6 +126,10 @@ describe('MiseService', () => {
         })
       )
 
+      mockExecFileAsync
+        .mockResolvedValueOnce({ stdout: '/mock/mise/shims/fd\n', stderr: '' }) // which fd
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
+
       const result = await service.reconcile([{ name: 'fd', tool: 'github:sharkdp/fd' }])
 
       expect(result.skipped).toEqual(['fd'])
@@ -137,13 +145,13 @@ describe('MiseService', () => {
         throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
       })
 
-      mockExecFileAsync.mockRejectedValueOnce(new Error('mise trust failed'))
+      mockExecFileAsync.mockRejectedValueOnce(new Error('mise use failed'))
 
       const result = await service.reconcile([{ name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' }])
 
       expect(result.failed).toHaveLength(1)
       expect(result.failed[0].name).toBe('fd')
-      expect(result.failed[0].error).toContain('mise trust failed')
+      expect(result.failed[0].error).toContain('mise use failed')
       expect(result.installed).toHaveLength(0)
     })
 
@@ -157,14 +165,12 @@ describe('MiseService', () => {
       })
 
       mockExecFileAsync
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // trust fd
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // install fd
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use fd
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim fd
         .mockResolvedValueOnce({ stdout: '10.0.0\n', stderr: '' }) // which fd --version
-        .mockResolvedValueOnce({ stdout: '/path/to/fd\n', stderr: '' }) // which fd (path)
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // trust rg
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // install rg
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use rg
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim rg
         .mockResolvedValueOnce({ stdout: '15.0.0\n', stderr: '' }) // which rg --version
-        .mockResolvedValueOnce({ stdout: '/path/to/rg\n', stderr: '' }) // which rg (path)
 
       const result = await service.reconcile([
         { name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' },
@@ -183,7 +189,7 @@ describe('MiseService', () => {
   })
 
   describe('removeTool', () => {
-    it('deletes binary and removes from state', async () => {
+    it('removes tool from state', async () => {
       const service = new MiseService()
 
       mockFs.existsSync.mockReturnValue(true)
@@ -198,7 +204,7 @@ describe('MiseService', () => {
 
       await service.removeTool('fd')
 
-      expect(mockFs.unlinkSync).toHaveBeenCalledWith('/mock/cherry.bin/fd')
+      expect(mockFs.unlinkSync).not.toHaveBeenCalled()
 
       const lastWriteCall = mockFs.writeFileSync.mock.calls.at(-1)!
       const savedState = JSON.parse(lastWriteCall[1])
@@ -239,16 +245,15 @@ describe('MiseService', () => {
       })
 
       mockExecFileAsync
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // trust
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // install
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
         .mockResolvedValueOnce({ stdout: '10.0.0\n', stderr: '' }) // which --version
-        .mockResolvedValueOnce({ stdout: '/path/to/fd\n', stderr: '' }) // which (path)
 
       const result = await service.installTool({ name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' })
 
       expect(result.version).toBe('10.0.0')
-      expect(mockFs.copyFileSync).toHaveBeenCalled()
-      expect(mockFs.chmodSync).toHaveBeenCalled()
+      expect(mockFs.copyFileSync).not.toHaveBeenCalled()
+      expect(mockFs.chmodSync).not.toHaveBeenCalled()
     })
   })
 
@@ -364,8 +369,8 @@ describe('MiseService', () => {
     })
   })
 
-  describe('installBinary wrapper', () => {
-    it('writes wrapper script for npm: backend tools', async () => {
+  describe('installWithMise', () => {
+    it('uses mise global config and reshim for npm: backend tools', async () => {
       const service = new MiseService()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
@@ -375,20 +380,24 @@ describe('MiseService', () => {
       })
 
       mockExecFileAsync
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // trust
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // install
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
         .mockResolvedValueOnce({ stdout: '1.0.0\n', stderr: '' }) // which --version
 
       const result = await service.installTool({ name: 'ntn', tool: 'npm:ntn', version: '1.0.0' })
 
       expect(result.version).toBe('1.0.0')
       expect(mockFs.copyFileSync).not.toHaveBeenCalled()
-      const writeCall = mockFs.writeFileSync.mock.calls.find(
-        (c: any[]) => typeof c[0] === 'string' && c[0].includes('ntn')
-      )
-      expect(writeCall).toBeDefined()
-      expect(writeCall![1]).toContain('mise')
-      expect(writeCall![1]).toContain('npm:ntn@1.0.0')
+      expect(mockExecFileAsync).toHaveBeenCalledWith('/mock/mise', ['use', '-g', 'node@22', 'npm:ntn@1.0.0'], {
+        cwd: '/tmp',
+        env: {},
+        timeout: 120_000
+      })
+      expect(mockExecFileAsync).toHaveBeenCalledWith('/mock/mise', ['reshim'], {
+        cwd: '/tmp',
+        env: {},
+        timeout: 120_000
+      })
     })
   })
 })

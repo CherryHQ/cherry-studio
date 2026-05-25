@@ -11,13 +11,15 @@ const logger = loggerService.withContext('ShellEnv')
 const SHELL_ENV_TIMEOUT_MS = 15_000
 
 /**
- * Ensures the Cherry Studio bin directory is appended to the user's PATH while
+ * Ensures Cherry-managed tool directories are appended to the user's PATH while
  * preserving the original key casing and avoiding duplicate segments.
  */
-const appendCherryBinToPath = (env: Record<string, string>) => {
+const appendCherryToolDirsToPath = (env: Record<string, string>) => {
   const pathSeparator = isWin ? ';' : ':'
   const homeDirFromEnv = env.HOME || env.Home || env.USERPROFILE || env.UserProfile || os.homedir()
-  const cherryBinPath = path.join(homeDirFromEnv, '.cherrystudio', 'bin')
+  const cherryHome = path.join(homeDirFromEnv, '.cherrystudio')
+  const miseShimsPath = path.join(cherryHome, 'mise', 'shims')
+  const cherryBinPath = path.join(cherryHome, 'bin')
   const pathKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
   const canonicalPathKey = pathKeys[0] || (isWin ? 'Path' : 'PATH')
   const existingPathValue = env[canonicalPathKey] || env.PATH || ''
@@ -45,6 +47,7 @@ const appendCherryBinToPath = (env: Record<string, string>) => {
     .map((segment) => segment.trim())
     .forEach(pushIfUnique)
 
+  pushIfUnique(miseShimsPath)
   pushIfUnique(cherryBinPath)
 
   const updatedPath = uniqueSegments.join(pathSeparator)
@@ -134,7 +137,7 @@ function getWindowsEnvironment(): Record<string, string> {
     logger.warn('Could not read PATH from Windows registry, keeping process.env PATH')
   }
 
-  appendCherryBinToPath(env)
+  appendCherryToolDirsToPath(env)
   return env
 }
 
@@ -288,7 +291,7 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
         logger.warn(`Raw output from shell:\n${output}`)
       }
 
-      appendCherryBinToPath(env)
+      appendCherryToolDirsToPath(env)
 
       resolveOnce(env)
     })
@@ -307,7 +310,7 @@ async function fetchShellEnv(): Promise<Record<string, string>> {
     for (const key in process.env) {
       fallbackEnv[key] = process.env[key] || ''
     }
-    appendCherryBinToPath(fallbackEnv)
+    appendCherryToolDirsToPath(fallbackEnv)
     return fallbackEnv
   }
 }
