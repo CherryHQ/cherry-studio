@@ -116,4 +116,77 @@ describe('generateWithAihubmixUnified param parity', () => {
     const result = await runResult({ model: 'gpt-image-1' }, [{ type: 'base64', base64: 'QUJD' }])
     expect(result).toEqual({ base64s: ['QUJD'] })
   })
+
+  // Per-model providerBag whitelisting — stale PaintingData from a prior
+  // model selection must not leak into the unrelated model's request body.
+  // The default branch (OpenAICompatibleImageModel) spreads the bag
+  // verbatim into `/v1/images/generations`; carrying V_*/ideogram-only
+  // fields like `aspectRatio` / `styleType` / `renderingSpeed` to
+  // gpt-image-2 is what trips server-side validation.
+  it('gpt-image-2: bag is empty even when stale V_* fields linger in PaintingData', async () => {
+    const args = await run({
+      model: 'gpt-image-2',
+      // Stale fields a prior V_3 selection would leave behind:
+      aspectRatio: 'ASPECT_1_1',
+      styleType: 'AUTO',
+      renderingSpeed: 'DEFAULT',
+      negativePrompt: 'lowres',
+      magicPromptOption: true,
+      seed: '42',
+      imageWeight: 75,
+      // And the canonical gpt-image-2 controls (flow via aiSdkParams + buildImageProviderOptions):
+      size: '1024x1024',
+      n: 2,
+      quality: 'high',
+      background: 'opaque'
+    })
+    expect(args.providerOptions.aihubmix).toEqual({})
+  })
+
+  it('gpt-image-1: bag is empty (same as gpt-image-2; moderation flows via aiSdkParams)', async () => {
+    const args = await run({
+      model: 'gpt-image-1',
+      aspectRatio: 'ASPECT_16_9', // stale V_*
+      styleType: 'REALISTIC',
+      size: '1024x1024',
+      moderation: 'low'
+    })
+    expect(args.providerOptions.aihubmix).toEqual({})
+  })
+
+  it('imagen-4.0 (non-ultra) bag carries personGeneration only (not stale styleType/etc)', async () => {
+    const args = await run({
+      model: 'imagen-4.0-generate-preview-06-06',
+      personGeneration: 'ALLOW_ADULT',
+      aspectRatio: 'ASPECT_1_1',
+      // Stale fields from a prior V_3 generate selection:
+      styleType: 'AUTO',
+      renderingSpeed: 'DEFAULT',
+      negativePrompt: 'noisy'
+    })
+    expect(args.providerOptions.aihubmix).toEqual({ personGeneration: 'ALLOW_ADULT' })
+  })
+
+  it('V_3 generate keeps its full bag (aspectRatio, styleType, renderingSpeed, magicPromptOption, …)', async () => {
+    const args = await run({
+      model: 'V_3',
+      aspectRatio: 'ASPECT_16_9',
+      styleType: 'REALISTIC',
+      renderingSpeed: 'QUALITY',
+      numImages: 2,
+      seed: '7',
+      negativePrompt: 'blurry',
+      magicPromptOption: true
+    })
+    expect(args.providerOptions.aihubmix).toMatchObject({
+      mode: 'generate',
+      aspectRatio: 'ASPECT_16_9',
+      styleType: 'REALISTIC',
+      renderingSpeed: 'QUALITY',
+      numImages: 2,
+      seed: '7',
+      negativePrompt: 'blurry',
+      magicPromptOption: true
+    })
+  })
 })
