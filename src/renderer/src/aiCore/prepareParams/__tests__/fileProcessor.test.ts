@@ -1,3 +1,4 @@
+import type * as RendererTypes from '@renderer/types'
 import { type FileMessageBlock, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -38,7 +39,7 @@ vi.mock('@renderer/services/AssistantService', () => ({
 }))
 
 vi.mock('@renderer/types', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@renderer/types')>()
+  const actual = await importOriginal<typeof RendererTypes>()
   return {
     ...actual,
     FILE_TYPE: {
