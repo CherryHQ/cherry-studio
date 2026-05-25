@@ -98,9 +98,9 @@ Data Module dependencies (src/main/data/)
 └── DataApi Handler (files.ts) — pure SQL read-only endpoints; no FS access, no main-side resolvers
 ```
 
-**Deferred implementation**:
+**Implementation status**:
 
-- **`FileUploadService` + `file_upload` table + `FileUploadRepository`** — integrates with Vercel AI SDK's Files Upload API. The AI SDK API is still pre-release and its dependency is unstable, so this is deferred to a separate PR after the SDK reaches a stable version. The design is preserved in `file-manager-architecture.md §9` for reference.
+- **`FileUploadService` — manual implementation ahead of AI SDK stable.** Provider-specific file uploads (OpenAI Files API, Gemini, etc.) are a real, currently-unmet need; the existing `FileServiceManager` (`src/main/services/remotefile/`) already implements per-provider upload but is wired as an ad-hoc v1 IPC layer rather than a lifecycle service. **No longer deferred** — we will refactor `FileServiceManager` into a proper `FileUploadService` lifecycle service ahead of the Vercel AI SDK Files Upload API stabilising. Concrete design (interface, table schema, IPC surface, whether `file_upload` table + `FileUploadRepository` ship in the same PR or split out) is **TBD**; when the AI SDK ships its stable Files API the manual implementation should converge toward `file-manager-architecture.md §9`.
 
 ### 1.2 FileManager's Position Within the Module
 
@@ -340,9 +340,9 @@ FilesPage and similar user-facing **list surfaces** SHOULD hide external entries
 
 **Exception — reference-oriented surfaces**: when a specific message's attachment list, a knowledge item's source files, or any other view that consumes `file_ref` shows entries, dangling rows MUST remain visible (with a "file missing" marker). Hiding them would silently suppress the "your attached file is gone" signal the user needs in order to act — re-attach, remove the reference, etc. The auto-cleanup rule specifically excludes `refs > 0` entries for the same reason.
 
-### 3.5 AI SDK Integration (Deferred)
+### 3.5 AI SDK Integration
 
-**AI SDK upload-related** → FileUploadService methods (**deferred implementation**, to be introduced after the AI SDK Files API is stable):
+**AI SDK upload-related** → FileUploadService methods. The service itself is no longer deferred (see §1.1 — it will be refactored out of `FileServiceManager` ahead of the AI SDK stabilising); the method shapes below are the **AI-SDK-aligned target** the manual implementation should converge toward once the SDK ships:
 
 | Method                              | Description                      |
 | ----------------------------------- | -------------------------------- |
@@ -1044,7 +1044,7 @@ src/main/utils/file/                  -- pure FS primitives, sole FS owner, open
 
 | Extension direction                     | Integration path                                                                                |
 | --------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| AI provider uploads (after SDK stable)  | Add `FileUploadService` + `file_upload` table; FileEntry structure unchanged; migrate via additive migration |
+| AI provider uploads                     | Refactor `FileServiceManager` into a lifecycle `FileUploadService` ahead of AI SDK stable (see §1.1); add `file_upload` table additively when persistence is needed; FileEntry structure unchanged |
 | New business reference source           | Add `sourceType` enum value + register `SourceTypeChecker` (compile-time enforced)              |
 | Business module needs to watch external dir | Obtain an instance via `createDirectoryWatcher()` factory; subscribe to events; DanglingCache auto-syncs |
 | Dangling reactivity (real-time push to renderer) | Currently pull-based via File IPC `getDanglingState` + React Query refresh; future could push state changes over IPC so renderer invalidates presence queries on DanglingCache events |
