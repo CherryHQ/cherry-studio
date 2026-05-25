@@ -68,7 +68,7 @@ export const FileHandleSchema = z.discriminatedUnion('kind', [FileEntryHandleSch
 /**
  * Wrap a FileEntry ID as a `FileEntryHandle`.
  *
- * The caller is responsible for ensuring `entryId` is a valid UUID v7 —
+ * The caller is responsible for ensuring `entryId` is a valid UUID —
  * typically produced by a FileManager factory or the DataApi response. This
  * factory does not re-validate: `FileEntryId` is a type alias over `string`
  * (see `FileEntryIdSchema`), and runtime validation happens at the entry

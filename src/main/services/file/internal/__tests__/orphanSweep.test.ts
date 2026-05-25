@@ -580,12 +580,11 @@ describe('runFileSweep (FS-level)', () => {
     )
   })
 
-  it('emits "orphan-file-sweep-below-floor" debug breadcrumb when plan is high-fraction but under both floors', async () => {
+  it('emits "orphan-file-sweep-below-floor" warn breadcrumb when plan is high-fraction but under both floors', async () => {
     // 5 orphan UUID files on disk, 0 entries in DB → fraction is 100% but plan
     // is below both the 20-count and 10MB floors, so pickAbortReason returns
-    // undefined and the sweep proceeds. The forensic breadcrumb records at
-    // `debug` level (downgraded from `warn` after the original telemetry
-    // proved the event isn't operator-actionable on its own).
+    // undefined and the sweep proceeds. The forensic breadcrumb is the primary
+    // signal for explaining an unexpected mass-delete incident.
     const ids = Array.from({ length: 5 }, (_, i) => `019606a0-0000-7000-8000-${String(i + 500).padStart(12, '0')}`)
     const ancient = (Date.now() - 10 * 60 * 1000) / 1000
     for (const id of ids) {
@@ -593,11 +592,11 @@ describe('runFileSweep (FS-level)', () => {
       await writeFile(p, 'x')
       await utimes(p, ancient, ancient)
     }
-    const debugSpy = vi.spyOn(loggerService, 'debug')
+    const warnSpy = vi.spyOn(loggerService, 'warn')
     const report = await runFileSweep({ fileEntryService })
     expect(report.outcome).toBe('completed')
     expect(report.actualDeleteCount).toBe(5)
-    expect(debugSpy).toHaveBeenCalledWith(
+    expect(warnSpy).toHaveBeenCalledWith(
       'orphan-file-sweep-below-floor',
       expect.objectContaining({
         event: 'orphan-file-sweep-below-floor',

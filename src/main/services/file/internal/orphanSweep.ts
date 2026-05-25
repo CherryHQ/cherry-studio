@@ -430,12 +430,9 @@ async function runFileSweepInner(deps: RunFileSweepDeps): Promise<FileSweepRepor
       const byteFraction = plannedBytes / Math.max(1, candidatesBytes)
       if (countFraction > ABORT_FRACTION || byteFraction > ABORT_FRACTION) {
         // Forensic breadcrumb: the safety floor allowed this small-residue
-        // plan through despite the high fraction. Kept at `debug` level
-        // because no operator action is needed unless this fires together
-        // with a real incident report; promote back to `warn` once
-        // production telemetry confirms the cross-floor / cross-fraction
-        // event is actually rare and worth paging on.
-        logger.debug('orphan-file-sweep-below-floor', {
+        // plan through despite the high fraction. This is the primary
+        // signal that explains an unexpected mass-delete incident.
+        logger.warn('orphan-file-sweep-below-floor', {
           event: 'orphan-file-sweep-below-floor',
           plannedCount: planned.length,
           plannedBytes,
