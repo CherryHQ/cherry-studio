@@ -65,6 +65,8 @@ export function useTabDrag({
     detachedCreated: false,
     tabClosed: false,
     originalRects: new Map<string, DOMRectReadOnly>(),
+    boundaryRect: null as DOMRectReadOnly | null,
+    addTabButtonInset: 0,
     grabOffsetX: 0,
     grabOffsetY: 0
   })
@@ -118,14 +120,11 @@ export function useTabDrag({
       if (tabId === dragState.tabId) {
         const translateX = dragRef.current.currentX - dragRef.current.startX
         const draggedRect = dragRef.current.originalRects.get(tabId)
-        const boundaryRect = tabListRef.current?.getBoundingClientRect()
+        const { boundaryRect, addTabButtonInset } = dragRef.current
 
         if (!draggedRect || !boundaryRect) {
           return translateX
         }
-
-        const addTabButtonWidth = addTabButtonRef.current?.getBoundingClientRect().width ?? 0
-        const addTabButtonInset = addTabButtonWidth > 0 ? addTabButtonWidth + TAB_GAP : 0
 
         return applyHorizontalRubberBandTranslateX(translateX, draggedRect, boundaryRect, {
           leftInset: TAB_DRAG_SAFE_INSET,
@@ -156,6 +155,7 @@ export function useTabDrag({
 
       const list = tabType === 'pinned' ? pinnedTabs : normalTabs
       const index = list.findIndex((t) => t.id === tab.id)
+      const addTabButtonWidth = addTabButtonRef.current?.getBoundingClientRect().width ?? 0
 
       const target = e.currentTarget as HTMLElement
       target.setPointerCapture(e.pointerId)
@@ -178,6 +178,9 @@ export function useTabDrag({
         detachedCreated: false,
         tabClosed: false,
         originalRects,
+        boundaryRect: tabListRef.current?.getBoundingClientRect() ?? null,
+        // Reserve the sticky new-tab button plus the visual gap before applying right-edge rubber-band overdrag.
+        addTabButtonInset: addTabButtonWidth > 0 ? addTabButtonWidth + TAB_GAP : 0,
         grabOffsetX: e.screenX - window.screenX,
         grabOffsetY: e.screenY - window.screenY
       }
@@ -208,6 +211,15 @@ export function useTabDrag({
       if (e.pointerId !== dragRef.current.pointerId) return
 
       dragRef.current.currentX = e.clientX
+      // Refresh cached layout each frame so window/sidebar resize, late ref
+      // attachment, or add-tab-button width changes during the drag don't leave
+      // rubber-band math anchored to stale geometry.
+      const liveBoundary = tabListRef.current?.getBoundingClientRect()
+      if (liveBoundary) {
+        dragRef.current.boundaryRect = liveBoundary
+      }
+      const liveAddBtnWidth = addTabButtonRef.current?.getBoundingClientRect().width ?? 0
+      dragRef.current.addTabButtonInset = liveAddBtnWidth > 0 ? liveAddBtnWidth + TAB_GAP : 0
       const deltaX = e.clientX - dragRef.current.startX
       const deltaY = e.clientY - dragRef.current.startY
 
