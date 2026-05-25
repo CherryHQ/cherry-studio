@@ -178,13 +178,41 @@ import {
 } from './internal/entry/lifecycle'
 import { rename as internalRename } from './internal/entry/rename'
 import { observeExternalAccess } from './internal/observe'
-import { type DbSweepReport, type OrphanReport, runDbSweep, runFileSweep } from './internal/orphanSweep'
+import {
+  type DbSweepReport,
+  type FileSweepReport,
+  type OrphanReport,
+  runDbSweep,
+  runFileSweep
+} from './internal/orphanSweep'
 import { open as internalShellOpen, showInFolder as internalShellShowInFolder } from './internal/system/shell'
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
 import { canonicalizeExternalPath, resolvePhysicalPath } from './utils/pathResolver'
 import { createVersionCacheImpl, type VersionCache } from './versionCache'
 
 const fileManagerLogger = loggerService.withContext('FileManager')
+
+/**
+ * Render a one-line description of a non-`'completed'` FS sweep outcome,
+ * suitable for the `fsSweepIssue` field on a degraded `OrphanReport.partial`.
+ * Returns `undefined` when the sweep ran clean (no degradation needed).
+ */
+function summariseFsSweepIssue(report: FileSweepReport): string | undefined {
+  switch (report.outcome) {
+    case 'completed':
+      return undefined
+    case 'partial':
+      // First sample is enough to identify the failure class (e.g. EACCES on
+      // <id>.txt); the full list lives in the FS sweep log line.
+      return `FS sweep partial: ${report.failedDeleteCount} of ${report.plannedDeleteCount} unlinks failed${
+        report.failedSamples.length > 0 ? ` (first: ${report.failedSamples[0]})` : ''
+      }`
+    case 'aborted':
+      return `FS sweep aborted by safety threshold (${report.abortReason})`
+    case 'failed':
+      return `FS sweep failed: ${report.errorMessage}`
+  }
+}
 
 // Main-side parameter types are structurally identical to the IPC variants —
 // `CreateInternalEntryIpcParams` is a discriminated union on `source`
@@ -700,16 +728,48 @@ export class FileManager extends BaseService implements IFileManager {
    * no startup auto-run.
    *
    * Each branch absorbs its own errors via inner try/catch and surfaces
-   * them through the report (`outcome: 'partial'` for per-sourceType
-   * checker throws, `'failed'` if the DB sweep itself collapsed). The FS
-   * sweep's outcome is logged but does not bleed into the returned report
-   * — DB-only state is what the cleanup UI consumes.
+   * them through the umbrella `OrphanReport`:
+   *
+   * - DB sweep collapse → `outcome: 'failed'` (counts are meaningless;
+   *   `errorMessage` carries the cause). FS sweep status no longer
+   *   matters in this branch.
+   * - DB sweep per-sourceType checker throws → `outcome: 'partial'` with
+   *   `errorsByType`.
+   * - DB sweep clean BUT FS sweep returned `'partial'` / `'aborted'` /
+   *   `'failed'` (or threw before producing a report) → umbrella degrades
+   *   to `'partial'` with empty `errorsByType` and a populated
+   *   `fsSweepIssue`. Without this degrade, an EACCES or safety-threshold
+   *   abort on the FS side would silently surface as `'completed'` to
+   *   the cleanup UI, which is the inverse of what the discriminator
+   *   exists to prevent.
+   * - Both clean → `outcome: 'completed'`.
    */
   async runSweep(): Promise<OrphanReport> {
     const startedAt = Date.now()
-    const fsSweepPromise = runFileSweep({ fileEntryService: this.deps.fileEntryService }).catch((err) => {
-      fileManagerLogger.error('File sweep failed', err)
-    })
+    const fsSweepPromise = runFileSweep({ fileEntryService: this.deps.fileEntryService }).catch(
+      (err): FileSweepReport => {
+        fileManagerLogger.error('File sweep failed', err)
+        // Promote a thrown FS sweep into a structured `'failed'` report so
+        // the umbrella merge below can degrade `outcome` to `'partial'`
+        // (otherwise a permission error would surface as a clean
+        // `'completed'` umbrella — the regression 0xfullex flagged in
+        // PRRT_kwDOL_2xws6EeQI5).
+        return {
+          outcome: 'failed',
+          errorMessage: err instanceof Error ? err.message : String(err),
+          entriesInDb: 0,
+          direntsScanned: 0,
+          filesOnDisk: 0,
+          bytesOnDisk: 0,
+          plannedDeleteCount: 0,
+          plannedDeleteBytes: 0,
+          actualDeleteCount: 0,
+          actualDeleteBytes: 0,
+          statFailedCount: 0,
+          scanDurationMs: 0
+        }
+      }
+    )
 
     const dbSweepPromise = runDbSweep({
       fileEntryService: this.deps.fileEntryService,
@@ -728,7 +788,7 @@ export class FileManager extends BaseService implements IFileManager {
       }
     })
 
-    const [, dbReport] = await Promise.all([fsSweepPromise, dbSweepPromise])
+    const [fsReport, dbReport] = await Promise.all([fsSweepPromise, dbSweepPromise])
     const lastRunAt = startedAt
     const counts = {
       orphanRefsByType: dbReport.orphanRefsByType,
@@ -736,12 +796,27 @@ export class FileManager extends BaseService implements IFileManager {
       orphanEntriesByOrigin: dbReport.orphanEntriesByOrigin,
       orphanEntriesTotal: dbReport.orphanEntriesTotal
     }
+    const fsSweepIssue = summariseFsSweepIssue(fsReport)
     switch (dbReport.outcome) {
       case 'completed':
-        return { ...counts, outcome: 'completed', lastRunAt }
+        // DB clean; degrade umbrella to partial iff the FS sweep didn't also
+        // come back clean — UI must not render "all clear" when an FS-side
+        // permission error / safety abort silently swallowed the unlink work.
+        if (fsSweepIssue === undefined) {
+          return { ...counts, outcome: 'completed', lastRunAt }
+        }
+        return { ...counts, outcome: 'partial', errorsByType: {}, fsSweepIssue, lastRunAt }
       case 'partial':
-        return { ...counts, outcome: 'partial', errorsByType: dbReport.errorsByType, lastRunAt }
+        return {
+          ...counts,
+          outcome: 'partial',
+          errorsByType: dbReport.errorsByType,
+          ...(fsSweepIssue !== undefined && { fsSweepIssue }),
+          lastRunAt
+        }
       case 'failed':
+        // DB-level collapse dominates: counts are meaningless either way,
+        // so the FS sweep's status doesn't change the umbrella.
         return { ...counts, outcome: 'failed', errorMessage: dbReport.errorMessage, lastRunAt }
     }
   }

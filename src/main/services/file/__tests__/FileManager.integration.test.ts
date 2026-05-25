@@ -414,6 +414,30 @@ describe('FileManager (integration)', () => {
     spy.mockRestore()
   })
 
+  it('INT-14b: an FS sweep collapse degrades runSweep umbrella to "partial" (does not bleed into "failed")', async () => {
+    // `listAllIds` is the FS sweep's first dependency call; `runDbSweep` uses
+    // `findUnreferenced`, so spying on `listAllIds` isolates the failure to
+    // the FS side and the DB sweep stays on its happy `'completed'` path.
+    // Without the umbrella merge, the cleanup UI would see `outcome:
+    // 'completed'` over an EACCES — the regression flagged in
+    // PR #15067 thread PRRT_kwDOL_2xws6EeQI5.
+    const spy = vi
+      .spyOn(fm['deps'].fileEntryService, 'listAllIds')
+      .mockRejectedValueOnce(new Error('EACCES on Files dir'))
+
+    const report = await fm.runSweep()
+
+    expect(report.outcome).toBe('partial')
+    if (report.outcome === 'partial') {
+      // DB sweep was clean — no per-sourceType errors.
+      expect(report.errorsByType).toEqual({})
+      // FS-driven degradation must surface via `fsSweepIssue`.
+      expect(report.fsSweepIssue).toMatch(/FS sweep failed:.*EACCES/)
+    }
+    expect(typeof report.lastRunAt).toBe('number')
+    spy.mockRestore()
+  })
+
   it('INT-15a: batchCreateInternalEntries reports succeeded with sourceRef + per-item failed', async () => {
     // Two valid items + one that fails (invalid base64 data URI). Verify
     // succeeded carries `{ id, sourceRef }` correlation back to input indices

@@ -27,13 +27,19 @@ export interface OrphanReportCounts {
  *
  * Discriminated on `outcome`:
  *
- * - `'completed'` — sweep ran end-to-end. Counts are authoritative.
- * - `'partial'` — at least one per-sourceType checker threw; `errorsByType`
- *   identifies which. Counts cover the sourceTypes that did report; UI
- *   should surface the partial state so users don't read zero-orphans as
- *   a healthy signal.
- * - `'failed'` — the sweep collapsed before per-type aggregation. Counts
- *   are all zero (and meaningless); `errorMessage` carries the cause.
+ * - `'completed'` — both the DB sweep and the FS sweep ran end-to-end.
+ *   Counts are authoritative.
+ * - `'partial'` — at least one of these is true:
+ *     - a per-sourceType DB checker threw → `errorsByType` identifies which
+ *     - the FS sweep returned a non-`'completed'` outcome (partial unlink
+ *       failures / aborted by safety threshold / collapsed early) →
+ *       `fsSweepIssue` carries a short description
+ *   Either way, counts cover the parts that did report; UI should surface
+ *   the partial state so users don't read zero-orphans as a healthy signal.
+ * - `'failed'` — the **DB** sweep collapsed before per-type aggregation.
+ *   Counts are all zero (and meaningless); `errorMessage` carries the
+ *   cause. (FS-sweep collapse alone degrades to `'partial'`, not
+ *   `'failed'`, because DB counts may still be authoritative.)
  *
  * Without the `outcome` discriminator, a `failed` run reaches the renderer
  * as `{ orphanRefsTotal: 0, …, lastRunAt }` — indistinguishable from a
@@ -49,6 +55,13 @@ export type OrphanReport =
   | (OrphanReportCounts & {
       readonly outcome: 'partial'
       readonly errorsByType: Partial<Record<FileRefSourceType, string>>
+      /**
+       * Set when the FS sweep degraded the umbrella outcome to `'partial'`
+       * (the FS sweep itself returned `'partial'` / `'aborted'` / `'failed'`,
+       * or threw before producing a report). Absent when the partial state
+       * is driven purely by DB-side checker failures.
+       */
+      readonly fsSweepIssue?: string
       readonly lastRunAt: number
     })
   | (OrphanReportCounts & {
