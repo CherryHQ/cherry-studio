@@ -214,6 +214,43 @@ Batch 0 早期引入过 `packages/shared/file/legacy/toFileMetadata` shim（`Fil
 - v2 终极目标"删 purpose"不等于"过渡期可丢 purpose" —— 迁移先后顺序很关键
 - 引入任何 `FileEntry → FileMetadata` 适配代码时，应该先核对 §2.2 现状调研里**所有**消费方都已迁移完毕；这次漏掉就是因为只看了一处（self-review audit 仅列 fileProcessor，漏了 OpenAIService —— 详见 PR #15067 thread `PRRT_kwDOL_2xws6EeQIz`）
 
+#### 设计修订（2026-05）：purpose 决定不属于 `fileProcessor`
+
+延伸自上述 Batch 0 回顾的更深层观察 —— **`purpose` 的赋值动作本身就不该出现在 `fileProcessor` 这一层**：
+
+- `fileProcessor` 是"AI 调用参数准备"层，它的职责是把 file metadata 组合成 LLM 请求体
+- `purpose` 是 OpenAI Files API 的 provider-specific 概念，与 LLM 请求体本身无关
+- qwen-long / qwen-doc → `'file-extract'` 这种 model-name → purpose 的映射，本质是 **upload service 的内部知识**
+
+把这层逻辑放在 `fileProcessor` 是双重越界：fileProcessor 既不该懂 OpenAI Files API 的 purpose 枚举，也不该懂 provider-specific 的 "model name 启发式映射"。把决策结果再 spread 回 file 对象（`file = { ...file, purpose: ... }`）则更糟，污染了 file 的语义并把 provider 细节暴露给所有下游消费者。
+
+**修订方案**：purpose 决策完全收敛到 **`FileUploadService` 内部**，外部 caller 不再接触此字段：
+
+```ts
+// 修订后的 OpenAIService（concept）
+async uploadFile(file: FileMetadata, context?: { model?: Model }): Promise<...> {
+  const purpose = inferPurpose(context?.model)  // service 内部的 model → purpose 映射
+  return this.client.files.create({ file: /* read stream */, purpose })
+}
+
+// 修订后的 fileProcessor（concept）
+await window.api.fileService.upload(provider, file, { model })  // 不再 spread purpose
+```
+
+如果 caller 确实需要覆盖 service 的默认决策（极少数情况），可以暴露显式 `options.purpose` 作为 escape hatch —— 但这是逃生舱，**不应当作主路径**。
+
+##### 对前述"迁移步骤"的影响
+
+§2.2 "迁移步骤" 表中的步骤 #1 / #2 / #4 应改为：
+
+| 原步骤                                                          | 修订后                                                                                       |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| #1 fileProcessor 提取 `purpose` 为独立局部变量传入 upload/retrieve | fileProcessor 不再决定 purpose；调用 upload 时只传 `{ model }` context，由 service 内部推断   |
+| #2 `uploadFile(file, options?: { purpose? })`                  | `uploadFile(file, context?: { model?: Model }, options?: { purpose? })`；内部 `inferPurpose(model) ?? options?.purpose ?? 'assistants'` 优先级 |
+| #4 fileProcessor cache mismatch 比较：`remoteFile.purpose !== purpose` | de-dup 比较职责也挪入 service，fileProcessor 完全不接触 purpose 概念                            |
+
+步骤 #3 / #5 / #6 不变。原则一句话概括：**fileProcessor 看不到 purpose，service 内部黑盒处理**。
+
 ### 2.3 `count` 字段
 
 **决策**：
