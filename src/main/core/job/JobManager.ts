@@ -550,14 +550,19 @@ export class JobManager extends BaseService {
   }
 
   /**
-   * Cancel all non-terminal jobs matching the filter. Aborts in-flight
-   * AbortControllers in this process and transitions pending / delayed rows
-   * directly to `cancelled`. Used by knowledge-base reset and file-processing
-   * batch cancellation.
+   * Fire-and-forget batch cancel for all non-terminal jobs matching the filter.
+   * Pending / delayed rows are transitioned directly to `cancelled`; running
+   * jobs only get their in-process `AbortController` aborted and settle
+   * asynchronously through the normal handler-execute flow (handler observes
+   * `signal.aborted`) — they are NOT counted as `transitioned`, only as
+   * `aborted`.
    *
-   * Running jobs settle asynchronously through the normal handler-execute
-   * flow (handler observes `signal.aborted`) and are NOT counted as
-   * `transitioned` — only the in-process abort is counted via `aborted`.
+   * Does NOT wait for running handlers to actually stop. If you must confirm a
+   * running job has stopped before destructive cleanup (e.g. deleting a vector
+   * store), loop `cancel(id)` per job instead — `cancel` awaits each handler's
+   * settlement and force-finalizes on timeout. `cancelMany` is for
+   * shutdown-style mass abort where stragglers are acceptable and recovered on
+   * next startup.
    *
    * @param filter - Must specify at least `queue` or `type` (empty filter rejected)
    * @param reason - Optional human-readable reason

@@ -265,6 +265,75 @@ describe('TranslateHistory', () => {
     expect(clearMock).toHaveBeenCalledTimes(1)
   })
 
+  it('hides history actions when there are no histories to filter or clear', () => {
+    translateHistoryMock.useTranslateHistories.mockReturnValueOnce({
+      items: [],
+      total: 0,
+      hasMore: false,
+      isLoadingMore: false,
+      loadMore: loadMoreMock,
+      status: 'ready'
+    })
+
+    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+
+    expect(screen.getByText('translate.history.empty')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'translate.history.filter.starred' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'translate.history.clear' })).not.toBeInTheDocument()
+  })
+
+  it('centers the empty history state within the available body area', () => {
+    translateHistoryMock.useTranslateHistories.mockReturnValueOnce({
+      items: [],
+      total: 0,
+      hasMore: false,
+      isLoadingMore: false,
+      loadMore: loadMoreMock,
+      status: 'ready'
+    })
+
+    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+
+    expect(screen.getByText('translate.history.empty').parentElement).toHaveClass(
+      'flex',
+      'min-h-0',
+      'flex-1',
+      'items-center',
+      'justify-center'
+    )
+  })
+
+  it('keeps the action bar visible when star-filter is active but its results are empty', () => {
+    // Initial mount: histories present so the filter button is exposed for the user to click.
+    // Every subsequent call (after toggling showStared=true) returns the empty filter result.
+    translateHistoryMock.useTranslateHistories.mockReturnValue({
+      items: [],
+      total: 0,
+      hasMore: false,
+      isLoadingMore: false,
+      loadMore: loadMoreMock,
+      status: 'ready'
+    })
+    translateHistoryMock.useTranslateHistories.mockReturnValueOnce({
+      items: histories,
+      total: histories.length,
+      hasMore: false,
+      isLoadingMore: false,
+      loadMore: loadMoreMock,
+      status: 'ready'
+    })
+
+    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+
+    const filterButton = screen.getAllByRole('button', { name: 'translate.history.filter.starred' })[0]
+    fireEvent.click(filterButton)
+
+    // Filter button must stay so the user can cancel the empty starred view; otherwise they are trapped.
+    expect(screen.getByRole('button', { name: 'translate.history.filter.starred' })).toBeInTheDocument()
+    // Clear button is correctly hidden when there's nothing to clear; only the filter toggle persists.
+    expect(screen.queryByRole('button', { name: 'translate.history.clear' })).not.toBeInTheDocument()
+  })
+
   it('loads more when scrolled near bottom in virtual list', async () => {
     translateHistoryMock.useTranslateHistories.mockReturnValueOnce({
       items: histories,

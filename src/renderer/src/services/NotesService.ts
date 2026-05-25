@@ -1,6 +1,4 @@
 import { loggerService } from '@logger'
-import store from '@renderer/store'
-import { setNotesPath } from '@renderer/store/note'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { getFileDirectory } from '@renderer/utils'
 
@@ -13,6 +11,7 @@ export interface UploadResult {
   uploadedNodes: NotesTreeNode[]
   totalFiles: number
   skippedFiles: number
+  failedFiles: number
   fileCount: number
   folderCount: number
 }
@@ -42,9 +41,6 @@ export function sortTree(nodes: NotesTreeNode[], sortType: NotesSortType): Notes
 export async function addDir(name: string, parentPath: string): Promise<{ path: string; name: string }> {
   const resolved = await resolveNotesPath(parentPath)
   const basePath = resolved.path
-  if (resolved.isFallback) {
-    store.dispatch(setNotesPath(basePath))
-  }
   const { safeName } = await window.api.file.checkFileName(basePath, name, false)
   const fullPath = `${basePath}/${safeName}`
   await window.api.file.mkdir(fullPath)
@@ -58,9 +54,6 @@ export async function addNote(
 ): Promise<{ path: string; name: string }> {
   const resolved = await resolveNotesPath(parentPath)
   const basePath = resolved.path
-  if (resolved.isFallback) {
-    store.dispatch(setNotesPath(basePath))
-  }
   const { safeName } = await window.api.file.checkFileName(basePath, name, true)
   const notePath = `${basePath}/${safeName}${MARKDOWN_EXT}`
   await window.api.file.write(notePath, content)
@@ -175,6 +168,7 @@ export async function uploadNotes(files: File[], targetPath: string): Promise<Up
       uploadedNodes: [],
       totalFiles: 0,
       skippedFiles: 0,
+      failedFiles: 0,
       fileCount: 0,
       folderCount: 0
     }
@@ -210,6 +204,7 @@ export async function uploadNotes(files: File[], targetPath: string): Promise<Up
         uploadedNodes: [],
         totalFiles,
         skippedFiles: result.skippedFiles,
+        failedFiles: result.failedFiles,
         fileCount: result.fileCount,
         folderCount: result.folderCount
       }
@@ -218,9 +213,8 @@ export async function uploadNotes(files: File[], targetPath: string): Promise<Up
       await window.api.file.resumeFileWatcher()
     }
   } catch (error) {
-    logger.error('Batch upload failed, falling back to legacy method:', error as Error)
-    // Fall back to old method if new method fails
-    return uploadNotesLegacy(files, targetPath)
+    logger.error('Batch upload failed:', error as Error)
+    throw error
   }
 }
 
@@ -238,6 +232,7 @@ async function uploadNotesLegacy(files: File[], targetPath: string): Promise<Upl
       uploadedNodes: [],
       totalFiles: files.length,
       skippedFiles,
+      failedFiles: 0,
       fileCount: 0,
       folderCount: 0
     }
@@ -247,6 +242,7 @@ async function uploadNotesLegacy(files: File[], targetPath: string): Promise<Upl
   await createFolders(folders)
 
   let fileCount = 0
+  let failedFiles = 0
   const BATCH_SIZE = 5 // Process 5 files concurrently to balance performance and responsiveness
 
   // Process files in batches to avoid blocking the UI thread
@@ -271,6 +267,7 @@ async function uploadNotesLegacy(files: File[], targetPath: string): Promise<Upl
       if (result.status === 'fulfilled') {
         fileCount += 1
       } else {
+        failedFiles += 1
         logger.error('Failed to write uploaded file:', result.reason)
       }
     })
@@ -285,6 +282,7 @@ async function uploadNotesLegacy(files: File[], targetPath: string): Promise<Upl
     uploadedNodes: [],
     totalFiles: files.length,
     skippedFiles,
+    failedFiles,
     fileCount,
     folderCount: folders.size
   }
@@ -350,10 +348,8 @@ async function createFolders(folders: Set<string>): Promise<void> {
     try {
       await window.api.file.mkdir(folder)
     } catch (error) {
-      logger.debug('Skip existing folder while uploading notes', {
-        folder,
-        error: (error as Error).message
-      })
+      logger.error('Failed to create folder while uploading notes', error as Error)
+      throw error
     }
   }
 }

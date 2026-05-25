@@ -17,6 +17,7 @@ import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowled
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { messageTable } from '@data/db/schemas/message'
 import { miniAppTable } from '@data/db/schemas/miniApp'
+import { noteTable } from '@data/db/schemas/note'
 import { pinTable } from '@data/db/schemas/pin'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { promptTable } from '@data/db/schemas/prompt'
@@ -312,6 +313,7 @@ export class MigrationEngine {
       { table: mcpServerTable, name: 'mcp_server' },
       { table: miniAppTable, name: 'mini_app' },
       { table: preferenceTable, name: 'preference' },
+      { table: noteTable, name: 'note' },
       { table: translateHistoryTable, name: 'translate_history' },
       { table: translateLanguageTable, name: 'translate_language' },
       { table: knowledgeItemTable, name: 'knowledge_item' }, // Must clear before knowledge_base (FK reference)
