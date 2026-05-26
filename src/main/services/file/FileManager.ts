@@ -154,7 +154,7 @@ import mime from 'mime'
 import * as z from 'zod'
 
 import { danglingCache } from './danglingCache'
-import { hash as internalHash } from './internal/content/hash'
+import { hash as internalHash, hashByPath } from './internal/content/hash'
 import { read as internalRead } from './internal/content/read'
 import {
   createWriteStream as internalCreateWriteStream,
@@ -262,6 +262,8 @@ export const EnsureExternalEntryIpcSchema = z.strictObject({ externalPath: Absol
 export const GetPhysicalPathIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 
 export const PermanentDeleteIpcSchema = FileHandleSchema
+
+export const GetContentHashIpcSchema = FileHandleSchema
 
 export const TrashIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 export const RestoreIpcSchema = z.strictObject({ id: FileEntryIdSchema })
@@ -723,6 +725,14 @@ export class FileManager extends BaseService implements IFileManager {
         handle,
         (entryId) => this.permanentDelete(entryId),
         (path) => fsRemove(path)
+      )
+    })
+    this.ipcHandle(IpcChannel.File_GetContentHash, async (_e, rawHandle: unknown) => {
+      const handle = GetContentHashIpcSchema.parse(rawHandle) as FileHandle
+      return dispatchHandle(
+        handle,
+        (id) => this.getContentHash(id),
+        (p) => hashByPath(this.deps, p)
       )
     })
     this.ipcHandle(IpcChannel.File_RunSweep, async () => this.runSweep())

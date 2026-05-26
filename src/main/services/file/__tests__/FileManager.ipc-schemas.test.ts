@@ -15,6 +15,7 @@ import {
   BatchIdsIpcSchema,
   FILE_BATCH_DANGLING_MAX_IDS,
   FILE_BATCH_MAX_IDS,
+  GetContentHashIpcSchema,
   GetDanglingStateIpcSchema,
   RestoreIpcSchema,
   TrashIpcSchema
@@ -116,5 +117,25 @@ describe('BatchIdsIpcSchema', () => {
   })
   it('rejects extra keys', () => {
     expect(() => BatchIdsIpcSchema.parse({ ids: [VALID_UUID_V7], extra: 1 })).toThrow()
+  })
+})
+
+describe('GetContentHashIpcSchema', () => {
+  it('accepts entry handle', () => {
+    const input = { kind: 'entry', entryId: VALID_UUID_V7 }
+    expect(GetContentHashIpcSchema.parse(input)).toEqual(input)
+  })
+  it('accepts path handle', () => {
+    const input = { kind: 'path', path: '/test/file.txt' }
+    expect(GetContentHashIpcSchema.parse(input)).toEqual(input)
+  })
+  it('rejects invalid kind', () => {
+    expect(() => GetContentHashIpcSchema.parse({ kind: 'invalid' })).toThrow()
+  })
+  it('rejects entry handle with non-UUID', () => {
+    expect(() => GetContentHashIpcSchema.parse({ kind: 'entry', entryId: 'bad' })).toThrow()
+  })
+  it('rejects path handle with relative path', () => {
+    expect(() => GetContentHashIpcSchema.parse({ kind: 'path', path: 'relative' })).toThrow()
   })
 })
