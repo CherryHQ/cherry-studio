@@ -147,6 +147,7 @@ import type {
   BatchMutationResult,
   CreateInternalEntryIpcParams,
   EnsureExternalEntryIpcParams,
+  FileIpcApi,
   FilePath,
   FileURLString,
   PhysicalFileMetadata
@@ -1013,6 +1014,49 @@ export class FileManager extends BaseService implements IFileManager {
       const { childPath, parentPath } = IsPathInsideIpcSchema.parse(params)
       return isPathInside(childPath, parentPath)
     })
+
+    // ─── Compile-time handler completeness check ───
+    // If a method is added to FileIpcApi but not listed here, TypeScript errors.
+    // This array is dead code — its sole purpose is type-level verification.
+    const _handledMethods = [
+      'openSelectDialog',
+      'openSaveDialog',
+      'createInternalEntry',
+      'ensureExternalEntry',
+      'batchCreateInternalEntries',
+      'batchEnsureExternalEntries',
+      'read',
+      'getMetadata',
+      'batchGetMetadata',
+      'getVersion',
+      'getContentHash',
+      'write',
+      'writeIfUnchanged',
+      'trash',
+      'restore',
+      'permanentDelete',
+      'batchTrash',
+      'batchRestore',
+      'batchPermanentDelete',
+      'rename',
+      'copy',
+      'open',
+      'showInFolder',
+      'listDirectory',
+      'isNotEmptyDir',
+      'getDanglingState',
+      'batchGetDanglingStates',
+      'getPhysicalPath',
+      'batchGetPhysicalPaths',
+      'runSweep',
+      'canWrite',
+      'toAbsolutePath',
+      'isPathInside'
+    ] as const satisfies readonly (keyof FileIpcApi)[]
+
+    type _AssertComplete = keyof FileIpcApi extends (typeof _handledMethods)[number] ? true : never
+    const _check: _AssertComplete = true
+    void _handledMethods, _check
   }
 
   /**
