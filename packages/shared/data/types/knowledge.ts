@@ -19,6 +19,34 @@ export const KNOWLEDGE_ITEM_TYPES = ['file', 'url', 'note', 'sitemap', 'director
 export const KnowledgeItemTypeSchema = z.enum(KNOWLEDGE_ITEM_TYPES)
 export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
 
+/**
+ * Persisted item lifecycle states.
+ *
+ * State machine:
+ *
+ * ```text
+ * file/url/note:
+ *   idle -> processing -> reading -> embedding -> completed
+ *      \                    \             \          \
+ *       +--------------------+-------------+-----------> failed
+ *      \---------------------------------------------> deleting
+ *
+ * directory/sitemap:
+ *   idle -> preparing -> processing -> completed
+ *      \        \             \          \
+ *       +--------+-------------+-----------> failed
+ *      \---------------------------------> deleting
+ * ```
+ *
+ * - `idle`: item row exists but indexing has not started.
+ * - `preparing`: container expansion is running; only `directory` / `sitemap` items may use it.
+ * - `processing`: work has been queued or is running before a more specific phase is known.
+ * - `reading`: leaf source documents are being read; only `file` / `url` / `note` items may use it.
+ * - `embedding`: leaf chunks are being embedded and written to the vector store; only `file` / `url` / `note`.
+ * - `completed`: indexing or container reconciliation finished successfully.
+ * - `failed`: workflow failed; `error` must be a non-empty string.
+ * - `deleting`: delete cleanup is in progress; default list/search/RAG reads hide the item.
+ */
 export const KNOWLEDGE_ITEM_STATUSES = [
   'idle',
   'preparing',
@@ -149,7 +177,7 @@ export type KnowledgeBase = z.infer<typeof KnowledgeBaseSchema>
 // ============================================================================
 
 const KnowledgeItemSharedSchema = z.strictObject({
-  source: z.string().trim().min(1)
+  source: z.string().trim().min(1).describe('Original user-facing source identifier for the knowledge item.')
 })
 
 /**
@@ -174,36 +202,36 @@ export const FileMetadataSchema: z.ZodType<FileMetadata> = z.object({
  * File item data.
  */
 export const FileItemDataSchema = KnowledgeItemSharedSchema.extend({
-  file: FileMetadataSchema
+  file: FileMetadataSchema.describe('Legacy file metadata snapshot used to locate and display the source file.')
 })
 
 /**
  * URL item data.
  */
 export const UrlItemDataSchema = KnowledgeItemSharedSchema.extend({
-  url: z.string().trim().min(1)
+  url: z.string().trim().min(1).describe('URL to read and index.')
 })
 
 /**
  * Note item data.
  */
 export const NoteItemDataSchema = KnowledgeItemSharedSchema.extend({
-  content: z.string().max(KNOWLEDGE_NOTE_CONTENT_MAX),
-  sourceUrl: z.string().optional()
+  content: z.string().max(KNOWLEDGE_NOTE_CONTENT_MAX).describe('Plain text note content to index.'),
+  sourceUrl: z.string().optional().describe('Optional external URL associated with the note.')
 })
 
 /**
  * Sitemap item data.
  */
 export const SitemapItemDataSchema = KnowledgeItemSharedSchema.extend({
-  url: z.string().trim().min(1)
+  url: z.string().trim().min(1).describe('Sitemap URL to expand into child URL items.')
 })
 
 /**
  * Directory item data.
  */
 export const DirectoryItemDataSchema = KnowledgeItemSharedSchema.extend({
-  path: z.string().trim().min(1)
+  path: z.string().trim().min(1).describe('Directory path to expand into child file or directory items.')
 })
 
 /**
@@ -223,51 +251,59 @@ export type KnowledgeItemData = z.infer<typeof KnowledgeItemDataSchema>
 // ============================================================================
 
 const KnowledgeItemEntityBaseSchema = z.strictObject({
-  id: z.string(),
-  baseId: z.string(),
-  groupId: z.string().trim().min(1).nullable().optional(),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime()
+  id: z.string().describe('Stable knowledge item identifier.'),
+  baseId: z.string().describe('Owning knowledge base identifier.'),
+  groupId: z
+    .string()
+    .trim()
+    .min(1)
+    .nullable()
+    .optional()
+    .describe('Parent container item identifier; null or undefined means the item is a root item.'),
+  createdAt: z.iso.datetime().describe('ISO timestamp when the item row was created.'),
+  updatedAt: z.iso.datetime().describe('ISO timestamp when the item row was last updated.')
 })
 
 const IdleKnowledgeItemLifecycleSchema = {
-  status: z.literal('idle'),
-  error: z.null()
+  status: z.literal('idle').describe('Item row exists but indexing has not started.'),
+  error: z.null().describe('No error is stored for non-failed lifecycle states.')
 } as const
 
 const PreparingKnowledgeItemLifecycleSchema = {
-  status: z.literal('preparing'),
-  error: z.null()
+  status: z.literal('preparing').describe('Container expansion is running; only directory and sitemap items use it.'),
+  error: z.null().describe('No error is stored for non-failed lifecycle states.')
 } as const
 
 const ProcessingKnowledgeItemLifecycleSchema = {
-  status: z.literal('processing'),
-  error: z.null()
+  status: z.literal('processing').describe('Work has been queued or is running before a more specific phase is known.'),
+  error: z.null().describe('No error is stored for non-failed lifecycle states.')
 } as const
 
 const ReadingKnowledgeItemLifecycleSchema = {
-  status: z.literal('reading'),
-  error: z.null()
+  status: z.literal('reading').describe('Leaf source documents are being read; only file, url, and note items use it.'),
+  error: z.null().describe('No error is stored for non-failed lifecycle states.')
 } as const
 
 const EmbeddingKnowledgeItemLifecycleSchema = {
-  status: z.literal('embedding'),
-  error: z.null()
+  status: z
+    .literal('embedding')
+    .describe('Leaf chunks are being embedded and written to the vector store; only file, url, and note items use it.'),
+  error: z.null().describe('No error is stored for non-failed lifecycle states.')
 } as const
 
 const CompletedKnowledgeItemLifecycleSchema = {
-  status: z.literal('completed'),
-  error: z.null()
+  status: z.literal('completed').describe('Indexing or container reconciliation finished successfully.'),
+  error: z.null().describe('No error is stored for non-failed lifecycle states.')
 } as const
 
 const DeletingKnowledgeItemLifecycleSchema = {
-  status: z.literal('deleting'),
-  error: z.null()
+  status: z.literal('deleting').describe('Delete cleanup is in progress; default list, search, and RAG reads hide it.'),
+  error: z.null().describe('No error is stored for non-failed lifecycle states.')
 } as const
 
 const FailedKnowledgeItemLifecycleSchema = {
-  status: z.literal('failed'),
-  error: z.string().trim().min(1)
+  status: z.literal('failed').describe('Workflow failed.'),
+  error: z.string().trim().min(1).describe('Non-empty failure message for failed items.')
 } as const
 
 const createLeafKnowledgeItemEntitySchemas = <TType extends KnowledgeItemType, TData extends z.ZodType>(

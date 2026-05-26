@@ -5,15 +5,15 @@ import { type DataSourceFilter, dataSourceTypeDisplayConfig, type KnowledgeItemR
 export const getItemStatus = (item: KnowledgeItem) => {
   switch (item.type) {
     case 'file':
-      return dataSourceTypeDisplayConfig.file.getStatus(item)
+      return dataSourceTypeDisplayConfig.file.getStatus(item.status)
     case 'note':
-      return dataSourceTypeDisplayConfig.note.getStatus(item)
+      return dataSourceTypeDisplayConfig.note.getStatus(item.status)
     case 'directory':
-      return dataSourceTypeDisplayConfig.directory.getStatus(item)
+      return dataSourceTypeDisplayConfig.directory.getStatus(item.status)
     case 'url':
-      return dataSourceTypeDisplayConfig.url.getStatus(item)
+      return dataSourceTypeDisplayConfig.url.getStatus(item.status)
     case 'sitemap':
-      return dataSourceTypeDisplayConfig.sitemap.getStatus(item)
+      return dataSourceTypeDisplayConfig.sitemap.getStatus(item.status)
   }
 }
 
@@ -53,7 +53,7 @@ export const toKnowledgeItemRowViewModel = (item: KnowledgeItem, language: strin
         suffix: config.getSuffix(item),
         metaParts: config.getMetaParts(item, { language }),
         icon: config.icon,
-        status: config.getStatus(item)
+        status: config.getStatus(item.status)
       }
     }
     case 'note': {
@@ -64,7 +64,7 @@ export const toKnowledgeItemRowViewModel = (item: KnowledgeItem, language: strin
         suffix: config.getSuffix(),
         metaParts: config.getMetaParts(item, { language }),
         icon: config.icon,
-        status: config.getStatus(item)
+        status: config.getStatus(item.status)
       }
     }
     case 'directory': {
@@ -75,7 +75,7 @@ export const toKnowledgeItemRowViewModel = (item: KnowledgeItem, language: strin
         suffix: config.getSuffix(),
         metaParts: config.getMetaParts(item, { language }),
         icon: config.icon,
-        status: config.getStatus(item)
+        status: config.getStatus(item.status)
       }
     }
     case 'url': {
@@ -86,7 +86,7 @@ export const toKnowledgeItemRowViewModel = (item: KnowledgeItem, language: strin
         suffix: config.getSuffix(),
         metaParts: config.getMetaParts(item, { language }),
         icon: config.icon,
-        status: config.getStatus(item)
+        status: config.getStatus(item.status)
       }
     }
     case 'sitemap': {
@@ -97,7 +97,7 @@ export const toKnowledgeItemRowViewModel = (item: KnowledgeItem, language: strin
         suffix: config.getSuffix(),
         metaParts: config.getMetaParts(item, { language }),
         icon: config.icon,
-        status: config.getStatus(item)
+        status: config.getStatus(item.status)
       }
     }
   }
