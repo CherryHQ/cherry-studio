@@ -11,22 +11,26 @@ import * as React from 'react'
 
 const textareaVariants = cva(
   cn(
-    'flex field-sizing-content min-h-16 w-full border bg-transparent px-4 py-3 text-lg transition-[color,box-shadow] outline-none resize-y',
+    'flex field-sizing-content w-full border bg-transparent transition-[color,box-shadow] outline-none resize-y',
     'rounded-md',
     'border-input text-foreground placeholder:text-foreground-secondary',
     'focus-visible:border-primary focus-visible:ring-ring focus-visible:ring-[3px]',
-    'disabled:cursor-not-allowed disabled:opacity-50',
-    'md:text-sm'
+    'disabled:cursor-not-allowed disabled:opacity-50'
   ),
   {
     variants: {
       hasError: {
         true: 'aria-invalid:border-destructive aria-invalid:ring-destructive/20',
         false: ''
+      },
+      density: {
+        default: 'min-h-16 px-4 py-3 text-lg md:text-sm',
+        compact: 'min-h-12 px-3 py-2 text-sm'
       }
     },
     defaultVariants: {
-      hasError: false
+      hasError: false,
+      density: 'default'
     }
   }
 )
@@ -42,6 +46,7 @@ interface TextareaInputProps extends Omit<React.ComponentPropsWithoutRef<'textar
   defaultValue?: string
   onValueChange?: (value: string) => void
   hasError?: boolean
+  density?: 'default' | 'compact'
   ref?: React.Ref<HTMLTextAreaElement>
 }
 
@@ -50,6 +55,7 @@ function TextareaInput({
   defaultValue,
   onValueChange,
   hasError = false,
+  density = 'default',
   className,
   ref,
   ...props
@@ -76,7 +82,7 @@ function TextareaInput({
       value={value}
       onChange={composeEventHandlers(props.onChange, handleChange)}
       aria-invalid={hasError}
-      className={cn(textareaVariants({ hasError }), className)}
+      className={cn(textareaVariants({ hasError, density }), className)}
     />
   )
 }

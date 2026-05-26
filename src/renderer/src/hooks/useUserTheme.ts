@@ -2,7 +2,16 @@
 // import { setUserTheme, UserTheme } from '@renderer/store/settings'
 
 import { usePreference } from '@data/hooks/usePreference'
+import { DEFAULT_COLOR_PRIMARY } from '@renderer/config/constant'
 import Color from 'color'
+
+function parseThemeColor(value?: string) {
+  try {
+    return Color(value?.trim() || DEFAULT_COLOR_PRIMARY)
+  } catch {
+    return Color(DEFAULT_COLOR_PRIMARY)
+  }
+}
 
 export default function useUserTheme() {
   const [colorPrimary, setColorPrimary] = usePreference('ui.theme_user.color_primary')
@@ -19,7 +28,7 @@ export default function useUserTheme() {
   }
 
   const initUserTheme = (theme: { colorPrimary: string } = { colorPrimary }) => {
-    const colorPrimary = Color(theme.colorPrimary)
+    const colorPrimary = parseThemeColor(theme.colorPrimary)
 
     document.documentElement.style.setProperty('--cs-theme-primary', colorPrimary.toString())
     setOptionalCssVar('--cs-user-font-family', userFontFamily)
@@ -27,7 +36,7 @@ export default function useUserTheme() {
   }
 
   return {
-    colorPrimary: Color(colorPrimary),
+    colorPrimary: parseThemeColor(colorPrimary),
 
     initUserTheme,
 

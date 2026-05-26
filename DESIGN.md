@@ -64,7 +64,7 @@ What makes Cherry Studio distinctive is its commitment to a calm UI foundation. 
 - **Border Hover / Active**: `var(--color-border-hover)` / `var(--color-border-active)`
 - **Frame Border**: `var(--color-frame-border)` — page-level wrapping frames and stronger outer chrome
 - **Input**: `var(--color-input)` — input field borders
-- **Ring**: `var(--color-ring)` — focus ring
+- **Ring**: `var(--color-ring)` — neutral focus ring, independent from runtime primary/theme color
 
 ### Border Token Rules
 - Use semantic border utilities (`border-border`, `border-border-muted`, `border-border-subtle`, `border-frame-border`, `border-input`, `border-sidebar-border`) instead of hard-coded colors.
@@ -318,7 +318,7 @@ Source: `DialogContent` and related primitives from `@cherrystudio/ui` (`package
 **Structure**
 - Header: flex column, `gap-2`, centered on mobile and left-aligned from `sm`
 - Title: `text-lg leading-none font-semibold`
-- Description: `text-muted-foreground text-sm`
+- Description: `text-foreground-muted text-sm`
 - Footer: mobile `flex-col-reverse`, desktop row with `sm:justify-end`
 - Close button: shown by default, absolute `top-4 right-4`, low opacity, higher opacity on hover; hide with `showCloseButton={false}` when the surrounding UI supplies its own close affordance
 
@@ -383,7 +383,7 @@ Use `Drawer` for modal edge/bottom sheets, especially mobile-oriented or full-vi
 - Left / right: `inset-y-0`, `w-3/4`, `sm:max-w-sm`, border on the attached edge
 - Header: `p-4`, `gap-0.5`, centered for top/bottom and left-aligned from `md`
 - Footer: `mt-auto flex flex-col gap-2 p-4`
-- Title / description: `font-semibold text-foreground`; `text-sm text-muted-foreground`
+- Title / description: `font-semibold text-foreground`; `text-sm text-foreground-muted`
 
 `Drawer` uses `bg-background` and edge attachment, not the floating `bg-card rounded-3xl shadow-xl` shell of `PageSidePanel`. New drawer work should use `PageSidePanel` or this shared `Drawer` primitive; legacy `antd` drawers are migration targets, not the design contract.
 
@@ -439,9 +439,72 @@ These patterns reflect the current v2 pages and should be treated as valid desig
 - Border: 1px solid `var(--color-input)`
 - Radius: `var(--radius-md)` (8px)
 - Shadow: none — inputs stay flat at rest; per the depth philosophy, shadows are reserved for hover feedback and floating elements
-- Focus ring: use Tailwind ring utilities with `var(--color-ring)` (for example `focus-visible:ring-2 focus-visible:ring-ring/50`)
+- Focus ring: use Tailwind ring utilities with the neutral `var(--color-ring)` (for example `focus-visible:ring-2 focus-visible:ring-ring/50`); do not derive input focus color from page primary/theme color
 - Font: `var(--font-family-body)` between `var(--font-size-body-sm)` and `var(--font-size-body-md)`, `var(--font-weight-regular)`
 - Placeholder: `var(--color-foreground-muted)`
+
+**Density**
+
+Inputs and textareas expose a `density` prop. Both densities use the same border/radius/focus tokens — only height, padding, and text size change.
+
+| Component | `density="default"` | `density="compact"` |
+|---|---|---|
+| `Input` | `h-9 px-3` (36px) | `h-8 px-2.5 text-sm` (32px) |
+| `Textarea.Input` | `min-h-16 px-4 py-3` | `min-h-12 px-3 py-2 text-sm` |
+
+Use `compact` for dense settings panels and embedded form rows (Drawers, MCP-style lists, channel settings). Use `default` for standalone forms and dialogs.
+
+### Forms
+
+Source: form composites from `@cherrystudio/ui` (`packages/ui/src/components/composites/form/index.tsx`). All form scaffolding lives in the shared library — business pages compose, they do not redefine.
+
+**FormSection** — titled group (optionally with a top divider)
+
+- Wrapper: bare by default. Pass `divided` to add `border-border-muted border-t pt-5 pb-5 first:border-t-0 first:pt-0 last:pb-0` for dense, attached layouts (e.g. drawer forms in `McpSettings` style). The symmetric `pt-5 pb-5` keeps the divider visually centered between sections; the first divided section drops its top border and the last drops its bottom padding automatically — do not author these edge cases manually.
+- Separate related sections by composing `space-y-*` / `gap-*` on the parent (matches `PageSidePanelSection` behavior). Do not reach for `divided` just to add spacing.
+- Header (when `title` or `description` is set): `mb-4 grid gap-1`
+- Title: `text-base font-medium` (default `<h3>` color; line-height inherits from `--line-height-body-md`)
+- Description: `var(--color-foreground-muted)`, `text-sm leading-normal`
+
+**FormGrid** — responsive 1- or 2-column field layout
+
+- Default columns: 2 (`grid-cols-1 xl:grid-cols-2`); pass `columns={1}` to force single column
+- Gap: `md` (`gap-4`, default) or `sm` (`gap-3`)
+- Every child gets `min-w-0` automatically (prevents overflow inside grid cells)
+- Use FormGrid for any two-up layout of FormItems; never re-author `grid-cols-1 xl:grid-cols-2 gap-4` at a call site.
+
+**FormActions** — Drawer/Page form footer button row
+
+- Layout: `flex items-center gap-2`
+- Alignment: `align="end"` (default), `align="between"`, or `align="start"`
+- Border: no top divider by default (matches `DialogFooter` and `PageSidePanel` footer). Pass `bordered` to add a `border-border-muted border-t pt-4` separator when the footer needs to feel attached to a denser section above.
+- For Dialog forms keep using `DialogFooter` from `@cherrystudio/ui` (already covers 100+ dialogs); FormActions is for Drawer/Page contexts.
+
+**FieldHeader** — label + tooltip + trailing action row
+
+- Layout: `flex items-center gap-1.5`
+- Use `FieldHeaderAction` for the right-side slot — it pushes itself with `ml-auto` automatically.
+- Replaces ad-hoc `FormLabel className="flex items-center gap-1"` + `<InfoTooltip>` patterns.
+
+**InlineSettingField** — left description, right control row
+
+- Layout: `flex min-h-12 items-center justify-between gap-3 rounded-md border border-border-muted px-4 py-2`
+- Title: `text-sm font-medium`
+- Description (optional): `text-sm leading-normal text-foreground-muted`
+- Right slot is `shrink-0` so the control never collapses
+- Use for "left explanation, right Switch/Input/Select" rows in settings panels.
+
+**Density on form composites**
+
+`FormItem` (and the related `Field` / `FieldContent` primitives) accept `density="default" | "compact"` to tighten the gap between label, control, description, and message. Pair with `<Input density="compact" />` / `<Textarea.Input density="compact" />` for a fully compact field.
+
+**Don't:**
+
+- Don't reauthor `border-t pt-5 pb-5 first:border-t-0 last:pb-0` inline — use `<FormSection divided>`.
+- Don't reauthor `grid-cols-1 xl:grid-cols-2 gap-x-4` inline — use `<FormGrid>`.
+- Don't pass `className="h-8 text-sm"` (or any size override) to `<Input>` / `<Textarea.Input>` — use `density="compact"`. The same rule applies to `<FormItem>` gap overrides.
+- Don't bake business-specific form templates (e.g. `McpForm`, `ProviderForm`) into `@cherrystudio/ui` — keep business field composition, validation, and save state in the business page.
+- Don't hard-code a page-form width (e.g. `max-w-[720px]`) inside `@cherrystudio/ui`; the host page owns its container width.
 
 ### Sidebar
 
@@ -482,34 +545,33 @@ The page owns the outer wrapper (width / Scrollbar / padding). Reusable sidebar 
 
 ### Switch
 
-Source: `Switch` and `DescriptionSwitch` from `@cherrystudio/ui` (`packages/ui/src/components/primitives/switch.tsx`). Current implementation uses a quiet gray off state and a brand/primary on state, matching the settings screenshots.
+Source: `Switch` and `DescriptionSwitch` from `@cherrystudio/ui` (`packages/ui/src/components/primitives/switch.tsx`). The primitive follows the stock shadcn/ui Switch source for Tailwind v4 and keeps local compatibility aliases for existing `xs` / `sm` / `md` / `lg` call sites.
 
 **Anatomy & sizing:**
 
 | Size | Track | Thumb | Travel | Use |
 |------|-------|-------|--------|-----|
-| `xs` | 32 × 18 | 16 × 16 | 14px | Dense inline controls |
-| `sm` | 36 × 20 | 18 × 18 | 16px | Slightly larger settings rows |
-| `md` (default) | 44 × 22 | 19 × 19 | 21px | Standard switch |
-| `lg` | 44 × 24 | 20 × 20 | 18px | Hero / marketing surfaces |
+| `xs` | 24 × 14 | 12 × 12 | shadcn transform | Dense inline controls |
+| `sm` / `md` / `lg` / `default` | 32 × 18.4 | 16 × 16 | shadcn transform | Standard switch |
 
 **Colors:**
 
 | State | Light | Dark |
 |---|---|---|
-| Track — off | `bg-gray-500/20` | `bg-gray-500/20` |
-| Track — on | `bg-brand-600` | `bg-brand-600` |
-| Loading | `bg-brand-300!` | `bg-brand-300!` |
-| Thumb glyph | white internal SVG | white internal SVG |
+| Track — off | `bg-input` | `bg-input/80` |
+| Track — on | `bg-[var(--color-primary)]` | `bg-[var(--color-primary)]` |
+| Loading | standard track plus `cursor-progress` and `data-loading=true` | standard track plus `cursor-progress` and `data-loading=true` |
+| Thumb — off | `bg-background` | `bg-foreground` |
+| Thumb — on | `bg-background` | `bg-primary-foreground` |
 
 **Other rules:**
-- Track carries `shadow-xs`; do not add extra page-local shadow.
-- The thumb is rendered by the component's internal white SVG glyph. Do not add custom thumb icons from the call site.
-- `loading` state switches root/thumb coloring to `bg-brand-300!` and animates the thumb SVG.
-- Focus ring: `focus-visible:ring-[3px] focus-visible:ring-ring/50` (no track border change).
+- Track carries `border border-transparent` and `shadow-xs`, matching shadcn's source component.
+- The normal thumb is a plain shadcn thumb. Do not add custom thumb icons from the call site.
+- `loading` state preserves the shadcn track/thumb styling and adds `cursor-progress`; it does not render an internal thumb glyph.
+- Focus ring: `focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50`.
 
 **Don't:**
-- Don't pass page-local status colors (`bg-success`, `bg-warning`, etc.) to the track. The component owns its brand on state.
+- Don't pass page-local status colors (`bg-success`, `bg-warning`, etc.) to the track. The component owns its runtime primary on state.
 - Don't add inline `style={{ ... }}` overrides for switch dimensions. If a new size is needed, add a variant to `switchRootVariants`/`switchThumbVariants` and document it here.
 - Use `<DescriptionSwitch label="..." description="...">` for reusable standalone preference rows. In dense `PageSidePanel` layouts, composing a row label plus a bare `<Switch>` is acceptable when the surrounding row owns spacing and helper text.
 
