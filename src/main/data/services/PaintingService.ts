@@ -7,13 +7,14 @@ import type {
   CreatePainting,
   ListPaintingsQuery,
   PaintingFileUsage,
+  ReorderPaintingsDto,
   UpdatePaintingDto
 } from '@shared/data/api/schemas/paintings'
 import type { Painting } from '@shared/data/types/painting'
 import { PaintingSchema } from '@shared/data/types/painting'
-import { and, asc, desc, eq, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, type SQL, sql } from 'drizzle-orm'
 
-import { insertWithOrderKey } from './utils/orderKey'
+import { insertWithOrderKey, resetOrder } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:PaintingService')
@@ -99,6 +100,7 @@ export class PaintingService {
         tx,
         paintingTable,
         {
+          ...(dto.id ? { id: dto.id } : {}),
           provider: dto.provider,
           mode: dto.mode,
           model: dto.model,
@@ -156,6 +158,35 @@ export class PaintingService {
       }
     })
     logger.info('Deleted painting', { id })
+  }
+
+  async reorder(dto: ReorderPaintingsDto): Promise<void> {
+    await application.get('DbService').withWriteTx(async (tx) => {
+      const rows =
+        dto.ids.length === 0
+          ? []
+          : await tx
+              .select({ id: paintingTable.id })
+              .from(paintingTable)
+              .where(
+                and(
+                  eq(paintingTable.provider, dto.provider),
+                  eq(paintingTable.mode, dto.mode),
+                  inArray(paintingTable.id, dto.ids)
+                )
+              )
+
+      const found = new Set(rows.map((row) => row.id))
+      const orderedRows = dto.ids.map((id) => {
+        if (!found.has(id)) {
+          throw DataApiErrorFactory.notFound('Painting', id)
+        }
+        return { id }
+      })
+
+      await resetOrder(tx, paintingTable, orderedRows, { pkColumn: paintingTable.id })
+    })
+    logger.info('Reordered paintings', { provider: dto.provider, mode: dto.mode, count: dto.ids.length })
   }
 
   async getFileUsage(fileId: string): Promise<PaintingFileUsage> {

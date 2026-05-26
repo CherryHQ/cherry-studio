@@ -11,12 +11,13 @@ import {
 import * as z from 'zod'
 
 export const PAINTINGS_DEFAULT_PAGE = 1
-export const PAINTINGS_DEFAULT_LIMIT = 20
-export const PAINTINGS_MAX_LIMIT = 100
+export const PAINTINGS_DEFAULT_LIMIT = 100
+export const PAINTINGS_MAX_LIMIT = 5000
 
 export const PaintingIdParamSchema = PaintingIdSchema
 
 export const CreatePaintingSchema = z.strictObject({
+  id: PaintingIdSchema.optional(),
   provider: PaintingProviderSchema,
   mode: PaintingModeSchema,
   model: z.string().min(1).optional(),
@@ -56,6 +57,13 @@ export const ListPaintingsQuerySchema = z.strictObject({
 export type ListPaintingsQueryParams = z.input<typeof ListPaintingsQuerySchema>
 export type ListPaintingsQuery = z.output<typeof ListPaintingsQuerySchema>
 
+export const ReorderPaintingsSchema = z.strictObject({
+  provider: PaintingProviderSchema,
+  mode: PaintingModeSchema,
+  ids: z.array(PaintingIdSchema)
+})
+export type ReorderPaintingsDto = z.infer<typeof ReorderPaintingsSchema>
+
 export const PaintingFileUsageQuerySchema = z.strictObject({
   fileId: z.string().min(1)
 })
@@ -83,6 +91,13 @@ export type PaintingSchemas = {
     GET: {
       query: PaintingFileUsageQuery
       response: PaintingFileUsage
+    }
+  }
+
+  '/paintings/order': {
+    PATCH: {
+      body: ReorderPaintingsDto
+      response: void
     }
   }
 

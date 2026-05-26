@@ -7,9 +7,14 @@ import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import ListItem from '@renderer/components/ListItem'
 import db from '@renderer/databases'
 import { getFileFieldLabel } from '@renderer/i18n/label'
-import { handleDelete, handleRename, sortFiles, tempFilesSort } from '@renderer/services/FileAction'
+import {
+  handleDelete,
+  handleRename,
+  isFileUsedInPaintings,
+  sortFiles,
+  tempFilesSort
+} from '@renderer/services/FileAction'
 import FileManager from '@renderer/services/FileManager'
-import store from '@renderer/store'
 import type { FileMetadata, FileType } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
@@ -60,13 +65,12 @@ const FilesPage: FC = () => {
     const selectedFiles = await Promise.all(selectedFileIds.map((id) => FileManager.getFile(id)))
     const validFiles = selectedFiles.filter((file) => file !== null && file !== undefined)
 
-    const paintings = store.getState().paintings
-    const paintingsFiles = Object.values(paintings)
-      .flat()
-      .filter((painting) => painting?.files?.length > 0)
-      .flatMap((painting) => painting.files)
-
-    const filesInPaintings = validFiles.filter((file) => paintingsFiles.some((p) => p.id === file.id))
+    const filesInPaintings: FileMetadata[] = []
+    for (const file of validFiles) {
+      if (await isFileUsedInPaintings(file.id)) {
+        filesInPaintings.push(file)
+      }
+    }
 
     if (filesInPaintings.length > 0) {
       window.modal.warning({

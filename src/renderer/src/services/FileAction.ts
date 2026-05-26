@@ -1,8 +1,8 @@
 import { loggerService } from '@logger'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
+import { dataApiService } from '@renderer/data/DataApiService'
 import db from '@renderer/databases'
 import FileManager from '@renderer/services/FileManager'
-import store from '@renderer/store'
 import type { FileMetadata } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import dayjs from 'dayjs'
@@ -12,6 +12,11 @@ export type SortField = 'created_at' | 'size' | 'name'
 export type SortOrder = 'asc' | 'desc'
 
 const logger = loggerService.withContext('FileAction')
+
+export async function isFileUsedInPaintings(fileId: string): Promise<boolean> {
+  const usage = await dataApiService.get('/paintings/file-usage', { query: { fileId } })
+  return usage.count > 0
+}
 
 export function tempFilesSort(files: FileMetadata[]): FileMetadata[] {
   return files.sort((a, b) => {
@@ -46,13 +51,7 @@ export async function handleDelete(fileId: string, t: (key: string) => string) {
   const file = await FileManager.getFile(fileId)
   if (!file) return
 
-  const paintings = store.getState().paintings
-  const paintingsFiles = Object.values(paintings)
-    .flat()
-    .filter((painting) => painting?.files?.length > 0)
-    .flatMap((painting) => painting.files)
-
-  if (paintingsFiles.some((p) => p.id === fileId)) {
+  if (await isFileUsedInPaintings(fileId)) {
     window.modal.warning({ content: t('files.delete.paintings.warning'), centered: true })
     return
   }

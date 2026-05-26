@@ -6,6 +6,7 @@ import {
   PaintingFileUsageQuerySchema,
   PaintingIdParamSchema,
   type PaintingSchemas,
+  ReorderPaintingsSchema,
   UpdatePaintingSchema
 } from '@shared/data/api/schemas/paintings'
 
@@ -26,6 +27,14 @@ export const paintingHandlers: HandlersFor<PaintingSchemas> = {
     GET: async ({ query }) => {
       const parsed = PaintingFileUsageQuerySchema.parse(query)
       return await paintingService.getFileUsage(parsed.fileId)
+    }
+  },
+
+  '/paintings/order': {
+    PATCH: async ({ body }) => {
+      const parsed = ReorderPaintingsSchema.parse(body)
+      await paintingService.reorder(parsed)
+      return undefined
     }
   },
 

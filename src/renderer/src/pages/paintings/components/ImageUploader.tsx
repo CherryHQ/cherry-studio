@@ -30,6 +30,8 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
 }) => {
   const { theme } = useTheme()
   const { t } = useTranslation()
+  const imageCount = fileMap.imageFiles?.length || 0
+  const remainingImages = Math.max(maxImages - imageCount, 0)
 
   const handleBeforeUpload = (file: RcFile, index?: number) => {
     onAddImage(file, index)
@@ -89,12 +91,12 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
           ''
         )}
 
-        {fileMap.imageFiles && fileMap.imageFiles.length < maxImages ? (
+        {remainingImages > 0 ? (
           <UploadImageItem>
             <ImageUploadButton
-              multiple={false}
+              multiple={remainingImages > 1}
               accept="image/png, image/jpeg"
-              maxCount={1}
+              maxCount={remainingImages}
               showUploadList={false}
               listType="picture-card"
               action=""

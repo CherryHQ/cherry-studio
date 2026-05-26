@@ -1,9 +1,8 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
-import { Button, ColFlex, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
+import { Button, ColFlex, InfoTooltip } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { AiProvider } from '@renderer/aiCore'
 import ImageSize1_1 from '@renderer/assets/images/paintings/image-size-1-1.svg'
 import ImageSize1_2 from '@renderer/assets/images/paintings/image-size-1-2.svg'
 import ImageSize3_2 from '@renderer/assets/images/paintings/image-size-3-2.svg'
@@ -17,11 +16,10 @@ import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
-import { getProviderByModel } from '@renderer/services/AssistantService'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
-import type { FileMetadata, Painting } from '@renderer/types'
-import { getErrorMessage, uuid } from '@renderer/utils'
+import type { FileMetadata, Painting, Provider } from '@renderer/types'
+import { convertToBase64, getErrorMessage, uuid } from '@renderer/utils'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { Input, InputNumber, Radio, Select, Slider } from 'antd'
@@ -34,11 +32,42 @@ import styled from 'styled-components'
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
+import ImageUploader from './components/ImageUploader'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { checkProviderEnabled } from './utils'
 
 export const TEXT_TO_IMAGES_MODELS = [
+  {
+    id: 'Tongyi-MAI/Z-Image-Turbo',
+    provider: 'silicon',
+    name: 'Z-Image-Turbo',
+    group: 'Tongyi-MAI'
+  },
+  {
+    id: 'Tongyi-MAI/Z-Image',
+    provider: 'silicon',
+    name: 'Z-Image',
+    group: 'Tongyi-MAI'
+  },
+  {
+    id: 'baidu/ERNIE-Image-Turbo',
+    provider: 'silicon',
+    name: 'ERNIE-Image-Turbo',
+    group: 'baidu'
+  },
+  {
+    id: 'Qwen/Qwen-Image-Edit-2509',
+    provider: 'silicon',
+    name: 'Qwen-Image-Edit-2509',
+    group: 'qwen'
+  },
+  {
+    id: 'Qwen/Qwen-Image-Edit',
+    provider: 'silicon',
+    name: 'Qwen-Image-Edit',
+    group: 'qwen'
+  },
   {
     id: 'Kwai-Kolors/Kolors',
     provider: 'silicon',
@@ -55,38 +84,162 @@ export const TEXT_TO_IMAGES_MODELS = [
 
 const logger = loggerService.withContext('SiliconPage')
 
-const IMAGE_SIZES = [
-  {
-    label: '1:1',
-    value: '1024x1024',
-    icon: ImageSize1_1
-  },
-  {
-    label: '1:2',
-    value: '512x1024',
-    icon: ImageSize1_2
-  },
-  {
-    label: '3:2',
-    value: '768x512',
-    icon: ImageSize3_2
-  },
-  {
-    label: '3:4',
-    value: '768x1024',
-    icon: ImageSize3_4
-  },
-  {
-    label: '16:9',
-    value: '1024x576',
-    icon: ImageSize16_9
-  },
-  {
-    label: '9:16',
-    value: '576x1024',
-    icon: ImageSize9_16
-  }
+const KOLORS_IMAGE_SIZES = [
+  { label: '1:1', value: '1024x1024', icon: ImageSize1_1 },
+  { label: '3:2', value: '1536x1024', icon: ImageSize3_2 },
+  { label: '16:9', value: '2048x1152', icon: ImageSize16_9 },
+  { label: '3:4', value: '1536x2048', icon: ImageSize3_4 },
+  { label: '9:16', value: '1152x2048', icon: ImageSize9_16 },
+  { label: '1:2', value: '1024x2048', icon: ImageSize1_2 }
 ]
+
+const QWEN_IMAGE_SIZES = [
+  { label: '1:1', value: '1328x1328', icon: ImageSize1_1 },
+  { label: '3:2', value: '1584x1056', icon: ImageSize3_2 },
+  { label: '16:9', value: '1664x928', icon: ImageSize16_9 },
+  { label: '3:4', value: '1140x1472', icon: ImageSize3_4 },
+  { label: '9:16', value: '928x1664', icon: ImageSize9_16 }
+]
+
+const Z_IMAGE_SIZES = [
+  { label: '1:1', value: '1024x1024', icon: ImageSize1_1 },
+  { label: '4:3', value: '1200x896', icon: ImageSize3_4 },
+  { label: '3:2', value: '1264x848', icon: ImageSize3_2 },
+  { label: '16:9', value: '1376x768', icon: ImageSize16_9 },
+  { label: '3:4', value: '896x1200', icon: ImageSize3_4 },
+  { label: '9:16', value: '768x1376', icon: ImageSize9_16 }
+]
+
+const SILICON_MODEL_PARAMS = {
+  'Tongyi-MAI/Z-Image-Turbo': {
+    imageSizes: Z_IMAGE_SIZES,
+    supportsImageSize: true,
+    supportsSteps: false,
+    supportsGuidanceScale: false,
+    supportsBatchSize: false,
+    maxInputImages: 0,
+    requiresInputImage: false
+  },
+  'Tongyi-MAI/Z-Image': {
+    imageSizes: Z_IMAGE_SIZES,
+    supportsImageSize: true,
+    supportsSteps: true,
+    supportsGuidanceScale: true,
+    supportsBatchSize: false,
+    maxInputImages: 0,
+    requiresInputImage: false
+  },
+  'baidu/ERNIE-Image-Turbo': {
+    imageSizes: Z_IMAGE_SIZES,
+    supportsImageSize: true,
+    supportsSteps: false,
+    supportsGuidanceScale: true,
+    supportsBatchSize: false,
+    maxInputImages: 0,
+    requiresInputImage: false
+  },
+  'Qwen/Qwen-Image-Edit-2509': {
+    imageSizes: [],
+    supportsImageSize: false,
+    supportsSteps: true,
+    supportsGuidanceScale: false,
+    supportsBatchSize: false,
+    maxInputImages: 3,
+    requiresInputImage: true
+  },
+  'Qwen/Qwen-Image-Edit': {
+    imageSizes: [],
+    supportsImageSize: false,
+    supportsSteps: true,
+    supportsGuidanceScale: false,
+    supportsBatchSize: false,
+    maxInputImages: 1,
+    requiresInputImage: true
+  },
+  'Qwen/Qwen-Image': {
+    imageSizes: QWEN_IMAGE_SIZES,
+    supportsImageSize: true,
+    supportsSteps: true,
+    supportsGuidanceScale: false,
+    supportsBatchSize: false,
+    maxInputImages: 0,
+    requiresInputImage: false
+  },
+  'Kwai-Kolors/Kolors': {
+    imageSizes: KOLORS_IMAGE_SIZES,
+    supportsImageSize: true,
+    supportsSteps: true,
+    supportsGuidanceScale: true,
+    supportsBatchSize: true,
+    maxInputImages: 1,
+    requiresInputImage: false
+  }
+}
+
+const getSiliconModelParams = (model?: string) =>
+  SILICON_MODEL_PARAMS[model as keyof typeof SILICON_MODEL_PARAMS] || SILICON_MODEL_PARAMS['Kwai-Kolors/Kolors']
+
+type SiliconImageResponse = {
+  data?: Array<{ url?: string; b64_json?: string }>
+  images?: Array<{ url?: string; b64_json?: string }>
+}
+
+const getSiliconImageEndpoint = (provider: Provider) => {
+  const apiHost = provider.apiHost.replace(/\/$/, '').replace(/\/v1$/, '')
+  return `${apiHost}/v1/images/generations`
+}
+
+const parseSiliconImageUrls = (data: SiliconImageResponse) => {
+  const images = data.data || data.images || []
+  return images
+    .map((image) => image.url || (image.b64_json ? `data:image/png;base64,${image.b64_json}` : undefined))
+    .filter((url): url is string => Boolean(url))
+}
+
+const getSiliconInputImages = async (files: FileMetadata[]) => {
+  const images = await Promise.all(files.map((file) => convertToBase64(file as unknown as File)))
+  return images.filter((image): image is string => typeof image === 'string')
+}
+
+const generateSiliconImages = async (
+  provider: Provider,
+  painting: Painting,
+  prompt: string,
+  signal: AbortSignal,
+  inputImages: string[]
+) => {
+  const modelParams = getSiliconModelParams(painting.model)
+  const response = await fetch(getSiliconImageEndpoint(provider), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${provider.apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: painting.model,
+      prompt,
+      negative_prompt: painting.negativePrompt || undefined,
+      image_size: modelParams.supportsImageSize ? painting.imageSize || modelParams.imageSizes[0].value : undefined,
+      batch_size: modelParams.supportsBatchSize ? painting.numImages || 1 : undefined,
+      seed: painting.seed ? Number(painting.seed) : undefined,
+      num_inference_steps: modelParams.supportsSteps ? painting.steps || 20 : undefined,
+      guidance_scale: modelParams.supportsGuidanceScale ? painting.guidanceScale || 7.5 : undefined,
+      image: inputImages[0],
+      image2: inputImages[1],
+      image3: inputImages[2]
+    }),
+    signal
+  })
+
+  const data = (await response.json()) as SiliconImageResponse & { error?: { message?: string } }
+
+  if (!response.ok) {
+    throw new Error(data.error?.message || response.statusText)
+  }
+
+  return parseSiliconImageUrls(data)
+}
+
 const generateRandomSeed = () => Math.floor(Math.random() * 1000000).toString()
 
 const DEFAULT_PAINTING: Painting = {
@@ -118,6 +271,10 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [isLoading, setIsLoading] = useState(false)
   const [abortController, setAbortController] = useState<AbortController | null>(null)
   const [generating, setGenerating] = useCache('chat.generating')
+  const [fileMap, setFileMap] = useState<{ imageFiles: FileMetadata[]; paths: string[] }>({
+    imageFiles: [],
+    paths: []
+  })
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -133,6 +290,8 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
     label: model.name,
     value: model.id
   }))
+  const modelParams = getSiliconModelParams(painting.model)
+  const imageSizes = modelParams.imageSizes
 
   const textareaRef = useRef<any>(null)
   // _painting = painting
@@ -146,7 +305,15 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   const onSelectModel = (modelId: string) => {
     const model = TEXT_TO_IMAGES_MODELS.find((m) => m.id === modelId)
     if (model) {
-      updatePaintingState({ model: modelId })
+      const nextModelParams = getSiliconModelParams(modelId)
+      const nextImageSize = nextModelParams.imageSizes.some((size) => size.value === painting.imageSize)
+        ? painting.imageSize
+        : nextModelParams.imageSizes[0]?.value
+      setFileMap((prevFileMap) => ({
+        imageFiles: prevFileMap.imageFiles.slice(0, nextModelParams.maxInputImages),
+        paths: prevFileMap.paths.slice(0, nextModelParams.maxInputImages)
+      }))
+      updatePaintingState({ model: modelId, imageSize: nextImageSize })
     }
   }
 
@@ -170,8 +337,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     updatePaintingState({ prompt })
 
-    const model = TEXT_TO_IMAGES_MODELS.find((m) => m.id === painting.model)
-    const provider = getProviderByModel(model)
+    const provider = siliconFlowProvider
 
     if (!provider.apiKey) {
       window.modal.error({
@@ -181,29 +347,26 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
       return
     }
 
+    const modelParams = getSiliconModelParams(painting.model)
+    if (modelParams.requiresInputImage && fileMap.imageFiles.length === 0) {
+      window.modal.error({
+        content: t('paintings.image_file_required'),
+        centered: true
+      })
+      return
+    }
+
     const controller = new AbortController()
     setAbortController(controller)
     setIsLoading(true)
     setGenerating(true)
-    const AI = new AiProvider(provider)
-
     if (!painting.model) {
       return
     }
 
     try {
-      const urls = await AI.generateImage({
-        model: painting.model,
-        prompt,
-        negativePrompt: painting.negativePrompt || '',
-        imageSize: painting.imageSize || '1024x1024',
-        batchSize: painting.numImages || 1,
-        seed: painting.seed || undefined,
-        numInferenceSteps: painting.steps || 25,
-        guidanceScale: painting.guidanceScale || 4.5,
-        signal: controller.signal,
-        promptEnhancement: painting.promptEnhancement || false
-      })
+      const inputImages = await getSiliconInputImages(fileMap.imageFiles.slice(0, modelParams.maxInputImages))
+      const urls = await generateSiliconImages(provider, painting, prompt, controller.signal, inputImages)
 
       if (urls.length > 0) {
         const downloadedFiles = await Promise.all(
@@ -253,8 +416,41 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onSelectImageSize = (v: string) => {
-    const size = IMAGE_SIZES.find((i) => i.value === v)
+    const size = imageSizes.find((i) => i.value === v)
     size && updatePaintingState({ imageSize: size.value })
+  }
+
+  const onAddImage = (file: File, index?: number) => {
+    const path = URL.createObjectURL(file)
+
+    setFileMap((prevFileMap) => {
+      const imageFiles = [...prevFileMap.imageFiles]
+      const paths = [...prevFileMap.paths]
+
+      if (index !== undefined) {
+        imageFiles[index] = file as unknown as FileMetadata
+        paths[index] = path
+      } else {
+        imageFiles.push(file as unknown as FileMetadata)
+        paths.push(path)
+      }
+
+      return { imageFiles, paths }
+    })
+  }
+
+  const clearImages = () => {
+    setFileMap({ imageFiles: [], paths: [] })
+  }
+
+  const handleDeleteImage = (index: number) => {
+    setFileMap((prevFileMap) => {
+      const imageFiles = [...prevFileMap.imageFiles]
+      const paths = [...prevFileMap.paths]
+      imageFiles.splice(index, 1)
+      paths.splice(index, 1)
+      return { imageFiles, paths }
+    })
   }
 
   const nextImage = () => {
@@ -373,31 +569,52 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
           <ProviderSelect provider={siliconFlowProvider} options={Options} onChange={handleProviderChange} />
           <SettingTitle className="mt-4 mb-1">{t('common.model')}</SettingTitle>
           <Select value={painting.model} options={modelOptions} onChange={onSelectModel} />
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.image.size')}</SettingTitle>
-          <Radio.Group
-            value={painting.imageSize}
-            onChange={(e) => onSelectImageSize(e.target.value)}
-            style={{ display: 'flex' }}>
-            {IMAGE_SIZES.map((size) => (
-              <RadioButton value={size.value} key={size.value}>
-                <ColFlex className="items-center">
-                  <ImageSizeImage src={size.icon} theme={theme} />
-                  <span>{size.label}</span>
-                </ColFlex>
-              </RadioButton>
-            ))}
-          </Radio.Group>
+          {modelParams.maxInputImages > 0 && (
+            <>
+              <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.remix.image_file')}</SettingTitle>
+              <ImageUploader
+                fileMap={fileMap}
+                maxImages={modelParams.maxInputImages}
+                onClearImages={clearImages}
+                onDeleteImage={handleDeleteImage}
+                onAddImage={onAddImage}
+                mode="silicon"
+              />
+            </>
+          )}
+          {modelParams.supportsImageSize && (
+            <>
+              <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.image.size')}</SettingTitle>
+              <Radio.Group
+                value={painting.imageSize}
+                onChange={(e) => onSelectImageSize(e.target.value)}
+                style={{ display: 'flex' }}>
+                {imageSizes.map((size) => (
+                  <RadioButton value={size.value} key={size.value}>
+                    <ColFlex className="items-center">
+                      <ImageSizeImage src={size.icon} theme={theme} />
+                      <span>{size.label}</span>
+                    </ColFlex>
+                  </RadioButton>
+                ))}
+              </Radio.Group>
+            </>
+          )}
 
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
-            {t('paintings.number_images')}
-            <InfoTooltip content={t('paintings.number_images_tip')} />
-          </SettingTitle>
-          <InputNumber
-            min={1}
-            max={4}
-            value={painting.numImages}
-            onChange={(v) => updatePaintingState({ numImages: v || 1 })}
-          />
+          {modelParams.supportsBatchSize && (
+            <>
+              <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+                {t('paintings.number_images')}
+                <InfoTooltip content={t('paintings.number_images_tip')} />
+              </SettingTitle>
+              <InputNumber
+                min={1}
+                max={4}
+                value={painting.numImages}
+                onChange={(v) => updatePaintingState({ numImages: v || 1 })}
+              />
+            </>
+          )}
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.seed')}
@@ -414,40 +631,48 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
             }
           />
 
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
-            {t('paintings.inference_steps')}
-            <InfoTooltip content={t('paintings.inference_steps_tip')} />
-          </SettingTitle>
-          <SliderContainer>
-            <Slider min={1} max={50} value={painting.steps} onChange={(v) => updatePaintingState({ steps: v })} />
-            <StyledInputNumber
-              min={1}
-              max={50}
-              value={painting.steps}
-              onChange={(v) => updatePaintingState({ steps: (v as number) || 25 })}
-            />
-          </SliderContainer>
+          {modelParams.supportsSteps && (
+            <>
+              <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+                {t('paintings.inference_steps')}
+                <InfoTooltip content={t('paintings.inference_steps_tip')} />
+              </SettingTitle>
+              <SliderContainer>
+                <Slider min={1} max={100} value={painting.steps} onChange={(v) => updatePaintingState({ steps: v })} />
+                <StyledInputNumber
+                  min={1}
+                  max={100}
+                  value={painting.steps}
+                  onChange={(v) => updatePaintingState({ steps: (v as number) || 20 })}
+                />
+              </SliderContainer>
+            </>
+          )}
 
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
-            {t('paintings.guidance_scale')}
-            <InfoTooltip content={t('paintings.guidance_scale_tip')} />
-          </SettingTitle>
-          <SliderContainer>
-            <Slider
-              min={1}
-              max={20}
-              step={0.1}
-              value={painting.guidanceScale}
-              onChange={(v) => updatePaintingState({ guidanceScale: v })}
-            />
-            <StyledInputNumber
-              min={1}
-              max={20}
-              step={0.1}
-              value={painting.guidanceScale}
-              onChange={(v) => updatePaintingState({ guidanceScale: (v as number) || 4.5 })}
-            />
-          </SliderContainer>
+          {modelParams.supportsGuidanceScale && (
+            <>
+              <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+                {t('paintings.guidance_scale')}
+                <InfoTooltip content={t('paintings.guidance_scale_tip')} />
+              </SettingTitle>
+              <SliderContainer>
+                <Slider
+                  min={0}
+                  max={20}
+                  step={0.1}
+                  value={painting.guidanceScale}
+                  onChange={(v) => updatePaintingState({ guidanceScale: v })}
+                />
+                <StyledInputNumber
+                  min={0}
+                  max={20}
+                  step={0.1}
+                  value={painting.guidanceScale}
+                  onChange={(v) => updatePaintingState({ guidanceScale: (v as number) || 7.5 })}
+                />
+              </SliderContainer>
+            </>
+          )}
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.negative_prompt')}
             <InfoTooltip content={t('paintings.negative_prompt_tip')} />
@@ -458,16 +683,6 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
             spellCheck={false}
             rows={4}
           />
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
-            {t('paintings.prompt_enhancement')}
-            <InfoTooltip content={t('paintings.prompt_enhancement_tip')} />
-          </SettingTitle>
-          <RowFlex>
-            <Switch
-              checked={painting.promptEnhancement}
-              onCheckedChange={(checked) => updatePaintingState({ promptEnhancement: checked })}
-            />
-          </RowFlex>
         </LeftContainer>
         <MainContainer>
           <Artboard

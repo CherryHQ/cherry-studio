@@ -34,6 +34,7 @@ describe('PaintingService', () => {
   it('creates and lists paintings by provider and mode', async () => {
     const created = await paintingService.create(
       createDto({
+        id: '550e8400-e29b-41d4-a716-446655440010',
         model: 'gpt-image-1',
         prompt: 'paint a mountain',
         files: [file],
@@ -42,6 +43,7 @@ describe('PaintingService', () => {
     )
 
     expect(created.provider).toBe('aihubmix')
+    expect(created.id).toBe('550e8400-e29b-41d4-a716-446655440010')
     expect(created.files[0]?.id).toBe(file.id)
     expect(created.params).toEqual({ quality: 'high' })
 
@@ -75,6 +77,24 @@ describe('PaintingService', () => {
 
     const rows = await dbh.db.select().from(paintingTable)
     expect(rows[0]?.files).toHaveLength(1)
+  })
+
+  it('reorders paintings within provider and mode', async () => {
+    const first = await paintingService.create(
+      createDto({ id: '550e8400-e29b-41d4-a716-446655440011', prompt: 'first' })
+    )
+    const second = await paintingService.create(
+      createDto({ id: '550e8400-e29b-41d4-a716-446655440012', prompt: 'second' })
+    )
+
+    await paintingService.reorder({
+      provider: 'aihubmix',
+      mode: 'generate',
+      ids: [second.id, first.id]
+    })
+
+    const result = await paintingService.list({ provider: 'aihubmix', mode: 'generate', page: 1, limit: 20 })
+    expect(result.items.map((painting) => painting.id)).toEqual([second.id, first.id])
   })
 
   it('deletes a painting', async () => {

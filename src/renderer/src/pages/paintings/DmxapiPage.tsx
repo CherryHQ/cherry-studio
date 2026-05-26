@@ -794,7 +794,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
         <LeftContainer>
           <ProviderTitleContainer>
             <SettingTitle className="mb-1">{t('common.provider')}</SettingTitle>
-            <div>
+            <div className="flex flex-row items-center gap-2">
               <SettingHelpLink target="_blank" href={COURSE_URL}>
                 {t('paintings.paint_course')}
               </SettingHelpLink>
@@ -1010,6 +1010,7 @@ const Container = styled.div`
 // 添加新的样式组件
 const ProviderTitleContainer = styled.div`
   display: flex;
+  flex-direction: row;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 5px;
