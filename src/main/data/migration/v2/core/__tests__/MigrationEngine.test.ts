@@ -142,7 +142,7 @@ describe('MigrationEngine', () => {
 
     expect(transactionFn).toHaveBeenCalledTimes(1)
 
-    expect(deleteFn).toHaveBeenCalledTimes(27)
+    expect(deleteFn).toHaveBeenCalledTimes(28)
 
     expect(db).not.toHaveProperty('delete')
   })
