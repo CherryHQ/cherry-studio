@@ -758,11 +758,14 @@ function transformSingleBlock(oldBlock: OldBlock): {
 
     case 'image': {
       const block = oldBlock as OldImageBlock
+      // NOTE: `fileId` carries the v1 file id forward but no `file_ref` row is
+      // emitted — `chat_message` is not yet a registered FileRefSourceType.
+      // Deferred to chat-domain file_ref follow-up; see ChatMigrator JSDoc.
       return {
         block: {
           type: 'image' as BlockType.IMAGE,
           url: block.url,
-          fileId: block.file?.id, // file.id → fileId
+          fileId: block.file?.id,
           ...baseFields
         } as ImageBlock,
         citations: null,
@@ -772,10 +775,11 @@ function transformSingleBlock(oldBlock: OldBlock): {
 
     case 'file': {
       const block = oldBlock as OldFileBlock
+      // NOTE: see ChatMigrator JSDoc — `fileId` survives, `file_ref` deferred.
       return {
         block: {
           type: 'file' as BlockType.FILE,
-          fileId: block.file.id, // file.id → fileId
+          fileId: block.file.id,
           ...baseFields
         } as FileBlock,
         citations: null,

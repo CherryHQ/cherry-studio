@@ -41,6 +41,21 @@
  *    - Old: `message.mentions: Model[]`
  *    - New: Not migrated — derivable from sibling responses' modelId + siblingsGroupId
  *
+ * ## Deferred — `chat_message` `file_ref` backfill
+ *
+ * v1 image/file blocks DO reference v1 files via `block.file.id`, and those
+ * ids survive into v2 as `ImageBlock.fileId` / `FileBlock.fileId` (inline JSON
+ * on `messageTable.data.blocks`). What this migrator deliberately does NOT do
+ * is create `file_ref` rows for them — because `chat_message` is not yet a
+ * registered `FileRefSourceType` (see
+ * `packages/shared/data/types/file/ref/index.ts` — only `temp_session` and
+ * `knowledge_item` are wired today). Per RFC, registering a new sourceType
+ * means adding it in three places in lockstep: the `allSourceTypes` tuple,
+ * a `createRefSchema` variant, and an `OrphanRefScanner` `SourceTypeChecker`.
+ * That work is deferred to a follow-up PR alongside the chat-domain file_ref
+ * service wiring; v1 references stay reachable through the inline `fileId`
+ * field in the meantime.
+ *
  * ## Performance Considerations
  *
  * - Uses streaming JSON reader for large data sets (potentially millions of messages)

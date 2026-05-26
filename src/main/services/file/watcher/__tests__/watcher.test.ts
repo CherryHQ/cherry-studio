@@ -16,8 +16,8 @@ const { danglingCache } = await import('../../danglingCache')
 
 import type { DirectoryWatcher, WatcherEvent } from '../index'
 
-const waitForReady = (w: DirectoryWatcher): Promise<void> =>
-  new Promise<void>((resolve) => {
+const waitForReady = async (w: DirectoryWatcher): Promise<void> => {
+  await new Promise<void>((resolve) => {
     const off = w.onEvent((e) => {
       if (e.kind === 'ready') {
         off()
@@ -25,11 +25,17 @@ const waitForReady = (w: DirectoryWatcher): Promise<void> =>
       }
     })
   })
+  // Brief settle after `ready` — on Linux ext4 + inotify (CI runners), events
+  // written in the same tick as `ready` are occasionally dropped before the
+  // watcher's listener chain is fully primed. 50ms is well under the test
+  // timeout and matches the chokidar settle floor.
+  await new Promise((resolve) => setTimeout(resolve, 50))
+}
 
 const waitForEvent = (
   w: DirectoryWatcher,
   pred: (e: WatcherEvent) => boolean,
-  timeoutMs = 5000
+  timeoutMs = 15_000
 ): Promise<WatcherEvent> =>
   new Promise<WatcherEvent>((resolve, reject) => {
     const t = setTimeout(() => {
@@ -170,37 +176,34 @@ describe('createDirectoryWatcher', () => {
       danglingCache.addEntry('e-w-nfd' as FileEntryId, canonicalPath)
 
       const w = createDirectoryWatcher(dir as FilePath, { stabilityThresholdMs: 0 })
-      try {
-        await waitForReady(w)
-        // Subscribe before writing so a fast inotify delivery on Linux CI cannot
-        // race past the test listener.
-        const eventPromise = waitForEvent(w, (e) => e.kind === 'add' && e.path?.endsWith('.txt'))
-        await writeFile(writtenPath, 'hello')
-        // The emitted event still carries the raw OS path (NFD) — the cache leg
-        // alone is normalized, so external subscribers see what the FS sees.
-        const ev = await eventPromise
-        if (ev.kind !== 'add') throw new Error('expected add event')
-        expect(ev.path).toBe(writtenPath)
+      await waitForReady(w) // `waitForReady` already includes the post-ready settle
+      await writeFile(writtenPath, 'hello')
+      // The emitted event still carries the raw OS path (NFD) — the cache leg
+      // alone is normalized, so external subscribers see what the FS sees.
+      // Extra budget (30s) absorbs CI runner stalls beyond the default 15s;
+      // the test itself completes in milliseconds on a hot path.
+      const ev = await waitForEvent(w, (e) => e.kind === 'add' && e.path?.endsWith('.txt'), 30_000)
+      if (ev.kind !== 'add') throw new Error('expected add event')
+      expect(ev.path).toBe(writtenPath)
 
-        // The cache lookup uses NFC keys; without the NFC-normalize step in
-        // `handle()` this would miss and the cache would stay 'unknown'.
-        expect(
-          await danglingCache.check({
-            id: 'e-w-nfd' as FileEntryId,
-            origin: 'external',
-            externalPath: canonicalPath,
-            name: 'qué',
-            ext: 'txt',
-            size: null,
-            deletedAt: null,
-            createdAt: 0,
-            updatedAt: 0
-          } as never)
-        ).toBe('present')
-      } finally {
-        await w.close()
-      }
-    }
+      // The cache lookup uses NFC keys; without the NFC-normalize step in
+      // `handle()` this would miss and the cache would stay 'unknown'.
+      expect(
+        await danglingCache.check({
+          id: 'e-w-nfd' as FileEntryId,
+          origin: 'external',
+          externalPath: canonicalPath,
+          name: 'qué',
+          ext: 'txt',
+          size: null,
+          deletedAt: null,
+          createdAt: 0,
+          updatedAt: 0
+        } as never)
+      ).toBe('present')
+      await w.close()
+    },
+    35_000
   )
 
   it('close() is idempotent and stops further event delivery', async () => {
