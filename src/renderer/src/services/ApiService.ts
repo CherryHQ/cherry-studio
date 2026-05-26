@@ -24,7 +24,11 @@ import { getErrorMessage, isAbortError } from '@renderer/utils/error'
 import { purifyMarkdownImages } from '@renderer/utils/markdown'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
-import { NOT_SUPPORT_API_KEY_PROVIDER_TYPES, NOT_SUPPORT_API_KEY_PROVIDERS } from '@renderer/utils/provider'
+import {
+  isLocalModelServer,
+  NOT_SUPPORT_API_KEY_PROVIDER_TYPES,
+  NOT_SUPPORT_API_KEY_PROVIDERS
+} from '@renderer/utils/provider'
 import { isEmpty, takeRight } from 'lodash'
 
 import type { AiProviderConfig } from '../aiCore'
@@ -54,6 +58,15 @@ import type { StreamProcessorCallbacks } from './StreamProcessingService'
 
 const logger = loggerService.withContext('ApiService')
 const SUMMARY_REQUEST_TIMEOUT_MS = 15_000
+const LOCAL_SUMMARY_REQUEST_TIMEOUT_MS = 90_000
+
+export function getSummaryRequestTimeoutMs(provider: Provider): number {
+  if (isLocalModelServer(provider)) {
+    return LOCAL_SUMMARY_REQUEST_TIMEOUT_MS
+  }
+
+  return SUMMARY_REQUEST_TIMEOUT_MS
+}
 
 /**
  * Get the MCP servers to use based on the assistant's MCP mode.
@@ -515,7 +528,7 @@ export async function fetchMessagesSummary({
     prompt: conversation,
     providerOptions,
     ...standardParams,
-    abortSignal: AbortSignal.timeout(SUMMARY_REQUEST_TIMEOUT_MS),
+    abortSignal: AbortSignal.timeout(getSummaryRequestTimeoutMs(provider)),
     maxRetries: 0
   }
 
