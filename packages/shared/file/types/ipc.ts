@@ -29,7 +29,7 @@
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 
 import type { Base64String, DirectoryListOptions, FilePath, PhysicalFileMetadata, URLString } from './common'
-import type { FileHandle } from './handle'
+import type { FileEntryHandle, FileHandle, FilePathHandle } from './handle'
 import type { OrphanReport } from './sweep'
 
 export type { DirectoryListOptions, FilePath } from './common'
@@ -485,7 +485,8 @@ export interface FileIpcApi {
    *
    * @phase 2 — wired
    */
-  rename(handle: FileHandle, newTarget: string): Promise<FileEntry | void>
+  rename(handle: FileEntryHandle, newTarget: string): Promise<FileEntry>
+  rename(handle: FilePathHandle, newTarget: string): Promise<void>
 
   // ─── G. Copy ───
   //
