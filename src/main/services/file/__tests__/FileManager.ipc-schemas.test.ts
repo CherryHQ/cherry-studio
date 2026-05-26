@@ -12,7 +12,9 @@ import { describe, expect, it } from 'vitest'
 
 import {
   BatchGetDanglingStatesIpcSchema,
+  BatchIdsIpcSchema,
   FILE_BATCH_DANGLING_MAX_IDS,
+  FILE_BATCH_MAX_IDS,
   GetDanglingStateIpcSchema,
   RestoreIpcSchema,
   TrashIpcSchema
@@ -93,5 +95,26 @@ describe('RestoreIpcSchema', () => {
   })
   it('rejects missing id', () => {
     expect(() => RestoreIpcSchema.parse({})).toThrow()
+  })
+})
+
+describe('BatchIdsIpcSchema', () => {
+  it('accepts array of valid UUIDs', () => {
+    expect(BatchIdsIpcSchema.parse({ ids: [VALID_UUID_V7] })).toEqual({ ids: [VALID_UUID_V7] })
+  })
+  it('accepts empty array', () => {
+    expect(BatchIdsIpcSchema.parse({ ids: [] })).toEqual({ ids: [] })
+  })
+  it('rejects array with non-UUID', () => {
+    expect(() => BatchIdsIpcSchema.parse({ ids: ['not-a-uuid'] })).toThrow()
+  })
+  it(`caps batch size at FILE_BATCH_MAX_IDS (${FILE_BATCH_MAX_IDS})`, () => {
+    const ok = Array.from({ length: FILE_BATCH_MAX_IDS }, () => VALID_UUID_V7)
+    expect(BatchIdsIpcSchema.parse({ ids: ok }).ids).toHaveLength(FILE_BATCH_MAX_IDS)
+    const tooMany = [...ok, VALID_UUID_V7]
+    expect(() => BatchIdsIpcSchema.parse({ ids: tooMany })).toThrow()
+  })
+  it('rejects extra keys', () => {
+    expect(() => BatchIdsIpcSchema.parse({ ids: [VALID_UUID_V7], extra: 1 })).toThrow()
   })
 })

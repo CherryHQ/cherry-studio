@@ -265,6 +265,9 @@ export const PermanentDeleteIpcSchema = FileHandleSchema
 
 export const TrashIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 export const RestoreIpcSchema = z.strictObject({ id: FileEntryIdSchema })
+export const BatchIdsIpcSchema = z.strictObject({
+  ids: z.array(FileEntryIdSchema).max(FILE_BATCH_MAX_IDS)
+})
 
 // ─── Version types ───
 
@@ -726,6 +729,9 @@ export class FileManager extends BaseService implements IFileManager {
     this.ipcHandle(IpcChannel.File_Trash, async (_e, params: unknown) => this.trash(TrashIpcSchema.parse(params).id))
     this.ipcHandle(IpcChannel.File_Restore, async (_e, params: unknown) =>
       this.restore(RestoreIpcSchema.parse(params).id)
+    )
+    this.ipcHandle(IpcChannel.File_BatchTrash, async (_e, params: unknown) =>
+      this.batchTrash(BatchIdsIpcSchema.parse(params).ids)
     )
   }
 
