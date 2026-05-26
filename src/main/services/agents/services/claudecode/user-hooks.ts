@@ -10,6 +10,47 @@ import { app } from 'electron'
 
 const logger = loggerService.withContext('UserHooks')
 
+// ─── Security: command validation and env filtering ───
+
+/** Dangerous shell metacharacters that should never appear in a hook command. */
+const DANGEROUS_SHELL_CHARS = /[;&|`$(){}!<>]/
+
+/**
+ * Validate a hook command string for safety.
+ * Rejects commands containing shell metacharacters that could enable injection.
+ */
+function isCommandSafe(command: string): boolean {
+  if (!command || command.trim().length === 0) return false
+  if (DANGEROUS_SHELL_CHARS.test(command)) {
+    logger.warn('Hook command rejected: contains dangerous shell characters', {
+      command: command.slice(0, 100)
+    })
+    return false
+  }
+  return true
+}
+
+/**
+ * Build a filtered environment object for hook child processes.
+ * Uses an allowlist approach: only passes safe system variables,
+ * explicitly blocking sensitive credentials like API keys and tokens.
+ */
+function buildHookEnv(): Record<string, string | undefined> {
+  const env: Record<string, string | undefined> = {}
+  const safeKeys = ['PATH', 'HOME', 'USERPROFILE', 'SHELL', 'TEMP', 'TMP', 'LANG', 'LC_ALL']
+  for (const key of safeKeys) {
+    if (process.env[key] !== undefined) {
+      env[key] = process.env[key]
+    }
+  }
+  // Pass through CLAUDE_CODE_GIT_BASH_PATH for Windows bash detection
+  // (needed by the shell option below)
+  if (process.env.CLAUDE_CODE_GIT_BASH_PATH) {
+    env.CLAUDE_CODE_GIT_BASH_PATH = process.env.CLAUDE_CODE_GIT_BASH_PATH
+  }
+  return env
+}
+
 // ─── Types for user-defined hooks in settings.json ───
 
 /** Command-based hook (PR custom format). */
@@ -60,7 +101,7 @@ async function loadHooksFromSettings(settingsPath: string): Promise<UserHooksJso
 
 function createPromptHookCallback(config: UserHookPromptConfig): HookCallback {
   return async (input: HookInput) => {
-    const hookSpecificOutput: any = {
+    const hookSpecificOutput: { hookEventName: HookEvent; additionalContext: string } = {
       hookEventName: input.hook_event_name,
       additionalContext: config.prompt
     }
@@ -72,7 +113,15 @@ function createPromptHookCallback(config: UserHookPromptConfig): HookCallback {
 
 function createCommandHookCallback(config: UserHookCommandConfig): HookCallback {
   return async (input: HookInput, _toolUseID: string | undefined, options) => {
+    // Security: validate command before spawning
+    if (!isCommandSafe(config.command)) {
+      logger.warn('Skipping unsafe hook command', { command: config.command.slice(0, 100) })
+      return {}
+    }
+
     return new Promise((resolve) => {
+      let settled = false
+
       // On Windows, user hooks often contain bash syntax (e.g. `if [ -f ... ]`).
       // Prefer Git Bash (detected by Claude Code) over cmd.exe for compatibility.
       const shell = process.env.CLAUDE_CODE_GIT_BASH_PATH || true
@@ -80,7 +129,7 @@ function createCommandHookCallback(config: UserHookCommandConfig): HookCallback 
         shell,
         stdio: ['pipe', 'pipe', 'pipe'],
         cwd: input.cwd,
-        env: process.env
+        env: buildHookEnv()
       })
 
       let stdout = ''
@@ -88,9 +137,12 @@ function createCommandHookCallback(config: UserHookCommandConfig): HookCallback 
 
       const timeoutMs = config.timeout ? config.timeout * 1000 : 30000 // default 30s
       const timeout = setTimeout(() => {
+        if (settled) return
+        settled = true
         logger.warn('Hook command timed out', { command: config.command, timeout: timeoutMs })
         child.kill('SIGTERM')
         setTimeout(() => child.kill('SIGKILL'), 5000).unref?.()
+        resolve({})
       }, timeoutMs)
 
       child.stdout.on('data', (data: Buffer) => {
@@ -102,12 +154,16 @@ function createCommandHookCallback(config: UserHookCommandConfig): HookCallback 
       })
 
       child.on('error', (error) => {
+        if (settled) return
+        settled = true
         clearTimeout(timeout)
         logger.error('Hook command failed to spawn', { command: config.command, error: error.message })
         resolve({})
       })
 
       child.on('close', (code) => {
+        if (settled) return
+        settled = true
         clearTimeout(timeout)
 
         if (code !== 0 && code !== null) {
@@ -127,7 +183,7 @@ function createCommandHookCallback(config: UserHookCommandConfig): HookCallback 
         // Command hook stdout is treated as additional context for the AI.
         // Map it to hookSpecificOutput.additionalContext so the SDK appends it.
 
-        const hookSpecificOutput: any = {
+        const hookSpecificOutput: { hookEventName: HookEvent; additionalContext: string } = {
           hookEventName: input.hook_event_name,
           additionalContext: trimmed
         }
@@ -137,6 +193,8 @@ function createCommandHookCallback(config: UserHookCommandConfig): HookCallback 
       const signal = options?.signal
       if (signal) {
         const abortHandler = () => {
+          if (settled) return
+          settled = true
           clearTimeout(timeout)
           child.kill('SIGTERM')
           resolve({})

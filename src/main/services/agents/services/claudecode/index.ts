@@ -73,6 +73,12 @@ const IMAGE_MAX_BYTES = 5 * 1024 * 1024 // 5MB API limit
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 const NO_RESUME_COMMANDS = ['/clear']
 
+/** Planning file names that can be auto-approved within the session's cwd. */
+const PLANNING_FILES = new Set(['task_plan.md', 'findings.md', 'progress.md'])
+
+/** Tools that operate on files — used to guard the planning file auto-allow. */
+const FILE_OP_TOOLS = new Set(['Read', 'Write', 'Edit', 'builtin_Read', 'builtin_Write', 'builtin_Edit'])
+
 const getAnthropicCustomHeaders = (headers?: Record<string, string>) => {
   const lines = Object.entries(headers ?? {}).map(([name, value]) => `${name}: ${value}`)
   return lines.length > 0 ? lines.join('\n') : undefined
@@ -329,13 +335,19 @@ class ClaudeCodeService implements AgentServiceInterface {
 
       // Auto-allow operations on planning files (task_plan.md, findings.md, progress.md)
       // so that skills like planning-with-files can work without constant approval prompts.
-      const toolInput = input as Record<string, unknown> | undefined
-      const filePath = toolInput?.file_path
-      if (typeof filePath === 'string') {
-        const basename = path.basename(filePath)
-        if (basename === 'task_plan.md' || basename === 'findings.md' || basename === 'progress.md') {
-          logger.debug('Auto-allowing planning file operation', { toolName, filePath: basename })
-          return { behavior: 'allow', updatedInput: input }
+      // Restrict to: (a) file operation tools only, (b) files within the session's cwd.
+      if (FILE_OP_TOOLS.has(toolName)) {
+        const toolInput = input as Record<string, unknown> | undefined
+        const filePath = toolInput?.file_path
+        if (typeof filePath === 'string') {
+          const basename = path.basename(filePath)
+          if (PLANNING_FILES.has(basename)) {
+            const resolved = path.resolve(cwd, filePath)
+            if (resolved.startsWith(path.resolve(cwd))) {
+              logger.debug('Auto-allowing planning file operation', { toolName, filePath: basename })
+              return { behavior: 'allow', updatedInput: input }
+            }
+          }
         }
       }
 
