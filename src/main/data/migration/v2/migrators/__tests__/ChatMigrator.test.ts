@@ -988,4 +988,49 @@ describe('ChatMigrator.insertStagedTopics file_ref backfill', () => {
     expect(warnings.has('chat_message_dangling_file_entry')).toBe(true)
     expect(warnings.get('chat_message_dangling_file_entry')!.count).toBe(1)
   })
+
+  describe('loadMigratedFileEntryIds', () => {
+    it('returns only file_entry IDs referenced by image/file blocks that exist in DB', async () => {
+      await seedFileEntry('fe-exists')
+      await seedFileEntry('fe-also-exists')
+
+      const migrator = new ChatMigrator()
+      const m = migrator as unknown as Record<string, unknown>
+      m['stagedTopics'] = [
+        {
+          topic: newTopic('t1', 100),
+          messages: [
+            newMessage('m1', 't1', [{ type: 'image', fileId: 'fe-exists' }]),
+            newMessage('m2', 't1', [{ type: 'file', fileId: 'fe-also-exists' }]),
+            newMessage('m3', 't1', [{ type: 'file', fileId: 'fe-not-in-db' }]),
+            newMessage('m4', 't1', [{ type: 'main_text', content: 'hello' }])
+          ],
+          pinned: false
+        }
+      ]
+
+      const fn = m['loadMigratedFileEntryIds'] as (ctx: MigrationContext) => Promise<Set<string>>
+      const result = await fn.call(migrator, ctxOf())
+
+      expect(result).toEqual(new Set(['fe-exists', 'fe-also-exists']))
+      expect(result.has('fe-not-in-db')).toBe(false)
+    })
+
+    it('returns empty set when no blocks reference files', async () => {
+      const migrator = new ChatMigrator()
+      const m = migrator as unknown as Record<string, unknown>
+      m['stagedTopics'] = [
+        {
+          topic: newTopic('t1', 100),
+          messages: [newMessage('m1', 't1', [{ type: 'main_text', content: 'hello' }])],
+          pinned: false
+        }
+      ]
+
+      const fn = m['loadMigratedFileEntryIds'] as (ctx: MigrationContext) => Promise<Set<string>>
+      const result = await fn.call(migrator, ctxOf())
+
+      expect(result.size).toBe(0)
+    })
+  })
 })

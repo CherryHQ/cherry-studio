@@ -4,11 +4,11 @@
  * Combines all currently-registered business-domain ref variants into a
  * single discriminated union.
  *
- * ## Adding a new variant (e.g. `chat_message`)
+ * ## Adding a new variant (e.g. `painting`)
  *
- * 1. Create `./chatMessage.ts` following `./tempSession.ts` as a template —
- *    declare `chatMessageSourceType`, `chatMessageRoles`, `chatMessageRefFields`,
- *    and export `chatMessageFileRefSchema = createRefSchema(chatMessageRefFields)`
+ * 1. Create `./painting.ts` following `./tempSession.ts` as a template —
+ *    declare `paintingSourceType`, `paintingRoles`, `paintingRefFields`,
+ *    and export `paintingFileRefSchema = createRefSchema(paintingRefFields)`
  * 2. In this file: import the three symbols (source type literal, roles tuple,
  *    schema) and add the source type literal to `allSourceTypes`, then add the
  *    schema to the `FileRefSchema` discriminated union

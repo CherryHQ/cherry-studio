@@ -607,7 +607,9 @@ export class ChatMigrator extends BaseMigrator {
         orphanedAssistantTopics: this.orphanedAssistantTopics,
         messagesWithMissingBlocks: this.blockStats.messagesWithMissingBlocks,
         messagesWithEmptyBlocks: this.blockStats.messagesWithEmptyBlocks,
-        promotedToRootCount: this.promotedToRootCount
+        promotedToRootCount: this.promotedToRootCount,
+        fileRefsInserted: this.fileRefInsertCount,
+        fileRefsDanglingSkipped: this.skippedWarnings.get('chat_message_dangling_file_entry')?.count ?? 0
       }
       logger.info('Validation diagnostics', diagnostics)
 
@@ -667,11 +669,20 @@ export class ChatMigrator extends BaseMigrator {
     const result = new Set<string>()
     for (let i = 0; i < allIds.length; i += INARRAY_CHUNK) {
       const chunk = allIds.slice(i, i + INARRAY_CHUNK)
-      const rows = await ctx.db
-        .select({ id: fileEntryTable.id })
-        .from(fileEntryTable)
-        .where(inArray(fileEntryTable.id, chunk))
-      for (const row of rows) result.add(row.id)
+      try {
+        const rows = await ctx.db
+          .select({ id: fileEntryTable.id })
+          .from(fileEntryTable)
+          .where(inArray(fileEntryTable.id, chunk))
+        for (const row of rows) result.add(row.id)
+      } catch (err) {
+        logger.error('Failed to query file_entry during file_ref backfill', err as Error, {
+          chunkStart: i,
+          chunkSize: chunk.length,
+          totalReferencedIds: allIds.length
+        })
+        throw err
+      }
     }
     return result
   }
