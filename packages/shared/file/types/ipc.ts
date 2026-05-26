@@ -237,7 +237,7 @@ export interface FileIpcApi {
    * Open file picker dialog (single file)
    * @phase 2 — not yet wired
    */
-  select(options: {
+  openSelectDialog(options: {
     directory?: never
     multiple?: false
     filters?: FileFilter[]
@@ -247,17 +247,26 @@ export interface FileIpcApi {
    * Open file picker dialog (multiple files)
    * @phase 2 — not yet wired
    */
-  select(options: { directory?: never; multiple: true; filters?: FileFilter[]; title?: string }): Promise<string[]>
+  openSelectDialog(options: {
+    directory?: never
+    multiple: true
+    filters?: FileFilter[]
+    title?: string
+  }): Promise<string[]>
   /**
    * Open folder picker dialog (single folder only)
    * @phase 2 — not yet wired
    */
-  select(options: { directory: true; title?: string }): Promise<string | null>
+  openSelectDialog(options: { directory: true; title?: string }): Promise<string | null>
   /**
    * Open save dialog and write content to the selected path
    * @phase 2 — not yet wired
    */
-  save(options: { content: string | Uint8Array; defaultPath?: string; filters?: FileFilter[] }): Promise<string | null>
+  openSaveDialog(options: {
+    content: string | Uint8Array
+    defaultPath?: string
+    filters?: FileFilter[]
+  }): Promise<string | null>
 
   // ─── B. Entry Creation ───
   //
@@ -631,6 +640,43 @@ export interface FileIpcApi {
    * `FileManager.registerIpcHandlers`)
    */
   runSweep(): Promise<OrphanReport>
+
+  // ─── L. Path Utilities (renderer has no node:path / os.homedir) ───
+  //
+  // Section status: all `@phase 2`.
+
+  /**
+   * Check if a directory path is writable.
+   * @phase 2 — not yet wired
+   */
+  canWrite(dirPath: FilePath): Promise<boolean>
+
+  /**
+   * Expand `~` prefix and resolve to an absolute filesystem path.
+   * Renderer has no access to `node:path` or `os.homedir()`.
+   * @phase 2 — not yet wired
+   */
+  toAbsolutePath(filePath: string): Promise<FilePath>
+
+  /**
+   * Check if `childPath` is inside `parentPath`. Pure path computation, no FS IO.
+   * @phase 2 — not yet wired
+   */
+  isPathInside(childPath: string, parentPath: string): Promise<boolean>
+}
+
+/**
+ * Complete preload surface exposed as `window.api.file`.
+ *
+ * Extends `FileIpcApi` with preload-only utilities that cannot cross IPC
+ * (e.g. `getPathForFile` requires a `File` object which is not structured-cloneable).
+ */
+export interface FilePreloadApi extends FileIpcApi {
+  /**
+   * Extract the filesystem path from a renderer-side `File` object (drag-drop / input).
+   * Delegates to Electron's `webUtils.getPathForFile`. Sync, preload-only.
+   */
+  getPathForFile(file: File): string
 }
 
 // ─── Electron Types ───
