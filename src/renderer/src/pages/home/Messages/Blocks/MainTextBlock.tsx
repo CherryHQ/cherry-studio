@@ -89,12 +89,7 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
           via paintSourceHighlight (see sourceHighlight.ts), not as a className
           on this wrapper. The wrap is removed in the effect's cleanup via
           clearSourceHighlight, restoring the original DOM byte-for-byte. */}
-      <div
-        ref={blockScopeRef}
-        data-message-id={messageId}
-        data-block-id={block.id}
-        data-message-role={role}
-        data-branch-anchored={isBranchAnchored || undefined}>
+      <div ref={blockScopeRef} data-message-id={messageId} data-block-id={block.id} data-message-role={role}>
         {role === 'user' && !renderInputMessageAsMarkdown ? (
           <p className="markdown" style={{ whiteSpace: 'pre-wrap' }}>
             {block.content}
@@ -108,7 +103,7 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
 }
 
 const MentionTag = styled.span`
-  color: var(--color-link);
+  color: var(--color-primary);
 `
 
 export default React.memo(MainTextBlock)

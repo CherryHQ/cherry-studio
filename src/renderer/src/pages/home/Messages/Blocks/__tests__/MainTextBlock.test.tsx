@@ -263,7 +263,7 @@ describe('MainTextBlock', () => {
       renderMainTextBlock({ block, role: 'assistant', mentions })
 
       const mentionElement = screen.getByText('@Test Model')
-      expect(mentionElement).toHaveStyle({ color: 'var(--color-link)' })
+      expect(mentionElement).toHaveStyle({ color: 'var(--color-primary)' })
 
       // Check container layout - now using Tailwind classes
       const container = mentionElement.closest('.gap-2')
@@ -471,29 +471,39 @@ describe('MainTextBlock', () => {
     })
   })
 
-  // T-006D-2B S6' (precise range): when a branch is anchored to a block,
-  // MainTextBlock marks its wrapper with `data-branch-anchored` and paints
-  // the exact selected char range via the CSS Custom Highlight API. jsdom
-  // has neither layout nor `CSS.highlights`, so these tests verify the
-  // context-match → `data-branch-anchored` wiring only; the capture↔rebuild
-  // range algorithm is covered by sourceHighlight.test.ts.
-  describe('branch-anchor highlight (S6)', () => {
+  // T-006D-2B S6' (precise range) — branch-anchor → paint wiring.
+  //
+  // SCOPE: jsdom has no layout/paint engine, so these tests guard the
+  // CONTEXT-MATCH → EFFECT-FIRES → SPAN-INJECTION chain, NOT visual
+  // visibility. A green run here only proves the DOM-mutation chain runs
+  // end-to-end when the BranchAnchorContext matches this block, and that
+  // the effect's cleanup unwraps the spans. Real "the user can see the
+  // amber tint" must still be checked manually in the running app.
+  //
+  // Deep span-wrap behavior (single- vs multi-node text aggregation, DOM
+  // restoration on clear, switching anchors, repeated open/clear cycles)
+  // lives in sourceHighlight.test.ts — that module is exercised against a
+  // hand-built block DOM where the assertions can target the real
+  // text-node structure, not the mocked `<Markdown>` placeholder used here.
+  describe('branch-anchor highlight (S6 paint chain)', () => {
     const getBlockScope = (blockId: string) => document.querySelector(`[data-block-id="${blockId}"]`)
+    const getInjectedSpans = (blockId: string) =>
+      getBlockScope(blockId)?.querySelectorAll('span.branch-anchor-highlight') ?? []
     const highlight = (blockId: string | null, start = 0, end = 0) => ({
       highlightedBlockId: blockId,
       selectionStart: start,
       selectionEnd: end
     })
 
-    it('is NOT anchored when no BranchAnchorContext Provider is present (main chat default)', () => {
-      const block = createMainTextBlock({ id: 'blk-A', content: 'plain' })
+    it('injects no highlight spans when no BranchAnchorContext Provider is present (main chat default)', () => {
+      const block = createMainTextBlock({ id: 'blk-A', content: 'plain body text' })
       renderMainTextBlock({ block, role: 'assistant' })
 
-      expect(getBlockScope('blk-A')).not.toHaveAttribute('data-branch-anchored')
+      expect(getInjectedSpans('blk-A')).toHaveLength(0)
     })
 
-    it('marks the wrapper data-branch-anchored when the highlighted blockId matches', () => {
-      const block = createMainTextBlock({ id: 'blk-A', content: 'anchored' })
+    it('injects span.branch-anchor-highlight when the highlighted blockId matches this block', () => {
+      const block = createMainTextBlock({ id: 'blk-A', content: 'anchored body text' })
       render(
         <Provider store={mockStore}>
           <BranchAnchorContext value={highlight('blk-A', 0, 8)}>
@@ -502,11 +512,11 @@ describe('MainTextBlock', () => {
         </Provider>
       )
 
-      expect(getBlockScope('blk-A')).toHaveAttribute('data-branch-anchored', 'true')
+      expect(getInjectedSpans('blk-A').length).toBeGreaterThan(0)
     })
 
-    it('does NOT anchor a different block when the highlighted blockId does not match', () => {
-      const block = createMainTextBlock({ id: 'blk-B', content: 'other' })
+    it('injects no spans when the context highlightedBlockId targets a different block', () => {
+      const block = createMainTextBlock({ id: 'blk-B', content: 'other block body' })
       render(
         <Provider store={mockStore}>
           <BranchAnchorContext value={highlight('blk-A', 0, 5)}>
@@ -515,12 +525,12 @@ describe('MainTextBlock', () => {
         </Provider>
       )
 
-      expect(getBlockScope('blk-B')).not.toHaveAttribute('data-branch-anchored')
+      expect(getInjectedSpans('blk-B')).toHaveLength(0)
     })
 
-    it('anchors only the matched block when a message has multiple blocks', () => {
-      const anchored = createMainTextBlock({ id: 'blk-A', content: 'anchored block' })
-      const sibling = createMainTextBlock({ id: 'blk-B', content: 'sibling block' })
+    it('injects spans only in the matched block when a message renders multiple blocks', () => {
+      const anchored = createMainTextBlock({ id: 'blk-A', content: 'anchored block body' })
+      const sibling = createMainTextBlock({ id: 'blk-B', content: 'sibling block body' })
       render(
         <Provider store={mockStore}>
           <BranchAnchorContext value={highlight('blk-A', 0, 8)}>
@@ -530,8 +540,24 @@ describe('MainTextBlock', () => {
         </Provider>
       )
 
-      expect(getBlockScope('blk-A')).toHaveAttribute('data-branch-anchored', 'true')
-      expect(getBlockScope('blk-B')).not.toHaveAttribute('data-branch-anchored')
+      expect(getInjectedSpans('blk-A').length).toBeGreaterThan(0)
+      expect(getInjectedSpans('blk-B')).toHaveLength(0)
+    })
+
+    it('removes all injected spans when the component unmounts (effect cleanup)', () => {
+      const block = createMainTextBlock({ id: 'blk-A', content: 'cleanup body text' })
+      const { unmount } = render(
+        <Provider store={mockStore}>
+          <BranchAnchorContext value={highlight('blk-A', 0, 8)}>
+            <MainTextBlock block={block} role="assistant" messageId="msg-A" />
+          </BranchAnchorContext>
+        </Provider>
+      )
+      expect(document.querySelectorAll('span.branch-anchor-highlight').length).toBeGreaterThan(0)
+
+      unmount()
+
+      expect(document.querySelectorAll('span.branch-anchor-highlight')).toHaveLength(0)
     })
   })
 })

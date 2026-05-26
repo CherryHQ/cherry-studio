@@ -1,18 +1,34 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { captureSelectionOffsets, resolveBranchHighlightRange } from '../sourceHighlight'
+import {
+  captureSelectionOffsets,
+  clearSourceHighlight,
+  paintSourceHighlight,
+  resolveBranchHighlightRange
+} from '../sourceHighlight'
 
 /**
- * T-006D-2B S6' precise-range highlight — capture ↔ rebuild round-trip.
+ * T-006D-2B S6' precise-range highlight — algorithm + paint chain coverage.
  *
- * The two halves must agree: offsets captured from a real Range must rebuild
- * to a Range covering the same text. jsdom supports Range + TreeWalker, so
- * the algorithm is verifiable here; the CSS Custom Highlight paint itself
- * (`CSS.highlights`) is browser-only and not unit-tested.
+ * Two layers are exercised here:
+ *   1. capture↔rebuild offsets round-trip (`captureSelectionOffsets` and
+ *      `resolveBranchHighlightRange`) — verifies the two halves of the
+ *      offset model agree on what range a selection refers to.
+ *   2. paint/clear DOM mutation chain (`paintSourceHighlight` and
+ *      `clearSourceHighlight`) — wraps text nodes in
+ *      `<span class="branch-anchor-highlight">` and unwraps them.
+ *
+ * jsdom supports Range, TreeWalker, splitText, and Element.replaceWith, so
+ * the full DOM-mutation chain runs unmodified here. CSS Custom Highlight
+ * API was abandoned (see D-013-FIX-FINAL); only span-wrap is current.
  */
 
 afterEach(() => {
   document.body.innerHTML = ''
+  // The paint module installs a `<style id="branch-anchor-highlight-style">`
+  // into document.head on first use. Strip it between tests so each one
+  // starts from a clean DOM (it gets re-injected on demand by `paint`).
+  document.getElementById('branch-anchor-highlight-style')?.remove()
 })
 
 /** Build a `data-block-id` block from an HTML string. */
@@ -142,5 +158,91 @@ describe('captureSelectionOffsets ↔ resolveBranchHighlightRange round-trip', (
 
     const rebuilt = resolveBranchHighlightRange(block, offsets!.start, offsets!.end)
     expect(rebuilt?.toString()).toBe('itemsecond')
+  })
+})
+
+/**
+ * SCOPE: jsdom has no layout or paint engine, so this block guards the
+ * DOM-MUTATION CHAIN (spans correctly injected, then fully unwrapped on
+ * clear), NOT visual visibility. A green run here does NOT prove the
+ * user can see the amber tint — that still requires manual/browser
+ * verification in the running app.
+ *
+ * Test ranges are built via the production `resolveBranchHighlightRange`
+ * offset→range resolver, NOT via `window.getSelection()` — jsdom's
+ * Selection support is unreliable, and the offset path is what the
+ * production `paintSourceHighlight` itself uses.
+ */
+describe('paintSourceHighlight + clearSourceHighlight (DOM mutation chain)', () => {
+  it('paint wraps a single-text-node selection in one span whose text === the selected passage', () => {
+    const block = makeBlock('Distillation transfers knowledge to a student model.')
+
+    paintSourceHighlight(block, 13, 32) // "transfers knowledge"
+
+    const spans = block.querySelectorAll('span.branch-anchor-highlight')
+    expect(spans).toHaveLength(1)
+    expect(spans[0].textContent).toBe('transfers knowledge')
+  })
+
+  it('paint wraps a multi-node selection in ≥2 spans whose concatenated text === the selected passage', () => {
+    // childNodes: [text "teacher passes ", <strong>knowledge</strong>, text " to student"]
+    const block = makeBlock('teacher passes <strong>knowledge</strong> to student')
+
+    paintSourceHighlight(block, 8, 24) // "passes " + "knowledge" = "passes knowledge"
+
+    const spans = Array.from(block.querySelectorAll('span.branch-anchor-highlight'))
+    expect(spans.length).toBeGreaterThanOrEqual(2)
+    expect(spans.map((s) => s.textContent).join('')).toBe('passes knowledge')
+  })
+
+  it('clear removes all injected spans (no shells) and restores the source DOM intact + contiguous', () => {
+    const block = makeBlock('alpha beta gamma delta')
+    const originalText = block.textContent
+    paintSourceHighlight(block, 6, 16) // "beta gamma"
+    expect(block.querySelectorAll('span.branch-anchor-highlight').length).toBeGreaterThan(0)
+
+    clearSourceHighlight()
+
+    // (a) No remaining branch-anchor spans anywhere — neither full nor empty shells.
+    expect(document.querySelectorAll('span.branch-anchor-highlight')).toHaveLength(0)
+    // (b) Text content byte-for-byte preserved.
+    expect(block.textContent).toBe(originalText)
+    // (c) The splitText fragments have been merged by `normalize()`:
+    //     the single original text node is the only child once again.
+    expect(block.childNodes).toHaveLength(1)
+    expect(block.firstChild!.nodeType).toBe(Node.TEXT_NODE)
+  })
+
+  it('clear is idempotent and safe when there is nothing to clear', () => {
+    const block = makeBlock('untouched body')
+    expect(() => clearSourceHighlight()).not.toThrow()
+    expect(block.textContent).toBe('untouched body')
+    expect(block.querySelectorAll('span.branch-anchor-highlight')).toHaveLength(0)
+  })
+
+  it('switching anchors (open A then open B) leaves only B-range spans — no accumulation', () => {
+    const block = makeBlock('alpha beta gamma delta')
+
+    paintSourceHighlight(block, 0, 5) // A: "alpha"
+    paintSourceHighlight(block, 17, 22) // B: "delta" — paint internally clears A first
+
+    const spans = block.querySelectorAll('span.branch-anchor-highlight')
+    expect(spans).toHaveLength(1)
+    expect(spans[0].textContent).toBe('delta')
+  })
+
+  it('repeated open/clear cycles never accumulate spans and always end at zero', () => {
+    const block = makeBlock('alpha beta gamma delta')
+
+    for (let i = 0; i < 5; i++) {
+      paintSourceHighlight(block, 6, 16)
+      expect(block.querySelectorAll('span.branch-anchor-highlight').length).toBeGreaterThan(0)
+      clearSourceHighlight()
+      expect(block.querySelectorAll('span.branch-anchor-highlight')).toHaveLength(0)
+    }
+
+    // Final DOM matches the original — text intact, children contiguous.
+    expect(block.textContent).toBe('alpha beta gamma delta')
+    expect(block.childNodes).toHaveLength(1)
   })
 })
