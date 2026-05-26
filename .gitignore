@@ -72,6 +72,18 @@ vitest.config.*.timestamp-*
 # TypeScript incremental build
 .tsbuildinfo
 
+# TypeScript build artifacts in source dirs (tsgo/tsc outputs .js/.d.ts next to .ts)
+# Prevents VS Code TS Language Server from polluting source directories
+src/**/*.js
+src/**/*.d.ts
+src/**/*.d.ts.map
+packages/**/*.js
+packages/**/*.d.ts
+packages/**/*.d.ts.map
+tests/**/*.js
+tests/**/*.d.ts
+tests/**/*.d.ts.map
+
 # playwright
 playwright-report
 test-results

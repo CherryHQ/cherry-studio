@@ -16,6 +16,8 @@
     "incremental": true,
     "moduleResolution": "bundler",
     "tsBuildInfoFile": ".tsbuildinfo/tsconfig.node.tsbuildinfo",
+    "outDir": ".tsbuildinfo/node",
+    "declarationDir": ".tsbuildinfo/node",
     "types": ["electron-vite/node", "vitest/globals"],
     "paths": {
       "@logger": ["./src/main/services/LoggerService"],
