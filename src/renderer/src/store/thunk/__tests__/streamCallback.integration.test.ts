@@ -416,7 +416,7 @@ describe('streamCallback Integration Tests', () => {
 
     Object.defineProperty(window, 'api', {
       value: {
-        file: {
+        legacyFile: {
           saveBase64Image: vi.fn().mockResolvedValue(mockSavedFile)
         }
       },

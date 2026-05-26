@@ -23,7 +23,7 @@ describe('input', () => {
     // 设置 window.api mock
     global.window = {
       api: {
-        file: {
+        legacyFile: {
           getPathForFile: mockGetPathForFile,
           get: mockFileGet
         }

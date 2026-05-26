@@ -221,7 +221,7 @@ describe('AddKnowledgeItemDialog', () => {
     })
     mockGetPathForFile.mockImplementation((file: File) => `/external/${file.name}`)
     ;(window as any).api = {
-      file: {
+      legacyFile: {
         get: mockGetFile,
         getPathForFile: mockGetPathForFile,
         selectFolder: mockSelectFolder

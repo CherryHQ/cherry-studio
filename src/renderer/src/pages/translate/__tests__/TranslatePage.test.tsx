@@ -278,10 +278,8 @@ describe('TranslatePage', () => {
       warning: vi.fn()
     }
     ;(window as any).api = {
-      file: {
-        readExternal: vi.fn()
-      },
-      fs: {
+      legacyFile: {
+        readExternal: vi.fn(),
         readText: fileMock.readText
       }
     }
