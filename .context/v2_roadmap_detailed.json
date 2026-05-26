@@ -1,150 +1,175 @@
 {
-  "generated_at": "2026-05-24T00:00:00Z",
-  "snapshot_date": "2026-05-24",
+  "generated_at": "2026-05-26T00:00:00Z",
+  "snapshot_date": "2026-05-26",
   "v2_branch_status": "ACTIVE — full-speed refactoring + new features",
   "branch_policy": {
     "main": "Code freeze since April 3, 2026. Only critical hotfixes via hotfix/* branches.",
-    "v2": "All new features, refactoring, and optimizations. New feature PRs accepted."
+    "v2": "All new features, refactoring, and optimizations. New feature PRs accepted after all current features fully refactored."
   },
   "open_prs": {
-    "total": 81,
+    "total": 82,
+    "prev_total": 81,
+    "delta": 1,
     "draft": 16,
+    "non_draft": 66,
     "ready_to_merge": 1,
+    "prs_with_review_requests": 44,
     "by_age": {
-      "fresh_lte7d": 18,
-      "active_8_30d": 23,
-      "stale_gt30d": 40
+      "fresh_lte7d": 16,
+      "active_8_30d": 24,
+      "stale_31_90d": 29,
+      "zombie_gt90d": 13
     },
     "stale_highlight": {
       "oldest_pr": {
         "number": 10090,
         "title": "[WIP] feat: terminal",
         "author": "EurFelux",
-        "age_days": 255
+        "age_days": 257,
+        "draft": true
       },
-      "longest_running_non_draft": {
+      "oldest_non_draft": {
         "number": 10929,
         "title": "refactor: Migrate to tiptap markdown",
         "author": "Copilot",
-        "age_days": 212
+        "age_days": 214
       },
       "ready_to_merge": {
         "number": 13173,
         "title": "refactor(renderer): migrate from ReactMarkdown to Streamdown",
         "author": "DeJeune",
-        "age_days": 81,
-        "reviewers": ["0xfullex", "MyPrototypeWhat", "EurFelux"]
+        "age_days": 83,
+        "labels": ["v2", "ready-to-merge"]
+      },
+      "blocked": {
+        "number": 10912,
+        "title": "refactor: i18n",
+        "author": "EurFelux",
+        "age_days": 214,
+        "labels": ["v2", "Blocked: v2"]
       }
     }
   },
   "open_pr_top_authors": [
-    {"login": "DeJeune", "open_count": 16},
-    {"login": "LWWZH", "open_count": 12},
-    {"login": "EurFelux", "open_count": 11},
+    {"login": "DeJeune",        "open_count": 17},
+    {"login": "EurFelux",       "open_count": 13},
+    {"login": "LWWZH",          "open_count": 12},
     {"login": "404-Page-Found", "open_count": 6},
-    {"login": "kovsu", "open_count": 5},
-    {"login": "kangfenmao", "open_count": 4},
-    {"login": "Cherry-Yiran", "open_count": 2},
-    {"login": "vaayne", "open_count": 2}
+    {"login": "kovsu",          "open_count": 5},
+    {"login": "kangfenmao",     "open_count": 2},
+    {"login": "Cherry-Yiran",   "open_count": 2},
+    {"login": "vaayne",         "open_count": 2}
   ],
   "open_pr_type_breakdown": {
-    "feature": 47,
-    "refactor": 16,
-    "bugfix": 15,
-    "perf": 1,
-    "other": 2
+    "feat": 35,
+    "refactor": 18,
+    "fix": 16,
+    "chore_docs": 6,
+    "perf": 2,
+    "unknown": 5
   },
-  "merged_prs_sample": {
-    "total_merged_in_sample": 68,
-    "sample_date_range": "2026-04-10 to 2026-05-23",
-    "weeks_covered": 6.5,
-    "avg_merges_per_week": 9.4,
-    "peak_week": {"week": "2026-W18 (May 6-10)", "count": 12},
-    "by_week": {
-      "W14_Apr10-11": 10,
-      "W15_Apr13-18": 8,
-      "W16_Apr20-24": 7,
-      "W17_Apr27-May1": 9,
-      "W18_May6-10": 12,
-      "W19_May11-14": 11,
-      "W20_May18-23": 9
-    }
+  "open_pr_area_breakdown": {
+    "AI_Core_Provider": ["#15325 feat(ai-provider): separate provider runtime core", "#14911 refactor(ai-service): consolidate AI runtime to main process", "#14261 feat(anthropic): improve prompt caching", "#13238 feat(data): add provider/model data API"],
+    "File_Management": ["#15338 feat(file-manager): v2 file management UI", "#15335 feat(file-ipc): wire v2 File IPC", "#15330 feat(file): register chat_message FileRefSourceType", "#12150 refactor(files): File Management System Architecture"],
+    "Agents_CLI": ["#14970 feat(agents): add PowerShell tool for Windows", "#14911 refactor(ai-service): consolidate AI to main", "#15215 refactor(agent-task): migrate to JobManager", "#14160 feat: migrate agents data access"],
+    "UI_Design_System": ["#15339 refactor(ui-controls): align switch/form components", "#15263 feat(settings): redesign settings navigation", "#15273 fix(ui-icons): stop compound icons", "#13561 refactor(ui): replace CustomTag with Tag"],
+    "Knowledge_Base": ["#15309 refactor(knowledge): knowledge v2 rfc round 1", "#14357 feat(memory): pluggable memory provider with Hindsight"],
+    "Data_Layer": ["#13312 feat(data): note metadata DataApi", "#14739 feat(message-service): branch-aware path resolution"],
+    "Settings_Navigation": ["#15263 feat(settings): redesign settings navigation", "#14135 feat(websearch): toggle to disable search keyword prefill"],
+    "Tooling_Build": ["#13687 chore: migrate to vite 8", "#14858 feat(i18n): add unused key cleaner"],
+    "Topics_Chat": ["#14788 feat: add Duplicate Topic", "#14742 feat(trace): call chain window adaptive", "#14595 feat(topics): folder grouping for pinned topics", "#14477 feat(topics): sorting methods"],
+    "Paintings": ["#15154 refactor(paintings): migrate to v2 data layer"],
+    "Misc_Providers": ["#14728 feat(provider): Volcengine Responses API", "#14730 feat(provider): OpenCode Go provider", "#14678 fix(deepseek): DeepSeek citations"]
   },
-  "top_contributors_alltime": [
-    {"login": "DeJeune", "merged": 15, "focus": "AI service architecture, commands, data API, migrations, UI"},
-    {"login": "eeee0717", "merged": 11, "focus": "Knowledge base, file processing, web search, agents panel"},
-    {"login": "kangfenmao", "merged": 9, "focus": "Settings UI, shortcuts, mini-apps, notes, paintings, i18n"},
-    {"login": "zhangjiadi225", "merged": 8, "focus": "Model selector, assistant selector, translate page, components"},
-    {"login": "vaayne", "merged": 7, "focus": "Agent SDK, IPC transport, agents storage, data API, MCP"},
-    {"login": "Cherry-Yiran", "merged": 5, "focus": "Icons, UI refresh, mini-apps, design tokens"},
-    {"login": "jidan745le", "merged": 5, "focus": "Sidebar, tab bar, data domain hooks, provider settings"},
-    {"login": "EurFelux", "merged": 3, "focus": "Translate module, file schema, refactors"},
-    {"login": "0xfullex", "merged": 2, "focus": "File processing, knowledge JobManager"}
+  "today_fresh_prs": [
+    {"number": 15339, "title": "refactor(ui-controls): align switch and shared form components", "author": "Cherry-Yiran", "draft": false},
+    {"number": 15338, "title": "feat(file-manager): v2 file management UI (mock data)", "author": "EurFelux", "draft": true},
+    {"number": 15335, "title": "feat(file-ipc): wire v2 File IPC — full preload surface", "author": "EurFelux", "draft": false},
+    {"number": 15333, "title": "docs(ai): document v2 AI architecture", "author": "DeJeune", "draft": false},
+    {"number": 15330, "title": "feat(file): register chat_message FileRefSourceType and backfill file_ref in ChatMigrator", "author": "EurFelux", "draft": false},
+    {"number": 15325, "title": "feat(ai-provider): separate provider runtime core", "author": "DeJeune", "draft": false}
   ],
-  "feature_areas_coverage": {
-    "description": "Areas with merged v2 PRs since April 10, 2026",
-    "completed_or_in_progress": [
-      {"area": "Agents", "merged_prs": 10, "status": "in_progress", "notes": "Claude SDK, tool lists, data migration, task management"},
-      {"area": "Knowledge_Base", "merged_prs": 8, "status": "mostly_done", "notes": "Backend + UI migration to v2, JobManager integration"},
-      {"area": "UI_Design_System", "merged_prs": 8, "status": "in_progress", "notes": "Icons, dialogs, context menu, design tokens"},
-      {"area": "AI_Providers_Models", "merged_prs": 8, "status": "in_progress", "notes": "Provider settings, data API, icon system"},
-      {"area": "File_Processing", "merged_prs": 5, "status": "in_progress", "notes": "Backend, settings, JobManager, file entry schema"},
-      {"area": "Data_Migration", "merged_prs": 5, "status": "in_progress", "notes": "Assistant/topic, model prefs, tag system, fractional indexing"},
-      {"area": "UI_Sidebar_Tabs", "merged_prs": 5, "status": "in_progress", "notes": "Sidebar rewrite, tab system, resize handling"},
-      {"area": "Web_Search", "merged_prs": 4, "status": "mostly_done", "notes": "Settings migrated, provider capabilities split"},
-      {"area": "Settings_Preferences", "merged_prs": 3, "status": "in_progress", "notes": "Settings UI, settings window, Preference architecture"},
-      {"area": "Translation_i18n", "merged_prs": 2, "status": "in_progress", "notes": "Translate module, page rebuild"}
+  "merged_last_30d": {
+    "count": 44,
+    "date_range": "2026-04-26 to 2026-05-26",
+    "avg_per_week": 11.0,
+    "weekly_velocity": {
+      "W17_Apr28-May5":  8,
+      "W18_May6-May12": 19,
+      "W19_May13-May19": 7,
+      "W20_May20-May26": 9
+    },
+    "prs_last_7d": 9,
+    "type_breakdown": {
+      "refactor": 18,
+      "feat":     16,
+      "fix":       5,
+      "chore":     2,
+      "docs":      2,
+      "other":     1
+    },
+    "top_merged_contributors": [
+      {"login": "DeJeune",       "merged": 7},
+      {"login": "eeee0717",      "merged": 7},
+      {"login": "zhangjiadi225", "merged": 7},
+      {"login": "kangfenmao",    "merged": 6},
+      {"login": "Cherry-Yiran",  "merged": 6},
+      {"login": "EurFelux",      "merged": 4},
+      {"login": "0xfullex",      "merged": 2},
+      {"login": "vaayne",        "merged": 2},
+      {"login": "jidan745le",    "merged": 1},
+      {"login": "chengcheng84",  "merged": 1},
+      {"login": "kovsu",         "merged": 1}
     ],
-    "not_yet_started_or_blocked": [
-      {"area": "Notifications", "status": "planned", "tracking_issue": 14899, "milestone": "v2.4.0"},
-      {"area": "Terminal", "status": "WIP_draft", "pr": 10090, "age_days": 255},
-      {"area": "Markdown_Renderer", "status": "ready_to_merge", "pr": 13173},
-      {"area": "i18n_migration", "status": "draft_blocked", "pr": 10912, "label": "Blocked: v2"},
-      {"area": "Video_Generation", "status": "draft", "pr": 10699},
-      {"area": "Backup_System_v2", "status": "draft", "pr": 12659}
+    "module_area_breakdown": {
+      "UI_Components":          6,
+      "File_System":            5,
+      "Knowledge_Base":         4,
+      "Agents":                 4,
+      "Web_Search":             3,
+      "Translation":            3,
+      "MiniApp":                3,
+      "Topics_Chat":            3,
+      "Model_Entity_Selectors": 3,
+      "Docs_Chore":             3,
+      "Provider_Settings":      2,
+      "Settings":               1,
+      "Migration_Engine":       1,
+      "Notes":                  1,
+      "Context_Menu":           1,
+      "Prompt_Management":      1,
+      "Library_Page":           1,
+      "Code_Tools":             1
+    },
+    "breaking_changes_count": 12,
+    "top_breaking_changes": [
+      {"number": 15088, "desc": "Anthropic OAuth removed — users must re-add API key"},
+      {"number": 15087, "desc": "@cherrystudio/ui/icons API: .Light/.Dark replaced by variant prop"},
+      {"number": 13430, "desc": "Prompt management drops version history, rollback, variables"},
+      {"number": 15214, "desc": "IPC channels FileProcessing_GetTask / _CancelTask removed"},
+      {"number": 14627, "desc": "Topic table: sortOrder/isPinned removed → orderKey (migration 0015)"}
+    ],
+    "notable_merged_last_7d": [
+      {"number": 15067, "title": "feat(file): Phase 2 Batch 0 — FileMigrator + cross-module coordination", "author": "EurFelux", "mergedAt": "2026-05-26"},
+      {"number": 15186, "title": "refactor(notes): migrate notes UI and data to v2", "author": "kangfenmao", "mergedAt": "2026-05-25"},
+      {"number": 15265, "title": "feat(translate): refresh translate page and shared drawer", "author": "Cherry-Yiran", "mergedAt": "2026-05-25"},
+      {"number": 15213, "title": "refactor(knowledge): migrate to JobManager", "author": "0xfullex", "mergedAt": "2026-05-21"},
+      {"number": 15214, "title": "refactor(file-processing): migrate to JobManager", "author": "0xfullex", "mergedAt": "2026-05-21"},
+      {"number": 15205, "title": "feat(mini-apps): refresh mini app page and icons", "author": "Cherry-Yiran", "mergedAt": "2026-05-21"},
+      {"number": 15087, "title": "feat(icons): light/dark dual-source architecture for logos", "author": "Cherry-Yiran", "mergedAt": "2026-05-18"},
+      {"number": 15088, "title": "feat(provider-settings): grouping + mode-based editor", "author": "DeJeune", "mergedAt": "2026-05-18"},
+      {"number": 15238, "title": "fix(sidebar): align resize thresholds with layouts", "author": "kovsu", "mergedAt": "2026-05-23"}
     ]
   },
-  "recent_merges_last7d": [
-    {"number": 15238, "title": "fix(sidebar): align resize thresholds with layouts", "author": "kovsu", "merged_at": "2026-05-23"},
-    {"number": 15246, "title": "refactor(file-entry): rename trashedAt to deletedAt", "author": "EurFelux", "merged_at": "2026-05-21"},
-    {"number": 15205, "title": "feat(mini-apps): refresh mini app page and icons", "author": "Cherry-Yiran", "merged_at": "2026-05-21"},
-    {"number": 15213, "title": "refactor(knowledge): migrate to JobManager", "author": "0xfullex", "merged_at": "2026-05-21"},
-    {"number": 15214, "title": "refactor(file-processing): migrate to JobManager", "author": "0xfullex", "merged_at": "2026-05-21"},
-    {"number": 15216, "title": "chore(lint): suppress legacy css var warnings in lint scripts", "author": "kangfenmao", "merged_at": "2026-05-20"},
-    {"number": 15088, "title": "feat(provider-settings): grouping + mode-based editor follow-up", "author": "DeJeune", "merged_at": "2026-05-18"},
-    {"number": 15087, "title": "feat(icons): light/dark dual-source architecture for provider/model logos", "author": "Cherry-Yiran", "merged_at": "2026-05-18"},
-    {"number": 15091, "title": "refactor(ui): refresh shared dialog styling", "author": "Cherry-Yiran", "merged_at": "2026-05-18"}
-  ],
-  "attention_needed": [
-    {
-      "pr": 13173,
-      "title": "refactor(renderer): migrate from ReactMarkdown to Streamdown",
-      "label": "ready-to-merge",
-      "age_days": 81,
-      "action": "Merge immediately — labeled ready-to-merge but sitting 81 days"
-    },
-    {
-      "pr": 14911,
-      "title": "refactor(ai-service): consolidate AI runtime to main process",
-      "author": "DeJeune",
-      "is_draft": true,
-      "age_days": 16,
-      "action": "Monitor — architectural PR, 4 reviewers assigned"
-    },
-    {
-      "pr": 14489,
-      "title": "feat(notify): support image and file attachments across channels",
-      "author": "DeJeune",
-      "age_days": 31,
-      "action": "Review needed — notification system foundational work"
-    },
-    {
-      "pr": 13687,
-      "title": "chore: migrate to vite 8",
-      "author": "EurFelux",
-      "label": "Pending",
-      "age_days": 63,
-      "action": "Unblock — build tooling upgrade sitting idle"
-    }
-  ]
+  "v2_health_assessment": {
+    "velocity": "HIGH — 9.4 PRs/week merged, 16 fresh PRs opened today alone",
+    "backlog_risk": "MEDIUM — 29 stale + 13 zombie PRs (51% of all v2 open PRs are 30+ days old)",
+    "review_bottleneck": "44/82 PRs have review requests; #13173 ready-to-merge but 83 days stalled",
+    "top_risk_items": [
+      "EurFelux has 13 open PRs, 10+ are 90+ days old or zombie — may indicate blocked work or deprioritization",
+      "#13173 (Streamdown migration) marked ready-to-merge for 83+ days — needs final review or merge",
+      "File management subsystem: 4 new PRs opened today (#15338/#15335/#15330/#15325) — active cluster",
+      "Blocked: v2 label on #10912 (i18n refactor) — dependency chain unclear"
+    ]
+  }
 }

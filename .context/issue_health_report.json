@@ -1,44 +1,47 @@
 {
-  "generated_at": "2026-05-24T00:00:00Z",
-  "snapshot_date": "2026-05-24",
+  "generated_at": "2026-05-26T00:00:00Z",
+  "snapshot_date": "2026-05-26",
   "health_overview": {
-    "total_open_issues": 887,
-    "health_score": 58,
+    "total_open_issues": 883,
+    "prev_total": 887,
+    "delta": -4,
+    "health_score": 57,
     "health_grade": "C",
-    "trend": "slight_degradation",
+    "trend": "stable_slight_degradation",
     "notes": [
-      "Total open issues increased by 3 since yesterday (884 → 887)",
-      "54.1% of issues are Stale (31-90 days without update) — high triage debt",
-      "Inactive bot auto-close rate 81% (351 closed in 30d, only 19% genuine fixes)",
-      "3 confirmed P1 issues: 1 Active (v2.4.0 planned), 2 Aging/Stale (assigned or pending)",
-      "~6% unlabeled issues (~53) remain in triage queue"
+      "Total open issues decreased by 4 since 2026-05-24 (887 → 883) — marginal improvement",
+      "72 issues closed in last 7 days, but 82% closed as 'not_planned' (bot/inactive sweeps)",
+      "54% of issues estimated Stale (31-90 days without update) — persistent triage debt",
+      "3 confirmed P1 issues: 1 Active (v2.4.0), 2 Stale (69+/83+ days without update)",
+      "Unlabeled issues increased from ~53 to 66 confirmed (+13) — labeling debt growing",
+      "Avg time to close: 43.94 days — high backlog age persists"
     ]
   },
   "age_classification": {
-    "methodology": "Based on updatedAt date. Today: 2026-05-24. Buckets: Active ≤14d, Aging 15-30d, Stale 31-90d, Zombie >90d.",
+    "methodology": "Based on updatedAt date. Today: 2026-05-26. Active ≤14d, Aging 15-30d, Stale 31-90d, Zombie >90d.",
     "active": {
-      "definition": "Updated within 14 days (after 2026-05-10)",
-      "estimated_count": 270,
+      "definition": "Updated within 14 days (after 2026-05-12)",
+      "estimated_count": 268,
       "percentage": 30.4,
-      "evidence": "200 confirmed from 2 newest pages (updated 2026-05-18 to 2026-05-24), ~70 estimated from middle cohort"
+      "evidence": "100 confirmed from most-recently-updated page (all updated 2026-05-23 to 2026-05-26). Remaining ~168 estimated from 2026-05-24 multi-page sample ratios."
     },
     "aging": {
-      "definition": "Updated 15-30 days ago (2026-04-24 to 2026-05-09)",
+      "definition": "Updated 15-30 days ago (2026-04-26 to 2026-05-11)",
       "estimated_count": 130,
       "percentage": 14.7,
-      "evidence": "Interpolated from middle 587 issues spanning 2026-03-12 to 2026-05-17"
+      "evidence": "Interpolated from prior multi-page sample distribution."
     },
     "stale": {
-      "definition": "Updated 31-90 days ago (2026-02-23 to 2026-04-23)",
-      "estimated_count": 480,
-      "percentage": 54.1,
-      "evidence": "96 confirmed from oldest page (Feb-Mar 2026) + ~384 estimated from middle cohort"
+      "definition": "Updated 31-90 days ago (2026-02-25 to 2026-04-25)",
+      "estimated_count": 477,
+      "percentage": 54.0,
+      "evidence": "Dominant cohort. Confirmed from prior sample; consistent with batch-close pattern."
     },
     "zombie": {
-      "definition": "Updated 90+ days ago (before 2026-02-23)",
+      "definition": "Updated 90+ days ago (before 2026-02-25)",
       "confirmed_count": 4,
       "percentage": 0.5,
-      "evidence": "All 4 found in oldest-100 page. Oldest: #5712 (last updated 2025-10-23)",
+      "evidence": "Confirmed from prior oldest-100 page. Likely undercount.",
       "examples": [
         {"number": 5712, "title": "【需求汇总】Agents with Workflows / 工作流&协同", "updated_at": "2025-10-23"},
         {"number": 10844, "title": "[Feature]: Backup feature enhance", "updated_at": "2025-11-01"},
@@ -57,47 +60,55 @@
         "labels": ["P1", "Planned", "feature", "UI/UX"],
         "milestone": "v2.4.0",
         "assignee": null,
-        "days_open": 17,
-        "days_since_update": 17,
+        "days_open": 19,
+        "days_since_update": 19,
         "comment_count": 0,
-        "action": "Monitor — in milestone v2.4.0, no blocking issues"
+        "action": "Monitor — in milestone v2.4.0, on track"
       },
       {
         "number": 13608,
         "title": "[Bug]: xiaomi mimo response only displays the last line",
-        "status": "Aging — milestone closed, no further activity",
+        "status": "Stale — milestone v1.8.1 closed, no further activity",
         "labels": ["P1", "Models"],
         "milestone": "v1.8.1 (closed 2026-04-01)",
         "assignee": null,
-        "days_open": 67,
-        "days_since_update": 66,
+        "days_open": 69,
+        "days_since_update": 68,
         "comment_count": 8,
-        "action": "Needs triage — milestone closed, should re-assess or close if fixed in v2"
+        "action": "⚠️ Triage needed — milestone closed, verify if fixed in newer release or reopen with updated repro"
       },
       {
         "number": 13193,
-        "title": "[Bug]: Azure OpenAI AI_APICallError: Resource not found (wrong API endpoint)",
-        "status": "Stale — assigned to DeJeune, no update in 80+ days",
+        "title": "[Bug]: Azure OpenAI AI_APICallError: Resource not found (responses API routing)",
+        "status": "Stale — assigned to DeJeune, no update in 82+ days",
         "labels": ["P1", "Models"],
         "assignee": "DeJeune",
-        "days_open": 81,
-        "days_since_update": 80,
+        "days_open": 83,
+        "days_since_update": 82,
         "comment_count": 1,
-        "action": "Follow-up needed — Azure OpenAI regression in responses API routing, assigned but stalled"
+        "action": "⚠️ Follow-up needed — Azure OpenAI regression, high impact (5 reactions), assigned but stalled 82 days"
       }
     ]
   },
   "label_health": {
-    "unlabeled_count_estimated": 53,
-    "unlabeled_percentage": 6.0,
+    "unlabeled_count_confirmed": 66,
+    "unlabeled_percentage": 7.5,
+    "change_from_prev": "+13 (was ~53 estimated on 2026-05-24)",
     "top_action_labels": {
-      "needs_repro": 15,
-      "needs_more_info": 3,
-      "inactive": 88
+      "needs_repro": 9,
+      "needs_more_info": 2,
+      "inactive": 57
     },
-    "label_coverage": "94% of issues have at least one label based on sample"
+    "label_coverage": "92.5% of issues have at least one label (from search total 883, 66 confirmed unlabeled)"
   },
   "high_engagement_issues": [
+    {
+      "number": 14603,
+      "title": "[Bug] Web search returns unrelated results",
+      "comments": 9,
+      "labels": ["inactive"],
+      "status": "Active"
+    },
     {
       "number": 14300,
       "title": "[Bug]: Backup to WebDAV and S3 failed",
@@ -110,97 +121,118 @@
       "title": "[Bug]: xiaomi mimo response only displays the last line",
       "comments": 8,
       "labels": ["P1", "Models"],
-      "status": "Aging"
+      "status": "Stale"
     },
     {
-      "number": 12890,
-      "title": "[Bug]: Image-based PDF file content cannot be properly read by the model",
-      "comments": 5,
+      "number": 14585,
+      "title": "[Bug]: Fatal bug: Ongoing response/thinking reset when switching topic",
+      "comments": 4,
       "labels": [],
       "status": "Active"
     },
     {
-      "number": 14449,
-      "title": "[Bug]: backup fail after update",
-      "comments": 5,
+      "number": 14552,
+      "title": "[Feature]: Automatically compact context for agent when reached limit",
+      "comments": 4,
       "labels": [],
-      "status": "Active"
-    },
-    {
-      "number": 14644,
-      "title": "[Feature]: Add functionality to create Agent duplicates (copies)",
-      "comments": 5,
-      "labels": ["Assistant"],
       "status": "Active"
     }
   ],
+  "unlabeled_top_issues": {
+    "total_confirmed": 66,
+    "sample_analyzed": 50,
+    "by_inferred_category": {
+      "bug": 25,
+      "feature": 23,
+      "other": 2
+    },
+    "highest_priority_unlabeled": [
+      {"number": 15315, "title": "[Bug]: A JavaScript error occurred in the main process", "created_at": "2026-05-25", "comments": 0},
+      {"number": 15220, "title": "[Bug]: Claude Code Provider 'Content block is not a text block' during streaming", "created_at": "2026-05-20", "comments": 0},
+      {"number": 15055, "title": "[Bug]: V8 SIGTRAP crash — app quits unexpectedly multiple times per day (macOS Apple Silicon)", "created_at": "2026-05-13", "comments": 0},
+      {"number": 14928, "title": "[Bug]: All agent settings lost and reset after restoring from backup", "created_at": "2026-05-08", "comments": 0},
+      {"number": 14356, "title": "[Bug]: v2 fresh install — every message fails with 'Topic not found'", "created_at": "2026-04-17", "comments": 0, "note": "39 days old, zero response"}
+    ]
+  },
   "stale_bugs_top10": [
     {
       "number": 13193,
       "title": "[Bug]: AI_APICallError: Resource not found, default use responses API",
       "labels": ["P1", "Models"],
-      "updated_at": "2026-03-05"
+      "updated_at": "2026-03-05",
+      "days_stale": 82
     },
     {
       "number": 12996,
       "title": "[Bug]: Anthropic models returns 'Invalid signature in thinking'",
       "labels": ["BUG", "Models"],
-      "updated_at": "2026-03-11"
+      "updated_at": "2026-03-11",
+      "days_stale": 76
     },
     {
       "number": 12962,
       "title": "[Bug]: OpenAI Responses Format Invalid Request Body",
       "labels": ["BUG", "Models"],
-      "updated_at": "2026-03-11"
+      "updated_at": "2026-03-11",
+      "days_stale": 76
     },
     {
       "number": 12925,
       "title": "[Bug]: Multiple OOM Crashes in Renderer Process",
       "labels": ["BUG", "Performance"],
-      "updated_at": "2026-03-11"
+      "updated_at": "2026-03-11",
+      "days_stale": 76
     },
     {
       "number": 12623,
       "title": "[Bug]: Official Perplexity MCP server incorrectly recognized",
       "labels": ["BUG", "MCP"],
-      "updated_at": "2026-03-11"
+      "updated_at": "2026-03-11",
+      "days_stale": 76
     },
     {
       "number": 12516,
       "title": "[Bug]: Program gets stuck when 'Auto' mode is used",
       "labels": ["BUG", "MCP", "needs-repro"],
-      "updated_at": "2026-03-11"
+      "updated_at": "2026-03-11",
+      "days_stale": 76
     },
     {
       "number": 12689,
       "title": "[Bug]: Mac App Creates 'Default Assistant' Using Unconfigured Model",
       "labels": ["BUG", "Models", "v2"],
-      "updated_at": "2026-03-11"
+      "updated_at": "2026-03-11",
+      "days_stale": 76
     },
     {
       "number": 12618,
       "title": "[Bug]: Unable to properly configure and use Anthropic (Claude)",
       "labels": ["BUG", "Models"],
-      "updated_at": "2026-03-11"
+      "updated_at": "2026-03-11",
+      "days_stale": 76
     },
     {
       "number": 12819,
       "title": "[Bug]: Synchronization ensures consistent multi-device sessions",
       "labels": ["BUG", "Data"],
-      "updated_at": "2026-03-11"
+      "updated_at": "2026-03-11",
+      "days_stale": 76
     },
     {
       "number": 12472,
       "title": "[Bug]: ModelScope model unable to think",
       "labels": ["BUG", "Models"],
-      "updated_at": "2026-03-11"
+      "updated_at": "2026-03-11",
+      "days_stale": 76
     }
   ],
   "recommendations": [
-    "URGENT: Follow up on #13193 (Azure OpenAI P1, assigned to DeJeune, 80d stalled)",
-    "TRIAGE: Re-assess #13608 (P1 mimo bug, milestone closed — confirm fixed or reopen)",
-    "BATCH CLOSE: ~88 'inactive'-labeled issues in open state may be ready for final closure",
-    "ZOMBIE SWEEP: 4 confirmed zombie issues (>90d) should be evaluated for closure or v2 migration",
-    "LABEL DEBT: ~53 unlabeled issues need triage"
+    "🔴 URGENT: Follow up on #13193 (Azure OpenAI P1, assigned DeJeune, 82d stalled — regression regression affects users on Azure)",
+    "🟠 TRIAGE: #13608 (P1 mimo bug, 68d stale, milestone closed — verify if fixed in v1.9.x or reopen)",
+    "🟠 LABEL DEBT: 66 confirmed unlabeled issues — assign bug/feature/discussion labels and severity",
+    "🟡 BATCH CLOSE: ~57 'inactive'-labeled issues in open state may be candidates for final closure review",
+    "🟡 UNLABELED CRITICAL: #15055 (V8 SIGTRAP crash macOS), #14356 (v2 Topic not found), #14928 (agent settings lost on restore) need immediate triage",
+    "🔵 ZOMBIE SWEEP: 4+ confirmed zombie issues (>90d) — evaluate for closure or v2 migration tracking",
+    "🔵 MONITOR: Unlabeled count grew from ~53→66 (+13) — triage cadence may need to increase"
   ]
 }

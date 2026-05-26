@@ -1,22 +1,22 @@
 {
-  "generated_at": "2026-05-24T00:00:00Z",
-  "snapshot_date": "2026-05-24",
+  "generated_at": "2026-05-26T00:00:00Z",
+  "snapshot_date": "2026-05-26",
   "data_source": "GitHub MCP API (CherryHQ/cherry-studio)",
-  "sampling_note": "Open issues: 3-page sample (300/887 = 33.7%): newest-100, second-newest-100, oldest-100.",
+  "sampling_note": "Open issues: API total 883. Label/health analysis from 100 most-recently-updated + P1/unlabeled targeted queries. Open PRs: 100-item sample (most recently updated). V2 open PRs: full 82-item list.",
   "open_issues": {
-    "total": 887,
-    "prev_total": 884,
-    "delta": 3,
+    "total": 883,
+    "prev_total": 887,
+    "delta": -4,
     "health_distribution_estimated": {
-      "active_lte14d": 270,
+      "active_lte14d": 268,
       "active_pct": 30.4,
       "aging_15_30d": 130,
       "aging_pct": 14.7,
-      "stale_31_90d": 480,
-      "stale_pct": 54.1,
+      "stale_31_90d": 477,
+      "stale_pct": 54.0,
       "zombie_gt90d": 4,
       "zombie_pct": 0.5,
-      "methodology": "200 confirmed Active from 2 newest pages (updated 2026-05-18 to 2026-05-24). 70 more Active estimated from middle 587 issues via uniform-density interpolation. Zombie count confirmed from oldest-100 page."
+      "methodology": "Ratios carried forward from 2026-05-24 multi-page sample; applied to updated total 883. Confirmed Active: 100 issues (most recently updated, all from 2026-05-23 to 2026-05-26). Zombie count estimated from prior sample."
     },
     "p1_critical_issues": [
       {
@@ -28,22 +28,26 @@
         "created_at": "2026-05-07",
         "updated_at": "2026-05-07",
         "url": "https://github.com/CherryHQ/cherry-studio/issues/14899",
-        "comment_count": 0
+        "comment_count": 0,
+        "days_open": 19,
+        "status": "Active — in milestone v2.4.0"
       },
       {
         "number": 13608,
         "title": "[Bug]: xiaomi mimo response only displays the last line",
         "labels": ["P1", "Models"],
-        "milestone": "v1.8.1 (closed)",
+        "milestone": "v1.8.1 (closed 2026-04-01)",
         "author": "lsy08",
         "created_at": "2026-03-18",
         "updated_at": "2026-03-19",
         "url": "https://github.com/CherryHQ/cherry-studio/issues/13608",
-        "comment_count": 8
+        "comment_count": 8,
+        "days_open": 69,
+        "status": "Stale — milestone closed, no further activity in 68+ days"
       },
       {
         "number": 13193,
-        "title": "[Bug]: Azure OpenAI AI_APICallError Resource not found — wrong API endpoint",
+        "title": "[Bug]: Azure OpenAI AI_APICallError: Resource not found (wrong API endpoint)",
         "labels": ["P1", "Models"],
         "assignee": "DeJeune",
         "author": "simplezhao",
@@ -51,104 +55,179 @@
         "updated_at": "2026-03-05",
         "url": "https://github.com/CherryHQ/cherry-studio/issues/13193",
         "comment_count": 1,
-        "note": "80+ days no update, assigned to DeJeune"
+        "days_open": 83,
+        "status": "Stale — assigned to DeJeune, no update in 82+ days"
       }
     ],
     "unlabeled": {
-      "count_estimated": 53,
-      "percentage_estimated": 6.0
+      "count_confirmed": 66,
+      "percentage": 7.5,
+      "note": "Confirmed via targeted no:label search (2026-05-26). Previous estimate was 53 (6.0%). +13 increase."
     },
-    "top_labels_aggregated_sample": {
-      "inactive": 88,
-      "BUG": 87,
-      "UI_UX": 59,
-      "Models": 57,
-      "Assistant": 25,
-      "MCP": 24,
-      "needs_repro": 15,
-      "feature": 10,
-      "discussion": 8,
-      "Data": 8,
+    "top_labels_from_sample": {
+      "inactive": 57,
+      "UI_UX": 32,
+      "Models": 17,
+      "Assistant": 16,
+      "needs_repro": 9,
+      "MCP": 6,
+      "Connectivity": 6,
       "help_wanted": 6,
-      "Connectivity": 5,
-      "Performance": 5
-    }
+      "discussion": 6,
+      "RAG": 4,
+      "Data": 3,
+      "BUG": 3,
+      "needs_more_info": 2
+    },
+    "new_issues_7d": 37,
+    "new_issues_30d": 44,
+    "top_commented_open": [
+      {"number": 14603, "title": "[Bug] Web search returns unrelated results", "comments": 9},
+      {"number": 14300, "title": "[Bug]: Backup to WebDAV and S3 failed", "comments": 8},
+      {"number": 13608, "title": "[Bug]: xiaomi mimo response only displays the last line", "comments": 8},
+      {"number": 12890, "title": "[Bug]: Image-based PDF cannot be properly read by model", "comments": 5},
+      {"number": 14449, "title": "[Bug]: backup fail after update", "comments": 5}
+    ]
   },
   "open_prs": {
-    "total": 339,
-    "targeting_v2": 81,
-    "targeting_main_approx": 257,
     "sample_analyzed": 100,
-    "by_age_from_sample": {
-      "fresh_lte7d": 51,
-      "active_8_30d": 39,
-      "stale_gt30d": 10
+    "by_base_branch": {
+      "main": 66,
+      "v2": 30,
+      "other": 4
     },
-    "top_authors_from_sample": [
-      {"login": "LWWZH", "count": 9},
-      {"login": "DeJeune", "count": 8},
+    "no_label_prs": 78,
+    "by_age": {
+      "fresh_lte7d": 42,
+      "active_8_30d": 48,
+      "stale_31_90d": 5,
+      "zombie_gt90d": 5
+    },
+    "top_authors": [
+      {"login": "DeJeune", "count": 11},
       {"login": "xxiaoxiong", "count": 7},
-      {"login": "404-Page-Found", "count": 7},
       {"login": "GeorgeDong32", "count": 6},
-      {"login": "mturac", "count": 5},
-      {"login": "kangfenmao", "count": 5},
-      {"login": "Raymond8196", "count": 5},
-      {"login": "SiinXu", "count": 4}
+      {"login": "Raymond8196", "count": 6},
+      {"login": "mturac", "count": 6},
+      {"login": "LWWZH", "count": 6},
+      {"login": "EurFelux", "count": 5},
+      {"login": "kangfenmao", "count": 4},
+      {"login": "SiinXu", "count": 4},
+      {"login": "404-Page-Found", "count": 4}
     ],
-    "draft_prs_v2": 16,
-    "ready_to_merge_v2": 1
+    "draft_prs_in_sample": 9,
+    "updated_last_7d": 62,
+    "oldest_open_prs": [
+      {"number": 10090, "title": "[WIP] feat: terminal", "created_at": "2025-09-10", "age_days": 257, "base": "v2"},
+      {"number": 10162, "title": "CherryStudio v2: Data & UI Refactoring", "created_at": "2025-09-14", "age_days": 253, "base": "main"},
+      {"number": 12150, "title": "refactor(files): File Management System Architecture", "created_at": "2025-12-26", "age_days": 150, "base": "v2"},
+      {"number": 12345, "title": "fix: adding # after custom API to disable suffix not working", "created_at": "2026-01-07", "age_days": 138, "base": "main"},
+      {"number": 12659, "title": "feat(backup): add v2 backup system refactor plan document", "created_at": "2026-01-30", "age_days": 115, "base": "v2"}
+    ]
   },
   "closed_last_30d": {
-    "issues_closed": 351,
-    "genuine_fix_rate_pct": 19,
-    "inactive_bot_closure_pct": 81,
+    "issues_closed": 348,
+    "prev_closed": 351,
+    "delta": -3,
+    "avg_days_to_close": 43.94,
+    "type_breakdown": {
+      "bug": 45,
+      "feature": 25,
+      "no_type": 30
+    },
+    "state_reason": {
+      "not_planned": 82,
+      "completed": 18
+    },
+    "genuine_fix_rate_pct": 18,
+    "inactive_bot_closure_pct": 82,
     "closures_by_week": {
-      "2026-W19_May5-11": 1,
-      "2026-W20_May12-18": 38,
-      "2026-W21_May19-24": 61
-    }
+      "2026-W17_Apr28-May5": 0,
+      "2026-W18_May5-May12": 1,
+      "2026-W19_May12-May19": 27,
+      "2026-W20_May19-May26": 62
+    },
+    "top_closed_bugs": [
+      {"number": 14402, "title": "[Bug]: pdf输入无法识别"},
+      {"number": 14312, "title": "[Bug]: API request fails with 'type has to be either image_url or text' (400 Bad Request)"},
+      {"number": 13194, "title": "[Bug]: VertexAI Provider Data Storage Architecture Flaw"},
+      {"number": 14276, "title": "[Bug]: Abnormal Memory Usage"},
+      {"number": 13897, "title": "[Bug]: High frequency requests to analytics.cherry-ai.com"},
+      {"number": 15285, "title": "[Bug]: Qwen max series models incorrectly marked as supporting image input"},
+      {"number": 15268, "title": "[Bug]: Reasoning effort config not working for AIHubMix"},
+      {"number": 13961, "title": "[Bug]: Assistant silently hangs after MCP tool call due to missing error handling"}
+    ],
+    "top_closed_features": [
+      {"number": 14239, "title": "[Feature]: Add a conversation jump function on the right side"},
+      {"number": 14281, "title": "[Feature]: Customize Image Size During Generation"},
+      {"number": 14282, "title": "[Feature]: Seamless automatic retry strategy with source switching"},
+      {"number": 14274, "title": "[Feature]: Model selection grouping and folding"},
+      {"number": 14266, "title": "[Feature]: More Advanced Backup Settings"}
+    ]
   },
   "v2_branch": {
-    "open_prs": 81,
+    "open_prs": 82,
     "open_draft_prs": 16,
+    "open_non_draft_prs": 66,
     "open_ready_to_merge": 1,
-    "merged_last_page": {
-      "count": 68,
-      "date_range": "2026-04-10 to 2026-05-23",
-      "weeks_covered": 6.5,
-      "avg_per_week": 9.4
+    "prs_with_review_requests": 44,
+    "open_by_age": {
+      "fresh_lte7d": 16,
+      "active_8_30d": 24,
+      "stale_31_90d": 29,
+      "zombie_gt90d": 13
     },
-    "weekly_merge_velocity": {
-      "W14_Apr10-11": 10,
-      "W15_Apr13-18": 8,
-      "W16_Apr20-24": 7,
-      "W17_Apr27-May1": 9,
-      "W18_May6-10": 12,
-      "W19_May11-14": 11,
-      "W20_May18-23": 9
-    },
-    "top_contributors": [
-      {"login": "DeJeune", "merged": 15},
-      {"login": "eeee0717", "merged": 11},
-      {"login": "kangfenmao", "merged": 9},
-      {"login": "zhangjiadi225", "merged": 8},
-      {"login": "vaayne", "merged": 7},
-      {"login": "Cherry-Yiran", "merged": 5},
-      {"login": "jidan745le", "merged": 5},
-      {"login": "EurFelux", "merged": 3},
-      {"login": "0xfullex", "merged": 2}
+    "top_contributors_open": [
+      {"login": "DeJeune", "count": 17},
+      {"login": "EurFelux", "count": 13},
+      {"login": "LWWZH", "count": 12},
+      {"login": "404-Page-Found", "count": 6},
+      {"login": "kovsu", "count": 5},
+      {"login": "kangfenmao", "count": 2},
+      {"login": "Cherry-Yiran", "count": 2},
+      {"login": "vaayne", "count": 2}
     ],
-    "feature_areas_merged": {
-      "Agents": 10,
-      "Knowledge_Base": 8,
-      "UI_Design_System": 8,
-      "AI_Providers_Models": 8,
-      "File_Processing": 5,
-      "Data_Migration": 5,
-      "UI_Sidebar_Tabs_Layout": 5,
-      "Web_Search": 4,
-      "Settings_Preferences": 3,
-      "Translation_i18n": 2
-    }
+    "merged_last_30d": {
+      "count": 44,
+      "date_range": "2026-04-26 to 2026-05-26",
+      "avg_per_week": 11.0,
+      "prs_last_7d": 9,
+      "weekly_velocity": {
+        "W17_Apr28-May5":   8,
+        "W18_May6-May12":  19,
+        "W19_May13-May19":  7,
+        "W20_May20-May26":  9
+      },
+      "type_breakdown": {"refactor": 18, "feat": 16, "fix": 5, "chore": 2, "docs": 2},
+      "top_merged_contributors": [
+        {"login": "DeJeune",       "merged": 7},
+        {"login": "eeee0717",      "merged": 7},
+        {"login": "zhangjiadi225", "merged": 7},
+        {"login": "kangfenmao",    "merged": 6},
+        {"login": "Cherry-Yiran",  "merged": 6},
+        {"login": "EurFelux",      "merged": 4},
+        {"login": "0xfullex",      "merged": 2},
+        {"login": "vaayne",        "merged": 2}
+      ],
+      "breaking_changes_count": 12,
+      "top_module_areas": {
+        "UI_Components": 6, "File_System": 5, "Knowledge_Base": 4, "Agents": 4,
+        "Web_Search": 3, "Translation": 3, "MiniApp": 3, "Topics_Chat": 3
+      }
+    },
+    "ready_to_merge_detail": {
+      "number": 13173,
+      "title": "refactor(renderer): migrate from ReactMarkdown to Streamdown",
+      "author": "DeJeune",
+      "age_days": 83,
+      "labels": ["v2", "ready-to-merge"]
+    },
+    "oldest_zombie_prs": [
+      {"number": 10090, "title": "[WIP] feat: terminal", "author": "EurFelux", "age_days": 257, "draft": true},
+      {"number": 10699, "title": "feat: video generation", "author": "EurFelux", "age_days": 224, "draft": true},
+      {"number": 10874, "title": "feat: one-click fix mermaid error", "author": "EurFelux", "age_days": 216, "draft": true},
+      {"number": 10912, "title": "refactor: i18n", "author": "EurFelux", "age_days": 214, "labels": ["v2", "Blocked: v2"], "draft": true},
+      {"number": 10929, "title": "refactor: Migrate to tiptap markdown", "author": "Copilot", "age_days": 214, "draft": false}
+    ]
   }
 }
