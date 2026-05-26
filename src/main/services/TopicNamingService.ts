@@ -9,6 +9,7 @@ import { messageService } from '@main/data/services/MessageService'
 import type { Message, MessageData, UIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Topic } from '@shared/data/types/topic'
+import { IpcChannel } from '@shared/IpcChannel'
 
 const logger = loggerService.withContext('TopicNamingService')
 
@@ -203,9 +204,8 @@ export class TopicNamingService {
    * Rename an agent session's name based on the first user+assistant exchange.
    *
    * Mirrors {@link maybeRenameFromConversationSummary} but targets the agents
-   * DB (`session.name`) rather than `topics.name`, uses the session's own
-   * model for summarization, and bumps `agent_session.cache_version` so
-   * renderer SWR caches can refresh.
+   * DB (`session.name`) rather than `topics.name` and uses the session's own
+   * model for summarization.
    *
    * @param sessionId  Cherry Studio session id.
    * @param userText   Plain text of the user turn (already in memory —
@@ -247,7 +247,7 @@ export class TopicNamingService {
 
       const updated = await sessionService.update(sessionId, { name: nextName })
       if (updated) {
-        this.broadcastAgentSessionUpdated()
+        this.notifyAgentSessionAutoRenamed(sessionId)
       }
     } catch (error) {
       logger.warn('Failed to auto-rename agent session', error as Error)
@@ -309,19 +309,15 @@ export class TopicNamingService {
     if (!nextName || nextName === topic.name) return
 
     await topicService.update(topic.id, { name: nextName })
-    this.broadcastTopicUpdated()
+    this.notifyTopicAutoRenamed(topic.id)
   }
 
-  private broadcastTopicUpdated(): void {
-    const cache = application.get('CacheService')
-    const current = cache.getShared('topic.cache_version') ?? 0
-    cache.setShared('topic.cache_version', current + 1)
+  private notifyTopicAutoRenamed(topicId: string): void {
+    application.get('WindowManager').broadcast(IpcChannel.Topic_AutoRenamed, { topicId })
   }
 
-  private broadcastAgentSessionUpdated(): void {
-    const cache = application.get('CacheService')
-    const current = cache.getShared('agent_session.cache_version') ?? 0
-    cache.setShared('agent_session.cache_version', current + 1)
+  private notifyAgentSessionAutoRenamed(sessionId: string): void {
+    application.get('WindowManager').broadcast(IpcChannel.AgentSession_AutoRenamed, { sessionId })
   }
 }
 
