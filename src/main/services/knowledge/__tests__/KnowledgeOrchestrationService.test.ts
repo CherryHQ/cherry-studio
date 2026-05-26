@@ -4,65 +4,70 @@ import { Phase } from '@main/core/lifecycle/types'
 import { ErrorCode, isDataApiError } from '@shared/data/api'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
-  type KnowledgeItem,
+  type KnowledgeBase,
   type KnowledgeItemOf
 } from '@shared/data/types/knowledge'
+import { IpcChannel } from '@shared/IpcChannel'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  runtimeAddItemsMock,
-  runtimeCancelAllJobsForBaseMock,
-  runtimeCreateBaseMock,
-  runtimeDeleteBaseArtifactsMock,
-  runtimeDeleteItemChunkMock,
-  runtimeDeleteItemsMock,
-  runtimeListItemChunksMock,
-  runtimeReindexItemsMock,
-  runtimeSearchMock,
-  runtimeWaitForBaseWriteLocksMock,
+  cancelManyMock,
+  cancelMock,
+  createStoreMock,
+  deleteStoreMock,
+  enqueueMock,
+  getStoreIfExistsMock,
   knowledgeBaseCreateMock,
   knowledgeBaseDeleteMock,
   knowledgeBaseGetByIdMock,
+  knowledgeItemCreateMock,
   knowledgeItemDeleteMock,
-  knowledgeItemGetDescendantItemsMock,
   knowledgeItemGetByIdMock,
   knowledgeItemGetItemsByBaseIdMock,
-  knowledgeItemGetLeafDescendantItemsMock
+  knowledgeItemGetSubtreeItemsMock,
+  knowledgeItemSetSubtreeStatusMock,
+  knowledgeItemUpdateStatusMock,
+  registerHandlerMock,
+  vectorDeleteByIdAndExternalIdMock,
+  vectorListByExternalIdMock,
+  vectorQueryMock
 } = vi.hoisted(() => ({
-  runtimeAddItemsMock: vi.fn(),
-  runtimeCancelAllJobsForBaseMock: vi.fn(),
-  runtimeCreateBaseMock: vi.fn(),
-  runtimeDeleteBaseArtifactsMock: vi.fn(),
-  runtimeDeleteItemChunkMock: vi.fn(),
-  runtimeDeleteItemsMock: vi.fn(),
-  runtimeListItemChunksMock: vi.fn(),
-  runtimeReindexItemsMock: vi.fn(),
-  runtimeSearchMock: vi.fn(),
-  runtimeWaitForBaseWriteLocksMock: vi.fn(),
+  cancelManyMock: vi.fn(),
+  cancelMock: vi.fn(),
+  createStoreMock: vi.fn(),
+  deleteStoreMock: vi.fn(),
+  enqueueMock: vi.fn(),
+  getStoreIfExistsMock: vi.fn(),
   knowledgeBaseCreateMock: vi.fn(),
   knowledgeBaseDeleteMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
+  knowledgeItemCreateMock: vi.fn(),
   knowledgeItemDeleteMock: vi.fn(),
-  knowledgeItemGetDescendantItemsMock: vi.fn(),
   knowledgeItemGetByIdMock: vi.fn(),
   knowledgeItemGetItemsByBaseIdMock: vi.fn(),
-  knowledgeItemGetLeafDescendantItemsMock: vi.fn()
+  knowledgeItemGetSubtreeItemsMock: vi.fn(),
+  knowledgeItemSetSubtreeStatusMock: vi.fn(),
+  knowledgeItemUpdateStatusMock: vi.fn(),
+  registerHandlerMock: vi.fn(),
+  vectorDeleteByIdAndExternalIdMock: vi.fn(),
+  vectorListByExternalIdMock: vi.fn(),
+  vectorQueryMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    KnowledgeRuntimeService: {
-      addItems: runtimeAddItemsMock,
-      cancelAllJobsForBase: runtimeCancelAllJobsForBaseMock,
-      createBase: runtimeCreateBaseMock,
-      deleteBaseArtifacts: runtimeDeleteBaseArtifactsMock,
-      deleteItemChunk: runtimeDeleteItemChunkMock,
-      deleteItems: runtimeDeleteItemsMock,
-      listItemChunks: runtimeListItemChunksMock,
-      reindexItems: runtimeReindexItemsMock,
-      search: runtimeSearchMock,
-      waitForBaseWriteLocks: runtimeWaitForBaseWriteLocksMock
+    JobManager: {
+      cancel: cancelMock,
+      cancelMany: cancelManyMock,
+      enqueue: enqueueMock,
+      list: vi.fn().mockResolvedValue([]),
+      registerHandler: registerHandlerMock
+    },
+    KnowledgeVectorStoreService: {
+      createStore: createStoreMock,
+      deleteStore: deleteStoreMock,
+      getStoreIfExists: getStoreIfExistsMock
     }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
@@ -100,94 +105,66 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
 
 vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: {
+    create: knowledgeItemCreateMock,
     delete: knowledgeItemDeleteMock,
-    getDescendantItems: knowledgeItemGetDescendantItemsMock,
     getById: knowledgeItemGetByIdMock,
+    getSubtreeItems: knowledgeItemGetSubtreeItemsMock,
     getItemsByBaseId: knowledgeItemGetItemsByBaseIdMock,
-    getLeafDescendantItems: knowledgeItemGetLeafDescendantItemsMock
+    setSubtreeStatus: knowledgeItemSetSubtreeStatusMock,
+    updateStatus: knowledgeItemUpdateStatusMock
   }
 }))
 
-const { KnowledgeOrchestrationService, KnowledgeRuntimeAddItemsPartialError } = await import(
-  '../KnowledgeOrchestrationService'
-)
+vi.mock('ai', () => ({
+  embedMany: vi.fn().mockResolvedValue({ embeddings: [[0.1, 0.2, 0.3]] })
+}))
 
-function createBase() {
+vi.mock('../utils/model/embedding', () => ({
+  getEmbedModel: vi.fn(() => ({ modelId: 'mock-embed' }))
+}))
+
+vi.mock('../rerank/rerank', () => ({
+  rerankKnowledgeSearchResults: vi.fn(async (_base, _query, results) => results)
+}))
+
+const { KnowledgeOrchestrationService } = await import('../KnowledgeOrchestrationService')
+
+function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
   return {
     id: 'kb-1',
     name: 'KB',
+    groupId: null,
     emoji: '📁',
-    dimensions: 1024,
-    embeddingModelId: 'ollama::nomic-embed-text',
+    dimensions: 3,
+    embeddingModelId: 'provider::embed',
+    rerankModelId: null,
+    fileProcessorId: null,
     status: 'completed',
     error: null,
     chunkSize: 1024,
     chunkOverlap: 200,
+    threshold: undefined,
+    documentCount: 10,
+    searchMode: 'default',
+    hybridAlpha: undefined,
     createdAt: '2026-04-08T00:00:00.000Z',
-    updatedAt: '2026-04-08T00:00:00.000Z'
+    updatedAt: '2026-04-08T00:00:00.000Z',
+    ...overrides
   }
-}
-
-function createMissingModelBase() {
-  return {
-    ...createBase(),
-    id: 'source-kb',
-    name: 'Legacy KB',
-    embeddingModelId: null,
-    status: 'failed',
-    error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
-  }
-}
-
-function expectFailedBaseRuntimeGuard(error: unknown, operation: string) {
-  expect(isDataApiError(error)).toBe(true)
-  expect(error).toMatchObject({
-    code: ErrorCode.VALIDATION_ERROR,
-    message: `Cannot ${operation} failed knowledge base`,
-    details: {
-      fieldErrors: {
-        base: [`Knowledge base 'kb-1' is in failed state; restore it before ${operation}.`]
-      }
-    }
-  })
-}
-
-function expectCompletedBaseNoopRebuildGuard(error: unknown) {
-  expect(isDataApiError(error)).toBe(true)
-  expect(error).toMatchObject({
-    code: ErrorCode.INVALID_OPERATION,
-    message:
-      'Invalid operation: restoreBase - Embedding model or dimensions must change when rebuilding a completed knowledge base',
-    details: {
-      operation: 'restoreBase',
-      reason: 'Embedding model or dimensions must change when rebuilding a completed knowledge base'
-    }
-  })
-}
-
-function expectRestorePartialError(
-  error: unknown,
-  failures: Array<{ sourceItemId: string | null; sourceItemType: string | null; message: string }>
-) {
-  expect(error).toBeInstanceOf(KnowledgeRuntimeAddItemsPartialError)
-  expect(error).toMatchObject({
-    name: 'KnowledgeRuntimeAddItemsPartialError',
-    message: `Failed to restore ${failures.length} knowledge root item(s)`,
-    failures
-  })
 }
 
 function createNoteItem(
   id = 'note-1',
-  status: KnowledgeItemOf<'note'>['status'] = 'idle',
-  groupId: string | null = null
-): KnowledgeItem {
+  baseId = 'kb-1',
+  groupId: string | null = null,
+  status: KnowledgeItemOf<'note'>['status'] = 'idle'
+): KnowledgeItemOf<'note'> {
   const lifecycle =
     status === 'failed' ? ({ status, error: `failed ${id}` } as const) : ({ status, error: null } as const)
 
   return {
     id,
-    baseId: 'kb-1',
+    baseId,
     groupId,
     type: 'note',
     data: { source: id, content: `hello ${id}` },
@@ -197,743 +174,251 @@ function createNoteItem(
   }
 }
 
-function createDirectoryItem(
-  id = 'dir-1',
-  status: KnowledgeItemOf<'directory'>['status'] = 'idle',
-  groupId: string | null = null
-): KnowledgeItem {
-  const lifecycle =
-    status === 'failed' ? ({ status, error: `failed ${id}` } as const) : ({ status, error: null } as const)
-
+function createDirectoryItem(id = 'dir-1', groupId: string | null = null): KnowledgeItemOf<'directory'> {
   return {
     id,
     baseId: 'kb-1',
     groupId,
     type: 'directory',
-    data: { source: `/docs/${id}`, path: `/docs/${id}` },
-    ...lifecycle,
+    data: { source: id, path: `/docs/${id}` },
+    status: 'idle',
+    error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
   }
 }
 
+function expectFailedBaseGuard(error: unknown, operation: string) {
+  expect(isDataApiError(error)).toBe(true)
+  expect(error).toMatchObject({
+    code: ErrorCode.VALIDATION_ERROR,
+    message: `Cannot ${operation} failed knowledge base`
+  })
+}
+
+const createdItemBaseIds = new Map<string, string>()
+
 describe('KnowledgeOrchestrationService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-
+    createdItemBaseIds.clear()
     knowledgeBaseCreateMock.mockResolvedValue(createBase())
     knowledgeBaseDeleteMock.mockResolvedValue(undefined)
     knowledgeBaseGetByIdMock.mockResolvedValue(createBase())
+    knowledgeItemCreateMock.mockImplementation(async (baseId: string, input: { data: { source: string } }) => {
+      createdItemBaseIds.set(input.data.source, baseId)
+      return createNoteItem(input.data.source, baseId)
+    })
     knowledgeItemDeleteMock.mockResolvedValue(undefined)
-    knowledgeItemGetDescendantItemsMock.mockResolvedValue([])
-    knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem())
+    knowledgeItemGetByIdMock.mockImplementation(async (id: string) => {
+      return createNoteItem(id, createdItemBaseIds.get(id) ?? 'kb-1')
+    })
     knowledgeItemGetItemsByBaseIdMock.mockResolvedValue([])
-    knowledgeItemGetLeafDescendantItemsMock.mockResolvedValue([createNoteItem()])
-    runtimeAddItemsMock.mockResolvedValue(undefined)
-    runtimeCancelAllJobsForBaseMock.mockResolvedValue(undefined)
-    runtimeCreateBaseMock.mockResolvedValue(undefined)
-    runtimeDeleteBaseArtifactsMock.mockResolvedValue(undefined)
-    runtimeDeleteItemChunkMock.mockResolvedValue(undefined)
-    runtimeDeleteItemsMock.mockResolvedValue(undefined)
-    runtimeListItemChunksMock.mockResolvedValue([])
-    runtimeReindexItemsMock.mockResolvedValue(undefined)
-    runtimeSearchMock.mockResolvedValue([])
-    runtimeWaitForBaseWriteLocksMock.mockResolvedValue(undefined)
+    knowledgeItemGetSubtreeItemsMock.mockImplementation(
+      async (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean; leafOnly?: boolean } = {}) =>
+        options.leafOnly ? [createNoteItem('note-1')] : []
+    )
+    knowledgeItemSetSubtreeStatusMock.mockResolvedValue(['note-1'])
+    knowledgeItemUpdateStatusMock.mockImplementation(async (id: string, status: KnowledgeItemOf<'note'>['status']) => {
+      return createNoteItem(id, createdItemBaseIds.get(id) ?? 'kb-1', null, status)
+    })
+    enqueueMock.mockResolvedValue({ id: 'job-1', snapshot: {}, finished: Promise.resolve({}) })
+    createStoreMock.mockResolvedValue({
+      deleteByIdAndExternalId: vectorDeleteByIdAndExternalIdMock,
+      listByExternalId: vectorListByExternalIdMock,
+      query: vectorQueryMock
+    })
+    vectorListByExternalIdMock.mockResolvedValue([])
+    vectorQueryMock.mockResolvedValue({ nodes: [], similarities: [] })
   })
 
-  it('uses WhenReady phase and depends on KnowledgeRuntimeService', () => {
+  it('uses WhenReady phase and depends on the vector store service', () => {
     expect(getPhase(KnowledgeOrchestrationService)).toBe(Phase.WhenReady)
-    expect(getDependencies(KnowledgeOrchestrationService)).toEqual(['KnowledgeRuntimeService'])
+    expect(getDependencies(KnowledgeOrchestrationService)).toEqual(['KnowledgeVectorStoreService'])
   })
 
-  it('registers caller-facing knowledge IPC handlers', () => {
+  it('registers formal knowledge job handlers and caller-facing IPC handlers', () => {
     const service = new KnowledgeOrchestrationService()
+
     ;(service as unknown as { onInit: () => void }).onInit()
 
-    const handlerCalls = (service as unknown as { ipcHandle: ReturnType<typeof vi.fn> }).ipcHandle.mock.calls.map(
-      (call) => call[0]
+    expect(registerHandlerMock.mock.calls.map((call) => call[0])).toEqual([
+      'knowledge.prepare-root',
+      'knowledge.index-documents',
+      'knowledge.delete-subtree',
+      'knowledge.reindex-subtree'
+    ])
+    expect(
+      (service as unknown as { ipcHandle: ReturnType<typeof vi.fn> }).ipcHandle.mock.calls.map((call) => call[0])
+    ).toEqual([
+      IpcChannel.KnowledgeRuntime_CreateBase,
+      IpcChannel.KnowledgeRuntime_RestoreBase,
+      IpcChannel.KnowledgeRuntime_DeleteBase,
+      IpcChannel.KnowledgeRuntime_AddItems,
+      IpcChannel.KnowledgeRuntime_DeleteItems,
+      IpcChannel.KnowledgeRuntime_ReindexItems,
+      IpcChannel.KnowledgeRuntime_Search,
+      IpcChannel.KnowledgeRuntime_ListItemChunks,
+      IpcChannel.KnowledgeRuntime_DeleteItemChunk
+    ])
+  })
+
+  it('creates vector artifacts after creating the base and rolls back on artifact failure', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const base = createBase({ id: 'created-base' })
+    knowledgeBaseCreateMock.mockResolvedValueOnce(base)
+
+    await expect(service.createBase({ name: 'KB', dimensions: 3, embeddingModelId: 'provider::embed' })).resolves.toBe(
+      base
     )
-    expect(handlerCalls).toHaveLength(9)
-    expect(handlerCalls).toEqual(
-      expect.arrayContaining([
-        'knowledge-runtime:create-base',
-        'knowledge-runtime:restore-base',
-        'knowledge-runtime:delete-base',
-        'knowledge-runtime:add-items',
-        'knowledge-runtime:delete-items',
-        'knowledge-runtime:reindex-items',
-        'knowledge-runtime:search',
-        'knowledge-runtime:list-item-chunks',
-        'knowledge-runtime:delete-item-chunk'
-      ])
-    )
-  })
+    expect(createStoreMock).toHaveBeenCalledWith(base)
 
-  it('creates a base and initializes its runtime store', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const input = {
-      name: 'KB',
-      dimensions: 1024,
-      embeddingModelId: 'ollama::nomic-embed-text'
-    }
-
-    await expect(service.createBase(input)).resolves.toEqual(createBase())
-
-    expect(knowledgeBaseCreateMock).toHaveBeenCalledWith(input)
-    expect(runtimeCreateBaseMock).toHaveBeenCalledWith('kb-1')
-  })
-
-  it('rolls back the SQLite base when runtime base initialization fails', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const createError = new Error('vector store initialization failed')
-    runtimeCreateBaseMock.mockRejectedValueOnce(createError)
-
+    createStoreMock.mockRejectedValueOnce(new Error('store failed'))
     await expect(
-      service.createBase({
-        name: 'KB',
-        dimensions: 1024,
-        embeddingModelId: 'ollama::nomic-embed-text'
-      })
-    ).rejects.toBe(createError)
-
+      service.createBase({ name: 'KB', dimensions: 3, embeddingModelId: 'provider::embed' })
+    ).rejects.toThrow('store failed')
     expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
   })
 
-  it('cancels active jobs, waits for locks, then deletes artifacts + SQLite in order', async () => {
+  it('deletes base jobs, vector artifacts, and SQLite base under the mutation lock', async () => {
     const service = new KnowledgeOrchestrationService()
 
-    await expect(service.deleteBase('kb-1')).resolves.toBeUndefined()
+    await service.deleteBase('kb-1')
 
-    expect(runtimeCancelAllJobsForBaseMock).toHaveBeenCalledWith('kb-1')
-    expect(runtimeWaitForBaseWriteLocksMock).toHaveBeenCalledWith('kb-1', 35_000)
-    expect(runtimeDeleteBaseArtifactsMock).toHaveBeenCalledWith('kb-1')
-    expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
-
-    const orders = {
-      cancel: runtimeCancelAllJobsForBaseMock.mock.invocationCallOrder[0],
-      wait: runtimeWaitForBaseWriteLocksMock.mock.invocationCallOrder[0],
-      artifacts: runtimeDeleteBaseArtifactsMock.mock.invocationCallOrder[0],
-      dbDelete: knowledgeBaseDeleteMock.mock.invocationCallOrder[0]
-    }
-    expect(orders.cancel).toBeLessThan(orders.wait)
-    expect(orders.wait).toBeLessThan(orders.artifacts)
-    expect(orders.artifacts).toBeLessThan(orders.dbDelete)
-  })
-
-  it('aborts before the artifact delete when cancellation fails', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const cancelError = new Error('cancel failed')
-    runtimeCancelAllJobsForBaseMock.mockRejectedValueOnce(cancelError)
-
-    await expect(service.deleteBase('kb-1')).rejects.toBe(cancelError)
-
-    expect(runtimeWaitForBaseWriteLocksMock).not.toHaveBeenCalled()
-    expect(runtimeDeleteBaseArtifactsMock).not.toHaveBeenCalled()
-    expect(knowledgeBaseDeleteMock).not.toHaveBeenCalled()
-  })
-
-  it('skips SQLite delete when artifact cleanup fails (so user can retry from UI)', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const artifactError = new Error('artifact delete failed')
-    runtimeDeleteBaseArtifactsMock.mockRejectedValueOnce(artifactError)
-
-    await expect(service.deleteBase('kb-1')).rejects.toBe(artifactError)
-
-    expect(knowledgeBaseDeleteMock).not.toHaveBeenCalled()
-  })
-
-  it('wraps post-artifact SQLite failure as a partial-cleanup invalid-operation error', async () => {
-    const service = new KnowledgeOrchestrationService()
-    knowledgeBaseDeleteMock.mockRejectedValueOnce(new Error('sqlite delete failed'))
-
-    await expect(service.deleteBase('kb-1')).rejects.toMatchObject({
-      message: expect.stringContaining(
-        'Invalid operation: deleteBase - Vector artifacts were deleted, but SQLite knowledge base cleanup failed: sqlite delete failed'
-      ),
-      details: {
-        operation: 'deleteBase',
-        reason: expect.stringContaining('Vector artifacts were deleted, but SQLite knowledge base cleanup failed')
-      }
-    })
-
-    expect(runtimeDeleteBaseArtifactsMock).toHaveBeenCalledWith('kb-1')
+    expect(deleteStoreMock).toHaveBeenCalledWith('kb-1')
     expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
   })
 
-  it('restores a failed base by creating a new base from source config and adding root items', async () => {
+  it('restores a failed base by creating a new base and enqueueing restored root items', async () => {
     const service = new KnowledgeOrchestrationService()
-    const sourceBase = {
-      ...createMissingModelBase(),
-      id: 'source-kb',
-      name: 'Source KB',
-      groupId: 'group-1',
-      emoji: '📚',
-      dimensions: 1024,
-      rerankModelId: 'rerank-1',
-      fileProcessorId: 'processor-1',
-      threshold: 0.55,
-      documentCount: 5,
-      searchMode: 'hybrid',
-      hybridAlpha: 0.7
-    }
-    const root = { ...createNoteItem('note-root'), baseId: sourceBase.id }
-    knowledgeBaseGetByIdMock.mockResolvedValueOnce(sourceBase)
-    knowledgeItemGetItemsByBaseIdMock.mockResolvedValueOnce([root])
-
-    await expect(
-      service.restoreBase({
-        sourceBaseId: 'source-kb',
-        name: '  Source KB_bak  ',
-        embeddingModelId: 'openai::text-embedding-3-large',
-        dimensions: 3072
-      })
-    ).resolves.toEqual(createBase())
-
-    expect(knowledgeBaseCreateMock).toHaveBeenCalledWith({
-      name: 'Source KB_bak',
-      groupId: 'group-1',
-      emoji: '📚',
-      dimensions: 3072,
-      embeddingModelId: 'openai::text-embedding-3-large',
-      rerankModelId: 'rerank-1',
-      fileProcessorId: 'processor-1',
-      chunkSize: sourceBase.chunkSize,
-      chunkOverlap: 200,
-      threshold: 0.55,
-      documentCount: 5,
-      searchMode: 'hybrid',
-      hybridAlpha: 0.7
-    })
-    expect(knowledgeItemGetItemsByBaseIdMock).toHaveBeenCalledWith('source-kb', { groupId: null })
-    expect(runtimeCreateBaseMock).toHaveBeenCalledWith('kb-1')
-    expect(runtimeAddItemsMock).toHaveBeenCalledWith('kb-1', [{ type: root.type, data: root.data }])
-  })
-
-  it('restores a failed base, keeps the source base, and allows reindexing the restored base', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const sourceBase = { ...createMissingModelBase(), id: 'source-kb' }
-    const restoredBase = { ...createBase(), id: 'restored-kb' }
-    const sourceRoot = { ...createNoteItem('source-root'), baseId: sourceBase.id }
-    const restoredRoot = { ...createNoteItem('restored-root'), baseId: restoredBase.id }
-
+    const restoredBase = createBase({ id: 'restored-kb', embeddingModelId: 'provider::new', dimensions: 6 })
+    knowledgeBaseGetByIdMock
+      .mockResolvedValueOnce(createBase({ id: 'source-kb', status: 'failed' }))
+      .mockResolvedValueOnce(restoredBase)
+      .mockResolvedValueOnce(restoredBase)
     knowledgeBaseCreateMock.mockResolvedValueOnce(restoredBase)
-    knowledgeBaseGetByIdMock.mockResolvedValueOnce(sourceBase).mockResolvedValue(restoredBase)
-    knowledgeItemGetItemsByBaseIdMock.mockResolvedValueOnce([sourceRoot])
-    knowledgeItemGetByIdMock.mockResolvedValueOnce(restoredRoot)
+    knowledgeItemGetItemsByBaseIdMock.mockResolvedValueOnce([createNoteItem('source-note', 'source-kb')])
 
     await expect(
       service.restoreBase({
-        sourceBaseId: sourceBase.id,
-        name: restoredBase.name,
-        embeddingModelId: restoredBase.embeddingModelId,
-        dimensions: restoredBase.dimensions
+        sourceBaseId: 'source-kb',
+        name: 'Restored KB',
+        embeddingModelId: 'provider::new',
+        dimensions: 6
       })
-    ).resolves.toEqual(restoredBase)
-    await expect(service.reindexItems(restoredBase.id, [restoredRoot.id])).resolves.toBeUndefined()
+    ).resolves.toBe(restoredBase)
 
-    expect(knowledgeBaseDeleteMock).not.toHaveBeenCalled()
-    expect(runtimeDeleteBaseArtifactsMock).not.toHaveBeenCalled()
-    expect(runtimeCreateBaseMock).toHaveBeenCalledWith(restoredBase.id)
-    expect(runtimeAddItemsMock).toHaveBeenCalledWith(restoredBase.id, [
-      { type: sourceRoot.type, data: sourceRoot.data }
-    ])
-    expect(runtimeReindexItemsMock).toHaveBeenCalledWith(restoredBase.id, [restoredRoot])
+    expect(enqueueMock).toHaveBeenCalledWith(
+      'knowledge.index-documents',
+      expect.objectContaining({ baseId: 'restored-kb' }),
+      expect.objectContaining({ idempotencyKey: expect.stringContaining('knowledge:restored-kb:') })
+    )
   })
 
-  it('allows restoring a failed base when embedding config is unchanged', async () => {
+  it('schedules add, delete, and reindex through the new workflow jobs', async () => {
     const service = new KnowledgeOrchestrationService()
-    const sourceBase = {
-      ...createBase(),
-      id: 'source-kb',
-      status: 'failed' as const,
-      error: 'runtime failed'
+    knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem('note-1'))
+
+    await service.addItems('kb-1', [{ type: 'note', data: { source: 'note-1', content: 'hello' } }])
+    await service.deleteItems('kb-1', ['note-1'])
+    await service.reindexItems('kb-1', ['note-1'])
+
+    expect(enqueueMock.mock.calls.map((call) => call[0])).toEqual([
+      'knowledge.index-documents',
+      'knowledge.delete-subtree',
+      'knowledge.reindex-subtree'
+    ])
+    expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['note-1'], 'deleting')
+  })
+
+  it('collapses nested delete and reindex inputs to top-level roots', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const parent = createDirectoryItem('dir-1')
+    const child = createNoteItem('note-1', 'kb-1', 'dir-1')
+    knowledgeItemGetByIdMock.mockImplementation(async (id: string) => (id === 'dir-1' ? parent : child))
+    knowledgeItemGetSubtreeItemsMock.mockImplementation(
+      async (_baseId: string, rootIds: string[], options: { includeRoots?: boolean; leafOnly?: boolean } = {}) =>
+        !options.includeRoots && rootIds.includes('dir-1') ? [child] : []
+    )
+
+    await service.deleteItems('kb-1', ['dir-1', 'note-1'])
+    await service.reindexItems('kb-1', ['dir-1', 'note-1'])
+
+    expect(enqueueMock).toHaveBeenNthCalledWith(
+      1,
+      'knowledge.delete-subtree',
+      { baseId: 'kb-1', rootItemIds: ['dir-1'] },
+      expect.any(Object)
+    )
+    expect(enqueueMock).toHaveBeenNthCalledWith(
+      2,
+      'knowledge.reindex-subtree',
+      { baseId: 'kb-1', rootItemIds: ['dir-1'] },
+      expect.any(Object)
+    )
+  })
+
+  it('rejects runtime operations on failed bases before scheduling work', async () => {
+    const service = new KnowledgeOrchestrationService()
+    knowledgeBaseGetByIdMock.mockResolvedValue(
+      createBase({ status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL })
+    )
+
+    try {
+      await service.addItems('kb-1', [{ type: 'note', data: { source: 'x', content: 'x' } }])
+      throw new Error('Expected addItems to fail')
+    } catch (error) {
+      expectFailedBaseGuard(error, 'addItems')
     }
-    const root = { ...createNoteItem('note-root'), baseId: sourceBase.id }
-    knowledgeBaseGetByIdMock.mockResolvedValueOnce(sourceBase)
-    knowledgeItemGetItemsByBaseIdMock.mockResolvedValueOnce([root])
 
-    await expect(
-      service.restoreBase({
-        sourceBaseId: 'source-kb',
-        name: 'Source KB_bak',
-        embeddingModelId: sourceBase.embeddingModelId,
-        dimensions: sourceBase.dimensions
-      })
-    ).resolves.toEqual(createBase())
-
-    expect(knowledgeItemGetItemsByBaseIdMock).toHaveBeenCalledWith('source-kb', { groupId: null })
-    expect(runtimeAddItemsMock).toHaveBeenCalledWith('kb-1', [{ type: root.type, data: root.data }])
+    try {
+      await service.reindexItems('kb-1', ['note-1'])
+      throw new Error('Expected reindexItems to fail')
+    } catch (error) {
+      expectFailedBaseGuard(error, 'reindexItems')
+    }
+    expect(enqueueMock).not.toHaveBeenCalled()
   })
 
-  it('rebuilds a completed base when the embedding model changes', async () => {
+  it('searches vector store results and applies relevance threshold', async () => {
     const service = new KnowledgeOrchestrationService()
-    const sourceBase = { ...createBase(), id: 'source-kb', embeddingModelId: 'ollama::old-embed', dimensions: 1024 }
-    const root = { ...createNoteItem('note-root'), baseId: sourceBase.id }
-    knowledgeBaseGetByIdMock.mockResolvedValueOnce(sourceBase)
-    knowledgeItemGetItemsByBaseIdMock.mockResolvedValueOnce([root])
-
-    await expect(
-      service.restoreBase({
-        sourceBaseId: 'source-kb',
-        name: 'Source KB_bak',
-        embeddingModelId: 'openai::text-embedding-3-large',
-        dimensions: sourceBase.dimensions
-      })
-    ).resolves.toEqual(createBase())
-
-    expect(knowledgeBaseCreateMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        embeddingModelId: 'openai::text-embedding-3-large',
-        dimensions: sourceBase.dimensions
-      })
-    )
-    expect(runtimeCreateBaseMock).toHaveBeenCalledWith('kb-1')
-    expect(runtimeAddItemsMock).toHaveBeenCalledWith('kb-1', [{ type: root.type, data: root.data }])
-  })
-
-  it('rebuilds a completed base when dimensions change', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const sourceBase = { ...createBase(), id: 'source-kb', embeddingModelId: 'ollama::old-embed', dimensions: 1024 }
-    const root = { ...createNoteItem('note-root'), baseId: sourceBase.id }
-    knowledgeBaseGetByIdMock.mockResolvedValueOnce(sourceBase)
-    knowledgeItemGetItemsByBaseIdMock.mockResolvedValueOnce([root])
-
-    await expect(
-      service.restoreBase({
-        sourceBaseId: 'source-kb',
-        name: 'Source KB_bak',
-        embeddingModelId: sourceBase.embeddingModelId,
-        dimensions: 3072
-      })
-    ).resolves.toEqual(createBase())
-
-    expect(knowledgeBaseCreateMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        embeddingModelId: sourceBase.embeddingModelId,
-        dimensions: 3072
-      })
-    )
-    expect(runtimeCreateBaseMock).toHaveBeenCalledWith('kb-1')
-    expect(runtimeAddItemsMock).toHaveBeenCalledWith('kb-1', [{ type: root.type, data: root.data }])
-  })
-
-  it('rejects completed base restore when embedding config is unchanged', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const sourceBase = { ...createBase(), id: 'source-kb', embeddingModelId: 'ollama::old-embed', dimensions: 1024 }
-    knowledgeBaseGetByIdMock.mockResolvedValueOnce(sourceBase)
-
-    await expect(
-      service.restoreBase({
-        sourceBaseId: 'source-kb',
-        name: 'Source KB_bak',
-        embeddingModelId: sourceBase.embeddingModelId,
-        dimensions: sourceBase.dimensions
-      })
-    ).rejects.toSatisfy((error: unknown) => {
-      expectCompletedBaseNoopRebuildGuard(error)
-      return true
-    })
-
-    expect(knowledgeItemGetItemsByBaseIdMock).not.toHaveBeenCalled()
-    expect(knowledgeBaseCreateMock).not.toHaveBeenCalled()
-    expect(runtimeCreateBaseMock).not.toHaveBeenCalled()
-    expect(runtimeAddItemsMock).not.toHaveBeenCalled()
-  })
-
-  it('restores only source root items', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const sourceBase = createMissingModelBase()
-    const root = { ...createNoteItem('note-root'), baseId: sourceBase.id }
-    const child = { ...createNoteItem('note-child', 'idle', 'note-root'), baseId: sourceBase.id }
-    knowledgeBaseGetByIdMock.mockResolvedValueOnce(sourceBase)
-    knowledgeItemGetItemsByBaseIdMock.mockResolvedValueOnce([root])
-
-    await expect(
-      service.restoreBase({
-        sourceBaseId: 'source-kb',
-        name: 'Legacy KB_bak',
-        embeddingModelId: 'openai::text-embedding-3-large',
-        dimensions: 3072
-      })
-    ).resolves.toEqual(createBase())
-
-    expect(knowledgeItemGetItemsByBaseIdMock).toHaveBeenCalledWith('source-kb', { groupId: null })
-    expect(runtimeAddItemsMock).toHaveBeenCalledWith('kb-1', [{ type: root.type, data: root.data }])
-    expect(runtimeAddItemsMock).not.toHaveBeenCalledWith(
-      'kb-1',
-      expect.arrayContaining([{ type: child.type, data: child.data }])
-    )
-  })
-
-  it('restores a base without adding items when it has no root items', async () => {
-    const service = new KnowledgeOrchestrationService()
-    knowledgeBaseGetByIdMock.mockResolvedValueOnce(createMissingModelBase())
-    knowledgeItemGetItemsByBaseIdMock.mockResolvedValueOnce([])
-
-    await expect(
-      service.restoreBase({
-        sourceBaseId: 'source-kb',
-        name: 'Legacy KB_bak',
-        embeddingModelId: 'openai::text-embedding-3-large',
-        dimensions: 3072
-      })
-    ).resolves.toEqual(createBase())
-
-    expect(knowledgeBaseCreateMock).toHaveBeenCalled()
-    expect(runtimeAddItemsMock).not.toHaveBeenCalled()
-  })
-
-  it('adds restored root items in one batch and deletes the new base when runtime acceptance fails', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const sourceBase = createMissingModelBase()
-    const firstRoot = { ...createNoteItem('note-root-1'), baseId: sourceBase.id }
-    const failedRoot = { ...createNoteItem('note-root-2'), baseId: sourceBase.id }
-    const thirdRoot = { ...createNoteItem('note-root-3'), baseId: sourceBase.id }
-    const error = new Error('runtime acceptance failed')
-    knowledgeBaseGetByIdMock.mockResolvedValueOnce(sourceBase)
-    knowledgeItemGetItemsByBaseIdMock.mockResolvedValueOnce([firstRoot, failedRoot, thirdRoot])
-    runtimeAddItemsMock.mockRejectedValueOnce(error)
-
-    await expect(
-      service.restoreBase({
-        sourceBaseId: 'source-kb',
-        name: 'Legacy KB_bak',
-        embeddingModelId: 'openai::text-embedding-3-large',
-        dimensions: 3072
-      })
-    ).rejects.toSatisfy((restoreError: unknown) => {
-      expectRestorePartialError(restoreError, [{ sourceItemId: null, sourceItemType: null, message: error.message }])
-      return true
-    })
-
-    expect(runtimeAddItemsMock).toHaveBeenCalledOnce()
-    expect(runtimeAddItemsMock).toHaveBeenCalledWith('kb-1', [
-      { type: firstRoot.type, data: firstRoot.data },
-      { type: failedRoot.type, data: failedRoot.data },
-      { type: thirdRoot.type, data: thirdRoot.data }
-    ])
-    expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
-    expect(runtimeDeleteBaseArtifactsMock).toHaveBeenCalledWith('kb-1')
-  })
-
-  it('aggregates root item parse failures without calling runtime addItems', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const sourceBase = createMissingModelBase()
-    const firstRoot = { ...createNoteItem('note-root-1'), baseId: sourceBase.id }
-    const invalidRoot = {
-      ...createNoteItem('invalid-root'),
-      baseId: sourceBase.id,
-      type: 'unsupported',
-      data: { source: 'invalid-root' }
-    } as unknown as KnowledgeItem
-    knowledgeBaseGetByIdMock.mockResolvedValueOnce(sourceBase)
-    knowledgeItemGetItemsByBaseIdMock.mockResolvedValueOnce([firstRoot, invalidRoot])
-
-    await expect(
-      service.restoreBase({
-        sourceBaseId: 'source-kb',
-        name: 'Legacy KB_bak',
-        embeddingModelId: 'openai::text-embedding-3-large',
-        dimensions: 3072
-      })
-    ).rejects.toSatisfy((restoreError: unknown) => {
-      expectRestorePartialError(restoreError, [
+    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ threshold: 0.5 }))
+    vectorQueryMock.mockResolvedValueOnce({
+      nodes: [
         {
-          sourceItemId: invalidRoot.id,
-          sourceItemType: invalidRoot.type,
-          message: expect.stringContaining('Invalid input')
-        }
-      ])
-      return true
-    })
-
-    expect(runtimeAddItemsMock).not.toHaveBeenCalled()
-    expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
-    expect(runtimeDeleteBaseArtifactsMock).toHaveBeenCalledWith('kb-1')
-  })
-
-  it('keeps the aggregate item acceptance error when cleanup of a failed restore also fails', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const sourceBase = createMissingModelBase()
-    const root = { ...createNoteItem('note-root'), baseId: sourceBase.id }
-    const error = new Error('runtime acceptance failed')
-    knowledgeBaseGetByIdMock.mockResolvedValueOnce(sourceBase)
-    knowledgeItemGetItemsByBaseIdMock.mockResolvedValueOnce([root])
-    runtimeAddItemsMock.mockRejectedValueOnce(error)
-    runtimeCancelAllJobsForBaseMock.mockRejectedValueOnce(new Error('cleanup failed'))
-
-    await expect(
-      service.restoreBase({
-        sourceBaseId: 'source-kb',
-        name: 'Legacy KB_bak',
-        embeddingModelId: 'openai::text-embedding-3-large',
-        dimensions: 3072
-      })
-    ).rejects.toSatisfy((restoreError: unknown) => {
-      expectRestorePartialError(restoreError, [{ sourceItemId: null, sourceItemType: null, message: error.message }])
-      return true
-    })
-    expect(knowledgeBaseDeleteMock).not.toHaveBeenCalled()
-  })
-
-  it('delegates create-item DTO inputs to runtime', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const input = [{ type: 'note' as const, data: { source: 'note-1', content: 'hello' } }]
-
-    const result = await service.addItems('kb-1', input)
-
-    expect(result).toBeUndefined()
-    expect(runtimeAddItemsMock).toHaveBeenCalledWith('kb-1', input)
-  })
-
-  it('rejects addItems when runtime acceptance fails', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const runtimeError = new Error('runtime acceptance failed')
-    runtimeAddItemsMock.mockRejectedValueOnce(runtimeError)
-
-    await expect(
-      service.addItems('kb-1', [{ type: 'note', data: { source: 'note-1', content: 'hello' } }])
-    ).rejects.toBe(runtimeError)
-  })
-
-  it('passes all add item variants through to runtime without normalizing in orchestration', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const file = {
-      id: 'file-meta-1',
-      name: 'guide.md',
-      origin_name: 'guide.md',
-      path: '/docs/guide.md',
-      created_at: '2026-04-08T00:00:00.000Z',
-      size: 12,
-      ext: '.md',
-      type: 'text' as const,
-      count: 1
-    }
-    const inputs = [
-      {
-        type: 'url' as const,
-        data: { source: 'https://example.com/page', url: 'https://example.com/page' }
-      },
-      {
-        type: 'sitemap' as const,
-        data: { source: 'https://example.com/sitemap.xml', url: 'https://example.com/sitemap.xml' }
-      },
-      { type: 'directory' as const, data: { source: '/docs/reference/', path: '/docs/reference/' } },
-      { type: 'file' as const, data: { source: file.path, file } }
-    ]
-
-    await expect(service.addItems('kb-1', inputs)).resolves.toBeUndefined()
-
-    expect(runtimeAddItemsMock).toHaveBeenCalledWith('kb-1', inputs)
-  })
-
-  it('rejects addItems on failed bases before calling runtime', async () => {
-    const service = new KnowledgeOrchestrationService()
-    knowledgeBaseGetByIdMock.mockResolvedValueOnce({ ...createMissingModelBase(), id: 'kb-1' })
-
-    await expect(
-      service.addItems('kb-1', [{ type: 'note', data: { source: 'note-1', content: 'hello' } }])
-    ).rejects.toSatisfy((error: unknown) => {
-      expectFailedBaseRuntimeGuard(error, 'addItems')
-      return true
-    })
-
-    expect(runtimeAddItemsMock).not.toHaveBeenCalled()
-  })
-
-  it('asks runtime to delete roots before deleting SQLite roots', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const root = createNoteItem('note-root')
-    knowledgeItemGetByIdMock.mockResolvedValueOnce(root)
-
-    await expect(service.deleteItems('kb-1', [root.id])).resolves.toBeUndefined()
-
-    expect(runtimeDeleteItemsMock).toHaveBeenCalledWith('kb-1', [root])
-    expect(knowledgeItemDeleteMock).toHaveBeenCalledWith(root.id)
-  })
-
-  it('collapses nested delete inputs to top-level roots', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const root = createDirectoryItem('dir-root')
-    const child = createNoteItem('note-child', 'idle', root.id)
-    knowledgeItemGetByIdMock.mockResolvedValueOnce(root).mockResolvedValueOnce(child)
-    knowledgeItemGetDescendantItemsMock.mockResolvedValueOnce([child]).mockResolvedValueOnce([])
-
-    await expect(service.deleteItems('kb-1', [root.id, child.id])).resolves.toBeUndefined()
-
-    expect(runtimeDeleteItemsMock).toHaveBeenCalledWith('kb-1', [root])
-    expect(knowledgeItemDeleteMock).toHaveBeenCalledTimes(1)
-    expect(knowledgeItemDeleteMock).toHaveBeenCalledWith(root.id)
-  })
-
-  it('collapses deep descendant delete inputs even when the intermediate parent is not selected', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const root = createDirectoryItem('dir-root')
-    const intermediate = createDirectoryItem('dir-child', 'idle', root.id)
-    const leaf = createNoteItem('note-leaf', 'idle', intermediate.id)
-    knowledgeItemGetByIdMock.mockResolvedValueOnce(root).mockResolvedValueOnce(leaf)
-    knowledgeItemGetDescendantItemsMock.mockResolvedValueOnce([intermediate, leaf]).mockResolvedValueOnce([])
-
-    await expect(service.deleteItems('kb-1', [root.id, leaf.id])).resolves.toBeUndefined()
-
-    expect(runtimeDeleteItemsMock).toHaveBeenCalledWith('kb-1', [root])
-    expect(knowledgeItemDeleteMock).toHaveBeenCalledTimes(1)
-    expect(knowledgeItemDeleteMock).toHaveBeenCalledWith(root.id)
-  })
-
-  it('keeps sibling delete inputs after top-level root normalization', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const first = createNoteItem('note-1')
-    const second = createNoteItem('note-2')
-    knowledgeItemGetByIdMock.mockResolvedValueOnce(first).mockResolvedValueOnce(second)
-    knowledgeItemGetDescendantItemsMock.mockResolvedValue([])
-
-    await expect(service.deleteItems('kb-1', [first.id, second.id])).resolves.toBeUndefined()
-
-    expect(runtimeDeleteItemsMock).toHaveBeenCalledWith('kb-1', [first, second])
-    expect(knowledgeItemDeleteMock).toHaveBeenCalledWith(first.id)
-    expect(knowledgeItemDeleteMock).toHaveBeenCalledWith(second.id)
-    expect(knowledgeItemDeleteMock.mock.invocationCallOrder[0]).toBeLessThan(
-      knowledgeItemDeleteMock.mock.invocationCallOrder[1]
-    )
-  })
-
-  it('does not delete SQLite roots when runtime delete fails', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const root = createNoteItem('note-root')
-    const runtimeError = new Error('vector cleanup failed')
-    knowledgeItemGetByIdMock.mockResolvedValueOnce(root)
-    runtimeDeleteItemsMock.mockRejectedValueOnce(runtimeError)
-
-    await expect(service.deleteItems('kb-1', [root.id])).rejects.toBe(runtimeError)
-
-    expect(runtimeDeleteItemsMock).toHaveBeenCalledWith('kb-1', [root])
-    expect(knowledgeItemDeleteMock).not.toHaveBeenCalled()
-  })
-
-  it('asks runtime to reindex roots without deleting SQLite rows', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const root = createNoteItem('note-root')
-    knowledgeItemGetByIdMock.mockResolvedValueOnce(root)
-
-    await expect(service.reindexItems('kb-1', [root.id])).resolves.toBeUndefined()
-
-    expect(runtimeReindexItemsMock).toHaveBeenCalledWith('kb-1', [root])
-    expect(knowledgeItemDeleteMock).not.toHaveBeenCalled()
-  })
-
-  it('rejects reindexItems on failed bases before resolving item roots or calling runtime', async () => {
-    const service = new KnowledgeOrchestrationService()
-    knowledgeBaseGetByIdMock.mockResolvedValueOnce({ ...createMissingModelBase(), id: 'kb-1' })
-
-    await expect(service.reindexItems('kb-1', ['note-root'])).rejects.toSatisfy((error: unknown) => {
-      expectFailedBaseRuntimeGuard(error, 'reindexItems')
-      return true
-    })
-
-    expect(knowledgeItemGetByIdMock).not.toHaveBeenCalled()
-    expect(runtimeReindexItemsMock).not.toHaveBeenCalled()
-  })
-
-  it('collapses nested reindex inputs to top-level roots', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const root = createDirectoryItem('dir-root')
-    const child = createNoteItem('note-child', 'idle', root.id)
-    knowledgeItemGetByIdMock.mockResolvedValueOnce(root).mockResolvedValueOnce(child)
-    knowledgeItemGetDescendantItemsMock.mockResolvedValueOnce([child]).mockResolvedValueOnce([])
-
-    await expect(service.reindexItems('kb-1', [root.id, child.id])).resolves.toBeUndefined()
-
-    expect(runtimeReindexItemsMock).toHaveBeenCalledWith('kb-1', [root])
-    expect(knowledgeItemDeleteMock).not.toHaveBeenCalled()
-  })
-
-  it('searches through runtime after resolving the base', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const results = [
-      {
-        pageContent: 'hello',
-        score: 0.9,
-        scoreKind: 'relevance' as const,
-        rank: 1,
-        metadata: {
-          itemId: 'note-1',
-          itemType: 'note',
-          source: 'note-1',
-          chunkIndex: 0,
-          tokenCount: 1
+          id_: 'chunk-1',
+          metadata: { itemId: 'note-1', itemType: 'note', source: 'note-1', chunkIndex: 0, tokenCount: 3 },
+          getContent: () => 'hello world'
         },
-        itemId: 'note-1',
-        chunkId: 'chunk-1'
-      }
-    ]
-    runtimeSearchMock.mockResolvedValue(results)
-
-    await expect(service.search('kb-1', 'hello')).resolves.toEqual(results)
-    expect(runtimeSearchMock).toHaveBeenCalledWith('kb-1', 'hello')
-  })
-
-  it('rejects search on failed bases before calling runtime', async () => {
-    const service = new KnowledgeOrchestrationService()
-    knowledgeBaseGetByIdMock.mockResolvedValueOnce({ ...createMissingModelBase(), id: 'kb-1' })
-
-    await expect(service.search('kb-1', 'hello')).rejects.toSatisfy((error: unknown) => {
-      expectFailedBaseRuntimeGuard(error, 'search')
-      return true
-    })
-
-    expect(runtimeSearchMock).not.toHaveBeenCalled()
-  })
-
-  it('lists and deletes item chunks after checking item ownership', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const chunks = [
-      {
-        id: 'chunk-1',
-        itemId: 'note-1',
-        content: 'hello',
-        metadata: {
-          itemId: 'note-1',
-          itemType: 'note',
-          source: 'note-1',
-          chunkIndex: 0,
-          tokenCount: 1
+        {
+          id_: 'chunk-2',
+          metadata: { itemId: 'note-1', itemType: 'note', source: 'note-1', chunkIndex: 1, tokenCount: 3 },
+          getContent: () => 'low score'
         }
+      ],
+      similarities: [0.8, 0.2]
+    })
+
+    await expect(service.search('kb-1', 'hello')).resolves.toEqual([
+      expect.objectContaining({ chunkId: 'chunk-1', itemId: 'note-1', rank: 1, score: 0.8 })
+    ])
+  })
+
+  it('lists and deletes chunks after checking item ownership', async () => {
+    const service = new KnowledgeOrchestrationService()
+    vectorListByExternalIdMock.mockResolvedValueOnce([
+      {
+        id_: 'chunk-1',
+        metadata: { itemId: 'note-1', itemType: 'note', source: 'note-1', chunkIndex: 0, tokenCount: 2 },
+        getContent: () => 'chunk text'
       }
-    ]
-    runtimeListItemChunksMock.mockResolvedValueOnce(chunks)
+    ])
 
-    await expect(service.listItemChunks('kb-1', 'note-1')).resolves.toEqual(chunks)
-    await expect(service.deleteItemChunk('kb-1', 'note-1', 'chunk-1')).resolves.toBeUndefined()
+    await expect(service.listItemChunks('kb-1', 'note-1')).resolves.toEqual([
+      expect.objectContaining({ id: 'chunk-1', itemId: 'note-1', content: 'chunk text' })
+    ])
+    await service.deleteItemChunk('kb-1', 'note-1', 'chunk-1')
 
-    expect(knowledgeItemGetByIdMock).toHaveBeenCalledWith('note-1')
-    expect(runtimeListItemChunksMock).toHaveBeenCalledWith('kb-1', 'note-1')
-    expect(runtimeDeleteItemChunkMock).toHaveBeenCalledWith('kb-1', 'note-1', 'chunk-1')
-  })
-
-  it('rejects listItemChunks on failed bases before checking item ownership or calling runtime', async () => {
-    const service = new KnowledgeOrchestrationService()
-    knowledgeBaseGetByIdMock.mockResolvedValueOnce({ ...createMissingModelBase(), id: 'kb-1' })
-
-    await expect(service.listItemChunks('kb-1', 'note-1')).rejects.toSatisfy((error: unknown) => {
-      expectFailedBaseRuntimeGuard(error, 'listItemChunks')
-      return true
-    })
-
-    expect(knowledgeItemGetByIdMock).not.toHaveBeenCalled()
-    expect(runtimeListItemChunksMock).not.toHaveBeenCalled()
-  })
-
-  it('rejects deleteItemChunk on failed bases before checking item ownership or calling runtime', async () => {
-    const service = new KnowledgeOrchestrationService()
-    knowledgeBaseGetByIdMock.mockResolvedValueOnce({ ...createMissingModelBase(), id: 'kb-1' })
-
-    await expect(service.deleteItemChunk('kb-1', 'note-1', 'chunk-1')).rejects.toSatisfy((error: unknown) => {
-      expectFailedBaseRuntimeGuard(error, 'deleteItemChunk')
-      return true
-    })
-
-    expect(knowledgeItemGetByIdMock).not.toHaveBeenCalled()
-    expect(runtimeDeleteItemChunkMock).not.toHaveBeenCalled()
+    expect(vectorDeleteByIdAndExternalIdMock).toHaveBeenCalledWith('chunk-1', 'note-1')
   })
 })

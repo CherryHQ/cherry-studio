@@ -1,2 +1,3 @@
+export { KnowledgeMutationCoordinator } from './KnowledgeMutationCoordinator'
 export { KnowledgeOrchestrationService } from './KnowledgeOrchestrationService'
-export { KnowledgeRuntimeService } from './runtime'
+export { KnowledgeWorkflowCoordinator } from './KnowledgeWorkflowCoordinator'

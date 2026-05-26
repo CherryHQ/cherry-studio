@@ -35,6 +35,11 @@ type KnowledgeItemsByBaseOptions = {
   groupId?: string | null
 }
 
+type GetSubtreeItemsOptions = {
+  includeRoots?: boolean
+  leafOnly?: boolean
+}
+
 function rowToKnowledgeItem(row: KnowledgeItemRow): KnowledgeItem {
   return KnowledgeItemSchema.parse({
     id: row.id,
@@ -195,61 +200,73 @@ export class KnowledgeItemService {
     return rowToKnowledgeItem(row)
   }
 
-  async getLeafDescendantItems(baseId: string, rootIds: string[]): Promise<KnowledgeItem[]> {
-    const leafIds = await this.getLeafDescendantIds(baseId, rootIds)
+  async setSubtreeStatus(
+    baseId: string,
+    rootIds: string[],
+    status: Exclude<KnowledgeItemStatus, 'failed'>,
+    update?: never
+  ): Promise<string[]>
+  async setSubtreeStatus(
+    baseId: string,
+    rootIds: string[],
+    status: 'failed',
+    update: FailedKnowledgeItemStatusUpdate
+  ): Promise<string[]>
+  async setSubtreeStatus(
+    baseId: string,
+    rootIds: string[],
+    status: KnowledgeItemStatus,
+    update: FailedKnowledgeItemStatusUpdate | undefined = undefined
+  ): Promise<string[]> {
+    const error = status === 'failed' ? update?.error.trim() : null
 
-    if (leafIds.length === 0) {
+    if (status === 'failed' && !error) {
+      throw DataApiErrorFactory.validation({
+        error: ['Failed knowledge items must include a non-empty error']
+      })
+    }
+
+    const subtreeIds = await this.getSubtreeItemIds(baseId, rootIds, { includeRoots: true })
+    if (subtreeIds.length === 0) {
       return []
     }
 
-    const rows = await this.db
-      .select()
-      .from(knowledgeItemTable)
-      .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, leafIds)))
-    const rowsById = new Map(rows.map((row) => [row.id, row]))
-
-    return leafIds.map((id) => {
-      const row = rowsById.get(id)
-
-      if (!row) {
-        throw DataApiErrorFactory.dataInconsistent('KnowledgeItem', `Leaf descendant row missing for id '${id}'`)
-      }
-
-      return rowToKnowledgeItem(row)
+    const dbService = application.get('DbService')
+    await dbService.withWriteTx(async (tx) => {
+      await tx
+        .update(knowledgeItemTable)
+        .set({ status, error })
+        .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, subtreeIds)))
     })
+
+    logger.info('Updated knowledge item subtree status', { baseId, rootIds, status, count: subtreeIds.length })
+    return subtreeIds
   }
 
-  async getDescendantItems(baseId: string, rootIds: string[]): Promise<KnowledgeItem[]> {
-    const descendantIds = await this.getDescendantIds(baseId, rootIds)
-
-    if (descendantIds.length === 0) {
-      return []
+  async hardDeleteItems(baseId: string, itemIds: string[]): Promise<number> {
+    const uniqueItemIds = [...new Set(itemIds)]
+    if (uniqueItemIds.length === 0) {
+      return 0
     }
 
-    const rows = await this.db
-      .select()
-      .from(knowledgeItemTable)
-      .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, descendantIds)))
-    const rowsById = new Map(rows.map((row) => [row.id, row]))
-
-    return descendantIds.map((id) => {
-      const row = rowsById.get(id)
-
-      if (!row) {
-        throw DataApiErrorFactory.dataInconsistent('KnowledgeItem', `Descendant row missing for id '${id}'`)
-      }
-
-      return rowToKnowledgeItem(row)
+    const dbService = application.get('DbService')
+    const rowsAffected = await dbService.withWriteTx(async (tx) => {
+      const result = await tx
+        .delete(knowledgeItemTable)
+        .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, uniqueItemIds)))
+      return result.rowsAffected
     })
+
+    logger.info('Hard deleted knowledge items', { baseId, count: rowsAffected })
+    return rowsAffected
   }
 
-  // TODO: wrap the id collection and row fetch in a single db.transaction so a
-  // concurrent delete between the two queries cannot surface as dataInconsistent.
-  // Sibling methods getDescendantItems / getLeafDescendantItems share the same
-  // two-query shape and the same race; fix all three together.
-  async getDescendantAndSelfItems(baseId: string, rootIds: string[]): Promise<KnowledgeItem[]> {
-    const subtreeIds = await this.getDescendantAndSelfIds(baseId, rootIds)
-
+  async getSubtreeItems(
+    baseId: string,
+    rootIds: string[],
+    options: GetSubtreeItemsOptions = {}
+  ): Promise<KnowledgeItem[]> {
+    const subtreeIds = await this.getSubtreeItemIds(baseId, rootIds, options)
     if (subtreeIds.length === 0) {
       return []
     }
@@ -271,115 +288,24 @@ export class KnowledgeItemService {
     })
   }
 
-  private async getDescendantAndSelfIds(baseId: string, rootIds: string[]): Promise<string[]> {
+  private async getSubtreeItemIds(
+    baseId: string,
+    rootIds: string[],
+    options: GetSubtreeItemsOptions = {}
+  ): Promise<string[]> {
     const uniqueRootIds = [...new Set(rootIds)]
-
     if (uniqueRootIds.length === 0) {
       return []
     }
 
-    const rows = await this.db.all<{ id: string }>(sql`
-      WITH RECURSIVE subtree AS (
-        SELECT id
-        FROM knowledge_item
-        WHERE base_id = ${baseId}
-          AND id IN (${sql.join(
+    const leafFilter = options.leafOnly ? sql`AND type IN ('file', 'url', 'note')` : sql``
+    const rootFilter =
+      options.includeRoots === true
+        ? sql``
+        : sql`AND id NOT IN (${sql.join(
             uniqueRootIds.map((id) => sql`${id}`),
             sql`, `
-          )})
-
-        UNION ALL
-
-        SELECT child.id
-        FROM knowledge_item child
-        INNER JOIN subtree parent ON child.group_id = parent.id
-        WHERE child.base_id = ${baseId}
-      )
-      SELECT DISTINCT id
-      FROM subtree
-    `)
-
-    return rows.map((row) => row.id)
-  }
-
-  private async getDescendantIds(baseId: string, rootIds: string[]): Promise<string[]> {
-    const uniqueRootIds = [...new Set(rootIds)]
-
-    if (uniqueRootIds.length === 0) {
-      return []
-    }
-
-    const rows = await this.db.all<{ id: string }>(sql`
-      WITH RECURSIVE subtree AS (
-        SELECT id
-        FROM knowledge_item
-        WHERE base_id = ${baseId}
-          AND id IN (${sql.join(
-            uniqueRootIds.map((id) => sql`${id}`),
-            sql`, `
-          )})
-
-        UNION ALL
-
-        SELECT child.id
-        FROM knowledge_item child
-        INNER JOIN subtree parent ON child.group_id = parent.id
-        WHERE child.base_id = ${baseId}
-      )
-      SELECT DISTINCT id
-      FROM subtree
-      WHERE id NOT IN (${sql.join(
-        uniqueRootIds.map((id) => sql`${id}`),
-        sql`, `
-      )})
-    `)
-
-    return rows.map((row) => row.id)
-  }
-
-  async deleteLeafDescendantItems(baseId: string, rootIds: string[]): Promise<void> {
-    const uniqueRootIds = [...new Set(rootIds)]
-
-    if (uniqueRootIds.length === 0) {
-      return
-    }
-
-    const dbService = application.get('DbService')
-    await dbService.withWriteTx(async (tx) => {
-      await tx.run(sql`
-        WITH RECURSIVE subtree AS (
-          SELECT id
-          FROM knowledge_item
-          WHERE base_id = ${baseId}
-            AND id IN (${sql.join(
-              uniqueRootIds.map((id) => sql`${id}`),
-              sql`, `
-            )})
-
-          UNION ALL
-
-          SELECT child.id
-          FROM knowledge_item child
-          INNER JOIN subtree parent ON child.group_id = parent.id
-          WHERE child.base_id = ${baseId}
-        )
-        DELETE FROM knowledge_item
-        WHERE base_id = ${baseId}
-          AND id IN (SELECT id FROM subtree)
-          AND id NOT IN (${sql.join(
-            uniqueRootIds.map((id) => sql`${id}`),
-            sql`, `
-          )})
-      `)
-    })
-  }
-
-  private async getLeafDescendantIds(baseId: string, rootIds: string[]): Promise<string[]> {
-    const uniqueRootIds = [...new Set(rootIds)]
-
-    if (uniqueRootIds.length === 0) {
-      return []
-    }
+          )})`
 
     const rows = await this.db.all<{ id: string }>(sql`
       WITH RECURSIVE subtree AS (
@@ -400,7 +326,9 @@ export class KnowledgeItemService {
       )
       SELECT DISTINCT id
       FROM subtree
-      WHERE type IN ('file', 'url', 'note')
+      WHERE 1 = 1
+        ${rootFilter}
+        ${leafFilter}
     `)
 
     return rows.map((row) => row.id)
@@ -453,7 +381,10 @@ export class KnowledgeItemService {
     return item
   }
 
-  async reconcileContainers(baseId: string, startContainerIds: Array<string | null | undefined>): Promise<void> {
+  private async reconcileContainers(
+    baseId: string,
+    startContainerIds: Array<string | null | undefined>
+  ): Promise<void> {
     const dbService = application.get('DbService')
     await dbService.withWriteTx(async (tx) => {
       const queue = [...new Set(startContainerIds.filter((id): id is string => Boolean(id)))]

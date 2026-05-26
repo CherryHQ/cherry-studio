@@ -7,6 +7,7 @@ import { DataApiErrorFactory } from '@shared/data/api'
 import {
   type CreateKnowledgeBaseDto,
   type KnowledgeBase,
+  KnowledgeChunkMetadataSchema,
   type KnowledgeItem,
   type KnowledgeItemChunk,
   type KnowledgeRuntimeAddItemInput,
@@ -15,7 +16,17 @@ import {
   type RestoreKnowledgeBaseDto
 } from '@shared/data/types/knowledge'
 import { IpcChannel } from '@shared/IpcChannel'
+import { MetadataMode } from '@vectorstores/core'
+import { embedMany } from 'ai'
 
+import { createDeleteSubtreeJobHandler } from './jobs/deleteSubtreeJobHandler'
+import { createIndexDocumentsJobHandler } from './jobs/indexDocumentsJobHandler'
+import { createPrepareRootJobHandler } from './jobs/prepareRootJobHandler'
+import { createReindexSubtreeJobHandler } from './jobs/reindexSubtreeJobHandler'
+import { KnowledgeMutationCoordinator } from './KnowledgeMutationCoordinator'
+import { KnowledgeWorkflowCoordinator } from './KnowledgeWorkflowCoordinator'
+import { rerankKnowledgeSearchResults } from './rerank/rerank'
+import { KNOWLEDGE_ACTIVE_JOB_LIMIT, KNOWLEDGE_ACTIVE_JOB_STATUSES, knowledgeQueueName } from './types'
 import {
   KnowledgeRuntimeAddItemsPayloadSchema,
   KnowledgeRuntimeBasePayloadSchema,
@@ -26,86 +37,57 @@ import {
   KnowledgeRuntimeRestoreBasePayloadSchema,
   KnowledgeRuntimeSearchPayloadSchema
 } from './types/ipc'
+import { mapChunkDocument } from './utils/indexing/chunk'
+import { getEmbedModel } from './utils/model/embedding'
+import { applyRelevanceThreshold, getInitialSearchScoreKind, withSearchRanks } from './utils/search'
 
 const logger = loggerService.withContext('KnowledgeOrchestrationService')
-
-export interface KnowledgeRuntimeAddItemsPartialFailure {
-  sourceItemId: string | null
-  sourceItemType: KnowledgeItem['type'] | null
-  message: string
-}
-
-export class KnowledgeRuntimeAddItemsPartialError extends Error {
-  readonly failures: KnowledgeRuntimeAddItemsPartialFailure[]
-
-  constructor(failures: KnowledgeRuntimeAddItemsPartialFailure[]) {
-    super(`Failed to restore ${failures.length} knowledge root item(s)`)
-    this.name = 'KnowledgeRuntimeAddItemsPartialError'
-    this.failures = failures
-  }
-}
-
-function createRestoreBaseDto(sourceBase: KnowledgeBase, dto: RestoreKnowledgeBaseDto): CreateKnowledgeBaseDto {
-  // The new vector store is shaped from dto.dimensions. Callers must resolve it
-  // against dto.embeddingModelId before restore; mismatches surface during reindex.
-  const createDto: CreateKnowledgeBaseDto = {
-    name: dto.name?.trim() ?? sourceBase.name,
-    emoji: sourceBase.emoji,
-    dimensions: dto.dimensions,
-    embeddingModelId: dto.embeddingModelId,
-    rerankModelId: sourceBase.rerankModelId,
-    fileProcessorId: sourceBase.fileProcessorId,
-    chunkSize: sourceBase.chunkSize,
-    chunkOverlap: sourceBase.chunkOverlap,
-    threshold: sourceBase.threshold,
-    documentCount: sourceBase.documentCount,
-    searchMode: sourceBase.searchMode,
-    hybridAlpha: sourceBase.hybridAlpha
-  }
-
-  if (sourceBase.groupId) {
-    createDto.groupId = sourceBase.groupId
-  }
-
-  return createDto
-}
-
-function assertRestoreBaseCanRebuild(sourceBase: KnowledgeBase, dto: RestoreKnowledgeBaseDto): void {
-  if (sourceBase.status === 'failed') {
-    return
-  }
-
-  const embeddingModelChanged = dto.embeddingModelId.trim() !== sourceBase.embeddingModelId
-  const dimensionsChanged = dto.dimensions !== sourceBase.dimensions
-
-  if (embeddingModelChanged || dimensionsChanged) {
-    return
-  }
-
-  throw DataApiErrorFactory.invalidOperation(
-    'restoreBase',
-    'Embedding model or dimensions must change when rebuilding a completed knowledge base'
-  )
-}
-
-function normalizeFailureMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
+const SEARCH_TOKEN_PATTERN = /[\p{L}\p{N}_]+/u
+const KNOWLEDGE_JOB_TYPES = new Set([
+  'knowledge.prepare-root',
+  'knowledge.index-documents',
+  'knowledge.delete-subtree',
+  'knowledge.reindex-subtree'
+])
 
 @Injectable('KnowledgeOrchestrationService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['KnowledgeRuntimeService'])
+@DependsOn(['KnowledgeVectorStoreService'])
 export class KnowledgeOrchestrationService extends BaseService {
+  private readonly mutationCoordinator = new KnowledgeMutationCoordinator()
+  private readonly workflowCoordinator = new KnowledgeWorkflowCoordinator(this.mutationCoordinator)
+
   protected onInit(): void {
+    const jobManager = application.get('JobManager')
+    jobManager.registerHandler(
+      'knowledge.prepare-root',
+      createPrepareRootJobHandler(this.mutationCoordinator, this.workflowCoordinator)
+    )
+    jobManager.registerHandler('knowledge.index-documents', createIndexDocumentsJobHandler(this.mutationCoordinator))
+    jobManager.registerHandler('knowledge.delete-subtree', createDeleteSubtreeJobHandler(this.mutationCoordinator))
+    jobManager.registerHandler(
+      'knowledge.reindex-subtree',
+      createReindexSubtreeJobHandler(this.mutationCoordinator, this.workflowCoordinator)
+    )
     this.registerIpcHandlers()
+  }
+
+  protected async onStop(): Promise<void> {
+    const jobManager = application.get('JobManager')
+    await Promise.allSettled([
+      jobManager.cancelMany({ type: 'knowledge.prepare-root' }, 'service-shutdown'),
+      jobManager.cancelMany({ type: 'knowledge.index-documents' }, 'service-shutdown'),
+      jobManager.cancelMany({ type: 'knowledge.delete-subtree' }, 'service-shutdown'),
+      jobManager.cancelMany({ type: 'knowledge.reindex-subtree' }, 'service-shutdown')
+    ])
   }
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
     const base = await knowledgeBaseService.create(dto)
-    const runtime = application.get('KnowledgeRuntimeService')
+    const vectorStoreService = application.get('KnowledgeVectorStoreService')
 
     try {
-      await runtime.createBase(base.id)
+      await vectorStoreService.createStore(base)
     } catch (error) {
       await knowledgeBaseService.delete(base.id)
       throw error
@@ -115,81 +97,84 @@ export class KnowledgeOrchestrationService extends BaseService {
   }
 
   async deleteBase(baseId: string): Promise<void> {
-    const runtime = application.get('KnowledgeRuntimeService')
+    await this.cancelAllJobsForBase(baseId)
 
-    // Cancel everything queued for this base, then wait up to 35s for Layer 3
-    // locks to drain. If the wait times out a wedged handler can still write
-    // to the libSQL file via replaceByExternalId — but the artifact delete
-    // below removes the whole file, so any such orphan rows go with it.
-    await runtime.cancelAllJobsForBase(baseId)
-    await runtime.waitForBaseWriteLocks(baseId, 35_000)
+    await this.mutationCoordinator.withBaseMutationLock(baseId, async () => {
+      try {
+        const vectorStoreService = application.get('KnowledgeVectorStoreService')
+        await vectorStoreService.deleteStore(baseId)
+      } catch (error) {
+        const normalizedError = error instanceof Error ? error : new Error(String(error))
+        logger.error('Failed to delete knowledge base vector artifacts', normalizedError, { baseId })
+        throw error
+      }
 
-    // Artifact delete first so a failure here leaves the SQLite row in place
-    // and the user can retry deletion from the UI. The reverse order would
-    // strand orphan vector files on disk with no UI affordance to clean up.
-    try {
-      await runtime.deleteBaseArtifacts(baseId)
-    } catch (error) {
-      const normalizedError = error instanceof Error ? error : new Error(String(error))
-      logger.error('Failed to delete knowledge base vector artifacts', normalizedError, { baseId })
-      throw error
-    }
-
-    try {
-      await knowledgeBaseService.delete(baseId)
-    } catch (error) {
-      const normalizedError = error instanceof Error ? error : new Error(String(error))
-      logger.error('Failed to delete knowledge base SQLite row after artifact cleanup', normalizedError, { baseId })
-      throw DataApiErrorFactory.invalidOperation(
-        'deleteBase',
-        `Vector artifacts were deleted, but SQLite knowledge base cleanup failed: ${normalizedError.message}`
-      )
-    }
+      try {
+        await knowledgeBaseService.delete(baseId)
+      } catch (error) {
+        const normalizedError = error instanceof Error ? error : new Error(String(error))
+        logger.error('Failed to delete knowledge base SQLite row after artifact cleanup', normalizedError, {
+          baseId
+        })
+        throw DataApiErrorFactory.invalidOperation(
+          'deleteBase',
+          `Vector artifacts were deleted, but SQLite knowledge base cleanup failed: ${normalizedError.message}`
+        )
+      }
+    })
   }
 
   async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<KnowledgeBase> {
     const sourceBase = await knowledgeBaseService.getById(dto.sourceBaseId)
-    assertRestoreBaseCanRebuild(sourceBase, dto)
 
-    const createDto = createRestoreBaseDto(sourceBase, dto)
+    const embeddingModelChanged = dto.embeddingModelId.trim() !== sourceBase.embeddingModelId
+    const dimensionsChanged = dto.dimensions !== sourceBase.dimensions
+    if (sourceBase.status !== 'failed' && !embeddingModelChanged && !dimensionsChanged) {
+      throw DataApiErrorFactory.invalidOperation(
+        'restoreBase',
+        'Embedding model or dimensions must change when rebuilding a completed knowledge base'
+      )
+    }
+
+    const createDto: CreateKnowledgeBaseDto = {
+      name: dto.name?.trim() ?? sourceBase.name,
+      emoji: sourceBase.emoji,
+      dimensions: dto.dimensions,
+      embeddingModelId: dto.embeddingModelId,
+      rerankModelId: sourceBase.rerankModelId,
+      fileProcessorId: sourceBase.fileProcessorId,
+      chunkSize: sourceBase.chunkSize,
+      chunkOverlap: sourceBase.chunkOverlap,
+      threshold: sourceBase.threshold,
+      documentCount: sourceBase.documentCount,
+      searchMode: sourceBase.searchMode,
+      hybridAlpha: sourceBase.hybridAlpha
+    }
+    if (sourceBase.groupId) {
+      createDto.groupId = sourceBase.groupId
+    }
+
     const rootItems = await knowledgeItemService.getItemsByBaseId(sourceBase.id, { groupId: null })
+    const inputs = rootItems.map((item) => {
+      try {
+        return KnowledgeRuntimeAddItemInputSchema.parse({
+          type: item.type,
+          data: item.data
+        })
+      } catch (error) {
+        throw DataApiErrorFactory.invalidOperation(
+          'restoreBase',
+          `Cannot restore knowledge item '${item.id}' (${item.type}): ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        )
+      }
+    })
+
     const restoredBase = await this.createBase(createDto)
-
     try {
-      const failures: KnowledgeRuntimeAddItemsPartialFailure[] = []
-      const inputs: KnowledgeRuntimeAddItemInput[] = []
-
-      for (const item of rootItems) {
-        try {
-          const input = KnowledgeRuntimeAddItemInputSchema.parse({
-            type: item.type,
-            data: item.data
-          })
-          inputs.push(input)
-        } catch (error) {
-          failures.push({
-            sourceItemId: item.id,
-            sourceItemType: item.type,
-            message: normalizeFailureMessage(error)
-          })
-        }
-      }
-
-      if (inputs.length > 0 && failures.length === 0) {
-        try {
-          await this.addItems(restoredBase.id, inputs)
-        } catch (error) {
-          const message = normalizeFailureMessage(error)
-          failures.push({
-            sourceItemId: null,
-            sourceItemType: null,
-            message
-          })
-        }
-      }
-
-      if (failures.length > 0) {
-        throw new KnowledgeRuntimeAddItemsPartialError(failures)
+      if (inputs.length > 0) {
+        await this.addItems(restoredBase.id, inputs)
       }
     } catch (error) {
       try {
@@ -204,7 +189,10 @@ export class KnowledgeOrchestrationService extends BaseService {
           }
         )
       }
-      throw error
+      throw DataApiErrorFactory.invalidOperation(
+        'restoreBase',
+        `Failed to restore knowledge items: ${error instanceof Error ? error.message : String(error)}`
+      )
     }
 
     return restoredBase
@@ -212,45 +200,126 @@ export class KnowledgeOrchestrationService extends BaseService {
 
   async addItems(baseId: string, items: KnowledgeRuntimeAddItemInput[]): Promise<void> {
     await this.assertBaseCanRunRuntimeOperation(baseId, 'addItems')
-    const runtime = application.get('KnowledgeRuntimeService')
-    await runtime.addItems(baseId, items)
+    await this.workflowCoordinator.addItems(baseId, items)
   }
 
   async deleteItems(baseId: string, itemIds: string[]): Promise<void> {
     const items = await this.getTopLevelItemsInBase(baseId, itemIds)
-    const runtime = application.get('KnowledgeRuntimeService')
-    await runtime.deleteItems(baseId, items)
-    for (const item of items) {
-      await knowledgeItemService.delete(item.id)
+    if (items.length === 0) {
+      return
     }
+
+    await this.workflowCoordinator.deleteItems(
+      baseId,
+      items.map((item) => item.id)
+    )
   }
 
   async reindexItems(baseId: string, itemIds: string[]): Promise<void> {
     await this.assertBaseCanRunRuntimeOperation(baseId, 'reindexItems')
     const items = await this.getTopLevelItemsInBase(baseId, itemIds)
-    const runtime = application.get('KnowledgeRuntimeService')
+    if (items.length === 0) {
+      return
+    }
 
-    await runtime.reindexItems(baseId, items)
+    await this.workflowCoordinator.reindexItems(
+      baseId,
+      items.map((item) => item.id)
+    )
   }
 
   async search(baseId: string, query: string): Promise<KnowledgeSearchResult[]> {
     await this.assertBaseCanRunRuntimeOperation(baseId, 'search')
-    const runtime = application.get('KnowledgeRuntimeService')
-    return await runtime.search(baseId, query)
+
+    if (!SEARCH_TOKEN_PATTERN.test(query)) {
+      throw DataApiErrorFactory.validation(
+        { query: ['Query has no searchable tokens'] },
+        'Query has no searchable tokens'
+      )
+    }
+
+    const base = await knowledgeBaseService.getById(baseId)
+    const embedResult = await embedMany({ model: getEmbedModel(base), values: [query] })
+    const queryEmbedding = embedResult.embeddings[0]
+
+    if (!queryEmbedding?.length) {
+      throw new Error('Failed to embed search query: model returned empty result')
+    }
+
+    const vectorStoreService = application.get('KnowledgeVectorStoreService')
+    const vectorStore = await vectorStoreService.createStore(base)
+    const results = await vectorStore.query({
+      queryStr: query,
+      queryEmbedding,
+      mode: base.searchMode ?? 'default',
+      similarityTopK: base.documentCount ?? 10,
+      alpha: base.hybridAlpha
+    })
+    const nodes = results.nodes ?? []
+    const scoreKind = getInitialSearchScoreKind(base)
+    const searchResults = nodes.map((node, index) => {
+      const metadata = KnowledgeChunkMetadataSchema.parse(node.metadata ?? {})
+
+      return {
+        pageContent: node.getContent(MetadataMode.NONE),
+        score: results.similarities[index] ?? 0,
+        scoreKind,
+        rank: index + 1,
+        metadata,
+        itemId: metadata.itemId,
+        chunkId: node.id_
+      }
+    })
+
+    if (base.rerankModelId) {
+      const rerankedResults = await rerankKnowledgeSearchResults(base, query, searchResults)
+      return withSearchRanks(applyRelevanceThreshold(rerankedResults, base.threshold))
+    }
+
+    return withSearchRanks(applyRelevanceThreshold(searchResults, base.threshold))
   }
 
   async listItemChunks(baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> {
     await this.assertBaseCanRunRuntimeOperation(baseId, 'listItemChunks')
     await this.getRootItemsInBase(baseId, [itemId])
-    const runtime = application.get('KnowledgeRuntimeService')
-    return await runtime.listItemChunks(baseId, itemId)
+
+    const base = await knowledgeBaseService.getById(baseId)
+    const leafItems = await knowledgeItemService.getSubtreeItems(baseId, [itemId], {
+      includeRoots: true,
+      leafOnly: true
+    })
+    if (leafItems.length === 0) {
+      return []
+    }
+
+    const vectorStoreService = application.get('KnowledgeVectorStoreService')
+    const vectorStore = await vectorStoreService.createStore(base)
+    const chunkGroups = await Promise.all(leafItems.map((item) => vectorStore.listByExternalId(item.id)))
+
+    return chunkGroups.flat().map(mapChunkDocument)
   }
 
   async deleteItemChunk(baseId: string, itemId: string, chunkId: string): Promise<void> {
     await this.assertBaseCanRunRuntimeOperation(baseId, 'deleteItemChunk')
     await this.getRootItemsInBase(baseId, [itemId])
-    const runtime = application.get('KnowledgeRuntimeService')
-    return await runtime.deleteItemChunk(baseId, itemId, chunkId)
+
+    const base = await knowledgeBaseService.getById(baseId)
+    const vectorStoreService = application.get('KnowledgeVectorStoreService')
+    const vectorStore = await vectorStoreService.createStore(base)
+
+    await vectorStore.deleteByIdAndExternalId(chunkId, itemId)
+  }
+
+  private async cancelAllJobsForBase(baseId: string): Promise<void> {
+    const jobManager = application.get('JobManager')
+    const activeJobs = await jobManager.list({
+      queue: knowledgeQueueName(baseId),
+      status: [...KNOWLEDGE_ACTIVE_JOB_STATUSES],
+      limit: KNOWLEDGE_ACTIVE_JOB_LIMIT
+    })
+    const jobsToCancel = activeJobs.filter((job) => KNOWLEDGE_JOB_TYPES.has(job.type))
+
+    await Promise.all(jobsToCancel.map((job) => jobManager.cancel(job.id, 'delete-base')))
   }
 
   private async assertBaseCanRunRuntimeOperation(baseId: string, operation: string): Promise<void> {
@@ -286,7 +355,7 @@ export class KnowledgeOrchestrationService extends BaseService {
     const descendantSelectedIds = new Set<string>()
 
     for (const item of items) {
-      const descendants = await knowledgeItemService.getDescendantItems(baseId, [item.id])
+      const descendants = await knowledgeItemService.getSubtreeItems(baseId, [item.id])
       for (const descendant of descendants) {
         if (selectedIds.has(descendant.id)) {
           descendantSelectedIds.add(descendant.id)
@@ -296,6 +365,7 @@ export class KnowledgeOrchestrationService extends BaseService {
 
     return items.filter((item) => !descendantSelectedIds.has(item.id))
   }
+
   private registerIpcHandlers(): void {
     this.ipcHandle(IpcChannel.KnowledgeRuntime_CreateBase, async (_, payload: unknown) => {
       const { base } = KnowledgeRuntimeCreateBasePayloadSchema.parse(payload)

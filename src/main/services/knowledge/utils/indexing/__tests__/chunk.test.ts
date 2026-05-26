@@ -1,8 +1,9 @@
 import { type KnowledgeBase, KnowledgeChunkMetadataSchema } from '@shared/data/types/knowledge'
+import { MetadataMode } from '@vectorstores/core'
 import { Document } from '@vectorstores/core'
 import { describe, expect, it } from 'vitest'
 
-import { chunkDocuments } from '../chunk'
+import { chunkDocuments, mapChunkDocument } from '../chunk'
 
 function createBase(): KnowledgeBase {
   return {
@@ -95,5 +96,34 @@ describe('chunkDocuments', () => {
         })
       ])
     ).toThrow()
+  })
+})
+
+describe('mapChunkDocument', () => {
+  it('maps vector-store chunk documents to knowledge item chunks', () => {
+    const chunk = {
+      id_: 'chunk-1',
+      metadata: {
+        source: 'note-1',
+        itemId: 'item-1',
+        itemType: 'note',
+        chunkIndex: 0,
+        tokenCount: 3
+      },
+      getContent: (mode?: MetadataMode) => (mode === MetadataMode.NONE ? 'chunk text' : 'chunk text with metadata')
+    }
+
+    expect(mapChunkDocument(chunk)).toEqual({
+      id: 'chunk-1',
+      itemId: 'item-1',
+      content: 'chunk text',
+      metadata: {
+        source: 'note-1',
+        itemId: 'item-1',
+        itemType: 'note',
+        chunkIndex: 0,
+        tokenCount: 3
+      }
+    })
   })
 })

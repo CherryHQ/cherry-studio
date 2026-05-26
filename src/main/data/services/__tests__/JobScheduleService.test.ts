@@ -112,7 +112,7 @@ describe('JobScheduleService', () => {
         catchUpPolicy: { kind: 'skip-missed' }
       })
       const b = await jobScheduleService.create({
-        type: 'knowledge.index-leaf',
+        type: 'knowledge.index-documents',
         trigger: baseTrigger,
         jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }

@@ -391,8 +391,8 @@ describe('KnowledgeItemService', () => {
     })
   })
 
-  describe('getLeafDescendantItems', () => {
-    it('returns only leaf knowledge items in the requested subtrees', async () => {
+  describe('getSubtreeItems', () => {
+    it('returns only leaf knowledge items in the requested subtrees when leafOnly is true', async () => {
       await seedItem({ id: 'dir-root', type: 'directory', data: { source: '/root', path: '/root' } })
       await seedItem({
         id: 'dir-child',
@@ -425,7 +425,10 @@ describe('KnowledgeItemService', () => {
       })
       await seedItem({ id: 'note-root', type: 'note', data: { source: 'root note', content: 'root note' } })
 
-      const result = await service.getLeafDescendantItems('kb-1', ['dir-root', 'sitemap-root', 'note-root', 'missing'])
+      const result = await service.getSubtreeItems('kb-1', ['dir-root', 'sitemap-root', 'note-root', 'missing'], {
+        includeRoots: true,
+        leafOnly: true
+      })
       const itemsById = new Map(result.map((item) => [item.id, item]))
 
       expect(result.map((item) => item.id).sort()).toEqual(['file-child', 'note-grandchild', 'note-root', 'url-child'])
@@ -455,13 +458,7 @@ describe('KnowledgeItemService', () => {
       expect(itemsById.has('sitemap-root')).toBe(false)
     })
 
-    it('returns an empty list when no roots are provided', async () => {
-      await expect(service.getLeafDescendantItems('kb-1', [])).resolves.toEqual([])
-    })
-  })
-
-  describe('getDescendantItems', () => {
-    it('returns every descendant in the requested subtrees without roots', async () => {
+    it('returns every descendant in the requested subtrees without roots by default', async () => {
       await seedItem({ id: 'dir-root', type: 'directory', data: { source: '/root', path: '/root' } })
       await seedItem({
         id: 'dir-child',
@@ -481,18 +478,12 @@ describe('KnowledgeItemService', () => {
         data: { source: 'root note', content: 'root note' }
       })
 
-      const result = await service.getDescendantItems('kb-1', ['dir-root', 'dir-child', 'note-root', 'missing'])
+      const result = await service.getSubtreeItems('kb-1', ['dir-root', 'dir-child', 'note-root', 'missing'])
 
       expect(result.map((item) => item.id).sort()).toEqual(['file-child'])
     })
 
-    it('returns an empty list when no roots are provided', async () => {
-      await expect(service.getDescendantItems('kb-1', [])).resolves.toEqual([])
-    })
-  })
-
-  describe('getDescendantAndSelfItems', () => {
-    it('returns every descendant in the requested subtrees plus the roots themselves', async () => {
+    it('returns every descendant in the requested subtrees plus the roots themselves when includeRoots is true', async () => {
       await seedItem({ id: 'dir-root', type: 'directory', data: { source: '/root', path: '/root' } })
       await seedItem({
         id: 'dir-child',
@@ -512,7 +503,7 @@ describe('KnowledgeItemService', () => {
         data: { source: 'root note', content: 'root note' }
       })
 
-      const result = await service.getDescendantAndSelfItems('kb-1', ['dir-root', 'note-root', 'missing'])
+      const result = await service.getSubtreeItems('kb-1', ['dir-root', 'note-root', 'missing'], { includeRoots: true })
 
       expect(result.map((item) => item.id).sort()).toEqual(['dir-child', 'dir-root', 'file-child', 'note-root'])
     })
@@ -532,13 +523,13 @@ describe('KnowledgeItemService', () => {
         data: createFileItemData('file-child')
       })
 
-      const result = await service.getDescendantAndSelfItems('kb-1', ['dir-root', 'dir-child'])
+      const result = await service.getSubtreeItems('kb-1', ['dir-root', 'dir-child'], { includeRoots: true })
 
       expect(result.map((item) => item.id).sort()).toEqual(['dir-child', 'dir-root', 'file-child'])
     })
 
     it('returns an empty list when no roots are provided', async () => {
-      await expect(service.getDescendantAndSelfItems('kb-1', [])).resolves.toEqual([])
+      await expect(service.getSubtreeItems('kb-1', [])).resolves.toEqual([])
     })
   })
 
@@ -685,36 +676,6 @@ describe('KnowledgeItemService', () => {
       expect(remaining.map((r) => r.id)).toEqual(['other'])
     })
 
-    it('deletes descendants while keeping the requested root items', async () => {
-      await seedItem({
-        id: 'dir-root',
-        type: 'directory',
-        data: { source: '/docs', path: '/docs' }
-      })
-      await seedItem({
-        id: 'dir-child',
-        groupId: 'dir-root',
-        type: 'directory',
-        data: { source: '/docs/child', path: '/docs/child' }
-      })
-      await seedItem({
-        id: 'file-grandchild',
-        groupId: 'dir-child',
-        type: 'file',
-        data: createFileItemData('file-grandchild')
-      })
-      await seedItem({
-        id: 'other',
-        type: 'note',
-        data: { source: 'keep me', content: 'keep me' }
-      })
-
-      await service.deleteLeafDescendantItems('kb-1', ['dir-root'])
-
-      const remaining = await dbh.db.select().from(knowledgeItemTable).orderBy(knowledgeItemTable.id)
-      expect(remaining.map((r) => r.id)).toEqual(['dir-root', 'other'])
-    })
-
     it('throws NotFound when deleting a missing knowledge item', async () => {
       await expect(service.delete('missing')).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND,
@@ -723,21 +684,28 @@ describe('KnowledgeItemService', () => {
     })
   })
 
-  describe('reconcileContainers', () => {
+  describe('container reconciliation', () => {
     async function getItemRow(id: string) {
       const [row] = await dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
       return row
     }
 
-    it('marks a processing container completed when it has no remaining children', async () => {
+    it('marks a parent container completed when its last child completes', async () => {
       await seedItem({
         id: 'dir-root',
         type: 'directory',
         data: { source: '/docs', path: '/docs' },
         status: 'processing'
       })
+      await seedItem({
+        id: 'note-child',
+        groupId: 'dir-root',
+        type: 'note',
+        data: { source: 'note', content: 'note' },
+        status: 'processing'
+      })
 
-      await service.reconcileContainers('kb-1', ['dir-root'])
+      await service.updateStatus('note-child', 'completed')
 
       await expect(getItemRow('dir-root')).resolves.toMatchObject({
         id: 'dir-root',
@@ -769,8 +737,6 @@ describe('KnowledgeItemService', () => {
       })
       await service.delete('note-child')
 
-      await service.reconcileContainers('kb-1', ['dir-root'])
-
       await expect(getItemRow('dir-child')).resolves.toMatchObject({ status: 'completed', error: null })
       await expect(getItemRow('dir-root')).resolves.toMatchObject({ status: 'completed', error: null })
     })
@@ -790,7 +756,7 @@ describe('KnowledgeItemService', () => {
         status: 'processing'
       })
 
-      await service.reconcileContainers('kb-1', ['dir-root'])
+      await service.updateStatus('note-child', 'processing')
 
       await expect(getItemRow('dir-root')).resolves.toMatchObject({ status: 'processing', error: null })
     })
@@ -811,16 +777,12 @@ describe('KnowledgeItemService', () => {
         error: 'read failed'
       })
 
-      await service.reconcileContainers('kb-1', ['dir-root'])
+      await service.updateStatus('note-child', 'failed', { error: 'read failed' })
 
       await expect(getItemRow('dir-root')).resolves.toMatchObject({
         status: 'failed',
         error: 'One or more child items failed'
       })
-    })
-
-    it('does nothing when the root no longer exists', async () => {
-      await expect(service.reconcileContainers('kb-1', ['missing-root'])).resolves.toBeUndefined()
     })
 
     it('reconciles containers bottom-up after active leaves are deleted', async () => {

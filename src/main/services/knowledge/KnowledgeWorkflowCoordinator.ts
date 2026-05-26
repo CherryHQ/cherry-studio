@@ -1,0 +1,160 @@
+import './jobs/jobTypes'
+
+import { application } from '@application'
+import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
+import { knowledgeItemService } from '@data/services/KnowledgeItemService'
+import { loggerService } from '@logger'
+import type { KnowledgeItem, KnowledgeRuntimeAddItemInput } from '@shared/data/types/knowledge'
+
+import type { KnowledgeMutationCoordinator } from './KnowledgeMutationCoordinator'
+import { type KnowledgeAddResult, type KnowledgeJobHandle, knowledgeQueueName } from './types'
+import { isContainerKnowledgeItem } from './utils/items'
+import { planKnowledgeItemSource } from './utils/sources/sourcePlanning'
+
+const logger = loggerService.withContext('Knowledge:WorkflowCoordinator')
+
+export class KnowledgeWorkflowCoordinator {
+  constructor(private readonly mutationCoordinator: KnowledgeMutationCoordinator) {}
+
+  async addItems(baseId: string, inputs: KnowledgeRuntimeAddItemInput[]): Promise<KnowledgeAddResult> {
+    if (inputs.length === 0) {
+      return { items: [], jobs: [] }
+    }
+
+    const base = await knowledgeBaseService.getById(baseId)
+    const acceptedItems: KnowledgeItem[] = []
+
+    await this.mutationCoordinator.withBaseMutationLock(base.id, async () => {
+      try {
+        for (const input of inputs) {
+          const createdItem = await knowledgeItemService.create(base.id, input)
+          const activeItem = await knowledgeItemService.updateStatus(
+            createdItem.id,
+            isContainerKnowledgeItem(createdItem) ? 'preparing' : 'processing'
+          )
+          acceptedItems.push(activeItem)
+        }
+      } catch (error) {
+        await this.rollbackAcceptedItems(base.id, acceptedItems, error)
+        throw error
+      }
+    })
+
+    const jobs: KnowledgeJobHandle[] = []
+    for (const item of acceptedItems) {
+      const job = await this.scheduleItem(item.baseId, item.id)
+      if (job) {
+        jobs.push(job)
+      }
+    }
+
+    return { items: acceptedItems, jobs }
+  }
+
+  async deleteItems(baseId: string, itemIds: string[]): Promise<KnowledgeJobHandle> {
+    await knowledgeBaseService.getById(baseId)
+    const rootItemIds = [...new Set(itemIds)]
+    const markedIds = await this.mutationCoordinator.withBaseMutationLock(baseId, () =>
+      knowledgeItemService.setSubtreeStatus(baseId, rootItemIds, 'deleting')
+    )
+    try {
+      const jobManager = application.get('JobManager')
+      const rootKey = [...rootItemIds].sort().join(',')
+      const handle = await jobManager.enqueue(
+        'knowledge.delete-subtree',
+        { baseId, rootItemIds },
+        {
+          idempotencyKey: `knowledge:${baseId}:${rootKey}:delete`,
+          queue: knowledgeQueueName(baseId)
+        }
+      )
+      return { id: handle.id }
+    } catch (error) {
+      await this.mutationCoordinator.withBaseMutationLock(baseId, () =>
+        knowledgeItemService.setSubtreeStatus(baseId, markedIds, 'failed', {
+          error: error instanceof Error ? error.message : String(error)
+        })
+      )
+      throw error
+    }
+  }
+
+  async reindexItems(baseId: string, itemIds: string[]): Promise<KnowledgeJobHandle> {
+    await knowledgeBaseService.getById(baseId)
+    const rootItemIds = [...new Set(itemIds)]
+    const jobManager = application.get('JobManager')
+    const rootKey = [...rootItemIds].sort().join(',')
+    const handle = await jobManager.enqueue(
+      'knowledge.reindex-subtree',
+      { baseId, rootItemIds },
+      {
+        idempotencyKey: `knowledge:${baseId}:${rootKey}:reindex`,
+        queue: knowledgeQueueName(baseId)
+      }
+    )
+    return { id: handle.id }
+  }
+
+  async scheduleItem(
+    baseId: string,
+    itemId: string,
+    parentJobId: string | null = null
+  ): Promise<KnowledgeJobHandle | null> {
+    const item = await knowledgeItemService.getById(itemId)
+    if (item.baseId !== baseId) {
+      throw new Error(`Knowledge item '${itemId}' does not belong to base '${baseId}'`)
+    }
+    if (item.status === 'deleting') {
+      return null
+    }
+
+    const plan = planKnowledgeItemSource(item)
+    if (plan.kind === 'invalid') {
+      await knowledgeItemService.updateStatus(itemId, 'failed', { error: plan.reason })
+      return null
+    }
+
+    const jobManager = application.get('JobManager')
+    if (plan.kind === 'prepare-root') {
+      const handle = await jobManager.enqueue(
+        'knowledge.prepare-root',
+        { baseId, itemId },
+        {
+          idempotencyKey: `knowledge:${baseId}:${itemId}:prepare`,
+          queue: knowledgeQueueName(baseId),
+          parentId: parentJobId ?? undefined
+        }
+      )
+      return { id: handle.id }
+    }
+
+    const handle = await jobManager.enqueue(
+      'knowledge.index-documents',
+      { baseId, itemId, parentJobId },
+      {
+        idempotencyKey: `knowledge:${baseId}:${itemId}:index`,
+        queue: knowledgeQueueName(baseId),
+        parentId: parentJobId ?? undefined
+      }
+    )
+    return { id: handle.id }
+  }
+
+  private async rollbackAcceptedItems(baseId: string, items: KnowledgeItem[], originalError: unknown): Promise<void> {
+    for (const item of items) {
+      try {
+        await knowledgeItemService.delete(item.id)
+      } catch (cleanupError) {
+        logger.error(
+          'Failed to rollback accepted knowledge item after addItems failure',
+          cleanupError instanceof Error ? cleanupError : new Error(String(cleanupError)),
+          {
+            baseId,
+            itemId: item.id,
+            addError: originalError instanceof Error ? originalError.message : String(originalError)
+          }
+        )
+      }
+    }
+  }
+}
