@@ -192,7 +192,8 @@ export class ImportOrchestrator {
   }
 
   private resolveImportDomains(manifest: BackupManifest, options: RestoreOptions): BackupDomain[] {
-    const available = new Set(manifest.domains)
+    const validDomains = new Set(Object.values(BackupDomain))
+    const available = new Set(manifest.domains.filter((d) => validDomains.has(d)))
     const selected = options.domains ?? [...available]
     return selected.filter((d) => available.has(d))
   }
