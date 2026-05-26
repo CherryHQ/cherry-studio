@@ -1,17 +1,8 @@
 import { execFileSync } from 'node:child_process'
 import { normalize, resolve } from 'node:path'
 
-// Windows path comparison requires case-insensitive matching
+// Whether the current platform treats file paths as case-insensitive
 const isWindows: boolean = process.platform === 'win32'
-
-/**
- * Prepare script for git hook installation.
- *
- * Handles three scenarios:
- * 1. Linked worktree → skip prek install (hooks shared via commondir)
- * 2. Primary worktree with Claude Code hooksPath pollution → clean up, then install
- * 3. Primary worktree, normal → install hooks normally
- */
 
 // Run a git command and return trimmed stdout, or null on failure
 function git(...args: string[]): string | null {
@@ -27,11 +18,14 @@ function isGitRepo(): boolean {
   return git('rev-parse', '--git-dir') !== null
 }
 
-// Check if running inside a linked worktree (git-dir !== git-common-dir)
-function isLinkedWorktree(): boolean {
+/**
+ * Detect linked worktree status by comparing git-dir and git-common-dir.
+ * Returns true if linked, false if primary, null if detection failed.
+ */
+function isLinkedWorktree(): boolean | null {
   const gitDir = git('rev-parse', '--absolute-git-dir')
   const commonDir = git('rev-parse', '--git-common-dir')
-  if (!gitDir || !commonDir) return false
+  if (!gitDir || !commonDir) return null
   const a = normalize(resolve(gitDir))
   const b = normalize(resolve(commonDir))
   return isWindows ? a.toLowerCase() !== b.toLowerCase() : a !== b
@@ -57,21 +51,30 @@ function getDefaultHooksDir(): string | null {
   return normalize(resolve(commonDir, 'hooks'))
 }
 
-// Check if hooksPath is the Git default hooks directory (Claude Code pollution)
-function isClaudeCodeHooksPath(hooksPath: string): boolean {
+/**
+ * Check if hooksPath points to the Git default hooks directory.
+ * On Windows, comparison is case-insensitive.
+ */
+function isDefaultGitHooksPath(hooksPath: string): boolean {
   const defaultDir = getDefaultHooksDir()
   if (!defaultDir) return false
   const resolved = normalize(resolve(hooksPath))
   return isWindows ? resolved.toLowerCase() === defaultDir.toLowerCase() : resolved === defaultDir
 }
 
-// Unset local core.hooksPath
-function unsetHooksPath(): void {
-  git('config', '--local', '--unset-all', 'core.hooksPath')
+/**
+ * Unset local core.hooksPath. Returns true if unset succeeded
+ * or hooksPath was not set, false if the git command itself failed.
+ */
+function unsetHooksPath(): boolean {
+  const result = git('config', '--local', '--unset-all', 'core.hooksPath')
+  return result !== null
 }
 
-// Execute prek install via the current package manager
-// Returns true on success, false if prek refused (e.g. custom hooksPath set)
+/**
+ * Execute prek install via the current package manager.
+ * Returns true on success, false on failure or when prek refused.
+ */
 function runPrekInstall(): boolean {
   const execPath = process.env.npm_execpath
   const args = ['exec', 'prek', 'install']
@@ -85,14 +88,21 @@ function runPrekInstall(): boolean {
       execFileSync('pnpm', args, { stdio: 'inherit', shell: isWindows })
     }
     return true
-  } catch {
+  } catch (err: unknown) {
+    // Surface ENOENT so users know which command is missing
+    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
+      const cmd = execPath ? process.execPath : 'pnpm'
+      console.error(`install-hooks: command not found: ${cmd}`)
+    }
     return false
   }
 }
 
-// Main
+/**
+ * Main entry point for the prepare lifecycle script.
+ * Handles worktree detection, hooksPath cleanup, and prek install.
+ */
 function main(): void {
-  // Best-effort blame config
   if (!isGitRepo()) {
     console.warn('install-hooks: not a git repository, skipping hook setup')
     return
@@ -100,22 +110,31 @@ function main(): void {
   configureBlameIgnoreRevs()
 
   // Linked worktree: skip prek install entirely
-  if (isLinkedWorktree()) {
+  const linked = isLinkedWorktree()
+  if (linked === null) {
+    // Cannot determine worktree status — abort rather than risk polluting shared hooks
+    console.error('install-hooks: could not determine worktree status, aborting hook setup')
+    process.exit(1)
+  }
+  if (linked) {
     console.info('install-hooks: linked worktree detected, skipping prek install (hooks managed by primary worktree)')
     return
   }
 
-  // Primary worktree: clean Claude Code hooksPath pollution if present
+  // Primary worktree: clean default hooksPath if present
   const hooksPath = getLocalHooksPath()
-  if (hooksPath && isClaudeCodeHooksPath(hooksPath)) {
-    unsetHooksPath()
-    console.info('install-hooks: cleaned Claude Code core.hooksPath pollution')
+  if (hooksPath && isDefaultGitHooksPath(hooksPath)) {
+    if (!unsetHooksPath()) {
+      console.error('install-hooks: failed to unset core.hooksPath, aborting hook setup')
+      process.exit(1)
+    }
+    console.info('install-hooks: cleaned default core.hooksPath')
   }
 
   // Install hooks
   const hooksPathBeforeInstall = getLocalHooksPath()
   if (!runPrekInstall()) {
-    // prek may refuse when custom hooksPath is set (e.g. .husky) — that's fine
+    // prek may refuse when custom hooksPath is set (e.g. .husky) — acceptable
     if (hooksPathBeforeInstall) {
       console.info(`install-hooks: prek skipped (core.hooksPath is set to "${hooksPathBeforeInstall}")`)
     } else {
@@ -125,4 +144,23 @@ function main(): void {
   }
 }
 
-main()
+// Run main() only when executed directly, not when imported by tests
+const isDirectRun = process.argv[1]?.endsWith('scripts/install-hooks.ts') ?? false
+if (isDirectRun) {
+  main()
+}
+
+// Export for testing
+export {
+  configureBlameIgnoreRevs,
+  getDefaultHooksDir,
+  getLocalHooksPath,
+  git,
+  isDefaultGitHooksPath,
+  isGitRepo,
+  isLinkedWorktree,
+  isWindows,
+  main,
+  runPrekInstall,
+  unsetHooksPath
+}
