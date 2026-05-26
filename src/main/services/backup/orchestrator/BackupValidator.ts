@@ -13,6 +13,44 @@ import { hashFile } from '../utils/checksum'
 
 const logger = loggerService.withContext('BackupValidator')
 
+/**
+ * Pure manifest validation shared by standalone validation and actual restore.
+ * Populates errors/warnings arrays directly.
+ */
+export function validateBackupManifest(
+  manifest: BackupManifest,
+  errors: ValidationResult['errors'],
+  warnings: ValidationResult['warnings']
+): void {
+  if (typeof manifest.version !== 'number' || !Number.isFinite(manifest.version)) {
+    errors.push({
+      code: ValidationErrorCode.MANIFEST_CORRUPTED,
+      message: 'Backup manifest has an invalid or missing version field'
+    })
+  } else if (manifest.version > BACKUP_MANIFEST_VERSION) {
+    errors.push({
+      code: ValidationErrorCode.COMPAT_VERSION_TOO_NEW,
+      message: `Backup version ${manifest.version} is newer than supported version ${BACKUP_MANIFEST_VERSION}`,
+      expected: BACKUP_MANIFEST_VERSION,
+      actual: manifest.version
+    })
+  } else if (manifest.version < BACKUP_MANIFEST_VERSION) {
+    warnings.push({
+      code: ValidationErrorCode.COMPAT_VERSION_TOO_OLD,
+      message: `Backup version ${manifest.version} is older than current version ${BACKUP_MANIFEST_VERSION}`,
+      expected: BACKUP_MANIFEST_VERSION,
+      actual: manifest.version
+    })
+  }
+
+  if (!manifest.domains || manifest.domains.length === 0) {
+    errors.push({
+      code: ValidationErrorCode.MANIFEST_CORRUPTED,
+      message: 'Backup manifest has no domains listed'
+    })
+  }
+}
+
 export class BackupValidatorImpl {
   async validate(zipPath: string, options?: ValidationOptions): Promise<ValidationResult> {
     const startTime = Date.now()
@@ -33,7 +71,7 @@ export class BackupValidatorImpl {
     }
 
     if (options?.checkManifest !== false) {
-      this.validateManifest(manifest, errors, warnings)
+      validateBackupManifest(manifest, errors, warnings)
     }
 
     if (options?.checkFiles !== false) {
@@ -62,35 +100,6 @@ export class BackupValidatorImpl {
       return JSON.parse(data.toString('utf-8')) as BackupManifest
     } finally {
       await zip.close()
-    }
-  }
-
-  private validateManifest(
-    manifest: BackupManifest,
-    errors: ValidationResult['errors'],
-    warnings: ValidationResult['warnings']
-  ): void {
-    if (manifest.version > BACKUP_MANIFEST_VERSION) {
-      errors.push({
-        code: ValidationErrorCode.COMPAT_VERSION_TOO_NEW,
-        message: `Backup version ${manifest.version} is newer than supported version ${BACKUP_MANIFEST_VERSION}`,
-        expected: BACKUP_MANIFEST_VERSION,
-        actual: manifest.version
-      })
-    } else if (manifest.version < BACKUP_MANIFEST_VERSION) {
-      warnings.push({
-        code: ValidationErrorCode.COMPAT_VERSION_TOO_OLD,
-        message: `Backup version ${manifest.version} is older than current version ${BACKUP_MANIFEST_VERSION}`,
-        expected: BACKUP_MANIFEST_VERSION,
-        actual: manifest.version
-      })
-    }
-
-    if (!manifest.domains || manifest.domains.length === 0) {
-      errors.push({
-        code: ValidationErrorCode.MANIFEST_CORRUPTED,
-        message: 'Backup manifest has no domains listed'
-      })
     }
   }
 

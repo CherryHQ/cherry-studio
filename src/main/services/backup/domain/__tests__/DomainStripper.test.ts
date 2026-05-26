@@ -75,6 +75,7 @@ describe('CROSS_DOMAIN_FK_RULES', () => {
     expect(covered).toContain('assistant.model_id')
     expect(covered).toContain('knowledge_base.embedding_model_id')
     expect(covered).toContain('knowledge_base.rerank_model_id')
+    expect(covered).toContain('knowledge_base.group_id')
   })
 
   it('covers NOT NULL junction table FKs with DELETE_ROW', () => {
@@ -88,6 +89,9 @@ describe('CROSS_DOMAIN_FK_RULES', () => {
     const byTable = (t: string) => CROSS_DOMAIN_FK_RULES.filter((r) => r.table === t)
     expect(byTable('topic').map((r) => r.referencedDomain)).toEqual(
       expect.arrayContaining([BackupDomain.ASSISTANTS, BackupDomain.TAGS_GROUPS])
+    )
+    expect(byTable('knowledge_base').map((r) => r.referencedDomain)).toEqual(
+      expect.arrayContaining([BackupDomain.PROVIDERS, BackupDomain.TAGS_GROUPS])
     )
     expect(byTable('assistant_mcp_server')[0].referencedDomain).toBe(BackupDomain.MCP_SERVERS)
     expect(byTable('assistant_knowledge_base')[0].referencedDomain).toBe(BackupDomain.KNOWLEDGE)

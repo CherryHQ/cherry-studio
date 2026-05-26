@@ -116,6 +116,22 @@ describe('FileRestorer', () => {
     expect(content).toBe('OLD!')
   })
 
+  it('RENAME skips existing files with different sizes', async () => {
+    const extractDir = path.join(tmpDir, 'extract')
+    const filesDir = path.join(extractDir, 'files')
+
+    await fsp.writeFile(path.join(filesDir, 'a.txt'), 'NEW CONTENT!')
+    await fsp.writeFile(path.join(liveDir, 'a.txt'), 'OLD!')
+
+    const restorer = new FileRestorer(extractDir, createMockTracker() as never, createMockToken() as never)
+    const result = await restorer.restoreFiles(ConflictStrategy.RENAME)
+
+    expect(result.restored).toBe(0)
+    expect(result.skipped).toBe(1)
+    const content = await fsp.readFile(path.join(liveDir, 'a.txt'), 'utf-8')
+    expect(content).toBe('OLD!')
+  })
+
   it('restores new files that do not exist in target', async () => {
     const extractDir = path.join(tmpDir, 'extract')
     const filesDir = path.join(extractDir, 'files')
@@ -226,6 +242,57 @@ describe('FileRestorer', () => {
 
       expect(result.skipped).toBe(1)
       expect(result.restored).toBe(0)
+    })
+
+    it('skips existing KB directories with RENAME strategy', async () => {
+      const extractDir = path.join(tmpDir, 'extract')
+      const kbDir = path.join(extractDir, 'knowledge', 'kb-1')
+      await fsp.mkdir(kbDir, { recursive: true })
+      await fsp.writeFile(path.join(kbDir, 'data.db'), 'LARGER')
+
+      const liveKbDir = path.join(kbLiveDir, 'kb-1')
+      await fsp.mkdir(liveKbDir, { recursive: true })
+      await fsp.writeFile(path.join(liveKbDir, 'data.db'), 'SM')
+
+      const restorer = new FileRestorer(extractDir, createMockTracker() as never, createMockToken() as never)
+      const result = await restorer.restoreKnowledgeBases(ConflictStrategy.RENAME)
+
+      expect(result.skipped).toBe(1)
+      expect(result.restored).toBe(0)
+      const content = await fsp.readFile(path.join(kbLiveDir, 'kb-1', 'data.db'), 'utf-8')
+      expect(content).toBe('SM')
+    })
+
+    it('copies KB to remapped directory under RENAME when ID is remapped', async () => {
+      const extractDir = path.join(tmpDir, 'extract')
+      const kbDir = path.join(extractDir, 'knowledge', 'kb-1')
+      await fsp.mkdir(kbDir, { recursive: true })
+      await fsp.writeFile(path.join(kbDir, 'data.db'), 'LARGER')
+
+      const liveKbDir = path.join(kbLiveDir, 'kb-1')
+      await fsp.mkdir(liveKbDir, { recursive: true })
+      await fsp.writeFile(path.join(liveKbDir, 'data.db'), 'SM')
+
+      const remapper = {
+        remap: vi.fn().mockImplementation((id: string) => (id === 'kb-1' ? 'kb-remapped' : id)),
+        addMapping: vi.fn(),
+        buildMap: vi.fn(),
+        getMap: vi.fn().mockReturnValue(new Map([['kb-1', 'kb-remapped']]))
+      }
+
+      const restorer = new FileRestorer(
+        extractDir,
+        createMockTracker() as never,
+        createMockToken() as never,
+        remapper as never
+      )
+      const result = await restorer.restoreKnowledgeBases(ConflictStrategy.RENAME)
+
+      expect(result.restored).toBe(1)
+      expect(result.skipped).toBe(0)
+      // Vector files exist at remapped path
+      const content = await fsp.readFile(path.join(kbLiveDir, 'kb-remapped', 'data.db'), 'utf-8')
+      expect(content).toBe('LARGER')
     })
 
     it('returns zero when knowledge directory does not exist', async () => {

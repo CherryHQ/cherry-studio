@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import { ConflictStrategy } from '@shared/backup'
 
 import type { CancellationToken } from '../CancellationToken'
+import type { IdRemapper } from '../domain/IdRemapper'
 import type { BackupProgressTracker } from '../progress/BackupProgressTracker'
 
 const logger = loggerService.withContext('FileRestorer')
@@ -15,7 +16,8 @@ export class FileRestorer {
   constructor(
     private readonly extractDir: string,
     private readonly progressTracker: BackupProgressTracker,
-    private readonly token: CancellationToken
+    private readonly token: CancellationToken,
+    private readonly remapper?: IdRemapper
   ) {}
 
   async restoreFiles(strategy: ConflictStrategy): Promise<{ restored: number; skipped: number }> {
@@ -46,6 +48,12 @@ export class FileRestorer {
 
         // Same name + different size + SKIP strategy → skip
         if (strategy === ConflictStrategy.SKIP) {
+          skipped++
+          continue
+        }
+
+        // Same name + different size + RENAME strategy → skip (files cannot be ID-remapped)
+        if (strategy === ConflictStrategy.RENAME) {
           skipped++
           continue
         }
@@ -80,12 +88,13 @@ export class FileRestorer {
       if (!entry.isDirectory()) continue
 
       const sourcePath = path.join(sourceDir, entry.name)
-      const targetPath = path.join(targetDir, entry.name)
+      const remappedName = this.remapper?.remap(entry.name) ?? entry.name
+      const targetPath = path.join(targetDir, remappedName)
 
-      if (fs.existsSync(targetPath)) {
+      if (fs.existsSync(path.join(targetDir, entry.name))) {
         // Compare total byte size of directories as a proxy for content equivalence (spec §7.3)
         const srcSize = await this.directorySizeRecursive(sourcePath)
-        const tgtSize = await this.directorySizeRecursive(targetPath)
+        const tgtSize = await this.directorySizeRecursive(path.join(targetDir, entry.name))
 
         if (srcSize === tgtSize) {
           skipped++
@@ -94,6 +103,18 @@ export class FileRestorer {
 
         if (strategy === ConflictStrategy.SKIP) {
           skipped++
+          continue
+        }
+
+        // RENAME strategy: copy to remapped directory if ID was remapped
+        if (strategy === ConflictStrategy.RENAME) {
+          if (remappedName !== entry.name) {
+            await fsp.cp(sourcePath, targetPath, { recursive: true })
+            restored++
+            this.progressTracker.incrementItemsProcessed(1)
+          } else {
+            skipped++
+          }
           continue
         }
       }

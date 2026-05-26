@@ -35,17 +35,18 @@ export const ALWAYS_STRIP_TABLES = ['app_state', 'message_fts'] as const
 export const INFRASTRUCTURE_TABLES = ['__drizzle_migrations'] as const
 
 export const IMPORT_ORDER: readonly BackupDomain[] = [
-  // Phase 1 — FK-aware restore order per spec §3.4
+  // Phase 1 — FK-aware restore order: providers must come before domains
+  // that reference user_model (knowledge_base, message, assistant)
   BackupDomain.PREFERENCES,
   BackupDomain.PROMPTS,
   BackupDomain.MCP_SERVERS,
   BackupDomain.TAGS_GROUPS,
+  BackupDomain.PROVIDERS,
   BackupDomain.KNOWLEDGE,
   BackupDomain.TOPICS,
   BackupDomain.TRANSLATE_HISTORY,
   BackupDomain.FILE_STORAGE,
-  // Phase 2 — blocked on pending PRs
-  BackupDomain.PROVIDERS,
+  // Phase 2
   BackupDomain.ASSISTANTS,
   BackupDomain.AGENTS,
   BackupDomain.MINIAPPS,

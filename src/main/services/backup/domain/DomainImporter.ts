@@ -28,7 +28,7 @@ const FK_REMAP_RULES: Record<string, string[]> = {
   group: ['id'],
   pin: ['id', 'entity_id'],
   translate_history: ['id'],
-  knowledge_base: ['id'],
+  knowledge_base: ['id', 'group_id'],
   mcp_server: ['id'],
   assistant: ['id'],
   assistant_mcp_server: ['assistant_id', 'mcp_server_id'],
@@ -109,7 +109,7 @@ export class DomainImporter {
     let offset = 0
     let imported = 0
     let skipped = 0
-    let errors = 0
+    const errors = 0
     const stripAutoIncrementPk = AUTOINCREMENT_PK_TABLES.has(tableName) && strategy === ConflictStrategy.RENAME
 
     while (true) {
@@ -163,8 +163,8 @@ export class DomainImporter {
           if (strategy === ConflictStrategy.SKIP) {
             skipped++
           } else {
-            errors++
-            logger.warn('Row insert failed', { table: tableName, error: (err as Error).message })
+            // RENAME/OVERWRITE: throw to abort the domain transaction and rollback
+            throw new Error(`Row insert failed in "${tableName}": ${(err as Error).message}`)
           }
         }
       }

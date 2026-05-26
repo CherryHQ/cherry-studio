@@ -5,7 +5,7 @@ import { application } from '@application'
 import { createClient } from '@libsql/client'
 import { loggerService } from '@logger'
 import { MESSAGE_FTS_STATEMENTS } from '@main/data/db/schemas/message'
-import type { BackupManifest, RestoreOptions, RestoreStatistics } from '@shared/backup'
+import type { BackupManifest, RestoreOptions, RestoreStatistics, ValidationResult } from '@shared/backup'
 import { BackupDomain, ConflictStrategy } from '@shared/backup'
 import { sql } from 'drizzle-orm'
 import StreamZip from 'node-stream-zip'
@@ -18,6 +18,7 @@ import { IdRemapper } from '../domain/IdRemapper'
 import { FileRestorer } from '../files/FileRestorer'
 import { type BackupProgressTracker, RestorePhase } from '../progress/BackupProgressTracker'
 import { hashFile } from '../utils/checksum'
+import { validateBackupManifest } from './BackupValidator'
 
 const logger = loggerService.withContext('ImportOrchestrator')
 
@@ -39,7 +40,8 @@ export class ImportOrchestrator {
 
       this.progressTracker.setPhase(RestorePhase.VALIDATING)
       const manifest = await this.readManifest(tempDir)
-      await this.verifyChecksums(tempDir)
+      this.validateManifestForRestore(manifest)
+      await this.verifyChecksums(tempDir, manifest)
       await this.verifySchemaVersion(manifest)
 
       if (options.validateOnly) {
@@ -60,7 +62,7 @@ export class ImportOrchestrator {
       const backupClient = createClient({ url: backupUrl })
 
       const liveDb = application.get('DbService').getDb()
-      const strategy = options.conflictStrategy ?? ConflictStrategy.OVERWRITE
+      const strategy = options.conflictStrategy ?? ConflictStrategy.RENAME
       const selectedDomains = this.resolveImportDomains(manifest, options)
 
       this.progressTracker.setPhase(RestorePhase.IMPORTING)
@@ -110,7 +112,7 @@ export class ImportOrchestrator {
         await this.rebuildFts(liveDb)
       }
 
-      const fileRestorer = new FileRestorer(tempDir, this.progressTracker, this.token)
+      const fileRestorer = new FileRestorer(tempDir, this.progressTracker, this.token, remapper)
       let fileCount = 0
       if (options.restoreFiles !== false) {
         const hasFilesDomain =
@@ -146,13 +148,36 @@ export class ImportOrchestrator {
     return JSON.parse(raw) as BackupManifest
   }
 
-  private async verifyChecksums(tempDir: string): Promise<void> {
-    let checksums: Record<string, string>
+  private validateManifestForRestore(manifest: BackupManifest): void {
+    const errors: ValidationResult['errors'] = []
+    const warnings: ValidationResult['warnings'] = []
+
+    validateBackupManifest(manifest, errors, warnings)
+
+    for (const warning of warnings) {
+      logger.warn(warning.message, { code: warning.code })
+    }
+
+    if (errors.length > 0) {
+      throw new Error(errors[0].message)
+    }
+  }
+
+  private async verifyChecksums(tempDir: string, manifest: BackupManifest): Promise<void> {
+    let checksums: Record<string, string> | undefined
     try {
       const raw = await fsp.readFile(path.join(tempDir, 'checksums.json'), 'utf-8')
       checksums = JSON.parse(raw)
     } catch {
-      logger.warn('No checksums.json found, skipping verification')
+      // Fallback to manifest checksums when checksums.json is absent
+      if (manifest.checksums && Object.keys(manifest.checksums).length > 0) {
+        checksums = manifest.checksums
+        logger.info('Using manifest checksums (checksums.json absent)')
+      }
+    }
+
+    if (!checksums || Object.keys(checksums).length === 0) {
+      logger.warn('No checksum data found in archive or manifest, skipping verification')
       return
     }
 

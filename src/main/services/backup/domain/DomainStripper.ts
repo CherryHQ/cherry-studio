@@ -39,7 +39,8 @@ export const CROSS_DOMAIN_FK_RULES: readonly CrossDomainFkRule[] = [
     referencedDomain: BackupDomain.PROVIDERS,
     action: 'SET_NULL'
   },
-  { table: 'knowledge_base', column: 'rerank_model_id', referencedDomain: BackupDomain.PROVIDERS, action: 'SET_NULL' }
+  { table: 'knowledge_base', column: 'rerank_model_id', referencedDomain: BackupDomain.PROVIDERS, action: 'SET_NULL' },
+  { table: 'knowledge_base', column: 'group_id', referencedDomain: BackupDomain.TAGS_GROUPS, action: 'SET_NULL' }
 ]
 
 export async function stripUnselectedDomains(

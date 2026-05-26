@@ -411,4 +411,90 @@ describe('DomainImporter', () => {
     expect(remapper.remap).toHaveBeenCalledWith(oldAssistantId)
     expect(remapper.remap).toHaveBeenCalledWith(oldMcpId)
   })
+
+  it('remaps knowledge_base.group_id under RENAME strategy', async () => {
+    const oldGroupId = 'old-group-id'
+    const newGroupId = 'new-group-id'
+    const rows = [{ id: 'kb-1', group_id: oldGroupId, name: 'test-kb' }]
+    const backupClient = createMockBackupClient({
+      knowledge_base: rows
+    })
+    const liveDb = createMockLiveDb()
+    const remapper = createMockRemapper()
+    remapper.remap.mockImplementation((id: string) => (id === oldGroupId ? newGroupId : id))
+
+    const importer = new DomainImporter(
+      backupClient as never,
+      liveDb as never,
+      remapper as never,
+      createMockTracker() as never,
+      createMockToken() as never
+    )
+
+    await importer.importDomain(BackupDomain.KNOWLEDGE, ConflictStrategy.RENAME)
+
+    expect(remapper.remap).toHaveBeenCalledWith(oldGroupId)
+    const sqlStr = flattenSqlChunks(liveDb._tx.run.mock.calls[0][0])
+    expect(sqlStr).toContain(newGroupId)
+  })
+
+  it('throws on row insert failure under OVERWRITE strategy (domain rollback)', async () => {
+    const rows = [{ id: '1', name: 'test-mcp' }]
+    const backupClient = createMockBackupClient(rows)
+    backupClient.execute.mockResolvedValueOnce({ rows }).mockResolvedValueOnce({ rows: [] })
+    const liveDb = createMockLiveDb()
+    liveDb._tx.run.mockRejectedValue(new Error('UNIQUE constraint violation'))
+
+    const importer = new DomainImporter(
+      backupClient as never,
+      liveDb as never,
+      createMockRemapper() as never,
+      createMockTracker() as never,
+      createMockToken() as never
+    )
+
+    await expect(importer.importDomain(BackupDomain.MCP_SERVERS, ConflictStrategy.OVERWRITE)).rejects.toThrow(
+      'Row insert failed'
+    )
+  })
+
+  it('throws on row insert failure under RENAME strategy (domain rollback)', async () => {
+    const rows = [{ id: '1', name: 'test-mcp' }]
+    const backupClient = createMockBackupClient(rows)
+    backupClient.execute.mockResolvedValueOnce({ rows }).mockResolvedValueOnce({ rows: [] })
+    const liveDb = createMockLiveDb()
+    liveDb._tx.run.mockRejectedValue(new Error('UNIQUE constraint violation'))
+
+    const importer = new DomainImporter(
+      backupClient as never,
+      liveDb as never,
+      createMockRemapper() as never,
+      createMockTracker() as never,
+      createMockToken() as never
+    )
+
+    await expect(importer.importDomain(BackupDomain.MCP_SERVERS, ConflictStrategy.RENAME)).rejects.toThrow(
+      'Row insert failed'
+    )
+  })
+
+  it('counts row as skipped on insert failure under SKIP strategy', async () => {
+    const rows = [{ id: '1', name: 'test-mcp' }]
+    const backupClient = createMockBackupClient(rows)
+    backupClient.execute.mockResolvedValueOnce({ rows }).mockResolvedValueOnce({ rows: [] })
+    const liveDb = createMockLiveDb()
+    liveDb._tx.run.mockRejectedValue(new Error('UNIQUE constraint violation'))
+
+    const importer = new DomainImporter(
+      backupClient as never,
+      liveDb as never,
+      createMockRemapper() as never,
+      createMockTracker() as never,
+      createMockToken() as never
+    )
+
+    const result = await importer.importDomain(BackupDomain.MCP_SERVERS, ConflictStrategy.SKIP)
+    expect(result.skipped).toBe(1)
+    expect(result.imported).toBe(0)
+  })
 })
