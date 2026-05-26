@@ -29,7 +29,19 @@ export async function generateWithNewApiUnified(input: GenerateInput<PaintingDat
       // `allowAutoSize: true` so AiProvider skips the 1024×1024 default.
       // Resolver returns undefined for 'auto', which skips the field — the
       // constant `allowAutoSize: true` below handles the rest.
-      resolvers: { imageSize: (p) => (p.size && p.size !== 'auto' ? p.size : undefined) },
+      //
+      // Registry-driven models (Nano Banana Pro etc., reached via this
+      // fallback when their provider isn't in the painting registry) write
+      // the resolution chip's value under `painting.imageSize` per the
+      // registry keyMap. Fall through to that field when the legacy `size`
+      // isn't set so those values reach the request body.
+      resolvers: {
+        imageSize: (p) => {
+          if (p.size && p.size !== 'auto') return p.size
+          const resolution = (p as unknown as Record<string, unknown>).imageSize
+          return typeof resolution === 'string' && resolution !== '' ? resolution : undefined
+        }
+      },
       constants: { allowAutoSize: true }
     })
   }

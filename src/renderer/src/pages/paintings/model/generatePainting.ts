@@ -1,5 +1,6 @@
 import { AiProvider } from '@renderer/aiCore'
-import type { FileMetadata, GenerateImageParams, Model } from '@renderer/types'
+import { getProviderById } from '@renderer/services/ProviderService'
+import type { FileMetadata, GenerateImageParams, Model, Provider } from '@renderer/types'
 
 import type { DownloadImagesOptions } from '../utils/downloadImages'
 import { runPainting } from './paintingGenerationService'
@@ -69,15 +70,29 @@ export function generatePainting(opts: GeneratePaintingOptions): Promise<FileMet
       group: ''
     }
 
-    const ai = new AiProvider(model, {
-      id: opts.provider.id,
-      type: 'openai',
-      name: opts.provider.name,
-      apiKey: opts.apiKey,
-      apiHost: opts.provider.apiHost,
-      models: [model],
-      enabled: opts.provider.isEnabled
-    })
+    // Use the real store-side provider so AiProvider picks the right SDK
+    // builder (gemini → @ai-sdk/google, anthropic → @ai-sdk/anthropic, etc.)
+    // instead of forcing every painting call through the openai-compat path.
+    // Painting-resolved apiKey / apiHost / enabled override the store values.
+    const storeProvider = getProviderById(opts.provider.id)
+    const provider: Provider = storeProvider
+      ? {
+          ...storeProvider,
+          apiKey: opts.apiKey,
+          apiHost: opts.provider.apiHost,
+          enabled: opts.provider.isEnabled
+        }
+      : {
+          id: opts.provider.id,
+          type: 'openai',
+          name: opts.provider.name,
+          apiKey: opts.apiKey,
+          apiHost: opts.provider.apiHost,
+          models: [model],
+          enabled: opts.provider.isEnabled
+        }
+
+    const ai = new AiProvider(model, provider)
 
     const providerOptions = opts.providerBag ? { [opts.provider.id]: opts.providerBag } : undefined
 

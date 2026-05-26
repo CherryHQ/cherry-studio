@@ -9,7 +9,7 @@ import { newApiFields } from './fields'
 import { generateWithNewApiUnified } from './generateUnified'
 
 function getModelDefaults(modelId: string) {
-  const modelConfig = MODELS.find((model) => model.name === modelId) ?? MODELS[0]
+  const modelConfig = MODELS.find((model) => model.name === modelId)
   const updates: Partial<PaintingData> = { model: modelId, n: 1 }
 
   if (modelConfig?.imageSizes?.length) {
@@ -53,6 +53,7 @@ export function createNewApiProvider(providerId: string): PaintingProviderDefini
         model: modelOptions?.[0]?.value || ''
       })
     },
+    useRegistryForm: true,
     fields: {
       byTab: newApiFields,
       onModelChange: ({ modelId }) => getModelDefaults(modelId)

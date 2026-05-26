@@ -58,6 +58,18 @@ function resolveImageSize(
   return '1024x1024'
 }
 
+/**
+ * Normalize the painting form's `ASPECT_X_Y` enum (or already-normalized
+ * `X:Y`) into the `${number}:${number}` shape the AI SDK ImageModelV3 expects.
+ * Returns `undefined` for non-strings or mismatched values so the call site
+ * can omit the field entirely.
+ */
+function resolveAspectRatio(value: string | undefined): `${number}:${number}` | undefined {
+  if (!value) return undefined
+  const stripped = value.replace(/^ASPECT_/i, '').replace('_', ':')
+  return /^\d+:\d+$/.test(stripped) ? (stripped as `${number}:${number}`) : undefined
+}
+
 export type AiProviderConfig = AiSdkMiddlewareConfig & {
   assistant: Assistant
   // topicId for tracing
@@ -428,7 +440,7 @@ export default class AiProvider {
    * 使用现代化 AI SDK 的图像生成实现
    */
   private async modernGenerateImage(params: GenerateImageParams, providerConfig: ProviderConfig): Promise<string[]> {
-    const { model, prompt, imageSize, batchSize, signal, allowAutoSize } = params
+    const { model, prompt, imageSize, aspectRatio, batchSize, signal, allowAutoSize } = params
 
     // Forward the remaining params (negativePrompt/seed/steps/guidance/
     // promptEnhancement/personGeneration/quality) via AI SDK providerOptions —
@@ -441,9 +453,11 @@ export default class AiProvider {
 
     // 转换参数格式
     const resolvedSize = resolveImageSize(imageSize, allowAutoSize)
+    const resolvedAspectRatio = resolveAspectRatio(aspectRatio)
     const aiSdkParams = {
       prompt,
       ...(resolvedSize !== undefined && { size: resolvedSize }),
+      ...(resolvedAspectRatio !== undefined && { aspectRatio: resolvedAspectRatio }),
       n: batchSize || 1,
       // Cast: extra providerOptions may carry non-JSON callbacks (e.g. the
       // polling `onProgress`) which the AI SDK passes through by reference.
@@ -475,7 +489,7 @@ export default class AiProvider {
     params: GenerateImageParams,
     providerConfig: ProviderConfig
   ): Promise<ClassifiedImage[]> {
-    const { model, prompt, imageSize, batchSize, signal, allowAutoSize } = params
+    const { model, prompt, imageSize, aspectRatio, batchSize, signal, allowAutoSize } = params
 
     const providerOptions = mergeExtraProviderOptions(
       buildImageProviderOptions(providerConfig.providerId, params),
@@ -483,9 +497,11 @@ export default class AiProvider {
     )
 
     const resolvedSize = resolveImageSize(imageSize, allowAutoSize)
+    const resolvedAspectRatio = resolveAspectRatio(aspectRatio)
     const aiSdkParams = {
       prompt,
       ...(resolvedSize !== undefined && { size: resolvedSize }),
+      ...(resolvedAspectRatio !== undefined && { aspectRatio: resolvedAspectRatio }),
       n: batchSize || 1,
       experimental_download: downloadImageUrls,
       ...(Object.keys(providerOptions).length > 0 && {

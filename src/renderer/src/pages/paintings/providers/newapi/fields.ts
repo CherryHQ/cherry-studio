@@ -9,7 +9,7 @@ import type { BaseConfigItem } from '../shared/providerFieldSchema'
 import { MODELS } from './config'
 
 export function getNewApiModelConfig(modelId: unknown) {
-  return MODELS.find((model) => model.name === modelId) ?? MODELS[0]
+  return MODELS.find((model) => model.name === modelId)
 }
 
 function buildSizeField(): BaseConfigItem {

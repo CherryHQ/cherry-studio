@@ -17,8 +17,22 @@ export type ImageOptionParams = Partial<
     | 'promptEnhancement'
     | 'personGeneration'
     | 'quality'
+    | 'aspectRatio'
+    | 'imageSize'
   >
 > & { background?: string; moderation?: string }
+
+/**
+ * Normalize the painting form's `ASPECT_X_Y` enum (or already-normalized
+ * `X:Y`) into the `${number}:${number}` shape Google/Imagen/Gemini-image
+ * accept. Returns `undefined` for non-strings or mismatched values so the
+ * caller can omit the field entirely.
+ */
+function normalizeAspectRatio(value: unknown): string | undefined {
+  if (typeof value !== 'string' || value === '') return undefined
+  const stripped = value.replace(/^ASPECT_/i, '').replace('_', ':')
+  return /^\d+:\d+$/.test(stripped) ? stripped : undefined
+}
 
 /**
  * Build AI SDK `providerOptions` for image generation, mirroring the chat-side
@@ -50,7 +64,9 @@ export function buildImageProviderOptions(
     personGeneration,
     quality,
     background,
-    moderation
+    moderation,
+    aspectRatio,
+    imageSize
   } = params
 
   const seedNumber = seed && /^-?\d+$/.test(seed.trim()) ? Number(seed.trim()) : undefined
@@ -84,11 +100,29 @@ export function buildImageProviderOptions(
       return Object.keys(mapped).length ? { openai: mapped, [rawProviderId]: mapped } : {}
     }
 
-    // Google Imagen — `@ai-sdk/google` image model reads `providerOptions.google`.
+    // Google native image — `@ai-sdk/google.image()` dispatches by model id:
+    //   Imagen path  → top-level `aspectRatio` is read directly from the SDK
+    //                  call options (AiProvider passes it normalized).
+    //   Gemini image → reads `providerOptions.google.imageConfig.{aspectRatio,
+    //                  imageSize}` (its initial `imageConfig: { aspectRatio }`
+    //                  is overridden by the spread of providerOptions.google).
+    // We build the imageConfig here so Nano Banana / Nano Banana Pro pick up
+    // both aspectRatio and the `imageResolution` chip (mapped to imageSize
+    // via the registry keyMap). personGeneration is the Imagen-only
+    // top-level field; carry it as before.
     case 'google':
     case 'google-vertex': {
-      const mapped = define({ personGeneration: personGeneration as JSONValue | undefined })
-      return Object.keys(mapped).length ? { google: mapped } : {}
+      const normalizedAspect = normalizeAspectRatio(aspectRatio)
+      const imageConfig: Record<string, JSONValue> = {}
+      if (normalizedAspect) imageConfig.aspectRatio = normalizedAspect
+      if (typeof imageSize === 'string' && imageSize !== '' && imageSize !== 'auto') {
+        imageConfig.imageSize = imageSize
+      }
+      const googleOptions: Record<string, JSONValue> = {}
+      if (Object.keys(imageConfig).length > 0) googleOptions.imageConfig = imageConfig
+      const person = define({ personGeneration: personGeneration as JSONValue | undefined })
+      Object.assign(googleOptions, person)
+      return Object.keys(googleOptions).length ? { google: googleOptions } : {}
     }
 
     // OpenAI-compatible / diffusion (silicon, zhipu, deepseek, openrouter, …).

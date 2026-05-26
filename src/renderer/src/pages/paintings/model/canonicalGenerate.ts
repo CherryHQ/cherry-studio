@@ -16,6 +16,7 @@ import type { PaintingData } from './types/paintingData'
 type AiSdkParamKey =
   | 'negativePrompt'
   | 'imageSize'
+  | 'aspectRatio'
   | 'batchSize'
   | 'allowAutoSize'
   | 'seed'
@@ -99,6 +100,7 @@ export interface CanonicalGenerateOptions<T extends PaintingData> {
 const AI_SDK_PARAM_KEYS: readonly AiSdkParamKey[] = [
   'negativePrompt',
   'imageSize',
+  'aspectRatio',
   'batchSize',
   'allowAutoSize',
   'seed',

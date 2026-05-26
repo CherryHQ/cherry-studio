@@ -584,6 +584,7 @@ export type GenerateImageParams = {
   prompt: string
   negativePrompt?: string
   imageSize?: string
+  aspectRatio?: string
   batchSize: number
   /**
    * Painting-only opt-in: when true and `imageSize` is undefined, `AiProvider`
