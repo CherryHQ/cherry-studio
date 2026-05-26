@@ -413,6 +413,7 @@ export class KnowledgeItemService {
     status: KnowledgeItemStatus,
     update: FailedKnowledgeItemStatusUpdate | undefined = undefined
   ): Promise<KnowledgeItem> {
+    // Per-type status legality is enforced by the DB CHECK constraint.
     const error = status === 'failed' ? update?.error.trim() : null
 
     if (status === 'failed' && !error) {
