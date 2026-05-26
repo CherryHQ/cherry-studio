@@ -16,14 +16,14 @@ export function useAttachment() {
   const preview = async (path: string, title: string, fileType: FileType, extension?: string) => {
     try {
       if (fileType === FILE_TYPE.TEXT) {
-        const content = await window.api.fs.readText(path)
+        const content = await window.api.legacyFile.readText(path)
         let ext = extension
         if (ext?.startsWith('.')) {
           ext = ext.replace('.', '')
         }
         void TextFilePreviewPopup.show(content, title, ext)
       } else {
-        void window.api.file.openPath(path)
+        void window.api.legacyFile.openPath(path)
       }
     } catch (err) {
       logger.error(`Error opening ${path}:`, err as Error)

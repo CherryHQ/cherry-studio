@@ -160,7 +160,7 @@ const AttachmentItem: FC<{
   const handleOpenChange = (open: boolean) => {
     if (!open || probedRef.current) return
     probedRef.current = true
-    void window.api.file
+    void window.api.legacyFile
       .isTextFile(file.path)
       .then(setIsTextFile)
       .catch((error) => {

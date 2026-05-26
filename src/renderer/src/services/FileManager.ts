@@ -40,7 +40,7 @@ const logger = loggerService.withContext('FileManager')
  */
 class FileManager {
   static async selectFiles(options?: Electron.OpenDialogOptions): Promise<FileMetadata[] | null> {
-    return await window.api.file.select(options)
+    return await window.api.legacyFile.select(options)
   }
 
   static async addFile(file: FileMetadata): Promise<FileMetadata> {
@@ -61,19 +61,19 @@ class FileManager {
   }
 
   static async readBinaryImage(file: FileMetadata): Promise<Buffer> {
-    const fileData = await window.api.file.binaryImage(file.id + file.ext)
+    const fileData = await window.api.legacyFile.binaryImage(file.id + file.ext)
     return fileData.data
   }
 
   static async readBase64File(file: FileMetadata): Promise<string> {
-    const fileData = await window.api.file.base64File(file.id + file.ext)
+    const fileData = await window.api.legacyFile.base64File(file.id + file.ext)
     return fileData.data
   }
 
   static async addBase64File(file: FileMetadata): Promise<FileMetadata> {
     logger.info(`Adding base64 file: ${JSON.stringify(file)}`)
 
-    const base64File = await window.api.file.base64File(file.id + file.ext)
+    const base64File = await window.api.legacyFile.base64File(file.id + file.ext)
     const fileRecord = await db.files.get(base64File.id)
 
     if (fileRecord) {
@@ -89,7 +89,7 @@ class FileManager {
   static async uploadFile(file: FileMetadata): Promise<FileMetadata> {
     logger.info(`Uploading file: ${JSON.stringify(file)}`)
 
-    const uploadFile = await window.api.file.upload(file)
+    const uploadFile = await window.api.legacyFile.upload(file)
     logger.info('Uploaded file:', uploadFile)
     const fileRecord = await db.files.get(uploadFile.id)
 
@@ -142,7 +142,7 @@ class FileManager {
     await db.files.delete(id)
 
     try {
-      await window.api.file.delete(id + file.ext)
+      await window.api.legacyFile.delete(id + file.ext)
     } catch (error) {
       logger.error('Failed to delete file:', error as Error)
     }

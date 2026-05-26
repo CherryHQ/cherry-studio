@@ -27,8 +27,8 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => 
   const hasContent = htmlContent.trim().length > 0
 
   const handleOpenExternal = async () => {
-    const path = await window.api.file.createTempFile('artifacts-preview.html')
-    await window.api.file.write(path, htmlContent)
+    const path = await window.api.legacyFile.createTempFile('artifacts-preview.html')
+    await window.api.legacyFile.write(path, htmlContent)
     const filePath = `file://${path}`
 
     if (window.api.shell?.openExternal) {
@@ -40,7 +40,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => 
 
   const handleDownload = async () => {
     const fileName = `${getFileNameFromHtmlTitle(title) || 'html-artifact'}.html`
-    await window.api.file.save(fileName, htmlContent)
+    await window.api.legacyFile.save(fileName, htmlContent)
     window.toast.success(t('message.download.success'))
   }
 

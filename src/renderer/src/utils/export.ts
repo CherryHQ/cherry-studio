@@ -414,7 +414,7 @@ export const exportTopicAsMarkdown = async (
     try {
       const fileName = removeSpecialCharactersForFileName(topic.name) + '.md'
       const markdown = await topicToMarkdown(topic, exportReasoning, excludeCitations)
-      const result = await window.api.file.save(fileName, markdown)
+      const result = await window.api.legacyFile.save(fileName, markdown)
       if (result) {
         window.toast.success(i18n.t('message.success.markdown.export.specified'))
       }
@@ -429,7 +429,7 @@ export const exportTopicAsMarkdown = async (
       const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
       const fileName = removeSpecialCharactersForFileName(topic.name) + ` ${timestamp}.md`
       const markdown = await topicToMarkdown(topic, exportReasoning, excludeCitations)
-      await window.api.file.write(markdownExportPath + '/' + fileName, markdown)
+      await window.api.legacyFile.write(markdownExportPath + '/' + fileName, markdown)
       window.toast.success(i18n.t('message.success.markdown.export.preconf'))
     } catch (error: any) {
       window.toast.error(i18n.t('message.error.markdown.export.preconf'))
@@ -460,7 +460,7 @@ export const exportMessageAsMarkdown = async (
       const markdown = exportReasoning
         ? await messageToMarkdownWithReasoning(message, excludeCitations)
         : await messageToMarkdown(message, excludeCitations)
-      const result = await window.api.file.save(fileName, markdown)
+      const result = await window.api.legacyFile.save(fileName, markdown)
       if (result) {
         window.toast.success(i18n.t('message.success.markdown.export.specified'))
       }
@@ -478,7 +478,7 @@ export const exportMessageAsMarkdown = async (
       const markdown = exportReasoning
         ? await messageToMarkdownWithReasoning(message, excludeCitations)
         : await messageToMarkdown(message, excludeCitations)
-      await window.api.file.write(markdownExportPath + '/' + fileName, markdown)
+      await window.api.legacyFile.write(markdownExportPath + '/' + fileName, markdown)
       window.toast.success(i18n.t('message.success.markdown.export.preconf'))
     } catch (error: any) {
       window.toast.error(i18n.t('message.error.markdown.export.preconf'))
@@ -1110,7 +1110,7 @@ export const exportTopicToNotes = async (topic: Topic, folderPath: string): Prom
 const exportNoteAsMarkdown = async (noteName: string, content: string): Promise<void> => {
   const markdown = `# ${noteName}\n\n${content}`
   const fileName = removeSpecialCharactersForFileName(noteName) + '.md'
-  const result = await window.api.file.save(fileName, markdown)
+  const result = await window.api.legacyFile.save(fileName, markdown)
   if (result) {
     window.toast.success(i18n.t('message.success.markdown.export.specified'))
   }
@@ -1160,7 +1160,7 @@ const exportNoteAsImageFile = async (noteName: string): Promise<void> => {
   const dataUrl = await captureScrollableAsDataURL(scrollableRef)
   if (dataUrl) {
     const fileName = removeSpecialCharactersForFileName(noteName)
-    await window.api.file.saveImage(fileName, dataUrl)
+    await window.api.legacyFile.saveImage(fileName, dataUrl)
   }
 }
 
@@ -1171,7 +1171,7 @@ interface NoteExportOptions {
 
 export const exportNote = async ({ node, platform }: NoteExportOptions): Promise<void> => {
   try {
-    const content = await window.api.file.readExternal(node.externalPath)
+    const content = await window.api.legacyFile.readExternal(node.externalPath)
 
     switch (platform) {
       case 'copyImage':

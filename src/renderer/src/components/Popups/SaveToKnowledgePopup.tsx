@@ -315,7 +315,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
 
         let content = ''
         try {
-          content = await window.api.file.readExternal(note.externalPath)
+          content = await window.api.legacyFile.readExternal(note.externalPath)
         } catch (error) {
           logger.error('Failed to read note file:', error as Error)
           throw new Error('Failed to read note content. Please ensure the file exists and is accessible.')

@@ -170,7 +170,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
         const downloadedFiles = await Promise.all(
           images.map(async (image) => {
             try {
-              return await window.api.file.saveBase64Image(image)
+              return await window.api.legacyFile.saveBase64Image(image)
             } catch (error) {
               if (
                 error instanceof Error &&

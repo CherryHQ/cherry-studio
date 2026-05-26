@@ -57,7 +57,7 @@ export function useSystemAssistantPresets() {
         if (resourcesPath) {
           try {
             const fileName = currentLanguage === 'zh-CN' ? 'agents-zh.json' : 'agents-en.json'
-            const localAgentsData = await window.api.fs.read(`${resourcesPath}/data/${fileName}`, 'utf-8')
+            const localAgentsData = await window.api.legacyFile.fsRead(`${resourcesPath}/data/${fileName}`, 'utf-8')
             _agents = JSON.parse(localAgentsData) as AssistantPreset[]
           } catch (error) {
             logger.error('Failed to load local agents:', error as Error)

@@ -46,7 +46,7 @@ const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions
     const useAllFiles = extensions.length > 20
 
     setSelecting(true)
-    const _files = await window.api.file.select({
+    const _files = await window.api.legacyFile.select({
       properties: ['openFile', 'multiSelections'],
       filters: [
         {

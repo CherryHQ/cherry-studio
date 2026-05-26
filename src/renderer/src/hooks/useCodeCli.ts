@@ -145,7 +145,7 @@ export const useCodeCli = () => {
 
   const selectFolder = useCallback(async () => {
     try {
-      const folderPath = await window.api.file.selectFolder()
+      const folderPath = await window.api.legacyFile.selectFolder()
       if (folderPath) {
         await setCurrentDir(folderPath)
         return folderPath

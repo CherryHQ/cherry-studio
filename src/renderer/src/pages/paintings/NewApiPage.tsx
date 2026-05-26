@@ -112,7 +112,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       try {
         const files = await Promise.all(
           painting.files.map(async (file, index) => {
-            const { data, mime } = await window.api.file.binaryImage(file.id + file.ext)
+            const { data, mime } = await window.api.legacyFile.binaryImage(file.id + file.ext)
             const fileName = file.name || `image_${index + 1}${file.ext}`
 
             return new File([data], fileName, {
@@ -245,7 +245,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
             window.toast.warning(t('message.empty_url'))
             return null
           }
-          return await window.api.file.download(url)
+          return await window.api.legacyFile.download(url)
         } catch (error) {
           logger.error('下载图像失败:', error as Error)
           if (
@@ -383,7 +383,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (base64s?.length > 0) {
         const validFiles = await Promise.all(
           base64s.map(async (base64) => {
-            return await window.api.file.saveBase64Image(base64)
+            return await window.api.legacyFile.saveBase64Image(base64)
           })
         )
         await FileManager.addFiles(validFiles)

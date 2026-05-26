@@ -59,7 +59,7 @@ const SessionWorkspaceMeta = ({ agent, session }: SessionWorkspaceMetaProps) => 
         tooltip={firstAccessiblePath}
         className="max-w-60 transition-colors hover:border-primary hover:text-primary"
         onClick={() => {
-          window.api.file
+          window.api.legacyFile
             .openPath(firstAccessiblePath)
             .catch((e) =>
               window.toast.error(

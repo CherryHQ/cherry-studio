@@ -44,9 +44,9 @@ export const handlePaste = async (
         // 长文本直接转文件，阻止默认粘贴
         event.preventDefault()
 
-        const tempFilePath = await window.api.file.createTempFile('pasted_text.txt')
-        await window.api.file.write(tempFilePath, clipboardText)
-        const selectedFile = await window.api.file.get(tempFilePath)
+        const tempFilePath = await window.api.legacyFile.createTempFile('pasted_text.txt')
+        await window.api.legacyFile.write(tempFilePath, clipboardText)
+        const selectedFile = await window.api.legacyFile.get(tempFilePath)
         if (selectedFile) {
           setFiles((prevFiles) => [...prevFiles, selectedFile])
           if (setText && text) setText(text) // 保持输入框内容不变
@@ -64,17 +64,17 @@ export const handlePaste = async (
       try {
         for (const file of event.clipboardData.files) {
           // 使用新的API获取文件路径
-          const filePath = window.api.file.getPathForFile(file)
+          const filePath = window.api.legacyFile.getPathForFile(file)
 
           // 如果没有路径，可能是剪贴板中的图像数据
           if (!filePath) {
             // 图像生成也支持图像编辑
             if (file.type.startsWith('image/') && supportExts.includes(getFileExtension(file.name))) {
-              const tempFilePath = await window.api.file.createTempFile(file.name)
+              const tempFilePath = await window.api.legacyFile.createTempFile(file.name)
               const arrayBuffer = await file.arrayBuffer()
               const uint8Array = new Uint8Array(arrayBuffer)
-              await window.api.file.write(tempFilePath, uint8Array)
-              const selectedFile = await window.api.file.get(tempFilePath)
+              await window.api.legacyFile.write(tempFilePath, uint8Array)
+              const selectedFile = await window.api.legacyFile.get(tempFilePath)
               if (selectedFile) {
                 setFiles((prevFiles) => [...prevFiles, selectedFile])
                 break
@@ -89,7 +89,7 @@ export const handlePaste = async (
 
           // 有路径的情况
           if (await isSupportedFile(filePath, extensionSet)) {
-            const selectedFile = await window.api.file.get(filePath)
+            const selectedFile = await window.api.legacyFile.get(filePath)
             if (selectedFile) {
               setFiles((prevFiles) => [...prevFiles, selectedFile])
             }

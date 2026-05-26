@@ -68,7 +68,7 @@ async function deleteWebdavFileWithRetry(fileName: string, webdavConfig: WebDavC
 
 export async function backup(skipBackupFile: boolean) {
   const filename = `cherry-studio.${dayjs().format('YYYYMMDDHHmm')}.zip`
-  const selectFolder = await window.api.file.selectFolder()
+  const selectFolder = await window.api.legacyFile.selectFolder()
   if (selectFolder) {
     // Use direct backup method - copy IndexedDB/LocalStorage directories directly
     await window.api.backup.backup(filename, selectFolder, skipBackupFile)
@@ -78,7 +78,7 @@ export async function backup(skipBackupFile: boolean) {
 
 export async function backupToLanTransfer() {
   // Let user select save location first
-  const savePath = await window.api.file.selectFolder()
+  const savePath = await window.api.legacyFile.selectFolder()
 
   if (!savePath) {
     return
@@ -93,7 +93,7 @@ export async function backupToLanTransfer() {
 
 export async function restore() {
   // notificationService is imported as a module-level singleton
-  const file = await window.api.file.open({ filters: [{ name: '备份文件', extensions: ['bak', 'zip'] }] })
+  const file = await window.api.legacyFile.open({ filters: [{ name: '备份文件', extensions: ['bak', 'zip'] }] })
 
   if (file) {
     try {

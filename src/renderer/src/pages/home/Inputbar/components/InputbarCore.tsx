@@ -448,7 +448,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
     async (file: FileMetadata) => {
       try {
         const targetPath = file.path
-        const content = await window.api.file.readExternal(targetPath, true)
+        const content = await window.api.legacyFile.readExternal(targetPath, true)
         try {
           await navigator.clipboard.writeText(content)
         } catch (clipboardError) {

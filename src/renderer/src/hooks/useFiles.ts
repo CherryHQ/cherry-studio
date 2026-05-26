@@ -46,7 +46,7 @@ export const useFiles = (props?: Props) => {
       const useAllFiles = extensions.length > 20
 
       setSelecting(true)
-      const _files = await window.api.file.select({
+      const _files = await window.api.legacyFile.select({
         properties: selectProps,
         filters: [
           {

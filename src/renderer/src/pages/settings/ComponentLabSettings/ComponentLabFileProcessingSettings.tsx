@@ -278,7 +278,7 @@ const ComponentLabFileProcessingSettings: FC = () => {
       setSectionErrors((current) => ({ ...current, [section.feature]: undefined }))
 
       try {
-        const files = await window.api.file.select({
+        const files = await window.api.legacyFile.select({
           properties: ['openFile'],
           filters: [
             {

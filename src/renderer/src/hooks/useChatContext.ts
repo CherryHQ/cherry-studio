@@ -142,7 +142,7 @@ export const useChatContext = (activeTopic: Topic) => {
               })
               .join('\n\n---\n\n')
             const fileName = `chat_export_${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.md`
-            await window.api.file.save(fileName, contentToSave)
+            await window.api.legacyFile.save(fileName, contentToSave)
             window.toast.success(t('message.save.success.title'))
             handleToggleMultiSelectMode(false)
           } else {

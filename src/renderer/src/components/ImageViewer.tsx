@@ -46,7 +46,7 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
   }
 
   if (src.startsWith('file://')) {
-    const bytes = await window.api.fs.read(src)
+    const bytes = await window.api.legacyFile.fsRead(src)
     const mimeType = mime.getType(src) || 'application/octet-stream'
     return new Blob([bytes], { type: mimeType })
   }

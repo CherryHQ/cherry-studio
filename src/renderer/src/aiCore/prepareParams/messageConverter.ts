@@ -70,7 +70,7 @@ async function convertImageBlockToImagePart(imageBlocks: ImageMessageBlock[]): P
     if (imageBlock.file) {
       try {
         const ext = imageBlock.file.ext.startsWith('.') ? imageBlock.file.ext : `.${imageBlock.file.ext}`
-        const image = await window.api.file.base64Image(imageBlock.file.id + ext)
+        const image = await window.api.legacyFile.base64Image(imageBlock.file.id + ext)
         parts.push({
           type: 'image',
           image: image.base64,

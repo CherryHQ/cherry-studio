@@ -278,7 +278,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
                 logger.error(t('message.empty_url'))
                 return null
               }
-              return await window.api.file.download(url)
+              return await window.api.legacyFile.download(url)
             } catch (error) {
               logger.error('Failed to download image:', error as Error)
               return null

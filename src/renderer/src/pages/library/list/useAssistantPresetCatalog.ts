@@ -156,7 +156,7 @@ async function readLocalPresets(language: string, resourcesPath: string) {
   }
 
   const fileName = language === 'zh-CN' ? 'agents-zh.json' : 'agents-en.json'
-  const content = await window.api.fs.read(`${resourcesPath}/data/${fileName}`, 'utf-8')
+  const content = await window.api.legacyFile.fsRead(`${resourcesPath}/data/${fileName}`, 'utf-8')
   return normalizePresets(JSON.parse(content))
 }
 

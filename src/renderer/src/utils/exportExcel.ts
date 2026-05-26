@@ -77,7 +77,7 @@ export async function exportTableToExcel(markdown: string): Promise<boolean> {
   const fileName = `table_${dayjs().format('YYYY-MM-DD_HHmmss')}.xlsx`
 
   // 让用户选择保存位置
-  const savePath = await window.api.file.selectFolder({
+  const savePath = await window.api.legacyFile.selectFolder({
     title: 'Select folder to save Excel file'
   })
 
@@ -89,7 +89,7 @@ export async function exportTableToExcel(markdown: string): Promise<boolean> {
   const filePath = `${savePath}/${fileName}`
 
   try {
-    await window.api.file.write(filePath, uint8Array)
+    await window.api.legacyFile.write(filePath, uint8Array)
   } catch (error) {
     throw new Error(`Failed to write Excel file to ${filePath}: ${error}`)
   }

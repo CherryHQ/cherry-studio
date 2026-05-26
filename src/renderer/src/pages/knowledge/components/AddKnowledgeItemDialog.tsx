@@ -25,7 +25,7 @@ const getDirectoryName = (directoryPath: string) => {
 }
 
 const resolveFilePath = (file: File): string | Error => {
-  const filePath = window.api.file.getPathForFile(file)
+  const filePath = window.api.legacyFile.getPathForFile(file)
 
   if (!filePath) {
     return new Error(`Failed to resolve a local path for "${file.name}"`)
@@ -41,7 +41,7 @@ const resolveFileMetadata = async (file: File): Promise<FileMetadata> => {
     return Promise.reject(filePath)
   }
 
-  const metadata = await window.api.file.get(filePath)
+  const metadata = await window.api.legacyFile.get(filePath)
 
   if (!metadata) {
     return Promise.reject(new Error(`Failed to read file metadata for "${file.name}"`))
@@ -77,7 +77,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
 
   const handleDirectorySelect = useCallback(async () => {
     setSubmitErrorMessage('')
-    const directoryPath = await window.api.file.selectFolder()
+    const directoryPath = await window.api.legacyFile.selectFolder()
 
     if (!directoryPath) {
       return

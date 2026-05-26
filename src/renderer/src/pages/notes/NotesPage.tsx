@@ -141,7 +141,7 @@ const NotesPage: FC = () => {
       }
 
       try {
-        await window.api.file.write(targetPath, content)
+        await window.api.legacyFile.write(targetPath, content)
         // 保存后立即刷新缓存，确保下次读取时获取最新内容
         invalidateFileContent(targetPath)
       } catch (error) {
@@ -249,7 +249,7 @@ const NotesPage: FC = () => {
 
         // 检查默认路径下是否有笔记文件
         try {
-          const tree = await window.api.file.getDirectoryStructure(defaultPath)
+          const tree = await window.api.legacyFile.getDirectoryStructure(defaultPath)
           if (!tree || tree.length === 0) {
             // 默认目录为空，提示用户需要迁移文件
             window.toast.warning({
@@ -354,12 +354,12 @@ const NotesPage: FC = () => {
       }
 
       try {
-        await window.api.file.startFileWatcher(notesPath)
+        await window.api.legacyFile.startFileWatcher(notesPath)
         if (cancelled) {
-          await window.api.file.stopFileWatcher()
+          await window.api.legacyFile.stopFileWatcher()
           return
         }
-        watcherRef.current = window.api.file.onFileChange(handleFileChange)
+        watcherRef.current = window.api.legacyFile.onFileChange(handleFileChange)
       } catch (error) {
         logger.error('Failed to start file watcher:', error as Error)
       }
@@ -373,7 +373,7 @@ const NotesPage: FC = () => {
         watcherRef.current()
         watcherRef.current = null
       }
-      window.api.file.stopFileWatcher().catch((error) => {
+      window.api.legacyFile.stopFileWatcher().catch((error) => {
         logger.error('Failed to stop file watcher:', error)
       })
 
@@ -512,10 +512,10 @@ const NotesPage: FC = () => {
 
   const rollbackFileMove = useCallback(async (fromPath: string, toPath: string, nodeType: NotesTreeNode['type']) => {
     if (nodeType === 'folder') {
-      await window.api.file.moveDir(fromPath, toPath)
+      await window.api.legacyFile.moveDir(fromPath, toPath)
       return
     }
-    await window.api.file.move(fromPath, toPath)
+    await window.api.legacyFile.move(fromPath, toPath)
   }, [])
 
   const syncMetadataAfterFileOperation = useCallback(
@@ -868,7 +868,7 @@ const NotesPage: FC = () => {
           return
         }
 
-        const { safeName } = await window.api.file.checkFileName(
+        const { safeName } = await window.api.legacyFile.checkFileName(
           normalizedTargetParent,
           sourceNode.name,
           sourceNode.type === 'file'
@@ -884,9 +884,9 @@ const NotesPage: FC = () => {
         }
 
         if (sourceNode.type === 'file') {
-          await window.api.file.move(sourceNode.externalPath, destinationPath)
+          await window.api.legacyFile.move(sourceNode.externalPath, destinationPath)
         } else {
-          await window.api.file.moveDir(sourceNode.externalPath, destinationPath)
+          await window.api.legacyFile.moveDir(sourceNode.externalPath, destinationPath)
         }
 
         const metadataSynced = await syncMetadataAfterFileOperation(

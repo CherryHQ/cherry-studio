@@ -352,7 +352,7 @@ const MessageMenubar: FC<Props> = (props) => {
             key: 'file',
             onClick: () => {
               const fileName = dayjs(message.createdAt).format('YYYYMMDDHHmm') + '.md'
-              void window.api.file.save(fileName, mainTextContent)
+              void window.api.legacyFile.save(fileName, mainTextContent)
             }
           },
           {
@@ -392,7 +392,7 @@ const MessageMenubar: FC<Props> = (props) => {
               const imageData = await captureScrollableAsDataURL(messageContainerRef)
               const title = await getMessageTitle(message)
               if (title && imageData) {
-                const success = await window.api.file.saveImage(title, imageData)
+                const success = await window.api.legacyFile.saveImage(title, imageData)
                 if (success) window.toast.success(t('chat.topics.export.image_saved'))
               }
             }

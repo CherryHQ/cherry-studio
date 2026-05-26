@@ -38,7 +38,7 @@ const MarkdownExportSettings: FC = () => {
   )
 
   const handleSelectFolder = async () => {
-    const path = await window.api.file.selectFolder()
+    const path = await window.api.legacyFile.selectFolder()
     if (path) {
       void setmarkdownExportPath(path)
     }

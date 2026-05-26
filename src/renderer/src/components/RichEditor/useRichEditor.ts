@@ -515,7 +515,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         const buffer = new Uint8Array(arrayBuffer)
 
         // Save image to local storage
-        const fileMetadata = await window.api.file.savePastedImage(buffer, extension)
+        const fileMetadata = await window.api.legacyFile.savePastedImage(buffer, extension)
 
         // Insert image into editor using local file path
         if (editor && !editor.isDestroyed) {

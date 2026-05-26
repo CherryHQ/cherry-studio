@@ -235,7 +235,7 @@ const api = {
     deleteLanTransferBackup: (filePath: string): Promise<boolean> =>
       ipcRenderer.invoke(IpcChannel.Backup_DeleteLanTransferBackup, filePath)
   },
-  file: {
+  legacyFile: {
     select: (options?: OpenDialogOptions): Promise<FileMetadata[] | null> =>
       ipcRenderer.invoke(IpcChannel.File_Select, options),
     upload: (file: FileMetadata) => ipcRenderer.invoke(IpcChannel.File_Upload, file),
@@ -303,7 +303,13 @@ const api = {
       return () => ipcRenderer.off('file-change', listener)
     },
     showInFolder: (path: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_ShowInFolder, path),
-    // FileManager v2 surface (Phase 2)
+    // Origin: v1 fs
+    fsRead: (pathOrUrl: string, encoding?: BufferEncoding) =>
+      ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding),
+    readText: (pathOrUrl: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Fs_ReadText, pathOrUrl)
+  },
+  // FileManager v2 surface (Phase 2)
+  file: {
     createInternalEntry: (params: CreateInternalEntryIpcParams) =>
       ipcRenderer.invoke(IpcChannel.File_CreateInternalEntry, params),
     ensureExternalEntry: (params: EnsureExternalEntryIpcParams) =>
@@ -311,10 +317,6 @@ const api = {
     getPhysicalPath: (params: GetPhysicalPathIpcParams) => ipcRenderer.invoke(IpcChannel.File_GetPhysicalPath, params),
     permanentDelete: (handle: FileHandle) => ipcRenderer.invoke(IpcChannel.File_PermanentDelete, handle),
     runSweep: () => ipcRenderer.invoke(IpcChannel.File_RunSweep)
-  },
-  fs: {
-    read: (pathOrUrl: string, encoding?: BufferEncoding) => ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding),
-    readText: (pathOrUrl: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Fs_ReadText, pathOrUrl)
   },
   pdf: {
     extractText: (data: Uint8Array | ArrayBuffer | string): Promise<string> =>
