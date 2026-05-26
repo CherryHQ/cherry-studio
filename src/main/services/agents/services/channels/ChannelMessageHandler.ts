@@ -568,6 +568,20 @@ export class ChannelMessageHandler {
     images?: ImageAttachment[],
     rendererIsWatching: boolean = false
   ): Promise<string> {
+    return this.doCollectStreamResponse(session, content, abortController, adapter, chatId, displayContent, images, rendererIsWatching, false)
+  }
+
+  private async doCollectStreamResponse(
+    session: GetAgentSessionResponse,
+    content: string,
+    abortController: AbortController,
+    adapter: ChannelAdapter,
+    chatId: string,
+    displayContent: string | undefined,
+    images: ImageAttachment[] | undefined,
+    rendererIsWatching: boolean,
+    isRetry: boolean
+  ): Promise<string> {
     // Use the pre-computed rendererIsWatching flag from processIncoming.
     // When renderer is watching: persist=false (renderer handles rich block persistence),
     //   stream chunks and events are forwarded to the renderer via the bus.
@@ -642,12 +656,32 @@ export class ChannelMessageHandler {
       // Trim trailing separator
       return (completedText + currentBlockText).replace(/\n+$/, '')
     } catch (error) {
+      // Auto-retry when the SDK reports a stale resume session ID.
+      // This happens when Cherry Studio's database still references a conversation
+      // that was cleared from the SDK's internal state (e.g., after SDK process restart).
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      if (
+        !isRetry &&
+        /No conversation found with session ID/i.test(errorMsg) &&
+        !abortController.signal.aborted
+      ) {
+        logger.warn('SDK resume failed (stale session ID), clearing and retrying without resume', {
+          sessionId: session.id,
+          agentId: session.agent_id
+        })
+        await sessionMessageService.clearStaleAgentSessionId(session.id)
+        return this.doCollectStreamResponse(
+          session, content, abortController, adapter, chatId,
+          displayContent, images, rendererIsWatching, true
+        )
+      }
+
       if (rendererIsWatching) {
         sessionStreamBus.publish(session.id, {
           sessionId: session.id,
           agentId: session.agent_id,
           type: 'error',
-          error: { message: error instanceof Error ? error.message : String(error) }
+          error: { message: errorMsg }
         })
       }
       throw error
