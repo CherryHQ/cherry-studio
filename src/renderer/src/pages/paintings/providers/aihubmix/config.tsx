@@ -9,7 +9,7 @@ import {
   RENDERING_SPEED_OPTIONS,
   STYLE_TYPES,
   V3_STYLE_TYPES
-} from './constants'
+} from '../../config/constants'
 
 // 配置项类型定义
 export type ConfigItem = {

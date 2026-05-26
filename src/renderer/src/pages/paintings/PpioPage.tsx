@@ -25,17 +25,17 @@ import Artboard from './components/Artboard'
 import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
+import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
 import {
   createModeConfigs,
   DEFAULT_PPIO_PAINTING,
   getModelsByMode,
   type PpioConfigItem,
   type PpioMode
-} from './config/ppioConfig'
-import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
+} from './providers/ppio/config'
+import PpioProvider from './providers/ppio/provider'
 import { checkProviderEnabled } from './utils'
 import { saveGeneratedPaintingFiles } from './utils/imageFiles'
-import PpioService from './utils/PpioService'
 
 const logger = loggerService.withContext('PpioPage')
 
@@ -231,11 +231,11 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
     setAbortController(controller)
 
     try {
-      const service = new PpioService(ppioProvider.apiKey)
+      const provider = new PpioProvider(ppioProvider.apiKey)
 
       logger.info('Starting image generation', { model: painting.model, mode })
 
-      const result = await service.generate(painting)
+      const result = await provider.generate(painting)
 
       let imageUrls: string[] = []
 
@@ -247,7 +247,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
         logger.info('Task created', { taskId: result.taskId })
         updatePaintingState({ taskId: result.taskId, ppioStatus: 'processing' })
 
-        const taskResult = await service.pollTaskResult(result.taskId, {
+        const taskResult = await provider.pollTaskResult(result.taskId, {
           signal: controller.signal,
           onProgress: (progress) => {
             logger.debug('Task progress', { progress })

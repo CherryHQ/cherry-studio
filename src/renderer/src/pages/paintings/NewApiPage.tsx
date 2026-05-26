@@ -19,7 +19,7 @@ import {
   getPaintingsQualityOptionsLabel
 } from '@renderer/i18n/label'
 import PaintingsList from '@renderer/pages/paintings/components/PaintingsList'
-import { DEFAULT_PAINTING, MODELS, SUPPORTED_MODELS } from '@renderer/pages/paintings/config/NewApiConfig'
+import { DEFAULT_PAINTING, MODELS, SUPPORTED_MODELS } from '@renderer/pages/paintings/providers/newapi/config'
 import FileManager from '@renderer/services/FileManager'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
@@ -37,6 +37,7 @@ import Artboard from './components/Artboard'
 import PaintingPromptBar from './components/PaintingPromptBar'
 import ProviderSelect from './components/ProviderSelect'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
+import { generateNewApiImages, type NewApiImageMode } from './providers/newapi/provider'
 import { checkProviderEnabled, findPaintingByFiles } from './utils'
 import { saveGeneratedPaintingFiles } from './utils/imageFiles'
 
@@ -261,82 +262,24 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     setIsLoading(true)
     setGenerating(true)
 
-    let body: string | FormData = ''
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${AI.getApiKey()}`
-    }
-    // NOTE: Cherry Studio当下 newapi只接受v1/images/xxx的请求
-    // TODO: support gemini https://www.newapi.ai/zh/docs/api/ai-model/images/gemini/geminirelayv1beta-383837589
-    let url = newApiProvider.apiHost.replace(/\/v1$/, '') + `/v1/images/generations`
-    let editUrl = newApiProvider.apiHost.replace(/\/v1$/, '') + `/v1/images/edits`
-    if (newApiProvider.id === 'aionly') {
-      url = newApiProvider.apiHost.replace(/\/v1$/, '') + `/openai/v1/images/generations`
-      editUrl = newApiProvider.apiHost.replace(/\/v1$/, '') + `/openai/v1/images/edits`
-    }
-
     try {
-      if (mode === 'openai_image_generate') {
-        const requestData = {
-          prompt,
-          model: painting.model,
-          size: painting.size === 'auto' ? undefined : painting.size,
-          background: painting.background === 'auto' ? undefined : painting.background,
-          n: painting.n,
-          quality: painting.quality === 'auto' ? undefined : painting.quality,
-          moderation: painting.moderation === 'auto' ? undefined : painting.moderation
-        }
-
-        body = JSON.stringify(requestData)
-        headers['Content-Type'] = 'application/json'
-      } else if (mode === 'openai_image_edit') {
-        // -------- Edit Mode --------
+      if (mode === 'openai_image_edit') {
         if (editImages.length === 0) {
           window.toast.warning(t('paintings.image_file_required'))
           return
         }
-
-        const formData = new FormData()
-        formData.append('prompt', prompt)
-        formData.append('model', painting.model)
-        if (painting.background && painting.background !== 'auto') {
-          formData.append('background', painting.background)
-        }
-
-        if (painting.size && painting.size !== 'auto') {
-          formData.append('size', painting.size)
-        }
-
-        if (painting.quality && painting.quality !== 'auto') {
-          formData.append('quality', painting.quality)
-        }
-
-        if (painting.moderation && painting.moderation !== 'auto') {
-          formData.append('moderation', painting.moderation)
-        }
-
-        // append images
-        editImages.forEach((file) => {
-          formData.append('image', file)
-        })
-
-        // TODO: mask support later
-
-        body = formData
-
-        // For edit mode we do not set content-type; browser will set multipart boundary
       }
 
-      const requestUrl = mode === 'openai_image_edit' ? editUrl : url
-      const response = await fetch(requestUrl, { method: 'POST', headers, body })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error?.message || t('paintings.generate_failed'))
-      }
-
-      const data = await response.json()
-      const urls = data.data.filter((item) => item.url).map((item) => item.url)
-      const base64s = data.data.filter((item) => item.b64_json).map((item) => item.b64_json)
+      const { urls, base64s } = await generateNewApiImages({
+        provider: newApiProvider,
+        apiKey: AI.getApiKey(),
+        mode: mode as NewApiImageMode,
+        painting,
+        prompt,
+        editImages,
+        fallbackErrorMessage: t('paintings.generate_failed'),
+        signal: controller.signal
+      })
 
       if (urls.length > 0) {
         const validFiles = await saveGeneratedPaintingFiles({

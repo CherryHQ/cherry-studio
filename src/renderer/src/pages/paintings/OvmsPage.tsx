@@ -24,6 +24,7 @@ import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
+import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
 import {
   type ConfigItem,
   createDefaultOvmsPainting,
@@ -31,8 +32,8 @@ import {
   DEFAULT_OVMS_PAINTING,
   getOvmsModels,
   OVMS_MODELS
-} from './config/ovmsConfig'
-import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
+} from './providers/ovms/config'
+import { generateOvmsImages } from './providers/ovms/provider'
 import { saveGeneratedPaintingFiles } from './utils/imageFiles'
 
 const logger = loggerService.withContext('OvmsPage')
@@ -148,56 +149,25 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
     setGenerating(true)
 
     try {
-      // Prepare request body for OVMS
-      const requestBody = {
-        model: painting.model,
-        prompt: painting.prompt,
-        size: painting.size || '512x512',
-        num_inference_steps: painting.num_inference_steps || 4,
-        rng_seed: painting.rng_seed || 0
-      }
-
-      logger.info('OVMS API request:', requestBody)
-
-      const response = await fetch(`${ovmsProvider.apiHost}images/generations`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestBody),
+      const { urls, base64s } = await generateOvmsImages({
+        provider: ovmsProvider,
+        painting,
         signal: controller.signal
       })
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: { message: `HTTP ${response.status}` } }))
-        logger.error('OVMS API error:', errorData)
-        throw new Error(errorData.error?.message || 'Image generation failed')
+      if (base64s.length > 0) {
+        const validFiles = await saveGeneratedPaintingFiles({ base64s })
+        updatePaintingState({ files: validFiles, urls: [] })
       }
 
-      const data = await response.json()
-      logger.info('OVMS API response:', data)
-
-      // Handle base64 encoded images
-      if (data.data && data.data.length > 0) {
-        const base64s = data.data.filter((item) => item.b64_json).map((item) => item.b64_json)
-
-        if (base64s.length > 0) {
-          const validFiles = await saveGeneratedPaintingFiles({ base64s })
-          updatePaintingState({ files: validFiles, urls: [] })
-        }
-
-        // Handle URL-based images if available
-        const urls = data.data.filter((item) => item.url).map((item) => item.url)
-
-        if (urls.length > 0) {
-          const validFiles = await saveGeneratedPaintingFiles({
-            urls,
-            t,
-            emptyUrlLogMessage: 'Image URL is empty, possibly due to prohibited prompt',
-            errorLogMessage: 'Failed to download image'
-          })
-          updatePaintingState({ files: validFiles, urls })
-        }
+      if (urls.length > 0) {
+        const validFiles = await saveGeneratedPaintingFiles({
+          urls,
+          t,
+          emptyUrlLogMessage: 'Image URL is empty, possibly due to prohibited prompt',
+          errorLogMessage: 'Failed to download image'
+        })
+        updatePaintingState({ files: validFiles, urls })
       }
     } catch (error: unknown) {
       handleError(error)

@@ -23,10 +23,10 @@ import { DynamicFormRender } from './components/DynamicFormRender'
 import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
-import { DEFAULT_TOKENFLUX_PAINTING, type TokenFluxModel } from './config/tokenFluxConfig'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
+import { DEFAULT_TOKENFLUX_PAINTING, type TokenFluxModel } from './providers/tokenflux/config'
+import TokenFluxService from './providers/tokenflux/service'
 import { checkProviderEnabled } from './utils'
-import TokenFluxService from './utils/TokenFluxService'
 
 const logger = loggerService.withContext('TokenFluxPage')
 

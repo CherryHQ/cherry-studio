@@ -1,9 +1,9 @@
 import { loggerService } from '@logger'
 import type { PpioPainting } from '@renderer/types'
 
-import { getModelConfig } from '../config/ppioConfig'
+import { getModelConfig } from './config'
 
-const logger = loggerService.withContext('PpioService')
+const logger = loggerService.withContext('PpioProvider')
 
 const PPIO_API_HOST = 'https://api.ppio.com'
 
@@ -51,7 +51,7 @@ export interface PpioSyncResult {
   images?: string[]
 }
 
-class PpioService {
+class PpioProvider {
   private apiKey: string
 
   constructor(apiKey: string) {
@@ -378,4 +378,4 @@ class PpioService {
   }
 }
 
-export default PpioService
+export default PpioProvider

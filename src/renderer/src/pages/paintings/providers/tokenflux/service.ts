@@ -2,8 +2,8 @@ import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import type { FileMetadata, TokenFluxPainting } from '@renderer/types'
 
-import type { TokenFluxModel } from '../config/tokenFluxConfig'
-import { downloadPaintingUrls } from './imageFiles'
+import { downloadPaintingUrls } from '../../utils/imageFiles'
+import type { TokenFluxModel } from './config'
 
 const logger = loggerService.withContext('TokenFluxService')
 

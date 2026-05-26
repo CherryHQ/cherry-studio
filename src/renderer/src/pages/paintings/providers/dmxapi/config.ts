@@ -1,8 +1,7 @@
+import type { DmxapiPainting } from '@renderer/types'
+import { generationModeType } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { t } from 'i18next'
-
-import type { DmxapiPainting } from '../../../types'
-import { generationModeType } from '../../../types'
 
 // 模型数据类型
 export type DMXApiModelData = {

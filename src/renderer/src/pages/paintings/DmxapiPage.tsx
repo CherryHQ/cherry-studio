@@ -10,7 +10,7 @@ import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types'
-import { classNames, convertToBase64, uuid } from '@renderer/utils'
+import { classNames, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import type { DmxapiPainting } from '@types'
 import { Input, InputNumber, Segmented, Select } from 'antd'
@@ -32,7 +32,8 @@ import {
   MODEOPTIONS,
   STYLE_TYPE_OPTIONS,
   TOP_UP_URL
-} from './config/DmxapiConfig'
+} from './providers/dmxapi/config'
+import { generateDmxapiImages } from './providers/dmxapi/provider'
 import { checkProviderEnabled } from './utils'
 import { downloadPaintingUrls } from './utils/imageFiles'
 
@@ -356,147 +357,6 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }
 
-  // 准备V1生成请求函数
-  const prepareV1GenerateRequest = async (prompt: string, painting: DmxapiPainting) => {
-    const params = {
-      prompt,
-      model: painting.model,
-      n: painting.n,
-      ...painting?.extend_params
-    }
-
-    const headerExpand = {
-      'Content-Type': 'application/json'
-    }
-
-    if (painting.image_size) {
-      params['size'] = painting.image_size
-    }
-
-    if (painting.seed) {
-      if (Number(painting.seed) >= -1) {
-        params['seed'] = Number(painting.seed)
-      } else {
-        params['seed'] = -1
-      }
-    }
-
-    if (painting.style_type) {
-      params.prompt = prompt + t('paintings.dmxapi.style') + painting.style_type
-    }
-
-    if (Array.isArray(fileMap.imageFiles) && fileMap.imageFiles.length > 0) {
-      const imageFile = fileMap.imageFiles[0]
-      if (imageFile instanceof File) {
-        params['image'] = await convertToBase64(imageFile)
-      }
-    }
-
-    return {
-      body: JSON.stringify(params),
-      headerExpand: headerExpand,
-      endpoint: `${dmxapiProvider.apiHost}/v1/images/generations`
-    }
-  }
-
-  // 准备V2生成请求函数
-  const prepareV2GenerateRequest = (prompt: string, painting: DmxapiPainting) => {
-    const params = {
-      prompt,
-      n: painting.n,
-      model: painting.model,
-      ...painting?.extend_params
-    }
-
-    if (painting.image_size) {
-      params['size'] = painting.image_size
-    }
-
-    if (painting.style_type) {
-      params.prompt = prompt + t('paintings.dmxapi.style') + painting.style_type
-    }
-
-    const formData = new FormData()
-
-    for (const key in params) {
-      formData.append(key, params[key])
-    }
-
-    if (Array.isArray(fileMap.imageFiles)) {
-      fileMap.imageFiles.forEach((file) => {
-        formData.append(`image`, file as unknown as Blob)
-      })
-    }
-
-    return {
-      body: formData,
-      endpoint: `${dmxapiProvider.apiHost}/v1/images/edits`
-    }
-  }
-
-  // API请求函数
-  const callApi = async (
-    requestConfig: { endpoint: string; body: any; headerExpand?: any },
-    controller: AbortController
-  ) => {
-    const { endpoint, body, headerExpand } = requestConfig
-
-    const headers = {
-      Accept: 'application/json',
-      Authorization: `Bearer ${dmxapiProvider.apiKey}`,
-      'User-Agent': 'DMXAPI/1.0.0 (https://www.dmxapi.com)',
-      ...headerExpand
-    }
-
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers,
-      body,
-      signal: controller.signal
-    })
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('paintings.req_error_token')
-      } else if (response.status === 403) {
-        throw new Error('paintings.req_error_no_balance')
-      }
-
-      throw new Error('paintings.operation_failed')
-    }
-
-    const data = await response.json()
-
-    return data.data.map((item: { url: string; b64_json: string }) => {
-      if (item.b64_json) {
-        return 'data:image/png;base64,' + item.b64_json
-      }
-
-      if (item.url) {
-        return item.url
-      }
-
-      return ''
-    })
-  }
-
-  // 准备请求配置函数
-  const prepareRequestConfig = async (prompt: string, painting: DmxapiPainting) => {
-    // 根据模式和模型版本返回不同的请求配置
-    if (
-      painting.generationMode !== undefined &&
-      [generationModeType.MERGE, generationModeType.EDIT].includes(painting.generationMode)
-    ) {
-      if (painting.model === 'seededit-3.0') {
-        return await prepareV1GenerateRequest(prompt, painting)
-      } else {
-        return prepareV2GenerateRequest(prompt, painting)
-      }
-    } else {
-      return prepareV1GenerateRequest(prompt, painting)
-    }
-  }
-
   const onGenerate = async () => {
     // 如果已经在生成过程中，直接返回
     if (isLoading) {
@@ -532,11 +392,14 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       setAbortController(controller)
       setGenerating(true)
 
-      // 准备请求配置
-      const requestConfig = await prepareRequestConfig(prompt, painting)
-
-      // 发送API请求
-      const urls = await callApi(requestConfig, controller)
+      const urls = await generateDmxapiImages({
+        provider: dmxapiProvider,
+        painting,
+        prompt,
+        fileMap,
+        stylePromptPrefix: t('paintings.dmxapi.style'),
+        signal: controller.signal
+      })
 
       // 下载图像
       if (urls.length > 0) {

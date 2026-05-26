@@ -2,12 +2,6 @@ import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { Button, ColFlex, InfoTooltip } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
-import ImageSize1_1 from '@renderer/assets/images/paintings/image-size-1-1.svg'
-import ImageSize1_2 from '@renderer/assets/images/paintings/image-size-1-2.svg'
-import ImageSize3_2 from '@renderer/assets/images/paintings/image-size-3-2.svg'
-import ImageSize3_4 from '@renderer/assets/images/paintings/image-size-3-4.svg'
-import ImageSize9_16 from '@renderer/assets/images/paintings/image-size-9-16.svg'
-import ImageSize16_9 from '@renderer/assets/images/paintings/image-size-16-9.svg'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
@@ -15,8 +9,8 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
-import type { FileMetadata, Painting, Provider } from '@renderer/types'
-import { convertToBase64, getErrorMessage, uuid } from '@renderer/utils'
+import type { FileMetadata, Painting } from '@renderer/types'
+import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { Input, InputNumber, Radio, Select, Slider } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
@@ -31,227 +25,17 @@ import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
+import {
+  DEFAULT_PAINTING,
+  generateRandomSeed,
+  getSiliconModelParams,
+  TEXT_TO_IMAGES_MODELS
+} from './providers/silicon/config'
+import { generateSiliconImages, getSiliconInputImages } from './providers/silicon/provider'
 import { checkProviderEnabled } from './utils'
 import { saveGeneratedPaintingFiles } from './utils/imageFiles'
 
-export const TEXT_TO_IMAGES_MODELS = [
-  {
-    id: 'Tongyi-MAI/Z-Image-Turbo',
-    provider: 'silicon',
-    name: 'Z-Image-Turbo',
-    group: 'Tongyi-MAI'
-  },
-  {
-    id: 'Tongyi-MAI/Z-Image',
-    provider: 'silicon',
-    name: 'Z-Image',
-    group: 'Tongyi-MAI'
-  },
-  {
-    id: 'baidu/ERNIE-Image-Turbo',
-    provider: 'silicon',
-    name: 'ERNIE-Image-Turbo',
-    group: 'baidu'
-  },
-  {
-    id: 'Qwen/Qwen-Image-Edit-2509',
-    provider: 'silicon',
-    name: 'Qwen-Image-Edit-2509',
-    group: 'qwen'
-  },
-  {
-    id: 'Qwen/Qwen-Image-Edit',
-    provider: 'silicon',
-    name: 'Qwen-Image-Edit',
-    group: 'qwen'
-  },
-  {
-    id: 'Kwai-Kolors/Kolors',
-    provider: 'silicon',
-    name: 'Kolors',
-    group: 'Kwai-Kolors'
-  },
-  {
-    id: 'Qwen/Qwen-Image',
-    provider: 'silicon',
-    name: 'Qwen-Image',
-    group: 'qwen'
-  }
-]
-
 const logger = loggerService.withContext('SiliconPage')
-
-const KOLORS_IMAGE_SIZES = [
-  { label: '1:1', value: '1024x1024', icon: ImageSize1_1 },
-  { label: '3:2', value: '1536x1024', icon: ImageSize3_2 },
-  { label: '16:9', value: '2048x1152', icon: ImageSize16_9 },
-  { label: '3:4', value: '1536x2048', icon: ImageSize3_4 },
-  { label: '9:16', value: '1152x2048', icon: ImageSize9_16 },
-  { label: '1:2', value: '1024x2048', icon: ImageSize1_2 }
-]
-
-const QWEN_IMAGE_SIZES = [
-  { label: '1:1', value: '1328x1328', icon: ImageSize1_1 },
-  { label: '3:2', value: '1584x1056', icon: ImageSize3_2 },
-  { label: '16:9', value: '1664x928', icon: ImageSize16_9 },
-  { label: '3:4', value: '1140x1472', icon: ImageSize3_4 },
-  { label: '9:16', value: '928x1664', icon: ImageSize9_16 }
-]
-
-const Z_IMAGE_SIZES = [
-  { label: '1:1', value: '1024x1024', icon: ImageSize1_1 },
-  { label: '4:3', value: '1200x896', icon: ImageSize3_4 },
-  { label: '3:2', value: '1264x848', icon: ImageSize3_2 },
-  { label: '16:9', value: '1376x768', icon: ImageSize16_9 },
-  { label: '3:4', value: '896x1200', icon: ImageSize3_4 },
-  { label: '9:16', value: '768x1376', icon: ImageSize9_16 }
-]
-
-const SILICON_MODEL_PARAMS = {
-  'Tongyi-MAI/Z-Image-Turbo': {
-    imageSizes: Z_IMAGE_SIZES,
-    supportsImageSize: true,
-    supportsSteps: false,
-    supportsGuidanceScale: false,
-    supportsBatchSize: false,
-    maxInputImages: 0,
-    requiresInputImage: false
-  },
-  'Tongyi-MAI/Z-Image': {
-    imageSizes: Z_IMAGE_SIZES,
-    supportsImageSize: true,
-    supportsSteps: true,
-    supportsGuidanceScale: true,
-    supportsBatchSize: false,
-    maxInputImages: 0,
-    requiresInputImage: false
-  },
-  'baidu/ERNIE-Image-Turbo': {
-    imageSizes: Z_IMAGE_SIZES,
-    supportsImageSize: true,
-    supportsSteps: false,
-    supportsGuidanceScale: true,
-    supportsBatchSize: false,
-    maxInputImages: 0,
-    requiresInputImage: false
-  },
-  'Qwen/Qwen-Image-Edit-2509': {
-    imageSizes: [],
-    supportsImageSize: false,
-    supportsSteps: true,
-    supportsGuidanceScale: false,
-    supportsBatchSize: false,
-    maxInputImages: 3,
-    requiresInputImage: true
-  },
-  'Qwen/Qwen-Image-Edit': {
-    imageSizes: [],
-    supportsImageSize: false,
-    supportsSteps: true,
-    supportsGuidanceScale: false,
-    supportsBatchSize: false,
-    maxInputImages: 1,
-    requiresInputImage: true
-  },
-  'Qwen/Qwen-Image': {
-    imageSizes: QWEN_IMAGE_SIZES,
-    supportsImageSize: true,
-    supportsSteps: true,
-    supportsGuidanceScale: false,
-    supportsBatchSize: false,
-    maxInputImages: 0,
-    requiresInputImage: false
-  },
-  'Kwai-Kolors/Kolors': {
-    imageSizes: KOLORS_IMAGE_SIZES,
-    supportsImageSize: true,
-    supportsSteps: true,
-    supportsGuidanceScale: true,
-    supportsBatchSize: true,
-    maxInputImages: 1,
-    requiresInputImage: false
-  }
-}
-
-const getSiliconModelParams = (model?: string) =>
-  SILICON_MODEL_PARAMS[model as keyof typeof SILICON_MODEL_PARAMS] || SILICON_MODEL_PARAMS['Kwai-Kolors/Kolors']
-
-type SiliconImageResponse = {
-  data?: Array<{ url?: string; b64_json?: string }>
-  images?: Array<{ url?: string; b64_json?: string }>
-}
-
-const getSiliconImageEndpoint = (provider: Provider) => {
-  const apiHost = provider.apiHost.replace(/\/$/, '').replace(/\/v1$/, '')
-  return `${apiHost}/v1/images/generations`
-}
-
-const parseSiliconImageUrls = (data: SiliconImageResponse) => {
-  const images = data.data || data.images || []
-  return images
-    .map((image) => image.url || (image.b64_json ? `data:image/png;base64,${image.b64_json}` : undefined))
-    .filter((url): url is string => Boolean(url))
-}
-
-const getSiliconInputImages = async (files: FileMetadata[]) => {
-  const images = await Promise.all(files.map((file) => convertToBase64(file as unknown as File)))
-  return images.filter((image): image is string => typeof image === 'string')
-}
-
-const generateSiliconImages = async (
-  provider: Provider,
-  painting: Painting,
-  prompt: string,
-  signal: AbortSignal,
-  inputImages: string[]
-) => {
-  const modelParams = getSiliconModelParams(painting.model)
-  const response = await fetch(getSiliconImageEndpoint(provider), {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${provider.apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: painting.model,
-      prompt,
-      negative_prompt: painting.negativePrompt || undefined,
-      image_size: modelParams.supportsImageSize ? painting.imageSize || modelParams.imageSizes[0].value : undefined,
-      batch_size: modelParams.supportsBatchSize ? painting.numImages || 1 : undefined,
-      seed: painting.seed ? Number(painting.seed) : undefined,
-      num_inference_steps: modelParams.supportsSteps ? painting.steps || 20 : undefined,
-      guidance_scale: modelParams.supportsGuidanceScale ? painting.guidanceScale || 7.5 : undefined,
-      image: inputImages[0],
-      image2: inputImages[1],
-      image3: inputImages[2]
-    }),
-    signal
-  })
-
-  const data = (await response.json()) as SiliconImageResponse & { error?: { message?: string } }
-
-  if (!response.ok) {
-    throw new Error(data.error?.message || response.statusText)
-  }
-
-  return parseSiliconImageUrls(data)
-}
-
-const generateRandomSeed = () => Math.floor(Math.random() * 1000000).toString()
-
-const DEFAULT_PAINTING: Painting = {
-  id: uuid(),
-  urls: [],
-  files: [],
-  prompt: '',
-  negativePrompt: '',
-  imageSize: '1024x1024',
-  numImages: 1,
-  seed: '',
-  steps: 25,
-  guidanceScale: 4.5,
-  model: TEXT_TO_IMAGES_MODELS[0].id
-}
 
 // let _painting: Painting
 
@@ -363,7 +147,20 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     try {
       const inputImages = await getSiliconInputImages(fileMap.imageFiles.slice(0, modelParams.maxInputImages))
-      const urls = await generateSiliconImages(provider, painting, prompt, controller.signal, inputImages)
+      const urls = await generateSiliconImages({
+        provider,
+        painting,
+        prompt,
+        signal: controller.signal,
+        inputImages,
+        modelParams: {
+          supportsImageSize: modelParams.supportsImageSize,
+          supportsSteps: modelParams.supportsSteps,
+          supportsGuidanceScale: modelParams.supportsGuidanceScale,
+          supportsBatchSize: modelParams.supportsBatchSize,
+          defaultImageSize: modelParams.imageSizes[0]?.value
+        }
+      })
 
       if (urls.length > 0) {
         const validFiles = await saveGeneratedPaintingFiles({

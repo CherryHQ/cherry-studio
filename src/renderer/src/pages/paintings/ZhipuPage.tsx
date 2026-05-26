@@ -4,7 +4,6 @@ import { Button } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
-import { AiProvider } from '@renderer/aiCore'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
@@ -23,6 +22,7 @@ import Artboard from './components/Artboard'
 import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
+import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
 import {
   COURSE_URL,
   DEFAULT_PAINTING,
@@ -30,8 +30,8 @@ import {
   QUALITY_OPTIONS,
   TOP_UP_URL,
   ZHIPU_PAINTING_MODELS
-} from './config/ZhipuConfig'
-import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
+} from './providers/zhipu/config'
+import { generateZhipuImages } from './providers/zhipu/provider'
 import { checkProviderEnabled } from './utils'
 import { saveGeneratedPaintingFiles } from './utils/imageFiles'
 
@@ -111,10 +111,6 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
     setAbortController(controller)
 
     try {
-      // 使用AiProvider调用智谱AI绘图API
-      const aiProvider = new AiProvider(zhipuProvider)
-
-      // 准备API请求参数
       let actualImageSize = painting.imageSize
 
       // 如果是自定义尺寸，使用实际的宽高值
@@ -156,18 +152,13 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
         actualImageSize = `${customWidth}x${customHeight}`
       }
 
-      const request = {
-        model: painting.model,
-        prompt: painting.prompt,
-        negativePrompt: painting.negativePrompt,
-        imageSize: actualImageSize,
-        batchSize: painting.numImages,
-        quality: painting.quality,
-        signal: controller.signal
-      }
-
       // NOTE: ai sdk内部已经处理成了base64
-      const images = await aiProvider.generateImage(request)
+      const images = await generateZhipuImages({
+        provider: zhipuProvider,
+        painting,
+        imageSize: actualImageSize,
+        signal: controller.signal
+      })
 
       // 下载图片到本地文件
       if (images.length > 0) {
