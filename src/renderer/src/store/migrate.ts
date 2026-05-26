@@ -3371,6 +3371,8 @@ const migrateConfig = {
   },
   '205': (state: RootState) => {
     try {
+      addProvider(state, 'volcano-coding')
+      addProvider(state, 'byteplus-coding')
       localStorage.setItem('onboarding-completed', 'true')
 
       // Add anthropicApiHost to lmstudio and ollama providers for CodeTools compatibility
