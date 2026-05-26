@@ -19,6 +19,7 @@ import {
   GetDanglingStateIpcSchema,
   OpenIpcSchema,
   RestoreIpcSchema,
+  ShowInFolderIpcSchema,
   TrashIpcSchema
 } from '../FileManager'
 
@@ -153,5 +154,20 @@ describe('OpenIpcSchema', () => {
   })
   it('rejects invalid handle', () => {
     expect(() => OpenIpcSchema.parse({ kind: 'invalid' })).toThrow()
+  })
+})
+
+describe('ShowInFolderIpcSchema', () => {
+  it('accepts entry handle', () => {
+    expect(ShowInFolderIpcSchema.parse({ kind: 'entry', entryId: VALID_UUID_V7 })).toEqual({
+      kind: 'entry',
+      entryId: VALID_UUID_V7
+    })
+  })
+  it('accepts path handle', () => {
+    expect(ShowInFolderIpcSchema.parse({ kind: 'path', path: '/test' })).toEqual({ kind: 'path', path: '/test' })
+  })
+  it('rejects invalid handle', () => {
+    expect(() => ShowInFolderIpcSchema.parse({ kind: 'invalid' })).toThrow()
   })
 })
