@@ -7,7 +7,6 @@ import { LONG_POLL_TIMEOUT_MS } from './config/timeouts'
 import { authMiddleware } from './middleware/auth'
 import { errorHandler } from './middleware/error'
 import { setupOpenAPIDocumentation } from './middleware/openapi'
-import { agentRoutes } from './routes/agents'
 import { chatRoutes } from './routes/chat'
 import { clawMcpRoutes } from './routes/claw-mcp'
 import { knowledgeRoutes } from './routes/knowledge'
@@ -151,7 +150,6 @@ export function createApp(): express.Application {
   const apiRouter = express.Router()
   apiRouter.use(authMiddleware)
   // Mount routes
-  apiRouter.use('/agents', agentRoutes)
   apiRouter.use('/chat', chatRoutes)
   apiRouter.use('/mcps', mcpRoutes)
   apiRouter.use('/messages', extendMessagesTimeout, messagesRoutes)

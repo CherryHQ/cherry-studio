@@ -45,7 +45,7 @@ describe('knowledgeItemFileRefSchema', () => {
   })
 
   it('accepts every knowledge_item role', () => {
-    for (const role of ['source', 'processed_artifact']) {
+    for (const role of ['source']) {
       const parsed = knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef({ role }))
       expect(parsed.role).toBe(role)
     }

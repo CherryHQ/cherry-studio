@@ -69,9 +69,6 @@ coverage
 vitest.config.*.timestamp-*
 .context/vitest-temp/
 
-# TanStack Router (generated code-splitting cache)
-.tanstack/
-
 # TypeScript incremental build
 .tsbuildinfo
 
@@ -85,3 +82,4 @@ test-results
 YOUR_MEMORY_FILE_PATH
 
 .sessions/
+.devtools

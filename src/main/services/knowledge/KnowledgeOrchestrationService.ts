@@ -3,7 +3,9 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { TraceMethod } from '@mcp-trace/trace-core'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api'
+import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeBaseDto,
   type KnowledgeBase,
@@ -20,12 +22,10 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { MetadataMode } from '@vectorstores/core'
 import { embedMany } from 'ai'
 
-import { createCheckFileProcessingResultJobHandler } from './jobs/checkFileProcessingResultJobHandler'
 import { createDeleteSubtreeJobHandler } from './jobs/deleteSubtreeJobHandler'
 import { createIndexDocumentsJobHandler } from './jobs/indexDocumentsJobHandler'
 import { createPrepareRootJobHandler } from './jobs/prepareRootJobHandler'
 import { createReindexSubtreeJobHandler } from './jobs/reindexSubtreeJobHandler'
-import { narrowKnowledgeJobInput } from './jobs/utils/jobInput'
 import { KnowledgeLockManager } from './KnowledgeLockManager'
 import { KnowledgeWorkflowService } from './KnowledgeWorkflowService'
 import { rerankKnowledgeSearchResults } from './rerank/rerank'
@@ -59,9 +59,32 @@ const DELETE_RECOVERY_ROOT_CHUNK_SIZE = 500
 const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
 const KNOWLEDGE_JOB_TYPE_SET = new Set<string>(KNOWLEDGE_JOB_TYPES)
 
+function createRestoreBaseDto(sourceBase: KnowledgeBase, dto: RestoreKnowledgeBaseDto): CreateKnowledgeBaseDto {
+  const createDto: CreateKnowledgeBaseDto = {
+    name: dto.name?.trim() ?? sourceBase.name,
+    emoji: sourceBase.emoji,
+    dimensions: dto.dimensions,
+    embeddingModelId: dto.embeddingModelId,
+    rerankModelId: sourceBase.rerankModelId,
+    fileProcessorId: sourceBase.fileProcessorId,
+    chunkSize: sourceBase.chunkSize,
+    chunkOverlap: sourceBase.chunkOverlap,
+    threshold: sourceBase.threshold,
+    documentCount: sourceBase.documentCount,
+    searchMode: sourceBase.searchMode,
+    hybridAlpha: sourceBase.hybridAlpha
+  }
+
+  if (sourceBase.groupId) {
+    createDto.groupId = sourceBase.groupId
+  }
+
+  return createDto
+}
+
 @Injectable('KnowledgeOrchestrationService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['KnowledgeVectorStoreService', 'FileManager', 'JobManager', 'FileProcessingOrchestrationService'])
+@DependsOn(['KnowledgeVectorStoreService', 'FileManager', 'JobManager'])
 export class KnowledgeOrchestrationService extends BaseService {
   private readonly knowledgeLockManager = new KnowledgeLockManager()
   private readonly workflowService = new KnowledgeWorkflowService(this.knowledgeLockManager)
@@ -73,10 +96,6 @@ export class KnowledgeOrchestrationService extends BaseService {
       createPrepareRootJobHandler(this.knowledgeLockManager, this.workflowService)
     )
     jobManager.registerHandler('knowledge.index-documents', createIndexDocumentsJobHandler(this.knowledgeLockManager))
-    jobManager.registerHandler(
-      'knowledge.check-file-processing-result',
-      createCheckFileProcessingResultJobHandler(this.knowledgeLockManager, this.workflowService)
-    )
     jobManager.registerHandler('knowledge.delete-subtree', createDeleteSubtreeJobHandler(this.knowledgeLockManager))
     jobManager.registerHandler(
       'knowledge.reindex-subtree',
@@ -134,23 +153,8 @@ export class KnowledgeOrchestrationService extends BaseService {
   async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<KnowledgeBase> {
     const sourceBase = await knowledgeBaseService.getById(dto.sourceBaseId)
 
-    const createDto: CreateKnowledgeBaseDto = {
-      name: dto.name?.trim() ?? sourceBase.name,
-      emoji: sourceBase.emoji,
-      dimensions: dto.dimensions,
-      embeddingModelId: dto.embeddingModelId,
-      rerankModelId: sourceBase.rerankModelId,
-      fileProcessorId: sourceBase.fileProcessorId,
-      chunkSize: sourceBase.chunkSize,
-      chunkOverlap: sourceBase.chunkOverlap,
-      threshold: sourceBase.threshold,
-      documentCount: sourceBase.documentCount,
-      searchMode: sourceBase.searchMode,
-      hybridAlpha: sourceBase.hybridAlpha,
-      groupId: sourceBase.groupId ?? undefined
-    }
-
-    const rootItems = await knowledgeItemService.getRootItemsByBaseId(sourceBase.id)
+    const createDto = createRestoreBaseDto(sourceBase, dto)
+    const rootItems = await this.listRootItems(sourceBase.id)
     const inputs = rootItems.map((item) => {
       try {
         return KnowledgeRuntimeAddItemInputSchema.parse({
@@ -166,7 +170,6 @@ export class KnowledgeOrchestrationService extends BaseService {
         )
       }
     })
-
     const restoredBase = await this.createBase(createDto)
     try {
       await this.addItems(restoredBase.id, inputs)
@@ -225,6 +228,16 @@ export class KnowledgeOrchestrationService extends BaseService {
     await this.workflowService.reindexItems(baseId, rootItemIds)
   }
 
+  async listBases(): Promise<KnowledgeBase[]> {
+    const { items } = await knowledgeBaseService.list({ page: 1, limit: KNOWLEDGE_BASES_MAX_LIMIT })
+    return items
+  }
+
+  async listRootItems(baseId: string): Promise<KnowledgeItem[]> {
+    return await knowledgeItemService.getRootItemsByBaseId(baseId)
+  }
+
+  @TraceMethod({ spanName: 'Knowledge.search', tag: 'Knowledge' })
   async search(baseId: string, query: string): Promise<KnowledgeSearchResult[]> {
     await this.assertBaseCanRunRuntimeOperation(baseId, 'search')
 
@@ -351,15 +364,8 @@ export class KnowledgeOrchestrationService extends BaseService {
       limit: KNOWLEDGE_ACTIVE_JOB_LIMIT
     })
     const jobsToCancel = activeJobs.filter((job) => KNOWLEDGE_JOB_TYPE_SET.has(job.type))
-    const linkedFileProcessingJobIds = activeJobs.flatMap((job) => {
-      const narrowed = narrowKnowledgeJobInput(job)
-      return narrowed?.type === 'knowledge.check-file-processing-result' ? [narrowed.input.fileProcessingJobId] : []
-    })
 
-    await Promise.all([
-      ...jobsToCancel.map((job) => jobManager.cancel(job.id, 'delete-base')),
-      ...linkedFileProcessingJobIds.map((jobId) => jobManager.cancel(jobId, 'delete-base'))
-    ])
+    await Promise.all(jobsToCancel.map((job) => jobManager.cancel(job.id, 'delete-base')))
   }
 
   private async recoverDeletingItems(): Promise<void> {

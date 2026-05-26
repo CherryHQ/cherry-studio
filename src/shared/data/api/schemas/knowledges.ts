@@ -91,6 +91,10 @@ export type KnowledgeSchemas = {
       body: UpdateKnowledgeBaseDto
       response: KnowledgeBase
     }
+    DELETE: {
+      params: { id: string }
+      response: void
+    }
   }
 
   '/knowledge-bases/:id/items': {

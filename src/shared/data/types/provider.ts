@@ -25,8 +25,7 @@ const CatalogApiFeaturesSchema = z.object({
   streamOptions: z.boolean().optional(),
   developerRole: z.boolean().optional(),
   serviceTier: z.boolean().optional(),
-  verbosity: z.boolean().optional(),
-  enableThinking: z.boolean().optional()
+  verbosity: z.boolean().optional()
 })
 
 /** Provider website schema (type used for catalog ProviderWebsite type) */
@@ -272,8 +271,7 @@ export const DEFAULT_API_FEATURES: RuntimeApiFeatures = {
   streamOptions: true,
   developerRole: false,
   serviceTier: false,
-  verbosity: false,
-  enableThinking: true
+  verbosity: false
 }
 
 export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {}

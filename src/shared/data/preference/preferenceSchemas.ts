@@ -84,8 +84,6 @@ export interface PreferenceSchemas {
     'assistant.click_to_show_topic': boolean
     // redux/settings/assistantIconType
     'assistant.icon_type': PreferenceTypes.AssistantIconType
-    // redux/settings/showAssistants
-    'assistant.tab.show': boolean
     // redux/settings/assistantsTabSortType
     'assistant.tab.sort_type': PreferenceTypes.AssistantTabSortType
     // redux/settings/codeCollapsible
@@ -526,7 +524,6 @@ export const DefaultPreferences: PreferenceSchemas = {
     'app.zoom_factor': 1,
     'assistant.click_to_show_topic': true,
     'assistant.icon_type': 'emoji',
-    'assistant.tab.show': true,
     'assistant.tab.sort_type': 'list',
     'chat.code.collapsible': false,
     'chat.code.editor.autocompletion': true,
@@ -776,9 +773,9 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 230
+ * - 总配置项: 232
  * - electronStore项: 1
- * - redux项: 202
+ * - redux项: 201
  * - localStorage项: 0
  * - dexieSettings项: 4
  */

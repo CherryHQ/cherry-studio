@@ -183,10 +183,13 @@ export class ProviderModelMigrator extends BaseMigrator {
     const mergedEndpointConfigs: Partial<Record<EndpointType, EndpointConfig>> = {}
     for (const k of allEndpointKeys) {
       const ep = k as EndpointType
-      mergedEndpointConfigs[ep] = {
+      const merged: EndpointConfig = {
         ...presetEndpointConfigs?.[ep],
         ...userEndpointConfigs?.[ep]
       }
+      const presetFamily = presetEndpointConfigs?.[ep]?.adapterFamily
+      if (presetFamily) merged.adapterFamily = presetFamily
+      mergedEndpointConfigs[ep] = merged
     }
 
     const presetApiFeatures = (preset.apiFeatures ?? null) as ApiFeatures | null

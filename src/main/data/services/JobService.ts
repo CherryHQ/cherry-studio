@@ -151,10 +151,10 @@ export class JobService {
   /**
    * Count currently-running jobs for a queue — checks queue concurrency.
    * Only `running` counts toward the cap: pending/delayed jobs are queued or
-   * waiting on backoff and occupy no worker slot (mirrors `countRunningGlobalTx`).
+   * waiting on backoff and occupy no worker slot (mirrors `countActiveGlobalTx`).
    * Counting them would deadlock the queue once its backlog reaches concurrency.
    */
-  async countRunningByQueueTx(tx: DbOrTx, queue: string): Promise<number> {
+  async countActiveByQueueTx(tx: DbOrTx, queue: string): Promise<number> {
     const [r] = await tx
       .select({ count: count() })
       .from(jobTable)
@@ -167,7 +167,7 @@ export class JobService {
    * Only `running` counts toward the global cap: pending/delayed do not occupy
    * worker slots.
    */
-  async countRunningGlobalTx(tx: DbOrTx): Promise<number> {
+  async countActiveGlobalTx(tx: DbOrTx): Promise<number> {
     const [r] = await tx.select({ count: count() }).from(jobTable).where(eq(jobTable.status, 'running'))
     return r?.count ?? 0
   }
@@ -285,7 +285,7 @@ export class JobService {
    * delayed orphan would silently sit forever (no handler to ever run it,
    * no timer to surface it).
    */
-  async getStaleActive(): Promise<JobRow[]> {
+  async getStaleNonTerminal(): Promise<JobRow[]> {
     return this.getDb().select().from(jobTable).where(inArray(jobTable.status, ACTIVE_STATUSES))
   }
 
@@ -297,7 +297,7 @@ export class JobService {
    * uuidv7 ids are lexicographically monotonic within a millisecond so this
    * gives a deterministic "newest" pick.
    */
-  async getActiveByType(type: string): Promise<JobRow[]> {
+  async getNonTerminalByType(type: string): Promise<JobRow[]> {
     return this.getDb()
       .select()
       .from(jobTable)

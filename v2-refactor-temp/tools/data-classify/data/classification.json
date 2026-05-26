@@ -830,9 +830,8 @@
           "originalKey": "showAssistants",
           "type": "boolean",
           "defaultValue": true,
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "assistant.tab.show"
+          "status": "deleted",
+          "targetKey": null
         },
         {
           "originalKey": "showTopics",
@@ -3059,24 +3058,24 @@
           "originalKey": "activeNodeId",
           "type": "string",
           "defaultValue": null,
-          "status": "classified",
-          "category": "cache",
+          "status": "pending",
+          "category": null,
           "targetKey": null
         },
         {
           "originalKey": "activeFilePath",
           "type": "string",
           "defaultValue": null,
-          "status": "classified",
-          "category": "cache",
-          "targetKey": "notes.active_file_path"
+          "status": "pending",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "settings",
           "type": "unknown",
           "defaultValue": "{ isFullWidth: true, fontFamily: 'default', fontSize: 16, showTableOfContents: true, defaultViewMode: 'edit', defaultEditMode: 'preview', showTabStatus: true, showWorkspace: true }",
-          "status": "classified",
-          "category": "preferences",
+          "status": "pending",
+          "category": null,
           "targetKey": null,
           "children": [
             {
@@ -3165,16 +3164,16 @@
           "originalKey": "starredPaths",
           "type": "string",
           "defaultValue": [],
-          "status": "classified",
-          "category": "user_data",
+          "status": "pending",
+          "category": null,
           "targetKey": null
         },
         {
           "originalKey": "expandedPaths",
           "type": "string",
           "defaultValue": null,
-          "status": "classified",
-          "category": "user_data",
+          "status": "pending",
+          "category": null,
           "targetKey": null
         }
       ]

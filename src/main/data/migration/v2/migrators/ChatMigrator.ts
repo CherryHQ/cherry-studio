@@ -29,9 +29,9 @@
  *    - Old: `askId` links responses to user message, `foldSelected` marks active
  *    - New: Shared `parentId` + non-zero `siblingsGroupId` groups siblings
  *
- * 3. **Block Inlining**
+ * 3. **Block → Parts**
  *    - Old: `message.blocks: string[]` (IDs) + separate `message_blocks` table
- *    - New: `message.data.blocks: MessageDataBlock[]` (inline JSON)
+ *    - New: `message.data.parts` (AI SDK UIMessage parts, inline JSON)
  *
  * 4. **Citation Migration**
  *    - Old: Separate `CitationMessageBlock`

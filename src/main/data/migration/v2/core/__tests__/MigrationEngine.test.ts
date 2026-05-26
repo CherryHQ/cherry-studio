@@ -17,7 +17,8 @@ const mockPaths: MigrationPaths = {
   legacyAgentDbFile: '/tmp/test-userdata/Data/agents.db',
   customMiniAppsFile: '/tmp/test-userdata/Data/Files/custom-minapps.json',
   legacyConfigFile: '/tmp/test-cherryhome/config/config.json',
-  migrationsFolder: '/tmp/test-migrations'
+  migrationsFolder: '/tmp/test-migrations',
+  agentWorkspacesDir: '/tmp/test-userdata/Data/AgentWorkspaces'
 }
 
 function createTestMigrator(id: string, order: number, events: string[]) {
@@ -142,7 +143,7 @@ describe('MigrationEngine', () => {
 
     expect(transactionFn).toHaveBeenCalledTimes(1)
 
-    expect(deleteFn).toHaveBeenCalledTimes(28)
+    expect(deleteFn).toHaveBeenCalledTimes(27)
 
     expect(db).not.toHaveProperty('delete')
   })
