@@ -264,6 +264,7 @@ export const GetPhysicalPathIpcSchema = z.strictObject({ id: FileEntryIdSchema }
 export const PermanentDeleteIpcSchema = FileHandleSchema
 
 export const TrashIpcSchema = z.strictObject({ id: FileEntryIdSchema })
+export const RestoreIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 
 // ─── Version types ───
 
@@ -723,6 +724,9 @@ export class FileManager extends BaseService implements IFileManager {
     })
     this.ipcHandle(IpcChannel.File_RunSweep, async () => this.runSweep())
     this.ipcHandle(IpcChannel.File_Trash, async (_e, params: unknown) => this.trash(TrashIpcSchema.parse(params).id))
+    this.ipcHandle(IpcChannel.File_Restore, async (_e, params: unknown) =>
+      this.restore(RestoreIpcSchema.parse(params).id)
+    )
   }
 
   /**

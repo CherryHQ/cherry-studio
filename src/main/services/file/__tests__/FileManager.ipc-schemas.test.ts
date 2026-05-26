@@ -14,6 +14,7 @@ import {
   BatchGetDanglingStatesIpcSchema,
   FILE_BATCH_DANGLING_MAX_IDS,
   GetDanglingStateIpcSchema,
+  RestoreIpcSchema,
   TrashIpcSchema
 } from '../FileManager'
 
@@ -77,5 +78,20 @@ describe('TrashIpcSchema', () => {
   })
   it('rejects missing id', () => {
     expect(() => TrashIpcSchema.parse({})).toThrow()
+  })
+})
+
+describe('RestoreIpcSchema', () => {
+  it('accepts a valid UUID id', () => {
+    expect(RestoreIpcSchema.parse({ id: VALID_UUID_V7 })).toEqual({ id: VALID_UUID_V7 })
+  })
+  it('rejects a non-UUID id', () => {
+    expect(() => RestoreIpcSchema.parse({ id: 'not-a-uuid' })).toThrow()
+  })
+  it('rejects extra keys', () => {
+    expect(() => RestoreIpcSchema.parse({ id: VALID_UUID_V7, extra: 1 })).toThrow()
+  })
+  it('rejects missing id', () => {
+    expect(() => RestoreIpcSchema.parse({})).toThrow()
   })
 })
