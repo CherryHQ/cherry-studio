@@ -307,6 +307,31 @@ describe('KnowledgeMappings', () => {
     })
   })
 
+  it('transformKnowledgeItem backfills errors for legacy transient states without processing errors', () => {
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'processing-note',
+        type: 'note',
+        content: 'processing note',
+        processingStatus: 'processing',
+        processingError: '   '
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        status: 'failed',
+        error: 'Legacy knowledge item failed without an error message.'
+      })
+    })
+  })
+
   it('transformKnowledgeItem rejects unsupported legacy item types', () => {
     expect(
       transformKnowledgeItem(

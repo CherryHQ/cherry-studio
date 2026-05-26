@@ -845,6 +845,81 @@ describe('KnowledgeItemService', () => {
       })
     })
 
+    it('keeps a preparing container unchanged while reconciling its parent', async () => {
+      await seedItem({
+        id: 'dir-root',
+        type: 'directory',
+        data: { source: '/docs', path: '/docs' },
+        status: 'processing'
+      })
+      await seedItem({
+        id: 'dir-child',
+        groupId: 'dir-root',
+        type: 'directory',
+        data: { source: '/docs/child', path: '/docs/child' },
+        status: 'preparing'
+      })
+      await seedItem({
+        id: 'note-child',
+        groupId: 'dir-child',
+        type: 'note',
+        data: { source: 'note', content: 'note' },
+        status: 'processing'
+      })
+
+      await service.updateStatus('note-child', 'completed')
+
+      await expect(getItemRow('dir-child')).resolves.toMatchObject({ status: 'preparing', error: null })
+      await expect(getItemRow('dir-root')).resolves.toMatchObject({ status: 'processing', error: null })
+    })
+
+    it('leaves a deleting container untouched', async () => {
+      await seedItem({
+        id: 'dir-root',
+        type: 'directory',
+        data: { source: '/docs', path: '/docs' },
+        status: 'deleting'
+      })
+      await seedItem({
+        id: 'note-child',
+        groupId: 'dir-root',
+        type: 'note',
+        data: { source: 'note', content: 'note' },
+        status: 'processing'
+      })
+
+      await service.updateStatus('note-child', 'completed')
+
+      await expect(getItemRow('dir-root')).resolves.toMatchObject({ status: 'deleting', error: null })
+    })
+
+    it('does not count deleting children as active', async () => {
+      await seedItem({
+        id: 'dir-root',
+        type: 'directory',
+        data: { source: '/docs', path: '/docs' },
+        status: 'processing'
+      })
+      await seedItem({
+        id: 'completed-child',
+        groupId: 'dir-root',
+        type: 'note',
+        data: { source: 'completed', content: 'completed' },
+        status: 'completed'
+      })
+      await seedItem({
+        id: 'deleting-child',
+        groupId: 'dir-root',
+        type: 'note',
+        data: { source: 'deleting', content: 'deleting' },
+        status: 'deleting'
+      })
+
+      await service.updateStatus('completed-child', 'completed')
+
+      await expect(getItemRow('dir-root')).resolves.toMatchObject({ status: 'completed', error: null })
+    })
+
     it('reconciles containers bottom-up after active leaves are deleted', async () => {
       await seedItem({
         id: 'dir-a',

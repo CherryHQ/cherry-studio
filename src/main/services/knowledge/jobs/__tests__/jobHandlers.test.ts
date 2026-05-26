@@ -130,7 +130,7 @@ function createBase(): KnowledgeBase {
 function createNoteItem(
   id = 'note-1',
   groupId: string | null = null,
-  status: KnowledgeItemOf<'note'>['status'] = 'processing'
+  status: Exclude<KnowledgeItemOf<'note'>['status'], 'failed'> = 'processing'
 ): KnowledgeItemOf<'note'> {
   return {
     id,
@@ -147,7 +147,7 @@ function createNoteItem(
 
 function createDirectoryItem(
   id = 'dir-1',
-  status: KnowledgeItemOf<'directory'>['status'] = 'preparing'
+  status: Exclude<KnowledgeItemOf<'directory'>['status'], 'failed'> = 'preparing'
 ): KnowledgeItemOf<'directory'> {
   return {
     id,
