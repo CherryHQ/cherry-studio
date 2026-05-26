@@ -3,6 +3,8 @@ import { RowFlex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
+import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { AiProvider } from '@renderer/aiCore'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -14,7 +16,7 @@ import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { InputNumber, Radio, Select } from 'antd'
 import type { FC } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingHelpLink, SettingTitle } from '../settings'
@@ -30,8 +32,11 @@ import {
   TOP_UP_URL,
   ZHIPU_PAINTING_MODELS
 } from './config/ZhipuConfig'
+import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
 import { checkProviderEnabled } from './utils'
 import { saveGeneratedPaintingFiles } from './utils/imageFiles'
+
+const logger = loggerService.withContext('ZhipuPage')
 
 const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { zhipu_paintings, addPainting, removePainting, updatePainting } = usePaintings()
@@ -57,6 +62,8 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const location = useLocation()
+  const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
+  const textareaRef = useRef<any>(null)
 
   // 自定义尺寸相关状态
   const [isCustomSize, setIsCustomSize] = useState(false)
@@ -274,6 +281,13 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
     setPainting(addedPainting)
   }
 
+  const { isTranslating, handleKeyDown } = usePaintingPromptTranslation({
+    prompt: painting.prompt,
+    enabled: autoTranslateWithSpace,
+    onTranslated: (translatedText) => updatePaintingState({ prompt: translatedText }),
+    onError: (error) => logger.error('Translation failed:', error as Error)
+  })
+
   // 移除modelOptions的定义，直接在Select中使用
 
   useEffect(() => {
@@ -411,11 +425,18 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
             onCancel={onCancel}
           />
           <PaintingPromptBar
+            textareaRef={textareaRef}
             value={painting.prompt}
             disabled={isLoading}
-            placeholder={t('paintings.prompt_placeholder')}
+            placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder')}
             onChange={(prompt) => updatePaintingState({ prompt })}
+            onKeyDown={handleKeyDown}
             onGenerate={onGenerate}
+            translate={{
+              onTranslated: (translatedText) => updatePaintingState({ prompt: translatedText }),
+              disabled: isLoading || isTranslating,
+              isLoading: isTranslating
+            }}
           />
         </div>
         <PaintingsList
