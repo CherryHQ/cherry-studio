@@ -927,6 +927,7 @@ export class FileManager extends BaseService implements IFileManager {
         return this.rename(handle.entryId, newTarget)
       }
       await fsMove(handle.path, newTarget as FilePath)
+      return undefined
     })
     this.ipcHandle(IpcChannel.File_Copy, async (_e, params: unknown) => {
       const { source, newName } = CopyIpcSchema.parse(params)
