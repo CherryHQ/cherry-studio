@@ -11,9 +11,8 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
-import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
-import type { FileMetadata, PaintingsState, PpioPainting } from '@renderer/types'
+import type { PaintingsState, PpioPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
 import { useNavigate } from '@tanstack/react-router'
@@ -38,6 +37,7 @@ import {
   type PpioMode
 } from './config/ppioConfig'
 import { checkProviderEnabled } from './utils'
+import { saveGeneratedPaintingFiles } from './utils/imageFiles'
 import PpioService from './utils/PpioService'
 
 const logger = loggerService.withContext('PpioPage')
@@ -270,25 +270,12 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
 
       // 下载图片
       if (imageUrls.length > 0) {
-        const downloadedFiles = await Promise.all(
-          imageUrls.map(async (url) => {
-            try {
-              if (!url || url.trim() === '') {
-                logger.error(t('message.empty_url'))
-                return null
-              }
-              return await window.api.file.download(url)
-            } catch (error) {
-              logger.error('Failed to download image:', error as Error)
-              return null
-            }
-          })
-        )
-
-        const validFiles = downloadedFiles.filter((file): file is FileMetadata => file !== null)
-
-        await FileManager.addFiles(validFiles)
-
+        const validFiles = await saveGeneratedPaintingFiles({
+          urls: imageUrls,
+          t,
+          emptyUrlLogMessage: t('message.empty_url'),
+          errorLogMessage: 'Failed to download image:'
+        })
         updatePaintingState({
           files: validFiles,
           urls: imageUrls,

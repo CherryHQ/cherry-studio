@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import type { FileMetadata, TokenFluxPainting } from '@renderer/types'
 
 import type { TokenFluxModel } from '../config/tokenFluxConfig'
+import { downloadPaintingUrls } from './imageFiles'
 
 const logger = loggerService.withContext('TokenFluxService')
 
@@ -216,24 +217,12 @@ export class TokenFluxService {
     return this.pollGenerationResult(generationId, { ...pollOptions, onStatusUpdate })
   }
 
-  async downloadImages(urls: string[]) {
-    const downloadedFiles = await Promise.all(
-      urls.map(async (url) => {
-        try {
-          if (!url?.trim()) {
-            logger.error('Image URL is empty')
-            window.toast.warning('Image URL is empty')
-            return null
-          }
-          return await window.api.file.download(url)
-        } catch (error) {
-          logger.error('Failed to download image:', error as Error)
-          return null
-        }
-      })
-    )
-
-    return downloadedFiles.filter((file): file is FileMetadata => file !== null)
+  async downloadImages(urls: string[]): Promise<FileMetadata[]> {
+    return downloadPaintingUrls(urls, {
+      emptyUrlLogMessage: 'Image URL is empty',
+      emptyUrlMessage: 'Image URL is empty',
+      errorLogMessage: 'Failed to download image:'
+    })
   }
 }
 

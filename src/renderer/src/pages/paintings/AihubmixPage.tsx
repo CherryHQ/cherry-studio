@@ -33,6 +33,7 @@ import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { type ConfigItem, createModeConfigs, DEFAULT_PAINTING } from './config/aihubmixConfig'
 import { checkProviderEnabled } from './utils'
+import { saveGeneratedPaintingFiles } from './utils/imageFiles'
 
 const logger = loggerService.withContext('AihubmixPage')
 
@@ -110,32 +111,6 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }
 
-  const downloadImages = async (urls: string[]) => {
-    const downloadedFiles = await Promise.all(
-      urls.map(async (url) => {
-        try {
-          if (!url?.trim()) {
-            logger.error('图像URL为空，可能是提示词违禁')
-            window.toast.warning(t('message.empty_url'))
-            return null
-          }
-          return await window.api.file.download(url)
-        } catch (error) {
-          logger.error('下载图像失败:', error as Error)
-          if (
-            error instanceof Error &&
-            (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
-          ) {
-            window.toast.warning(t('message.empty_url'))
-          }
-          return null
-        }
-      })
-    )
-
-    return downloadedFiles.filter((file): file is FileMetadata => file !== null)
-  }
-
   const onGenerate = async () => {
     await checkProviderEnabled(aihubmixProvider, t)
 
@@ -187,12 +162,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             personGeneration: painting.personGeneration
           })
           if (base64s?.length > 0) {
-            const validFiles = await Promise.all(
-              base64s.map(async (base64) => {
-                return await window.api.file.saveBase64Image(base64)
-              })
-            )
-            await FileManager.addFiles(validFiles)
+            const validFiles = await saveGeneratedPaintingFiles({ base64s })
             updatePaintingState({ files: validFiles, urls: [] })
           }
           return
@@ -255,12 +225,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           })
 
           if (base64s.length > 0) {
-            const validFiles = await Promise.all(
-              base64s.map(async (base64: string) => {
-                return await window.api.file.saveBase64Image(base64)
-              })
-            )
-            await FileManager.addFiles(validFiles)
+            const validFiles = await saveGeneratedPaintingFiles({ base64s })
             updatePaintingState({ files: validFiles, urls: [] })
           }
           return
@@ -343,8 +308,12 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             const urls = data.data.map((item) => item.url)
 
             if (urls.length > 0) {
-              const validFiles = await downloadImages(urls)
-              await FileManager.addFiles(validFiles)
+              const validFiles = await saveGeneratedPaintingFiles({
+                urls,
+                t,
+                emptyUrlLogMessage: '图像URL为空，可能是提示词违禁',
+                errorLogMessage: '下载图像失败:'
+              })
               updatePaintingState({ files: validFiles, urls })
             }
             return
@@ -472,8 +441,12 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           // Handle the downloaded images
           if (urls.length > 0) {
-            const validFiles = await downloadImages(urls)
-            await FileManager.addFiles(validFiles)
+            const validFiles = await saveGeneratedPaintingFiles({
+              urls,
+              t,
+              emptyUrlLogMessage: '图像URL为空，可能是提示词违禁',
+              errorLogMessage: '下载图像失败:'
+            })
             updatePaintingState({ files: validFiles, urls })
           }
           return
@@ -540,12 +513,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         logger.silly(`通用API响应: ${data}`)
         if (data.output) {
           const base64s = data.output.b64_json.map((item) => item.bytesBase64)
-          const validFiles = await Promise.all(
-            base64s.map(async (base64) => {
-              return await window.api.file.saveBase64Image(base64)
-            })
-          )
-          await FileManager.addFiles(validFiles)
+          const validFiles = await saveGeneratedPaintingFiles({ base64s })
           updatePaintingState({ files: validFiles, urls: [] })
           return
         }
@@ -553,18 +521,17 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         const base64s = data.data.filter((item) => item.b64_json).map((item) => item.b64_json)
 
         if (urls.length > 0) {
-          const validFiles = await downloadImages(urls)
-          await FileManager.addFiles(validFiles)
+          const validFiles = await saveGeneratedPaintingFiles({
+            urls,
+            t,
+            emptyUrlLogMessage: '图像URL为空，可能是提示词违禁',
+            errorLogMessage: '下载图像失败:'
+          })
           updatePaintingState({ files: validFiles, urls })
         }
 
         if (base64s?.length > 0) {
-          const validFiles = await Promise.all(
-            base64s.map(async (base64) => {
-              return await window.api.file.saveBase64Image(base64)
-            })
-          )
-          await FileManager.addFiles(validFiles)
+          const validFiles = await saveGeneratedPaintingFiles({ base64s })
           updatePaintingState({ files: validFiles, urls: [] })
         }
       }
@@ -580,8 +547,12 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const handleRetry = async (painting: PaintingAction) => {
     setIsLoading(true)
     try {
-      const validFiles = await downloadImages(painting.urls)
-      await FileManager.addFiles(validFiles)
+      const validFiles = await saveGeneratedPaintingFiles({
+        urls: painting.urls,
+        t,
+        emptyUrlLogMessage: '图像URL为空，可能是提示词违禁',
+        errorLogMessage: '下载图像失败:'
+      })
       updatePaintingState({ files: validFiles, urls: painting.urls })
     } catch (error) {
       handleError(error)

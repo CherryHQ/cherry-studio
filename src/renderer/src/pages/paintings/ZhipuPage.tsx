@@ -32,6 +32,7 @@ import {
   ZHIPU_PAINTING_MODELS
 } from './config/ZhipuConfig'
 import { checkProviderEnabled } from './utils'
+import { saveGeneratedPaintingFiles } from './utils/imageFiles'
 
 const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { zhipu_paintings, addPainting, removePainting, updatePainting } = usePaintings()
@@ -166,25 +167,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
 
       // 下载图片到本地文件
       if (images.length > 0) {
-        const downloadedFiles = await Promise.all(
-          images.map(async (image) => {
-            try {
-              return await window.api.file.saveBase64Image(image)
-            } catch (error) {
-              if (
-                error instanceof Error &&
-                (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
-              ) {
-                window.toast.warning(t('message.empty_url'))
-              }
-              return null
-            }
-          })
-        )
-
-        const validFiles = downloadedFiles.filter((file): file is any => file !== null)
-
-        await FileManager.addFiles(validFiles)
+        const validFiles = await saveGeneratedPaintingFiles({ base64s: images })
 
         // 处理响应结果
         const newPainting = {

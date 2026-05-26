@@ -35,6 +35,7 @@ import {
   TOP_UP_URL
 } from './config/DmxapiConfig'
 import { checkProviderEnabled } from './utils'
+import { downloadPaintingUrls } from './utils/imageFiles'
 
 const generateRandomSeed = () => Math.floor(Math.random() * 1000000).toString()
 
@@ -480,34 +481,6 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     })
   }
 
-  // 下载图像函数
-  const downloadImages = async (urls: string[]) => {
-    return Promise.all(
-      urls.map(async (url) => {
-        try {
-          if (!url || url.trim() === '') {
-            window.toast.warning(t('message.empty_url'))
-            return null
-          }
-
-          if (url.startsWith('data:image')) {
-            return await window.api.file.saveBase64Image(url)
-          }
-
-          return await window.api.file.download(url, true)
-        } catch (error) {
-          if (
-            error instanceof Error &&
-            (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
-          ) {
-            window.toast.warning(t('message.empty_url'))
-          }
-          return null
-        }
-      })
-    )
-  }
-
   // 准备请求配置函数
   const prepareRequestConfig = async (prompt: string, painting: DmxapiPainting) => {
     // 根据模式和模型版本返回不同的请求配置
@@ -568,8 +541,11 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
       // 下载图像
       if (urls.length > 0) {
-        const downloadedFiles = await downloadImages(urls)
-        const validFiles = downloadedFiles.filter((file): file is FileMetadata => file !== null)
+        const validFiles = await downloadPaintingUrls(urls, {
+          t,
+          forceDownload: true,
+          saveDataImage: true
+        })
 
         if (validFiles?.length > 0) {
           if (painting.autoCreate && painting.files.length > 0) {

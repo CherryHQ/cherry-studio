@@ -35,6 +35,7 @@ import ImageUploader from './components/ImageUploader'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { checkProviderEnabled } from './utils'
+import { saveGeneratedPaintingFiles } from './utils/imageFiles'
 
 export const TEXT_TO_IMAGES_MODELS = [
   {
@@ -368,32 +369,12 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
       const urls = await generateSiliconImages(provider, painting, prompt, controller.signal, inputImages)
 
       if (urls.length > 0) {
-        const downloadedFiles = await Promise.all(
-          urls.map(async (url) => {
-            try {
-              if (!url || url.trim() === '') {
-                logger.error('图像URL为空，可能是提示词违禁')
-                window.toast.warning(t('message.empty_url'))
-                return null
-              }
-              return await window.api.file.download(url)
-            } catch (error) {
-              logger.error('Failed to download image:', error as Error)
-              if (
-                error instanceof Error &&
-                (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
-              ) {
-                window.toast.warning(t('message.empty_url'))
-              }
-              return null
-            }
-          })
-        )
-
-        const validFiles = downloadedFiles.filter((file): file is FileMetadata => file !== null)
-
-        await FileManager.addFiles(validFiles)
-
+        const validFiles = await saveGeneratedPaintingFiles({
+          urls,
+          t,
+          emptyUrlLogMessage: '图像URL为空，可能是提示词违禁',
+          errorLogMessage: 'Failed to download image:'
+        })
         updatePaintingState({ files: validFiles, urls })
       }
     } catch (error: unknown) {

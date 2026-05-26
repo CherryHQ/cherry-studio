@@ -12,7 +12,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
-import type { FileMetadata, OvmsPainting } from '@renderer/types'
+import type { OvmsPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
 import { useLocation, useNavigate } from '@tanstack/react-router'
@@ -35,6 +35,7 @@ import {
   getOvmsModels,
   OVMS_MODELS
 } from './config/ovmsConfig'
+import { saveGeneratedPaintingFiles } from './utils/imageFiles'
 
 const logger = loggerService.withContext('OvmsPage')
 
@@ -129,32 +130,6 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }
 
-  const downloadImages = async (urls: string[]) => {
-    const downloadedFiles = await Promise.all(
-      urls.map(async (url) => {
-        try {
-          if (!url?.trim()) {
-            logger.error('Image URL is empty, possibly due to prohibited prompt')
-            window.toast.warning(t('message.empty_url'))
-            return null
-          }
-          return await window.api.file.download(url)
-        } catch (error) {
-          logger.error(`Failed to download image: ${error}`)
-          if (
-            error instanceof Error &&
-            (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
-          ) {
-            window.toast.warning(t('message.empty_url'))
-          }
-          return null
-        }
-      })
-    )
-
-    return downloadedFiles.filter((file): file is FileMetadata => file !== null)
-  }
-
   const onGenerate = async () => {
     if (painting.files.length > 0) {
       const confirmed = await window.modal.confirm({
@@ -213,12 +188,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
         const base64s = data.data.filter((item) => item.b64_json).map((item) => item.b64_json)
 
         if (base64s.length > 0) {
-          const validFiles = await Promise.all(
-            base64s.map(async (base64) => {
-              return await window.api.file.saveBase64Image(base64)
-            })
-          )
-          await FileManager.addFiles(validFiles)
+          const validFiles = await saveGeneratedPaintingFiles({ base64s })
           updatePaintingState({ files: validFiles, urls: [] })
         }
 
@@ -226,8 +196,12 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
         const urls = data.data.filter((item) => item.url).map((item) => item.url)
 
         if (urls.length > 0) {
-          const validFiles = await downloadImages(urls)
-          await FileManager.addFiles(validFiles)
+          const validFiles = await saveGeneratedPaintingFiles({
+            urls,
+            t,
+            emptyUrlLogMessage: 'Image URL is empty, possibly due to prohibited prompt',
+            errorLogMessage: 'Failed to download image'
+          })
           updatePaintingState({ files: validFiles, urls })
         }
       }
@@ -243,8 +217,12 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
   const handleRetry = async (painting: OvmsPainting) => {
     setIsLoading(true)
     try {
-      const validFiles = await downloadImages(painting.urls)
-      await FileManager.addFiles(validFiles)
+      const validFiles = await saveGeneratedPaintingFiles({
+        urls: painting.urls,
+        t,
+        emptyUrlLogMessage: 'Image URL is empty, possibly due to prohibited prompt',
+        errorLogMessage: 'Failed to download image'
+      })
       updatePaintingState({ files: validFiles, urls: painting.urls })
     } catch (error) {
       handleError(error)

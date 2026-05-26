@@ -25,7 +25,6 @@ import { DEFAULT_PAINTING, MODELS, SUPPORTED_MODELS } from '@renderer/pages/pain
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
-import type { FileMetadata } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { isNewApiProvider } from '@renderer/utils/provider'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
@@ -44,6 +43,7 @@ import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import ProviderSelect from './components/ProviderSelect'
 import { checkProviderEnabled, findPaintingByFiles } from './utils'
+import { saveGeneratedPaintingFiles } from './utils/imageFiles'
 
 const logger = loggerService.withContext('NewApiPage')
 
@@ -235,32 +235,6 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }
 
-  const downloadImages = async (urls: string[]) => {
-    const downloadedFiles = await Promise.all(
-      urls.map(async (url) => {
-        try {
-          if (!url?.trim()) {
-            logger.error('图像URL为空')
-            window.toast.warning(t('message.empty_url'))
-            return null
-          }
-          return await window.api.file.download(url)
-        } catch (error) {
-          logger.error('下载图像失败:', error as Error)
-          if (
-            error instanceof Error &&
-            (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
-          ) {
-            window.toast.warning(t('message.empty_url'))
-          }
-          return null
-        }
-      })
-    )
-
-    return downloadedFiles.filter((file): file is FileMetadata => file !== null)
-  }
-
   const onGenerate = async () => {
     await checkProviderEnabled(newApiProvider, t)
 
@@ -374,18 +348,17 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       const base64s = data.data.filter((item) => item.b64_json).map((item) => item.b64_json)
 
       if (urls.length > 0) {
-        const validFiles = await downloadImages(urls)
-        await FileManager.addFiles(validFiles)
+        const validFiles = await saveGeneratedPaintingFiles({
+          urls,
+          t,
+          emptyUrlLogMessage: '图像URL为空',
+          errorLogMessage: '下载图像失败:'
+        })
         updatePaintingState({ files: validFiles, urls })
       }
 
       if (base64s?.length > 0) {
-        const validFiles = await Promise.all(
-          base64s.map(async (base64) => {
-            return await window.api.file.saveBase64Image(base64)
-          })
-        )
-        await FileManager.addFiles(validFiles)
+        const validFiles = await saveGeneratedPaintingFiles({ base64s })
         updatePaintingState({ files: validFiles, urls: [] })
       }
     } catch (error: unknown) {
@@ -400,8 +373,12 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const handleRetry = async (painting: PaintingAction) => {
     setIsLoading(true)
     try {
-      const validFiles = await downloadImages(painting.urls)
-      await FileManager.addFiles(validFiles)
+      const validFiles = await saveGeneratedPaintingFiles({
+        urls: painting.urls,
+        t,
+        emptyUrlLogMessage: '图像URL为空',
+        errorLogMessage: '下载图像失败:'
+      })
       updatePaintingState({ files: validFiles, urls: painting.urls })
     } catch (error) {
       handleError(error)
