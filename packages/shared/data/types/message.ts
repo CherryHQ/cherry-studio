@@ -406,8 +406,8 @@ export type MessageStatus = z.infer<typeof MessageStatusSchema>
  * {@link MessageDataSchema} / {@link ModelSnapshotSchema} / {@link MessageStatsSchema}.
  */
 export const MessageSchema = z.strictObject({
-  /** Message ID (UUIDv7) */
-  id: z.string(),
+  /** Message ID (UUID — v4 legacy or v7 v2-native) */
+  id: MessageIdSchema,
   /** Topic ID this message belongs to */
   topicId: z.string(),
   /** Parent message ID (null for root) */
