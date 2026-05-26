@@ -5,6 +5,7 @@ import type { CollapseProps } from 'antd'
 import { Collapse } from 'antd'
 import { parse as parsePartialJson } from 'partial-json'
 import { useMemo } from 'react'
+import styled from 'styled-components'
 
 // 导出所有类型
 export * from './types'
@@ -119,13 +120,14 @@ function ToolContent({
 
   return (
     <StreamingContext value={isStreaming}>
-      <Collapse
-        className="w-max max-w-full has-[.ant-collapse-item-active]:w-full"
-        expandIconPosition="end"
-        size="small"
-        defaultActiveKey={toolName === AgentToolsType.TodoWrite ? [AgentToolsType.TodoWrite] : []}
-        items={[toolContentItem]}
-      />
+      <ToolCardShell>
+        <Collapse
+          expandIconPosition="end"
+          size="small"
+          defaultActiveKey={toolName === AgentToolsType.TodoWrite ? [AgentToolsType.TodoWrite] : []}
+          items={[toolContentItem]}
+        />
+      </ToolCardShell>
     </StreamingContext>
   )
 }
@@ -185,3 +187,39 @@ export function MessageAgentTools({ toolResponse }: { toolResponse: NormalToolRe
     />
   )
 }
+
+const ToolCardShell = styled.div`
+  width: max-content;
+  max-width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background-color: var(--color-background);
+  overflow: hidden;
+
+  &:has(.ant-collapse-item-active) {
+    width: 100%;
+  }
+
+  && .ant-collapse {
+    border: none;
+    border-radius: 0;
+    background: transparent !important;
+  }
+
+  && .ant-collapse-item {
+    border: none !important;
+    background: transparent;
+  }
+
+  && .ant-collapse-header {
+    background-color: transparent !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+  }
+
+  && .ant-collapse-content {
+    border-top: 1px solid var(--color-border) !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+  }
+`

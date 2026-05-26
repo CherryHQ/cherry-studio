@@ -96,18 +96,26 @@ const Container = styled.div`
   background-color: var(--color-background-soft);
   overflow: hidden;
 
-  .ant-collapse {
+  && .ant-collapse {
     border: none;
-    border-radius: 0;
+    border-radius: 0 !important;
+    background: transparent !important;
+  }
+
+  && .ant-collapse-item {
+    border: none !important;
     background: transparent;
   }
 
-  .ant-collapse-item {
-    border: none;
+  && .ant-collapse-header {
+    padding: 8px 12px !important;
+    background: transparent !important;
   }
 
-  .ant-collapse-header {
-    padding: 8px 12px !important;
+  && .ant-collapse-content {
+    border-top: 1px solid var(--color-border) !important;
+    border-radius: 0 !important;
+    background: transparent !important;
   }
 `
 
