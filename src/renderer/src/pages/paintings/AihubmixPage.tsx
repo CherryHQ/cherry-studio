@@ -25,7 +25,6 @@ import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
@@ -745,7 +744,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
       case 'slider': {
         return (
-          <SliderContainer>
+          <div className="flex items-center gap-4 [&_.ant-slider]:flex-1">
             <Slider
               min={item.min}
               max={item.max}
@@ -753,14 +752,15 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               value={(painting[item.key!] || item.initialValue) as number}
               onChange={(v) => updatePaintingState({ [item.key!]: v })}
             />
-            <StyledInputNumber
+            <InputNumber
+              className="!w-[70px]"
               min={item.min}
               max={item.max}
               step={item.step}
               value={(painting[item.key!] || item.initialValue) as number}
               onChange={(v) => updatePaintingState({ [item.key!]: v })}
             />
-          </SliderContainer>
+          </div>
         )
       }
       case 'input':
@@ -807,7 +807,8 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         )
       case 'image': {
         return (
-          <ImageUploadButton
+          <Upload
+            className="[&_.ant-upload-list-item-container]:!aspect-square [&_.ant-upload-list-item-container]:!h-full [&_.ant-upload-list-item-container]:!w-full [&_.ant-upload.ant-upload-select]:!aspect-square [&_.ant-upload.ant-upload-select]:!h-full [&_.ant-upload.ant-upload-select]:!w-full"
             accept="image/png, image/jpeg, image/gif"
             maxCount={1}
             showUploadList={false}
@@ -819,13 +820,13 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               return false // 阻止默认上传行为
             }}>
             {painting[item.key!] ? (
-              <ImagePreview>
-                <img src={painting[item.key!]} alt="预览图" />
-              </ImagePreview>
+              <div className="relative h-full w-full overflow-hidden rounded-md hover:after:absolute hover:after:inset-0 hover:after:flex hover:after:cursor-pointer hover:after:items-center hover:after:justify-center hover:after:bg-black/50 hover:after:text-white hover:after:content-['点击替换']">
+                <img src={painting[item.key!]} alt="预览图" className="h-full w-full object-cover" />
+              </div>
             ) : (
-              <ImageSizeImage src={IcImageUp} theme={theme} />
+              <img src={IcImageUp} alt="" className={theme === 'dark' ? 'mt-2 invert' : 'mt-2'} />
             )}
-          </ImageUploadButton>
+          </Upload>
         )
       }
       default:
@@ -870,7 +871,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   }, [])
 
   return (
-    <Container>
+    <div className="flex h-full flex-1 flex-col">
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
@@ -882,9 +883,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           </NavbarRight>
         )}
       </Navbar>
-      <ContentContainer id="content-container">
-        <LeftContainer>
-          <ProviderTitleContainer>
+      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-[var(--color-background)]">
+        <Scrollbar className="flex h-full max-w-[var(--assistants-width)] flex-1 flex-col bg-[var(--color-background)] p-5 [border-right:0.5px_solid_var(--color-border)]">
+          <div className="mb-[5px] flex items-center justify-between">
             <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
             <SettingHelpLink target="_blank" href={aihubmixProvider.apiHost}>
               {t('paintings.learn_more')}
@@ -893,7 +894,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
                 return Icon ? <Icon.Avatar size={16} className="ml-1.25" /> : null
               })()}
             </SettingHelpLink>
-          </ProviderTitleContainer>
+          </div>
           <ProviderSelect
             provider={aihubmixProvider}
             options={Options}
@@ -903,12 +904,12 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           {/* 使用JSON配置渲染设置项 */}
           {modeConfigs[mode].filter((item) => (item.condition ? item.condition(painting) : true)).map(renderConfigItem)}
-        </LeftContainer>
-        <MainContainer>
+        </Scrollbar>
+        <div className="flex h-full flex-1 flex-col bg-[var(--color-background)]">
           {/* 添加功能切换分段控制器 */}
-          <ModeSegmentedContainer>
+          <div className="flex justify-center pt-6">
             <Segmented shape="round" value={mode} onChange={handleModeChange} options={modeOptions} />
-          </ModeSegmentedContainer>
+          </div>
           <Artboard
             painting={painting}
             isLoading={isLoading}
@@ -918,9 +919,10 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             onCancel={onCancel}
             retry={handleRetry}
           />
-          <InputContainer>
-            <Textarea
+          <div className="relative mx-5 mb-[15px] flex max-h-[95px] min-h-[95px] flex-col rounded-[10px] border border-[var(--color-border-soft)] transition-all duration-300">
+            <TextArea
               ref={textareaRef}
+              className="!w-auto !resize-none flex flex-1 overflow-auto rounded-none p-2.5"
               variant="borderless"
               disabled={isLoading}
               value={painting.prompt}
@@ -935,8 +937,8 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               }
               onKeyDown={handleKeyDown}
             />
-            <Toolbar>
-              <ToolbarMenu>
+            <div className="flex h-10 flex-row justify-end px-2 pb-0">
+              <div className="flex flex-row items-center gap-1.5">
                 <TranslateButton
                   text={textareaRef.current?.resizableTextArea?.textArea?.value}
                   onTranslated={(translatedText) => updatePaintingState({ prompt: translatedText })}
@@ -945,10 +947,10 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
                   style={{ marginRight: 6, borderRadius: '50%' }}
                 />
                 <SendMessageButton sendMessage={onGenerate} disabled={isLoading} />
-              </ToolbarMenu>
-            </Toolbar>
-          </InputContainer>
-        </MainContainer>
+              </div>
+            </div>
+          </div>
+        </div>
         <PaintingsList
           namespace={mode}
           paintings={filteredPaintings}
@@ -957,156 +959,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           onDeletePainting={onDeletePainting}
           onNewPainting={handleAddPainting}
         />
-      </ContentContainer>
-    </Container>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-`
-
-const ContentContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  height: 100%;
-  background-color: var(--color-background);
-  overflow: hidden;
-`
-
-const LeftContainer = styled(Scrollbar)`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  padding: 20px;
-  background-color: var(--color-background);
-  max-width: var(--assistants-width);
-  border-right: 0.5px solid var(--color-border);
-`
-
-const MainContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  background-color: var(--color-background);
-`
-
-const InputContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  min-height: 95px;
-  max-height: 95px;
-  position: relative;
-  border: 1px solid var(--color-border-soft);
-  transition: all 0.3s ease;
-  margin: 0 20px 15px 20px;
-  border-radius: 10px;
-`
-
-const Textarea = styled(TextArea)`
-  padding: 10px;
-  border-radius: 0;
-  display: flex;
-  flex: 1;
-  resize: none !important;
-  overflow: auto;
-  width: auto;
-`
-
-const Toolbar = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  justify-content: flex-end;
-  padding: 0 8px;
-  padding-bottom: 0;
-  height: 40px;
-`
-
-const ToolbarMenu = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-`
-
-const SliderContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 16px;
-
-  .ant-slider {
-    flex: 1;
-  }
-`
-
-const StyledInputNumber = styled(InputNumber)`
-  width: 70px;
-`
-
-// 添加新的样式组件
-const ModeSegmentedContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  padding-top: 24px;
-`
-
-// 添加新的样式组件
-const ProviderTitleContainer = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 5px;
-`
-
-const ImageSizeImage = styled.img<{ theme: string }>`
-  filter: ${({ theme }) => (theme === 'dark' ? 'invert(100%)' : 'none')};
-  margin-top: 8px;
-`
-
-const ImageUploadButton = styled(Upload)`
-  & .ant-upload.ant-upload-select,
-  .ant-upload-list-item-container {
-    width: 100% !important;
-    height: 100% !important;
-    aspect-ratio: 1 !important;
-  }
-`
-
-// 修改 ImagePreview 组件，添加悬停效果
-const ImagePreview = styled.div`
-  width: 100%;
-  height: 100%;
-  position: relative;
-  border-radius: 6px;
-  overflow: hidden;
-
-  img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  &:hover::after {
-    content: '点击替换';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-  }
-`
 
 export default AihubmixPage

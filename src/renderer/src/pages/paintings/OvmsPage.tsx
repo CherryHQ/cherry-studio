@@ -22,7 +22,6 @@ import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
@@ -370,7 +369,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
       case 'slider': {
         return (
-          <SliderContainer>
+          <div className="flex items-center gap-4 [&_.ant-slider]:flex-1">
             <Slider
               min={item.min}
               max={item.max}
@@ -378,14 +377,15 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
               value={(painting[item.key!] || item.initialValue) as number}
               onChange={(v) => updatePaintingState({ [item.key!]: v })}
             />
-            <StyledInputNumber
+            <InputNumber
+              className="!w-[70px]"
               min={item.min}
               max={item.max}
               step={item.step}
               value={(painting[item.key!] || item.initialValue) as number}
               onChange={(v) => updatePaintingState({ [item.key!]: v })}
             />
-          </SliderContainer>
+          </div>
         )
       }
       case 'input':
@@ -443,7 +443,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
           {t(item.title!)}
           {item.tooltip && (
             <Tooltip title={t(item.tooltip)}>
-              <InfoIcon />
+              <Info className="ml-[5px] h-4 w-3.5 cursor-help text-[var(--color-text-2)] opacity-60 hover:opacity-100" />
             </Tooltip>
           )}
         </SettingTitle>
@@ -476,7 +476,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
   }, [])
 
   return (
-    <Container>
+    <div className="flex h-full flex-1 flex-col">
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
@@ -488,11 +488,11 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
           </NavbarRight>
         )}
       </Navbar>
-      <ContentContainer id="content-container">
-        <LeftContainer>
+      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-[var(--color-background)]">
+        <div className="flex h-full max-w-[var(--assistants-width)] flex-1 flex-col overflow-hidden bg-[var(--color-background)] [border-right:0.5px_solid_var(--color-border)]">
           <Scrollbar>
-            <div style={{ padding: '20px' }}>
-              <ProviderTitleContainer>
+            <div className="p-5">
+              <div className="mb-[5px] flex items-center justify-between">
                 <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
                 <SettingHelpLink
                   target="_blank"
@@ -503,7 +503,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
                     return Icon ? <Icon.Avatar size={16} className="ml-1.25" /> : null
                   })()}
                 </SettingHelpLink>
-              </ProviderTitleContainer>
+              </div>
 
               <Select
                 value={providerOptions.find((p) => p.value === 'ovms')?.value || 'ovms'}
@@ -511,13 +511,13 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
                 style={{ width: '100%', marginBottom: 15 }}>
                 {providerOptions.map((provider) => (
                   <Select.Option value={provider.value} key={provider.value}>
-                    <SelectOptionContainer>
+                    <div className="flex items-center gap-2">
                       {(() => {
                         const Icon = resolveProviderIcon(provider.value || '')
                         return Icon ? <Icon.Avatar size={16} /> : null
                       })()}
                       {provider.label}
-                    </SelectOptionContainer>
+                    </div>
                   </Select.Option>
                 ))}
               </Select>
@@ -526,8 +526,8 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
               {ovmsConfig.map(renderConfigItem)}
             </div>
           </Scrollbar>
-        </LeftContainer>
-        <MainContainer>
+        </div>
+        <div className="flex h-full flex-1 flex-col bg-[var(--color-background)]">
           <Artboard
             painting={painting}
             isLoading={isLoading}
@@ -537,9 +537,10 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
             onCancel={onCancel}
             retry={handleRetry}
           />
-          <InputContainer>
-            <Textarea
+          <div className="relative mx-5 mb-[15px] flex max-h-[95px] min-h-[95px] flex-col rounded-[10px] border border-[var(--color-border-soft)] transition-all duration-300">
+            <TextArea
               ref={textareaRef}
+              className="!w-auto !resize-none flex flex-1 overflow-auto rounded-none p-2.5"
               variant="borderless"
               disabled={isLoading}
               value={painting.prompt}
@@ -548,16 +549,16 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
               placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder')}
               onKeyDown={handleKeyDown}
             />
-            <Toolbar>
-              <ToolbarMenu>
+            <div className="flex h-10 flex-row justify-end px-2 pb-0">
+              <div className="flex flex-row items-center gap-1.5">
                 <SendMessageButton
                   sendMessage={onGenerate}
                   disabled={isLoading || !painting.model || painting.model === OVMS_MODELS[0]?.value}
                 />
-              </ToolbarMenu>
-            </Toolbar>
-          </InputContainer>
-        </MainContainer>
+              </div>
+            </div>
+          </div>
+        </div>
         <PaintingsList
           namespace="ovms_paintings"
           paintings={ovmsPaintings}
@@ -566,123 +567,9 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
           onDeletePainting={onDeletePainting}
           onNewPainting={handleAddPainting}
         />
-      </ContentContainer>
-    </Container>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-`
-
-const ContentContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  height: 100%;
-  background-color: var(--color-background);
-  overflow: hidden;
-`
-
-const LeftContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  background-color: var(--color-background);
-  max-width: var(--assistants-width);
-  border-right: 0.5px solid var(--color-border);
-  overflow: hidden;
-`
-
-const MainContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  background-color: var(--color-background);
-`
-
-const InputContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  min-height: 95px;
-  max-height: 95px;
-  position: relative;
-  border: 1px solid var(--color-border-soft);
-  transition: all 0.3s ease;
-  margin: 0 20px 15px 20px;
-  border-radius: 10px;
-`
-
-const Textarea = styled(TextArea)`
-  padding: 10px;
-  border-radius: 0;
-  display: flex;
-  flex: 1;
-  resize: none !important;
-  overflow: auto;
-  width: auto;
-`
-
-const Toolbar = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  justify-content: flex-end;
-  padding: 0 8px;
-  padding-bottom: 0;
-  height: 40px;
-`
-
-const ToolbarMenu = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-`
-
-const InfoIcon = styled(Info)`
-  margin-left: 5px;
-  cursor: help;
-  color: var(--color-text-2);
-  opacity: 0.6;
-  width: 14px;
-  height: 16px;
-
-  &:hover {
-    opacity: 1;
-  }
-`
-
-const SliderContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 16px;
-
-  .ant-slider {
-    flex: 1;
-  }
-`
-
-const StyledInputNumber = styled(InputNumber)`
-  width: 70px;
-`
-
-const ProviderTitleContainer = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 5px;
-`
-
-const SelectOptionContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`
 
 export default OvmsPage

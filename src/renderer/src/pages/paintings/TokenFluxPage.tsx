@@ -21,7 +21,6 @@ import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
@@ -347,7 +346,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   }, [painting.generationId, painting.status, tokenFluxService, updatePaintingState])
 
   return (
-    <Container>
+    <div className="flex h-full flex-1 flex-col">
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
@@ -359,10 +358,10 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
           </NavbarRight>
         )}
       </Navbar>
-      <ContentContainer id="content-container">
-        <LeftContainer>
+      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-[var(--color-background)]">
+        <Scrollbar className="flex h-full max-w-[var(--assistants-width)] flex-1 flex-col bg-[var(--color-background)] p-5 [border-right:0.5px_solid_var(--color-border)]">
           {/* Provider Section */}
-          <ProviderTitleContainer>
+          <div className="mb-[5px] flex items-center justify-between">
             <SettingTitle style={{ marginBottom: 8 }}>{t('common.provider')}</SettingTitle>
             <SettingHelpLink target="_blank" href="https://tokenflux.ai">
               {t('paintings.learn_more')}
@@ -371,23 +370,22 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                 return Icon ? <Icon.Avatar size={16} className="ml-1.25" /> : null
               })()}
             </SettingHelpLink>
-          </ProviderTitleContainer>
+          </div>
 
           <ProviderSelect provider={tokenfluxProvider} options={Options} onChange={handleProviderChange} />
 
           {/* Model & Pricing Section */}
-          <SectionTitle
-            style={{ marginBottom: 5, marginTop: 15, justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="mt-[15px] mb-[5px] flex items-center justify-between font-semibold text-[14px] text-[var(--color-text)]">
             {t('paintings.model_and_pricing')}
             {selectedModel && selectedModel.pricing && (
-              <PricingContainer>
-                <PricingBadge>
+              <div className="flex justify-end">
+                <div className="rounded border border-[var(--color-primary-border)] bg-[var(--color-primary-bg)] px-0 py-1 font-medium text-[11px] text-[var(--color-primary)]">
                   {selectedModel.pricing.price} {selectedModel.pricing.currency}{' '}
                   {selectedModel.pricing.unit > 1 ? t('paintings.per_images') : t('paintings.per_image')}
-                </PricingBadge>
-              </PricingContainer>
+                </div>
+              </div>
             )}
-          </SectionTitle>
+          </div>
           <Select
             style={{ width: '100%', marginBottom: 12 }}
             value={selectedModel?.id}
@@ -410,9 +408,9 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                 {providerModels.map((model) => (
                   <Select.Option key={model.id} value={model.id}>
                     <Tooltip placement="right" content={model.description}>
-                      <ModelOptionContainer>
-                        <ModelName>{model.name}</ModelName>
-                      </ModelOptionContainer>
+                      <div className="flex flex-col">
+                        <div className="text-[var(--color-text)]">{model.name}</div>
+                      </div>
                     </Tooltip>
                   </Select.Option>
                 ))}
@@ -423,47 +421,51 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
           {/* Input Parameters Section */}
           {selectedModel && selectedModel.input_schema && (
             <>
-              <SectionTitle style={{ marginBottom: 5, marginTop: 10 }}>{t('paintings.input_parameters')}</SectionTitle>
-              <ParametersContainer>
+              <div className="mt-2.5 mb-[5px] flex items-center font-semibold text-[14px] text-[var(--color-text)]">
+                {t('paintings.input_parameters')}
+              </div>
+              <div className="flex flex-col gap-3">
                 {Object.entries(selectedModel.input_schema.properties).map(([key, property]: [string, any]) => {
                   if (key === 'prompt') return null // Skip prompt as it's handled separately
 
                   const isRequired = selectedModel.input_schema.required?.includes(key)
 
                   return (
-                    <ParameterField key={key}>
-                      <ParameterLabel>
-                        <ParameterName>
+                    <div key={key} className="flex flex-col">
+                      <div className="mb-1.5 flex items-center">
+                        <span className="font-medium text-[13px] text-[var(--color-text)] capitalize">
                           {readI18nContext(property, 'title')}
-                          {isRequired && <RequiredIndicator> *</RequiredIndicator>}
-                        </ParameterName>
+                          {isRequired && <span className="font-semibold text-[var(--color-error)]"> *</span>}
+                        </span>
                         {property.description && <InfoTooltip content={readI18nContext(property, 'description')} />}
-                      </ParameterLabel>
+                      </div>
                       <DynamicFormRender
                         schemaProperty={property}
                         propertyName={key}
                         value={formData[key]}
                         onChange={handleFormFieldChange}
                       />
-                    </ParameterField>
+                    </div>
                   )
                 })}
-              </ParametersContainer>
+              </div>
             </>
           )}
-        </LeftContainer>
+        </Scrollbar>
 
-        <MainContainer>
+        <div className="flex h-full flex-1 flex-col bg-[var(--color-background)]">
           {/* Check if any form field contains an uploaded image */}
           {Object.keys(formData).some((key) => key.toLowerCase().includes('image') && formData[key]) ? (
-            <ComparisonContainer>
-              <ImageComparisonSection>
-                <SectionLabel>{t('paintings.input_image')}</SectionLabel>
-                <UploadedImageContainer>
+            <div className="flex h-full flex-1 flex-row gap-px">
+              <div className="flex h-full flex-1 flex-col bg-[var(--color-background)] [border-right:0.5px_solid_var(--color-border)]">
+                <div className="border-[var(--color-border)] border-b bg-[var(--color-background-soft)] px-5 py-2.5 text-center font-medium text-[14px] text-[var(--color-text-2)]">
+                  {t('paintings.input_image')}
+                </div>
+                <div className="flex flex-1 items-center justify-center bg-[var(--color-background)]">
                   {Object.entries(formData).map(([key, value]) => {
                     if (key.toLowerCase().includes('image') && value) {
                       return (
-                        <ImageWrapper key={key}>
+                        <div key={key} className="relative flex items-center justify-center">
                           <img
                             src={value}
                             alt={t('paintings.uploaded_input')}
@@ -474,15 +476,17 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                               backgroundColor: 'var(--color-background-soft)'
                             }}
                           />
-                        </ImageWrapper>
+                        </div>
                       )
                     }
                     return null
                   })}
-                </UploadedImageContainer>
-              </ImageComparisonSection>
-              <ImageComparisonSection>
-                <SectionLabel>{t('paintings.generated_image')}</SectionLabel>
+                </div>
+              </div>
+              <div className="flex h-full flex-1 flex-col bg-[var(--color-background)]">
+                <div className="border-[var(--color-border)] border-b bg-[var(--color-background-soft)] px-5 py-2.5 text-center font-medium text-[14px] text-[var(--color-text-2)]">
+                  {t('paintings.generated_image')}
+                </div>
                 <Artboard
                   painting={painting}
                   isLoading={isLoading}
@@ -491,8 +495,8 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                   onNextImage={nextImage}
                   onCancel={onCancel}
                 />
-              </ImageComparisonSection>
-            </ComparisonContainer>
+              </div>
+            </div>
           ) : (
             <Artboard
               painting={painting}
@@ -503,9 +507,10 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
               onCancel={onCancel}
             />
           )}
-          <InputContainer>
-            <Textarea
+          <div className="relative mx-5 mb-[15px] flex max-h-[95px] min-h-[95px] flex-col rounded-[10px] border border-[var(--color-border-soft)] transition-all duration-300">
+            <TextArea
               ref={textareaRef}
+              className="!w-auto !resize-none flex flex-1 overflow-auto rounded-none p-2.5"
               variant="borderless"
               disabled={isLoading}
               value={painting.prompt || ''}
@@ -514,8 +519,8 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
               placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder')}
               onKeyDown={handleKeyDown}
             />
-            <Toolbar>
-              <ToolbarMenu>
+            <div className="flex h-10 flex-row justify-end px-2 pb-0">
+              <div className="flex flex-row items-center gap-1.5">
                 <TranslateButton
                   text={textareaRef.current?.resizableTextArea?.textArea?.value}
                   onTranslated={(translatedText) => updatePaintingState({ prompt: translatedText })}
@@ -524,10 +529,10 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                   style={{ marginRight: 6, borderRadius: '50%' }}
                 />
                 <SendMessageButton sendMessage={onGenerate} disabled={isLoading} />
-              </ToolbarMenu>
-            </Toolbar>
-          </InputContainer>
-        </MainContainer>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <PaintingsList
           namespace="tokenflux_paintings"
@@ -537,195 +542,8 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
           onDeletePainting={onDeletePainting as any}
           onNewPainting={handleAddPainting}
         />
-      </ContentContainer>
-    </Container>
+      </div>
+    </div>
   )
 }
-
-const SectionTitle = styled.div`
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-text);
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-`
-
-const ModelOptionContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-`
-
-const ModelName = styled.div`
-  color: var(--color-text);
-`
-
-const PricingContainer = styled.div`
-  display: flex;
-  justify-content: flex-end;
-`
-
-const PricingBadge = styled.div`
-  background-color: var(--color-primary-bg);
-  color: var(--color-primary);
-  font-size: 11px;
-  font-weight: 500;
-  padding: 4px 0;
-  border-radius: 4px;
-  border: 1px solid var(--color-primary-border);
-`
-
-const ParametersContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-`
-
-const ParameterField = styled.div`
-  display: flex;
-  flex-direction: column;
-`
-
-const ParameterLabel = styled.div`
-  display: flex;
-  align-items: center;
-  margin-bottom: 6px;
-`
-
-const ParameterName = styled.span`
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--color-text);
-  text-transform: capitalize;
-`
-
-const RequiredIndicator = styled.span`
-  color: var(--color-error);
-  font-weight: 600;
-`
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-`
-
-const ContentContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  height: 100%;
-  background-color: var(--color-background);
-  overflow: hidden;
-`
-
-const LeftContainer = styled(Scrollbar)`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  padding: 20px;
-  background-color: var(--color-background);
-  max-width: var(--assistants-width);
-  border-right: 0.5px solid var(--color-border);
-`
-
-const MainContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  background-color: var(--color-background);
-`
-
-const ComparisonContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  height: 100%;
-  gap: 1px;
-`
-
-const ImageComparisonSection = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  background-color: var(--color-background);
-  &:first-child {
-    border-right: 0.5px solid var(--color-border);
-  }
-`
-
-const SectionLabel = styled.div`
-  padding: 10px 20px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--color-text-2);
-  background-color: var(--color-background-soft);
-  border-bottom: 1px solid var(--color-border);
-  text-align: center;
-`
-
-const UploadedImageContainer = styled.div`
-  display: flex;
-  flex: 1;
-  justify-content: center;
-  align-items: center;
-  background-color: var(--color-background);
-`
-
-const ImageWrapper = styled.div`
-  position: relative;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-`
-
-const InputContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  min-height: 95px;
-  max-height: 95px;
-  position: relative;
-  border: 1px solid var(--color-border-soft);
-  transition: all 0.3s ease;
-  margin: 0 20px 15px 20px;
-  border-radius: 10px;
-`
-
-const Textarea = styled(TextArea)`
-  padding: 10px;
-  border-radius: 0;
-  display: flex;
-  flex: 1;
-  resize: none !important;
-  overflow: auto;
-  width: auto;
-`
-
-const Toolbar = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  justify-content: flex-end;
-  padding: 0 8px;
-  padding-bottom: 0;
-  height: 40px;
-`
-
-const ToolbarMenu = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-`
-
-const ProviderTitleContainer = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 5px;
-`
 export default TokenFluxPage

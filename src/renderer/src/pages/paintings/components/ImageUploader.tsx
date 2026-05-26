@@ -7,7 +7,6 @@ import { Popconfirm, Upload } from 'antd'
 import type { RcFile, UploadProps } from 'antd/es/upload'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface ImageUploaderProps {
   fileMap: {
@@ -47,20 +46,21 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
 
   return (
     <>
-      <HeaderContainer>
+      <div className="mb-2.5 flex items-center">
         {fileMap.imageFiles && fileMap.imageFiles.length > 0 && (
           <Button size="sm" onClick={onClearImages}>
             {t('common.clear_all')}
           </Button>
         )}
-      </HeaderContainer>
+      </div>
 
-      <UploadImageList>
+      <div className="flex flex-wrap">
         {fileMap.paths && fileMap.paths.length > 0 ? (
           <>
             {fileMap.paths.map((src, index) => (
-              <UploadImageItem key={index}>
-                <ImageUploadButton
+              <div key={index} className="relative mr-[5px] mb-[5px] h-[45%] w-[45%]">
+                <Upload
+                  className="[&_.ant-upload-list-item-container]:!aspect-square [&_.ant-upload-list-item-container]:!h-full [&_.ant-upload-list-item-container]:!w-full [&_.ant-upload.ant-upload-select]:!aspect-square [&_.ant-upload.ant-upload-select]:!h-full [&_.ant-upload.ant-upload-select]:!w-full mb-[5px]"
                   accept="image/png, image/jpeg"
                   maxCount={1}
                   multiple={false}
@@ -71,20 +71,26 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
                   beforeUpload={(file) => {
                     handleBeforeUpload(file, index)
                   }}>
-                  <ImagePreview>
-                    <img src={src} alt={`${t('common.image_preview')} ${index + 1}`} />
-                  </ImagePreview>
-                </ImageUploadButton>
+                  <div className="relative h-full w-full overflow-hidden rounded-md hover:after:absolute hover:after:inset-0 hover:after:flex hover:after:cursor-pointer hover:after:items-center hover:after:justify-center hover:after:bg-black/50 hover:after:text-white hover:after:content-['点击替换']">
+                    <img
+                      src={src}
+                      alt={`${t('common.image_preview')} ${index + 1}`}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                </Upload>
                 <Popconfirm
                   title={t('paintings.button.delete.image.confirm')}
                   okText={t('common.confirm')}
                   cancelText={t('common.cancel')}
                   onConfirm={() => onDeleteImage(index)}>
-                  <DeleteButton>
+                  <button
+                    type="button"
+                    className="absolute top-[5px] right-[5px] z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-black/60 text-white opacity-70 transition-opacity duration-300 ease-in-out hover:opacity-100">
                     <DeleteOutlined />
-                  </DeleteButton>
+                  </button>
                 </Popconfirm>
-              </UploadImageItem>
+              </div>
             ))}
           </>
         ) : (
@@ -92,8 +98,9 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
         )}
 
         {remainingImages > 0 ? (
-          <UploadImageItem>
-            <ImageUploadButton
+          <div className="relative mr-[5px] mb-[5px] h-[45%] w-[45%]">
+            <Upload
+              className="[&_.ant-upload-list-item-container]:!aspect-square [&_.ant-upload-list-item-container]:!h-full [&_.ant-upload-list-item-container]:!w-full [&_.ant-upload.ant-upload-select]:!aspect-square [&_.ant-upload.ant-upload-select]:!h-full [&_.ant-upload.ant-upload-select]:!w-full mb-[5px]"
               multiple={remainingImages > 1}
               accept="image/png, image/jpeg"
               maxCount={remainingImages}
@@ -104,102 +111,15 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
               beforeUpload={(file) => {
                 handleBeforeUpload(file)
               }}>
-              <ImageSizeImage src={IcImageUp} theme={theme} />
-            </ImageUploadButton>
-          </UploadImageItem>
+              <img src={IcImageUp} alt="" className={theme === 'dark' ? 'mt-2 invert' : 'mt-2'} />
+            </Upload>
+          </div>
         ) : (
           ''
         )}
-      </UploadImageList>
+      </div>
     </>
   )
 }
-
-// 样式组件
-const HeaderContainer = styled.div`
-  display: flex;
-  align-items: center;
-  margin-bottom: 10px;
-`
-
-const ImageUploadButton = styled(Upload)`
-  & .ant-upload.ant-upload-select,
-  .ant-upload-list-item-container {
-    width: 100% !important;
-    height: 100% !important;
-    aspect-ratio: 1 !important;
-  }
-  margin-bottom: 5px;
-`
-
-const ImagePreview = styled.div`
-  width: 100%;
-  height: 100%;
-  position: relative;
-  border-radius: 6px;
-  overflow: hidden;
-
-  img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  &:hover::after {
-    content: '点击替换';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-  }
-`
-
-const ImageSizeImage = styled.img<{ theme: string }>`
-  filter: ${({ theme }) => (theme === 'dark' ? 'invert(100%)' : 'none')};
-  margin-top: 8px;
-`
-
-const UploadImageList = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-`
-
-const UploadImageItem = styled.div`
-  width: 45%;
-  height: 45%;
-  margin-bottom: 5px;
-  margin-right: 5px;
-  position: relative;
-`
-
-const DeleteButton = styled.button`
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  background-color: rgba(0, 0, 0, 0.6);
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 0.3s ease;
-  z-index: 10;
-
-  &:hover {
-    opacity: 1;
-  }
-`
 
 export default ImageUploader

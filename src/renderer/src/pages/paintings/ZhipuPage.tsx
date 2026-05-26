@@ -17,7 +17,6 @@ import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
@@ -319,7 +318,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   }, [painting.imageSize, painting.customWidth, painting.customHeight])
 
   return (
-    <Container>
+    <div className="flex h-full flex-1 flex-col">
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
@@ -331,9 +330,9 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
           </NavbarRight>
         )}
       </Navbar>
-      <ContentContainer id="content-container">
-        <LeftContainer>
-          <ProviderTitleContainer>
+      <div id="content-container" className="flex flex-1 overflow-hidden">
+        <Scrollbar className="flex h-full max-w-[var(--assistants-width)] flex-1 flex-col bg-[var(--color-background)] p-5 [border-right:0.5px_solid_var(--color-border)]">
+          <div className="mb-2.5 flex items-center justify-between">
             <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
             <div className="flex flex-row items-center gap-2">
               <SettingHelpLink target="_blank" href={TOP_UP_URL}>
@@ -347,7 +346,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
                 return Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null
               })()}
             </div>
-          </ProviderTitleContainer>
+          </div>
           <ProviderSelect provider={zhipuProvider} options={Options} onChange={handleProviderChange} className="mb-4" />
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('common.model')}</SettingTitle>
@@ -419,8 +418,8 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
               </div>
             </div>
           )}
-        </LeftContainer>
-        <MainContainer>
+        </Scrollbar>
+        <div className="flex h-full flex-1 flex-col bg-[var(--color-background)]">
           <Artboard
             painting={painting}
             isLoading={isLoading}
@@ -429,8 +428,9 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
             onNextImage={nextImage}
             onCancel={onCancel}
           />
-          <InputContainer>
-            <Textarea
+          <div className="relative mx-5 mb-[15px] flex max-h-[95px] min-h-[95px] flex-col rounded-[10px] border border-[var(--color-border-soft)] transition-all duration-300">
+            <TextArea
+              className="!w-auto !resize-none flex flex-1 overflow-auto rounded-none p-2.5"
               variant="borderless"
               disabled={isLoading}
               value={painting.prompt}
@@ -438,13 +438,13 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
               onChange={(e) => updatePaintingState({ prompt: e.target.value })}
               placeholder={t('paintings.prompt_placeholder')}
             />
-            <Toolbar>
-              <ToolbarMenu>
+            <div className="flex h-10 flex-row justify-end px-2 pb-0">
+              <div className="flex gap-2">
                 <SendMessageButton sendMessage={onGenerate} disabled={isLoading} />
-              </ToolbarMenu>
-            </Toolbar>
-          </InputContainer>
-        </MainContainer>
+              </div>
+            </div>
+          </div>
+        </div>
         <PaintingsList
           namespace="zhipu_paintings"
           paintings={zhipu_paintings}
@@ -453,83 +453,9 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
           onDeletePainting={onDeletePainting}
           onNewPainting={handleAddPainting}
         />
-      </ContentContainer>
-    </Container>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-`
-
-const ContentContainer = styled.div`
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-`
-
-const LeftContainer = styled(Scrollbar)`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  padding: 20px;
-  background-color: var(--color-background);
-  max-width: var(--assistants-width);
-  border-right: 0.5px solid var(--color-border);
-`
-const MainContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  background-color: var(--color-background);
-`
-
-const Textarea = styled(TextArea)`
-  padding: 10px;
-  border-radius: 0;
-  display: flex;
-  flex: 1;
-  resize: none !important;
-  overflow: auto;
-  width: auto;
-`
-
-const InputContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  min-height: 95px;
-  max-height: 95px;
-  position: relative;
-  border: 1px solid var(--color-border-soft);
-  transition: all 0.3s ease;
-  margin: 0 20px 15px 20px;
-  border-radius: 10px;
-`
-
-const Toolbar = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: flex-end;
-  padding: 0 8px;
-  padding-bottom: 0;
-  height: 40px;
-`
-
-const ToolbarMenu = styled.div`
-  display: flex;
-  gap: 8px;
-`
-
-const ProviderTitleContainer = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-`
 
 export default ZhipuPage

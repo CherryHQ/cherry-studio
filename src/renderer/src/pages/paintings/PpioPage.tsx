@@ -24,7 +24,6 @@ import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingTitle } from '../settings'
@@ -418,20 +417,25 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
         const imageKey = item.key as keyof PpioPainting
         const imageValue = painting[imageKey] as string | undefined
         return (
-          <ImageUploadButton
+          <Upload
+            className="[&_.ant-upload.ant-upload-select]:!m-0 [&_.ant-upload.ant-upload-select]:!h-[120px] [&_.ant-upload.ant-upload-select]:!w-full [&_.ant-upload.ant-upload-select]:!rounded-lg"
             accept="image/png, image/jpeg, image/gif, image/webp"
             maxCount={1}
             showUploadList={false}
             listType="picture-card"
             beforeUpload={(file) => handleImageUpload({ originFileObj: file } as UploadFile, imageKey)}>
             {imageValue ? (
-              <ImagePreview>
-                <img src={imageValue} alt={t('common.image_preview')} />
-              </ImagePreview>
+              <div className="flex h-full w-full items-center justify-center overflow-hidden">
+                <img
+                  src={imageValue}
+                  alt={t('common.image_preview')}
+                  className="max-h-full max-w-full object-contain"
+                />
+              </div>
             ) : (
-              <ImageSizeImage src={IcImageUp} theme={theme} />
+              <img src={IcImageUp} alt="" className={theme === 'dark' ? 'h-10 w-10 invert' : 'h-10 w-10'} />
             )}
-          </ImageUploadButton>
+          </Upload>
         )
       }
       case 'textarea':
@@ -467,7 +471,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
           {t(item.title!)}
           {item.tooltip && (
             <Tooltip title={t(item.tooltip)}>
-              <InfoIcon />
+              <Info className="ml-[5px] size-4 cursor-help text-[var(--color-text-2)] opacity-60 hover:opacity-100" />
             </Tooltip>
           )}
         </SettingTitle>
@@ -492,7 +496,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
   }, [filteredPaintings.length, addPainting, getNewPainting, mode])
 
   return (
-    <Container>
+    <div className="flex h-full flex-1 flex-col">
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
@@ -507,8 +511,8 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
           </NavbarRight>
         )}
       </Navbar>
-      <ContentContainer id="content-container">
-        <LeftContainer>
+      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-[var(--color-background)]">
+        <Scrollbar className="flex h-full max-w-[var(--assistants-width)] flex-1 flex-col bg-[var(--color-background)] p-5 [border-right:0.5px_solid_var(--color-border)]">
           <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
           {ppioProvider && <ProviderSelect provider={ppioProvider} options={Options} onChange={handleProviderChange} />}
 
@@ -517,12 +521,12 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           {/* 渲染其他配置项 */}
           {modeConfigs[mode].map(renderConfigItem)}
-        </LeftContainer>
-        <MainContainer>
+        </Scrollbar>
+        <div className="flex h-full flex-1 flex-col bg-[var(--color-background)]">
           {/* 模式切换 */}
-          <ModeSegmentedContainer>
+          <div className="flex justify-center pt-6">
             <Segmented shape="round" value={mode} onChange={handleModeChange} options={modeOptions} />
-          </ModeSegmentedContainer>
+          </div>
           <Artboard
             painting={painting}
             isLoading={isLoading}
@@ -531,9 +535,10 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
             onNextImage={nextImage}
             onCancel={onCancel}
           />
-          <InputContainer>
-            <Textarea
+          <div className="relative mx-5 mb-[15px] flex max-h-[95px] min-h-[95px] flex-col rounded-[10px] border border-[var(--color-border-soft)] transition-all duration-300">
+            <TextArea
               ref={textareaRef}
+              className="!w-auto !resize-none flex flex-1 overflow-auto rounded-none p-2.5"
               variant="borderless"
               disabled={isLoading}
               value={painting.prompt}
@@ -542,8 +547,8 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
               placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder')}
               onKeyDown={handleKeyDown}
             />
-            <Toolbar>
-              <ToolbarMenu>
+            <div className="flex h-10 flex-row justify-end px-2 pb-0">
+              <div className="flex flex-row items-center gap-1.5">
                 <TranslateButton
                   text={textareaRef.current?.resizableTextArea?.textArea?.value}
                   onTranslated={(translatedText) => updatePaintingState({ prompt: translatedText })}
@@ -552,10 +557,10 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
                   style={{ marginRight: 6, borderRadius: '50%' }}
                 />
                 <SendMessageButton sendMessage={onGenerate} disabled={isLoading} />
-              </ToolbarMenu>
-            </Toolbar>
-          </InputContainer>
-        </MainContainer>
+              </div>
+            </div>
+          </div>
+        </div>
         <PaintingsList
           namespace={mode as keyof PaintingsState}
           paintings={filteredPaintings}
@@ -564,131 +569,9 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
           onDeletePainting={onDeletePainting}
           onNewPainting={() => setPainting(addPainting(mode, getNewPainting()))}
         />
-      </ContentContainer>
-    </Container>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-`
-
-const ContentContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  height: 100%;
-  background-color: var(--color-background);
-  overflow: hidden;
-`
-
-const LeftContainer = styled(Scrollbar)`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  padding: 20px;
-  background-color: var(--color-background);
-  max-width: var(--assistants-width);
-  border-right: 0.5px solid var(--color-border);
-`
-
-const MainContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  background-color: var(--color-background);
-`
-
-const InputContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  min-height: 95px;
-  max-height: 95px;
-  position: relative;
-  border: 1px solid var(--color-border-soft);
-  transition: all 0.3s ease;
-  margin: 0 20px 15px 20px;
-  border-radius: 10px;
-`
-
-const Textarea = styled(TextArea)`
-  padding: 10px;
-  border-radius: 0;
-  display: flex;
-  flex: 1;
-  resize: none !important;
-  overflow: auto;
-  width: auto;
-`
-
-const Toolbar = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: flex-end;
-  padding: 0 8px;
-  padding-bottom: 0;
-  height: 40px;
-`
-
-const ToolbarMenu = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-`
-
-const InfoIcon = styled(Info)`
-  margin-left: 5px;
-  cursor: help;
-  color: var(--color-text-2);
-  opacity: 0.6;
-  width: 16px;
-  height: 16px;
-
-  &:hover {
-    opacity: 1;
-  }
-`
-
-const ModeSegmentedContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  padding-top: 24px;
-`
-
-const ImageUploadButton = styled(Upload)`
-  .ant-upload.ant-upload-select {
-    width: 100% !important;
-    height: 120px !important;
-    margin: 0 !important;
-    border-radius: 8px;
-  }
-`
-
-const ImagePreview = styled.div`
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-
-  img {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-  }
-`
-
-const ImageSizeImage = styled.img<{ theme: string }>`
-  filter: ${({ theme }) => (theme === 'dark' ? 'invert(100%)' : 'none')};
-  width: 40px;
-  height: 40px;
-`
 
 export default PpioPage

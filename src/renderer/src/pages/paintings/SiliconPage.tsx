@@ -27,7 +27,6 @@ import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingTitle } from '../settings'
@@ -548,7 +547,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   }, [siliconflow_paintings.length, addPainting])
 
   return (
-    <Container>
+    <div className="flex h-full flex-1 flex-col">
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
@@ -563,8 +562,8 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
           </NavbarRight>
         )}
       </Navbar>
-      <ContentContainer id="content-container">
-        <LeftContainer>
+      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-[var(--color-background)]">
+        <Scrollbar className="flex h-full max-w-[var(--assistants-width)] flex-1 flex-col bg-[var(--color-background)] p-5 [border-right:0.5px_solid_var(--color-border)]">
           <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
           <ProviderSelect provider={siliconFlowProvider} options={Options} onChange={handleProviderChange} />
           <SettingTitle className="mt-4 mb-1">{t('common.model')}</SettingTitle>
@@ -590,12 +589,15 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
                 onChange={(e) => onSelectImageSize(e.target.value)}
                 style={{ display: 'flex' }}>
                 {imageSizes.map((size) => (
-                  <RadioButton value={size.value} key={size.value}>
+                  <Radio.Button
+                    value={size.value}
+                    key={size.value}
+                    className="!flex !h-[55px] !w-[30px] flex-1 flex-col items-center justify-center">
                     <ColFlex className="items-center">
-                      <ImageSizeImage src={size.icon} theme={theme} />
+                      <img src={size.icon} alt="" className={theme === 'dark' ? 'mt-2 invert' : 'mt-2'} />
                       <span>{size.label}</span>
                     </ColFlex>
-                  </RadioButton>
+                  </Radio.Button>
                 ))}
               </Radio.Group>
             </>
@@ -637,15 +639,16 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
                 {t('paintings.inference_steps')}
                 <InfoTooltip content={t('paintings.inference_steps_tip')} />
               </SettingTitle>
-              <SliderContainer>
+              <div className="flex items-center gap-4 [&_.ant-slider]:flex-1">
                 <Slider min={1} max={100} value={painting.steps} onChange={(v) => updatePaintingState({ steps: v })} />
-                <StyledInputNumber
+                <InputNumber
+                  className="!w-[70px]"
                   min={1}
                   max={100}
                   value={painting.steps}
                   onChange={(v) => updatePaintingState({ steps: (v as number) || 20 })}
                 />
-              </SliderContainer>
+              </div>
             </>
           )}
 
@@ -655,7 +658,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
                 {t('paintings.guidance_scale')}
                 <InfoTooltip content={t('paintings.guidance_scale_tip')} />
               </SettingTitle>
-              <SliderContainer>
+              <div className="flex items-center gap-4 [&_.ant-slider]:flex-1">
                 <Slider
                   min={0}
                   max={20}
@@ -663,14 +666,15 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
                   value={painting.guidanceScale}
                   onChange={(v) => updatePaintingState({ guidanceScale: v })}
                 />
-                <StyledInputNumber
+                <InputNumber
+                  className="!w-[70px]"
                   min={0}
                   max={20}
                   step={0.1}
                   value={painting.guidanceScale}
                   onChange={(v) => updatePaintingState({ guidanceScale: (v as number) || 7.5 })}
                 />
-              </SliderContainer>
+              </div>
             </>
           )}
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
@@ -683,8 +687,8 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
             spellCheck={false}
             rows={4}
           />
-        </LeftContainer>
-        <MainContainer>
+        </Scrollbar>
+        <div className="flex h-full flex-1 flex-col bg-[var(--color-background)]">
           <Artboard
             painting={painting}
             isLoading={isLoading}
@@ -693,9 +697,10 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
             onNextImage={nextImage}
             onCancel={onCancel}
           />
-          <InputContainer>
-            <Textarea
+          <div className="relative mx-5 mb-[15px] flex max-h-[95px] min-h-[95px] flex-col rounded-[10px] border border-[var(--color-border-soft)] transition-all duration-300">
+            <TextArea
               ref={textareaRef}
+              className="!w-auto !resize-none flex flex-1 overflow-auto rounded-none p-2.5"
               variant="borderless"
               disabled={isLoading}
               value={painting.prompt}
@@ -704,8 +709,8 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
               placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder')}
               onKeyDown={handleKeyDown}
             />
-            <Toolbar>
-              <ToolbarMenu>
+            <div className="flex h-10 flex-row justify-end px-2 pb-0">
+              <div className="flex flex-row items-center gap-1.5">
                 <TranslateButton
                   text={textareaRef.current?.resizableTextArea?.textArea?.value}
                   onTranslated={(translatedText) => updatePaintingState({ prompt: translatedText })}
@@ -714,10 +719,10 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
                   style={{ marginRight: 6, borderRadius: '50%' }}
                 />
                 <SendMessageButton sendMessage={onGenerate} disabled={isLoading} />
-              </ToolbarMenu>
-            </Toolbar>
-          </InputContainer>
-        </MainContainer>
+              </div>
+            </div>
+          </div>
+        </div>
         <PaintingsList
           namespace="siliconflow_paintings"
           paintings={siliconflow_paintings}
@@ -726,112 +731,9 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
           onDeletePainting={onDeletePainting}
           onNewPainting={() => setPainting(addPainting('siliconflow_paintings', getNewPainting()))}
         />
-      </ContentContainer>
-    </Container>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-`
-
-const ContentContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  height: 100%;
-  background-color: var(--color-background);
-  overflow: hidden;
-`
-
-const LeftContainer = styled(Scrollbar)`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  padding: 20px;
-  background-color: var(--color-background);
-  max-width: var(--assistants-width);
-  border-right: 0.5px solid var(--color-border);
-`
-
-const MainContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  background-color: var(--color-background);
-`
-
-const InputContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  min-height: 95px;
-  max-height: 95px;
-  position: relative;
-  border: 1px solid var(--color-border-soft);
-  transition: all 0.3s ease;
-  margin: 0 20px 15px 20px;
-  border-radius: 10px;
-`
-
-const Textarea = styled(TextArea)`
-  padding: 10px;
-  border-radius: 0;
-  display: flex;
-  flex: 1;
-  resize: none !important;
-  overflow: auto;
-  width: auto;
-`
-
-const Toolbar = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  justify-content: flex-end;
-  padding: 0 8px;
-  padding-bottom: 0;
-  height: 40px;
-`
-
-const ToolbarMenu = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-`
-
-const ImageSizeImage = styled.img<{ theme: string }>`
-  filter: ${({ theme }) => (theme === 'dark' ? 'invert(100%)' : 'none')};
-  margin-top: 8px;
-`
-
-const RadioButton = styled(Radio.Button)`
-  width: 30px;
-  height: 55px;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  justify-content: center;
-  align-items: center;
-`
-
-const SliderContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 16px;
-
-  .ant-slider {
-    flex: 1;
-  }
-`
-
-const StyledInputNumber = styled(InputNumber)`
-  width: 70px;
-`
 
 export default SiliconPage

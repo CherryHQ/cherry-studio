@@ -10,7 +10,7 @@ import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types'
-import { convertToBase64, uuid } from '@renderer/utils'
+import { classNames, convertToBase64, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import type { DmxapiPainting } from '@types'
 import { Input, InputNumber, Segmented, Select } from 'antd'
@@ -18,7 +18,6 @@ import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { generationModeType } from '../../types'
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
@@ -683,9 +682,12 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     if (painting.generationMode === generationModeType.EDIT) {
       if (painting?.urls.length === 0 && fileMap.paths && fileMap.paths?.length > 0 && fileMap.paths[0]) {
         return (
-          <EmptyImgBox>
-            <EmptyImg bgUrl={fileMap.paths[0]}></EmptyImg>
-          </EmptyImgBox>
+          <div className="flex flex-1 flex-row items-center justify-center">
+            <div
+              className="h-[70vh] w-[70vh] bg-center bg-contain bg-white bg-no-repeat"
+              style={{ backgroundImage: `url(${fileMap.paths[0]})` }}
+            />
+          </div>
         )
       }
     }
@@ -694,9 +696,12 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       return null
     } else {
       return (
-        <EmptyImgBox>
-          <EmptyImg></EmptyImg>
-        </EmptyImgBox>
+        <div className="flex flex-1 flex-row items-center justify-center">
+          <div
+            className="h-[70vh] w-[70vh] bg-center bg-contain bg-white bg-no-repeat"
+            style={{ backgroundImage: `url(${DMXAPIToImg})` }}
+          />
+        </div>
       )
     }
   }
@@ -707,9 +712,9 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       [generationModeType.EDIT, generationModeType.MERGE].includes(painting.generationMode)
     ) {
       return (
-        <LoadTextWrap>
+        <div className="flex flex-col items-center justify-center text-center text-black [text-shadow:-1px_-1px_0_#ffffff,1px_-1px_0_#ffffff,-1px_1px_0_#ffffff,1px_1px_0_#ffffff]">
           <div>{t('paintings.dmxapi.generating_tip')}</div>
-        </LoadTextWrap>
+        </div>
       )
     }
 
@@ -778,7 +783,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   }, [painting.model, allModels, isCustomSize])
 
   return (
-    <Container>
+    <div className="flex h-full flex-1 flex-col">
       <Navbar>
         <NavbarCenter className="border-r-0">{t('paintings.title')}</NavbarCenter>
         {isMac && (
@@ -790,9 +795,9 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
           </NavbarRight>
         )}
       </Navbar>
-      <ContentContainer id="content-container">
-        <LeftContainer>
-          <ProviderTitleContainer>
+      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-[var(--color-background)]">
+        <Scrollbar className="flex h-full max-w-[var(--assistants-width)] flex-1 flex-col bg-[var(--color-background)] p-5 [border-right:0.5px_solid_var(--color-border)]">
+          <div className="mb-[5px] flex flex-row items-center justify-between">
             <SettingTitle className="mb-1">{t('common.provider')}</SettingTitle>
             <div className="flex flex-row items-center gap-2">
               <SettingHelpLink target="_blank" href={COURSE_URL}>
@@ -806,7 +811,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
                 return Icon ? <Icon.Avatar size={16} className="ml-1" /> : null
               })()}
             </div>
-          </ProviderTitleContainer>
+          </div>
           <ProviderSelect
             provider={dmxapiProvider}
             options={Options}
@@ -829,7 +834,10 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             )}
 
           <SettingTitle className="mt-4 mb-1">
-            {t('common.model')} <SettingPrice>{painting.priceModel !== '0' ? painting.priceModel : ''}</SettingPrice>
+            {t('common.model')}{' '}
+            <div className="ml-auto font-medium text-[11px] text-[var(--color-primary)]">
+              {painting.priceModel !== '0' ? painting.priceModel : ''}
+            </div>
           </SettingTitle>
           <Select
             value={painting.model}
@@ -930,18 +938,23 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
           )}
 
           <SettingTitle className="mt-4 mb-1">{t('paintings.style_type')}</SettingTitle>
-          <SliderContainer>
-            <RadioTextBox>
+          <div className="flex items-center gap-4 [&_.ant-slider]:flex-1">
+            <div className="flex flex-wrap items-start gap-2">
               {STYLE_TYPE_OPTIONS.map((ele) => (
-                <RadioTextItem
+                <div
                   key={ele.value}
-                  className={painting.style_type === ele.value ? 'selected' : ''}
+                  className={classNames(
+                    'cursor-pointer rounded-md px-1.5 py-0.5 transition-all duration-200',
+                    painting.style_type === ele.value
+                      ? 'border border-[var(--color-primary,#1890ff)] bg-[var(--color-primary,#1890ff)] text-white'
+                      : 'border border-[var(--color-border)] bg-[var(--color-background)] hover:bg-[var(--color-hover,#f0f0f0)]'
+                  )}
                   onClick={() => onSelectStyleType(ele.value)}>
                   {t(ele.labelKey)}
-                </RadioTextItem>
+                </div>
               ))}
-            </RadioTextBox>
-          </SliderContainer>
+            </div>
+          </div>
 
           <SettingTitle className="mt-4 mb-1">
             {t('paintings.auto_create_paint')}
@@ -950,16 +963,16 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
           <RowFlex>
             <Switch checked={painting.autoCreate} onCheckedChange={(checked) => onChangeAutoCreate(checked)} />
           </RowFlex>
-        </LeftContainer>
-        <MainContainer>
-          <ModeSegmentedContainer>
+        </Scrollbar>
+        <div className="flex h-full flex-1 flex-col bg-[var(--color-background)]">
+          <div className="flex justify-center pt-6">
             <Segmented
               shape="round"
               value={painting.generationMode}
               onChange={onGenerationModeChange}
               options={modeOptions}
             />
-          </ModeSegmentedContainer>
+          </div>
           <Artboard
             painting={painting}
             isLoading={isLoading}
@@ -970,9 +983,10 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             imageCover={defaultCoverImage()}
             loadText={defaultLoadText()}
           />
-          <InputContainer>
-            <Textarea
+          <div className="relative mx-5 mb-[15px] flex max-h-[95px] min-h-[95px] flex-col rounded-[10px] border border-[var(--color-border-soft)] transition-all duration-300">
+            <TextArea
               ref={textareaRef}
+              className="!w-auto !resize-none flex flex-1 overflow-auto rounded-none p-2.5"
               variant="borderless"
               disabled={isLoading}
               value={painting.prompt}
@@ -980,13 +994,13 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
               onChange={(e) => updatePaintingState({ prompt: e.target.value })}
               placeholder={t('paintings.prompt_placeholder')}
             />
-            <Toolbar>
-              <ToolbarMenu>
+            <div className="flex h-10 flex-row justify-end px-2">
+              <div className="flex flex-row items-center gap-1.5">
                 <SendMessageButton sendMessage={onGenerate} disabled={isLoading} />
-              </ToolbarMenu>
-            </Toolbar>
-          </InputContainer>
-        </MainContainer>
+              </div>
+            </div>
+          </div>
+        </div>
         <PaintingsList
           namespace="dmxapi_paintings"
           paintings={dmxapi_paintings}
@@ -995,176 +1009,9 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
           onDeletePainting={onDeletePainting}
           onNewPainting={createNewPainting}
         />
-      </ContentContainer>
-    </Container>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-`
-
-// 添加新的样式组件
-const ProviderTitleContainer = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 5px;
-`
-
-const ContentContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  height: 100%;
-  background-color: var(--color-background);
-  overflow: hidden;
-`
-
-const LeftContainer = styled(Scrollbar)`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  padding: 20px;
-  background-color: var(--color-background);
-  max-width: var(--assistants-width);
-  border-right: 0.5px solid var(--color-border);
-`
-
-const MainContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  background-color: var(--color-background);
-`
-
-const InputContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  min-height: 95px;
-  max-height: 95px;
-  position: relative;
-  border: 1px solid var(--color-border-soft);
-  transition: all 0.3s ease;
-  margin: 0 20px 15px 20px;
-  border-radius: 10px;
-`
-
-const Textarea = styled(TextArea)`
-  padding: 10px;
-  border-radius: 0;
-  display: flex;
-  flex: 1;
-  resize: none !important;
-  overflow: auto;
-  width: auto;
-`
-
-const Toolbar = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: flex-end;
-  padding: 0 8px;
-  height: 40px;
-`
-
-const ToolbarMenu = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-`
-
-const SliderContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 16px;
-
-  .ant-slider {
-    flex: 1;
-  }
-`
-
-const RadioTextBox = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 8px;
-`
-
-const RadioTextItem = styled.div`
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 6px;
-  transition: all 0.2s ease;
-  border: 1px solid var(--color-border);
-
-  /* 默认状态 */
-  background-color: var(--color-background);
-
-  /* 悬浮状态 */
-  &:hover {
-    background-color: var(--color-hover, #f0f0f0);
-  }
-
-  /* 选中状态 - 需要添加selected类名 */
-  &.selected {
-    background-color: var(--color-primary, #1890ff);
-    color: white;
-    border: 1px solid var(--color-primary, #1890ff);
-  }
-`
-
-// 添加新的样式组件
-const ModeSegmentedContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  padding-top: 24px;
-`
-
-const EmptyImgBox = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-`
-
-const EmptyImg = styled.div<{ bgUrl?: string }>`
-  width: 70vh;
-  height: 70vh;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-  background-image: ${(props) => (props.bgUrl ? `url(${props.bgUrl})` : `url(${DMXAPIToImg})`)};
-  background-color: #ffffff;
-`
-
-const LoadTextWrap = styled.div`
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  color: black;
-  text-shadow:
-    -1px -1px 0 #ffffff,
-    1px -1px 0 #ffffff,
-    -1px 1px 0 #ffffff,
-    1px 1px 0 #ffffff;
-`
-
-const SettingPrice = styled.div`
-  margin-left: auto;
-  color: var(--color-primary);
-  font-size: 11px;
-  font-weight: 500;
-`
 
 export default DmxapiPage
