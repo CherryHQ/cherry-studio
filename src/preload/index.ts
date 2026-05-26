@@ -46,12 +46,7 @@ import type {
   WebSearchSearchKeywordsRequest
 } from '@shared/data/types/webSearch'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
-import type { FileHandle } from '@shared/file/types/handle'
-import type {
-  CreateInternalEntryIpcParams,
-  EnsureExternalEntryIpcParams,
-  GetPhysicalPathIpcParams
-} from '@shared/file/types/ipc'
+import type { FilePreloadApi } from '@shared/file/types/ipc'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
 import type {
@@ -127,6 +122,84 @@ export function tracedInvoke(channel: string, spanContext: SpanContext | undefin
     return ipcRenderer.invoke(channel, ...args, data)
   }
   return ipcRenderer.invoke(channel, ...args)
+}
+
+/**
+ * v2 File IPC bridge.
+ *
+ * ## Safety model
+ *
+ * This bridge is a transparent forwarding layer. Implementations use untyped
+ * (`any`) argument forwarding via `ipcRenderer.invoke`. This is deliberate:
+ *
+ * - **Renderer**: `FilePreloadApi` provides type-safe overloaded signatures
+ *   with narrowed return types at the call site.
+ * - **Preload**: Forwards arguments as-is. No validation.
+ * - **Main**: Zod schemas (`*IpcSchema.parse()`) validate every parameter
+ *   before the handler executes.
+ *
+ * The preload does NOT validate arguments — that responsibility belongs to
+ * the Zod schemas at the main-process IPC boundary.
+ */
+const fileV2: FilePreloadApi = {
+  // A. Dialogs
+  openSelectDialog: (options: any) => ipcRenderer.invoke(IpcChannel.File_OpenSelectDialog, options),
+  openSaveDialog: (options: any) => ipcRenderer.invoke(IpcChannel.File_OpenSaveDialog, options),
+
+  // B. Entry creation
+  createInternalEntry: (params: any) => ipcRenderer.invoke(IpcChannel.File_CreateInternalEntry, params),
+  ensureExternalEntry: (params: any) => ipcRenderer.invoke(IpcChannel.File_EnsureExternalEntry, params),
+  batchCreateInternalEntries: (items: any) => ipcRenderer.invoke(IpcChannel.File_BatchCreateInternalEntries, items),
+  batchEnsureExternalEntries: (items: any) => ipcRenderer.invoke(IpcChannel.File_BatchEnsureExternalEntries, items),
+
+  // C. Read / Metadata
+  read: (handle: any, options?: any) => ipcRenderer.invoke(IpcChannel.File_Read, handle, options),
+  getMetadata: (handle: any) => ipcRenderer.invoke(IpcChannel.File_GetMetadata, handle),
+  batchGetMetadata: (params: any) => ipcRenderer.invoke(IpcChannel.File_BatchGetMetadata, params),
+  getVersion: (handle: any) => ipcRenderer.invoke(IpcChannel.File_GetVersion, handle),
+  getContentHash: (handle: any) => ipcRenderer.invoke(IpcChannel.File_GetContentHash, handle),
+
+  // D. Write
+  write: (handle: any, data: any) => ipcRenderer.invoke(IpcChannel.File_Write, handle, data),
+  writeIfUnchanged: (handle: any, data: any, version: any, hash?: any) =>
+    ipcRenderer.invoke(IpcChannel.File_WriteIfUnchanged, handle, data, version, hash),
+
+  // E. Lifecycle
+  trash: (params: any) => ipcRenderer.invoke(IpcChannel.File_Trash, params),
+  restore: (params: any) => ipcRenderer.invoke(IpcChannel.File_Restore, params),
+  permanentDelete: (handle: any) => ipcRenderer.invoke(IpcChannel.File_PermanentDelete, handle),
+  batchTrash: (params: any) => ipcRenderer.invoke(IpcChannel.File_BatchTrash, params),
+  batchRestore: (params: any) => ipcRenderer.invoke(IpcChannel.File_BatchRestore, params),
+  batchPermanentDelete: (params: any) => ipcRenderer.invoke(IpcChannel.File_BatchPermanentDelete, params),
+
+  // F. Rename / Copy
+  rename: (handle: any, newTarget: any) => ipcRenderer.invoke(IpcChannel.File_Rename, handle, newTarget),
+  copy: (params: any) => ipcRenderer.invoke(IpcChannel.File_Copy, params),
+
+  // G. System
+  open: (handle: any) => ipcRenderer.invoke(IpcChannel.File_Open, handle),
+  showInFolder: (handle: any) => ipcRenderer.invoke(IpcChannel.File_ShowInFolder, handle),
+
+  // H. Directory
+  listDirectory: (dirPath: any, options?: any) => ipcRenderer.invoke(IpcChannel.File_ListDirectory, dirPath, options),
+  isNotEmptyDir: (dirPath: any) => ipcRenderer.invoke(IpcChannel.File_IsNotEmptyDir, dirPath),
+
+  // I. Entry enrichment
+  getDanglingState: (params: any) => ipcRenderer.invoke(IpcChannel.File_GetDanglingState, params),
+  batchGetDanglingStates: (params: any) => ipcRenderer.invoke(IpcChannel.File_BatchGetDanglingStates, params),
+  getPhysicalPath: (params: any) => ipcRenderer.invoke(IpcChannel.File_GetPhysicalPath, params),
+  batchGetPhysicalPaths: (params: any) => ipcRenderer.invoke(IpcChannel.File_BatchGetPhysicalPaths, params),
+
+  // J. Sweep
+  runSweep: () => ipcRenderer.invoke(IpcChannel.File_RunSweep),
+
+  // K. Path utilities
+  canWrite: (dirPath: any) => ipcRenderer.invoke(IpcChannel.File_CanWrite, dirPath),
+  toAbsolutePath: (filePath: any) => ipcRenderer.invoke(IpcChannel.File_ToAbsolutePath, filePath),
+  isPathInside: (child: any, parent: any) => ipcRenderer.invoke(IpcChannel.File_IsPathInside, child, parent),
+
+  // L. Preload-only
+  getPathForFile: (file: File) => webUtils.getPathForFile(file)
 }
 
 // Custom APIs for renderer
@@ -310,15 +383,7 @@ const api = {
     readText: (pathOrUrl: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Fs_ReadText, pathOrUrl)
   },
   // FileManager v2 surface (Phase 2)
-  file: {
-    createInternalEntry: (params: CreateInternalEntryIpcParams) =>
-      ipcRenderer.invoke(IpcChannel.File_CreateInternalEntry, params),
-    ensureExternalEntry: (params: EnsureExternalEntryIpcParams) =>
-      ipcRenderer.invoke(IpcChannel.File_EnsureExternalEntry, params),
-    getPhysicalPath: (params: GetPhysicalPathIpcParams) => ipcRenderer.invoke(IpcChannel.File_GetPhysicalPath, params),
-    permanentDelete: (handle: FileHandle) => ipcRenderer.invoke(IpcChannel.File_PermanentDelete, handle),
-    runSweep: () => ipcRenderer.invoke(IpcChannel.File_RunSweep)
-  },
+  file: fileV2,
   pdf: {
     extractText: (data: Uint8Array | ArrayBuffer | string): Promise<string> =>
       ipcRenderer.invoke(IpcChannel.Pdf_ExtractText, data)
