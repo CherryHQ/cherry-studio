@@ -3,7 +3,7 @@
  *
  * Links a FileEntry to a message row in the v2 chat subsystem. The owning
  * service writes refs when a message is created with file or image blocks.
- * The corresponding `chatMessageChecker` (in `FileRefCheckerRegistry`) uses
+ * The corresponding `chatMessageChecker` (in `orphanCheckerRegistry`) uses
  * the message DB table to determine liveness.
  *
  * ## sourceId format

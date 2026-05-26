@@ -65,7 +65,7 @@ import { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempS
  *   extend it once the role vocabulary settles. No production code currently
  *   writes `knowledge_item` refs, so the choice of placeholder value
  *   (`'attachment'`) is inconsequential.
- * - `chat_message` — refs from `chat_message` rows (`./chatMessage.ts`).
+ * - `chat_message` — refs from message rows (`./chatMessage.ts`).
  *   `sourceId` accepts both UUIDv4 (legacy) and UUIDv7 (v2-native) because
  *   v1 message IDs are preserved verbatim during migration.
  *

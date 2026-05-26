@@ -562,6 +562,11 @@ export class ChatMigrator extends BaseMigrator {
         })
       }
 
+      // Warn-only (not pushed to errors): unlike topic/pin counts which compare
+      // across data sources (v1 Dexie → v2 SQLite), this is a same-DB self-check
+      // ("rows I committed are still there"). A mismatch implies an infrastructure
+      // fault (WAL loss, CASCADE from an unexpected file_entry delete), not a
+      // migration logic bug — so it warrants investigation, not migration abort.
       if (this.fileRefInsertCount > 0) {
         const fileRefResult = await db
           .select({ count: sql<number>`count(*)` })
