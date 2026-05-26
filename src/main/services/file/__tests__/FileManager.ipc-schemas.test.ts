@@ -17,6 +17,7 @@ import {
   FILE_BATCH_MAX_IDS,
   GetContentHashIpcSchema,
   GetDanglingStateIpcSchema,
+  GetMetadataIpcSchema,
   OpenIpcSchema,
   RestoreIpcSchema,
   ShowInFolderIpcSchema,
@@ -169,5 +170,23 @@ describe('ShowInFolderIpcSchema', () => {
   })
   it('rejects invalid handle', () => {
     expect(() => ShowInFolderIpcSchema.parse({ kind: 'invalid' })).toThrow()
+  })
+})
+
+describe('GetMetadataIpcSchema', () => {
+  it('accepts entry handle', () => {
+    expect(GetMetadataIpcSchema.parse({ kind: 'entry', entryId: VALID_UUID_V7 })).toEqual({
+      kind: 'entry',
+      entryId: VALID_UUID_V7
+    })
+  })
+  it('accepts path handle', () => {
+    expect(GetMetadataIpcSchema.parse({ kind: 'path', path: '/test/file.txt' })).toEqual({
+      kind: 'path',
+      path: '/test/file.txt'
+    })
+  })
+  it('rejects invalid handle', () => {
+    expect(() => GetMetadataIpcSchema.parse({ kind: 'invalid' })).toThrow()
   })
 })

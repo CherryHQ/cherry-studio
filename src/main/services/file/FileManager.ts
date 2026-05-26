@@ -273,6 +273,8 @@ export const BatchIdsIpcSchema = z.strictObject({
   ids: z.array(FileEntryIdSchema).max(FILE_BATCH_MAX_IDS)
 })
 
+export const GetMetadataIpcSchema = FileHandleSchema
+
 // ─── Version types ───
 
 /**
@@ -751,6 +753,34 @@ export class FileManager extends BaseService implements IFileManager {
         handle,
         (id) => this.showInFolder(id),
         (p) => internalShellShowInFolder(p)
+      )
+    })
+    this.ipcHandle(IpcChannel.File_GetMetadata, async (_e, rawHandle: unknown) => {
+      const handle = GetMetadataIpcSchema.parse(rawHandle) as FileHandle
+      return dispatchHandle(
+        handle,
+        (id) => this.getMetadata(id),
+        async (p) => {
+          const s = await fsStat(p)
+          if (s.isDirectory) {
+            return {
+              kind: 'directory',
+              size: s.size,
+              createdAt: s.createdAt || s.modifiedAt,
+              modifiedAt: s.modifiedAt
+            } as PhysicalFileMetadata
+          }
+          const ext = p.includes('.') ? p.slice(p.lastIndexOf('.') + 1) : null
+          const inferredMime = ext ? (mime.getType(ext) ?? 'application/octet-stream') : 'application/octet-stream'
+          return {
+            kind: 'file',
+            type: 'other',
+            size: s.size,
+            createdAt: s.createdAt || s.modifiedAt,
+            modifiedAt: s.modifiedAt,
+            mime: inferredMime
+          } as PhysicalFileMetadata
+        }
       )
     })
     this.ipcHandle(IpcChannel.File_RunSweep, async () => this.runSweep())
