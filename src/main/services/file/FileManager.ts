@@ -736,6 +736,9 @@ export class FileManager extends BaseService implements IFileManager {
     this.ipcHandle(IpcChannel.File_BatchRestore, async (_e, params: unknown) =>
       this.batchRestore(BatchIdsIpcSchema.parse(params).ids)
     )
+    this.ipcHandle(IpcChannel.File_BatchPermanentDelete, async (_e, params: unknown) =>
+      this.batchPermanentDelete(BatchIdsIpcSchema.parse(params).ids)
+    )
   }
 
   /**
