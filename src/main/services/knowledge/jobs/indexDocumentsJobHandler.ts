@@ -90,6 +90,9 @@ export function createIndexDocumentsJobHandler(
 
       const reason = event.error?.message?.trim() || `Job ${event.status}`
       try {
+        const item = await knowledgeItemService.getById(input.itemId)
+        if (item.status === 'deleting') return
+
         await knowledgeItemService.updateStatus(input.itemId, 'failed', { error: reason })
       } catch (error) {
         if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return

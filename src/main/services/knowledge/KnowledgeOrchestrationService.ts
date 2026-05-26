@@ -3,7 +3,7 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api'
 import {
   type CreateKnowledgeBaseDto,
   type KnowledgeBase,
@@ -48,6 +48,15 @@ import { applyRelevanceThreshold, getInitialSearchScoreKind, withSearchRanks } f
 
 const logger = loggerService.withContext('KnowledgeOrchestrationService')
 const SEARCH_TOKEN_PATTERN = /[\p{L}\p{N}_]+/u
+const DELETE_RECOVERY_ROOT_CHUNK_SIZE = 500
+const DELETE_RECOVERY_RETRY_BASE_DELAY_MS = 30_000
+const DELETE_RECOVERY_RETRY_MAX_DELAY_MS = 5 * 60_000
+const CHUNK_DELETE_ACTIVE_STATUSES = new Set<KnowledgeItem['status']>([
+  'preparing',
+  'processing',
+  'reading',
+  'embedding'
+])
 const KNOWLEDGE_JOB_TYPES = new Set([
   'knowledge.prepare-root',
   'knowledge.index-documents',
@@ -57,7 +66,7 @@ const KNOWLEDGE_JOB_TYPES = new Set([
 
 @Injectable('KnowledgeOrchestrationService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['KnowledgeVectorStoreService'])
+@DependsOn(['KnowledgeVectorStoreService', 'FileManager'])
 export class KnowledgeOrchestrationService extends BaseService {
   private readonly mutationCoordinator = new KnowledgeMutationCoordinator()
   private readonly workflowCoordinator = new KnowledgeWorkflowCoordinator(this.mutationCoordinator)
@@ -78,7 +87,7 @@ export class KnowledgeOrchestrationService extends BaseService {
   }
 
   protected async onAllReady(): Promise<void> {
-    await this.recoverDeletingItems()
+    await this.recoverDeletingItemsWithRetry()
   }
 
   protected async onStop(): Promise<void> {
@@ -280,17 +289,19 @@ export class KnowledgeOrchestrationService extends BaseService {
       }
     })
 
+    const visibleSearchResults = await this.filterVisibleSearchResults(baseId, searchResults)
+
     if (base.rerankModelId) {
-      const rerankedResults = await rerankKnowledgeSearchResults(base, query, searchResults)
+      const rerankedResults = await rerankKnowledgeSearchResults(base, query, visibleSearchResults)
       return withSearchRanks(applyRelevanceThreshold(rerankedResults, base.threshold))
     }
 
-    return withSearchRanks(applyRelevanceThreshold(searchResults, base.threshold))
+    return withSearchRanks(applyRelevanceThreshold(visibleSearchResults, base.threshold))
   }
 
   async listItemChunks(baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> {
     await this.assertBaseCanRunRuntimeOperation(baseId, 'listItemChunks')
-    await this.getRootItemsInBase(baseId, [itemId])
+    await this.assertSubtreeCanRunChunkOperation(baseId, itemId, 'list chunks')
 
     const base = await knowledgeBaseService.getById(baseId)
     const leafItems = await knowledgeItemService.getSubtreeItems(baseId, [itemId], {
@@ -310,13 +321,42 @@ export class KnowledgeOrchestrationService extends BaseService {
 
   async deleteItemChunk(baseId: string, itemId: string, chunkId: string): Promise<void> {
     await this.assertBaseCanRunRuntimeOperation(baseId, 'deleteItemChunk')
-    await this.getRootItemsInBase(baseId, [itemId])
 
-    const base = await knowledgeBaseService.getById(baseId)
-    const vectorStoreService = application.get('KnowledgeVectorStoreService')
-    const vectorStore = await vectorStoreService.createStore(base)
+    await this.mutationCoordinator.withBaseMutationLock(baseId, async () => {
+      await this.assertSubtreeCanRunChunkOperation(baseId, itemId, 'delete chunk', { rejectActive: true })
 
-    await vectorStore.deleteByIdAndExternalId(chunkId, itemId)
+      const base = await knowledgeBaseService.getById(baseId)
+      const vectorStoreService = application.get('KnowledgeVectorStoreService')
+      const vectorStore = await vectorStoreService.createStore(base)
+
+      await vectorStore.deleteByIdAndExternalId(chunkId, itemId)
+    })
+  }
+
+  private async filterVisibleSearchResults(
+    baseId: string,
+    searchResults: KnowledgeSearchResult[]
+  ): Promise<KnowledgeSearchResult[]> {
+    const uniqueItemIds = [...new Set(searchResults.map((result) => result.itemId).filter((id): id is string => !!id))]
+    const visibleItemIds = new Set<string>()
+
+    await Promise.all(
+      uniqueItemIds.map(async (itemId) => {
+        try {
+          const item = await knowledgeItemService.getById(itemId)
+          if (item.baseId === baseId && item.status !== 'deleting') {
+            visibleItemIds.add(itemId)
+          }
+        } catch (error) {
+          if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+            return
+          }
+          throw error
+        }
+      })
+    )
+
+    return searchResults.filter((result) => result.itemId && visibleItemIds.has(result.itemId))
   }
 
   private async cancelAllJobsForBase(baseId: string): Promise<void> {
@@ -331,34 +371,57 @@ export class KnowledgeOrchestrationService extends BaseService {
     await Promise.all(jobsToCancel.map((job) => jobManager.cancel(job.id, 'delete-base')))
   }
 
-  private async recoverDeletingItems(): Promise<void> {
+  private async recoverDeletingItemsWithRetry(attempt = 1): Promise<void> {
+    const recovered = await this.recoverDeletingItems()
+    if (recovered) {
+      return
+    }
+
+    const delayMs = Math.min(DELETE_RECOVERY_RETRY_BASE_DELAY_MS * attempt, DELETE_RECOVERY_RETRY_MAX_DELAY_MS)
+    const timer = setTimeout(() => {
+      void this.recoverDeletingItemsWithRetry(attempt + 1)
+    }, delayMs)
+    timer.unref()
+    this.registerDisposable(() => clearTimeout(timer))
+  }
+
+  private async recoverDeletingItems(): Promise<boolean> {
     let deletingRootGroups: Awaited<ReturnType<typeof knowledgeItemService.getDeletingRootGroups>>
     try {
       deletingRootGroups = await knowledgeItemService.getDeletingRootGroups()
     } catch (error) {
       logger.error('Failed to scan deleting knowledge items for recovery', error as Error)
-      return
+      return false
     }
 
     if (deletingRootGroups.length === 0) {
-      return
+      return true
     }
 
     const jobManager = application.get('JobManager')
+    let recovered = true
     for (const { baseId, rootItemIds } of deletingRootGroups) {
-      try {
-        await jobManager.enqueue(
-          'knowledge.delete-subtree',
-          { baseId, rootItemIds },
-          {
-            idempotencyKey: knowledgeDeleteSubtreeIdempotencyKey(baseId, rootItemIds),
-            queue: knowledgeQueueName(baseId)
-          }
-        )
-      } catch (error) {
-        logger.error('Failed to enqueue recovered knowledge delete cleanup', error as Error, { baseId, rootItemIds })
+      for (let i = 0; i < rootItemIds.length; i += DELETE_RECOVERY_ROOT_CHUNK_SIZE) {
+        const rootItemIdChunk = rootItemIds.slice(i, i + DELETE_RECOVERY_ROOT_CHUNK_SIZE)
+        try {
+          await jobManager.enqueue(
+            'knowledge.delete-subtree',
+            { baseId, rootItemIds: rootItemIdChunk },
+            {
+              idempotencyKey: knowledgeDeleteSubtreeIdempotencyKey(baseId, rootItemIdChunk),
+              queue: knowledgeQueueName(baseId)
+            }
+          )
+        } catch (error) {
+          logger.error('Failed to enqueue recovered knowledge delete cleanup', error as Error, {
+            baseId,
+            rootItemIds: rootItemIdChunk
+          })
+          recovered = false
+        }
       }
     }
+    return recovered
   }
 
   private async assertBaseCanRunRuntimeOperation(baseId: string, operation: string): Promise<void> {
@@ -386,6 +449,42 @@ export class KnowledgeOrchestrationService extends BaseService {
     }
 
     return items
+  }
+
+  private async assertSubtreeCanRunChunkOperation(
+    baseId: string,
+    itemId: string,
+    operation: 'list chunks' | 'delete chunk',
+    options: { rejectActive?: boolean } = {}
+  ): Promise<void> {
+    const [rootItem] = await this.getRootItemsInBase(baseId, [itemId])
+
+    if (rootItem.status === 'deleting') {
+      throw DataApiErrorFactory.validation(
+        { item: [`Knowledge item '${itemId}' is being deleted`] },
+        `Cannot ${operation} for a deleting knowledge item`
+      )
+    }
+    if (options.rejectActive && CHUNK_DELETE_ACTIVE_STATUSES.has(rootItem.status)) {
+      throw DataApiErrorFactory.validation(
+        { item: [`Knowledge item '${itemId}' is currently indexing`] },
+        `Cannot ${operation} while knowledge item is indexing`
+      )
+    }
+
+    const subtreeItems = await knowledgeItemService.getSubtreeItems(baseId, [itemId])
+    if (subtreeItems.some((item) => item.status === 'deleting')) {
+      throw DataApiErrorFactory.validation(
+        { item: [`Knowledge item subtree '${itemId}' is being deleted`] },
+        `Cannot ${operation} for a deleting knowledge item`
+      )
+    }
+    if (options.rejectActive && subtreeItems.some((item) => CHUNK_DELETE_ACTIVE_STATUSES.has(item.status))) {
+      throw DataApiErrorFactory.validation(
+        { item: [`Knowledge item subtree '${itemId}' is currently indexing`] },
+        `Cannot ${operation} while knowledge item is indexing`
+      )
+    }
   }
 
   private async getTopLevelItemsInBase(baseId: string, itemIds: string[]): Promise<KnowledgeItem[]> {

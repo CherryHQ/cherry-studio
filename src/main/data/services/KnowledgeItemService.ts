@@ -264,14 +264,20 @@ export class KnowledgeItemService {
 
     const dbService = application.get('DbService')
     await dbService.withWriteTx(async (tx) => {
+      const conditions = [eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, subtreeIds)]
+      if (status !== 'deleting') {
+        conditions.push(ne(knowledgeItemTable.status, 'deleting'))
+      }
       await tx
         .update(knowledgeItemTable)
         .set({ status, error })
-        .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, subtreeIds)))
+        .where(and(...conditions))
     })
 
-    logger.info('Updated knowledge item subtree status', { baseId, rootIds, status, count: subtreeIds.length })
-    return subtreeIds
+    const updatedIds = status === 'deleting' ? subtreeIds : await this.getNonDeletingItemIds(baseId, subtreeIds)
+
+    logger.info('Updated knowledge item subtree status', { baseId, rootIds, status, count: updatedIds.length })
+    return updatedIds
   }
 
   async hardDeleteItems(baseId: string, itemIds: string[]): Promise<number> {
@@ -389,6 +395,13 @@ export class KnowledgeItemService {
         throw DataApiErrorFactory.notFound('KnowledgeItem', id)
       }
 
+      if (existingRow.status === 'deleting' && status !== 'deleting') {
+        return {
+          item: rowToKnowledgeItem(existingRow),
+          startContainerIds: []
+        }
+      }
+
       const [updatedRow] = await tx
         .update(knowledgeItemTable)
         .set({ status, error })
@@ -411,6 +424,25 @@ export class KnowledgeItemService {
     await this.reconcileContainers(item.baseId, startContainerIds)
     logger.info('Updated knowledge item status', { id, status })
     return item
+  }
+
+  private async getNonDeletingItemIds(baseId: string, itemIds: string[]): Promise<string[]> {
+    if (itemIds.length === 0) {
+      return []
+    }
+
+    const rows = await this.db
+      .select({ id: knowledgeItemTable.id })
+      .from(knowledgeItemTable)
+      .where(
+        and(
+          eq(knowledgeItemTable.baseId, baseId),
+          inArray(knowledgeItemTable.id, itemIds),
+          ne(knowledgeItemTable.status, 'deleting')
+        )
+      )
+    const activeIds = new Set(rows.map((row) => row.id))
+    return itemIds.filter((id) => activeIds.has(id))
   }
 
   private async reconcileContainers(

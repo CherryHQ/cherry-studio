@@ -593,6 +593,42 @@ describe('KnowledgeItemService', () => {
     })
   })
 
+  describe('setSubtreeStatus', () => {
+    async function getItemRow(id: string) {
+      const [row] = await dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
+      return row
+    }
+
+    it('does not overwrite deleting items when applying a non-delete subtree status', async () => {
+      await seedItem({
+        id: 'dir-root',
+        type: 'directory',
+        data: { source: '/docs', path: '/docs' },
+        status: 'processing'
+      })
+      await seedItem({
+        id: 'active-child',
+        groupId: 'dir-root',
+        data: { source: 'active', content: 'active' },
+        status: 'processing'
+      })
+      await seedItem({
+        id: 'deleting-child',
+        groupId: 'dir-root',
+        data: { source: 'deleting', content: 'deleting' },
+        status: 'deleting'
+      })
+
+      await expect(service.setSubtreeStatus('kb-1', ['dir-root'], 'completed')).resolves.toEqual([
+        'dir-root',
+        'active-child'
+      ])
+      await expect(getItemRow('dir-root')).resolves.toMatchObject({ status: 'completed', error: null })
+      await expect(getItemRow('active-child')).resolves.toMatchObject({ status: 'completed', error: null })
+      await expect(getItemRow('deleting-child')).resolves.toMatchObject({ status: 'deleting', error: null })
+    })
+  })
+
   describe('updateStatus', () => {
     async function getItemRow(id: string) {
       const [row] = await dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
@@ -692,6 +728,42 @@ describe('KnowledgeItemService', () => {
       await expect(service.updateStatus(seeded.id, 'failed', { error: '   ' })).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
         status: 422
+      })
+    })
+
+    it('does not overwrite deleting items with a non-delete status', async () => {
+      const seeded = await seedItem({
+        status: 'deleting'
+      })
+
+      const result = await service.updateStatus(seeded.id, 'completed')
+
+      expect(result).toMatchObject({
+        id: seeded.id,
+        status: 'deleting',
+        error: null
+      })
+      await expect(getItemRow(seeded.id)).resolves.toMatchObject({
+        status: 'deleting',
+        error: null
+      })
+    })
+
+    it('does not overwrite deleting items with failed status from settled jobs', async () => {
+      const seeded = await seedItem({
+        status: 'deleting'
+      })
+
+      const result = await service.updateStatus(seeded.id, 'failed', { error: 'cancelled' })
+
+      expect(result).toMatchObject({
+        id: seeded.id,
+        status: 'deleting',
+        error: null
+      })
+      await expect(getItemRow(seeded.id)).resolves.toMatchObject({
+        status: 'deleting',
+        error: null
       })
     })
   })

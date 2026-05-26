@@ -4,6 +4,7 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
+import { JOB_ERROR_CODES } from '@main/core/job/errorCodes'
 import type { JobHandler } from '@main/core/job/types'
 
 import type { KnowledgeMutationCoordinator } from '../KnowledgeMutationCoordinator'
@@ -52,6 +53,11 @@ export function createReindexSubtreeJobHandler(
 
         await deleteKnowledgeItemVectors(base, leafItemIds)
 
+        const leafRootIds = selectedRoots
+          .filter((item) => item.type === 'file' || item.type === 'url' || item.type === 'note')
+          .map((item) => item.id)
+        await detachKnowledgeItemFileRefs(leafRootIds)
+
         const containerRootIds = selectedRoots
           .filter((item) => item.type === 'directory' || item.type === 'sitemap')
           .map((item) => item.id)
@@ -76,9 +82,17 @@ export function createReindexSubtreeJobHandler(
       // Re-enqueue only the selected roots; container children will be recreated by prepare-root.
       const rootItems = await knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true })
       const selectedRoots = rootItems.filter((item) => rootItemIds.includes(item.id))
-      for (const item of selectedRoots) {
-        ctx.signal.throwIfAborted()
-        await workflowCoordinator.scheduleItem(baseId, item.id, ctx.jobId)
+      try {
+        for (const item of selectedRoots) {
+          ctx.signal.throwIfAborted()
+          await workflowCoordinator.scheduleItem(baseId, item.id, ctx.jobId)
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        await knowledgeItemService.setSubtreeStatus(baseId, rootItemIds, 'failed', {
+          error: `Failed to schedule reindex after reset: ${message}`
+        })
+        throw error
       }
 
       ctx.reportProgress(100, { stage: 'done', totalFiles: selectedRoots.length })
@@ -108,18 +122,20 @@ async function cancelActiveSubtreeJobs(
     .filter((job) => job.id !== currentJobId && jobTouchesSubtree(job.input as JobInputWithItem, subtreeIds))
     .map((job) => job.id)
 
-  await Promise.all(
-    jobIds.map((jobId) =>
-      jobManager.cancel(jobId, reason).catch((error) => {
-        logger.warn('Failed to cancel knowledge subtree job', {
-          baseId,
-          jobId,
-          reason,
-          error: error instanceof Error ? error.message : String(error)
-        })
-      })
-    )
-  )
+  await Promise.all(jobIds.map((jobId) => cancelKnowledgeSubtreeJobOrThrow(jobId, reason)))
+}
+
+async function cancelKnowledgeSubtreeJobOrThrow(jobId: string, reason: string): Promise<void> {
+  const jobManager = application.get('JobManager')
+  await jobManager.cancel(jobId, reason)
+
+  const snapshot = await jobManager.get(jobId)
+  if (
+    snapshot?.error?.code === JOB_ERROR_CODES.CANCELLED &&
+    snapshot.error.message.startsWith('Cancel timed out after')
+  ) {
+    throw new Error(`Knowledge subtree job cancel timed out: ${jobId}`)
+  }
 }
 
 function jobTouchesSubtree(input: JobInputWithItem, subtreeIds: Set<string>): boolean {

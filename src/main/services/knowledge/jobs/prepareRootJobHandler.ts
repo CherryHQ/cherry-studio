@@ -64,6 +64,9 @@ export function createPrepareRootJobHandler(
 
       const reason = event.error?.message?.trim() || `Job ${event.status}`
       try {
+        const item = await knowledgeItemService.getById(input.itemId)
+        if (item.status === 'deleting') return
+
         await knowledgeItemService.updateStatus(input.itemId, 'failed', { error: reason })
       } catch (error) {
         if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return
@@ -108,9 +111,10 @@ async function deletePreviousLeafExpansion(
 ): Promise<void> {
   await mutationCoordinator.withBaseMutationLock(baseId, async () => {
     const descendants = await knowledgeItemService.getSubtreeItems(baseId, [itemId])
+    const removableDescendants = descendants.filter((item) => item.status !== 'deleting')
     await knowledgeItemService.hardDeleteItems(
       baseId,
-      descendants.map((item) => item.id)
+      removableDescendants.map((item) => item.id)
     )
   })
 }

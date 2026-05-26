@@ -168,7 +168,7 @@ checkCount? / firstScheduledAt?
 - `completed`：校验 markdown artifact，attach `processed_artifact` ref，再调用
   `scheduleIndexing(baseId, itemId, artifactSource)`。
 - `failed` / `cancelled` / missing / invalid：标记 item failed。
-- stale item/source：跳过，不写 vectors。
+- item missing / deleting：跳过，不写 vectors。
 
 ### `knowledge.index-documents`
 
@@ -177,7 +177,7 @@ checkCount? / firstScheduledAt?
 ```text
 baseId
 itemId
-documentsSource
+parentJobId
 ```
 
 职责：
@@ -186,12 +186,9 @@ documentsSource
 reader -> chunk -> batched embed -> serialized vector write
 ```
 
-`documentsSource` 可以是：
-
-```text
-direct knowledge item source
-processed markdown artifact FileEntry
-```
+`index-documents` 不负责追踪外部源文件的最新状态。Knowledge item 的语义是：
+用户添加或 reindex 时选择/生成一次输入，当前 workflow 消费这份输入；后续外部文件修改或
+删除不会自动 invalidate 已启动的 indexing job。用户需要显式 reindex 才会重新取源。
 
 这个 job 是完整 indexing job。`aiCore embed` 不是独立 job。
 
@@ -215,17 +212,18 @@ under KnowledgeMutationCoordinator base lock:
   re-read item
   assert item exists
   assert item.status != deleting
-  assert documentsSource still matches current item source
-  assert base/item not under deleting/reindexing barrier
   replaceByExternalId(...)
   mark item completed
 ```
+
+不要求 source snapshot 对比，也不要求 `KnowledgeMutationCoordinator` 维护 delete/reindex
+barrier。未来如果产品语义改为自动跟踪源文件最新内容，再引入 source generation/version
+校验。
 
 如果 final stale guard 不满足：
 
 - skip vector write。
 - do not mark completed。
-- best-effort cleanup unclaimed processed artifact if possible。
 - job 可以 completed/no-op，不因 stale continuation 消耗 retry。
 
 ### `knowledge.delete-subtree`
@@ -254,12 +252,13 @@ cancel/drain active subtree jobs
 
 幂等规则：
 
-- `delete-subtree` 是 at-least-once cleanup job；任意步骤 crash 后重跑都必须收敛。
+- `delete-subtree` 是 at-least-once cleanup job；DB rows、vectors 和 FileRef cleanup 在 crash 后重跑必须收敛。
 - 重跑时先重新 list active subtree jobs 并逐个 `JobManager.cancel()`；没有 active jobs 是 no-op。
 - 重跑时只处理仍存在且 `status = deleting` 的 subtree rows；subtree 已不存在时视为 cleanup 已完成。
 - vector delete 必须按 external item id 删除；目标 vectors 已不存在时视为成功。
 - processed artifact ref detach 必须允许重复执行；目标 refs 已不存在时视为成功。
-- artifact cleanup 每次执行前重新计算 ref count，只 permanent-delete 当前 ref count 为 0 且 FileEntry 仍存在的 internal artifacts。
+- artifact cleanup 是 ref-counted best-effort：正常执行时根据本次 detached refs 重新计算 ref count，只 permanent-delete 当前 ref count 为 0 且 FileEntry 仍存在的 internal artifacts。
+- 如果进程在 detach refs 后、permanent-delete FileEntry 前 crash，重跑可能无法从 refs 重新发现该 artifact；这种 orphan internal FileEntry 不阻塞 Knowledge delete 收敛，后续由 FileManager/文件管理界面的孤儿文件管理能力处理。
 - FileEntry 已不存在时视为已清理；物理文件 unlink 失败按 FileManager 语义 best-effort 记录，不阻塞 DB/vector/ref 收敛。
 - hard-delete knowledge_item rows 必须放在最后；bulk delete 找不到 rows 时视为已完成，不能用 missing-row error 让 job 永久失败。
 
@@ -382,12 +381,14 @@ private readonly baseLocks = new Map<string, Mutex>()
 职责：
 
 - 同 base mutation 串行。
-- 维护 deleting/reindexing barrier。
 - cancel/drain active subtree jobs。
 - 保护 vector replace/delete。
 - 保护 item status writes。
 - 保护 processed artifact attach/detach。
 - 执行 ref-count cleanup。
+
+不维护 deleting/reindexing barrier。delete/reindex 通过 durable status、active job
+cancel/drain 和 cleanup job 幂等性保证收敛。
 
 规则：
 
@@ -396,7 +397,7 @@ private readonly baseLocks = new Map<string, Mutex>()
 - drain timeout 是硬失败，不能继续 cleanup。
 - active indexing/reindexing 时，manual chunk delete 应拒绝。
 - 旧任务可能继续写入时，不能删除 vectors、SQLite rows 或 artifact refs。
-- `KnowledgeMutationCoordinator` 是进程内串行化机制，不是 crash-safety 机制；进程重启后的一致性依赖 durable item state、durable jobs、JobManager recovery 和 cleanup 幂等性。
+- `KnowledgeMutationCoordinator` 是进程内串行化机制，不是 crash-safety 机制；进程重启后的一致性依赖 durable item state、durable jobs、JobManager recovery 和 cleanup 幂等性。processed artifact FileEntry orphan cleanup 不属于 Knowledge workflow 的 crash-safety 承诺。
 - `KnowledgeMutationCoordinator` 不能替代 `DbService.withWriteTx`；前者串行同 base 的 Knowledge mutation，后者串行主 SQLite 的所有写事务，避免 Knowledge 写与 JobService 写竞争。
 - `KnowledgeItemService` / `KnowledgeBaseService` 的写事务必须迁到 `DbService.withWriteTx`，不能继续使用 raw `db.transaction`。
 
@@ -461,6 +462,8 @@ detach current Knowledge refs
 ```
 
 目标模型不主动跨 item/base 共享 processed artifact，但 cleanup 必须做 ref-count 防御。
+本轮不引入 durable artifact cleanup queue。若进程在 ref detach 和 FileEntry permanent delete 之间 crash，
+可能留下 `origin = internal` 且 ref count = 0 的孤儿 FileEntry；该类孤儿文件由后续 FileManager/文件管理界面统一发现和清理。
 
 ### file-processing adapter helpers（Round 2）
 
@@ -548,15 +551,17 @@ non-terminal idempotency key 去重掉，导致下一步永远不会创建。
 
 本 RFC 不新增 persisted attempt table，也不新增 generation token。
 
-旧 FileProcessing / indexing result 回来时，用现有信息判断是否仍有效：
+旧 indexing result 回来时，Round 1 用现有 durable state 判断是否仍有效：
 
 ```text
 item 是否仍存在
 item.status 是否不是 deleting
-item.data.fileEntryId 是否仍等于 sourceFileEntryId
-base/item 是否处于 deleting/reindexing barrier
 旧 jobs 是否已 cancel/drain 成功
 ```
+
+FileProcessing 接入后也沿用同一语义：每个 Knowledge workflow 消费本次 FileProcessing
+task 产出的 artifact；后续外部文件修改/删除不 invalidate 已启动的 workflow。只有当未来
+产品语义改为自动跟踪源文件最新内容时，才需要新增 source generation/version 校验。
 
 这些检查必须至少执行两次：
 
@@ -570,12 +575,13 @@ base/item 是否处于 deleting/reindexing barrier
 skip continuation
 do not write vectors
 do not mark completed
-best-effort cleanup unclaimed artifact if possible
 ```
 
-final stale guard 只缩小 race window，并让 barrier 能拒绝 delete/reindex 中的写入。它不承诺阻止
-已经超过 `cancelTimeoutMs` 且继续运行的 wedged handler；这种残余风险仍靠 durable delete/reindex
-job 重跑、idempotent cleanup 和 whole-store cleanup 收敛。
+Round 1 final stale guard 只缩小 race window；delete/reindex 的主要保护来自 cancel/drain
+和 `deleting` durable state。它不承诺阻止已经超过 `cancelTimeoutMs` 且继续运行的 wedged
+handler；这种残余风险仍靠 durable delete/reindex job 重跑、idempotent cleanup 和
+whole-store cleanup 收敛。processed artifact FileEntry orphan cleanup 作为文件管理层的后续
+资源回收问题处理，不影响 Knowledge delete/reindex 的可见状态收敛。
 
 失败边界：
 
@@ -621,7 +627,7 @@ job 重跑、idempotent cleanup 和 whole-store cleanup 收敛。
   `embedding` / `completed` / `failed` / `deleting`。
 - Round 1 中 `base.fileProcessorId` 对 indexing 仍是 inert；Round 2 后只影响未来索引。
 - Knowledge 每次转换只消费本次 FileProcessing task result。
-- processed artifact cleanup 使用 ref-counted cleanup。
+- processed artifact cleanup 使用 ref-counted best-effort cleanup；本轮不引入 durable artifact cleanup queue。
 
 ---
 
@@ -630,7 +636,7 @@ job 重跑、idempotent cleanup 和 whole-store cleanup 收敛。
 - `check-file-processing-result` 是否需要最大等待时间？
 - 5 秒固定 delay 是否足够，还是需要 capped backoff？
 - 大 fan-out 是否需要 batching/backpressure，触发阈值如何定义？
-- artifact cleanup 失败是否需要 durable cleanup queue？
+- artifact cleanup 暂不引入 durable cleanup queue；是否需要 FileManager 侧孤儿文件扫描/管理？
 - ref-counted cleanup 留在 Knowledge helpers，还是下沉为 FileRef/FileManager 通用 helper？
 - manual chunk delete 的 active indexing 检测按 item、subtree 还是 base？
 
@@ -651,8 +657,8 @@ job 重跑、idempotent cleanup 和 whole-store cleanup 收敛。
 - `index-documents` 的 final stale guard 与 vector write 必须在 `KnowledgeMutationCoordinator` lock 内同一临界区完成。
 - `knowledge_item.status` 支持 `deleting`，默认 item list、search、RAG hydration 排除 `deleting` items。
 - delete API resolve 前同步标记 subtree 为 `deleting` 并入队 `delete-subtree` cleanup job。
-- `delete-subtree` cleanup steps 可重复执行；crash 后由 JobManager recovery 重跑并收敛。
+- `delete-subtree` 的 DB/vector/ref/row cleanup steps 可重复执行；crash 后由 JobManager recovery 重跑并收敛。
 - `KnowledgeMutationCoordinator` 只承诺进程内串行化，不承诺 crash-safety。
 - delete/reindex cleanup 使用 cancel/drain hard failure。
 - reindex 重新启动 FileProcessing，不复用旧 artifact。
-- processed artifact internal FileEntry 只有在没有任何剩余 refs 时才会被删除。
+- processed artifact internal FileEntry 只有在没有任何剩余 refs 时才会被删除；ref detach 后 crash 产生的孤儿 FileEntry 不作为本轮 Knowledge workflow 的 hard failure。
