@@ -964,7 +964,7 @@ export class FileManager extends BaseService implements IFileManager {
         return canceled ? null : (filePaths[0] ?? null)
       }
       const properties: Electron.OpenDialogOptions['properties'] = ['openFile']
-      if (opts.multiple) properties!.push('multiSelections')
+      if (opts.multiple) properties.push('multiSelections')
       const { canceled, filePaths } = await dialog.showOpenDialog({
         properties,
         filters: opts.filters,
