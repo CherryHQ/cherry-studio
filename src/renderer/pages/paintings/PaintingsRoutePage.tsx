@@ -1,10 +1,10 @@
 import { loggerService } from '@logger'
-import { useAllProviders } from '@renderer/hooks/useProvider'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { useAppDispatch } from '@renderer/store'
 import { setDefaultPaintingProvider } from '@renderer/store/settings'
 import { updateTab } from '@renderer/store/tabs'
 import type { PaintingProvider, SystemProviderId } from '@renderer/types'
-import { isNewApiProvider } from '@renderer/utils/provider'
+import { isNewApiProvider } from '@shared/utils/provider'
 import { useParams } from '@tanstack/react-router'
 import type { FC } from 'react'
 import { useEffect, useMemo, useState } from 'react'
@@ -26,7 +26,7 @@ const PaintingsRoutePage: FC = () => {
   const params = useParams({ strict: false })
   const provider = params._splat
   const dispatch = useAppDispatch()
-  const providers = useAllProviders()
+  const { providers } = useProviders()
   const [isOvmsSupported, setIsOvmsSupported] = useState(false)
   const [ovmsStatus, setOvmsStatus] = useState<'not-installed' | 'not-running' | 'running'>('not-running')
 

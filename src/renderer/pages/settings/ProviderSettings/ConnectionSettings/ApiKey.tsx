@@ -1,5 +1,5 @@
 import { InputGroup, InputGroupAddon, InputGroupInput, Tooltip, WarnTooltip } from '@cherrystudio/ui'
-import { useProvider } from '@renderer/hooks/useProviders'
+import { useProvider } from '@renderer/hooks/useProvider'
 import type { ApiKeyConnectivity } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { Activity, Copy, Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'

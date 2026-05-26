@@ -16,7 +16,7 @@
  */
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
-import { DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE, isMac } from '@renderer/config/constant'
+import { isMac } from '@renderer/config/constant'
 import type {
   ApiServerConfig,
   CodeStyleVarious,
@@ -25,12 +25,7 @@ import type {
   PaintingProvider,
   S3Config
 } from '@renderer/types'
-import type {
-  OpenAICompletionsStreamOptions,
-  OpenAIReasoningSummary,
-  OpenAIVerbosity
-} from '@renderer/types/aiCoreTypes'
-import { API_SERVER_DEFAULTS } from '@shared/config/constant'
+import { API_SERVER_DEFAULTS, DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE } from '@shared/config/constant'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type {
@@ -44,6 +39,7 @@ import type {
 } from '@shared/data/preference/preferenceTypes'
 import { parseTranslateLangCode, ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import type { MiniAppRegionFilter } from '@shared/data/types/miniApp'
+import type { OpenAICompletionsStreamOptions, OpenAIReasoningSummary, OpenAIVerbosity } from '@shared/types/aiSdk'
 import { v4 as uuid } from 'uuid'
 
 import type { RemoteSyncState } from './backup'

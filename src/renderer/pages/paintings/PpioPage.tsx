@@ -1,6 +1,5 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { Switch } from '@cherrystudio/ui'
-import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
@@ -9,7 +8,7 @@ import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { useAllProviders } from '@renderer/hooks/useProvider'
+import { useProviderApiKeys, useProviders } from '@renderer/hooks/useProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
@@ -73,8 +72,10 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const [painting, setPainting] = useState<PpioPainting>(filteredPaintings[0] || getDefaultPainting(mode))
 
-  const providers = useAllProviders()
+  const { providers } = useProviders()
   const ppioProvider = providers.find((p) => p.id === 'ppio')
+  const { data: ppioKeyData } = useProviderApiKeys('ppio')
+  const ppioApiKey = ppioKeyData?.keys.find((k) => k.isEnabled)?.key ?? ''
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
@@ -82,7 +83,6 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const [isTranslating, setIsTranslating] = useState(false)
 
-  const [, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const { autoTranslateWithSpace } = useSettings()
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
@@ -166,7 +166,6 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
       setAbortController(null)
     }
     setIsLoading(false)
-    setGenerating(false)
   }
 
   const handleProviderChange = (providerId: string) => {
@@ -192,6 +191,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
       return
     }
 
+    if (!ppioProvider) return
     await checkProviderEnabled(ppioProvider, t)
 
     if (isLoading) return
@@ -215,7 +215,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
       return
     }
 
-    if (!ppioProvider.apiKey) {
+    if (!ppioApiKey) {
       window.modal.error({
         content: t('error.no_api_key'),
         centered: true
@@ -233,13 +233,12 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     setIsLoading(true)
-    setGenerating(true)
 
     const controller = new AbortController()
     setAbortController(controller)
 
     try {
-      const service = new PpioService(ppioProvider.apiKey)
+      const service = new PpioService(ppioApiKey)
 
       logger.info('Starting image generation', { model: painting.model, mode })
 
@@ -311,7 +310,6 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
       updatePaintingState({ ppioStatus: 'failed' })
     } finally {
       setIsLoading(false)
-      setGenerating(false)
       setAbortController(null)
     }
   }

@@ -221,9 +221,11 @@
         "intervalUnit": "λεπτά",
         "lastRun": "Τελευταία εκτέλεση",
         "logs": {
+          "cancelled": "[to be translated]:Cancelled",
+          "completed": "[to be translated]:Completed",
           "duration": "Διάρκεια",
           "empty": "Δεν υπάρχει ακόμα ιστορικό εκτελέσεων.",
-          "error": "Σφάλμα",
+          "failed": "[to be translated]:Failed",
           "justNow": "μόλις τώρα",
           "label": "Ιστορικό εκτελέσεων",
           "loadError": "Αποτυχία φόρτωσης ιστορικού εκτέλεσης",
@@ -232,7 +234,6 @@
           "running": "Τρέχει...",
           "search": "Αναζήτηση αρχείων καταγραφής...",
           "status": "Κατάσταση",
-          "success": "Επιτυχία",
           "viewSession": "Δείτε τη συνεδρία"
         },
         "name": {
@@ -3358,6 +3359,7 @@
     },
     "stream_output": "Διαρκής Εξόδος",
     "type": {
+      "audio": "[to be translated]:Audio",
       "embedding": "ενσωμάτωση",
       "free": "δωρεάν",
       "function_calling": "κλήση συνάρτησης",
@@ -3365,6 +3367,7 @@
       "rerank": "Τακτοποιώ",
       "select": "Τύποι μοντέλου",
       "text": "κείμενο",
+      "video": "[to be translated]:Video",
       "vision": "εικόνα",
       "websearch": "δικτύωση"
     }

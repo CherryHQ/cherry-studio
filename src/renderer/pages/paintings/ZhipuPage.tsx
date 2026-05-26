@@ -2,20 +2,18 @@ import { PlusOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import { useCache } from '@data/hooks/useCache'
-import { AiProvider } from '@renderer/aiCore'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { useAllProviders } from '@renderer/hooks/useProvider'
+import { useProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { InputNumber, Radio, Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -33,12 +31,13 @@ import {
   ZHIPU_PAINTING_MODELS
 } from './config/ZhipuConfig'
 import { checkProviderEnabled } from './utils'
+import { persistGeneratedImages } from './utils/persistGeneratedImages'
 
 const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { zhipu_paintings, addPainting, removePainting, updatePainting } = usePaintings()
   const [painting, setPainting] = useState<any>(zhipu_paintings?.[0] || DEFAULT_PAINTING)
   const { t } = useTranslation()
-  const providers = useAllProviders()
+  const { providers } = useProviders()
 
   // 确保painting使用智谱的cogview系列模型
   useEffect(() => {
@@ -54,8 +53,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
-  const [abortController, setAbortController] = useState<AbortController | null>(null)
-  const [generating, setGenerating] = useCache('chat.generating')
+  const abortControllerRef = useRef<AbortController | null>(null)
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -102,14 +100,10 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     setIsLoading(true)
-    setGenerating(true)
     const controller = new AbortController()
-    setAbortController(controller)
+    abortControllerRef.current = controller
 
     try {
-      // 使用AiProvider调用智谱AI绘图API
-      const aiProvider = new AiProvider(zhipuProvider)
-
       // 准备API请求参数
       let actualImageSize = painting.imageSize
 
@@ -152,48 +146,31 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
         actualImageSize = `${customWidth}x${customHeight}`
       }
 
-      const request = {
-        model: painting.model,
-        prompt: painting.prompt,
-        negativePrompt: painting.negativePrompt,
-        imageSize: actualImageSize,
-        batchSize: painting.numImages,
-        quality: painting.quality,
-        signal: controller.signal
-      }
+      const result = await window.api.ai.generateImage(
+        {
+          uniqueModelId: `${zhipuProvider.id}::${painting.model}`,
+          prompt: painting.prompt,
+          negativePrompt: painting.negativePrompt || undefined,
+          size: actualImageSize,
+          n: painting.numImages,
+          quality: painting.quality
+        },
+        controller.signal
+      )
 
-      // NOTE: ai sdk内部已经处理成了base64
-      const images = await aiProvider.generateImage(request)
+      if (controller.signal.aborted) return
 
-      // 下载图片到本地文件
-      if (images.length > 0) {
-        const downloadedFiles = await Promise.all(
-          images.map(async (image) => {
-            try {
-              return await window.api.file.saveBase64Image(image)
-            } catch (error) {
-              if (
-                error instanceof Error &&
-                (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
-              ) {
-                window.toast.warning(t('message.empty_url'))
-              }
-              return null
-            }
-          })
-        )
+      if (result.images.length > 0) {
+        const validFiles = await persistGeneratedImages(result.images)
 
-        const validFiles = downloadedFiles.filter((file): file is any => file !== null)
+        if (controller.signal.aborted) return
 
         await FileManager.addFiles(validFiles)
 
-        // 处理响应结果
-        const newPainting = {
+        updatePaintingState({
           ...painting,
           files: validFiles
-        }
-
-        updatePaintingState(newPainting)
+        })
       }
     } catch (error) {
       if (error instanceof Error && error.name !== 'AbortError') {
@@ -203,16 +180,19 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
         })
       }
     } finally {
-      setIsLoading(false)
-      setGenerating(false)
-      setAbortController(null)
+      // Only flip loading off if this controller is still the latest — a
+      // newer request may have replaced us via abortControllerRef.current.
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null
+        setIsLoading(false)
+      }
     }
   }
 
   const onCancel = () => {
-    if (abortController) {
-      abortController.abort()
-    }
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = null
+    setIsLoading(false)
   }
 
   const nextImage = () => {
@@ -246,7 +226,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onSelectPainting = (newPainting: any) => {
-    if (generating) return
+    if (isLoading) return
     setPainting(newPainting)
     setCurrentImageIndex(0)
   }
@@ -287,7 +267,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const handleAddPainting = () => {
-    if (generating) return
+    if (isLoading) return
     const newPainting = getNewPainting()
     const addedPainting = addPainting('zhipu_paintings', newPainting)
     setPainting(addedPainting)

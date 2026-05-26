@@ -1,9 +1,7 @@
-import type { Model } from '@renderer/types'
+import type { Model as V1Model } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@renderer/hooks/useStore', () => ({
-  getStoreProviders: vi.fn(() => [])
-}))
 
 vi.mock('@renderer/store', () => ({
   __esModule: true,
@@ -39,15 +37,17 @@ vi.mock('@renderer/hooks/useSettings', () => ({
   getStoreSetting: vi.fn()
 }))
 
+import { toSharedCompatModel } from '../_bridge'
 import { isEmbeddingModel, isRerankModel } from '../embedding'
 
-const createModel = (overrides: Partial<Model> = {}): Model => ({
-  id: 'test-model',
-  name: 'Test Model',
-  provider: 'openai',
-  group: 'Test',
-  ...overrides
-})
+const createModel = (overrides: Partial<V1Model> = {}): Model =>
+  toSharedCompatModel({
+    id: 'test-model',
+    name: 'Test Model',
+    provider: 'openai',
+    group: 'Test',
+    ...overrides
+  } as V1Model)
 
 describe('isEmbeddingModel', () => {
   it('returns true for ids that match the embedding regex', () => {
@@ -60,29 +60,17 @@ describe('isEmbeddingModel', () => {
     expect(isEmbeddingModel(model)).toBe(false)
   })
 
-  it('honors user overrides for embedding capability', () => {
-    const model = createModel({
-      id: 'text-embedding-3-small',
-      capabilities: [{ type: 'embedding', isUserSelected: false }]
-    })
+  it('honors the authoritative v2 capabilities (user-disabled = absent)', () => {
+    const model: Model = { ...createModel({ id: 'text-embedding-3-small' }), capabilities: [] }
     expect(isEmbeddingModel(model)).toBe(false)
   })
 
-  it('uses the model name when provider is doubao', () => {
-    const model = createModel({
-      id: 'custom-id',
-      name: 'BGE-Large-zh-v1.5',
-      provider: 'doubao'
-    })
+  it('reads the EMBEDDING capability for doubao embedding models', () => {
+    const model: Model = {
+      ...createModel({ id: 'doubao-embedding', provider: 'doubao' }),
+      capabilities: [MODEL_CAPABILITY.EMBEDDING]
+    }
     expect(isEmbeddingModel(model)).toBe(true)
-  })
-
-  it('returns false for anthropic provider models', () => {
-    const model = createModel({
-      id: 'text-embedding-ada-002',
-      provider: 'anthropic'
-    })
-    expect(isEmbeddingModel(model)).toBe(false)
   })
 })
 
@@ -91,11 +79,8 @@ describe('isRerankModel', () => {
     expect(isRerankModel(createModel({ id: 'jina-rerank-v2-base' }))).toBe(true)
   })
 
-  it('honors user overrides for rerank capability', () => {
-    const model = createModel({
-      id: 'jina-rerank-v2-base',
-      capabilities: [{ type: 'rerank', isUserSelected: false }]
-    })
+  it('honors the authoritative v2 capabilities (user-disabled = absent)', () => {
+    const model: Model = { ...createModel({ id: 'jina-rerank-v2-base' }), capabilities: [] }
     expect(isRerankModel(model)).toBe(false)
   })
 })

@@ -1,7 +1,6 @@
 import { PlusOutlined } from '@ant-design/icons'
 import { Button, InfoTooltip, Tooltip } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
@@ -9,7 +8,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { useAllProviders } from '@renderer/hooks/useProvider'
+import { useProviderApiKeys, useProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import type { TokenFluxPainting } from '@renderer/types'
@@ -36,7 +35,6 @@ import TokenFluxService from './utils/TokenFluxService'
 const logger = loggerService.withContext('TokenFluxPage')
 
 const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
-  const [generating, setGenerating] = useCache('chat.generating')
   const [models, setModels] = useState<TokenFluxModel[]>([])
   const [selectedModel, setSelectedModel] = useState<TokenFluxModel | null>(null)
   const [formData, setFormData] = useState<Record<string, any>>({})
@@ -47,7 +45,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [isTranslating, setIsTranslating] = useState(false)
 
   const { t, i18n } = useTranslation()
-  const providers = useAllProviders()
+  const { providers } = useProviders()
   const { addPainting, removePainting, updatePainting, tokenflux_paintings } = usePaintings()
   const tokenFluxPaintings = tokenflux_paintings
   const [painting, setPainting] = useState<TokenFluxPainting>(
@@ -58,11 +56,16 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const location = useLocation()
   const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
-  const tokenfluxProvider = providers.find((p) => p.id === 'tokenflux')!
+  const tokenfluxProvider = providers.find((p) => p.id === 'tokenflux')
+  const { data: tokenfluxKeyData } = useProviderApiKeys('tokenflux')
+  const tokenfluxApiKey = tokenfluxKeyData?.keys.find((k) => k.isEnabled)?.key ?? ''
+  const tokenfluxApiHost =
+    tokenfluxProvider?.endpointConfigs?.[tokenfluxProvider.defaultChatEndpoint ?? 'openai-chat-completions']?.baseUrl ??
+    ''
   const textareaRef = useRef<any>(null)
   const tokenFluxService = useMemo(
-    () => new TokenFluxService(tokenfluxProvider.apiHost, tokenfluxProvider.apiKey),
-    [tokenfluxProvider]
+    () => new TokenFluxService(tokenfluxApiHost, tokenfluxApiKey),
+    [tokenfluxApiHost, tokenfluxApiKey]
   )
 
   useEffect(() => {
@@ -120,6 +123,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onGenerate = async () => {
+    if (!tokenfluxProvider) return
     await checkProviderEnabled(tokenfluxProvider, t)
 
     if (painting.files.length > 0) {
@@ -145,7 +149,6 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
     const controller = new AbortController()
     setAbortController(controller)
     setIsLoading(true)
-    setGenerating(true)
 
     try {
       const requestBody = {
@@ -179,12 +182,10 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
 
       setIsLoading(false)
-      setGenerating(false)
       setAbortController(null)
     } catch (error: unknown) {
       handleError(error)
       setIsLoading(false)
-      setGenerating(false)
       setAbortController(null)
     }
   }
@@ -192,7 +193,6 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const onCancel = () => {
     abortController?.abort()
     setIsLoading(false)
-    setGenerating(false)
     setAbortController(null)
   }
 
@@ -273,7 +273,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onSelectPainting = (newPainting: TokenFluxPainting) => {
-    if (generating) return
+    if (isLoading) return
     setPainting(newPainting)
     setCurrentImageIndex(0)
 
@@ -373,7 +373,11 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
             </SettingHelpLink>
           </ProviderTitleContainer>
 
-          <ProviderSelect provider={tokenfluxProvider} options={Options} onChange={handleProviderChange} />
+          <ProviderSelect
+            provider={tokenfluxProvider ?? { id: 'tokenflux' }}
+            options={Options}
+            onChange={handleProviderChange}
+          />
 
           {/* Model & Pricing Section */}
           <SectionTitle

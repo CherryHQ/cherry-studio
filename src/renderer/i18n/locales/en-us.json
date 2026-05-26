@@ -221,9 +221,11 @@
         "intervalUnit": "minutes",
         "lastRun": "Last Run",
         "logs": {
+          "cancelled": "Cancelled",
+          "completed": "Completed",
           "duration": "Duration",
           "empty": "No run history yet.",
-          "error": "Error",
+          "failed": "Failed",
           "justNow": "just now",
           "label": "Run History",
           "loadError": "Failed to load run history",
@@ -232,7 +234,6 @@
           "running": "Running...",
           "search": "Search logs...",
           "status": "Status",
-          "success": "Success",
           "viewSession": "View session"
         },
         "name": {
@@ -398,6 +399,11 @@
         "error": {
           "failed": "Failed to update the session"
         }
+      },
+      "workspace_status": {
+        "inaccessible": "Workspace path is not accessible: {{path}}",
+        "missing": "Workspace path does not exist: {{path}}",
+        "not_directory": "Workspace path is not a directory: {{path}}"
       }
     },
     "settings": {
@@ -3358,6 +3364,7 @@
     },
     "stream_output": "Stream output",
     "type": {
+      "audio": "Audio",
       "embedding": "Embedding",
       "free": "Free",
       "function_calling": "Tool",
@@ -3365,6 +3372,7 @@
       "rerank": "Reranker",
       "select": "Model Types",
       "text": "Text",
+      "video": "Video",
       "vision": "Vision",
       "websearch": "WebSearch"
     }
@@ -4630,6 +4638,10 @@
       },
       "sort_label": "Sort",
       "unpin": "Unpin"
+    },
+    "workspace": {
+      "empty_text": "No workspaces yet",
+      "placeholder": "Select workspace"
     }
   },
   "settings": {

@@ -221,9 +221,11 @@
         "intervalUnit": "minutos",
         "lastRun": "Última ejecución",
         "logs": {
+          "cancelled": "[to be translated]:Cancelled",
+          "completed": "[to be translated]:Completed",
           "duration": "Duración",
           "empty": "Aún no hay historial de ejecución.",
-          "error": "Error",
+          "failed": "[to be translated]:Failed",
           "justNow": "ahora mismo",
           "label": "Historial de ejecución",
           "loadError": "Error al cargar el historial de ejecución",
@@ -232,7 +234,6 @@
           "running": "Corriendo...",
           "search": "Buscar registros...",
           "status": "Estado",
-          "success": "Éxito",
           "viewSession": "Ver sesión"
         },
         "name": {
@@ -3358,6 +3359,7 @@
     },
     "stream_output": "Salida en flujo",
     "type": {
+      "audio": "[to be translated]:Audio",
       "embedding": "Incrustación",
       "free": "Gratis",
       "function_calling": "Llamada a función",
@@ -3365,6 +3367,7 @@
       "rerank": "Reclasificar",
       "select": "Tipos de modelo",
       "text": "Texto",
+      "video": "[to be translated]:Video",
       "vision": "Imagen",
       "websearch": "Búsqueda en línea"
     }

@@ -2,11 +2,10 @@ import { Button, RowFlex } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import OauthButton from '@renderer/components/Oauth/OauthButton'
 import { PROVIDER_URLS } from '@renderer/config/providers'
-import { useProvider } from '@renderer/hooks/useProviders'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
-import { hasApiKeys } from '@renderer/pages/settings/ProviderSettings/utils/provider'
-import { toV1ProviderShim } from '@renderer/pages/settings/ProviderSettings/utils/v1ProviderShim'
 import { providerBills, providerCharge } from '@renderer/utils/oauth'
+import { hasApiKeys } from '@shared/utils/provider'
 import { CircleDollarSign, ReceiptText } from 'lucide-react'
 import type { FC } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
@@ -46,7 +45,7 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
       )}
       {!hasApiKeys(provider) ? (
         <OauthButton
-          provider={toV1ProviderShim(provider)}
+          provider={{ id: provider.id }}
           onSuccess={setApiKey}
           className="rounded-lg! px-3! py-[6px]! text-[13px]!">
           {t('settings.provider.oauth.button', { provider: getProviderLabel(provider.id) })}

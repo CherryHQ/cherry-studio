@@ -1,18 +1,18 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import { isGenerateImageModel } from '@renderer/config/models'
-import type { Assistant, Model } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
 import { Image } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
-  assistant: Assistant
+  enabled: boolean
   model: Model
   onEnableGenerateImage: () => void
 }
 
-const GenerateImageButton: FC<Props> = ({ model, assistant, onEnableGenerateImage }) => {
+const GenerateImageButton: FC<Props> = ({ model, enabled, onEnableGenerateImage }) => {
   const { t } = useTranslation()
 
   const ariaLabel = isGenerateImageModel(model)
@@ -23,10 +23,10 @@ const GenerateImageButton: FC<Props> = ({ model, assistant, onEnableGenerateImag
     <Tooltip placement="top" content={ariaLabel}>
       <ActionIconButton
         onClick={onEnableGenerateImage}
-        active={assistant.enableGenerateImage}
+        active={enabled}
         disabled={!isGenerateImageModel(model)}
         aria-label={ariaLabel}
-        aria-pressed={assistant.enableGenerateImage}
+        aria-pressed={enabled}
         icon={<Image size={18} />}
       />
     </Tooltip>

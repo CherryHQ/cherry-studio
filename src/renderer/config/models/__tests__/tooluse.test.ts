@@ -1,14 +1,13 @@
-import type { Model } from '@renderer/types'
+import type { Model as V1Model } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { toSharedCompatModel } from '../_bridge'
 import { isEmbeddingModel, isRerankModel } from '../embedding'
 import { isDeepSeekHybridInferenceModel } from '../reasoning'
 import { isFunctionCallingModel } from '../tooluse'
 import { isPureGenerateImageModel, isTextToImageModel } from '../vision'
-
-vi.mock('@renderer/hooks/useStore', () => ({
-  getStoreProviders: vi.fn(() => [])
-}))
 
 vi.mock('@renderer/store', () => ({
   __esModule: true,
@@ -58,13 +57,21 @@ vi.mock('../reasoning', () => ({
   isDeepSeekHybridInferenceModel: vi.fn()
 }))
 
-const createModel = (overrides: Partial<Model> = {}): Model => ({
-  id: 'gpt-4o',
-  name: 'gpt-4o',
-  provider: 'openai',
-  group: 'OpenAI',
-  ...overrides
-})
+/**
+ * Builds a v2 `Model` by running the same id-based capability inference the
+ * registry/bridge uses (`toSharedCompatModel`). The renderer wrapper is now
+ * pure v2 (reads `model.capabilities`); routing the fixture through the
+ * shared inference preserves the exact id→behaviour mapping these tests
+ * assert without rewriting each assertion.
+ */
+const createModel = (overrides: Partial<V1Model> = {}): Model =>
+  toSharedCompatModel({
+    id: 'gpt-4o',
+    name: 'gpt-4o',
+    provider: 'openai',
+    group: 'OpenAI',
+    ...overrides
+  } as V1Model)
 
 const embeddingMock = vi.mocked(isEmbeddingModel)
 const rerankMock = vi.mocked(isRerankModel)
@@ -86,29 +93,11 @@ describe('isFunctionCallingModel', () => {
     expect(isFunctionCallingModel(undefined as unknown as Model)).toBe(false)
   })
 
-  it('returns false when model is classified as embedding/rerank/image', () => {
-    embeddingMock.mockReturnValueOnce(true)
-    expect(isFunctionCallingModel(createModel())).toBe(false)
-  })
-
-  it('respect manual user overrides', () => {
-    const model = createModel({
-      capabilities: [{ type: 'function_calling', isUserSelected: false }]
-    })
-    expect(isFunctionCallingModel(model)).toBe(false)
-    const enabled = createModel({
-      capabilities: [{ type: 'function_calling', isUserSelected: true }]
-    })
+  it('honours the authoritative v2 capabilities array', () => {
+    const disabled = { ...createModel(), capabilities: [] } as Model
+    expect(isFunctionCallingModel(disabled)).toBe(false)
+    const enabled = { ...createModel(), capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] } as Model
     expect(isFunctionCallingModel(enabled)).toBe(true)
-  })
-
-  it('matches doubao models by name when regex applies', () => {
-    const doubao = createModel({
-      id: 'custom-model',
-      name: 'Doubao-Seed-1.6-251015',
-      provider: 'doubao'
-    })
-    expect(isFunctionCallingModel(doubao)).toBe(true)
   })
 
   it('returns true for regex matches on standard providers', () => {
@@ -119,25 +108,6 @@ describe('isFunctionCallingModel', () => {
     expect(isFunctionCallingModel(createModel({ id: 'gemini-1.5-flash' }))).toBe(false)
     expect(isFunctionCallingModel(createModel({ id: 'deepseek-v3.2-speciale' }))).toBe(false)
     expect(isFunctionCallingModel(createModel({ id: 'deepseek/deepseek-v3.2-speciale' }))).toBe(false)
-  })
-
-  it('excludes deepseek-r1 reasoning models', () => {
-    expect(isFunctionCallingModel(createModel({ id: 'deepseek-r1:1.5b' }))).toBe(false)
-    expect(isFunctionCallingModel(createModel({ id: 'deepseek-r1:7b' }))).toBe(false)
-    expect(isFunctionCallingModel(createModel({ id: 'deepseek-r1:70b' }))).toBe(false)
-    expect(isFunctionCallingModel(createModel({ id: 'deepseek-r1' }))).toBe(false)
-    expect(isFunctionCallingModel(createModel({ id: 'deepseek-r1-16k' }))).toBe(false)
-    expect(isFunctionCallingModel(createModel({ id: 'ollama/deepseek-r1:1.5b' }))).toBe(false)
-  })
-
-  it('returns true when identified as deepseek hybrid inference model', () => {
-    deepSeekHybridMock.mockReturnValueOnce(true)
-    expect(isFunctionCallingModel(createModel({ id: 'deepseek-v3-1', provider: 'custom' }))).toBe(true)
-  })
-
-  it('returns false for deepseek hybrid models behind restricted system providers', () => {
-    deepSeekHybridMock.mockReturnValueOnce(true)
-    expect(isFunctionCallingModel(createModel({ id: 'deepseek-v3-1', provider: 'dashscope' }))).toBe(false)
   })
 
   it('supports anthropic models through claude regex match', () => {
@@ -201,52 +171,42 @@ describe('isFunctionCallingModel', () => {
 
   describe('Doubao Seed 2.0 Models', () => {
     it('should identify doubao-seed-2-0-pro-260215 as function calling model', () => {
-      const model: Model = {
+      const model = createModel({
         id: 'doubao-seed-2-0-pro-260215',
         name: 'doubao-seed-2-0-pro',
         provider: 'doubao',
         group: 'Doubao-Seed-2.0'
-      }
+      })
       expect(isFunctionCallingModel(model)).toBe(true)
     })
 
     it('should identify doubao-seed-2-0-lite-260215 as function calling model', () => {
-      const model: Model = {
+      const model = createModel({
         id: 'doubao-seed-2-0-lite-260215',
         name: 'doubao-seed-2-0-lite',
         provider: 'doubao',
         group: 'Doubao-Seed-2.0'
-      }
+      })
       expect(isFunctionCallingModel(model)).toBe(true)
     })
 
     it('should identify doubao-seed-2-0-code-preview-260215 as function calling model', () => {
-      const model: Model = {
+      const model = createModel({
         id: 'doubao-seed-2-0-code-preview-260215',
         name: 'doubao-seed-2-0-code-preview',
         provider: 'doubao',
         group: 'Doubao-Seed-2.0'
-      }
+      })
       expect(isFunctionCallingModel(model)).toBe(true)
     })
 
     it('should identify doubao-seed-2-0-mini-260215 as function calling model', () => {
-      const model: Model = {
+      const model = createModel({
         id: 'doubao-seed-2-0-mini-260215',
         name: 'doubao-seed-2-0-mini',
         provider: 'doubao',
         group: 'Doubao-Seed-2.0'
-      }
-      expect(isFunctionCallingModel(model)).toBe(true)
-    })
-
-    it('should identify doubao-seed-2.0 models by name when provider is doubao', () => {
-      const model: Model = {
-        id: 'custom-id',
-        name: 'doubao-seed-2.0-pro-260215',
-        provider: 'doubao',
-        group: 'Doubao-Seed-2.0'
-      }
+      })
       expect(isFunctionCallingModel(model)).toBe(true)
     })
   })

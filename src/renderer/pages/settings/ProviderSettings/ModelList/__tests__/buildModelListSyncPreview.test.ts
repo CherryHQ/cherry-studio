@@ -59,8 +59,7 @@ describe('buildModelListSyncPreview', () => {
     ])
 
     const preview = await buildModelListSyncPreview({
-      providerId: 'openai',
-      provider: { id: 'openai' } as never
+      providerId: 'openai'
     })
 
     expect(dataApiService.get).toHaveBeenCalledWith('/models', { query: { providerId: 'openai' } })

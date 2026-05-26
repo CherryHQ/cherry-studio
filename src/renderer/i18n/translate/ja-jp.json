@@ -221,9 +221,11 @@
         "intervalUnit": "議事録",
         "lastRun": "前回の実行",
         "logs": {
+          "cancelled": "[to be translated]:Cancelled",
+          "completed": "[to be translated]:Completed",
           "duration": "所要時間",
           "empty": "実行履歴がありません。",
-          "error": "エラー",
+          "failed": "[to be translated]:Failed",
           "justNow": "さっき",
           "label": "実行履歴",
           "loadError": "実行履歴の読み込みに失敗しました",
@@ -232,7 +234,6 @@
           "running": "走っている…",
           "search": "検索ログ...",
           "status": "ステータス",
-          "success": "成功",
           "viewSession": "セッションを表示"
         },
         "name": {
@@ -3358,6 +3359,7 @@
     },
     "stream_output": "ストリーム出力",
     "type": {
+      "audio": "[to be translated]:Audio",
       "embedding": "埋め込み",
       "free": "無料",
       "function_calling": "ツール",
@@ -3365,6 +3367,7 @@
       "rerank": "再順序付け",
       "select": "モデルタイプ",
       "text": "テキスト",
+      "video": "[to be translated]:Video",
       "vision": "画像",
       "websearch": "ウェブ検索"
     }

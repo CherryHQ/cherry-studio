@@ -9,7 +9,7 @@ const isAnthropicSupportedProviderMock = vi.fn()
 const isAzureOpenAIProviderMock = vi.fn()
 const isOpenAICompatibleProviderMock = vi.fn()
 
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: unknown[]) => useProviderMock(...args)
 }))
 
@@ -34,7 +34,7 @@ vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
     ) : null
 }))
 
-vi.mock('../../utils/provider', () => ({
+vi.mock('@shared/utils/provider', () => ({
   isAnthropicSupportedProvider: (...args: unknown[]) => isAnthropicSupportedProviderMock(...args),
   isAzureOpenAIProvider: (...args: unknown[]) => isAzureOpenAIProviderMock(...args),
   isOpenAICompatibleProvider: (...args: unknown[]) => isOpenAICompatibleProviderMock(...args)

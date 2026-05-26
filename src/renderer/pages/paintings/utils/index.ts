@@ -1,16 +1,17 @@
-import type { FileMetadata, Provider } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
+import type { Provider } from '@shared/data/types/provider'
 import type { TFunction } from 'i18next'
-import { isEmpty } from 'lodash'
 
 export function checkProviderEnabled(provider: Provider, t: TFunction): Promise<boolean> {
   return new Promise((resolve, reject) => {
-    if (provider.enabled && !isEmpty(provider.apiKey)) {
+    const hasEnabledKey = provider.apiKeys.some((k) => k.isEnabled)
+    if (provider.isEnabled && hasEnabledKey) {
       resolve(true)
       return
     }
 
     window.modal.warning({
-      content: provider.apiKey ? t('error.no_api_key') : t('error.provider_disabled'),
+      content: hasEnabledKey ? t('error.no_api_key') : t('error.provider_disabled'),
       centered: true,
       closable: true,
       okText: t('common.go_to_settings'),

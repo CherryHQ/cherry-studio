@@ -1,7 +1,7 @@
 import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useProviderApiKeys, useProviderMutations } from '@renderer/hooks/useProviders'
+import { useProviderApiKeys, useProviderMutations } from '@renderer/hooks/useProvider'
 import { maskApiKey } from '@renderer/utils/api'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 import { Check, Copy, Edit3, Minus, Plus, X } from 'lucide-react'

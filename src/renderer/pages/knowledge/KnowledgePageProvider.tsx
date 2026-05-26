@@ -4,7 +4,7 @@ import {
   useKnowledgeBases,
   useRestoreKnowledgeBase,
   useUpdateKnowledgeBase
-} from '@renderer/hooks/useKnowledgeBases'
+} from '@renderer/hooks/useKnowledgeBase'
 import { useKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Group } from '@shared/data/types/group'

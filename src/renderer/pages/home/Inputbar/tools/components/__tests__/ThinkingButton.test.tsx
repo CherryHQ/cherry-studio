@@ -1,5 +1,6 @@
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
-import type { Assistant, Model, ThinkingOption } from '@renderer/types'
+import type { Assistant, ThinkingOption } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -129,40 +130,56 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 // Test data factory functions
-const createModel = (overrides: Partial<Model> = {}): Model => ({
-  id: 'gpt-5',
-  provider: 'openai',
-  name: 'GPT-5',
-  group: 'openai',
-  capabilities: [],
-  ...overrides
-})
+// ThinkingButton's config/models predicates are fully mocked here, so the
+// model is an opaque prop — a structural v2 stub is sufficient.
+const createModel = (overrides: Record<string, unknown> = {}): Model =>
+  ({
+    id: 'openai::gpt-5',
+    providerId: 'openai',
+    name: 'GPT-5',
+    group: 'openai',
+    capabilities: [],
+    ...overrides
+  }) as unknown as Model
 
-const createAssistant = (overrides: Partial<Assistant> = {}): Assistant => ({
+const DEFAULT_TEST_SETTINGS = {
+  temperature: 0.7,
+  enableTemperature: false,
+  topP: 1,
+  enableTopP: false,
+  maxTokens: 4096,
+  enableMaxTokens: false,
+  streamOutput: true,
+  reasoning_effort: 'none',
+  mcpMode: 'disabled' as const,
+  toolUseMode: 'function' as const,
+  maxToolCalls: 20,
+  enableMaxToolCalls: true,
+  enableWebSearch: false,
+  customParameters: []
+}
+
+type AssistantTestOverrides = Omit<Partial<Assistant>, 'settings'> & {
+  settings?: Partial<Assistant['settings']>
+}
+
+const createAssistant = (overrides: AssistantTestOverrides = {}): Assistant => ({
   id: 'assistant-1',
   name: 'Test Assistant',
-  model: createModel(),
   prompt: '',
-  knowledge_bases: [],
-  topics: [],
-  type: 'default',
-  settings: {
-    reasoning_effort: 'none',
-    temperature: 0.7,
-    contextCount: 10,
-    streamOutput: true,
-    toolUseMode: 'function' as const
-  },
-  enableWebSearch: false,
-  enableUrlContext: false,
-  enableGenerateImage: false,
-  mcpMode: 'disabled' as const,
-  mcpServers: [],
-  knowledgeRecognition: 'off' as const,
-  regularPhrases: [],
+  emoji: '🌟',
+  description: '',
+  modelId: null,
+  modelName: null,
+  mcpServerIds: [],
+  knowledgeBaseIds: [],
   tags: [],
-  content: '',
-  ...overrides
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  ...overrides,
+  // Deep-merge settings so test sites that supply only the key under test
+  // don't drop the rest of the v2 schema.
+  settings: { ...DEFAULT_TEST_SETTINGS, ...overrides.settings }
 })
 
 const createUseAssistantReturn = (overrides: any = {}) => ({
@@ -270,9 +287,9 @@ const renderComponent = (
     ...useAssistantReturn.assistant,
     settings: {
       ...useAssistantReturn.assistant.settings,
-      reasoning_effort: reasoningEffort ?? useAssistantReturn.assistant.settings?.reasoning_effort ?? 'none'
-    },
-    enableWebSearch
+      reasoning_effort: reasoningEffort ?? useAssistantReturn.assistant.settings?.reasoning_effort ?? 'none',
+      enableWebSearch
+    }
   }
 
   // Set up mock return values
@@ -419,8 +436,7 @@ describe('ThinkingButton', () => {
 
       fireEvent.click(getActionIconButton())
       expect(mockUpdateSettings).toHaveBeenCalledWith({
-        reasoning_effort: 'none',
-        qwenThinkMode: false
+        reasoning_effort: 'none'
       })
     })
 
@@ -654,7 +670,15 @@ describe('ThinkingButton', () => {
   describe('web search warning', () => {
     it('should show warning when using minimal reasoning with web search', () => {
       const useAssistantReturn = createUseAssistantReturn({
-        assistant: createAssistant({ enableWebSearch: true })
+        assistant: createAssistant({
+          settings: {
+            reasoning_effort: 'none',
+            temperature: 0.7,
+            streamOutput: true,
+            toolUseMode: 'function' as const,
+            enableWebSearch: true
+          }
+        })
       })
 
       renderComponent({
@@ -672,7 +696,7 @@ describe('ThinkingButton', () => {
   describe('edge cases', () => {
     it('should handle undefined reasoning level by falling back to none', () => {
       const assistantReturn = createUseAssistantReturn({
-        assistant: createAssistant({ settings: { reasoning_effort: undefined } })
+        assistant: createAssistant({ settings: { reasoning_effort: 'default' } })
       })
 
       renderComponent({

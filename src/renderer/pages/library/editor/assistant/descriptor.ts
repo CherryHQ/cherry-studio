@@ -51,9 +51,7 @@ type CustomParameter = AssistantSettings['customParameters'][number]
 const UI_DEFAULT_TEMPERATURE = 1.0
 const UI_DEFAULT_TOP_P = 1
 const UI_DEFAULT_MAX_TOKENS = 4096
-const UI_DEFAULT_CONTEXT_COUNT = 5
 const UI_DEFAULT_MAX_TOOL_CALLS = 20
-export const ASSISTANT_CONTEXT_COUNT_MIN = 1
 
 /**
  * Flat form state shared by all four Assistant editor sections. Every
@@ -80,7 +78,6 @@ export interface AssistantFormState {
   enableTopP: boolean
   maxTokens: number
   enableMaxTokens: boolean
-  contextCount: number
   streamOutput: boolean
   toolUseMode: 'function' | 'prompt'
   maxToolCalls: number
@@ -107,7 +104,6 @@ function buildAssistantSettingsFromForm(
     enableTopP: form.enableTopP,
     maxTokens: form.maxTokens,
     enableMaxTokens: form.enableMaxTokens,
-    contextCount: normalizeContextCount(form.contextCount),
     streamOutput: form.streamOutput,
     toolUseMode: form.toolUseMode,
     maxToolCalls: form.maxToolCalls,
@@ -131,7 +127,6 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     enableTopP: settings.enableTopP ?? false,
     maxTokens: settings.maxTokens ?? UI_DEFAULT_MAX_TOKENS,
     enableMaxTokens: settings.enableMaxTokens ?? false,
-    contextCount: normalizeContextCount(settings.contextCount ?? UI_DEFAULT_CONTEXT_COUNT),
     streamOutput: settings.streamOutput ?? true,
     toolUseMode: settings.toolUseMode ?? 'function',
     maxToolCalls: settings.maxToolCalls ?? UI_DEFAULT_MAX_TOOL_CALLS,
@@ -157,7 +152,6 @@ export function buildCreateAssistantFormState(): AssistantFormState {
     enableTopP: DEFAULT_ASSISTANT_SETTINGS.enableTopP,
     maxTokens: DEFAULT_ASSISTANT_SETTINGS.maxTokens,
     enableMaxTokens: DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens,
-    contextCount: DEFAULT_ASSISTANT_SETTINGS.contextCount,
     streamOutput: DEFAULT_ASSISTANT_SETTINGS.streamOutput,
     toolUseMode: DEFAULT_ASSISTANT_SETTINGS.toolUseMode,
     maxToolCalls: DEFAULT_ASSISTANT_SETTINGS.maxToolCalls,
@@ -267,7 +261,6 @@ export function diffAssistantUpdate(
     baseline.enableTopP !== form.enableTopP ||
     baseline.maxTokens !== form.maxTokens ||
     baseline.enableMaxTokens !== form.enableMaxTokens ||
-    baseline.contextCount !== form.contextCount ||
     baseline.streamOutput !== form.streamOutput ||
     baseline.toolUseMode !== form.toolUseMode ||
     baseline.maxToolCalls !== form.maxToolCalls ||
@@ -339,9 +332,4 @@ function sameStringSet(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false
   const set = new Set(a)
   return b.every((v) => set.has(v))
-}
-
-function normalizeContextCount(value: number): number {
-  if (!Number.isFinite(value)) return UI_DEFAULT_CONTEXT_COUNT
-  return Math.max(ASSISTANT_CONTEXT_COUNT_MIN, Math.trunc(value))
 }

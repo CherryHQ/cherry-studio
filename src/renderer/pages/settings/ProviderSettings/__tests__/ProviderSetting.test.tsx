@@ -14,7 +14,7 @@ vi.mock('@renderer/context/ThemeProvider', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args)
 }))
 

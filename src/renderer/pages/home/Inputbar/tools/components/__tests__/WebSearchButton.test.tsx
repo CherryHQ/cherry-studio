@@ -41,13 +41,6 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
     assistant: {
       id: 'assistant-1',
       name: 'Assistant',
-      model: {
-        id: 'claude-3-5-sonnet',
-        provider: 'anthropic',
-        name: 'Claude 3.5 Sonnet',
-        group: 'anthropic',
-        capabilities: []
-      },
       settings: {
         toolUseMode: 'function'
       },
@@ -55,12 +48,15 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
       mcpMode: 'disabled',
       mcpServers: []
     },
+    model: {
+      id: 'claude-3-5-sonnet',
+      provider: 'anthropic',
+      name: 'Claude 3.5 Sonnet',
+      group: 'anthropic',
+      capabilities: []
+    },
     updateAssistant: updateAssistantMock
   })
-}))
-
-vi.mock('@renderer/services/AssistantService', () => ({
-  getProviderByModel: () => ({ id: 'anthropic', type: 'anthropic' })
 }))
 
 vi.mock('@renderer/utils/api', () => ({
@@ -112,10 +108,6 @@ vi.mock('@renderer/types', () => ({
 
 vi.mock('@renderer/utils/assistant', () => ({
   isToolUseModeFunction: () => true
-}))
-
-vi.mock('@renderer/utils/provider', () => ({
-  isGeminiWebSearchProvider: () => false
 }))
 
 describe('WebSearchButton', () => {

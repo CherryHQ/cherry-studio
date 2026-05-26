@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { useProvider, useProviderApiKeys, useProviderMutations } from '@renderer/hooks/useProviders'
+import { useProvider, useProviderApiKeys, useProviderMutations } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import type { ApiKeyEntry } from '@shared/data/types/provider'

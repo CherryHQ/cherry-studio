@@ -1,5 +1,4 @@
 import IndicatorLight from '@renderer/components/IndicatorLight'
-import { SelectModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { getProviderLabel } from '@renderer/i18n/label'
 import NavigationService from '@renderer/services/NavigationService'
@@ -31,7 +30,8 @@ export const FreeTrialModelTag: FC<Props> = ({ modelId, providerId, showLabel = 
 
   const onNavigateProvider = (e: MouseEvent) => {
     e.stopPropagation()
-    SelectModelPopup.hide()
+    // v1 SelectModelPopup was removed in the v2 ModelSelector migration; the
+    // inline v2 selector unmounts on route change, so no explicit hide needed.
     void NavigationService.navigate?.({ to: '/settings/provider', search: { id: linkedProviderId } })
   }
 

@@ -1,59 +1,100 @@
+import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
-import { useActiveTopic } from '@renderer/hooks/useTopic'
+import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
+import { useActiveTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
-import { newMessagesActions } from '@renderer/store/newMessage'
-import type { Assistant, Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
-import { startTransition, useCallback, useEffect, useState } from 'react'
-import { useDispatch } from 'react-redux'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import styled from 'styled-components'
 
 import Chat from './Chat'
 import Navbar from './Navbar'
 import HomeTabs from './Tabs'
 
-let _activeAssistant: Assistant
+/**
+ * Synthesise a renderer Topic shape from a freshly-leased temporary id.
+ * First-launch temp topics have no associated assistant — `assistantId` is
+ * `undefined`, not a sentinel.
+ */
+function buildPendingTemporaryTopic(id: string): Topic {
+  const nowIso = new Date().toISOString()
+  return {
+    id,
+    assistantId: undefined,
+    name: '',
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    messages: [],
+    pinned: false,
+    isNameManuallyEdited: false
+  }
+}
 
 const HomePage: FC = () => {
-  const { assistants } = useAssistants()
   const navigate = useNavigate()
   const { isLeftNavbar } = useNavbarPosition()
 
   const location = useLocation()
-  const state = location.state as { assistant?: Assistant; topic?: Topic } | undefined
+  const state = location.state as { topic?: Topic } | undefined
 
-  const [activeAssistant, _setActiveAssistant] = useState<Assistant>(
-    state?.assistant || _activeAssistant || assistants[0]
+  const [shouldUseTemporary] = useState(() => {
+    if (state?.topic) return false
+    if (cacheService.get('topic.home.first_launch_temp_used')) return false
+    cacheService.set('topic.home.first_launch_temp_used', true)
+    return true
+  })
+
+  // Lease a temporary topic only when this is the app's first HomePage mount
+  // and the caller didn't pre-select a topic via router state. The temp topic
+  // has no assistant attached — message capabilities / model fall back to the
+  // `chat.default_model_id` preference.
+  const { topicId: tempTopicId, persist: persistTemporaryTopic } = useTemporaryTopic({
+    enabled: shouldUseTemporary
+  })
+
+  const { refreshTopics } = useTopicMutations()
+
+  const initialTopic = useMemo<Topic | undefined>(() => {
+    if (state?.topic) return state.topic
+    if (shouldUseTemporary && tempTopicId) {
+      return buildPendingTemporaryTopic(tempTopicId)
+    }
+    return undefined
+  }, [state?.topic, shouldUseTemporary, tempTopicId])
+
+  const { activeTopic, setActiveTopic } = useActiveTopic(initialTopic, {
+    // While we're waiting for the temporary topic to lease, suppress the
+    // auto-pick-first-topic effect so the UI doesn't flash a stale topic
+    // before our blank one shows up.
+    autoPickFirst: !shouldUseTemporary
+  })
+
+  const persistTemporaryTopicAndRefresh = useCallback(
+    async (initialName?: string) => {
+      await persistTemporaryTopic(initialName)
+      await refreshTopics()
+    },
+    [persistTemporaryTopic, refreshTopics]
   )
-
-  const { activeTopic, setActiveTopic: _setActiveTopic } = useActiveTopic(activeAssistant?.id ?? '', state?.topic)
-  const [showAssistants] = usePreference('assistant.tab.show')
-  const [showTopics] = usePreference('topic.tab.show')
+  const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [topicPosition] = usePreference('topic.position')
-  const { setShowAssistants, toggleShowAssistants } = useShowAssistants()
-  const { toggleShowTopics } = useShowTopics()
-  const dispatch = useDispatch()
 
-  _activeAssistant = activeAssistant
-
-  // TODO: Replace with sidebar toggle logic once the new sidebar UI is implemented
   useShortcut('general.toggle_sidebar', () => {
     if (topicPosition === 'right') {
-      void toggleShowAssistants()
+      void setShowSidebar(!showSidebar)
       return
     }
 
-    if (!showAssistants) {
-      void setShowAssistants(true)
+    if (!showSidebar) {
+      void setShowSidebar(true)
       requestAnimationFrame(() => {
         void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
       })
@@ -65,12 +106,12 @@ const HomePage: FC = () => {
 
   useShortcut('topic.toggle_show_topics', () => {
     if (topicPosition === 'right') {
-      void toggleShowTopics()
+      void setShowSidebar(!showSidebar)
       return
     }
 
-    if (!showAssistants) {
-      void setShowAssistants(true)
+    if (!showSidebar) {
+      void setShowSidebar(true)
       requestAnimationFrame(() => {
         void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
       })
@@ -80,62 +121,33 @@ const HomePage: FC = () => {
     void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
   })
 
-  const setActiveAssistant = useCallback(
-    (newAssistant: Assistant) => {
-      if (newAssistant.id === activeAssistant?.id) return
-      startTransition(() => {
-        _setActiveAssistant(newAssistant)
-        // 同步更新 active topic，避免不必要的重新渲染
-        const newTopic = newAssistant.topics[0]
-        _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic))
-      })
-    },
-    [_setActiveTopic, activeAssistant?.id]
-  )
-
-  const setActiveTopic = useCallback(
-    (newTopic: Topic) => {
-      startTransition(() => {
-        _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic))
-        dispatch(newMessagesActions.setTopicFulfilled({ topicId: newTopic.id, fulfilled: false }))
-      })
-    },
-    [_setActiveTopic, dispatch]
-  )
-
   useEffect(() => {
     NavigationService.setNavigate(navigate)
   }, [navigate])
 
   useEffect(() => {
-    state?.assistant && setActiveAssistant(state?.assistant)
     state?.topic && setActiveTopic(state?.topic)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state])
 
   useEffect(() => {
-    const canMinimize = topicPosition == 'left' ? !showAssistants : !showAssistants && !showTopics
-    void window.api.window.setMinimumSize(canMinimize ? SECOND_MIN_WINDOW_WIDTH : MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+    void window.api.window.setMinimumSize(showSidebar ? MIN_WINDOW_WIDTH : SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
 
     return () => {
       void window.api.window.resetMinimumSize()
     }
-  }, [showAssistants, showTopics, topicPosition])
+  }, [showSidebar])
+
+  if (!activeTopic) {
+    return <Container id="home-page" />
+  }
 
   return (
     <Container id="home-page">
-      {isLeftNavbar && (
-        <Navbar
-          activeAssistant={activeAssistant}
-          activeTopic={activeTopic}
-          setActiveTopic={setActiveTopic}
-          setActiveAssistant={setActiveAssistant}
-          position="left"
-        />
-      )}
+      {isLeftNavbar && <Navbar position="left" />}
       <ContentContainer id={isLeftNavbar ? 'content-container' : undefined}>
         <AnimatePresence initial={false}>
-          {showAssistants && (
+          {showSidebar && (
             <ErrorBoundary>
               <motion.div
                 initial={{ width: 0, opacity: 0 }}
@@ -143,23 +155,22 @@ const HomePage: FC = () => {
                 exit={{ width: 0, opacity: 0 }}
                 transition={{ duration: 0.3, ease: 'easeInOut' }}
                 style={{ overflow: 'hidden' }}>
-                <HomeTabs
-                  activeAssistant={activeAssistant}
-                  activeTopic={activeTopic}
-                  setActiveAssistant={setActiveAssistant}
-                  setActiveTopic={setActiveTopic}
-                  position="left"
-                />
+                <HomeTabs activeTopic={activeTopic} setActiveTopic={setActiveTopic} position="left" />
               </motion.div>
             </ErrorBoundary>
           )}
         </AnimatePresence>
         <ErrorBoundary>
           <Chat
-            assistant={activeAssistant}
             activeTopic={activeTopic}
             setActiveTopic={setActiveTopic}
-            setActiveAssistant={setActiveAssistant}
+            // Wire the persist callback only while the temp lease is the
+            // currently-active topic. If the user clicks a sidebar topic
+            // before sending, the active id no longer matches the lease and
+            // the next send won't accidentally persist an empty lease.
+            onPersistTemporaryTopic={
+              tempTopicId && activeTopic.id === tempTopicId ? persistTemporaryTopicAndRefresh : undefined
+            }
           />
         </ErrorBoundary>
       </ContentContainer>
