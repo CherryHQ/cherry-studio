@@ -282,6 +282,10 @@ export const GetVersionIpcSchema = FileHandleSchema
 export const WriteDataIpcSchema = z.union([z.string(), z.instanceof(Uint8Array)])
 export const FileVersionIpcSchema = z.strictObject({ mtime: z.number(), size: z.number() })
 export const RenameNewTargetIpcSchema = z.string().min(1)
+export const CopyIpcSchema = z.object({
+  source: FileHandleSchema,
+  newName: z.string().optional()
+})
 export const ReadIpcOptionsSchema = z
   .object({
     encoding: z.enum(['text', 'base64', 'binary']).optional(),
@@ -869,6 +873,15 @@ export class FileManager extends BaseService implements IFileManager {
         async (p) => {
           await fsMove(p, newTarget as FilePath)
         }
+      )
+    })
+    this.ipcHandle(IpcChannel.File_Copy, async (_e, params: unknown) => {
+      const { source, newName } = CopyIpcSchema.parse(params)
+      const handle = source as FileHandle
+      return dispatchHandle(
+        handle,
+        (id) => this.copy({ id, newName }),
+        (p) => this.createInternalEntry({ source: 'path', path: p })
       )
     })
     this.ipcHandle(IpcChannel.File_RunSweep, async () => this.runSweep())

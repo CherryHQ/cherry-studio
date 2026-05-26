@@ -14,6 +14,7 @@ import {
   BatchGetDanglingStatesIpcSchema,
   BatchGetMetadataIpcSchema,
   BatchIdsIpcSchema,
+  CopyIpcSchema,
   FILE_BATCH_DANGLING_MAX_IDS,
   FILE_BATCH_MAX_IDS,
   FileVersionIpcSchema,
@@ -283,5 +284,22 @@ describe('RenameNewTargetIpcSchema', () => {
   })
   it('rejects empty string', () => {
     expect(() => RenameNewTargetIpcSchema.parse('')).toThrow()
+  })
+})
+
+describe('CopyIpcSchema', () => {
+  it('accepts source handle without newName', () => {
+    const input = { source: { kind: 'entry', entryId: VALID_UUID_V7 } }
+    expect(CopyIpcSchema.parse(input)).toEqual(input)
+  })
+  it('accepts source handle with newName', () => {
+    const input = { source: { kind: 'path', path: '/test.txt' }, newName: 'copy.txt' }
+    expect(CopyIpcSchema.parse(input)).toEqual(input)
+  })
+  it('rejects missing source', () => {
+    expect(() => CopyIpcSchema.parse({})).toThrow()
+  })
+  it('rejects invalid source handle', () => {
+    expect(() => CopyIpcSchema.parse({ source: { kind: 'bad' } })).toThrow()
   })
 })
