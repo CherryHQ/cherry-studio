@@ -10,7 +10,12 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { BatchGetDanglingStatesIpcSchema, FILE_BATCH_DANGLING_MAX_IDS, GetDanglingStateIpcSchema } from '../FileManager'
+import {
+  BatchGetDanglingStatesIpcSchema,
+  FILE_BATCH_DANGLING_MAX_IDS,
+  GetDanglingStateIpcSchema,
+  TrashIpcSchema
+} from '../FileManager'
 
 const VALID_UUID_V7 = '019606a0-0000-7000-8000-000000000001'
 
@@ -57,5 +62,20 @@ describe('BatchGetDanglingStatesIpcSchema', () => {
 
   it('rejects extra keys (strictObject)', () => {
     expect(() => BatchGetDanglingStatesIpcSchema.parse({ ids: [VALID_UUID_V7], extra: 1 })).toThrow()
+  })
+})
+
+describe('TrashIpcSchema', () => {
+  it('accepts a valid UUID id', () => {
+    expect(TrashIpcSchema.parse({ id: VALID_UUID_V7 })).toEqual({ id: VALID_UUID_V7 })
+  })
+  it('rejects a non-UUID id', () => {
+    expect(() => TrashIpcSchema.parse({ id: 'not-a-uuid' })).toThrow()
+  })
+  it('rejects extra keys', () => {
+    expect(() => TrashIpcSchema.parse({ id: VALID_UUID_V7, extra: 1 })).toThrow()
+  })
+  it('rejects missing id', () => {
+    expect(() => TrashIpcSchema.parse({})).toThrow()
   })
 })
