@@ -886,7 +886,7 @@ export class FileManager extends BaseService implements IFileManager {
       const options = ReadIpcOptionsSchema.parse(rawOptions)
       return dispatchHandle(
         handle,
-        (id) => this.read(id, options),
+        (id) => this.read(id, options as { encoding?: 'text'; detectEncoding?: boolean }),
         (p) => readByPath(this.deps, p, options)
       )
     })
@@ -923,7 +923,7 @@ export class FileManager extends BaseService implements IFileManager {
     this.ipcHandle(IpcChannel.File_Rename, async (_e, rawHandle: unknown, rawNewTarget: unknown) => {
       const handle = FileHandleSchema.parse(rawHandle) as FileHandle
       const newTarget = RenameNewTargetIpcSchema.parse(rawNewTarget)
-      return dispatchHandle(
+      return dispatchHandle<FileEntry | void>(
         handle,
         (id) => this.rename(id, newTarget),
         async (p) => {
