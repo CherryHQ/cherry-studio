@@ -263,6 +263,8 @@ export const CreateInternalEntryIpcSchema = z.discriminatedUnion('source', [
 
 export const EnsureExternalEntryIpcSchema = z.strictObject({ externalPath: AbsolutePathSchema })
 
+export const BatchCreateInternalEntriesIpcSchema = z.array(CreateInternalEntryIpcSchema).max(FILE_BATCH_MAX_IDS)
+
 export const GetPhysicalPathIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 
 export const PermanentDeleteIpcSchema = FileHandleSchema
@@ -970,6 +972,10 @@ export class FileManager extends BaseService implements IFileManager {
     this.ipcHandle(IpcChannel.File_IsNotEmptyDir, async (_e, params: unknown) =>
       isNotEmptyDir(IsNotEmptyDirIpcSchema.parse(params) as FilePath)
     )
+    this.ipcHandle(IpcChannel.File_BatchCreateInternalEntries, async (_e, params: unknown) => {
+      const items = BatchCreateInternalEntriesIpcSchema.parse(params) as CreateInternalEntryIpcParams[]
+      return this.batchCreateInternalEntries(items)
+    })
   }
 
   /**

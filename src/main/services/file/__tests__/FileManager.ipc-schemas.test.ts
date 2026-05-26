@@ -11,9 +11,13 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  BatchCreateInternalEntriesIpcSchema,
+  BatchEnsureExternalEntriesIpcSchema,
   BatchGetDanglingStatesIpcSchema,
   BatchGetMetadataIpcSchema,
+  BatchGetPhysicalPathsIpcSchema,
   BatchIdsIpcSchema,
+  CanWriteIpcSchema,
   CopyIpcSchema,
   DirectoryListOptionsIpcSchema,
   FILE_BATCH_DANGLING_MAX_IDS,
@@ -24,6 +28,7 @@ import {
   GetMetadataIpcSchema,
   GetVersionIpcSchema,
   IsNotEmptyDirIpcSchema,
+  IsPathInsideIpcSchema,
   OpenIpcSchema,
   OpenSaveDialogIpcSchema,
   OpenSelectDialogIpcSchema,
@@ -31,6 +36,7 @@ import {
   RenameNewTargetIpcSchema,
   RestoreIpcSchema,
   ShowInFolderIpcSchema,
+  ToAbsolutePathIpcSchema,
   TrashIpcSchema,
   WriteDataIpcSchema
 } from '../FileManager'
@@ -372,5 +378,92 @@ describe('IsNotEmptyDirIpcSchema', () => {
   })
   it('rejects empty string', () => {
     expect(() => IsNotEmptyDirIpcSchema.parse('')).toThrow()
+  })
+})
+
+describe('BatchCreateInternalEntriesIpcSchema', () => {
+  it('accepts array of path-source params', () => {
+    const input = [{ source: 'path', path: '/test.txt' }]
+    expect(BatchCreateInternalEntriesIpcSchema.parse(input)).toEqual(input)
+  })
+  it('accepts empty array', () => {
+    expect(BatchCreateInternalEntriesIpcSchema.parse([])).toEqual([])
+  })
+  it('rejects invalid source', () => {
+    expect(() => BatchCreateInternalEntriesIpcSchema.parse([{ source: 'invalid' }])).toThrow()
+  })
+  it(`caps at FILE_BATCH_MAX_IDS`, () => {
+    const tooMany = Array.from({ length: FILE_BATCH_MAX_IDS + 1 }, () => ({ source: 'path', path: '/test.txt' }))
+    expect(() => BatchCreateInternalEntriesIpcSchema.parse(tooMany)).toThrow()
+  })
+})
+
+describe('BatchEnsureExternalEntriesIpcSchema', () => {
+  it('accepts array of external path params', () => {
+    const input = [{ externalPath: '/test.txt' }]
+    expect(BatchEnsureExternalEntriesIpcSchema.parse(input)).toEqual(input)
+  })
+  it('accepts empty array', () => {
+    expect(BatchEnsureExternalEntriesIpcSchema.parse([])).toEqual([])
+  })
+  it('rejects relative path', () => {
+    expect(() => BatchEnsureExternalEntriesIpcSchema.parse([{ externalPath: 'relative' }])).toThrow()
+  })
+  it(`caps at FILE_BATCH_MAX_IDS`, () => {
+    const tooMany = Array.from({ length: FILE_BATCH_MAX_IDS + 1 }, () => ({ externalPath: '/test.txt' }))
+    expect(() => BatchEnsureExternalEntriesIpcSchema.parse(tooMany)).toThrow()
+  })
+})
+
+describe('BatchGetPhysicalPathsIpcSchema', () => {
+  it('accepts valid ids', () => {
+    expect(BatchGetPhysicalPathsIpcSchema.parse({ ids: [VALID_UUID_V7] })).toEqual({ ids: [VALID_UUID_V7] })
+  })
+  it('rejects non-UUID', () => {
+    expect(() => BatchGetPhysicalPathsIpcSchema.parse({ ids: ['bad'] })).toThrow()
+  })
+  it(`caps at FILE_BATCH_MAX_IDS`, () => {
+    const tooMany = Array.from({ length: FILE_BATCH_MAX_IDS + 1 }, () => VALID_UUID_V7)
+    expect(() => BatchGetPhysicalPathsIpcSchema.parse({ ids: tooMany })).toThrow()
+  })
+  it('rejects extra keys', () => {
+    expect(() => BatchGetPhysicalPathsIpcSchema.parse({ ids: [], extra: 1 })).toThrow()
+  })
+})
+
+describe('CanWriteIpcSchema', () => {
+  it('accepts absolute path', () => {
+    expect(CanWriteIpcSchema.parse('/test')).toBe('/test')
+  })
+  it('rejects relative path', () => {
+    expect(() => CanWriteIpcSchema.parse('relative')).toThrow()
+  })
+})
+
+describe('ToAbsolutePathIpcSchema', () => {
+  it('accepts non-empty string', () => {
+    expect(ToAbsolutePathIpcSchema.parse('~/Documents')).toBe('~/Documents')
+  })
+  it('rejects empty string', () => {
+    expect(() => ToAbsolutePathIpcSchema.parse('')).toThrow()
+  })
+  it('rejects non-string', () => {
+    expect(() => ToAbsolutePathIpcSchema.parse(42)).toThrow()
+  })
+})
+
+describe('IsPathInsideIpcSchema', () => {
+  it('accepts two non-empty strings', () => {
+    const input = { childPath: '/a/b', parentPath: '/a' }
+    expect(IsPathInsideIpcSchema.parse(input)).toEqual(input)
+  })
+  it('rejects missing childPath', () => {
+    expect(() => IsPathInsideIpcSchema.parse({ parentPath: '/a' })).toThrow()
+  })
+  it('rejects missing parentPath', () => {
+    expect(() => IsPathInsideIpcSchema.parse({ childPath: '/a/b' })).toThrow()
+  })
+  it('rejects empty childPath', () => {
+    expect(() => IsPathInsideIpcSchema.parse({ childPath: '', parentPath: '/a' })).toThrow()
   })
 })
