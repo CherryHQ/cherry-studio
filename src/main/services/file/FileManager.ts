@@ -137,7 +137,7 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { orphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry'
 import { atomicWriteFile, move as fsMove, remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
 import { untildify } from '@main/utils/file/legacyFile'
-import { canWrite, isNotEmptyDir } from '@main/utils/file/path'
+import { canWrite, isNotEmptyDir, isPathInside } from '@main/utils/file/path'
 import { listDirectory } from '@main/utils/file/search'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
@@ -276,6 +276,11 @@ export const BatchGetPhysicalPathsIpcSchema = z.strictObject({
 export const CanWriteIpcSchema = AbsolutePathSchema
 
 export const ToAbsolutePathIpcSchema = z.string().min(1)
+
+export const IsPathInsideIpcSchema = z.strictObject({
+  childPath: z.string().min(1),
+  parentPath: z.string().min(1)
+})
 
 export const GetPhysicalPathIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 
@@ -1003,6 +1008,10 @@ export class FileManager extends BaseService implements IFileManager {
     this.ipcHandle(IpcChannel.File_ToAbsolutePath, async (_e, params: unknown) => {
       const raw = ToAbsolutePathIpcSchema.parse(params)
       return path.resolve(untildify(raw)) as FilePath
+    })
+    this.ipcHandle(IpcChannel.File_IsPathInside, async (_e, params: unknown) => {
+      const { childPath, parentPath } = IsPathInsideIpcSchema.parse(params)
+      return isPathInside(childPath, parentPath)
     })
   }
 
