@@ -135,6 +135,7 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { orphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry'
 import { atomicWriteFile, move as fsMove, remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
+import { listDirectory } from '@main/utils/file/search'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
 import { SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
@@ -311,6 +312,18 @@ export const OpenSaveDialogIpcSchema = z.object({
   defaultPath: z.string().optional(),
   filters: z.array(FileFilterIpcSchema).optional()
 })
+
+export const DirectoryListOptionsIpcSchema = z
+  .object({
+    recursive: z.boolean().optional(),
+    maxDepth: z.number().optional(),
+    includeHidden: z.boolean().optional(),
+    includeFiles: z.boolean().optional(),
+    includeDirectories: z.boolean().optional(),
+    maxEntries: z.number().optional(),
+    searchPattern: z.string().optional()
+  })
+  .optional()
 
 // ─── Version types ───
 
@@ -945,6 +958,11 @@ export class FileManager extends BaseService implements IFileManager {
       if (canceled || !filePath) return null
       await atomicWriteFile(filePath as FilePath, content)
       return filePath
+    })
+    this.ipcHandle(IpcChannel.File_ListDirectory, async (_e, rawDirPath: unknown, rawOptions: unknown) => {
+      const dirPath = AbsolutePathSchema.parse(rawDirPath) as FilePath
+      const options = DirectoryListOptionsIpcSchema.parse(rawOptions)
+      return listDirectory(dirPath, options)
     })
   }
 

@@ -15,6 +15,7 @@ import {
   BatchGetMetadataIpcSchema,
   BatchIdsIpcSchema,
   CopyIpcSchema,
+  DirectoryListOptionsIpcSchema,
   FILE_BATCH_DANGLING_MAX_IDS,
   FILE_BATCH_MAX_IDS,
   FileVersionIpcSchema,
@@ -345,5 +346,18 @@ describe('OpenSaveDialogIpcSchema', () => {
   })
   it('rejects number content', () => {
     expect(() => OpenSaveDialogIpcSchema.parse({ content: 42 })).toThrow()
+  })
+})
+
+describe('DirectoryListOptionsIpcSchema', () => {
+  it('accepts undefined', () => {
+    expect(DirectoryListOptionsIpcSchema.parse(undefined)).toBeUndefined()
+  })
+  it('accepts valid options', () => {
+    const input = { recursive: true, maxDepth: 3 }
+    expect(DirectoryListOptionsIpcSchema.parse(input)).toEqual(input)
+  })
+  it('accepts empty object', () => {
+    expect(DirectoryListOptionsIpcSchema.parse({})).toEqual({})
   })
 })
