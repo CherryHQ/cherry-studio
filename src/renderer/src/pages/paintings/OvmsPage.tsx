@@ -23,9 +23,9 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
+import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import {
   type ConfigItem,
@@ -515,27 +515,17 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
             onCancel={onCancel}
             retry={handleRetry}
           />
-          <div className="relative mx-5 mb-[15px] flex max-h-[95px] min-h-[95px] flex-col rounded-[10px] border border-[var(--color-border-soft)] transition-all duration-300">
-            <TextArea
-              ref={textareaRef}
-              className="!w-auto !resize-none flex flex-1 overflow-auto rounded-none p-2.5"
-              variant="borderless"
-              disabled={isLoading}
-              value={painting.prompt}
-              spellCheck={false}
-              onChange={(e) => updatePaintingState({ prompt: e.target.value })}
-              placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder')}
-              onKeyDown={handleKeyDown}
-            />
-            <div className="flex h-10 flex-row justify-end px-2 pb-0">
-              <div className="flex flex-row items-center gap-1.5">
-                <SendMessageButton
-                  sendMessage={onGenerate}
-                  disabled={isLoading || !painting.model || painting.model === OVMS_MODELS[0]?.value}
-                />
-              </div>
-            </div>
-          </div>
+          <PaintingPromptBar
+            textareaRef={textareaRef}
+            value={painting.prompt}
+            disabled={isLoading}
+            placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder')}
+            onChange={(prompt) => updatePaintingState({ prompt })}
+            onKeyDown={handleKeyDown}
+            onGenerate={onGenerate}
+            generateDisabled={isLoading || !painting.model || painting.model === OVMS_MODELS[0]?.value}
+            actionsClassName="flex flex-row items-center gap-1.5"
+          />
         </div>
         <PaintingsList
           namespace="ovms_paintings"

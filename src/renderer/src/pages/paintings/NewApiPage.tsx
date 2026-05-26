@@ -8,7 +8,6 @@ import { AiProvider } from '@renderer/aiCore'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
-import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -30,7 +29,6 @@ import { isNewApiProvider } from '@renderer/utils/provider'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { Empty, InputNumber, Segmented, Select, Upload } from 'antd'
-import TextArea from 'antd/es/input/TextArea'
 import type { RcFile } from 'antd/es/upload'
 import type { UploadFile } from 'antd/es/upload/interface'
 import type { FC } from 'react'
@@ -38,9 +36,9 @@ import React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
+import PaintingPromptBar from './components/PaintingPromptBar'
 import ProviderSelect from './components/ProviderSelect'
 import { checkProviderEnabled, findPaintingByFiles } from './utils'
 import { saveGeneratedPaintingFiles } from './utils/imageFiles'
@@ -748,37 +746,26 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
             onCancel={onCancel}
             retry={handleRetry}
           />
-          <div className="relative mx-5 mb-[15px] flex max-h-[95px] min-h-[95px] flex-col rounded-[10px] border border-[var(--color-border-soft)] transition-all duration-300">
-            <TextArea
-              ref={textareaRef}
-              className="!w-auto !resize-none flex flex-1 overflow-auto rounded-none p-2.5"
-              variant="borderless"
-              disabled={isLoading}
-              value={painting.prompt}
-              spellCheck={false}
-              onChange={(e) => updatePaintingState({ prompt: e.target.value })}
-              placeholder={
-                isTranslating
-                  ? t('paintings.translating')
-                  : painting.model?.startsWith('imagen-')
-                    ? t('paintings.prompt_placeholder_en')
-                    : t('paintings.prompt_placeholder_edit')
-              }
-              onKeyDown={handleKeyDown}
-            />
-            <div className="flex h-10 flex-row justify-end px-2 pb-0">
-              <div className="flex flex-row items-center gap-1.5">
-                <TranslateButton
-                  text={textareaRef.current?.resizableTextArea?.textArea?.value}
-                  onTranslated={(translatedText) => updatePaintingState({ prompt: translatedText })}
-                  disabled={isLoading || isTranslating}
-                  isLoading={isTranslating}
-                  style={{ marginRight: 6, borderRadius: '50%' }}
-                />
-                <SendMessageButton sendMessage={onGenerate} disabled={isLoading} />
-              </div>
-            </div>
-          </div>
+          <PaintingPromptBar
+            textareaRef={textareaRef}
+            value={painting.prompt}
+            disabled={isLoading}
+            placeholder={
+              isTranslating
+                ? t('paintings.translating')
+                : painting.model?.startsWith('imagen-')
+                  ? t('paintings.prompt_placeholder_en')
+                  : t('paintings.prompt_placeholder_edit')
+            }
+            onChange={(prompt) => updatePaintingState({ prompt })}
+            onKeyDown={handleKeyDown}
+            onGenerate={onGenerate}
+            translate={{
+              onTranslated: (translatedText) => updatePaintingState({ prompt: translatedText }),
+              disabled: isLoading || isTranslating,
+              isLoading: isTranslating
+            }}
+          />
         </div>
         <PaintingsList
           namespace={mode}

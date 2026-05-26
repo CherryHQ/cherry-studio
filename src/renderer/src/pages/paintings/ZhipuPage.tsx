@@ -13,14 +13,13 @@ import FileManager from '@renderer/services/FileManager'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { InputNumber, Radio, Select } from 'antd'
-import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
+import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import {
@@ -411,22 +410,13 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
             onNextImage={nextImage}
             onCancel={onCancel}
           />
-          <div className="relative mx-5 mb-[15px] flex max-h-[95px] min-h-[95px] flex-col rounded-[10px] border border-[var(--color-border-soft)] transition-all duration-300">
-            <TextArea
-              className="!w-auto !resize-none flex flex-1 overflow-auto rounded-none p-2.5"
-              variant="borderless"
-              disabled={isLoading}
-              value={painting.prompt}
-              spellCheck={false}
-              onChange={(e) => updatePaintingState({ prompt: e.target.value })}
-              placeholder={t('paintings.prompt_placeholder')}
-            />
-            <div className="flex h-10 flex-row justify-end px-2 pb-0">
-              <div className="flex gap-2">
-                <SendMessageButton sendMessage={onGenerate} disabled={isLoading} />
-              </div>
-            </div>
-          </div>
+          <PaintingPromptBar
+            value={painting.prompt}
+            disabled={isLoading}
+            placeholder={t('paintings.prompt_placeholder')}
+            onChange={(prompt) => updatePaintingState({ prompt })}
+            onGenerate={onGenerate}
+          />
         </div>
         <PaintingsList
           namespace="zhipu_paintings"
