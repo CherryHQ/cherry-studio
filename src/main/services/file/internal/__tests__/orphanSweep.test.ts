@@ -18,8 +18,8 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-const { OrphanRefScanner, runDbSweep, runStartupFileSweep, scanOrphanEntries } = await import('../orphanSweep')
-const { tempSessionChecker } = await import('@data/services/orphan/FileRefCheckerRegistry')
+const { OrphanRefScanner, runDbSweep, runFileSweep, scanOrphanEntries } = await import('../orphanSweep')
+const { tempSessionChecker } = await import('@main/services/file/orphanCheckerRegistry')
 
 describe('OrphanRefScanner', () => {
   const dbh = setupTestDatabase()
@@ -410,7 +410,7 @@ describe('runDbSweep (umbrella + observability)', () => {
   })
 })
 
-describe('runStartupFileSweep (FS-level)', () => {
+describe('runFileSweep (FS-level)', () => {
   const dbh = setupTestDatabase()
   let filesDir: string
 
@@ -454,7 +454,7 @@ describe('runStartupFileSweep (FS-level)', () => {
     await utimes(knownPath, ancient, ancient)
     await utimes(orphanPath, ancient, ancient)
 
-    const report = await runStartupFileSweep({ fileEntryService })
+    const report = await runFileSweep({ fileEntryService })
     expect(report.outcome).toBe('completed')
     expect(report.actualDeleteCount).toBe(1)
 
@@ -470,7 +470,7 @@ describe('runStartupFileSweep (FS-level)', () => {
     await writeFile(recentPath, 'r')
     // Brand new file — mtime is now; should be skipped.
 
-    const report = await runStartupFileSweep({ fileEntryService })
+    const report = await runFileSweep({ fileEntryService })
     expect(report.actualDeleteCount).toBe(0)
     expect((await stat(recentPath)).size).toBe(1)
   })
@@ -482,7 +482,7 @@ describe('runStartupFileSweep (FS-level)', () => {
     const ancient = (Date.now() - 10 * 60 * 1000) / 1000
     await utimes(tmpPath, ancient, ancient)
 
-    const report = await runStartupFileSweep({ fileEntryService })
+    const report = await runFileSweep({ fileEntryService })
     expect(report.actualDeleteCount).toBe(1)
     await expect(stat(tmpPath)).rejects.toThrow(/ENOENT/)
   })
@@ -514,7 +514,7 @@ describe('runStartupFileSweep (FS-level)', () => {
     await utimes(livePath, ancient, ancient)
     await utimes(orphanedTmpPath, ancient, ancient)
 
-    const report = await runStartupFileSweep({ fileEntryService })
+    const report = await runFileSweep({ fileEntryService })
     // Only the tmp residue should be unlinked; the live file is preserved.
     expect(report.actualDeleteCount).toBe(1)
     expect((await stat(livePath)).size).toBe(4)
@@ -532,7 +532,7 @@ describe('runStartupFileSweep (FS-level)', () => {
       await utimes(p, ancient, ancient)
     }
 
-    const report = await runStartupFileSweep({ fileEntryService })
+    const report = await runFileSweep({ fileEntryService })
     expect(report.outcome).toBe('aborted')
     if (report.outcome === 'aborted') {
       expect(report.abortReason).toBe('count-fraction')
@@ -556,7 +556,7 @@ describe('runStartupFileSweep (FS-level)', () => {
       await utimes(p, ancient, ancient)
     }
 
-    const report = await runStartupFileSweep({ fileEntryService })
+    const report = await runFileSweep({ fileEntryService })
     expect(report.outcome).toBe('aborted')
     if (report.outcome === 'aborted') {
       // Either count-fraction or byte-fraction may trigger first; both are valid.
@@ -565,27 +565,26 @@ describe('runStartupFileSweep (FS-level)', () => {
     expect(report.actualDeleteCount).toBe(0)
   })
 
-  it('emits one structured orphan-file-sweep log on completion', async () => {
+  it('emits one structured orphan-file-sweep debug log on completion', async () => {
     const orphanId = '019606a0-0000-7000-8000-00000000ee60'
     const orphanPath = path.join(filesDir, `${orphanId}.txt`)
     await writeFile(orphanPath, 'o')
     const ancient = (Date.now() - 10 * 60 * 1000) / 1000
     await utimes(orphanPath, ancient, ancient)
 
-    const infoSpy = vi.spyOn(loggerService, 'info')
-    await runStartupFileSweep({ fileEntryService })
-    expect(infoSpy).toHaveBeenCalledWith(
+    const debugSpy = vi.spyOn(loggerService, 'debug')
+    await runFileSweep({ fileEntryService })
+    expect(debugSpy).toHaveBeenCalledWith(
       'orphan-file-sweep',
       expect.objectContaining({ event: 'orphan-file-sweep', outcome: 'completed' })
     )
   })
 
-  it('emits "orphan-file-sweep-below-floor" debug breadcrumb when plan is high-fraction but under both floors', async () => {
+  it('emits "orphan-file-sweep-below-floor" warn breadcrumb when plan is high-fraction but under both floors', async () => {
     // 5 orphan UUID files on disk, 0 entries in DB → fraction is 100% but plan
     // is below both the 20-count and 10MB floors, so pickAbortReason returns
-    // undefined and the sweep proceeds. The forensic breadcrumb records at
-    // `debug` level (downgraded from `warn` after the original telemetry
-    // proved the event isn't operator-actionable on its own).
+    // undefined and the sweep proceeds. The forensic breadcrumb is the primary
+    // signal for explaining an unexpected mass-delete incident.
     const ids = Array.from({ length: 5 }, (_, i) => `019606a0-0000-7000-8000-${String(i + 500).padStart(12, '0')}`)
     const ancient = (Date.now() - 10 * 60 * 1000) / 1000
     for (const id of ids) {
@@ -593,11 +592,11 @@ describe('runStartupFileSweep (FS-level)', () => {
       await writeFile(p, 'x')
       await utimes(p, ancient, ancient)
     }
-    const debugSpy = vi.spyOn(loggerService, 'debug')
-    const report = await runStartupFileSweep({ fileEntryService })
+    const warnSpy = vi.spyOn(loggerService, 'warn')
+    const report = await runFileSweep({ fileEntryService })
     expect(report.outcome).toBe('completed')
     expect(report.actualDeleteCount).toBe(5)
-    expect(debugSpy).toHaveBeenCalledWith(
+    expect(warnSpy).toHaveBeenCalledWith(
       'orphan-file-sweep-below-floor',
       expect.objectContaining({
         event: 'orphan-file-sweep-below-floor',
@@ -616,7 +615,7 @@ describe('runStartupFileSweep (FS-level)', () => {
       await utimes(p, ancient, ancient)
     }
     const warnSpy = vi.spyOn(loggerService, 'warn')
-    await runStartupFileSweep({ fileEntryService })
+    await runFileSweep({ fileEntryService })
     expect(warnSpy).toHaveBeenCalledWith(
       'orphan-file-sweep',
       expect.objectContaining({ event: 'orphan-file-sweep', outcome: 'aborted' })
@@ -635,7 +634,7 @@ describe('runStartupFileSweep (FS-level)', () => {
     await utimes(oldPath, oldMtime, oldMtime)
     await utimes(youngerPath, youngerMtime, youngerMtime)
 
-    const report = await runStartupFileSweep({ fileEntryService })
+    const report = await runFileSweep({ fileEntryService })
     expect(report.outcome).toBe('completed')
     expect(report.actualDeleteCount).toBe(2)
     expect(report.oldestDeletedMtime).toBeDefined()
@@ -644,7 +643,7 @@ describe('runStartupFileSweep (FS-level)', () => {
   })
 
   it('omits oldestDeletedMtime when no files are unlinked', async () => {
-    const report = await runStartupFileSweep({ fileEntryService })
+    const report = await runFileSweep({ fileEntryService })
     expect(report.outcome).toBe('completed')
     expect(report.actualDeleteCount).toBe(0)
     expect(report.oldestDeletedMtime).toBeUndefined()
@@ -660,7 +659,7 @@ describe('runStartupFileSweep (FS-level)', () => {
     const ancient = (Date.now() - 10 * 60 * 1000) / 1000
     await utimes(dirPath, ancient, ancient)
 
-    const report = await runStartupFileSweep({ fileEntryService })
+    const report = await runFileSweep({ fileEntryService })
     expect(report.outcome).toBe('completed')
     expect(report.actualDeleteCount).toBe(0)
     // Directory still there.
@@ -675,7 +674,7 @@ describe('runStartupFileSweep (FS-level)', () => {
       }
       return `/mock/${key}`
     })
-    const report = await runStartupFileSweep({ fileEntryService })
+    const report = await runFileSweep({ fileEntryService })
     expect(report.outcome).toBe('completed')
     expect(report.filesOnDisk).toBe(0)
     expect(report.direntsScanned).toBe(0)
@@ -690,7 +689,7 @@ describe('runStartupFileSweep (FS-level)', () => {
       if (key === 'feature.files.data') return filePath
       return `/mock/${key}`
     })
-    const report = await runStartupFileSweep({ fileEntryService })
+    const report = await runFileSweep({ fileEntryService })
     expect(report.outcome).toBe('failed')
     if (report.outcome === 'failed') {
       expect(report.errorMessage).toMatch(/ENOTDIR|not a directory/i)
@@ -703,7 +702,7 @@ describe('runStartupFileSweep (FS-level)', () => {
         throw new Error('db-down')
       }
     } as unknown as typeof fileEntryService
-    const report = await runStartupFileSweep({ fileEntryService: failingEntryService })
+    const report = await runFileSweep({ fileEntryService: failingEntryService })
     expect(report.outcome).toBe('failed')
     if (report.outcome === 'failed') {
       expect(report.errorMessage).toMatch(/db-down/)
@@ -720,7 +719,7 @@ describe('runStartupFileSweep (FS-level)', () => {
       await utimes(p, ancient, ancient)
     }
 
-    const report = await runStartupFileSweep({ fileEntryService })
+    const report = await runFileSweep({ fileEntryService })
     expect(report.outcome).toBe('completed')
     expect(report.actualDeleteCount).toBe(5)
   })
@@ -728,7 +727,7 @@ describe('runStartupFileSweep (FS-level)', () => {
   it.skipIf(process.platform === 'win32')(
     'reports partial outcome with failedDeleteCount + failedSamples when an unlink fails',
     async () => {
-      // Regression: the runStartupFileSweep partial branch (orphanSweep.ts
+      // Regression: the runFileSweep partial branch (orphanSweep.ts
       // outcome 'partial' shape with failedDeleteCount + failedSamples + the
       // `orphan-file-sweep-unlink-failed` warn-log) was completely uncovered.
       //
@@ -749,7 +748,7 @@ describe('runStartupFileSweep (FS-level)', () => {
 
       let report
       try {
-        report = await runStartupFileSweep({ fileEntryService })
+        report = await runFileSweep({ fileEntryService })
       } finally {
         // Restore permission so afterEach cleanup can wipe the tmp tree.
         await chmod(filesDir, 0o755)
@@ -774,7 +773,7 @@ describe('runStartupFileSweep (FS-level)', () => {
   it('preserves trashed entries’ physical files through the sweep (listAllIds returns active + trashed)', async () => {
     // Regression: `FileEntryService.listAllIds` unit test verifies it returns
     // active + trashed ids, but no end-to-end test wired it through
-    // runStartupFileSweep. A regression that filtered `WHERE deletedAt IS
+    // runFileSweep. A regression that filtered `WHERE deletedAt IS
     // NULL` would silently nuke every trashed file's physical blob on next
     // boot — data loss the user did not consent to. Pin the contract here.
     const trashedId = '019606a0-0000-7000-8000-0000000fa2ed' as FileEntryId
@@ -792,7 +791,7 @@ describe('runStartupFileSweep (FS-level)', () => {
     // 2) Move to trash via the service (sets deletedAt; row stays in DB).
     await fileEntryService.update(trashedId, { deletedAt: Date.now() })
 
-    const report = await runStartupFileSweep({ fileEntryService })
+    const report = await runFileSweep({ fileEntryService })
     expect(report.outcome).toBe('completed')
     // Physical file MUST still be there — listAllIds returned the trashed id,
     // sweep saw it as known, did not unlink.

@@ -67,8 +67,8 @@ export { createDirectoryWatcher } from './watcher'
 export { toFileInfo } from './toFileInfo'
 
 // Orphan-sweep types — surfaced for the cleanup-UI consumer.
-// (FileManager.getOrphanReport is the call site; the registry singleton
-// stays inside `@data/services/orphan/FileRefCheckerRegistry`.)
+// (`FileManager.runSweep` is the call site for `OrphanReport`; the registry
+// singleton stays inside `@main/services/file/orphanCheckerRegistry`.)
 export type {
   DbSweepReport,
   FileSweepReport,

@@ -9,7 +9,7 @@
  *    rest. Adding a new `FileRefSourceType` without a checker is a compile
  *    error (Record<FileRefSourceType, SourceTypeChecker<...>>).
  *
- * 2. **runStartupFileSweep** (FS-level, file-manager-architecture §10):
+ * 2. **runFileSweep** (FS-level, file-manager-architecture §10):
  *    enumerates `{userData}/Data/Files/` for UUID-named files without a
  *    matching DB entry and abandoned `*.tmp-<uuid>` residue, applies the
  *    `mtime > 5min` heuristic and the safety threshold, then unlinks the
@@ -41,11 +41,11 @@ import path from 'node:path'
 import { application } from '@application'
 import type { FileEntryService } from '@data/services/FileEntryService'
 import type { FileRefService } from '@data/services/FileRefService'
-import type { OrphanCheckerRegistry } from '@data/services/orphan/FileRefCheckerRegistry'
 import { loggerService } from '@logger'
+import type { OrphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry'
 import { allSourceTypes, type FileEntryId, type FileEntryOrigin, type FileRefSourceType } from '@shared/data/types/file'
 
-const logger = loggerService.withContext('file/orphanSweep')
+const logger = loggerService.withContext('FileManager:orphanSweep')
 
 function assertNever(x: never): never {
   throw new Error(`Unhandled discriminant: ${JSON.stringify(x)}`)
@@ -169,59 +169,10 @@ type DbSweepOutcome =
 
 export type DbSweepReport = DbSweepStats & DbSweepOutcome
 
-/** Counts shared across every OrphanReport variant — the "what was seen" portion. */
-interface OrphanReportCounts {
-  readonly orphanRefsByType: Partial<Record<FileRefSourceType, number>>
-  readonly orphanRefsTotal: number
-  readonly orphanEntriesByOrigin: Partial<Record<FileEntryOrigin, number>>
-  readonly orphanEntriesTotal: number
-}
-
-/**
- * Public shape consumed by `FileManager.getOrphanReport()` and the future
- * cleanup-UI consumer. Keeps the wire surface narrower than the full
- * `DbSweepReport` (e.g. omits `scanDurationMs`) while preserving the
- * `outcome` discriminator so a `partial` / `failed` run is distinguishable
- * from a clean `completed` run with zero orphans.
- *
- * Discriminated on `outcome` (mirrors `DbSweepOutcome`):
- *
- * - `'unknown'` — no sweep has settled yet. `lastRunAt: null`. Counts are
- *   all zero by definition; UI should treat this as "no data" rather than
- *   "all clean".
- * - `'completed'` — sweep ran end-to-end. Counts are authoritative.
- * - `'partial'` — at least one per-sourceType checker threw; `errorsByType`
- *   identifies which. Counts cover the sourceTypes that did report; UI
- *   should surface the partial state so users don't read zero-orphans as
- *   a healthy signal.
- * - `'failed'` — the sweep collapsed before per-type aggregation. Counts
- *   are all zero (and meaningless); `errorMessage` carries the cause.
- *
- * Without the `outcome` discriminator, a `failed` run reaches the renderer
- * as `{ orphanRefsTotal: 0, …, lastRunAt }` — indistinguishable from a
- * happy zero, and a polling cleanup dashboard would render "all clear"
- * while sourceType checkers were silently crashing. The discriminator
- * forces the caller to acknowledge the state.
- */
-export type OrphanReport =
-  | (OrphanReportCounts & {
-      readonly outcome: 'unknown'
-      readonly lastRunAt: null
-    })
-  | (OrphanReportCounts & {
-      readonly outcome: 'completed'
-      readonly lastRunAt: number
-    })
-  | (OrphanReportCounts & {
-      readonly outcome: 'partial'
-      readonly errorsByType: Partial<Record<FileRefSourceType, string>>
-      readonly lastRunAt: number
-    })
-  | (OrphanReportCounts & {
-      readonly outcome: 'failed'
-      readonly errorMessage: string
-      readonly lastRunAt: number
-    })
+// `OrphanReport` (the wire shape returned by `FileManager.runSweep` and
+// consumed by the cleanup UI) is defined in shared so the FileIpcApi
+// interface can reference it; re-exported here for main-side callers.
+export type { OrphanReport } from '@shared/file/types/sweep'
 
 /**
  * Run both DB-level passes (orphan refs + orphan-entry report) and emit a
@@ -281,7 +232,7 @@ function logDbSweep(report: DbSweepReport): void {
   }
 }
 
-// ─── FS-level: runStartupFileSweep (architecture §10) ───
+// ─── FS-level: runFileSweep (architecture §10) ───
 
 /** UUID 8-4-4-4-12 hex. Matches both v4 (atomic-write tmp suffix) and v7 (entry id). */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -313,7 +264,7 @@ const ABORT_FRACTION = 0.5
 /** Cap how many failed-unlink samples we attach to the report (log-line size). */
 const MAX_FAILED_SAMPLES = 5
 
-export interface RunStartupFileSweepDeps {
+export interface RunFileSweepDeps {
   readonly fileEntryService: Pick<FileEntryService, 'listAllIds'>
   /** Test seam — defaults to `Date.now`. */
   readonly now?: () => number
@@ -363,8 +314,8 @@ export type FileSweepReport = FileSweepStats & FileSweepOutcome
  * `abortReason`. Per-file unlink failures are tolerated and surface as
  * `outcome: 'partial'` with `failedDeleteCount` + sample names.
  */
-export async function runStartupFileSweep(deps: RunStartupFileSweepDeps): Promise<FileSweepReport> {
-  const report = await runStartupFileSweepInner(deps)
+export async function runFileSweep(deps: RunFileSweepDeps): Promise<FileSweepReport> {
+  const report = await runFileSweepInner(deps)
   logFileSweep(report)
   return report
 }
@@ -373,7 +324,7 @@ function logFileSweep(report: FileSweepReport): void {
   const payload = { event: 'orphan-file-sweep', ...report }
   switch (report.outcome) {
     case 'completed':
-      logger.info('orphan-file-sweep', payload)
+      logger.debug('orphan-file-sweep', payload)
       return
     case 'partial':
       logger.warn('orphan-file-sweep', payload)
@@ -395,7 +346,7 @@ interface CandidatePlan {
   readonly mtimeMs: number
 }
 
-async function runStartupFileSweepInner(deps: RunStartupFileSweepDeps): Promise<FileSweepReport> {
+async function runFileSweepInner(deps: RunFileSweepDeps): Promise<FileSweepReport> {
   const startedAt = Date.now()
   try {
     const filesDir = application.getPath('feature.files.data')
@@ -479,12 +430,9 @@ async function runStartupFileSweepInner(deps: RunStartupFileSweepDeps): Promise<
       const byteFraction = plannedBytes / Math.max(1, candidatesBytes)
       if (countFraction > ABORT_FRACTION || byteFraction > ABORT_FRACTION) {
         // Forensic breadcrumb: the safety floor allowed this small-residue
-        // plan through despite the high fraction. Kept at `debug` level
-        // because no operator action is needed unless this fires together
-        // with a real incident report; promote back to `warn` once
-        // production telemetry confirms the cross-floor / cross-fraction
-        // event is actually rare and worth paging on.
-        logger.debug('orphan-file-sweep-below-floor', {
+        // plan through despite the high fraction. This is the primary
+        // signal that explains an unexpected mass-delete incident.
+        logger.warn('orphan-file-sweep-below-floor', {
           event: 'orphan-file-sweep-below-floor',
           plannedCount: planned.length,
           plannedBytes,

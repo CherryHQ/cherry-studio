@@ -30,6 +30,7 @@ import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/f
 
 import type { Base64String, DirectoryListOptions, FilePath, PhysicalFileMetadata, URLString } from './common'
 import type { FileHandle } from './handle'
+import type { OrphanReport } from './sweep'
 
 export type { DirectoryListOptions, FilePath } from './common'
 
@@ -153,6 +154,17 @@ export type EnsureExternalEntryIpcParams = {
   externalPath: FilePath
 }
 
+/** Params for resolving the absolute filesystem path of a single FileEntry. */
+export type GetPhysicalPathIpcParams = {
+  id: FileEntryId
+}
+
+/**
+ * Params for permanently deleting a file by handle. See `FileIpcApi.permanentDelete`
+ * for the entry-vs-path branch semantics.
+ */
+export type PermanentDeleteIpcParams = FileHandle
+
 // ─── IPC Result ───
 
 /**
@@ -200,20 +212,19 @@ export interface BatchCreateResult {
  * ## Wiring status — read this before calling
  *
  * Every method below carries a `@phase` JSDoc tag declaring whether its
- * underlying IPC channel is registered in this PR (Phase 1) or planned to
- * land in a follow-up (Phase 2). Renderer code calling a `@phase 2` method
- * will type-check but fail at runtime because the channel does not exist.
+ * underlying IPC channel is registered. Renderer code calling a method whose
+ * channel is not yet registered will type-check but fail at runtime.
  *
- * | Phase 1 — wired in `IpcChannel.ts` | Phase 2 — type-only declaration |
- * |---|---|
- * | `getDanglingState`, `batchGetDanglingStates` | everything else |
+ * | Phase 1 — wired | Phase 2 Batch 0 — wired | Phase 2 — type-only |
+ * |---|---|---|
+ * | `getDanglingState`, `batchGetDanglingStates` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, `permanentDelete` | everything else |
  *
- * Phase 2 method shapes are *design drafts*; signatures may shift when each
- * channel actually lands alongside its first FileManager consumer. Treat
- * them as a roadmap, not a frozen contract.
+ * Remaining `@phase 2` method shapes are *design drafts*; signatures may shift
+ * when each channel actually lands alongside its first FileManager consumer.
+ * Treat them as a roadmap, not a frozen contract.
  *
- * Grep `@phase 2` to enumerate Phase 2 surface; grep `@phase 1` for what is
- * already callable today.
+ * Grep `@phase 2` to enumerate the still-unwired Phase 2 surface; grep
+ * `@phase 1` or `@phase 2 — wired` for what is already callable today.
  */
 export interface FileIpcApi {
   // ─── A. File Selection / Dialogs ───
@@ -250,14 +261,15 @@ export interface FileIpcApi {
 
   // ─── B. Entry Creation ───
   //
-  // Section status: all `@phase 2`.
+  // Section status: `createInternalEntry` and `ensureExternalEntry` are `@phase 2` wired in Batch 0;
+  // `batchCreateInternalEntries` and `batchEnsureExternalEntries` are `@phase 2` (not yet wired).
 
   /**
    * Create a new Cherry-owned (internal) FileEntry. Always inserts a fresh
    * row with a new UUID. No conflict / upsert semantics — call as many times
    * as needed, each invocation produces an independent entry.
    *
-   * @phase 2 — not yet wired
+   * @phase 2 — wired in Batch 0 (`IpcChannel.File_CreateInternalEntry` → `FileManager.registerIpcHandlers`)
    */
   createInternalEntry(params: CreateInternalEntryIpcParams): Promise<FileEntry>
 
@@ -277,7 +289,7 @@ export interface FileIpcApi {
    * invariant; `fe_external_no_delete` forbids trashed external rows so no
    * "restore" branch exists.
    *
-   * @phase 2 — not yet wired
+   * @phase 2 — wired in Batch 0 (`IpcChannel.File_EnsureExternalEntry` → `FileManager.registerIpcHandlers`)
    */
   ensureExternalEntry(params: EnsureExternalEntryIpcParams): Promise<FileEntry>
 
@@ -395,7 +407,9 @@ export interface FileIpcApi {
 
   // ─── E. Trash / Delete ───
   //
-  // Section status: all `@phase 2`.
+  // Section status: `permanentDelete` (both entry and path handle branches) is
+  // `@phase 2` wired in Batch 0; all other methods in this section are
+  // `@phase 2` (not yet wired).
 
   /**
    * Move entry to Trash (soft delete via deletedAt). Internal-origin entries only.
@@ -432,7 +446,12 @@ export interface FileIpcApi {
    * expects disk deletion and files a bug report, or (b) user avoids the
    * action fearing data loss and accumulates dangling library entries.
    *
-   * @phase 2 — not yet wired
+   * @phase 2 — wired in Batch 0 (`IpcChannel.File_PermanentDelete` →
+   * `FileManager.registerIpcHandlers`). Both `FileEntryHandle` and `FilePathHandle`
+   * branches are live: entry handles route through `FileManager.permanentDelete`,
+   * path handles delegate to `@main/utils/file/fs.remove`. Currently unused by the
+   * renderer (no v2-native consumer yet); Batches A-E will wire callers once those
+   * consumers natively handle v2 UUIDs.
    */
   permanentDelete(handle: FileHandle): Promise<void>
 
@@ -526,8 +545,8 @@ export interface FileIpcApi {
   // rendering lists — it gives the handler room to parallelize and amortize
   // cache lookups, and keeps the per-call IPC overhead O(1).
   //
-  // Section status: dangling pair is `@phase 1` (wired); physical-path pair
-  // is `@phase 2`.
+  // Section status: dangling pair is `@phase 1` (wired); `getPhysicalPath` is
+  // `@phase 2` wired in Batch 0; `batchGetPhysicalPaths` is `@phase 2` (not yet wired).
 
   /**
    * Query the presence state of an external-origin entry (via file_module's
@@ -582,7 +601,7 @@ export interface FileIpcApi {
    * Enforced **by convention** (code review gate); the type system cannot
    * prevent a renderer from misusing a `FilePath` string.
    *
-   * @phase 2 — not yet wired
+   * @phase 2 — wired in Batch 0 (`IpcChannel.File_GetPhysicalPath` → `FileManager.registerIpcHandlers`)
    */
   getPhysicalPath(params: { id: FileEntryId }): Promise<FilePath>
 
@@ -593,6 +612,25 @@ export interface FileIpcApi {
    * @phase 2 — not yet wired
    */
   batchGetPhysicalPaths(params: { ids: FileEntryId[] }): Promise<Record<FileEntryId, FilePath>>
+
+  // ─── K. Orphan Sweep ───
+  //
+  // User-triggered cleanup pass. There is no startup auto-run; the cleanup UI
+  // is the only consumer.
+
+  /**
+   * Run both the FS-level orphan sweep (architecture §10) and the DB-level
+   * orphan-ref / entry sweep (§7 Layer 3) concurrently. Returns once both
+   * settle, with the DB sweep's discriminated outcome surfaced through the
+   * report's `outcome` field (`'completed'` / `'partial'` / `'failed'`).
+   *
+   * The FS sweep's outcome is logged but does not bleed into the returned
+   * report — DB-only state is what the cleanup UI consumes.
+   *
+   * @phase 2 — wired in Batch 0 (`IpcChannel.File_RunSweep` →
+   * `FileManager.registerIpcHandlers`)
+   */
+  runSweep(): Promise<OrphanReport>
 }
 
 // ─── Electron Types ───
