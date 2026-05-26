@@ -1,3 +1,4 @@
+import { InfoCircleOutlined } from '@ant-design/icons'
 import CodeEditor from '@renderer/components/CodeEditor'
 import { ResetIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
@@ -14,6 +15,7 @@ import {
   setAssistantIconType,
   setClickAssistantToShowTopic,
   setCustomCss,
+  setExperimentalRtlTextFix,
   setPinTopicsToTop,
   setShowTopicTime,
   setSidebarIcons
@@ -71,7 +73,8 @@ const DisplaySettings: FC = () => {
     assistantIconType,
     userTheme,
     useSystemTitleBar,
-    setUseSystemTitleBar
+    setUseSystemTitleBar,
+    experimentalRtlTextFix
   } = useSettings()
   const { navbarPosition, setNavbarPosition } = useNavbarPosition()
   const { theme, settedTheme } = useTheme()
@@ -469,6 +472,23 @@ const DisplaySettings: FC = () => {
           />
         </SettingGroup>
       )}
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.display.experimental.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>{t('settings.display.experimental.rtl_text_fix.title')}</span>
+            <TextBadge text={t('settings.display.experimental.badge')} />
+            <Tooltip title={t('settings.display.experimental.rtl_text_fix.description')} placement="left">
+              <InfoCircleOutlined style={{ cursor: 'pointer' }} />
+            </Tooltip>
+          </SettingRowTitle>
+          <Switch
+            checked={experimentalRtlTextFix}
+            onChange={(checked) => dispatch(setExperimentalRtlTextFix(checked))}
+          />
+        </SettingRow>
+      </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>
           {t('settings.display.custom.css.label')}
