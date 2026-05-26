@@ -23,6 +23,7 @@ import {
   GetMetadataIpcSchema,
   GetVersionIpcSchema,
   OpenIpcSchema,
+  OpenSelectDialogIpcSchema,
   ReadIpcOptionsSchema,
   RenameNewTargetIpcSchema,
   RestoreIpcSchema,
@@ -301,5 +302,27 @@ describe('CopyIpcSchema', () => {
   })
   it('rejects invalid source handle', () => {
     expect(() => CopyIpcSchema.parse({ source: { kind: 'bad' } })).toThrow()
+  })
+})
+
+describe('OpenSelectDialogIpcSchema', () => {
+  it('accepts empty options (single file default)', () => {
+    expect(OpenSelectDialogIpcSchema.parse({})).toEqual({})
+  })
+  it('accepts multiple files option', () => {
+    expect(OpenSelectDialogIpcSchema.parse({ multiple: true })).toEqual({ multiple: true })
+  })
+  it('accepts directory option', () => {
+    expect(OpenSelectDialogIpcSchema.parse({ directory: true })).toEqual({ directory: true })
+  })
+  it('accepts filters', () => {
+    const input = { filters: [{ name: 'Images', extensions: ['png', 'jpg'] }] }
+    expect(OpenSelectDialogIpcSchema.parse(input)).toEqual(input)
+  })
+  it('accepts title', () => {
+    expect(OpenSelectDialogIpcSchema.parse({ title: 'Pick a file' })).toEqual({ title: 'Pick a file' })
+  })
+  it('rejects invalid filter shape', () => {
+    expect(() => OpenSelectDialogIpcSchema.parse({ filters: [{ bad: true }] })).toThrow()
   })
 })

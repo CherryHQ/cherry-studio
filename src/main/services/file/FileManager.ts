@@ -150,6 +150,7 @@ import type {
 import type { FileHandle } from '@shared/file/types/handle'
 import { FileHandleSchema } from '@shared/file/types/handle'
 import { IpcChannel } from '@shared/IpcChannel'
+import { dialog } from 'electron'
 import mime from 'mime'
 import * as z from 'zod'
 
@@ -292,6 +293,18 @@ export const ReadIpcOptionsSchema = z
     detectEncoding: z.boolean().optional()
   })
   .optional()
+
+const FileFilterIpcSchema = z.object({
+  name: z.string(),
+  extensions: z.array(z.string())
+})
+
+export const OpenSelectDialogIpcSchema = z.object({
+  directory: z.literal(true).optional(),
+  multiple: z.literal(true).optional(),
+  filters: z.array(FileFilterIpcSchema).optional(),
+  title: z.string().optional()
+})
 
 // ─── Version types ───
 
@@ -898,6 +911,25 @@ export class FileManager extends BaseService implements IFileManager {
     this.ipcHandle(IpcChannel.File_BatchPermanentDelete, async (_e, params: unknown) =>
       this.batchPermanentDelete(BatchIdsIpcSchema.parse(params).ids)
     )
+    this.ipcHandle(IpcChannel.File_OpenSelectDialog, async (_e, options: unknown) => {
+      const opts = OpenSelectDialogIpcSchema.parse(options)
+      if (opts.directory) {
+        const { canceled, filePaths } = await dialog.showOpenDialog({
+          properties: ['openDirectory'],
+          title: opts.title
+        })
+        return canceled ? null : (filePaths[0] ?? null)
+      }
+      const properties: Electron.OpenDialogOptions['properties'] = ['openFile']
+      if (opts.multiple) properties!.push('multiSelections')
+      const { canceled, filePaths } = await dialog.showOpenDialog({
+        properties,
+        filters: opts.filters,
+        title: opts.title
+      })
+      if (canceled) return opts.multiple ? [] : null
+      return opts.multiple ? filePaths : (filePaths[0] ?? null)
+    })
   }
 
   /**
