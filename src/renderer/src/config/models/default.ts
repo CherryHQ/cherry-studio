@@ -1958,6 +1958,12 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   aionly: [
     {
+      id: 'claude-opus-4-7',
+      name: 'Claude Opus 4.7',
+      provider: 'aionly',
+      group: 'Anthropic'
+    },
+    {
       id: 'claude-opus-4-6',
       name: 'Claude Opus 4.6',
       provider: 'aionly',
@@ -1976,6 +1982,12 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       group: 'Anthropic'
     },
     {
+      id: 'gpt-5.5',
+      name: 'GPT-5.5',
+      provider: 'aionly',
+      group: 'OpenAI'
+    },
+    {
       id: 'gpt-5.4',
       name: 'GPT-5.4',
       provider: 'aionly',
@@ -1992,6 +2004,18 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       name: 'GPT-5.4-NaNo',
       provider: 'aionly',
       group: 'OpenAI'
+    },
+    {
+      id: 'deepseek-v4-pro',
+      name: 'DeepSeek-V4-Pro',
+      provider: 'aionly',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-v4-flash',
+      name: 'DeepSeek-V4-Flash',
+      provider: 'aionly',
+      group: 'DeepSeek'
     },
     {
       id: 'gemini-3.1-flash-lite-preview',
