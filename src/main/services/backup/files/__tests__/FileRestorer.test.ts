@@ -304,5 +304,37 @@ describe('FileRestorer', () => {
 
       expect(result).toEqual({ restored: 0, skipped: 0 })
     })
+
+    it('restores single-file vector store artifacts (not just directories)', async () => {
+      const extractDir = path.join(tmpDir, 'extract')
+      const kbDir = path.join(extractDir, 'knowledge')
+      await fsp.mkdir(kbDir, { recursive: true })
+      // LibSqlVectorStore stores single-file DBs, not directories
+      await fsp.writeFile(path.join(kbDir, 'kb-1'), 'vector-data')
+
+      const restorer = new FileRestorer(extractDir, createMockTracker() as never, createMockToken() as never)
+      const result = await restorer.restoreKnowledgeBases(ConflictStrategy.OVERWRITE)
+
+      expect(result.restored).toBe(1)
+      const content = await fsp.readFile(path.join(kbLiveDir, 'kb-1'), 'utf-8')
+      expect(content).toBe('vector-data')
+    })
+
+    it('skips existing vector store files under SKIP strategy', async () => {
+      const extractDir = path.join(tmpDir, 'extract')
+      const kbDir = path.join(extractDir, 'knowledge')
+      await fsp.mkdir(kbDir, { recursive: true })
+      await fsp.writeFile(path.join(kbDir, 'kb-1'), 'NEW')
+
+      await fsp.writeFile(path.join(kbLiveDir, 'kb-1'), 'OLD')
+
+      const restorer = new FileRestorer(extractDir, createMockTracker() as never, createMockToken() as never)
+      const result = await restorer.restoreKnowledgeBases(ConflictStrategy.SKIP)
+
+      expect(result.skipped).toBe(1)
+      expect(result.restored).toBe(0)
+      const content = await fsp.readFile(path.join(kbLiveDir, 'kb-1'), 'utf-8')
+      expect(content).toBe('OLD')
+    })
   })
 })

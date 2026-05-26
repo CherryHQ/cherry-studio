@@ -85,43 +85,65 @@ export class FileRestorer {
 
     for (const entry of entries) {
       this.token.throwIfCancelled()
-      if (!entry.isDirectory()) continue
 
       const sourcePath = path.join(sourceDir, entry.name)
       const remappedName = this.remapper?.remap(entry.name) ?? entry.name
       const targetPath = path.join(targetDir, remappedName)
 
-      if (fs.existsSync(path.join(targetDir, entry.name))) {
-        // Compare total byte size of directories as a proxy for content equivalence (spec §7.3)
-        const srcSize = await this.directorySizeRecursive(sourcePath)
-        const tgtSize = await this.directorySizeRecursive(path.join(targetDir, entry.name))
+      if (entry.isDirectory()) {
+        if (fs.existsSync(path.join(targetDir, entry.name))) {
+          // Compare total byte size of directories as a proxy for content equivalence (spec §7.3)
+          const srcSize = await this.directorySizeRecursive(sourcePath)
+          const tgtSize = await this.directorySizeRecursive(path.join(targetDir, entry.name))
 
-        if (srcSize === tgtSize) {
-          skipped++
-          continue
-        }
-
-        if (strategy === ConflictStrategy.SKIP) {
-          skipped++
-          continue
-        }
-
-        // RENAME strategy: copy to remapped directory if ID was remapped
-        if (strategy === ConflictStrategy.RENAME) {
-          if (remappedName !== entry.name) {
-            await fsp.cp(sourcePath, targetPath, { recursive: true })
-            restored++
-            this.progressTracker.incrementItemsProcessed(1)
-          } else {
+          if (srcSize === tgtSize) {
             skipped++
+            continue
           }
-          continue
-        }
-      }
 
-      await fsp.cp(sourcePath, targetPath, { recursive: true })
-      restored++
-      this.progressTracker.incrementItemsProcessed(1)
+          if (strategy === ConflictStrategy.SKIP) {
+            skipped++
+            continue
+          }
+
+          // RENAME strategy: copy to remapped directory if ID was remapped
+          if (strategy === ConflictStrategy.RENAME) {
+            if (remappedName !== entry.name) {
+              await fsp.cp(sourcePath, targetPath, { recursive: true })
+              restored++
+              this.progressTracker.incrementItemsProcessed(1)
+            } else {
+              skipped++
+            }
+            continue
+          }
+        }
+
+        await fsp.cp(sourcePath, targetPath, { recursive: true })
+        restored++
+        this.progressTracker.incrementItemsProcessed(1)
+      } else {
+        // Vector store files (LibSqlVectorStore stores single-file DBs)
+        if (fs.existsSync(targetPath)) {
+          if (strategy === ConflictStrategy.SKIP) {
+            skipped++
+            continue
+          }
+          if (strategy === ConflictStrategy.RENAME) {
+            if (remappedName !== entry.name) {
+              await fsp.copyFile(sourcePath, targetPath)
+              restored++
+              this.progressTracker.incrementItemsProcessed(1)
+            } else {
+              skipped++
+            }
+            continue
+          }
+        }
+        await fsp.copyFile(sourcePath, targetPath)
+        restored++
+        this.progressTracker.incrementItemsProcessed(1)
+      }
     }
 
     logger.info('Knowledge base restore complete', { restored, skipped })
