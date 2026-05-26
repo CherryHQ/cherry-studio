@@ -277,6 +277,7 @@ export const GetMetadataIpcSchema = FileHandleSchema
 export const BatchGetMetadataIpcSchema = z.strictObject({
   ids: z.array(FileEntryIdSchema).max(FILE_BATCH_MAX_IDS)
 })
+export const GetVersionIpcSchema = FileHandleSchema
 
 // ─── Version types ───
 
@@ -798,6 +799,17 @@ export class FileManager extends BaseService implements IFileManager {
         })
       )
       return Object.fromEntries(results) as Record<string, PhysicalFileMetadata | null>
+    })
+    this.ipcHandle(IpcChannel.File_GetVersion, async (_e, rawHandle: unknown) => {
+      const handle = GetVersionIpcSchema.parse(rawHandle) as FileHandle
+      return dispatchHandle(
+        handle,
+        (id) => this.getVersion(id),
+        async (p) => {
+          const s = await fsStat(p)
+          return { mtime: s.modifiedAt, size: s.size } as FileVersion
+        }
+      )
     })
     this.ipcHandle(IpcChannel.File_RunSweep, async () => this.runSweep())
     this.ipcHandle(IpcChannel.File_Trash, async (_e, params: unknown) => this.trash(TrashIpcSchema.parse(params).id))

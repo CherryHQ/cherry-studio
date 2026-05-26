@@ -19,6 +19,7 @@ import {
   GetContentHashIpcSchema,
   GetDanglingStateIpcSchema,
   GetMetadataIpcSchema,
+  GetVersionIpcSchema,
   OpenIpcSchema,
   RestoreIpcSchema,
   ShowInFolderIpcSchema,
@@ -208,5 +209,20 @@ describe('BatchGetMetadataIpcSchema', () => {
   })
   it('rejects extra keys', () => {
     expect(() => BatchGetMetadataIpcSchema.parse({ ids: [], extra: 1 })).toThrow()
+  })
+})
+
+describe('GetVersionIpcSchema', () => {
+  it('accepts entry handle', () => {
+    expect(GetVersionIpcSchema.parse({ kind: 'entry', entryId: VALID_UUID_V7 })).toEqual({
+      kind: 'entry',
+      entryId: VALID_UUID_V7
+    })
+  })
+  it('accepts path handle', () => {
+    expect(GetVersionIpcSchema.parse({ kind: 'path', path: '/test' })).toEqual({ kind: 'path', path: '/test' })
+  })
+  it('rejects invalid handle', () => {
+    expect(() => GetVersionIpcSchema.parse({ kind: 'bad' })).toThrow()
   })
 })
