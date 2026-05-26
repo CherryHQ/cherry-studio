@@ -32,6 +32,7 @@ import type { MessageSchemas } from './messages'
 import type { MiniAppSchemas } from './miniApps'
 import type { ModelSchemas } from './models'
 import type { NoteSchemas } from './notes'
+import type { PaintingSchemas } from './paintings'
 import type { PinSchemas } from './pins'
 import type { PromptSchemas } from './prompts'
 import type { ProviderSchemas } from './providers'
@@ -64,6 +65,7 @@ export type ApiSchemas = AssertValidSchemas<
     KnowledgeSchemas &
     MiniAppSchemas &
     NoteSchemas &
+    PaintingSchemas &
     AssistantSchemas &
     TagSchemas &
     PromptSchemas &

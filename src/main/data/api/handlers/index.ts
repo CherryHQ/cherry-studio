@@ -26,6 +26,7 @@ import { messageHandlers } from './messages'
 import { miniAppHandlers } from './miniApps'
 import { modelHandlers } from './models'
 import { noteHandlers } from './notes'
+import { paintingHandlers } from './paintings'
 import { pinHandlers } from './pins'
 import { promptHandlers } from './prompts'
 import { providerHandlers } from './providers'
@@ -56,6 +57,7 @@ export const apiHandlers: ApiImplementation = {
   ...mcpServerHandlers,
   ...miniAppHandlers,
   ...noteHandlers,
+  ...paintingHandlers,
   ...tagHandlers,
   ...groupHandlers,
   ...pinHandlers,
