@@ -207,6 +207,66 @@ describe('KnowledgeItemService', () => {
     })
   })
 
+  describe('getDeletingRootGroups', () => {
+    it('returns top-level deleting roots grouped by base', async () => {
+      await seedItem({ id: 'deleting-root-note', data: { source: 'root', content: 'root' }, status: 'deleting' })
+      await seedItem({
+        id: 'deleting-dir',
+        type: 'directory',
+        data: { source: '/deleting-dir', path: '/deleting-dir' },
+        status: 'deleting'
+      })
+      await seedItem({
+        id: 'deleting-child',
+        groupId: 'deleting-dir',
+        data: { source: 'child', content: 'child' },
+        status: 'deleting'
+      })
+      await seedItem({
+        id: 'visible-dir',
+        type: 'directory',
+        data: { source: '/visible-dir', path: '/visible-dir' },
+        status: 'completed'
+      })
+      await seedItem({
+        id: 'deleting-child-of-visible',
+        groupId: 'visible-dir',
+        data: { source: 'visible-child', content: 'visible child' },
+        status: 'deleting'
+      })
+
+      await dbh.db.insert(knowledgeBaseTable).values({
+        id: 'kb-2',
+        name: 'KB 2',
+        emoji: '📁',
+        dimensions: 1024,
+        embeddingModelId: createUniqueModelId('openai', 'text-embedding-3-large'),
+        status: 'completed',
+        error: null,
+        chunkSize: 1024,
+        chunkOverlap: 200,
+        searchMode: 'hybrid'
+      })
+      await seedItem({
+        id: 'kb-2-deleting-root',
+        baseId: 'kb-2',
+        data: { source: 'kb2', content: 'kb2' },
+        status: 'deleting'
+      })
+
+      await expect(service.getDeletingRootGroups()).resolves.toEqual([
+        {
+          baseId: 'kb-1',
+          rootItemIds: ['deleting-child-of-visible', 'deleting-dir', 'deleting-root-note']
+        },
+        {
+          baseId: 'kb-2',
+          rootItemIds: ['kb-2-deleting-root']
+        }
+      ])
+    })
+  })
+
   describe('create', () => {
     it('creates one knowledge item as idle', async () => {
       const item: CreateKnowledgeItemDto = {

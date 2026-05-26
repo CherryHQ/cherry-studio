@@ -127,28 +127,35 @@ function createBase(): KnowledgeBase {
   }
 }
 
-function createNoteItem(id = 'note-1', groupId: string | null = null): KnowledgeItemOf<'note'> {
+function createNoteItem(
+  id = 'note-1',
+  groupId: string | null = null,
+  status: KnowledgeItemOf<'note'>['status'] = 'processing'
+): KnowledgeItemOf<'note'> {
   return {
     id,
     baseId: 'kb-1',
     groupId,
     type: 'note',
     data: { source: id, content: `hello ${id}` },
-    status: 'processing',
+    status,
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
   }
 }
 
-function createDirectoryItem(id = 'dir-1'): KnowledgeItemOf<'directory'> {
+function createDirectoryItem(
+  id = 'dir-1',
+  status: KnowledgeItemOf<'directory'>['status'] = 'preparing'
+): KnowledgeItemOf<'directory'> {
   return {
     id,
     baseId: 'kb-1',
     groupId: null,
     type: 'directory',
     data: { source: id, path: `/docs/${id}` },
-    status: 'preparing',
+    status,
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
@@ -234,7 +241,10 @@ describe('knowledge job handlers', () => {
 
   it('delete-subtree cancels active subtree jobs, clears vectors, detaches refs, and hard deletes rows', async () => {
     const handler = createDeleteSubtreeJobHandler(mutationCoordinator as never)
-    const subtreeItems: KnowledgeItem[] = [createDirectoryItem('dir-1'), createNoteItem('note-1', 'dir-1')]
+    const subtreeItems: KnowledgeItem[] = [
+      createDirectoryItem('dir-1', 'deleting'),
+      createNoteItem('note-1', 'dir-1', 'deleting')
+    ]
     knowledgeItemGetSubtreeItemsMock.mockResolvedValue(subtreeItems)
     listMock.mockResolvedValue([
       { id: 'current-job', input: { rootItemIds: ['dir-1'] } },
@@ -248,6 +258,18 @@ describe('knowledge job handlers', () => {
     expect(cancelMock).not.toHaveBeenCalledWith('unrelated-job', expect.anything())
     expect(replaceByExternalIdMock).toHaveBeenCalledWith('note-1', [])
     expect(hardDeleteItemsMock).toHaveBeenCalledWith('kb-1', ['dir-1', 'note-1'])
+  })
+
+  it('delete-subtree completes when the subtree is already gone', async () => {
+    const handler = createDeleteSubtreeJobHandler(mutationCoordinator as never)
+    knowledgeItemGetSubtreeItemsMock.mockResolvedValue([])
+
+    await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['missing-root'] }, 'delete-job'))
+
+    expect(listMock).not.toHaveBeenCalled()
+    expect(replaceByExternalIdMock).not.toHaveBeenCalled()
+    expect(fileRefCleanupBySourceBatchMock).not.toHaveBeenCalled()
+    expect(hardDeleteItemsMock).toHaveBeenCalledWith('kb-1', [])
   })
 
   it('reindex-subtree clears old artifacts, resets selected roots, and schedules selected roots', async () => {

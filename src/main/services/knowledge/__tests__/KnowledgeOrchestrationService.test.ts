@@ -22,6 +22,7 @@ const {
   knowledgeBaseGetByIdMock,
   knowledgeItemCreateMock,
   knowledgeItemDeleteMock,
+  knowledgeItemGetDeletingRootGroupsMock,
   knowledgeItemGetByIdMock,
   knowledgeItemGetItemsByBaseIdMock,
   knowledgeItemGetSubtreeItemsMock,
@@ -43,6 +44,7 @@ const {
   knowledgeBaseGetByIdMock: vi.fn(),
   knowledgeItemCreateMock: vi.fn(),
   knowledgeItemDeleteMock: vi.fn(),
+  knowledgeItemGetDeletingRootGroupsMock: vi.fn(),
   knowledgeItemGetByIdMock: vi.fn(),
   knowledgeItemGetItemsByBaseIdMock: vi.fn(),
   knowledgeItemGetSubtreeItemsMock: vi.fn(),
@@ -107,6 +109,7 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: {
     create: knowledgeItemCreateMock,
     delete: knowledgeItemDeleteMock,
+    getDeletingRootGroups: knowledgeItemGetDeletingRootGroupsMock,
     getById: knowledgeItemGetByIdMock,
     getSubtreeItems: knowledgeItemGetSubtreeItemsMock,
     getItemsByBaseId: knowledgeItemGetItemsByBaseIdMock,
@@ -210,6 +213,7 @@ describe('KnowledgeOrchestrationService', () => {
       return createNoteItem(input.data.source, baseId)
     })
     knowledgeItemDeleteMock.mockResolvedValue(undefined)
+    knowledgeItemGetDeletingRootGroupsMock.mockResolvedValue([])
     knowledgeItemGetByIdMock.mockImplementation(async (id: string) => {
       return createNoteItem(id, createdItemBaseIds.get(id) ?? 'kb-1')
     })
@@ -261,6 +265,50 @@ describe('KnowledgeOrchestrationService', () => {
       IpcChannel.KnowledgeRuntime_ListItemChunks,
       IpcChannel.KnowledgeRuntime_DeleteItemChunk
     ])
+  })
+
+  it('recovers deleting roots by enqueueing delete cleanup jobs after all services are ready', async () => {
+    const service = new KnowledgeOrchestrationService()
+    knowledgeItemGetDeletingRootGroupsMock.mockResolvedValueOnce([
+      { baseId: 'kb-1', rootItemIds: ['note-1'] },
+      { baseId: 'kb-2', rootItemIds: ['dir-1', 'note-2'] }
+    ])
+
+    await (service as unknown as { onAllReady: () => Promise<void> }).onAllReady()
+
+    expect(enqueueMock).toHaveBeenCalledWith(
+      'knowledge.delete-subtree',
+      { baseId: 'kb-1', rootItemIds: ['note-1'] },
+      expect.objectContaining({
+        idempotencyKey: 'knowledge:kb-1:note-1:delete',
+        queue: 'base.kb-1'
+      })
+    )
+    expect(enqueueMock).toHaveBeenCalledWith(
+      'knowledge.delete-subtree',
+      { baseId: 'kb-2', rootItemIds: ['dir-1', 'note-2'] },
+      expect.objectContaining({
+        idempotencyKey: 'knowledge:kb-2:dir-1,note-2:delete',
+        queue: 'base.kb-2'
+      })
+    )
+  })
+
+  it('keeps recovering other deleting roots when one recovery enqueue fails', async () => {
+    const service = new KnowledgeOrchestrationService()
+    knowledgeItemGetDeletingRootGroupsMock.mockResolvedValueOnce([
+      { baseId: 'kb-1', rootItemIds: ['note-1'] },
+      { baseId: 'kb-2', rootItemIds: ['note-2'] }
+    ])
+    enqueueMock.mockRejectedValueOnce(new Error('enqueue failed')).mockResolvedValueOnce({
+      id: 'job-2',
+      snapshot: {},
+      finished: Promise.resolve({})
+    })
+
+    await expect((service as unknown as { onAllReady: () => Promise<void> }).onAllReady()).resolves.toBeUndefined()
+
+    expect(enqueueMock).toHaveBeenCalledTimes(2)
   })
 
   it('creates vector artifacts after creating the base and rolls back on artifact failure', async () => {
@@ -329,6 +377,17 @@ describe('KnowledgeOrchestrationService', () => {
       'knowledge.reindex-subtree'
     ])
     expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['note-1'], 'deleting')
+  })
+
+  it('keeps items deleting when delete cleanup enqueue fails', async () => {
+    const service = new KnowledgeOrchestrationService()
+    knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem('note-1'))
+    enqueueMock.mockRejectedValueOnce(new Error('enqueue failed'))
+
+    await expect(service.deleteItems('kb-1', ['note-1'])).rejects.toThrow('enqueue failed')
+
+    expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['note-1'], 'deleting')
+    expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalledWith('kb-1', ['note-1'], 'failed', expect.anything())
   })
 
   it('collapses nested delete and reindex inputs to top-level roots', async () => {

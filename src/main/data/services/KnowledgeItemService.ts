@@ -40,6 +40,11 @@ type GetSubtreeItemsOptions = {
   leafOnly?: boolean
 }
 
+export type DeletingKnowledgeItemRootGroup = {
+  baseId: string
+  rootItemIds: string[]
+}
+
 function rowToKnowledgeItem(row: KnowledgeItemRow): KnowledgeItem {
   return KnowledgeItemSchema.parse({
     id: row.id,
@@ -111,6 +116,32 @@ export class KnowledgeItemService {
       .orderBy(knowledgeItemTable.createdAt, knowledgeItemTable.id)
 
     return rows.map((row) => rowToKnowledgeItem(row))
+  }
+
+  async getDeletingRootGroups(): Promise<DeletingKnowledgeItemRootGroup[]> {
+    const rows = await this.db.all<{ baseId: string; id: string }>(sql`
+      SELECT child.base_id AS "baseId", child.id AS id
+      FROM knowledge_item child
+      LEFT JOIN knowledge_item parent
+        ON parent.base_id = child.base_id
+       AND parent.id = child.group_id
+      WHERE child.status = 'deleting'
+        AND (
+          child.group_id IS NULL
+          OR parent.id IS NULL
+          OR parent.status != 'deleting'
+        )
+      ORDER BY child.base_id, child.id
+    `)
+
+    const rootIdsByBase = new Map<string, string[]>()
+    for (const row of rows) {
+      const rootItemIds = rootIdsByBase.get(row.baseId) ?? []
+      rootItemIds.push(row.id)
+      rootIdsByBase.set(row.baseId, rootItemIds)
+    }
+
+    return [...rootIdsByBase.entries()].map(([baseId, rootItemIds]) => ({ baseId, rootItemIds }))
   }
 
   async create(baseId: string, item: CreateKnowledgeItemDto): Promise<KnowledgeItem> {

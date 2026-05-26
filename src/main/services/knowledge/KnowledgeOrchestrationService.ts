@@ -26,7 +26,12 @@ import { createReindexSubtreeJobHandler } from './jobs/reindexSubtreeJobHandler'
 import { KnowledgeMutationCoordinator } from './KnowledgeMutationCoordinator'
 import { KnowledgeWorkflowCoordinator } from './KnowledgeWorkflowCoordinator'
 import { rerankKnowledgeSearchResults } from './rerank/rerank'
-import { KNOWLEDGE_ACTIVE_JOB_LIMIT, KNOWLEDGE_ACTIVE_JOB_STATUSES, knowledgeQueueName } from './types'
+import {
+  KNOWLEDGE_ACTIVE_JOB_LIMIT,
+  KNOWLEDGE_ACTIVE_JOB_STATUSES,
+  knowledgeDeleteSubtreeIdempotencyKey,
+  knowledgeQueueName
+} from './types'
 import {
   KnowledgeRuntimeAddItemsPayloadSchema,
   KnowledgeRuntimeBasePayloadSchema,
@@ -70,6 +75,10 @@ export class KnowledgeOrchestrationService extends BaseService {
       createReindexSubtreeJobHandler(this.mutationCoordinator, this.workflowCoordinator)
     )
     this.registerIpcHandlers()
+  }
+
+  protected async onAllReady(): Promise<void> {
+    await this.recoverDeletingItems()
   }
 
   protected async onStop(): Promise<void> {
@@ -320,6 +329,36 @@ export class KnowledgeOrchestrationService extends BaseService {
     const jobsToCancel = activeJobs.filter((job) => KNOWLEDGE_JOB_TYPES.has(job.type))
 
     await Promise.all(jobsToCancel.map((job) => jobManager.cancel(job.id, 'delete-base')))
+  }
+
+  private async recoverDeletingItems(): Promise<void> {
+    let deletingRootGroups: Awaited<ReturnType<typeof knowledgeItemService.getDeletingRootGroups>>
+    try {
+      deletingRootGroups = await knowledgeItemService.getDeletingRootGroups()
+    } catch (error) {
+      logger.error('Failed to scan deleting knowledge items for recovery', error as Error)
+      return
+    }
+
+    if (deletingRootGroups.length === 0) {
+      return
+    }
+
+    const jobManager = application.get('JobManager')
+    for (const { baseId, rootItemIds } of deletingRootGroups) {
+      try {
+        await jobManager.enqueue(
+          'knowledge.delete-subtree',
+          { baseId, rootItemIds },
+          {
+            idempotencyKey: knowledgeDeleteSubtreeIdempotencyKey(baseId, rootItemIds),
+            queue: knowledgeQueueName(baseId)
+          }
+        )
+      } catch (error) {
+        logger.error('Failed to enqueue recovered knowledge delete cleanup', error as Error, { baseId, rootItemIds })
+      }
+    }
   }
 
   private async assertBaseCanRunRuntimeOperation(baseId: string, operation: string): Promise<void> {

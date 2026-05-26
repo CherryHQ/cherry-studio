@@ -7,7 +7,12 @@ import { loggerService } from '@logger'
 import type { KnowledgeItem, KnowledgeRuntimeAddItemInput } from '@shared/data/types/knowledge'
 
 import type { KnowledgeMutationCoordinator } from './KnowledgeMutationCoordinator'
-import { type KnowledgeAddResult, type KnowledgeJobHandle, knowledgeQueueName } from './types'
+import {
+  type KnowledgeAddResult,
+  knowledgeDeleteSubtreeIdempotencyKey,
+  type KnowledgeJobHandle,
+  knowledgeQueueName
+} from './types'
 import { isContainerKnowledgeItem } from './utils/items'
 import { planKnowledgeItemSource } from './utils/sources/sourcePlanning'
 
@@ -59,22 +64,21 @@ export class KnowledgeWorkflowCoordinator {
     )
     try {
       const jobManager = application.get('JobManager')
-      const rootKey = [...rootItemIds].sort().join(',')
       const handle = await jobManager.enqueue(
         'knowledge.delete-subtree',
         { baseId, rootItemIds },
         {
-          idempotencyKey: `knowledge:${baseId}:${rootKey}:delete`,
+          idempotencyKey: knowledgeDeleteSubtreeIdempotencyKey(baseId, rootItemIds),
           queue: knowledgeQueueName(baseId)
         }
       )
       return { id: handle.id }
     } catch (error) {
-      await this.mutationCoordinator.withBaseMutationLock(baseId, () =>
-        knowledgeItemService.setSubtreeStatus(baseId, markedIds, 'failed', {
-          error: error instanceof Error ? error.message : String(error)
-        })
-      )
+      logger.error('Failed to enqueue knowledge delete cleanup after marking items deleting', error as Error, {
+        baseId,
+        rootItemIds,
+        markedIds
+      })
       throw error
     }
   }
