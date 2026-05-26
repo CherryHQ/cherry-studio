@@ -232,6 +232,9 @@ export type EnsureExternalEntryParams = EnsureExternalEntryIpcParams
  */
 export const FILE_BATCH_DANGLING_MAX_IDS = 500
 
+/** Max batch size for id-array IPC calls (shared across all batch endpoints). */
+export const FILE_BATCH_MAX_IDS = 500
+
 export const GetDanglingStateIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 export const BatchGetDanglingStatesIpcSchema = z.strictObject({
   ids: z.array(FileEntryIdSchema).max(FILE_BATCH_DANGLING_MAX_IDS)

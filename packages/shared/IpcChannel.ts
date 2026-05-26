@@ -264,6 +264,48 @@ export enum IpcChannel {
   File_PermanentDelete = 'file:permanentDelete',
   File_RunSweep = 'file:runSweep',
 
+  // ─── File v2: Read / Metadata ───
+  File_Read = 'file:read',
+  File_GetMetadata = 'file:getMetadata',
+  File_BatchGetMetadata = 'file:batchGetMetadata',
+  File_GetVersion = 'file:getVersion',
+  File_GetContentHash = 'file:getContentHash',
+
+  // ─── File v2: Write ───
+  File_Write = 'file:write',
+  File_WriteIfUnchanged = 'file:writeIfUnchanged',
+
+  // ─── File v2: Lifecycle ───
+  File_Trash = 'file:trash',
+  File_Restore = 'file:restore',
+  File_BatchTrash = 'file:batchTrash',
+  File_BatchRestore = 'file:batchRestore',
+  File_BatchPermanentDelete = 'file:batchPermanentDelete',
+
+  // ─── File v2: Mutation ───
+  File_Rename = 'file:rename',
+  File_Copy = 'file:copy',
+
+  // ─── File v2: System / Navigation ───
+  File_Open = 'file:open',
+  File_ShowInFolder = 'file:showInFolder',
+  File_OpenSelectDialog = 'file:openSelectDialog',
+  File_OpenSaveDialog = 'file:openSaveDialog',
+
+  // ─── File v2: Directory ───
+  File_ListDirectory = 'file:listDirectory',
+  File_IsNotEmptyDir = 'file:isNotEmptyDir',
+
+  // ─── File v2: Batch Entry Operations ───
+  File_BatchCreateInternalEntries = 'file:batchCreateInternalEntries',
+  File_BatchEnsureExternalEntries = 'file:batchEnsureExternalEntries',
+  File_BatchGetPhysicalPaths = 'file:batchGetPhysicalPaths',
+
+  // ─── File v2: Path Utilities ───
+  File_CanWrite = 'file:canWrite',
+  File_ToAbsolutePath = 'file:toAbsolutePath',
+  File_IsPathInside = 'file:isPathInside',
+
   // PDF
   Pdf_ExtractText = 'pdf:extractText',
 
