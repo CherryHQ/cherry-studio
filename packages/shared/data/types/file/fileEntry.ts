@@ -125,6 +125,8 @@ export const FileEntryOriginSchema = z.enum(['internal', 'external'])
 export type FileEntryOrigin = z.infer<typeof FileEntryOriginSchema>
 
 // ─── Absolute Path ───
+// TODO: AbsolutePathSchema and FilePath (@shared/file/types/common) are semantically
+// identical — co-locate them in a single file and derive one from the other.
 
 /**
  * Absolute filesystem path (Unix or Windows). Rejects `file://` URLs — use a
@@ -144,6 +146,7 @@ export const AbsolutePathSchema = z
   .min(1)
   .refine((s) => !s.includes('\0'), 'externalPath must not contain null bytes')
   .refine((s) => s.startsWith('/') || /^[A-Za-z]:\\/.test(s), 'externalPath must be an absolute filesystem path')
+  .transform((v): FilePath => v as FilePath)
 
 // ─── Canonical External Path (TS phantom brand) ───
 

@@ -152,7 +152,6 @@ import type {
   FileURLString,
   PhysicalFileMetadata
 } from '@shared/file/types'
-import type { FileHandle } from '@shared/file/types/handle'
 import { FileHandleSchema } from '@shared/file/types/handle'
 import { IpcChannel } from '@shared/IpcChannel'
 import { dialog } from 'electron'
@@ -797,7 +796,7 @@ export class FileManager extends BaseService implements IFileManager {
       this.getPhysicalPath(GetPhysicalPathIpcSchema.parse(params).id)
     )
     this.ipcHandle(IpcChannel.File_PermanentDelete, async (_e, params: unknown) => {
-      const handle = PermanentDeleteIpcSchema.parse(params) as FileHandle
+      const handle = PermanentDeleteIpcSchema.parse(params)
       return dispatchHandle(
         handle,
         (entryId) => this.permanentDelete(entryId),
@@ -805,7 +804,7 @@ export class FileManager extends BaseService implements IFileManager {
       )
     })
     this.ipcHandle(IpcChannel.File_GetContentHash, async (_e, rawHandle: unknown) => {
-      const handle = GetContentHashIpcSchema.parse(rawHandle) as FileHandle
+      const handle = GetContentHashIpcSchema.parse(rawHandle)
       return dispatchHandle(
         handle,
         (id) => this.getContentHash(id),
@@ -813,7 +812,7 @@ export class FileManager extends BaseService implements IFileManager {
       )
     })
     this.ipcHandle(IpcChannel.File_Open, async (_e, rawHandle: unknown) => {
-      const handle = OpenIpcSchema.parse(rawHandle) as FileHandle
+      const handle = OpenIpcSchema.parse(rawHandle)
       return dispatchHandle(
         handle,
         (id) => this.open(id),
@@ -821,7 +820,7 @@ export class FileManager extends BaseService implements IFileManager {
       )
     })
     this.ipcHandle(IpcChannel.File_ShowInFolder, async (_e, rawHandle: unknown) => {
-      const handle = ShowInFolderIpcSchema.parse(rawHandle) as FileHandle
+      const handle = ShowInFolderIpcSchema.parse(rawHandle)
       return dispatchHandle(
         handle,
         (id) => this.showInFolder(id),
@@ -829,7 +828,7 @@ export class FileManager extends BaseService implements IFileManager {
       )
     })
     this.ipcHandle(IpcChannel.File_GetMetadata, async (_e, rawHandle: unknown) => {
-      const handle = GetMetadataIpcSchema.parse(rawHandle) as FileHandle
+      const handle = GetMetadataIpcSchema.parse(rawHandle)
       return dispatchHandle(
         handle,
         (id) => this.getMetadata(id),
@@ -871,7 +870,7 @@ export class FileManager extends BaseService implements IFileManager {
       return Object.fromEntries(results) as Record<string, PhysicalFileMetadata | null>
     })
     this.ipcHandle(IpcChannel.File_GetVersion, async (_e, rawHandle: unknown) => {
-      const handle = GetVersionIpcSchema.parse(rawHandle) as FileHandle
+      const handle = GetVersionIpcSchema.parse(rawHandle)
       return dispatchHandle(
         handle,
         (id) => this.getVersion(id),
@@ -882,7 +881,7 @@ export class FileManager extends BaseService implements IFileManager {
       )
     })
     this.ipcHandle(IpcChannel.File_Read, async (_e, rawHandle: unknown, rawOptions: unknown) => {
-      const handle = FileHandleSchema.parse(rawHandle) as FileHandle
+      const handle = FileHandleSchema.parse(rawHandle)
       const options = ReadIpcOptionsSchema.parse(rawOptions)
       return dispatchHandle(
         handle,
@@ -891,7 +890,7 @@ export class FileManager extends BaseService implements IFileManager {
       )
     })
     this.ipcHandle(IpcChannel.File_Write, async (_e, rawHandle: unknown, rawData: unknown) => {
-      const handle = FileHandleSchema.parse(rawHandle) as FileHandle
+      const handle = FileHandleSchema.parse(rawHandle)
       const data = WriteDataIpcSchema.parse(rawData)
       return dispatchHandle(
         handle,
@@ -906,7 +905,7 @@ export class FileManager extends BaseService implements IFileManager {
     this.ipcHandle(
       IpcChannel.File_WriteIfUnchanged,
       async (_e, rawHandle: unknown, rawData: unknown, rawVersion: unknown, rawHash: unknown) => {
-        const handle = FileHandleSchema.parse(rawHandle) as FileHandle
+        const handle = FileHandleSchema.parse(rawHandle)
         const data = WriteDataIpcSchema.parse(rawData)
         const version = FileVersionIpcSchema.parse(rawVersion) as FileVersion
         const contentHash = rawHash != null ? z.string().parse(rawHash) : undefined
@@ -921,17 +920,17 @@ export class FileManager extends BaseService implements IFileManager {
       }
     )
     this.ipcHandle(IpcChannel.File_Rename, async (_e, rawHandle: unknown, rawNewTarget: unknown) => {
-      const handle = FileHandleSchema.parse(rawHandle) as FileHandle
+      const handle = FileHandleSchema.parse(rawHandle)
       const newTarget = RenameNewTargetIpcSchema.parse(rawNewTarget)
       if (handle.kind === 'entry') {
         return this.rename(handle.entryId, newTarget)
       }
-      await fsMove(handle.path, newTarget as FilePath)
+      await fsMove(handle.path, AbsolutePathSchema.parse(newTarget))
       return undefined
     })
     this.ipcHandle(IpcChannel.File_Copy, async (_e, params: unknown) => {
       const { source, newName } = CopyIpcSchema.parse(params)
-      const handle = source as FileHandle
+      const handle = source
       return dispatchHandle(
         handle,
         (id) => this.copy({ id, newName }),
@@ -982,12 +981,12 @@ export class FileManager extends BaseService implements IFileManager {
       return filePath
     })
     this.ipcHandle(IpcChannel.File_ListDirectory, async (_e, rawDirPath: unknown, rawOptions: unknown) => {
-      const dirPath = AbsolutePathSchema.parse(rawDirPath) as FilePath
+      const dirPath = AbsolutePathSchema.parse(rawDirPath)
       const options = DirectoryListOptionsIpcSchema.parse(rawOptions)
       return listDirectory(dirPath, options)
     })
     this.ipcHandle(IpcChannel.File_IsNotEmptyDir, async (_e, params: unknown) =>
-      isNotEmptyDir(IsNotEmptyDirIpcSchema.parse(params) as FilePath)
+      isNotEmptyDir(IsNotEmptyDirIpcSchema.parse(params))
     )
     this.ipcHandle(IpcChannel.File_BatchCreateInternalEntries, async (_e, params: unknown) => {
       const items = BatchCreateInternalEntriesIpcSchema.parse(params) as CreateInternalEntryIpcParams[]
@@ -1011,12 +1010,10 @@ export class FileManager extends BaseService implements IFileManager {
       )
       return Object.fromEntries(pairs) as Record<string, FilePath | null>
     })
-    this.ipcHandle(IpcChannel.File_CanWrite, async (_e, params: unknown) =>
-      canWrite(CanWriteIpcSchema.parse(params) as FilePath)
-    )
+    this.ipcHandle(IpcChannel.File_CanWrite, async (_e, params: unknown) => canWrite(CanWriteIpcSchema.parse(params)))
     this.ipcHandle(IpcChannel.File_ToAbsolutePath, async (_e, params: unknown) => {
       const raw = ToAbsolutePathIpcSchema.parse(params)
-      return path.resolve(untildify(raw)) as FilePath
+      return path.resolve(untildify(raw))
     })
     this.ipcHandle(IpcChannel.File_IsPathInside, async (_e, params: unknown) => {
       const { childPath, parentPath } = IsPathInsideIpcSchema.parse(params)
