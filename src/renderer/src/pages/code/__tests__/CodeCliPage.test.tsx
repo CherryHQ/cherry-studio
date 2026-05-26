@@ -89,7 +89,7 @@ vi.mock('@renderer/config/models', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  usePersistCache: () => [testState.isBunInstalled, vi.fn()]
+  usePersistCache: () => [undefined, vi.fn()]
 }))
 
 vi.mock('@renderer/hooks/useCodeCli', () => ({
@@ -187,6 +187,16 @@ beforeEach(() => {
   Object.assign(window, {
     api: {
       isBinaryExist: vi.fn().mockResolvedValue(true),
+      mise: {
+        getState: vi
+          .fn()
+          .mockImplementation(() =>
+            Promise.resolve(
+              testState.isBunInstalled ? { tools: { bun: { name: 'bun', version: '1.0.0' } } } : { tools: {} }
+            )
+          ),
+        installTool: vi.fn().mockResolvedValue({ version: '1.0.0' })
+      },
       codeCli: {
         getAvailableTerminals: vi.fn().mockResolvedValue([]),
         run: testState.codeCliRun
@@ -202,6 +212,7 @@ beforeEach(() => {
 
 async function openCodeToolDialog() {
   render(<CodeCliPage />)
+  await waitFor(() => expect(window.api.mise.getState).toHaveBeenCalled())
   fireEvent.click(screen.getByRole('button', { name: 'open tool' }))
   await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
 }

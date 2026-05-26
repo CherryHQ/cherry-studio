@@ -400,4 +400,177 @@ describe('MiseService', () => {
       })
     })
   })
+
+  describe('withStateLock concurrency', () => {
+    it('serializes concurrent installTool calls', async () => {
+      const service = new MiseService()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      mockFs.readFileSync.mockImplementation(() => {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      })
+
+      const callOrder: string[] = []
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'use') {
+          const toolSpec = args[args.length - 1]
+          callOrder.push(`use:${toolSpec}:start`)
+          await new Promise((r) => setTimeout(r, 10))
+          callOrder.push(`use:${toolSpec}:end`)
+        }
+        return { stdout: '1.0.0\n', stderr: '' }
+      })
+
+      const p1 = service.installTool({ name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' })
+      const p2 = service.installTool({ name: 'rg', tool: 'github:BurntSushi/ripgrep', version: '15.0.0' })
+
+      await Promise.all([p1, p2])
+
+      const useStarts = callOrder.filter((e) => e.endsWith(':start'))
+      const useEnds = callOrder.filter((e) => e.endsWith(':end'))
+      expect(useStarts[0]).toContain('sharkdp/fd')
+      expect(useEnds[0]).toContain('sharkdp/fd')
+      expect(useStarts[1]).toContain('BurntSushi/ripgrep')
+    })
+  })
+
+  describe('IPC handler validateMiseTool integration', () => {
+    it('install handler rejects invalid tool names before calling installWithMise', async () => {
+      const service = new MiseService()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      await (service as any).onInit()
+
+      const installHandler = (service as any).ipcHandle.mock.calls.find((c: any[]) => c[0] === 'mise:install-tool')?.[1]
+
+      await expect(installHandler({}, { name: '../etc', tool: 'fd' })).rejects.toThrow('Invalid tool name')
+      expect(mockExecFileAsync).not.toHaveBeenCalled()
+    })
+
+    it('install handler accepts valid tools and calls installWithMise', async () => {
+      const service = new MiseService()
+      await (service as any).onInit()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      mockFs.readFileSync.mockImplementation(() => {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      })
+
+      mockExecFileAsync
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
+        .mockResolvedValueOnce({ stdout: '10.0.0\n', stderr: '' }) // which --version
+
+      const installHandler = (service as any).ipcHandle.mock.calls.find((c: any[]) => c[0] === 'mise:install-tool')?.[1]
+
+      const result = await installHandler({}, { name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' })
+      expect(result.version).toBe('10.0.0')
+    })
+  })
+
+  describe('runMise env/cwd contract', () => {
+    it('passes isolated env and cwd to execFileAsync, not process.env', async () => {
+      const service = new MiseService()
+      ;(service as any).miseBin = '/mock/mise'
+      const isolatedEnv = { MISE_DATA_DIR: '/isolated', PATH: '/isolated/shims' }
+      ;(service as any).isolatedEnv = isolatedEnv
+
+      mockExecFileAsync.mockResolvedValueOnce({ stdout: 'ok\n', stderr: '' })
+
+      await (service as any).runMise(['which', 'fd'], '/custom/cwd')
+
+      expect(mockExecFileAsync).toHaveBeenCalledWith('/mock/mise', ['which', 'fd'], {
+        cwd: '/custom/cwd',
+        env: isolatedEnv,
+        timeout: 120_000
+      })
+    })
+
+    it('throws when mise binary is null', async () => {
+      const service = new MiseService()
+
+      await expect((service as any).runMise(['which', 'fd'], '/tmp')).rejects.toThrow('mise binary not available')
+    })
+  })
+
+  describe('extractBundledBinary', () => {
+    it('skips extraction when bundled version matches installed version', () => {
+      const service = new MiseService()
+      ;(service as any).miseBin = '/mock/mise'
+
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockImplementation((p: string) => {
+        if (p.includes('.mise-version')) return '2025.1.0'
+        return ''
+      })
+
+      ;(service as any).extractBundledBinary()
+
+      expect(mockFs.copyFileSync).not.toHaveBeenCalled()
+    })
+
+    it('copies binary when bundled version is newer than installed', () => {
+      const service = new MiseService()
+      ;(service as any).miseBin = '/mock/mise'
+
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockImplementation((p: string) => {
+        if (p.includes('.mise-version')) {
+          // First call = bundled version marker, second = installed version marker
+          return p.includes('binaries') ? '2025.2.0' : '2025.1.0'
+        }
+        return ''
+      })
+
+      ;(service as any).extractBundledBinary()
+
+      expect(mockFs.copyFileSync).toHaveBeenCalled()
+    })
+
+    it('copies binary when no installed version exists', () => {
+      const service = new MiseService()
+      ;(service as any).miseBin = '/mock/mise'
+
+      mockFs.existsSync
+        .mockReturnValueOnce(true) // bundled binary exists
+        .mockReturnValueOnce(false) // dest does not exist yet
+      mockFs.readFileSync
+        .mockReturnValueOnce('2025.1.0') // bundled version marker
+        .mockImplementationOnce(() => {
+          throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+        })
+
+      ;(service as any).extractBundledBinary()
+
+      expect(mockFs.copyFileSync).toHaveBeenCalled()
+    })
+  })
+
+  describe('reconcile stateSaveError', () => {
+    it('populates stateSaveError when saveState throws', async () => {
+      const service = new MiseService()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      mockFs.readFileSync.mockImplementation(() => {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      })
+
+      mockExecFileAsync
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
+        .mockResolvedValueOnce({ stdout: '10.0.0\n', stderr: '' }) // which --version
+
+      mockFs.writeFileSync.mockImplementation(() => {
+        throw new Error('disk full')
+      })
+
+      const result = await service.reconcile([{ name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' }])
+
+      expect(result.installed).toEqual(['fd'])
+      expect(result.stateSaveError).toContain('disk full')
+    })
+  })
 })

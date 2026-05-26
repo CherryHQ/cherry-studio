@@ -16,7 +16,6 @@ import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { isMac, isWin } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
-import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -70,7 +69,7 @@ interface TerminalItem {
 const CodeCliPage: FC = () => {
   const { t } = useTranslation()
   const { providers } = useProviders()
-  const [isBunInstalled, setIsBunInstalled] = usePersistCache('feature.mcp.is_bun_installed')
+  const [isBunInstalled, setIsBunInstalled] = useState(false)
   const {
     selectedCliTool,
     selectedModel,
@@ -226,12 +225,12 @@ const CodeCliPage: FC = () => {
 
   const checkBunInstallation = useCallback(async () => {
     try {
-      const bunExists = await window.api.isBinaryExist('bun')
-      setIsBunInstalled(bunExists)
+      const state = await window.api.mise.getState()
+      setIsBunInstalled(!!state?.tools?.bun)
     } catch (error) {
       logger.error('Failed to check bun installation status:', error as Error)
     }
-  }, [setIsBunInstalled])
+  }, [])
 
   const loadAvailableTerminals = useCallback(async () => {
     if (!isMac && !isWin) return
@@ -253,7 +252,6 @@ const CodeCliPage: FC = () => {
     try {
       setIsInstallingBun(true)
       await window.api.mise.installTool({ name: 'bun', tool: 'bun' })
-      setIsBunInstalled(true)
       window.toast.success(t('settings.mcp.installSuccess'))
     } catch (error) {
       logger.error('Failed to install bun:', error as Error)

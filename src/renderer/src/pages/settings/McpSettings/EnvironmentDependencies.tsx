@@ -370,6 +370,7 @@ const CustomToolCard: FC<{
               size="icon-sm"
               className="text-foreground/40 hover:text-foreground"
               onClick={onOpenPath}
+              aria-label={t('settings.plugins.openBinariesDir')}
               title={t('common.open')}>
               <FolderOpen className="size-3.5" />
             </Button>

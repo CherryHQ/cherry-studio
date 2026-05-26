@@ -33,6 +33,7 @@ interface ReconcileResult {
   installed: string[]
   failed: Array<{ name: string; error: string }>
   skipped: string[]
+  stateSaveError?: string
 }
 
 const MISE_PASSTHROUGH_ENV = [
@@ -390,6 +391,7 @@ export class MiseService extends BaseService {
         this.saveState(state)
       } catch (err) {
         logger.error('Failed to persist reconcile state', err as Error)
+        result.stateSaveError = err instanceof Error ? err.message : String(err)
       }
       this.broadcastReconcileFailures(result.failed)
 

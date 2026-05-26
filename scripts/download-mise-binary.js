@@ -49,8 +49,7 @@ const MISE_PACKAGES = {
 function downloadMise(platformKey, outputDir) {
   const pkg = MISE_PACKAGES[platformKey]
   if (!pkg) {
-    console.warn(`[mise] No binary available for ${platformKey}, skipping`)
-    return
+    throw new Error(`[mise] No binary available for platform "${platformKey}". Add an entry to MISE_PACKAGES.`)
   }
 
   const url = `https://github.com/jdx/mise/releases/download/v${MISE_VERSION}/${pkg.file}`
