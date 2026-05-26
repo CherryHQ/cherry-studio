@@ -306,6 +306,12 @@ export const OpenSelectDialogIpcSchema = z.object({
   title: z.string().optional()
 })
 
+export const OpenSaveDialogIpcSchema = z.object({
+  content: z.union([z.string(), z.instanceof(Uint8Array)]),
+  defaultPath: z.string().optional(),
+  filters: z.array(FileFilterIpcSchema).optional()
+})
+
 // ─── Version types ───
 
 /**
@@ -929,6 +935,16 @@ export class FileManager extends BaseService implements IFileManager {
       })
       if (canceled) return opts.multiple ? [] : null
       return opts.multiple ? filePaths : (filePaths[0] ?? null)
+    })
+    this.ipcHandle(IpcChannel.File_OpenSaveDialog, async (_e, options: unknown) => {
+      const { content, defaultPath, filters } = OpenSaveDialogIpcSchema.parse(options)
+      const { canceled, filePath } = await dialog.showSaveDialog({
+        defaultPath,
+        filters
+      })
+      if (canceled || !filePath) return null
+      await atomicWriteFile(filePath as FilePath, content)
+      return filePath
     })
   }
 

@@ -23,6 +23,7 @@ import {
   GetMetadataIpcSchema,
   GetVersionIpcSchema,
   OpenIpcSchema,
+  OpenSaveDialogIpcSchema,
   OpenSelectDialogIpcSchema,
   ReadIpcOptionsSchema,
   RenameNewTargetIpcSchema,
@@ -324,5 +325,25 @@ describe('OpenSelectDialogIpcSchema', () => {
   })
   it('rejects invalid filter shape', () => {
     expect(() => OpenSelectDialogIpcSchema.parse({ filters: [{ bad: true }] })).toThrow()
+  })
+})
+
+describe('OpenSaveDialogIpcSchema', () => {
+  it('accepts string content', () => {
+    expect(OpenSaveDialogIpcSchema.parse({ content: 'hello' })).toEqual({ content: 'hello' })
+  })
+  it('accepts Uint8Array content', () => {
+    const input = { content: new Uint8Array([1, 2, 3]) }
+    expect(OpenSaveDialogIpcSchema.parse(input)).toEqual(input)
+  })
+  it('accepts optional defaultPath and filters', () => {
+    const input = { content: 'hi', defaultPath: '/tmp/file.txt', filters: [{ name: 'Text', extensions: ['txt'] }] }
+    expect(OpenSaveDialogIpcSchema.parse(input)).toEqual(input)
+  })
+  it('rejects missing content', () => {
+    expect(() => OpenSaveDialogIpcSchema.parse({})).toThrow()
+  })
+  it('rejects number content', () => {
+    expect(() => OpenSaveDialogIpcSchema.parse({ content: 42 })).toThrow()
   })
 })
