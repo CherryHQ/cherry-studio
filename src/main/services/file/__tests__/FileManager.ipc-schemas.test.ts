@@ -24,7 +24,8 @@ import {
   ReadIpcOptionsSchema,
   RestoreIpcSchema,
   ShowInFolderIpcSchema,
-  TrashIpcSchema
+  TrashIpcSchema,
+  WriteDataIpcSchema
 } from '../FileManager'
 
 const VALID_UUID_V7 = '019606a0-0000-7000-8000-000000000001'
@@ -246,5 +247,18 @@ describe('ReadIpcOptionsSchema', () => {
   })
   it('rejects invalid encoding', () => {
     expect(() => ReadIpcOptionsSchema.parse({ encoding: 'utf16' })).toThrow()
+  })
+})
+
+describe('WriteDataIpcSchema', () => {
+  it('accepts string data', () => {
+    expect(WriteDataIpcSchema.parse('hello')).toBe('hello')
+  })
+  it('accepts Uint8Array data', () => {
+    const data = new Uint8Array([1, 2, 3])
+    expect(WriteDataIpcSchema.parse(data)).toEqual(data)
+  })
+  it('rejects number', () => {
+    expect(() => WriteDataIpcSchema.parse(42)).toThrow()
   })
 })

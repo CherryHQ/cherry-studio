@@ -134,7 +134,7 @@ import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { orphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry'
-import { remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
+import { atomicWriteFile, remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
 import { SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
@@ -278,6 +278,7 @@ export const BatchGetMetadataIpcSchema = z.strictObject({
   ids: z.array(FileEntryIdSchema).max(FILE_BATCH_MAX_IDS)
 })
 export const GetVersionIpcSchema = FileHandleSchema
+export const WriteDataIpcSchema = z.union([z.string(), z.instanceof(Uint8Array)])
 export const ReadIpcOptionsSchema = z
   .object({
     encoding: z.enum(['text', 'base64', 'binary']).optional(),
@@ -824,6 +825,19 @@ export class FileManager extends BaseService implements IFileManager {
         handle,
         (id) => this.read(id, options),
         (p) => readByPath(this.deps, p, options)
+      )
+    })
+    this.ipcHandle(IpcChannel.File_Write, async (_e, rawHandle: unknown, rawData: unknown) => {
+      const handle = FileHandleSchema.parse(rawHandle) as FileHandle
+      const data = WriteDataIpcSchema.parse(rawData)
+      return dispatchHandle(
+        handle,
+        (id) => this.write(id, data),
+        async (p) => {
+          await atomicWriteFile(p, data)
+          const s = await fsStat(p)
+          return { mtime: s.modifiedAt, size: s.size } as FileVersion
+        }
       )
     })
     this.ipcHandle(IpcChannel.File_RunSweep, async () => this.runSweep())
