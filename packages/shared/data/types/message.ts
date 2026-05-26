@@ -1,6 +1,14 @@
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
 import * as z from 'zod'
 
+/**
+ * Canonical schema for message IDs. Accepts any UUID version — v1 legacy IDs
+ * are UUIDv4, v2-native IDs are UUIDv7, dedup-remapped IDs are UUIDv4.
+ *
+ * Note: `MessageId` is inferred as `string` at the type level — it does NOT
+ * carry runtime validation. Boundary handlers (IPC, DataApi) MUST validate
+ * incoming IDs with `MessageIdSchema.parse()` to reject non-UUID strings.
+ */
 export const MessageIdSchema = z.uuid()
 export type MessageId = z.infer<typeof MessageIdSchema>
 

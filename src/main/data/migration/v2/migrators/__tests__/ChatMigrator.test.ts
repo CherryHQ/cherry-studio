@@ -989,6 +989,87 @@ describe('ChatMigrator.insertStagedTopics file_ref backfill', () => {
     expect(warnings.get('chat_message_dangling_file_entry')!.count).toBe(1)
   })
 
+  it('uses remapped message ID as file_ref.sourceId when dedup renames a collided ID', async () => {
+    await seedFileEntry('fe-a')
+    await seedFileEntry('fe-b')
+
+    const migrator = new ChatMigrator()
+    const m = migrator as unknown as Record<string, unknown>
+    m['migratedFileEntryIds'] = new Set(['fe-a', 'fe-b'])
+
+    const collisionId = 'collision-id'
+    const messages = [
+      newMessage(collisionId, 't1', [{ type: 'image', fileId: 'fe-a' }]),
+      newMessage(collisionId, 't1', [{ type: 'file', fileId: 'fe-b' }])
+    ]
+
+    stage(migrator, [{ topic: newTopic('t1', 100), messages, pinned: false }], ['fe-a', 'fe-b'])
+
+    const fn = m['insertStagedTopics'] as (ctx: MigrationContext) => Promise<any>
+    await fn.call(migrator, ctxOf())
+
+    const refs = await dbh.db.select().from(fileRefTable)
+    expect(refs).toHaveLength(2)
+
+    const sourceIds = refs.map((r) => r.sourceId).sort()
+    expect(sourceIds).toHaveLength(2)
+    expect(sourceIds[0]).not.toBe(sourceIds[1])
+    // One keeps the original, one gets remapped — but neither dangles
+    const hasOriginal = sourceIds.includes(collisionId)
+    expect(hasOriginal).toBe(true)
+    const remappedId = sourceIds.find((id) => id !== collisionId)!
+    expect(remappedId).not.toBe(collisionId)
+    expect(remappedId).toMatch(/^[0-9a-f]{8}-/)
+  })
+
+  it('accumulates file_ref rows across multiple topic batches (>TOPIC_BATCH_SIZE)', async () => {
+    const topicCount = 52
+    const feIds = Array.from({ length: topicCount }, (_, i) => `fe-batch-${i}`)
+    for (const id of feIds) await seedFileEntry(id)
+
+    const migrator = new ChatMigrator()
+    const m = migrator as unknown as Record<string, unknown>
+    m['migratedFileEntryIds'] = new Set(feIds)
+
+    const topics = Array.from({ length: topicCount }, (_, i) => ({
+      topic: newTopic(`t-batch-${i}`, 100 + i),
+      messages: [newMessage(`m-batch-${i}`, `t-batch-${i}`, [{ type: 'file', fileId: `fe-batch-${i}` }])],
+      pinned: false
+    }))
+
+    stage(migrator, topics, feIds)
+
+    const fn = m['insertStagedTopics'] as (ctx: MigrationContext) => Promise<any>
+    await fn.call(migrator, ctxOf())
+
+    const refs = await dbh.db.select().from(fileRefTable)
+    expect(refs).toHaveLength(topicCount)
+    expect(m['fileRefInsertCount']).toBe(topicCount)
+  })
+
+  it('produces separate file_ref rows when different messages reference the same fileId', async () => {
+    await seedFileEntry('fe-shared')
+
+    const migrator = new ChatMigrator()
+    const m = migrator as unknown as Record<string, unknown>
+    m['migratedFileEntryIds'] = new Set(['fe-shared'])
+
+    const messages = [
+      newMessage('m1', 't1', [{ type: 'image', fileId: 'fe-shared' }]),
+      newMessage('m2', 't1', [{ type: 'file', fileId: 'fe-shared' }])
+    ]
+
+    stage(migrator, [{ topic: newTopic('t1', 100), messages, pinned: false }], ['fe-shared'])
+
+    const fn = m['insertStagedTopics'] as (ctx: MigrationContext) => Promise<any>
+    await fn.call(migrator, ctxOf())
+
+    const refs = await dbh.db.select().from(fileRefTable)
+    expect(refs).toHaveLength(2)
+    expect(refs.every((r) => r.fileEntryId === 'fe-shared')).toBe(true)
+    expect(new Set(refs.map((r) => r.sourceId)).size).toBe(2)
+  })
+
   describe('loadMigratedFileEntryIds', () => {
     it('returns only file_entry IDs referenced by image/file blocks that exist in DB', async () => {
       await seedFileEntry('fe-exists')
@@ -1016,6 +1097,33 @@ describe('ChatMigrator.insertStagedTopics file_ref backfill', () => {
       expect(result.has('fe-not-in-db')).toBe(false)
     })
 
+    it('chunks queries when >500 distinct fileIds are referenced', async () => {
+      const count = 600
+      const feIds = Array.from({ length: count }, (_, i) => `fe-chunk-${String(i).padStart(4, '0')}`)
+      const SEED_CHUNK = 100
+      for (let i = 0; i < feIds.length; i += SEED_CHUNK) {
+        for (const id of feIds.slice(i, i + SEED_CHUNK)) await seedFileEntry(id)
+      }
+
+      const migrator = new ChatMigrator()
+      const m = migrator as unknown as Record<string, unknown>
+      m['stagedTopics'] = [
+        {
+          topic: newTopic('t1', 100),
+          messages: feIds.map((feId, i) => newMessage(`m-${i}`, 't1', [{ type: 'file', fileId: feId }])),
+          pinned: false
+        }
+      ]
+
+      const fn = m['loadMigratedFileEntryIds'] as (ctx: MigrationContext) => Promise<Set<string>>
+      const result = await fn.call(migrator, ctxOf())
+
+      expect(result.size).toBe(count)
+      expect(result.has('fe-chunk-0000')).toBe(true)
+      expect(result.has('fe-chunk-0500')).toBe(true)
+      expect(result.has('fe-chunk-0599')).toBe(true)
+    })
+
     it('returns empty set when no blocks reference files', async () => {
       const migrator = new ChatMigrator()
       const m = migrator as unknown as Record<string, unknown>
@@ -1031,6 +1139,32 @@ describe('ChatMigrator.insertStagedTopics file_ref backfill', () => {
       const result = await fn.call(migrator, ctxOf())
 
       expect(result.size).toBe(0)
+    })
+  })
+
+  it('validate() diagnostics include fileRef stats after backfill', async () => {
+    await seedFileEntry('fe-diag-ok')
+
+    const migrator = new ChatMigrator()
+    const m = migrator as unknown as Record<string, unknown>
+    m['migratedFileEntryIds'] = new Set(['fe-diag-ok'])
+
+    const messages = [
+      newMessage('m1', 't1', [{ type: 'image', fileId: 'fe-diag-ok' }]),
+      newMessage('m2', 't1', [{ type: 'file', fileId: 'fe-dangling' }])
+    ]
+
+    stage(migrator, [{ topic: newTopic('t1', 100), messages, pinned: false }], ['fe-diag-ok'])
+
+    const insertFn = m['insertStagedTopics'] as (ctx: MigrationContext) => Promise<any>
+    await insertFn.call(migrator, ctxOf())
+
+    m['topicCount'] = 1
+    const result = await migrator.validate(ctxOf())
+
+    expect(result.diagnostics).toMatchObject({
+      fileRefsInserted: 1,
+      fileRefsDanglingSkipped: 1
     })
   })
 })

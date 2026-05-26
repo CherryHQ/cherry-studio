@@ -47,7 +47,7 @@
  * survive into v2 as `ImageBlock.fileId` / `FileBlock.fileId` (inline JSON
  * on `messageTable.data.blocks`). This migrator also creates `file_ref` rows
  * (`sourceType='chat_message'`, `sourceId=messageId`, `role='attachment'`)
- * for each block with a valid `fileId` referencing an existing `file_entry`.
+ * for each distinct (message, fileId) pair referencing an existing `file_entry`.
  * Dangling refs (fileId not in `file_entry`) are skipped with warnings.
  *
  * ## Performance Considerations
