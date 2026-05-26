@@ -8,7 +8,6 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import type { OvmsPainting } from '@renderer/types'
@@ -68,7 +67,6 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const navigate = useNavigate()
   const location = useLocation()
-  const { autoTranslateWithSpace } = useSettings()
   const ovmsProvider = providers.find((p) => p.id === 'ovms')!
 
   const getNewPainting = useCallback(() => {
@@ -262,7 +260,6 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const { isTranslating, handleKeyDown } = usePaintingPromptTranslation({
     prompt: painting.prompt,
-    enabled: autoTranslateWithSpace,
     onTranslated: (translatedText) => updatePaintingState({ prompt: translatedText }),
     onError: (error) => logger.error('Translation failed:', error as Error)
   })

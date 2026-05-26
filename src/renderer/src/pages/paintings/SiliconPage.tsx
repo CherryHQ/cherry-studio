@@ -1,7 +1,6 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { Button, ColFlex, InfoTooltip } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
-import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ImageSize1_1 from '@renderer/assets/images/paintings/image-size-1-1.svg'
 import ImageSize1_2 from '@renderer/assets/images/paintings/image-size-1-2.svg'
@@ -459,10 +458,8 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
     setCurrentImageIndex(0)
   }
 
-  const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
   const { isTranslating, handleKeyDown } = usePaintingPromptTranslation({
     prompt: painting.prompt,
-    enabled: autoTranslateWithSpace,
     onTranslated: (translatedText) => updatePaintingState({ prompt: translatedText }),
     onError: (error) => logger.error('Translation failed:', error as Error)
   })

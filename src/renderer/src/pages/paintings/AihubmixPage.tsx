@@ -2,7 +2,6 @@ import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
-import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { AiProvider } from '@renderer/aiCore'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
@@ -72,7 +71,6 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const location = useLocation()
-  const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
   const aihubmixProvider = providers.find((p) => p.id === 'aihubmix')!
 
   const modeOptions = [
@@ -591,7 +589,6 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const { isTranslating, handleKeyDown } = usePaintingPromptTranslation({
     prompt: painting.prompt,
-    enabled: autoTranslateWithSpace,
     onTranslated: (translatedText) => updatePaintingState({ prompt: translatedText }),
     onError: (error) => logger.error('Translation failed:', error as Error)
   })

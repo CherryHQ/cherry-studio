@@ -2,7 +2,6 @@ import { PlusOutlined } from '@ant-design/icons'
 import { Button } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
-import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { AiProvider } from '@renderer/aiCore'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
@@ -69,7 +68,6 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
-  const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
   const newApiProvider = newApiProviders.find((p) => p.id === routeName) || newApiProviders[0]
 
   const filteredPaintings = useMemo(
@@ -415,7 +413,6 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const { isTranslating, handleKeyDown } = usePaintingPromptTranslation({
     prompt: painting.prompt,
-    enabled: autoTranslateWithSpace,
     onTranslated: (translatedText) => updatePaintingState({ prompt: translatedText }),
     onError: (error) => logger.error('Translation failed:', error as Error)
   })

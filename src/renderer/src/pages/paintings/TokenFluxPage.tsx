@@ -2,7 +2,6 @@ import { PlusOutlined } from '@ant-design/icons'
 import { Button, InfoTooltip, Tooltip } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
-import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -50,7 +49,6 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const navigate = useNavigate()
   const location = useLocation()
-  const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
   const tokenfluxProvider = providers.find((p) => p.id === 'tokenflux')!
   const textareaRef = useRef<any>(null)
   const tokenFluxService = useMemo(
@@ -220,7 +218,6 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const { isTranslating, handleKeyDown } = usePaintingPromptTranslation({
     prompt: painting.prompt,
-    enabled: autoTranslateWithSpace,
     onTranslated: (translatedText) => updatePaintingState({ prompt: translatedText }),
     onError: (error) => logger.error('Translation failed:', error as Error)
   })

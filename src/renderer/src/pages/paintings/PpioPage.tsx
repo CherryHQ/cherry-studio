@@ -9,7 +9,6 @@ import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
-import { useSettings } from '@renderer/hooks/useSettings'
 import type { PaintingsState, PpioPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useNavigate } from '@tanstack/react-router'
@@ -79,7 +78,6 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const [, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
-  const { autoTranslateWithSpace } = useSettings()
   const textareaRef = useRef<any>(null)
 
   // 模式选项
@@ -299,7 +297,6 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const { isTranslating, handleKeyDown } = usePaintingPromptTranslation({
     prompt: painting.prompt,
-    enabled: autoTranslateWithSpace,
     onTranslated: (translatedText) => {
       if (translatedText) {
         updatePaintingState({ prompt: translatedText })
