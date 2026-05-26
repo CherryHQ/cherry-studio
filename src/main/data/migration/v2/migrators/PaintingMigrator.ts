@@ -1,13 +1,17 @@
+import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { paintingTable } from '@data/db/schemas/painting'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
-import { sql } from 'drizzle-orm'
+import { paintingSourceType } from '@shared/data/types/file/ref'
+import { inArray, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import {
   LEGACY_PAINTING_NAMESPACES,
+  type LegacyPaintingFileRefs,
   type LegacyPaintingsState,
   type NormalizedPaintingRow,
   transformLegacyPaintingRecord
@@ -26,12 +30,22 @@ export class PaintingMigrator extends BaseMigrator {
   private sourceCount = 0
   private skippedCount = 0
   private preparedPaintings: Array<typeof paintingTable.$inferInsert> = []
+  /**
+   * `painting.id` → output/input file ids extracted from the legacy record.
+   * Resolved against `file_entry` at execute() time so we never insert a
+   * `file_ref` row with a dangling FK (legacy rows can reference file ids
+   * that the FileMigrator skipped as malformed).
+   */
+  private preparedFileRefs = new Map<string, LegacyPaintingFileRefs>()
+  private droppedFileRefs = 0
   private warnings: string[] = []
 
   override reset(): void {
     this.sourceCount = 0
     this.skippedCount = 0
     this.preparedPaintings = []
+    this.preparedFileRefs = new Map()
+    this.droppedFileRefs = 0
     this.warnings = []
   }
 
@@ -54,7 +68,7 @@ export class PaintingMigrator extends BaseMigrator {
           .join(', ')
       })
 
-      const groupedRecords = new Map<string, NormalizedPaintingRow[]>()
+      const groupedRecords = new Map<string, Array<{ row: NormalizedPaintingRow; files: LegacyPaintingFileRefs }>>()
       const seenIds = new Set<string>()
       const normalizedRows: NormalizedPaintingRow[] = []
 
@@ -83,17 +97,18 @@ export class PaintingMigrator extends BaseMigrator {
             this.warnings.push(`Rewrote duplicate painting id '${duplicateId}' to '${normalized.id}' during migration`)
           }
           seenIds.add(normalized.id)
+          this.preparedFileRefs.set(normalized.id, result.files)
 
           this.warnings.push(...result.warnings.map((warning) => `${namespace}[${index}]: ${warning}`))
 
           const namespaceEntries = groupedRecords.get(namespace) ?? []
-          namespaceEntries.push(normalized)
+          namespaceEntries.push({ row: normalized, files: result.files })
           groupedRecords.set(namespace, namespaceEntries)
         }
       }
 
       for (const entries of groupedRecords.values()) {
-        normalizedRows.push(...entries)
+        normalizedRows.push(...entries.map((e) => e.row))
       }
       this.preparedPaintings = assignOrderKeysInSequence(normalizedRows)
 
@@ -137,6 +152,73 @@ export class PaintingMigrator extends BaseMigrator {
             Math.round((Math.min(index + INSERT_BATCH_SIZE, paintings.length) / paintings.length) * 100),
             `Migrated ${Math.min(index + INSERT_BATCH_SIZE, paintings.length)}/${paintings.length} painting records`
           )
+        }
+
+        // ─── file_ref rows ───
+        // Legacy painting rows carry output/input `file_entry.id`s in JSON.
+        // The v2 schema dropped that column; emit `file_ref` rows so the
+        // painting still points at its files via the new (sourceType,
+        // sourceId, role) trio. File ids that the FileMigrator skipped
+        // (malformed v1 rows) are filtered out here to avoid FK violations
+        // — they would be silently dropped by `inArray`, but we count them
+        // explicitly so the validate() step has a stat to report.
+        const allFileIds = new Set<string>()
+        for (const { output, input } of this.preparedFileRefs.values()) {
+          for (const id of output) allFileIds.add(id)
+          for (const id of input) allFileIds.add(id)
+        }
+        if (allFileIds.size > 0) {
+          const idList = Array.from(allFileIds)
+          const existing = await tx
+            .select({ id: fileEntryTable.id })
+            .from(fileEntryTable)
+            .where(inArray(fileEntryTable.id, idList))
+          const existingIds = new Set(existing.map((r) => r.id))
+
+          const now = Date.now()
+          const refRows: Array<typeof fileRefTable.$inferInsert> = []
+          for (const [paintingId, files] of this.preparedFileRefs) {
+            for (const fileId of files.output) {
+              if (!existingIds.has(fileId)) {
+                this.droppedFileRefs += 1
+                continue
+              }
+              refRows.push({
+                id: uuidv4(),
+                fileEntryId: fileId,
+                sourceType: paintingSourceType,
+                sourceId: paintingId,
+                role: 'output',
+                createdAt: now,
+                updatedAt: now
+              })
+            }
+            for (const fileId of files.input) {
+              if (!existingIds.has(fileId)) {
+                this.droppedFileRefs += 1
+                continue
+              }
+              refRows.push({
+                id: uuidv4(),
+                fileEntryId: fileId,
+                sourceType: paintingSourceType,
+                sourceId: paintingId,
+                role: 'input',
+                createdAt: now,
+                updatedAt: now
+              })
+            }
+          }
+
+          for (let i = 0; i < refRows.length; i += INSERT_BATCH_SIZE) {
+            const batch = refRows.slice(i, i + INSERT_BATCH_SIZE)
+            await tx.insert(fileRefTable).values(batch).onConflictDoNothing()
+          }
+
+          logger.info('[execute] painting file_ref summary', {
+            referenced: refRows.length,
+            droppedDangling: this.droppedFileRefs
+          })
         }
       })
 

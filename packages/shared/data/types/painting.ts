@@ -1,21 +1,14 @@
 import * as z from 'zod'
 
 /**
- * Provider workflow key used for list filtering and UI restoration.
- *
- * This stays as a top-level field instead of living in `params` because it is
- * a cross-provider query dimension. It is intentionally weakly constrained so
- * new image/video providers can introduce modes without requiring a DB/API
- * schema migration.
+ * Mode the user was authoring under when the painting form is submitted
+ * (`generate`, `edit`, `remix`, `upscale`, etc.). Kept as a runtime/draft
+ * concern only — not persisted on the painting receipt, since the output
+ * files alone are sufficient to display history and re-runs always start
+ * from the user's current draft mode, not from a frozen historical mode.
  */
 export const PaintingModeSchema = z.string().trim().min(1)
 export type PaintingMode = z.infer<typeof PaintingModeSchema>
-
-export const PaintingMediaTypeSchema = z.enum(['image', 'video'])
-export type PaintingMediaType = z.infer<typeof PaintingMediaTypeSchema>
-
-export const PaintingParamsSchema = z.record(z.string(), z.unknown())
-export type PaintingParams = z.infer<typeof PaintingParamsSchema>
 
 export const PaintingFilesSchema = z.strictObject({
   output: z.array(z.string()),
@@ -27,10 +20,7 @@ export const PaintingSchema = z.strictObject({
   id: z.string(),
   providerId: z.string(),
   modelId: z.string().nullable().optional(),
-  mode: PaintingModeSchema,
-  mediaType: PaintingMediaTypeSchema,
   prompt: z.string(),
-  params: PaintingParamsSchema,
   files: PaintingFilesSchema,
   orderKey: z.string().min(1),
   createdAt: z.string(),

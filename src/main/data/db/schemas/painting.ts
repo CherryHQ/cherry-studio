@@ -1,35 +1,29 @@
-import type { PaintingFiles, PaintingMediaType, PaintingMode, PaintingParams } from '@shared/data/types/painting'
-import { sql } from 'drizzle-orm'
-import { check, index, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 
+/**
+ * Painting row — a frozen receipt of a completed image generation.
+ *
+ * Output and input files are NOT stored on the row. Each painting has zero or
+ * more `file_ref` rows with `sourceType='painting'`, `sourceId=painting.id`,
+ * `role='output'|'input'`. PaintingService writes those refs on create and
+ * derefs via `fileRefService.cleanupBySourceTx` on delete. The frozen receipt
+ * shape avoids carrying mutable form state (mode, size, seed, etc.) on the
+ * row — the live painting draft lives in renderer React state and is
+ * discarded on app exit.
+ */
 export const paintingTable = sqliteTable(
   'painting',
   {
     id: uuidPrimaryKey(),
     providerId: text('provider_id').notNull(),
     modelId: text('model_id'),
-    // Provider workflow key: keep queryable at the top level, but do not CHECK
-    // it so future providers can add modes without a schema migration.
-    mode: text().$type<PaintingMode>().notNull(),
-    mediaType: text('media_type').$type<PaintingMediaType>().notNull(),
     prompt: text().notNull(),
-    params: text({ mode: 'json' }).$type<PaintingParams>().notNull(),
-    // `output`/`input` arrays of file ids. These reference `file_entry.id`;
-    // painting-file lifecycle is tracked via `file_ref` with
-    // `sourceType = 'painting'` (roles `output`/`input`). PaintingService owns
-    // deref-on-delete; ref creation and v1→v2 file-data migration are owned by
-    // a separate in-flight PR (renderer still uses the v1 file system today).
-    files: text({ mode: 'json' }).$type<PaintingFiles>().notNull(),
     ...orderKeyColumns,
     ...createUpdateTimestamps
   },
-  (t) => [
-    orderKeyIndex('painting')(t),
-    index('painting_provider_mode_created_idx').on(t.providerId, t.mode, t.createdAt),
-    check('painting_media_type_check', sql`${t.mediaType} IN ('image', 'video')`)
-  ]
+  (t) => [orderKeyIndex('painting')(t)]
 )
 
 export type Painting = typeof paintingTable.$inferSelect

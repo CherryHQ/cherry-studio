@@ -1,10 +1,5 @@
 import type { Painting } from '@shared/data/types/painting'
-import {
-  PaintingFilesSchema,
-  PaintingMediaTypeSchema,
-  PaintingModeSchema,
-  PaintingParamsSchema
-} from '@shared/data/types/painting'
+import { PaintingFilesSchema } from '@shared/data/types/painting'
 import * as z from 'zod'
 
 import type { CursorPaginationParams, CursorPaginationResponse } from '../apiTypes'
@@ -19,8 +14,6 @@ const OptionalNullableTrimmedStringSchema = TrimmedStringSchema.nullable()
 export const ListPaintingsQuerySchema = z
   .object({
     providerId: TrimmedStringSchema.optional(),
-    mode: PaintingModeSchema.optional(),
-    mediaType: PaintingMediaTypeSchema.optional(),
     cursor: z.string().optional(),
     limit: z.int().positive().max(PAINTINGS_MAX_LIMIT).default(PAINTINGS_DEFAULT_LIMIT)
   })
@@ -33,10 +26,7 @@ export const CreatePaintingSchema = z
     id: TrimmedStringSchema.optional(),
     providerId: TrimmedStringSchema,
     modelId: OptionalNullableTrimmedStringSchema.optional(),
-    mode: PaintingModeSchema,
-    mediaType: PaintingMediaTypeSchema,
     prompt: z.string(),
-    params: PaintingParamsSchema,
     files: PaintingFilesSchema
   })
   .strict()
@@ -46,10 +36,7 @@ export const UpdatePaintingSchema = z
   .object({
     providerId: TrimmedStringSchema.optional(),
     modelId: OptionalNullableTrimmedStringSchema.optional(),
-    mode: PaintingModeSchema.optional(),
-    mediaType: PaintingMediaTypeSchema.optional(),
     prompt: z.string().optional(),
-    params: PaintingParamsSchema.optional(),
     files: PaintingFilesSchema.optional()
   })
   .strict()

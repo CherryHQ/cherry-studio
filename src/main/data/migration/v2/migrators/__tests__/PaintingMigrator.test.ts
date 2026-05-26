@@ -77,20 +77,16 @@ describe('PaintingMigrator', () => {
         expect.objectContaining({
           id: 'dmx-1',
           providerId: 'dmxapi',
-          mode: 'generate',
-          mediaType: 'image',
           orderKey: expect.any(String)
         }),
         expect.objectContaining({
           id: 'dmx-2',
           providerId: 'dmxapi',
-          mode: 'edit',
           orderKey: expect.any(String)
         }),
         expect.objectContaining({
           id: 'openai-1',
           providerId: 'custom-openai',
-          mode: 'generate',
           orderKey: expect.any(String)
         })
       ])

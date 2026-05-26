@@ -1,6 +1,6 @@
 import type { NewPainting } from '@data/db/schemas/painting'
 import { createUniqueModelId, isUniqueModelId } from '@shared/data/types/model'
-import type { PaintingMediaType, PaintingMode, PaintingParams } from '@shared/data/types/painting'
+import type { PaintingMode } from '@shared/data/types/painting'
 
 import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/ModelTransformers'
 
@@ -33,23 +33,35 @@ export interface PaintingFilter {
   mode: PaintingMode
 }
 
-const legacyParentFieldKey = ['parent', 'Id'].join('')
-const legacyParentDbKey = ['parent', '_', 'id'].join('')
-
+/**
+ * Painting row prepared for insert into the v2 `painting` table.
+ *
+ * The `files` field is **not persisted on the row** — the v2 schema removed
+ * the JSON files column. Output / input file ids travel separately via
+ * `LegacyPaintingFileRefs` so the migrator can emit `file_ref` rows once the
+ * painting and its referenced `file_entry` rows are both in place.
+ */
 export interface NormalizedPaintingRow extends Omit<NewPainting, 'orderKey'> {
   id: string
   providerId: string
   modelId: string | null
-  mode: PaintingMode
-  mediaType: PaintingMediaType
   prompt: string
-  params: PaintingParams
-  files: { output: string[]; input: string[] }
+}
+
+/**
+ * Source `file_entry.id`s extracted from a legacy painting record. Translated
+ * 1:1 into `file_ref` rows with `sourceType='painting'`,
+ * `sourceId=painting.id`, `role='output'|'input'`.
+ */
+export interface LegacyPaintingFileRefs {
+  output: string[]
+  input: string[]
 }
 
 export interface PaintingTransformSuccess {
   ok: true
   value: NormalizedPaintingRow
+  files: LegacyPaintingFileRefs
   warnings: string[]
 }
 
@@ -153,10 +165,6 @@ function isOpenAiCompatibleNamespace(namespace: LegacyPaintingNamespace): boolea
   return namespace === 'openai_image_generate' || namespace === 'openai_image_edit'
 }
 
-function omitUndefinedValues(input: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined))
-}
-
 export function getPaintingFilter(
   namespace: LegacyPaintingNamespace,
   record: LegacyPaintingRecord
@@ -226,63 +234,6 @@ function buildInputFileIds(
   return []
 }
 
-function buildParams(
-  namespace: LegacyPaintingNamespace,
-  record: LegacyPaintingRecord,
-  scope: PaintingFilter,
-  warnings: string[]
-): Record<string, unknown> {
-  const excludedKeys = new Set([
-    'id',
-    'providerId',
-    'mediaType',
-    'media_type',
-    'modelId',
-    'model',
-    'prompt',
-    'files',
-    'urls',
-    'imageFile',
-    'imageFiles',
-    'mask',
-    'ppioMask',
-    'status',
-    'ppioStatus',
-    'taskId',
-    'generationId',
-    legacyParentFieldKey,
-    legacyParentDbKey
-  ])
-
-  const copiedEntries = Object.entries(record).filter(([key]) => !excludedKeys.has(key))
-  const params = Object.fromEntries(copiedEntries)
-
-  const maskFileId = getFileId(record.mask)
-  if (maskFileId) {
-    params.maskFileId = maskFileId
-  } else if (getNonEmptyString(record.ppioMask)) {
-    warnings.push('Dropped legacy PPIO mask because it only existed as inline base64 data')
-  }
-
-  const taskId = getNonEmptyString(record.taskId) ?? getNonEmptyString(record.generationId)
-  if (taskId) {
-    params.taskId = taskId
-  }
-
-  if (scope.mode === 'edit' && namespace !== 'dmxapi_paintings') {
-    params.editVariant = 'img2img'
-  }
-
-  if (namespace === 'dmxapi_paintings') {
-    const generationMode = getString(record.generationMode)
-    if (generationMode === 'edit') {
-      params.editVariant = 'img2img'
-    }
-  }
-
-  return omitUndefinedValues(params)
-}
-
 export function transformLegacyPaintingRecord(
   namespace: LegacyPaintingNamespace,
   record: LegacyPaintingRecord
@@ -309,15 +260,18 @@ export function transformLegacyPaintingRecord(
 
   const outputFileIds = getFileIds(record.files)
   const inputFileIds = buildInputFileIds(namespace, record, warnings)
-  const params = buildParams(namespace, record, scope, warnings)
   const prompt = getString(record.prompt) ?? ''
-  const hasTaskId = typeof params.taskId === 'string' && params.taskId.trim().length > 0
 
   if (isOpenAiCompatibleNamespace(namespace) && !getNonEmptyString(record.providerId)) {
     warnings.push('Defaulted missing OpenAI-compatible providerId to new-api')
   }
 
-  if (!prompt.trim() && outputFileIds.length === 0 && inputFileIds.length === 0 && !hasTaskId) {
+  // v2 painting row is a frozen receipt: prompt + output files are the only
+  // user-visible artefacts. Pending v1 tasks without a prompt or any file
+  // (taskId-only placeholders) carried no recoverable state once params/mode
+  // were dropped, so they are filtered out here. Edit-only records with input
+  // files but no output still pass — the input file is preserved as a ref.
+  if (!prompt.trim() && outputFileIds.length === 0 && inputFileIds.length === 0) {
     return {
       ok: false,
       reason: 'empty_placeholder',
@@ -331,12 +285,9 @@ export function transformLegacyPaintingRecord(
       id,
       providerId: scope.providerId,
       modelId: resolveLegacyPaintingModelId(record, scope, warnings),
-      mode: scope.mode,
-      mediaType: 'image',
-      prompt,
-      params,
-      files: { output: outputFileIds, input: inputFileIds }
+      prompt
     },
+    files: { output: outputFileIds, input: inputFileIds },
     warnings
   }
 }

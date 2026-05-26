@@ -1,14 +1,21 @@
 import type { GenerateImagesConfig } from '@google/genai'
 import type { FileMetadata } from '@renderer/types'
-import type { PaintingMediaType, PaintingMode } from '@shared/data/types/painting'
+import type { PaintingMode } from '@shared/data/types/painting'
 
 export type PaintingGenerationStatus = 'running' | 'failed' | 'canceled'
 
+/**
+ * Renderer-side painting draft / display state.
+ *
+ * Note: `mode` is a live form/draft concern only — the persisted painting
+ * record (Painting in @shared/data/types/painting) does NOT carry mode.
+ * `mediaType` is similarly not persisted; image vs video is derived from
+ * `files` at display time when needed.
+ */
 export interface PaintingDataBase {
   id: string
   providerId: string
   mode: PaintingMode
-  mediaType?: PaintingMediaType
   model?: string
   prompt: string
   files: FileMetadata[]

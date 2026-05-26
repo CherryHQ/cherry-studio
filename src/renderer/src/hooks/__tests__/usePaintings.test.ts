@@ -19,10 +19,7 @@ describe('usePaintings', () => {
     id: 'painting-1',
     providerId: 'silicon',
     modelId: 'model-1',
-    mode: 'generate',
-    mediaType: 'image',
     prompt: 'draw a cat',
-    params: { guidanceScale: 4.5 },
     files: { output: ['file-1'], input: [] },
     orderKey: 'a0',
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -39,7 +36,7 @@ describe('usePaintings', () => {
       total: 1
     })
 
-    const { result } = renderHook(() => usePaintings({ providerId: 'silicon', mode: 'generate' }))
+    const { result } = renderHook(() => usePaintings({ providerId: 'silicon' }))
 
     expect(result.current.records).toEqual([record])
     expect(result.current.total).toBe(1)
@@ -68,10 +65,7 @@ describe('usePaintings', () => {
       id: 'painting-1',
       providerId: 'silicon',
       modelId: 'model-1',
-      mode: 'generate',
-      mediaType: 'image',
       prompt: 'draw a cat',
-      params: { guidanceScale: 4.5 },
       files: { output: [], input: [] }
     }
     const updateDto: UpdatePaintingDto = {
@@ -96,14 +90,13 @@ describe('usePaintings', () => {
       total: 0
     })
 
-    renderHook(() => usePaintings({ providerId: 'silicon', mode: 'generate' }))
+    renderHook(() => usePaintings({ providerId: 'silicon' }))
 
     await waitFor(() => expect(mockUseQuery).toHaveBeenCalled())
 
     expect(mockUseQuery).toHaveBeenCalledWith('/paintings', {
       query: {
-        providerId: 'silicon',
-        mode: 'generate'
+        providerId: 'silicon'
       }
     })
   })

@@ -4,11 +4,8 @@ import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { Painting as PaintingRecord } from '@shared/data/types/painting'
 
 import type { PaintingData } from '../types/paintingData'
-import { cleanRuntime, readRuntime } from '../utils/paintingGenerationParams'
 
-const LEGACY_RUNTIME_PARAM_KEYS = new Set(['taskId', 'taskStatus', 'generationId', 'runtimeProviderId'])
-
-/** Maps DB `painting.model_id` or legacy params into the renderer's API model slug (never the user_model row id alone). */
+/** Maps DB `painting.model_id` into the renderer's API model slug (never the user_model row id alone). */
 function normalizeStoredPaintingModel(value: unknown): string | undefined {
   if (value == null) return undefined
   if (typeof value !== 'string') return undefined
@@ -30,38 +27,28 @@ async function resolveFiles(ids: string[]): Promise<FileMetadata[]> {
   )
 }
 
+/**
+ * Hydrate a persisted painting record (frozen receipt: prompt + files) into
+ * the renderer's PaintingData draft shape. The DB record carries no mode,
+ * mediaType, or params — those are live form-state concerns. The draft built
+ * here defaults `mode` to `'generate'` so callers that select a past painting
+ * land on the generate tab; the form will overwrite this when the user picks
+ * a different tab.
+ */
 export async function recordToPaintingData(record: PaintingRecord): Promise<PaintingData> {
   const files = await resolveFiles(record.files.output)
   const inputFiles = await resolveFiles(record.files.input)
 
-  let rawParams = { ...record.params }
-  const generationFields = readRuntime(rawParams)
-  rawParams = cleanRuntime(rawParams)
-
-  for (const key of LEGACY_RUNTIME_PARAM_KEYS) {
-    delete rawParams[key]
-  }
-
-  const paramModelCandidate =
-    normalizeStoredPaintingModel((rawParams as Record<string, unknown>).model) ??
-    normalizeStoredPaintingModel((rawParams as Record<string, unknown>).modelId)
-
-  delete (rawParams as Record<string, unknown>).model
-  delete (rawParams as Record<string, unknown>).modelId
-
-  const model = normalizeStoredPaintingModel(record.modelId) ?? paramModelCandidate
+  const model = normalizeStoredPaintingModel(record.modelId)
 
   return {
     id: record.id,
     providerId: record.providerId,
-    mode: record.mode,
-    mediaType: record.mediaType,
+    mode: 'generate',
     prompt: record.prompt,
     files,
     inputFiles,
     persistedAt: record.createdAt,
-    ...generationFields,
-    ...rawParams,
     model
   } as PaintingData
 }

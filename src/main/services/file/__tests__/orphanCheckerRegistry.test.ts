@@ -138,11 +138,7 @@ describe('orphanCheckerRegistry', () => {
       await dbh.db.insert(paintingTable).values({
         id,
         providerId: 'aihubmix',
-        mode: 'generate',
-        mediaType: 'image',
         prompt: 'p',
-        params: {},
-        files: { output: [], input: [] },
         orderKey: id
       })
     }
